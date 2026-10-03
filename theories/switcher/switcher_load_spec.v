@@ -4,7 +4,7 @@ From griotte Require Import rules_Allocator.
 From griotte Require Export call_stack.
 
 Section Switcher_Restore.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{!allocatorG Σ} `{MP : MachineParameters}.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
 
   (** Restore one saved register, borrowing its shadow entry from the allocator
       for this instruction only. Success exposes [load_heap], so subsequent
@@ -49,8 +49,7 @@ Section Switcher_Restore_Interp.
   Context
     {Σ : gFunctors} {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ}
-    {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP : MachineParameters}.
 
   Lemma switcher_shadow_restore_retained Wworld Wval C opened raw actual alloc_map R :

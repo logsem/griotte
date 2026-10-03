@@ -9,25 +9,25 @@ Section Stack_World_Resources.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
 
   (** ** Lemmas about [StackWorldResource], [StackWorldResources] and [StackOpenWorldResources] *)
 
   (* Length *)
-  Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
-    StackWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
+  Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lws : list LWord) :
+    StackWorldResources interp W C la lws -∗ ⌜ length la = length lws ⌝.
   Proof. iIntros "H"; iApply (big_sepL2_length with "H"). Qed.
 
 
   (* App *)
   Lemma StackWorldResources_app
-    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) (lv lv' : list Word) :
+    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) (lv lv' : list LWord) :
     length la = length lv ->
     StackWorldResources interp W C (la++la')( lv++lv' ) ⊣⊢
     (StackWorldResources interp W C la lv ∗
@@ -40,7 +40,7 @@ Section Stack_World_Resources.
 
 
   (* Zeroing *)
-  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
+  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) :
     StackWorldResource interp W C a v -∗
     StackWorldResource interp W C a (WInt 0).
   Proof.
@@ -53,9 +53,9 @@ Section Stack_World_Resources.
       ; iIntros (???) "!>H /="; iApply "Hzcond"; done.
   Qed.
 
-  Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
+  Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list LWord) :
     length lv' = length la ->
-    Forall (λ y : Word, y = WInt 0) lv' ->
+    Forall (λ y : LWord, y = WInt 0) lv' ->
     StackWorldResources interp W C la lv -∗
     StackWorldResources interp W C la lv'.
   Proof.
@@ -73,9 +73,9 @@ Section Stack_World_Resources.
     iApply (IHla lv lv'); eauto.
   Qed.
 
-  Lemma StackOpenWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
+  Lemma StackOpenWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list LWord) :
     length lv' = length la ->
-    Forall (λ y : Word, y = WInt 0) lv' ->
+    Forall (λ y : LWord, y = WInt 0) lv' ->
     StackOpenWorldResources interp W C la lv -∗
     StackOpenWorldResources interp W C la lv'.
   Proof.
@@ -89,11 +89,16 @@ Section Stack_World_Resources.
   Proof.
     iIntros "(%Pa & %pa & HPa & ? & ? & (?&?&Hrcond&?&%) & %)".
     iDestruct ("Hrcond" with "HPa") as "HPa'".
-    iEval (rewrite /interp_in_mem_pre /load_word) in "HPa'".
+    iEval (rewrite /interp_in_mem_pre) in "HPa'".
     destruct ( isDRO pa ) eqn:Hpa.
     { eapply isDRO_flowsto in Hpa; eauto; done. }
     destruct ( isDL pa ) eqn:Hpa'.
     { eapply isDL_flowsto in Hpa'; eauto; done. }
+    assert (lload_word pa w = w) as ->.
+    { destruct w as [w π]. by rewrite /lload_word /lift_word /= /load_word Hpa Hpa'. }
+    rewrite /interp_in_mem /= /interp_in_mem_pre.
+    assert (lload_word RWL w = w) as ->.
+    { destruct w as [w π]. by rewrite /lload_word /lift_word /= /load_word. }
     done.
   Qed.
 
@@ -108,7 +113,7 @@ Section Stack_World_Resources.
     iSplit; last done.
     iSplit.
     { iIntros (v) "!>".
-      iIntros (W0 W1 Hrelated Hwf) "Hinterp".
+      iIntros (W0 W1 Hrelated) "Hinterp".
       rewrite /=.
       iApply monotone.interp_in_mem_monotone; eauto.
     }
@@ -120,7 +125,7 @@ Section Stack_World_Resources.
 
   Lemma StackWorldResources_from_rel_stack W C la :
     ([∗ list] a ∈ la, rel C (LNonHeap a) RWL interp_in_memC) -∗
-    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
+    StackWorldResources interp W C la (replicate (length la) (lword_of_word (WInt 0))).
   Proof.
     induction la; [iIntros "H" | iIntros "[Ha H]"]; first done; cbn.
     iDestruct (IHla with "H") as "$".
@@ -139,7 +144,7 @@ Section Stack_World_Resources.
  *)
 
   Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
-    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
+    StackWorldResources interp W C la (replicate (length la) (lword_of_word (WInt 0))).
 
   Global Instance StackRevokedResources_Persistent W C la : Persistent (StackRevokedResources W C la).
   Proof. apply _. Qed.
@@ -165,7 +170,7 @@ Section Stack_World_Resources.
     iModIntro. iIntros (?????) "H".
     apply lookup_replicate in H0 as [-> ?].
     iDestruct "H" as "[%P [%p (HP&#Hmono&#Hrel&(#Hmono'&#Hzcond&#Hwcond&#Hrcond&%Hpers)&%Hp) ] ]"
-    ; pose proof (Hpers (W,C, WInt 0))
+    ; pose proof (Hpers (W,C, lword_of_word (WInt 0)))
     ; iDestruct "HP" as "#HP".
     iFrame "∗#%".
     iApply "Hzcond"; done.

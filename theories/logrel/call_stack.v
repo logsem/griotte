@@ -3,7 +3,7 @@ From iris.algebra Require Import excl_auth.
 From iris.base_logic Require Import own.
 From griotte Require Import griotte_lang.
 From griotte Require Export cerise_instance machine_parameters machine_word machine_base addresses.
-From griotte.program_logic Require Import allocator_resources.
+From griotte Require Export logical_words.
 
 
 (** The relationship between the caller and the callee determines
@@ -41,10 +41,10 @@ Definition is_known_to_known (r : caller_callee_relation) :=
     - [b_stk], [a_stk] and  [e_stk] records the bounds of the stack capability [csp],
     the (compartment) stack frame of the caller
 
-    The frame records the saved words, not their mutable shadow bits.
-    Each restored word satisfies [load_heap]: a heap capability may lose its
-    tag when loaded. The allocator owns the shadow entries, and their state
-    is not recorded on the call stack.
+    The frame records the saved logical words, with their identifiers, not
+    their mutable shadow bits. Each restored word satisfies [load_heap]: a
+    heap capability may lose its tag when loaded, and keeps its identifier.
+    The shadow state is not recorded on the call stack.
 
     Finally, [ccrel] tracks the caller-callee relationship.
     In case of know-to-known, we trust the caller and the callee to properly
@@ -57,10 +57,10 @@ Definition is_known_to_known (r : caller_callee_relation) :=
     More explanation in the switcher's invariant.
  **)
 Record cframe := MkCFrame {
-      wret : Word;
-      wcgp : Word;
-      wcs0 : Word;
-      wcs1 : Word;
+      wret : LWord;
+      wcgp : LWord;
+      wcs0 : LWord;
+      wcs1 : LWord;
       b_stk : Addr;
       a_stk : Addr;
       e_stk : Addr;
@@ -73,11 +73,10 @@ Record cframe := MkCFrame {
     by this relation: later instructions may change that state again.
     All other words, including untagged capabilities, are unchanged.
  **)
-Definition load_heap `{HeapRegion} (saved actual : Word) : Prop :=
-  actual = saved ∨ (is_heap_cap saved = true ∧ actual = clear_tag saved).
+Notation load_heap := lload_heap (only parsing).
 
-Lemma load_heap_nonheap `{HeapRegion} saved actual :
-  is_heap_cap saved = false -> load_heap saved actual -> actual = saved.
+Lemma load_heap_nonheap `{HeapRegion} (saved actual : LWord) :
+  is_heap_cap saved.(lw) = false -> load_heap saved actual -> actual = saved.
 Proof. intros Hheap [-> | [Hheap' ->]]; congruence. Qed.
 
 
@@ -108,7 +107,7 @@ Instance subG_CSTACK_preΣ {Σ} :
 Proof. solve_inG. Qed.
 
 Section CStack.
-  Context {Σ : gFunctors} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} .
+  Context {Σ : gFunctors} {cstackg : CSTACKG Σ}.
 
   Definition cstack_full (cstk : cstack) : iProp Σ
     := own γcstack (●E (cstk : leibnizO cstack) : cstackUR).

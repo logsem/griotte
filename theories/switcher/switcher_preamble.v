@@ -24,8 +24,8 @@ Section Switcher_preamble.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
@@ -80,8 +80,8 @@ Section Switcher_preamble.
           it makes the proofs more annoying, and we never rely on this information anyway.
    *)
   Program Definition execute_entry_point_register (wpcc wcgp wstk : Word) (nargs : nat) :
-    (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ) :=
-    λne (W : WORLD) (C : CmptName) (reg : leibnizO Reg),
+    (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ) :=
+    λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg
        ∧ ⌜ reg !! PC = Some wpcc ⌝
        ∧ ⌜ reg !! cgp = Some wcgp ⌝
@@ -175,7 +175,7 @@ Section Switcher_preamble.
       Similarly, [related_sts_priv_world].
    *)
   Program Definition ot_switcher_prop :
-    (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
+    (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ):=
     λne (W : WORLD) (C : CmptName) (w : Word),
        (∃ (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr)
           (bpcc epcc : Addr)

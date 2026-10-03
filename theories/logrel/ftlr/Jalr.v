@@ -11,36 +11,27 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
   Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
-  Implicit Types w : (leibnizO Word).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
-  Lemma insert_reg_commute regs r1 r2 w1 w2 :
-    r1 ≠ r2 ->
-    <[ r1 := w1 ]ᵣ> (<[ r2 := w2 ]ᵣ> regs) = <[ r2 := w2 ]ᵣ> (<[ r1 := w1 ]ᵣ> regs).
-  Proof.
-    intros Hneq.
-    rewrite /insert_reg.
-    apply insert_insert_ne; done.
-  Qed.
-
-  Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+  Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName):
+    (w : LWord) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName):
     ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -74,11 +65,12 @@ Section fundamental.
     }
 
     iApply wp_pure_step_later; auto.
+    rewrite (linsert_reg_not_cnull PC) // insert_insert_eq.
 
     destruct (decide (rdst = PC)) as [HPC_dst|HPC_dst]; simplify_eq.
     { iNext; iIntros "_".
       iApply (wp_bind (fill [SeqCtx])).
-      simplify_map_eq.
+      rewrite (linsert_reg_not_cnull PC) // insert_insert_eq.
       iExtract "Hmap" PC as "HPC".
       iApply (wp_notCorrectPC with "HPC"); first by inversion 1.
       iNext; iIntros "HPC /=".
@@ -86,12 +78,36 @@ Section fundamental.
       iApply wp_value; iIntros; discriminate.
     }
 
+    set (wret := if decide (rdst = cnull) then lnull else WSentry true p g b e pc_a' @@? None).
+    rewrite /linsert_reg (insert_insert_ne _ rdst PC) //.
+    iAssert (interp W C wret) as "#Hinterp_ret'".
+    { rewrite /wret.
+      destruct (decide (rdst = cnull)); [by iApply interp_untagged | iExact "Hinterp_ret"]. }
+    iClear "Hinterp_ret".
+
+    (* The new PC is the source word with the PC permission, and keeps its
+       identifier. *)
+    destruct wsrc as [wsrc πs].
+    rewrite /lupdatePcPerm /lift_word /=.
+    iAssert (interp W C (wsrc @@? πs)) as "#Hwsrc".
+    { destruct (decide (rsrc = PC)) as [->|HrsrcPC].
+      - rewrite llookup_reg_not_cnull // lookup_insert_eq in Hrsrc.
+        injection Hrsrc as <- <-. iExact "Hinv_interp".
+      - destruct (decide (rsrc = cnull)) as [->|Hnull].
+        + rewrite /llookup_reg in Hrsrc. apply bind_Some in Hrsrc as (? & _ & Hw).
+          injection Hw as <- <-. by iApply interp_untagged.
+        + rewrite llookup_reg_not_cnull // lookup_insert_ne // in Hrsrc.
+          iApply "Hreg"; eauto. }
+
+    iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+    iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+    { destruct ρ;auto;contradiction. }
+
     destruct (updatePcPerm wsrc) as
       [z | [t0 p0 g0 b0 e0 a0 | t0 sp0 g0 b0 e0 a0] | t0 p0 g0 b0 e0 a0 | ot sb]
       eqn:Hwsrc; cycle 1.
     { destruct t0; cycle 1.
       { iNext; iIntros "_".
-        rewrite insert_reg_commute //; simplify_map_eq.
         iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".
         iApply (wp_notCorrectPC_tag with "HPC"); first done.
@@ -101,7 +117,6 @@ Section fundamental.
       }
       destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
-        rewrite insert_reg_commute //; simplify_map_eq.
         iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".
         iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
@@ -110,43 +125,19 @@ Section fundamental.
         iApply wp_value; auto.
       }
 
-
       destruct_word wsrc; try destruct t; cbn in Hwsrc; try discriminate.
       { destruct c; inv Hwsrc.
         iNext ; iIntros "_".
-
-        iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-        iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-        { destruct ρ;auto;contradiction. }
-
-        rewrite !insert_reg_insert insert_reg_commute //.
-        iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry true p g b e pc_a']ᵣ> regs) with
-                 "[Halloc] [%] [] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
-        - intros; cbn.
-          rewrite lookup_insert_is_Some.
+        iApply ("IH" $! _ _ _ _ _ (<[rdst:=wret]> regs) with
+                 "[%] [] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
+        - intros; cbn. rewrite lookup_insert_is_Some.
           destruct (decide (rdst = x)); auto; right; split; auto.
         - iIntros (ri wi Hri Hregs_ri).
           destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
           * iApply ("Hreg" $! ri) ; auto.
-          * destruct (decide (rdst = cnull))
-            ; [iApply interp_int
-              | iFrame "Hinterp_ret"
-              ].
-        - destruct (decide (rsrc = PC)) as [HrsrcPC|HrsrcPC].
-          + simplify_map_eq; auto.
-          + simplify_map_eq.
-            assert (rsrc ≠ cnull); simplify_map_eq.
-            { intros ->; simplify_map_eq.
-              destruct (regs !! cnull) eqn:Heq; rewrite Heq in Hrsrc; cbn in *; try done. }
-            iDestruct ("Hreg" $! rsrc _ HrsrcPC Hrsrc) as "Hrsrc"; eauto.
+          * iExact "Hinterp_ret'".
       }
-      assert (rsrc <> PC) as HPCnrsrc.
-      { intro; subst rsrc; simplify_map_eq. }
-      simplify_map_eq.
-      assert (rsrc ≠ cnull); simplify_map_eq.
-      { intros ->; simplify_map_eq.
-        destruct (regs !! cnull) eqn:Heq; rewrite Heq in Hrsrc; cbn in *; try done. }
-      iDestruct ("Hreg" $! rsrc _ HPCnrsrc Hrsrc) as "Hwsrc".
+      inv Hwsrc.
       iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
       simpl; rewrite /enter_cond.
       iDestruct "Hwsrc" as "[%Hnonheap #Hinterp_src]".
@@ -155,29 +146,21 @@ Section fundamental.
       iSpecialize ("Hinterp_src" with "Hfuture").
       pose proof (LocalityFlowsToReflexive g0) as Hg0.
       iSpecialize ("Hinterp_src" $! g0 Hg0).
-
-      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-      { destruct ρ;auto;contradiction. }
-
-      rewrite !insert_reg_insert insert_reg_commute //.
-      iDestruct ("Hinterp_src" with "[$Halloc] [$Hmap $Hworld_interp $Htframe $Hown $Hcont]") as "HA"; eauto.
-      iNext.
-      repeat (cbn; iSplit; auto).
+      iNext. iIntros "_".
+      iApply ("Hinterp_src" $! cstk Ws Cs (<[rdst:=wret]> regs)
+               with "[$Hmap $Hworld_interp $Htframe $Hown $Hcont]").
+      iSplit; last done.
+      iSplit.
       + iIntros (ri); cbn; iPureIntro.
         rewrite lookup_insert_is_Some.
         destruct (decide (rdst = ri)); auto; right; split; auto.
       + iIntros (ri wi Hri Hregs_ri).
         destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
         * iApply ("Hreg" $! ri) ; auto.
-        * destruct (decide (rdst = cnull))
-          ; [iApply interp_int
-            | iFrame "Hinterp_ret"
-            ].
+        * iExact "Hinterp_ret'".
     }
 
     (* Non-capability cases *)
-    all: rewrite insert_reg_commute //; simplify_map_eq.
     all: iExtract "Hmap" PC as "HPC".
     all: iNext; iIntros "_".
     all: iApply (wp_bind (fill [SeqCtx])).

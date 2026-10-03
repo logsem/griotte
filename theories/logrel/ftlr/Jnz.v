@@ -11,26 +11,26 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
-  Implicit Types w : (leibnizO Word).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-  Lemma jnz_case (W : WORLD) (C : CmptName)  (regs : leibnizO Reg)
+  Lemma jnz_case (W : WORLD) (C : CmptName)  (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rimm : Z + RegName) (rcond : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    (w : LWord) (ρ : region_type) (rimm : Z + RegName) (rcond : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (Jnz rimm rcond) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -57,12 +57,12 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     map_simpl "Hmap".
-    incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
+    incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&π0&?&Ha0'&?); simplify_map_eq.
     rewrite insert_insert_eq.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
@@ -70,8 +70,8 @@ Section fundamental.
     iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
     { destruct ρ;auto;contradiction. }
 
-    iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]") ; eauto.
-    iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
+    iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]") ; eauto.
+    iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
   Qed.
 
 End fundamental.

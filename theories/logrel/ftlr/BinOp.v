@@ -13,20 +13,20 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
-  Implicit Types w : (leibnizO Word).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-  Lemma WorldRes_acc (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) Φ (w : Word) ρ :
+  Lemma WorldRes_acc (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) Φ (w : LWord) ρ :
     WorldRes W C a p Φ w ρ -∗
     ( a ↦ₐ w ∗ Φ (W,C,w) ) ∗
     ( ( a ↦ₐ w ∗ Φ (W,C,w) ) -∗ WorldRes W C a p Φ w ρ ).
@@ -37,22 +37,22 @@ Section fundamental.
   Qed.
 
 
-  Lemma binop_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg) (p p' : Perm)
-    (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName)
+  Lemma binop_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg) (p p' : Perm)
+    (g : Locality) (b e a : Addr) (w : LWord) (ρ : region_type) (dst : RegName)
     (r1 r2: Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr_base W C regs p p' g b e a w ρ P
-      (decodeInstrW w = Add dst r1 r2 \/
-       decodeInstrW w = Sub dst r1 r2 \/
-       decodeInstrW w = Mul dst r1 r2 \/
-       decodeInstrW w = LAnd dst r1 r2 \/
-       decodeInstrW w = LOr dst r1 r2 \/
-       decodeInstrW w = LShiftL dst r1 r2 \/
-       decodeInstrW w = LShiftR dst r1 r2 \/
-       decodeInstrW w = Lt dst r1 r2
+      (decodeInstrW w.(lw) = Add dst r1 r2 \/
+       decodeInstrW w.(lw) = Sub dst r1 r2 \/
+       decodeInstrW w.(lw) = Mul dst r1 r2 \/
+       decodeInstrW w.(lw) = LAnd dst r1 r2 \/
+       decodeInstrW w.(lw) = LOr dst r1 r2 \/
+       decodeInstrW w.(lw) = LShiftL dst r1 r2 \/
+       decodeInstrW w.(lw) = LShiftR dst r1 r2 \/
+       decodeInstrW w.(lw) = Lt dst r1 r2
       ) cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -76,9 +76,7 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      assert (is_Some (<[dst:=WInt (rules_BinOp.denote (decodeInstrW w) n1 n2)]> (<[PC:=WCap true x0 x1 x2 x3 x4]> regs) !! csp)) as [??].
-      { destruct (decide (dst = csp)); simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
       ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).

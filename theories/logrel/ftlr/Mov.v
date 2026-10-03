@@ -12,26 +12,26 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
-  Implicit Types w : (leibnizO Word).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-   Lemma mov_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+   Lemma mov_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
      (p p' : Perm) (g : Locality) (b e a : Addr)
-     (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+     (w : LWord) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (Mov dst src) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -46,7 +46,7 @@ Section fundamental.
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
-    - incrementPC_inv as (t0 & p0 & g0 & b0 & e0 & a0 & a0' & ? & ? & ?); simplify_map_eq.
+    - incrementPC_inv as (t0 & p0 & g0 & b0 & e0 & a0 & a0' & π0 & ? & ? & ?); simplify_map_eq.
       iApply wp_pure_step_later; auto; iNext; iIntros "_".
 
       destruct (decide (dst = PC)) as [HdstPC|HdstPC]; simplify_map_eq.
@@ -59,14 +59,16 @@ Section fundamental.
 
         destruct (decide (r = PC)).
         { simplify_map_eq.
-          iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+          iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
           iApply (interp_next_PC with "Hinv_interp"); eauto.
         }
         simplify_map_eq.
         assert (r ≠ cnull); simplify_map_eq.
         { intros ->; simplify_map_eq.
           destruct (regs !! cnull) eqn:Heq; rewrite Heq in H; cbn in *; try done. }
-        iDestruct ("Hreg" $! r (WCap t0 p0 g0 b0 e0 a0) n H ) as "Hr0".
+        apply bind_Some in H as (wr & Hr & Hwr).
+        case_decide; first done. simplify_eq.
+        iDestruct ("Hreg" $! r _ n Hr) as "Hr0".
         destruct t0; cycle 1.
         { iApply (wp_bind (fill [SeqCtx])).
           iExtract "Hmap" PC as "HPC".
@@ -84,8 +86,8 @@ Section fundamental.
           iApply wp_value;auto.
         }
 
-        iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
-        iApply (interp_weakening with "IH Hr0"); eauto; try reflexivity; try solve_addr.
+        iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        iApply (interp_weakening with "IH Hr0"); eauto; try reflexivity; try solve_addr; try apply subseg_heap_base_same.
       }
       { map_simpl "Hmap".
 
@@ -93,25 +95,19 @@ Section fundamental.
         iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
         { destruct ρ;auto;contradiction. }
 
-        assert (is_Some (<[dst:=w0]> regs !! csp)) as [??].
-        { destruct (decide (dst = csp));simplify_map_eq =>//. }
-        iApply ("IH" $! _ _ _ _ _ (<[dst:=w0]ᵣ> _) with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
-        - intros; simpl.
-          rewrite lookup_insert_is_Some.
-          destruct (decide (dst = x0)); auto; right; split; auto.
-          destruct (decide (PC = x0)); auto; simplify_map_eq; done.
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=if decide (dst = cnull) then lnull else w0]> _) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        - intros x; rewrite lookup_insert_is_Some'; right; apply Hsome.
         - iIntros (ri wi Hri Hregs_ri).
           destruct (decide (ri = dst)); simplify_map_eq.
           + (* ri = dst *)
-            destruct (decide (dst = cnull)); [iApply interp_int|].
-            destruct src; simplify_map_eq.
-            * repeat rewrite fixpoint_interp1_eq; auto.
-            * destruct (decide (PC = r)); simplify_map_eq; first done.
-              destruct (decide (cnull = r)); simplify_map_eq.
-              { destruct (regs !! cnull) eqn:Hr; simplify_map_eq; iApply interp_int. }
-              iApply ("Hreg" $! r) ; auto.
+            destruct (decide (dst = cnull)); [by iApply interp_untagged|].
+            destruct src; simplify_map_eq; [by iApply interp_untagged|].
+            destruct (decide (PC = r)); simplify_map_eq; [done|].
+            apply bind_Some in H as (wr & Hr & Hwr).
+            destruct (decide (r = cnull)); simplify_eq; [by iApply interp_untagged|].
+            iApply ("Hreg" $! r) ; auto.
           + iApply ("Hreg" $! ri) ; auto.
-      - iApply (interp_next_PC with "[Hinv_interp]"); eauto.
+        - iApply (interp_next_PC with "[Hinv_interp]"); eauto.
       }
   Qed.
 

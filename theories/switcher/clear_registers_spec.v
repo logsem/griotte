@@ -15,7 +15,7 @@ Section ClearRegistersMacro.
     {ceriseg:ceriseG Σ}
     {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
 
