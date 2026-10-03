@@ -35,7 +35,7 @@ Section SO.
       (Wbase Wcur : WORLD) (l : list LAddr) :
     heap_std Wbase = heap_std Wcur ->
     Forall
-      (fun a => heap_addr_status (heap_std Wbase) (laddr_addr a) = Some AllocObjectQuarantined)
+      (fun a => heap_key_status (heap_std Wbase) a = Some AllocObjectQuarantined)
       l ->
     world_interp Wcur C ∗ RevokedResources Wbase C l
     ==∗
@@ -43,7 +43,7 @@ Section SO.
   Proof.
     intros Hheap Hq.
     assert (Forall
-      (fun a => heap_addr_status (heap_std (close_list l Wcur)) (laddr_addr a) =
+      (fun a => heap_key_status (heap_std (close_list l Wcur)) a =
         Some AllocObjectQuarantined) l) as Hq_closed.
     { rewrite close_list_heap -Hheap. exact Hq. }
     rewrite (RevokedResources_quarantined Wbase C l Hq).
@@ -57,7 +57,7 @@ Section SO.
     Forall (fun a => a ∈ dom (std W)) l ->
     world_interp W C -∗
     world_interp W C ∗
-      ⌜Forall (fun a => is_Some (heap_addr_status (heap_std W) (laddr_addr a))) l⌝.
+      ⌜Forall (fun a => is_Some (heap_key_status (heap_std W) a)) l⌝.
   Proof.
     intros Hdom.
     rewrite world_interp_eq /world_interp_def.
@@ -279,7 +279,7 @@ Section SO.
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
+    { iApply (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp_W0_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
@@ -300,28 +300,28 @@ Section SO.
     set (l_revoked_W0_no_be :=
       so_revoked_without_object W0 b e l_revoked_W0).
 
-    assert (LNonHeap <$> la_be_temporaries ⊆ l_revoked_W0) as Htemps_subset.
+    assert (addr_key W0 <$> la_be_temporaries ⊆ l_revoked_W0) as Htemps_subset.
     { intros x Hx.
       apply list_elem_of_fmap in Hx as [x' [-> Hx] ].
       subst la_be_temporaries.
       apply list_elem_of_filter in Hx as [Hx Hx_be].
-      apply (Hl_revoked_W0_temporaries (LNonHeap x')) in Hx.
+      apply (Hl_revoked_W0_temporaries (addr_key W0 x')) in Hx.
       apply elem_of_app in Hx as [Hx|Hx]; first done.
-      apply elem_of_LNonHeap_fmap in Hx.
+      apply addr_key_elem_of_LNonHeap_fmap in Hx.
       rewrite elem_of_disjoint in Hno_overlap.
       exfalso; eapply Hno_overlap; eauto.
     }
     assert (
-      LNonHeap <$> la_be_temporaries
-        ≡ₚ filter (fun a => a ∈ LNonHeap <$> la_be_temporaries) l_revoked_W0
+      addr_key W0 <$> la_be_temporaries
+        ≡ₚ filter (fun a => a ∈ addr_key W0 <$> la_be_temporaries) l_revoked_W0
     ) as Hla_be_temporaries_l.
     { apply NoDup_subset_filter_membership.
-      - apply NoDup_LNonHeap_fmap, so_object_temporaries_NoDup.
+      - apply NoDup_addr_key_fmap, so_object_temporaries_NoDup.
       - apply NoDup_app in Hl_revoked_W0_nodup as [? _]. done.
       - exact Htemps_subset.
     }
     assert (
-      l_revoked_W0 ≡ₚ (LNonHeap <$> la_be_temporaries) ++ l_revoked_W0_no_be
+      l_revoked_W0 ≡ₚ (addr_key W0 <$> la_be_temporaries) ++ l_revoked_W0_no_be
     ) as Hl_wca0_l'.
     { subst l_revoked_W0_no_be.
       rewrite {1}Hla_be_temporaries_l.
@@ -329,14 +329,14 @@ Section SO.
     }
     assert (
       Forall
-        (fun a => std (revoke W0) !! LNonHeap a = Some Revoked)
+        (fun a => std (revoke W0) !! addr_key W0 a = Some Revoked)
         la_be_temporaries
     ) as Hrevoked_la_be_temporaries.
     { apply Forall_forall. intros x Hx.
       apply revoke_lookup_Monotemp.
       apply Hl_revoked_W0_temporaries.
       apply elem_of_app; left.
-      by apply Htemps_subset.
+      apply Htemps_subset. by apply list_elem_of_fmap_2.
     }
     assert (
       finz.seq_between csp_b csp_e ## la_be_temporaries
@@ -380,7 +380,7 @@ Section SO.
               & %Hwca0_lvs_ints & Hcode & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    set (W2 := close_list (LNonHeap <$> la_be_temporaries) W1).
+    set (W2 := close_list (addr_key W0 <$> la_be_temporaries) W1).
     iDestruct "Hlc" as "[Hlc_restore Hlc]".
     (* Close the world from the opened addresses [la_be_permanents]. *)
     iMod ("Hrestore_wca0" with "[$Hwca0_lvs $Hlc_restore]")
@@ -535,7 +535,7 @@ Section SO.
       * subst W1; cbn. apply revoke_lookup_Monotemp. exact Ha_stk1_W0.
       * subst la_be_temporaries.
         intro Ha'.
-        apply elem_of_LNonHeap_fmap in Ha'.
+        apply LNonHeap_elem_of_addr_key_fmap in Ha'.
         rewrite elem_of_disjoint in Hstack_temps_disjoint.
         eapply Hstack_temps_disjoint; eauto.
         apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
@@ -609,7 +609,7 @@ Section SO.
            solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size. }
       rewrite close_list_lookup_not_in.
       2: { intro Hx'.
-           apply elem_of_LNonHeap_fmap in Hx'.
+           apply LNonHeap_elem_of_addr_key_fmap in Hx'.
            apply Hstack_temps_disjoint in Hx'; first done.
            apply elem_of_finz_seq_between in Hx.
            apply elem_of_finz_seq_between.
@@ -732,16 +732,10 @@ Section SO.
       as "(Hworld_interp_C & Hrevoked_l_revoked_W0_live
           & %Hrevoked_l_revoked_W0_live_W5)"; eauto.
 
-    iMod (world_interp_revoked_by_separation with "[$Hastk0 $Hworld_interp_C]")
+    iMod (world_interp_revoked_by_separation W5 C (LNonHeap csp_b)
+      with "[$Hastk0 $Hworld_interp_C]")
       as "(Hworld_interp_C & Hastk0 & %Hastk0_W5)".
-    { apply heap_addr_live_nonheap.
-      apply not_true_is_false. intro Hheap.
-      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
-      eapply (Hstk_heap csp_b).
-      - apply elem_of_finz_seq_between; done.
-      - apply elem_of_finz_seq_between.
-        apply withinBounds_true_iff; exact Hheap.
-    }
+    { apply heap_key_live_nonheap. }
     {
       rewrite -revoke_dom_eq.
       eapply elem_of_mono_pub; eauto.

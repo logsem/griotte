@@ -19,7 +19,7 @@ Section HTS_Spec_Dangling.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -68,10 +68,10 @@ Section HTS_Spec_Dangling.
       (* Halt. *)
       iInstr "Hblock".
       wp_end. by iIntros (?). }
-    iDestruct "Hok" as (b Wret) "(%Hbounds & %Hstk_nonempty & %Hwf_rev
+    iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty & %Hwf_rev
       & %Hb_lookup & %Hstd_rev & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
       & [%stk Hstk] & Hworld_open & Hstate_b & Hstack_revoked_ret
-      & %Hstack_revoked_ret & HK & Hreclaimed)".
+      & %Hstack_revoked_ret & HK & #Hquar)".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp)".
     iDestruct "Himports" as
@@ -94,15 +94,15 @@ Section HTS_Spec_Dangling.
 
     (* Quarantine b in the world and close its world entry. The dangling
        saved alias remains private. *)
-    iMod (hts_world_quarantine C _ b Wret Hbounds Hwf_rev Hb_lookup Hstd_rev
-      with "Hrel_b Hstate_b Hreclaimed Hworld_open") as "Hworld".
-    iDestruct (StackRevokedResources_mono_priv Wret (hts_Wfree Wret b) C
-      (finz.seq_between (csp_b ^+ 1)%a csp_e) (hts_Wfree_related Wret b)
+    iMod (hts_world_quarantine C _ ι b Wret Hbounds Hwf_rev Hb_lookup Hstd_rev
+      with "Hrel_b Hstate_b Hquar Hworld_open") as "Hworld".
+    iDestruct (StackRevokedResources_mono_priv Wret (hts_Wfree Wret ι) C
+      (finz.seq_between (csp_b ^+ 1)%a csp_e) (hts_Wfree_related Wret ι)
       with "Hstack_revoked_ret") as "Hstack_revoked_free".
-    assert (revoked_addresses (hts_Wfree Wret b)
+    assert (revoked_addresses (hts_Wfree Wret ι)
       (finz.seq_between (csp_b ^+ 1)%a csp_e)) as Hstack_revoked_free.
     { rewrite /hts_Wfree /revoked_addresses /=. exact Hstack_revoked_ret. }
-    iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wfree Wret b)
+    iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wfree Wret ι)
       Hadv_nonheap with "Hadv") as "#Hinterp_adv_free".
 
     (* Block 16: clear the second adversary argument. *)
@@ -167,7 +167,7 @@ Section HTS_Spec_Dangling.
     { rewrite /hts_block_addr. solve_addr. }
     clear Ha_free_result Ha_zero Ha_fetch17 Ha_fetch18.
 
-    iAssert (interp (hts_Wfree Wret b) C (WInt 0)) as "#Hinterp_zero".
+    iAssert (interp (hts_Wfree Wret ι) C (WInt 0)) as "#Hinterp_zero".
     { iApply interp_int. }
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
       ["[Hca2 %Hwca2]";"[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]"].
@@ -177,7 +177,7 @@ Section HTS_Spec_Dangling.
       ca5 := WInt 0; ct0 := WInt 0]} : Reg)).
     iAssert ([∗ map] rarg↦warg ∈ adv_arg,
       rarg ↦ᵣ warg ∗ if decide (rarg ∈ dom_arg_rmap 1)
-        then interp (hts_Wfree Wret b) C warg else True)%I
+        then interp (hts_Wfree Wret ι) C warg else True)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hadv_arg".
     { subst adv_arg.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
@@ -188,7 +188,7 @@ Section HTS_Spec_Dangling.
       (<[ctp:=WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap)))))))).
-    iApply (switcher_cc_specification Nswitcher (hts_Wfree Wret b) C
+    iApply (switcher_cc_specification Nswitcher (hts_Wfree Wret ι) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_advcall2 ^+ 1)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f stk

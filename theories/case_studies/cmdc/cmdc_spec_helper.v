@@ -178,6 +178,7 @@ Section CMDC_Call_Phase.
       rewrite (finz_seq_between_empty (shared_addr ^+ 1)%a);
         last solve_addr+Hshared_addr_e.
       iApply big_sepL_singleton.
+      rewrite (addr_key_nonheap _ shared_addr Hshared_heap).
       iExists RW, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.

@@ -24,6 +24,20 @@ Section fundamental.
   Definition validPCperm (p : Perm) (g : Locality) :=
     executeAllowed p = true ∧ (isWL p = true -> g = Local).
 
+  (** An executable PC never points into the heap, so its region key is non-heap. *)
+  Lemma interp_pc_addr_key W C p g b e a :
+    isCorrectPC (WCap true p g b e a) ->
+    interp W C (WCap true p g b e a) -∗
+    ⌜addr_key W a = LNonHeap a⌝.
+  Proof.
+    iIntros (Hpc) "Hinterp".
+    iDestruct (interp_cap_disjoint with "Hinterp") as %[_ Hdisjoint].
+    { by inversion Hpc. }
+    iPureIntro. apply (addr_key_disjoint W b e a Hdisjoint).
+    apply elem_of_finz_seq_between, withinBounds_true_iff.
+    exact (isCorrectPC_withinBounds true p g b e a Hpc).
+  Qed.
+
   Definition ftlr_IH: iProp Σ :=
     (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (r_ih : leibnizO Reg)
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
@@ -68,7 +82,7 @@ Section fundamental.
     -∗ ▷ WorldRes W C a p' (safeC P) w ρ
     -∗ interp_continuation cstk Ws Cs
     -∗ ⌜frame_match Ws Cs cstk W C⌝
-    -∗ world_interp_open W C [a]
+    -∗ world_interp_open W C [LNonHeap a]
     -∗ na_own cerise_nais ⊤
     -∗ cstack_frag cstk
     -∗ sts_state_std C (LNonHeap a) ρ

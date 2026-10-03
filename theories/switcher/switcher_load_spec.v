@@ -53,18 +53,18 @@ Section Switcher_Restore_Interp.
     {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP : MachineParameters}.
 
-  Lemma switcher_shadow_restore_retained Wworld Wval C opened raw actual alloc_map :
-    Forall (heap_addr_live (heap_std Wworld)) opened ->
+  Lemma switcher_shadow_restore_retained Wworld Wval C opened raw actual alloc_map R :
     heap_std Wworld = heap_std Wval ->
     dom alloc_map = heap_addresses ->
+    allocator_registry_coherent R alloc_map ->
     load_memory_shadow_observation (shadow_status <$> alloc_map) RWL raw actual ->
     world_interp_open Wworld C opened -∗
-    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s) -∗
+    reg_auth R -∗
     ⌜filter_heap Wval actual = actual⌝ ∗
     world_interp_open Wworld C opened ∗
-    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s).
+    reg_auth R.
   Proof.
-    iIntros (Hlive Hheap_eq Hdom Hobs) "Hworld Hentries".
+    iIntros (Hheap_eq Hdom Hcoh Hobs) "Hworld HR".
     destruct (heap_cap_base raw) as [base|] eqn:Hbase; cycle 1.
     { rewrite /load_memory_shadow_observation Hbase in Hobs. subst actual.
       assert (heap_authority_base raw = None) as Hauth.
@@ -84,57 +84,28 @@ Section Switcher_Restore_Interp.
     assert ((shadow_status <$> alloc_map) !! base = Some (shadow_status s))
       as Hshadow_lookup by (rewrite lookup_fmap Hlookup; reflexivity).
     specialize (Hobs Hshadow_lookup).
-    destruct s.
-    - simpl in Hobs. subst actual.
-      destruct (heap_authority_base raw) as [b|] eqn:Hauth; last first.
-      { iFrame. iPureIntro. by apply filter_heap_nonheap. }
-      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
-      rewrite Hbase in Hcap. inversion Hcap; subst b.
-      destruct (heap_lookup_addr (heap_std Wval) base) as [bo|] eqn:Hheaplookup;
-        last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
-      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
-      { iFrame. iPureIntro. by rewrite /filter_heap Hauth Hheaplookup /= Hstatus. }
-      assert (heap_addr_status (heap_std Wworld) base = Some AllocObjectQuarantined)
-        as Hqstatus by (rewrite Hheap_eq /heap_addr_status Hheap Hheaplookup /= Hstatus; reflexivity).
-      assert (base ∉ opened) as Hnotpc.
-      { intros Hbase_in. apply list_elem_of_In in Hbase_in.
-        rewrite Forall_forall in Hlive.
-        specialize (Hlive base Hbase_in). unfold heap_addr_live in Hlive.
-        rewrite Hqstatus in Hlive. discriminate. }
-      iDestruct (world_interp_open_quarantined_token with "Hworld")
-        as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
-      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
-      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
-        as %Himpossible. discriminate Himpossible.
-    - simpl in Hobs. subst actual.
-      destruct (heap_authority_base raw) as [b|] eqn:Hauth; last first.
-      { iFrame. iPureIntro. by apply filter_heap_nonheap. }
-      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
-      rewrite Hbase in Hcap. inversion Hcap; subst b.
-      destruct (heap_lookup_addr (heap_std Wval) base) as [bo|] eqn:Hheaplookup;
-        last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
-      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
-      { iFrame. iPureIntro. by rewrite /filter_heap Hauth Hheaplookup /= Hstatus. }
-      assert (heap_addr_status (heap_std Wworld) base = Some AllocObjectQuarantined)
-        as Hqstatus by (rewrite Hheap_eq /heap_addr_status Hheap Hheaplookup /= Hstatus; reflexivity).
-      assert (base ∉ opened) as Hnotpc.
-      { intros Hbase_in. apply list_elem_of_In in Hbase_in.
-        rewrite Forall_forall in Hlive.
-        specialize (Hlive base Hbase_in). unfold heap_addr_live in Hlive.
-        rewrite Hqstatus in Hlive. discriminate. }
-      iDestruct (world_interp_open_quarantined_token with "Hworld")
-        as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
-      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
-      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
-        as %Himpossible. discriminate Himpossible.
-    - simpl in Hobs. subst actual.
-      iFrame. iPureIntro. apply filter_heap_untagged, get_tag_clear_tag.
+    destruct s; last first.
+    { simpl in Hobs. subst actual.
+      iFrame. iPureIntro. apply filter_heap_untagged, get_tag_clear_tag. }
+    all: simpl in Hobs; subst actual.
+    all: destruct (heap_authority_base raw) as [b|] eqn:Hauth; last first.
+    all: try (iFrame; iPureIntro; by apply filter_heap_nonheap).
+    all: pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
+    all: rewrite Hbase in Hcap; inversion Hcap; subst b.
+    all: destruct (heap_lookup_addr (heap_std Wval) base) as [bo|] eqn:Hheaplookup;
+      last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
+    all: destruct bo as [ι obj]; destruct (alloc_object_status obj) eqn:Hstatus.
+    all: try (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup /= Hstatus).
+    all: apply heap_lookup_addr_sound in Hheaplookup as [Hι Hcontains].
+    all: rewrite -Hheap_eq in Hι.
+    all: iDestruct (world_quarantined_shadow with "Hworld HR") as %Hq;
+      [exact Hι|exact Hstatus|exact Hcoh|].
+    all: specialize (Hq _ Hcontains); congruence.
   Qed.
 
   Lemma switcher_load_stack_restore_world E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src wi wd b e a raw :
     heap_std Wworld = heap_std Wval ->
-    Forall (heap_addr_live (heap_std Wworld)) opened ->
     ↑Nallocator ⊆ E ->
     is_shadow_address a = false ->
     decodeInstrW wi = Load dst src 0 ->
@@ -152,11 +123,11 @@ Section Switcher_Restore_Interp.
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
   Proof.
-    iIntros (Hheap_eq Hlive HE Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
+    iIntros (Hheap_eq HE Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld & #Halloc) HΦ".
     destruct (heap_cap_base raw) as [base|] eqn:Hbase.
     - iInv Nallocator as ">Halloc_body" "Halloc_close".
-      iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
+      iDestruct "Halloc_body" as (alloc_map R Halloc_dom Hcoh) "[Halloc_entries HR]".
       assert (is_Some (alloc_map !! base)) as [status Hlookup].
       { apply elem_of_dom. rewrite Halloc_dom elem_of_heap_addresses.
         unfold heap_cap_base in Hbase.
@@ -173,15 +144,15 @@ Section Switcher_Restore_Interp.
           with "[Hstatus Hstatus_res Halloc_entries]" as "Halloc_entries".
         { iApply big_sepM_delete; first exact Hlookup.
           iFrame. rewrite /allocator_entry Hstatus_eq. iFrame. }
-        iDestruct (switcher_shadow_restore_retained Wworld Wval C opened raw raw alloc_map
-          with "Hworld Halloc_entries")
-          as "(%Hretained & Hworld & Halloc_entries)";
-          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+        iDestruct (switcher_shadow_restore_retained Wworld Wval C opened raw raw alloc_map R
+          with "Hworld HR")
+          as "(%Hretained & Hworld & HR)";
+          [exact Hheap_eq|exact Halloc_dom|exact Hcoh| |].
         { unfold load_memory_shadow_observation. rewrite Hbase.
           intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
           inversion Hobserved; subst. by rewrite Hstatus_eq. }
-        iMod ("Halloc_close" with "[Halloc_entries]") as "_".
-        { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+        iMod ("Halloc_close" with "[Halloc_entries HR]") as "_".
+        { iNext. iExists alloc_map, R. by iFrame "∗%". }
         iModIntro. iApply "HΦ". iFrame.
         iPureIntro. split; first by left. exact Hretained.
       + iApply (wp_load_success_heap_word_revoked with
@@ -192,14 +163,14 @@ Section Switcher_Restore_Interp.
         { iApply big_sepM_delete; first exact Hlookup.
           iFrame. rewrite /allocator_entry Hstatus_eq. iFrame. }
         iDestruct (switcher_shadow_restore_retained Wworld Wval C opened raw
-          (clear_tag raw) alloc_map with "Hworld Halloc_entries")
-          as "(%Hretained & Hworld & Halloc_entries)";
-          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+          (clear_tag raw) alloc_map R with "Hworld HR")
+          as "(%Hretained & Hworld & HR)";
+          [exact Hheap_eq|exact Halloc_dom|exact Hcoh| |].
         { unfold load_memory_shadow_observation. rewrite Hbase.
           intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
           inversion Hobserved; subst. by rewrite Hstatus_eq. }
-        iMod ("Halloc_close" with "[Halloc_entries]") as "_".
-        { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+        iMod ("Halloc_close" with "[Halloc_entries HR]") as "_".
+        { iNext. iExists alloc_map, R. by iFrame "∗%". }
         iModIntro. iApply "HΦ". iFrame.
         iPureIntro. split; last exact Hretained.
         right. split; last done. unfold is_heap_cap. by rewrite Hbase.
@@ -218,7 +189,6 @@ Section Switcher_Restore_Interp.
   Lemma switcher_load_stack_restore_interp E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src wi wd b e a raw :
     heap_std Wworld = heap_std Wval ->
-    Forall (heap_addr_live (heap_std Wworld)) opened ->
     ↑Nallocator ⊆ E ->
     is_shadow_address a = false ->
     decodeInstrW wi = Load dst src 0 ->
@@ -236,11 +206,11 @@ Section Switcher_Restore_Interp.
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.
-    iIntros (Hheap_eq Hlive HE Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
+    iIntros (Hheap_eq HE Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld & #Hnormal & #Halloc) HΦ".
     destruct (heap_cap_base raw) as [base|] eqn:Hbase.
     - iInv Nallocator as ">Halloc_body" "Halloc_close".
-      iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
+      iDestruct "Halloc_body" as (alloc_map R Halloc_dom Hcoh) "[Halloc_entries HR]".
       assert (is_Some (alloc_map !! base)) as [status Hlookup].
       { apply elem_of_dom. rewrite Halloc_dom elem_of_heap_addresses.
         unfold heap_cap_base in Hbase.
@@ -257,22 +227,22 @@ Section Switcher_Restore_Interp.
           with "[Hstatus Hstatus_res Halloc_entries]" as "Halloc_entries".
         { iApply big_sepM_delete; first exact Hlookup.
           iFrame. rewrite /allocator_entry Hstatus_eq. iFrame. }
-        iDestruct (interp_in_mem_shadow_result_gen Wworld Wval C opened RWL raw raw alloc_map
-          with "Hworld Halloc_entries Hnormal")
-          as "(#Hactual & Hworld & Halloc_entries)";
-          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+        iDestruct (interp_in_mem_shadow_result_gen Wworld Wval C opened RWL raw raw alloc_map R
+          with "Hworld HR Hnormal")
+          as "(#Hactual & Hworld & HR)";
+          [exact Hheap_eq|exact Halloc_dom|exact Hcoh| |].
         { unfold load_memory_shadow_observation. rewrite Hbase.
           intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
           inversion Hobserved; subst. by rewrite Hstatus_eq. }
-        iDestruct (switcher_shadow_restore_retained Wworld Wval C opened raw raw alloc_map
-          with "Hworld Halloc_entries")
-          as "(%Hfilter & Hworld & Halloc_entries)";
-          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+        iDestruct (switcher_shadow_restore_retained Wworld Wval C opened raw raw alloc_map R
+          with "Hworld HR")
+          as "(%Hfilter & Hworld & HR)";
+          [exact Hheap_eq|exact Halloc_dom|exact Hcoh| |].
         { unfold load_memory_shadow_observation. rewrite Hbase.
           intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
           inversion Hobserved; subst. by rewrite Hstatus_eq. }
-        iMod ("Halloc_close" with "[Halloc_entries]") as "_".
-        { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+        iMod ("Halloc_close" with "[Halloc_entries HR]") as "_".
+        { iNext. iExists alloc_map, R. by iFrame "∗%". }
         iModIntro. iApply "HΦ".
         iFrame "∗#". iPureIntro. split; first by left. exact Hfilter.
       + iApply (wp_load_success_heap_word_revoked with
@@ -283,21 +253,21 @@ Section Switcher_Restore_Interp.
         { iApply big_sepM_delete; first exact Hlookup.
           iFrame. rewrite /allocator_entry Hstatus_eq. iFrame. }
         iDestruct (interp_in_mem_shadow_result_gen Wworld Wval C opened RWL raw
-          (clear_tag raw) alloc_map with "Hworld Halloc_entries Hnormal")
-          as "(#Hactual & Hworld & Halloc_entries)";
-          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+          (clear_tag raw) alloc_map R with "Hworld HR Hnormal")
+          as "(#Hactual & Hworld & HR)";
+          [exact Hheap_eq|exact Halloc_dom|exact Hcoh| |].
         { unfold load_memory_shadow_observation. rewrite Hbase.
           intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
           inversion Hobserved; subst. by rewrite Hstatus_eq. }
         iDestruct (switcher_shadow_restore_retained Wworld Wval C opened raw
-          (clear_tag raw) alloc_map with "Hworld Halloc_entries")
-          as "(%Hfilter & Hworld & Halloc_entries)";
-          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+          (clear_tag raw) alloc_map R with "Hworld HR")
+          as "(%Hfilter & Hworld & HR)";
+          [exact Hheap_eq|exact Halloc_dom|exact Hcoh| |].
         { unfold load_memory_shadow_observation. rewrite Hbase.
           intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
           inversion Hobserved; subst. by rewrite Hstatus_eq. }
-        iMod ("Halloc_close" with "[Halloc_entries]") as "_".
-        { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+        iMod ("Halloc_close" with "[Halloc_entries HR]") as "_".
+        { iNext. iExists alloc_map, R. by iFrame "∗%". }
         iModIntro. iApply "HΦ".
         iFrame "∗#". iPureIntro. split; last exact Hfilter.
         right. split; last done. unfold is_heap_cap. by rewrite Hbase.

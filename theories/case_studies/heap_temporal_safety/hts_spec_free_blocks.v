@@ -73,7 +73,7 @@ Section HTS_Reload.
     iDestruct (memMap_resource_2ne_apply with "Hi Ha")
       as "[Hmem %Hpc_a]".
     iInv Nallocator as ">Halloc_body" "Halloc_close".
-    iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
+    iDestruct "Halloc_body" as (alloc_map R Halloc_dom Hcoh) "[Halloc_entries HR]".
     iEval (rewrite /allocator_entry big_sepM_sep) in "Halloc_entries".
     iDestruct "Halloc_entries" as "[Hshadow Halloc_states]".
     iAssert ([∗ map] k↦status ∈ shadow_status <$> alloc_map,
@@ -107,8 +107,8 @@ Section HTS_Reload.
       with "[Hshadow Halloc_states]" as "Halloc_entries".
     { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
     destruct retv; simpl in Hspec; [contradiction| |]; cycle 1.
-    2: { iMod ("Halloc_close" with "[Halloc_entries]") as "_".
-      { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+    2: { iMod ("Halloc_close" with "[Halloc_entries HR]") as "_".
+      { iNext. iExists alloc_map, R. by iFrame "∗%". }
       iModIntro. wp_pure. wp_end. by iIntros (?). }
     destruct Hspec as
       (p0 & g0 & b0 & e0 & a0 & ea0 & loadv & actual &
@@ -123,12 +123,12 @@ Section HTS_Reload.
     change (load_word RWL raw) with raw in Hactual.
     change (load_memory_shadow_observation
       (shadow_status <$> alloc_map) RW raw actual) in Hobserved.
-    iDestruct (shadow_read_retained W C' raw actual alloc_map
-      with "Hregion Halloc_entries")
-      as "(%Hfilter & Hregion & Halloc_entries)";
-      [exact Halloc_dom|exact Hobserved|].
-    iMod ("Halloc_close" with "[Halloc_entries]") as "_".
-    { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+    iDestruct (shadow_read_retained W C' raw actual alloc_map R
+      with "Hregion HR")
+      as "(%Hfilter & Hregion & HR)";
+      [exact Halloc_dom|exact Hcoh|exact Hobserved|].
+    iMod ("Halloc_close" with "[Halloc_entries HR]") as "_".
+    { iNext. iExists alloc_map, R. by iFrame "∗%". }
     iModIntro.
     unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
     assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc by solve_addr.
@@ -197,7 +197,7 @@ Section HTS_Spec_Free.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -232,10 +232,10 @@ Section HTS_Spec_Free.
     iDestruct "Hctx" as "(#Hassert & #Halloc & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
-    iDestruct "Hret" as (b a_ret Wret) "(%Ha_ret & %Hbounds & %Hstk_nonempty
+    iDestruct "Hret" as (ι b a_ret Wret) "(%Ha_ret & %Hbounds & %Hstk_nonempty
       & %Hrelated_share_ret & #Hrel_b & Hframe & [%w0 Hca0] & [%w1 Hca1]
       & Hregs & Hslot & [%stk Hstk] & Hworld & Hstack_revoked_ret
-      & %Hstack_revoked_ret & HK & #Hallocation)".
+      & %Hstack_revoked_ret & HK & #Hobj & #Hallocation & Hfree_auth)".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp)".
     iDestruct "Himports" as
@@ -288,10 +288,10 @@ Section HTS_Spec_Free.
     subst actual.
     (* The retained tag shows that the adversary left b live: open its
        world entry. *)
-    iMod (hts_world_reopen_live C csp_b csp_e W_init_C _ b Wret
-      Hbounds Hstk_heap Hrelated_share_ret Hfilter with "Hrel_b Hworld")
+    iMod (hts_world_reopen_live C csp_b csp_e W_init_C _ ι b Wret
+      Hbounds Hrelated_share_ret Hfilter with "Hrel_b Hworld")
       as (v_b) "(%Hwf_rev & %Hb_lookup & %Hstd_rev & Hworld_open & Hstate_b
-        & Hb)".
+        & [Hb Hb_share])".
     focus_block 10 "Hcode" as a_check Ha_check "Hblock" "Hcont";
       iHide "Hcont" as hcont.
     iApply (hts_check_live_buffer_spec pc_b pc_e a_check
@@ -365,11 +365,11 @@ Section HTS_Spec_Free.
     { rewrite /hts_block_addr. solve_addr. }
     clear Ha_reload Ha_check Ha_private Ha_fetch12 Ha_fetch13.
 
-    iAssert ([[b,(b ^+ 1)%a]] ↦ₐ
+    iAssert ([[b,(b ^+ 1)%a]] ↦ₕ[ι]
       [[ [WCap true RW Global cgp_b cgp_e cgp_b] ]])%I
-      with "[Hb]" as "Hfree_mem".
-    { rewrite /region_pointsto
-        (finz_seq_between_singleton b (b ^+ 1)%a Hsucc) /=.
+      with "[Hb Hb_share]" as "Hfree_mem".
+    { rewrite /heap_region_pointsto
+        (finz_seq_between_singleton b (b ^+ 1)%a Hsucc) big_sepL2_singleton.
       iFrame. }
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
       ["[Hca2 %Hca2]";"[Hca3 %Hca3]";"[Hca4 %Hca4]";"[Hca5 %Hca5]"].
@@ -391,7 +391,7 @@ Section HTS_Spec_Free.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_freecall ^+ 1)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a b (b ^+ 1)%a b
-      free_arg cstk RW Global (0%Z, 0%Z)
+      free_arg cstk RW Global ι (0%Z, 0%Z)
       [WCap true RW Global cgp_b cgp_e cgp_b]
       with "Hservice") as "Hfree_fun".
     { exact Hbounds. }
@@ -405,7 +405,7 @@ Section HTS_Spec_Free.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_freecall ^+ 1)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other cstk
-      allocator_free_nargs ⊤ hts_allocator_exp_tblN
+      allocator_free_nargs ⊤ allocator_exp_tblN
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
@@ -438,7 +438,7 @@ Section HTS_Spec_Free.
       rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
     { subst free_arg. rewrite /is_arg_rmap /dom_arg_rmap /=.
       reflexivity. }
-    iFrame "Hallocation Hfree_mem".
+    iFrame "Hallocation Hobj Hfree_auth Hfree_mem".
     iNext.
     iIntros "[Hcall|Hcall]".
     - iDestruct "Hcall" as
@@ -458,12 +458,12 @@ Section HTS_Spec_Free.
       iEval (cbn) in "HPC".
       iEval (rewrite /hts_free_result) in "Hfree_post".
       iDestruct "Hfree_post" as
-        "(_ & Hreclaimed & %Hfree_values)".
+        "(_ & #Hquar & %Hfree_values)".
       destruct Hfree_values as [-> ->].
       iApply "Hcontinue".
       iExists (a_freecall ^+ 1)%a.
       iSplit; first done.
-      iRight. iExists b, Wret.
+      iRight. iExists ι, b, Wret.
       iFrame "∗#%".
     - iDestruct "Hcall" as
         (free_rmap_exhaust stk_mem_exhaust rcgp rcra rcs0 rcs1

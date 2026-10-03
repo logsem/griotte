@@ -80,6 +80,8 @@ Section DROE.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
+      rewrite (addr_key_disjoint _ cgp_b cgp_e cgp_b Hcgp_heap);
+        last (apply elem_of_finz_seq_between; solve_addr).
       iExists RO_DRO, (interp_in_mem_dro_eq _).
       iEval (cbn).
       iSplit; first done.
@@ -175,6 +177,8 @@ Section DROE.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
+      rewrite (addr_key_disjoint _ cgp_b cgp_e (cgp_b ^+ 1)%a Hcgp_heap);
+        last (apply elem_of_finz_seq_between; solve_addr).
       iExists RO_DRO, (interp_in_mem_dro_eq _).
       iEval (cbn).
       iSplit; first done.
@@ -343,7 +347,7 @@ Section DROE.
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜(std W_init_C) !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
+    { iApply (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp_Winit_C_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_Winit_C_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
@@ -608,11 +612,13 @@ Section DROE.
     (* Mov cs0 cra; *)
     iInstr "Hcode".
     iDestruct (PermRes_acc with "PermRes_cgp_b") as "[ [Hcgp_b Hcgp_b_interp] PermRes_cgp_b]".
+    iEval (rewrite key_pointsto_nonheap) in "Hcgp_b".
     iEval (cbn) in "Hcgp_b_interp"; iDestruct "Hcgp_b_interp" as "[ % Hcgp_b_interp ]"; simplify_eq.
     assert (readAllowed RW = true /\ withinBounds cgp_b cgp_e cgp_b = true) as Hcgp_read.
     { split; first done. apply withinBounds_true_iff. solve_addr + Hcgp_contiguous. }
     (* Load ct0 cgp 0. *)
     iInstr "Hcode".
+    iEval (rewrite -key_pointsto_nonheap) in "Hcgp_b".
     iDestruct ("PermRes_cgp_b" with "[$Hcgp_b $Hcgp_b_interp]") as "PermRes_cgp_b"; auto.
     (* Mov ct1 42  *)
     iInstr "Hcode".

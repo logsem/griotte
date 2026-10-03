@@ -3,7 +3,7 @@ From iris.base_logic.lib Require Import ghost_map.
 From iris.proofmode Require Import proofmode.
 From griotte.program_logic Require Export allocator_resources.
 From griotte.allocator Require Export allocator.
-From griotte Require Import memory_region.
+From griotte Require Import memory_region region_keys.
 
 (** Resources used by the allocator service. The shared
     allocation states, token families, and heap invariant come
@@ -38,15 +38,32 @@ Definition allocator_free_in_prefix {MP : MachineParameters}
   ∃ (p : Perm) (g : Locality) (b e a : Addr),
     w = WCap true p g b e a ∧ (heap_b < b /\ b < e /\ e <= next)%a.
 
-(** Logical entries contain the payload base and both header values:
-    [(base, (end, reserved))]. The stored end is also the next header address.
-    Checked addition excludes address wraparound when recovering the base. *)
+(** Ghost header entries contain the payload base, both header values and the
+    allocation identifier: [(base, end, reserved, ι)]. The physical header stores
+    no identifier. The stored end is also the next header address. Checked
+    addition excludes address wraparound when recovering the base. *)
 
-Definition allocator_header_entry : Type := (Addr * (Addr * (Z * Z)))%type.
+Definition allocator_header_entry : Type := (Addr * Addr * (Z * Z) * AId)%type.
 
 Definition allocator_has_bounds (allocations : list allocator_header_entry)
   (b e : Addr) : Prop :=
-  ∃ reserved : Z * Z, (b, (e, reserved)) ∈ allocations.
+  ∃ (reserved : Z * Z) (ι : AId), (b, e, reserved, ι) ∈ allocations.
+
+(** The identifiers of the ghost header entries. *)
+Definition allocator_entry_ids (allocations : list allocator_header_entry) : list AId :=
+  (λ '(_, _, _, ι), ι) <$> allocations.
+
+(** The core invariant of the ghost header entries: the reserved words are 0
+    (malloc writes 0 to both, free never reads them), and the identifiers are
+    pairwise distinct (each is fresh when malloc issues it). *)
+Definition allocator_entries_wf (allocations : list allocator_header_entry) : Prop :=
+  Forall (λ '(_, _, reserved, _), reserved = (0%Z, 0%Z)) allocations ∧
+  NoDup (allocator_entry_ids allocations).
+
+(** The receipts' authority, keyed by identifier. *)
+Definition allocator_history_map (allocations : list allocator_header_entry) :
+  gmap AId (Addr * Addr * (Z * Z)) :=
+  list_to_map ((λ '(b, e, reserved, ι), (ι, (b, e, reserved))) <$> allocations).
 
 Definition allocator_header_bounds (h stop b e : Addr) : Prop :=
   (h + allocator_header_words)%a = Some b ∧ (b < e /\ e <= stop)%a.
@@ -55,7 +72,7 @@ Fixpoint allocator_chain (h stop : Addr)
   (allocations : list allocator_header_entry) : Prop :=
   match allocations with
   | [] => h = stop
-  | (b, (e, reserved)) :: rest =>
+  | (b, e, _, _) :: rest =>
       allocator_header_bounds h stop b e ∧ allocator_chain e stop rest
   end.
 
@@ -102,7 +119,7 @@ Section AllocatorHeaders.
         header at 106: [111; r2], payload [108, 111)
         stop at 111: no header is read here.
       The physical links are 100 -> 106 -> 111, and the logical list is
-      [(102, (106, r1)); (108, (111, r2))]. Unfolding owns the header at 100,
+      [(102, 106, r1, ι1); (108, 111, r2, ι2)]. Unfolding owns the header at 100,
       then the header at 106, then the pure endpoint equality [111 = 111].
 
       Traversal frames a visited prefix and recurses on the remaining suffix.
@@ -112,7 +129,7 @@ Section AllocatorHeaders.
     (allocations : list allocator_header_entry) : iProp Σ :=
     match allocations with
     | [] => ⌜h = stop⌝%I
-    | (b, (e, reserved)) :: rest =>
+    | (b, e, reserved, _) :: rest =>
         (⌜(b < e /\ e <= stop)%a⌝ ∗
          allocator_header h b e reserved ∗
          allocator_headers e stop rest)%I
@@ -121,7 +138,7 @@ Section AllocatorHeaders.
   Global Instance allocator_headers_timeless h stop allocations :
     Timeless (allocator_headers h stop allocations).
   Proof.
-    revert h. induction allocations as [| (b & e & reserved) rest IH];
+    revert h. induction allocations as [| [ [ [b e] reserved] ι] rest IH];
       intros h; simpl; apply _.
   Qed.
 
@@ -131,8 +148,8 @@ Section AllocatorHistory.
   Context {Σ : gFunctors} {allocator_historyg : allocatorHistoryG Σ}.
 
   Definition allocator_history (allocations : list allocator_header_entry) : iProp Σ :=
-    @ghost_map_auth Σ Addr (Addr * (Z * Z)) _ _ allocator_history_inG
-      allocator_history_gname 1 (list_to_map allocations).
+    @ghost_map_auth Σ AId (Addr * Addr * (Z * Z)) _ _ allocator_history_inG
+      allocator_history_gname 1 (allocator_history_map allocations).
 
 End AllocatorHistory.
 
@@ -142,9 +159,53 @@ End AllocatorHistory.
 
 Definition Nallocator_service : namespace := nroot .@ "allocator_service".
 
+(** The namespace of the invariants on the allocator's export table entries. *)
+Definition allocator_exp_tblN : namespace := nroot .@ "allocator_exports".
+
+(** The core [FreeAuth] instance (D35): the allocator keeps the whole client
+    half, and the client holds nothing. It is passed explicitly, never found by
+    instance resolution, so that a layer can swap it. *)
+Lemma free_auth_core_split {Σ : gFunctors} `{!allocRegistryG Σ} (ι : AId) :
+  (ι ↦st{1/2} ALive ∗ emp ⊣⊢ ι ↦st{1/2} ALive)%I.
+Proof. by rewrite right_id. Qed.
+
+Definition free_auth_core {Σ : gFunctors} `{!allocRegistryG Σ} : FreeAuth Σ := {|
+  free_auth_kept ι := (ι ↦st{1/2} ALive)%I;
+  free_auth_held ι := emp%I;
+  free_auth_kept_timeless ι := _;
+  free_auth_held_timeless ι := _;
+  free_auth_split := free_auth_core_split;
+|}.
+
+(** The allocator's piece of the status token of [ι] (D17, D35). While [ι] is
+    live, one share and the kept part of the client half; from [AQuar] on, the
+    whole token. *)
+Section AllocatorTokens.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}.
+
+  Definition allocator_tok (ι : AId) (b e : Addr) : iProp Σ :=
+    ((ι ↦st{share (finz.dist b e)} ALive ∗ free_auth_kept ι) ∨
+     (∃ s, ι ↦st{1} s ∗ ι ⊒ AQuar))%I.
+
+  (** One identifier and one token per ghost header entry. *)
+  Definition allocator_entries_res (allocations : list allocator_header_entry) : iProp Σ :=
+    [∗ list] entry ∈ allocations,
+      let '(b, e, _, ι) := entry in alloc_obj ι b e ∗ allocator_tok ι b e.
+
+  Global Instance allocator_tok_timeless ι b e : Timeless (allocator_tok ι b e).
+  Proof. apply _. Qed.
+
+  Global Instance allocator_entries_res_timeless allocations :
+    Timeless (allocator_entries_res allocations).
+  Proof.
+    apply big_sepL_timeless. intros k [ [ [b e] reserved] ι] _. apply _.
+  Qed.
+
+End AllocatorTokens.
+
 Section AllocatorService.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
-    {MP : MachineParameters} {layout : allocatorLayout}.
+    {FA : FreeAuth Σ} {MP : MachineParameters} {layout : allocatorLayout}.
 
   Definition allocator_service_static : iProp Σ :=
     ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[allocator_imports]] ∗
@@ -162,7 +223,9 @@ Section AllocatorService.
      free_addr_token heap_b ∗ (* Root stays unquarantined. *)
      free_addrs next heap_e ∗ (* Unused suffix. *)
      allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Physical header chain. *)
-     allocator_history allocations)%I. (* Matching ghost map. *)
+     allocator_history allocations ∗ (* Matching ghost map. *)
+     ⌜allocator_entries_wf allocations⌝ ∗ (* Reserved words 0, distinct identifiers. *)
+     allocator_entries_res allocations)%I. (* Identifiers and status tokens. *)
 
   (** After malloc's prepare block, the new header has been written and the
       whole chunk has been taken from the free suffix. The bump slot and
@@ -179,6 +242,8 @@ Section AllocatorService.
      free_addrs e heap_e ∗ (* Remaining unused suffix. *)
      allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Published header chain. *)
      allocator_history allocations ∗ (* Published ghost map. *)
+     ⌜allocator_entries_wf allocations⌝ ∗ (* Published entries' invariant. *)
+     allocator_entries_res allocations ∗ (* Published identifiers and tokens. *)
      allocator_header next b e (0%Z, 0%Z))%I. (* New, unpublished header. *)
 
   Definition allocator_service_inv : iProp Σ :=

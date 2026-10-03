@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode memory_region.
+From griotte Require Import rules proofmode memory_region region_keys.
 From griotte.allocator Require Import allocator_preamble
   allocator_macros_spec allocator_resource_spec allocator_header_spec.
 
@@ -10,7 +10,7 @@ Definition allocator_malloc_block_addr {MP : MachineParameters}
   (pc_a ^+ length (concat (take n assembled_allocator_malloc)))%a.
 
 Section AllocatorMallocBlocks.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
   Local Lemma allocator_malloc_size_check_valid_spec
@@ -255,7 +255,7 @@ Section AllocatorMallocBlocks.
     intros start code Hlayout HE Hcont Hpc Hdisjoint Hpositive Hroom; subst start code.
     iIntros "(#Hctx & Hdata & HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hφ)".
     iDestruct "Hdata" as (allocations)
-      "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+      "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory & %Hwf & Htoks)".
     codefrag_facts "Hcode".
     assert (Hstart : allocator_malloc_block_addr pc_a 1 = (pc_a ^+ 6)%a) by reflexivity.
     iEval (rewrite Hstart) in "Hcode".
@@ -288,7 +288,7 @@ Section AllocatorMallocBlocks.
       cbn in Hsize. solve_addr. }
     iIntros "!> (HPC & Hct0 & Hi & Hcgp & Hslot & Hs)".
     iMod ("Hclose" with "[Hs Hres Hput]").
-    { iNext. iApply ("Hput" $! Free). iFrame. }
+    { iNext. iApply ("Hput" $! Free with "[//]"). iFrame. }
     iModIntro. wp_pure.
     iSpecialize ("Hcode" with "Hi").
     codefrag_facts "Hcode".
@@ -408,11 +408,11 @@ Section AllocatorMallocBlocks.
     iSpecialize ("Hcode" with "Hi").
     iApply "Hφ". iExists b, finish.
     iSplit; first (iPureIntro; unfold allocator_header_words; naive_solver).
-    iSplitL "Hslot Hroot Hfree Hheaders Hhistory Hend Hreserved1 Hreserved2".
-    { iExists allocations. iFrame "Hslot Hroot Hfree Hheaders Hhistory".
-      iSplit; first done. iSplit.
+    iSplitL "Hslot Hroot Hfree Hheaders Hhistory Htoks Hend Hreserved1 Hreserved2".
+    { iExists allocations. iFrame "Hslot Hroot Hfree Hheaders Hhistory Htoks %".
+      iSplit.
       { iPureIntro. unfold allocator_header_bounds, allocator_header_words. naive_solver. }
-      rewrite /allocator_header. iFrame "Hend Hreserved1 Hreserved2". done. }
+      rewrite /allocator_header. iFrame "Hend Hreserved1 Hreserved2". }
     iFrame "Hcgp Hca0 Hct0 Hct1 Hct2 Hct3 Hcode".
     replace (allocator_malloc_block_addr pc_a 2) with (pc_a ^+ 22)%a by reflexivity.
     assert (Hnextpc : ((pc_a ^+ 6)%a ^+ 16)%a = (pc_a ^+ 22)%a) by solve_addr.
@@ -470,7 +470,7 @@ Section AllocatorMallocBlocks.
     intros start code Hlayout HE Hcont Hpc Hdisjoint Hpositive Hoom; subst start code.
     iIntros "(#Hctx & Hdata & HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hφ)".
     iDestruct "Hdata" as (allocations)
-      "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+      "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory & %Hwf & Htoks)".
     codefrag_facts "Hcode".
     assert (Hstart : allocator_malloc_block_addr pc_a 1 = (pc_a ^+ 6)%a) by reflexivity.
     iEval (rewrite Hstart) in "Hcode".
@@ -503,7 +503,7 @@ Section AllocatorMallocBlocks.
       cbn in Hsize. solve_addr. }
     iIntros "!> (HPC & Hct0 & Hi & Hcgp & Hslot & Hs)".
     iMod ("Hclose" with "[Hs Hres Hput]").
-    { iNext. iApply ("Hput" $! Free). iFrame. }
+    { iNext. iApply ("Hput" $! Free with "[//]"). iFrame. }
     iModIntro. wp_pure.
     iSpecialize ("Hcode" with "Hi").
     codefrag_facts "Hcode".
@@ -770,7 +770,7 @@ Section AllocatorMallocBlocks.
       the service invariant. *)
 
   Lemma allocator_malloc_valid_observe_correct
-    (P : Addr → Addr → Prop)
+    (P : Addr → Addr → Prop) (X : gset AId)
     (E : coPset) (n : Z) (wret : Word)
     (φ : language.val griotte_lang → iPropI Σ) :
 
@@ -785,6 +785,7 @@ Section AllocatorMallocBlocks.
           ⌜allocator_header_bounds next heap_e b e⌝ -∗
           allocator_history allocations -∗
           allocator_history allocations ∗ ⌜P b e⌝)) ∗
+       ([∗ set] ι ∈ X, ∃ b e, alloc_obj ι b e) ∗
        allocator_ctx ∗
        allocator_service_ctx ∗
        na_own cerise_nais E ∗
@@ -822,20 +823,23 @@ Section AllocatorMallocBlocks.
 
           ((ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
             ca1 ↦ᵣ WInt 0)
-           ∨ (∃ (b e : Addr),
+           ∨ (∃ (ι : AId) (b e : Addr),
                 ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧
                   (e - b = n)%Z⌝ ∗
                 ca0 ↦ᵣ WCap true RW Global b e b ∗
                 ca1 ↦ᵣ WInt 0 ∗
                 ⌜P b e⌝ ∗
-                allocator_allocation b e (0%Z, 0%Z) ∗
-                allocator_zeroed b e))
+                ⌜ι ∉ X⌝ ∗
+                alloc_obj ι b e ∗
+                allocator_allocation ι b e (0%Z, 0%Z) ∗
+                free_auth_held ι ∗
+                [[b, e]] ↦ₕ[ι] [[region_addrs_zeroes b e]]))
 
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
     intros HEheap HEservice Hpositive.
-    iIntros "(#Hobserve & #Hctx & #Hservice & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
+    iIntros "(#Hobserve & #HX & #Hctx & #Hservice & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
     (* Open the service invariant and recover the allocator code and state. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">[Hstatic Hdata]".
@@ -909,7 +913,7 @@ Section AllocatorMallocBlocks.
       iDestruct ("Hmalloc_cont" with "Hprepare_code") as "Hmalloc_code".
       iEval (rewrite -Hsplit1) in "Hmalloc_code".
       iDestruct "Hpending" as (allocations)
-        "(%Hnext & %Hchunk & Hslot & Hroot & Hfree & Hheaders & Hhistory & Hhead)".
+        "(%Hnext & %Hchunk & Hslot & Hroot & Hfree & Hheaders & Hhistory & %Hwf & Htoks & Hhead)".
       iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
       iDestruct ("Hobserve" $! next b finish allocations with "[] [] Hhistory")
         as "[Hhistory %HP]"; [iPureIntro; exact Hchain|iPureIntro; exact Hchunk|].
@@ -1176,22 +1180,26 @@ Section AllocatorMallocBlocks.
       iEval (rewrite -Hsplit9) in "Hmalloc_code".
       iDestruct ("Hcode_cont" with "Hmalloc_code") as "Hcode".
       iEval (rewrite -/allocator_code) in "Hcode".
-      iMod (allocator_service_commit_spec next b finish (0%Z, 0%Z) allocations
-        (proj1 Hnext) Hchunk with "Hslot Hroot Hfree Hheaders Hhistory Hhead")
-        as "[Hdata Hreceipt]".
+      iMod (allocator_service_commit_spec E next b finish allocations X HEheap
+        (proj1 Hnext) Hchunk Hwf
+        with "Hctx HX Hslot Hroot Hfree Hheaders Hhistory Htoks Hhead")
+        as (ι Hι) "(Hdata & #Hobj & #Hreceipt & Hheld & Hshares)".
       iMod ("Hclose" with "[Himports Hcode Hdata Hna]") as "Hna".
       { iSplitR "Hna"; last iFrame.
         iNext. iSplitL "Himports Hcode"; first iFrame.
         iExists finish. iExact "Hdata". }
       iApply "Hpost". iFrame "∗".
-      iRight. iExists b, finish.
+      iRight. iExists ι, b, finish.
       iSplit.
       { iPureIntro. split.
         { solve_addr. }
         { clear -Hfinish. solve_addr. } }
-      iFrame "Hca0 Hreceipt".
+      iFrame "Hca0 Hreceipt Hobj Hheld".
       iSplit; first (iPureIntro; exact HP).
-      rewrite /allocator_zeroed /region_pointsto big_sepL2_replicate_r;
+      iSplit; first done.
+      iApply (heap_region_pointsto_split with "Hobj"). iFrame "Hshares".
+      rewrite /region_addrs_zeroes /region_pointsto
+        -(finz_seq_between_length b finish) big_sepL2_replicate_r;
         last reflexivity.
       iFrame.
     - assert (Hcapacity : (heap_e - next - allocator_header_words < n)%Z) by lia.
@@ -1303,30 +1311,34 @@ Section AllocatorMallocBlocks.
 
           ((ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
             ca1 ↦ᵣ WInt 0)
-           ∨ (∃ (b e : Addr),
+           ∨ (∃ (ι : AId) (b e : Addr),
                 ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧
                   (e - b = n)%Z⌝ ∗
                 ca0 ↦ᵣ WCap true RW Global b e b ∗
                 ca1 ↦ᵣ WInt 0 ∗
-                allocator_allocation b e (0%Z, 0%Z) ∗
-                allocator_zeroed b e))
+                alloc_obj ι b e ∗
+                allocator_allocation ι b e (0%Z, 0%Z) ∗
+                free_auth_held ι ∗
+                [[b, e]] ↦ₕ[ι] [[region_addrs_zeroes b e]]))
 
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
     intros HEheap HEservice Hpositive.
     iIntros "(#Hctx & #Hservice & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
-    iApply (allocator_malloc_valid_observe_correct (fun _ _ => True)
+    iApply (allocator_malloc_valid_observe_correct (fun _ _ => True) ∅
       with "[-]"); eauto.
     iSplitR "Hna HPC Hcgp Hcra Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hpost".
     { iModIntro. iIntros (next b e allocations) "_ _ Hhistory".
       iFrame. }
+    iSplitR; first by rewrite big_sepS_empty.
     iFrame "Hctx Hservice Hna HPC Hcgp Hcra Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
     iNext. iIntros "(Hna & HPC & Hcgp & Hcra & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hresult)".
     iApply "Hpost". iFrame "Hna HPC Hcgp Hcra Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
     iDestruct "Hresult" as "[Hoom|Hsuccess]"; first (iLeft; iExact "Hoom").
-    iRight. iDestruct "Hsuccess" as (b e) "(Hbounds & Hca0 & Hca1 & _ & Hreceipt & Hzeroed)".
-    iExists b, e. iFrame.
+    iRight. iDestruct "Hsuccess" as (ι b e)
+      "(Hbounds & Hca0 & Hca1 & _ & _ & Hobj & Hreceipt & Hheld & Hcells)".
+    iExists ι, b, e. iFrame.
   Qed.
 
 

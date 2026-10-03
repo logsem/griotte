@@ -1,6 +1,7 @@
 From iris.base_logic Require Export invariants na_invariants gen_heap ghost_map ghost_var.
 From iris.program_logic Require Export weakestpre.
 From griotte Require Import griotte_lang entry.
+From griotte Require Import alloc_registry.
 
 
 
@@ -20,7 +21,8 @@ Class ceriseG Σ :=
       shadowtbl_gen_regG :: gen_heapGS Addr AllocStatus Σ; (* shadow table *)
       reg_gen_regG :: gen_heapGS RegName Word Σ; (* register *)
       sreg_gen_regG :: gen_heapGS SRegName Word Σ; (* system register *)
-      entryG :: entryGS Σ (* entry point *)
+      entryG :: entryGS Σ; (* entry point *)
+      cerise_registryG :: allocRegistryG Σ (* allocation registry *)
     }.
 
 (* Memory never covers a memory-mapped address (shadow region or revoker):

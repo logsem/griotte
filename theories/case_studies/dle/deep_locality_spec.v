@@ -69,6 +69,7 @@ Section DLE.
       rewrite (finz_seq_between_cons b); last solve_addr + Hcgp_contiguous.
       rewrite (finz_seq_between_empty _ (b ^+ 1)%a); last solve_addr + Hcgp_contiguous.
       iApply big_sepL_singleton.
+      rewrite (addr_key_nonheap _ b Hcgp_nonheap).
       iExists RW_DL, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -122,6 +123,7 @@ Section DLE.
       rewrite (finz_seq_between_cons (b ^+ 1)%a); last solve_addr + Hcgp_contiguous.
       rewrite (finz_seq_between_empty _ (b ^+ 2)%a); last solve_addr + Hcgp_contiguous.
       iApply big_sepL_singleton.
+      rewrite (addr_key_nonheap _ (b ^+ 1)%a Hcgp1_nonheap).
       iExists RW_DL, interp_in_mem_dl.
       iEval (cbn).
       iSplit; first done.
@@ -263,7 +265,7 @@ Section DLE.
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
+    { iApply (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp_W0_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
@@ -479,7 +481,7 @@ Section DLE.
     (* -- extract cgp_b out of the revoked -- *)
     (* TODO lemma *)
     iDestruct ( big_sepL_elem_of_extract _
-      (fun k => (⌜is_heap_address (laddr_addr k) = false⌝ -∗ ▷ ∃ v, laddr_addr k ↦ₐ v)%I) (LNonHeap cgp_b)
+      (fun k => (∀ a', ⌜k = LNonHeap a'⌝ -∗ ▷ ∃ v, a' ↦ₐ v)%I) (LNonHeap cgp_b)
       with "[] [$Hrevoked_l']")
       as (l'') "(%Hl_unk'' & Hrevoked_l'' & Hcgp_b_nonheap)".
     {
@@ -497,13 +499,12 @@ Section DLE.
     { by destruct Hl_unk' as [Hl_unk' _]; apply NoDup_app in Hl_unk' as (? & _ & _). }
     {
       iClear "#"; clear; cbn.
-      iIntros (a) "(%&%&% & _ & Haddr) %Hnonheap".
-      iEval (rewrite /heap_addr_status Hnonheap /=) in "Haddr".
+      iIntros (a) "(%&%&% & _ & Haddr)". iIntros (a' ->).
+      iEval (cbn) in "Haddr".
       iDestruct "Haddr" as (wa) "(_ & Ha & _)".
       iNext. iExists wa. iExact "Ha".
     }
-    iDestruct ("Hcgp_b_nonheap" with "[%]") as ">[%wcgpb Hcgp_b]".
-    { exact Hcgp_nonheap. }
+    iDestruct ("Hcgp_b_nonheap" $! cgp_b with "[//]") as ">[%wcgpb Hcgp_b]".
     iEval (cbn [laddr_addr]) in "Hcgp_b".
 
     (* simplify the knowledge about the new rmap *)

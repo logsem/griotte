@@ -159,6 +159,7 @@ Section Adequacy.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {shadow_preg: gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg: allocator_preG Σ}.
+  Context {registry_preg: allocRegistryPreG Σ}.
   Context {na_invg: na_invariants.na_invG Σ}.
   Context {sts_preg: STS_preG LAddr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
@@ -219,13 +220,22 @@ Section Adequacy.
 
     iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
     pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
-    pose ceriseg := CeriseG Σ Hinv cerise_na_invs mem_heapg shadow_heapg reg_heapg sreg_heapg entry_g.
+    iMod registry_init as (registryg) "HR".
+    pose ceriseg := {|
+      cerise_invG := Hinv;
+      cerise_nainvG := cerise_na_invs;
+      mem_gen_memG := mem_heapg;
+      shadowtbl_gen_regG := shadow_heapg;
+      reg_gen_regG := reg_heapg;
+      sreg_gen_regG := sreg_heapg;
+      entryG := entry_g;
+      cerise_registryG := registryg |}.
 
     iEval (rewrite Hm /mk_initial_memory) in "Hmem".
     iDestruct (big_sepM_union with "Hmem") as "[Hheap Hmem]";
       first exact Hheap_disjoint.
     iEval (rewrite Hshadow_initial) in "Hshadow".
-    iMod (@allocator_init_free_maps Σ ceriseg allocator_preg MP ⊤ with "Hheap Hshadow") as (allocatorg) "#Halloc".
+    iMod (@allocator_init_free_maps Σ ceriseg allocator_preg MP ⊤ with "Hheap Hshadow HR") as (allocatorg) "#Halloc".
 
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (world_interp_init ({[ ot_switcher ]} : gset _))
@@ -468,6 +478,8 @@ Section Adequacy.
       iSplit.
       { iApply big_sepL_intro; iModIntro.
         iIntros (k a Ha).
+        rewrite (addr_key_disjoint _ _ _ a (stack_disjoint_from_heap switcher_cmpt));
+          last exact (list_elem_of_lookup_2 _ _ _ Ha).
         iExists RWL, (interp_in_mem RWL).
         iEval (cbn).
         iSplit; first done.
@@ -689,7 +701,7 @@ Proof.
   set ( cnames := CmptNames_droe_CmptNameG ).
   set (Σ := #[invΣ
               ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
-              ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
+              ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ ; allocRegistryΣ
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ LAddr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)

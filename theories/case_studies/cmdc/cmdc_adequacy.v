@@ -218,6 +218,7 @@ Section Adequacy.
   Context {inv_preg: invGpreS Σ}.
   Context {shadow_preg: gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg: allocator_preG Σ}.
+  Context {registry_preg: allocRegistryPreG Σ}.
   Context {mem_preg: gen_heapGpreS Addr Word Σ}.
   Context {reg_preg: gen_heapGpreS RegName Word Σ}.
   Context {sreg_preg: gen_heapGpreS SRegName Word Σ}.
@@ -300,14 +301,23 @@ Section Adequacy.
     iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
     (* 3.4 We instantiate the CeriseG typeclass. *)
     pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
-    pose ceriseg := CeriseG Σ Hinv cerise_na_invs mem_heapg shadow_heapg reg_heapg sreg_heapg entry_g.
+    iMod registry_init as (registryg) "HR".
+    pose ceriseg := {|
+      cerise_invG := Hinv;
+      cerise_nainvG := cerise_na_invs;
+      mem_gen_memG := mem_heapg;
+      shadowtbl_gen_regG := shadow_heapg;
+      reg_gen_regG := reg_heapg;
+      sreg_gen_regG := sreg_heapg;
+      entryG := entry_g;
+      cerise_registryG := registryg |}.
 
     (* 3.5 The call stack resource, initialised to empty. *)
     iEval (rewrite Hm /mk_initial_memory) in "Hmem".
     iDestruct (big_sepM_union with "Hmem") as "[Hheap Hmem]";
       first exact Hheap_disjoint.
     iEval (rewrite Hshadow_initial) in "Hshadow".
-    iMod (@allocator_init_free_maps Σ ceriseg allocator_preg MP ⊤ with "Hheap Hshadow") as (allocatorg) "#Halloc".
+    iMod (@allocator_init_free_maps Σ ceriseg allocator_preg MP ⊤ with "Hheap Hshadow HR") as (allocatorg) "#Halloc".
 
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
 
@@ -984,7 +994,7 @@ Proof.
   set ( cnames := CmptNames_CMDC_CmptNameG ).
   set (Σ := #[invΣ
               ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
-              ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
+              ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ ; allocRegistryΣ
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ LAddr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)

@@ -30,10 +30,10 @@ Section WorldInterpStack.
     la ## la' ->
 
     interp W C (WCap true RWL g b e a) ∗
-    world_interp_open W C la'
+    world_interp_open W C (LNonHeap <$> la')
     -∗
 
-    world_interp_open W C (la++la') ∗
+    world_interp_open W C (LNonHeap <$> (la++la')) ∗
     (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
            ▷ StackOpenWorldResources interp W C la lv)
   .
@@ -53,11 +53,11 @@ Section WorldInterpStack.
     length lv = length la ->
     Forall (heap_addr_live (heap_std W)) la ->
 
-    world_interp_open W C (la++la') ∗
+    world_interp_open W C (LNonHeap <$> (la++la')) ∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
     StackOpenWorldResources interp W C la lv
     -∗
-   world_interp_open W C la'.
+   world_interp_open W C (LNonHeap <$> la').
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (????) "([Hr [Hsts $ ] ] & Hres )"; cbn in * |- *.

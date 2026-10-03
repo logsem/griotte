@@ -203,10 +203,10 @@ Section region_alloc_cmpt.
       (
         ([∗ list] k ∈ (imports_addrs++code_addrs), rel C (LNonHeap k) RX interp_in_memC) ∗
         ([∗ list] k ∈ (data_addrs), rel C (LNonHeap k) RW interp_in_memC) ∗
-        world_interp_open Winter C imports_addrs
+        world_interp_open Winter C (LNonHeap <$> imports_addrs)
       )
       ==∗
-      world_interp_open Wfinal C imports_addrs ∗
+      world_interp_open Wfinal C (LNonHeap <$> imports_addrs) ∗
       ([∗ list] v ∈ cmpt_imports C_cmpt, interp_in_memC (Wfinal, C, v) ∗ future_priv_mono C interp_in_memC v) ∗
       ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
     ) -∗
@@ -353,6 +353,7 @@ Section region_alloc_cmpt.
         apply list_elem_of_lookup_2, elem_of_finz_seq_between in Ha'.
         assert ((cmpt_b_cgp C_cmpt) <= a' < (cmpt_e_cgp C_cmpt))%a as Ha'' by solve_addr.
         apply elem_of_finz_seq_between in Ha''.
+        rewrite (addr_key_disjoint _ _ _ a' Hcgp_heap Ha'').
         iDestruct (big_sepL_elem_of with "Hrels") as "Hrel_a'"; eauto.
         assert (
             (std (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent))
@@ -430,6 +431,7 @@ Section region_alloc_cmpt.
       iSplitR; last (iPureIntro; split; [exact Hpcc_shadow|apply heap_cap_valid_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
+      rewrite (addr_key_disjoint _ _ _ a Hpcc_heap); last by eapply list_elem_of_lookup_2.
       iExists RX, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -492,6 +494,7 @@ Section region_alloc_cmpt.
       iSplitR; last (iPureIntro; split; [exact Hcgp_shadow|apply heap_cap_valid_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
+      rewrite (addr_key_disjoint _ _ _ a Hcgp_heap); last by eapply list_elem_of_lookup_2.
       iExists RW, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -549,10 +552,10 @@ Section region_alloc_cmpt.
       (
         interp Wfinal C pcc_cap ∗
         interp Wfinal C cgp_cap ∗
-        world_interp_open Winter C imports_addrs
+        world_interp_open Winter C (LNonHeap <$> imports_addrs)
       )
       ==∗
-      world_interp_open Wfinal C imports_addrs ∗
+      world_interp_open Wfinal C (LNonHeap <$> imports_addrs) ∗
       ([∗ list] v ∈ cmpt_imports C_cmpt, interp_in_memC (Wfinal, C, v) ∗ future_priv_mono C interp_in_memC v) ∗
       ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
     )
@@ -584,6 +587,7 @@ Section region_alloc_cmpt.
       iSplitR; last (iPureIntro; split; [exact Hpcc_shadow|apply heap_cap_valid_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
+      rewrite (addr_key_disjoint _ _ _ a Hpcc_heap); last by eapply list_elem_of_lookup_2.
       iExists RX, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -652,6 +656,7 @@ Section region_alloc_cmpt.
       iSplitR; last (iPureIntro; split; [exact Hcgp_shadow|apply heap_cap_valid_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
+      rewrite (addr_key_disjoint _ _ _ a Hcgp_heap); last by eapply list_elem_of_lookup_2.
       iExists RW, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.

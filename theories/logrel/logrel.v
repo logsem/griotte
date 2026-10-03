@@ -435,7 +435,7 @@ Section logrel.
          ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
-         ∗ world_interp_open W C callee_stk_region
+         ∗ world_interp_open W C (LNonHeap <$> callee_stk_region)
          (* Bookkeeping resources for the opened world *)
          ∗ StackOpenWorldResources interp W C callee_stk_region callee_stk_mem
          (* Continuation *)
@@ -627,13 +627,45 @@ Section logrel.
 
    *)
 
-  Definition region_state_pwl (W : WORLD) (a : Addr) : Prop :=
-    (std W) !! LNonHeap a = Some Temporary.
+  (** The region key of a capability's address [a]: [LHeap a ι] for a heap
+      address of a heap object [ι] of the world, [LNonHeap a] otherwise. *)
+  Definition addr_key (W : WORLD) (a : Addr) : LAddr := heap_addr_key (heap_std W) a.
 
-  Definition region_state_nwl (W : WORLD) (a : Addr) (l : Locality) : Prop :=
+  Lemma addr_key_addr W a : laddr_addr (addr_key W a) = a.
+  Proof. apply heap_addr_key_addr. Qed.
+
+  Lemma addr_key_nonheap W a : is_heap_address a = false -> addr_key W a = LNonHeap a.
+  Proof. apply heap_addr_key_nonheap. Qed.
+
+  Lemma addr_key_disjoint W b e a :
+    disjoint_from_heap b e -> a ∈ finz.seq_between b e -> addr_key W a = LNonHeap a.
+  Proof.
+    intros Hdisj Ha. apply addr_key_nonheap.
+    apply not_true_is_false. intros Hheap.
+    rewrite /disjoint_from_heap elem_of_disjoint in Hdisj.
+    eapply (Hdisj a); first exact Ha.
+    apply elem_of_finz_seq_between. by apply withinBounds_true_iff in Hheap.
+  Qed.
+  Lemma addr_key_pointsto W a v :
+    addr_key W a ↦ₖ v ⊣⊢ a ↦ₐ v ∗ key_share (addr_key W a).
+  Proof. by rewrite key_pointsto_eq addr_key_addr. Qed.
+
+  Lemma addr_key_pointsto_join W a v :
+    a ↦ₐ v -∗ key_share (addr_key W a) -∗ addr_key W a ↦ₖ v.
+  Proof. iIntros "Ha Hs". iApply addr_key_pointsto. iFrame. Qed.
+
+
+  Lemma addr_key_live W a :
+    heap_addr_live (heap_std W) a -> heap_key_live (heap_std W) (addr_key W a).
+  Proof. apply heap_addr_key_live. Qed.
+
+  Definition region_state_pwl (W : WORLD) (k : LAddr) : Prop :=
+    (std W) !! k = Some Temporary.
+
+  Definition region_state_nwl (W : WORLD) (k : LAddr) (l : Locality) : Prop :=
     match l with
-     | Local => (std W) !! LNonHeap a = Some Permanent ∨ (std W) !! LNonHeap a = Some Temporary
-     | Global => (std W) !! LNonHeap a = Some Permanent
+     | Local => (std W) !! k = Some Permanent ∨ (std W) !! k = Some Temporary
+     | Global => (std W) !! k = Some Permanent
     end.
 
   (* For simplicity we might want to have the following statement in validity of caps.
@@ -655,8 +687,8 @@ Section logrel.
      to derive the monotonicity requirements of any values that can be stored
      with the capability. *)
 
-  Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :=
-    (match (std W) !! LNonHeap a with
+  Definition monoReq (W : WORLD) (C : CmptName) (k : LAddr) (p : Perm) (P : V) :=
+    (match (std W) !! k with
         | Some Temporary =>
             (if isWL p
              then mono_pub C (safeC P)
@@ -687,13 +719,44 @@ Section logrel.
   Definition heap_cap_valid (W : WORLD) (p : Perm) (b e : Addr) : Prop :=
     (b < e)%a -> heap_cap_live W p b e.
 
+  Lemma heap_cap_valid_addr_status W p b e a :
+    heap_cap_valid W p b e -> a ∈ finz.seq_between b e ->
+    is_Some (heap_addr_status (heap_std W) a).
+  Proof.
+    intros Hvalid Ha. apply elem_of_finz_seq_between in Ha.
+    specialize (Hvalid ltac:(solve_addr)). rewrite /heap_cap_live in Hvalid.
+    rewrite /heap_addr_status.
+    destruct (is_heap_address a) eqn:Ha_heap; last by eexists.
+    destruct (is_heap_address b) eqn:Hb_heap.
+    - destruct (heap_lookup_addr (heap_std W) b) as [ [ι o] |] eqn:Hl; last contradiction.
+      destruct (alloc_object_status o); last contradiction.
+      destruct Hvalid as (Hend & _).
+      apply heap_lookup_addr_sound in Hl as [Hι Hcont].
+      destruct (heap_lookup_addr_is_Some _ a _ _ Hι) as [x ->].
+      { rewrite /alloc_object_contains in Hcont |- *. solve_addr. }
+      by eexists.
+    - exfalso. rewrite /disjoint_from_heap elem_of_disjoint in Hvalid.
+      eapply (Hvalid a); apply elem_of_finz_seq_between; [solve_addr|].
+      by apply withinBounds_true_iff in Ha_heap.
+  Qed.
+
+  Lemma heap_cap_valid_keys_future W W' p b e :
+    heap_wf (heap_std W') ->
+    related_sts_heap_std (heap_std W) (heap_std W') ->
+    heap_cap_valid W p b e ->
+    ∀ y, y ∈ finz.seq_between b e -> addr_key W' y = addr_key W y.
+  Proof.
+    intros Hwf Hrel Hvalid y Hy. apply heap_addr_key_future; [done|done|].
+    by eapply heap_cap_valid_addr_status.
+  Qed.
+
   (** Tagged O capabilities retain authority to free their heap payload.
       Nonheap ranges must stay disjoint from the heap under narrowing. *)
   Definition heap_cap_O_valid (W : WORLD) (p : Perm) (g : Locality)
       (b e : Addr) : Prop :=
     heap_cap_valid W p b e ∧
     ∀ a, a ∈ finz.seq_between b e ->
-      is_heap_address a = true -> region_state_nwl W a g.
+      is_heap_address a = true -> region_state_nwl W (addr_key W a) g.
 
   Program Definition interp_cap_O : V := λne W _ w,
     ⌜match w with
@@ -747,7 +810,7 @@ Section logrel.
     (∃ base obj, heap_lookup_addr (heap_std W) b = Some (base,obj) ∧
       alloc_object_status obj = AllocObjectLive ∧ (e <= alloc_object_end obj)%a) ∧
     Forall (λ x, heap_addr_live (heap_std W) x ∧
-      ∃ ρ, ρ ≠ Revoked ∧ std W !! LNonHeap x = Some ρ) (finz.seq_between b e).
+      ∃ ρ, ρ ≠ Revoked ∧ std W !! addr_key W x = Some ρ) (finz.seq_between b e).
   Proof.
     intros Hwf (Hb & Hbe & He) (Hvalid & Hcoverage).
     assert (Hbheap : is_heap_address b = true).
@@ -798,12 +861,12 @@ Section logrel.
                     ∃ (p' : Perm) (P:V),
                       ⌜PermFlowsTo p p'⌝
                       ∧ ⌜persistent_cond P⌝
-                      ∧ rel C (LNonHeap a) p' (safeC P)
+                      ∧ rel C (addr_key W a) p' (safeC P)
                       ∧ ▷ zcond P C
                       ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
                       ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
-                      ∧ monoReq W C a p' P
-                      ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
+                      ∧ monoReq W C (addr_key W a) p' P
+                      ∧ ⌜ if isWL p then region_state_pwl W (addr_key W a) else region_state_nwl W (addr_key W a) g⌝)
                   ∗ ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e⌝
               | _ => False
               end)%I.
@@ -893,13 +956,13 @@ Section logrel.
         (P : WORLD -n> leibnizO CmptName -n> leibnizO Word -n> iPropO Σ),
         ⌜PermFlowsTo p p'⌝
         ∧ ⌜persistent_cond P⌝
-        ∧ rel C (LNonHeap a) p' (safeC P)
+        ∧ rel C (addr_key W a) p' (safeC P)
         ∧ ▷ zcond P C
         ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
         ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
-        ∧ monoReq W C a p' P
-        ∧ ⌜if isWL p then region_state_pwl W a
-            else region_state_nwl W a g⌝)%I.
+        ∧ monoReq W C (addr_key W a) p' P
+        ∧ ⌜if isWL p then region_state_pwl W (addr_key W a)
+            else region_state_nwl W (addr_key W a) g⌝)%I.
 
   Local Instance interp_cap_body_contractive W C p g b e :
     Contractive (λ interp, interp_cap_body interp W C p g b e).
@@ -919,13 +982,13 @@ Section logrel.
         (P : WORLD -n> leibnizO CmptName -n> leibnizO Word -n> iPropO Σ),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
-        ∗ rel C (LNonHeap a) p' (safeC P)
+        ∗ rel C (addr_key W a) p' (safeC P)
         ∗ ▷ zcond P C
         ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
         ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
-        ∗ monoReq W C a p' P
-        ∗ ⌜if isWL p then region_state_pwl W a
-            else region_state_nwl W a g⌝)%I.
+        ∗ monoReq W C (addr_key W a) p' P
+        ∗ ⌜if isWL p then region_state_pwl W (addr_key W a)
+            else region_state_nwl W (addr_key W a) g⌝)%I.
   Proof.
     rewrite /interp_cap_body.
     apply big_sepL_proper; intros k a' Ha'.
@@ -1099,12 +1162,12 @@ Section logrel.
                   ∃ (p' : Perm) (P:V),
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜persistent_cond P⌝
-                    ∗ rel C (LNonHeap a) p' (safeC P)
+                    ∗ rel C (addr_key W a) p' (safeC P)
                     ∗ ▷ zcond P C
                     ∗ (if readAllowed p' then ▷ (rcond P C p' interp) else True)
                     ∗ (if writeAllowed p' then ▷ (wcond P C interp) else True)
-                    ∗ monoReq W C a p' P
-                    ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
+                    ∗ monoReq W C (addr_key W a) p' P
+                    ∗ ⌜ if isWL p then region_state_pwl W (addr_key W a) else region_state_nwl W (addr_key W a) g⌝)
                ∗ ⌜(if isWL p then g = Local else True) ∧
                     disjoint_from_mmio b e ∧ heap_cap_valid W p b e⌝)%I).
   Proof.
@@ -1234,7 +1297,7 @@ Section logrel.
   Lemma readAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a':
     readAllowed p = true ->
     interp W C (WCap true p g b e a') -∗
-    ⌜Forall (fun a => ∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
+    ⌜Forall (fun a => ∃ ρ, std W !! addr_key W a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
   Proof.
     iIntros (Hwa) "Hinterp".
     rewrite Forall_forall.
@@ -1261,11 +1324,11 @@ Section logrel.
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
-      ∗ rel C (LNonHeap a') p' (safeC P)
+      ∗ rel C (addr_key W a') p' (safeC P)
       ∗ ▷ zcond P C
       ∗ ▷ rcond P C p' interp
       ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
-      ∗ monoReq W C a' p' P
+      ∗ monoReq W C (addr_key W a') p' P
   .
   Proof.
     iIntros (Hin Ra) "Hinterp".
@@ -1292,11 +1355,11 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C (LNonHeap a') p' (safeC P)
+              ∗ rel C (addr_key W a') p' (safeC P)
               ∗ ▷ zcond P C
               ∗ ▷ rcond P C p' interp
               ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
-              ∗ monoReq W C a' p' P
+              ∗ monoReq W C (addr_key W a') p' P
           ).
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
@@ -1317,11 +1380,11 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C (LNonHeap a') p' (safeC P)
+              ∗ rel C (addr_key W a') p' (safeC P)
               ∗ ▷ zcond P C
               ∗ ▷ rcond P C p' interp
               ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
-              ∗ monoReq W C a' p' P
+              ∗ monoReq W C (addr_key W a') p' P
           ).
   Proof.
     iIntros (Hra) "Hinterp".
@@ -1335,7 +1398,7 @@ Section logrel.
     readAllowed p = true ->
     withinBounds b e a' = true ->
     interp W C (WCap true p g b e a) -∗
-    ⌜∃ ρ, std W !! LNonHeap a' = Some ρ ∧ ρ <> Revoked⌝.
+    ⌜∃ ρ, std W !! addr_key W a' = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -1361,11 +1424,11 @@ Section logrel.
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
-      ∗ rel C (LNonHeap a') p' (safeC P)
+      ∗ rel C (addr_key W a') p' (safeC P)
       ∗ ▷ zcond P C
       ∗ ▷ wcond P C interp
       ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
-      ∗ monoReq W C a' p' P
+      ∗ monoReq W C (addr_key W a') p' P
   .
   Proof.
     iIntros (Hin Ra) "Hinterp".
@@ -1392,11 +1455,11 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C (LNonHeap a') p' (safeC P)
+              ∗ rel C (addr_key W a') p' (safeC P)
               ∗ ▷ zcond P C
               ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
               ∗ (▷ wcond P C interp)
-              ∗ monoReq W C a' p' P
+              ∗ monoReq W C (addr_key W a') p' P
           ).
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
@@ -1417,11 +1480,11 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C (LNonHeap a') p' (safeC P)
+              ∗ rel C (addr_key W a') p' (safeC P)
               ∗ ▷ zcond P C
               ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
               ∗ (▷ wcond P C interp)
-              ∗ monoReq W C a' p' P
+              ∗ monoReq W C (addr_key W a') p' P
           ).
   Proof.
     iIntros (Hra) "Hinterp".
@@ -1444,7 +1507,7 @@ Section logrel.
     writeAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap true p g b e a) -∗
-    ⌜∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ <> Revoked⌝.
+    ⌜∃ ρ, std W !! addr_key W a = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -1466,7 +1529,7 @@ Section logrel.
     writeAllowed p = true →
     withinBounds b e ea = true →
     interp W C (WCap true p g b e a) -∗
-    ⌜∃ ρ, std W !! LNonHeap ea = Some ρ ∧ ρ <> Revoked⌝.
+    ⌜∃ ρ, std W !! addr_key W ea = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hwa Hb.
     rewrite (interp_cap_cur_addr W C true p g b e a ea).
@@ -1476,7 +1539,7 @@ Section logrel.
   Lemma writeAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a':
     writeAllowed p = true ->
     interp W C (WCap true p g b e a') -∗
-    ⌜Forall (fun a => ∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
+    ⌜Forall (fun a => ∃ ρ, std W !! addr_key W a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
   Proof.
     iIntros (Hwa) "Hinterp".
     rewrite Forall_forall.
@@ -1501,7 +1564,7 @@ Section logrel.
     isWL p = true ->
     withinBounds b e a = true ->
     interp W C (WCap true p g b e a') -∗
-    ⌜std W !! LNonHeap a = Some Temporary⌝.
+    ⌜std W !! addr_key W a = Some Temporary⌝.
   Proof.
     intros Hp Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -1519,7 +1582,7 @@ Section logrel.
     isWL p = true ->
     Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
     ⊢ (interp W C (WCap true p g b e a)) →
-    [∗ list] a' ∈ l, ⌜std W !! LNonHeap a' = Some Temporary⌝.
+    [∗ list] a' ∈ l, ⌜std W !! addr_key W a' = Some Temporary⌝.
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
     simpl.
@@ -1532,13 +1595,49 @@ Section logrel.
   Lemma writeLocalAllowed_valid_cap_implies_full_cap (W : WORLD) (C : CmptName) p g b e a:
     isWL p = true ->
     ⊢ (interp W C (WCap true p g b e a)) →
-    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! LNonHeap a' = Some Temporary⌝.
+    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! addr_key W a' = Some Temporary⌝.
   Proof.
     iIntros (Hwl) "Hinterp".
     iApply (writeLocalAllowed_valid_cap_implies_many with "Hinterp"); eauto.
     apply Forall_forall.
     intros a' Ha'.
     by apply elem_of_finz_seq_between.
+  Qed.
+
+  (* A write-local capability never covers the heap, so its addresses are keyed
+     by [LNonHeap]. *)
+  Lemma interp_WL_addr_key W C p g b e a :
+    isWL p = true ->
+    interp W C (WCap true p g b e a) -∗
+    ⌜Forall (λ a', addr_key W a' = LNonHeap a') (finz.seq_between b e)⌝.
+  Proof.
+    iIntros (Hwl) "Hinterp".
+    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hvalid];
+      first by apply isWL_nonO.
+    iPureIntro. apply Forall_forall. intros a' Ha'.
+    assert (b < e)%a as Hlt.
+    { apply elem_of_finz_seq_between in Ha'. solve_addr. }
+    specialize (Hvalid Hlt). rewrite /heap_cap_live in Hvalid.
+    destruct (is_heap_address b).
+    - destruct (heap_lookup_addr (heap_std W) b) as [ [? o] | ]; last done.
+      destruct (alloc_object_status o); last done.
+      rewrite Hwl in Hvalid. naive_solver.
+    - by eapply addr_key_disjoint.
+  Qed.
+
+
+  (** The addresses of a write-local capability are non-heap, so its full
+      [Temporary] coverage is stated over [LNonHeap] keys. *)
+  Lemma writeLocalAllowed_valid_cap_implies_full_cap_nonheap (W : WORLD) (C : CmptName) p g b e a :
+    isWL p = true ->
+    ⊢ (interp W C (WCap true p g b e a)) →
+    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! LNonHeap a' = Some Temporary⌝.
+  Proof.
+    iIntros (Hwl) "#Hinterp".
+    iDestruct (interp_WL_addr_key with "Hinterp") as %Hkeys; first done.
+    iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp") as "Htmp"; first done.
+    iApply (big_sepL_impl with "Htmp"); iIntros "!>" (k a' Ha') "%Htmp".
+    by rewrite (Forall_lookup_1 _ _ _ _ Hkeys Ha') in Htmp.
   Qed.
 
 
@@ -1549,17 +1648,17 @@ Section logrel.
     -∗ (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
-        ∗ rel C (LNonHeap a) p' (safeC P)
+        ∗ rel C (addr_key W a) p' (safeC P)
         ∗ ▷ zcond P C
         ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
         ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
-        ∗ monoReq W C a p' P
-        ∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
+        ∗ monoReq W C (addr_key W a) p' P
+        ∗ ⌜if isWL p then region_state_pwl W (addr_key W a) else region_state_nwl W (addr_key W a) g⌝
        )
     -∗ (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
-        ∗ rel C (LNonHeap a) p' (safeC P)
+        ∗ rel C (addr_key W a) p' (safeC P)
         ∗ ▷ zcond P C
         ∗ (if decide (readAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a)
             then ▷ (rcond P C p' interp)
@@ -1567,8 +1666,8 @@ Section logrel.
         ∗ (if decide (writeAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a)
             then ▷ wcond P C interp
             else emp)
-        ∗ monoReq W C a p' P
-        ∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
+        ∗ monoReq W C (addr_key W a) p' P
+        ∗ ⌜if isWL p then region_state_pwl W (addr_key W a) else region_state_nwl W (addr_key W a) g⌝
        ).
   Proof.
     iIntros "#Hreg #H".
@@ -1599,7 +1698,7 @@ Section logrel.
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
       ; eauto; iClear "Hinterp_w".
       apply readAllowed_flowsto in Hflc1; auto.
-      iDestruct (rel_agree C a _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
+      iDestruct (rel_agree C (addr_key W a) _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
     - (* wcond *)
       destruct (decide (writeAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a))
@@ -1624,7 +1723,7 @@ Section logrel.
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
       ; eauto; iClear "Hinterp_w".
       apply writeAllowed_flowsto in Hflc1; auto.
-      iDestruct (rel_agree C a _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
+      iDestruct (rel_agree C (addr_key W a) _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
   Qed.
 
@@ -1671,18 +1770,34 @@ Section logrel.
       by rewrite ?filter_heap_readonly ?filter_heap_deeplocal ?filter_heap_borrow.
   Qed.
 
-  Lemma interp_in_mem_shadow_result_gen Wworld W C opened (p : Perm) raw actual alloc_map :
-    Forall (heap_addr_live (heap_std Wworld)) opened →
+  (** World Quarantined ⇒ shadow Quarantined, from the registry's authority
+      and the one-way coherence clause of the allocator invariant. *)
+  Lemma world_quarantined_shadow Wworld C opened ι o alloc_map R :
+    heap_std Wworld !! ι = Some o ->
+    alloc_object_status o = AllocObjectQuarantined ->
+    allocator_registry_coherent R alloc_map ->
+    world_interp_open Wworld C opened -∗
+    reg_auth R -∗
+    ⌜∀ a, alloc_object_contains o a -> alloc_map !! a = Some Quarantined⌝.
+  Proof.
+    iIntros (Hι Hstatus Hcoh) "Hworld HR". iIntros (a Ha).
+    iDestruct (world_interp_open_heap_provenance with "Hworld") as "[_ #Hprov]".
+    iDestruct (heap_provenance_quarantined with "Hprov") as "#Hq"; [done|done|].
+    iDestruct (heap_provenance_alloc_obj with "Hprov") as "#Hobj"; first done.
+    iApply (allocator_registry_quarantined with "HR Hq Hobj"); done.
+  Qed.
+
+  Lemma interp_in_mem_shadow_result_gen Wworld W C opened (p : Perm) raw actual alloc_map R :
     heap_std Wworld = heap_std W →
     dom alloc_map = heap_addresses →
+    allocator_registry_coherent R alloc_map →
     load_memory_shadow_observation (shadow_status <$> alloc_map) p raw actual →
     world_interp_open Wworld C opened -∗
-    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s) -∗
+    reg_auth R -∗
     interp_in_mem p W C raw -∗
-    interp W C actual ∗ world_interp_open Wworld C opened ∗
-    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s).
+    interp W C actual ∗ world_interp_open Wworld C opened ∗ reg_auth R.
   Proof.
-    iIntros (Hlive_s Hheap_eq Hdom Hobs) "Hworld Hentries #Hnormal".
+    iIntros (Hheap_eq Hdom Hcoh Hobs) "Hworld HR #Hnormal".
     destruct (heap_cap_base raw) as [base|] eqn:Hbase; cycle 1.
     { rewrite /load_memory_shadow_observation Hbase in Hobs. subst actual.
       assert (heap_authority_base raw = None) as Hauth.
@@ -1691,7 +1806,7 @@ Section logrel.
         rewrite Hbase in Hauth. discriminate. }
       assert (filter_heap W (load_word p raw) = load_word p raw) as Hfilter.
       { rewrite filter_heap_load_word /filter_heap Hauth. done. }
-      iSplitR "Hworld Hentries".
+      iSplitR "Hworld HR".
       { iApply (interp_in_mem_load_result with "Hnormal").
         right. split; done. }
       iFrame. }
@@ -1708,93 +1823,47 @@ Section logrel.
       as Hshadow_lookup.
     { by rewrite lookup_fmap Hlookup. }
     specialize (Hobs Hshadow_lookup).
-    destruct s.
-    - simpl in Hobs. subst actual.
-      destruct (heap_authority_base raw) as [b|] eqn:Hauth.
-      2: { iSplitR "Hworld Hentries".
-           { iApply (interp_in_mem_load_result with "Hnormal").
-             right. split; first done.
-             rewrite filter_heap_load_word /filter_heap Hauth. done. }
-           iFrame. }
-      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
-      rewrite Hbase in Hcap. inversion Hcap; subst b.
-      destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup.
-      2: { iSplitR "Hworld Hentries".
-           { iApply (interp_in_mem_load_result with "Hnormal").
-             right. split; first done.
-             rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup. done. }
-           iFrame. }
-      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
-      { iSplitR "Hworld Hentries".
-        { iApply (interp_in_mem_load_result with "Hnormal").
-          right. split; first done.
-          rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
-        iFrame. }
-      assert (heap_addr_status (heap_std Wworld) base = Some AllocObjectQuarantined)
-        as Hqstatus.
-      { by rewrite Hheap_eq /heap_addr_status Hheap Hheaplookup /= Hstatus. }
-      assert (base ∉ opened) as Hnotpc.
-      { intros Hbase_in.
-        rewrite Forall_forall in Hlive_s.
-        specialize (Hlive_s base Hbase_in).
-        unfold heap_addr_live in Hlive_s. rewrite Hqstatus in Hlive_s.
-        discriminate. }
-      iDestruct (world_interp_open_quarantined_token with "Hworld")
-        as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
-      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
-      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
-        as %Himpossible. discriminate Himpossible.
-    - simpl in Hobs. subst actual.
-      destruct (heap_authority_base raw) as [b|] eqn:Hauth.
-      2: { iSplitR "Hworld Hentries".
-           { iApply (interp_in_mem_load_result with "Hnormal").
-             right. split; first done.
-             rewrite filter_heap_load_word /filter_heap Hauth. done. }
-           iFrame. }
-      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
-      rewrite Hbase in Hcap. inversion Hcap; subst b.
-      destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup.
-      2: { iSplitR "Hworld Hentries".
-           { iApply (interp_in_mem_load_result with "Hnormal").
-             right. split; first done.
-             rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup. done. }
-           iFrame. }
-      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
-      { iSplitR "Hworld Hentries".
-        { iApply (interp_in_mem_load_result with "Hnormal").
-          right. split; first done.
-          rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
-        iFrame. }
-      assert (heap_addr_status (heap_std Wworld) base = Some AllocObjectQuarantined)
-        as Hqstatus.
-      { by rewrite Hheap_eq /heap_addr_status Hheap Hheaplookup /= Hstatus. }
-      assert (base ∉ opened) as Hnotpc.
-      { intros Hbase_in.
-        rewrite Forall_forall in Hlive_s.
-        specialize (Hlive_s base Hbase_in).
-        unfold heap_addr_live in Hlive_s. rewrite Hqstatus in Hlive_s.
-        discriminate. }
-      iDestruct (world_interp_open_quarantined_token with "Hworld")
-        as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
-      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
-      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
-        as %Himpossible. discriminate Himpossible.
-    - simpl in Hobs. subst actual.
-      iSplitR "Hworld Hentries"; first iApply interp_clear_tag. iFrame.
+    destruct s; last first.
+    { simpl in Hobs. subst actual.
+      iSplitR "Hworld HR"; first iApply interp_clear_tag. iFrame. }
+    all: simpl in Hobs; subst actual.
+    all: destruct (heap_authority_base raw) as [b|] eqn:Hauth;
+      [|iSplitR "Hworld HR";
+        [iApply (interp_in_mem_load_result with "Hnormal");
+         right; split; first done;
+         rewrite filter_heap_load_word /filter_heap Hauth; done
+        |iFrame] ].
+    all: pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
+    all: rewrite Hbase in Hcap; inversion Hcap; subst b.
+    all: destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup;
+      [|iSplitR "Hworld HR";
+        [iApply (interp_in_mem_load_result with "Hnormal");
+         right; split; first done;
+         rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup; done
+        |iFrame] ].
+    all: destruct bo as [ι obj]; destruct (alloc_object_status obj) eqn:Hstatus;
+      [iSplitR "Hworld HR";
+        [iApply (interp_in_mem_load_result with "Hnormal");
+         right; split; first done;
+         rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus; done
+        |iFrame]|].
+    all: apply heap_lookup_addr_sound in Hheaplookup as [Hι Hcontains].
+    all: rewrite -Hheap_eq in Hι.
+    all: iDestruct (world_quarantined_shadow with "Hworld HR") as %Hq; [done|done|done|].
+    all: specialize (Hq base Hcontains); congruence.
   Qed.
 
-  Lemma interp_in_mem_shadow_result W C pc (p : Perm) raw actual alloc_map :
-    heap_addr_live (heap_std W) pc →
+  Lemma interp_in_mem_shadow_result W C pc (p : Perm) raw actual alloc_map R :
     dom alloc_map = heap_addresses →
+    allocator_registry_coherent R alloc_map →
     load_memory_shadow_observation (shadow_status <$> alloc_map) p raw actual →
     world_interp_open W C [pc] -∗
-    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s) -∗
+    reg_auth R -∗
     interp_in_mem p W C raw -∗
-    interp W C actual ∗ world_interp_open W C [pc] ∗
-    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s).
+    interp W C actual ∗ world_interp_open W C [pc] ∗ reg_auth R.
   Proof.
-    intros Hlive Hdom Hobs.
-    iApply interp_in_mem_shadow_result_gen; auto.
+    intros Hdom Hcoh Hobs. iIntros "Hworld HR Hinterp".
+    by iApply (interp_in_mem_shadow_result_gen with "Hworld HR Hinterp").
   Qed.
 
 

@@ -48,12 +48,12 @@ Section AllocatorRules.
     - iApply (wp_load_success_heap_word with "[$HPC $Hi $Hr1 $Hr2 $Ha $Hs]"); eauto.
       iNext. iIntros "(HPC & Hr1 & Hi & Hr2 & Ha & Hs)".
       iMod ("Hclose" with "[Hs Hres Hput]").
-      { iNext. iApply ("Hput" $! s). iFrame "Hres". by rewrite /allocator_entry Hstatus. }
+      { iNext. iApply ("Hput" $! s with "[//]"). iFrame "Hres". by rewrite /allocator_entry Hstatus. }
       iModIntro. iApply ("HΦ" $! ShadowLive). iFrame.
     - iApply (wp_load_success_heap_word_revoked with "[$HPC $Hi $Hr1 $Hr2 $Ha $Hs]"); eauto.
       iNext. iIntros "(HPC & Hr1 & Hi & Hr2 & Ha & Hs)".
       iMod ("Hclose" with "[Hs Hres Hput]").
-      { iNext. iApply ("Hput" $! s). iFrame "Hres". by rewrite /allocator_entry Hstatus. }
+      { iNext. iApply ("Hput" $! s with "[//]"). iFrame "Hres". by rewrite /allocator_entry Hstatus. }
       iModIntro. iApply ("HΦ" $! ShadowQuarantined). iFrame.
   Qed.
 
@@ -91,7 +91,7 @@ Section AllocatorRules.
       with "[$HPC $Hi $Hdst $Hs]"); eauto.
     iNext. iIntros "(HPC & Hi & Hdst & Hs)".
     iMod ("Hclose" with "[Ha Hs Hput Hfree]").
-    { iNext. iApply ("Hput" $! Quarantined). iFrame. }
+    { iNext. iApply ("Hput" $! Quarantined with "[//]"). iFrame. }
     iModIntro. iApply "HΦ". iFrame.
   Qed.
 End AllocatorRules.

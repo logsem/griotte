@@ -812,7 +812,7 @@ Section Switcher_Call_Blocks.
     iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 2)%a cgp csp
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcgp $Hcsp $Hastk3 $Hworld $Halloc]");
-      [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      [reflexivity|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcgp) "(%Hrcgp & HPC & Hi & Hcgp & Hcsp & Hastk3 & Hworld)".
@@ -825,7 +825,7 @@ Section Switcher_Call_Blocks.
     iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 4)%a cra csp
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcra $Hcsp $Hastk2 $Hworld $Halloc]");
-      [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      [reflexivity|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcra) "(%Hrcra & HPC & Hi & Hcra & Hcsp & Hastk2 & Hworld)".
@@ -838,7 +838,7 @@ Section Switcher_Call_Blocks.
     iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 6)%a cs1 csp
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcs1 $Hcsp $Hastk1 $Hworld $Halloc]");
-      [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      [reflexivity|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs1) "(%Hrcs1 & HPC & Hi & Hcs1 & Hcsp & Hastk1 & Hworld)".
@@ -851,7 +851,7 @@ Section Switcher_Call_Blocks.
     iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 8)%a cs0 csp
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcs0 $Hcsp $Hastk0 $Hworld $Halloc]");
-      [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      [reflexivity|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs0) "(%Hrcs0 & HPC & Hi & Hcs0 & Hcsp & Hastk0 & Hworld)".

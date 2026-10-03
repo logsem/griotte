@@ -25,8 +25,7 @@ Section Stack_Object_Return_Repair.
     destruct (decide (LNonHeap a ∈ l)) as [Hin|Hnotin]; last by iPureIntro.
     iDestruct (big_sepL_elem_of with "Hl") as "Haddr"; first exact Hin.
     iDestruct "Haddr" as (p φ) "(_ & _ & Haddr)".
-    rewrite /heap_addr_live in Hlive.
-    iEval (rewrite Hlive) in "Haddr".
+    iEval (cbn [heap_key_status]) in "Haddr".
     iDestruct "Haddr" as (w) "(_ & Hw & _)".
     iDestruct (pointsto_valid_2 with "Ha Hw") as %[Hbad _]. done.
   Qed.
@@ -68,39 +67,17 @@ Section Stack_Object_Return_Repair.
   Qed.
   Lemma stack_object_framed_resources_live
       (Worig Wcur : WORLD) (C : CmptName) (l : list LAddr) :
-    Forall (λ a, heap_addr_live (heap_std Worig) (laddr_addr a)) l ->
-    Forall (fun a => is_Some (heap_addr_status (heap_std Wcur) (laddr_addr a))) l ->
+    Forall (λ a, heap_key_live (heap_std Worig) a) l ->
+    Forall (fun a => is_Some (heap_key_status (heap_std Wcur) a)) l ->
     allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l
     ={⊤}=∗
       allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l ∗
-      ⌜Forall (λ a, heap_addr_live (heap_std Wcur) (laddr_addr a)) l⌝.
+      ⌜Forall (λ a, heap_key_live (heap_std Wcur) a) l⌝.
   Proof.
-    induction l as [|a l IH]; intros Hlive Hsome;
-      iIntros "(#Halloc & Hworld & Hl)".
-    - iModIntro. iFrame "∗#". iPureIntro. constructor.
-    - apply Forall_cons in Hlive as [Ha_live Hl_live].
-      apply Forall_cons in Hsome as [Ha_some Hl_some].
-      iDestruct "Hl" as "[Hitem Hl]".
-      iDestruct "Hitem" as (p φ) "(%Hpers & Hrel & Haddr)".
-      rewrite /heap_addr_live in Ha_live.
-      iEval (rewrite Ha_live) in "Haddr".
-      iDestruct "Haddr" as (v) "(%HpO & Ha & Hφ & Hmono)".
-      iMod (framed_addr_live Wcur C (laddr_addr a) v Ha_some
-        with "[$Halloc $Hworld $Ha]")
-        as "(_ & Hworld & Ha & %Ha_cur)".
-      iAssert (RevokedResources Worig C [a])%I
-        with "[Hrel Ha Hφ Hmono]" as "Hitem".
-      { rewrite /RevokedResources /= Ha_live.
-        iSplitL "Hrel Ha Hφ Hmono"; last done.
-        iExists p, φ. iFrame "Hrel". iSplit; first done.
-        iExists v. rewrite /TmpRes. iFrame "Ha Hφ Hmono". done. }
-      iMod (IH Hl_live Hl_some with "[$Halloc $Hworld $Hl]")
-        as "(_ & Hworld & Hl & %Hl_cur)".
-      iAssert (RevokedResources Worig C (a :: l))%I
-        with "[Hitem Hl]" as "Hl".
-      { replace (a :: l) with ([a] ++ l) by done.
-        rewrite RevokedResources_app. iFrame. }
-      iModIntro. iFrame "∗#". iPureIntro. constructor; assumption.
+    intros Hlive Hsome. iIntros "(#Halloc & Hworld & Hl)".
+    iDestruct (counter_framed_resources_live Worig Wcur C l Hlive Hsome
+      with "[$Hworld $Hl]") as "(Hworld & Hl & %Hcur)".
+    by iFrame "∗#%".
   Qed.
 
   Lemma stack_object_repair_world_for_return
@@ -109,7 +86,7 @@ Section Stack_Object_Return_Repair.
       (l0 l0_live l0_quarantined l4 : list LAddr)
       (stk_head0 : Word) (stk_tail : list Word) :
     let W5 := revoke W4 in
-    let object_temps : list LAddr := LNonHeap <$> so_object_temporaries W0 object_b object_e in
+    let object_temps : list LAddr := addr_key W0 <$> so_object_temporaries W0 object_b object_e in
     let l0_rest := so_revoked_without_object W0 object_b object_e l0 in
     let l4_no_fresh := filter (fun a => a <> LNonHeap a_stk1) l4 in
     let l4_object := filter (fun a => a ∈ object_temps) l4_no_fresh in
@@ -128,11 +105,11 @@ Section Stack_Object_Return_Repair.
     related_sts_priv_world W0 W3 ->
     related_sts_pub_world W3 W4 ->
     Permutation l0_rest (l0_live ++ l0_quarantined) ->
-    Forall (λ a, heap_addr_live (heap_std W0) (laddr_addr a)) l0_live ->
+    Forall (λ a, heap_key_live (heap_std W0) a) l0_live ->
     Forall
-      (fun a => heap_addr_status (heap_std W0) (laddr_addr a) = Some AllocObjectQuarantined)
+      (fun a => heap_key_status (heap_std W0) a = Some AllocObjectQuarantined)
       l0_quarantined ->
-    Forall (λ a, heap_addr_live (heap_std W5) (laddr_addr a)) l0_live ->
+    Forall (λ a, heap_key_live (heap_std W5) a) l0_live ->
     so_object_addresses object_b object_e
       ## finz.seq_between csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
@@ -186,14 +163,18 @@ Section Stack_Object_Return_Repair.
       apply list_elem_of_filter in Hx as [Hx_temp Hx_object].
       apply Hl0_temporaries in Hx_temp.
       apply elem_of_app in Hx_temp as [Hx_temp|Hx_temp]; first done.
-      apply elem_of_LNonHeap_fmap in Hx_temp.
+      apply list_elem_of_fmap in Hx_temp as [x'' [Heq Hx''] ].
+      assert (x' = x'') as <-.
+      { rewrite -(heap_addr_key_addr (heap_std W0) x').
+        change (heap_addr_key (heap_std W0) x') with (addr_key W0 x').
+        by rewrite Heq. }
       rewrite elem_of_disjoint in Hobject_stack.
       exfalso; eapply Hobject_stack; eauto.
     }
     assert (object_temps ≡ₚ
       filter (fun a => a ∈ object_temps) l0) as Htemps_filter.
     { apply NoDup_subset_filter_membership.
-      - apply NoDup_LNonHeap_fmap, so_object_temporaries_NoDup.
+      - apply NoDup_addr_key_fmap, so_object_temporaries_NoDup.
       - apply NoDup_app in Hl0_nodup as [? _]. done.
       - exact Htemps_l0.
     }
@@ -223,7 +204,7 @@ Section Stack_Object_Return_Repair.
           subst l0_rest.
           apply list_elem_of_filter in Hxr as [Hnot _]. contradiction.
       - intro Hx_fresh.
-        apply list_elem_of_singleton in Hx_fresh; subst x; injection Hx_fresh as ->.
+        apply list_elem_of_singleton in Hx_fresh; subst x; apply addr_key_LNonHeap_eq in Hx_fresh as ->.
         rewrite elem_of_disjoint in Hobject_stack.
         eapply Hobject_stack.
         + by apply list_elem_of_filter in Hx_obj as [_ ?].
@@ -300,7 +281,7 @@ Section Stack_Object_Return_Repair.
        incoming object's temporary portion. *)
     assert (object_temps ≡ₚ l4_object) as Hobject_l4_object.
     { apply NoDup_Permutation.
-      - apply NoDup_LNonHeap_fmap, so_object_temporaries_NoDup.
+      - apply NoDup_addr_key_fmap, so_object_temporaries_NoDup.
       - subst l4_object. apply NoDup_filter.
         subst l4_no_fresh. apply NoDup_filter.
         apply NoDup_app in Hl4_nodup as [? _]. exact H.
@@ -311,19 +292,19 @@ Section Stack_Object_Return_Repair.
           apply list_elem_of_filter; split; first exact Hx.
           subst l4_no_fresh.
           apply list_elem_of_filter; split.
-          * intros Heq; injection Heq as ->.
+          * intros Heq; apply addr_key_LNonHeap_eq in Heq as ->.
             rewrite elem_of_disjoint in Hobject_stack.
             eapply Hobject_stack.
             { by apply list_elem_of_filter in Hx_obj as [_ ?]. }
             apply elem_of_finz_seq_between.
             solve_addr+Hfresh Hnext Hnext_end.
-          * assert (std W4 !! LNonHeap x' = Some Temporary) as Hx_temp.
+          * assert (std W4 !! addr_key W0 x' = Some Temporary) as Hx_temp.
             { rewrite Forall_forall in Hobject_temps_W4.
               by apply Hobject_temps_W4. }
             apply Hl4_temporaries in Hx_temp.
             apply elem_of_app in Hx_temp as [Hx_l4|Hx_tail]; first exact Hx_l4.
             exfalso.
-            apply elem_of_LNonHeap_fmap in Hx_tail.
+            apply addr_key_elem_of_LNonHeap_fmap in Hx_tail.
             rewrite elem_of_disjoint in Hobject_stack.
             eapply Hobject_stack.
             { by apply list_elem_of_filter in Hx_obj as [_ ?]. }
@@ -530,8 +511,7 @@ Section Stack_Object_Return_Repair.
       rewrite Forall_forall in Hstack_live4. apply Hstack_live4.
       apply elem_of_finz_seq_between.
       apply elem_of_finz_seq_between in Hx. solve_addr. }
-    rewrite /heap_addr_live in Hfresh_live4.
-    iEval (rewrite /RevokedResources /= Hfresh_live4) in "Hfresh_resource".
+    iEval (rewrite /RevokedResources /=) in "Hfresh_resource".
     iDestruct "Hfresh_resource" as "[Hfresh_resource _]".
     iDestruct "Hfresh_resource" as (pa Pa) "(_ & _ & Hfresh_resource)".
     iDestruct "Hfresh_resource" as (va) "(_ & Hfresh_pointsto & _)".

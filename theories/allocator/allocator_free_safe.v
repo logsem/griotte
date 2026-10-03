@@ -2,7 +2,6 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel proofmode switcher switcher_preamble.
 From griotte Require Import switcher_spec_KtK register_tactics map_simpl.
 From griotte Require Import world_interp_stack switcher_spec_return.
-From griotte Require Import heap_temporal_safety_preamble.
 From griotte.allocator Require Import allocator allocator_preamble.
 From griotte.allocator Require Import allocator_header_spec.
 From griotte.allocator Require Export allocator_malloc_spec allocator_free_spec
@@ -20,77 +19,63 @@ Section Heap_Temporal_Safety_Interp.
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
   .
 
-  Lemma free_world_heap_receipt W C base obj :
-    heap_std W !! base = Some obj ->
+  (** The safe [free] runs with the core [FreeAuth] instance, whose client
+      part is [emp]: an arbitrary caller holds no right to free. *)
+  Local Instance free_auth_core_inst : FreeAuth Σ := free_auth_core.
+
+  (** The world's provenance of [ι]: its identifier and a temporary receipt. *)
+  Lemma free_world_heap_receipt W C ι obj :
+    heap_std W !! ι = Some obj ->
     world_interp W C -∗
     world_interp W C ∗
+    alloc_obj ι (alloc_object_base obj) (alloc_object_end obj) ∗
     ∃ reserved,
       allocator_allocation
         (allocator_historyg := @allocator_historyG_instance Σ allocatorg)
-        base (alloc_object_end obj) reserved.
+        ι (alloc_object_base obj) (alloc_object_end obj) reserved.
   Proof.
-    iIntros (Hbase) "Hworld".
+    iIntros (Hι) "Hworld".
     iDestruct (world_interp_open_heap_provenance W C [] with "[Hworld]")
       as "[Hworld #Hprovenance]".
     { by rewrite -open_world_interp_empty. }
     iDestruct (big_sepM_lookup with "Hprovenance")
-      as (reserved) "#Hreceipt"; first exact Hbase.
+      as "(#Hobj & #Hreceipt & _)"; first exact Hι.
     rewrite -open_world_interp_empty.
-    iFrame "Hworld". iExists reserved. iFrame "Hreceipt".
+    iFrame "Hworld Hobj Hreceipt".
   Qed.
 
-  Lemma free_quarantine_range h b e :
-    heap_wf h ->
-    h !! b = Some (MkAllocObject b e AllocObjectLive) ->
-    Forall (fun x => is_heap_address x = true) (finz.seq_between b e) ->
-    Forall (fun x => is_heap_address x = true /\ exists obj',
-      heap_lookup_addr (heap_quarantine h b) x = Some (b,obj') /\
-      alloc_object_status obj' = AllocObjectQuarantined)
-      (finz.seq_between b e).
-  Proof.
-    intros Hwf Hb Hheap.
-    apply Forall_forall. intros x Hx. split.
-    - apply Forall_forall with (x := x) in Hheap; done.
-    - exists (MkAllocObject b e AllocObjectQuarantined). split; last done.
-      apply heap_lookup_addr_complete.
-      + apply heap_quarantine_wf; done.
-      + rewrite (heap_quarantine_lookup h b _ Hb). reflexivity.
-      + unfold alloc_object_contains.
-        apply elem_of_finz_seq_between in Hx. exact Hx.
-  Qed.
-
-  Lemma free_world_open_list W C la :
-    NoDup la ->
-    Forall (λ a,
-      heap_addr_live (heap_std W) a ∧
-      ∃ ρ, ρ ≠ Revoked ∧ std W !! LNonHeap a = Some ρ) la ->
+  Lemma free_world_open_list W C (lk : list LAddr) :
+    NoDup lk ->
+    Forall (λ k,
+      heap_key_live (heap_std W) k ∧
+      ∃ ρ, ρ ≠ Revoked ∧ std W !! k = Some ρ) lk ->
     world_interp W C
     ==∗
     ∃ ws,
-      world_interp_open W C la ∗
-      ([∗ list] a;v ∈ la;ws, a ↦ₐ v) ∗
-      ([∗ list] a ∈ la,
+      world_interp_open W C lk ∗
+      ([∗ list] k;v ∈ lk;ws, k ↦ₖ v) ∗
+      ([∗ list] k ∈ lk,
         ∃ p φ ρ,
           ⌜∀ WCv, Persistent (φ WCv)⌝ ∗
-          rel C (LNonHeap a) p φ ∗
-          sts_state_std C (LNonHeap a) ρ).
+          rel C k p φ ∗
+          sts_state_std C k ρ).
   Proof.
     intros Hnodup Hstates.
-    induction la as [|a la IH].
+    induction lk as [|k lk IH].
     - iIntros "Hworld". iModIntro. iExists [].
       rewrite open_world_interp_empty. iFrame. simpl. done.
     - apply NoDup_cons in Hnodup as [Hnotin Hnodup].
-      apply Forall_cons in Hstates as [Ha_state Hstates].
-      destruct Ha_state as [Hlive (ρ & Hnr & Hstd)].
+      apply Forall_cons in Hstates as [Hk_state Hstates].
+      destruct Hk_state as [Hlive (ρ & Hnr & Hstd)].
       iIntros "Hworld".
-      iMod (free_region_rel_get W C a ρ Hstd with "Hworld")
+      iMod (free_region_rel_get W C k ρ Hstd with "Hworld")
         as "[Hworld Hrel]".
       iDestruct "Hrel" as (p φ) "[%Hpers #Hrel]".
       iMod (IH Hnodup Hstates with "Hworld") as (ws)
         "(Hworld & Hmem & Hhandles)".
       rewrite world_interp_open_eq /world_interp_open_def.
       iDestruct "Hworld" as "(Hregion & Hsts & Hseal)".
-      iDestruct (region_open_next W C φ la a p ρ Hnr Hlive Hnotin
+      iDestruct (region_open_next W C φ lk k p ρ Hnr Hlive Hnotin
         Hstd with "[$Hregion $Hrel $Hsts]") as (v)
         "(Hsts & Hstate & Hregion & Ha & Hmono & Hφ & %HnonO)".
       iModIntro. iExists (v :: ws). simpl.
@@ -100,37 +85,36 @@ Section Heap_Temporal_Safety_Interp.
       iExists p, φ, ρ. iFrame "Hstate Hrel". done.
   Qed.
 
-  Lemma free_world_close_quarantined_list W C la :
+  (** Quarantined cells close on the [emp] branch: the world's entry for [ι]
+      carries [ι ⊒ AQuar]. *)
+  Lemma free_world_close_quarantined_list W C ι o (la : list Addr) :
     NoDup la ->
-    Forall (λ a,
-      is_heap_address a = true ∧
-      ∃ base obj,
-        heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-        alloc_object_status obj = AllocObjectQuarantined) la ->
-    world_interp_open W C la ∗
+    heap_std W !! ι = Some o ->
+    alloc_object_status o = AllocObjectQuarantined ->
+    Forall (alloc_object_contains o) la ->
+    world_interp_open W C ((λ a, LHeap a ι) <$> la) ∗
     ([∗ list] a ∈ la,
       ∃ p φ ρ,
         ⌜∀ WCv, Persistent (φ WCv)⌝ ∗
-        rel C (LNonHeap a) p φ ∗
-        sts_state_std C (LNonHeap a) ρ) ∗
-    ([∗ list] a ∈ la, reclaim_token a)
+        rel C (LHeap a ι) p φ ∗
+        sts_state_std C (LHeap a ι) ρ)
     -∗
     world_interp W C.
   Proof.
-    intros Hnodup Hquarantined.
+    intros Hnodup Hι Hstatus Hcontains.
     induction la as [|a la IH].
-    - iIntros "(Hworld & _ & _)".
+    - iIntros "(Hworld & _)".
       by rewrite -open_world_interp_empty.
     - apply NoDup_cons in Hnodup as [Hnotin Hnodup].
-      apply Forall_cons in Hquarantined as [Ha_status Hquarantined].
-      destruct Ha_status as [Hheap (base & obj & Hlookup & Hstatus)].
-      iIntros "(Hworld & Hhandles & Htokens)".
+      apply Forall_cons in Hcontains as [Ha Hcontains].
+      iIntros "(Hworld & Hhandles)".
       iDestruct "Hhandles" as "[Hhandle Hhandles]".
-      iDestruct "Htokens" as "[Htoken Htokens]".
       iDestruct "Hhandle" as (p φ ρ) "(%Hpers & #Hrel & Hstate)".
-      iDestruct (close_world_interp_next_quarantined_heap W C la a p φ ρ
-        base obj with "Hworld Hrel Hstate Htoken") as "Hworld"; eauto.
-      iApply (IH Hnodup Hquarantined with "[$Hworld $Hhandles $Htokens]").
+      iDestruct (close_world_interp_next_quarantined_heap W C _ a ι p φ ρ o
+        with "Hworld Hrel Hstate") as "Hworld"; eauto.
+      { intros Hin. apply list_elem_of_fmap in Hin as (a' & Heq & Hin).
+        simplify_eq. done. }
+      iApply (IH Hnodup Hcontains with "[$Hworld $Hhandles]").
   Qed.
 
   (** Execute free for an arbitrary caller and update the shared heap world. *)
@@ -253,93 +237,88 @@ Section Heap_Temporal_Safety_Interp.
     pose proof (free_heap_cap_payload W p g b e Hheap_wf Hbounds Hcapvalid)
       as Hcap_payload.
     destruct Hcap_payload as [Hobj Hpayload].
-    destruct Hobj as (base & obj & Hlookup & Hlive & Hend).
-    apply heap_lookup_addr_sound in Hlookup as [Hbase Hcontains].
-    iDestruct (free_world_heap_receipt W C base obj Hbase with "Hworld")
-      as "[Hworld #Hreceipt]".
-    destruct obj as [objbase objend objstatus].
-    cbn in Hlive. cbn in Hend. cbn in Hbase. cbn in Hcontains.
-    destruct (Hheap_wf base _ Hbase) as (Hobjbase & Hobjnonempty & Hunique).
-    change (base = objbase) in Hobjbase. subst objbase.
+    destruct Hobj as (ι & obj & Hlookup & Hlive & Hend).
+    pose proof Hlookup as Hlookup_b.
+    apply heap_lookup_addr_sound in Hlookup as [Hι Hcontains].
+    iDestruct (free_world_heap_receipt W C ι obj Hι with "Hworld")
+      as "(Hworld & #Hobj & #Hreceipt)".
+    destruct obj as [base objend objstatus].
+    cbn in Hlive, Hend, Hι, Hcontains, Hlookup_b |- *.
     assert (Hsubrange : (base <= b /\ b < e /\ e <= objend)%a).
-    { repeat split; try assumption; unfold alloc_object_contains in Hcontains;
-        solve_addr. }
+    { unfold alloc_object_contains in Hcontains; cbn in Hcontains; solve_addr. }
     destruct (decide ((b,e)=(base,objend))) as [Hexact|Hnarrow].
     - injection Hexact as Hb_eq He_eq. subst b e.
+      subst objstatus.
       iDestruct "Hreceipt" as (reserved) "#Hreceipt".
-      iMod (free_world_open_list W C (finz.seq_between base objend)
-        (finz_seq_between_NoDup base objend) Hpayload with "Hworld")
-        as (ws) "(Hworld_open & Hmem & Hhandles)".
-      iDestruct (big_sepL2_length _ _ _ with "Hmem") as %Hlen.
-      iApply (allocator_free_valid_correct ⊤ p g base objend a reserved ws
+      (* The cells of [ι] are keyed by [ι]. *)
+      set (lk := (λ x, LHeap x ι) <$> finz.seq_between base objend).
+      assert (Hkeys : ∀ x, x ∈ finz.seq_between base objend ->
+        addr_key W x = LHeap x ι).
+      { intros x Hx. apply elem_of_finz_seq_between in Hx.
+        apply (heap_addr_key_lookup _ _ _ (MkAllocObject base objend AllocObjectLive)).
+        - apply withinBounds_true_iff.
+          destruct Hbounds as (Hb_heap & _ & He_heap). solve_addr.
+        - apply heap_lookup_addr_complete; [exact Hheap_wf|exact Hι|exact Hx]. }
+      assert (Hpayload_keys : Forall (λ k,
+          heap_key_live (heap_std W) k ∧
+          ∃ ρ, ρ ≠ Revoked ∧ std W !! k = Some ρ) lk).
+      { apply Forall_fmap, Forall_forall. intros x Hx.
+        apply Forall_forall with (x := x) in Hpayload; last exact Hx.
+        destruct Hpayload as [_ (ρ & Hρ & Hstd)].
+        split.
+        - rewrite /heap_key_live (heap_key_status_lookup _ _ _ _ Hι) //.
+          by apply elem_of_finz_seq_between in Hx.
+        - exists ρ. split; first done. by rewrite -(Hkeys x Hx). }
+      assert (Hlk_nodup : NoDup lk).
+      { apply NoDup_fmap_2; last apply finz_seq_between_NoDup.
+        intros x y Heq. by injection Heq. }
+      iMod (free_world_open_list W C lk Hlk_nodup Hpayload_keys with "Hworld")
+        as (ws) "(Hworld_open & Hcells & Hhandles)".
+      iDestruct (big_sepL2_length _ _ _ with "Hcells") as %Hlen.
+      rewrite length_fmap in Hlen.
+      rewrite big_sepL2_fmap_l.
+      iAssert (free_auth_held ι)%I as "Hheld".
+      { rewrite /free_auth_held /free_auth_core_inst /free_auth_core /=. done. }
+      iApply (allocator_free_valid_correct ⊤ p g ι base objend a reserved ws
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
         (λ v, (⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) with "[-]");
         try solve_ndisj; try exact Hbounds; try (symmetry; exact Hlen).
-      iFrame "Halloc Hservice Hna Hreceipt HPCr Hcgpr Hcrar Hca0 Hca1 Hca2
-        Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hmem".
+      iFrame "Halloc Hservice Hna Hreceipt Hobj Hheld HPCr Hcgpr Hcrar Hca0 Hca1 Hca2
+        Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hcells".
       iNext.
       iIntros "(Hna_post & Hreceipt_post & HPCr_post & Hcgpr_post &
         Hcrar_post & Hca0_post & Hca1_post & Hca2_post & Hct0_post &
         Hct1_post & Hct2_post & Hct3_post & Hct4_post & Hctp_post &
-        Hcnull_post & Htokens & Hlc)".
-      iEval (rewrite /allocator_reclaimed) in "Htokens".
-      iDestruct (world_interp_open_heap_provenance W C
-        (finz.seq_between base objend) with "Hworld_open")
-        as "[Hworld_open #Hprovenance]".
-      iDestruct (heap_provenance_quarantine W.2 base with "Hprovenance")
-        as "#Hprovenance_q".
-      subst objstatus.
-      set (h' := heap_quarantine W.2 base).
-      pose proof (heap_quarantine_future W.2 base) as Hheap_future.
-      pose proof (heap_quarantine_wf W.2 base Hheap_wf) as Hheap_wf_q.
+        Hcnull_post & #Hq & Hlc)".
+      set (h' := heap_quarantine W.2 ι).
+      pose proof (heap_quarantine_future W.2 ι) as Hheap_future.
+      pose proof (heap_quarantine_wf W.2 ι Hheap_wf) as Hheap_wf_q.
       pose proof (related_sts_pub_world_heap_update W
-        (heap_quarantine W.2 base) Hheap_future) as Hrelated_W_q.
+        (heap_quarantine W.2 ι) Hheap_future) as Hrelated_W_q.
       assert (Houtside : forall x,
-          x ∉ finz.seq_between base objend ->
-          heap_addr_status W.2 x = heap_addr_status h' x)
-        by (intros x Hnotin; unfold h';
-            eapply free_heap_quarantine_status_outside; eauto).
-      assert (Hdom_l : Forall
-          (fun x => LNonHeap x ∈ dom (std W)) (finz.seq_between base objend))
-        by (apply Forall_forall; intros x Hx;
-            apply Forall_forall with (x := x) in Hpayload;
-            last exact Hx;
-            destruct Hpayload as [_ (ρ & _ & Hstd)];
-            rewrite elem_of_dom; eexists; exact Hstd).
-      iMod (free_world_open_heap_transition_range W C
-          (finz.seq_between base objend) h' Hheap_future Hheap_wf_q
-          Houtside Hdom_l with "Hprovenance_q Hworld_open")
+          x ∉ laddr_addr <$> lk ->
+          heap_addr_status W.2 x = heap_addr_status h' x).
+      { intros x Hnotin. unfold h'.
+        eapply free_heap_quarantine_status_outside; [exact Hheap_wf|exact Hι|].
+        intros Hin. apply Hnotin. subst lk. rewrite -list_fmap_compose.
+        apply list_elem_of_fmap. by exists x. }
+      assert (Hdom_l : Forall (fun k => k ∈ dom (std W)) lk).
+      { eapply Forall_impl; first exact Hpayload_keys.
+        intros k [_ (ρ & _ & Hstd)]. rewrite elem_of_dom. by eexists. }
+      iMod (free_world_open_heap_transition_range W C lk ι Hheap_wf_q
+          Houtside Hdom_l with "Hq Hworld_open")
         as "Hworld_open_q".
-      assert (Hheap_range : Forall
-          (fun x => is_heap_address x=true)
-          (finz.seq_between base objend))
-        by (apply Forall_forall; intros x Hx;
-            apply withinBounds_true_iff;
-            apply elem_of_finz_seq_between in Hx;
-            destruct Hbounds as (Hb_heap & _ & He_heap);
-            solve_addr).
-      pose proof (free_quarantine_range W.2 base objend Hheap_wf Hbase
-        Hheap_range) as Hquarantined.
       iAssert (world_interp (heap_std_update W h') C)
-        with "[Hworld_open_q Hhandles Htokens]" as "Hworld_q".
-      { assert (Hquarantined_close : Forall
-            (fun x => is_heap_address x=true /\
-              exists b0 obj',
-                heap_lookup_addr (heap_std (heap_std_update W h')) x =
-                  Some (b0,obj') /\
-                alloc_object_status obj'=AllocObjectQuarantined)
-            (finz.seq_between base objend))
-          by (apply Forall_forall; intros x Hx;
-              apply Forall_forall with (x:=x) in Hquarantined;
-              last exact Hx;
-              destruct Hquarantined as
-                [Hheap (obj' & Hlookup' & Hstatus)];
-              split; first exact Hheap;
-              exists base,obj'; split; first exact Hlookup'; exact Hstatus).
-        iApply (free_world_close_quarantined_list
-          (heap_std_update W h') C (finz.seq_between base objend)
-          (finz_seq_between_NoDup base objend) Hquarantined_close).
-        iFrame "Hworld_open_q Hhandles Htokens". }
+        with "[Hworld_open_q Hhandles]" as "Hworld_q".
+      { iApply (free_world_close_quarantined_list
+          (heap_std_update W h') C ι
+          (MkAllocObject base objend AllocObjectQuarantined)
+          (finz.seq_between base objend)
+          (finz_seq_between_NoDup base objend)).
+        - exact (heap_quarantine_lookup _ _ _ Hι).
+        - reflexivity.
+        - apply Forall_forall. intros x Hx. by apply elem_of_finz_seq_between in Hx.
+        - rewrite big_sepL_fmap. iFrame "Hworld_open_q Hhandles". }
       iDestruct (interp_cap_disjoint_wl W C RWL Local
         (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a eq_refl
         with "Hinterp_csp") as %[_ Hstack_disjoint].
@@ -399,7 +378,7 @@ Section Heap_Temporal_Safety_Interp.
       iMod (world_interp_revoke_stack W C (a_stk ^+ 4)%a e_stk
         (a_stk ^+ 4)%a with "[$Hinterp_csp $Hworld]") as (l)
         "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
-      iApply (allocator_free_narrowed_spec ⊤ p g base objend reserved b e a
+      iApply (allocator_free_narrowed_spec ⊤ p g ι base objend reserved b e a
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try exact Hsubrange; try exact Hnarrow.
       iFrame "Halloc Hservice Hna Hreceipt HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
@@ -453,13 +432,13 @@ Section Heap_Temporal_Safety_Interp.
     allocator_ctx ∗
     allocator_service_ctx ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    inv (export_table_PCCN hts_allocator_exp_tblN)
+    inv (export_table_PCCN allocator_exp_tblN)
       (allocator_exp_tbl_b ↦ₐ WCap true RX Global
         allocator_pcc_b allocator_pcc_e allocator_pcc_b) ∗
-    inv (export_table_CGPN hts_allocator_exp_tblN)
+    inv (export_table_CGPN allocator_exp_tblN)
       ((allocator_exp_tbl_b ^+ 1)%a ↦ₐ WCap true RW Global
         allocator_cgp_b allocator_cgp_e allocator_cgp_b) ∗
-    inv (export_table_entryN hts_allocator_exp_tblN
+    inv (export_table_entryN allocator_exp_tblN
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)
       ((allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ
         WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)) ∗
@@ -475,7 +454,7 @@ Section Heap_Temporal_Safety_Interp.
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a,
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
-      allocator_free_nargs, allocator_free_pcc_off, hts_allocator_exp_tblN.
+      allocator_free_nargs, allocator_free_pcc_off, allocator_exp_tblN.
     iFrame "#".
     iSplit; first done.
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;

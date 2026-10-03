@@ -17,6 +17,9 @@ From griotte Require Import heap_region allocator_resources.
   *)
 
 
+
+#[export] Hint Resolve heap_key_live_nonheap : core.
+
 Section world_ghost_theory.
 
   Context
@@ -47,7 +50,7 @@ Section world_ghost_theory.
 
   (** Definition of [world_interp_open].
       The safety resources of the addresses in [s] are not owned by the world interpretation. *)
-  Definition world_interp_open_def (W : WORLD) (C : CmptName) (s : list Addr) : iProp Σ :=
+  Definition world_interp_open_def (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
     open_region_many W C s ∗ sts_full_world W C ∗ sealing_map W C.
   Definition world_interp_open_aux : { x | x = @world_interp_open_def }. by eexists. Qed.
   Definition world_interp_open := proj1_sig world_interp_open_aux.
@@ -78,21 +81,6 @@ Section world_ghost_theory.
   Definition world_interp_sopen := proj1_sig world_interp_sopen_aux.
   Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := proj2_sig world_interp_sopen_aux.
 
-  Lemma world_interp_open_quarantined_token W C s a :
-    a ∉ s →
-    heap_addr_status (heap_std W) a = Some AllocObjectQuarantined →
-    world_interp_open W C s -∗
-      reclaim_token a ∗ (reclaim_token a -∗ world_interp_open W C s).
-  Proof.
-    iIntros (Hnotin Hquarantined) "Hworld".
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iDestruct "Hworld" as "(Hregion & Hfull & Hseal)".
-    iDestruct (open_region_many_quarantined_token with "Hregion")
-      as "[Htoken Hclose]"; [done|done|].
-    iFrame "Htoken". iIntros "Htoken".
-    iSpecialize ("Hclose" with "Htoken"). iFrame.
-  Qed.
-
   (** Definition of safety resources *)
   Definition mono_temporary (C : CmptName) (p : Perm) (Φ : Vc) (w : Word) : iProp Σ :=
     if (decide ( isWL p = true ∨ isDL p = true )) then future_pub_mono C Φ w else future_priv_mono C Φ w.
@@ -108,18 +96,18 @@ Section world_ghost_theory.
   (** ** Definitions of safety resources *)
 
   (** Temporary Safety Resources *)
-  Definition TmpRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) Φ (w : Word) : iProp Σ :=
-    ⌜ isO p = false ⌝ ∗ a ↦ₐ w ∗ Φ (W,C,w) ∗ mono_temporary C p Φ w.
+  Definition TmpRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) Φ (w : Word) : iProp Σ :=
+    ⌜ isO p = false ⌝ ∗ a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_temporary C p Φ w.
 
   (** Permanent Safety Resources *)
-  Definition PermRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) Φ (w : Word) : iProp Σ :=
-    ⌜ isO p = false ⌝ ∗ a ↦ₐ w ∗ Φ (W,C,w) ∗ mono_permanent C Φ w.
+  Definition PermRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) Φ (w : Word) : iProp Σ :=
+    ⌜ isO p = false ⌝ ∗ a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_permanent C Φ w.
 
   (** Unknown Safety Resources *)
   Definition WorldRes
     (W : WORLD) (C : CmptName)
-    (a : Addr) (p : Perm) Φ (w : Word) (ρ : region_type) : iProp Σ :=
-    ⌜ isO p = false ⌝ ∗ a ↦ₐ w ∗ Φ (W,C,w) ∗ mono_invariant C p Φ w ρ.
+    (a : LAddr) (p : Perm) Φ (w : Word) (ρ : region_type) : iProp Σ :=
+    ⌜ isO p = false ⌝ ∗ a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_invariant C p Φ w ρ.
 
   (** Revoked Safety Resources *)
   Definition RevokedResources (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
@@ -127,8 +115,8 @@ Section world_ghost_theory.
       ∃ pa Φa,
         ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗
         rel C a pa Φa ∗
-        match heap_addr_status (heap_std W) (laddr_addr a) with
-        | Some AllocObjectLive => ∃ wa, TmpRes W C (laddr_addr a) pa Φa wa
+        match heap_key_status (heap_std W) a with
+        | Some AllocObjectLive => ∃ wa, TmpRes W C a pa Φa wa
         | Some AllocObjectQuarantined => emp
         | None => False
         end)%I.
@@ -199,14 +187,14 @@ Section world_ghost_theory.
   (* For internal use only, links [RevokedResources] from the clean interface with
      [close_list_resources] from the internal model *)
   Local Lemma RevokedResources_eq (W : WORLD) ( C : CmptName ) (l : list LAddr) :
-    Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) l ->
+    Forall (λ a, heap_key_live (heap_std W) a) l ->
     RevokedResources W C l ⊣⊢ close_list_resources C W l false.
   Proof.
     intros Hlive. rewrite Forall_lookup in Hlive.
     iSplit; iIntros "H"; iApply (big_sepL_impl with "H");
       iModIntro; iIntros (k ka Hka) "H";
       specialize (Hlive k ka Hka);
-      rewrite /heap_addr_live in Hlive;
+      rewrite /heap_key_live in Hlive;
       rewrite /close_addr_resources Hlive.
     + iDestruct "H" as "(% &% & $ & $ & [% ($&$&$&?)])"; by rewrite mono_temporary_eq.
     + iDestruct "H" as "(% &% & $ & [% ($&$&?&$)] & $)"; by rewrite mono_temporary_eq.
@@ -219,7 +207,7 @@ Section world_ghost_theory.
     iSplit.
     - iIntros "H". iApply (big_sepL_impl with "H").
       iIntros "!> %k %a %Ha H".
-      destruct (heap_addr_status (heap_std W) (laddr_addr a)) as [status|] eqn:Hstatus;
+      destruct (heap_key_status (heap_std W) a) as [status|] eqn:Hstatus;
         last by iDestruct "H" as (p φ Hpers) "(_ & Haddr)"; iDestruct "Haddr" as "[]".
       destruct status.
       + iDestruct "H" as (p φ Hpers) "(Hrel & Haddr)".
@@ -231,7 +219,7 @@ Section world_ghost_theory.
         iExists p, φ. rewrite Hstatus. iFrame "Hrel %".
     - iIntros "H". iApply (big_sepL_impl with "H").
       iIntros "!> %k %a %Ha H".
-      destruct (heap_addr_status (heap_std W) (laddr_addr a)) as [status|] eqn:Hstatus;
+      destruct (heap_key_status (heap_std W) a) as [status|] eqn:Hstatus;
         last by iDestruct "H" as (p φ Hpers) "(Haddr & _)";
           iEval (rewrite Hstatus) in "Haddr"; iDestruct "Haddr" as "[]".
       destruct status.
@@ -248,7 +236,7 @@ Section world_ghost_theory.
   Qed.
 
   Lemma RevokedResources_quarantined (W : WORLD) (C : CmptName) (l : list LAddr) :
-    Forall (λ a, heap_addr_status (heap_std W) (laddr_addr a) = Some AllocObjectQuarantined) l ->
+    Forall (λ a, heap_key_status (heap_std W) a = Some AllocObjectQuarantined) l ->
     RevokedResources W C l
     ⊣⊢
     ([∗ list] a ∈ l,
@@ -269,8 +257,8 @@ Section world_ghost_theory.
   Lemma RevokedResources_partition (W : WORLD) (C : CmptName)
     (l l_live l_quarantined : list LAddr) :
     Permutation l (l_live ++ l_quarantined) ->
-    Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) l_live ->
-    Forall (λ a, heap_addr_status (heap_std W) (laddr_addr a) = Some AllocObjectQuarantined) l_quarantined ->
+    Forall (λ a, heap_key_live (heap_std W) a) l_live ->
+    Forall (λ a, heap_key_status (heap_std W) a = Some AllocObjectQuarantined) l_quarantined ->
     RevokedResources W C l
     ⊣⊢
     close_list_resources C W l_live false ∗
@@ -307,28 +295,11 @@ Section world_ghost_theory.
     iApply (big_sepL_impl with "H").
     iIntros "!> %k %a %Ha H".
     iDestruct "H" as (pa Pa) "(%Hpers & Hrel & Haddr)".
-    assert (∀ s, heap_addr_status (heap_std W) (laddr_addr a) = Some s ->
-      ∃ s', heap_addr_status (heap_std W') (laddr_addr a) = Some s' ∧
-        (s = AllocObjectQuarantined -> s' = AllocObjectQuarantined))
-      as Hfuture_status.
-    { intros s Hstatus.
-      unfold heap_addr_status in Hstatus |- *.
-      destruct (is_heap_address (laddr_addr a)) eqn:Hheap_a.
-      - destruct (heap_lookup_addr (heap_std W) (laddr_addr a)) as [[base obj]|] eqn:Hlookup;
-          last discriminate.
-        simpl in Hstatus. injection Hstatus as <-.
-        destruct (heap_lookup_addr_future (heap_std W) (heap_std W') (laddr_addr a) base obj
-          Hheap_wf (proj2 (proj2 (proj2 Hrelated))) Hlookup)
-          as (obj' & Hlookup' & Hfuture_obj).
-        rewrite Hlookup'.
-        exists (alloc_object_status obj'). split; first done.
-        exact (proj2 (proj2 Hfuture_obj)).
-      - inversion Hstatus; subst.
-        exists AllocObjectLive. split; first done. discriminate. }
     iExists pa, Pa. iFrame "Hrel". iSplit; first done.
-    destruct (heap_addr_status (heap_std W) (laddr_addr a)) as [s|] eqn:Hstatus; last first.
+    destruct (heap_key_status (heap_std W) a) as [s|] eqn:Hstatus; last first.
     { iDestruct "Haddr" as "[]". }
-    destruct (Hfuture_status s eq_refl) as (s' & Hstatus' & Hq).
+    destruct (heap_key_status_future _ _ a s (proj2 (proj2 (proj2 Hrelated))) Hstatus)
+      as (s' & Hstatus' & Hq).
     rewrite Hstatus'.
     destruct s, s'; simpl.
     - iDestruct "Haddr" as (va) "(%HpO & Ha & Hp & #Hmono)".
@@ -347,10 +318,10 @@ Section world_ghost_theory.
 
   (* [PermRes] can give access to the current points-to.
      We have to relinquish it to get [PermRes] again. *)
-  Lemma PermRes_acc (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) :
+  Lemma PermRes_acc (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) :
     PermRes W C a p Φ w -∗
-    ( a ↦ₐ w ∗ Φ (W,C,w) ) ∗
-    ( ( a ↦ₐ w ∗ Φ (W,C,w) ) -∗ PermRes W C a p Φ w ).
+    ( a ↦ₖ w ∗ Φ (W,C,w) ) ∗
+    ( ( a ↦ₖ w ∗ Φ (W,C,w) ) -∗ PermRes W C a p Φ w ).
   Proof.
     iIntros "(#Hp&Ha&HΦ&#Hmono)".
     iSplitL "Ha HΦ"; iFrame.
@@ -360,10 +331,10 @@ Section world_ghost_theory.
   (* [PermRes] can give access to the current points-to.
      If we mutate the value of the points-to, we have to show that the new value respects the safety predicate,
      before getting [PermRes] again. *)
-  Lemma PermRes_acc_forall (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) :
+  Lemma PermRes_acc_forall (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) :
     PermRes W C a p Φ w -∗
-    ( a ↦ₐ w ∗ Φ (W,C,w) ∗ mono_permanent C Φ w ) ∗
-    ( ∀ w', ( a ↦ₐ w' ∗ Φ (W,C,w') ∗ mono_permanent C Φ w' ) -∗ PermRes W C a p Φ w' ).
+    ( a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_permanent C Φ w ) ∗
+    ( ∀ w', ( a ↦ₖ w' ∗ Φ (W,C,w') ∗ mono_permanent C Φ w' ) -∗ PermRes W C a p Φ w' ).
   Proof.
     iIntros "(#Hp&Ha&HΦ&Hmono)".
     iSplitL "Ha HΦ Hmono"; iFrame.
@@ -373,10 +344,10 @@ Section world_ghost_theory.
   (* [WorldRes] can give access to the current points-to.
      If we mutate the value of the points-to, we have to show that the new value respects the safety predicate,
      before getting [WorldRes] again. *)
-  Lemma WorldRes_acc (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) ρ :
+  Lemma WorldRes_acc (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) ρ :
     WorldRes W C a p Φ w ρ -∗
-    ( a ↦ₐ w ∗ Φ (W,C,w) ) ∗
-    ( ( a ↦ₐ w ∗ Φ (W,C,w) ) -∗ WorldRes W C a p Φ w ρ ).
+    ( a ↦ₖ w ∗ Φ (W,C,w) ) ∗
+    ( ( a ↦ₖ w ∗ Φ (W,C,w) ) -∗ WorldRes W C a p Φ w ρ ).
   Proof.
     iIntros "(Hp&Ha&HΦ&Hmono)".
     iSplitL "Ha HΦ"; iFrame.
@@ -386,10 +357,10 @@ Section world_ghost_theory.
   (* [WorldRes] can give access to the current points-to.
      If we mutate the value of the points-to, we have to show that the new value respects the safety predicate,
      before getting [WorldRes] again. *)
-  Lemma WorldRes_acc_forall (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) ρ :
+  Lemma WorldRes_acc_forall (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) ρ :
     WorldRes W C a p Φ w ρ -∗
-    ( a ↦ₐ w ∗ Φ (W,C,w) ∗ mono_invariant C p Φ w ρ ) ∗
-    ( ∀ w', ( a ↦ₐ w' ∗ Φ (W,C,w') ∗ mono_invariant C p Φ w' ρ ) -∗ WorldRes W C a p Φ w' ρ ).
+    ( a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_invariant C p Φ w ρ ) ∗
+    ( ∀ w', ( a ↦ₖ w' ∗ Φ (W,C,w') ∗ mono_invariant C p Φ w' ρ ) -∗ WorldRes W C a p Φ w' ρ ).
   Proof.
     iIntros "(#Hp&Ha&HΦ&Hmono)".
     iSplitL "Ha HΦ Hmono"; iFrame.
@@ -407,104 +378,42 @@ Section world_ghost_theory.
      means that the safety predicate currently holds.
 
      NOTE Lemma [safety_invariant_enforcement] is never used and only showcases the above statement. *)
-  Lemma safety_invariant_enforcement_nonheap
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :
-    is_heap_address a = false ->
-    (std W) !! LNonHeap a = Some Permanent ∨ (std W) !! LNonHeap a = Some Temporary ->
-    world_interp W C -∗
-    rel C a p (safeC P)
-    ==∗
-    ∃ w, a ↦ₐ w ∗ ▷ P W C w.
-  Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (HWa) "[Hr [Hsts Hseals] ] Hrel".
-    rewrite rel_eq region_eq /rel_def /region_def /region_map_def.
-    iDestruct "Hrel" as (γpred) "#(Hγpred & Hφ)".
-    iDestruct "Hr" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
-    iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
-    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
-    iDestruct "Hpreds" as "[%Hcovered [Hheapfrag Hpreds]]".
-    iDestruct "Hpreds" as "[(%ρ & %Hρ & Hstate & Hl) Hpreds]".
-    iDestruct "Hl" as (γpred' p' φ' HH1 Hpers) "(#Hφ' & Hl)".
-    simplify_eq.
-    iDestruct (sts_full_state_std with "Hsts Hstate") as "%HWa'"; rewrite HWa' in HWa; simplify_eq.
-    iDestruct (heap_addr_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
-    destruct HWa ; simplify_eq.
-    - iDestruct "Hl" as (w) "(?&?&?&HP)"; iFrame.
-      iModIntro.
-      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,w) with "Hφ Hφ'") as "H".
-      iNext.
-      iRewrite - "H" in "HP".
-      iFrame.
-    - iDestruct "Hl" as (w) "(?&?&?&HP)"; iFrame.
-      iModIntro.
-      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,w) with "Hφ Hφ'") as "H".
-      iNext.
-      iRewrite - "H" in "HP".
-      iFrame.
-  Qed.
-
-  Lemma safety_invariant_enforcement_live_heap
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V)  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    (std W) !! LNonHeap a = Some Permanent ∨ (std W) !! LNonHeap a = Some Temporary ->
-    world_interp W C -∗
-    rel C a p (safeC P)
-    ==∗
-    ∃ w, a ↦ₐ w ∗ ▷ P W C w.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (HWa) "[Hr [Hsts Hseals] ] Hrel".
-    rewrite rel_eq region_eq /rel_def /region_def /region_map_def.
-    iDestruct "Hrel" as (γpred) "#(Hγpred & Hφ)".
-    iDestruct "Hr" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
-    iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
-    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
-    iDestruct "Hpreds" as "[%Hcovered [Hheapfrag Hpreds]]".
-    iDestruct "Hpreds" as "[(%ρ & %Hρ & Hstate & Hl) Hpreds]".
-    iDestruct "Hl" as (γpred' p' φ' HH1 Hpers) "(#Hφ' & Hl)".
-    simplify_eq.
-    iDestruct (sts_full_state_std with "Hsts Hstate") as "%HWa'"; rewrite HWa' in HWa; simplify_eq.
-    iDestruct (heap_addr_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
-    destruct HWa ; simplify_eq.
-    - iDestruct "Hl" as (w) "(?&?&?&HP)"; iFrame.
-      iModIntro.
-      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,w) with "Hφ Hφ'") as "H".
-      iNext.
-      iRewrite - "H" in "HP".
-      iFrame.
-    - iDestruct "Hl" as (w) "(?&?&?&HP)"; iFrame.
-      iModIntro.
-      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,w) with "Hφ Hφ'") as "H".
-      iNext.
-      iRewrite - "H" in "HP".
-      iFrame.
-  Qed.
-
   Lemma safety_invariant_enforcement
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :
-    heap_addr_live (heap_std W) a ->
-    (std W) !! LNonHeap a = Some Permanent ∨ (std W) !! LNonHeap a = Some Temporary ->
+    (W : WORLD) (C : CmptName) (k : LAddr) (p : Perm) (P : V) :
+    heap_key_live (heap_std W) k ->
+    (std W) !! k = Some Permanent ∨ (std W) !! k = Some Temporary ->
     world_interp W C -∗
-    rel C a p (safeC P)
+    rel C k p (safeC P)
     ==∗
-    ∃ w, a ↦ₐ w ∗ ▷ P W C w.
+    ∃ w, k ↦ₖ w ∗ ▷ P W C w.
   Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply safety_invariant_enforcement_live_heap; eauto; typeclasses eauto.
-    - eapply safety_invariant_enforcement_nonheap; eauto; typeclasses eauto.
+    intros Hlive.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros (HWa) "[Hr [Hsts Hseals] ] Hrel".
+    rewrite rel_eq region_eq /rel_def /region_def /region_map_def.
+    iDestruct "Hrel" as (γpred) "#(Hγpred & Hφ)".
+    iDestruct "Hr" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
+    iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
+    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
+    iDestruct "Hpreds" as "[%Hknown [Hheapfrag Hpreds]]".
+    iDestruct "Hpreds" as "[(%ρ & %Hρ & Hstate & Hl) Hpreds]".
+    iDestruct "Hl" as (γpred' p' φ' HH1 Hpers) "(#Hφ' & Hl)".
+    simplify_eq.
+    iDestruct (sts_full_state_std with "Hsts Hstate") as "%HWa'"; rewrite HWa' in HWa; simplify_eq.
+    iDestruct (heap_key_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
+    destruct HWa ; simplify_eq.
+    - iDestruct "Hl" as (w) "(?&?&?&HP)"; iFrame.
+      iModIntro.
+      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,w) with "Hφ Hφ'") as "H".
+      iNext.
+      iRewrite - "H" in "HP".
+      iFrame.
+    - iDestruct "Hl" as (w) "(?&?&?&HP)"; iFrame.
+      iModIntro.
+      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,w) with "Hφ Hφ'") as "H".
+      iNext.
+      iRewrite - "H" in "HP".
+      iFrame.
   Qed.
 
 
@@ -520,42 +429,61 @@ Section world_ghost_theory.
     iSplit ; iIntros "[Hr $]"; iApply region_open_nil; done.
   Qed.
 
-  Lemma framed_addr_live
-      (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
-    is_Some (heap_addr_status (heap_std W) a) ->
-    allocator_ctx ∗ world_interp W C ∗ a ↦ₐ v
-    ={⊤}=∗
-      allocator_ctx ∗ world_interp W C ∗ a ↦ₐ v ∗
-      ⌜heap_addr_live (heap_std W) a⌝.
+  (** Liveness from a status share (D40): a share [ι ↦st{q} ALive] held outside
+      the world shows that the world's entry for [ι], if any, is not Quarantined. *)
+  Lemma world_interp_open_status_live W C s ι o q :
+    heap_std W !! ι = Some o →
+    ι ↦st{q} ALive -∗
+    world_interp_open W C s -∗
+    world_interp_open W C s ∗ ι ↦st{q} ALive ∗ ⌜alloc_object_status o = AllocObjectLive⌝.
   Proof.
-    iIntros (Hstatus) "(#Halloc & Hworld & Ha)".
-    destruct Hstatus as [s Hstatus]. destruct s.
-    - iModIntro. iFrame "∗#". iPureIntro. exact Hstatus.
-    - assert (is_heap_address a = true) as Hheap.
-      { rewrite /heap_addr_status in Hstatus.
-        destruct (is_heap_address a); first done. discriminate. }
-      iEval (rewrite open_world_interp_empty) in "Hworld".
-      iDestruct (world_interp_open_quarantined_token W C [] a with "Hworld")
-        as "[Htoken Hcloseworld]"; [set_solver|exact Hstatus|].
-      iInv Nallocator as (alloc_map) "(>%Hdom & >Hentries)" "Hclosealloc".
-      assert (is_Some (alloc_map !! a)) as [s Hs].
-      { rewrite -elem_of_dom Hdom elem_of_heap_addresses. exact Hheap. }
-      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hs.
-      iDestruct (allocator_entry_memory_live with "Hentry Ha") as %->.
-      iDestruct "Hentry" as "[_ [Htoken' _]]".
-      iDestruct (reclaim_token_exclusive with "Htoken Htoken'") as %[].
+    iIntros (Hι) "Hs Hworld".
+    iDestruct (world_interp_open_heap_provenance with "Hworld") as "[Hworld #Hprov]".
+    iDestruct (heap_provenance_lookup with "Hprov") as "(_ & _ & Hq)"; first done.
+    destruct (alloc_object_status o) eqn:Hstatus; first by iFrame.
+    iDestruct (live_quar_false with "Hs Hq") as %[].
+  Qed.
+
+  Lemma world_interp_status_live W C ι o q :
+    heap_std W !! ι = Some o →
+    ι ↦st{q} ALive -∗
+    world_interp W C -∗
+    world_interp W C ∗ ι ↦st{q} ALive ∗ ⌜alloc_object_status o = AllocObjectLive⌝.
+  Proof.
+    iIntros (Hι) "Hs Hworld".
+    rewrite !open_world_interp_empty.
+    by iApply (world_interp_open_status_live with "Hs Hworld").
+  Qed.
+
+  (* A framed cell share shows that its key is live in the world. *)
+  Lemma framed_addr_live (W : WORLD) (C : CmptName) (k : LAddr) (v : Word) :
+    is_Some (heap_key_status (heap_std W) k) ->
+    world_interp W C ∗ k ↦ₖ v -∗
+    world_interp W C ∗ k ↦ₖ v ∗ ⌜heap_key_live (heap_std W) k⌝.
+  Proof.
+    iIntros ([s Hs]) "[Hworld Hk]".
+    destruct k as [a|a ι]; first by iFrame.
+    apply heap_key_status_Some in Hs as (o & Hι & Hcontains & _).
+    iDestruct (key_pointsto_eq with "Hk") as "[Ha Hshare]".
+    iEval (cbn [key_share]) in "Hshare".
+    iDestruct "Hshare" as (b e) "(%Hbe & #Hobj & Hst)".
+    iDestruct (world_interp_status_live with "Hst Hworld")
+      as "(Hworld & Hst & %Hlive)"; first done.
+    iFrame "Hworld". iSplitL.
+    { iApply key_pointsto_eq. iFrame "Ha". iExists b, e. by iFrame "∗#%". }
+    iPureIntro. eapply heap_key_live_lookup; eauto.
   Qed.
 
   Lemma revoked_status_some (W : WORLD) (C : CmptName) (l : list LAddr) :
     RevokedResources W C l -∗
     RevokedResources W C l ∗
-      ⌜Forall (fun a => is_Some (heap_addr_status (heap_std W) (laddr_addr a))) l⌝.
+      ⌜Forall (fun a => is_Some (heap_key_status (heap_std W) a)) l⌝.
   Proof.
     iIntros "H".
     iInduction (l) as [|a l] "IH".
     - iFrame. iPureIntro. constructor.
     - iDestruct "H" as "[Ha Hl]".
-      destruct (heap_addr_status (heap_std W) (laddr_addr a)) as [s|] eqn:Hstatus.
+      destruct (heap_key_status (heap_std W) a) as [s|] eqn:Hstatus.
       + iDestruct ("IH" with "Hl") as "[Hl %Hstatuses]".
         iFrame "Hl". rewrite Hstatus. iFrame "Ha".
         iPureIntro. constructor; eauto.
@@ -565,694 +493,307 @@ Section world_ghost_theory.
 
   Lemma counter_framed_resources_live
       (Worig Wcur : WORLD) (C : CmptName) (l : list LAddr) :
-    Forall (λ a, heap_addr_live (heap_std Worig) (laddr_addr a)) l ->
-    Forall (fun a => is_Some (heap_addr_status (heap_std Wcur) (laddr_addr a))) l ->
-    allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l
-    ={⊤}=∗
-      allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l ∗
-      ⌜Forall (λ a, heap_addr_live (heap_std Wcur) (laddr_addr a)) l⌝.
+    Forall (λ a, heap_key_live (heap_std Worig) a) l ->
+    Forall (fun a => is_Some (heap_key_status (heap_std Wcur) a)) l ->
+    world_interp Wcur C ∗ RevokedResources Worig C l -∗
+    world_interp Wcur C ∗ RevokedResources Worig C l ∗
+    ⌜Forall (λ a, heap_key_live (heap_std Wcur) a) l⌝.
   Proof.
     induction l as [|a l IH]; intros Hlive Hsome;
-      iIntros "(#Halloc & Hworld & Hl)".
-    - iModIntro. iFrame "∗#". iPureIntro. constructor.
+      iIntros "(Hworld & Hl)".
+    - iFrame. iPureIntro. constructor.
     - apply Forall_cons in Hlive as [Ha_live Hl_live].
       apply Forall_cons in Hsome as [Ha_some Hl_some].
       iDestruct "Hl" as "[Hitem Hl]".
       iDestruct "Hitem" as (p φ) "(%Hpers & Hrel & Haddr)".
-      rewrite /heap_addr_live in Ha_live.
+      rewrite /heap_key_live in Ha_live.
       iEval (rewrite Ha_live) in "Haddr".
       iDestruct "Haddr" as (v) "(%HpO & Ha & Hφ & Hmono)".
-      iMod (framed_addr_live Wcur C (laddr_addr a) v Ha_some
-        with "[$Halloc $Hworld $Ha]")
-        as "(#Halloc2 & Hworld & Ha & %Ha_cur)".
-      iAssert (RevokedResources Worig C [a])%I
-        with "[Hrel Ha Hφ Hmono]" as "Hitem".
-      { rewrite /RevokedResources /= Ha_live.
-        iSplitL; last done.
-        iExists p, φ. iFrame "Hrel". iSplit; first done.
-        iExists v. rewrite /TmpRes. iFrame "Ha Hφ Hmono". done. }
-      iMod (IH Hl_live Hl_some with "[$Halloc $Hworld $Hl]")
-        as "(#Halloc3 & Hworld & Hl & %Hl_cur)".
-      iAssert (RevokedResources Worig C (a :: l))%I
-        with "[Hitem Hl]" as "Hl".
-      { replace (a :: l) with ([a] ++ l) by done.
-        rewrite RevokedResources_app. iFrame. }
-      iModIntro. iFrame "∗#". iPureIntro. constructor; assumption.
+      iDestruct (framed_addr_live Wcur C a v Ha_some with "[$Hworld $Ha]")
+        as "(Hworld & Ha & %Ha_cur)".
+      iDestruct (IH Hl_live Hl_some with "[$Hworld $Hl]")
+        as "(Hworld & Hl & %Hl_cur)".
+      iFrame "Hworld Hl". iSplitL.
+      { iExists p, φ. iFrame "Hrel". iSplit; first done.
+        rewrite Ha_live. iExists v. rewrite /TmpRes. iFrame "Ha Hφ Hmono". done. }
+      iPureIntro. constructor; assumption.
   Qed.
 
-  Lemma open_world_interp_temporary_nonheap (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ :
-    is_heap_address a = false ->
+  Lemma open_world_interp_temporary (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ :
+    heap_key_live (heap_std W) a ->
     a ∉ s ->
-    (std W) !! LNonHeap a = Some Temporary ->
+    (std W) !! a = Some Temporary ->
     world_interp_open W C s -∗
     rel C a p Φ
     -∗
     world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) Temporary ∗
+    sts_state_std C a Temporary ∗
     ▷ (∃ w, TmpRes W C a p Φ w).
   Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
+    intros Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (Ha HWa) "[Hr [Hsts Hseals] ] Hrel".
     destruct (isWL p) eqn:Hp_WL.
     - iDestruct (region_open_next_temp_pwl with "[$Hr $Hrel $Hsts]")
-        as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)" ;[set_solver|..]; eauto.
+        as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)"; eauto.
       iFrame.
       rewrite /mono_temporary decide_True; eauto.
     - iDestruct (region_open_next_temp_nwl with "[$Hr $Hrel $Hsts]")
-        as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)" ;[set_solver|..]; eauto.
+        as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)"; eauto.
       iFrame.
       rewrite /mono_temporary ; destruct (isDL p) eqn:Hp_DL; [rewrite decide_True | rewrite decide_False]; eauto.
       rewrite Hp_WL; intros []; done.
-  Qed.
-
-  Lemma open_world_interp_temporary_live_heap (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    a ∉ s ->
-    (std W) !! LNonHeap a = Some Temporary ->
-    world_interp_open W C s -∗
-    rel C a p Φ
-    -∗
-    world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) Temporary ∗
-    ▷ (∃ w, TmpRes W C a p Φ w).
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha HWa) "[Hr [Hsts Hseals] ] Hrel".
-    destruct (isWL p) eqn:Hp_WL.
-    - iDestruct (region_open_next_temp_pwl with "[$Hr $Hrel $Hsts]")
-        as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)" ;[set_solver|..]; eauto.
-      iFrame.
-      rewrite /mono_temporary decide_True; eauto.
-    - iDestruct (region_open_next_temp_nwl with "[$Hr $Hrel $Hsts]")
-        as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)" ;[set_solver|..]; eauto.
-      iFrame.
-      rewrite /mono_temporary ; destruct (isDL p) eqn:Hp_DL; [rewrite decide_True | rewrite decide_False]; eauto.
-      rewrite Hp_WL; intros []; done.
-  Qed.
-
-  Lemma open_world_interp_temporary (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ :
-    heap_addr_live (heap_std W) a ->
-    a ∉ s ->
-    (std W) !! LNonHeap a = Some Temporary ->
-    world_interp_open W C s -∗
-    rel C a p Φ
-    -∗
-    world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) Temporary ∗
-    ▷ (∃ w, TmpRes W C a p Φ w).
-  Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply open_world_interp_temporary_live_heap; eauto; typeclasses eauto.
-    - eapply open_world_interp_temporary_nonheap; eauto; typeclasses eauto.
-  Qed.
-
-  Lemma close_world_interp_temporary_nonheap
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ (w : Word)
-    `{forall WCv, Persistent (Φ WCv)}:
-    is_heap_address a = false ->
-    a ∉ s ->
-    world_interp_open W C ({[ a ]} ∪ s) -∗
-    rel C a p Φ -∗
-    sts_state_std C (LNonHeap a) Temporary -∗
-    TmpRes W C a p Φ w
-    -∗
-    world_interp_open W C s ∗ rel C a p Φ.
-  Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha) "[Hr [Hsts Hseals] ] #Hrel Hstd_sta (HpO & Ha & HΦ & Hmono)".
-    rewrite /mono_temporary.
-    destruct (isWL p) eqn:Hp_WL.
-    - iDestruct (region_close_next_temp_pwl with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
-      ; eauto; iFrame "∗ #".
-    - iDestruct (region_close_next_temp_nwl with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
-      ; eauto; iFrame "∗ #".
-      destruct (isDL p) eqn:Hp_DL.
-      + destruct ( decide (false = true ∨ true = true) ) as [ Hdex | Hdec ]; auto.
-        exfalso; apply Hdec; right; done.
-      + destruct ( decide (false = true ∨ true = true) ) as [ Hdex | Hdec ]; auto.
-  Qed.
-
-  Lemma close_world_interp_temporary_live_heap
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ (w : Word)
-    `{forall WCv, Persistent (Φ WCv)} (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    a ∉ s ->
-    world_interp_open W C ({[ a ]} ∪ s) -∗
-    rel C a p Φ -∗
-    sts_state_std C (LNonHeap a) Temporary -∗
-    TmpRes W C a p Φ w
-    -∗
-    world_interp_open W C s ∗ rel C a p Φ.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha) "[Hr [Hsts Hseals] ] #Hrel Hstd_sta (HpO & Ha & HΦ & Hmono)".
-    rewrite /mono_temporary.
-    destruct (isWL p) eqn:Hp_WL.
-    - iDestruct (region_close_next_temp_pwl with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
-      ; eauto; iFrame "∗ #".
-    - iDestruct (region_close_next_temp_nwl with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
-      ; eauto; iFrame "∗ #".
-      destruct (isDL p) eqn:Hp_DL.
-      + destruct ( decide (false = true ∨ true = true) ) as [ Hdex | Hdec ]; auto.
-        exfalso; apply Hdec; right; done.
-      + destruct ( decide (false = true ∨ true = true) ) as [ Hdex | Hdec ]; auto.
   Qed.
 
   Lemma close_world_interp_temporary
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ (w : Word)
+    (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ (w : Word)
     `{forall WCv, Persistent (Φ WCv)}:
-    heap_addr_live (heap_std W) a ->
+    heap_key_live (heap_std W) a ->
     a ∉ s ->
     world_interp_open W C ({[ a ]} ∪ s) -∗
     rel C a p Φ -∗
-    sts_state_std C (LNonHeap a) Temporary -∗
+    sts_state_std C a Temporary -∗
     TmpRes W C a p Φ w
     -∗
     world_interp_open W C s ∗ rel C a p Φ.
   Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply close_world_interp_temporary_live_heap; eauto; typeclasses eauto.
-    - eapply close_world_interp_temporary_nonheap; eauto; typeclasses eauto.
+    intros Hlive.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (Ha) "[Hr [Hsts Hseals] ] #Hrel Hstd_sta (HpO & Ha & HΦ & Hmono)".
+    rewrite /mono_temporary.
+    destruct (isWL p) eqn:Hp_WL.
+    - iDestruct (region_close_next_temp_pwl with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
+      ; eauto; iFrame "∗ #".
+    - iDestruct (region_close_next_temp_nwl with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
+      ; eauto; iFrame "∗ #".
+      destruct (isDL p) eqn:Hp_DL.
+      + destruct ( decide (false = true ∨ true = true) ) as [ Hdex | Hdec ]; auto.
+        exfalso; apply Hdec; right; done.
+      + destruct ( decide (false = true ∨ true = true) ) as [ Hdex | Hdec ]; auto.
   Qed.
 
-  Lemma open_world_interp_permanent_nonheap (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ :
-    is_heap_address a = false ->
+  Lemma open_world_interp_permanent (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ :
+    heap_key_live (heap_std W) a ->
     a ∉ s ->
-    (std W) !! LNonHeap a = Some Permanent ->
+    (std W) !! a = Some Permanent ->
     world_interp_open W C s -∗
     rel C a p Φ
     -∗
     world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) Permanent ∗
+    sts_state_std C a Permanent ∗
     ▷ (∃ w, PermRes W C a p Φ w).
   Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
+    intros Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (Ha HWa) "[Hr [Hsts Hseals] ] Hrel".
     iDestruct (region_open_next_perm with "[$Hr $Hrel $Hsts]")
-      as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)" ;[set_solver|..]; eauto.
+      as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)"; eauto.
     iFrame.
   Qed.
 
-  Lemma open_world_interp_permanent_live_heap (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    a ∉ s ->
-    (std W) !! LNonHeap a = Some Permanent ->
-    world_interp_open W C s -∗
-    rel C a p Φ
-    -∗
-    world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) Permanent ∗
-    ▷ (∃ w, PermRes W C a p Φ w).
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha HWa) "[Hr [Hsts Hseals] ] Hrel".
-    iDestruct (region_open_next_perm with "[$Hr $Hrel $Hsts]")
-      as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)" ;[set_solver|..]; eauto.
-    iFrame.
-  Qed.
-
-  Lemma open_world_interp_permanent (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ :
-    heap_addr_live (heap_std W) a ->
-    a ∉ s ->
-    (std W) !! LNonHeap a = Some Permanent ->
-    world_interp_open W C s -∗
-    rel C a p Φ
-    -∗
-    world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) Permanent ∗
-    ▷ (∃ w, PermRes W C a p Φ w).
-  Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply open_world_interp_permanent_live_heap; eauto; typeclasses eauto.
-    - eapply open_world_interp_permanent_nonheap; eauto; typeclasses eauto.
-  Qed.
-
-  Lemma close_world_interp_permanent_nonheap (W : WORLD) (C : CmptName)
-    (s : list Addr) (a : Addr) (p : Perm) Φ (w : Word) `{forall WCv, Persistent (Φ WCv)}:
+  Lemma open_world_interp_permanent_nonheap (W : WORLD) (C : CmptName) (s : list LAddr) (a : Addr) (p : Perm) Φ :
     is_heap_address a = false ->
-    a ∉ s ->
-    world_interp_open W C ({[ a ]} ∪ s) -∗
-    rel C a p Φ -∗
-    sts_state_std C (LNonHeap a) Permanent -∗
-    PermRes W C a p Φ w
+    LNonHeap a ∉ s ->
+    (std W) !! LNonHeap a = Some Permanent ->
+    world_interp_open W C s -∗
+    rel C a p Φ
     -∗
-    world_interp_open W C s ∗ rel C a p Φ.
+    world_interp_open W C ({[ LNonHeap a ]} ∪ s) ∗
+    sts_state_std C (LNonHeap a) Permanent ∗
+    ▷ (∃ w, PermRes W C a p Φ w).
   Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha) "[Hr Hsts] #Hrel Hstd_sta (HpO & Ha & HΦ & Hmono)".
-    iDestruct (region_close_next_perm with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
-    ; eauto; iFrame "∗ #".
-  Qed.
-
-  Lemma close_world_interp_permanent_live_heap (W : WORLD) (C : CmptName)
-    (s : list Addr) (a : Addr) (p : Perm) Φ (w : Word) `{forall WCv, Persistent (Φ WCv)} (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    a ∉ s ->
-    world_interp_open W C ({[ a ]} ∪ s) -∗
-    rel C a p Φ -∗
-    sts_state_std C (LNonHeap a) Permanent -∗
-    PermRes W C a p Φ w
-    -∗
-    world_interp_open W C s ∗ rel C a p Φ.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha) "[Hr Hsts] #Hrel Hstd_sta (HpO & Ha & HΦ & Hmono)".
-    iDestruct (region_close_next_perm with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
-    ; eauto; iFrame "∗ #".
+    intros _. apply open_world_interp_permanent, heap_key_live_nonheap.
   Qed.
 
   Lemma close_world_interp_permanent (W : WORLD) (C : CmptName)
-    (s : list Addr) (a : Addr) (p : Perm) Φ (w : Word) `{forall WCv, Persistent (Φ WCv)}:
-    heap_addr_live (heap_std W) a ->
+    (s : list LAddr) (a : LAddr) (p : Perm) Φ (w : Word) `{forall WCv, Persistent (Φ WCv)}:
+    heap_key_live (heap_std W) a ->
     a ∉ s ->
     world_interp_open W C ({[ a ]} ∪ s) -∗
     rel C a p Φ -∗
-    sts_state_std C (LNonHeap a) Permanent -∗
+    sts_state_std C a Permanent -∗
     PermRes W C a p Φ w
     -∗
     world_interp_open W C s ∗ rel C a p Φ.
   Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply close_world_interp_permanent_live_heap; eauto; typeclasses eauto.
-    - eapply close_world_interp_permanent_nonheap; eauto; typeclasses eauto.
-  Qed.
-
-  Lemma open_world_interp_next_nonheap
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) (φ : Vc) (ρ : region_type) :
-    is_heap_address a = false ->
-    a ∉ s ->
-    ρ = Temporary ∨ ρ = Permanent →
-    (std W) !! LNonHeap a = Some ρ →
-    rel C a p φ -∗
-    world_interp_open W C s
-    -∗
-    world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) ρ ∗
-    ▷ (∃ v, WorldRes W C a p φ v ρ).
-  Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
+    intros Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hs Hne Htemp) "Hrel [Hr [Hsts Hseals] ]".
-    iDestruct (region_open_next with "[$Hrel $Hr $Hsts]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; eauto.
-    { destruct Hne; simplify_eq; done. }
-    iFrame.
-    iNext.
-    rewrite mono_invariant_monotonicity_guarantees_region; eauto.
-    destruct Hne; simplify_eq; done.
-  Qed.
-
-  Lemma open_world_interp_next_live_heap
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) (φ : Vc) (ρ : region_type)  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    a ∉ s ->
-    ρ = Temporary ∨ ρ = Permanent →
-    (std W) !! LNonHeap a = Some ρ →
-    rel C a p φ -∗
-    world_interp_open W C s
-    -∗
-    world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) ρ ∗
-    ▷ (∃ v, WorldRes W C a p φ v ρ).
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hs Hne Htemp) "Hrel [Hr [Hsts Hseals] ]".
-    iDestruct (region_open_next with "[$Hrel $Hr $Hsts]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; eauto.
-    { destruct Hne; simplify_eq; done. }
-    iFrame.
-    iNext.
-    rewrite mono_invariant_monotonicity_guarantees_region; eauto.
-    destruct Hne; simplify_eq; done.
+    iIntros (Ha) "[Hr Hsts] #Hrel Hstd_sta (HpO & Ha & HΦ & Hmono)".
+    iDestruct (region_close_next_perm with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
+    ; eauto; iFrame "∗ #".
   Qed.
 
   Lemma open_world_interp_next
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) (φ : Vc) (ρ : region_type) :
-    heap_addr_live (heap_std W) a ->
+    (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) (φ : Vc) (ρ : region_type) :
+    heap_key_live (heap_std W) a ->
     a ∉ s ->
     ρ = Temporary ∨ ρ = Permanent →
-    (std W) !! LNonHeap a = Some ρ →
+    (std W) !! a = Some ρ →
     rel C a p φ -∗
     world_interp_open W C s
     -∗
     world_interp_open W C ({[ a ]} ∪ s) ∗
-    sts_state_std C (LNonHeap a) ρ ∗
+    sts_state_std C a ρ ∗
     ▷ (∃ v, WorldRes W C a p φ v ρ).
   Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply open_world_interp_next_live_heap; eauto; typeclasses eauto.
-    - eapply open_world_interp_next_nonheap; eauto; typeclasses eauto.
-  Qed.
-
-  Lemma close_world_interp_next_nonheap
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) (φ : Vc) (v : Word)
-    (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
-    is_heap_address a = false ->
-    a ∉ s ->
-    ρ = Temporary ∨ ρ = Permanent →
-    world_interp_open W C ({[ a ]} ∪ s) -∗
-    sts_state_std C (LNonHeap a) ρ -∗
-    rel C a p φ -∗
-    WorldRes W C a p φ v ρ
-    -∗
-    world_interp_open W C s.
-  Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
+    intros Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hs Hρ) "[Hr [$ $] ] Hstate Hrel (Hp&Ha&Hφ&Hmono)".
-    rewrite mono_invariant_monotonicity_guarantees_region; eauto; cycle 1.
-    { destruct Hρ; simplify_eq; done. }
-    iApply (region_close_next with "[$Hstate $Hr $Ha $Hp $Hmono $Hφ $Hrel]"); eauto.
-    { destruct Hρ; simplify_eq; done. }
-  Qed.
-
-  Lemma close_world_interp_next_live_heap
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) (φ : Vc) (v : Word)
-    (ρ : region_type) `{forall Wv, Persistent (φ Wv)}  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    a ∉ s ->
-    ρ = Temporary ∨ ρ = Permanent →
-    world_interp_open W C ({[ a ]} ∪ s) -∗
-    sts_state_std C (LNonHeap a) ρ -∗
-    rel C a p φ -∗
-    WorldRes W C a p φ v ρ
-    -∗
-    world_interp_open W C s.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hs Hρ) "[Hr [$ $] ] Hstate Hrel (Hp&Ha&Hφ&Hmono)".
-    rewrite mono_invariant_monotonicity_guarantees_region; eauto; cycle 1.
-    { destruct Hρ; simplify_eq; done. }
-    iApply (region_close_next with "[$Hstate $Hr $Ha $Hp $Hmono $Hφ $Hrel]"); eauto.
-    { destruct Hρ; simplify_eq; done. }
+    iIntros (Hs Hne Htemp) "Hrel [Hr [Hsts Hseals] ]".
+    iDestruct (region_open_next with "[$Hrel $Hr $Hsts]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; eauto.
+    { destruct Hne; simplify_eq; done. }
+    iFrame.
+    iNext.
+    rewrite mono_invariant_monotonicity_guarantees_region; eauto.
+    destruct Hne; simplify_eq; done.
   Qed.
 
   Lemma close_world_interp_next
-    (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) (φ : Vc) (v : Word)
+    (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) (φ : Vc) (v : Word)
     (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
-    heap_addr_live (heap_std W) a ->
+    heap_key_live (heap_std W) a ->
     a ∉ s ->
     ρ = Temporary ∨ ρ = Permanent →
     world_interp_open W C ({[ a ]} ∪ s) -∗
-    sts_state_std C (LNonHeap a) ρ -∗
+    sts_state_std C a ρ -∗
     rel C a p φ -∗
     WorldRes W C a p φ v ρ
     -∗
     world_interp_open W C s.
   Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply close_world_interp_next_live_heap; eauto; typeclasses eauto.
-    - eapply close_world_interp_next_nonheap; eauto; typeclasses eauto.
-  Qed.
-
-  Lemma open_world_interp_nonheap
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (φ : Vc) (ρ : region_type) :
-    is_heap_address a = false ->
-    ρ = Temporary ∨ ρ = Permanent →
-    (std W) !! LNonHeap a = Some ρ →
-    rel C a p φ -∗
-    world_interp W C
-    -∗
-    world_interp_open W C [a] ∗
-    sts_state_std C (LNonHeap a) ρ ∗
-    ▷ (∃ v, WorldRes W C a p φ v ρ).
-  Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
-    iIntros (Hne Htemp) "#Hrel Hworld".
-    rewrite open_world_interp_empty.
-    iApply open_world_interp_next; eauto.
-    set_solver+.
-  Qed.
-
-  Lemma open_world_interp_live_heap
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (φ : Vc) (ρ : region_type)  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    ρ = Temporary ∨ ρ = Permanent →
-    (std W) !! LNonHeap a = Some ρ →
-    rel C a p φ -∗
-    world_interp W C
-    -∗
-    world_interp_open W C [a] ∗
-    sts_state_std C (LNonHeap a) ρ ∗
-    ▷ (∃ v, WorldRes W C a p φ v ρ).
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    iIntros (Hne Htemp) "#Hrel Hworld".
-    rewrite open_world_interp_empty.
-    iApply open_world_interp_next; eauto.
-    set_solver+.
+    intros Hlive.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (Hs Hρ) "[Hr [$ $] ] Hstate Hrel (Hp&Ha&Hφ&Hmono)".
+    rewrite mono_invariant_monotonicity_guarantees_region; eauto; cycle 1.
+    { destruct Hρ; simplify_eq; done. }
+    iApply (region_close_next with "[$Hstate $Hr $Ha $Hp $Hmono $Hφ $Hrel]"); eauto.
+    { destruct Hρ; simplify_eq; done. }
   Qed.
 
   Lemma open_world_interp
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (φ : Vc) (ρ : region_type) :
-    heap_addr_live (heap_std W) a ->
+    (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (φ : Vc) (ρ : region_type) :
+    heap_key_live (heap_std W) a ->
     ρ = Temporary ∨ ρ = Permanent →
-    (std W) !! LNonHeap a = Some ρ →
+    (std W) !! a = Some ρ →
     rel C a p φ -∗
     world_interp W C
     -∗
     world_interp_open W C [a] ∗
-    sts_state_std C (LNonHeap a) ρ ∗
+    sts_state_std C a ρ ∗
     ▷ (∃ v, WorldRes W C a p φ v ρ).
   Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply open_world_interp_live_heap; eauto; typeclasses eauto.
-    - eapply open_world_interp_nonheap; eauto; typeclasses eauto.
-  Qed.
-
-  Lemma close_world_interp_nonheap
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (φ : Vc) (v : Word)
-    (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
-    is_heap_address a = false ->
-    ρ = Temporary ∨ ρ = Permanent →
-    world_interp_open W C [a] -∗
-    sts_state_std C (LNonHeap a) ρ -∗
-    rel C a p φ -∗
-    WorldRes W C a p φ v ρ
-    -∗
-    world_interp W C.
-  Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
+    intros Hlive.
+    iIntros (Hne Htemp) "#Hrel Hworld".
     rewrite open_world_interp_empty.
-    iIntros (Htemp) "Hworld Hstd #Hrel".
-    iApply (close_world_interp_next with "Hworld Hstd Hrel"); eauto.
-    set_solver+.
-  Qed.
-
-  Lemma close_world_interp_live_heap
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (φ : Vc) (v : Word)
-    (ρ : region_type) `{forall Wv, Persistent (φ Wv)}  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    ρ = Temporary ∨ ρ = Permanent →
-    world_interp_open W C [a] -∗
-    sts_state_std C (LNonHeap a) ρ -∗
-    rel C a p φ -∗
-    WorldRes W C a p φ v ρ
-    -∗
-    world_interp W C.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite open_world_interp_empty.
-    iIntros (Htemp) "Hworld Hstd #Hrel".
-    iApply (close_world_interp_next with "Hworld Hstd Hrel"); eauto.
+    iApply open_world_interp_next; eauto.
     set_solver+.
   Qed.
 
   Lemma close_world_interp
-    (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (φ : Vc) (v : Word)
+    (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (φ : Vc) (v : Word)
     (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
-    heap_addr_live (heap_std W) a ->
+    heap_key_live (heap_std W) a ->
     ρ = Temporary ∨ ρ = Permanent →
     world_interp_open W C [a] -∗
-    sts_state_std C (LNonHeap a) ρ -∗
+    sts_state_std C a ρ -∗
     rel C a p φ -∗
     WorldRes W C a p φ v ρ
     -∗
     world_interp W C.
   Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply close_world_interp_live_heap; eauto; typeclasses eauto.
-    - eapply close_world_interp_nonheap; eauto; typeclasses eauto.
+    intros Hlive.
+    rewrite open_world_interp_empty.
+    iIntros (Htemp) "Hworld Hstd #Hrel".
+    iApply (close_world_interp_next with "Hworld Hstd Hrel"); eauto.
+    set_solver+.
   Qed.
 
-  (** Quarantined addresses expose only reclaim tokens, for every standard state. *)
-  Lemma open_world_interp_next_quarantined_heap W C s a p φ ρ base obj :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectQuarantined ->
-    a ∉ s -> std W !! LNonHeap a = Some ρ ->
-    world_interp_open W C s -∗ rel C a p φ -∗
-    world_interp_open W C (a :: s) ∗ sts_state_std C (LNonHeap a) ρ ∗ reclaim_token a.
+  (** Quarantined objects' cells hold no resources, for every standard state. *)
+  Lemma open_world_interp_next_quarantined_heap W C s a ι p φ ρ o :
+    heap_std W !! ι = Some o ->
+    alloc_object_status o = AllocObjectQuarantined ->
+    LHeap a ι ∉ s -> std W !! LHeap a ι = Some ρ ->
+    world_interp_open W C s -∗ rel C (LHeap a ι) p φ -∗
+    world_interp_open W C (LHeap a ι :: s) ∗ sts_state_std C (LHeap a ι) ρ ∗
+    ⌜alloc_object_contains o a⌝.
   Proof.
-    intros Hheap Hlookup Hstatus Hnin Hstd.
+    intros Hι Hstatus Hnin Hstd.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros "(Hr & Hsts & Hseals) Hrel".
     iDestruct (region_open_next_quarantined_heap with "[$Hr $Hrel $Hsts]")
-      as "(Hr & Hsts & Hstate & Htoken)"; eauto.
-    iFrame.
+      as "(Hr & Hsts & Hstate & %Hcontains)"; eauto.
+    by iFrame.
   Qed.
 
-  Lemma close_world_interp_next_quarantined_heap W C s a p φ ρ base obj
+  Lemma close_world_interp_next_quarantined_heap W C s a ι p φ ρ o
     `{∀ Wv, Persistent (φ Wv)} :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectQuarantined ->
-    a ∉ s ->
-    world_interp_open W C (a :: s) -∗ rel C a p φ -∗
-    sts_state_std C (LNonHeap a) ρ -∗ reclaim_token a -∗ world_interp_open W C s.
+    heap_std W !! ι = Some o ->
+    alloc_object_status o = AllocObjectQuarantined ->
+    alloc_object_contains o a ->
+    LHeap a ι ∉ s ->
+    world_interp_open W C (LHeap a ι :: s) -∗ rel C (LHeap a ι) p φ -∗
+    sts_state_std C (LHeap a ι) ρ -∗ world_interp_open W C s.
   Proof.
-    intros Hheap Hlookup Hstatus Hnin.
+    intros Hι Hstatus Hcontains Hnin.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros "(Hr & Hsts & Hseals) Hrel Hstate Htoken".
-    iDestruct (region_close_next_quarantined_heap with "[$Hr $Hrel $Hstate $Htoken]")
+    iIntros "(Hr & Hsts & Hseals) Hrel Hstate".
+    iDestruct (region_close_next_quarantined_heap with "[$Hr $Hrel $Hstate]")
       as "Hr"; eauto.
     iFrame.
   Qed.
 
-  Lemma open_world_interp_quarantined_heap W C a p φ ρ base obj :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectQuarantined ->
-    std W !! LNonHeap a = Some ρ ->
-    world_interp W C -∗ rel C a p φ -∗
-    world_interp_open W C [a] ∗ sts_state_std C (LNonHeap a) ρ ∗ reclaim_token a.
+  Lemma open_world_interp_quarantined_heap W C a ι p φ ρ o :
+    heap_std W !! ι = Some o ->
+    alloc_object_status o = AllocObjectQuarantined ->
+    std W !! LHeap a ι = Some ρ ->
+    world_interp W C -∗ rel C (LHeap a ι) p φ -∗
+    world_interp_open W C [LHeap a ι] ∗ sts_state_std C (LHeap a ι) ρ ∗
+    ⌜alloc_object_contains o a⌝.
   Proof.
-    intros Hheap Hlookup Hstatus Hstd.
+    intros Hι Hstatus Hstd.
     iIntros "HW Hrel". iApply (open_world_interp_next_quarantined_heap with "[HW] Hrel"); eauto.
     - set_solver.
     - by rewrite -open_world_interp_empty.
   Qed.
 
-  Lemma close_world_interp_quarantined_heap W C a p φ ρ base obj
+  Lemma close_world_interp_quarantined_heap W C a ι p φ ρ o
     `{∀ Wv, Persistent (φ Wv)} :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectQuarantined ->
-    world_interp_open W C [a] -∗ rel C a p φ -∗
-    sts_state_std C (LNonHeap a) ρ -∗ reclaim_token a -∗ world_interp W C.
+    heap_std W !! ι = Some o ->
+    alloc_object_status o = AllocObjectQuarantined ->
+    alloc_object_contains o a ->
+    world_interp_open W C [LHeap a ι] -∗ rel C (LHeap a ι) p φ -∗
+    sts_state_std C (LHeap a ι) ρ -∗ world_interp W C.
   Proof.
-    intros Hheap Hlookup Hstatus.
+    intros Hι Hstatus Hcontains.
     rewrite open_world_interp_empty.
-    iIntros "HW Hrel Hstate Htoken".
-    iApply (close_world_interp_next_quarantined_heap with "HW Hrel Hstate Htoken"); eauto.
+    iIntros "HW Hrel Hstate".
+    iApply (close_world_interp_next_quarantined_heap with "HW Hrel Hstate"); eauto.
     set_solver.
   Qed.
 
-  Lemma world_interp_extend_quarantined_heap {E : coPset} W C a p φ ρ base obj
+  Lemma world_interp_extend_quarantined_heap {E : coPset} W C k p φ ρ
     `{∀ Wv, Persistent (φ Wv)} :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectQuarantined ->
-    LNonHeap a ∉ dom (std W) ->
-    world_interp W C -∗ reclaim_token a
-    ={E}=∗ world_interp (<s[a:=ρ]s>W) C ∗ rel C a p φ.
+    heap_key_status (heap_std W) k = Some AllocObjectQuarantined ->
+    k ∉ dom (std W) ->
+    world_interp W C
+    ={E}=∗ world_interp (<s[k:=ρ]s>W) C ∗ rel C k p φ.
   Proof.
-    intros Hheap Hlookup Hstatus Hfresh.
+    intros Hquar Hfresh.
     rewrite world_interp_eq /world_interp_def.
-    iIntros "(Hr & Hsts & Hseals) Htoken".
+    iIntros "(Hr & Hsts & Hseals)".
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iMod (extend_region_quarantined_heap with "Hsts Hr Htoken") as "($ & $ & $)"; eauto.
+    iMod (extend_region_quarantined_heap with "Hsts Hr") as "($ & $ & $)"; eauto.
     iApply (sealing_map_monotone_pub with "Hseals"); [exact Hheap_wf|done|].
     apply related_sts_pub_world_fresh. done.
   Qed.
 
-  Lemma world_interp_restore_quarantined_heap {E : coPset} W C a p φ base obj :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectQuarantined ->
-    std W !! LNonHeap a = Some Revoked ->
-    world_interp W C -∗ rel C a p φ
-    ={E}=∗ world_interp (<s[a:=Temporary]s>W) C.
+  Lemma world_interp_restore_quarantined_heap {E : coPset} W C a ι p φ o :
+    heap_std W !! ι = Some o ->
+    alloc_object_status o = AllocObjectQuarantined ->
+    std W !! LHeap a ι = Some Revoked ->
+    world_interp W C -∗ rel C (LHeap a ι) p φ
+    ={E}=∗ world_interp (<s[LHeap a ι:=Temporary]s>W) C.
   Proof.
-    intros Hheap Hlookup Hstatus Hrev.
+    intros Hι Hstatus Hrev.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hr & Hsts & Hseals) Hrel".
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
@@ -1303,40 +844,33 @@ Section world_ghost_theory.
 
   Lemma region_addr_status_some W C a :
     a ∈ dom (std W) ->
-    region W C -∗ region W C ∗ ⌜is_Some (heap_addr_status (heap_std W) (laddr_addr a))⌝.
+    region W C -∗ region W C ∗ ⌜is_Some (heap_key_status (heap_std W) a)⌝.
   Proof.
     rewrite region_eq /region_def.
     iIntros (Hin) "Hr".
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hmap)".
-    iDestruct "Hmap" as "[%Hcovered [Hheapfrag Hmap]]".
+    iDestruct "Hmap" as "[%Hknown [Hheapfrag Hmap]]".
     assert (is_Some (M !! a)) as [[γ p] Hlookup].
     { apply elem_of_dom. rewrite -Hdom. exact Hin. }
     iDestruct (big_sepM_lookup_acc _ _ a with "Hmap") as "[Hentry Hput]";
       first exact Hlookup.
     iDestruct "Hentry" as (ρ Hρ) "[Hstate Hresource]".
     iDestruct "Hresource" as (γpred p' φ Heq Hpers) "[Hsaved Haddr]".
-    destruct a as [a|]; last by iDestruct "Haddr" as "[]".
-    cbn [laddr_addr].
-    destruct (heap_addr_status (heap_std W) a) as [status|] eqn:Hstatus.
-    - iAssert (region_map_def W C M Mρ) with "[Hheapfrag Hstate Hsaved Haddr Hput]" as "Hmap".
-      { iSplit; first done.
-        iFrame "Hheapfrag".
-        iApply "Hput". iExists ρ. iFrame "Hstate". iFrame "%". iFrame. }
-      iSplitL "HM Hmap".
-      { iExists M, Mρ. iFrame "HM Hmap". iFrame "%". }
-      iPureIntro. eauto.
-    - unfold heap_addr_status in Hstatus.
-      destruct (is_heap_address a) eqn:Hheap; last discriminate.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hfind;
-        first discriminate.
-      iDestruct "Haddr" as "[]".
+    iDestruct (heap_key_resource_status with "Haddr") as %Hstatus.
+    iAssert (region_map_def W C M Mρ) with "[Hheapfrag Hstate Hsaved Haddr Hput]" as "Hmap".
+    { iSplit; first done.
+      iFrame "Hheapfrag".
+      iApply "Hput". iExists ρ. iFrame "Hstate". iFrame "%". iFrame. }
+    iSplitL "HM Hmap".
+    { iExists M, Mρ. iFrame "HM Hmap". iFrame "%". }
+    iPureIntro. exact Hstatus.
   Qed.
 
   Lemma region_addrs_status_some W C l :
     Forall (λ a, a ∈ dom (std W)) l ->
     region W C -∗
     region W C ∗
-    ⌜Forall (λ a, is_Some (heap_addr_status (heap_std W) (laddr_addr a))) l⌝.
+    ⌜Forall (λ a, is_Some (heap_key_status (heap_std W) a)) l⌝.
   Proof.
     intros Hdom.
     induction l as [|a l IH]; simpl in *.
@@ -1349,11 +883,11 @@ Section world_ghost_theory.
   Qed.
 
   Lemma heap_status_partition W_heap l :
-    Forall (λ a, is_Some (heap_addr_status W_heap (laddr_addr a))) l ->
+    Forall (λ a, is_Some (heap_key_status W_heap a)) l ->
     ∃ l_live l_quarantined,
       Permutation l (l_live ++ l_quarantined) ∧
-      Forall (λ a, heap_addr_live W_heap (laddr_addr a)) l_live ∧
-      Forall (λ a, heap_addr_status W_heap (laddr_addr a) = Some AllocObjectQuarantined) l_quarantined.
+      Forall (λ a, heap_key_live W_heap a) l_live ∧
+      Forall (λ a, heap_key_status W_heap a = Some AllocObjectQuarantined) l_quarantined.
   Proof.
     intros Hstatuses. induction Hstatuses as [|a l Hstatus Hstatuses IH].
     - exists [], []. repeat split; constructor.
@@ -1370,7 +904,7 @@ Section world_ghost_theory.
   (* Revocation of the world *)
 
   Lemma world_interp_revoke_live W C s :
-    Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) s ->
+    Forall (λ a, heap_key_live (heap_std W) a) s ->
     extract_temporaries_condition W s ->
     world_interp W C
     ==∗
@@ -1392,54 +926,19 @@ Section world_ghost_theory.
       rewrite /close_list_resources big_sepL_later.
       iApply (big_sepL_impl with "Hres").
       iIntros "!> %k %a %Ha H".
-      assert (heap_addr_live (heap_std W) (laddr_addr a)) as Hlive_a
+      assert (heap_key_live (heap_std W) a) as Hlive_a
         by (rewrite Forall_lookup in Hlive; eauto).
-      unfold heap_addr_live in Hlive_a.
+      unfold heap_key_live in Hlive_a.
       rewrite /close_addr_resources Hlive_a.
       iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
       iNext. iExists p, φ. iFrame "Hrel". iSplit; first done.
       iExact "Htemp".
   Qed.
 
-  Lemma world_interp_revoke_nonheap W C s :
-    Forall (fun a => is_heap_address (laddr_addr a) = false) s ->
-    extract_temporaries_condition W s ->
-    world_interp W C
-    ==∗
-    world_interp (revoke W) C
-    ∗ ▷ RevokedResources W C s
-    (* This last pure predicate is useful for bookkeeping. *)
-    ∗ ⌜ Forall (λ a, std (revoke W) !! a = Some Revoked) s ⌝.
-  Proof.
-    intros Hcases.
-    eapply world_interp_revoke_live; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
-  Qed.
-
-  Lemma world_interp_revoke_live_heap W C s :
-    Forall (fun a => is_heap_address (laddr_addr a) = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) (laddr_addr a) = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) s ->
-    extract_temporaries_condition W s ->
-    world_interp W C
-    ==∗
-    world_interp (revoke W) C
-    ∗ ▷ RevokedResources W C s
-    (* This last pure predicate is useful for bookkeeping. *)
-    ∗ ⌜ Forall (λ a, std (revoke W) !! a = Some Revoked) s ⌝.
-  Proof.
-    intros Hcases.
-    eapply world_interp_revoke_live; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
-  Qed.
-
   Lemma world_interp_revoke_partition W C s s_live s_quarantined :
     Permutation s (s_live ++ s_quarantined) ->
-    Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) s_live ->
-    Forall (λ a, heap_addr_status (heap_std W) (laddr_addr a) = Some AllocObjectQuarantined) s_quarantined ->
+    Forall (λ a, heap_key_live (heap_std W) a) s_live ->
+    Forall (λ a, heap_key_status (heap_std W) a = Some AllocObjectQuarantined) s_quarantined ->
     extract_temporaries_condition W s ->
     world_interp W C
     ==∗
@@ -1471,9 +970,9 @@ Section world_ghost_theory.
     { rewrite /close_list_resources big_sepL_later.
       iApply (big_sepL_impl with "Hres").
       iIntros "!> %k %a %Ha H".
-      assert (heap_addr_live (heap_std W) (laddr_addr a)) as Hlive_a
+      assert (heap_key_live (heap_std W) a) as Hlive_a
         by (rewrite Forall_lookup in Hlive; eauto).
-      unfold heap_addr_live in Hlive_a.
+      unfold heap_key_live in Hlive_a.
       rewrite /close_addr_resources Hlive_a.
       iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
       iNext. iExists p, φ. iFrame "Hrel". iSplit; first done.
@@ -1537,7 +1036,7 @@ Section world_ghost_theory.
      because we use a more general version of the lemma. *)
 
   Lemma world_interp_restore_world (W W' : WORLD) (C : CmptName) (s : list LAddr) :
-    Forall (λ a, heap_addr_live (heap_std W') (laddr_addr a)) s ->
+    Forall (λ a, heap_key_live (heap_std W') a) s ->
     related_sts_pub_world W (reinstate W' s) →
     world_interp W' C -∗
     RevokedResources W C s
@@ -1556,37 +1055,6 @@ Section world_ghost_theory.
     apply close_list_related_sts_pub.
   Qed.
 
-  Lemma world_interp_restore_world_nonheap (W W' : WORLD) (C : CmptName) (s : list LAddr) :
-    Forall (fun a => is_heap_address (laddr_addr a) = false) s ->
-    related_sts_pub_world W (reinstate W' s) →
-    world_interp W' C -∗
-    RevokedResources W C s
-    ==∗
-    world_interp (reinstate W' s) C.
-  Proof.
-    intros Hcases.
-    eapply world_interp_restore_world; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
-  Qed.
-
-  Lemma world_interp_restore_world_live_heap (W W' : WORLD) (C : CmptName) (s : list LAddr) :
-    Forall (fun a => is_heap_address (laddr_addr a) = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W') (laddr_addr a) = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) s ->
-    related_sts_pub_world W (reinstate W' s) →
-    world_interp W' C -∗
-    RevokedResources W C s
-    ==∗
-    world_interp (reinstate W' s) C.
-  Proof.
-    intros Hcases.
-    eapply world_interp_restore_world; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
-  Qed.
-
   (** ** Revocation by separation.
 
       The following lemmas are useful lemmas to know that same addresses are in the Revoked state in the world.
@@ -1597,82 +1065,23 @@ Section world_ghost_theory.
       This is an argument by separation.
    *)
 
-  Lemma world_interp_quarantined_heap_by_separation W C a base obj :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectQuarantined ->
-    world_interp W C -∗ reclaim_token a -∗ ⌜LNonHeap a ∉ dom (std W)⌝.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "(Hr & _) Htoken".
-    iApply (quarantined_heap_by_separation with "Hr Htoken"); eauto.
-  Qed.
-
-  Lemma world_interp_revoked_by_separation_nonheap
-    (W : WORLD) (C' : CmptName)
-    (a : Addr) (w : Word) :
-    is_heap_address a = false ->
-    LNonHeap a ∈ dom (std W) →
-    world_interp W C'
-    ∗ a ↦ₐ w
-    ==∗
-    world_interp W C'
-    ∗ a ↦ₐ w
-    ∗ ⌜ std W !! LNonHeap a = Some Revoked ⌝
-  .
-  Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "([Hr [Hsts Hseals] ] & Ha)".
-    iMod (revoked_by_separation _ _ (LNonHeap a) with "[$Hr $Hsts $Ha]") as "($&$&$)";auto.
-  Qed.
-
-  Lemma world_interp_revoked_by_separation_live_heap
-    (W : WORLD) (C' : CmptName)
-    (a : Addr) (w : Word)  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    LNonHeap a ∈ dom (std W) →
-    world_interp W C'
-    ∗ a ↦ₐ w
-    ==∗
-    world_interp W C'
-    ∗ a ↦ₐ w
-    ∗ ⌜ std W !! LNonHeap a = Some Revoked ⌝
-  .
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "([Hr [Hsts Hseals] ] & Ha)".
-    iMod (revoked_by_separation _ _ (LNonHeap a) with "[$Hr $Hsts $Ha]") as "($&$&$)";auto.
-  Qed.
-
   Lemma world_interp_revoked_by_separation
     (W : WORLD) (C' : CmptName)
-    (a : Addr) (w : Word) :
-    heap_addr_live (heap_std W) a ->
-    LNonHeap a ∈ dom (std W) →
+    (k : LAddr) (w : Word) :
+    heap_key_live (heap_std W) k ->
+    k ∈ dom (std W) →
     world_interp W C'
-    ∗ a ↦ₐ w
+    ∗ laddr_addr k ↦ₐ w
     ==∗
     world_interp W C'
-    ∗ a ↦ₐ w
-    ∗ ⌜ std W !! LNonHeap a = Some Revoked ⌝
+    ∗ laddr_addr k ↦ₐ w
+    ∗ ⌜ std W !! k = Some Revoked ⌝
   .
   Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply world_interp_revoked_by_separation_live_heap; eauto; typeclasses eauto.
-    - eapply world_interp_revoked_by_separation_nonheap; eauto; typeclasses eauto.
+    intros Hlive.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros (?) "([Hr [Hsts Hseals] ] & Ha)".
+    iMod (revoked_by_separation _ _ k with "[$Hr $Hsts $Ha]") as "($&$&$)";auto.
   Qed.
 
   Lemma world_interp_revoked_by_separation_many
@@ -1688,52 +1097,15 @@ Section world_ghost_theory.
     ∗ ⌜ Forall (λ a, std W !! LNonHeap a = Some Revoked) la⌝
   .
   Proof.
-    intros Hlive.
+    intros _.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "([Hr [Hsts Hseals] ] & Hl)".
-    iMod (revoked_by_separation_many with "[$Hr $Hsts $Hl]")
-      as "($ & $ & $ & $)"; auto.
-  Qed.
-
-  Lemma world_interp_revoked_by_separation_many_nonheap
-    (W : WORLD) (C : CmptName)
-    (la : list Addr) (lw : list Word) :
-    Forall (fun a => is_heap_address a = false) la ->
-    Forall (λ a, LNonHeap a ∈ dom (std W)) la →
-    world_interp W C
-    ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-    ==∗
-    world_interp W C
-    ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-    ∗ ⌜ Forall (λ a, std W !! LNonHeap a = Some Revoked) la⌝
-  .
-  Proof.
-    intros Hcases.
-    eapply world_interp_revoked_by_separation_many; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
-  Qed.
-
-  Lemma world_interp_revoked_by_separation_many_live_heap
-    (W : WORLD) (C : CmptName)
-    (la : list Addr) (lw : list Word) :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-    Forall (λ a, LNonHeap a ∈ dom (std W)) la →
-    world_interp W C
-    ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-    ==∗
-    world_interp W C
-    ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-    ∗ ⌜ Forall (λ a, std W !! LNonHeap a = Some Revoked) la⌝
-  .
-  Proof.
-    intros Hcases.
-    eapply world_interp_revoked_by_separation_many; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
+    iIntros (Hdom) "([Hr [Hsts Hseals] ] & Hl)".
+    iMod (revoked_by_separation_many W C (LNonHeap <$> la) lw with "[$Hr $Hsts Hl]")
+      as "($ & $ & Hl & %Hrev)".
+    { apply Forall_fmap, Forall_true. intros. apply heap_key_live_nonheap. }
+    { by apply Forall_fmap. }
+    { rewrite big_sepL2_fmap_l. iExact "Hl". }
+    rewrite big_sepL2_fmap_l. iFrame. iPureIntro. by apply Forall_fmap in Hrev.
   Qed.
 
   (* [RevokedResources] owns the points-to predicates for the addresses in [la]. *)
@@ -1741,8 +1113,8 @@ Section world_ghost_theory.
   Lemma world_interp_revoked_by_separation_many_with_RevokedResources
     (W W' : WORLD) (C' : CmptName)
     (la : list LAddr) :
-    Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) la ->
-    Forall (λ a, heap_addr_live (heap_std W') (laddr_addr a)) la ->
+    Forall (λ a, heap_key_live (heap_std W) a) la ->
+    Forall (λ a, heap_key_live (heap_std W') a) la ->
     Forall (λ a, a ∈ dom (std W')) la →
     world_interp W' C' ∗
     RevokedResources W C' la
@@ -1759,51 +1131,32 @@ Section world_ghost_theory.
     by iFrame.
   Qed.
 
-  Lemma world_interp_revoked_by_separation_many_with_RevokedResources_nonheap
-    (W W' : WORLD) (C' : CmptName)
-    (la : list LAddr) :
-    Forall (fun a => is_heap_address (laddr_addr a) = false) la ->
-    Forall (λ a, a ∈ dom (std W')) la →
-    world_interp W' C' ∗
-    RevokedResources W C' la
-    ==∗
-    world_interp W' C' ∗
-    RevokedResources W C' la ∗
-    ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
-  Proof.
-    intros Hcases.
-    eapply world_interp_revoked_by_separation_many_with_RevokedResources; try eassumption; try typeclasses eauto.
-    - eapply Forall_impl; first exact Hcases.
-      intros a Ha. apply heap_addr_live_nonheap. exact Ha.
-    - eapply Forall_impl; first exact Hcases.
-      intros a Ha. apply heap_addr_live_nonheap. exact Ha.
-  Qed.
-
-  Lemma world_interp_revoked_by_separation_many_with_RevokedResources_live_heap
-    (W W' : WORLD) (C' : CmptName)
-    (la : list LAddr) :
-    Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) la ->
-    Forall (fun a => is_heap_address (laddr_addr a) = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W') (laddr_addr a) = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-    Forall (λ a, a ∈ dom (std W')) la →
-    world_interp W' C' ∗
-    RevokedResources W C' la
-    ==∗
-    world_interp W' C' ∗
-    RevokedResources W C' la ∗
-    ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
-  Proof.
-    intros Hlive_W Hcases.
-    eapply world_interp_revoked_by_separation_many_with_RevokedResources; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
-  Qed.
-
   (** ** Extension the world interpretation for safety invariants. *)
 
   (* Extend the world with a permanent safety invariant. *)
+  Lemma world_interp_extend_perm
+    {E : coPset}
+    (W : WORLD) (C : CmptName) (a : LAddr) (v : Word) (p : Perm) (φ : Vc)
+    `{∀ Wv, Persistent (φ Wv)} :
+    heap_key_live (heap_std W) a ->
+    a ∉ dom (std W) →
+    world_interp W C -∗
+    PermRes W C a p φ v
+
+    ={E}=∗
+
+    world_interp (<s[a := Permanent ]s>W) C ∗
+    rel C a p φ.
+  Proof.
+    intros Hlive.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+    iMod (extend_region_perm with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    apply related_sts_pub_world_fresh; auto.
+  Qed.
+
   Lemma world_interp_extend_perm_nonheap
     {E : coPset}
     (W : WORLD) (C : CmptName) (a : Addr) (v : Word) (p : Perm) (φ : Vc)
@@ -1818,68 +1171,66 @@ Section world_ghost_theory.
     world_interp (<s[a := Permanent ]s>W) C ∗
     rel C a p φ.
   Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iMod (extend_region_perm with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
-    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    apply related_sts_pub_world_fresh; auto.
-  Qed.
-
-  Lemma world_interp_extend_perm_live_heap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (a : Addr) (v : Word) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)}  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    LNonHeap a ∉ dom (std W) →
-    world_interp W C -∗
-    PermRes W C a p φ v
-
-    ={E}=∗
-
-    world_interp (<s[a := Permanent ]s>W) C ∗
-    rel C a p φ.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iMod (extend_region_perm with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
-    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    apply related_sts_pub_world_fresh; auto.
-  Qed.
-
-  Lemma world_interp_extend_perm
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (a : Addr) (v : Word) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)} :
-    heap_addr_live (heap_std W) a ->
-    LNonHeap a ∉ dom (std W) →
-    world_interp W C -∗
-    PermRes W C a p φ v
-
-    ={E}=∗
-
-    world_interp (<s[a := Permanent ]s>W) C ∗
-    rel C a p φ.
-  Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply world_interp_extend_perm_live_heap; eauto; typeclasses eauto.
-    - eapply world_interp_extend_perm_nonheap; eauto; typeclasses eauto.
+    intros _ Hfresh. iIntros "Hw Hres".
+    iApply (world_interp_extend_perm with "Hw Hres"); [apply heap_key_live_nonheap|done].
   Qed.
 
   (* Extend the world with a temporary safety invariant. *)
+  Lemma world_interp_extend_temp
+    {E : coPset}
+    (W : WORLD) (C : CmptName) (a : LAddr) (v : Word) (p : Perm) (φ : Vc)
+    `{∀ Wv, Persistent (φ Wv)} :
+    heap_key_live (heap_std W) a ->
+    a ∉ dom (std W) →
+    world_interp W C -∗
+    TmpRes W C a p φ v
+
+    ={E}=∗
+
+    world_interp (<s[a := Temporary ]s>W) C ∗
+    rel C a p φ.
+  Proof.
+    intros Hlive.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)"; rewrite  mono_temporary_eq.
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+    iMod (extend_region_temp with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    apply related_sts_pub_world_fresh; auto.
+  Qed.
+
+  (* Extend the world with the permanent safety invariants of a list of keys. *)
+  Lemma world_interp_extend_perm_keys
+    {E : coPset}
+    (W : WORLD) (C : CmptName) (lk : list LAddr) (lw : list Word) (p : Perm) (φ : Vc)
+    `{∀ Wv, Persistent (φ Wv)} :
+    Forall (heap_key_live (heap_std W)) lk ->
+    isO p = false ->
+    Forall (λ k, std W !! k = None) lk →
+    world_interp W C -∗
+    ([∗ list] k;v ∈ lk;lw, PermRes W C k p φ v)
+
+    ={E}=∗
+
+    world_interp (std_update_keys W lk Permanent) C ∗
+    ([∗ list] k ∈ lk, rel C k p φ).
+  Proof.
+    intros Hlive.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros (Hp Hfresh) "[Hr [Hsts Hseals] ] Hres".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+    iMod (extend_region_perm_keys with "Hsts Hr [Hres]") as "($&$&$)"; eauto.
+    { iApply (big_sepL2_impl with "Hres").
+      iModIntro; iIntros (k a v Ha Hv) "(%&?&?&?)"; iFrame. }
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    - by rewrite std_update_keys_heap.
+    - by rewrite std_update_keys_seals.
+    - apply related_sts_pub_update_keys.
+      eapply Forall_impl; first exact Hfresh.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
+  Qed.
+
   Lemma world_interp_extend_temp_nonheap
     {E : coPset}
     (W : WORLD) (C : CmptName) (a : Addr) (v : Word) (p : Perm) (φ : Vc)
@@ -1894,65 +1245,8 @@ Section world_ghost_theory.
     world_interp (<s[a := Temporary ]s>W) C ∗
     rel C a p φ.
   Proof.
-    intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { apply heap_addr_live_nonheap. exact Hnonheap. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)"; rewrite  mono_temporary_eq.
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iMod (extend_region_temp with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
-    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    apply related_sts_pub_world_fresh; auto.
-  Qed.
-
-  Lemma world_interp_extend_temp_live_heap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (a : Addr) (v : Word) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)}  (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    LNonHeap a ∉ dom (std W) →
-    world_interp W C -∗
-    TmpRes W C a p φ v
-
-    ={E}=∗
-
-    world_interp (<s[a := Temporary ]s>W) C ∗
-    rel C a p φ.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
-    { eapply heap_addr_live_lookup; eauto. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)"; rewrite  mono_temporary_eq.
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iMod (extend_region_temp with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
-    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    apply related_sts_pub_world_fresh; auto.
-  Qed.
-
-  Lemma world_interp_extend_temp
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (a : Addr) (v : Word) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)} :
-    heap_addr_live (heap_std W) a ->
-    LNonHeap a ∉ dom (std W) →
-    world_interp W C -∗
-    TmpRes W C a p φ v
-
-    ={E}=∗
-
-    world_interp (<s[a := Temporary ]s>W) C ∗
-    rel C a p φ.
-  Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply world_interp_extend_temp_live_heap; eauto; typeclasses eauto.
-    - eapply world_interp_extend_temp_nonheap; eauto; typeclasses eauto.
+    intros _ Hfresh. iIntros "Hw Hres".
+    iApply (world_interp_extend_temp with "Hw Hres"); [apply heap_key_live_nonheap|done].
   Qed.
 
   (* Extend the world with several permanent safety invariants. *)
@@ -1965,7 +1259,7 @@ Section world_ghost_theory.
     isO p = false ->
     Forall (λ k, std W !! LNonHeap k = None) la →
     world_interp W C -∗
-    ([∗ list] a;v ∈ la;lw, PermRes W C a p φ v)
+    ([∗ list] a;v ∈ la;lw, PermRes W C (LNonHeap a) p φ v)
 
     ={E}=∗
 
@@ -1996,7 +1290,7 @@ Section world_ghost_theory.
     isO p = false ->
     Forall (λ k, std W !! LNonHeap k = None) la →
     world_interp W C -∗
-    ([∗ list] a;v ∈ la;lw, PermRes W C a p φ v)
+    ([∗ list] a;v ∈ la;lw, PermRes W C (LNonHeap a) p φ v)
 
     ={E}=∗
 
@@ -2009,30 +1303,6 @@ Section world_ghost_theory.
     intros a Ha. apply heap_addr_live_nonheap. exact Ha.
   Qed.
 
-  Lemma world_interp_extend_perm_sepL2_live_heap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)} :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) la →
-    world_interp W C -∗
-    ([∗ list] a;v ∈ la;lw, PermRes W C a p φ v)
-
-    ={E}=∗
-
-    world_interp (std_update_multiple W la Permanent) C ∗
-    ([∗ list] k ∈ la, rel C (LNonHeap k) p φ).
-  Proof.
-    intros Hcases.
-    eapply world_interp_extend_perm_sepL2; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
-  Qed.
-
   (* Extend the world with several temporary safety invariants. *)
 
   Lemma world_interp_extend_temp_sepL2
@@ -2043,7 +1313,7 @@ Section world_ghost_theory.
     isO p = false ->
     Forall (λ k, std W !! LNonHeap k = None) la →
     world_interp W C -∗
-    ([∗ list] a;v ∈ la;lw, TmpRes W C a p φ v)
+    ([∗ list] a;v ∈ la;lw, TmpRes W C (LNonHeap a) p φ v)
 
     ={E}=∗
 
@@ -2076,7 +1346,7 @@ Section world_ghost_theory.
     isO p = false ->
     Forall (λ k, std W !! LNonHeap k = None) la →
     world_interp W C -∗
-    ([∗ list] a;v ∈ la;lw, TmpRes W C a p φ v)
+    ([∗ list] a;v ∈ la;lw, TmpRes W C (LNonHeap a) p φ v)
 
     ={E}=∗
 
@@ -2087,30 +1357,6 @@ Section world_ghost_theory.
     eapply world_interp_extend_temp_sepL2; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
     intros a Ha. apply heap_addr_live_nonheap. exact Ha.
-  Qed.
-
-  Lemma world_interp_extend_temp_sepL2_live_heap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)} :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) la →
-    world_interp W C -∗
-    ([∗ list] a;v ∈ la;lw, TmpRes W C a p φ v)
-
-    ={E}=∗
-
-    world_interp (std_update_multiple W la Temporary) C ∗
-    ([∗ list] k ∈ la, rel C (LNonHeap k) p φ).
-  Proof.
-    intros Hcases.
-    eapply world_interp_extend_temp_sepL2; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
   Qed.
 
   (* Pre-allocate safety invariant: extend the world with several Revoked safety invariants. *)
@@ -2159,28 +1405,6 @@ Section world_ghost_theory.
     eapply world_interp_extend_revoked_sepL2; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
     intros a Ha. apply heap_addr_live_nonheap. exact Ha.
-  Qed.
-
-  Lemma world_interp_extend_revoked_sepL2_live_heap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)}:
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-    Forall (λ k, std W !! LNonHeap k = None) la →
-    world_interp W C
-
-     ={E}=∗
-
-     world_interp (std_update_multiple W la Revoked) C ∗
-     ([∗ list] k ∈ la, rel C (LNonHeap k) p φ).
-  Proof.
-    intros Hcases.
-    eapply world_interp_extend_revoked_sepL2; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
   Qed.
 
 
@@ -2254,38 +1478,6 @@ Section world_ghost_theory.
     intros a Ha. apply heap_addr_live_nonheap. exact Ha.
   Qed.
 
-  Lemma world_interp_extend_perm_sepL2_open_live_heap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)} :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-    let W' := (std_update_multiple W la Permanent) in
-    NoDup la ->
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) la →
-    world_interp W C -∗
-    ([∗ list] k;v ∈ la;lw, k ↦ₐ v) -∗
-    (
-      ([∗ list] k ∈ la, rel C (LNonHeap k) p φ)
-      -∗
-      ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v)
-    )
-
-    ={E}=∗
-
-    world_interp W' C ∗
-    ([∗ list] k ∈ la, rel C (LNonHeap k) p φ) ∗
-    ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v).
-  Proof.
-    intros Hcases.
-    apply (world_interp_extend_perm_sepL2_open W C la lw p φ).
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
-  Qed.
-
   Lemma world_interp_extend_perm_sepL2_open'
     {E : coPset}
     (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
@@ -2300,9 +1492,9 @@ Section world_ghost_theory.
     ([∗ list] k;v ∈ la;lw, k ↦ₐ v) -∗
     (
       ([∗ list] k ∈ la, rel C (LNonHeap k) p φ) ∗
-      world_interp_open (std_update_multiple W la Permanent) C la
+      world_interp_open (std_update_multiple W la Permanent) C (LNonHeap <$> la)
       ==∗
-      world_interp_open W' C la ∗
+      world_interp_open W' C (LNonHeap <$> la) ∗
       ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
       ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
     )
@@ -2339,9 +1531,9 @@ Section world_ghost_theory.
     ([∗ list] k;v ∈ la;lw, k ↦ₐ v) -∗
     (
       ([∗ list] k ∈ la, rel C (LNonHeap k) p φ) ∗
-      world_interp_open (std_update_multiple W la Permanent) C la
+      world_interp_open (std_update_multiple W la Permanent) C (LNonHeap <$> la)
       ==∗
-      world_interp_open W' C la ∗
+      world_interp_open W' C (LNonHeap <$> la) ∗
       ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
       ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
     )
@@ -2358,44 +1550,6 @@ Section world_ghost_theory.
     apply (world_interp_extend_perm_sepL2_open' W C la lw p φ o ws ws_sealed).
     eapply Forall_impl; first exact Hcases.
     intros a Ha. apply heap_addr_live_nonheap. exact Ha.
-  Qed.
-
-  Lemma world_interp_extend_perm_sepL2_open'_live_heap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
-    (o : OType) (ws ws_sealed : gset Word)
-    `{∀ Wv, Persistent (φ Wv)} :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-    let W' := (<o[ o := ws ]o> (std_update_multiple W la Permanent)) in
-    NoDup la ->
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) la →
-    world_interp W C -∗
-    ([∗ list] k;v ∈ la;lw, k ↦ₐ v) -∗
-    (
-      ([∗ list] k ∈ la, rel C (LNonHeap k) p φ) ∗
-      world_interp_open (std_update_multiple W la Permanent) C la
-      ==∗
-      world_interp_open W' C la ∗
-      ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
-      ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
-    )
-
-    ={E}=∗
-
-    world_interp W' C ∗
-    ([∗ list] k ∈ la, rel C (LNonHeap k) p φ) ∗
-    ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
-    ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
-  .
-  Proof.
-    intros Hcases.
-    apply (world_interp_extend_perm_sepL2_open' W C la lw p φ o ws ws_sealed).
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_addr_live_lookup; eauto.
   Qed.
 
 
@@ -2500,7 +1654,7 @@ Section world_ghost_theory.
 
   (* Access the sealing resources when the world is open (memory), for free if it is persistent *)
   Lemma world_interp_open_seal_pred_singleton
-    (W : WORLD) (C : CmptName) (s : list Addr) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
+    (W : WORLD) (C : CmptName) (s : list LAddr) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
     seal_pred o Po -∗
     sts_seals_std C o {[ w ]} -∗
     world_interp_open W C s -∗
@@ -2556,7 +1710,7 @@ Section world_ghost_theory.
 
   (* Update a sealing predicate in an open world (memory) *)
   Lemma world_interp_open_sealing_update'
-    (W : WORLD) (C : CmptName) (s : list Addr) (Po : WORLD * CmptName * Word → iProp Σ)
+    (W : WORLD) (C : CmptName) (s : list LAddr) (Po : WORLD * CmptName * Word → iProp Σ)
     (o : OType) (ws : gset Word)  :
     let W' := (<o[ o := ws ]o> W) in
     seal_pred o Po -∗
@@ -2629,31 +1783,31 @@ Section world_ghost_theory.
   (** ** Initialisation of the world interpretation and resources. *)
 
   (* Initialise the permanent resources *)
-  Definition init_PermRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) :
+  Definition init_PermRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) :
     isO p = false ->
     future_priv_mono C Φ w -∗
-    a ↦ₐ w -∗
+    a ↦ₖ w -∗
     Φ (W,C,w)
     -∗
     PermRes W C a p Φ w.
     Proof. iIntros (HpO) "Hmono Ha HΦ"; iFrame; done. Qed.
 
     (* Initialise the temporary resources *)
-    Definition init_TmpRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) :
+    Definition init_TmpRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) :
       isO p = false ->
       (if isWL p then future_pub_mono C Φ w else
          (if isDL p then future_pub_mono C Φ w else future_priv_mono C Φ w))-∗
-      a ↦ₐ w -∗
+      a ↦ₖ w -∗
       Φ (W,C,w)
       -∗
       TmpRes W C a p Φ w.
     Proof. rewrite -mono_temporary_eq; iIntros (HpO) "Hmono Ha HΦ"; iFrame; done. Qed.
 
-    Definition init_WorldRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) (ρ: region_type) :
+    Definition init_WorldRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) (ρ: region_type) :
       ρ ≠ Revoked ->
       isO p = false ->
       monotonicity_guarantees_region C Φ p w ρ -∗
-      a ↦ₐ w -∗
+      a ↦ₖ w -∗
       Φ (W,C,w)
       -∗
       WorldRes W C a p Φ w ρ.
@@ -2662,322 +1816,159 @@ Section world_ghost_theory.
       rewrite mono_invariant_monotonicity_guarantees_region; eauto.
     Qed.
 
-  Lemma hts_world_heap_allocate W C b e reserved :
-    heap_fresh (heap_std W) b e ->
-    allocator_allocation b e reserved -∗
+  Lemma hts_world_heap_allocate W C ι b e reserved :
+    heap_fresh (heap_std W) ι b e ->
+    alloc_obj ι b e -∗
+    allocator_allocation ι b e reserved -∗
     world_interp W C
     ==∗
     world_interp (heap_std_update W
-      (heap_allocate (heap_std W) b e)) C.
+      (heap_allocate (heap_std W) ι b e)) C.
   Proof.
     intros Hfresh.
     assert (related_sts_pub_world W
-      (heap_std_update W (heap_allocate (heap_std W) b e))) as Hrelated.
+      (heap_std_update W (heap_allocate (heap_std W) ι b e))) as Hrelated.
     { apply related_sts_pub_world_heap_update.
       apply heap_allocate_future. exact Hfresh. }
     rewrite world_interp_eq /world_interp_def.
-    iIntros "#Hreceipt (Hr & Hsts & Hseal)".
+    iIntros "#Hobj #Hreceipt (Hr & Hsts & Hseal)".
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hwf_old.
-    pose proof (heap_allocate_wf (heap_std W) b e Hwf_old Hfresh)
+    pose proof (heap_allocate_wf (heap_std W) ι b e Hwf_old Hfresh)
       as Hwf_new.
     iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
-    iMod (heap_std_full_allocate _ _ b e Hfresh with "Hheap")
+    iMod (heap_std_full_allocate _ _ ι b e Hfresh with "Hheap")
       as "[Hheap Hnewfrag]".
-    iModIntro.
-    iSplitL "Hr Hnewfrag".
-    { rewrite region_eq /region_def /region_map_def.
-      iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
-      iDestruct "Hmap" as "[%Hcovered [[Hfrags #Hprov] Hentries]]".
-      iExists M, Mρ. iFrame "HM".
-      iSplit; first done. iSplit; first done.
-      iSplit.
-      { iPureIntro. intros a Ha.
-        rewrite /heap_addr_status /heap_std_update /= in Ha.
-        destruct (is_heap_address a) eqn:Ha_heap; last discriminate.
-        destruct (heap_lookup_addr (heap_allocate (heap_std W) b e) a)
-          as [[c o]|] eqn:Hlookup; last discriminate.
-        apply heap_lookup_addr_sound in Hlookup as [Hentry Hcontains].
-        rewrite /heap_allocate lookup_insert_Some in Hentry.
-        destruct Hentry as [[-> <-]|[Hne Hold]]; first discriminate.
-        assert (heap_lookup_addr (heap_std W) a = Some (c, o))
-          as Hlookup_old by (apply heap_lookup_addr_complete; auto).
-        apply Hcovered. rewrite /heap_addr_status Ha_heap Hlookup_old.
-        exact Ha. }
-      iSplitL "Hnewfrag Hfrags".
-      { iSplitL "Hnewfrag Hfrags".
-        { rewrite /heap_std_fragments /heap_allocate big_sepM_insert;
-            last exact (proj1 Hfresh).
-          iFrame. }
-        rewrite /heap_provenance /heap_allocate big_sepM_insert;
+    rewrite region_eq /region_def.
+    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
+    iMod (region_map_def_heap_future C W
+      (heap_std_update W (heap_allocate (heap_std W) ι b e)) M Mρ True
+      Hrelated eq_refl Hwf_new with "[Hnewfrag] Hmap") as "[Hmap _]".
+    { iIntros "[Hfrags #Hprov]". iModIntro.
+      iSplitL; last iSplit; last done.
+      - rewrite /heap_std_fragments /heap_std_update /= /heap_allocate big_sepM_insert;
           last exact (proj1 Hfresh).
-        iSplitL; last iExact "Hprov".
-        iExists reserved. iFrame "#". }
-      iApply (big_sepM_mono with "Hentries").
-      iIntros (a γ Hsome) "Hm".
-      iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
-      iExists ρ. iFrame. iSplitR; first done.
-      iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
-      iExists γpred, p, φ. iFrame "%#".
-      destruct a as [a|]; last done.
-      destruct (is_heap_address a) eqn:Ha_heap.
-      { destruct (heap_lookup_addr (heap_std W) a) as [[c o]|]
-          eqn:Hlookup_old; last done.
-        apply heap_lookup_addr_sound in Hlookup_old as [Hentry Hcontains].
-        assert (c ≠ b) as Hne.
-        { intros ->. rewrite (proj1 Hfresh) in Hentry. discriminate. }
-        assert (heap_lookup_addr (heap_allocate (heap_std W) b e) a =
-          Some (c, o)) as Hlookup_new.
-        { apply heap_lookup_addr_complete; auto.
-          rewrite /heap_allocate lookup_insert_ne; auto. }
-        rewrite /heap_std_update /= Hlookup_new.
-        destruct (alloc_object_status o).
-        - destruct ρ; cbn [region_std_interp]; last done.
-          + iDestruct "Hl" as (v HneO) "(Hl & #HmonoV & Hφ)".
-            iFrame "%#∗". iNext.
-            destruct (isWL p); [| destruct (isDL p)].
-            * iApply ("HmonoV" with "[] [] Hφ"); done.
-            * iApply ("HmonoV" with "[] [] Hφ"); done.
-            * iApply ("HmonoV" with "[] [] Hφ"); last done.
-              iPureIntro. by apply related_sts_pub_priv_world.
-          + iDestruct "Hl" as (v HneO) "(Hl & #HmonoV & Hφ)".
-            iExists v. iFrame "Hl HmonoV". iSplit; first done.
-            iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
-            iPureIntro. by apply related_sts_pub_priv_world.
-        - iExact "Hl". }
-      destruct ρ; cbn [region_std_interp]; last done.
-      - iDestruct "Hl" as (v HneO) "(Hl & #HmonoV & Hφ)".
-        iFrame "%#∗". iNext.
-        destruct (isWL p); [| destruct (isDL p)].
-        + iApply ("HmonoV" with "[] [] Hφ"); done.
-        + iApply ("HmonoV" with "[] [] Hφ"); done.
-        + iApply ("HmonoV" with "[] [] Hφ"); last done.
-          iPureIntro. by apply related_sts_pub_priv_world.
-      - iDestruct "Hl" as (v HneO) "(Hl & #HmonoV & Hφ)".
-        iExists v. iFrame "Hl HmonoV". iSplit; first done.
-        iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
-        iPureIntro. by apply related_sts_pub_priv_world. }
+        iFrame.
+      - by iApply (heap_provenance_allocate with "Hprov Hobj Hreceipt"). }
+    iModIntro. iSplitL "HM Hmap".
+    { iExists M, Mρ. by iFrame. }
     iSplitL "Hstd Hloc Hseals Hheap".
     { rewrite /sts_full_world /heap_std_update /=. iFrame "∗#". }
     iApply (sealing_map_monotone_pub with "Hseal"); done.
   Qed.
 
-  Lemma hts_world_heap_allocate_empty W C b e reserved :
+  Lemma hts_world_heap_allocate_empty W C ι b e reserved :
     heap_std W = ∅ ->
     (b < e)%a ->
-    allocator_allocation b e reserved -∗
+    alloc_obj ι b e -∗
+    allocator_allocation ι b e reserved -∗
     world_interp W C
     ==∗
-    world_interp (heap_std_update W (heap_allocate ∅ b e)) C.
+    world_interp (heap_std_update W (heap_allocate ∅ ι b e)) C.
   Proof.
-    intros Hempty Hbe.
-    assert (heap_fresh (∅ : Heap) b e) as Hfresh.
-    { split; first apply lookup_empty. split; first done.
-      intros c o a Hc. rewrite lookup_empty in Hc. discriminate. }
-    pose proof (heap_allocate_wf ∅ b e heap_wf_empty Hfresh) as Hwf.
-    assert (related_sts_pub_world W
-      (heap_std_update W (heap_allocate ∅ b e))) as Hrelated.
-    { apply related_sts_pub_world_heap_update. rewrite Hempty.
-      apply heap_allocate_future. exact Hfresh. }
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "#Hreceipt (Hr & Hsts & Hseal)".
-    iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
-    iEval (rewrite Hempty) in "Hheap".
-    iMod (heap_std_full_allocate _ _ b e Hfresh with "Hheap")
-      as "[Hheap Hnewfrag]".
-    iModIntro.
-    iSplitL "Hr Hnewfrag".
-    { rewrite region_eq /region_def /region_map_def.
-      iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
-      iDestruct "Hmap" as "[%Hcovered [_ Hr]]".
-      iExists M, Mρ. iFrame "HM".
-      iSplit; first done. iSplit; first done.
-      iSplit.
-      { iPureIntro. intros a Ha.
-        rewrite /heap_addr_status /heap_std_update /= in Ha.
-        destruct (is_heap_address a); last discriminate.
-        destruct (heap_lookup_addr (heap_allocate ∅ b e) a)
-          as [ [base obj] | ] eqn:Hlookup; last discriminate.
-        apply heap_lookup_addr_sound in Hlookup as [Hentry _].
-        rewrite /heap_allocate lookup_insert_Some in Hentry.
-        destruct Hentry as [ [-> <-] | [_ Hbad] ]; first discriminate.
-        rewrite lookup_empty in Hbad. discriminate. }
-      iSplitL "Hnewfrag".
-      { iSplitL "Hnewfrag".
-        { rewrite /heap_std_fragments /heap_allocate big_sepM_insert;
-            last apply lookup_empty.
-          rewrite big_sepM_empty. iFrame. }
-        rewrite /heap_provenance /heap_allocate big_sepM_insert;
-          last apply lookup_empty.
-        rewrite big_sepM_empty. iSplit; last done.
-        iExists reserved. iFrame "#". }
-      iApply (big_sepM_mono with "Hr").
-      iIntros (a γ Hsome) "Hm".
-      iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
-      iExists ρ. iFrame. iSplitR; first done.
-      iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
-      iExists γpred, p, φ. iFrame "%#".
-      destruct a as [a|]; last done.
-      destruct (is_heap_address a) eqn:Ha.
-      { iEval (rewrite Hempty /heap_lookup_addr map_to_list_empty /=)
-          in "Hl". done. }
-      destruct ρ; cbn [region_std_interp]; last done.
-      - iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
-        iFrame "%#∗". iNext.
-        destruct (isWL p); [| destruct (isDL p)].
-        + iApply ("HmonoV" with "[] [] Hφ"); done.
-        + iApply ("HmonoV" with "[] [] Hφ"); done.
-        + iApply ("HmonoV" with "[] [] Hφ"); last done.
-          iPureIntro. by apply related_sts_pub_priv_world.
-      - iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
-        iExists v. iFrame "Hl HmonoV". iSplit; first done.
-        iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
-        iPureIntro. by apply related_sts_pub_priv_world. }
-    iSplitL "Hstd Hloc Hseals Hheap".
-    { rewrite /sts_full_world /heap_std_update /=. iFrame "∗#". }
-    iApply (sealing_map_monotone_pub with "Hseal"); done.
+    intros Hempty Hbe. iIntros "#Hobj #Hreceipt Hworld".
+    rewrite -Hempty.
+    iApply (hts_world_heap_allocate with "Hobj Hreceipt Hworld").
+    rewrite Hempty. split; first by rewrite lookup_empty. split; first done.
+    intros κ o a Hκ. by rewrite lookup_empty in Hκ.
   Qed.
 
-  Lemma hts_world_empty_heap_fresh W C a :
-    is_heap_address a = true ->
+  Lemma world_interp_keys_known W C :
+    world_interp W C -∗ ⌜heap_keys_known (heap_std W) (dom (std W))⌝.
+  Proof.
+    rewrite world_interp_eq /world_interp_def region_eq /region_def /region_map_def.
+    iIntros "((%M & %Mρ & _ & _ & _ & %Hknown & _) & _)". done.
+  Qed.
+
+  Lemma hts_world_empty_heap_fresh W C a ι :
     heap_std W = ∅ ->
-    world_interp W C -∗ ⌜LNonHeap a ∉ dom (std W)⌝.
+    world_interp W C -∗ ⌜LHeap a ι ∉ dom (std W)⌝.
   Proof.
-    iIntros (Ha Hempty) "Hworld".
-    rewrite world_interp_eq /world_interp_def
-      region_eq /region_def /region_map_def.
-    iDestruct "Hworld" as
-      "((%M & %Mρ & HM & %Hdom & _ & _ & Hr) & _)".
-    iDestruct "Hr" as "[_ Hr]".
-    iIntros (Hin).
-    assert (is_Some (M !! LNonHeap a)) as [γ Hγ].
-    { apply elem_of_dom. rewrite -Hdom. exact Hin. }
-    iDestruct (big_sepM_lookup with "Hr") as "Hm"; first exact Hγ.
-    iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
-    iDestruct "Hm" as (γpred p φ Heq Hpers) "[Hsaved Hl]".
-    iEval (rewrite Ha Hempty /heap_lookup_addr map_to_list_empty /=)
-      in "Hl".
-    done.
+    iIntros (Hempty) "Hworld".
+    iDestruct (world_interp_keys_known with "Hworld") as %Hknown.
+    iPureIntro. intros Hin. apply Hknown in Hin. rewrite Hempty in Hin.
+    apply elem_of_dom in Hin as [? Hx]. by rewrite lookup_empty in Hx.
   Qed.
 
-  Lemma hts_world_open_heap_transition W C b h' :
-    related_sts_heap_std (heap_std W) h' ->
-    heap_wf h' ->
-    (forall a, a <> b ->
-      heap_addr_status (heap_std W) a = heap_addr_status h' a) ->
-    LNonHeap b ∈ dom (std W) ->
-    heap_provenance h' -∗
-    world_interp_open W C [b]
-    ==∗ world_interp_open (heap_std_update W h') C [b].
+  (** The D15 sync step: a world moves its entry for a freed [ι] to Quarantined
+      using only [ι ⊒ AQuar], whatever regions are open. *)
+  Lemma region_open_sync_quarantine W C l ι :
+    ι ⊒ AQuar -∗
+    open_region_many W C l ∗
+    sts_full_world W C
+    ==∗
+    open_region_many (heap_std_update W (heap_quarantine (heap_std W) ι)) C l ∗
+    sts_full_world (heap_std_update W (heap_quarantine (heap_std W) ι)) C.
   Proof.
-    iIntros (Hheap_future Hwf_new Hstatus Hb_dom) "#Hprovenance Hworld".
+    iIntros "#Hq [Hregion Hsts]".
+    set (h' := heap_quarantine (heap_std W) ι).
+    pose proof (heap_quarantine_future (heap_std W) ι) as Hheap_future.
     pose proof (related_sts_pub_world_heap_update W h' Hheap_future)
       as Hrelated.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iDestruct "Hworld" as "(Hregion & Hsts & Hseal)".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hwf_old.
+    pose proof (heap_quarantine_wf (heap_std W) ι Hwf_old) as Hwf_new.
     rewrite open_region_many_eq /open_region_many_def.
     iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
     iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
-    iDestruct "Hmap" as "[%Hcovered_old [[Hfrags _] Hentries]]".
-    iMod (heap_std_full_update C (heap_std W) h' Hheap_future
-      with "Hheap Hfrags") as "[Hheap Hfrags]".
+    iMod (region_map_def_heap_future C W (heap_std_update W h') _ _
+      (heap_std_full C h') Hrelated eq_refl Hwf_new with "[Hheap] Hmap")
+      as "[Hmap Hheap]".
+    { iIntros "[Hfrags #Hprov]".
+      iMod (heap_std_full_update C (heap_std W) h' Hheap_future
+        with "Hheap Hfrags") as "[Hheap Hfrags]".
+      iModIntro. iFrame. by iApply heap_provenance_quarantine. }
+    iModIntro. iSplitL "HM Hmap".
+    { iExists M, Mρ. by iFrame. }
+    rewrite /sts_full_world /heap_std_update /=. iFrame.
+  Qed.
+
+  Lemma world_interp_open_sync_quarantine W C l ι :
+    ι ⊒ AQuar -∗
+    world_interp_open W C l
+    ==∗
+    world_interp_open (heap_std_update W (heap_quarantine (heap_std W) ι)) C l.
+  Proof.
+    iIntros "#Hq Hworld".
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iDestruct "Hworld" as "(Hregion & Hsts & Hseal)".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hwf_old.
+    iMod (region_open_sync_quarantine with "Hq [$Hregion $Hsts]") as "[$ $]".
     iModIntro.
-    iSplitL "HM Hfrags Hentries".
-    { iExists M, Mρ. iFrame "HM".
-      iSplit; first done. iSplit; first done.
-      rewrite /region_map_def.
-      iSplit.
-      { iPureIntro. intros a Hquarantined.
-        destruct (decide (a = b)) as [->|Hne]; first exact Hb_dom.
-        apply Hcovered_old. rewrite (Hstatus a Hne).
-        exact Hquarantined. }
-      iFrame "Hfrags Hprovenance".
-      iApply (big_sepM_mono with "Hentries").
-      iIntros (a γ Hsome) "Hentry".
-      destruct a as [a|]; last by iDestruct "Hentry" as (ρ) "(_ & _ & %γpred & %p & %φ & _ & _ & _ & [])".
-      assert (a <> b) as Hne.
-      { intro Hab. subst a. cbn in Hsome.
-        rewrite lookup_delete in Hsome.
-        case_decide; [discriminate|congruence]. }
-      iDestruct "Hentry" as (ρ Hρ) "[Hstate Hentry]".
-      iExists ρ. iFrame "Hstate". iSplitR; first done.
-      iDestruct "Hentry" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
-      iExists γpred, p, φ. iFrame "%#".
-      iAssert (heap_addr_resource (heap_std W) a
-        (region_std_interp W C a p φ ρ))%I with "[Hl]" as "Hl".
-      { iExact "Hl". }
-      iAssert (heap_addr_resource h' a
-        (region_std_interp (heap_std_update W h') C a p φ ρ))%I
-        with "[Hl]" as "Hnew".
-      { iEval (rewrite heap_addr_resource_status).
-        iEval (rewrite heap_addr_resource_status) in "Hl".
-        iEval (rewrite (Hstatus a Hne)) in "Hl".
-        destruct (heap_addr_status h' a) as [status|] eqn:Hstatus_a;
-          [destruct status|].
-        - destruct ρ; cbn [region_std_interp]; last done.
-          + iDestruct "Hl" as (v HnonO) "(Hl & #HmonoV & Hφ)".
-            iFrame "%#∗".
-            destruct (isWL p); [| destruct (isDL p)].
-            * iApply ("HmonoV" with "[] [] Hφ"); done.
-            * iApply ("HmonoV" with "[] [] Hφ"); done.
-            * iApply ("HmonoV" with "[] [] Hφ"); last done.
-              iPureIntro. by apply related_sts_pub_priv_world.
-          + iDestruct "Hl" as (v HnonO) "(Hl & #HmonoV & Hφ)".
-            iFrame "%#∗".
-            iApply "HmonoV"; iFrame "∗#"; auto.
-            iPureIntro.
-            apply related_sts_pub_priv_world in Hrelated; naive_solver.
-        - iExact "Hl".
-        - iExact "Hl". }
-      iExact "Hnew". }
-    iSplitL "Hstd Hloc Hseals Hheap".
-    { rewrite /sts_full_world /heap_std_update /=. iFrame "∗#". }
-    iApply (sealing_map_monotone_pub with "Hseal"); eauto.
+    iApply (sealing_map_monotone_pub with "Hseal").
+    - by apply heap_quarantine_wf.
+    - done.
+    - apply related_sts_pub_world_heap_update, heap_quarantine_future.
   Qed.
 
-  Lemma malloc_heap_unused W C a :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = None ->
-    world_interp W C -∗ ⌜LNonHeap a ∉ dom (std W)⌝.
+  Lemma hts_world_open_heap_transition W C k ι :
+    heap_wf (heap_quarantine (heap_std W) ι) ->
+    k ∈ dom (std W) ->
+    ι ⊒ AQuar -∗
+    world_interp_open W C [k]
+    ==∗ world_interp_open (heap_std_update W (heap_quarantine (heap_std W) ι)) C [k].
   Proof.
-    iIntros (Ha Hlookup) "Hworld".
-    rewrite world_interp_eq /world_interp_def
-      region_eq /region_def /region_map_def.
-    iDestruct "Hworld" as
-      "((%M & %Mρ & HM & %Hdom & _ & _ & Hr) & _)".
-    iDestruct "Hr" as "[_ Hr]".
-    iIntros (Hin).
-    assert (is_Some (M !! LNonHeap a)) as [γ Hγ].
-    { apply elem_of_dom. rewrite -Hdom. exact Hin. }
-    iDestruct (big_sepM_lookup with "Hr") as "Hm"; first exact Hγ.
-    iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
-    iDestruct "Hm" as (γpred p φ Heq Hpers) "[Hsaved Hl]".
-    iEval (rewrite Ha Hlookup) in "Hl".
-    done.
+    iIntros (_ _) "#Hq Hworld".
+    by iApply (world_interp_open_sync_quarantine with "Hq Hworld").
   Qed.
 
-  Lemma malloc_heap_unused_range W C b e :
-    heap_fresh (heap_std W) b e ->
-    (heap_b < b /\ e <= heap_e)%a ->
+  Lemma malloc_heap_unused W C a ι :
+    heap_std W !! ι = None ->
+    world_interp W C -∗ ⌜LHeap a ι ∉ dom (std W)⌝.
+  Proof.
+    iIntros (Hι) "Hworld".
+    iDestruct (world_interp_keys_known with "Hworld") as %Hknown.
+    iPureIntro. intros Hin. apply Hknown in Hin.
+    rewrite elem_of_dom Hι in Hin. by destruct Hin.
+  Qed.
+
+  Lemma malloc_heap_unused_range W C ι b e :
+    heap_fresh (heap_std W) ι b e ->
     world_interp W C -∗
-    ⌜Forall (λ a, LNonHeap a ∉ dom (std W)) (finz.seq_between b e)⌝.
+    ⌜Forall (λ k, k ∉ dom (std W)) ((λ a, LHeap a ι) <$> finz.seq_between b e)⌝.
   Proof.
-    iIntros (Hfresh Hbounds) "Hworld".
-    iAssert (⌜heap_wf (heap_std W)⌝)%I as %Hwf.
-    { rewrite world_interp_eq /world_interp_def.
-      iDestruct "Hworld" as "(_ & Hsts & _)".
-      iApply (sts_full_world_heap_wf with "Hsts"). }
-    iAssert (∀ a, ⌜a ∈ finz.seq_between b e -> LNonHeap a ∉ dom (std W)⌝)%I as %Hnone.
-    { iIntros (a) "%Ha".
-      iApply (malloc_heap_unused W C a with "Hworld").
-      { apply withinBounds_true_iff.
-        apply elem_of_finz_seq_between in Ha. solve_addr. }
-      { apply heap_lookup_addr_none; first exact Hwf.
-        intros c o Hc Hcontains.
-        destruct Hfresh as (Hbase & Hlt & Hdisj).
-        apply elem_of_finz_seq_between in Ha.
-        eapply Hdisj; eauto. } }
-    iPureIntro. apply Forall_forall. intros a Ha.
-    apply Hnone. exact Ha.
+    iIntros (Hfresh) "Hworld".
+    iAssert (⌜∀ a, LHeap a ι ∉ dom (std W)⌝)%I as %Hnone.
+    { iIntros (a). iApply (malloc_heap_unused with "Hworld"). exact (proj1 Hfresh). }
+    iPureIntro. apply Forall_fmap, Forall_forall. intros a _. apply Hnone.
   Qed.
 
   Lemma close_list_std_insert_perm
@@ -3008,53 +1999,58 @@ Section world_ghost_theory.
       rewrite insert_insert_ne; [reflexivity|congruence].
   Qed.
 
-  Lemma close_list_std_update_perm (W : WORLD) (cl : list LAddr) (la : list Addr) :
-    close_list cl (std_update_multiple W la Permanent) =
-    std_update_multiple (close_list cl W) la Permanent.
+  Lemma close_list_std_update_keys_perm (W : WORLD) (cl : list LAddr) (lk : list LAddr) :
+    close_list cl (std_update_keys W lk Permanent) =
+    std_update_keys (close_list cl W) lk Permanent.
   Proof.
-    induction la as [|a la IH]; first reflexivity.
+    induction lk as [|k lk IH]; first reflexivity.
     simpl.
     unfold close_list, std_update in *.
     simpl in *.
     rewrite close_list_std_insert_perm.
-    change (std_update (close_list cl (std_update_multiple W la Permanent)) (LNonHeap a) Permanent =
-      std_update (std_update_multiple (close_list cl W) la Permanent) (LNonHeap a) Permanent).
-    exact (f_equal (fun X => std_update X (LNonHeap a) Permanent) IH).
+    change (std_update (close_list cl (std_update_keys W lk Permanent)) k Permanent =
+      std_update (std_update_keys (close_list cl W) lk Permanent) k Permanent).
+    exact (f_equal (fun X => std_update X k Permanent) IH).
   Qed.
 
-  Lemma malloc_related_pub (W : WORLD) (cl : list LAddr) b e :
+  Lemma close_list_std_update_perm (W : WORLD) (cl : list LAddr) (la : list Addr) :
+    close_list cl (std_update_multiple W la Permanent) =
+    std_update_multiple (close_list cl W) la Permanent.
+  Proof. rewrite -!std_update_keys_nonheap. apply close_list_std_update_keys_perm. Qed.
+
+  Lemma malloc_related_pub (W : WORLD) (cl : list LAddr) ι b e (lk : list LAddr) :
     (∀ a, std W !! a = Some Temporary ↔ a ∈ cl) ->
-    heap_fresh (heap_std (revoke W)) b e ->
-    Forall (λ a, LNonHeap a ∉ dom (std (revoke W))) (finz.seq_between b e) ->
+    heap_fresh (heap_std (revoke W)) ι b e ->
+    Forall (λ k, k ∉ dom (std (revoke W))) lk ->
     related_sts_pub_world W
       (close_list cl
-        (std_update_multiple
+        (std_update_keys
           (heap_std_update (revoke W)
-            (heap_allocate (heap_std (revoke W)) b e))
-          (finz.seq_between b e) Permanent)).
+            (heap_allocate (heap_std (revoke W)) ι b e))
+          lk Permanent)).
   Proof.
     intros Htemps Hfresh Hnone.
-    rewrite close_list_std_update_perm.
+    rewrite close_list_std_update_keys_perm.
     change (related_sts_pub_world W
-      (std_update_multiple
+      (std_update_keys
         (heap_std_update (close_list cl (revoke W))
-          (heap_allocate (heap_std (revoke W)) b e))
-        (finz.seq_between b e) Permanent)).
+          (heap_allocate (heap_std (revoke W)) ι b e))
+        lk Permanent)).
     eapply related_sts_pub_trans_world.
     { exact (related_pub_revoke_close_list W cl Htemps). }
     eapply related_sts_pub_trans_world.
     { apply related_sts_pub_world_heap_update.
       rewrite close_list_heap.
       apply heap_allocate_future. exact Hfresh. }
-    apply related_sts_pub_update_multiple.
-    apply Forall_forall. intros a Ha.
-    apply Forall_forall with (x := a) in Hnone; last exact Ha.
-    change (LNonHeap a ∉ dom (close_list_std_sta cl (std (revoke W)))).
+    apply related_sts_pub_update_keys.
+    apply Forall_forall. intros k Hk.
+    apply Forall_forall with (x := k) in Hnone; last exact Hk.
+    change (k ∉ dom (close_list_std_sta cl (std (revoke W)))).
     rewrite -close_list_dom_eq. exact Hnone.
   Qed.
 
-  Lemma free_region_rel_get W C a ρ :
-    std W !! LNonHeap a = Some ρ ->
+  Lemma free_region_rel_get W C (a : LAddr) ρ :
+    std W !! a = Some ρ ->
     world_interp W C
     ==∗
     world_interp W C ∗
@@ -3063,120 +2059,54 @@ Section world_ghost_theory.
     iIntros (Hlookup) "Hworld".
     rewrite world_interp_eq /world_interp_def.
     iDestruct "Hworld" as "(Hr & Hsts & Hseal)".
-    iMod (region_rel_get_state W C (LNonHeap a) ρ Hlookup
+    iMod (region_rel_get_state W C a ρ Hlookup
       with "[$Hr $Hsts]") as "(Hr & Hsts & Hrel)".
     iModIntro. iFrame.
   Qed.
 
-  Lemma free_lookup_delete_list_some {A} (l : list Addr)
-    (M : gmap LAddr A) a x :
-    delete_list (LNonHeap <$> l) M !! LNonHeap a = Some x -> a ∉ l.
-  Proof.
-    induction l as [|b l IH]; simpl; first set_solver.
-    intros Hlookup. apply not_elem_of_cons. split.
-    - intro Heq. subst a. rewrite lookup_delete in Hlookup.
-      destruct (decide (LNonHeap b = LNonHeap b)); [discriminate|congruence].
-    - assert (b ≠ a) as Hne.
-      { intro Heq. subst a. rewrite lookup_delete in Hlookup.
-        destruct (decide (LNonHeap b = LNonHeap b)); [discriminate|congruence]. }
-      rewrite lookup_delete_ne in Hlookup; last by intros [=].
-      apply IH. exact Hlookup.
-  Qed.
-
-  Lemma free_region_open_heap_transition_range W C l h' :
-    related_sts_heap_std (heap_std W) h' ->
-    heap_wf h' ->
-    (∀ a, a ∉ l ->
-      heap_addr_status (heap_std W) a = heap_addr_status h' a) ->
-    Forall (λ a, LNonHeap a ∈ dom (std W)) l ->
-    heap_provenance h' -∗
+  Lemma free_region_open_heap_transition_range W C (l : list LAddr) ι :
+    heap_wf (heap_quarantine (heap_std W) ι) ->
+    (∀ a, a ∉ laddr_addr <$> l ->
+      heap_addr_status (heap_std W) a = heap_addr_status (heap_quarantine (heap_std W) ι) a) ->
+    Forall (λ k, k ∈ dom (std W)) l ->
+    ι ⊒ AQuar -∗
     open_region_many W C l ∗
     sts_full_world W C
     ==∗
-    open_region_many (heap_std_update W h') C l ∗
-    sts_full_world (heap_std_update W h') C.
+    open_region_many (heap_std_update W (heap_quarantine (heap_std W) ι)) C l ∗
+    sts_full_world (heap_std_update W (heap_quarantine (heap_std W) ι)) C.
   Proof.
-    iIntros (Hheap_future Hwf_new Hstatus Hdom_l)
-      "#Hprovenance Hworld".
-    pose proof (related_sts_pub_world_heap_update W h' Hheap_future)
-      as Hrelated.
-    iDestruct "Hworld" as "(Hregion & Hsts)".
-    rewrite open_region_many_eq /open_region_many_def.
-    iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
-    iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
-    iDestruct "Hmap" as "[%Hcovered_old [[Hfrags _] Hentries]]".
-    iMod (heap_std_full_update C (heap_std W) h' Hheap_future
-      with "Hheap Hfrags") as "[Hheap Hfrags]".
-    iModIntro. iSplitL "HM Hfrags Hentries".
-    { iExists M, Mρ. iFrame "HM".
-      iSplit; first done. iSplit; first done.
-      rewrite /region_map_def.
-      iSplit.
-      { iPureIntro. intros a Hquarantined.
-        destruct (decide (a ∈ l)) as [Hin|Hnin].
-        - apply Forall_forall with (x := a) in Hdom_l; done.
-        - apply Hcovered_old. rewrite (Hstatus a Hnin).
-          exact Hquarantined. }
-      iFrame "Hfrags Hprovenance".
-      iApply (big_sepM_mono with "Hentries").
-      iIntros (a γ Hsome) "Hentry".
-      destruct a as [a|]; last by iDestruct "Hentry" as (ρ) "(_ & _ & %γpred & %p & %φ & _ & _ & _ & [])".
-      assert (a ∉ l) as Hne by (eapply free_lookup_delete_list_some; eauto).
-      iDestruct "Hentry" as (ρ Hρ) "[Hstate Hentry]".
-      iExists ρ. iFrame "Hstate". iSplitR; first done.
-      iDestruct "Hentry" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
-      iExists γpred, p, φ. iFrame "%#".
-      iAssert (heap_addr_resource (heap_std W) a
-        (region_std_interp W C a p φ ρ))%I with "[Hl]" as "Hl".
-      { iExact "Hl". }
-      iAssert (heap_addr_resource h' a
-        (region_std_interp (heap_std_update W h') C a p φ ρ))%I
-        with "[Hl]" as "Hnew".
-      { iEval (rewrite heap_addr_resource_status).
-        iEval (rewrite heap_addr_resource_status) in "Hl".
-        iEval (rewrite (Hstatus a Hne)) in "Hl".
-        destruct (heap_addr_status h' a) as [status|] eqn:Hstatus_a;
-          [destruct status|].
-        - destruct ρ; cbn [region_std_interp]; last done.
-          + iDestruct "Hl" as (v HnonO) "(Hl & #HmonoV & Hφ)".
-            iFrame "%#∗".
-            destruct (isWL p); [| destruct (isDL p)].
-            * iApply ("HmonoV" with "[] [] Hφ"); done.
-            * iApply ("HmonoV" with "[] [] Hφ"); done.
-            * iApply ("HmonoV" with "[] [] Hφ"); last done.
-              iPureIntro. by apply related_sts_pub_priv_world.
-          + iDestruct "Hl" as (v HnonO) "(Hl & #HmonoV & Hφ)".
-            iFrame "%#∗".
-            iApply "HmonoV"; iFrame "∗#"; auto.
-            iPureIntro.
-            apply related_sts_pub_priv_world in Hrelated; naive_solver.
-        - iExact "Hl".
-        - iExact "Hl". }
-      iExact "Hnew". }
-    rewrite /sts_full_world /heap_std_update /=. iFrame "∗#".
+    iIntros (_ _ _) "#Hq Hworld".
+    by iApply (region_open_sync_quarantine with "Hq Hworld").
   Qed.
 
-  Lemma free_world_open_heap_transition_range W C l h' :
-    related_sts_heap_std (heap_std W) h' ->
-    heap_wf h' ->
-    (∀ a, a ∉ l ->
-      heap_addr_status (heap_std W) a = heap_addr_status h' a) ->
-    Forall (λ a, LNonHeap a ∈ dom (std W)) l ->
-    heap_provenance h' -∗
+  Lemma free_world_open_heap_transition_range W C (l : list LAddr) ι :
+    heap_wf (heap_quarantine (heap_std W) ι) ->
+    (∀ a, a ∉ laddr_addr <$> l ->
+      heap_addr_status (heap_std W) a = heap_addr_status (heap_quarantine (heap_std W) ι) a) ->
+    Forall (λ k, k ∈ dom (std W)) l ->
+    ι ⊒ AQuar -∗
     world_interp_open W C l
     ==∗
-    world_interp_open (heap_std_update W h') C l.
+    world_interp_open (heap_std_update W (heap_quarantine (heap_std W) ι)) C l.
   Proof.
-    iIntros (Hheap_future Hwf_new Hstatus Hdom_l)
-      "#Hprovenance Hworld".
-    pose proof (related_sts_pub_world_heap_update W h' Hheap_future)
-      as Hrelated.
+    iIntros (Hwf_new Hstatus Hdom_l) "#Hq Hworld".
     rewrite world_interp_open_eq /world_interp_open_def.
     iDestruct "Hworld" as "(Hregion & Hsts & Hseal)".
-    iMod (free_region_open_heap_transition_range W C l h'
-      with "Hprovenance [$Hregion $Hsts]") as "[$ $]"; try done.
+    iMod (free_region_open_heap_transition_range W C l ι Hwf_new Hstatus Hdom_l
+      with "Hq [$Hregion $Hsts]") as "[$ $]".
     iModIntro.
     iApply (sealing_map_monotone_pub with "Hseal"); eauto.
+    apply related_sts_pub_world_heap_update, heap_quarantine_future.
+  Qed.
+
+  Lemma region_heap_provenance W C :
+    region W C -∗ region W C ∗ heap_provenance (heap_std W).
+  Proof.
+    rewrite region_eq /region_def. iIntros "Hr".
+    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hmap)".
+    iDestruct "Hmap" as "(%Hk & [Hfrags #Hprov] & Hentries)".
+    iFrame "#". iExists M, Mρ. by iFrame "∗%".
   Qed.
 
 End world_ghost_theory.
@@ -3206,7 +2136,6 @@ Section world_interp_Pre.
       iModIntro; iIntros (C HC) "HRELS".
       rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
-      - iPureIntro; apply heap_quarantine_covered_empty.
       - rewrite /heap_std_fragments /= big_sepM_empty. done.
       - rewrite /heap_provenance /= big_sepM_empty. done.
     }

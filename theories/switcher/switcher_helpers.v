@@ -26,16 +26,15 @@ Section switcher_helper.
   Lemma related_sts_heap_std_wf_back h h' :
     related_sts_heap_std h h' -> heap_wf h' -> heap_wf h.
   Proof.
-    intros [Hkeep _] Hwf b o Hb.
-    destruct (Hkeep b o Hb) as (o' & Hb' & Hbase & Hend & _).
-    destruct (Hwf b o' Hb') as (Hbase' & Hlt' & Hdisj').
-    split; first congruence.
-    split; first by rewrite Hend; exact Hlt'.
-    intros c oc a Hc Ha Hca.
-    destruct (Hkeep c oc Hc) as (oc' & Hc' & Hbasec & Hendc & _).
+    intros [Hkeep _] Hwf ι o Hι.
+    destruct (Hkeep ι o Hι) as (o' & Hι' & Hbase & Hend & _).
+    destruct (Hwf ι o' Hι') as (Hlt' & Hdisj').
+    split; first by rewrite Hbase Hend.
+    intros ι' oc a Hc Ha Hca.
+    destruct (Hkeep ι' oc Hc) as (oc' & Hc' & Hbasec & Hendc & _).
     eapply Hdisj'; eauto.
-    - unfold alloc_object_contains in *. by rewrite -Hend.
-    - unfold alloc_object_contains in *. by rewrite -Hendc.
+    - unfold alloc_object_contains in *. by rewrite -Hbase -Hend.
+    - unfold alloc_object_contains in *. by rewrite -Hbasec -Hendc.
   Qed.
 
   Lemma temp_resources_mono_pub W W' C φ a p :
@@ -76,7 +75,7 @@ Section switcher_helper.
     world_interp W C -∗
     rel C (LNonHeap a) p φ -∗
     world_interp W C ∗
-    ⌜is_Some (heap_addr_status (heap_std W) a)⌝.
+    ⌜is_Some (heap_key_status (heap_std W) (LNonHeap a))⌝.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hr & Hsts & Hseals) Hrel".
@@ -116,7 +115,7 @@ Section switcher_helper.
       ∗ (⌜if (is_untrusted_caller ccrel)
          then True
          else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝)
-      ∗ world_interp_open W C la.
+      ∗ world_interp_open W C (LNonHeap <$> la).
   Proof.
     iIntros (Hb_a4 He_a1 Ha_stk4) "(#Hinterp_callee_wstk & Hcframe_interp & Hworld_interp)".
 
@@ -132,8 +131,8 @@ Section switcher_helper.
       iApply (region_pointsto_cons _ (a_stk ^+ 3)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
       iApply (region_pointsto_cons _ (a_stk ^+ 4)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
       by rewrite /region_pointsto finz_seq_between_empty.
-    * iEval (rewrite open_world_interp_empty) in "Hworld_interp".
-      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk (a_stk^+4)%a)
+    * iEval (rewrite open_world_interp_empty -(fmap_nil LNonHeap)) in "Hworld_interp".
+      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk (a_stk^+4)%a) []
                   with "[$Hinterp_callee_wstk $Hworld_interp]")
         as "(Hworld_interp & Hres)"; auto.
       { eapply finz_seq_between_NoDup. }
@@ -183,10 +182,10 @@ Section switcher_helper.
     (a_stk + 4)%a = Some a_stk4 ->
 
     interp W C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
-    world_interp_open W C l_register_save_area
+    world_interp_open W C (LNonHeap <$> l_register_save_area)
     -∗
 
-    world_interp_open W C (l_callee_stack_frame ++ l_register_save_area) ∗
+    world_interp_open W C (LNonHeap <$> (l_callee_stack_frame ++ l_register_save_area)) ∗
     (∃ (lv : list Word),
         ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, a ↦ₐ v)
         ∗ ▷ StackOpenWorldResources interp W C l_callee_stack_frame lv
@@ -318,6 +317,7 @@ Section switcher_helper.
         {
           iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto.
           iPureIntro ; intros a Ha.
+          rewrite -(addr_key_disjoint W0 b_stk csp_e a Hstk_heap Ha).
           apply list_elem_of_lookup_1 in Ha as [k Ha].
           by eapply Hstk_tmp.
         }
@@ -367,21 +367,33 @@ Section switcher_helper.
         iDestruct (write_allowed_inv W0 C a_stk a_stk b_stk csp_e RWL Local
           Hbound0 I with "Hinterp_callee_wstk")
           as (p_astk0 φ_astk0) "(%Hp_astk0 & _ & Hrel_astk0 & _ & Hwcond_astk0 & Hrcond_astk0 & _)".
+        assert (addr_key W0 a_stk = LNonHeap a_stk) as Hkey_astk0.
+        { apply (addr_key_disjoint _ b_stk csp_e); [done|by apply elem_of_finz_seq_between]. }
+        rewrite Hkey_astk0.
         assert (b_stk <= (a_stk ^+1)%a < csp_e)%a as Hbound1
           by (subst a_stk; solve_addr+Hb_a4 He_a1).
         iDestruct (write_allowed_inv W0 C (a_stk ^+1)%a a_stk b_stk csp_e RWL Local
           Hbound1 I with "Hinterp_callee_wstk")
           as (p_astk1 φ_astk1) "(%Hp_astk1 & _ & Hrel_astk1 & _ & Hwcond_astk1 & Hrcond_astk1 & _)".
+        assert (addr_key W0 (a_stk ^+1)%a = LNonHeap (a_stk ^+1)%a) as Hkey_astk1.
+        { apply (addr_key_disjoint _ b_stk csp_e); [done|by apply elem_of_finz_seq_between]. }
+        rewrite Hkey_astk1.
         assert (b_stk <= (a_stk ^+2)%a < csp_e)%a as Hbound2
           by (subst a_stk; solve_addr+Hb_a4 He_a1).
         iDestruct (write_allowed_inv W0 C (a_stk ^+2)%a a_stk b_stk csp_e RWL Local
           Hbound2 I with "Hinterp_callee_wstk")
           as (p_astk2 φ_astk2) "(%Hp_astk2 & _ & Hrel_astk2 & _ & Hwcond_astk2 & Hrcond_astk2 & _)".
+        assert (addr_key W0 (a_stk ^+2)%a = LNonHeap (a_stk ^+2)%a) as Hkey_astk2.
+        { apply (addr_key_disjoint _ b_stk csp_e); [done|by apply elem_of_finz_seq_between]. }
+        rewrite Hkey_astk2.
         assert (b_stk <= (a_stk ^+3)%a < csp_e)%a as Hbound3
           by (subst a_stk; solve_addr+Hb_a4 He_a1).
         iDestruct (write_allowed_inv W0 C (a_stk ^+3)%a a_stk b_stk csp_e RWL Local
           Hbound3 I with "Hinterp_callee_wstk")
           as (p_astk3 φ_astk3) "(%Hp_astk3 & _ & Hrel_astk3 & _ & Hwcond_astk3 & Hrcond_astk3 & _)".
+        assert (addr_key W0 (a_stk ^+3)%a = LNonHeap (a_stk ^+3)%a) as Hkey_astk3.
+        { apply (addr_key_disjoint _ b_stk csp_e); [done|by apply elem_of_finz_seq_between]. }
+        rewrite Hkey_astk3.
 
         iAssert
           ( ▷ (∃ l',
@@ -453,10 +465,10 @@ Section switcher_helper.
       apply Forall_cons in Hnonheap as [Hnonheap3 _].
       cbn.
       iDestruct "Hframe" as "(Hv0 & Hv1 & Hv2 & Hv3 & _)".
-      iEval (rewrite /heap_addr_status Hnonheap0) in "Hv0".
-      iEval (rewrite /heap_addr_status Hnonheap1) in "Hv1".
-      iEval (rewrite /heap_addr_status Hnonheap2) in "Hv2".
-      iEval (rewrite /heap_addr_status Hnonheap3) in "Hv3".
+      iEval (rewrite /heap_key_status /=) in "Hv0".
+      iEval (rewrite /heap_key_status /=) in "Hv1".
+      iEval (rewrite /heap_key_status /=) in "Hv2".
+      iEval (rewrite /heap_key_status /=) in "Hv3".
       iDestruct "Hv0" as (? P0 ?) "(#Hrel0 & Hv0)".
       iDestruct "Hv1" as (? P1 ?) "(#Hrel1 & Hv1)".
       iDestruct "Hv2" as (? P2 ?) "(#Hrel2 & Hv2)".
@@ -633,32 +645,25 @@ Section switcher_helper.
           + iApply fundamental_ih.
         }
 
-        iDestruct (interp_cap_regions with "Hvalid") as %[_ Hcap_valid]; first done.
-        assert (Forall (heap_addr_live (heap_std W0))
-          (finz.seq_between csp_b csp_e)) as Hlive_stk.
-        { apply Forall_forall. intros x Hx.
-          eapply heap_cap_valid_addr_live; eauto.
-          apply withinBounds_true_iff.
-          apply elem_of_finz_seq_between in Hx. solve_addr. }
+        iDestruct (interp_WL_addr_key with "Hvalid") as %Hkeys; first done.
         iDestruct (write_allowed_inv_full_cap with "Hvalid") as "-#H"; auto.
-        iClear "#"; clear -Hrelated_pub_W0_Wfixed Hlive_stk.
+        iClear "#"; clear -Hrelated_pub_W0_Wfixed Hkeys.
         rewrite /region_pointsto /close_list_resources big_sepL_fmap.
         rewrite big_sepL2_replicate_r; last by rewrite finz_seq_between_length.
         iDestruct (big_sepL_sep with "[$Hstk $H]") as "H".
         iNext.
         iApply (big_sepL_impl with "H").
         iIntros "!> %%% [Hv (%&%&%&%&Hrel&#Hzcond&#Hrcond&#Hwcond&Hmono)]".
-        assert (heap_addr_live (heap_std W0) x) as Hlive_x.
-        { rewrite Forall_lookup in Hlive_stk. eauto. }
-        unfold heap_addr_live in Hlive_x.
+        assert (addr_key W0 x = LNonHeap x) as Hkey_x.
+        { rewrite Forall_lookup in Hkeys. eauto. }
+        rewrite Hkey_x.
         iExists x0, (safeC x1). iFrame.
         iSplit.
         { iPureIntro; intros W. rewrite /persistent_cond in H1.
           specialize (H1 W).
           apply _.
         }
-        rewrite Hlive_x /if_later_P /temp_resources /=.
-        iExists (WInt 0). iFrame "Hv".
+        rewrite /heap_key_status /if_later_P /temp_resources /=.
         iSplit; first (iPureIntro; eapply notisO_flowsfrom; eauto).
         iSplit.
         { erewrite isWL_flowsto;eauto.
@@ -682,14 +687,6 @@ Section switcher_helper.
         iDestruct "Hrev1" as (p1 P1 Hpers1) "(Hdata1 & #Hrel1)".
         iDestruct "Hrev2" as (p2 P2 Hpers2) "(Hdata2 & #Hrel2)".
         iDestruct "Hrev3" as (p3 P3 Hpers3) "(Hdata3 & #Hrel3)".
-        iDestruct (world_interp_rel_status_some with "Hworld_interp Hrel0")
-          as "[Hworld_interp %Hstatus0]".
-        iDestruct (world_interp_rel_status_some with "Hworld_interp Hrel1")
-          as "[Hworld_interp %Hstatus1]".
-        iDestruct (world_interp_rel_status_some with "Hworld_interp Hrel2")
-          as "[Hworld_interp %Hstatus2]".
-        iDestruct (world_interp_rel_status_some with "Hworld_interp Hrel3")
-          as "[Hworld_interp %Hstatus3]".
         iAssert (close_list_resources C Wfixed
           (LNonHeap <$> [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]) false)
           with "[Hstk' Hdata0 Hdata1 Hdata2 Hdata3]" as "Hframe".
@@ -721,9 +718,6 @@ Section switcher_helper.
         rewrite /close_list_resources /= /close_addr_resources.
         iSplitL "Hdata0 Ha_stk0".
         { iExists p0, P0. iFrame "Hrel0". iSplit; first done.
-          destruct Hstatus0 as [status0 Hstatus0].
-          rewrite close_list_heap Hstatus0.
-          destruct status0; last by iEmpIntro.
           iDestruct "Hdata0" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           iApply (temp_resources_mono_pub Wsrc Wfixed C P0 a_stk p0
@@ -732,9 +726,6 @@ Section switcher_helper.
         }
         iSplitL "Hdata1 Ha_stk1".
         { iExists p1, P1. iFrame "Hrel1". iSplit; first done.
-          destruct Hstatus1 as [status1 Hstatus1].
-          rewrite close_list_heap Hstatus1.
-          destruct status1; last by iEmpIntro.
           iDestruct "Hdata1" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           iApply (temp_resources_mono_pub Wsrc Wfixed C P1 (a_stk ^+ 1)%a p1
@@ -743,9 +734,6 @@ Section switcher_helper.
         }
         iSplitL "Hdata2 Ha_stk2".
         { iExists p2, P2. iFrame "Hrel2". iSplit; first done.
-          destruct Hstatus2 as [status2 Hstatus2].
-          rewrite close_list_heap Hstatus2.
-          destruct status2; last by iEmpIntro.
           iDestruct "Hdata2" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           iApply (temp_resources_mono_pub Wsrc Wfixed C P2 (a_stk ^+ 2)%a p2
@@ -754,9 +742,6 @@ Section switcher_helper.
         }
         iSplitL "Hdata3 Ha_stk3".
         { iExists p3, P3. iFrame "Hrel3". iSplit; first done.
-          destruct Hstatus3 as [status3 Hstatus3].
-          rewrite close_list_heap Hstatus3.
-          destruct status3; last by iEmpIntro.
           iDestruct "Hdata3" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           iApply (temp_resources_mono_pub Wsrc Wfixed C P3 (a_stk ^+ 3)%a p3

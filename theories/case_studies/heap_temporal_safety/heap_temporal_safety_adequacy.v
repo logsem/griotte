@@ -187,6 +187,7 @@ Section Adequacy.
   Context {inv_preg : invGpreS Σ}.
   Context {shadow_preg : gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg : allocator_preG Σ}.
+  Context {registry_preg : allocRegistryPreG Σ}.
   Context {mem_preg : gen_heapGpreS Addr Word Σ}.
   Context {reg_preg : gen_heapGpreS RegName Word Σ}.
   Context {sreg_preg : gen_heapGpreS SRegName Word Σ}.
@@ -250,8 +251,17 @@ Section Adequacy.
     iMod (entry_init (gset_to_gmap 1 entry_keys)) as (entry_g) "Hentries".
     iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
     pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
-    pose ceriseg := CeriseG Σ Hinv cerise_na_invs mem_heapg
-      shadow_heapg reg_heapg sreg_heapg entry_g.
+    iMod registry_init as (registryg) "HR".
+    pose ceriseg := {|
+      cerise_invG := Hinv;
+      cerise_nainvG := cerise_na_invs;
+      mem_gen_memG := mem_heapg;
+      shadowtbl_gen_regG := shadow_heapg;
+      reg_gen_regG := reg_heapg;
+      sreg_gen_regG := sreg_heapg;
+      entryG := entry_g;
+      cerise_registryG := registryg |}.
+    pose FA := @free_auth_core Σ registryg.
 
     iEval (rewrite Hmem /hts_initial_memory) in "Hmem".
     iDestruct (big_sepM_union with "Hmem") as "[Hheap Hprogram]";
@@ -301,7 +311,7 @@ Section Adequacy.
     iCombine "Hheap Hshadow" as "Hheap".
     iDestruct (big_sepM_sep with "Hheap") as "Hheap".
     iMod (allocator_service_init_correct ⊤ initial_heap_memory
-      with "Hservice_initial Hheap")
+      with "Hservice_initial Hheap HR")
       as (allocatorg) "[#Halloc #Hservice]".
     { split; first exact hts_allocator_wf.
       by rewrite /initial_heap_memory dom_gset_to_gmap. }
@@ -382,16 +392,16 @@ Section Adequacy.
     iEval (rewrite Hcgp_addr) in "Halloc_etbl_cgp".
     iEval (rewrite Hmalloc_addr) in "Hmalloc_entry_cell".
     iEval (rewrite Hfree_addr) in "Hfree_entry_cell".
-    iMod (inv_alloc (export_table_PCCN hts_allocator_exp_tblN) ⊤ _
+    iMod (inv_alloc (export_table_PCCN allocator_exp_tblN) ⊤ _
       with "Halloc_etbl_pcc") as "#Hexport_pcc".
-    iMod (inv_alloc (export_table_CGPN hts_allocator_exp_tblN) ⊤ _
+    iMod (inv_alloc (export_table_CGPN allocator_exp_tblN) ⊤ _
       with "Halloc_etbl_cgp") as "#Hexport_cgp".
     iMod (inv_alloc
-      (export_table_entryN hts_allocator_exp_tblN
+      (export_table_entryN allocator_exp_tblN
         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a) ⊤ _
       with "Hmalloc_entry_cell") as "#Hexport_malloc".
     iMod (inv_alloc
-      (export_table_entryN hts_allocator_exp_tblN
+      (export_table_entryN allocator_exp_tblN
         (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a) ⊤ _
       with "Hfree_entry_cell") as "#Hexport_free".
 
@@ -684,6 +694,8 @@ Section Adequacy.
       iSplit.
       { iApply big_sepL_intro; iModIntro.
         iIntros (k a Ha).
+        rewrite (addr_key_disjoint Winit _ _ a (stack_disjoint_from_heap hts_switcher_cmpt));
+          last exact (list_elem_of_lookup_2 _ _ _ Ha).
         iExists RWL, (interp_in_mem RWL).
         iEval (cbn).
         iSplit; first done.
@@ -912,7 +924,7 @@ Proof.
   set (Σ := #[invΣ
               ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus
               ; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
-              ; entryPreΣ; CSTACK_preΣ; allocator_preΣ
+              ; entryPreΣ; CSTACK_preΣ; allocator_preΣ; allocRegistryΣ
               ; ghost_mapΣ Addr (Addr * (Z * Z))
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ LAddr region_type OType Word; relPreΣ

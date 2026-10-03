@@ -1,6 +1,7 @@
 From griotte Require Export stdpp_extra griotte_lang rules_base.
 From iris.proofmode Require Import proofmode.
 From machine_utils Require Import finz_interval.
+From griotte Require Import alloc_registry.
 (* From griotte Require Import addr_reg. (* Required because of a weird Coq bug related to imports *) *)
 
 Section region.
@@ -169,6 +170,8 @@ End region.
 
 Global Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
             (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
+Global Notation "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]" := (heap_region_pointsto ι b e ws)
+            (at level 50, format "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]") : bi_scope.
 
 Global Notation "[[ b , e ]] ⊂ₐ [[ b' , e' ]]" := (included b e b' e')
             (at level 50, format "[[ b , e ]] ⊂ₐ [[ b' , e' ]]") : bi_scope.

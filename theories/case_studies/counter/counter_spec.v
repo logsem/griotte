@@ -223,7 +223,7 @@ Section Counter.
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
+    { iApply (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp_W0_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
@@ -268,7 +268,7 @@ Section Counter.
     iEval (rewrite Hperm_l RevokedResources_app) in "Hrevoked_l".
     iDestruct "Hrevoked_l" as "[Hrevoked_live Hrevoked_q]".
     set (W1q := close_list l_q W1).
-    assert (Forall (fun a => heap_addr_status (heap_std W1q) (laddr_addr a) = Some AllocObjectQuarantined) l_q) as Hq_W1q.
+    assert (Forall (fun a => heap_key_status (heap_std W1q) a = Some AllocObjectQuarantined) l_q) as Hq_W1q.
     { rewrite /W1q close_list_heap /W1 revoke_heap. exact Hq_l. }
     iAssert (RevokedResources W1q C l_q) with "[Hrevoked_q]" as "Hrevoked_q'".
     { rewrite (RevokedResources_quarantined W1q C l_q Hq_W1q)
@@ -479,9 +479,9 @@ Section Counter.
       as "[Hr %Hstatuses_live_W3]".
     iAssert (world_interp W3 C) with "[Hr Hsts Hseals]" as "Hworld_interp_C".
     { rewrite world_interp_eq /world_interp_def. iFrame. }
-    iMod (counter_framed_resources_live W0 W3 C l_live Hlive_l Hstatuses_live_W3
-      with "[$Halloc $Hworld_interp_C $Hrevoked_live]")
-      as "(#Halloc2 & Hworld_interp_C & Hrevoked_live & %Hlive_W3)".
+    iDestruct (counter_framed_resources_live W0 W3 C l_live Hlive_l Hstatuses_live_W3
+      with "[$Hworld_interp_C $Hrevoked_live]")
+      as "(Hworld_interp_C & Hrevoked_live & %Hlive_W3)".
     iMod (world_interp_revoked_by_separation_many_with_RevokedResources
       W0 W3 C l_live Hlive_l Hlive_W3 Hdom_live_W3
       with "[$Hworld_interp_C $Hrevoked_live]")

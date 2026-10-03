@@ -20,7 +20,7 @@ Section HTS_Spec_Share.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -72,8 +72,10 @@ Section HTS_Spec_Share.
       (* Halt. *)
       iInstr "Hblock".
       wp_end. iIntros (_). iFrame "Hna". }
-    iDestruct "Hok" as (b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
-      & Hworld & #Hstack_revoked & %Hstack_revoked & HK & #Hallocation & Hb)".
+    iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
+      & Hworld & #Hstack_revoked & %Hstack_revoked & HK & #Hobj & #Hallocation
+      & Hfree_auth & Hb)".
+    iDestruct "Hb" as "[Hb Hb_share]".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp)".
     iDestruct "Himports" as
@@ -198,15 +200,16 @@ Section HTS_Spec_Share.
       in "Hstack_revoked".
     iEval (rewrite (StackRevokedResources_app _ _ [csp_b])) in "Hstack_revoked".
     iDestruct "Hstack_revoked" as "[_ Hstack_revoked_W0]".
-    iMod (hts_world_share_buffer C csp_b csp_e W_init_C _ b
-      with "Hallocation Hb Hworld Hstack_revoked_W0")
+    iAssert (b ↦ₕ[ι] WInt 0)%I with "[Hb Hb_share]" as "Hb"; first iFrame.
+    iMod (hts_world_share_buffer C csp_b csp_e W_init_C _ ι b
+      with "Hobj Hallocation Hb Hworld Hstack_revoked_W0")
       as "(Hworld & #Hrel_b & #Hinterp_buf & Hstack_revoked_share
         & %Hstack_revoked_share)".
     { exact Hheap_empty. }
     { exact Hbounds. }
     { exact Hstk_heap. }
     { exact Hstack_revoked. }
-    iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wshare W_init_C b)
+    iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wshare W_init_C ι b)
       Hadv_nonheap with "Hadv") as "#Hinterp_adv_share".
 
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
@@ -217,7 +220,7 @@ Section HTS_Spec_Share.
       ca5 := WInt 0; ct0 := WInt 0]} : Reg)).
     iAssert ([∗ map] rarg↦warg ∈ adv_arg,
       rarg ↦ᵣ warg ∗ if decide (rarg ∈ dom_arg_rmap 1)
-        then interp (hts_Wshare W_init_C b) C warg else True)%I
+        then interp (hts_Wshare W_init_C ι b) C warg else True)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hadv_arg".
     { subst adv_arg.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
@@ -228,7 +231,7 @@ Section HTS_Spec_Share.
       (<[ctp:=WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap)))))))).
-    iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C b) C
+    iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C ι b) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_advcall ^+ 1)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
@@ -263,7 +266,7 @@ Section HTS_Spec_Share.
     subst rcgp rcra.
     iEval (cbn) in "HPC".
     iApply "Hcontinue".
-    iExists b, (a_advcall ^+ 1)%a, Wret.
+    iExists ι, b, (a_advcall ^+ 1)%a, Wret.
     iFrame "∗#%".
   Qed.
 End HTS_Spec_Share.

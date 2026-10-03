@@ -207,7 +207,7 @@ Section VAE.
       as %[Hstk_shadow Hstk_heap]; first done.
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
+    { iApply (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l
@@ -640,16 +640,7 @@ Section VAE.
       - cbn. by rewrite /revoked_addresses Forall_forall in Hstack_revoked_W3; eapply Hstack_revoked_W3.
       - intro Hq.
         rewrite Forall_forall in Hl1_quarantined.
-        specialize (Hl1_quarantined _ Hq).
-        unfold heap_addr_status in Hl1_quarantined. cbn [laddr_addr] in Hl1_quarantined.
-        destruct (is_heap_address a) eqn:Hheap_a; last discriminate.
-        rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
-        eapply (Hstk_heap a).
-        + apply elem_of_finz_seq_between.
-          apply elem_of_finz_seq_between in Ha.
-          subst csp_b. solve_addr+Ha.
-        + apply elem_of_finz_seq_between.
-          apply withinBounds_true_iff. exact Hheap_a.
+        specialize (Hl1_quarantined _ Hq). discriminate.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -816,7 +807,7 @@ Section VAE.
       Hl0_live Hl0_dom_W7 with "[$Halloc $Hworld_interp_C $Hl0_live]")
       as "(Hworld_interp_C & Hl0_live & %Hl0_live_revoked_W7)".
 
-    assert (Forall (λ a, heap_addr_live (heap_std W3) (laddr_addr a)) l1_unique)
+    assert (Forall (λ a, heap_key_live (heap_std W3) a) l1_unique)
       as Hl1_unique_live_W3.
     { apply Forall_forall; intros a Ha.
       subst l1_unique.

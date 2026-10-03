@@ -5,7 +5,7 @@ From iris.proofmode Require Import proofmode.
 
 (** An authoritative map of exclusive allocation objects, with one fragment
     per object, mirrors the standard-state ghost map. *)
-Definition heapUR : ucmra := gmapUR Addr (exclR (leibnizO AllocObject)).
+Definition heapUR : ucmra := gmapUR AId (exclR (leibnizO AllocObject)).
 Definition heap_authUR : ucmra := authUR heapUR.
 
 Lemma heap_local_update (h h' : Heap) :
@@ -51,8 +51,8 @@ Section heap_ghost.
 
   Definition heap_std_full (C : CmptName) (h : Heap) : iProp Σ :=
     ⌜heap_wf h⌝ ∗ own (heap_name C) (● (Excl <$> h : heapUR)).
-  Definition heap_std_auth (C : CmptName) (b : Addr) (o : AllocObject) : iProp Σ :=
-    own (heap_name C) (◯ ({[b := Excl o]} : heapUR)).
+  Definition heap_std_auth (C : CmptName) (ι : AId) (o : AllocObject) : iProp Σ :=
+    own (heap_name C) (◯ ({[ι := Excl o]} : heapUR)).
   Definition heap_std_fragments (C : CmptName) (h : Heap) : iProp Σ :=
     [∗ map] b ↦ o ∈ h, heap_std_auth C b o.
 
@@ -91,16 +91,16 @@ Section heap_ghost.
       rewrite Hb /= in Hi; congruence.
   Qed.
 
-  Lemma heap_std_full_allocate C h b e :
-    heap_fresh h b e ->
+  Lemma heap_std_full_allocate C h ι b e :
+    heap_fresh h ι b e ->
     heap_std_full C h ==∗
-    heap_std_full C (heap_allocate h b e) ∗
-    heap_std_auth C b (MkAllocObject b e AllocObjectLive).
+    heap_std_full C (heap_allocate h ι b e) ∗
+    heap_std_auth C ι (MkAllocObject b e AllocObjectLive).
   Proof.
     iIntros (Hfresh) "[%Hwf Ha]".
     iMod (own_update _ _
-      (● (Excl <$> heap_allocate h b e : heapUR) ⋅
-       ◯ {[b := Excl (MkAllocObject b e AllocObjectLive)]})
+      (● (Excl <$> heap_allocate h ι b e : heapUR) ⋅
+       ◯ {[ι := Excl (MkAllocObject b e AllocObjectLive)]})
       with "Ha") as "[Ha Hs]".
     { apply auth_update_alloc. rewrite /heap_allocate fmap_insert.
       apply alloc_singleton_local_update.

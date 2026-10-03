@@ -141,6 +141,9 @@ Section fundamental.
     iDestruct (interp_in_registers with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
     ;eauto ; iClear "Hinv".
+    iDestruct (interp_pc_addr_key with "Hinv_interp") as %Hpc_key; first exact HcorrectPC.
+    rewrite Hpc_key in Hstate_a.
+    iEval (rewrite Hpc_key) in "Hrela". iEval (rewrite Hpc_key) in "HmonoR".
     assert (∃ (ρ : region_type), (std W) !! LNonHeap a = Some ρ ∧ ρ ≠ Revoked)
       as [ρ [Hρ Hne ] ].
     { destruct (isWL p),g; simplify_eq ; eauto.
@@ -154,7 +157,7 @@ Section fundamental.
 
     iDestruct (open_world_interp W C a p'' _ ρ with "[$Hrela] [$Hworld_interp]")
       as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [exact Hpc_live | destruct ρ; auto; contradiction | exact Hρ |].
+    ; [apply heap_key_live_nonheap | destruct ρ; auto; contradiction | exact Hρ |].
 
     rewrite /registers_pointsto ; iExtract "Hmreg" PC as "HPC".
     destruct (decodeInstrW w) eqn:Hi. (* proof by cases on each instruction *)

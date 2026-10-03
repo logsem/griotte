@@ -133,7 +133,7 @@ Section fundamental.
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W x Local)
+        assert (region_state_nwl W (addr_key W x) Local)
           as Hstate' by (cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
       + destruct (decide (b < e)%a) as [Hbe|Hbe]; cycle 1.
@@ -143,7 +143,7 @@ Section fundamental.
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W x g')
+        assert (region_state_nwl W (addr_key W x) g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
   Qed.
@@ -358,8 +358,8 @@ Section fundamental.
   Lemma interp_int W C n : ⊢ interp W C (WInt n).
   Proof. iIntros. rewrite /interp fixpoint_interp1_eq //. Qed.
 
-  Lemma monoReq_interp_in_mem (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
-    (std W) !! LNonHeap a = Some ρ
+  Lemma monoReq_interp_in_mem (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (ρ : region_type) :
+    (std W) !! a = Some ρ
     -> (ρ = Permanent -> isWL p = false)
     -> ⊢ monoReq W C a p (interp_in_mem RWL).
   Proof.
@@ -639,7 +639,7 @@ Section fundamental.
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W x Local)
+        assert (region_state_nwl W (addr_key W x) Local)
           as Hstate' by (cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
       + destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
@@ -651,7 +651,7 @@ Section fundamental.
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W x g')
+        assert (region_state_nwl W (addr_key W x) g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
   Qed.
@@ -733,9 +733,12 @@ Section fundamental.
     iApply (big_sepL_impl with "A2").
     iModIntro; iIntros (k x Hx) "Hw".
     iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & #HmonoR & %Hstate)".
+    assert (addr_key W' x = addr_key W x) as ->.
+    { apply list_elem_of_lookup_2 in Hx.
+      by rewrite !(addr_key_disjoint _ b' e' x (proj2 Hregions')). }
     iExists p'',φ.
     iFrame "Hrel".
-    iDestruct ( (monoReq_nwl_future W W' C g g' p p'' x φ)
+    iDestruct ( (monoReq_nwl_future W W' C g g' p p'' (addr_key W x) φ)
                 with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
     iFrame "Hrcond Hwcond HmonoR'".
     iSplitR; first done. iSplitR; first done.

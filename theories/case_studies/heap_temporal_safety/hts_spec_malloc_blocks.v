@@ -20,7 +20,7 @@ Section HTS_Spec_Malloc.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -180,7 +180,7 @@ Section HTS_Spec_Malloc.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a)
       wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other cstk
-      allocator_malloc_nargs ⊤ hts_allocator_exp_tblN
+      allocator_malloc_nargs ⊤ allocator_exp_tblN
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
@@ -236,15 +236,17 @@ Section HTS_Spec_Malloc.
         iLeft. iExists _. iFrame "Hna HPC Hca0 Hcode".
         iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
         by iExists _.
-      + iDestruct "Hok" as (b e)
-          "(%Hbounds & %Hret & #Hallocation & Hzeroed)".
+      + iDestruct "Hok" as (ι b e)
+          "(%Hbounds & %Hret & #Hobj & #Hallocation & Hfree_auth & Hzeroed)".
         destruct Hret as [-> ->].
         assert (e = (b ^+ 1)%a) as -> by solve_addr.
         assert ((b + 1)%a = Some (b ^+ 1)%a) as Hsucc by solve_addr.
-        iEval (rewrite /allocator_zeroed
-          (finz_seq_between_singleton b (b ^+ 1)%a Hsucc) /=) in "Hzeroed".
+        assert (finz.dist b (b ^+ 1)%a = 1) as Hdist
+          by (destruct (proj1 (finz_incr_iff_dist b (b ^+ 1)%a 1)) as [_ ?]; [solve_addr|done]).
+        iEval (rewrite /heap_region_pointsto /region_addrs_zeroes
+          (finz_seq_between_singleton b (b ^+ 1)%a Hsucc) Hdist) in "Hzeroed".
         iDestruct "Hzeroed" as "[Hb _]".
-        iRight. iExists b.
+        iRight. iExists ι, b.
         iSplit; first (iPureIntro; rewrite /hts_buffer_bounds; solve_addr).
         iFrame "∗#".
         iPureIntro. split; [exact Hdom_rmap_ret|exact Hstack_revoked].

@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel proofmode switcher switcher_preamble.
 From griotte Require Import switcher_spec_KtK register_tactics map_simpl.
-From griotte Require Import heap_temporal_safety_preamble.
+From griotte Require Import heap_temporal_safety_preamble region_keys.
 From griotte.allocator Require Import allocator allocator_preamble.
 From griotte.allocator Require Export allocator_malloc_spec allocator_free_spec
   allocator_resource_spec.
@@ -25,18 +25,20 @@ Section Heap_Temporal_Safety_Allocator.
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}.
 
   Definition hts_malloc_result (w0 w1 : Word) : iProp Σ :=
     (⌜w0 = WInt ALLOC_NO_MEMORY ∧ w1 = WInt 0⌝ ∨
-     (∃ b e : Addr,
+     (∃ (ι : AId) (b e : Addr),
        ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧ (e - b = 1)%Z⌝ ∗
        ⌜w0 = WCap true RW Global b e b ∧ w1 = WInt 0⌝ ∗
-       allocator_allocation b e (0%Z, 0%Z) ∗
-       allocator_zeroed b e))%I.
+       alloc_obj ι b e ∗
+       allocator_allocation ι b e (0%Z, 0%Z) ∗
+       free_auth_held ι ∗
+       [[b, e]] ↦ₕ[ι] [[region_addrs_zeroes b e]]))%I.
 
   Lemma hts_malloc_known_function
     (wcgp wcra wcs0 wcs1 : Word)
@@ -108,32 +110,34 @@ Section Heap_Temporal_Safety_Allocator.
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
       iLeft. iPureIntro. auto.
-    - iDestruct "Hres" as (b e)
-        "(%Hbounds & Hca0 & Hca1 & #Hreceipt & Hzero)".
+    - iDestruct "Hres" as (ι b e)
+        "(%Hbounds & Hca0 & Hca1 & #Hobj & #Hreceipt & Hheld & Hzero)".
       iApply ("Hpost" $! (WCap true RW Global b e b) (WInt 0)
         rmap_ret (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
-      iRight. iExists b,e. iFrame "Hreceipt Hzero".
+      iRight. iExists ι,b,e. iFrame "Hobj Hreceipt Hheld Hzero".
       iPureIntro. split; [exact Hbounds|done].
   Qed.
 
-  Definition hts_free_result (b e : Addr) (reserved : Z * Z) : Word -> Word -> iProp Σ :=
-    λ w0 w1, (allocator_allocation b e reserved ∗
-      allocator_reclaimed b e ∗
+  Definition hts_free_result (ι : AId) (b e : Addr) (reserved : Z * Z) :
+      Word -> Word -> iProp Σ :=
+    λ w0 w1, (allocator_allocation ι b e reserved ∗
+      ι ⊒ AQuar ∗
       ⌜w0 = WInt ALLOC_OK ∧ w1 = WInt 0⌝)%I.
 
   Lemma hts_free_known_function
     (wcgp wcra wcs0 wcs1 : Word)
     (b_stk e_stk a_stk b e a : Addr) (arg_rmap : Reg) (cstk : CSTK)
-    (p : Perm) (g : Locality) (reserved : Z * Z) (ws : list Word) :
+    (p : Perm) (g : Locality) (ι : AId) (reserved : Z * Z) (ws : list Word) :
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     length ws = length (finz.seq_between b e) ->
     arg_rmap !! ca0 = Some (WCap true p g b e a) ->
     allocator_service_ctx ⊢
     switcher_cc_specification_known_to_known_function
-      (allocator_allocation b e reserved ∗ [[b,e]] ↦ₐ [[ws]])
-      (hts_free_result b e reserved) wcgp wcra wcs0 wcs1
+      (allocator_allocation ι b e reserved ∗ alloc_obj ι b e ∗
+       free_auth_held ι ∗ [[b,e]] ↦ₕ[ι] [[ws]])
+      (hts_free_result ι b e reserved) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_free_pcc_off%I.
@@ -142,7 +146,7 @@ Section Heap_Temporal_Safety_Allocator.
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "#Halloc (%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
-        & Hargs & Hrmap & Hstk & Hcstk & (Hreceipt & Hmem) & Hpost)".
+        & Hargs & Hrmap & Hstk & Hcstk & (Hreceipt & Hobj & Hheld & Hmem) & Hpost)".
     iEval (cbn) in "HPC".
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as
       ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
@@ -159,13 +163,13 @@ Section Heap_Temporal_Safety_Allocator.
     iDestruct "Hctp" as "[Hctp %Hctp]".
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
-    iApply (allocator_free_valid_correct ⊤ p g b e a reserved ws _ with
-      "[- $Halloc $Hservice $Hna $Hreceipt $HPC $Hcgp $Hcra
+    iApply (allocator_free_valid_correct ⊤ p g ι b e a reserved ws _ with
+      "[- $Halloc $Hservice $Hna $Hreceipt $Hobj $Hheld $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hmem]");
       eauto.
     iNext.
     iIntros "(Hna & Hreceipt & HPC & Hcgp & Hcra & Hca0 & Hca1
-      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hreclaimed & _)".
+      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hq & _)".
     iEval (cbn) in "HPC".
     iExtractList "Hrmap" [cs0;cs1] as
       ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]"].
@@ -195,7 +199,7 @@ Section Heap_Temporal_Safety_Allocator.
       (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iSplit; first (iPureIntro; exact Hdom_ret).
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
-    rewrite /hts_free_result. iFrame "Hreceipt Hreclaimed".
+    rewrite /hts_free_result. iFrame "Hreceipt Hq".
     iPureIntro. auto.
   Qed.
 

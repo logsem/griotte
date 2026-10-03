@@ -91,7 +91,7 @@ Section Switcher.
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               ∗ ⌜ disjoint_from_heap a_stk e_stk ⌝
               (* Interpretation of the world *)
-              ∗ world_interp_open W2 C callee_stk_region
+              ∗ world_interp_open W2 C (LNonHeap <$> callee_stk_region)
               ∗ StackOpenWorldResources interp W2 C callee_stk_region stk_mem_h
               ∗ cstack_frag cstk
               ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
@@ -579,18 +579,19 @@ Section Switcher.
     iApply ("Hexec" with "Halloc").
     iAssert (interp (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) C
       (WCap true RWL Local (a_stk ^+ 4)%a e_stk a_stk)) as "Hstk4v".
-    { iApply fixpoint_interp1_eq. iSimpl.
+    { assert (disjoint_from_mmio (a_stk ^+ 4)%a e_stk ∧
+              disjoint_from_heap (a_stk ^+ 4)%a e_stk) as [Hshadow Hheap].
+      { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption].
+        solve_addr. }
+      iApply fixpoint_interp1_eq. iSimpl.
       iSplit; last first.
       { iPureIntro.
-        assert (disjoint_from_mmio (a_stk ^+ 4)%a e_stk ∧
-                disjoint_from_heap (a_stk ^+ 4)%a e_stk) as [Hshadow Hheap].
-        { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption].
-          solve_addr. }
         split; first exact Hshadow.
         by apply heap_cap_valid_disjoint. }
       rewrite {2}/StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
       iApply (big_sepL_impl with "Hstk_val'").
       iIntros "!>" (k a Ha) "Hr".
+      rewrite (addr_key_disjoint _ _ _ a Hheap); last by eapply list_elem_of_lookup_2.
       iDestruct "Hr" as (φ p) "(Hφ & Hmono & Hrel & (HmonoR & Hzcond & Hrcond & Hwcond & Hpers) & %Hperm_flow)".
       iExists p,φ.
       iFrame "∗#%".

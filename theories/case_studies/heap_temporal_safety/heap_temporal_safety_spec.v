@@ -15,7 +15,7 @@ Section Heap_Temporal_Safety_Main.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -70,17 +70,17 @@ Section Heap_Temporal_Safety_Main.
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
       ∗ allocator_ctx ∗ allocator_service_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
-      ∗ inv (export_table_PCCN hts_allocator_exp_tblN)
+      ∗ inv (export_table_PCCN allocator_exp_tblN)
           (allocator_exp_tbl_b ↦ₐ WCap true RX Global
             allocator_pcc_b allocator_pcc_e allocator_pcc_b)
-      ∗ inv (export_table_CGPN hts_allocator_exp_tblN)
+      ∗ inv (export_table_CGPN allocator_exp_tblN)
           ((allocator_exp_tbl_b ^+ 1)%a ↦ₐ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b)
-      ∗ inv (export_table_entryN hts_allocator_exp_tblN
+      ∗ inv (export_table_entryN allocator_exp_tblN
           (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a)
           ((allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ
             WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off))
-      ∗ inv (export_table_entryN hts_allocator_exp_tblN
+      ∗ inv (export_table_entryN allocator_exp_tblN
           (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)
           ((allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ
             WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off))

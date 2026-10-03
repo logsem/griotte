@@ -1,11 +1,10 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import logrel memory_region switcher assert heap_temporal_safety.
+From griotte Require Import logrel memory_region switcher assert heap_temporal_safety region_keys.
 From griotte.allocator Require Export allocator_preamble.
 
 Definition htsN : namespace := nroot .@ "heap_temporal_safety".
 Definition hts_assertN : namespace := htsN .@ "assert".
 Definition hts_switcherN : namespace := htsN .@ "switcher".
-Definition hts_allocator_exp_tblN : namespace := htsN .@ "allocator_exports".
 
 Section Heap_Temporal_Safety_Resources.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
@@ -20,12 +19,12 @@ Section Heap_Temporal_Safety_Resources.
       particular, [hts_live_buffer] is not a persistent safe-to-share
       interpretation and cannot survive an
       arbitrary call without a future heap-world protocol. *)
-  Definition hts_live_buffer (b : Addr) (reserved : Z * Z) (w : Word) : iProp Σ :=
+  Definition hts_live_buffer (ι : AId) (b : Addr) (reserved : Z * Z) (w : Word) : iProp Σ :=
     ⌜(heap_b < b /\ b < b ^+ 1 /\ b ^+ 1 <= heap_e)%a⌝ ∗
-    allocator_allocation b (b ^+ 1)%a reserved ∗ b ↦ₐ w.
+    allocator_allocation ι b (b ^+ 1)%a reserved ∗ b ↦ₕ[ι] w.
 
-  Definition hts_quarantined_buffer (b : Addr) (reserved : Z * Z) : iProp Σ :=
-    allocator_allocation b (b ^+ 1)%a reserved ∗ reclaim_token b.
+  Definition hts_quarantined_buffer (ι : AId) (b : Addr) (reserved : Z * Z) : iProp Σ :=
+    allocator_allocation ι b (b ^+ 1)%a reserved ∗ ι ⊒ AQuar.
 
   Lemma hts_private_data_initial p e :
     (p + 1)%a = Some e ->
@@ -38,16 +37,12 @@ Section Heap_Temporal_Safety_Resources.
     simpl. by rewrite right_id.
   Qed.
 
-  Lemma hts_live_buffer_bounds b reserved w :
-    hts_live_buffer b reserved w -∗ ⌜is_heap_address b = true⌝.
+  Lemma hts_live_buffer_bounds ι b reserved w :
+    hts_live_buffer ι b reserved w -∗ ⌜is_heap_address b = true⌝.
   Proof.
     iIntros "[%Hbounds _]". iPureIntro.
     apply withinBounds_true_iff. solve_addr.
   Qed.
-
-  Lemma hts_quarantined_buffer_exclusive b reserved :
-    hts_quarantined_buffer b reserved -∗ hts_quarantined_buffer b reserved -∗ False.
-  Proof. iIntros "[_ H1] [_ H2]"; iApply (reclaim_token_exclusive with "[$] [$]"). Qed.
 
 End Heap_Temporal_Safety_Resources.
 

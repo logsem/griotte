@@ -291,4 +291,77 @@ Section std_updates.
      apply IHl in Ha. destruct Ha; done.
    Qed.
 
+   (* ------------------------------------------------------------ *)
+   (* Updates over a list of region keys, for heap cells keyed [LHeap a ι] *)
+
+   Fixpoint std_update_keys W (l : list LAddr) ρ :=
+     match l with
+     | [] => W
+     | k :: l => std_update (std_update_keys W l ρ) k ρ
+     end.
+
+   Lemma std_update_keys_nonheap W l ρ :
+     std_update_keys W (LNonHeap <$> l) ρ = std_update_multiple W l ρ.
+   Proof. induction l as [|a l IH]; first done. by rewrite fmap_cons /= IH. Qed.
+
+   Lemma std_update_keys_heap W l ρ :
+     heap_std (std_update_keys W l ρ) = heap_std W.
+   Proof. induction l; simpl; auto. Qed.
+
+   Lemma std_update_keys_seals W l ρ :
+     seal_std (std_update_keys W l ρ) = seal_std W.
+   Proof. induction l; simpl; auto. Qed.
+
+   Lemma std_update_keys_loc W l ρ :
+     loc (std_update_keys W l ρ) = loc W.
+   Proof. induction l; simpl; auto. Qed.
+
+   Lemma std_update_keys_wrel W l ρ :
+     wrel (std_update_keys W l ρ) = wrel W.
+   Proof. induction l; simpl; auto. Qed.
+
+   Lemma std_update_keys_lookup_same W l ρ (k : LAddr) :
+     k ∉ l -> std (std_update_keys W l ρ) !! k = std W !! k.
+   Proof.
+     induction l as [|k' l IH]; first done.
+     intros [Hne Hnin]%not_elem_of_cons. rewrite /= lookup_insert_ne; auto.
+   Qed.
+
+   Lemma std_update_keys_lookup_in W l ρ (k : LAddr) :
+     k ∈ l -> std (std_update_keys W l ρ) !! k = Some ρ.
+   Proof.
+     induction l as [|k' l IH]; first by intros ?%elem_of_nil.
+     intros Hin. simpl. destruct (decide (k' = k)) as [->|Hne].
+     - by rewrite lookup_insert_eq.
+     - rewrite lookup_insert_ne //. apply IH.
+       apply elem_of_cons in Hin as [->|]; [done|done].
+   Qed.
+
+   Lemma std_update_keys_dom W l ρ :
+     dom (std (std_update_keys W l ρ)) = list_to_set l ∪ dom (std W).
+   Proof.
+     induction l as [|k l IH]; first (cbn; set_solver).
+     rewrite /= dom_insert_L IH. set_solver.
+   Qed.
+
+   Lemma related_sts_pub_update_keys W l ρ :
+     Forall (λ k, k ∉ dom (std W)) l →
+     related_sts_pub_world W (std_update_keys W l ρ).
+   Proof.
+     intros Hforall. induction l as [|k l IH].
+     - apply related_sts_pub_refl_world.
+     - simpl.
+       apply Forall_cons in Hforall as [Hk Hforall].
+       eapply related_sts_pub_trans_world;[apply IH; auto|].
+       destruct (decide (k ∈ l)).
+       { rewrite (_: <s[k:=ρ]s>(std_update_keys W l ρ) = std_update_keys W l ρ) /=.
+         { by apply related_sts_pub_refl_world. }
+         rewrite /std_update insert_id /=.
+         { by destruct (std_update_keys W l ρ) as [ [ [] ] ]. }
+         by apply std_update_keys_lookup_in.
+       }
+       apply related_sts_pub_world_fresh.
+       rewrite std_update_keys_dom. set_solver.
+   Qed.
+
 End std_updates.

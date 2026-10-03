@@ -318,6 +318,7 @@ Section CMDC.
     { set_solver+. }
     iEval (cbn) in "Hcgp_b".
     iDestruct (PermRes_acc with "Hcgp_b") as "[ (>Hcgp_b & Hcgp_b_interp) Hcgp_b_close]".
+    iEval (rewrite key_pointsto_nonheap) in "Hcgp_b".
 
     (* Store cgp 42%Z *)
     iInstr "Hcode".

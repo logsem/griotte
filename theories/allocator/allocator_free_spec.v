@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode memory_region.
+From griotte Require Import rules proofmode memory_region region_keys.
 From griotte.allocator Require Import allocator_preamble
   allocator_macros_spec allocator_header_spec.
 
@@ -30,7 +30,7 @@ Defined.
 Section AllocatorFreeTraversal.
   Context {Σ : gFunctors}
     {ceriseg : ceriseG Σ}
-    {allocatorg : allocatorG Σ}
+    {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters}
     {layout : allocatorLayout}.
 
@@ -86,7 +86,7 @@ Section AllocatorFreeTraversal.
   Proof.
     intros start code Hcont Hpc Hshadow Hrange; subst start code.
     revert h w3 wa2 Hrange.
-    induction allocations as [| (base & finish & reserved) allocations IH]; intros h w3 wa2 Hrange.
+    induction allocations as [| [ [ [base finish] reserved] ι0] allocations IH]; intros h w3 wa2 Hrange.
     {
       iIntros "(%Hstop & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hφ)".
       subst h.
@@ -175,19 +175,19 @@ Section AllocatorFreeTraversal.
         iLeft.
         iFrame.
         iPureIntro.
-        exists reserved.
+        exists reserved, ι0.
         by left.
       * assert (Hneq : WInt (finish - e) ≠ WInt 0) by (intros Heq; injection Heq as Heq; apply Hend_ne; solve_addr).
         (* Jnz .free_invalid ct3. *)
         iInstr "Hcode".
         iDestruct (allocator_headers_chain_spec with "Htail") as %Hchain.
-        assert (Hmiss : ¬ allocator_has_bounds ((b, (finish, reserved)) :: allocations) b e).
+        assert (Hmiss : ¬ allocator_has_bounds ((b, finish, reserved, ι0) :: allocations) b e).
         {
-          intros (r & Hin).
+          intros (r & ι' & Hin).
           apply elem_of_cons in Hin as [Heq|Hin].
-          - injection Heq as Heq.
+          - inversion Heq.
             congruence.
-          - pose proof (allocator_chain_member_bounds _ _ _ _ _ _ Hchain Hin).
+          - pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hchain Hin).
             solve_addr.
         }
         assert (Hinvalid : (allocator_free_block_addr pc_a 3 ^+ 40)%a = allocator_free_block_addr pc_a 10) by (unfold allocator_free_block_addr; solve_addr).
@@ -219,16 +219,16 @@ Section AllocatorFreeTraversal.
       * iLeft.
         iFrame.
         iPureIntro.
-        unfold allocator_has_bounds in *.
-        set_solver.
+        destruct Hfound as (r & ι' & Hin).
+        exists r, ι'. by right.
       * iRight.
         iFrame.
         iPureIntro.
-        intros (r & Hin).
+        intros (r & ι' & Hin).
         apply elem_of_cons in Hin as [Heq|Hin].
-        { injection Heq as Heq; congruence. }
+        { inversion Heq; congruence. }
         apply Hmiss.
-        exists r.
+        exists r, ι'.
         exact Hin.
   Qed.
 
@@ -616,8 +616,7 @@ Section AllocatorFreeTraversal.
     iMod ("Hclose" with "[Hshadow Hstate Hput]") as "_".
     {
       iNext.
-      iApply "Hput".
-      instantiate (1 := st).
+      iApply ("Hput" $! st with "[//]").
       rewrite /allocator_entry Hstatus.
       iFrame.
     }
@@ -741,7 +740,7 @@ Section AllocatorFreeTraversal.
     intros code Hlayout HE Hcont Hpc Hdisjoint (p & g & b & e & a & -> & Hbounds); subst code.
     iIntros "(#Hctx & Hdata & HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hcode & Hφ)".
     iDestruct "Hdata" as (allocations)
-      "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+      "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory & % & Htoks)".
     codefrag_facts "Hcode".
     (* GetWType ct3 ca0. *)
     iInstr "Hcode".
@@ -798,7 +797,7 @@ Section AllocatorFreeTraversal.
     }
     iIntros "!> (HPC & Hct0 & Hi & Hcgp & Hslot & Hs)".
     iMod ("Hclose" with "[Hs Hres Hput]").
-    { iNext. iApply ("Hput" $! Free). iFrame. }
+    { iNext. iApply ("Hput" $! Free with "[//]"). iFrame. }
     iModIntro.
     wp_pure.
     iSpecialize ("Hcode" with "Hi").
@@ -827,7 +826,7 @@ Section AllocatorFreeTraversal.
     (* Jnz .free_invalid ct3. *)
     iInstr "Hcode".
     iApply "Hφ".
-    iSplitL "Hslot Hroot Hfree Hheaders Hhistory".
+    iSplitL "Hslot Hroot Hfree Hheaders Hhistory Htoks".
     { iExists allocations. iFrame. done. }
     iFrame "Hcgp Hca0 Hcode".
     iExists p, g, b, e, a.
@@ -878,7 +877,7 @@ Section AllocatorFreeTraversal.
     intros code Hlayout HE Hcont Hpc Hdisjoint Hrequest; subst code.
     iIntros "(#Hctx & Hdata & HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hcode & Hφ)".
     iDestruct "Hdata" as (allocations)
-      "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+      "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory & % & Htoks)".
     codefrag_facts "Hcode".
     (* GetWType ct3 ca0. *)
     iInstr "Hcode".
@@ -939,7 +938,7 @@ Section AllocatorFreeTraversal.
         }
         iIntros "!> (HPC & Hct0 & Hi & Hcgp & Hslot & Hs)".
         iMod ("Hclose" with "[Hs Hres Hput]").
-        { iNext. iApply ("Hput" $! Free). iFrame. }
+        { iNext. iApply ("Hput" $! Free with "[//]"). iFrame. }
         iModIntro.
         wp_pure.
         iSpecialize ("Hcode" with "Hi").
@@ -1245,7 +1244,7 @@ Section AllocatorFreeTraversal.
       iNext. iIntros "(Hdata & Hcgp & Hca0 & Hprepare_code & Hvalid)".
       iDestruct "Hvalid" as (p g b e a) "(%Hvalid & HPC & Hct0 & Hct1 & Hct2 & Hct3)".
       destruct Hvalid as [Heq Hbounds].
-      iDestruct "Hdata" as (entries) "(%Hcursor & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+      iDestruct "Hdata" as (entries) "(%Hcursor & Hslot & Hroot & Hfree & Hheaders & Hhistory & % & Htoks)".
       iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
       iDestruct (Hreject_request next entries Hcursor Hchain with "Hhistory HP") as %Hinvalid.
       assert (Hmissing : ¬ allocator_has_bounds entries b e).
@@ -1267,7 +1266,7 @@ Section AllocatorFreeTraversal.
         "[- $Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hsearchcode]"); eauto.
       iNext. iIntros "(Hheaders & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hsearchcode & Hresult)".
       iDestruct "Hresult" as "(%Hmiss & HPC)".
-      iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory]" as "Hdata".
+      iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory Htoks]" as "Hdata".
       { iExists entries. iFrame. done. }
       iDestruct ("Hsearch_cont" with "Hsearchcode") as "Hfreecode".
       iEval (rewrite -Hsplit_search) in "Hfreecode".
@@ -1285,7 +1284,7 @@ Section AllocatorFreeTraversal.
 
   Lemma allocator_free_narrowed_spec
     (E : coPset) (p : Perm) (g : Locality)
-    (b e : Addr) (reserved : Z * Z) (b' e' a : Addr) (wret : Word)
+    (ι : AId) (b e : Addr) (reserved : Z * Z) (b' e' a : Addr) (wret : Word)
     (φ : language.val griotte_lang → iPropI Σ) :
     (b <= b' /\ b' < e' /\ e' <= e)%a ->
     (b', e') ≠ (b, e) ->
@@ -1295,7 +1294,7 @@ Section AllocatorFreeTraversal.
        allocator_ctx ∗
        allocator_service_ctx ∗
        na_own cerise_nais E ∗
-       (allocator_allocation b e reserved) ∗
+       (allocator_allocation ι b e reserved) ∗
        PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
@@ -1312,7 +1311,7 @@ Section AllocatorFreeTraversal.
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
        ▷ (na_own cerise_nais E ∗
-       (allocator_allocation b e reserved) ∗
+       (allocator_allocation ι b e reserved) ∗
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -1337,7 +1336,7 @@ Section AllocatorFreeTraversal.
     iIntros "Hhistory #Hreceipt".
     iDestruct (allocator_history_lookup_spec with "Hhistory Hreceipt") as %Hlookup.
     assert (Horiginal : allocator_has_bounds allocations b e).
-    { exists reserved. apply elem_of_list_to_map_2. exact Hlookup. }
+    { exists reserved, ι. by apply allocator_history_map_member. }
     pose proof (allocator_chain_subrange_spec _ _ _ _ _ _ _
       Hchain Horiginal Hbounds Hneq) as Hmissing.
     iPureIntro. intros (p0 & g0 & b0 & e0 & a0 & Heq & Hprefix & Hmember).
@@ -1414,12 +1413,15 @@ Section AllocatorFreeTraversal.
     iApply Hcorrect.
   Qed.
 
-  (** The receipt fixes both original bounds; ownership of every payload address
-      witnesses liveness. A successful call relinquishes that memory and
-      returns one reclaim token per address. Permissions and cursor may vary. *)
+  (** The receipt fixes both original bounds and names the ghost header entry
+      of [ι]; the cells of [ι], with their shares, and the client's
+      [free_auth_held ι] rebuild the whole status token, which moves to
+      [APainting] before the paint loop and to [AQuar] after it. A successful
+      call relinquishes the memory and returns [ι ⊒ AQuar]. Permissions and
+      cursor may vary. *)
 
   Lemma allocator_free_valid_correct
-    (E : coPset) (p : Perm) (g : Locality) (b e a : Addr) (reserved : Z * Z)
+    (E : coPset) (p : Perm) (g : Locality) (ι : AId) (b e a : Addr) (reserved : Z * Z)
     (ws : list Word) (wret : Word)
     (φ : language.val griotte_lang → iPropI Σ) :
 
@@ -1433,7 +1435,9 @@ Section AllocatorFreeTraversal.
        allocator_ctx ∗
        allocator_service_ctx ∗
        na_own cerise_nais E ∗
-       allocator_allocation b e reserved ∗
+       allocator_allocation ι b e reserved ∗
+       alloc_obj ι b e ∗
+       free_auth_held ι ∗
 
        (* Initial register file. *)
        PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
@@ -1451,10 +1455,10 @@ Section AllocatorFreeTraversal.
        ct4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
-       [[b, e]] ↦ₐ [[ws]] ∗
+       [[b, e]] ↦ₕ[ι] [[ws]] ∗
 
        ▷ (na_own cerise_nais E ∗
-          allocator_allocation b e reserved ∗
+          allocator_allocation ι b e reserved ∗
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -1469,24 +1473,27 @@ Section AllocatorFreeTraversal.
           ct4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0 ∗
-          allocator_reclaimed b e ∗
+          ι ⊒ AQuar ∗
           £ 1
 
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
     intros HEheap HEservice Hbounds Hlen.
-    iIntros "(#Hctx & #Hservice & Hna & #Hreceipt & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hmem & Hpost)".
+    iIntros "(#Hctx & #Hservice & Hna & #Hreceipt & #Hobj & Hheld & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hcells & Hpost)".
+    (* Split the cells into their memory and their status shares. *)
+    iDestruct (heap_region_pointsto_split with "Hobj") as "[Hto _]".
+    iDestruct ("Hto" with "Hcells") as "[Hmem Hshares]".
     (* Open the service invariant and recover the allocator code and state. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">[Hstatic Hdata]".
     iDestruct "Hstatic" as "[Himports Hcode]".
     iDestruct "Hdata" as (next) "Hdata".
-    iDestruct "Hdata" as (allocations) "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+    iDestruct "Hdata" as (allocations) "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory & % & Htoks)".
     (* Use ownership of the range to show that it lies below the bump cursor. *)
     iMod (allocator_owned_range_below_cursor E b e next ws HEheap Hbounds Hnext Hlen
       with "Hctx Hmem Hfree") as "(%Hend & Hmem & Hfree)".
-    iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory]" as "Hdata".
+    iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory Htoks]" as "Hdata".
     { iExists allocations. iFrame. done. }
     iEval (rewrite /allocator_code) in "Hcode".
     focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfreecode" "Hcode_cont".
@@ -1528,11 +1535,11 @@ Section AllocatorFreeTraversal.
     iDestruct ("Hfree_cont" with "Hprepare_code") as "Hfreecode".
     iEval (rewrite -Hsplit) in "Hfreecode".
     (* Follow authentic headers until both original bounds match. *)
-    iDestruct "Hdata" as (entries) "(%Hcursor & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+    iDestruct "Hdata" as (entries) "(%Hcursor & Hslot & Hroot & Hfree & Hheaders & Hhistory & % & Htoks)".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
     iDestruct (allocator_history_lookup_spec with "Hhistory Hreceipt") as %Hlookup.
     assert (Hmember : allocator_has_bounds entries b0 e0).
-    { exists reserved. apply elem_of_list_to_map_2. exact Hlookup. }
+    { exists reserved, ι. by apply allocator_history_map_member. }
     assert (Hsplit_search : allocator_free_instrs =
       concat (encodeInstrsW <$> take 2 assembled_allocator_free) ++
       (concat (encodeInstrsW <$> take 4 (drop 2 assembled_allocator_free)) ++
@@ -1548,7 +1555,7 @@ Section AllocatorFreeTraversal.
       "[- $Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hsearchcode]"); eauto.
     iNext. iIntros "(Hheaders & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hsearchcode & Hresult)".
     iDestruct "Hresult" as "(%Hfound & HPC)".
-    iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory]" as "Hdata".
+    iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory Htoks]" as "Hdata".
     { iExists entries. iFrame. done. }
     iDestruct ("Hsearch_cont" with "Hsearchcode") as "Hfreecode".
     iEval (rewrite -Hsplit_search) in "Hfreecode".
@@ -1650,6 +1657,24 @@ Section AllocatorFreeTraversal.
     { rewrite (region_pointsto_cons _ _ _ _ _ Hbnext Hbnext_e). iFrame. }
     iDestruct ("Hfreecode_cont" with "Htranslate_code") as "Hfreecode".
     iEval (rewrite -Hsplit3) in "Hfreecode".
+    (* Rebuild the whole status token of [ι] and move it to [APainting]. *)
+    iDestruct "Hdata" as (entries')
+      "(%Hcursor' & Hslot & Hroot & Hfree & Hheaders & Hhistory & %Hwf' & Htoks)".
+    iDestruct (allocator_history_member_spec with "Hhistory Hreceipt") as %Hmem_ι.
+    apply list_elem_of_lookup_1 in Hmem_ι as [k Hk].
+    iDestruct (allocator_entries_res_acc _ _ _ _ _ _ Hk with "Htoks")
+      as "(_ & Htok & Htoks_close)".
+    iDestruct "Htok" as "[[Hshare Hkept] | (%s & Hfull & #Hq)]"; last first.
+    { iExFalso.
+      iDestruct (big_sepL_elem_of _ _ b0 with "Hshares") as "Hs1".
+      { apply elem_of_finz_seq_between. solve_addr. }
+      iDestruct (st_own_valid_2 with "Hfull Hs1") as %->.
+      iApply (live_quar_false with "Hfull Hq"). }
+    iAssert (ι ↦st{1} ALive)%I with "[Hkept Hheld Hshare Hshares]" as "Hfull".
+    { rewrite (st_own_split_alloc ι (finz.seq_between b0 e0))
+        finz_seq_between_length -free_auth_split.
+      iFrame. }
+    iMod (allocator_registry_paint E ι HEheap with "Hctx Hfull") as "Hpaint".
     (* Set the shadow bits and exchange memory ownership for reclaim tokens. *)
     assert (Hsplit4 : allocator_free_instrs =
       concat (encodeInstrsW <$> take 8 assembled_allocator_free) ++
@@ -1697,6 +1722,15 @@ Section AllocatorFreeTraversal.
       constructor. }
     iNext. iIntros "(HPC & Hctp & Hca2 & Hreclaimed & Hpaint_code)".
     iEval (rewrite -Hpaint_eq) in "Hpaint_code".
+    (* Every cell is quarantined: move the token to [AQuar] and store it. *)
+    iMod (allocator_registry_quarantine E ι b0 e0 HEheap
+      with "Hctx Hobj Hpaint Hreclaimed") as "(Hquar & #Hq & _)";
+      first solve_addr.
+    iDestruct ("Htoks_close" with "[Hquar]") as "Htoks".
+    { iRight. iExists AQuar. iFrame "Hquar Hq". }
+    iAssert (allocator_service_data next)
+      with "[Hslot Hroot Hfree Hheaders Hhistory Htoks]" as "Hdata".
+    { iExists entries'. iFrame. done. }
     iDestruct ("Hfreecode_cont" with "Hpaint_code") as "Hfreecode".
     iEval (rewrite -Hsplit4) in "Hfreecode".
     (* Set ALLOC_OK, then return and restore the service invariant. *)
@@ -1759,7 +1793,7 @@ Section AllocatorFreeTraversal.
     { iSplitR "Hna"; last iFrame.
       iNext. iSplitL "Himports Hcode"; first iFrame.
       iExists next. iFrame. }
-    iApply "Hpost". iFrame "Hreceipt ∗".
+    iApply "Hpost". iFrame "Hreceipt Hq ∗".
   Qed.
 
   (** A still-tagged alias with exact original bounds reaches the shadow
@@ -1768,7 +1802,7 @@ Section AllocatorFreeTraversal.
 
   Lemma allocator_free_repeated_spec
     (E : coPset) (p : Perm) (g : Locality)
-    (b e a : Addr) (reserved : Z * Z) (wret : Word)
+    (ι : AId) (b e a : Addr) (reserved : Z * Z) (wret : Word)
     (φ : language.val griotte_lang → iPropI Σ) :
     ↑Nallocator ⊆ E ->
     ↑Nallocator_service ⊆ E ->
@@ -1776,7 +1810,7 @@ Section AllocatorFreeTraversal.
        allocator_ctx ∗
        allocator_service_ctx ∗
        na_own cerise_nais E ∗
-       allocator_allocation b e reserved ∗
+       allocator_allocation ι b e reserved ∗
        PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
@@ -1794,7 +1828,7 @@ Section AllocatorFreeTraversal.
        cnull ↦ᵣ - ∗
        reclaim_token b ∗
        ▷ (na_own cerise_nais E ∗
-          allocator_allocation b e reserved ∗
+          allocator_allocation ι b e reserved ∗
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -1821,15 +1855,15 @@ Section AllocatorFreeTraversal.
     iDestruct "Hinv" as ">[Hstatic Hdata]".
     iDestruct "Hstatic" as "[Himports Hcode]".
     iDestruct "Hdata" as (next) "Hdata".
-    iDestruct "Hdata" as (allocations) "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+    iDestruct "Hdata" as (allocations) "(%Hnext & Hslot & Hroot & Hfree & Hheaders & Hhistory & % & Htoks)".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hinitial_chain.
     iDestruct (allocator_history_lookup_spec with "Hhistory Hreceipt") as %Hinitial_lookup.
-    assert (Hinitial_member : (b, (e, reserved)) ∈ allocations).
-    { apply elem_of_list_to_map_2. exact Hinitial_lookup. }
-    pose proof (allocator_chain_member_bounds _ _ _ _ _ _ Hinitial_chain Hinitial_member) as Hentry_bounds.
+    assert (Hinitial_member : (b, e, reserved, ι) ∈ allocations).
+    { by apply allocator_history_map_member. }
+    pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hinitial_chain Hinitial_member) as Hentry_bounds.
     assert (Hbounds : (heap_b < b /\ b < e /\ e <= heap_e)%a) by solve_addr.
     assert (Hend : (e <= next)%a) by solve_addr.
-    iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory]" as "Hdata".
+    iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory Htoks]" as "Hdata".
     { iExists allocations. iFrame. done. }
     iEval (rewrite /allocator_code) in "Hcode".
     focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfreecode" "Hcode_cont".
@@ -1871,11 +1905,11 @@ Section AllocatorFreeTraversal.
     iDestruct ("Hfree_cont" with "Hprepare_code") as "Hfreecode".
     iEval (rewrite -Hsplit) in "Hfreecode".
     (* Follow authentic headers until both original bounds match. *)
-    iDestruct "Hdata" as (entries) "(%Hcursor & Hslot & Hroot & Hfree & Hheaders & Hhistory)".
+    iDestruct "Hdata" as (entries) "(%Hcursor & Hslot & Hroot & Hfree & Hheaders & Hhistory & % & Htoks)".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
     iDestruct (allocator_history_lookup_spec with "Hhistory Hreceipt") as %Hlookup.
     assert (Hmember : allocator_has_bounds entries b0 e0).
-    { exists reserved. apply elem_of_list_to_map_2. exact Hlookup. }
+    { exists reserved, ι. by apply allocator_history_map_member. }
     assert (Hsplit_search : allocator_free_instrs =
       concat (encodeInstrsW <$> take 2 assembled_allocator_free) ++
       (concat (encodeInstrsW <$> take 4 (drop 2 assembled_allocator_free)) ++
@@ -1891,7 +1925,7 @@ Section AllocatorFreeTraversal.
       "[- $Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hsearchcode]"); eauto.
     iNext. iIntros "(Hheaders & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hsearchcode & Hresult)".
     iDestruct "Hresult" as "(%Hfound & HPC)".
-    iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory]" as "Hdata".
+    iAssert (allocator_service_data next) with "[Hslot Hroot Hfree Hheaders Hhistory Htoks]" as "Hdata".
     { iExists entries. iFrame. done. }
     iDestruct ("Hsearch_cont" with "Hsearchcode") as "Hfreecode".
     iEval (rewrite -Hsplit_search) in "Hfreecode".

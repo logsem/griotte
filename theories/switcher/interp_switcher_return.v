@@ -277,21 +277,10 @@ Section fundamental.
     iDestruct (region_pointsto_cons (a_stk ^+ 3)%a (a_stk ^+ 4)%a (a_stk ^+ 4)%a with "Hstk'")
       as "[Ha_stk3 Hstk']"; [solve_addr+Ha_stk4|solve_addr+Ha_stk4|].
 
-    iApply (switcher_return_block_12_restore_open_cases_spec W W C saved_addrs ccrel with
+    iApply (switcher_return_block_12_restore_open_cases_spec W W C (LNonHeap <$> saved_addrs) ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld_interp $Halloc $Hcode]").
     { reflexivity. }
-    { subst saved_addrs.
-      destruct (is_untrusted_caller ccrel); simpl; last constructor.
-      apply Forall_forall; intros a Ha.
-      apply heap_addr_live_nonheap, Hstk_nonheap_addr.
-      apply elem_of_finz_seq_between in Ha.
-      apply elem_of_finz_seq_between.
-      destruct Ha as [Ha_lo Ha_hi]. split.
-      - transitivity a_stk; [exact Hb_a4|exact Ha_lo].
-      - assert ((a_stk ^+ 4 <= e_stk)%a) as Hupper
-          by solve_addr+He_a1 Ha_stk4.
-        solve_addr+Ha_hi Hupper. }
     { exact Hstk_shadow. }
     { exact H1. }
     { exact Ha_stk4. }

@@ -283,10 +283,10 @@ Section AllocatorMacros.
       iIntros "!> (HPC & Hi & Hptr & Hs)".
       destruct status.
       - iMod ("Hclose" with "[Hs Hput Hfree Hreclaim]").
-        { iNext. iApply ("Hput" $! Live). iFrame. }
+        { iNext. iApply ("Hput" $! Live with "[//]"). iFrame. }
         iModIntro; iFrame; done.
       - iMod ("Hclose" with "[Ha Hs Hput Hfree]").
-        { iNext. iApply ("Hput" $! Quarantined). iFrame. }
+        { iNext. iApply ("Hput" $! Quarantined with "[//]"). iFrame. }
         iModIntro; iFrame; done.
     }
     iApply (wp_wand with "Hstore").

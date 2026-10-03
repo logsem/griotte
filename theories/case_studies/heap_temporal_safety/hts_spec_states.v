@@ -5,7 +5,7 @@ From griotte Require Import fetch_spec assert_spec switcher_spec_call
 From griotte Require Import switcher_spec_KtK.
 From griotte.allocator Require Import allocator allocator_preamble.
 From griotte Require Import heap_temporal_safety_allocator_spec world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants heap_ghost.
+From griotte Require Import world_interp_stack region_invariants heap_ghost region_keys.
 From griotte Require Import proofmode register_tactics map_simpl.
 
 (** * Interfaces of the control-flow segments of [hts_main_asm]
@@ -123,7 +123,7 @@ Section HTS_States.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -143,17 +143,17 @@ Section HTS_States.
     allocator_ctx ∗
     allocator_service_ctx ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    inv (export_table_PCCN hts_allocator_exp_tblN)
+    inv (export_table_PCCN allocator_exp_tblN)
       (allocator_exp_tbl_b ↦ₐ WCap true RX Global
         allocator_pcc_b allocator_pcc_e allocator_pcc_b) ∗
-    inv (export_table_CGPN hts_allocator_exp_tblN)
+    inv (export_table_CGPN allocator_exp_tblN)
       ((allocator_exp_tbl_b ^+ 1)%a ↦ₐ WCap true RW Global
         allocator_cgp_b allocator_cgp_e allocator_cgp_b) ∗
-    inv (export_table_entryN hts_allocator_exp_tblN
+    inv (export_table_entryN allocator_exp_tblN
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a)
       ((allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ
         WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off)) ∗
-    inv (export_table_entryN hts_allocator_exp_tblN
+    inv (export_table_entryN allocator_exp_tblN
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)
       ((allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ
         WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)) ∗
@@ -214,18 +214,18 @@ Section HTS_States.
     codefrag pc_a hts_main_code.
 
   (** The world shared with the first adversary call: the stack is revoked
-      and the buffer [b] is allocated and [Permanent]. *)
-  Definition hts_Wshare (b : Addr) : WORLD :=
-    <s[b := Permanent]s>
-      (heap_std_update (revoke W_init_C) (heap_allocate ∅ b (b ^+ 1)%a)).
+      and the buffer [b] of [ι] is allocated and [Permanent]. *)
+  Definition hts_Wshare (ι : AId) (b : Addr) : WORLD :=
+    <s[LHeap b ι := Permanent]s>
+      (heap_std_update (revoke W_init_C) (heap_allocate ∅ ι b (b ^+ 1)%a)).
 
-  (** The world after freeing [b] in the revoked world [Wret]. *)
-  Definition hts_Wfree (Wret : WORLD) (b : Addr) : WORLD :=
-    heap_std_update (revoke Wret) (heap_quarantine (heap_std (revoke Wret)) b).
+  (** The world after freeing [ι] in the revoked world [Wret]. *)
+  Definition hts_Wfree (Wret : WORLD) (ι : AId) : WORLD :=
+    heap_std_update (revoke Wret) (heap_quarantine (heap_std (revoke Wret)) ι).
 
-  (** Successful malloc: [ca0] holds the fresh buffer [b]. *)
+  (** Successful malloc: [ca0] holds the fresh buffer [b] of [ι]. *)
   Definition hts_malloc_ok (a_ret : Addr) : iProp Σ :=
-    ∃ b : Addr,
+    ∃ (ι : AId) (b : Addr),
       ⌜hts_buffer_bounds b⌝ ∗
       hts_frame a_ret csp_b ∗
       ca0 ↦ᵣ hts_buffer b ∗
@@ -236,8 +236,10 @@ Section HTS_States.
       StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e) ∗
       ⌜revoked_addresses (revoke W_init_C) (finz.seq_between csp_b csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗
-      allocator_allocation b (b ^+ 1)%a (0%Z, 0%Z) ∗
-      b ↦ₐ WInt 0.
+      alloc_obj ι b (b ^+ 1)%a ∗
+      allocator_allocation ι b (b ^+ 1)%a (0%Z, 0%Z) ∗
+      free_auth_held ι ∗
+      b ↦ₕ[ι] WInt 0.
 
   (** Return from the call to malloc. Allocator failure and trusted-stack
       exhaustion both return an integer in [ca0]. *)
@@ -252,14 +254,14 @@ Section HTS_States.
       adversary may have freed [b]: its liveness is only known after the
       reload of the saved buffer. *)
   Definition hts_adv1_ret : iProp Σ :=
-    ∃ (b a_ret : Addr) (Wret : WORLD),
+    ∃ (ι : AId) (b a_ret : Addr) (Wret : WORLD),
       ⌜hts_block_addr 9 a_ret⌝ ∗
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜related_sts_pub_world
-        (std_update_multiple (hts_Wshare b)
+        (std_update_multiple (hts_Wshare ι b)
           (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
-      rel C (LNonHeap b) RW interp_in_memC ∗
+      rel C (LHeap b ι) RW interp_in_memC ∗
       hts_frame a_ret (csp_b ^+ 1)%a ∗
       (∃ w, ca0 ↦ᵣ w) ∗
       (∃ w, ca1 ↦ᵣ w) ∗
@@ -270,28 +272,30 @@ Section HTS_States.
       StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
       ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗
-      allocator_allocation b (b ^+ 1)%a (0%Z, 0%Z).
+      alloc_obj ι b (b ^+ 1)%a ∗
+      allocator_allocation ι b (b ^+ 1)%a (0%Z, 0%Z) ∗
+      free_auth_held ι.
 
-  (** Successful free: [b] is reclaimed, its world entry is still open. *)
+  (** Successful free: [ι] is quarantined, its world entry is still open. *)
   Definition hts_free_ok (a_ret : Addr) : iProp Σ :=
-    ∃ (b : Addr) (Wret : WORLD),
+    ∃ (ι : AId) (b : Addr) (Wret : WORLD),
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜heap_wf (heap_std (revoke Wret))⌝ ∗
-      ⌜heap_std (revoke Wret) !! b = Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive)⌝ ∗
-      ⌜std (revoke Wret) !! LNonHeap b = Some Permanent⌝ ∗
-      rel C (LNonHeap b) RW interp_in_memC ∗
+      ⌜heap_std (revoke Wret) !! ι = Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive)⌝ ∗
+      ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
+      rel C (LHeap b ι) RW interp_in_memC ∗
       hts_frame a_ret (csp_b ^+ 1)%a ∗
       ca0 ↦ᵣ WInt 0 ∗
       ca1 ↦ᵣ WInt 0 ∗
       hts_zero_regs ∗
       (∃ stk, [[(csp_b ^+ 1)%a, csp_e]] ↦ₐ [[stk]]) ∗
-      world_interp_open (revoke Wret) C [b] ∗
-      sts_state_std C (LNonHeap b) Permanent ∗
+      world_interp_open (revoke Wret) C [LHeap b ι] ∗
+      sts_state_std C (LHeap b ι) Permanent ∗
       StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
       ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗
-      allocator_reclaimed b (b ^+ 1)%a.
+      ι ⊒ AQuar.
 
   (** Return from the call to free. The allocator cannot fail: only
       trusted-stack exhaustion returns a nonzero code. *)
