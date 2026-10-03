@@ -203,28 +203,4 @@ Section Heap_Temporal_Safety_Allocator.
     iPureIntro. auto.
   Qed.
 
-  (** BLOCKED: allocation must extend the heap world and make the zeroed
-      result safe to return to an arbitrary caller. *)
-  Lemma hts_malloc_entry_spec W C :
-    allocator_ctx ∗ allocator_service_ctx ⊢
-    execute_entry_point
-      (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
-      (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
-      allocator_malloc_nargs W C.
-  Proof.
-  Abort.
-
-  (** BLOCKED: free from an unknown caller needs the shared heap protocol to
-      recover live addresses or handle already quarantined addresses, then reestablish
-      the world while invalidating retained aliases. Do not assume exclusive
-      points-to ownership merely because the argument is safe to share. *)
-  Lemma hts_free_entry_spec W C :
-    allocator_ctx ∗ allocator_service_ctx ⊢
-    execute_entry_point
-      (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_free_pcc_addr)
-      (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
-      allocator_free_nargs W C.
-  Proof.
-  Abort.
-
 End Heap_Temporal_Safety_Allocator.

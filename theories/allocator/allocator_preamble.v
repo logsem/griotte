@@ -5,25 +5,15 @@ From griotte.program_logic Require Export allocator_resources.
 From griotte.allocator Require Export allocator.
 From griotte Require Import memory_region region_keys.
 
-(** Resources used by the allocator service. The shared
-    allocation states, token families, and heap invariant come
-    from [allocator_resources]; there is only one definition of [AllocState]. *)
+(** Resources used by the allocator service. Its heap cells, their shadow
+    entries and address claims, its header chain and its pieces of the status
+    tokens are all in its non-atomic service invariant. *)
 
 Section AllocatorRanges.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
-    {MP : MachineParameters}.
-
-  Definition free_addrs (b e : Addr) : iProp Σ :=
-    [∗ list] a ∈ finz.seq_between b e, free_addr_token a.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
 
   Definition allocator_range_memory (b e : Addr) : iProp Σ :=
     [∗ list] a ∈ finz.seq_between b e, a ↦ₐ -.
-
-  Definition allocator_zeroed (b e : Addr) : iProp Σ :=
-    [∗ list] a ∈ finz.seq_between b e, a ↦ₐ WInt 0.
-
-  Definition allocator_reclaimed (b e : Addr) : iProp Σ :=
-    [∗ list] a ∈ finz.seq_between b e, reclaim_token a.
 
 End AllocatorRanges.
 
@@ -60,7 +50,8 @@ Definition allocator_entries_wf (allocations : list allocator_header_entry) : Pr
   Forall (λ '(_, _, reserved, _), reserved = (0%Z, 0%Z)) allocations ∧
   NoDup (allocator_entry_ids allocations).
 
-(** The receipts' authority, keyed by identifier. *)
+(** The receipts' authority, keyed by identifier. The service invariant no
+    longer holds it: no receipt is handed out (D31). *)
 Definition allocator_history_map (allocations : list allocator_header_entry) :
   gmap AId (Addr * Addr * (Z * Z)) :=
   list_to_map ((λ '(b, e, reserved, ι), (ι, (b, e, reserved))) <$> allocations).
@@ -76,19 +67,14 @@ Fixpoint allocator_chain (h stop : Addr)
       allocator_header_bounds h stop b e ∧ allocator_chain e stop rest
   end.
 
-(** Whole-allocation bounds validity. Successful free additionally requires a
-    live shadow observation; this historical predicate also holds after free. *)
+(** Whole-allocation bounds validity: the bounds of a ghost header entry. It
+    also holds after free, since headers are never removed. *)
 
 Definition allocator_free_valid {MP : MachineParameters}
   (next : Addr) (allocations : list allocator_header_entry) (w : Word) : Prop :=
   ∃ (p : Perm) (g : Locality) (b e a : Addr),
     w = WCap true p g b e a ∧
     (heap_b < b /\ b < e /\ e <= next)%a ∧ allocator_has_bounds allocations b e.
-
-(** Immutable header receipts use service-specific ghost state. Each base maps
-    to both the original end and the reserved integer. The current allocator
-    preserves both fields after initialization. Receipts record metadata, not
-    liveness or authority to access the payload. *)
 
 Section AllocatorHeaders.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
@@ -153,9 +139,7 @@ Section AllocatorHistory.
 
 End AllocatorHistory.
 
-(** The service invariant can remain open across an entire allocator call.
-    Its namespace is a sibling of [Nallocator], so atomic shadow access to the
-    shared heap invariant remains available while service resources are held. *)
+(** The service invariant can remain open across an entire allocator call. *)
 
 Definition Nallocator_service : namespace := nroot .@ "allocator_service".
 
@@ -178,73 +162,105 @@ Definition free_auth_core {Σ : gFunctors} `{!allocRegistryG Σ} : FreeAuth Σ :
 |}.
 
 (** The allocator's piece of the status token of [ι] (D17, D35). While [ι] is
-    live, one share and the kept part of the client half; from [AQuar] on, the
-    whole token. *)
+    live ([ι ∈ live]), one share and the kept part of the client half; from
+    [AQuar] on, the whole token. *)
 Section AllocatorTokens.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}.
 
-  Definition allocator_tok (ι : AId) (b e : Addr) : iProp Σ :=
-    ((ι ↦st{share (finz.dist b e)} ALive ∗ free_auth_kept ι) ∨
-     (∃ s, ι ↦st{1} s ∗ ι ⊒ AQuar))%I.
+  Definition allocator_tok (live : gset AId) (ι : AId) (b e : Addr) : iProp Σ :=
+    if decide (ι ∈ live)
+    then (ι ↦st{share (finz.dist b e)} ALive ∗ free_auth_kept ι)%I
+    else (∃ s, ι ↦st{1} s ∗ ι ⊒ AQuar)%I.
 
   (** One identifier and one token per ghost header entry. *)
-  Definition allocator_entries_res (allocations : list allocator_header_entry) : iProp Σ :=
+  Definition allocator_entries_res (live : gset AId)
+      (allocations : list allocator_header_entry) : iProp Σ :=
     [∗ list] entry ∈ allocations,
-      let '(b, e, _, ι) := entry in alloc_obj ι b e ∗ allocator_tok ι b e.
+      let '(b, e, _, ι) := entry in alloc_obj ι b e ∗ allocator_tok live ι b e.
 
-  Global Instance allocator_tok_timeless ι b e : Timeless (allocator_tok ι b e).
-  Proof. apply _. Qed.
+  Global Instance allocator_tok_timeless live ι b e : Timeless (allocator_tok live ι b e).
+  Proof. rewrite /allocator_tok. case_decide; apply _. Qed.
 
-  Global Instance allocator_entries_res_timeless allocations :
-    Timeless (allocator_entries_res allocations).
+  Global Instance allocator_entries_res_timeless live allocations :
+    Timeless (allocator_entries_res live allocations).
   Proof.
     apply big_sepL_timeless. intros k [ [ [b e] reserved] ι] _. apply _.
   Qed.
 
 End AllocatorTokens.
 
+(** The per-cell state of the service invariant (§4.8): the address claim,
+    the shadow entry and the memory, as far as the allocator holds it. The
+    flag [hdr] marks a header word, whose memory is in the header chain. A
+    claimed cell belongs to a live allocation: it is unpainted and its memory
+    is with the client. Heap roots and unclaimed non-header cells (the unused
+    suffix and revoked payloads) are unpainted, with their memory here. *)
+Section AllocatorCells.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
+
+  Definition cell_res (a : Addr) (c : AddrClaim) (s : AllocStatus) (hdr : bool) : iProp Σ :=
+    addr_alloc a c ∗ a ↦ₛ s ∗
+    match c with
+    | HeapRoot => ⌜s = ShadowLive⌝ ∗ a ↦ₐ -
+    | Unclaimed => if hdr then emp else ⌜s = ShadowLive⌝ ∗ a ↦ₐ -
+    | Claimed _ => ⌜s = ShadowLive⌝
+    end%I.
+
+  Definition allocator_cells (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) : iProp Σ :=
+    [∗ map] a ↦ x ∈ Cs, cell_res a x.1.1 x.1.2 x.2.
+
+  Global Instance cell_res_timeless a c s hdr : Timeless (cell_res a c s hdr).
+  Proof. rewrite /cell_res. destruct c; [destruct hdr| |]; apply _. Qed.
+
+  Global Instance allocator_cells_timeless Cs : Timeless (allocator_cells Cs).
+  Proof. apply _. Qed.
+
+End AllocatorCells.
+
+(** The pure clauses of the service invariant: every heap address has a
+    cell, the heap root, the cursor
+    clause (every cell above the bump cursor is unclaimed, unpainted and not a
+    header), the claim/header clause in both directions (the cells of a live
+    entry are claimed by its identifier, and every claimed cell lies in the
+    range of the live entry carrying its identifier), and the issued set
+    (D31), which contains every identifier of the header list. *)
+Record allocator_cells_wf {MP : MachineParameters} (next : Addr)
+    (allocations : list allocator_header_entry) (live issued : gset AId)
+    (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) : Prop := {
+  acw_dom a : (heap_b <= a < heap_e)%a -> is_Some (Cs !! a);
+  acw_root : Cs !! heap_b = Some (HeapRoot, ShadowLive, false);
+  acw_cursor a : (next <= a < heap_e)%a -> Cs !! a = Some (Unclaimed, ShadowLive, false);
+  acw_live b e reserved ι a :
+    (b, e, reserved, ι) ∈ allocations -> ι ∈ live -> (b <= a < e)%a ->
+    Cs !! a = Some (Claimed ι, ShadowLive, false);
+  acw_claimed a ι s hdr :
+    Cs !! a = Some (Claimed ι, s, hdr) ->
+    ∃ b e reserved, (b, e, reserved, ι) ∈ allocations ∧ ι ∈ live ∧ (b <= a < e)%a;
+  acw_live_ids : live ⊆ list_to_set (allocator_entry_ids allocations);
+  acw_issued : list_to_set (allocator_entry_ids allocations) ⊆ issued;
+}.
+
 Section AllocatorService.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {FA : FreeAuth Σ} {MP : MachineParameters} {layout : allocatorLayout}.
 
   Definition allocator_service_static : iProp Σ :=
-    ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[allocator_imports]] ∗
+    ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ∗
      codefrag allocator_code_b allocator_code)%I.
 
-  (** The reserved first address is never allocated or quarantined. Keeping its
-      free-address token proves that the heap capability's base has a clear bit.
-      The other tokens identify the unused suffix; the shared invariant owns
-      its memory. [next = heap_e] represents an exhausted heap. *)
+  (** The bump slot holds the identifier-less heap root, whose cursor is the
+      first unused address; [next = heap_e] represents an exhausted heap. *)
 
   Definition allocator_service_data (next : Addr) : iProp Σ :=
-    (∃ allocations : list allocator_header_entry,
+    (∃ (allocations : list allocator_header_entry) (live issued : gset AId)
+       (Cs : gmap Addr (AddrClaim * AllocStatus * bool)),
      ⌜(heap_b < next /\ next <= heap_e)%a⌝ ∗ (* Bump bounds. *)
      allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗ (* Bump slot. *)
-     free_addr_token heap_b ∗ (* Root stays unquarantined. *)
-     free_addrs next heap_e ∗ (* Unused suffix. *)
      allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Physical header chain. *)
-     allocator_history allocations ∗ (* Matching ghost map. *)
      ⌜allocator_entries_wf allocations⌝ ∗ (* Reserved words 0, distinct identifiers. *)
-     allocator_entries_res allocations)%I. (* Identifiers and status tokens. *)
-
-  (** After malloc's prepare block, the new header has been written and the
-      whole chunk has been taken from the free suffix. The bump slot and
-      published history still describe the old prefix. Payload memory is held
-      separately for zeroing; publishing appends the header and issues a receipt.
-      This predicate is held while the service invariant is open. *)
-
-  Definition allocator_service_pending (next b e : Addr) : iProp Σ :=
-    (∃ allocations : list allocator_header_entry,
-     ⌜(heap_b < next /\ next <= heap_e)%a⌝ ∗ (* Old bump bounds. *)
-     ⌜allocator_header_bounds next heap_e b e⌝ ∗ (* New chunk bounds. *)
-     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗ (* Old bump slot. *)
-     free_addr_token heap_b ∗ (* Root stays unquarantined. *)
-     free_addrs e heap_e ∗ (* Remaining unused suffix. *)
-     allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Published header chain. *)
-     allocator_history allocations ∗ (* Published ghost map. *)
-     ⌜allocator_entries_wf allocations⌝ ∗ (* Published entries' invariant. *)
-     allocator_entries_res allocations ∗ (* Published identifiers and tokens. *)
-     allocator_header next b e (0%Z, 0%Z))%I. (* New, unpublished header. *)
+     ⌜allocator_cells_wf next allocations live issued Cs⌝ ∗ (* Cursor and claim clauses. *)
+     allocator_entries_res live allocations ∗ (* Identifiers and status tokens. *)
+     allocator_cells Cs)%I. (* Claims, shadow entries and memory of the heap cells. *)
 
   Definition allocator_service_inv : iProp Σ :=
     allocator_service_static ∗ ∃ next : Addr, allocator_service_data next.
@@ -255,7 +271,7 @@ Section AllocatorService.
 End AllocatorService.
 
 Section AllocatorServiceInitialization.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocator_preg : allocator_preG Σ}
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
   (** Like KVS initialization, service initialization consumes only imports,
@@ -264,6 +280,6 @@ Section AllocatorServiceInitialization.
 
   Definition allocator_service_initial_resources : iProp Σ :=
     (allocator_service_static ∗
-     [[allocator_cgp_b, allocator_cgp_e]] ↦ₐ [[allocator_data]])%I.
+     [[allocator_cgp_b, allocator_cgp_e]] ↦ₐ [[lword_of_word <$> allocator_data]])%I.
 
 End AllocatorServiceInitialization.

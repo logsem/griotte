@@ -10,8 +10,10 @@ From griotte Require Import machine_parameters assembler switcher fetch.
     [RW Global] capability in [ca0]. Each allocation has three protected header
     words before its payload: the original end and two reserved addresses,
     initialized to zero. [free] traverses these headers from the first one
-    and requires both supplied bounds to match an original payload. It rejects
-    already quarantined allocations. Neither operation reuses memory.
+    and requires both supplied bounds to match an original payload. It paints
+    the payload quarantined, stores to the revoker, which untags every stale
+    capability to it in memory, and unpaints the payload. Neither operation
+    reuses memory.
 
     Both entries return normally through [cra] with a single result in [ca0]
     and zero in [ca1], following the CHERIoT convention: as for
@@ -36,6 +38,8 @@ Section Allocator.
   Definition allocator_shadow_import_off : Z := 0.
 
   Definition allocator_unsealing_key_import_off : Z := 1.
+
+  Definition allocator_revoker_import_off : Z := 2.
 
   Definition allocator_header_words : Z := 3.
 
@@ -213,11 +217,14 @@ Section Allocator.
       walks protected headers by their recorded ends, stopping at the bump
       pointer. It never interprets payload contents as headers. Its cursor
       and permissions do not determine which allocation is freed.
-      Null, narrowed capabilities, and repeated frees are invalid. A capability
-      loaded after quarantine may already be untagged and is also rejected.
+      Null and narrowed capabilities are invalid. A repeated free is
+      invalid too: after revocation no tagged capability to the payload
+      remains, so the argument fails the tag check.
 
       Painting affects later capability loads, not values already held in
-      registers. This routine neither clears the memory nor runs a revoker. *)
+      registers. After painting, the argument registers are cleared and the
+      revoker sweeps memory, so no tagged capability to the payload remains;
+      the payload is then unpainted. The memory itself is not cleared. *)
   (* CHERI-C-style overview, using the word-addressed helpers above.
      The root retains authority over headers and payloads. Returned allocation
      capabilities cover only payloads, so callers cannot modify the header chain.
@@ -240,8 +247,10 @@ Section Allocator.
            if (e != recorded_end)
              return ALLOC_INVALID;
            if (read_shadow(b) != ShadowLive)
-             return ALLOC_INVALID;  // Repeated free, even with a valid tag.
+             return ALLOC_INVALID;  // Defence in depth: payloads are unpainted.
            paint_shadow(b, e, ShadowQuarantined);
+           *revoker = 0;              // Sweep: untag every capability to the payload.
+           paint_shadow(b, e, ShadowLive);
            return ALLOC_OK;
          }
          h = recorded_end;             // Follow the protected chain, not payloads.
@@ -317,8 +326,10 @@ Section Allocator.
         getb ct3 ct0;
         sub ct3 ct1 ct3;
         lea ctp ct3;
-        (* Reject repeated free before changing any shadow entry. Compare
-           against the machine's encoding rather than assuming live is zero. *)
+        (* Defence in depth: every payload is unpainted at entry (live ones,
+           and revoked ones after the unpaint), so this check cannot fail
+           once the header matches. Compare against the machine's encoding
+           rather than assuming live is zero. *)
         load ct3 ctp;
         sub ct3 ct3 (encodeAllocStatus ShadowLive);
         jnz (".free_invalid")%asm ct3;
@@ -327,10 +338,22 @@ Section Allocator.
       ];
       allocator_paint_asm ctp ca2 ShadowQuarantined;
       [ #".free_success";
+        (* Clear the argument registers: no register then holds a capability
+           to the freed allocation. *)
         mov ca0 ALLOC_OK;
-        mov ca1 0;
-        jmp (".free_return")%asm
+        mov ca1 0
       ];
+      fetch_asm allocator_revoker_import_off ct3 ct4 ca2;
+      [ (* Sweep memory: every capability to the painted payload loses its tag. *)
+        store ct3 0;
+        (* Rewind the shadow cursor to the payload base and reset the count. *)
+        sub ct4 ct1 ct2;
+        lea ctp ct4;
+        sub ca2 ct2 ct1
+      ];
+      (* The revoked payload leaves quarantine: unpaint it. *)
+      allocator_paint_asm ctp ca2 ShadowLive;
+      [ jmp (".free_return")%asm ];
       [ #".free_invalid";
         mov ca0 ALLOC_INVALID;
         mov ca1 0
@@ -370,19 +393,23 @@ Section Allocator.
     allocator_exp_tbl_e : Addr;
   }.
 
+  Definition allocator_revoker_cap : Word :=
+    WCap true RW Global revoker_addr (revoker_addr ^+ 1)%a revoker_addr.
+
   Definition allocator_imports `{allocatorLayout} : list Word :=
     [WCap true RW Global shadow_b shadow_e shadow_b;
      WSealRange true (false, true) Global AllocOtype
-       (AllocOtype ^+ 1)%ot AllocOtype].
+       (AllocOtype ^+ 1)%ot AllocOtype;
+     allocator_revoker_cap].
 
-  Lemma allocator_imports_length `{allocatorLayout} : length allocator_imports = 2.
+  Lemma allocator_imports_length `{allocatorLayout} : length allocator_imports = 3.
   Proof. reflexivity. Qed.
 
   Definition allocator_malloc_nargs : nat := 1.
 
   Definition allocator_free_nargs : nat := 1.
 
-  Definition allocator_malloc_pcc_off : nat := 2.
+  Definition allocator_malloc_pcc_off : nat := 3.
 
   Definition allocator_free_pcc_off : nat :=
     allocator_malloc_pcc_off + length allocator_malloc_instrs.
@@ -402,6 +429,7 @@ Section Allocator.
 
   Class allocatorLayoutWf `{allocatorLayout} : Prop := mkAllocatorLayoutWf {
     allocator_otype_size : (AllocOtype < AllocOtype ^+ 1)%ot;
+    allocator_revoker_size : (revoker_addr < revoker_addr ^+ 1)%a;
     allocator_translation_affine : forall a,
       heap_to_shadow a = translate_region heap_b heap_e shadow_b a;
     allocator_size_imports :

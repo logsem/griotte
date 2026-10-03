@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte.allocator Require Import allocator_preamble.
 
-From griotte Require Import proofmode heap_region region_keys.
+From griotte Require Import proofmode region_keys.
 
 Lemma allocator_chain_bounds h stop allocations :
   allocator_chain h stop allocations -> (h <= stop)%a.
@@ -48,6 +48,64 @@ Proof.
       pose proof (allocator_chain_member_bounds e0 stop rest b0 e reserved ι Htail Hin).
       solve_addr.
     + eapply (IH e0); eauto.
+Qed.
+
+(** Two entries of a chain with different bases have disjoint payloads. *)
+Lemma allocator_chain_disjoint h stop allocations b e reserved ι b' e' reserved' ι' :
+  allocator_chain h stop allocations ->
+  (b, e, reserved, ι) ∈ allocations ->
+  (b', e', reserved', ι') ∈ allocations ->
+  b ≠ b' ->
+  (e <= b' \/ e' <= b)%a.
+Proof.
+  revert h. induction allocations as [| [ [ [b0 e0] r0] ι0] rest IH];
+    intros h Hchain Hin Hin' Hne.
+  - set_solver.
+  - destruct Hchain as ((Hbase & Hbe & Hstop) & Htail).
+    unfold allocator_header_words in Hbase.
+    rewrite elem_of_cons in Hin. rewrite elem_of_cons in Hin'.
+    destruct Hin as [Heq|Hin]; destruct Hin' as [Heq'|Hin'].
+    + injection Heq as -> -> -> ->. injection Heq' as -> -> -> ->. done.
+    + injection Heq as -> -> -> ->.
+      pose proof (allocator_chain_member_bounds e0 stop rest b' e' reserved' ι' Htail Hin').
+      left. solve_addr.
+    + injection Heq' as -> -> -> ->.
+      pose proof (allocator_chain_member_bounds e0 stop rest b e reserved ι Htail Hin).
+      right. solve_addr.
+    + eapply (IH e0); eauto.
+Qed.
+
+(** Distinct identifiers name entries with different bases. *)
+Lemma allocator_chain_disjoint_ids h stop allocations b e reserved ι b' e' reserved' ι' :
+  allocator_chain h stop allocations ->
+  (b, e, reserved, ι) ∈ allocations ->
+  (b', e', reserved', ι') ∈ allocations ->
+  ι ≠ ι' ->
+  (e <= b' \/ e' <= b)%a.
+Proof.
+  intros Hchain Hin Hin' Hne.
+  destruct (decide (b = b')) as [<-|Hb].
+  - destruct (allocator_chain_base_unique _ _ _ _ _ _ _ _ _ _ Hchain Hin Hin')
+      as (_ & _ & ->). done.
+  - by eapply allocator_chain_disjoint.
+Qed.
+
+(** An identifier names at most one entry. *)
+Lemma allocator_entries_wf_unique allocations b e reserved ι b' e' reserved' :
+  allocator_entries_wf allocations ->
+  (b, e, reserved, ι) ∈ allocations ->
+  (b', e', reserved', ι) ∈ allocations ->
+  b = b' ∧ e = e' ∧ reserved = reserved'.
+Proof.
+  intros [_ Hnodup] Hin Hin'.
+  apply list_elem_of_lookup_1 in Hin as [k Hk].
+  apply list_elem_of_lookup_1 in Hin' as [k' Hk'].
+  assert (allocator_entry_ids allocations !! k = Some ι) as Hik
+    by (rewrite /allocator_entry_ids list_lookup_fmap Hk //).
+  assert (allocator_entry_ids allocations !! k' = Some ι) as Hik'
+    by (rewrite /allocator_entry_ids list_lookup_fmap Hk' //).
+  pose proof (NoDup_lookup _ _ _ _ Hnodup Hik Hik') as ->.
+  rewrite Hk in Hk'. by simplify_eq.
 Qed.
 
 Lemma allocator_entry_ids_app l l' :
@@ -260,14 +318,14 @@ End AllocatorHistoryContracts.
 Section AllocatorEntriesContracts.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}.
 
-  Lemma allocator_entries_res_app l l' :
-    allocator_entries_res (l ++ l') ⊣⊢
-    allocator_entries_res l ∗ allocator_entries_res l'.
+  Lemma allocator_entries_res_app live l l' :
+    allocator_entries_res live (l ++ l') ⊣⊢
+    allocator_entries_res live l ∗ allocator_entries_res live l'.
   Proof. by rewrite /allocator_entries_res big_sepL_app. Qed.
 
-  Lemma allocator_entries_res_ids allocations :
-    allocator_entries_res allocations -∗
-    allocator_entries_res allocations ∗
+  Lemma allocator_entries_res_ids live allocations :
+    allocator_entries_res live allocations -∗
+    allocator_entries_res live allocations ∗
     [∗ list] ι ∈ allocator_entry_ids allocations, ∃ b e, alloc_obj ι b e.
   Proof.
     induction allocations as [| [ [ [b e] reserved] ι] rest IH]; simpl.
@@ -277,132 +335,222 @@ Section AllocatorEntriesContracts.
       iDestruct (IH with "Hrest") as "[$ $]". iFrame "∗#".
   Qed.
 
-  (** Take the token of the entry at index [k] and put back another one. *)
-  Lemma allocator_entries_res_acc allocations k b e reserved ι :
-    allocations !! k = Some (b, e, reserved, ι) ->
-    allocator_entries_res allocations -∗
-    alloc_obj ι b e ∗ allocator_tok ι b e ∗
-    (allocator_tok ι b e -∗ allocator_entries_res allocations).
+  (** The tokens of the entries depend only on the membership of their own
+      identifiers in [live]. *)
+  Lemma allocator_entries_res_live_ext live live' allocations :
+    (∀ ι, ι ∈ allocator_entry_ids allocations -> (ι ∈ live <-> ι ∈ live')) ->
+    allocator_entries_res live allocations ⊣⊢ allocator_entries_res live' allocations.
   Proof.
-    iIntros (Hk) "Hres".
-    iDestruct (big_sepL_lookup_acc _ _ k (b, e, reserved, ι) with "Hres")
+    intros Hext. rewrite /allocator_entries_res.
+    apply big_sepL_proper. intros k [ [ [b e] reserved] ι] Hk.
+    assert (ι ∈ allocator_entry_ids allocations) as Hι.
+    { apply list_elem_of_fmap. exists (b, e, reserved, ι).
+      split; first done. by eapply list_elem_of_lookup_2. }
+    rewrite /allocator_tok.
+    destruct (decide (ι ∈ live)) as [H1|H1], (decide (ι ∈ live')) as [H2|H2];
+      try done; exfalso; naive_solver.
+  Qed.
+
+  (** Take the token of the entry carrying [ι]; put back a token for a new
+      [live] set that agrees with the old one on the other identifiers. *)
+  Lemma allocator_entries_res_acc live allocations b e reserved ι :
+    NoDup (allocator_entry_ids allocations) ->
+    (b, e, reserved, ι) ∈ allocations ->
+    allocator_entries_res live allocations -∗
+    alloc_obj ι b e ∗ allocator_tok live ι b e ∗
+    (∀ live', ⌜∀ ι', ι' ≠ ι -> (ι' ∈ live <-> ι' ∈ live')⌝ -∗
+       allocator_tok live' ι b e -∗ allocator_entries_res live' allocations).
+  Proof.
+    iIntros (Hnodup Hin) "Hres".
+    apply list_elem_of_lookup_1 in Hin as [k Hk].
+    rewrite /allocator_entries_res.
+    iDestruct (big_sepL_lookup_acc_impl k (b, e, reserved, ι) with "Hres")
       as "[[#Hobj Htok] Hclose]"; first exact Hk.
-    iFrame "Hobj Htok". iIntros "Htok". iApply "Hclose". iFrame "∗#".
+    iFrame "Hobj Htok". iIntros (live' Hext) "Htok".
+    iApply ("Hclose" $! (λ _ entry, let '(b, e, _, ι) := entry in
+              alloc_obj ι b e ∗ allocator_tok live' ι b e)%I with "[] [Htok]").
+    - iIntros "!>" (k' [ [ [b' e'] reserved'] ι'] Hk' Hne) "[$ Htok]".
+      assert (ι' ≠ ι) as Hι'.
+      { intros ->. apply Hne.
+        assert (allocator_entry_ids allocations !! k = Some ι) as Hik
+          by (rewrite /allocator_entry_ids list_lookup_fmap Hk //).
+        assert (allocator_entry_ids allocations !! k' = Some ι) as Hik'
+          by (rewrite /allocator_entry_ids list_lookup_fmap Hk' //).
+        exact (NoDup_lookup _ _ _ _ Hnodup Hik' Hik). }
+      rewrite /allocator_tok.
+      destruct (decide (ι' ∈ live)) as [H1|H1], (decide (ι' ∈ live')) as [H2|H2];
+        try done; exfalso; naive_solver.
+    - iFrame "∗#".
   Qed.
 
 End AllocatorEntriesContracts.
 
-Section AllocatorServiceContracts.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
-    {FA : FreeAuth Σ} {MP : MachineParameters} {layout : allocatorLayout}.
+(** The service-local cell map: the cells of a list of addresses are
+    replaced by new values. *)
+Definition allocator_cells_update (l : list Addr)
+    (g : Addr → AddrClaim * AllocStatus * bool)
+    (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) :
+    gmap Addr (AddrClaim * AllocStatus * bool) :=
+  list_to_map ((λ a, (a, g a)) <$> l) ∪ Cs.
 
-  Lemma allocator_history_heap_bounds h allocations next :
-    allocator_chain (heap_b ^+ 1)%a next allocations ->
-    allocator_history allocations -∗
-    heap_provenance h -∗
-    ⌜∀ κ o, h !! κ = Some o ->
-      (alloc_object_base o < alloc_object_end o /\ alloc_object_end o <= next)%a⌝.
+Lemma lookup_allocator_cells_update l g Cs a :
+  allocator_cells_update l g Cs !! a = if decide (a ∈ l) then Some (g a) else Cs !! a.
+Proof.
+  rewrite /allocator_cells_update lookup_union. case_decide as Ha.
+  - rewrite (elem_of_list_to_map_1' _ a (g a)).
+    + by destruct (Cs !! a).
+    + intros y (x & Hx & Hxl)%list_elem_of_fmap. by simplify_eq.
+    + apply list_elem_of_fmap. eauto.
+  - rewrite not_elem_of_list_to_map_1.
+    + by destruct (Cs !! a).
+    + rewrite -list_fmap_compose. intros (x & Hxa & Hx)%list_elem_of_fmap.
+      cbn in Hxa. by subst.
+Qed.
+
+Section AllocatorCellsContracts.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
+
+  Definition cell_res' (a : Addr) (x : AddrClaim * AllocStatus * bool) : iProp Σ :=
+    cell_res a x.1.1 x.1.2 x.2.
+
+  (** One cell, and the map with that cell replaced. *)
+  Lemma allocator_cells_acc Cs a x :
+    Cs !! a = Some x ->
+    allocator_cells Cs -∗
+    cell_res' a x ∗ (∀ x', cell_res' a x' -∗ allocator_cells (<[a := x']> Cs)).
   Proof.
-    revert allocations next.
-    induction h as [|κ o h Hnone IH] using map_ind;
-      intros allocations next Hchain; iIntros "Hhistory #Hprovenance".
-    - iPureIntro. intros κ o Hlookup. rewrite lookup_empty in Hlookup. discriminate.
-    - iEval (rewrite /heap_provenance big_sepM_insert //) in "Hprovenance".
-      iDestruct "Hprovenance" as "[(_ & #Hreceipt & _) #Hrest]".
-      iDestruct "Hreceipt" as (reserved) "#Hreceipt".
-      iDestruct (allocator_history_member_spec with "Hhistory Hreceipt")
-        as %Hmember.
-      pose proof (allocator_chain_member_bounds (heap_b ^+ 1)%a next
-        allocations _ _ reserved κ Hchain Hmember)
-        as (_ & Hbe & Hend).
-      iDestruct (IH allocations next Hchain with "Hhistory Hrest") as %Hrest_bounds.
-      iPureIntro. intros κ' o' Hlookup.
-      rewrite lookup_insert_Some in Hlookup.
-      naive_solver.
+    iIntros (Ha) "Hcells". rewrite /allocator_cells.
+    iDestruct (big_sepM_insert_acc with "Hcells") as "[Hx Hclose]"; first exact Ha.
+    iFrame "Hx". iIntros (x') "Hx'". iApply ("Hclose" with "Hx'").
   Qed.
 
-  (** The new chunk lies above every object of a world whose provenance the
-      history covers, so any identifier unknown to the world is fresh there. *)
-  Lemma allocator_history_heap_fresh h allocations next b e :
-    allocator_chain (heap_b ^+ 1)%a next allocations ->
-    allocator_header_bounds next heap_e b e ->
-    allocator_history allocations -∗
-    heap_provenance h -∗
-    ⌜∀ ι, h !! ι = None -> heap_fresh h ι b e⌝.
+  (** The cells of a duplicate-free list of addresses, and the map with these
+      cells replaced. *)
+  Lemma allocator_cells_range_acc (l : list Addr) f Cs :
+    NoDup l ->
+    (∀ a, a ∈ l -> Cs !! a = Some (f a)) ->
+    allocator_cells Cs -∗
+    ([∗ list] a ∈ l, cell_res' a (f a)) ∗
+    (∀ g, ([∗ list] a ∈ l, cell_res' a (g a)) -∗
+       allocator_cells (allocator_cells_update l g Cs)).
   Proof.
-    iIntros (Hchain Hchunk) "Hhistory Hprovenance".
-    iDestruct (allocator_history_heap_bounds h allocations next Hchain
-      with "Hhistory Hprovenance") as %Hbounds.
-    destruct Hchunk as [Hbase Hrest].
-    destruct Hrest as [Hbe Hend].
-    iPureIntro. intros ι Hι. unfold heap_fresh.
-    split; first exact Hι.
-    split; first exact Hbe.
-    intros κ o a Hlookup Hnew Hold.
-    pose proof (Hbounds κ o Hlookup) as [_ Hoend].
-    unfold alloc_object_contains in Hold.
-    unfold allocator_header_words in Hbase. solve_addr.
+    revert Cs. induction l as [|a l IH]; intros Cs Hnodup Hl; iIntros "Hcells".
+    - iSplitR; first done. iIntros (g) "_".
+      rewrite /allocator_cells_update /= left_id_L. iExact "Hcells".
+    - apply list.NoDup_cons in Hnodup as [Hal Hnodup].
+      rewrite /allocator_cells.
+      iDestruct (big_sepM_delete with "Hcells") as "[Ha Hcells]".
+      { apply Hl. apply list_elem_of_here. }
+      iDestruct (IH (delete a Cs) Hnodup with "Hcells") as "[Hl Hclose]".
+      { intros a' Ha'. rewrite lookup_delete_ne; last set_solver.
+        apply Hl. by apply list_elem_of_further. }
+      rewrite big_sepL_cons. iFrame "Ha Hl".
+      iIntros (g) "[Ha Hl]".
+      iDestruct ("Hclose" $! g with "Hl") as "Hcells".
+      iDestruct (big_sepM_insert with "[$Hcells $Ha]") as "Hcells".
+      { rewrite lookup_allocator_cells_update decide_False //. apply lookup_delete_eq. }
+      assert (<[a:=g a]> (allocator_cells_update l g (delete a Cs)) =
+              allocator_cells_update (a :: l) g Cs) as ->; last done.
+      apply map_eq. intros a'. rewrite lookup_allocator_cells_update.
+      destruct (decide (a = a')) as [<-|Hne].
+      + rewrite lookup_insert_eq decide_True //. apply list_elem_of_here.
+      + rewrite lookup_insert_ne // lookup_allocator_cells_update lookup_delete_ne //.
+        repeat case_decide; try done; exfalso; set_solver.
   Qed.
 
-  (** The bump slot already contains [e]: the executable store must precede
-      this logical publication. This update neither writes memory nor paints.
-      It allocates the identifier of the new object in the registry, fresh
-      for the given set [X] and for the published entries, and splits its
-      status token between the allocator, the client and the [n] cells. *)
+End AllocatorCellsContracts.
 
-  Lemma allocator_service_commit_spec :
-    ∀ E next b e allocations (X : gset AId),
-      ↑Nallocator ⊆ E ->
-      (heap_b < next)%a ->
-      allocator_header_bounds next heap_e b e ->
-      allocator_entries_wf allocations ->
-      allocator_ctx -∗
-      ([∗ set] ι ∈ X, ∃ b' e', alloc_obj ι b' e') -∗
-      allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e e -∗
-      free_addr_token heap_b -∗
-      free_addrs e heap_e -∗
-      allocator_headers (heap_b ^+ 1)%a next allocations -∗
-      allocator_history allocations -∗
-      allocator_entries_res allocations -∗
-      allocator_header next b e (0%Z, 0%Z)
-      ={E}=∗
-      ∃ ι,
-        ⌜ι ∉ X⌝ ∗
-        allocator_service_data e ∗
-        alloc_obj ι b e ∗
-        allocator_allocation ι b e (0%Z, 0%Z) ∗
-        free_auth_held ι ∗
-        ([∗ list] _ ∈ finz.seq_between b e, ι ↦st{share (finz.dist b e)} ALive).
-  Proof.
-    intros E next b e allocations X HE Hnext [Hbase Hbounds] Hwf.
-    iIntros "#Hctx #HX Hslot Hroot Hfree Hheaders Hhistory Hres Hhead".
-    iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
-    iDestruct (allocator_entries_res_ids with "Hres") as "[Hres #Hids]".
-    iAssert ([∗ set] ι ∈ X ∪ list_to_set (allocator_entry_ids allocations),
-      ∃ b' e', alloc_obj ι b' e')%I as "#HX'".
-    { iApply (big_sepS_union_2 with "HX").
-      rewrite big_sepS_list_to_set; last exact (proj2 Hwf). iExact "Hids". }
-    iMod (allocator_registry_alloc E b e _ HE with "Hctx HX'")
-      as (ι Hι) "[#Hobj Htok]".
-    apply not_elem_of_union in Hι as [HιX Hιids].
-    rewrite elem_of_list_to_set in Hιids.
-    iMod (allocator_history_insert_spec allocations ι b e (0%Z, 0%Z) with "Hhistory")
-      as "[Hhistory Hreceipt]"; first by apply allocator_history_map_fresh.
-    iEval (rewrite (st_own_split_alloc ι (finz.seq_between b e))
-      finz_seq_between_length -free_auth_split) in "Htok".
-    iDestruct "Htok" as "[[Hkept Hheld] [Hshare Hcells]]".
-    iModIntro. iExists ι. iFrame "Hobj Hreceipt Hheld Hcells".
-    iSplit; first done.
-    iExists (allocations ++ [(b, e, (0%Z, 0%Z), ι)]).
-    iFrame "Hslot Hroot Hfree Hhistory".
-    iSplit; first (iPureIntro; unfold allocator_header_words in Hbase; solve_addr).
-    iSplitL "Hheaders Hhead".
-    { iApply (allocator_headers_snoc_spec with "Hheaders Hhead").
-      split; [exact Hbase|solve_addr]. }
-    iSplit; first (iPureIntro; by apply allocator_entries_wf_snoc).
-    rewrite allocator_entries_res_app. iFrame "Hres".
-    rewrite /allocator_entries_res /=. iFrame "Hobj".
-    iLeft. iFrame.
-  Qed.
+(** [malloc] appends the entry of [ι] over [[b, finish)], with its header at
+    [[next, b)], to the cells and the header list. *)
+Definition allocator_malloc_cell (b : Addr) (ι : AId) (a : Addr) :
+    AddrClaim * AllocStatus * bool :=
+  if decide (a < b)%a then (Unclaimed, ShadowLive, true) else (Claimed ι, ShadowLive, false).
 
-End AllocatorServiceContracts.
+Lemma allocator_cells_wf_malloc {MP : MachineParameters} next b finish allocations
+    live issued Cs ι :
+  allocator_chain (heap_b ^+ 1)%a next allocations ->
+  allocator_cells_wf next allocations live issued Cs ->
+  (heap_b < next)%a ->
+  (next + allocator_header_words)%a = Some b ->
+  (b < finish /\ finish <= heap_e)%a ->
+  ι ∉ issued ->
+  allocator_cells_wf finish (allocations ++ [(b, finish, (0%Z, 0%Z), ι)])
+    (live ∪ {[ι]}) (issued ∪ {[ι]})
+    (allocator_cells_update (finz.seq_between next finish) (allocator_malloc_cell b ι) Cs).
+Proof.
+  intros Hchain Hwf Hnext Hb Hfinish Hι.
+  unfold allocator_header_words in Hb.
+  destruct Hwf as [Hdom Hroot Hcursor Hlive Hclaimed Hlive_ids Hissued].
+  assert (∀ x, x ∈ allocator_entry_ids allocations -> x ≠ ι) as Hids.
+  { intros x Hx ->. apply Hι, Hissued. by apply elem_of_list_to_set. }
+  constructor.
+  - intros a Ha. rewrite lookup_allocator_cells_update. case_decide; [by eexists|by apply Hdom].
+  - rewrite lookup_allocator_cells_update decide_False //.
+    rewrite elem_of_finz_seq_between. solve_addr.
+  - intros a Ha. rewrite lookup_allocator_cells_update decide_False.
+    + apply Hcursor. solve_addr.
+    + rewrite elem_of_finz_seq_between. solve_addr.
+  - intros b' e' reserved ι' a Hin Hι' Ha.
+    rewrite lookup_allocator_cells_update.
+    apply elem_of_app in Hin as [Hin|Hin].
+    + pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hchain Hin) as Hbounds.
+      assert (ι' ≠ ι) as Hne.
+      { apply Hids. by eapply allocator_entry_ids_elem_of. }
+      rewrite decide_False; last (rewrite elem_of_finz_seq_between; solve_addr).
+      apply (Hlive b' e' reserved); [done|set_solver|done].
+    + apply list_elem_of_singleton in Hin. simplify_eq.
+      rewrite decide_True; last (rewrite elem_of_finz_seq_between; solve_addr).
+      rewrite /allocator_malloc_cell decide_False //. solve_addr.
+  - intros a ι' s hdr. rewrite lookup_allocator_cells_update.
+    case_decide as Ha.
+    + rewrite /allocator_malloc_cell. case_decide; intros Heq; simplify_eq.
+      exists b, finish, (0%Z, 0%Z). split; [set_solver|]. split; [set_solver|].
+      rewrite elem_of_finz_seq_between in Ha. solve_addr.
+    + intros Hcs. destruct (Hclaimed a ι' s hdr Hcs) as (b' & e' & reserved & Hin & Hι' & Ha').
+      exists b', e', reserved. split; [set_solver|]. split; [set_solver|done].
+  - rewrite allocator_entry_ids_app list_to_set_app_L /=. set_solver.
+  - rewrite allocator_entry_ids_app list_to_set_app_L /=. set_solver.
+Qed.
+
+(** [free] revokes the live entry of [ι] over [[b, e)]: its cells become
+    unclaimed and unpainted, with their memory back in the service invariant. *)
+Definition allocator_free_cell (a : Addr) : AddrClaim * AllocStatus * bool :=
+  (Unclaimed, ShadowLive, false).
+
+Lemma allocator_cells_wf_free {MP : MachineParameters} next allocations live issued Cs
+    b e reserved ι :
+  allocator_chain (heap_b ^+ 1)%a next allocations ->
+  allocator_entries_wf allocations ->
+  allocator_cells_wf next allocations live issued Cs ->
+  (b, e, reserved, ι) ∈ allocations ->
+  allocator_cells_wf next allocations (live ∖ {[ι]}) issued
+    (allocator_cells_update (finz.seq_between b e) allocator_free_cell Cs).
+Proof.
+  intros Hchain Hentries Hwf Hin.
+  pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hchain Hin) as Hbounds.
+  destruct Hwf as [Hdom Hroot Hcursor Hlive Hclaimed Hlive_ids Hissued].
+  constructor.
+  - intros a Ha. rewrite lookup_allocator_cells_update. case_decide; [by eexists|by apply Hdom].
+  - rewrite lookup_allocator_cells_update decide_False //.
+    rewrite elem_of_finz_seq_between. solve_addr.
+  - intros a Ha. rewrite lookup_allocator_cells_update decide_False.
+    + by apply Hcursor.
+    + rewrite elem_of_finz_seq_between. solve_addr.
+  - intros b' e' reserved' ι' a Hin' Hι' Ha.
+    apply elem_of_difference in Hι' as [Hι' Hne%not_elem_of_singleton].
+    rewrite lookup_allocator_cells_update decide_False.
+    + by apply (Hlive b' e' reserved').
+    + rewrite elem_of_finz_seq_between.
+      pose proof (allocator_chain_disjoint_ids _ _ _ _ _ _ _ _ _ _ _ Hchain Hin Hin' (not_eq_sym Hne)).
+      solve_addr.
+  - intros a ι' s hdr. rewrite lookup_allocator_cells_update.
+    case_decide as Ha; first (rewrite /allocator_free_cell; intros [=]).
+    intros Hcs. destruct (Hclaimed a ι' s hdr Hcs) as (b' & e' & reserved' & Hin' & Hι' & Ha').
+    exists b', e', reserved'. split; first done. split; last done.
+    apply elem_of_difference. split; first done.
+    rewrite not_elem_of_singleton. intros ->.
+    destruct (allocator_entries_wf_unique _ _ _ _ _ _ _ _ Hentries Hin Hin') as (-> & -> & _).
+    apply Ha. by apply elem_of_finz_seq_between.
+  - set_solver.
+  - done.
+Qed.

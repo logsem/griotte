@@ -609,3 +609,43 @@ Global Hint Resolve is_BinOp_LOr : core.
 Global Hint Resolve is_BinOp_LShiftL : core.
 Global Hint Resolve is_BinOp_LShiftR : core.
 Global Hint Resolve is_BinOp_Lt : core.
+
+Section binop_prov.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
+
+  (** [wp_binop_success_z_r] for an integer register with any identifier. *)
+  Lemma wp_binop_success_z_r_prov E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 r2 n2 π2
+      pc_a' :
+    decodeInstrW w.(lw) = ins →
+    is_BinOp ins dst (inl n1) (inr r2) →
+    (pc_a + 1)%a = Some pc_a' →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    dst ≠ cnull ->
+    r2 ≠ cnull ->
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ pc_a ↦ₐ w
+        ∗ r2 ↦ᵣ WInt n2 @@? π2
+        ∗ dst ↦ᵣ wdst
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ pc_a ↦ₐ w
+          ∗ r2 ↦ᵣ WInt n2 @@? π2
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
+      }}}.
+  Proof.
+    iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [| * Hfail].
+    { iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
+              (insert_insert_ne _ dst PC) // insert_insert_eq.
+      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+    { destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
+  Qed.
+
+End binop_prov.

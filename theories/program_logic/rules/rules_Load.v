@@ -2024,3 +2024,86 @@ Section griotte_lang_rules.
   Qed.
 
 End griotte_lang_rules.
+
+Section load_exact.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
+
+  (** Loading an identifier-less word that satisfies [load_exact_cond]
+      (e.g. a heap root, which has authority) keeps it exactly: the fourth
+      variant of the load rule (§4.5). *)
+  Lemma wp_load_success_exact E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w''
+      p g b e a pc_a' πs :
+    is_shadow_address a = false →
+    w'.(lprov) = None →
+    load_exact_cond w' →
+    decodeInstrW w.(lw) = Load r1 r2 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    readAllowed p = true →
+    withinBounds b e a = true →
+    (pc_a + 1)%a = Some pc_a' →
+    a ≠ pc_a →
+    r1 ≠ cnull → r2 ≠ cnull → r1 ≠ PC → r2 ≠ PC → r1 ≠ r2 →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ w ∗
+        ▷ r1 ↦ᵣ w'' ∗
+        ▷ r2 ↦ᵣ WCap true p g b e a @@? πs ∗
+        ▷ a ↦ₐ w' }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ w ∗
+        r1 ↦ᵣ lload_word p w' ∗
+        r2 ↦ᵣ WCap true p g b e a @@? πs ∗
+        a ↦ₐ w' }}}.
+  Proof.
+    iIntros (Hshadow Hπ Hexact Hinstr Hvpc Hra Hwb Hpca' Hne Hr1 Hr2 Hr1PC Hr2PC Hr12 φ)
+      "(>HPC & >Hi & >Hr1 & >Hr2 & >Ha) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr2 Hr1") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
+    assert ((a =? pc_a)%Z = false) as Hneq.
+    { apply Z.eqb_neq. intros Heq. apply Hne. by apply finz_to_z_eq. }
+    iDestruct (memMap_resource_2gen_clater_dq pc_a a (DfracOwn 1) (DfracOwn 1) _ _
+                 (λ a dq w, a ↦ₐ{dq} w)%I with "[Hi] [Ha]")
+      as (mem dfracs) "[Hmem %Hmem]".
+    { iNext. iExact "Hi". }
+    { cbn. rewrite Hneq. iNext. iExact "Ha". }
+    cbn in Hmem; rewrite Hneq in Hmem; destruct Hmem as [-> ->].
+    iApply (wp_load_general _ pc_p pc_g pc_b pc_e pc_a pc_π r1 r2 w _ _ _ ∅ DfracDiscarded LoadPlain
+      with "[$Hmem $Hmap]").
+    { done. }
+    { done. }
+    { by simplify_map_eq. }
+    { rewrite /regs_of !dom_insert_L. set_solver+. }
+    { by simplify_map_eq. }
+    { intros p0 g0 b0 e0 ea (Hreg & _ & _). simplify_map_eq. rewrite Hshadow.
+      destruct (is_revoker_address ea); eauto. }
+    { by rewrite !dom_insert_L. }
+    { by rewrite big_sepM_empty. }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & _ & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 a0 loadv loadv' Hallow Hsh Hlook Hpost Hinc
+                      | p0 g0 b0 e0 a0 heap_a revoked Hallow Hsh _ Hlook _
+                      | p0 g0 b0 e0 a0 Hallow Hrevk Hlook _
+                      | Hfail].
+    - destruct Hallow as (Hreg & _ & _). simplify_map_eq.
+      destruct Hpost as (_ & _ & Hnone & _).
+      rewrite (Hnone Hπ Hexact) in Hinc.
+      rewrite /incrementPC /incrementPC_gen in Hinc. simplify_map_eq.
+      rewrite (insert_insert_ne _ r1 PC) // insert_insert_eq.
+      rewrite (insert_insert_ne _ r1 r2) // insert_insert_eq.
+      iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hr2 & Hr1)"; eauto.
+      iDestruct (memMap_resource_2gen_d_dq (λ a dq w, a ↦ₐ{dq} w)%I pc_a a0
+                   (DfracOwn 1) (DfracOwn 1) with "[Hmem]") as "[Hi Ha]".
+      { iExists _, _. iFrame. iPureIntro. cbn. by rewrite Hneq. }
+      cbn. rewrite Hneq.
+      iApply "Hφ". iFrame.
+    - by rewrite lookup_empty in Hlook.
+    - destruct Hallow as (Hreg & _ & _). simplify_map_eq.
+    - exfalso. destruct Hfail.
+      all: simplify_map_eq; cbn in *; try congruence.
+      all: try (match goal with H : _ ∨ _ |- _ => destruct H; congruence end).
+      all: rewrite finz_add_0 in e2; simplify_eq.
+      + destruct o; congruence.
+      + eapply incrementPC_None_inv in e5; [|by simplify_map_eq]; congruence.
+      + by simplify_map_eq.
+  Qed.
+
+End load_exact.
