@@ -11,7 +11,7 @@ Section Fetch.
   Lemma fetch_spec
     (n : Z) (rdst rscratch1 rscratch2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (wentry wdst w1 w2 : Word)
+    (wentry : Word) (wdst w1 w2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let fetch_ := (fetch_instrs n rdst rscratch1 rscratch2) in

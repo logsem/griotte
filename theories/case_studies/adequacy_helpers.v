@@ -11,13 +11,13 @@ Section adequacy_helpers.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters} .
 
     Lemma initialise_assert_compartment
       {E : coPset} (assert_cmpt : cmptAssert) (assertN flagN : namespace) :
-      ([∗ map] a↦v ∈ mk_initial_assert assert_cmpt, a ↦ₐ v)
+      ([∗ map] a↦v ∈ mk_initial_assert assert_cmpt, a ↦ₐ lword_of_word v)
       ={E}=∗
       inv flagN (flag_assert assert_cmpt ↦ₐ WInt 0) ∗
       na_inv cerise_nais assertN
@@ -55,7 +55,7 @@ Section adequacy_helpers.
       { rewrite /assert_inv. iSplit.
         { iPureIntro. apply (assert_code_nonheap assert_cmpt). }
         iExists (cap_assert assert_cmpt).
-        rewrite /codefrag /region_pointsto.
+        rewrite /codefrag /region_pointsto big_sepL2_fmap_r.
         replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)%a
           with (cap_assert assert_cmpt).
         2: { pose proof (assert_code_size assert_cmpt); solve_addr+H. }
@@ -72,14 +72,14 @@ Section adequacy_helpers.
     Lemma initialise_switcher_compartment
       {E : coPset} (switcher_cmpt : cmptSwitcher) (switcherN : namespace) :
       let swlayout :=  (cmptSwitcher_switcherLayout switcher_cmpt) in
-      ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ y) -∗
+      ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ lword_of_word y) -∗
       can_alloc_pred (ot_switcher switcher_cmpt) -∗
       cstack_full [] -∗
       mtdc ↦ₛᵣ WCap true RWL Local (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
       na_inv cerise_nais switcherN switcher_inv ∗
-      [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ [[ ( stack_content switcher_cmpt ) ]].
+      [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ [[ lword_of_word <$> stack_content switcher_cmpt ]].
     Proof.
       intros.
       iIntros "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc".
@@ -106,42 +106,47 @@ Section adequacy_helpers.
       iAssert ( switcher_preamble.switcher_inv )
         with "[Hswitcher Hswitcher_sealing Htrusted_stack Hcstk_full Hmtdc]" as "Hswitcher".
       {
-        rewrite /switcher_inv /codefrag /region_pointsto /=.
+        rewrite /switcher_inv /codefrag /region_pointsto.
+        setoid_rewrite big_sepL2_fmap_r.
         replace ((a_switcher_call switcher_cmpt) ^+ length switcher_instrs)%a
           with (e_switcher switcher_cmpt).
         2: { pose proof (switcher_size switcher_cmpt) as H.
              solve_addr+H.
         }
         iFrame "∗#".
-        iExists (tl (trusted_stack_content switcher_cmpt)).
+        iExists (lword_of_word <$> tl (trusted_stack_content switcher_cmpt)).
         iSplitR; first (iPureIntro; apply (ot_switcher_size switcher_cmpt)).
         pose proof (trusted_stack_content_base_zeroed switcher_cmpt) as Htstk_head.
         pose proof (trusted_stack_size switcher_cmpt) as Htstk_size.
         destruct (trusted_stack_content switcher_cmpt); cbn in Htstk_head; simplify_eq.
         rewrite finz_seq_between_cons; last solve_addr+Htstk_size.
         iDestruct "Htrusted_stack" as "[Hbase_stack Htrusted_stack]".
+        rewrite big_sepL2_fmap_r.
         iFrame.
         iSplitL; last (iPureIntro ; by rewrite finz_add_0).
-        iSplit; iPureIntro; solve_addr.
+        iPureIntro; subst swlayout; cbn; solve_addr.
       }
       iMod (na_inv_alloc cerise_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
 
       iDestruct (mkregion_prepare with "[Hstack]") as ">Hstack"; auto.
       { apply (stack_size switcher_cmpt). }
+      rewrite /region_pointsto big_sepL2_fmap_r.
+      iFrame "∗#".
+      done.
     Qed.
 
     Lemma initialise_compartment ( C_cmpt : cmpt ) :
       let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
       let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
-      ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ y)
+      ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
       ==∗
-      [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ cmpt_imports C_cmpt ]] ∗
-      [[ (cmpt_a_code C_cmpt), (cmpt_e_pcc C_cmpt) ]] ↦ₐ [[ cmpt_code C_cmpt ]] ∗
-      [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ cmpt_data C_cmpt ]] ∗
-      [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ cmpt_static_sealed C_cmpt ]] ∗
+      [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗
+      [[ (cmpt_a_code C_cmpt), (cmpt_e_pcc C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_code C_cmpt ]] ∗
+      [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] ∗
+      [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_static_sealed C_cmpt ]] ∗
       cmpt_exp_tbl_pcc C_cmpt ↦ₐ PCC ∗
       cmpt_exp_tbl_cgp C_cmpt ↦ₐ CGP ∗
-      [[ (cmpt_exp_tbl_entries_start C_cmpt), (cmpt_exp_tbl_entries_end C_cmpt) ]] ↦ₐ [[ cmpt_exp_tbl_entries C_cmpt ]].
+      [[ (cmpt_exp_tbl_entries_start C_cmpt), (cmpt_exp_tbl_entries_end C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_exp_tbl_entries C_cmpt ]].
     Proof.
       intros PCC CGP.
       iIntros "Hcmpt_C".
@@ -183,6 +188,7 @@ Section adequacy_helpers.
       rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp C_cmpt))
       ; last (apply cmpt_exp_tbl_cgp_size).
       rewrite !big_sepL2_singleton.
+      rewrite /region_pointsto !big_sepL2_fmap_r.
       iFrame.
       done.
     Qed.
@@ -191,16 +197,16 @@ Section adequacy_helpers.
       let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
       let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
       let exp_tbl_addrs := (finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)) in
-      ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ y)
+      ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
       ={E}=∗
-      [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ cmpt_imports C_cmpt ]] ∗
-      [[ (cmpt_a_code C_cmpt), (cmpt_e_pcc C_cmpt) ]] ↦ₐ [[ cmpt_code C_cmpt ]] ∗
-      [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ cmpt_data C_cmpt ]] ∗
-      [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ cmpt_static_sealed C_cmpt ]] ∗
+      [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗
+      [[ (cmpt_a_code C_cmpt), (cmpt_e_pcc C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_code C_cmpt ]] ∗
+      [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] ∗
+      [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_static_sealed C_cmpt ]] ∗
       inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ PCC) ∗
       inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ CGP) ∗
       ([∗ list] a;v ∈ exp_tbl_addrs ; cmpt_exp_tbl_entries C_cmpt,
-         inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ v)).
+         inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ lword_of_word v)).
     Proof.
       intros PCC CGP exp_tbl_addrs.
       iIntros "Hcmpt_C".
@@ -213,7 +219,7 @@ Section adequacy_helpers.
 
       iStopProof.
       subst exp_tbl_addrs.
-      rewrite /region_pointsto.
+      rewrite /region_pointsto big_sepL2_fmap_r.
       generalize (cmpt_exp_tbl_entries C_cmpt) as lv.
       generalize (finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)) as la.
       clear PCC CGP.

@@ -11,8 +11,8 @@ Section region_alloc_cmpt.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
@@ -22,10 +22,10 @@ Section region_alloc_cmpt.
     let exported_word g a := (SCap true RO g (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) a) in
     ((exported_word Global) <$> export_tbl_addrs) ++ ((exported_word Local) <$> export_tbl_addrs).
 
-  Definition exported_entries_words (C_cmpt : cmpt) : gset Word :=
-    list_to_set (WSealable <$> (exported_entries_sealable C_cmpt)).
-  Definition exported_entries_sealed (C_cmpt : cmpt) : gset Word :=
-    list_to_set (WSealed ot_switcher <$> (exported_entries_sealable C_cmpt)).
+  Definition exported_entries_words (C_cmpt : cmpt) : gset LWord :=
+    list_to_set ((λ sb, lword_of_word (WSealable sb)) <$> (exported_entries_sealable C_cmpt)).
+  Definition exported_entries_sealed (C_cmpt : cmpt) : gset LWord :=
+    list_to_set ((λ sb, lword_of_word (WSealed ot_switcher sb)) <$> (exported_entries_sealable C_cmpt)).
 
   Definition std_update_compartment (W : WORLD) (C_cmpt : cmpt) :=
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
@@ -195,9 +195,9 @@ Section region_alloc_cmpt.
     Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
 
-    ([∗ list] k;v ∈ imports_addrs ; cmpt_imports C_cmpt, k ↦ₐ v) -∗
-    ([∗ list] k;v ∈ code_addrs ; cmpt_code C_cmpt, k ↦ₐ v) -∗
-    ([∗ list] k;v ∈ data_addrs ; cmpt_data C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ imports_addrs ; lword_of_word <$> cmpt_imports C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ code_addrs ; lword_of_word <$> cmpt_code C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ data_addrs ; lword_of_word <$> cmpt_data C_cmpt, k ↦ₐ v) -∗
 
     (
       (
@@ -207,7 +207,7 @@ Section region_alloc_cmpt.
       )
       ==∗
       world_interp_open Wfinal C (LNonHeap <$> imports_addrs) ∗
-      ([∗ list] v ∈ cmpt_imports C_cmpt, interp_in_memC (Wfinal, C, v) ∗ future_priv_mono C interp_in_memC v) ∗
+      ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_memC (Wfinal, C, v) ∗ future_priv_mono C interp_in_memC v) ∗
       ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
     ) -∗
 
@@ -218,7 +218,7 @@ Section region_alloc_cmpt.
     world_interp Wfinal C ∗
     interp Wfinal C pcc_cap ∗
     interp Wfinal C cgp_cap ∗
-    ([∗ list] v ∈ cmpt_imports C_cmpt, interp_in_mem RWL Wfinal C v) ∗
+    ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL Wfinal C v) ∗
     ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
   .
   Proof.
@@ -244,32 +244,32 @@ Section region_alloc_cmpt.
     iIntros "HC_imports HC_code HC_data Himport_interp Hworld_C".
 
     iMod (world_interp_extend_perm_sepL2_nonheap W C
-            code_addrs (cmpt_code C_cmpt)
+            code_addrs (lword_of_word <$> cmpt_code C_cmpt)
             RX interp_in_memC
            with "Hworld_C [HC_code]") as "(Hworld_C & #HC_code)".
     { exact Hcode_nonheap. }
     { done. }
     { auto. }
     {
-      iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-                                 pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "[HC_code]").
-      - intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
-        pose proof (Forall_lookup_1 _ _ _ _ C_code Hv2) as Hncap.
-        destruct v2; [| by inversion Hncap..].
-        iSplit; first done.
-        iSplit; first iApply interp_int.
-        rewrite /mono_permanent.
-        iApply future_priv_mono_interp_in_mem_z.
-      - iFrame.
+      rewrite !big_sepL2_fmap_r.
+      iApply (big_sepL2_mono with "HC_code").
+      intros k v1 v2 Hv1 Hv2. cbn. iIntros "Hv".
+      pose proof (Forall_lookup_1 _ _ _ _ C_code Hv2) as Hncap.
+      destruct v2; [| by inversion Hncap..].
+      iFrame "Hv".
+      iSplit; first done.
+      iSplit; first iApply interp_int.
+      rewrite /mono_permanent.
+      iApply future_priv_mono_interp_in_mem_z.
     }
 
     set ( W1 := (std_update_multiple W code_addrs Permanent)).
 
     iMod (world_interp_extend_perm_sepL2_open_nonheap _ C
             data_addrs
-            (cmpt_data C_cmpt)
+            (lword_of_word <$> cmpt_data C_cmpt)
             RW interp_in_memC
-           with "Hworld_C [HC_data] []") as "(Hworld_C & #HC_data & _)".
+           with "Hworld_C HC_data []") as "(Hworld_C & #HC_data & _)".
     { exact Hdata_nonheap. }
     { apply finz_seq_between_NoDup. }
     { done. }
@@ -290,12 +290,8 @@ Section region_alloc_cmpt.
       apply (Hdisjoint a); auto.
     }
     {
-      iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-                                 pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "HC_data").
-      intros k v1 v2 Hv1 Hv2. iIntros; iFrame.
-    }
-    {
       iClear "#".
+      rewrite big_sepL_fmap.
       clear -C_data Hcgp_shadow Hcgp_heap.
       generalize dependent (cmpt_data C_cmpt); iIntros (l Hl).
       iIntros "#Hrels".
@@ -353,7 +349,7 @@ Section region_alloc_cmpt.
         apply list_elem_of_lookup_2, elem_of_finz_seq_between in Ha'.
         assert ((cmpt_b_cgp C_cmpt) <= a' < (cmpt_e_cgp C_cmpt))%a as Ha'' by solve_addr.
         apply elem_of_finz_seq_between in Ha''.
-        rewrite (addr_key_disjoint _ _ _ a' Hcgp_heap Ha'').
+        rewrite /addr_key.
         iDestruct (big_sepL_elem_of with "Hrels") as "Hrel_a'"; eauto.
         assert (
             (std (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent))
@@ -374,7 +370,7 @@ Section region_alloc_cmpt.
 
     iMod (world_interp_extend_perm_sepL2_open'_nonheap W2 C
             imports_addrs
-            (cmpt_imports C_cmpt)
+            (lword_of_word <$> cmpt_imports C_cmpt)
             RX interp_in_memC ot_switcher
             (exported_entries_words C_cmpt)
             (exported_entries_sealed C_cmpt)
@@ -431,7 +427,7 @@ Section region_alloc_cmpt.
       iSplitR; last (iPureIntro; split; [exact Hpcc_shadow|apply heap_cap_valid_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
-      rewrite (addr_key_disjoint _ _ _ a Hpcc_heap); last by eapply list_elem_of_lookup_2.
+      rewrite /addr_key.
       iExists RX, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -494,7 +490,7 @@ Section region_alloc_cmpt.
       iSplitR; last (iPureIntro; split; [exact Hcgp_shadow|apply heap_cap_valid_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
-      rewrite (addr_key_disjoint _ _ _ a Hcgp_heap); last by eapply list_elem_of_lookup_2.
+      rewrite /addr_key.
       iExists RW, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -545,9 +541,9 @@ Section region_alloc_cmpt.
     Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
 
-    ([∗ list] k;v ∈ imports_addrs ; cmpt_imports C_cmpt, k ↦ₐ v) -∗
-    ([∗ list] k;v ∈ code_addrs ; cmpt_code C_cmpt, k ↦ₐ v) -∗
-    ([∗ list] k;v ∈ data_addrs ; cmpt_data C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ imports_addrs ; lword_of_word <$> cmpt_imports C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ code_addrs ; lword_of_word <$> cmpt_code C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ data_addrs ; lword_of_word <$> cmpt_data C_cmpt, k ↦ₐ v) -∗
     (
       (
         interp Wfinal C pcc_cap ∗
@@ -556,7 +552,7 @@ Section region_alloc_cmpt.
       )
       ==∗
       world_interp_open Wfinal C (LNonHeap <$> imports_addrs) ∗
-      ([∗ list] v ∈ cmpt_imports C_cmpt, interp_in_memC (Wfinal, C, v) ∗ future_priv_mono C interp_in_memC v) ∗
+      ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_memC (Wfinal, C, v) ∗ future_priv_mono C interp_in_memC v) ∗
       ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
     )
     -∗
@@ -568,7 +564,7 @@ Section region_alloc_cmpt.
     world_interp Wfinal C ∗
     interp Wfinal C pcc_cap ∗
     interp Wfinal C cgp_cap ∗
-    ([∗ list] v ∈ cmpt_imports C_cmpt, interp_in_mem RWL Wfinal C v) ∗
+    ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL Wfinal C v) ∗
     ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
   .
   Proof.
@@ -587,7 +583,7 @@ Section region_alloc_cmpt.
       iSplitR; last (iPureIntro; split; [exact Hpcc_shadow|apply heap_cap_valid_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
-      rewrite (addr_key_disjoint _ _ _ a Hpcc_heap); last by eapply list_elem_of_lookup_2.
+      rewrite /addr_key.
       iExists RX, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -656,7 +652,7 @@ Section region_alloc_cmpt.
       iSplitR; last (iPureIntro; split; [exact Hcgp_shadow|apply heap_cap_valid_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
-      rewrite (addr_key_disjoint _ _ _ a Hcgp_heap); last by eapply list_elem_of_lookup_2.
+      rewrite /addr_key.
       iExists RW, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.

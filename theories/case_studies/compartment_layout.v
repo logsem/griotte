@@ -167,6 +167,8 @@ Section CmptLayout.
 
         trusted_stack_content_base_zeroed :
         head trusted_stack_content = Some (WInt 0);
+        trusted_stack_content_ints :
+        Forall is_z trusted_stack_content;
 
         (* compartment's stack *)
         b_stack : Addr;
@@ -890,6 +892,129 @@ Section CmptLayout.
       intros a. rewrite !elem_of_list_to_set !elem_of_finz_seq_between. solve_addr.
     - eapply mem_avoids_mmio_region; first exact (assert_flag_disjoint_from_mmio C).
       by rewrite dom_assert_flag_mregion.
+  Qed.
+
+  (** ** Heap roots of the initial memory
+
+      The words of an initial memory with heap authority are based on the
+      heap roots [H] of [cerise_ghost_init] ([gi_mem]). *)
+  Definition word_rooted (H : gset Addr) (w : Word) : Prop :=
+    ∀ b, get_tag w = true → heap_authority_base w = Some b → b ∈ H.
+
+  Definition mem_rooted (H : gset Addr) (m : Mem) : Prop :=
+    ∀ a w, m !! a = Some w → word_rooted H w.
+
+  Lemma word_rooted_nonheap H w : heap_cap_base w = None → word_rooted H w.
+  Proof.
+    intros Hw b _ Hb. apply heap_authority_base_heap_cap_base in Hb. congruence.
+  Qed.
+
+  Lemma word_rooted_not_heap_cap H w : is_heap_cap w = false → word_rooted H w.
+  Proof.
+    intros Hw. apply word_rooted_nonheap. rewrite /is_heap_cap in Hw.
+    by destruct (heap_cap_base w).
+  Qed.
+
+  Lemma word_rooted_int H z : word_rooted H (WInt z).
+  Proof. by apply word_rooted_nonheap. Qed.
+
+  Lemma word_rooted_cap_nonheap H t p g b e a :
+    is_heap_address b = false → word_rooted H (WCap t p g b e a).
+  Proof. intros Hb. apply word_rooted_nonheap. by rewrite /heap_cap_base /= Hb. Qed.
+
+  Lemma word_rooted_ints H (ws : list Word) :
+    Forall is_z ws → Forall (word_rooted H) ws.
+  Proof.
+    intros Hws. eapply Forall_impl; first exact Hws.
+    intros [] Hz; try done; apply word_rooted_int.
+  Qed.
+
+  (** An initial data word is an integer or a capability inside the data
+      region, which is outside the heap. *)
+  Lemma word_rooted_initial_data H (C : cmpt) w :
+    is_initial_data_word C w → word_rooted H w.
+  Proof.
+    intros [Hz|Hin].
+    - destruct w; try done; apply word_rooted_int.
+    - intros b Ht Hb.
+      destruct w as [z|[t p g b' e' a|t p g b' e' a]|t p g b' e' a|o sb];
+        cbn in Hin; try done.
+      destruct g; try done. destruct Hin as (_ & Hlo & Hhi).
+      rewrite /heap_authority_base in Hb. case_decide as Hlt; last done.
+      rewrite /heap_cap_base /= in Hb.
+      destruct (is_heap_address b') eqn:Hheap; last done. exfalso.
+      pose proof (cmpt_cgp_disjoint_from_heap C) as Hdisj.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hdisj.
+      apply (Hdisj b'); apply elem_of_finz_seq_between;
+        [solve_addr|by apply withinBounds_true_iff].
+  Qed.
+
+  Lemma word_rooted_instrs H (l : list instr) :
+    Forall (word_rooted H) (encodeInstrsW l).
+  Proof. apply Forall_fmap, Forall_true. intros i. apply word_rooted_int. Qed.
+
+  Lemma word_rooted_code H (l : list (list instr)) :
+    Forall (word_rooted H) (concat (encodeInstrsW <$> l)).
+  Proof. apply Forall_concat, Forall_fmap, Forall_true. intros. apply word_rooted_instrs. Qed.
+
+  Lemma mem_rooted_union H m1 m2 :
+    mem_rooted H m1 → mem_rooted H m2 → mem_rooted H (m1 ∪ m2).
+  Proof. intros H1 H2 a w [Ha|[_ Ha] ]%lookup_union_Some_raw; eauto. Qed.
+
+  Lemma mem_rooted_mkregion H b e ws :
+    Forall (word_rooted H) ws → mem_rooted H (mkregion b e ws).
+  Proof.
+    intros Hws a w Ha. apply elem_of_list_to_map_2, elem_of_zip_r in Ha.
+    by eapply Forall_forall.
+  Qed.
+
+  Lemma mem_rooted_initial_heap H : mem_rooted H initial_heap_memory.
+  Proof.
+    intros a w Ha. rewrite /initial_heap_memory lookup_gset_to_gmap_Some in Ha.
+    destruct Ha as [_ <-]. apply word_rooted_int.
+  Qed.
+
+  Lemma mem_rooted_initial_cmpt H (C : cmpt) :
+    Forall (word_rooted H) (cmpt_imports C) →
+    Forall (word_rooted H) (cmpt_code C) →
+    Forall (word_rooted H) (cmpt_data C) →
+    Forall (word_rooted H) (cmpt_static_sealed C) →
+    Forall (word_rooted H) (cmpt_exp_tbl_entries C) →
+    mem_rooted H (mk_initial_cmpt C).
+  Proof.
+    intros Himports Hcode Hdata Hstatic Hentries.
+    rewrite /mk_initial_cmpt /cmpt_pcc_mregion /cmpt_cgp_mregion
+      /cmpt_static_sealed_mregion /cmpt_exp_tbl_mregion.
+    repeat apply mem_rooted_union; apply mem_rooted_mkregion; try done.
+    - repeat constructor. apply word_rooted_cap_nonheap, cmpt_pcc_base_not_heap.
+    - repeat constructor. apply word_rooted_cap_nonheap, cmpt_cgp_not_heap_range.
+  Qed.
+
+  Lemma mem_rooted_initial_switcher H (C : cmptSwitcher) :
+    Forall (word_rooted H) (stack_content C) →
+    mem_rooted H (mk_initial_switcher C).
+  Proof.
+    intros Hstack.
+    pose proof (word_rooted_ints H _ (trusted_stack_content_ints C)) as Htrusted.
+    rewrite /mk_initial_switcher /cmpt_switcher_code_mregion
+      /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
+    repeat apply mem_rooted_union; apply mem_rooted_mkregion; try done.
+    - repeat constructor. by apply word_rooted_nonheap.
+    - rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
+      intros l. apply word_rooted_instrs.
+  Qed.
+
+  Lemma mem_rooted_initial_assert H (C : cmptAssert) :
+    is_heap_address (flag_assert C) = false →
+    mem_rooted H (mk_initial_assert C).
+  Proof.
+    intros Hflag.
+    rewrite /mk_initial_assert /cmpt_assert_code_mregion
+      /cmpt_assert_cap_mregion /cmpt_assert_flag_mregion.
+    repeat apply mem_rooted_union; apply mem_rooted_mkregion.
+    - apply word_rooted_instrs.
+    - repeat constructor. by apply word_rooted_cap_nonheap.
+    - repeat constructor. apply word_rooted_int.
   Qed.
 
 End CmptLayout.

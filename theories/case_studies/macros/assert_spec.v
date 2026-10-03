@@ -50,7 +50,7 @@ Section Assert_subroutine.
 
   Lemma assert_subroutine_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret wnull : Word)
+    ( n1 n2 flag : Z ) ( wret : Word) ( wnull : LWord)
     (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
     ↑N ⊆ E →
     disjoint_from_shadow pc_b pc_e →
@@ -116,7 +116,7 @@ Section Assert_subroutine.
 
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret wnull : Word)
+    ( n1 n2 flag : Z ) ( wret : Word) ( wnull : LWord)
     (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
     ↑N ⊆ E →
     n1 = n2 →
@@ -165,7 +165,7 @@ Section Assert.
     (n : Z) (rdst rscratch1 rscratch2 : RegName)
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
-    (n1 n2 : Z) (wdst wcra w1 w2 wnull : Word)
+    (n1 n2 : Z) (wdst wcra w1 w2 wnull : LWord)
     (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
 
     let assert_macro := assert_instrs n rdst rscratch1 rscratch2 in
