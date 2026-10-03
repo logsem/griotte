@@ -135,7 +135,7 @@ Section Switcher_KtK_Call.
 
     replace (@finz.to_z MemNum f3)%Z with ((@finz.to_z MemNum a_tstk) + 1)%Z by solve_addr.
     replace f4 with a_tstk2 by (subst a_tstk2; solve_addr).
-    repeat rewrite store_word_isWL; try reflexivity.
+    repeat rewrite lstore_word_isWL; try reflexivity.
     iApply "Hpost"; iLeft; iFrame.
     iPureIntro; split;[split|].
     - subst a_tstk2; solve_addr.
@@ -295,10 +295,10 @@ Section Switcher_KtK_Call.
 
   Lemma switcher_cc_specification_known_to_known
     (Nswitcher : namespace)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
-    (stk_mem : list Word)
-    (arg_rmap rmap : Reg)
+    (stk_mem : list LWord)
+    (arg_rmap rmap : LReg)
     (cstk : CSTK)
     (nargs : nat)
     (E : coPset)
@@ -348,7 +348,7 @@ Section Switcher_KtK_Call.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* Entry Point Invariant *)
     ∗ inv (export_table_PCCN Nexp_tbl)             ( btbl_tgt ↦ₐ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt)
@@ -410,7 +410,7 @@ Section Switcher_KtK_Call.
                 ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
                 ∗ na_own cerise_nais E
                 (* Registers *)
-                ∗ PC ↦ᵣ updatePcPerm (rcra)
+                ∗ PC ↦ᵣ lupdatePcPerm (rcra)
                 ∗ cgp ↦ᵣ rcgp
                 ∗ cra ↦ᵣ rcra
                 ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -436,7 +436,7 @@ Section Switcher_KtK_Call.
   Proof.
     intros astk4 wct1_caller callee_stk_region frame.
     iIntros (Hstk_shadow Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap Hstk_heap HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hdom Harg_rmap)
-      "(#Halloc & #Hswitcher & Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & Hinv_exp_tbl_entry
+      "(#Hswitcher & Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
 
     assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
@@ -524,7 +524,7 @@ Section Switcher_KtK_Call.
       iExtractList "Hargs" [ca0;ca1] as ["Hca0";"Hca1"].
       iApply (switcher_call_block_16_spec_restore _ _ _ _ _ _ _ _ _ _ with
         "[- $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hcsp $Hca0 $Hca1
-          $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Halloc $Hcode]"); eauto.
+          $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); eauto.
       { solve_addr+Ha_tstk_exhausted Hcont_switcher_region. }
       iNext. iIntros (rcgp rcra rcs0 rcs1) "%Hrestored".
       iIntros "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
@@ -552,7 +552,7 @@ Section Switcher_KtK_Call.
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
       iHide "Hcode" as hcode.
 
-      iDestruct (big_sepM_insert _ _ cnull (WInt 0) with "[Hcnull $Hregs]") as "Hregs".
+      iDestruct (big_sepM_insert _ _ cnull (lword_of_word (WInt 0)) with "[Hcnull $Hregs]") as "Hregs".
       { by simplify_map_eq. }
       { iFrame; done. }
       map_simpl "Hregs".

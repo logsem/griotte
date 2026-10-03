@@ -23,33 +23,17 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma related_sts_heap_std_wf_back h h' :
-    related_sts_heap_std h h' -> heap_wf h' -> heap_wf h.
-  Proof.
-    intros [Hkeep _] Hwf ι o Hι.
-    destruct (Hkeep ι o Hι) as (o' & Hι' & Hbase & Hend & _).
-    destruct (Hwf ι o' Hι') as (Hlt' & Hdisj').
-    split; first by rewrite Hbase Hend.
-    intros ι' oc a Hc Ha Hca.
-    destruct (Hkeep ι' oc Hc) as (oc' & Hc' & Hbasec & Hendc & _).
-    eapply Hdisj'; eauto.
-    - unfold alloc_object_contains in *. by rewrite -Hbase -Hend.
-    - unfold alloc_object_contains in *. by rewrite -Hbasec -Hendc.
-  Qed.
-
   Lemma temp_resources_mono_pub W W' C φ a p :
-    heap_wf (heap_std W') ->
     related_sts_pub_world W W' ->
     temp_resources W C φ a p -∗
     temp_resources W' C φ a p.
   Proof.
-    iIntros (Hheap_wf Hrelated) "Htemp".
+    iIntros (Hrelated) "Htemp".
     iDestruct "Htemp" as (v) "(%Hp & Ha & #Hmono & Hφ)".
     iExists v. iFrame "Ha Hmono %".
     destruct (isWL p); last destruct (isDL p);
-      iApply ("Hmono" with "[] [] Hφ").
+      iApply ("Hmono" with "[] Hφ").
     all: try (iPureIntro; exact Hrelated).
-    all: try (iPureIntro; exact Hheap_wf).
     iPureIntro. by apply related_sts_pub_priv_world.
   Qed.
 
@@ -61,14 +45,12 @@ Section switcher_helper.
     RevokedResources (close_list lfull Wcur) C l.
   Proof.
     iIntros (Hrelated) "Hworld Hres".
-    iDestruct (world_interp_heap_wf with "Hworld") as %Hheap_wf.
     iSplitL "Hworld"; first done.
     iAssert (RevokedResources Wsrc C l) with "[Hres]" as "Hres".
     { rewrite (RevokedResources_eq_all Wsrc C l). iExact "Hres". }
     iApply (RevokedResources_mono_pub Wsrc (close_list lfull Wcur) C l l
       with "Hres").
-    - by rewrite close_list_heap.
-    - exact Hrelated.
+    exact Hrelated.
   Qed.
 
   Lemma world_interp_rel_status_some W C a p φ :
@@ -88,7 +70,7 @@ Section switcher_helper.
   (* TODO USED IN INTERP RETURN *)
   Lemma open_world_interp_cframe_from_world_interp
     (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
-    (wret wcgp0 wcs2 wcs3 : Word) (ccrel : caller_callee_relation)
+    (wret wcgp0 wcs2 wcs3 : LWord) (ccrel : caller_callee_relation)
     :
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
@@ -148,7 +130,7 @@ Section switcher_helper.
       iFrame.
       iDestruct "Hres" as "(%lv & [Hlv Hres])".
       iDestruct (big_sepL2_length with "Hlv") as "%Hlv_len".
-      repeat (destruct lv; try done).
+      destruct lv as [|w [|w0 [|w1 [|w2 [|] ] ] ] ]; try done.
       iExists w, w0, w1, w2.
       iFrame.
       iSplitL "Hlv".
@@ -186,7 +168,7 @@ Section switcher_helper.
     -∗
 
     world_interp_open W C (LNonHeap <$> (l_callee_stack_frame ++ l_register_save_area)) ∗
-    (∃ (lv : list Word),
+    (∃ (lv : list LWord),
         ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, a ↦ₐ v)
         ∗ ▷ StackOpenWorldResources interp W C l_callee_stack_frame lv
     )
@@ -230,14 +212,14 @@ Section switcher_helper.
             ⌜ l ≡ₚ (LNonHeap <$> [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a])++l' ⌝
             ∗ RevokedResources Wfixed C l'
             ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
-                 ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                   ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                 ∃ (p : Perm) (φ : WORLD * CmptName * LWord → iPropI Σ),
+                   ⌜∀ Wv : WORLD * CmptName * LWord, Persistent (φ Wv)⌝
                                                     ∗ (⌜isO p = false⌝
                                                        ∗ (if isWL p
                                                           then future_pub_mono C φ (WInt 0)
                                                           else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
                                                          )
-                                                       ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, WInt 0)))
+                                                       ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, lword_of_word (WInt 0))))
                                                     ∗ rel C (LNonHeap a) p φ
               )
         )
@@ -247,7 +229,7 @@ Section switcher_helper.
 
     Lemma open_world_interp_cframe
     (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list LAddr)
-    (wret wcgp wcs0 wcs1 : Word) (ccrel : caller_callee_relation)
+    (wret wcgp wcs0 wcs1 : LWord) (ccrel : caller_callee_relation)
     :
       let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur in
       let a_stk := (csp_b ^+ -4)%a in
@@ -259,7 +241,6 @@ Section switcher_helper.
       (∀ a : LAddr, std W0 !! a = Some Temporary → a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
       NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
       related_sts_pub_world W0 Wfixed ->
-      heap_wf (heap_std Wfixed) ->
       disjoint_from_heap b_stk csp_e ->
 
       interp W0 C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
@@ -302,7 +283,7 @@ Section switcher_helper.
     .
     Proof.
       intros Wfixed a_stk.
-      iIntros (Hb_a4 He_a1 Ha_stk4 Htemp_revoked Hnodup_revoked Hrelated_pub_W0_Wfixed Hheap_wf Hstk_heap)
+      iIntros (Hb_a4 He_a1 Ha_stk4 Htemp_revoked Hnodup_revoked Hrelated_pub_W0_Wfixed Hstk_heap)
         "#Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc".
       rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
       rewrite /CloseRes.
@@ -317,7 +298,6 @@ Section switcher_helper.
         {
           iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto.
           iPureIntro ; intros a Ha.
-          rewrite -(addr_key_disjoint W0 b_stk csp_e a Hstk_heap Ha).
           apply list_elem_of_lookup_1 in Ha as [k Ha].
           by eapply Hstk_tmp.
         }
@@ -364,35 +344,31 @@ Section switcher_helper.
         }
         assert (b_stk <= a_stk < csp_e)%a as Hbound0
           by (subst a_stk; solve_addr+Hb_a4 He_a1).
-        iDestruct (write_allowed_inv W0 C a_stk a_stk b_stk csp_e RWL Local
+        iDestruct (write_allowed_inv W0 C a_stk a_stk b_stk csp_e RWL Local None
           Hbound0 I with "Hinterp_callee_wstk")
           as (p_astk0 φ_astk0) "(%Hp_astk0 & _ & Hrel_astk0 & _ & Hwcond_astk0 & Hrcond_astk0 & _)".
-        assert (addr_key W0 a_stk = LNonHeap a_stk) as Hkey_astk0.
-        { apply (addr_key_disjoint _ b_stk csp_e); [done|by apply elem_of_finz_seq_between]. }
+        assert (addr_key None a_stk = LNonHeap a_stk) as Hkey_astk0 by done.
         rewrite Hkey_astk0.
         assert (b_stk <= (a_stk ^+1)%a < csp_e)%a as Hbound1
           by (subst a_stk; solve_addr+Hb_a4 He_a1).
-        iDestruct (write_allowed_inv W0 C (a_stk ^+1)%a a_stk b_stk csp_e RWL Local
+        iDestruct (write_allowed_inv W0 C (a_stk ^+1)%a a_stk b_stk csp_e RWL Local None
           Hbound1 I with "Hinterp_callee_wstk")
           as (p_astk1 φ_astk1) "(%Hp_astk1 & _ & Hrel_astk1 & _ & Hwcond_astk1 & Hrcond_astk1 & _)".
-        assert (addr_key W0 (a_stk ^+1)%a = LNonHeap (a_stk ^+1)%a) as Hkey_astk1.
-        { apply (addr_key_disjoint _ b_stk csp_e); [done|by apply elem_of_finz_seq_between]. }
+        assert (addr_key None (a_stk ^+1)%a = LNonHeap (a_stk ^+1)%a) as Hkey_astk1 by done.
         rewrite Hkey_astk1.
         assert (b_stk <= (a_stk ^+2)%a < csp_e)%a as Hbound2
           by (subst a_stk; solve_addr+Hb_a4 He_a1).
-        iDestruct (write_allowed_inv W0 C (a_stk ^+2)%a a_stk b_stk csp_e RWL Local
+        iDestruct (write_allowed_inv W0 C (a_stk ^+2)%a a_stk b_stk csp_e RWL Local None
           Hbound2 I with "Hinterp_callee_wstk")
           as (p_astk2 φ_astk2) "(%Hp_astk2 & _ & Hrel_astk2 & _ & Hwcond_astk2 & Hrcond_astk2 & _)".
-        assert (addr_key W0 (a_stk ^+2)%a = LNonHeap (a_stk ^+2)%a) as Hkey_astk2.
-        { apply (addr_key_disjoint _ b_stk csp_e); [done|by apply elem_of_finz_seq_between]. }
+        assert (addr_key None (a_stk ^+2)%a = LNonHeap (a_stk ^+2)%a) as Hkey_astk2 by done.
         rewrite Hkey_astk2.
         assert (b_stk <= (a_stk ^+3)%a < csp_e)%a as Hbound3
           by (subst a_stk; solve_addr+Hb_a4 He_a1).
-        iDestruct (write_allowed_inv W0 C (a_stk ^+3)%a a_stk b_stk csp_e RWL Local
+        iDestruct (write_allowed_inv W0 C (a_stk ^+3)%a a_stk b_stk csp_e RWL Local None
           Hbound3 I with "Hinterp_callee_wstk")
           as (p_astk3 φ_astk3) "(%Hp_astk3 & _ & Hrel_astk3 & _ & Hwcond_astk3 & Hrcond_astk3 & _)".
-        assert (addr_key W0 (a_stk ^+3)%a = LNonHeap (a_stk ^+3)%a) as Hkey_astk3.
-        { apply (addr_key_disjoint _ b_stk csp_e); [done|by apply elem_of_finz_seq_between]. }
+        assert (addr_key None (a_stk ^+3)%a = LNonHeap (a_stk ^+3)%a) as Hkey_astk3 by done.
         rewrite Hkey_astk3.
 
         iAssert
@@ -410,14 +386,14 @@ Section switcher_helper.
                     ∗ (∃ W3', ⌜ related_sts_pub_world W3' Wfixed⌝ ∗ (interp_in_mem RWL W3' C wastk3))
                 )
               ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
-                   ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                     ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                   ∃ (p : Perm) (φ : WORLD * CmptName * LWord → iPropI Σ),
+                     ⌜∀ Wv : WORLD * CmptName * LWord, Persistent (φ Wv)⌝
                                                       ∗ (⌜isO p = false⌝
                                                          ∗ (if isWL p
                                                             then future_pub_mono C φ (WInt 0)
                                                             else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
                                                            )
-                                                         ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, WInt 0))
+                                                         ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, lword_of_word (WInt 0)))
                                                         )
                                                       ∗ rel C (LNonHeap a) p φ
                 )
@@ -509,16 +485,12 @@ Section switcher_helper.
       iDestruct ("Hrcond_astk3" with "H3'") as "#Hinterp3"; cbn.
       iSplitR.
       {
-        iEval (rewrite /interp_in_mem_pre /load_word) in "Hinterp0 Hinterp1 Hinterp2 Hinterp3".
-        rewrite /load_word.
-        rewrite (notisDRO_flowsfrom RWL p_astk0 Hp_astk0 eq_refl).
-        rewrite (notisDRO_flowsfrom RWL p_astk1 Hp_astk1 eq_refl).
-        rewrite (notisDRO_flowsfrom RWL p_astk2 Hp_astk2 eq_refl).
-        rewrite (notisDRO_flowsfrom RWL p_astk3 Hp_astk3 eq_refl).
-        rewrite (notisDL_flowsfrom RWL p_astk0 Hp_astk0 eq_refl).
-        rewrite (notisDL_flowsfrom RWL p_astk1 Hp_astk1 eq_refl).
-        rewrite (notisDL_flowsfrom RWL p_astk2 Hp_astk2 eq_refl).
-        rewrite (notisDL_flowsfrom RWL p_astk3 Hp_astk3 eq_refl).
+        assert (∀ p (v : LWord), PermFlowsTo RWL p → lload_word p v = v) as Hll.
+        { intros p [w π] Hp.
+          rewrite /lload_word /lift_word /= /load_word (notisDRO_flowsfrom RWL p Hp eq_refl)
+            (notisDL_flowsfrom RWL p Hp eq_refl) //. }
+        rewrite /interp_in_mem_pre !(Hll RWL) //.
+        rewrite (Hll _ _ Hp_astk0) (Hll _ _ Hp_astk1) (Hll _ _ Hp_astk2) (Hll _ _ Hp_astk3).
         iFrame "Hinterp0 Hinterp1 Hinterp2 Hinterp3".
         iFrame "%".
       }
@@ -527,10 +499,10 @@ Section switcher_helper.
         iSplitR "H0'"; first iFrame "%".
         iSplitR "H0'"; cycle 1.
         + iExists W0'; iFrame "%".
-          iRewrite - ("HP0" $! (W0',C,WInt 0)).
+          iRewrite - ("HP0" $! (W0',C,WInt 0 @@? None)).
           iApply "Hwcond_astk0"; iApply interp_int.
-        + iIntros "!> % % % % _".
-          iRewrite - ("HP0" $! (W',C,WInt 0)).
+        + iIntros "!> % % % _".
+          iRewrite - ("HP0" $! (W',C,WInt 0 @@? None)).
           iApply "Hwcond_astk0"; iApply interp_int.
       }
       iSplitL "H1 H1'".
@@ -538,10 +510,10 @@ Section switcher_helper.
         iSplitR "H1'"; first iFrame "%".
         iSplitR "H1'"; cycle 1.
         + iExists W1'; iFrame "%".
-          iRewrite - ("HP1" $! (W1',C,WInt 0)).
+          iRewrite - ("HP1" $! (W1',C,WInt 0 @@? None)).
           iApply "Hwcond_astk1"; iApply interp_int.
-        + iIntros "!> % % % % _".
-          iRewrite - ("HP1" $! (W',C,WInt 0)).
+        + iIntros "!> % % % _".
+          iRewrite - ("HP1" $! (W',C,WInt 0 @@? None)).
           iApply "Hwcond_astk1"; iApply interp_int.
       }
       iSplitL "H2 H2'".
@@ -549,20 +521,20 @@ Section switcher_helper.
         iSplitR "H2'"; first iFrame "%".
         iSplitR "H2'"; cycle 1.
         + iExists W2'; iFrame "%".
-          iRewrite - ("HP2" $! (W2',C,WInt 0)).
+          iRewrite - ("HP2" $! (W2',C,WInt 0 @@? None)).
           iApply "Hwcond_astk2"; iApply interp_int.
-        + iIntros "!> % % % % _".
-          iRewrite - ("HP2" $! (W',C,WInt 0)).
+        + iIntros "!> % % % _".
+          iRewrite - ("HP2" $! (W',C,WInt 0 @@? None)).
           iApply "Hwcond_astk2"; iApply interp_int.
       }
       { iSplitR "H3'"; first iFrame "%".
         iSplitR "H3'"; first iFrame "%".
         iSplitR "H3'"; cycle 1.
         + iExists W3'; iFrame "%".
-          iRewrite - ("HP3" $! (W3',C,WInt 0)).
+          iRewrite - ("HP3" $! (W3',C,WInt 0 @@? None)).
           iApply "Hwcond_astk3"; iApply interp_int.
-        + iIntros "!> % % % % _".
-          iRewrite - ("HP3" $! (W',C,WInt 0)).
+        + iIntros "!> % % % _".
+          iRewrite - ("HP3" $! (W',C,WInt 0 @@? None)).
           iApply "Hwcond_astk3"; iApply interp_int.
       }
     }
@@ -578,10 +550,10 @@ Section switcher_helper.
       iDestruct "H1" as (W1' HW1') "H1".
       iDestruct "H2" as (W2' HW2') "H2".
       iDestruct "H3" as (W3' HW3') "H3".
-      iDestruct (interp_in_mem_monotone W0' Wfixed with "H0") as "$"; [exact Hheap_wf|done|].
-      iDestruct (interp_in_mem_monotone W1' Wfixed with "H1") as "$"; [exact Hheap_wf|done|].
-      iDestruct (interp_in_mem_monotone W2' Wfixed with "H2") as "$"; [exact Hheap_wf|done|].
-      iApply (interp_in_mem_monotone W3' Wfixed with "H3"); [exact Hheap_wf|done].
+      iDestruct (interp_in_mem_monotone W0' Wfixed with "H0") as "$"; [done|].
+      iDestruct (interp_in_mem_monotone W1' Wfixed with "H1") as "$"; [done|].
+      iDestruct (interp_in_mem_monotone W2' Wfixed with "H2") as "$"; [done|].
+      iApply (interp_in_mem_monotone W3' Wfixed with "H3"); done.
     }
     iExists l'. iFrame "Hrest Hzero". done.
     Qed.
@@ -625,11 +597,6 @@ Section switcher_helper.
       iIntros (He_a1 Hb_a4 Ha_stk4 Hrelated_pub_W0_Wfixed)
         "#Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
 
-      iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf_cur.
-      assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed.
-      { subst Wfixed. rewrite close_list_heap. exact Hheap_wf_cur. }
-      assert (heap_wf (heap_std W0)) as Hheap_wf_0.
-      { eapply related_sts_heap_std_wf_back; [exact (proj2 (proj2 (proj2 Hrelated_pub_W0_Wfixed)))|exact Hheap_wf_fixed]. }
 
       iAssert (▷ close_list_resources C W0 (LNonHeap <$> finz.seq_between csp_b csp_e) false)%I
         with "[Hstk]" as "Hstk".
@@ -639,7 +606,7 @@ Section switcher_helper.
         iAssert (interp W0 C (WCap true RWL Local csp_b csp_e a_stk)) as "Hvalid".
         {
           rewrite /is_untrusted_caller_frm /=; destruct (is_untrusted_caller ccrel); auto.
-          iApply (interp_weakening _ _ true _ _ _ _ b_stk csp_b with "[]Hinterp_callee_wstk"); auto.
+          iApply (interp_weakening _ _ true _ _ _ _ b_stk csp_b with "[]Hinterp_callee_wstk"); auto using subseg_heap_base_noid.
           + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
           + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
           + iApply fundamental_ih.
@@ -654,8 +621,7 @@ Section switcher_helper.
         iNext.
         iApply (big_sepL_impl with "H").
         iIntros "!> %%% [Hv (%&%&%&%&Hrel&#Hzcond&#Hrcond&#Hwcond&Hmono)]".
-        assert (addr_key W0 x = LNonHeap x) as Hkey_x.
-        { rewrite Forall_lookup in Hkeys. eauto. }
+        assert (addr_key None x = LNonHeap x) as Hkey_x by done.
         rewrite Hkey_x.
         iExists x0, (safeC x1). iFrame.
         iSplit.
@@ -721,7 +687,7 @@ Section switcher_helper.
           iDestruct "Hdata0" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           iApply (temp_resources_mono_pub Wsrc Wfixed C P0 a_stk p0
-            Hheap_wf_fixed Hrelated with "[Ha_stk0 Hφ]").
+            Hrelated with "[Ha_stk0 Hφ]").
           iExists (WInt 0). iFrame "Ha_stk0 Hmono Hφ %".
         }
         iSplitL "Hdata1 Ha_stk1".
@@ -729,7 +695,7 @@ Section switcher_helper.
           iDestruct "Hdata1" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           iApply (temp_resources_mono_pub Wsrc Wfixed C P1 (a_stk ^+ 1)%a p1
-            Hheap_wf_fixed Hrelated with "[Ha_stk1 Hφ]").
+            Hrelated with "[Ha_stk1 Hφ]").
           iExists (WInt 0). iFrame "Ha_stk1 Hmono Hφ %".
         }
         iSplitL "Hdata2 Ha_stk2".
@@ -737,7 +703,7 @@ Section switcher_helper.
           iDestruct "Hdata2" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           iApply (temp_resources_mono_pub Wsrc Wfixed C P2 (a_stk ^+ 2)%a p2
-            Hheap_wf_fixed Hrelated with "[Ha_stk2 Hφ]").
+            Hrelated with "[Ha_stk2 Hφ]").
           iExists (WInt 0). iFrame "Ha_stk2 Hmono Hφ %".
         }
         iSplitL "Hdata3 Ha_stk3".
@@ -745,7 +711,7 @@ Section switcher_helper.
           iDestruct "Hdata3" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           iApply (temp_resources_mono_pub Wsrc Wfixed C P3 (a_stk ^+ 3)%a p3
-            Hheap_wf_fixed Hrelated with "[Ha_stk3 Hφ]").
+            Hrelated with "[Ha_stk3 Hφ]").
           iExists (WInt 0). iFrame "Ha_stk3 Hmono Hφ %".
         }
         done.

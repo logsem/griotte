@@ -31,12 +31,12 @@ Section Switcher.
     (Nswitcher : namespace)
     (W0 Wcur : WORLD)
     (C : CmptName)
-    (rmap : Reg)
+    (rmap : LReg)
     (csp_e csp_b: Addr)
     (l : list LAddr)
-    (stk_mem : list Word)
+    (stk_mem : list LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (wca0 wca1 : Word)
+    (wca0 wca1 : LWord)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -48,7 +48,7 @@ Section Switcher.
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
 
     (* Switcher Invariant *)
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
@@ -67,7 +67,7 @@ Section Switcher.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Halloc & #Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
+      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
     & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
 
     (* --- Extract the code from the invariant --- *)
@@ -178,9 +178,6 @@ Section Switcher.
      *)
 
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap Hinterp_callee_wstk]".
-    iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp") as %Hheap_wf_cur.
-    assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
-      by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf_cur).
     iMod (
         open_world_interp_cframe _ _ _ _ _ _ _ _ _ _ _ _ _ with "Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3 &
@@ -188,7 +185,7 @@ Section Switcher.
 
     iApply (switcher_return_block_12_restore_cases_spec Wcur Wfixed C ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld_interp $Halloc $Hcode]").
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld_interp $Hcode]").
     { subst Wfixed. rewrite close_list_heap. reflexivity. }
     { exact Hstk_shadow. }
     { exact H3. }
@@ -337,7 +334,7 @@ Section Switcher.
       iEval (rewrite ?Hccrel /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
         in "Hexec_topmost_frm".
       iApply ("Hexec_topmost_frm" with
-               "[] [%] [%] [%] [%] Halloc [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
+               "[] [%] [%] [%] [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
       $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna]");
         [done|exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
       iPureIntro;rewrite Harg_rmap'; set_solver.
@@ -352,7 +349,7 @@ Section Switcher.
 
 
       iDestruct (jmp_or_fail_spec with "[$Hinterp_wstk2]") as "Hcont".
-      destruct (decide (isCorrectPC (updatePcPerm wastk2))); cycle 1.
+      destruct (decide (isCorrectPC (updatePcPerm wastk2.(lw)))); cycle 1.
       { by iApply "Hcont"; iFrame. }
 
       iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
@@ -371,9 +368,9 @@ Section Switcher.
       iDestruct (big_sepM_insert with "[$Hrmap $Hcsp]") as "Hrmap".
       { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. }
       set (regs := <[csp := _]> _ ).
-      set (regs' := <[PC := WInt 0]> regs).
+      set (regs' := <[PC := lword_of_word (WInt 0)]> regs).
 
-      iDestruct "Hcont" as "(%&%&%&%&%&Hcont)".
+      iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
       iDestruct "Hcont" as "(%Hwastk & #Hcont)".
       iAssert (future_world g Wfixed Wfixed) as "Hfuture".
       { destruct g; cbn; iPureIntro; [ apply  related_sts_priv_refl_world
@@ -383,7 +380,7 @@ Section Switcher.
       iDestruct "Hlc" as "[Hlc _]"
       ; iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
 
-      iApply ("Hcont'" $! cstk Ws Cs regs' with "Halloc"); iFrame.
+      iApply ("Hcont'" $! cstk Ws Cs regs'); iFrame.
 
       iSplit.
       { iSplit.

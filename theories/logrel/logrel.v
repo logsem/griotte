@@ -1857,6 +1857,37 @@ Section logrel.
     apply filter_heap_lclear_tag.
   Qed.
 
+  (** A valid executable capability with a non-empty range carries no
+      identifier: heap authority is never executable. *)
+  Lemma interp_exec_noid W C p g b e a π :
+    executeAllowed p = true → (b < e)%a →
+    interp W C (WCap true p g b e a @@? π) -∗ ⌜π = None⌝.
+  Proof.
+    iIntros (Hexec Hbe) "Hinterp".
+    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap];
+      first by eapply executeAllowed_nonO.
+    iPureIntro. specialize (Hheap Hbe). destruct π as [ι|]; last done.
+    destruct Hheap as (_ & o & _ & _ & _ & _ & Hnonexec & _). congruence.
+  Qed.
+
+  Lemma interp_lstore_word W C p v :
+    interp W C v -∗ interp W C (lstore_word p v).
+  Proof.
+    iIntros "#Hv".
+    destruct (canStore p v.(lw)) eqn:Hcs.
+    - by rewrite lstore_word_canStore.
+    - assert (lstore_word p v = lclear_tag v) as ->.
+      { by rewrite /lstore_word /lclear_tag /lift_word /store_word Hcs. }
+      iApply interp_clear_tag.
+  Qed.
+
+  (** The region of an address reached through a capability is the PC's
+      region exactly when the address is the PC's and the capability has no
+      identifier: a capability with an identifier reaches it under another key. *)
+  Lemma addr_key_pc π ea pc_a :
+    addr_key π ea = LNonHeap pc_a → π = None ∧ ea = pc_a.
+  Proof. destruct π; cbn; intros; simplify_eq; done. Qed.
+
 End logrel.
 
 Notation safeC P :=

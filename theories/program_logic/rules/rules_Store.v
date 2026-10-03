@@ -3180,4 +3180,31 @@ Section shadow_store_res.
       + by apply (Hbad0 _ eq_refl).
   Qed.
 
+  (** A store through a word that is not a capability fails, whatever its
+      identifier. *)
+  Lemma wp_store_fail_not_cap_imm Ep (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π
+      w dst (src : Z + RegName) regs wa :
+    decodeInstrW w.(lw) = Store dst src imm →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
+    regs !!ₗ dst = Some wa →
+    is_cap wa.(lw) = false →
+    {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ Ep
+    {{{ RET FailedV; pc_a ↦ₐ w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hinstr Hvpc HPC Hdst Hcap φ) "(>Hpc_a & >Hmap) Hφ".
+    iApply (wp_instr_step with "Hpc_a Hmap"); eauto.
+    iNext. iIntros (r sr m st lreg lmem Rg Cg c σ' Her Hregs Hregs' Hpc_a' Hstep)
+      "Hr Hsr Hm Hst HR HC Hpc_a Hmap".
+    assert (lookup_reg dst r = Some wa.(lw)) as Hdst'.
+    { eapply lookup_reg_weaken; last exact Hregs'. by rewrite lookup_reg_erase Hdst. }
+    rewrite Hinstr /exec /= Hdst' /= in Hstep.
+    assert (c = Failed ∧ σ' = (r, sr, m, st)) as [-> ->].
+    { destruct wa as [ [| [|] | |] ?]; cbn in Hcap; try discriminate.
+      all: cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
+    iApply (instr_close_fail with "Hr Hsr Hm Hst HR HC Hmap"); first done.
+    iIntros "Hmap". iApply "Hφ". iFrame.
+  Qed.
+
 End shadow_store_res.

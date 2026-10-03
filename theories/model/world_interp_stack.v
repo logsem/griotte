@@ -45,13 +45,12 @@ Section WorldInterpStack.
   Qed.
 
   Lemma close_world_interp_opening_resources (W : WORLD) (C : CmptName)
-  (lv : list Word)
+  (lv : list LWord)
   (la la' : list Addr):
 
     NoDup la ->
     la ## la' ->
     length lv = length la ->
-    Forall (heap_addr_live (heap_std W)) la ->
 
     world_interp_open W C (LNonHeap <$> (la++la')) ∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
@@ -60,7 +59,7 @@ Section WorldInterpStack.
    world_interp_open W C (LNonHeap <$> la').
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (????) "([Hr [Hsts $ ] ] & Hres )"; cbn in * |- *.
+    iIntros (???) "([Hr [Hsts $ ] ] & Hres )"; cbn in * |- *.
     iDestruct (region_close_list_interp_gen with "[$Hres $Hr]") as "$"; eauto.
   Qed.
 
@@ -81,7 +80,6 @@ Section WorldInterpStack.
   Proof.
      rewrite world_interp_eq /world_interp_def.
      iIntros "(Hinterp & [Hr [Hsts Hseals ] ])".
-     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
      iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
         as (l) "($ & $ & $ & $ & $ & $ & $ & $)"; eauto.
     iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
@@ -89,9 +87,9 @@ Section WorldInterpStack.
   Qed.
 
   Lemma world_interp_reinstate_stack
-    { E : coPset } (W : WORLD) (C : CmptName) (la : list Addr) (lv : list Word) :
+    { E : coPset } (W : WORLD) (C : CmptName) (la : list Addr) (lv : list LWord) :
     NoDup la →
-    Forall (eq (WInt 0)) lv ->
+    Forall (eq (lword_of_word (WInt 0))) lv ->
     Forall (λ a, std W !! LNonHeap a = Some Revoked) la ->
 
     world_interp W C -∗
@@ -104,11 +102,9 @@ Section WorldInterpStack.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros (???) "[Hr [Hsts Hseals ] ] Hres Hl".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (update_region_revoked_temp_pwl_multiple
            with "Hsts Hr [Hres] [Hl]") as "[$ $]"; eauto.
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    - by rewrite std_update_multiple_heap.
     - by rewrite std_update_multiple_seals.
     - apply related_sts_pub_update_multiple_temp; done.
   Qed.

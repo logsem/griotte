@@ -3,7 +3,7 @@ From iris.program_logic Require Import weakestpre lifting.
 From griotte Require Export logrel interp_weakening monotone.
 From griotte Require Export
   ftlr_base
-  Jmp Jnz Jalr Mov ftlr_load_tmp Store BinOp Restrict
+  Jmp Jnz Jalr Mov Load Store BinOp Restrict
   Subseg Get ClearTag Lea Seal UnSeal ReadSR WriteSR.
 From griotte Require Import register_tactics.
 
@@ -25,20 +25,6 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
-
-  (* TODO: move to logrel/logrel.v *)
-  (** A valid executable capability with a non-empty range carries no
-      identifier: heap authority is never executable. *)
-  Lemma interp_exec_noid W C p g b e a π :
-    executeAllowed p = true → (b < e)%a →
-    interp W C (WCap true p g b e a @@? π) -∗ ⌜π = None⌝.
-  Proof.
-    iIntros (Hexec Hbe) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap];
-      first by eapply executeAllowed_nonO.
-    iPureIntro. specialize (Hheap Hbe). destruct π as [ι|]; last done.
-    destruct Hheap as (_ & o & _ & _ & _ & _ & Hnonexec & _). congruence.
-  Qed.
 
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)

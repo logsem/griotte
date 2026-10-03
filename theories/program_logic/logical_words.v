@@ -459,3 +459,18 @@ Ltac decompose_map_disjoint ::=
 
 (* Alias, for explicitness at call sites. *)
 Ltac simplify_lmap_eq := simplify_map_eq.
+
+Lemma lload_word_RWL (v : LWord) : lload_word RWL v = v.
+Proof. by destruct v. Qed.
+
+Lemma lstore_word_isWL p (v : LWord) : isWL p = true → lstore_word p v = v.
+Proof. intros Hp. destruct v as [w π]. rewrite /lstore_word /lift_word /= store_word_isWL //. Qed.
+
+Lemma lregmap_full_dom (r : LReg) :
+  (∀ x, is_Some (r !! x)) →
+  dom r = all_registers_s.
+Proof.
+  intros Hfull. apply (anti_symm subseteq); rewrite elem_of_subseteq.
+  - intros rr _. apply all_registers_s_correct.
+  - intros rr _. rewrite elem_of_dom. apply Hfull.
+Qed.

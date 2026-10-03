@@ -2106,4 +2106,34 @@ Section load_exact.
       + by simplify_map_eq.
   Qed.
 
+  (** The general load rule with a status witness, over owned memory. *)
+  Lemma wp_load_witness_imm Ep pc_p pc_g pc_b pc_e pc_a pc_π r1 r2 (imm : Z) w
+      (mem : LMem) (regs : LReg) wit :
+    decodeInstrW w.(lw) = Load r1 r2 imm →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
+    regs_of (Load r1 r2 imm) ⊆ dom regs →
+    mem !! pc_a = Some w →
+    allow_load_mem_or_shadow_offset r2 imm regs mem ∅ →
+    {{{ (▷ [∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
+        load_witness_res wit ∗
+        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ Ep
+    {{{ regs' retv, RET retv;
+        ⌜ Load_spec regs r1 r2 imm regs' mem ∅ wit retv⌝ ∗
+        ([∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
+        load_witness_res wit ∗
+        [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad φ) "(Hmem & Hwit & Hreg) Hφ".
+    iDestruct (mem_remove_dq with "Hmem") as "Hmem".
+    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
+      as "Hshadow".
+    { by rewrite big_sepM_empty. }
+    iApply (wp_load_general_shadow_imm with "[$Hmem $Hshadow $Hwit $Hreg]"); eauto.
+    { rewrite create_gmap_default_dom list_to_set_elements_L. auto. }
+    iNext. iIntros (? ?) "(?&Hmem&_&Hwit&?)". iApply "Hφ". iFrame.
+    iDestruct (mem_remove_dq with "Hmem") as "Hmem". iFrame.
+  Qed.
+
 End load_exact.

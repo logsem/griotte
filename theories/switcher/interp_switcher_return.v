@@ -96,7 +96,7 @@ Section fundamental.
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap #Halloc [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
     rewrite /registers_pointsto.
 
     (* --- Extract scratch registers ct2 ctp --- *)
@@ -210,13 +210,6 @@ Section fundamental.
     { apply not_true_is_false. intros Hheap. apply withinBounds_true_iff in Hheap.
       rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
       eapply (Hstk_heap b_stk); apply elem_of_finz_seq_between; [solve_addr|exact Hheap]. }
-    assert (∀ a, a ∈ finz.seq_between b_stk e_stk -> is_heap_address a = false)
-      as Hstk_nonheap_addr.
-    { intros a Ha. apply not_true_is_false. intros Hheap.
-      apply withinBounds_true_iff in Hheap.
-      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
-      eapply (Hstk_heap a); [exact Ha|].
-      apply elem_of_finz_seq_between; exact Hheap. }
     iApply (switcher_return_block_12_load_spec with
       "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); eauto using trusted_stack_disjoint_from_shadow.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hstk_base_nonheap /=.
@@ -279,7 +272,7 @@ Section fundamental.
 
     iApply (switcher_return_block_12_restore_open_cases_spec W W C (LNonHeap <$> saved_addrs) ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld_interp $Halloc $Hcode]").
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld_interp $Hcode]").
     { reflexivity. }
     { exact Hstk_shadow. }
     { exact H1. }
@@ -338,7 +331,7 @@ Section fundamental.
       repeat (rewrite -delete_insert_ne //).
       repeat (rewrite dom_delete_L).
       repeat (rewrite dom_insert_L).
-      apply regmap_full_dom in Hfull_rmap.
+      apply lregmap_full_dom in Hfull_rmap.
       rewrite Hfull_rmap.
       set_solver.
     }
@@ -388,7 +381,7 @@ Section fundamental.
     ; [| solve_addr+Ha_stk4 Hb_a4 He_a1 | by rewrite /region_addrs_zeroes length_replicate].
     iDestruct "Hstk" as "[Hstk_register_save Hstk]".
     set (lv' := region_addrs_zeroes (a_stk ^+ 4)%a e_stk).
-    assert (Forall (λ y : Word, y = WInt 0) lv') as Hlv'.
+    assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
     { subst lv'.
       rewrite /region_addrs_zeroes.
       by apply Forall_replicate.
@@ -408,7 +401,7 @@ Section fundamental.
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
         in "Hexec_topmost_frm".
-      iApply ("Hexec_topmost_frm" with "[%] [%] [%] [%] Halloc
+      iApply ("Hexec_topmost_frm" with "[%] [%] [%] [%]
                [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
       $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]");
         [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
@@ -427,13 +420,6 @@ Section fundamental.
         solve_addr.
       }
       { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-      { apply Forall_forall; intros a Ha.
-        apply heap_addr_live_nonheap, Hstk_nonheap_addr.
-        apply elem_of_finz_seq_between in Ha.
-        apply elem_of_finz_seq_between.
-        destruct Ha as [Ha_lo Ha_hi]. split; last exact Ha_hi.
-        transitivity a_stk; first exact Hb_a4.
-        solve_addr+Ha_stk4 He_a1 Ha_lo. }
 
       iDestruct "Hinterp_loaded" as
         "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
@@ -442,7 +428,7 @@ Section fundamental.
 
       clear Hlen_lv' Hlv' lv'.
       set (lv' := region_addrs_zeroes a_stk (a_stk ^+ 4)%a).
-      assert (Forall (λ y : Word, y = WInt 0) lv') as Hlv'.
+      assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
       { subst lv'; rewrite /region_addrs_zeroes; by apply Forall_replicate. }
 
       iDestruct (big_sepL2_length with "Hstk_register_save") as "%Hlen_lv'".
@@ -452,19 +438,10 @@ Section fundamental.
       { apply finz_seq_between_NoDup. }
       { set_solver. }
       { subst lv'; by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-      { apply Forall_forall; intros a Ha.
-        apply heap_addr_live_nonheap, Hstk_nonheap_addr.
-        apply elem_of_finz_seq_between in Ha.
-        apply elem_of_finz_seq_between.
-        destruct Ha as [Ha_lo Ha_hi]. split.
-        - transitivity a_stk; [exact Hb_a4|exact Ha_lo].
-        - assert ((a_stk ^+ 4 <= e_stk)%a) as Hupper
-            by solve_addr+He_a1 Ha_stk4.
-          solve_addr+Ha_hi Hupper. }
       rewrite -open_world_interp_empty.
 
 
-      destruct ( decide (isCorrectPC (updatePcPerm wastk2))) as [HcorrectWret|HcorrectWret]; cycle 1.
+      destruct ( decide (isCorrectPC (updatePcPerm wastk2.(lw)))) as [HcorrectWret|HcorrectWret]; cycle 1.
       { (* The PC is not correct, the execution will crash *)
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC with "HPC"); first done.
@@ -479,7 +456,7 @@ Section fundamental.
                    ∗ (∀ (r : RegName) (v : leibnizO LWord), ⌜r ≠ PC⌝ → ⌜rmap' !! r = Some v⌝ → interp W C v)
         )%I with "[Hrmap]" as (rmap') "(%Hdom_rmap' & Hrmap & #Hrmap_interp')".
       {
-        iExists (fmap (fun v => WInt 0) arg_rmap').
+        iExists (fmap (fun v => lword_of_word (WInt 0)) arg_rmap').
         iSplit ; [iPureIntro; apply dom_fmap_L|].
         iSplitL.
         {
@@ -574,17 +551,17 @@ Section fundamental.
       }
       iDestruct (big_sepM_insert_delete with "[$Hrmap $HPC]") as "Hrmap".
 
-    rewrite -(insert_id (<[PC:=updatePcPerm wastk2]> _) PC (updatePcPerm wastk2))
+    rewrite -(insert_id (<[PC:=lupdatePcPerm wastk2]> _) PC (lupdatePcPerm wastk2))
     ; last (clear;simplify_map_eq; done).
     rewrite /is_untrusted_caller_frm /= Hccrel in Hfreq.
-    destruct wastk2 as [ z | [t p g b e a|] | t p g b e a | ot sb ];
+    destruct wastk2 as [ [ z | [t p g b e a|] | t p g b e a | ot sb ] π];
       iEval (cbn) in "Hrmap".
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
-        iPoseProof ( fundamental W C (WCap true p g b e a) with "Hinterp_wstk2") as "IH".
+        iPoseProof ( fundamental W C (WCap true p g b e a @@? π) with "Hinterp_wstk2") as "IH".
         rewrite /interp_expression /=.
-        iApply ("IH" with "Halloc [- $Hworld_interp $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
+        iApply ("IH" with "[- $Hworld_interp $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
         repeat iSplit;auto.
         { iIntros (r); iPureIntro.
           clear -Hdom_rmap' Harg_rmap'.
@@ -616,7 +593,7 @@ Section fundamental.
         }
 
       + (* wret was a sentry capability: apply the def of safe for sentry *)
-        iAssert (interp W C (WSentry true p g b e a)) as "#Hinterp_wret'" ; first done.
+        iAssert (interp W C (WSentry true p g b e a @@? π)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wstk2".
         iDestruct "Hinterp_wstk2" as "[%Hret_nonheap #Hinterp_wret]".
         rewrite /enter_cond.
@@ -628,7 +605,7 @@ Section fundamental.
         iSpecialize ("Hinterp_wret" $! g (LocalityFlowsToReflexive g)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
-        iDestruct ("Hinterp_wret" with "[$Halloc] [$Hcont_K $Hrmap $Hworld_interp $Hcstk_frag $Hna]") as "HA"; eauto.
+        iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hworld_interp $Hcstk_frag $Hna]") as "HA"; eauto.
         iSplitR; last (iPureIntro; simplify_map_eq; done).
         iSplit.
         * iIntros (r); iPureIntro.

@@ -715,7 +715,13 @@ Proof. solve_addr. Qed.
 Ltac instr_lookup0 hprog hi hcont :=
   let hprog := constr:(hprog:ident) in
   lazymatch goal with |- context [ Esnoc _ hprog (codefrag ?a_base _) ] =>
-  lazymatch goal with |- context [ Esnoc _ ?hpc (PC ↦ᵣ ((WCap _ _ _ _ _ ?pc_a) @@? _))%I ] =>
+  (* The PC may be stated as a logical word or through the [lword_of_word]
+     coercion. *)
+  let pc_a :=
+    lazymatch goal with
+    | |- context [ Esnoc _ _ (PC ↦ᵣ ((WCap _ _ _ _ _ ?pc_a) @@? _))%I ] => pc_a
+    | |- context [ Esnoc _ _ (PC ↦ᵣ lword_of_word (WCap _ _ _ _ _ ?pc_a))%I ] => pc_a
+    end in
     let base_off := eval unfold as_weak_addr_incr in
       (@as_weak_addr_incr pc_a a_base _ _) in
     lazymatch base_off with
@@ -728,7 +734,7 @@ Ltac instr_lookup0 hprog hi hcont :=
         rewrite ?addr_incr_zero ?addr_incr_zero_nat
      )
      end
-  end end.
+  end.
 
 Tactic Notation "iInstr_lookup" constr(hprog) "as" constr(hi) constr(hcont) :=
   instr_lookup0 hprog hi hcont.

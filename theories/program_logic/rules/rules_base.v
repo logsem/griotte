@@ -1124,6 +1124,25 @@ Section logical_lookups.
     destruct (decide (r = cnull)) as [->|Hne]; cbn in H; simplify_eq.
     split; first done. exists π. done.
   Qed.
+
+  (** The identifier of the word read from a register, if it is a
+      capability; like [read_reg_inr] for its other fields. *)
+  Definition read_reg_prov (regs : LReg) (r : RegName) (π : option AId) : Prop :=
+    match regs !! r with
+    | Some (WCap _ _ _ _ _ _ @@? π') => π' = π
+    | _ => True
+    end.
+
+  Lemma read_reg_prov_cap (regs : LReg) r p g b e a π :
+    lw <$> regs !!ₗ r = Some (WCap true p g b e a) →
+    read_reg_prov regs r π →
+    regs !! r = Some (WCap true p g b e a @@? π).
+  Proof.
+    intros Hinr Hπ.
+    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hinr) as (_ & π' & Hr).
+    rewrite /read_reg_prov Hr in Hπ. by subst π'.
+  Qed.
+
 End logical_lookups.
 
 Section erasure_PC.

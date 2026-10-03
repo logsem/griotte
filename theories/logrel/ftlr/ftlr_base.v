@@ -83,32 +83,4 @@ Section fundamental.
     : Prop :=
     ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w.(lw) = i) cstk Ws Cs.
 
-  (* TODO: move to program_logic/rules/rules_base.v *)
-  (** The identifier of the word read from a register, if it is a
-      capability; like [read_reg_inr] for its other fields. *)
-  Definition read_reg_prov (regs : LReg) (r : RegName) (π : option AId) : Prop :=
-    match regs !! r with
-    | Some (WCap _ _ _ _ _ _ @@? π') => π' = π
-    | _ => True
-    end.
-
-  (* TODO: move to program_logic/rules/rules_base.v *)
-  Lemma read_reg_prov_cap (regs : LReg) r p g b e a π :
-    lw <$> regs !!ₗ r = Some (WCap true p g b e a) →
-    read_reg_prov regs r π →
-    regs !! r = Some (WCap true p g b e a @@? π).
-  Proof.
-    intros Hinr Hπ.
-    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hinr) as (_ & π' & Hr).
-    rewrite /read_reg_prov Hr in Hπ. by subst π'.
-  Qed.
-
-  (* TODO: move to logrel/logrel.v *)
-  (** The region of an address reached through a capability is the PC's
-      region exactly when the address is the PC's and the capability has no
-      identifier: a capability with an identifier reaches it under another key. *)
-  Lemma addr_key_pc π ea pc_a :
-    addr_key π ea = LNonHeap pc_a → π = None ∧ ea = pc_a.
-  Proof. destruct π; cbn; intros; simplify_eq; done. Qed.
-
 End fundamental.

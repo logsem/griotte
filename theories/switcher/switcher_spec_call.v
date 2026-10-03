@@ -30,11 +30,11 @@ Section Switcher.
     (Nswitcher : namespace)
     (W : WORLD)
     (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
     (w_entry_point : Sealable)
-    (stk_mem : list Word)
-    (arg_rmap rmap : Reg)
+    (stk_mem : list LWord)
+    (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (nargs : nat)
     :
@@ -47,7 +47,7 @@ Section Switcher.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
@@ -58,7 +58,7 @@ Section Switcher.
     (* Stack register *)
     ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
-    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller ∗ wct1_caller ↦□ₑ nargs
+    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller ∗ wct1_caller.(lw) ↦□ₑ nargs
     ∗ cs0 ↦ᵣ wcs0_caller
     ∗ cs1 ↦ᵣ wcs1_caller
     (* Argument registers, need to be safe-to-share *)
@@ -80,7 +80,7 @@ Section Switcher.
     ∗ interp_continuation cstk Ws Cs
 
     (* POST-CONDITION *)
-    ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem : list Word) l' rcgp rcra rcs0 rcs1,
+    ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1,
               (* We receive a public future world of the world pre switcher call *)
             ⌜ extract_temporaries_condition W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) ⌝
             ∗ RevokedResources W2 C l'
@@ -95,7 +95,7 @@ Section Switcher.
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
-            ∗ PC ↦ᵣ updatePcPerm (rcra)
+            ∗ PC ↦ᵣ lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ rcgp
             ∗ cra ↦ᵣ rcra
@@ -114,13 +114,13 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hdom Hrdom) "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_unify Nswitcher W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller target
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true).
     1-4: eauto.
-    iFrame "Halloc Hswitcher Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
+    iFrame "Hswitcher Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
       Hstk Hworld_interp Hstk_val Hcstk Hcont".
     iFrame "Hentry".
     iFrame "%".
@@ -148,10 +148,10 @@ Section Switcher.
     (Nswitcher : namespace)
     (W : WORLD)
     (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
-    (stk_mem : list Word)
-    (arg_rmap rmap : Reg)
+    (stk_mem : list LWord)
+    (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
@@ -162,7 +162,7 @@ Section Switcher.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
@@ -173,7 +173,7 @@ Section Switcher.
     (* Stack register *)
     ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
-    ∗ ct1 ↦ᵣ wct1_caller ∗ (if is_sealed_with_o wct1_caller ot_switcher then interp W C wct1_caller else True)
+    ∗ ct1 ↦ᵣ wct1_caller ∗ (if is_sealed_with_o wct1_caller.(lw) ot_switcher then interp W C wct1_caller else True)
     ∗ cs0 ↦ᵣ wcs0_caller
     ∗ cs1 ↦ᵣ wcs1_caller
     (* Argument registers, need to be safe-to-share *)
@@ -192,7 +192,7 @@ Section Switcher.
     ∗ interp_continuation cstk Ws Cs
 
     (* POST-CONDITION *)
-    ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem : list Word) l' rcgp rcra rcs0 rcs1,
+    ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1,
             (* We receive a public future world of the world pre switcher call *)
             ⌜ extract_temporaries_condition W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) ⌝
             ∗ RevokedResources W2 C l'
@@ -207,7 +207,7 @@ Section Switcher.
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
-            ∗ PC ↦ᵣ updatePcPerm (rcra)
+            ∗ PC ↦ᵣ lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ rcgp
             ∗ cra ↦ᵣ rcra
@@ -228,13 +228,13 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hdom Hrdom) "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_unify Nswitcher W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false).
     1-4: eauto.
-    iFrame "Halloc Hswitcher Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
+    iFrame "Hswitcher Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
       Hstk Hworld_interp Hstk_val Hcstk Hcont Hpost".
     iFrame "Htarget_v".
     iFrame "%".

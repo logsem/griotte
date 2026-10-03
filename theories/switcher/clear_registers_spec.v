@@ -26,13 +26,13 @@ Section ClearRegistersMacro.
     let rargs := [ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ; ct0] in
     list_to_set (firstn nargs rargs).
 
-  Definition is_arg_rmap (rmap : Reg) (nargs : nat) :=
+  Definition is_arg_rmap (rmap : LReg) (nargs : nat) :=
     dom rmap = dom_arg_rmap nargs.
 
   Lemma rclear_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (l : list RegName)
-    (rmap : Reg) φ :
+    (rmap : LReg) φ :
     l ≠ [] ->
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l ))%a ->
@@ -42,7 +42,7 @@ Section ClearRegistersMacro.
     ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag pc_a (rclear_instrs' l)
-      ∗ ▷ ( (∃ (rmap' : Reg),
+      ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = list_to_set l ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
@@ -65,14 +65,14 @@ Section ClearRegistersMacro.
     iInstr "Hcode".
     destruct (decide (l = [])).
     { subst l. iApply "Hcont". iFrame.
-      replace (delete r rmap) with (∅ : Reg).
+      replace (delete r rmap) with (∅ : LReg).
       2: { symmetry.
            rewrite -dom_empty_iff_L.
            rewrite dom_delete_L.
            rewrite Hrdom.
            set_solver.
       }
-      iExists (<[r := WInt 0]> ∅).
+      iExists (<[r := lword_of_word (WInt 0)]> ∅).
       iSplit; cycle 1.
       + iDestruct (big_sepM_insert (fun r w => r ↦ᵣ w ∗ ⌜ w = WInt 0⌝ )%I ∅ r with "[Hr Hregs]") as "H".
         { done. }
@@ -125,7 +125,7 @@ Section ClearRegistersMacro.
 
   Lemma clear_registers_post_call_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (rmap : Reg) φ :
+    (rmap : LReg) φ :
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_post_call_instrs)%a ->
 
@@ -134,7 +134,7 @@ Section ClearRegistersMacro.
     ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag pc_a clear_registers_post_call_instrs
-      ∗ ▷ ( (∃ (rmap' : Reg),
+      ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
@@ -150,7 +150,7 @@ Section ClearRegistersMacro.
 
   Lemma clear_registers_pre_call_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (rmap : Reg) φ :
+    (rmap : LReg) φ :
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_instrs)%a ->
 
@@ -159,7 +159,7 @@ Section ClearRegistersMacro.
     ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag pc_a clear_registers_pre_call_instrs
-      ∗ ▷ ( (∃ (rmap' : Reg),
+      ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
@@ -176,7 +176,7 @@ Section ClearRegistersMacro.
 
   Lemma clear_registers_pre_call_skip_spec_known
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (arg_rmap : Reg) (nargs : nat)
+    (arg_rmap : LReg) (nargs : nat)
     φ :
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->

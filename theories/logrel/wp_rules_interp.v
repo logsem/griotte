@@ -7,10 +7,6 @@ From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules proofmode monotone.
 From griotte Require Import map_simpl register_tactics proofmode.
 
-(* TEMPORARY MCP workaround: the 5th constructor of [instr]. *)
-Definition cload : RegName → RegName → Z → instr :=
-  ltac:(intros d s i; constructor 5; [exact d | exact s | exact i]).
-
 Section wp_interp.
   Context
     {Σ:gFunctors}
@@ -29,77 +25,6 @@ Section wp_interp.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
-
-  (* TODO: move to program_logic/rules/rules_Load.v *)
-  (** The general load rule with a status witness, over owned memory. *)
-  Lemma wp_load_witness_imm Ep pc_p pc_g pc_b pc_e pc_a pc_π r1 r2 (imm : Z) w
-      (mem : LMem) (regs : LReg) wit :
-    decodeInstrW w.(lw) = cload r1 r2 imm →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-    regs_of (cload r1 r2 imm) ⊆ dom regs →
-    mem !! pc_a = Some w →
-    allow_load_mem_or_shadow_offset r2 imm regs mem ∅ →
-    {{{ (▷ [∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
-        load_witness_res wit ∗
-        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
-      Instr Executable @ Ep
-    {{{ regs' retv, RET retv;
-        ⌜ Load_spec regs r1 r2 imm regs' mem ∅ wit retv⌝ ∗
-        ([∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
-        load_witness_res wit ∗
-        [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
-  Proof.
-    iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad φ) "(Hmem & Hwit & Hreg) Hφ".
-    iDestruct (mem_remove_dq with "Hmem") as "Hmem".
-    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
-      as "Hshadow".
-    { by rewrite big_sepM_empty. }
-    iApply (wp_load_general_shadow_imm with "[$Hmem $Hshadow $Hwit $Hreg]"); eauto.
-    { rewrite create_gmap_default_dom list_to_set_elements_L. auto. }
-    iNext. iIntros (? ?) "(?&Hmem&_&Hwit&?)". iApply "Hφ". iFrame.
-    iDestruct (mem_remove_dq with "Hmem") as "Hmem". iFrame.
-  Qed.
-
-  (* TODO: move to program_logic/rules/rules_Store.v *)
-  (** A store through a word that is not a capability fails, whatever its
-      identifier. *)
-  Lemma wp_store_fail_not_cap_imm Ep (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π
-      w dst (src : Z + RegName) regs wa :
-    decodeInstrW w.(lw) = Store dst src imm →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-    regs !!ₗ dst = Some wa →
-    is_cap wa.(lw) = false →
-    {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
-      Instr Executable @ Ep
-    {{{ RET FailedV; pc_a ↦ₐ w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
-  Proof.
-    iIntros (Hinstr Hvpc HPC Hdst Hcap φ) "(>Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem Rg Cg c σ' Her Hregs Hregs' Hpc_a' Hstep)
-      "Hr Hsr Hm Hst HR HC Hpc_a Hmap".
-    assert (lookup_reg dst r = Some wa.(lw)) as Hdst'.
-    { eapply lookup_reg_weaken; last exact Hregs'. by rewrite lookup_reg_erase Hdst. }
-    rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Failed ∧ σ' = (r, sr, m, st)) as [-> ->].
-    { destruct wa as [ [| [|] | |] ?]; cbn in Hcap; try discriminate.
-      all: cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
-    iApply (instr_close_fail with "Hr Hsr Hm Hst HR HC Hmap"); first done.
-    iIntros "Hmap". iApply "Hφ". iFrame.
-  Qed.
-
-  (* TODO: move to logrel/logrel.v *)
-  Lemma interp_lstore_word W C p v :
-    interp W C v -∗ interp W C (lstore_word p v).
-  Proof.
-    iIntros "#Hv".
-    destruct (canStore p v.(lw)) eqn:Hcs.
-    - by rewrite lstore_word_canStore.
-    - assert (lstore_word p v = lclear_tag v) as ->.
-      { by rewrite /lstore_word /lclear_tag /lift_word /store_word Hcs. }
-      iApply interp_clear_tag.
-  Qed.
 
   Lemma lload_word_RW v : lload_word RW v = v.
   Proof. by destruct v as [ [] ?]. Qed.
@@ -830,7 +755,7 @@ Section wp_interp.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
     :
-    decodeInstrW wi.(lw) = cload rdst rsrc imm →
+    decodeInstrW wi.(lw) = Load rdst rsrc imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -986,7 +911,7 @@ Section wp_interp.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
     :
-    decodeInstrW wi.(lw) = cload rdst rsrc 0 →
+    decodeInstrW wi.(lw) = Load rdst rsrc 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -1030,7 +955,7 @@ Section wp_interp.
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi wdst : LWord)
     :
-    decodeInstrW wi.(lw) = cload rdst rsrc imm →
+    decodeInstrW wi.(lw) = Load rdst rsrc imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -1072,7 +997,7 @@ Section wp_interp.
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi wdst : LWord)
     :
-    decodeInstrW wi.(lw) = cload rdst rsrc 0 →
+    decodeInstrW wi.(lw) = Load rdst rsrc 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -1153,13 +1078,13 @@ Section wp_interp.
     SubBounds pc_b pc_e pc_a (pc_a ^+ 1)%a ->
     (PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
      cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ w0 ∗
-     a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (cload ca0 cgp imm)] ∗
+     a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (Load ca0 cgp imm)] ∗
      region W C ∗
      ▷ (∀ actual,
        ⌜load_heap_in_world W raw actual⌝ -∗
        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a ∗
        cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ actual ∗
-       a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (cload ca0 cgp imm)] ∗
+       a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (Load ca0 cgp imm)] ∗
        region W C -∗
        WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -1169,7 +1094,6 @@ Section wp_interp.
     iIntros (Hshadow Hheap_raw Hea Hbounds Hsub)
       "(HPC & Hcgp & Hca0 & Ha & Hcode & Hregion & Hpost)".
     codefrag_facts "Hcode". clear H0.
-    iEval (rewrite /lword_of_word) in "HPC".
     (* Load ca0 cgp imm. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -1182,7 +1106,7 @@ Section wp_interp.
     assert (is_shadow_address a = false) as Hnot_shadow
       by (eapply disjoint_from_shadow_not_in; [exact Hshadow|exact Hbounds]).
     iApply (wp_load_witness_imm _ RX Global pc_b pc_e pc_a None ca0 cgp imm
-              (encodeInstrW (cload ca0 cgp imm) @@? None) with "[$Hmem $Hwit $Hmap]").
+              (encodeInstrW (Load ca0 cgp imm) @@? None) with "[$Hmem $Hwit $Hmap]").
     { apply decode_encode_instrW_inv. }
     { solve_pure. }
     { by simplify_map_eq. }
@@ -1234,7 +1158,7 @@ Section wp_interp.
   Lemma load_read_retained E W C
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (raw : LWord) :
     is_shadow_address a = false →
-    decodeInstrW wi.(lw) = cload dst src 0 →
+    decodeInstrW wi.(lw) = Load dst src 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →

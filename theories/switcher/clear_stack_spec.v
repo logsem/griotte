@@ -11,7 +11,7 @@ Section ClearStackMacro.
   Lemma clear_stack_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (csp_g : Locality) (csp_b csp_e csp_a : Addr)
-    (r1 r2 : RegName) (ws : list Word)
+    (r1 r2 : RegName) (ws : list LWord)
     φ :
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->

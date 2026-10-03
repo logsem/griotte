@@ -32,7 +32,7 @@ Section fundamental.
   Implicit Types interp : (V).
 
   Local Lemma interp_switcher_call_blocks_0_1_spec
-      (wcsp wct2 wctp : Word) :
+      (wcsp wct2 wctp : LWord) :
     SubBounds b_switcher e_switcher a_switcher_call
       (a_switcher_call ^+ length switcher_instrs)%a ->
     PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
@@ -41,8 +41,8 @@ Section fundamental.
     ctp ↦ᵣ wctp ∗
     codefrag a_switcher_call switcher_instrs ∗
     ▷ (
-      ((⌜rules_Get.denote (GetP ct2 csp) wcsp = Some (encodePerm RWL)⌝ ∗
-         ⌜rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local)⌝ ∗
+      ((⌜rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some (encodePerm RWL)⌝ ∗
+         ⌜rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some (encodeLoc Local)⌝ ∗
          PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ 8)%a ∗
          csp ↦ᵣ wcsp ∗
          ct2 ↦ᵣ WInt 0 ∗
@@ -148,8 +148,8 @@ Section fundamental.
       pc_a wcsp wcs0 wcs1 wcra wcgp :
     SubBounds b_switcher e_switcher pc_a
       (pc_a ^+ length (switcher_instrs_n 2))%a ->
-    rules_Get.denote (GetP ct2 csp) wcsp = Some (encodePerm RWL) ->
-    rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local) ->
+    rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some (encodePerm RWL) ->
+    rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some (encodeLoc Local) ->
     interp W C wcsp ∗
     interp W C wcs0 ∗
     interp W C wcs1 ∗
@@ -187,11 +187,12 @@ Section fundamental.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
+    (* --- Store csp cs0 --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_store_interp with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
     { iFrame. iFrame "#". }
-    iIntros "!>" (v) "[-> | (% & % & % & % & % & -> & -> & HPC & Hi & Hcs0
+    iIntros "!>" (v) "[-> | (% & % & % & % & % & %πsp & -> & -> & HPC & Hi & Hcs0
         & Hcsp & Hworld_interp & %Hcanstore & %bounds)] /=".
     { wp_pure. wp_end. iIntros "%Hcontr"; done. }
     wp_pure.
@@ -201,6 +202,12 @@ Section fundamental.
     simplify_eq.
     assert (encodeLoc g = encodeLoc Local)%Z as ?%encodeLoc_inj by congruence.
     simplify_eq.
+    iDestruct (interp_WL_addr_key with "Hspv") as %Hkeys; first done.
+    assert (πsp = None) as ->.
+    { destruct πsp as [ι|]; last done. exfalso.
+      assert (a ∈ finz.seq_between b e) as Ha
+        by (apply elem_of_finz_seq_between; solve_addr+bounds).
+      rewrite Forall_forall in Hkeys. discriminate (Hkeys a Ha). }
 
     assert (is_Some (a + 1)%a) as [f Ha1] by solve_addr+bounds.
     (* --- Lea csp 1 --- *)
@@ -264,7 +271,6 @@ Section fundamental.
     (pc_a ^+ 10 + (-36))%a = Some (pc_a ^+ (-26))%a ->
     (b <= a)%a ->
     (b <= (a ^+ 3)%a < e)%a ->
-    allocator_ctx ∗
     interp W C (WCap true RWL Local b e a) ∗
     PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     cs0 ↦ᵣ wcs0_old ∗
@@ -298,7 +304,7 @@ Section fundamental.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hsub Hjmp Hb Ha)
-      "(#Halloc & #Hspv & HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hca1 &
+      "(#Hspv & HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hca1 &
         Hcsp & Hworld_interp & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -307,7 +313,7 @@ Section fundamental.
     iInstr "Hcode".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_interp_cap with "[$Halloc $HPC $Hi Hcsp Hcgp $Hworld_interp]");
+    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]");
       try solve_pure; try solve_ndisj.
     { iFrame. by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (%wcgp & -> & HPC & Hi & Hcsp &
@@ -320,7 +326,7 @@ Section fundamental.
     iInstr "Hcode".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_interp_cap with "[$Halloc $HPC $Hi Hcsp Hcra $Hworld_interp]");
+    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]");
       try solve_pure; try solve_ndisj.
     { iFrame. by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (%wcra & -> & HPC & Hi & Hcsp &
@@ -333,7 +339,7 @@ Section fundamental.
     iInstr "Hcode".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_interp_cap with "[$Halloc $HPC $Hi Hcsp Hcs1 $Hworld_interp]");
+    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]");
       try solve_pure; try solve_ndisj.
     { iFrame. by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (%wcs1 & -> & HPC & Hi & Hcsp &
@@ -346,7 +352,7 @@ Section fundamental.
     iInstr "Hcode".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_interp_cap with "[$Halloc $HPC $Hi Hcsp Hcs0 $Hworld_interp]");
+    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]");
       try solve_pure; try solve_ndisj.
     { iFrame. by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (%wcs0 & -> & HPC & Hi & Hcsp &
@@ -401,7 +407,7 @@ Section fundamental.
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs #Halloc [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
 
@@ -571,7 +577,7 @@ Section fundamental.
         repeat (rewrite -delete_insert_ne //).
         repeat (rewrite dom_delete_L).
         repeat (rewrite dom_insert_L).
-        apply regmap_full_dom in Hfull_rmap.
+        apply lregmap_full_dom in Hfull_rmap.
         rewrite Hfull_rmap.
         set_solver.
       }
@@ -597,7 +603,7 @@ Section fundamental.
                    ∗ (∀ (r : RegName) (v : leibnizO LWord), ⌜r ≠ PC⌝ → ⌜rmap' !! r = Some v⌝ → interp W C v)
         )%I with "[Hrmap]" as (rmap') "(%Hdom_rmap' & Hrmap & #Hrmap_interp')".
       {
-        iExists (fmap (fun v => WInt 0) arg_rmap').
+        iExists (fmap (fun v => lword_of_word (WInt 0)) arg_rmap').
         iSplit ; [iPureIntro; apply dom_fmap_L|].
         iSplitL.
         {
@@ -683,7 +689,7 @@ Section fundamental.
       }
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcsp]") as "Hrmap".
 
-      destruct ( decide (isCorrectPC (updatePcPerm wcra'))) as [HcorrectWret|HcorrectWret]; cycle 1.
+      destruct ( decide (isCorrectPC (updatePcPerm wcra'.(lw)))) as [HcorrectWret|HcorrectWret]; cycle 1.
       { (* The PC is not correct, the execution will crash *)
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC with "HPC"); first done.
@@ -700,14 +706,14 @@ Section fundamental.
       }
       iDestruct (big_sepM_insert_delete with "[$Hrmap $HPC]") as "Hrmap".
 
-    rewrite -(insert_id (<[PC:=updatePcPerm wcra']> _) PC (updatePcPerm wcra'))
+    rewrite -(insert_id (<[PC:=lupdatePcPerm wcra']> _) PC (lupdatePcPerm wcra'))
     ; last (clear;simplify_map_eq; done).
-    destruct wcra' as [ z | [tcra pcra gcra bcra ecra acra|] | tcra pcra gcra bcra ecra acra | ot sb ];
+    destruct wcra' as [ [ z | [tcra pcra gcra bcra ecra acra|] | tcra pcra gcra bcra ecra acra | ot sb ] πcra];
       iEval (cbn) in "Hrmap".
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
-        iApply ("IH" with "Halloc [] [] [$] [$] [$] [%] [$] [$]"); eauto.
+        iApply ("IH" with "[] [] [$] [$] [$] [%] [$] [$]"); eauto.
         { iIntros (r); iPureIntro.
           clear -Hdom_rmap' Harg_rmap'.
           destruct (decide (r = PC)); simplify_map_eq; first done.
@@ -736,7 +742,7 @@ Section fundamental.
           iPureIntro.
           rewrite lookup_delete_ne; eauto.
         }
-      + iAssert (interp W C (WSentry true pcra gcra bcra ecra acra)) as "#Hinterp_wret'" ; first done.
+      + iAssert (interp W C (WSentry true pcra gcra bcra ecra acra @@? πcra)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wcra".
         iDestruct "Hinterp_wcra" as "[%Hret_nonheap #Hinterp_wret]".
         rewrite /enter_cond.
@@ -748,7 +754,7 @@ Section fundamental.
         iSpecialize ("Hinterp_wret" $! gcra (LocalityFlowsToReflexive gcra)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
-        iDestruct ("Hinterp_wret" with "[$Halloc] [$Hcont $Hrmap $Hworld_interp $Hcstk $HH]") as "HA"; eauto.
+        iDestruct ("Hinterp_wret" with "[$Hcont $Hrmap $Hworld_interp $Hcstk $HH]") as "HA"; eauto.
         iSplitR; last (iPureIntro; simplify_map_eq; done).
         iSplit.
         * iIntros (r); iPureIntro.
@@ -799,7 +805,6 @@ Section fundamental.
     (* ----- Clear stack -----  *)
     (* -----------------------  *)
     focus_block 5 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_stack_chop.
-    iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
     iApply (clear_stack_interp_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hworld_interp]"); try solve_pure.
     iSplit.
     { iApply interp_weakeningEO;eauto. all: solve_addr. }
@@ -832,9 +837,9 @@ Section fundamental.
     iApply (wp_unseal_unknown with "[$HPC $Hi $Hcs0 $Hct1]"); try solve_pure.
     iIntros "!>" (ret)
       "[-> |
-       [(% & % & % & % & % & %o & %wsb & -> & HPC & Hi & Hcs0 & Hct1
+       [(% & % & % & % & % & %πsr & %o & %wsb & %πw & -> & HPC & Hi & Hcs0 & Hct1
          & %Heq & %Hpermit & %Hsealed & %Htag & %Hrange)
-       |(%tsr & %psr & %gsr & %bsr & %esr & %asr & %ot & %sb
+       |(%tsr & %psr & %gsr & %bsr & %esr & %asr & %πsr & %ot & %sb & %πw
          & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Hsealed & %Hinvalid)]]".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     2: {
@@ -851,11 +856,11 @@ Section fundamental.
 
     (* get the seal inv and compare with wsb *)
     iDestruct ("Hreg" $! ct1 with "[//] [//]") as "#Hct1v".
-    rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher wsb)).
+    rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher wsb @@? πw)).
     iEval (cbn; rewrite Htag) in "Hct1v".
     rewrite /interp_sb.
     iDestruct "Hct1v" as "[#Hct1v %Hct1_valid]".
-    iAssert (sts_seals_std C ot_switcher {[WSealable wsb]}) as "#Hct1v'".
+    iAssert (sts_seals_std C ot_switcher {[WSealable wsb @@? πw]}) as "#Hct1v'".
     { iApply sts_seals_std_weaken; last iFrame "Hct1v"; last set_solver+. }
     iDestruct (world_interp_seal_pred_singleton with "Hp_ot_switcher Hct1v' Hworld_interp")
       as "(Hworld_interp & #HP)".
@@ -867,7 +872,7 @@ Section fundamental.
        Heq Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Htbl1 & Htbl2 & Htbl3 & #Hentry & #Hentry_borrow & Hexec)".
     simpl fst; simpl snd.
-    destruct wsb; cbn in Heq; simplify_eq.
+    destruct wsb; cbn in Heq; rewrite /lforce_global /lift_word /lword_of_word /= in Heq; simplify_eq.
     iEval (cbn) in "Hentry"; iEval (cbn) in "Hentry_borrow".
     iApply (switcher_call_block_7_after_unseal_spec with
       "[- $Htbl3 $HPC $Hcs0 $Hct1 $Hct2 $Hcode]"); eauto; iNext.
@@ -899,13 +904,13 @@ Section fundamental.
     match goal with |- context [ ([∗ map] k↦y ∈ ?r , k ↦ᵣ y)%I ] => set (rmap' := r) end.
     set (params := dom_arg_rmap 8).
     (* ({[ca0; ca1; ca2; ca3; ca4; ca5; ca5; ct0]} : gset RegName)). *)
-    set (Pf := ((λ '(r,_), r ∈ params) : RegName * Word → Prop)).
+    set (Pf := ((λ '(r,_), r ∈ params) : RegName * LWord → Prop)).
     rewrite -(map_filter_union_complement Pf rmap').
     iDestruct (big_sepM_union with "Hrmap") as "[Hparams Hrest]".
     { apply map_disjoint_filter_complement. }
 
     iApply (clear_registers_pre_call_skip_spec _ _ _ _ _ _ (nargs+1) with "[- $HPC $Hcode]"); try solve_pure.
-    { instantiate (1:=filter (λ v : RegName * Word, (Pf v)%type) rmap').
+    { instantiate (1:=filter (λ v : RegName * LWord, (Pf v)%type) rmap').
       rewrite /is_arg_rmap /dom_arg_rmap.
       apply dom_filter_L. clear -Hfull_rmap.
       rewrite /rmap'. split.
@@ -943,10 +948,10 @@ Section fundamental.
     iInsertList "Hrest" [ctp;ct2;cs1;cs0].
 
     iApply (clear_registers_pre_call_spec with "[- $HPC $Hcode $Hrest]"); try solve_pure.
-    { clear -Hfull_rmap. apply regmap_full_dom in Hfull_rmap as Heq'.
+    { clear -Hfull_rmap. apply lregmap_full_dom in Hfull_rmap as Heq'.
       rewrite !dom_insert_L !dom_delete_L.
       cut (dom (filter (λ v, ¬ Pf v) regs) = all_registers_s ∖ dom_arg_rmap 8);[set_solver|].
-      apply (dom_filter_L _ (regs : gmap RegName Word)).
+      apply (dom_filter_L _ (regs : gmap RegName LWord)).
       split.
       - intros [Hi Hni]%elem_of_difference.
         specialize (Hfull_rmap i) as [x Hx]. eauto.
@@ -992,12 +997,12 @@ Section fundamental.
       repeat (split;auto); try solve_addr; try (repeat f_equiv; solve_addr).
     }
 
-    iApply ("Hexec" with "Halloc").
+    iApply "Hexec".
     iSplitL "Hcont".
     { iFrame. simpl.
       iSplit.
       - iSplit; first (iPureIntro; exact Hstk_heap).
-        iApply (interp_weakening with "IH Hspv");auto;solve_addr.
+        iApply (interp_weakening with "IH Hspv");auto using subseg_heap_base_noid;solve_addr.
       - done. }
     iSplitR.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
@@ -1037,11 +1042,11 @@ Section fundamental.
       clear -Ha_callee_call Hcall.
       pose proof switcher_return_entry_point.
       cbn in *.
-      do 2 (f_equal; auto). solve_addr.
+      do 3 (f_equal; auto). solve_addr.
     - iPureIntro. clear -Ha4 Ha3 Ha2 Ha1 bounds. simplify_map_eq.
       replace f2 with (a^+4)%a by solve_addr.
       done.
-    - iApply (interp_weakening with "IH Hspv");auto
+    - iApply (interp_weakening with "IH Hspv");auto using subseg_heap_base_noid
       ;[solve_addr+bounds' Ha4 Ha3 Ha2 Ha1|solve_addr-].
     - iIntros (r v Hr Hv).
       assert (r ∉ ({[ PC ; cgp ; cra ; csp ]} : gset RegName)) as Hr'.

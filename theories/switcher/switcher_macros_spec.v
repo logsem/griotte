@@ -116,7 +116,7 @@ Section switcher_macros.
 
   Lemma clear_registers_pre_call_skip_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (arg_rmap : Reg) (nargs : nat)
+    (arg_rmap : LReg) (nargs : nat)
     (W : WORLD) (C : CmptName) φ :
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->

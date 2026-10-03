@@ -25,10 +25,10 @@ Section Switcher_KtK_Return.
       restored register satisfies [load_heap] for its saved word. *)
   Lemma switcher_cc_specification_return_known_to_known
     (Nswitcher : namespace)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : LWord)
     (b_stk e_stk a_stk : Addr)
-    (stk_mem : list Word)
-    (rmap : Reg)
+    (stk_mem : list LWord)
+    (rmap : LReg)
     (cstk : CSTK)
     (E : coPset)
     :
@@ -55,7 +55,7 @@ Section Switcher_KtK_Return.
     dom rmap = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
 
     (* Switcher Invariant *)
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
     (* NA token*)
@@ -89,7 +89,7 @@ Section Switcher_KtK_Return.
               (* NA token*)
               ∗ na_own cerise_nais E
               (* Registers *)
-              ∗ PC ↦ᵣ updatePcPerm (rcra)
+              ∗ PC ↦ᵣ lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
               (* Stack register *)
               ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -113,7 +113,7 @@ Section Switcher_KtK_Return.
   Proof.
     intros astk4 frame.
     iIntros (Hstk_heap Hstk_shadow HE Hdom)
-      "(#Halloc & #Hswitcher & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
+      "(#Hswitcher & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
       & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
 
     (* --- Extract the code from the invariant --- *)
@@ -194,7 +194,7 @@ Section Switcher_KtK_Return.
 
     iApply (switcher_return_block_12_restore_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Halloc $Hcode]"); eauto.
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); eauto.
     iNext. iIntros (rcgp rcra rcs1 rcs0) "%Hrestored
       (HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc_restore)".
@@ -240,7 +240,7 @@ Section Switcher_KtK_Return.
 
     focus_block 15 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Jalr cnull cra *)
-    iAssert (⌜map_Forall (λ (_ : RegName) (x : Word), x = WInt 0) rmap' ⌝)%I as
+    iAssert (⌜map_Forall (λ (_ : RegName) (x : LWord), x = WInt 0) rmap' ⌝)%I as
       "%Hrmap'_zeroes".
     { iDestruct (big_sepM_sep with "Hregs") as "[_ %]"; auto. }
     iExtract "Hregs" cnull as "[Hcnull %]".

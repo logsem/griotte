@@ -299,6 +299,17 @@ Definition disjoint_from_heap `{HeapRegion} (b e : Addr) : Prop :=
 Definition not_heap_range `{HeapRegion} (b e : Addr) : Prop :=
   is_heap_address b = false ∧ disjoint_from_heap b e.
 
+Lemma disjoint_from_heap_not_in `{HeapRegion} (b e a : Addr) :
+  disjoint_from_heap b e →
+  withinBounds b e a = true →
+  is_heap_address a = false.
+Proof.
+  intros Hdisjoint Hbounds. apply not_true_is_false. intros Hheap.
+  apply withinBounds_true_iff in Hbounds, Hheap.
+  rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
+  eapply Hdisjoint; apply elem_of_finz_seq_between; eauto.
+Qed.
+
 Lemma disjoint_from_shadow_not_in `{ShadowRegion} (b e a : Addr) :
   disjoint_from_shadow b e →
   withinBounds b e a = true →

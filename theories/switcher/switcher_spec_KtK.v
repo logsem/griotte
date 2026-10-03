@@ -26,10 +26,10 @@ Section Switcher_KtK.
       shadow entries; their states may change between the call and return.
    **)
   Definition switcher_cc_specification_known_to_known_function
-    (P : iProp Σ) (Q : Word -> Word -> iProp Σ)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (P : iProp Σ) (Q : LWord -> LWord -> iProp Σ)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
-    (arg_rmap : Reg)
+    (arg_rmap : LReg)
     (cstk : CSTK)
     (nargs : nat)
     (E : coPset)
@@ -49,7 +49,7 @@ Section Switcher_KtK.
               ccrel := Known_to_Known
            |}
     in
-    (∀ (arg_rmap' rmap' : Reg), allocator_ctx -∗
+    (∀ (arg_rmap' rmap' : LReg),
        ⌜ is_arg_rmap arg_rmap' 8 ⌝
        ∗ ⌜ dom rmap' =
              all_registers_s ∖
@@ -69,8 +69,8 @@ Section Switcher_KtK.
            [[ region_addrs_zeroes a_stk4 e_stk ]]
        ∗ cstack_frag (frame :: cstk)
        ∗ P
-       ∗ ▷ (∀ (wca0 wca1 : Word) (rmap_ret : Reg)
-                (stk_mem_ret : list Word),
+       ∗ ▷ (∀ (wca0 wca1 : LWord) (rmap_ret : LReg)
+                (stk_mem_ret : list LWord),
               ⌜ dom rmap_ret =
                     all_registers_s ∖
                       {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
@@ -97,10 +97,10 @@ Section Switcher_KtK.
       saved registers according to [load_heap]. *)
   Lemma switcher_cc_specification_known_to_known_end_to_end
     (Nswitcher : namespace)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
-    (stk_mem : list Word)
-    (arg_rmap rmap : Reg)
+    (stk_mem : list LWord)
+    (arg_rmap rmap : LReg)
     (cstk : CSTK)
     (nargs : nat)
     (E : coPset)
@@ -109,7 +109,7 @@ Section Switcher_KtK.
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
     (off_tgt : Z)
-    (P : iProp Σ) (Q : Word -> Word -> iProp Σ)
+    (P : iProp Σ) (Q : LWord -> LWord -> iProp Σ)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let wct1_caller :=
@@ -132,7 +132,7 @@ Section Switcher_KtK.
         ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ∗ inv (export_table_PCCN Nexp_tbl)
         (btbl_tgt ↦ₐ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt)
     ∗ inv (export_table_CGPN Nexp_tbl)
@@ -157,12 +157,12 @@ Section Switcher_KtK.
         b_stk e_stk a_stk arg_rmap cstk nargs E
         bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt
     ∗ ▷ (
-        (∃ (rcgp rcra rcs0 rcs1 wca0 wca1 : Word) (rmap' : Reg),
+        (∃ (rcgp rcra rcs0 rcs1 wca0 wca1 : LWord) (rmap' : LReg),
            ⌜ dom rmap' =
                  all_registers_s ∖
                    {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
            ∗ na_own cerise_nais E
-           ∗ PC ↦ᵣ updatePcPerm (rcra)
+           ∗ PC ↦ᵣ lupdatePcPerm (rcra)
            ∗ cgp ↦ᵣ rcgp
            ∗ cra ↦ᵣ rcra
            ∗ cs0 ↦ᵣ rcs0
@@ -178,12 +178,12 @@ Section Switcher_KtK.
                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
            ∗ Q wca0 wca1)
         ∨
-        (∃ (rmap' : Reg) (stk_mem' : list Word) rcgp rcra rcs0 rcs1,
+        (∃ (rmap' : LReg) (stk_mem' : list LWord) rcgp rcra rcs0 rcs1,
            ⌜ dom rmap' =
                  all_registers_s ∖
                    {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
            ∗ na_own cerise_nais E
-           ∗ PC ↦ᵣ updatePcPerm (rcra)
+           ∗ PC ↦ᵣ lupdatePcPerm (rcra)
            ∗ cgp ↦ᵣ rcgp
            ∗ cra ↦ᵣ rcra
            ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -205,7 +205,7 @@ Section Switcher_KtK.
     intros a_stk4 wct1_caller.
     iIntros (Hstk_heap Hstk_shadow Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
              HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap)
-      "(#Halloc & #Hswitcher & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
+      "(#Hswitcher & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".
 
@@ -215,7 +215,7 @@ Section Switcher_KtK.
               Nexp_tbl btbl_tgt atbl_tgt etbl_tgt
               bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt);
       try assumption.
-    iFrame "Halloc Hswitcher Hinv_pcc Hinv_cgp Hinv_entry
+    iFrame "Hswitcher Hinv_pcc Hinv_cgp Hinv_entry
             Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1
             Hargs Hregs Hstk Hcstk".
     iNext.
@@ -228,8 +228,8 @@ Section Switcher_KtK.
        & Hca0 & Hca1 & Hregs & Hstk & Hcstk & %Hrestored)
       ]".
     - iAssert (
-        ▷ (∀ (wca0 wca1 : Word) (rmap_ret : Reg)
-               (stk_mem_ret : list Word),
+        ▷ (∀ (wca0 wca1 : LWord) (rmap_ret : LReg)
+               (stk_mem_ret : list LWord),
              ⌜ dom rmap_ret =
                    all_registers_s ∖
                      {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
@@ -260,14 +260,14 @@ Section Switcher_KtK.
           "(%Hrmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
            & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & HQ)".
         iAssert (
-          ▷ (∀ (rmap_final : Reg) rcgp rcra rcs0 rcs1,
+          ▷ (∀ (rmap_final : LReg) rcgp rcra rcs0 rcs1,
                ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
                ∗ ⌜ dom rmap_final =
                      all_registers_s ∖
                        {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
                ∗ na_own cerise_nais E
-               ∗ PC ↦ᵣ updatePcPerm (rcra)
+               ∗ PC ↦ᵣ lupdatePcPerm (rcra)
                ∗ cgp ↦ᵣ rcgp
                ∗ cra ↦ᵣ rcra
                ∗ cs0 ↦ᵣ rcs0
@@ -297,13 +297,13 @@ Section Switcher_KtK.
                   wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk E
                   with
                   "[$Hswitcher $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
-                    $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Halloc $Hretpost]").
+                    $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hretpost]").
         { exact Hstk_heap. }
         { exact Hstk_shadow. }
         { exact HE. }
         { exact Hrmap_ret. }
       }
-      iApply ("Hf" $! arg_rmap' rmap' with "Halloc").
+      iApply ("Hf" $! arg_rmap' rmap').
       iFrame "∗#".
       iSplit; first done.
       iPureIntro. rewrite Hrmap' Hdom. set_solver.
