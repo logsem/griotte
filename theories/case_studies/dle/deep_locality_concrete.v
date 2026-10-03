@@ -107,6 +107,7 @@ Proof.
     dle_trusted_stack_b dle_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
+    ltac:(by apply Forall_replicate)
     dle_stack_b dle_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -436,7 +437,7 @@ Lemma dle_initial_memory_correct :
   is_initial_memory dle_initial_memory.
 Proof.
   rewrite /is_initial_memory /dle_initial_memory.
-  repeat split; try reflexivity.
+  repeat split; try reflexivity; try apply Forall_nil_2.
   - rewrite /dle_C_code /encodeInstrsW;
       repeat constructor; done.
   - rewrite /dle_C_data; repeat constructor; done.

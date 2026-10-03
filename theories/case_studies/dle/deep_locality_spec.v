@@ -9,8 +9,8 @@ Section DLE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -19,7 +19,7 @@ Section DLE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Local Lemma dle_prepare_world {E : coPset}
       (W : WORLD) (b e : Addr) (z : Z) :
@@ -66,10 +66,11 @@ Section DLE.
         split; first done.
         apply heap_cap_valid_disjoint; done.
       }
+      rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons b); last solve_addr + Hcgp_contiguous.
       rewrite (finz_seq_between_empty _ (b ^+ 1)%a); last solve_addr + Hcgp_contiguous.
       iApply big_sepL_singleton.
-      rewrite (addr_key_nonheap _ b Hcgp_nonheap).
+      rewrite addr_key_None.
       iExists RW_DL, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -120,10 +121,11 @@ Section DLE.
         split; first done.
         apply heap_cap_valid_disjoint; done.
       }
+      rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (b ^+ 1)%a); last solve_addr + Hcgp_contiguous.
       rewrite (finz_seq_between_empty _ (b ^+ 2)%a); last solve_addr + Hcgp_contiguous.
       iApply big_sepL_singleton.
-      rewrite (addr_key_nonheap _ (b ^+ 1)%a Hcgp1_nonheap).
+      rewrite addr_key_None.
       iExists RW_DL, interp_in_mem_dl.
       iEval (cbn).
       iSplit; first done.
@@ -159,7 +161,7 @@ Section DLE.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
-    (rmap : Reg)
+    (rmap : LReg)
 
     (C_f : Sealable)
 
@@ -195,7 +197,7 @@ Section DLE.
     frame_match Ws Cs cstk W0 C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -205,9 +207,9 @@ Section DLE.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
       ∗ codefrag pc_a dle_main_code
-      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ dle_main_data ]]
+      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> dle_main_data ]]
 
       ∗ world_interp W0 C
 
@@ -225,7 +227,7 @@ Section DLE.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
-      "(#Hassert & #Halloc & #Hswitcher & Hna
+      "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
@@ -308,6 +310,12 @@ Section DLE.
     iInstr "Hcode".
     (* Add ct1 ct2 1%Z; *)
     iInstr "Hcode".
+    assert (is_heap_address (cgp_b ^+ 1)%a = false) as Hcgp1_nonheap.
+    { apply not_true_is_false; intros Hheap.
+      apply withinBounds_true_iff in Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hcgp_heap.
+      eapply (Hcgp_heap (cgp_b ^+ 1)%a); apply elem_of_finz_seq_between;
+        [solve_addr + Hcgp_contiguous | exact Hheap]. }
     (* Subseg ca0 ct2 ct1; *)
     iInstr "Hcode".
     (* Restrict ca0 rw_dl *)
@@ -364,14 +372,14 @@ Section DLE.
       as ["Hca1"; "Hca2"; "Hca3"; "Hca4"; "Hca5"].
 
     set ( rmap_arg :=
-           {[ ca0 := WCap true RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
+           {[ ca0 := lword_of_word (WCap true RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a);
               ca1 := wca1;
               ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
-           ]} : Reg
+              ct0 := lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+           ]} : LReg
         ).
 
     iInsertList "Hrmap" [ct2;ct3].
@@ -414,7 +422,7 @@ Section DLE.
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
        with
-             "[- $Halloc $Hswitcher $Hna
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]"); eauto; iFrame "%".
@@ -446,7 +454,7 @@ Section DLE.
     apply load_heap_nonheap in Hrcs0; [|exact switcher_call_sentry_not_heap].
     apply load_heap_nonheap in Hrcs1; [|exact Hsealed_nonheap].
     subst rcgp rcra rcs0 rcs1.
-    iEval (cbn) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
 
     (* ----- Revoke the world to get borrowed addresses back -----*)
@@ -510,7 +518,7 @@ Section DLE.
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
-    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (WInt 0)) as Hrmap_init.
+    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))) as Hrmap_init.
     { intros r Hr.
       rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
       pose proof Hr as Hr'.
@@ -541,14 +549,14 @@ Section DLE.
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as ["Hca2"; "Hca3"; "Hca4"; "Hca5"].
 
     set ( rmap_arg :=
-           {[ ca0 := WInt 0;
+           {[ ca0 := lword_of_word (WInt 0);
               ca1 := warg1;
               ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
-           ]} : Reg
+              ct0 := lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+           ]} : LReg
         ).
     set (rmap' := (delete ca5 _)).
 
@@ -568,18 +576,6 @@ Section DLE.
     assert (related_sts_priv_world W4 W5) as Hrelated_priv_W4_W5 by apply revoke_related_sts_priv_world.
 
     (* Show that the entry point to C_f is still safe in W5 *)
-    iEval (rewrite world_interp_eq /world_interp_def /sts_full_world /heap_std_full)
-      in "Hworld_interp_C".
-    iDestruct "Hworld_interp_C" as "[Hregion [Hsts Hsealing]]".
-    iDestruct "Hsts" as "[Hstd [Hloc [Hseals [%Hwf_W5 Hheapfull]]]]".
-    assert (heap_wf (heap_std W4)) as Hwf_W4.
-    { rewrite /W5 revoke_heap in Hwf_W5. exact Hwf_W5. }
-    iAssert (world_interp W5 C) with
-      "[Hregion Hstd Hloc Hseals Hheapfull Hsealing]" as "Hworld_interp_C".
-    { rewrite world_interp_eq /world_interp_def /sts_full_world /heap_std_full.
-      iFrame "Hregion Hstd Hloc Hseals Hheapfull Hsealing".
-      iPureIntro. exact Hwf_W5.
-    }
     assert (heap_authority_base (WSealed ot_switcher C_f) = None) as Hsealed_heap_base.
     { destruct (heap_authority_base (WSealed ot_switcher C_f)) as [b|] eqn:Hbase;
         last done.
@@ -596,7 +592,7 @@ Section DLE.
       destruct (get_tag (WSealed ot_switcher C_f)) eqn:Htag.
       - iApply (interp_monotone_sd_retained W3 W4 C ot_switcher C_f
           with "Hinterp_W3_C_f");
-          [exact Hwf_W4 | by apply related_sts_pub_priv_world | exact Htag | exact Hfilter].
+          [by apply related_sts_pub_priv_world | exact Htag | exact Hfilter].
       - by iApply interp_untagged.
     }
     iClear "Hinterp_W3_C_f".
@@ -606,7 +602,7 @@ Section DLE.
 
     iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
        with
-             "[- $Halloc $Hswitcher $Hna
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK]"); eauto; iFrame "%".
@@ -636,12 +632,12 @@ Section DLE.
     apply load_heap_nonheap in Hrcs0; [|exact switcher_call_sentry_not_heap].
     apply load_heap_nonheap in Hrcs1; [|exact Hsealed_nonheap].
     subst rcgp rcra rcs0 rcs1.
-    iEval (cbn) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* -- simplify our knowledge about rmap -- *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero'".
-    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (WInt 0)) as Hrmap_init.
+    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))) as Hrmap_init.
     { intros r Hr.
       rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
       pose proof Hr as Hr'.

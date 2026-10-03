@@ -10,6 +10,7 @@ From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
 From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers.
+From griotte Require Import allocator_resources.
 
 Class memory_layout `{MP: MachineParameters} := {
 
@@ -110,12 +111,14 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   ∧ (cmpt_code main_cmpt) = dle_main_code
   ∧ (cmpt_data main_cmpt) = dle_main_data
   ∧ (cmpt_exp_tbl_entries main_cmpt) = []
+  ∧ Forall (λ w, is_heap_cap w = false) (cmpt_static_sealed main_cmpt)
 
   (* instantiating C *)
   ∧ (cmpt_imports C_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
   ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 1 1)]
+  ∧ Forall (λ w, is_heap_cap w = false) (cmpt_static_sealed C_cmpt)
 
   (* initial stack *)
   ∧ Forall is_z (stack_content switcher_cmpt)
@@ -152,16 +155,11 @@ Section Adequacy.
   Context {cname : CmptNameG}.
   Context {C : CmptName}.
   Context {inv_preg: invGpreS Σ}.
-  Context {mem_preg: gen_heapGpreS Addr Word Σ}.
-  Context {reg_preg: gen_heapGpreS RegName Word Σ}.
-  Context {sreg_preg: gen_heapGpreS SRegName Word Σ}.
+  Context {cerise_preg : ceriseGpreS Σ}.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
-  Context {shadow_preg: gen_heapGpreS Addr AllocStatus Σ}.
-  Context {allocator_preg: allocator_preG Σ}.
-  Context {registry_preg: allocRegistryPreG Σ}.
   Context {na_invg: na_invariants.na_invG Σ}.
-  Context {sts_preg: STS_preG LAddr region_type OType Word Σ}.
+  Context {sts_preg: STS_preG LAddr region_type OType LWord Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -191,10 +189,65 @@ Section Adequacy.
                   (state_is_good (reg', sreg', m', sh'))).
     eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
 
+    (* No allocator: the initial memory has no heap root. *)
+    assert (ghost_init_cond (reg, sreg, m, sh) ∅) as Hinit.
+    { subst sh. apply ghost_init_cond_no_roots.
+      - pose proof Hm as Hm_init.
+        destruct Hm_init as (Hm_eq & Hmain_imports & Hmain_code & Hmain_data & Hmain_exp
+          & Hmain_static & HC_imports & HC_code & HC_data & HC_exp & HC_static & Hstack).
+        subst m.
+        rewrite /mk_initial_memory /mk_initial_program_memory.
+        repeat lazymatch goal with
+          | |- mem_rooted _ (_ ∪ _) => apply mem_rooted_union
+          end.
+        + apply mem_rooted_initial_heap.
+        + apply mem_rooted_initial_switcher. by apply word_rooted_ints.
+        + (* The assert flag is in the program memory, hence outside the heap. *)
+          apply mem_rooted_initial_assert.
+          apply (assert_flag_not_heap_of_disjoint_dom _ mk_initial_program_memory);
+            first exact Hheap_disjoint.
+          rewrite /mk_initial_program_memory !dom_union_L. set_solver.
+        + apply mem_rooted_initial_cmpt.
+          * rewrite Hmain_imports. repeat constructor; apply word_rooted_not_heap_cap.
+            -- apply switcher_call_sentry_not_heap.
+            -- rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
+               by rewrite (assert_code_nonheap assert_cmpt).
+            -- apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
+          * rewrite Hmain_code /dle_main_code /fetch.fetch_instrs /assert_instrs !Forall_app.
+            repeat split; (apply word_rooted_instrs || apply Forall_nil_2).
+          * rewrite Hmain_data /dle_main_data. repeat constructor; apply word_rooted_int.
+          * by apply word_rooted_not_heap_caps.
+          * rewrite Hmain_exp. apply Forall_nil_2.
+        + apply mem_rooted_initial_cmpt.
+          * rewrite HC_imports. repeat constructor; apply word_rooted_not_heap_cap.
+            exact switcher_call_sentry_not_heap.
+          * by apply word_rooted_ints.
+          * eapply Forall_impl; first exact HC_data.
+            intros w Hw. by eapply word_rooted_initial_data.
+          * by apply word_rooted_not_heap_caps.
+          * rewrite HC_exp. repeat constructor; apply word_rooted_int.
+      - destruct Hreg as (HPC & Hcgp & Hcsp & Hr). intros r w Hw.
+        destruct (decide (r = PC)) as [->|]; [rewrite HPC in Hw; injection Hw as <-;
+          apply word_rooted_cap_nonheap, cmpt_pcc_base_not_heap|].
+        destruct (decide (r = cgp)) as [->|]; [rewrite Hcgp in Hw; injection Hw as <-;
+          apply word_rooted_cap_nonheap, cmpt_cgp_base_not_heap|].
+        destruct (decide (r = csp)) as [->|]; [rewrite Hcsp in Hw; injection Hw as <-;
+          apply word_rooted_cap_disjoint, stack_disjoint_from_heap|].
+        rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_rooted_int.
+      - (* The trusted stack is in the program memory, hence outside the heap. *)
+        intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+        apply word_rooted_cap_disjoint.
+        apply (trusted_stack_disjoint_from_heap_of_disjoint_dom _ mk_initial_program_memory);
+          first exact Hheap_disjoint.
+        rewrite /mk_initial_program_memory !dom_union_L. set_solver.
+      - destruct Hm as (Hm & _). subst m.
+        rewrite /mk_initial_memory /mk_initial_program_memory.
+        solve_mem_avoids_mmio_initial.
+      - destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
     pose proof Hm as Hm'.
     destruct Hm as (Hm
-                    & main_imports & main_code & main_data & main_exp_tbl
-                    & C_imports & C_code & C_data & C_exp_tbl
+                    & main_imports & main_code & main_data & main_exp_tbl & main_static
+                    & C_imports & C_code & C_data & C_exp_tbl & C_static
                     & Hstack
                    ).
     assert (mem_avoids_mmio m) as Hmmio_init.
@@ -205,10 +258,11 @@ Section Adequacy.
          (cmpt_exp_tbl_entries_start C_cmpt))
       ).
 
-    iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
-    iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
-    iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
-    iMod (gen_heap_init sh) as (shadow_heapg) "(Hshadow_ctx & Hshadow & _)".
+    iMod (cerise_ghost_init (reg, sreg, m, sh) ∅ Hinit)
+      as (mem_heapg shadow_heapg reg_heapg sreg_heapg registryg addr_allocg)
+         "(Hσ & Hreg & Hsreg & Hmem & Hshadow & _)".
+    iEval (rewrite init_lmem_pointsto) in "Hmem".
+    rewrite (init_lregs_cnull reg); last by (destruct Hreg as (_&_&_&Hr); apply Hr; set_solver).
     iMod (
        entry_init (
            {[
@@ -221,7 +275,6 @@ Section Adequacy.
 
     iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
     pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
-    iMod registry_init as (registryg) "HR".
     pose ceriseg := {|
       cerise_invG := Hinv;
       cerise_nainvG := cerise_na_invs;
@@ -230,13 +283,13 @@ Section Adequacy.
       reg_gen_regG := reg_heapg;
       sreg_gen_regG := sreg_heapg;
       entryG := entry_g;
-      cerise_registryG := registryg |}.
+      cerise_registryG := registryg;
+      cerise_addr_allocG := addr_allocg |}.
 
     iEval (rewrite Hm /mk_initial_memory) in "Hmem".
     iDestruct (big_sepM_union with "Hmem") as "[Hheap Hmem]";
       first exact Hheap_disjoint.
     iEval (rewrite Hshadow_initial) in "Hshadow".
-    iMod (@allocator_init_free_maps Σ ceriseg allocator_preg MP ⊤ with "Hheap Hshadow HR") as (allocatorg) "#Halloc".
 
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (world_interp_init ({[ ot_switcher ]} : gset _))
@@ -250,7 +303,7 @@ Section Adequacy.
     set (W0 := (∅, (∅,∅), ∅, ∅)).
 
     pose proof (
-        @dle_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ _ C
+        @dle_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ C
       ) as Spec.
 
 
@@ -317,11 +370,11 @@ Section Adequacy.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1; rewrite -H1 C_exp_tbl.
       done.
     }
-    assert ( (exported_entries_words C_cmpt) = {[WSealable C_f; borrow (WSealable C_f) ]}) as Hexported_entries_words.
+    assert ( (exported_entries_words C_cmpt) = {[lword_of_word (WSealable C_f); lword_of_word (borrow (WSealable C_f)) ]}) as Hexported_entries_words.
     { rewrite /exported_entries_words Hexported_entries_sealable.
       cbn; subst C_f'; set_solver+.
     }
-    assert ( (exported_entries_sealed C_cmpt) = {[WSealed ot_switcher C_f; WSealed ot_switcher C_f']}) as Hexported_entries_sealed.
+    assert ( (exported_entries_sealed C_cmpt) = {[lword_of_word (WSealed ot_switcher C_f); lword_of_word (WSealed ot_switcher C_f')]}) as Hexported_entries_sealed.
     { rewrite /exported_entries_sealed Hexported_entries_sealable.
       cbn; subst C_f'; set_solver+.
     }
@@ -379,11 +432,11 @@ Section Adequacy.
           unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
         iEval (cbn); iSplit.
         { iEval (rewrite /interp_in_mem_pre /=).
-          iEval (rewrite (filter_heap_nonheap _ _ Hcall_nonheap) /=).
+          rewrite filter_heap_nonheap; last exact Hcall_nonheap.
           iApply interp_switcher_call; done. }
-        { iIntros "!>" (W W' Hrel Hwf) "H".
+        { iIntros "!>" (W W' Hrel) "H".
           iEval (rewrite /interp_in_mem_pre /=).
-          iEval (rewrite (filter_heap_nonheap _ _ Hcall_nonheap) /=).
+          rewrite filter_heap_nonheap; last exact Hcall_nonheap.
           iApply interp_switcher_call; done. }
       - rewrite Hexported_entries_sealed Hexported_entries_words.
         iApply big_sepS_insert_2.
@@ -396,7 +449,7 @@ Section Adequacy.
         iApply interp_to_in_mem.
         iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
         iSplit.
-        { replace {[WSealable C_f'; borrow (WSealable C_f')]} with ({[borrow (WSealable C_f)]} : gset Word) by set_solver+.
+        { replace {[lword_of_word (WSealable C_f'); lword_of_word (borrow (WSealable C_f'))]} with ({[lword_of_word (borrow (WSealable C_f))]} : gset LWord) by set_solver+.
           iApply sts_seals_std_weaken; [|done]; set_solver+. }
         iPureIntro; cbn.
         apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap.
@@ -427,7 +480,7 @@ Section Adequacy.
 
     iMod ( world_interp_extend_temp_sepL2_nonheap _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
-             (stack_content switcher_cmpt)
+             (lword_of_word <$> stack_content switcher_cmpt)
              RWL interp_in_memC
            with "Hworld_C [Hstack]")
            as "(Hworld_C & #Hrel_stk_C)".
@@ -435,9 +488,12 @@ Section Adequacy.
     { done. }
     { eapply Hstack_disjoint. }
     {
+      rewrite big_sepL2_fmap_r.
+      iEval (rewrite /region_pointsto big_sepL2_fmap_r) in "Hstack".
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-                                 pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "Hstack").
-      intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
+        pointsto k (DfracOwn (pos_to_Qp 1)) (lword_of_word v))) with "Hstack").
+      intros k v1 v2 Hv1 Hv2. cbn. iIntros "Hv". rewrite /TmpRes key_pointsto_nonheap.
+      iFrame "Hv".
       pose proof (Forall_lookup_1 _ _ _ _ Hstack Hv2) as Hncap.
       destruct v2; [| by inversion Hncap..].
       iSplit; first done.
@@ -479,8 +535,7 @@ Section Adequacy.
       iSplit.
       { iApply big_sepL_intro; iModIntro.
         iIntros (k a Ha).
-        rewrite (addr_key_disjoint _ _ _ a (stack_disjoint_from_heap switcher_cmpt));
-          last exact (list_elem_of_lookup_2 _ _ _ Ha).
+        rewrite /addr_key.
         iExists RWL, (interp_in_mem RWL).
         iEval (cbn).
         iSplit; first done.
@@ -512,7 +567,7 @@ Section Adequacy.
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_f)) as "#Hinterp_C_f".
     { rewrite Hexported_entries_sealed.
-      iDestruct (big_sepS_elem_of_acc _ _ (WSealed ot_switcher C_f) with "HC_exports") as "[Hinterp_C_f _]"
+      iDestruct (big_sepS_elem_of_acc _ _ (lword_of_word (WSealed ot_switcher C_f)) with "HC_exports") as "[Hinterp_C_f _]"
       ; first set_solver+.
       iApply (interp_monotone_sd_same_heap W1 Winit_C C with "[] [Hinterp_C_f]").
       { subst Winit_C. by rewrite std_update_multiple_heap. }
@@ -532,7 +587,7 @@ Section Adequacy.
     iPoseProof (Spec _ _ _ _ _
                   _ _ _ _ _
                   [] [] assertN switcherN []
-                 with "[ $Halloc $Hassert $Hswitcher $Hna
+                 with "[ $Hassert $Hswitcher $Hna
                         $Hworld_C
                         $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data
@@ -544,7 +599,7 @@ Section Adequacy.
     { exact (cmpt_cgp_disjoint_from_mmio main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { solve_ndisj. }
-    { rewrite !dom_delete_L.
+    { rewrite !dom_delete_L dom_fmap_L.
       rewrite regmap_full_dom; first done.
       intros r.
       destruct (decide (r = PC)); simplify_eq.
@@ -565,9 +620,8 @@ Section Adequacy.
      { set_solver+Hdom. }
      destruct (decide (r = csp)); simplify_eq.
      { set_solver+Hdom. }
-     rewrite !lookup_delete_ne //.
-     exists (WInt 0).
-     apply Hreg.
+     rewrite !lookup_delete_ne // lookup_fmap.
+     exists (lword_of_word (WInt 0)). rewrite Hreg //.
      clear -n n0 n1; set_solver.
     }
     { rewrite /SubBounds.
@@ -657,17 +711,18 @@ Section Adequacy.
     { done. }
 
     iModIntro.
-    iExists (fun σ _ _ => ((((gen_heap_interp (griotte_opsem.reg σ) ∗ gen_heap_interp (griotte_opsem.sreg σ))
-      ∗ gen_heap_interp (mem σ)) ∗ gen_heap_interp (shadowtbl σ)))
-      ∗ ⌜mem_avoids_mmio (griotte_opsem.mem σ)⌝)%I.
-    iExists (fun _ => True)%I. cbn. iFrame "% ∗".
+    iExists (fun σ _ _ => cerise_state_interp σ)%I.
+    iExists (fun _ => True)%I. cbn. iFrame "Hσ".
     iSplitL "Hspec".
     { iApply (wp_mono with "Hspec"); iIntros (?) "?"; done. }
 
-    iIntros "[[[[Hreg' Hsreg'] Hmem'] Hshadow'] _]". iExists (⊤ ∖ ↑flagN).
+    iIntros "(%lreg & %lmem & %R & %Cl & _ & _ & Hmem' & _ & _ & _ & %Her)". iExists (⊤ ∖ ↑flagN).
     iInv flagN as ">Hflag" "Hclose".
     iDestruct (gen_heap_valid with "Hmem' Hflag") as %Hm'_flag.
-    iModIntro. iPureIntro. rewrite /state_is_good //=.
+    iModIntro. iPureIntro.
+    destruct (erasure_lookup_mem _ _ _ _ _ _ _ Her Hm'_flag)
+      as (pw & Hpw & _ & _ & Hnonheap & _).
+    rewrite /state_is_good Hpw (Hnonheap eq_refl) //.
   Qed.
 End Adequacy.
 
@@ -699,11 +754,11 @@ Proof.
   intros ? ? ? ? ? ?.
   set ( cnames := CmptNames_dle_CmptNameG ).
   set (Σ := #[invΣ
-              ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
-              ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ ; allocRegistryΣ
+              ; ceriseGpreΣ
+              ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ LAddr region_type OType Word ; relPreΣ
-              ; savedPredΣ (WorldT * CmptName * Word)
+              ; STS_preΣ LAddr region_type OType LWord ; relPreΣ
+              ; savedPredΣ (WorldT * CmptName * LWord)
       ]).
   eapply (@dle_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.
