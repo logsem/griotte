@@ -20,7 +20,7 @@ Section region.
 
   (*--------------------------------------------------------------------------*)
 
-  Definition region_pointsto (b e : Addr) (ws : list Word) : iProp Σ :=
+  Definition region_pointsto (b e : Addr) (ws : list LWord) : iProp Σ :=
     ([∗ list] k↦y1;y2 ∈ (finz.seq_between b e);ws, y1 ↦ₐ y2)%I.
 
   Definition included (b' e' : Addr) (b e : Addr) : iProp Σ :=
@@ -60,7 +60,7 @@ Section region.
       rewrite <- HWS. simpl.
       iDestruct "B" as "[HB1 HB2]".
       iDestruct (pointsto_decomposition _ _ _ _ Hlnws with "A") as "[HA1 HA2]".
-      case_eq (drop n ws); intros.
+      case_eq (drop n ws); [intros|intros w ws' H0].
       + auto.
       + iDestruct "HA2" as "[HA2 HA3]".
         iDestruct "HB2" as "[HB2 HB3]".
@@ -112,7 +112,7 @@ Section region.
             (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
 
   Lemma region_pointsto_cons
-      (b b' e : Addr) (w : Word) (ws : list Word) :
+      (b b' e : Addr) (w : LWord) (ws : list LWord) :
     (b + 1)%a = Some b' → (b' <= e)%a →
     [[b, e]] ↦ₐ [[ w :: ws ]] ⊣⊢ b ↦ₐ w ∗ [[b', e]] ↦ₐ [[ ws ]].
   Proof.
@@ -139,7 +139,7 @@ Section region.
     iDestruct "H" as "(H & _)". eauto.
   Qed.
 
-  Lemma region_pointsto_split  (b e a : Addr) (w1 w2 : list Word) :
+  Lemma region_pointsto_split  (b e a : Addr) (w1 w2 : list LWord) :
      (b ≤ a ≤ e)%Z →
      (length w1) = (finz.dist b a) →
      ([[b,e]]↦ₐ[[w1 ++ w2]] ⊣⊢ [[b,a]]↦ₐ[[w1]] ∗ [[a,e]]↦ₐ[[w2]])%I.
@@ -183,8 +183,9 @@ Section codefrag.
   Context {Σ:gFunctors} {ceriseg:ceriseG Σ}
     `{MP: MachineParameters}.
 
+  (* Code is identifier-less: its words are lifted with [lword_of_word]. *)
   Definition codefrag (a0: Addr) (cs: list Word) :=
-    ([[ a0, (a0 ^+ length cs)%a ]] ↦ₐ [[ cs ]])%I.
+    ([[ a0, (a0 ^+ length cs)%a ]] ↦ₐ [[ lword_of_word <$> cs ]])%I.
 
   Lemma codefrag_contiguous_region a0 cs :
     codefrag a0 cs -∗
@@ -192,6 +193,7 @@ Section codefrag.
   Proof using.
     iIntros "Hcs". unfold codefrag.
     iDestruct (big_sepL2_length with "Hcs") as %Hl.
+    rewrite length_fmap in Hl.
     set an := (a0 + length cs)%a in Hl |- *.
     unfold ContiguousRegion.
     destruct an eqn:Han; subst an; [ by eauto |]. cbn.
@@ -203,8 +205,8 @@ End codefrag.
 
 Section region_addrs_zeroes.
 
-  Definition region_addrs_zeroes (b e : Addr) : list Word :=
-    replicate (finz.dist b e) (WInt 0%Z).
+  Definition region_addrs_zeroes (b e : Addr) : list LWord :=
+    replicate (finz.dist b e) (lword_of_word (WInt 0%Z)).
 
 
   Lemma region_addrs_zeroes_split (b a e: Addr) :

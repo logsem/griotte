@@ -88,8 +88,8 @@ Ltac dispatch_instr_rule instr cont :=
   | Load PC _ 0 => cont (@wp_load_success_PC)
   | Load _ PC 0 => cont (@wp_load_success_fromPC)
   | Load ?r ?r 0 =>
-    (cont (fun MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a w w' =>
-       @wp_load_success_same_notinstr MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a w w' (WInt 0)) ||
+    (cont (fun MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' =>
+       @wp_load_success_same_notinstr MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' (WInt 0 @@? None)) ||
      cont (@wp_load_success_same_frominstr))
   | Load _ _ 0 =>
     (cont (@wp_load_success_notinstr) ||
@@ -97,12 +97,12 @@ Ltac dispatch_instr_rule instr cont :=
   (* Store *)
   | Store PC (inl _) 0 => cont (@wp_store_success_z_PC)
   | Store PC (inr PC) 0 =>
-    cont (fun MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_a' w =>
-      @wp_store_success_reg_PC_same_store_word MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_a' w (WInt 0))
+    cont (fun MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w =>
+      @wp_store_success_reg_PC_same_store_word MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w (WInt 0 @@? None))
   | Store PC (inr _) 0 => cont (@wp_store_success_reg_PC_store_word)
   | Store _ (inl _) 0 =>
-    (cont (fun MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_a' w dst z =>
-       @wp_store_success_same MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_a' w dst z (WInt 0)) ||
+    (cont (fun MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z =>
+       @wp_store_success_same MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z (WInt 0 @@? None)) ||
      cont (@wp_store_success_z))
   | Store _ (inr PC) 0 =>
     (cont (@wp_store_success_reg_fromPC_same_a_store_word_imm) ||
@@ -169,7 +169,8 @@ Ltac dispatch_instr_rule instr cont :=
   | Subseg PC (inr _) (inl _) => cont (@wp_subseg_success_pc_r)
   | Subseg PC (inl _) (inl _) => cont (@wp_subseg_success_pc_lr)
   | Subseg _ (inr ?r) (inr ?r) => (cont (@wp_subseg_success_same) || cont (@wp_subseg_success_same_sr)) (* TODO: improve using register values? *)
-  | Subseg _ (inr _) (inr _) => (cont (@wp_subseg_success) || cont (@wp_subseg_success_sr))
+  | Subseg _ (inr _) (inr _) =>
+    (cont (@wp_subseg_success) || cont (@wp_subseg_success_sr) || cont (@wp_subseg_success_root))
   | Subseg _ (inl _) (inr _) => (cont (@wp_subseg_success_l) || cont (@wp_subseg_success_l_sr))
   | Subseg _ (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
   | Subseg _ (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
@@ -206,18 +207,18 @@ Ltac dispatch_instr_rule instr cont :=
 Ltac dispatch_generic_failure instr cont :=
   let regs := instr_failure_registers instr in
   lazymatch goal with
-  | |- context [ Esnoc _ _ (PC ↦ᵣ WCap true ?p ?g ?b ?e ?a)%I ] =>
+  | |- context [ Esnoc _ _ (PC ↦ᵣ WCap true ?p ?g ?b ?e ?a @@? ?π)%I ] =>
     lazymatch regs with
-    | [] => cont (fun E => @wp_instr_failed_0 _ _ _ E p g b e a
-                            (encodeInstrW instr) instr)
-    | [(?r1, ?w1)] => cont (fun E => @wp_instr_failed_1 _ _ _ E p g b e a
-                                     (encodeInstrW instr) instr r1 w1)
+    | [] => cont (fun E => @wp_instr_failed_0 _ _ _ E p g b e a π
+                            (encodeInstrW instr @@? None) instr)
+    | [(?r1, ?w1)] => cont (fun E => @wp_instr_failed_1 _ _ _ E p g b e a π
+                                     (encodeInstrW instr @@? None) instr r1 w1)
     | [(?r1, ?w1); (?r2, ?w2)] =>
-        cont (fun E => @wp_instr_failed_2 _ _ _ E p g b e a
-                         (encodeInstrW instr) instr r1 w1 r2 w2)
+        cont (fun E => @wp_instr_failed_2 _ _ _ E p g b e a π
+                         (encodeInstrW instr @@? None) instr r1 w1 r2 w2)
     | [(?r1, ?w1); (?r2, ?w2); (?r3, ?w3)] =>
-        cont (fun E => @wp_instr_failed_3 _ _ _ E p g b e a
-                         (encodeInstrW instr) instr r1 w1 r2 w2 r3 w3)
+        cont (fun E => @wp_instr_failed_3 _ _ _ E p g b e a π
+                         (encodeInstrW instr @@? None) instr r1 w1 r2 w2 r3 w3)
     end
   end.
 

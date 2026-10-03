@@ -66,7 +66,7 @@ Ltac instr_registers_contain regs r :=
    distinct operands, binding each to its owned word before applying a rule. *)
 Ltac instr_register_words rs :=
   lazymatch rs with
-  | nil => constr:(@nil (RegName * Word))
+  | nil => constr:(@nil (RegName * LWord))
   | ?r :: ?rs =>
     let tail := instr_register_words rs in
     let ispc := instr_same_register PC r in
@@ -111,6 +111,7 @@ Ltac instr_failure_registers instr :=
 
 Ltac solve_instr_failure :=
   intros;
+  cbn [lw lword_of_word] in *;
   rewrite /exec /exec_opt /= /word_of_argument /z_of_argument /lookup_reg;
   rewrite ?finz_add_0 /=;
   repeat first [

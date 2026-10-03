@@ -99,7 +99,9 @@ Qed.
 
 Lemma mkregion_prepare `{ceriseG Σ} (a e: Addr) l :
   (a + length l)%a = Some e →
-  ⊢ ([∗ map] k↦v ∈ mkregion a e l, k ↦ₐ v) ==∗ ([∗ list] k;v ∈ (finz.seq_between a e); l, k ↦ₐ v).
+  ⊢ ([∗ map] k↦v ∈ mkregion a e l, k ↦ₐ lword_of_word v)
+    ==∗
+    ([∗ list] k;v ∈ (finz.seq_between a e); l, k ↦ₐ lword_of_word v).
 Proof.
   iIntros (?) "H". iDestruct (mkregion_sepM_to_sepL2 with "H") as "H"; auto.
 Qed.

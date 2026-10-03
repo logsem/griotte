@@ -2,7 +2,7 @@ From iris.algebra Require Import gmap.
 From iris.base_logic.lib Require Import gen_heap ghost_map mono_nat.
 From iris.bi.lib Require Import fractional.
 From iris.proofmode Require Import proofmode.
-From griotte Require Import addresses machine_word region_keys.
+From griotte Require Import addresses machine_word region_keys logical_words.
 
 (** * The allocation registry
 
@@ -295,6 +295,95 @@ Proof.
   rewrite /reg_auth /reg_names fmap_empty big_sepM_empty. by iFrame.
 Qed.
 
+(** * The address claim (D10)
+
+    Every heap address carries a claim, owned exclusively: no non-dead
+    allocation covers it ([Unclaimed]), the non-dead allocation [ι] covers it
+    ([Claimed ι]), or it may serve as the base of identifier-less heap
+    capabilities ([HeapRoot], set at initialisation only and never painted).
+    The state interpretation holds the authority and keeps it coherent with
+    the registry. *)
+Inductive AddrClaim := Unclaimed | Claimed (ι : AId) | HeapRoot.
+
+Global Instance addr_claim_eq_dec : EqDecision AddrClaim.
+Proof. solve_decision. Defined.
+
+Class addrAllocPreG Σ := {
+  addr_alloc_ghost_mapG :: ghost_mapG Σ Addr AddrClaim;
+}.
+
+Definition addrAllocΣ : gFunctors := #[ghost_mapΣ Addr AddrClaim].
+
+Global Instance subG_addrAllocΣ {Σ} : subG addrAllocΣ Σ → addrAllocPreG Σ.
+Proof. solve_inG. Qed.
+
+Class addrAllocG Σ := {
+  addr_alloc_preG :: addrAllocPreG Σ;
+  addr_alloc_name : gname;
+}.
+
+Section addr_alloc.
+  Context `{!addrAllocG Σ}.
+
+  Definition addr_alloc (a : Addr) (c : AddrClaim) : iProp Σ :=
+    a ↪[addr_alloc_name] c.
+
+  Definition addr_alloc_auth (C : gmap Addr AddrClaim) : iProp Σ :=
+    ghost_map_auth addr_alloc_name 1 C.
+
+  Global Instance addr_alloc_timeless a c : Timeless (addr_alloc a c).
+  Proof. apply _. Qed.
+  Global Instance addr_alloc_auth_timeless C : Timeless (addr_alloc_auth C).
+  Proof. apply _. Qed.
+
+  Lemma addr_alloc_exclusive a c c' : addr_alloc a c -∗ addr_alloc a c' -∗ False.
+  Proof.
+    iIntros "H1 H2". iDestruct (ghost_map_elem_valid_2 with "H1 H2") as %[Hv _].
+    done.
+  Qed.
+
+  Lemma addr_alloc_lookup C a c :
+    addr_alloc_auth C -∗ addr_alloc a c -∗ ⌜C !! a = Some c⌝.
+  Proof. iIntros "HC Ha". iApply (ghost_map_lookup with "HC Ha"). Qed.
+
+  Lemma addr_alloc_update C a c c' :
+    addr_alloc_auth C -∗ addr_alloc a c ==∗
+    addr_alloc_auth (<[a := c']> C) ∗ addr_alloc a c'.
+  Proof. iIntros "HC Ha". iApply (ghost_map_update with "HC Ha"). Qed.
+
+  Lemma addr_alloc_lookup_list C (l : list Addr) (c : Addr → AddrClaim) :
+    addr_alloc_auth C -∗ ([∗ list] a ∈ l, addr_alloc a (c a)) -∗
+    ⌜∀ a, a ∈ l → C !! a = Some (c a)⌝.
+  Proof.
+    iIntros "HC Hl" (a Ha).
+    iDestruct (big_sepL_elem_of with "Hl") as "Ha"; first exact Ha.
+    iApply (addr_alloc_lookup with "HC Ha").
+  Qed.
+
+  (** Updates the claim of every address of a duplicate-free list. *)
+  Lemma addr_alloc_update_list C (l : list Addr) (c c' : Addr → AddrClaim) :
+    addr_alloc_auth C -∗ ([∗ list] a ∈ l, addr_alloc a (c a)) ==∗
+    addr_alloc_auth (list_to_map ((λ a, (a, c' a)) <$> l) ∪ C) ∗
+    ([∗ list] a ∈ l, addr_alloc a (c' a)).
+  Proof.
+    iInduction l as [|a l] "IH" forall (C); iIntros "HC Hl".
+    - rewrite /= left_id_L. by iFrame.
+    - iDestruct "Hl" as "[Ha Hl]".
+      iMod ("IH" with "HC Hl") as "[HC Hl]".
+      iMod (addr_alloc_update _ _ _ (c' a) with "HC Ha") as "[HC Ha]".
+      iModIntro. iFrame. cbn. by rewrite insert_union_l.
+  Qed.
+
+End addr_alloc.
+
+Lemma addr_alloc_init `{!addrAllocPreG Σ} (C : gmap Addr AddrClaim) :
+  ⊢ |==> ∃ (ag : addrAllocG Σ),
+    addr_alloc_auth (Σ := Σ) C ∗ [∗ map] a ↦ c ∈ C, addr_alloc (Σ := Σ) a c.
+Proof.
+  iMod (ghost_map_alloc C) as (γ) "[HC Hfrags]".
+  iModIntro. iExists {| addr_alloc_name := γ |}. iFrame.
+Qed.
+
 (** * The client half of the status token (D35)
 
     While [ι] is live, half of its status token is split by an instance of
@@ -314,7 +403,7 @@ Class FreeAuth (Σ : gFunctors) `{!allocRegistryG Σ} := {
     of [ι]. The region machinery uses the same atom over region keys,
     [k ↦ₖ v]: on a non-heap key it is the plain points-to. *)
 Section heap_pointsto.
-  Context `{!allocRegistryG Σ, !gen_heapGS Addr Word Σ}.
+  Context `{!allocRegistryG Σ, !gen_heapGS Addr LWord Σ}.
 
   Definition key_share (k : LAddr) : iProp Σ :=
     match k with
@@ -323,10 +412,10 @@ Section heap_pointsto.
         ∃ b e, ⌜(b <= a < e)%a⌝ ∗ alloc_obj ι b e ∗ ι ↦st{share (finz.dist b e)} ALive
     end%I.
 
-  Definition key_pointsto (k : LAddr) (v : Word) : iProp Σ :=
+  Definition key_pointsto (k : LAddr) (v : LWord) : iProp Σ :=
     match k with
-    | LNonHeap a => pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) v
-    | LHeap a ι => pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) v ∗ key_share (LHeap a ι)
+    | LNonHeap a => pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) v
+    | LHeap a ι => pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) v ∗ key_share (LHeap a ι)
     end%I.
 
   Global Instance key_share_timeless k : Timeless (key_share k).
@@ -341,17 +430,17 @@ Notation "a ↦ₕ[ ι ] v" := (key_pointsto (LHeap a ι) v)
   (at level 20, format "a  ↦ₕ[ ι ]  v") : bi_scope.
 
 Section heap_pointsto_lemmas.
-  Context `{!allocRegistryG Σ, !gen_heapGS Addr Word Σ}.
+  Context `{!allocRegistryG Σ, !gen_heapGS Addr LWord Σ}.
 
-  Definition heap_region_pointsto (ι : AId) (b e : Addr) (ws : list Word) : iProp Σ :=
+  Definition heap_region_pointsto (ι : AId) (b e : Addr) (ws : list LWord) : iProp Σ :=
     [∗ list] a;w ∈ finz.seq_between b e; ws, a ↦ₕ[ι] w.
 
   Lemma key_pointsto_eq k v :
-    k ↦ₖ v ⊣⊢ pointsto (L:=Addr) (V:=Word) (laddr_addr k) (DfracOwn 1) v ∗ key_share k.
+    k ↦ₖ v ⊣⊢ pointsto (L:=Addr) (V:=LWord) (laddr_addr k) (DfracOwn 1) v ∗ key_share k.
   Proof. destruct k; simpl; [by rewrite right_id | done]. Qed.
 
   Lemma key_pointsto_nonheap a v :
-    LNonHeap a ↦ₖ v ⊣⊢ pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) v.
+    LNonHeap a ↦ₖ v ⊣⊢ pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) v.
   Proof. done. Qed.
 
   Lemma heap_pointsto_valid_2 k k' v v' :
@@ -380,7 +469,7 @@ Section heap_pointsto_lemmas.
   Lemma heap_pointsto_split a ι v b e :
     alloc_obj ι b e -∗
     a ↦ₕ[ι] v -∗
-    pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) v ∗
+    pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) v ∗
     ι ↦st{share (finz.dist b e)} ALive.
   Proof.
     iIntros "Hobj [$ (%b' & %e' & %Hin & Hobj' & Hs)]".
@@ -391,14 +480,14 @@ Section heap_pointsto_lemmas.
   Lemma heap_region_pointsto_split ι b e ws :
     alloc_obj ι b e -∗
     heap_region_pointsto ι b e ws ∗-∗
-    ([∗ list] a;w ∈ finz.seq_between b e; ws, pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w) ∗
+    ([∗ list] a;w ∈ finz.seq_between b e; ws, pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) w) ∗
     ([∗ list] _ ∈ finz.seq_between b e, ι ↦st{share (finz.dist b e)} ALive).
   Proof.
     iIntros "#Hobj". rewrite /heap_region_pointsto.
     iSplit.
     - iIntros "H".
       iAssert ([∗ list] a;w ∈ finz.seq_between b e; ws,
-        pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w ∗
+        pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) w ∗
         ι ↦st{share (finz.dist b e)} ALive)%I with "[H]" as "H".
       { iApply (big_sepL2_impl with "H"). iIntros "!>" (k a w _ _) "Ha".
         iApply (heap_pointsto_split with "Hobj Ha"). }
@@ -406,7 +495,7 @@ Section heap_pointsto_lemmas.
     - iIntros "[Hmem Hs]".
       iDestruct (big_sepL2_length with "Hmem") as %Hlen.
       iAssert ([∗ list] a;w ∈ finz.seq_between b e; ws,
-        pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w ∗
+        pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) w ∗
         ι ↦st{share (finz.dist b e)} ALive)%I with "[Hmem Hs]" as "H".
       { rewrite big_sepL2_sep big_sepL2_const_sepL_l. iFrame. done. }
       iApply (big_sepL2_impl with "H"). iIntros "!>" (k a w Ha _) "[Ha Hs]".

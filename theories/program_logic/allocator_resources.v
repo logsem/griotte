@@ -11,9 +11,6 @@ Inductive AllocState := Free | Live | Quarantined.
 
 #[global] Instance alloc_state_inhabited : Inhabited AllocState := populate Free.
 
-Definition heap_addresses `{HeapRegion} : gset Addr :=
-  list_to_set (finz.seq_between heap_b heap_e).
-
 (** Case studies start with zeroed free memory and a live shadow entry for
     every heap address. Program memory is kept disjoint from this region. *)
 Definition initial_heap_memory `{HeapRegion} : Mem :=
@@ -24,13 +21,6 @@ Definition initial_heap_shadow `{HeapRegion} : ShadowTbl :=
 
 Definition shadow_status (s : AllocState) : AllocStatus :=
   match s with Free | Live => ShadowLive | Quarantined => ShadowQuarantined end.
-
-Lemma elem_of_heap_addresses `{HeapRegion} a :
-  a ∈ heap_addresses <-> is_heap_address a = true.
-Proof.
-  rewrite /heap_addresses elem_of_list_to_set elem_of_finz_seq_between.
-  symmetry. apply withinBounds_true_iff.
-Qed.
 
 (** Allocation receipts, keyed by allocation identifier: [ι ↦ (b, e, reserved)].
     They are temporary: worlds keep them until the observation rule replaces
@@ -73,52 +63,6 @@ Proof. solve_inG. Qed.
 
 Definition Nallocator : namespace := nroot .@ "allocator".
 
-(** One-way coherence between the registry and the allocator states: every
-    cell of an identifier that reached [AQuar] is quarantined. The converse
-    fails while [free] paints, since the invariant is reopened per store. *)
-Definition allocator_registry_coherent (R : RegState) (m : gmap Addr AllocState) : Prop :=
-  ∀ ι b e γ s a,
-    R !! ι = Some (b, e, γ, s) →
-    lifecycle_enc AQuar ≤ lifecycle_enc s →
-    (b <= a < e)%a →
-    m !! a = Some Quarantined.
-
-Lemma allocator_registry_coherent_insert R m a s s' :
-  m !! a = Some s →
-  (s = Quarantined → s' = Quarantined) →
-  allocator_registry_coherent R m →
-  allocator_registry_coherent R (<[a := s']> m).
-Proof.
-  intros Ha Hs Hcoh ι b e γ st a' HR Hst Ha'.
-  destruct (decide (a = a')) as [<-|Hne].
-  - rewrite lookup_insert_eq. f_equal. apply Hs.
-    specialize (Hcoh ι b e γ st a HR Hst Ha'). congruence.
-  - rewrite lookup_insert_ne //. eauto.
-Qed.
-
-Lemma allocator_registry_coherent_step R m ι b e γ s s' :
-  R !! ι = Some (b, e, γ, s) →
-  (lifecycle_enc AQuar ≤ lifecycle_enc s' →
-   ∀ a, (b <= a < e)%a → m !! a = Some Quarantined) →
-  allocator_registry_coherent R m →
-  allocator_registry_coherent (<[ι := (b, e, γ, s')]> R) m.
-Proof.
-  intros HR Hnew Hcoh ι' b' e' γ' st a HR' Hst Ha.
-  destruct (decide (ι = ι')) as [<-|Hne].
-  - rewrite lookup_insert_eq in HR'. simplify_eq. by apply Hnew.
-  - rewrite lookup_insert_ne // in HR'. eauto.
-Qed.
-
-Lemma allocator_registry_coherent_alloc R m ι b e γ :
-  allocator_registry_coherent R m →
-  allocator_registry_coherent (<[ι := (b, e, γ, ALive)]> R) m.
-Proof.
-  intros Hcoh ι' b' e' γ' st a HR' Hst Ha.
-  destruct (decide (ι = ι')) as [<-|Hne].
-  - rewrite lookup_insert_eq in HR'. simplify_eq. simpl in Hst. lia.
-  - rewrite lookup_insert_ne // in HR'. eauto.
-Qed.
-
 Section Allocator.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
     {MP : MachineParameters}.
@@ -144,14 +88,12 @@ Section Allocator.
   Definition allocator_entry (a : Addr) (s : AllocState) : iProp Σ :=
     a ↦ₛ shadow_status s ∗ allocator_state_resources a s.
 
-  (** The registry's authority lives here until it moves into the state
-      interpretation. *)
+  (** The registry's authority is in the state interpretation; erasure
+      relates it to the shadow table. *)
   Definition allocator_inv_body : iProp Σ :=
-    ∃ (alloc_map : gmap Addr AllocState) (R : RegState),
+    ∃ (alloc_map : gmap Addr AllocState),
       ⌜dom alloc_map = heap_addresses⌝ ∗
-      ⌜allocator_registry_coherent R alloc_map⌝ ∗
-      ([∗ map] a ↦ s ∈ alloc_map, allocator_entry a s) ∗
-      reg_auth R.
+      ([∗ map] a ↦ s ∈ alloc_map, allocator_entry a s).
 
   Definition allocator_ctx : iProp Σ := inv Nallocator allocator_inv_body.
 
@@ -215,14 +157,13 @@ Section Allocator.
       (∀ s', ⌜s = Quarantined → s' = Quarantined⌝ -∗
              allocator_entry a s' -∗ allocator_inv_body).
   Proof.
-    iIntros (Ha) "Halloc". iDestruct "Halloc" as (m R Hdom Hcoh) "[Hm HR]".
+    iIntros (Ha) "Halloc". iDestruct "Halloc" as (m Hdom) "Hm".
     assert (is_Some (m !! a)) as [s Hs].
     { apply elem_of_dom. by rewrite Hdom. }
     iDestruct (big_sepM_delete with "Hm") as "[Ha Hm]"; first exact Hs.
     iExists s. iFrame "Ha". iIntros (s' Hs') "Ha".
-    iExists (<[a:=s']> m), R. iFrame "HR". iSplit.
+    iExists (<[a:=s']> m). iSplit.
     { iPureIntro. rewrite dom_insert_L Hdom. set_solver. }
-    iSplit; first (iPureIntro; by eapply allocator_registry_coherent_insert).
     rewrite big_sepM_insert_delete. iFrame.
   Qed.
 
@@ -243,96 +184,6 @@ Section Allocator.
 
   #[global] Instance allocator_inv_body_timeless : Timeless allocator_inv_body.
   Proof. apply _. Qed.
-
-  (** The cells of an identifier that reached [AQuar] are quarantined. *)
-  Lemma allocator_registry_quarantined R m ι b e a :
-    allocator_registry_coherent R m →
-    (b <= a < e)%a →
-    reg_auth R -∗ ι ⊒ AQuar -∗ alloc_obj ι b e -∗
-    ⌜m !! a = Some Quarantined⌝.
-  Proof.
-    iIntros (Hcoh Ha) "HR Hq Hobj".
-    iDestruct (reg_lookup_lb_obj with "HR Hq Hobj") as %(γ & s & HRι & Hle).
-    iPureIntro. by eapply Hcoh.
-  Qed.
-
-  (** Registry steps, made while the invariant is open. *)
-  Lemma allocator_registry_alloc E b e (X : gset AId) :
-    ↑Nallocator ⊆ E ->
-    allocator_ctx -∗
-    ([∗ set] ι ∈ X, ∃ b' e', alloc_obj ι b' e') ={E}=∗
-    ∃ ι, ⌜ι ∉ X⌝ ∗ alloc_obj ι b e ∗ ι ↦st{1} ALive.
-  Proof.
-    iIntros (HE) "#Hctx #HX".
-    iInv Nallocator as ">Hbody" "Hclose".
-    iDestruct "Hbody" as (m R) "(%Hdom & %Hcoh & Hm & HR)".
-    set (ι := fresh (dom R)).
-    assert (R !! ι = None) as HRι by (apply not_elem_of_dom, is_fresh).
-    iAssert (⌜ι ∉ X⌝)%I as %HιX.
-    { iIntros (HιX). iDestruct (big_sepS_elem_of with "HX") as (b' e') "Hobj";
-        first exact HιX.
-      iDestruct (reg_lookup_None with "HR Hobj") as %Hne. done. }
-    iMod (reg_alloc R ι b e with "HR") as (γ) "(HR & Hobj & Htok)"; first done.
-    iMod ("Hclose" with "[Hm HR]") as "_".
-    { iNext. iExists m, _. iFrame. iPureIntro. split; first done.
-      by apply allocator_registry_coherent_alloc. }
-    iModIntro. iExists ι. by iFrame.
-  Qed.
-
-  Lemma allocator_registry_paint E ι :
-    ↑Nallocator ⊆ E ->
-    allocator_ctx -∗ ι ↦st{1} ALive ={E}=∗ ι ↦st{1} APainting.
-  Proof.
-    iIntros (HE) "#Hctx Htok".
-    iInv Nallocator as ">Hbody" "Hclose".
-    iDestruct "Hbody" as (m R) "(%Hdom & %Hcoh & Hm & HR)".
-    iDestruct (reg_lookup_own with "HR Htok") as %(b & e & γ & HRι).
-    iMod (reg_step _ _ _ _ _ _ APainting with "HR Htok") as "[HR Htok]";
-      [done|simpl; lia|].
-    iMod ("Hclose" with "[Hm HR]") as "_".
-    { iNext. iExists m, _. iFrame. iPureIntro. split; first done.
-      eapply allocator_registry_coherent_step; [done| |done].
-      simpl. lia. }
-    by iFrame.
-  Qed.
-
-  Lemma allocator_registry_quarantine E ι b e :
-    ↑Nallocator ⊆ E ->
-    (heap_b <= b /\ e <= heap_e)%a ->
-    allocator_ctx -∗
-    alloc_obj ι b e -∗
-    ι ↦st{1} APainting -∗
-    ([∗ list] a ∈ finz.seq_between b e, reclaim_token a)
-    ={E}=∗
-    ι ↦st{1} AQuar ∗
-    ι ⊒ AQuar ∗
-    ([∗ list] a ∈ finz.seq_between b e, reclaim_token a).
-  Proof.
-    iIntros (HE Hheap) "#Hctx #Hobj Htok Htokens".
-    iInv Nallocator as ">Hbody" "Hclose".
-    iDestruct "Hbody" as (m R) "(%Hdom & %Hcoh & Hm & HR)".
-    iDestruct (reg_lookup_own with "HR Htok") as %(b' & e' & γ & HRι).
-    iDestruct (reg_lookup_obj with "HR Hobj") as %(γ' & s' & HRι').
-    rewrite HRι in HRι'. simplify_eq.
-    iAssert (⌜∀ a, (b <= a < e)%a → m !! a = Some Quarantined⌝)%I as %Hquar.
-    { iIntros (a Ha).
-      assert (a ∈ finz.seq_between b e) as Hin by (by apply elem_of_finz_seq_between).
-      iDestruct (big_sepL_elem_of with "Htokens") as "Htoken"; first exact Hin.
-      assert (is_Some (m !! a)) as [s Hs].
-      { apply elem_of_dom. rewrite Hdom elem_of_heap_addresses.
-        apply withinBounds_true_iff. solve_addr. }
-      iDestruct (big_sepM_lookup with "Hm") as "Hentry"; first exact Hs.
-      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken") as %->.
-      done. }
-    iMod (reg_step _ _ _ _ _ _ AQuar with "HR Htok") as "[HR Htok]";
-      [done|simpl; lia|].
-    iDestruct (st_lb_get with "Htok") as "#Hq".
-    iMod ("Hclose" with "[Hm HR]") as "_".
-    { iNext. iExists m, _. iFrame. iPureIntro. split; first done.
-      eapply allocator_registry_coherent_step; [done| |done].
-      intros _ a Ha. by apply Hquar. }
-    by iFrame "∗#".
-  Qed.
 
   Lemma reclaim_tokens_split (A : gset Addr) :
     own allocator_name (GSet A) -∗ [∗ set] a ∈ A, reclaim_token a.
@@ -363,11 +214,11 @@ Section Initialization.
       entry. The state map determines which resources remain with the client:
       live addresses return their memory, quarantined addresses return their tokens,
       and free addresses keep both resources in the invariant. *)
-  Definition allocator_initial_resources (m : gmap Addr (AllocState * Word)) : iProp Σ :=
+  Definition allocator_initial_resources (m : gmap Addr (AllocState * LWord)) : iProp Σ :=
     ([∗ map] a ↦ sv ∈ m, a ↦ₐ sv.2 ∗ a ↦ₛ shadow_status sv.1)%I.
 
   Definition allocator_client_resources {allocatorg : allocatorG Σ}
-    (m : gmap Addr (AllocState * Word)) : iProp Σ :=
+    (m : gmap Addr (AllocState * LWord)) : iProp Σ :=
     ([∗ map] a ↦ sv ∈ m,
       match sv.1 with
       | Free => emp
@@ -376,21 +227,21 @@ Section Initialization.
       end)%I.
 
   Definition allocator_initial_free_tokens {allocatorg : allocatorG Σ}
-    (m : gmap Addr (AllocState * Word)) : iProp Σ :=
+    (m : gmap Addr (AllocState * LWord)) : iProp Σ :=
     ([∗ map] a ↦ sv ∈ m,
       match sv.1 with
       | Free => free_addr_token a
       | Live | Quarantined => emp
       end)%I.
 
-  Lemma allocator_init_with_free_tokens E (m : gmap Addr (AllocState * Word)) :
+  Lemma allocator_init_with_free_tokens E (m : gmap Addr (AllocState * LWord)) :
     dom m = heap_addresses ->
-    allocator_initial_resources m -∗ reg_auth ∅ ={E}=∗
+    allocator_initial_resources m ={E}=∗
     ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP ∗ @allocator_client_resources ag m ∗
       @allocator_initial_free_tokens ag m ∗
       @allocator_history_empty Σ ag.
   Proof.
-    iIntros (Hdom) "Hm HR".
+    iIntros (Hdom) "Hm".
     iMod (own_alloc (GSet (dom m))) as (γ) "Htokens"; first done.
     iMod (own_alloc (GSet (dom m))) as (γfree) "Hfree"; first done.
     iMod (ghost_map_alloc_empty (K := AId) (V := (Addr * Addr * (Z * Z))%type))
@@ -413,46 +264,44 @@ Section Initialization.
       iIntros (a [s v] Hlookup) "[[Ha Hs] [Htoken Hfree]]".
       destruct s; simpl; iFrame. }
     iMod (inv_alloc Nallocator E (@allocator_inv_body Σ ceriseG0 ag MP)
-      with "[Hinv HR]") as "#Halloc".
-    { iNext. iExists (fst <$> m), ∅.
-      rewrite dom_fmap_L Hdom big_sepM_fmap. iFrame. iPureIntro. split; first done.
-      intros ι b e γι s a HR. by rewrite lookup_empty in HR. }
+      with "[Hinv]") as "#Halloc".
+    { iNext. iExists (fst <$> m).
+      rewrite dom_fmap_L Hdom big_sepM_fmap. iFrame. done. }
     iModIntro. iFrame "Hclient Halloc Hfree Hhistory".
   Qed.
 
-  Lemma allocator_init E (m : gmap Addr (AllocState * Word)) :
+  Lemma allocator_init E (m : gmap Addr (AllocState * LWord)) :
     dom m = heap_addresses ->
-    allocator_initial_resources m -∗ reg_auth ∅ ={E}=∗
+    allocator_initial_resources m ={E}=∗
     ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP ∗ @allocator_client_resources ag m.
   Proof.
-    iIntros (Hdom) "Hm HR".
-    iMod (allocator_init_with_free_tokens E m with "Hm HR") as (ag) "[Halloc [Hclient [_ _]]]";
+    iIntros (Hdom) "Hm".
+    iMod (allocator_init_with_free_tokens E m with "Hm") as (ag) "[Halloc [Hclient [_ _]]]";
       first done.
     iModIntro. iExists ag. iFrame.
   Qed.
 
   (** In the initial all-free heap, no memory or tokens escape the invariant. *)
-  Lemma allocator_init_free E (mem : gmap Addr Word) :
+  Lemma allocator_init_free E (mem : LMem) :
     dom mem = heap_addresses ->
-    ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) -∗ reg_auth ∅ ={E}=∗
+    ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) ={E}=∗
     ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP.
   Proof.
-    iIntros (Hdom) "Hm HR".
-    iMod (allocator_init E ((fun v => (Free,v)) <$> mem) with "[Hm] HR")
+    iIntros (Hdom) "Hm".
+    iMod (allocator_init E ((fun v => (Free,v)) <$> mem) with "[Hm]")
       as (ag) "[Halloc _]".
     { by rewrite dom_fmap_L. }
     { rewrite /allocator_initial_resources big_sepM_fmap. iExact "Hm". }
     iModIntro. iExists ag. iExact "Halloc".
   Qed.
   Lemma allocator_init_free_maps E :
-    ([∗ map] a ↦ v ∈ initial_heap_memory, a ↦ₐ v) -∗
-    ([∗ map] a ↦ bit ∈ initial_heap_shadow, a ↦ₛ bit) -∗
-    reg_auth ∅ ={E}=∗
+    ([∗ map] a ↦ v ∈ initial_heap_memory, a ↦ₐ lword_of_word v) -∗
+    ([∗ map] a ↦ bit ∈ initial_heap_shadow, a ↦ₛ bit) ={E}=∗
     ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP.
   Proof.
-    iIntros "Hm Hs HR".
-    iApply (allocator_init_free E initial_heap_memory with "[Hm Hs] HR").
-    { apply dom_gset_to_gmap. }
-    rewrite /initial_heap_shadow big_sepM_fmap big_sepM_sep. iFrame.
+    iIntros "Hm Hs".
+    iApply (allocator_init_free E (lword_of_word <$> initial_heap_memory) with "[Hm Hs]").
+    { rewrite dom_fmap_L. apply dom_gset_to_gmap. }
+    rewrite /initial_heap_shadow !big_sepM_fmap big_sepM_sep. iFrame.
   Qed.
 End Initialization.

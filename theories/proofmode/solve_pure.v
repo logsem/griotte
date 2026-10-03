@@ -166,6 +166,15 @@ Proof. auto. Qed.
   (eapply getwtype_denote ; reflexivity) : solve_pure.
 #[export] Hint Extern 1 (rules_Get.denote _ _ = Some _) => reflexivity : solve_pure. (* unification fails if lhs has evars *)
 
+(* The Subseg premise ruling out a fresh heap root (case 3): it is vacuous
+   when the source has an identifier, and otherwise needs the new base to be
+   outside the heap. *)
+#[export] Hint Extern 1 (is_heap_address _ = false) =>
+  first [ reflexivity
+        | match goal with H : Some _ = None |- _ => discriminate H end
+        | match goal with H : InCtx (is_heap_address _ = false) |- _ => exact H end ]
+  : solve_pure.
+
 Ltac griotte_freeze_hyp_once1 h :=
   let P := type of h in
   lazymatch type of P with

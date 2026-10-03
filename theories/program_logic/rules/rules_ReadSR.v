@@ -13,40 +13,41 @@ Section griotte_lang_rules.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
   Implicit Types v : griotte_lang.val.
-  Implicit Types w : Word.
-  Implicit Types reg : gmap RegName Word.
+  Implicit Types w : LWord.
+  Implicit Types reg : gmap RegName LWord.
   Implicit Types sreg : gmap SRegName Word.
-  Implicit Types ms : gmap Addr Word.
+  Implicit Types ms : gmap Addr LWord.
 
-  Inductive ReadSR_failure (regs: Reg) (sregs : SReg) (dst: RegName) (src: SRegName) :=
-  | ReadSR_fail_nonxrs p g b e a:
-      regs !! PC = Some (WCap true p g b e a) →
+  (* System registers hold identifier-less words: a read gives identifier [None]. *)
+  Inductive ReadSR_failure (regs: LReg) (sregs : SReg) (dst: RegName) (src: SRegName) :=
+  | ReadSR_fail_nonxrs p g b e a π:
+      regs !! PC = Some (WCap true p g b e a @@? π) →
       has_sreg_access p = false ->
       ReadSR_failure regs sregs dst src
-  | ReadSR_fail_incrPC p g b e a w:
-      regs !! PC = Some (WCap true p g b e a) →
+  | ReadSR_fail_incrPC p g b e a π (w : Word):
+      regs !! PC = Some (WCap true p g b e a @@? π) →
       sregs !! src = Some w →
-      incrementPC (<[ dst := w ]ᵣ> regs) = None →
+      incrementPC (<[ dst := lword_of_word w ]ₗ> regs) = None →
       ReadSR_failure regs sregs dst src
   .
 
   Inductive ReadSR_spec
-  (regs: Reg) (sregs: SReg) (dst: RegName) (src: SRegName) (regs': Reg)
+  (regs: LReg) (sregs: SReg) (dst: RegName) (src: SRegName) (regs': LReg)
     : griotte_lang.val -> Prop :=
-  | ReadSR_spec_success p g b e a w:
-      regs !! PC = Some (WCap true p g b e a) →
+  | ReadSR_spec_success p g b e a π (w : Word):
+      regs !! PC = Some (WCap true p g b e a @@? π) →
       has_sreg_access p = true ->
       sregs !! src = Some w →
-      incrementPC (<[ dst := w ]ᵣ> regs) = Some regs' →
+      incrementPC (<[ dst := lword_of_word w ]ₗ> regs) = Some regs' →
       ReadSR_spec regs sregs dst src regs' NextIV
   | ReadSR_spec_failure:
       ReadSR_failure regs sregs dst src →
       ReadSR_spec regs sregs dst src regs' FailedV.
 
-  Lemma wp_ReadSR Ep pc_p pc_g pc_b pc_e pc_a w dst src regs sregs :
-    decodeInstrW w = ReadSR dst src ->
+  Lemma wp_ReadSR Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs sregs :
+    decodeInstrW w.(lw) = ReadSR dst src ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (ReadSR dst src) ⊆ dom regs →
     (if (has_sreg_access pc_p)
     then sregs_of (ReadSR dst src) ⊆ dom sregs
@@ -64,71 +65,49 @@ Section griotte_lang_rules.
     }}}.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs Dsregs φ) "(>Hpc_a & >Hmap & >Hsmap) Hφ".
-    iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [ [ [Hr Hsr] Hm] Hst] Hmmio] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
-    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
+    iApply (wp_instr_step with "Hpc_a Hmap"); eauto.
+    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
+      "Hr Hsr Hm Hst HR HC Hpc_a Hmap".
     iDestruct (gen_heap_valid_inclSepM with "Hsr Hsmap") as %Hsregs.
-    have ? := lookup_weaken _ _ _ _ HPC Hregs.
-    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
-    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
-    iNext. iIntros (e2 σ2 efs Hpstep).
-    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
-    iIntros "_".
-    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
-    unfold exec in Hstep.
-
-    specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri. unfold regs_of in Hri.
-    destruct (Hri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
-
+    rewrite Hinstr /exec in Hstep.
+    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
-    { cbn in Hstep. rewrite Hxsr in Hstep.
-      simplify_eq.
-      iFailWP "Hφ" ReadSR_fail_nonxrs.
-    }
-
+    { cbn in Hstep. rewrite Hxsr in Hstep. simplify_eq.
+      iApply (instr_close_fail with "Hr Hsr Hm Hst HR HC Hmap"); first done.
+      iIntros "Hmap". iApply "Hφ". iFrame. iPureIntro.
+      econstructor. by eapply ReadSR_fail_nonxrs. }
     specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
     destruct (Hsri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
-
-    assert (exec_opt (ReadSR dst src) pc_p (r, sr, m, st) = updatePC (update_reg (r, sr, m, st) dst wsrc)) as HH.
+    assert (exec_opt (ReadSR dst src) pc_p (r, sr, m, st) =
+              updatePC (update_reg (r, sr, m, st) dst (lword_of_word wsrc).(lw))) as HH.
     { by cbn; rewrite Hsrc Hxsr /=. }
-    rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
-
-    destruct (incrementPC (<[ dst := wsrc ]ᵣ> regs)) as [regs'|] eqn:Hregs'
-    ; pose proof Hregs' as H'regs'; cycle 1.
-    { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) (shadow:=st) in Hregs'.
-      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) (shadow':=st) in Hregs'.
-      2: by apply lookup_insert_is_Some'; eauto.
-      2: by apply insert_mono; eauto.
-      rewrite Hregs' in Hstep. simplify_pair_eq.
-      iFailWP "Hφ" ReadSR_fail_incrPC.
-    }
-
-    eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
-      as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-    eapply updatePC_success_incl with (sregs':=sr) (m':=m) (shadow':=st) in HuPC. 2: by eapply insert_mono; eauto.
-    rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
-    iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
-    { apply is_Some_lookup_reg; done. }
-    iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
-    iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
+    rewrite HH in Hstep.
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ dst (lword_of_word wsrc) _ _ _
+      (λ regs' retv, ReadSR_spec regs sregs dst src regs' retv)
+      with "Hr Hsr Hm Hst HR HC Hmap [Hφ Hpc_a Hsmap]").
+    { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. } { by eexists. }
+    { by eapply (er_sreg_words _ _ _ _ _ Her src). } { exact Hstep. }
+    { intros. by econstructor. }
+    { intros. econstructor. by eapply ReadSR_fail_incrPC. }
+    iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
   Qed.
 
-  Lemma wp_readsr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst src wsrc :
-    decodeInstrW w = ReadSR dst src →
+  Lemma wp_readsr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) :
+    decodeInstrW w.(lw) = ReadSR dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ wdst
         ∗ ▷ src ↦ₛᵣ wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ dst ↦ᵣ wsrc
+          ∗ dst ↦ᵣ lword_of_word wsrc
           ∗ src ↦ₛᵣ wsrc }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
@@ -154,18 +133,18 @@ Section griotte_lang_rules.
     }
   Qed.
 
-  Lemma wp_readsr_success_toPC E pc_p pc_g pc_b pc_e pc_a w src (t : bool) p g b e a a':
-    decodeInstrW w = ReadSR PC src →
+  Lemma wp_readsr_success_toPC E pc_p pc_g pc_b pc_e pc_a pc_π w src (t : bool) p g b e a a':
+    decodeInstrW w.(lw) = ReadSR PC src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (a + 1)%a = Some a' →
 
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ src ↦ₛᵣ WCap t p g b e a }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap t p g b e a'
+          PC ↦ᵣ WCap t p g b e a' @@? None
           ∗ pc_a ↦ₐ w
           ∗ src ↦ₛᵣ WCap t p g b e a }}}.
   Proof.
