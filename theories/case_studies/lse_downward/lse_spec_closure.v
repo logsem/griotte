@@ -10,8 +10,8 @@ Section LSE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -20,7 +20,7 @@ Section LSE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma lse_f_spec
 
@@ -57,7 +57,7 @@ Section LSE.
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais Nlse
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+        ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
          ∗ codefrag pc_a lse_main_code
          ∗ cgp_b ↦ₐ WInt 2
         )
@@ -99,7 +99,7 @@ Section LSE.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "#Halloc (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -183,7 +183,15 @@ Section LSE.
     (* Add cs1 cs0 1. *)
     iInstr "Hcode".
     (* Subseg cgp cs0 cs1. *)
-    iInstr "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_subseg_success with "[$HPC $Hi $Hcgp $Hcs0 $Hcs1]");
+      try solve_pure.
+    { transitivity (Some (cgp_b ^+1)%a); solve_addr. }
+    { rewrite /isWithin. solve_addr. }
+    { solve_addr. }
+    iIntros "!> (HPC & Hi & Hcs0 & Hcs1 & Hcgp)". wp_pure.
+    iSpecialize ("Hcode" with "Hi").
     (* Store csp cgp 0. *)
     destruct ( decide ((csp_b < csp_e)%a) ) as [Hcsp_size|Hcsp_size]; cycle 1.
     {
@@ -252,25 +260,22 @@ Section LSE.
     { solve_addr+Hastk1 Hcsp_size. }
 
     set (Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) W1).
-    iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp_C") as %Hheap_wf_cur.
-    assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
-      by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf_cur).
     assert (related_sts_pub_world W0 Wfixed) as Hrelated_pub_W0_Wfixed.
     { subst Wfixed W1. apply related_pub_revoke_close_list.
       destruct Hl_unk; auto. }
-    iDestruct (RevokedResources_mono_pub W0 Wfixed C l l Hheap_wf_fixed
+    iDestruct (RevokedResources_mono_pub W0 Wfixed C l l
       Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
     clear Hrelated_pub_W0_Wfixed.
 
     iApply (switcher_ret_specification _ W0 W1
              with
-             "[$Halloc $Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+             "[$Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
     { apply related_pub_revoke_close_list.
       destruct Hl_unk; auto.
     }
-    { apply regmap_full_dom in Hrmap_init.
+    { apply lregmap_full_dom in Hrmap_init.
       repeat (rewrite dom_insert_L).
       repeat (rewrite dom_delete_L).
       rewrite Hrmap_init; set_solver+.
