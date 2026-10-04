@@ -346,14 +346,14 @@ Section AllocatorMacros.
   Qed.
 
   (** Translate the header of a new allocation to its shadow interval, and
-      load the count of header words (malloc block 4). *)
+      load the count of header words (malloc body block 4). *)
 
   Lemma allocator_translate_spec
     (E : coPset)
     (pc_b pc_e pc_a next h b : Addr) (w3 wa2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let code := allocator_malloc_instrs_n 4 in
+    let code := allocator_malloc_body_instrs_n 4 in
     let sh := (shadow_b ^+ (h - heap_b))%a in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
     disjoint_from_shadow pc_b pc_e ->
@@ -400,3 +400,179 @@ Section AllocatorMacros.
   Qed.
 
 End AllocatorMacros.
+
+Section AllocatorOwnerMacro.
+  Context
+    {Σ : gFunctors}
+    {ceriseg : ceriseG Σ}
+    {MP : MachineParameters}
+    {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}
+  .
+
+  Definition allocator_unsealing_key : Word :=
+    WSealRange true (false, true) Global AllocOtype (AllocOtype ^+ 1)%ot AllocOtype.
+
+  (** The allocator's three imports, as separate words. *)
+  Lemma allocator_imports_split :
+    [[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ⊣⊢
+    (allocator_pcc_b ^+ allocator_shadow_import_off)%a ↦ₐ
+      WCap true RW Global shadow_b shadow_e shadow_b ∗
+    (allocator_pcc_b ^+ 1)%a ↦ₐ
+      WSealRange true (false, true) Global AllocOtype (AllocOtype ^+ 1)%ot AllocOtype ∗
+    (allocator_pcc_b ^+ allocator_revoker_import_off)%a ↦ₐ allocator_revoker_cap.
+  Proof.
+    pose proof allocator_size_imports as Hsize.
+    rewrite allocator_imports_length in Hsize.
+    rewrite /allocator_imports !fmap_cons fmap_nil.
+    rewrite (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1)%a);
+      [|solve_addr|solve_addr].
+    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 1)%a (allocator_pcc_b ^+ 2)%a);
+      [|solve_addr|solve_addr].
+    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 2)%a allocator_code_b);
+      [|solve_addr|solve_addr].
+    rewrite /region_pointsto finz_seq_between_empty; last solve_addr.
+    rewrite /allocator_shadow_import_off /allocator_revoker_import_off.
+    assert ((allocator_pcc_b ^+ 0)%a = allocator_pcc_b) as -> by solve_addr.
+    iSplit; [iIntros "($ & $ & $ & _)" | iIntros "($ & $ & $)"]; done.
+  Qed.
+
+  (** Load the owner identifier of an allocator capability. The physical owner
+      word is only read. Block 0 of both allocator entries is this macro. *)
+
+  Lemma allocator_owner_spec
+    (E : coPset) (pc_b pc_e pc_a : Addr)
+    (g : Locality) (a : Addr) (o : Z) (wtp w3 w4 : LWord)
+    (φ : language.val griotte_lang → iPropI Σ) :
+
+    let code := allocator_owner_instrs ctp ca0 ct3 ct4 in
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
+    disjoint_from_shadow pc_b pc_e ->
+    withinBounds pc_b pc_e (pc_b ^+ allocator_unsealing_key_import_off)%a = true ->
+    is_shadow_address a = false ->
+    (a < a ^+ 1)%a ->
+
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    ctp ↦ᵣ wtp ∗
+    ct3 ↦ᵣ w3 ∗
+    ct4 ↦ᵣ w4 ∗
+    ca0 ↦ᵣ allocator_capability g a ∗
+    (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ allocator_unsealing_key ∗
+    a ↦ₐ WInt o ∗
+    codefrag pc_a code ∗
+    ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length code)%a ∗
+         ctp ↦ᵣ WInt o ∗
+         ct3 ↦ᵣ WInt 0 ∗
+         ct4 ↦ᵣ WInt 0 ∗
+         ca0 ↦ᵣ allocator_capability g a ∗
+         (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ allocator_unsealing_key ∗
+         a ↦ₐ WInt o ∗
+         codefrag pc_a code
+         -∗ WP Seq (Instr Executable) @ E {{ φ }})
+    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+  Proof.
+    intros code; subst code.
+    iIntros (Hpc Hdisjoint Hkey Hshadow_a Ha)
+      "(HPC & Hctp & Hct3 & Hct4 & Hca0 & Hkey & Ha & Hcode & Hφ)".
+    codefrag_facts "Hcode".
+    pose proof allocator_otype_size as Hotype.
+    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea by solve_addr.
+    assert ((pc_b + allocator_unsealing_key_import_off)%a =
+      Some (pc_b ^+ allocator_unsealing_key_import_off)%a) as Hpc_bn
+      by (apply withinBounds_true_iff in Hkey; solve_addr).
+    assert (is_shadow_address (pc_b ^+ allocator_unsealing_key_import_off)%a = false)
+      as Hshadow_key by (eapply disjoint_from_shadow_not_in; eauto).
+    rewrite /allocator_unsealing_key /allocator_capability /allocator_capability_scap.
+    (* Mov ctp PC. *)
+    iInstr "Hcode".
+    (* GetB ct3 ctp. *)
+    iInstr "Hcode".
+    (* GetA ct4 ctp. *)
+    iInstr "Hcode".
+    (* Sub ct3 ct3 ct4. *)
+    iInstr "Hcode".
+    (* Lea ctp ct3. *)
+    iInstr "Hcode".
+    (* Lea ctp allocator_unsealing_key_import_off. *)
+    iInstr "Hcode".
+    (* Load ctp ctp. *)
+    iInstr "Hcode".
+    iEval (rewrite /lload_word /lift_word /=) in "Hctp".
+    (* Mov ct3 0. *)
+    iInstr "Hcode".
+    (* Mov ct4 0. *)
+    iInstr "Hcode".
+    (* UnSeal ctp ctp ca0. *)
+    iInstr "Hcode".
+    (* Load ctp ctp. *)
+    iInstr "Hcode".
+    iEval (rewrite /lload_word /lift_word /=) in "Hctp".
+    iApply "Hφ". iFrame.
+  Qed.
+
+  (** The owner block at an allocator entry point [pc_a], followed by the
+      rest of the entry: the unsealing key is taken from the imports, and the
+      rest of the code is given back at the end of the owner block. *)
+
+  Lemma allocator_owner_entry_spec
+    (E : coPset) (pc_a : Addr) (rest : list Word)
+    (g : Locality) (a : Addr) (o : Z) (wtp w3 w4 : LWord)
+    (φ : language.val griotte_lang → iPropI Σ) :
+
+    let owner := allocator_owner_instrs ctp ca0 ct3 ct4 in
+    let pc_body := (pc_a ^+ length owner)%a in
+    SubBounds allocator_pcc_b allocator_pcc_e pc_a (pc_a ^+ length (owner ++ rest))%a ->
+    is_shadow_address a = false ->
+    (a < a ^+ 1)%a ->
+
+    PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e pc_a ∗
+    ctp ↦ᵣ wtp ∗
+    ct3 ↦ᵣ w3 ∗
+    ct4 ↦ᵣ w4 ∗
+    ca0 ↦ᵣ allocator_capability g a ∗
+    [[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ∗
+    a ↦ₐ WInt o ∗
+    codefrag pc_a (owner ++ rest) ∗
+    ▷ (PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e pc_body ∗
+         ctp ↦ᵣ WInt o ∗
+         ct3 ↦ᵣ WInt 0 ∗
+         ct4 ↦ᵣ WInt 0 ∗
+         ca0 ↦ᵣ allocator_capability g a ∗
+         [[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ∗
+         a ↦ₐ WInt o ∗
+         codefrag pc_body rest ∗
+         (codefrag pc_body rest -∗ codefrag pc_a (owner ++ rest))
+         -∗ WP Seq (Instr Executable) @ E {{ φ }})
+    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+  Proof.
+    intros owner pc_body; subst owner pc_body.
+    iIntros (Hpc Hshadow_a Ha)
+      "(HPC & Hctp & Hct3 & Hct4 & Hca0 & Himports & Howner & Hcode & Hφ)".
+    pose proof allocator_size_imports as Himports_size.
+    rewrite allocator_imports_length in Himports_size.
+    assert (Hdisjoint : disjoint_from_shadow allocator_pcc_b allocator_pcc_e).
+    { pose proof allocator_regions_disjoint as Hregions.
+      unfold disjoint_from_shadow.
+      rewrite !disjoint_list_cons in Hregions.
+      cbn [union_list] in Hregions.
+      set_solver. }
+    iEval (rewrite allocator_imports_split) in "Himports".
+    iDestruct "Himports" as "(Hshadow_import & Hkey & Hrevoker_import)".
+    iDestruct (codefrag_block0_acc with "Hcode") as "[Hown Hcode_close]".
+    iApply (allocator_owner_spec with "[- $HPC $Hctp $Hct3 $Hct4 $Hca0 $Howner $Hown]");
+      try done.
+    { rewrite length_app in Hpc. solve_addr. }
+    { apply withinBounds_true_iff. unfold allocator_unsealing_key_import_off.
+      rewrite length_app in Hpc. solve_addr. }
+    rewrite /allocator_unsealing_key_import_off /allocator_unsealing_key. iFrame "Hkey".
+    iNext. iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca0 & Hkey & Howner & Hown)".
+    iDestruct ("Hcode_close" with "Hown") as "Hcode".
+    iDestruct (codefrag_block_acc 1 pc_a (allocator_owner_instrs ctp ca0 ct3 ct4 ++ rest)
+      (allocator_owner_instrs ctp ca0 ct3 ct4) rest [] with "Hcode") as (ai) "(%Hai & Hrest & Hrest_close)".
+    { rewrite /NthSubBlock app_nil_r //. }
+    assert (ai = (pc_a ^+ length (allocator_owner_instrs ctp ca0 ct3 ct4))%a) as ->
+      by solve_addr.
+    iApply "Hφ". iFrame.
+    iApply allocator_imports_split. iFrame.
+  Qed.
+
+End AllocatorOwnerMacro.

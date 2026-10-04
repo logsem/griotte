@@ -4,7 +4,8 @@ From griotte Require Import memory_region.
 
 Section AllocatorServiceInitializationProofs.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
-    {FA : FreeAuth Σ} {MP : MachineParameters} {layout : allocatorLayout}.
+    {FA : FreeAuth Σ} {allocator_ownerg : allocatorOwnerG Σ}
+    {MP : MachineParameters} {layout : allocatorLayout}.
 
   (** The initial cells: the heap root at [heap_b] and unclaimed cells
       elsewhere in the heap, all unpainted, none of them a header. The claims
@@ -55,19 +56,21 @@ Section AllocatorServiceInitializationProofs.
 
   (** Like KVS initialization, service initialization consumes only imports,
       code, and data, together with the heap: its memory, its unpainted shadow
-      entries and its address claims. *)
+      entries and its address claims, and the authoritative owner map of the
+      owner identifiers [ids], with no allocation yet. *)
 
-  Lemma allocator_service_init_correct (E : coPset) (mem : LMem) :
+  Lemma allocator_service_init_correct (E : coPset) (mem : LMem) (ids : gset Z) :
     allocatorLayoutWf ->
     dom mem = heap_addresses ->
     allocator_service_initial_resources -∗
+    allocator_owners (gset_to_gmap ∅ ids) -∗
     ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) -∗
     ([∗ map] a ↦ c ∈ init_claims {[heap_b]}, addr_alloc a c)
     ={E}=∗
     allocator_service_ctx.
   Proof.
     intros Hwf Hdom.
-    iIntros "[Hstatic Hdata] Hheap Hclaims".
+    iIntros "[Hstatic Hdata] Howners Hheap Hclaims".
     pose proof heap_valid as Hvalid.
     iDestruct (region_pointsto_single with "Hdata") as (w) "[Hdata %Hword]".
     { exact (@allocator_size_data MP layout Hwf). }
@@ -87,10 +90,12 @@ Section AllocatorServiceInitializationProofs.
       rewrite lookup_init_claims in Hc.
       destruct (is_heap_address a); last done.
       case_decide; simplify_eq; by iFrame. }
+    iAssert (allocator_service_owners []) with "[Howners]" as "Howners".
+    { iExists _. iFrame "Howners". iPureIntro. apply allocator_owners_wf_empty. }
     iMod (na_inv_alloc cerise_nais E Nallocator_service allocator_service_inv
-      with "[Hstatic Hdata Hcells]") as "#Hservice".
+      with "[Hstatic Hdata Hcells Howners]") as "#Hservice".
     { iNext. iFrame "Hstatic". iExists (heap_b ^+ 1)%a, [], ∅, ∅, allocator_initial_cells.
-      iFrame "Hdata Hcells".
+      iFrame "Hdata Hcells Howners".
       rewrite /allocator_entries_res /=.
       iPureIntro.
       split_and!; [solve_addr|solve_addr|done|split; constructor

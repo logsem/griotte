@@ -11,7 +11,7 @@ From griotte.allocator Require Import allocator_preamble
 
 Definition allocator_malloc_block_addr {MP : MachineParameters}
   (pc_a : Addr) (n : nat) : Addr :=
-  (pc_a ^+ length (concat (take n assembled_allocator_malloc)))%a.
+  (pc_a ^+ length (concat (take n assembled_allocator_malloc_body)))%a.
 
 Section AllocatorMallocBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
@@ -22,17 +22,17 @@ Section AllocatorMallocBlocks.
     (pc_b pc_e pc_a : Addr) (wreq wtmp : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let code := allocator_malloc_instrs_n 0 in
-    ContiguousRegion pc_a (length allocator_malloc_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
+    let code := allocator_malloc_body_instrs_n 0 in
+    ContiguousRegion pc_a (length allocator_malloc_body_instrs) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_body_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
     allocator_positive_size wreq.(lw) ->
 
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
-    ca0 ↦ᵣ wreq ∗
+    ca1 ↦ᵣ wreq ∗
     ct3 ↦ᵣ wtmp ∗
     codefrag pc_a code ∗
-    ▷ (ca0 ↦ᵣ wreq ∗
+    ▷ (ca1 ↦ᵣ wreq ∗
          ct3 ↦ᵣ - ∗
          codefrag pc_a code ∗
          PC ↦ᵣ WCap true RX Global pc_b pc_e
@@ -42,16 +42,16 @@ Section AllocatorMallocBlocks.
   Proof.
     intros code Hcont Hpc Hdisjoint (n & Hreq & Hpositive); subst code.
     destruct wreq as [wreq π]; cbn in Hreq; subst wreq.
-    iIntros "(HPC & Hca0 & Hct3 & Hcode & Hφ)".
+    iIntros "(HPC & Hca1 & Hct3 & Hcode & Hφ)".
     codefrag_facts "Hcode".
-    (* GetWType ct3 ca0. *)
+    (* GetWType ct3 ca1. *)
     iInstr "Hcode".
     (* Sub ct3 ct3 (encodeWordType wt_int). *)
     iInstr "Hcode".
     rewrite (encodeWordType_correct_int n 0) /wt_int Z.sub_diag.
     (* Jnz .malloc_invalid ct3. *)
     iInstr "Hcode".
-    (* Lt ct3 0 ca0. *)
+    (* Lt ct3 0 ca1. *)
     iInstr "Hcode".
     replace (0 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
     (* Jnz .malloc_size_ok ct3. *)
@@ -64,17 +64,17 @@ Section AllocatorMallocBlocks.
     (pc_b pc_e pc_a : Addr) (wreq wtmp : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let code := allocator_malloc_instrs_n 0 in
-    ContiguousRegion pc_a (length allocator_malloc_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
+    let code := allocator_malloc_body_instrs_n 0 in
+    ContiguousRegion pc_a (length allocator_malloc_body_instrs) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_body_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
     ¬ allocator_positive_size wreq.(lw) ->
 
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
-    ca0 ↦ᵣ wreq ∗
+    ca1 ↦ᵣ wreq ∗
     ct3 ↦ᵣ wtmp ∗
     codefrag pc_a code ∗
-    ▷ (ca0 ↦ᵣ wreq ∗
+    ▷ (ca1 ↦ᵣ wreq ∗
          ct3 ↦ᵣ - ∗
          codefrag pc_a code ∗
          PC ↦ᵣ WCap true RX Global pc_b pc_e
@@ -84,9 +84,9 @@ Section AllocatorMallocBlocks.
   Proof.
     intros code Hcont Hpc Hdisjoint Hinvalid; subst code.
     destruct wreq as [wreq π]; cbn in Hinvalid.
-    iIntros "(HPC & Hca0 & Hct3 & Hcode & Hφ)".
+    iIntros "(HPC & Hca1 & Hct3 & Hcode & Hφ)".
     codefrag_facts "Hcode".
-    (* GetWType ct3 ca0. *)
+    (* GetWType ct3 ca1. *)
     iInstr "Hcode".
     (* Sub ct3 ct3 (encodeWordType wt_int). *)
     iInstr "Hcode".
@@ -95,7 +95,7 @@ Section AllocatorMallocBlocks.
       rewrite (encodeWordType_correct_int z 0) /wt_int Z.sub_diag.
       (* Jnz .malloc_invalid ct3. *)
       iInstr "Hcode".
-      (* Lt ct3 0 ca0. *)
+      (* Lt ct3 0 ca1. *)
       iInstr "Hcode".
       destruct (decide (0 < z)%Z) as [Hzpos|Hznonpos].
       { exfalso. apply Hinvalid. exists z. split; [reflexivity|exact Hzpos]. }
@@ -121,9 +121,9 @@ Section AllocatorMallocBlocks.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let start := allocator_malloc_block_addr pc_a 9 in
-    let code := allocator_malloc_instrs_n 9 in
-    ContiguousRegion pc_a (length allocator_malloc_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
+    let code := allocator_malloc_body_instrs_n 9 in
+    ContiguousRegion pc_a (length allocator_malloc_body_instrs) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_body_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
 
     PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
@@ -168,9 +168,9 @@ Section AllocatorMallocBlocks.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let start := allocator_malloc_block_addr pc_a 10 in
-    let code := allocator_malloc_instrs_n 10 in
-    ContiguousRegion pc_a (length allocator_malloc_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
+    let code := allocator_malloc_body_instrs_n 10 in
+    ContiguousRegion pc_a (length allocator_malloc_body_instrs) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_body_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
 
     PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
@@ -210,20 +210,21 @@ Section AllocatorMallocBlocks.
 
 
   (** The prepare block: reload the heap root, check the capacity, bound the
-      payload capability and write the header. The strong allocate step rides
-      on the rebasing [subseg ct4 ct1 ct2]: it claims the payload cells for a
-      fresh identifier [ι ∉ S], which the payload capability carries. *)
+      payload capability and write the header, with the owner identifier [o]
+      held in [ctp]. The strong allocate step rides on the rebasing
+      [subseg ct4 ct1 ct2]: it claims the payload cells for a fresh identifier
+      [ι ∉ S], which the payload capability carries. *)
   Lemma allocator_malloc_prepare_success_spec
     (E : coPset)
-    (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (S : gset AId)
+    (pc_b pc_e pc_a next b finish : Addr) (n o : Z) (πn : option AId) (S : gset AId)
     (w0 w1 w2 w3 w4 wa2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let start := allocator_malloc_block_addr pc_a 1 in
-    let code := allocator_malloc_instrs_n 1 in
+    let code := allocator_malloc_body_instrs_n 1 in
     allocatorLayoutWf ->
-    ContiguousRegion pc_a (length allocator_malloc_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
+    ContiguousRegion pc_a (length allocator_malloc_body_instrs) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_body_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
     allocator_cgp_b ∉ finz.seq_between pc_b pc_e ->
     (0 < n)%Z ->
@@ -235,7 +236,8 @@ Section AllocatorMallocBlocks.
     PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
     cgp ↦ᵣ WCap true RW Global
         allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-    ca0 ↦ᵣ WInt n @@? πn ∗
+    ca1 ↦ᵣ WInt n @@? πn ∗
+    ctp ↦ᵣ WInt o ∗
     ct0 ↦ᵣ w0 ∗
     ct1 ↦ᵣ w1 ∗
     ct2 ↦ᵣ w2 ∗
@@ -252,11 +254,12 @@ Section AllocatorMallocBlocks.
          ι ↦st{1} ALive ∗
          ([∗ list] a ∈ finz.seq_between b finish,
             a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) ∗
-         allocator_header next b finish (0%Z, 0%Z) ∗
+         allocator_header next b finish (o, 0%Z) ∗
          allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
          cgp ↦ᵣ WCap true RW Global
              allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-         ca0 ↦ᵣ WInt n @@? πn ∗
+         ca1 ↦ᵣ WInt n @@? πn ∗
+         ctp ↦ᵣ WInt o ∗
          ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
          ct1 ↦ᵣ WInt b ∗
          ct2 ↦ᵣ WInt finish ∗
@@ -271,7 +274,7 @@ Section AllocatorMallocBlocks.
   Proof.
     intros start code Hlayout Hcont Hpc Hdisjoint Hcgp_pc Hpositive Hnext Hbase Hfinish Hroom;
       subst start code.
-    iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot & Hheader &
+    iIntros "(HPC & Hcgp & Hca1 & Hctp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot & Hheader &
       Hpayload & Hcode & Hφ)".
     codefrag_facts "Hcode".
     assert (Hstart : allocator_malloc_block_addr pc_a 1 = (pc_a ^+ 6)%a) by reflexivity.
@@ -297,7 +300,7 @@ Section AllocatorMallocBlocks.
     { intros _. left. pose proof heap_valid. apply has_authority_heap_cap; solve_addr. }
     { apply withinBounds_true_iff. solve_addr. }
     { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between.
-      unfold allocator_malloc_instrs in Hpc. solve_addr. }
+      unfold allocator_malloc_body_instrs in Hpc. solve_addr. }
     iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot)". wp_pure.
     iSpecialize ("Hcode" with "Hi").
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
@@ -315,7 +318,7 @@ Section AllocatorMallocBlocks.
     iInstr "Hcode".
     (* Sub ct3 ct3 allocator_header_words. *)
     iInstr "Hcode".
-    (* Lt ct3 ct3 ca0. *)
+    (* Lt ct3 ct3 ca1. *)
     iInstr "Hcode".
     replace (heap_e - next - 3 <? n)%Z with false
       by (symmetry; apply Z.ltb_ge; solve_addr).
@@ -326,7 +329,7 @@ Section AllocatorMallocBlocks.
     iInstr "Hcode".
     assert (Hbword : (next + 3)%Z = b) by solve_addr.
     rewrite Hbword.
-    (* Add ct2 ct1 ca0. *)
+    (* Add ct2 ct1 ca1. *)
     iInstr "Hcode".
     assert (Heword : (b + n)%Z = finish) by solve_addr.
     rewrite Heword.
@@ -371,17 +374,17 @@ Section AllocatorMallocBlocks.
       apply withinBounds_true_iff. solve_addr. }
     { apply isCorrectPC_intro; [solve_addr | auto]. }
     { apply withinBounds_true_iff. solve_addr. }
-    (* Store ct0 0 1. *)
+    (* Store ct0 ctp 1. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_store_success_z_imm _ _ _ _ _ _ _ _ _ _ ct0 0 wr1 _ _ _ _ _ (next ^+ 1)%a 1
-      with "[$HPC $Hi $Hct0 $Hr1]"); try solve_pure.
+    iApply (wp_store_success_reg_imm _ _ _ _ _ _ _ _ _ _ ct0 ctp wr1 _ _ _ _ _ (next ^+ 1)%a 1
+      with "[$HPC $Hi $Hct0 $Hctp $Hr1]"); try solve_pure.
     { eapply (disjoint_from_shadow_not_in heap_b heap_e); first exact heap_shadow_disjoint.
       apply withinBounds_true_iff. solve_addr. }
     { apply isCorrectPC_intro; [solve_addr | auto]. }
     { apply withinBounds_true_iff. solve_addr. }
     { solve_addr. }
-    iIntros "!> (HPC & Hi & Hct0 & Hr1)". wp_pure.
+    iIntros "!> (HPC & Hi & Hctp & Hct0 & Hr1)". wp_pure.
     iSpecialize ("Hcode" with "Hi").
     (* Store ct0 0 2. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -398,7 +401,7 @@ Section AllocatorMallocBlocks.
     (* Mov ca2 ct4. *)
     iInstr "Hcode".
     iApply ("Hφ" $! ι).
-    iFrame "Hobj Htok Hpayload Hslot Hcgp Hca0 Hct0 Hct1 Hct2 Hct3 Hca2 Hct4".
+    iFrame "Hobj Htok Hpayload Hslot Hcgp Hca1 Hctp Hct0 Hct1 Hct2 Hct3 Hca2 Hct4".
     iSplit; first done.
     iSplitL "Hend Hr1 Hr2".
     { rewrite /allocator_header /=. iFrame. done. }
@@ -415,10 +418,10 @@ Section AllocatorMallocBlocks.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let start := allocator_malloc_block_addr pc_a 1 in
-    let code := allocator_malloc_instrs_n 1 in
+    let code := allocator_malloc_body_instrs_n 1 in
     allocatorLayoutWf ->
-    ContiguousRegion pc_a (length allocator_malloc_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
+    ContiguousRegion pc_a (length allocator_malloc_body_instrs) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_body_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
     allocator_cgp_b ∉ finz.seq_between pc_b pc_e ->
     (0 < n)%Z ->
@@ -428,7 +431,7 @@ Section AllocatorMallocBlocks.
     PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
     cgp ↦ᵣ WCap true RW Global
         allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-    ca0 ↦ᵣ WInt n @@? πn ∗
+    ca1 ↦ᵣ WInt n @@? πn ∗
     ct0 ↦ᵣ w0 ∗
     ct1 ↦ᵣ w1 ∗
     ct2 ↦ᵣ w2 ∗
@@ -440,7 +443,7 @@ Section AllocatorMallocBlocks.
     ▷ (allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
          cgp ↦ᵣ WCap true RW Global
              allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-         ca0 ↦ᵣ WInt n @@? πn ∗
+         ca1 ↦ᵣ WInt n @@? πn ∗
          ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
          ct1 ↦ᵣ WInt next ∗
          codefrag start code ∗
@@ -455,7 +458,7 @@ Section AllocatorMallocBlocks.
   Proof.
     intros start code Hlayout Hcont Hpc Hdisjoint Hcgp_pc Hpositive Hnext Hoom;
       subst start code.
-    iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot & Hcode & Hφ)".
+    iIntros "(HPC & Hcgp & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot & Hcode & Hφ)".
     codefrag_facts "Hcode".
     assert (Hstart : allocator_malloc_block_addr pc_a 1 = (pc_a ^+ 6)%a) by reflexivity.
     iEval (rewrite Hstart) in "Hcode".
@@ -478,7 +481,7 @@ Section AllocatorMallocBlocks.
     { intros _. left. pose proof heap_valid. apply has_authority_heap_cap; solve_addr. }
     { apply withinBounds_true_iff. solve_addr. }
     { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between.
-      unfold allocator_malloc_instrs in Hpc. solve_addr. }
+      unfold allocator_malloc_body_instrs in Hpc. solve_addr. }
     iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot)". wp_pure.
     iSpecialize ("Hcode" with "Hi").
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
@@ -494,7 +497,7 @@ Section AllocatorMallocBlocks.
     (* Sub ct3 ct3 allocator_header_words. *)
     iInstr "Hcode".
     unfold allocator_header_words in Hoom.
-    (* Lt ct3 ct3 ca0. *)
+    (* Lt ct3 ct3 ca1. *)
     iInstr "Hcode".
     replace (heap_e - next - 3 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
     (* Jnz .malloc_no_memory ct3. *)
@@ -510,14 +513,14 @@ Section AllocatorMallocBlocks.
 
   Lemma allocator_malloc_publish_spec
     (E : coPset)
-    (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (π : option AId) (wstatus : LWord)
+    (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (π : option AId) (wa0 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let start := allocator_malloc_block_addr pc_a 8 in
-    let code := allocator_malloc_instrs_n 8 in
+    let code := allocator_malloc_body_instrs_n 8 in
     allocatorLayoutWf ->
-    ContiguousRegion pc_a (length allocator_malloc_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
+    ContiguousRegion pc_a (length allocator_malloc_body_instrs) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_body_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
     (next + allocator_header_words)%a = Some b ->
     (b + n)%a = Some finish ->
@@ -528,8 +531,8 @@ Section AllocatorMallocBlocks.
         allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
     ct4 ↦ᵣ WCap true RW Global b finish b @@? π ∗
-    ca0 ↦ᵣ WInt n @@? πn ∗
-    ca1 ↦ᵣ wstatus ∗
+    ca0 ↦ᵣ wa0 ∗
+    ca1 ↦ᵣ WInt n @@? πn ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag start code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e
@@ -556,7 +559,7 @@ Section AllocatorMallocBlocks.
     iInstr "Hcode".
     assert (Hstep1 : (pc_a ^+ 51)%a = ((pc_a ^+ 50)%a ^+ 1)%a) by solve_addr.
     iEval (rewrite Hstep1) in "HPC".
-    (* Lea ct0 ca0. *)
+    (* Lea ct0 ca1. *)
     iInstr "Hcode".
     (* Store cgp ct0. *)
     iInstr_success "Hcode".
