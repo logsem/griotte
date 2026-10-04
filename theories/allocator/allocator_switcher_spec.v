@@ -6,11 +6,13 @@ From griotte.allocator Require Export allocator_malloc_spec allocator_free_spec.
 
 (** The public specifications of [malloc] and [free]: calls through the
     switcher from a known caller (§4.8). They take the same ghost resources as
-    the functional specifications, with generic resources only. The argument
-    is in [ca0] (D36). The callers carry no register condition: the
-    switcher-entry facts (the non-argument registers are zero, the stack and
-    return capabilities carry no identifier) discharge the allocator-entry
-    condition of the functional [free] (D23). *)
+    the functional specifications, with the ownership layer's [FreeAuth]
+    instance: the caller's allocator capability is in [ca0], with its owner
+    word and owner token (D12, D22), and the argument is in [ca1] (D36). The
+    callers carry no register condition: the switcher-entry facts (the
+    non-argument registers are zero, the stack and return capabilities carry
+    no identifier) discharge the allocator-entry condition of the functional
+    [free] (D23). *)
 
 Section AllocatorSwitcherSpec.
   Context
@@ -18,48 +20,64 @@ Section AllocatorSwitcherSpec.
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
+    {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}.
 
-  (** The results of [malloc n]: exhaustion, or a fresh object [ι ∉ S] of
-      [n] zeroed cells. *)
-  Definition allocator_malloc_result (S : gset AId) (n : Z) (w0 w1 : LWord) : iProp Σ :=
-    (⌜w0 = WInt ALLOC_NO_MEMORY ∧ w1 = WInt 0⌝ ∨
-     (∃ (ι : AId) (b e : Addr),
-       ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧ (e - b = n)%Z⌝ ∗
-       ⌜ι ∉ S⌝ ∗
-       ⌜w0 = WCap true RW Global b e b @@ ι ∧ w1 = WInt 0⌝ ∗
-       alloc_obj ι b e ∗
-       free_auth_held ι ∗
-       [[b, e]] ↦ₕ[ι] [[region_addrs_zeroes b e]]))%I.
+  (** The ownership layer's [FreeAuth] instance: the caller holds the right
+      to free, [free_right ι]. *)
+  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+
+  (** The results of [malloc n]: exhaustion, with the owner token back, or a
+      fresh object [ι ∉ S] of [n] zeroed cells, with its right to free and
+      the owner token extended with [ι]. *)
+  Definition allocator_malloc_result (S : gset AId) (a_owner : Addr) (id : Z)
+    (Ω : gset AId) (n : Z) (w0 w1 : LWord) : iProp Σ :=
+    (a_owner ↦ₐ WInt id ∗
+     ((⌜w0 = WInt ALLOC_NO_MEMORY ∧ w1 = WInt 0⌝ ∗
+       allocator_owner_id id Ω) ∨
+      (∃ (ι : AId) (b e : Addr),
+        ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧ (e - b = n)%Z⌝ ∗
+        ⌜ι ∉ S⌝ ∗
+        ⌜ι ∉ Ω⌝ ∗
+        ⌜w0 = WCap true RW Global b e b @@ ι ∧ w1 = WInt 0⌝ ∗
+        alloc_obj ι b e ∗
+        free_right ι ∗
+        allocator_owner_id id (Ω ∪ {[ι]}) ∗
+        [[b, e]] ↦ₕ[ι] [[region_addrs_zeroes b e]])))%I.
 
   Lemma allocator_malloc_switcher_spec
-    (S : gset AId) (n : Z)
+    (S : gset AId) (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
+    (n : Z)
     (wcgp wcra wcs0 wcs1 : LWord)
     (b_stk e_stk a_stk : Addr) (arg_rmap : LReg) (cstk : CSTK) :
     (0 < n)%Z ->
-    arg_rmap !! ca0 = Some (lword_of_word (WInt n)) ->
+    is_shadow_address a_owner = false ->
+    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
+    arg_rmap !! ca1 = Some (lword_of_word (WInt n)) ->
     allocator_service_ctx ⊢
     switcher_cc_specification_known_to_known_function
-      emp (allocator_malloc_result S n) wcgp wcra wcs0 wcs1
+      (allocator_owner_id id Ω ∗
+       a_owner ↦ₐ WInt id)
+      (allocator_malloc_result S a_owner id Ω n) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_malloc_pcc_off.
   Proof.
-    iIntros (Hn Harg) "#Hservice".
+    iIntros (Hn Hshadow_owner Hbounds_owner Hcap Harg) "#Hservice".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
-        & Hargs & Hrmap & Hstk & Hcstk & _ & Hpost)".
+        & Hargs & Hrmap & Hstk & Hcstk & (Hid & Ha_owner) & Hpost)".
     iEval (cbn) in "HPC".
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as
       ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
        "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";
        "[Hct0 %Hwct0]"].
     iClear "Hargs".
-    rewrite Harg in Hwca0. simplify_eq.
+    rewrite Hcap in Hwca0. rewrite Harg in Hwca1. simplify_eq.
     iExtractList "Hrmap" [ct1;ct2;ct3;ct4;ctp;cnull] as
       ["Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
     iDestruct "Hct1" as "[Hct1 %Hct1]".
@@ -69,12 +87,12 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hctp" as "[Hctp %Hctp]".
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
-    iApply (allocator_malloc_valid_correct S ⊤ n None _ with
-      "[- $Hservice $Hna $HPC $Hcgp $Hcra
+    iApply (allocator_malloc_valid_correct S ⊤ g_owner a_owner id Ω n None _ with
+      "[- $Hservice $Hna $Hid $Ha_owner $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull]");
       eauto.
     iNext.
-    iIntros "(Hna & HPC & Hcgp & Hcra & Hca2 & Hct0 & Hct1 & Hct2
+    iIntros "(Hna & Ha_owner & HPC & Hcgp & Hcra & Hca2 & Hct0 & Hct1 & Hct2
       & Hct3 & Hct4 & Hctp & Hcnull & Hres)".
     iEval (cbn) in "HPC".
     iExtractList "Hrmap" [cs0;cs1] as
@@ -101,56 +119,69 @@ Section AllocatorSwitcherSpec.
       repeat (rewrite dom_delete_L).
       rewrite Hrmapdom /dom_arg_rmap /allocator_malloc_nargs /=.
       set_solver+. }
-    iDestruct "Hres" as "[[Hca0 Hca1] | Hres]".
+    iDestruct "Hres" as "[(Hid & Hca0 & Hca1) | Hres]".
     - iApply ("Hpost" $! (lword_of_word (WInt ALLOC_NO_MEMORY))
         (lword_of_word (WInt 0)) rmap_ret
         (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
-      iLeft. iPureIntro. auto.
+      iFrame "Ha_owner". iLeft. iFrame "Hid". iPureIntro. auto.
     - iDestruct "Hres" as (ι b e)
-        "(%Hbounds & %Hfresh & Hca0 & Hca1 & #Hobj & Hheld & Hzero)".
+        "(%Hbounds & %Hfresh & %Hfresh_Ω & Hca0 & Hca1 & #Hobj & Hheld & Hid & Hzero)".
       iApply ("Hpost" $! (WCap true RW Global b e b @@ ι) (lword_of_word (WInt 0))
         rmap_ret (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
-      iRight. iExists ι,b,e. iFrame "Hobj Hheld Hzero".
+      iFrame "Ha_owner". iRight. iExists ι,b,e. iFrame "Hobj Hheld Hid Hzero".
       iPureIntro. split; [exact Hbounds|done].
   Qed.
 
-  (** The result of [free]: only [ι ⊒ AQuar] (D12). *)
-  Definition allocator_free_result (ι : AId) (w0 w1 : LWord) : iProp Σ :=
-    (ι ⊒ AQuar ∗ ⌜w0 = WInt ALLOC_OK ∧ w1 = WInt 0⌝)%I.
+  (** The result of [free]: only [ι ⊒ AQuar] (D12), and the owner token
+      and word back. *)
+  Definition allocator_free_result (a_owner : Addr) (id : Z) (Ω : gset AId)
+    (ι : AId) (w0 w1 : LWord) : iProp Σ :=
+    (ι ⊒ AQuar ∗
+     allocator_owner_id id Ω ∗
+     a_owner ↦ₐ WInt id ∗
+     ⌜w0 = WInt ALLOC_OK ∧ w1 = WInt 0⌝)%I.
 
   Lemma allocator_free_switcher_spec
+    (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
     (wcgp wcra wcs0 wcs1 : LWord)
     (b_stk e_stk a_stk b e a : Addr) (arg_rmap : LReg) (cstk : CSTK)
     (p : Perm) (g : Locality) (ι : AId) (ws : list LWord) :
+    is_shadow_address a_owner = false ->
+    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     length ws = length (finz.seq_between b e) ->
-    arg_rmap !! ca0 = Some (WCap true p g b e a @@ ι) ->
+    arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
+    arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
     allocator_service_ctx ⊢
     switcher_cc_specification_known_to_known_function
-      (alloc_obj ι b e ∗
-       free_auth_held ι ∗
+      (allocator_owner_id id Ω ∗
+       ⌜ι ∈ Ω⌝ ∗
+       a_owner ↦ₐ WInt id ∗
+       alloc_obj ι b e ∗
+       free_right ι ∗
        [[b,e]] ↦ₕ[ι] [[ws]])
-      (allocator_free_result ι) wcgp wcra wcs0 wcs1
+      (allocator_free_result a_owner id Ω ι) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_free_pcc_off%I.
   Proof.
-    iIntros (Hbounds Hlen Harg) "#Hservice".
+    iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg) "#Hservice".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
-        & Hargs & Hrmap & Hstk & Hcstk & (#Hobj & Hheld & Hmem) & Hpost)".
+        & Hargs & Hrmap & Hstk & Hcstk
+        & (Hid & %HιΩ & Ha_owner & #Hobj & Hheld & Hmem) & Hpost)".
     iEval (cbn) in "HPC".
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as
       ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
        "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";
        "[Hct0 %Hwct0]"].
     iClear "Hargs".
-    rewrite Harg in Hwca0. simplify_eq.
+    rewrite Hcap in Hwca0. rewrite Harg in Hwca1. simplify_eq.
     iExtractList "Hrmap" [ct1;ct2;ct3;ct4;ctp;cnull] as
       ["Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
     iDestruct "Hct1" as "[Hct1 %Hct1]".
@@ -179,8 +210,8 @@ Section AllocatorSwitcherSpec.
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca4").
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca3").
       iExact "Hrmap". }
-    iApply (allocator_free_valid_correct ⊤ p g ι b e a ws _ rframe with
-      "[- $Hservice $Hna $Hobj $Hheld $HPC $Hcgp $Hcra
+    iApply (allocator_free_valid_correct ⊤ g_owner a_owner id Ω p g ι b e a ws _ rframe with
+      "[- $Hservice $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hframe $Hmem]");
       eauto.
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom
@@ -191,7 +222,7 @@ Section AllocatorSwitcherSpec.
         try done.
       by rewrite (Hzero _ _ Hr). }
     iNext.
-    iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1
+    iIntros "(Hna & Hid & Ha_owner & HPC & Hcgp & Hcra & Hca0 & Hca1
       & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hframe & #Hq & _)".
     iEval (cbn) in "HPC".
     subst rframe.
@@ -211,7 +242,7 @@ Section AllocatorSwitcherSpec.
     iApply ("Hpost" $! (lword_of_word (WInt ALLOC_OK)) (lword_of_word (WInt 0)) _
       (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hframe Hstk Hcstk".
-    rewrite /allocator_free_result. iFrame "Hq".
+    rewrite /allocator_free_result. iFrame "Hq Hid Ha_owner".
     iPureIntro. split; last done.
     repeat (rewrite dom_insert_L || rewrite dom_delete_L).
     rewrite Hrmapdom /dom_arg_rmap /=.

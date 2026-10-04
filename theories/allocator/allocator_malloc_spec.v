@@ -877,4 +877,46 @@ Section AllocatorMalloc.
       iApply "Hpost". iFrame. iLeft. iFrame.
   Qed.
 
+  (** A malformed allocator capability in [ca0] traps in the owner block. *)
+
+  Lemma allocator_malloc_invalid_capability_spec
+    (E : coPset) (wsealed : LWord) (P : iProp Σ) :
+
+    ↑Nallocator_service ⊆ E ->
+    (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
+
+    allocator_service_ctx ∗
+    na_own cerise_nais E ∗
+    PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+      allocator_malloc_pcc_addr ∗
+    ca0 ↦ᵣ wsealed ∗
+    ctp ↦ᵣ - ∗
+    ct3 ↦ᵣ - ∗
+    ct4 ↦ᵣ -
+    ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
+  Proof.
+    iIntros (HEservice Hwsealed)
+      "(#Hservice & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4])".
+    (* Open the service invariant and recover the allocator code. *)
+    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
+    iDestruct "Hinv" as ">[Hstatic Hdata]".
+    iDestruct "Hstatic" as "[Himports Hcode]".
+    iEval (rewrite /allocator_code) in "Hcode".
+    focus_block_0 "Hcode" as "Hmalloc_code" "Hcode_cont".
+    assert (Hentry : allocator_code_b = allocator_malloc_pcc_addr).
+    { pose proof allocator_size_imports as Hsize.
+      rewrite allocator_imports_length in Hsize.
+      unfold allocator_malloc_pcc_addr, allocator_malloc_pcc_off in *.
+      solve_addr. }
+    iEval (rewrite allocator_malloc_instrs_owner_body Hentry) in "Hmalloc_code".
+    iApply (allocator_owner_entry_invalid_spec with
+      "[$HPC $Hctp $Hct3 $Hct4 $Hca0 $Himports $Hmalloc_code]"); try done.
+    pose proof allocator_size_code as Hsize_code.
+    pose proof allocator_size_imports as Himports_size.
+    rewrite /allocator_code length_app allocator_malloc_instrs_owner_body in Hsize_code.
+    rewrite allocator_imports_length in Himports_size.
+    unfold allocator_malloc_pcc_addr, allocator_malloc_pcc_off in *.
+    solve_addr.
+  Qed.
+
 End AllocatorMalloc.

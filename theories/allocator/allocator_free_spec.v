@@ -1188,4 +1188,47 @@ Section AllocatorFree.
     by iExists _.
   Qed.
 
+  (** A malformed allocator capability in [ca0] traps in the owner block. *)
+
+  Lemma allocator_free_invalid_capability_spec
+    (E : coPset) (wsealed : LWord) (P : iProp Σ) :
+
+    ↑Nallocator_service ⊆ E ->
+    (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
+
+    allocator_service_ctx ∗
+    na_own cerise_nais E ∗
+    PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+      allocator_free_pcc_addr ∗
+    ca0 ↦ᵣ wsealed ∗
+    ctp ↦ᵣ - ∗
+    ct3 ↦ᵣ - ∗
+    ct4 ↦ᵣ -
+    ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
+  Proof.
+    iIntros (HEservice Hwsealed)
+      "(#Hservice & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4])".
+    (* Open the service invariant and recover the allocator code. *)
+    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
+    iDestruct "Hinv" as ">[Hstatic Hdata]".
+    iDestruct "Hstatic" as "[Himports Hcode]".
+    iEval (rewrite /allocator_code) in "Hcode".
+    focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfreecode" "Hcode_cont".
+    assert (Ha_eq : a_free = allocator_free_pcc_addr).
+    { pose proof allocator_size_imports as Himports_size.
+      rewrite allocator_imports_length in Himports_size.
+      unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
+      solve_addr. }
+    subst a_free.
+    iEval (rewrite allocator_free_instrs_owner_body) in "Hfreecode".
+    iApply (allocator_owner_entry_invalid_spec with
+      "[$HPC $Hctp $Hct3 $Hct4 $Hca0 $Himports $Hfreecode]"); try done.
+    pose proof allocator_size_code as Hsize_code.
+    pose proof allocator_size_imports as Himports_size.
+    rewrite /allocator_code length_app allocator_free_instrs_owner_body in Hsize_code.
+    rewrite allocator_imports_length in Himports_size.
+    unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
+    solve_addr.
+  Qed.
+
 End AllocatorFree.
