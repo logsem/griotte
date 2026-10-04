@@ -15,10 +15,10 @@ From griotte Require Import proofmode register_tactics map_simpl.
     state right after the call returns to a continuation.  This file defines
     the shared persistent context, the memory threaded unchanged, and one
     state predicate per call-return edge:
-    - [hts_malloc_ret]: after [malloc] (block 4),
-    - [hts_adv1_ret]: after [adv(buf)] (block 9),
-    - [hts_free_ret]: after [free] (block 15),
-    - [hts_adv2_ret]: after [adv(0)] (block 20). *)
+    - [hts_malloc_ret]: after [malloc] (block 5),
+    - [hts_adv1_ret]: after [adv(buf)] (block 10),
+    - [hts_free_ret]: after [free] (block 16),
+    - [hts_adv2_ret]: after [adv(0)] (block 21). *)
 
 (** Pure facts about the allocator layout, shared by the known calls. *)
 Section HTS_Layout.
@@ -123,17 +123,19 @@ Section HTS_States.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
+    {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
+  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+
   (** The parameters of [hts_main_spec]. Each definition below only takes
       the ones it uses, in this order. *)
   Context (C : CmptName).
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
-  Context (C_f : Sealable) (W_init_C : WORLD).
+  Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
   Context (Nassert Nswitcher : namespace) (cstk : CSTK).
 
@@ -168,14 +170,16 @@ Section HTS_States.
     (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
     (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
     (pc_b ^+ 3)%a ↦ₐ WSealed ot_switcher (allocator_malloc Global) ∗
-    (pc_b ^+ 4)%a ↦ₐ WSealed ot_switcher (allocator_free Global).
+    (pc_b ^+ 4)%a ↦ₐ WSealed ot_switcher (allocator_free Global) ∗
+    (pc_b ^+ 5)%a ↦ₐ allocator_capability Global owner_a.
 
   (** The memory that every segment returns unchanged: the imports, the
-      code and [p]. *)
+      code, [p] and the owner word of the allocator capability. *)
   Definition hts_static_mem : iProp Σ :=
     hts_imports ∗
     codefrag pc_a hts_main_code ∗
-    cgp_b ↦ₐ WInt 0.
+    cgp_b ↦ₐ WInt 0 ∗
+    owner_a ↦ₐ WInt hts_main_owner_id.
 
   (** [a] is the first address of block [n] of [hts_main_asm]. *)
   Definition hts_block_addr (n : nat) (a : Addr) : Prop :=
@@ -235,25 +239,25 @@ Section HTS_States.
       StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e) ∗
       ⌜revoked_addresses (revoke W_init_C) (finz.seq_between csp_b csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗
+      allocator_owner_id hts_main_owner_id {[ι]} ∗
       alloc_obj ι b (b ^+ 1)%a ∗
-      free_auth_held ι ∗
+      free_right ι ∗
       b ↦ₕ[ι] WInt 0.
 
   (** Return from the call to malloc. Allocator failure and trusted-stack
       exhaustion both return an integer in [ca0]. *)
   Definition hts_malloc_ret : iProp Σ :=
     ∃ a_ret : Addr,
-      ⌜hts_block_addr 4 a_ret⌝ ∗
+      ⌜hts_block_addr 5 a_ret⌝ ∗
       ((∃ z, hts_halt_ready a_ret z) ∨ hts_malloc_ok a_ret).
 
   (** Return from the first adversary call: [b] was shared in [hts_Wshare b],
       and the switcher returns a public future [Wret] of it. [p] and the
-      saved buffer (in [csp_b]) stayed outside the callee's frame. The
-      adversary may have freed [b]: its liveness is only known after the
-      reload of the saved buffer. *)
+      saved buffer (in [csp_b]) stayed outside the callee's frame. Only
+      main holds [free_right ι], so [ι] is still live. *)
   Definition hts_adv1_ret : iProp Σ :=
     ∃ (ι : AId) (b a_ret : Addr) (Wret : WORLD),
-      ⌜hts_block_addr 9 a_ret⌝ ∗
+      ⌜hts_block_addr 10 a_ret⌝ ∗
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜related_sts_pub_world
@@ -270,8 +274,9 @@ Section HTS_States.
       StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
       ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗
+      allocator_owner_id hts_main_owner_id {[ι]} ∗
       alloc_obj ι b (b ^+ 1)%a ∗
-      free_auth_held ι.
+      free_right ι.
 
   (** Successful free: [ι] is quarantined, its world entry is still open. *)
   Definition hts_free_ok (a_ret : Addr) : iProp Σ :=
@@ -297,14 +302,14 @@ Section HTS_States.
       trusted-stack exhaustion returns a nonzero code. *)
   Definition hts_free_ret : iProp Σ :=
     ∃ a_ret : Addr,
-      ⌜hts_block_addr 15 a_ret⌝ ∗
+      ⌜hts_block_addr 16 a_ret⌝ ∗
       ((∃ z, ⌜z ≠ 0%Z⌝ ∗ hts_halt_ready a_ret z) ∨ hts_free_ok a_ret).
 
   (** Return from the second adversary call: only [p] and the code are
       needed for the assertion. *)
   Definition hts_adv2_ret : iProp Σ :=
     ∃ a_ret : Addr,
-      ⌜hts_block_addr 20 a_ret⌝ ∗
+      ⌜hts_block_addr 21 a_ret⌝ ∗
       hts_frame a_ret (csp_b ^+ 1)%a ∗
       hts_zero_regs.
 

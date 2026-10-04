@@ -8,7 +8,7 @@ From griotte Require Import world_interp_stack region_invariants heap_ghost.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte Require Import hts_spec_states hts_spec_world.
 
-(** * Segment (b): blocks 4-8
+(** * Segment (b): blocks 5-9
 
     Check the malloc result (halting on failure), save the buffer in the
     stack slot below the callee frames and initialize it (faulting on an
@@ -20,22 +20,22 @@ Section HTS_Spec_Share.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
+    {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
   Context (C : CmptName).
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
-  Context (C_f : Sealable) (W_init_C : WORLD).
+  Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
   Context (Nassert Nswitcher : namespace) (cstk : CSTK).
 
   Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nassert Nswitcher).
   Local Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f W_init_C Ws Cs cstk).
+    csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
   Local Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f W_init_C Ws Cs cstk).
+    csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
 
   Lemma hts_spec_share :
     disjoint_from_shadow pc_b pc_e ->
@@ -58,12 +58,12 @@ Section HTS_Spec_Share.
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as (a_ret Ha_ret) "[Herr|Hok]".
-    { (* Block 4: halt when malloc returned an integer. *)
+    { (* Block 5: halt when malloc returned an integer. *)
       iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcode)".
       codefrag_facts "Hcode". clear H0.
       iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
       iEval (cbv [fmap list_fmap concat]) in "Hcode".
-      hts_focus_entry_block 4 "Hcode" as a_result Ha_result "Hblock" "Hcont"
+      hts_focus_entry_block 5 "Hcode" as a_result Ha_result "Hblock" "Hcont"
         from Ha_ret.
       (* GetTag ct0 ca0. *)
       iInstr "Hblock".
@@ -73,14 +73,14 @@ Section HTS_Spec_Share.
       iInstr "Hblock".
       wp_end. iIntros (_). iFrame "Hna". }
     iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
-      & Hworld & #Hstack_revoked & %Hstack_revoked & HK & #Hobj
-      & Hfree_auth & Hb)".
+      & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
+      & Hright & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
-      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp)".
+      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
-       & Himport_free)".
+       & Himport_free & Himport_alloc_cap)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
     pose proof Hbounds as Hbnd; rewrite /hts_buffer_bounds in Hbnd.
     codefrag_facts "Hcode". clear H0.
@@ -88,8 +88,8 @@ Section HTS_Spec_Share.
     iEval (cbv [fmap list_fmap concat]) in "Hcode".
     iEval (rewrite /hts_buffer) in "Hca0".
 
-    (* Block 4: the malloc result is tagged. *)
-    hts_focus_entry_block 4 "Hcode" as a_result Ha_result "Hblock" "Hcont"
+    (* Block 5: the malloc result is tagged. *)
+    hts_focus_entry_block 5 "Hcode" as a_result Ha_result "Hblock" "Hcont"
       from Ha_ret.
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
@@ -99,9 +99,9 @@ Section HTS_Spec_Share.
     iInstr "Hblock".
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
 
-    (* Block 5: save the buffer in the stack slot below the callee frames,
+    (* Block 6: save the buffer in the stack slot below the callee frames,
        and initialize it. *)
-    focus_block 5 "Hcode" as a_store Ha_store "Hblock" "Hcont";
+    focus_block 6 "Hcode" as a_store Ha_store "Hblock" "Hcont";
       iHide "Hcont" as hcont.
     destruct (decide (csp_b < csp_e)%a) as [Hstk_nonempty|Hstk_empty]; cycle 1.
     { (* Empty stack: the store to the stack slot faults. *)
@@ -138,12 +138,12 @@ Section HTS_Spec_Share.
     { apply withinBounds_true_iff; solve_addr. }
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
 
-    (* Block 6: fetch the switcher for the first adversary call. *)
-    focus_block 6 "Hcode" as a_fetch6 Ha_fetch6 "Hfetch" "Hcont";
+    (* Block 7: fetch the switcher for the first adversary call. *)
+    focus_block 7 "Hcode" as a_fetch7 Ha_fetch7 "Hfetch" "Hcont";
       iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp;ct2] as ["[Hctp _]";"[Hct2 _]"].
     iApply (fetch_spec hts_switcher_offset ctp ct0 ct2 RX Global
-      pc_b pc_e a_fetch6
+      pc_b pc_e a_fetch7
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hfetch]").
     { reflexivity. }
@@ -161,12 +161,12 @@ Section HTS_Spec_Share.
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
 
-    (* Block 7: fetch the adversary entry. *)
-    focus_block 7 "Hcode" as a_fetch7 Ha_fetch7 "Hfetch" "Hcont";
+    (* Block 8: fetch the adversary entry. *)
+    focus_block 8 "Hcode" as a_fetch8 Ha_fetch8 "Hfetch" "Hcont";
       iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
     iApply (fetch_spec hts_adv_offset ct1 ct0 ct2 RX Global
-      pc_b pc_e a_fetch7 (WSealed ot_switcher C_f)
+      pc_b pc_e a_fetch8 (WSealed ot_switcher C_f)
       _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hfetch]").
     { reflexivity. }
     { solve_addr. }
@@ -182,15 +182,15 @@ Section HTS_Spec_Share.
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
 
-    (* Block 8: call the adversary with the buffer. *)
-    focus_block 8 "Hcode" as a_advcall Ha_advcall "Hblock" "Hcont";
+    (* Block 9: call the adversary with the buffer. *)
+    focus_block 9 "Hcode" as a_advcall Ha_advcall "Hblock" "Hcont";
       iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
     iInstr_success "Hblock".
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
-    assert (hts_block_addr pc_a 9 (a_advcall ^+ 1)%a) as Ha_next.
+    assert (hts_block_addr pc_a 10 (a_advcall ^+ 1)%a) as Ha_next.
     { rewrite /hts_block_addr. solve_addr. }
-    clear Ha_result Ha_store Ha_fetch6 Ha_fetch7.
+    clear Ha_result Ha_store Ha_fetch7 Ha_fetch8.
 
     (* Share the buffer in the world. *)
     rewrite (finz_seq_between_cons csp_b csp_e) in Hstack_revoked;

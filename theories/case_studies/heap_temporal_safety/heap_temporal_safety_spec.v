@@ -15,11 +15,14 @@ Section Heap_Temporal_Safety_Main.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
+    {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
+
+  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+
   Context {C : CmptName}.
 
   Implicit Types W : WORLD.
@@ -34,6 +37,7 @@ Section Heap_Temporal_Safety_Main.
     (rmap : LReg)
 
     (C_f : Sealable)
+    (owner_a : Addr)
 
     (W_init_C : WORLD)
 
@@ -45,8 +49,11 @@ Section Heap_Temporal_Safety_Main.
     (cstk : CSTK)
     :
 
-    let imports := hts_main_imports C_f in
+    let imports := hts_main_imports owner_a C_f in
 
+    is_shadow_address owner_a = false ->
+    withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
+    is_heap_address owner_a = false ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
@@ -95,6 +102,9 @@ Section Heap_Temporal_Safety_Main.
       ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
       ∗ codefrag pc_a hts_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> hts_main_data ]]
+      (* owner of the imported allocator capability *)
+      ∗ allocator_owner_id hts_main_owner_id ∅
+      ∗ owner_a ↦ₐ WInt hts_main_owner_id
 
       ∗ world_interp W_init_C C
 
@@ -110,61 +120,62 @@ Section Heap_Temporal_Safety_Main.
   Proof.
     (* The proof follows the control flow of [hts_main_asm]; each segment
        ends at a switcher call or at [halt]:
-       (a) blocks 0-3: initialization and call to malloc
+       (a) blocks 0-4: initialization and call to malloc
            ([hts_spec_malloc], returning [hts_malloc_ret]);
-       (b) blocks 4-8: malloc result check, saving the buffer, sharing it
+       (b) blocks 5-9: malloc result check, saving the buffer, sharing it
            and first adversary call ([hts_spec_share], [hts_adv1_ret]);
-       (c) blocks 9-14: reload, tag check, store of [&p] and call to free
+       (c) blocks 10-15: reload, store of [&p] and call to free
            ([hts_spec_free], [hts_free_ret]);
-       (d) blocks 15-19: free result check, quarantine and second
+       (d) blocks 16-20: free result check, quarantine and second
            adversary call ([hts_spec_dangling], [hts_adv2_ret]);
-       (e) blocks 20-22: assertion and halt ([hts_spec_assert]). *)
+       (e) blocks 21-23: assertion and halt ([hts_spec_assert]). *)
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
+    iIntros (Howner_shadow Howner_bounds Howner_nonheap
+      Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       HNswitcher_assert HNswitcher_service
       HNassert_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
       Himports_contiguous Hp_fresh Hheap_empty Hframe_match)
       "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hrmap & Himports & Hcode & Hdata
-       & Hworld & HK & Hcstk & #Hadv & #Hentry
+       & Howner & Howner_word & Hworld & HK & Hcstk & #Hadv & #Hentry
        & #Hinterp_csp)".
     iDestruct (interp_cap_disjoint_wl with "Hinterp_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
-    iDestruct (hts_main_imports_pointsto pc_b pc_a C_f Himports_contiguous
+    iDestruct (hts_main_imports_pointsto pc_b pc_a owner_a C_f Himports_contiguous
       with "Himports") as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
-       & Himport_free & _)".
+       & Himport_free & Himport_alloc_cap & _)".
     iDestruct (hts_private_data_initial cgp_b cgp_e Hcgp_contiguous
       with "Hdata") as "Hp".
     iAssert (hts_main_ctx C C_f W_init_C Nassert Nswitcher) as "#Hctx".
     { iFrame "#". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f W_init_C Ws Cs Nassert Nswitcher cstk rmap
-      with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hrmap $Hworld
+      C_f owner_a W_init_C Ws Cs Nassert Nswitcher cstk rmap
+      with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hrmap $Howner $Hworld
         $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
-        $Himport_adv $Himport_malloc $Himport_free
-        $Hcode $Hp]"); try done.
+        $Himport_adv $Himport_malloc $Himport_free $Himport_alloc_cap
+        $Hcode $Hp $Howner_word]"); try done.
     iIntros "Hmalloc_ret".
     (* (b) *)
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f W_init_C Ws Cs Nassert Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nassert Nswitcher cstk
       with "[$Hctx $Hmalloc_ret]"); try done.
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f W_init_C Ws Cs Nassert Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nassert Nswitcher cstk
       with "[$Hctx $Hadv1_ret]"); try done.
     iIntros "Hfree_ret".
     (* (d) *)
     iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f W_init_C Ws Cs Nassert Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nassert Nswitcher cstk
       with "[$Hctx $Hfree_ret]"); try done.
     iIntros "Hadv2_ret".
     (* (e) *)
     iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f W_init_C Nassert Nswitcher cstk
+      C_f owner_a W_init_C Nassert Nswitcher cstk
       with "[$Hctx $Hadv2_ret]"); done.
   Qed.
 End Heap_Temporal_Safety_Main.

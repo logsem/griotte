@@ -201,8 +201,7 @@ Section HTS_World.
     apply Hstack_revoked. exact Ha.
   Qed.
 
-  (** After the first adversary call, [ι] keeps its bounds in [Wret]: its
-      status is the case split of the reload (D41). *)
+  (** After the first adversary call, [ι] keeps its bounds in [Wret]. *)
   Lemma hts_Wret_heap_lookup ι b Wret :
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C ι b)
@@ -221,41 +220,34 @@ Section HTS_World.
     exists s. by rewrite revoke_heap.
   Qed.
 
-  (** A quarantined [ι] in the world gives its quarantine witness. *)
-  Lemma hts_world_quarantined_witness ι b Wret :
-    heap_std (revoke Wret) !! ι =
-      Some (MkAllocObject b (b ^+ 1)%a AllocObjectQuarantined) ->
-    world_interp (revoke Wret) C -∗
-    world_interp (revoke Wret) C ∗ ι ⊒ AQuar.
-  Proof.
-    iIntros (Hι) "Hworld".
-    rewrite world_interp_eq /world_interp_def.
-    iDestruct "Hworld" as "(Hregion & Hsts & Hseals)".
-    iDestruct (region_heap_provenance with "Hregion") as "[Hregion #Hprov]".
-    iDestruct (heap_provenance_quarantined with "Hprov") as "$"; [exact Hι|done|].
-    iFrame.
-  Qed.
-
-  (** After the first adversary call, with [ι] live in [revoke Wret]: [b]
-      is [Permanent] in [revoke Wret]. Open its world entry to get its
-      memory back. *)
+  (** After the first adversary call: main still holds the free right of
+      [ι], so [ι] is still live (D40), and [b] is [Permanent] in
+      [revoke Wret]. Open its world entry to get its memory back. *)
   Lemma hts_world_reopen_live E ι b Wret :
     hts_buffer_bounds b ->
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C ι b)
         (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret ->
-    heap_std (revoke Wret) !! ι =
-      Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive) ->
     rel C (LHeap b ι) RW interp_in_memC -∗
+    free_right ι -∗
     world_interp (revoke Wret) C
     ={E}=∗
     ∃ v_b : LWord,
+      ⌜heap_std (revoke Wret) !! ι =
+        Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive)⌝ ∗
       ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
       world_interp_open (revoke Wret) C [LHeap b ι] ∗
       sts_state_std C (LHeap b ι) Permanent ∗
+      free_right ι ∗
       b ↦ₕ[ι] v_b.
   Proof.
-    iIntros (Hbounds Hrelated_share_ret Hlive_rev) "#Hrel_b Hworld".
+    iIntros (Hbounds Hrelated_share_ret) "#Hrel_b Hright Hworld".
+    destruct (hts_Wret_heap_lookup ι b Wret Hrelated_share_ret)
+      as [s Hlookup_rev].
+    iDestruct (world_interp_status_live (revoke Wret) C ι _ (1/2)%Qp
+      Hlookup_rev with "Hright Hworld") as "(Hworld & Hright & %Hstatus)".
+    cbn in Hstatus; subst s.
+    rename Hlookup_rev into Hlive_rev.
     assert (LHeap b ι ∉ LNonHeap <$> finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e)
       as Hb_not_callstk.
     { intros (a & Heq & _)%list_elem_of_fmap. discriminate. }

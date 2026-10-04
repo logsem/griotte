@@ -29,18 +29,20 @@ Section Heap_Temporal_Safety_Imports.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}
     `{!switcherLayout} `{!assertLayout} `{!allocatorLayout}.
 
-  Lemma hts_main_imports_length adv_f : length (hts_main_imports adv_f) = 5.
+  Lemma hts_main_imports_length owner_a adv_f :
+    length (hts_main_imports owner_a adv_f) = 6.
   Proof. reflexivity. Qed.
 
-  Lemma hts_main_imports_pointsto b e adv_f :
-    (b + 5)%a = Some e ->
-    [[b, e]] ↦ₐ [[lword_of_word <$> hts_main_imports adv_f]] ⊣⊢
+  Lemma hts_main_imports_pointsto b e owner_a adv_f :
+    (b + 6)%a = Some e ->
+    [[b, e]] ↦ₐ [[lword_of_word <$> hts_main_imports owner_a adv_f]] ⊣⊢
       b ↦ₐ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
       ∗ (b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert
       ∗ (b ^+ 2)%a ↦ₐ WSealed ot_switcher adv_f
       ∗ (b ^+ 3)%a ↦ₐ WSealed ot_switcher (allocator_malloc Global)
       ∗ (b ^+ 4)%a ↦ₐ WSealed ot_switcher (allocator_free Global)
-      ∗ region_pointsto (b ^+ 5)%a e [].
+      ∗ (b ^+ 5)%a ↦ₐ allocator_capability Global owner_a
+      ∗ region_pointsto (b ^+ 6)%a e [].
   Proof.
     intros Hsize. rewrite /hts_main_imports.
     rewrite (region_pointsto_cons b (b ^+ 1)%a e); [|solve_addr|solve_addr].
@@ -48,6 +50,7 @@ Section Heap_Temporal_Safety_Imports.
     rewrite (region_pointsto_cons (b ^+ 2)%a (b ^+ 3)%a e); [|solve_addr|solve_addr].
     rewrite (region_pointsto_cons (b ^+ 3)%a (b ^+ 4)%a e); [|solve_addr|solve_addr].
     rewrite (region_pointsto_cons (b ^+ 4)%a (b ^+ 5)%a e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_cons (b ^+ 5)%a (b ^+ 6)%a e); [|solve_addr|solve_addr].
     done.
   Qed.
 End Heap_Temporal_Safety_Imports.
