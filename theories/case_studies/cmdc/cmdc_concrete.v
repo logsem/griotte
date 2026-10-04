@@ -120,7 +120,8 @@ Proof.
     cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call
     cmdc_switcher_return cmdc_switcher_sealing_type
     cmdc_trusted_stack_b cmdc_trusted_stack_e _ _ _ _
-    (replicate 100 (WInt 0)) _ eq_refl cmdc_stack_b cmdc_stack_e
+    (replicate 100 (WInt 0)) _ eq_refl
+    ltac:(by apply Forall_replicate) cmdc_stack_b cmdc_stack_e
     (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -559,11 +560,12 @@ Lemma cmdc_initial_memory_correct :
   is_initial_memory cmdc_initial_memory.
 Proof.
   rewrite /is_initial_memory /cmdc_initial_memory.
-  repeat split; try reflexivity.
+  repeat split; try reflexivity; try apply Forall_nil_2.
   - rewrite /cmdc_B_code /encodeInstrsW; repeat constructor; done.
   - rewrite /cmdc_B_data; repeat constructor; done.
   - rewrite /cmdc_C_code /encodeInstrsW; repeat constructor; done.
   - rewrite /cmdc_C_data; repeat constructor; done.
+  - by apply Forall_replicate.
 Qed.
 
 (** The initialized free heap is disjoint from the concrete program. *)

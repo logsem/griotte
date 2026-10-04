@@ -9,8 +9,8 @@ Section CMDC_Call_Phase.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
@@ -29,33 +29,33 @@ Section CMDC_Call_Phase.
       (Nswitcher : namespace)
       (W0 : WORLD) (C : CmptName)
       (shared_addr shared_addr_e : Addr) (target : Sealable)
-      (wcgp wcra wcs0 wcs1 : Word)
-      (wca1 wca2 wca3 wca4 wca5 : Word)
+      (wcgp wcra wcs0 wcs1 : LWord)
+      (wca1 wca2 wca3 wca4 wca5 : LWord)
       (b_stk e_stk a_stk : Addr)
-      (stk_mem : list Word) (rmap : Reg)
+      (stk_mem : list LWord) (rmap : LReg)
       (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     let Wcall := <s[shared_addr := Permanent]s>W0 in
     let shared_addr_cap :=
       WCap true RW Global shared_addr shared_addr_e shared_addr in
     let target_word := WSealed ot_switcher target in
-    let arg_rmap : Reg :=
-      {[ ca0 := shared_addr_cap;
+    let arg_rmap : LReg :=
+      {[ ca0 := lword_of_word shared_addr_cap;
          ca1 := wca1;
          ca2 := wca2;
          ca3 := wca3;
          ca4 := wca4;
          ca5 := wca5;
-         ct0 := WInt 0 ]} in
+         ct0 := lword_of_word (WInt 0) ]} in
     let callee_stk_region := finz.seq_between (a_stk ^+ 4)%a e_stk in
     (shared_addr + 1)%a = Some shared_addr_e ->
     is_mmio_address shared_addr = false ->
     is_heap_address shared_addr = false ->
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    is_heap_cap wcgp = false ->
-    is_heap_cap wcra = false ->
-    is_heap_cap wcs0 = false ->
-    is_heap_cap wcs1 = false ->
+    is_heap_cap wcgp.(lw) = false ->
+    is_heap_cap wcra.(lw) = false ->
+    is_heap_cap wcs0.(lw) = false ->
+    is_heap_cap wcs1.(lw) = false ->
     LNonHeap shared_addr ∉ dom (std W0) ->
     shared_addr ∉ finz.seq_between b_stk e_stk ->
     revoked_addresses W0 (finz.seq_between b_stk e_stk) ->
@@ -64,7 +64,7 @@ Section CMDC_Call_Phase.
       all_registers_s ∖
         ({[ PC; cgp; cra; csp; ct1; cs0; cs1 ]} ∪ dom_arg_rmap 8) ->
 
-    (allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    (na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_own cerise_nais ⊤
     ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp
@@ -91,8 +91,8 @@ Section CMDC_Call_Phase.
     ∗ target_word ↦□ₑ 1)%I
 
     ∗ ▷ (∀
-          (Wret : WORLD) (rmap' : Reg)
-          (stk_mem' : list Word) (l' : list LAddr),
+          (Wret : WORLD) (rmap' : LReg)
+          (stk_mem' : list LWord) (l' : list LAddr),
         (⌜extract_temporaries_condition Wret (l' ++ (LNonHeap <$> callee_stk_region))⌝
         ∗ RevokedResources Wret C l'
         ∗ ⌜revoked_keys (revoke Wret) l'⌝
@@ -109,7 +109,7 @@ Section CMDC_Call_Phase.
              ∧ (a_stk + 4)%a = Some (a_stk ^+ 4)%a)%a⌝
         ∗ world_interp (revoke Wret) C
         ∗ cstack_frag cstk
-        ∗ PC ↦ᵣ updatePcPerm wcra
+        ∗ PC ↦ᵣ lupdatePcPerm wcra
         ∗ cgp ↦ᵣ wcgp
         ∗ cra ↦ᵣ wcra
         ∗ cs0 ↦ᵣ wcs0
@@ -131,7 +131,7 @@ Section CMDC_Call_Phase.
       Hstk_lower Hrmap_dom).
     iIntros "(Hpre & Hcont)".
     iDestruct "Hpre" as
-      "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
+      "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
       & Hct1 & Hcs0 & Hcs1
       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0 & Hrmap
       & Hshared_addr & Hstk & Hworld & Hstack_revoked & Hcstk & HK
@@ -174,11 +174,12 @@ Section CMDC_Call_Phase.
           assert (a = shared_addr) as -> by solve_addr+Ha Hshared_addr_e.
           apply withinBounds_true_iff in Hr.
           change (is_heap_address shared_addr = true) in Hr; congruence. }
+      rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons shared_addr); last solve_addr.
       rewrite (finz_seq_between_empty (shared_addr ^+ 1)%a);
         last solve_addr+Hshared_addr_e.
       iApply big_sepL_singleton.
-      rewrite (addr_key_nonheap _ shared_addr Hshared_heap).
+      rewrite addr_key_None.
       iExists RW, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
@@ -236,7 +237,7 @@ Section CMDC_Call_Phase.
 
     iApply (switcher_cc_specification _ Wcall _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
        with
-      "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
+      "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
        $Hargs $Hrmap $Hstk $Hworld $Hstack_revoked $Hcstk $HK
        $Htarget_call $Hentry]").
     - exact Hstk_shadow.
