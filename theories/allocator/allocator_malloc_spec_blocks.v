@@ -78,7 +78,7 @@ Section AllocatorMallocBlocks.
          ct3 ↦ᵣ - ∗
          codefrag pc_a code ∗
          PC ↦ᵣ WCap true RX Global pc_b pc_e
-             (allocator_malloc_block_addr pc_a 7)
+             (allocator_malloc_block_addr pc_a 9)
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
@@ -120,8 +120,8 @@ Section AllocatorMallocBlocks.
     (E : coPset) (pc_b pc_e pc_a : Addr) (wreq wstatus : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let start := allocator_malloc_block_addr pc_a 7 in
-    let code := allocator_malloc_instrs_n 7 in
+    let start := allocator_malloc_block_addr pc_a 9 in
+    let code := allocator_malloc_instrs_n 9 in
     ContiguousRegion pc_a (length allocator_malloc_instrs) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
@@ -131,7 +131,7 @@ Section AllocatorMallocBlocks.
     ca1 ↦ᵣ wstatus ∗
     codefrag start code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e
-           (allocator_malloc_block_addr pc_a 9) ∗
+           (allocator_malloc_block_addr pc_a 11) ∗
          ca0 ↦ᵣ WInt ALLOC_INVALID ∗
          ca1 ↦ᵣ WInt 0 ∗
          codefrag start code
@@ -143,8 +143,8 @@ Section AllocatorMallocBlocks.
     codefrag_facts "Hcode".
     (* Mov ca0 ALLOC_INVALID. *)
     iInstr "Hcode".
-    assert (Hstep : (pc_a ^+ 51)%a =
-      ((allocator_malloc_block_addr pc_a 7) ^+ 1)%a).
+    assert (Hstep : (pc_a ^+ 57)%a =
+      ((allocator_malloc_block_addr pc_a 9) ^+ 1)%a).
     { unfold allocator_malloc_block_addr. solve_addr. }
     iEval (rewrite Hstep) in "HPC".
     (* Mov ca1 0. *)
@@ -156,8 +156,8 @@ Section AllocatorMallocBlocks.
     { unfold ALLOC_INVALID.
       destruct (decide (ca0 = cnull)); [discriminate|done]. }
     iEval (rewrite Hca0val) in "Hca0".
-    assert (Hret : (allocator_malloc_block_addr pc_a 7 ^+ 5)%a =
-      allocator_malloc_block_addr pc_a 9).
+    assert (Hret : (allocator_malloc_block_addr pc_a 9 ^+ 5)%a =
+      allocator_malloc_block_addr pc_a 11).
     { unfold allocator_malloc_block_addr. solve_addr. }
     iEval (rewrite Hret) in "HPC".
     iApply "Hφ". iFrame.
@@ -167,8 +167,8 @@ Section AllocatorMallocBlocks.
     (E : coPset) (pc_b pc_e pc_a : Addr) (wreq wstatus : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let start := allocator_malloc_block_addr pc_a 8 in
-    let code := allocator_malloc_instrs_n 8 in
+    let start := allocator_malloc_block_addr pc_a 10 in
+    let code := allocator_malloc_instrs_n 10 in
     ContiguousRegion pc_a (length allocator_malloc_instrs) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
@@ -178,7 +178,7 @@ Section AllocatorMallocBlocks.
     ca1 ↦ᵣ wstatus ∗
     codefrag start code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e
-           (allocator_malloc_block_addr pc_a 9) ∗
+           (allocator_malloc_block_addr pc_a 11) ∗
          ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
          ca1 ↦ᵣ WInt 0 ∗
          codefrag start code
@@ -190,8 +190,8 @@ Section AllocatorMallocBlocks.
     codefrag_facts "Hcode".
     (* Mov ca0 ALLOC_NO_MEMORY. *)
     iInstr "Hcode".
-    assert (Hstep : (pc_a ^+ 54)%a =
-      ((allocator_malloc_block_addr pc_a 8) ^+ 1)%a).
+    assert (Hstep : (pc_a ^+ 60)%a =
+      ((allocator_malloc_block_addr pc_a 10) ^+ 1)%a).
     { unfold allocator_malloc_block_addr. solve_addr. }
     iEval (rewrite Hstep) in "HPC".
     (* Mov ca1 0. *)
@@ -201,8 +201,8 @@ Section AllocatorMallocBlocks.
     { unfold ALLOC_NO_MEMORY.
       destruct (decide (ca0 = cnull)); [discriminate|done]. }
     iEval (rewrite Hca0val) in "Hca0".
-    assert (Hret : (allocator_malloc_block_addr pc_a 8 ^+ 2)%a =
-      allocator_malloc_block_addr pc_a 9).
+    assert (Hret : (allocator_malloc_block_addr pc_a 10 ^+ 2)%a =
+      allocator_malloc_block_addr pc_a 11).
     { unfold allocator_malloc_block_addr. solve_addr. }
     iEval (rewrite Hret) in "HPC".
     iApply "Hφ". iFrame.
@@ -445,7 +445,7 @@ Section AllocatorMallocBlocks.
          ct1 ↦ᵣ WInt next ∗
          codefrag start code ∗
          PC ↦ᵣ WCap true RX Global pc_b pc_e
-             (allocator_malloc_block_addr pc_a 8) ∗
+             (allocator_malloc_block_addr pc_a 10) ∗
          ct2 ↦ᵣ WInt heap_e ∗
          ct3 ↦ᵣ WInt 1 ∗
          ct4 ↦ᵣ w4 ∗
@@ -502,7 +502,7 @@ Section AllocatorMallocBlocks.
     wp_instr.
     iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct3]"); try solve_pure.
     { apply isCorrectPC_intro; [solve_addr | auto]. }
-    { instantiate (1 := (pc_a ^+ 53)%a). solve_addr. }
+    { instantiate (1 := (pc_a ^+ 59)%a). solve_addr. }
     iIntros "!> (HPC & Hi & Hct3)". wp_pure.
     iSpecialize ("Hcode" with "Hi").
     iApply "Hφ". iFrame.
@@ -513,8 +513,8 @@ Section AllocatorMallocBlocks.
     (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (π : option AId) (wstatus : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let start := allocator_malloc_block_addr pc_a 6 in
-    let code := allocator_malloc_instrs_n 6 in
+    let start := allocator_malloc_block_addr pc_a 8 in
+    let code := allocator_malloc_instrs_n 8 in
     allocatorLayoutWf ->
     ContiguousRegion pc_a (length allocator_malloc_instrs) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_instrs)%a ->
@@ -533,7 +533,7 @@ Section AllocatorMallocBlocks.
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag start code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e
-           (allocator_malloc_block_addr pc_a 9) ∗
+           (allocator_malloc_block_addr pc_a 11) ∗
          cgp ↦ᵣ WCap true RW Global
              allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
          ct0 ↦ᵣ WCap true RW Global heap_b heap_e finish ∗
@@ -549,12 +549,12 @@ Section AllocatorMallocBlocks.
     iIntros "(HPC & Hcgp & Hct0 & Hct4 & Hca0 & Hca1 & Hslot & Hcode & Hφ)".
     codefrag_facts "Hcode".
     unfold allocator_header_words in Hbase.
-    assert (Hstart : allocator_malloc_block_addr pc_a 6 = (pc_a ^+ 44)%a) by reflexivity.
+    assert (Hstart : allocator_malloc_block_addr pc_a 8 = (pc_a ^+ 50)%a) by reflexivity.
     iEval (rewrite Hstart) in "Hcode HPC". rewrite Hstart in H.
     pose proof (@allocator_size_data MP layout Hlayout) as Hsize. cbn in Hsize.
     (* Lea ct0 allocator_header_words. *)
     iInstr "Hcode".
-    assert (Hstep1 : (pc_a ^+ 45)%a = ((pc_a ^+ 44)%a ^+ 1)%a) by solve_addr.
+    assert (Hstep1 : (pc_a ^+ 51)%a = ((pc_a ^+ 50)%a ^+ 1)%a) by solve_addr.
     iEval (rewrite Hstep1) in "HPC".
     (* Lea ct0 ca0. *)
     iInstr "Hcode".
@@ -574,8 +574,8 @@ Section AllocatorMallocBlocks.
     (* Jmp .malloc_return. *)
     iInstr "Hcode".
     iApply "Hφ". iFrame.
-    replace (allocator_malloc_block_addr pc_a 9) with (pc_a ^+ 55)%a by reflexivity.
-    assert (Hret : ((pc_a ^+ 44)%a ^+ 11)%a = (pc_a ^+ 55)%a) by solve_addr.
+    replace (allocator_malloc_block_addr pc_a 11) with (pc_a ^+ 61)%a by reflexivity.
+    assert (Hret : ((pc_a ^+ 50)%a ^+ 11)%a = (pc_a ^+ 61)%a) by solve_addr.
     iEval (rewrite Hret) in "HPC". iFrame.
   Qed.
 

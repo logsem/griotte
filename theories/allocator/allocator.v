@@ -9,8 +9,10 @@ From griotte Require Import machine_parameters assembler switcher fetch.
     allocation, clears its shadow entries, and returns an exactly bounded
     [RW Global] capability in [ca0]. Each allocation has three protected header
     words before its payload: the original end and two reserved addresses,
-    initialized to zero. [free] traverses these headers from the first one
-    and requires both supplied bounds to match an original payload. It paints
+    initialized to zero, whose shadow entries are painted. [free] checks the
+    header locally, as CHERIoT does: the supplied base must be the first
+    unpainted word after a painted header, and the supplied end must match
+    the end recorded in that header. It paints
     the payload quarantined, stores to the revoker, which untags every stale
     capability to it in memory, and unpaints the payload. Neither operation
     reuses memory.
@@ -130,6 +132,7 @@ Section Allocator.
        root[2] = 0;                    // Header: second reserved address.
        for (integer i = 0; i < n; ++i)
          payload[i] = 0;
+       paint_shadow(h, b, ShadowQuarantined);  // Header words.
        paint_shadow(b, e, ShadowLive);
        *bump_slot = set_address(root, e);
        return payload;
@@ -161,8 +164,8 @@ Section Allocator.
         mov ct4 ct0;
         lea ct4 allocator_header_words;
         subseg ct4 ct1 ct2;
-        (* Record the immutable end and initialize the reserved address.
-           Header addresses retain their initially clear shadow bits. *)
+        (* Record the immutable end and initialize the reserved addresses.
+           The header's shadow entries are painted below. *)
         store ct0 ct2;
         store_imm ct0 0 1;
         store_imm ct0 0 2;
@@ -170,12 +173,18 @@ Section Allocator.
       ];
       allocator_zero_asm ca2 ct2 ct3;
       fetch_asm allocator_shadow_import_off ctp ct3 ca2;
-      [ (* Translate the allocation base by its offset within the heap. *)
+      [ (* Translate the header address by its offset within the heap. *)
         getb ct3 ct0;
         sub ct3 ct1 ct3;
+        sub ct3 ct3 allocator_header_words;
         lea ctp ct3;
-        sub ca2 ct2 ct1
+        mov ca2 allocator_header_words
       ];
+      (* Paint the three header words quarantined, as CHERIoT does: [free]
+         recognizes a payload base as the first unpainted word after a
+         painted one. *)
+      allocator_paint_asm ctp ca2 ShadowQuarantined;
+      [ sub ca2 ct2 ct1 ];
       allocator_paint_asm ctp ca2 ShadowLive;
       [ (* Skip the header and payload, publishing only after initialization. *)
         lea ct0 allocator_header_words;
@@ -213,10 +222,12 @@ Section Allocator.
     concat (encodeInstrsW <$> assembled_allocator_malloc).
 
   (** [free] accepts a tagged ordinary capability whose base and end exactly
-      match an original payload. Starting after the reserved root address, it
-      walks protected headers by their recorded ends, stopping at the bump
-      pointer. It never interprets payload contents as headers. Its cursor
-      and permissions do not determine which allocation is freed.
+      match an original payload. Header words are painted and payloads,
+      the reserved root address and the unused suffix are not, so a base
+      whose previous word is painted and which is itself unpainted is a
+      payload base; its header is the three words below it. The check never
+      interprets payload contents as headers. Its cursor and permissions do
+      not determine which allocation is freed.
       Null and narrowed capabilities are invalid. A repeated free is
       invalid too: after revocation no tagged capability to the payload
       remains, so the argument fails the tag check.
@@ -239,23 +250,18 @@ Section Allocator.
        if (!(base(root) < b && b < e && e <= next))
          return ALLOC_INVALID;
 
-       address_t h = base(root) + 1;    // Skip the permanently reserved root address.
-       while (h < next) {
-         word_t *__capability header = set_address(root, h);
-         address_t recorded_end = header[0];
-         if (b == h + HEADER_WORDS) {
-           if (e != recorded_end)
-             return ALLOC_INVALID;
-           if (read_shadow(b) != ShadowLive)
-             return ALLOC_INVALID;  // Defence in depth: payloads are unpainted.
-           paint_shadow(b, e, ShadowQuarantined);
-           *revoker = 0;              // Sweep: untag every capability to the payload.
-           paint_shadow(b, e, ShadowLive);
-           return ALLOC_OK;
-         }
-         h = recorded_end;             // Follow the protected chain, not payloads.
-       }
-       return ALLOC_INVALID;
+       // Local header check: the last header word is painted, the base is not.
+       if (read_shadow(b - 1) != ShadowQuarantined)
+         return ALLOC_INVALID;
+       if (read_shadow(b) != ShadowLive)
+         return ALLOC_INVALID;
+       word_t *__capability header = set_address(root, b - HEADER_WORDS);
+       if (e != header[0])           // The recorded payload end.
+         return ALLOC_INVALID;
+       paint_shadow(b, e, ShadowQuarantined);
+       *revoker = 0;                 // Sweep: untag every capability to the payload.
+       paint_shadow(b, e, ShadowLive);
+       return ALLOC_OK;
      }
   *)
 
@@ -285,53 +291,31 @@ Section Allocator.
         lt ct3 ct3 ct2;
         jnz (".free_invalid")%asm ct3
       ];
-      [ (* Rederive the first header from the trusted heap root. [ct0] keeps
-           the bump cursor; [ct4] traverses headers with full heap bounds. *)
-        mov ct4 ct0;
-        getb ct3 ct0;
-        geta ca2 ct0;
-        sub ct3 ct3 ca2;
-        add ct3 ct3 1;
-        lea ct4 ct3
-      ];
-      [ #".free_search";
-        (* An empty chain, or reaching its end, means no allocation matched. *)
-        geta ct3 ct4;
-        geta ca2 ct0;
-        lt ct3 ct3 ca2;
-        jnz (".free_header")%asm ct3;
-        jmp (".free_invalid")%asm
-      ];
-      [ #".free_header";
-        (* Both payload bounds must match; the reserved addresses are unused. *)
-        load ca2 ct4;
-        geta ct3 ct4;
-        add ct3 ct3 allocator_header_words;
-        sub ct3 ct3 ct1;
-        jnz (".free_next")%asm ct3;
-        sub ct3 ca2 ct2;
-        jnz (".free_invalid")%asm ct3;
-        jmp (".free_found")%asm
-      ];
-      [ #".free_next";
-        (* The recorded end is the next header address, including after free.
-           No caller-supplied address or payload word controls this step. *)
-        geta ct3 ct4;
-        sub ct3 ca2 ct3;
-        lea ct4 ct3;
-        jmp (".free_search")%asm
-      ];
-      ASM_Label ".free_found" :: fetch_asm allocator_shadow_import_off ctp ct3 ca2;
-      [ (* Translate the matched payload base to its shadow entry. *)
+      fetch_asm allocator_shadow_import_off ctp ct3 ca2;
+      [ (* Translate the word below the payload base to its shadow entry. *)
         getb ct3 ct0;
         sub ct3 ct1 ct3;
+        sub ct3 ct3 1;
         lea ctp ct3;
-        (* Defence in depth: every payload is unpainted at entry (live ones,
-           and revoked ones after the unpaint), so this check cannot fail
-           once the header matches. Compare against the machine's encoding
-           rather than assuming live is zero. *)
+        (* The last header word is painted. Compare against the machine's
+           encoding rather than assuming quarantined is one. *)
+        load ct3 ctp;
+        sub ct3 ct3 (encodeAllocStatus ShadowQuarantined);
+        jnz (".free_invalid")%asm ct3;
+        (* The payload base is unpainted. *)
+        lea ctp 1;
         load ct3 ctp;
         sub ct3 ct3 (encodeAllocStatus ShadowLive);
+        jnz (".free_invalid")%asm ct3;
+        (* Rederive the header from the trusted heap root, never by [Subseg],
+           and compare the recorded end. *)
+        mov ct4 ct0;
+        geta ct3 ct0;
+        sub ct3 ct1 ct3;
+        sub ct3 ct3 allocator_header_words;
+        lea ct4 ct3;
+        load ca2 ct4;
+        sub ct3 ca2 ct2;
         jnz (".free_invalid")%asm ct3;
         (* Paint only the complete payload; its header remains accessible. *)
         sub ca2 ct2 ct1

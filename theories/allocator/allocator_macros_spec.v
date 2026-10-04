@@ -345,24 +345,24 @@ Section AllocatorMacros.
       iFrame.
   Qed.
 
-  (** Translate a heap interval to its shadow interval. The instruction list
-      is shared by malloc block 4 and free block 3. *)
+  (** Translate the header of a new allocation to its shadow interval, and
+      load the count of header words (malloc block 4). *)
 
   Lemma allocator_translate_spec
     (E : coPset)
-    (pc_b pc_e pc_a next b e : Addr) (w3 wa2 : LWord)
+    (pc_b pc_e pc_a next h b : Addr) (w3 wa2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let code := allocator_malloc_instrs_n 4 in
-    let sb := (shadow_b ^+ (b - heap_b))%a in
+    let sh := (shadow_b ^+ (h - heap_b))%a in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
     disjoint_from_shadow pc_b pc_e ->
-    (heap_b <= b /\ b < e /\ e <= heap_e)%a ->
+    (heap_b <= h /\ h < heap_e)%a ->
+    (h + allocator_header_words)%a = Some b ->
 
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
     ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
     ct1 ↦ᵣ WInt b ∗
-    ct2 ↦ᵣ WInt e ∗
     ct3 ↦ᵣ w3 ∗
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e shadow_b ∗
     ca2 ↦ᵣ wa2 ∗
@@ -370,28 +370,31 @@ Section AllocatorMacros.
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length code)%a ∗
          ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
          ct1 ↦ᵣ WInt b ∗
-         ct2 ↦ᵣ WInt e ∗
-         ct3 ↦ᵣ WInt (b - heap_b) ∗
-         ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
-         ca2 ↦ᵣ WInt (e - b) ∗
+         ct3 ↦ᵣ WInt (h - heap_b) ∗
+         ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sh ∗
+         ca2 ↦ᵣ WInt allocator_header_words ∗
          codefrag pc_a code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
 
   Proof.
-    intros code sb Hpc Hdisjoint Hheap; subst code sb.
-    iIntros "(HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hctp & Hca2 & Hcode & Hφ)".
+    intros code sh Hpc Hdisjoint Hheap Hb; subst code sh.
+    unfold allocator_header_words in *.
+    iIntros "(HPC & Hct0 & Hct1 & Hct3 & Hctp & Hca2 & Hcode & Hφ)".
     codefrag_facts "Hcode".
     (* GetB ct3 ct0. *)
     iInstr "Hcode".
     (* Sub ct3 ct1 ct3. *)
     iInstr "Hcode".
+    (* Sub ct3 ct3 allocator_header_words. *)
+    iInstr "Hcode".
     pose proof heap_shadow_same_size as Hsize.
-    assert (Hsb : (shadow_b <= (shadow_b ^+ (b - heap_b))%a /\
-                   (shadow_b ^+ (b - heap_b))%a < shadow_e)%a) by solve_addr.
+    assert (Hsh : (shadow_b <= (shadow_b ^+ (h - heap_b))%a /\
+                   (shadow_b ^+ (h - heap_b))%a < shadow_e)%a) by solve_addr.
+    replace (b - heap_b - 3)%Z with (h - heap_b)%Z by solve_addr.
     (* Lea ctp ct3. *)
     iInstr "Hcode".
-    (* Sub ca2 ct2 ct1. *)
+    (* Mov ca2 allocator_header_words. *)
     iInstr "Hcode".
     iApply "Hφ". iFrame.
   Qed.

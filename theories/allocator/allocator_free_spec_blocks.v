@@ -32,7 +32,7 @@ Proof.
   - right. intros (? & ? & ? & ? & ? & Heq & _). discriminate.
 Defined.
 
-Section AllocatorFreeTraversal.
+Section AllocatorFreeBlocks.
   Context {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters}
@@ -47,8 +47,8 @@ Section AllocatorFreeTraversal.
     (E : coPset) (pc_b pc_e pc_a b e sb se : Addr) (ι : AId) (regs : LReg)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let start := allocator_free_block_addr pc_a 11 in
-    let code := allocator_free_instrs_n 11 in
+    let start := allocator_free_block_addr pc_a 7 in
+    let code := allocator_free_instrs_n 7 in
     allocatorLayoutWf ->
     ContiguousRegion pc_a (length allocator_free_instrs) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_instrs)%a ->
@@ -68,7 +68,7 @@ Section AllocatorFreeTraversal.
     ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
     revoke_pre ι ∗
     codefrag start code ∗
-    ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 12) ∗
+    ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 8) ∗
          ct1 ↦ᵣ WInt b ∗
          ct2 ↦ᵣ WInt e ∗
          ct3 ↦ᵣ allocator_revoker_cap ∗
@@ -107,8 +107,8 @@ Section AllocatorFreeTraversal.
       first (simplify_map_eq; apply Hnone; set_solver).
     iDestruct (big_sepM_insert with "[$Hregs $HPC]") as "Hregs";
       first (simplify_map_eq; apply Hnone; set_solver).
-    iApply (wp_store_revoker _ RX Global pc_b pc_e (allocator_free_block_addr pc_a 11) None
-              (allocator_free_block_addr pc_a 11 ^+ 1)%a _ _ ct3 (inl 0%Z) 0 RW Global
+    iApply (wp_store_revoker _ RX Global pc_b pc_e (allocator_free_block_addr pc_a 7) None
+              (allocator_free_block_addr pc_a 7 ^+ 1)%a _ _ ct3 (inl 0%Z) 0 RW Global
               revoker_addr (revoker_addr ^+ 1)%a revoker_addr {[ι]}
       with "[$Hi $Hregs Hpre]").
     { cbn. apply decode_encode_instrW_inv. }
@@ -151,7 +151,7 @@ Section AllocatorFreeTraversal.
       first (simplify_map_eq; apply Hnone; set_solver).
     iDestruct (big_sepM_insert with "Hregs") as "[Hca2 Hregs]";
       first (apply Hnone; set_solver).
-    assert (Hstep : (pc_a ^+ 74)%a = (allocator_free_block_addr pc_a 11 ^+ 1)%a)
+    assert (Hstep : (pc_a ^+ 64)%a = (allocator_free_block_addr pc_a 7 ^+ 1)%a)
       by (unfold allocator_free_block_addr; solve_addr).
     iEval (rewrite -Hstep Hstep) in "HPC".
     (* Sub ct4 ct1 ct2. *)
@@ -160,8 +160,8 @@ Section AllocatorFreeTraversal.
     iInstr "Hcode".
     (* Sub ca2 ct2 ct1. *)
     iInstr "Hcode".
-    assert (Hnext : (allocator_free_block_addr pc_a 11 ^+ 4)%a =
-      allocator_free_block_addr pc_a 12)
+    assert (Hnext : (allocator_free_block_addr pc_a 7 ^+ 4)%a =
+      allocator_free_block_addr pc_a 8)
       by (unfold allocator_free_block_addr; solve_addr).
     iEval (rewrite Hnext) in "HPC".
     iApply "Hφ". iFrame.
@@ -186,469 +186,205 @@ Section AllocatorFreeTraversal.
     iPureIntro. by left.
   Qed.
 
-  (** At the search loop, [allocations] is the unvisited suffix. The visited
-      prefix is framed using [allocator_headers_app_spec], so unfolding one
-      list node supplies exactly the header read by block 4. Blocks 3 and 5
-      implement the loop guard and the advance to the tail, respectively. *)
+  (** The local header check (D11). It reads the shadow entries of the word
+      below the requested base, which must be painted (the last header word),
+      and of the base, which must be unpainted; then the end recorded in the
+      header three words below the base, which must match the requested end.
+      The header is read only when both shadow checks pass. On success the
+      shadow cursor is at the base and the count of addresses to paint is
+      in [ca2]. *)
 
-  Lemma allocator_free_search_loop_outcomes_aux
-    (E : coPset) (pc_b pc_e pc_a next h b e : Addr)
-    (allocations : list allocator_header_entry) (w3 wa2 : LWord)
+  Lemma allocator_free_check_spec
+    (E : coPset) (pc_b pc_e pc_a next b e eh sb : Addr) (s1 s2 : AllocStatus)
+    (w3 w4 wa2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let start := allocator_free_block_addr pc_a 3 in
-    let code := concat (encodeInstrsW <$> take 3 (drop 3 assembled_allocator_free)) in
-    ContiguousRegion pc_a (length allocator_free_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_instrs)%a ->
-    disjoint_from_shadow pc_b pc_e ->
-    (heap_b < h /\ h <= next /\ next <= heap_e)%a ->
-
-    allocator_headers h next allocations ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-    ct1 ↦ᵣ WInt b ∗
-    ct2 ↦ᵣ WInt e ∗
-    ct3 ↦ᵣ w3 ∗
-    ct4 ↦ᵣ WCap true RW Global heap_b heap_e h ∗
-    ca2 ↦ᵣ wa2 ∗
-    codefrag start code ∗
-    ▷ (
-        allocator_headers h next allocations ∗
-        ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-        ct1 ↦ᵣ WInt b ∗
-        ct2 ↦ᵣ WInt e ∗
-        ct3 ↦ᵣ - ∗
-        ct4 ↦ᵣ - ∗
-        ca2 ↦ᵣ - ∗
-        codefrag start code ∗
-        (
-          (
-            ⌜allocator_has_bounds allocations b e⌝ ∗
-            PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 6)
-          )
-          ∨
-          (
-            ⌜¬ allocator_has_bounds allocations b e⌝ ∗
-            PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 14)
-          )
-        )
-        -∗ WP Seq (Instr Executable) @ E {{ φ }}
-      )
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
-  Proof.
-    intros start code Hcont Hpc Hshadow Hrange; subst start code.
-    revert h w3 wa2 Hrange.
-    induction allocations as [| [ [ [base finish] reserved] ι0] allocations IH]; intros h w3 wa2 Hrange.
-    {
-      iIntros "(%Hstop & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hφ)".
-      subst h.
-      codefrag_facts "Hcode".
-      (* GetA ct3 ct4. *)
-      iInstr "Hcode".
-      assert (Hstep : (pc_a ^+ 26)%a = (allocator_free_block_addr pc_a 3 ^+ 1)%a) by (unfold allocator_free_block_addr; solve_addr).
-      iEval (rewrite Hstep) in "HPC".
-      (* GetA ca2 ct0. *)
-      iInstr "Hcode".
-      (* Lt ct3 ct3 ca2. *)
-      iInstr "Hcode".
-      rewrite Z.ltb_irrefl.
-      (* Jnz .free_header ct3. *)
-      iInstr "Hcode".
-      (* Jmp .free_invalid. *)
-      iInstr "Hcode".
-      assert (Hinvalid : (allocator_free_block_addr pc_a 3 ^+ 57)%a = allocator_free_block_addr pc_a 14) by (unfold allocator_free_block_addr; solve_addr).
-      iEval (rewrite Hinvalid) in "HPC".
-      iApply "Hφ".
-      iFrame.
-      iSplit; first done.
-      iRight.
-      iFrame.
-      iPureIntro.
-      unfold allocator_has_bounds.
-      set_solver.
-    }
-    iIntros "((%Hbounds & (%Hbase & Hend & Hreserved) & Htail) & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hφ)".
-    unfold allocator_header_words in Hbase.
-    codefrag_facts "Hcode".
-    (* GetA ct3 ct4. *)
-    iInstr "Hcode".
-    assert (Hstep : (pc_a ^+ 26)%a = (allocator_free_block_addr pc_a 3 ^+ 1)%a) by (unfold allocator_free_block_addr; solve_addr).
-    iEval (rewrite Hstep) in "HPC".
-    (* GetA ca2 ct0. *)
-    iInstr "Hcode".
-    (* Lt ct3 ct3 ca2. *)
-    iInstr "Hcode".
-    replace (h <? next)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
-    (* Jnz .free_header ct3. *)
-    iInstr "Hcode".
-    (* Load ca2 ct4. *)
-    unfold lword_of_word.
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_load_success_notinstr _ ca2 ct4 with "[$HPC $Hi $Hca2 $Hct4 $Hend]"); try solve_pure.
-    {
-      eapply (disjoint_from_shadow_not_in heap_b heap_e h); first exact heap_shadow_disjoint.
-      apply withinBounds_true_iff.
-      solve_addr.
-    }
-    { reflexivity. }
-    { constructor; [unfold allocator_free_block_addr; solve_addr|done]. }
-    {
-      split; first done.
-      apply withinBounds_true_iff.
-      solve_addr.
-    }
-    iIntros "!> (HPC & Hca2 & Hi & Hct4 & Hend)".
-    wp_pure.
-    iSpecialize ("Hcode" with "Hi").
-    iEval (rewrite /lload_word /lift_word /=) in "Hca2".
-    (* GetA ct3 ct4. *)
-    iInstr "Hcode".
-    (* Add ct3 ct3 allocator_header_words. *)
-    iInstr "Hcode".
-    (* Sub ct3 ct3 ct1. *)
-    iInstr "Hcode".
-    destruct (decide (base = b)) as [->|Hbase_ne].
-    + replace (h + 3 - b)%Z with 0%Z by solve_addr.
-      (* Jnz .free_next ct3. *)
-      iInstr "Hcode".
-      (* Sub ct3 ca2 ct2. *)
-      iInstr "Hcode".
-      destruct (decide (finish = e)) as [->|Hend_ne].
-      * rewrite Z.sub_diag.
-        (* Jnz .free_invalid ct3. *)
-        iInstr "Hcode".
-        (* Jmp .free_found. *)
-        iInstr "Hcode".
-        assert (Hfound : (allocator_free_block_addr pc_a 3 ^+ 17)%a = allocator_free_block_addr pc_a 6) by (unfold allocator_free_block_addr; solve_addr).
-        iEval (rewrite Hfound) in "HPC".
-        iApply "Hφ".
-        iFrame.
-        iSplit; first done.
-        iLeft.
-        iFrame.
-        iPureIntro.
-        exists reserved, ι0.
-        by left.
-      * assert (Hneq : WInt (finish - e) ≠ WInt 0) by (intros Heq; injection Heq as Heq; apply Hend_ne; solve_addr).
-        (* Jnz .free_invalid ct3. *)
-        iInstr "Hcode".
-        iDestruct (allocator_headers_chain_spec with "Htail") as %Hchain.
-        assert (Hmiss : ¬ allocator_has_bounds ((b, finish, reserved, ι0) :: allocations) b e).
-        {
-          intros (r & ι' & Hin).
-          apply elem_of_cons in Hin as [Heq|Hin].
-          - inversion Heq.
-            congruence.
-          - pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hchain Hin).
-            solve_addr.
-        }
-        assert (Hinvalid : (allocator_free_block_addr pc_a 3 ^+ 57)%a = allocator_free_block_addr pc_a 14) by (unfold allocator_free_block_addr; solve_addr).
-        iEval (rewrite Hinvalid) in "HPC".
-        iApply "Hφ".
-        iFrame.
-        iSplit; first done.
-        iRight.
-        iFrame.
-        done.
-    + assert (Hneq : WInt (h + 3 - b) ≠ WInt 0) by (intros Heq; injection Heq as Heq; apply Hbase_ne; solve_addr).
-      (* Jnz .free_next ct3. *)
-      iInstr "Hcode".
-      (* GetA ct3 ct4. *)
-      iInstr "Hcode".
-      (* Sub ct3 ca2 ct3. *)
-      iInstr "Hcode".
-      (* Lea ct4 ct3. *)
-      iInstr "Hcode".
-      (* Jmp .free_search. *)
-      iInstr "Hcode".
-      iApply (IH finish with "[$Htail $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hcode Hφ Hend Hreserved]"); first solve_addr.
-      iNext.
-      iIntros "(Htail & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hresult)".
-      iApply "Hφ".
-      iFrame.
-      iSplit; first done.
-      iDestruct "Hresult" as "[(%Hfound & HPC)|(%Hmiss & HPC)]".
-      * iLeft.
-        iFrame.
-        iPureIntro.
-        destruct Hfound as (r & ι' & Hin).
-        exists r, ι'. by right.
-      * iRight.
-        iFrame.
-        iPureIntro.
-        intros (r & ι' & Hin).
-        apply elem_of_cons in Hin as [Heq|Hin].
-        { inversion Heq; congruence. }
-        apply Hmiss.
-        exists r, ι'.
-        exact Hin.
-  Qed.
-
-  (** Full traversal also executes block 2, which rederives the first header
-      from the heap root. No payload ownership is needed to identify a block. *)
-
-  Lemma allocator_free_search_outcomes_aux
-    (E : coPset) (pc_b pc_e pc_a next b e : Addr)
-    (allocations : list allocator_header_entry) (w3 w4 wa2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
-
-    let start := allocator_free_block_addr pc_a 2 in
-    let code := concat (encodeInstrsW <$> take 4 (drop 2 assembled_allocator_free)) in
-    ContiguousRegion pc_a (length allocator_free_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_instrs)%a ->
-    disjoint_from_shadow pc_b pc_e ->
-    (heap_b < next /\ next <= heap_e)%a ->
-
-    allocator_headers (heap_b ^+ 1)%a next allocations ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-    ct1 ↦ᵣ WInt b ∗
-    ct2 ↦ᵣ WInt e ∗
-    ct3 ↦ᵣ w3 ∗
-    ct4 ↦ᵣ w4 ∗
-    ca2 ↦ᵣ wa2 ∗
-    codefrag start code ∗
-    ▷ (
-        allocator_headers (heap_b ^+ 1)%a next allocations ∗
-        ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-        ct1 ↦ᵣ WInt b ∗
-        ct2 ↦ᵣ WInt e ∗
-        ct3 ↦ᵣ - ∗
-        ct4 ↦ᵣ - ∗
-        ca2 ↦ᵣ - ∗
-        codefrag start code ∗
-        (
-          (
-            ⌜allocator_has_bounds allocations b e⌝ ∗
-             PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 6)
-          )
-          ∨
-          (
-            ⌜¬ allocator_has_bounds allocations b e⌝ ∗
-            PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 14)
-          )
-        )
-        -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
-  Proof.
-    intros start code Hcont Hpc Hshadow Hnext; subst start code.
-    iIntros "(Hheaders & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hφ)".
-    codefrag_facts "Hcode".
-    (* Mov ct4 ct0. *)
-    iInstr "Hcode".
-    assert (Hstep : (pc_a ^+ 20)%a = (allocator_free_block_addr pc_a 2 ^+ 1)%a)
-      by (unfold allocator_free_block_addr; solve_addr).
-    iEval (rewrite Hstep) in "HPC".
-    (* GetB ct3 ct0. *)
-    iInstr "Hcode".
-    (* GetA ca2 ct0. *)
-    iInstr "Hcode".
-    (* Sub ct3 ct3 ca2. *)
-    iInstr "Hcode".
-    (* Add ct3 ct3 1. *)
-    iInstr "Hcode".
-    (* Lea ct4 ct3. *)
-    iInstr "Hcode".
-    assert (Hfirst : (next ^+ (heap_b - next + 1))%a = (heap_b ^+ 1)%a) by solve_addr.
-    iEval (rewrite Hfirst) in "Hct4".
-    assert (Hsearch : (allocator_free_block_addr pc_a 2 ^+ 6)%a = allocator_free_block_addr pc_a 3)
-      by (unfold allocator_free_block_addr; solve_addr).
-    iEval (rewrite Hsearch) in "HPC".
-    assert (Hsplit : concat (encodeInstrsW <$> take 4 (drop 2 assembled_allocator_free)) =
-      allocator_free_instrs_n 2 ++ concat (encodeInstrsW <$> take 3 (drop 3 assembled_allocator_free))) by reflexivity.
-    iEval (rewrite Hsplit) in "Hcode".
-    focus_block_nochangePC 1 "Hcode" as a_search Ha_search "Hsearchcode" "Hcode_cont".
-    assert (Ha_eq : a_search = allocator_free_block_addr pc_a 3)
-      by (unfold allocator_free_block_addr in *; solve_addr).
-    subst a_search.
-    iApply (allocator_free_search_loop_outcomes_aux with
-      "[- $Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hsearchcode]"); try assumption; first solve_addr.
-    iNext. iIntros "(Hheaders & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hsearchcode & Hresult)".
-    iDestruct ("Hcode_cont" with "Hsearchcode") as "Hcode".
-    iEval (rewrite -Hsplit) in "Hcode".
-    iApply "Hφ". iFrame.
-  Qed.
-
-  Lemma allocator_free_search_found_spec
-    (E : coPset) (pc_b pc_e pc_a next b e : Addr)
-    (allocations : list allocator_header_entry) (w3 w4 wa2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
-
-    let start := allocator_free_block_addr pc_a 2 in
-    let code := concat (encodeInstrsW <$> take 4 (drop 2 assembled_allocator_free)) in
-    ContiguousRegion pc_a (length allocator_free_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_instrs)%a ->
-    disjoint_from_shadow pc_b pc_e ->
-    (heap_b < next /\ next <= heap_e)%a ->
-
-    allocator_has_bounds allocations b e ->
-
-    allocator_headers (heap_b ^+ 1)%a next allocations ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-    ct1 ↦ᵣ WInt b ∗
-    ct2 ↦ᵣ WInt e ∗
-    ct3 ↦ᵣ w3 ∗
-    ct4 ↦ᵣ w4 ∗
-    ca2 ↦ᵣ wa2 ∗
-    codefrag start code ∗
-    ▷ (
-        allocator_headers (heap_b ^+ 1)%a next allocations ∗
-        ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-        ct1 ↦ᵣ WInt b ∗
-        ct2 ↦ᵣ WInt e ∗
-        ct3 ↦ᵣ - ∗
-        ct4 ↦ᵣ - ∗
-        ca2 ↦ᵣ - ∗
-        codefrag start code ∗
-        PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 6)
-        -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
-  Proof.
-    intros start code Hcont Hpc Hshadow Hnext Hout; subst start code.
-    iIntros "(Hheaders & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hφ)".
-    iApply (allocator_free_search_outcomes_aux with
-      "[$Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hcode Hφ]"); eauto.
-    iNext.
-    iIntros "(Hheaders & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hresult)".
-    iDestruct "Hresult" as "[(%Hhas & HPC)|(%Hmiss & HPC)]".
-    - iApply "Hφ". iFrame.
-    - exfalso. apply Hmiss. exact Hout.
-  Qed.
-
-  Lemma allocator_free_search_missing_spec
-    (E : coPset) (pc_b pc_e pc_a next b e : Addr)
-    (allocations : list allocator_header_entry) (w3 w4 wa2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
-
-    let start := allocator_free_block_addr pc_a 2 in
-    let code := concat (encodeInstrsW <$> take 4 (drop 2 assembled_allocator_free)) in
-    ContiguousRegion pc_a (length allocator_free_instrs) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_instrs)%a ->
-    disjoint_from_shadow pc_b pc_e ->
-    (heap_b < next /\ next <= heap_e)%a ->
-
-    ¬ allocator_has_bounds allocations b e ->
-
-    allocator_headers (heap_b ^+ 1)%a next allocations ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-    ct1 ↦ᵣ WInt b ∗
-    ct2 ↦ᵣ WInt e ∗
-    ct3 ↦ᵣ w3 ∗
-    ct4 ↦ᵣ w4 ∗
-    ca2 ↦ᵣ wa2 ∗
-    codefrag start code ∗
-    ▷ (
-        allocator_headers (heap_b ^+ 1)%a next allocations ∗
-        ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-        ct1 ↦ᵣ WInt b ∗
-        ct2 ↦ᵣ WInt e ∗
-        ct3 ↦ᵣ - ∗
-        ct4 ↦ᵣ - ∗
-        ca2 ↦ᵣ - ∗
-        codefrag start code ∗
-        PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 14)
-        -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
-  Proof.
-    intros start code Hcont Hpc Hshadow Hnext Hout; subst start code.
-    iIntros "(Hheaders & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hφ)".
-    iApply (allocator_free_search_outcomes_aux with
-      "[$Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hcode Hφ]"); eauto.
-    iNext.
-    iIntros "(Hheaders & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcode & Hresult)".
-    iDestruct "Hresult" as "[(%Hhas & HPC)|(%Hmiss & HPC)]".
-    - exfalso. apply Hout. exact Hhas.
-    - iApply "Hφ". iFrame.
-  Qed.
-
-  (** This block only reads the shadow entry of the payload base, which is
-      unpainted since the payload is live: the check cannot fail. The count
-      of addresses to paint is left in [ca2]. *)
-
-  Lemma allocator_free_shadow_check_spec
-    (E : coPset) (pc_b pc_e pc_a next b e sb : Addr)
-    (w3 wa2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
-
-    let start := allocator_free_block_addr pc_a 7 in
-    let code := allocator_free_instrs_n 7 in
+    let code := allocator_free_instrs_n 3 in
     ContiguousRegion pc_a (length allocator_free_instrs) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
     (heap_b < b /\ b < e /\ e <= next /\ next <= heap_e)%a ->
+    (s1 = ShadowQuarantined -> s2 = ShadowLive ->
+      (heap_b + allocator_header_words < b)%Z) ->
     (shadow_b + (b - heap_b))%a = Some sb ->
+    heap_to_shadow (b ^+ (-1))%a = Some (sb ^+ (-1))%a ->
     heap_to_shadow b = Some sb ->
 
-    b ↦ₛ ShadowLive ∗
+    (b ^+ (-1))%a ↦ₛ s1 ∗
+    b ↦ₛ s2 ∗
+    (if decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)
+     then (b ^+ (- allocator_header_words))%a ↦ₐ WInt eh else emp) ∗
     PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
     ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt e ∗
     ct3 ↦ᵣ w3 ∗
+    ct4 ↦ᵣ w4 ∗
     ca2 ↦ᵣ wa2 ∗
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e shadow_b ∗
     codefrag start code ∗
-    ▷ (b ↦ₛ ShadowLive ∗
-         ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-         ct1 ↦ᵣ WInt b ∗
-         ct2 ↦ᵣ WInt e ∗
-         ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
-         codefrag start code ∗
-         PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 8) ∗
+    ▷ ((b ^+ (-1))%a ↦ₛ s1 ∗
+       b ↦ₛ s2 ∗
+       (if decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)
+        then (b ^+ (- allocator_header_words))%a ↦ₐ WInt eh else emp) ∗
+       ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+       ct1 ↦ᵣ WInt b ∗
+       ct2 ↦ᵣ WInt e ∗
+       ct4 ↦ᵣ - ∗
+       codefrag start code ∗
+       ((⌜s1 = ShadowQuarantined ∧ s2 = ShadowLive ∧ eh = e⌝ ∗
+         PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 4) ∗
          ct3 ↦ᵣ WInt 0 ∗
-         ca2 ↦ᵣ WInt (e - b)
-         -∗ WP Seq (Instr Executable) @ E {{ φ }})
+         ca2 ↦ᵣ WInt (e - b) ∗
+         ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sb)
+        ∨
+        (⌜¬ (s1 = ShadowQuarantined ∧ s2 = ShadowLive ∧ eh = e)⌝ ∗
+         PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 10) ∗
+         ct3 ↦ᵣ - ∗
+         ca2 ↦ᵣ - ∗
+         ctp ↦ᵣ -))
+       -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros start code Hcont Hpc Hdisjoint Hbounds Hsb Htranslate; subst start code.
-    iIntros "(Hshadow & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hca2 & Hctp & Hcode & Hφ)".
+    intros start code Hcont Hpc Hdisjoint Hbounds Hheader Hsb Htr1 Htr2; subst start code.
+    iIntros "(Hs1 & Hs2 & Hhdr & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hctp & Hcode & Hφ)".
     codefrag_facts "Hcode".
+    assert (Henc : ∀ s s', s ≠ s' → encodeAllocStatus s ≠ encodeAllocStatus s').
+    { intros s s' Hne Heq. apply Hne.
+      rewrite -(decode_encode_alloc_status_inv s) -(decode_encode_alloc_status_inv s') Heq //. }
+    assert (Hinvalid : (allocator_free_block_addr pc_a 3 ^+ 44)%a = allocator_free_block_addr pc_a 10)
+      by (unfold allocator_free_block_addr; solve_addr).
+    pose proof heap_shadow_same_size as Hss.
+    assert (Hsb1 : (shadow_b <= (sb ^+ -1)%a /\ (sb ^+ -1)%a < shadow_e)%a) by solve_addr.
+    assert (Hsbr : (shadow_b <= sb /\ sb < shadow_e)%a) by solve_addr.
     (* GetB ct3 ct0. *)
     iInstr "Hcode".
-    assert (Hstep : (pc_a ^+ 52)%a = (allocator_free_block_addr pc_a 7 ^+ 1)%a) by (unfold allocator_free_block_addr; solve_addr).
+    assert (Hstep : (pc_a ^+ 29)%a = (allocator_free_block_addr pc_a 3 ^+ 1)%a)
+      by (unfold allocator_free_block_addr; solve_addr).
     iEval (rewrite Hstep) in "HPC".
     (* Sub ct3 ct1 ct3. *)
     iInstr "Hcode".
+    (* Sub ct3 ct3 1. *)
+    iInstr "Hcode".
+    replace (b - heap_b - 1)%Z with ((sb ^+ -1)%a - shadow_b)%Z by solve_addr.
     (* Lea ctp ct3. *)
     iInstr "Hcode".
-    (* Load ct3 ctp. *)
     unfold lword_of_word.
+    (* Load ct3 ctp: the shadow entry of the word below the base. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_success_from_shadow _ ct3 ctp with "[$HPC $Hi $Hct3 $Hctp $Hshadow]"); try solve_pure.
-    { exact (proj2 (heap_to_shadow_bounds _ _ Htranslate)). }
-    {
-      apply heap_shadow_inverse.
-      exact Htranslate.
-    }
+    iApply (wp_load_success_from_shadow _ ct3 ctp with "[$HPC $Hi $Hct3 $Hctp $Hs1]"); try solve_pure.
+    { exact (proj2 (heap_to_shadow_bounds _ _ Htr1)). }
+    { apply heap_shadow_inverse. exact Htr1. }
     { constructor; [unfold allocator_free_block_addr; solve_addr|done]. }
-    { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htranslate)). }
-    iIntros "!> (HPC & Hct3 & Hi & Hctp & Hshadow)".
+    { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htr1)). }
+    iIntros "!> (HPC & Hct3 & Hi & Hctp & Hs1)".
+    wp_pure.
+    iSpecialize ("Hcode" with "Hi").
+    (* Sub ct3 ct3 (encodeAllocStatus ShadowQuarantined). *)
+    iInstr "Hcode".
+    change (match MP with {| encodeAllocStatus := f |} => f end ShadowQuarantined)
+      with (encodeAllocStatus ShadowQuarantined).
+    destruct (decide (s1 = ShadowQuarantined)) as [->|Hs1q]; last first.
+    { assert (Hneq : WInt (encodeAllocStatus s1 - encodeAllocStatus ShadowQuarantined) ≠ WInt 0).
+      { intros [=]. apply (Henc _ _ Hs1q). lia. }
+      (* Jnz .free_invalid ct3. *)
+      iInstr "Hcode".
+      rewrite Hinvalid.
+      iApply "Hφ". iFrame. iRight. iSplit.
+      { iPureIntro. intros (? & _). done. }
+      iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. iSplitL "Hca2"; [by iExists _|].
+      by iExists _. }
+    rewrite Z.sub_diag.
+    (* Jnz .free_invalid ct3. *)
+    iInstr "Hcode".
+    (* Lea ctp 1. *)
+    iInstr "Hcode".
+    replace ((sb ^+ -1) ^+ 1)%a with sb by solve_addr.
+    (* Load ct3 ctp: the shadow entry of the base. *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_load_success_from_shadow _ ct3 ctp with "[$HPC $Hi $Hct3 $Hctp $Hs2]"); try solve_pure.
+    { exact (proj2 (heap_to_shadow_bounds _ _ Htr2)). }
+    { apply heap_shadow_inverse. exact Htr2. }
+    { constructor; [unfold allocator_free_block_addr; solve_addr|done]. }
+    { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htr2)). }
+    iIntros "!> (HPC & Hct3 & Hi & Hctp & Hs2)".
     wp_pure.
     iSpecialize ("Hcode" with "Hi").
     (* Sub ct3 ct3 (encodeAllocStatus ShadowLive). *)
     iInstr "Hcode".
-    change (match MP with {| encodeAllocStatus := f |} => f end ShadowLive) with (encodeAllocStatus ShadowLive).
+    change (match MP with {| encodeAllocStatus := f |} => f end ShadowLive)
+      with (encodeAllocStatus ShadowLive).
+    destruct (decide (s2 = ShadowLive)) as [->|Hs2l]; last first.
+    { assert (Hneq : WInt (encodeAllocStatus s2 - encodeAllocStatus ShadowLive) ≠ WInt 0).
+      { intros [=]. apply (Henc _ _ Hs2l). lia. }
+      (* Jnz .free_invalid ct3. *)
+      iInstr "Hcode".
+      rewrite Hinvalid.
+      iApply "Hφ". iFrame. iRight. iSplit.
+      { iPureIntro. intros (_ & ? & _). done. }
+      iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. by iExists _. }
     rewrite Z.sub_diag.
     (* Jnz .free_invalid ct3. *)
     iInstr "Hcode".
-    (* Sub ca2 ct2 ct1. *)
+    specialize (Hheader eq_refl eq_refl).
+    (* Mov ct4 ct0. *)
     iInstr "Hcode".
-    assert (Hpaint : (allocator_free_block_addr pc_a 7 ^+ 7)%a = allocator_free_block_addr pc_a 8) by (unfold allocator_free_block_addr; solve_addr).
-    iEval (rewrite Hpaint) in "HPC".
-    iApply "Hφ".
-    iFrame.
+    (* GetA ct3 ct0. *)
+    iInstr "Hcode".
+    (* Sub ct3 ct1 ct3. *)
+    iInstr "Hcode".
+    (* Sub ct3 ct3 allocator_header_words. *)
+    iInstr "Hcode".
+    unfold allocator_header_words in *.
+    change (Z.opp 3) with (-3)%Z in *.
+    replace (b - next - 3)%Z with ((b ^+ -3)%a - next)%Z by solve_addr.
+    (* Lea ct4 ct3. *)
+    iInstr "Hcode".
+    (* Load ca2 ct4: the recorded end. *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_load_success_notinstr _ ca2 ct4 with "[$HPC $Hi $Hca2 $Hct4 $Hhdr]"); try solve_pure.
+    { eapply (disjoint_from_shadow_not_in heap_b heap_e (b ^+ -3)%a);
+        first exact heap_shadow_disjoint.
+      apply withinBounds_true_iff. solve_addr. }
+    { reflexivity. }
+    { constructor; [unfold allocator_free_block_addr; solve_addr|done]. }
+    { split; first done. apply withinBounds_true_iff. solve_addr. }
+    iIntros "!> (HPC & Hca2 & Hi & Hct4 & Hhdr)".
+    wp_pure.
+    iSpecialize ("Hcode" with "Hi").
+    iEval (rewrite /lload_word /lift_word /=) in "Hca2".
+    (* Sub ct3 ca2 ct2. *)
+    iInstr "Hcode".
+    destruct (decide (eh = e)) as [->|Hne].
+    - rewrite Z.sub_diag.
+      (* Jnz .free_invalid ct3. *)
+      iInstr "Hcode".
+      (* Sub ca2 ct2 ct1. *)
+      iInstr "Hcode".
+      assert (Hfound : (allocator_free_block_addr pc_a 3 ^+ 20)%a = allocator_free_block_addr pc_a 4)
+        by (unfold allocator_free_block_addr; solve_addr).
+      iEval (rewrite Hfound) in "HPC".
+      iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].
+      iFrame. iLeft. iFrame. done.
+    - assert (Hneq : WInt (eh - e) ≠ WInt 0) by (intros [=]; apply Hne; solve_addr).
+      (* Jnz .free_invalid ct3. *)
+      iInstr "Hcode".
+      rewrite Hinvalid.
+      iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].
+      iFrame. iRight. iSplit; first (iPureIntro; intros (_ & _ & ?); done).
+      iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. by iExists _.
   Qed.
 
   Lemma allocator_free_success_block_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wreq wstatus : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let start := allocator_free_block_addr pc_a 9 in
-    let code := allocator_free_instrs_n 9 in
+    let start := allocator_free_block_addr pc_a 5 in
+    let code := allocator_free_instrs_n 5 in
     ContiguousRegion pc_a (length allocator_free_instrs) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_instrs)%a ->
     disjoint_from_shadow pc_b pc_e ->
@@ -658,7 +394,7 @@ Section AllocatorFreeTraversal.
     ca1 ↦ᵣ wstatus ∗
     codefrag start code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e
-           (allocator_free_block_addr pc_a 10) ∗
+           (allocator_free_block_addr pc_a 6) ∗
          ca0 ↦ᵣ WInt ALLOC_OK ∗
          ca1 ↦ᵣ WInt 0 ∗
          codefrag start code
@@ -670,14 +406,14 @@ Section AllocatorFreeTraversal.
     codefrag_facts "Hcode".
     (* Mov ca0 ALLOC_OK. *)
     iInstr "Hcode".
-    assert (Hstep : (pc_a ^+ 63)%a =
-      ((allocator_free_block_addr pc_a 9) ^+ 1)%a).
+    assert (Hstep : (pc_a ^+ 53)%a =
+      ((allocator_free_block_addr pc_a 5) ^+ 1)%a).
     { unfold allocator_free_block_addr. solve_addr. }
     iEval (rewrite Hstep) in "HPC".
     (* Mov ca1 0. *)
     iInstr "Hcode".
-    assert (Hnext : (allocator_free_block_addr pc_a 9 ^+ 2)%a =
-      allocator_free_block_addr pc_a 10).
+    assert (Hnext : (allocator_free_block_addr pc_a 5 ^+ 2)%a =
+      allocator_free_block_addr pc_a 6).
     { unfold allocator_free_block_addr. solve_addr. }
     iEval (rewrite Hnext) in "HPC".
     iApply "Hφ". iFrame.
@@ -826,7 +562,7 @@ Section AllocatorFreeTraversal.
          ca0 ↦ᵣ wreq ∗
          codefrag pc_a code ∗
          PC ↦ᵣ WCap true RX Global pc_b pc_e
-             (allocator_free_block_addr pc_a 14) ∗
+             (allocator_free_block_addr pc_a 10) ∗
          ct0 ↦ᵣ - ∗
          ct1 ↦ᵣ - ∗
          ct2 ↦ᵣ - ∗
@@ -965,4 +701,135 @@ Section AllocatorFreeTraversal.
     iSplit; [iIntros "($ & $ & $ & _)" | iIntros "($ & $ & $)"]; done.
   Qed.
 
-End AllocatorFreeTraversal.
+  (** The local header check against the service invariant: with the cells
+      and the header chain of the service, the check succeeds exactly when the
+      requested bounds are those of a ghost header entry. Header words are
+      exactly the painted cells, so the word below [b] is painted and [b] is
+      not exactly when [b] is a payload base (D11). *)
+
+  Lemma allocator_free_local_check_spec
+    (E : coPset) (pc_b pc_e pc_a next b e : Addr)
+    (allocations : list allocator_header_entry) (live issued : gset AId)
+    (Cs : gmap Addr (AddrClaim * AllocStatus * bool))
+    (w3 w4 wa2 : LWord)
+    (φ : language.val griotte_lang → iPropI Σ) :
+
+    let start := allocator_free_block_addr pc_a 3 in
+    let code := allocator_free_instrs_n 3 in
+    let sb := (shadow_b ^+ (b - heap_b))%a in
+    ContiguousRegion pc_a (length allocator_free_instrs) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_instrs)%a ->
+    disjoint_from_shadow pc_b pc_e ->
+    (heap_b < b /\ b < e /\ e <= next /\ next <= heap_e)%a ->
+    allocator_chain (heap_b ^+ 1)%a next allocations ->
+    allocator_cells_wf next allocations live issued Cs ->
+
+    allocator_cells Cs ∗
+    allocator_headers (heap_b ^+ 1)%a next allocations ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
+    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+    ct1 ↦ᵣ WInt b ∗
+    ct2 ↦ᵣ WInt e ∗
+    ct3 ↦ᵣ w3 ∗
+    ct4 ↦ᵣ w4 ∗
+    ca2 ↦ᵣ wa2 ∗
+    ctp ↦ᵣ WCap true RW Global shadow_b shadow_e shadow_b ∗
+    codefrag start code ∗
+    ▷ (allocator_cells Cs ∗
+       allocator_headers (heap_b ^+ 1)%a next allocations ∗
+       ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+       ct1 ↦ᵣ WInt b ∗
+       ct2 ↦ᵣ WInt e ∗
+       ct4 ↦ᵣ - ∗
+       codefrag start code ∗
+       ((⌜allocator_has_bounds allocations b e⌝ ∗
+         PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 4) ∗
+         ct3 ↦ᵣ WInt 0 ∗
+         ca2 ↦ᵣ WInt (e - b) ∗
+         ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sb)
+        ∨
+        (⌜¬ allocator_has_bounds allocations b e⌝ ∗
+         PC ↦ᵣ WCap true RX Global pc_b pc_e (allocator_free_block_addr pc_a 10) ∗
+         ct3 ↦ᵣ - ∗
+         ca2 ↦ᵣ - ∗
+         ctp ↦ᵣ -))
+       -∗ WP Seq (Instr Executable) @ E {{ φ }})
+    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+  Proof.
+    intros start code sb Hcont Hpc Hdisjoint Hbounds Hchain Hcwf; subst start code sb.
+    iIntros "(Hcells & Hheaders & HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hctp & Hcode & Hφ)".
+    pose proof heap_shadow_same_size as Hss.
+    pose proof heap_valid as Hheap_valid.
+    set (sb := (shadow_b ^+ (b - heap_b))%a).
+    assert (Hsb : (shadow_b + (b - heap_b))%a = Some sb).
+    { unfold sb. clear -Hss Hbounds Hheap_valid. solve_addr. }
+    assert (Htranslation : ∀ x, (heap_b <= x /\ x < heap_e)%a ->
+      heap_to_shadow x = Some (shadow_b ^+ (x - heap_b))%a).
+    { intros x Hx. rewrite allocator_translation_affine.
+      unfold translate_region.
+      assert (Hxheap : withinBounds heap_b heap_e x = true).
+      { apply withinBounds_true_iff. clear -Hx. solve_addr. }
+      rewrite Hxheap. clear -Hx Hheap_valid Hss. solve_addr. }
+    assert (Htr1 : heap_to_shadow (b ^+ -1)%a = Some (sb ^+ -1)%a).
+    { rewrite Htranslation; last solve_addr. f_equal. unfold sb. solve_addr. }
+    assert (Htr2 : heap_to_shadow b = Some sb).
+    { rewrite Htranslation; last solve_addr. done. }
+    assert (Hb1 : ((b ^+ -1) + 1)%a = Some b) by solve_addr.
+    destruct (acw_dom _ _ _ _ _ Hcwf (b ^+ -1)%a) as [ [ [c1 s1] h1] Hc1]; first solve_addr.
+    destruct (acw_dom _ _ _ _ _ Hcwf b) as [ [ [c2 s2] h2] Hc2]; first solve_addr.
+    pose proof (acw_header _ _ _ _ _ Hcwf _ _ _ _ Hc1) as Hh1.
+    pose proof (acw_header _ _ _ _ _ Hcwf _ _ _ _ Hc2) as Hh2.
+    pose proof (acw_painted _ _ _ _ _ Hcwf _ _ _ _ Hc1) as Hp1.
+    pose proof (acw_painted _ _ _ _ _ Hcwf _ _ _ _ Hc2) as Hp2.
+    (* A ghost header entry at [b] is seen by the check. *)
+    assert (Hseen : ∀ e' r ι, (b, e', r, ι) ∈ allocations ->
+      s1 = ShadowQuarantined ∧ s2 = ShadowLive).
+    { intros e' r ι Hin. split.
+      - apply Hp1, Hh1. by eapply allocator_is_header_below.
+      - destruct s2; first done. exfalso.
+        pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hchain Hin).
+        apply (allocator_chain_payload_not_header _ _ _ _ _ _ _ b Hchain Hin);
+          first solve_addr.
+        by apply Hh2, Hp2. }
+    iDestruct (allocator_cells_shadow_pair _ (b ^+ -1)%a b with "Hcells")
+      as "(Hs1 & Hs2 & Hcells_close)"; [solve_addr|exact Hc1|exact Hc2|].
+    destruct (decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)) as [ [-> ->]|Hcheck].
+    - (* The base follows a header word: it is the base of an entry. *)
+      destruct (allocator_is_header_base allocations (b ^+ -1)%a b) as (e' & r & ι & Hin).
+      { by apply Hh1, Hp1. }
+      { intros Hh. by apply Hh2 in Hh; apply Hp2 in Hh. }
+      { exact Hb1. }
+      pose proof (allocator_chain_member_header _ _ _ _ _ _ _ Hchain Hin) as Hhb.
+      iDestruct (allocator_headers_end_acc with "Hheaders") as "[Hend Hheaders_close]";
+        first exact Hin.
+      iApply (allocator_free_check_spec _ _ _ _ next b e e' sb ShadowQuarantined ShadowLive
+        with "[- $Hs1 $Hs2 $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hctp $Hcode]");
+        try done.
+      { intros _ _. unfold allocator_header_words in *. solve_addr. }
+      iSplitL "Hend"; first (case_decide as Hd; [iFrame|exfalso; naive_solver]).
+      iNext. iIntros "(Hs1 & Hs2 & Hend & Hct0 & Hct1 & Hct2 & Hct4 & Hcode & Hout)".
+      case_decide as Hd; last (exfalso; naive_solver).
+      iApply "Hφ". iFrame "Hct0 Hct1 Hct2 Hct4 Hcode".
+      iSplitL "Hcells_close Hs1 Hs2"; first iApply ("Hcells_close" with "Hs1 Hs2").
+      iSplitL "Hheaders_close Hend"; first iApply ("Hheaders_close" with "Hend").
+      iDestruct "Hout" as "[(%Hok & Hrest)|(%Hko & Hrest)]".
+      + iLeft. iFrame. iPureIntro. destruct Hok as (_ & _ & <-). by exists r, ι.
+      + iRight. iFrame. iPureIntro. intros (r' & ι' & Hin').
+        destruct (allocator_chain_base_unique _ _ _ _ _ _ _ _ _ _ Hchain Hin Hin')
+          as (<- & _ & _).
+        by apply Hko.
+    - (* The check fails before the header is read. *)
+      iApply (allocator_free_check_spec _ _ _ _ next b e b sb s1 s2
+        with "[- $Hs1 $Hs2 $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hctp $Hcode]");
+        try done.
+      { intros ? ?. exfalso. naive_solver. }
+      iSplitR; first (case_decide; [exfalso; naive_solver|done]).
+      iNext. iIntros "(Hs1 & Hs2 & _ & Hct0 & Hct1 & Hct2 & Hct4 & Hcode & Hout)".
+      iApply "Hφ". iFrame "Hct0 Hct1 Hct2 Hct4 Hcode Hheaders".
+      iSplitL "Hcells_close Hs1 Hs2"; first iApply ("Hcells_close" with "Hs1 Hs2").
+      iDestruct "Hout" as "[(%Hok & _)|(_ & Hrest)]".
+      + exfalso. naive_solver.
+      + iRight. iFrame. iPureIntro. intros (r & ι & Hin). by apply Hcheck, (Hseen e r ι).
+  Qed.
+
+End AllocatorFreeBlocks.

@@ -108,16 +108,16 @@ Section AllocatorMalloc.
     iDestruct ("Hmalloc_cont" with "Hcheck_code") as "Hmalloc_code".
     iEval (rewrite -Hsplit) in "Hmalloc_code".
     (* The size check rejects the request; set ALLOC_INVALID. *)
-    assert (Hsplit7 : allocator_malloc_instrs =
-      concat (encodeInstrsW <$> take 7 assembled_allocator_malloc) ++
-      (allocator_malloc_instrs_n 7 ++
-       concat (encodeInstrsW <$> drop 8 assembled_allocator_malloc)))
+    assert (Hsplit9 : allocator_malloc_instrs =
+      concat (encodeInstrsW <$> take 9 assembled_allocator_malloc) ++
+      (allocator_malloc_instrs_n 9 ++
+       concat (encodeInstrsW <$> drop 10 assembled_allocator_malloc)))
       by reflexivity.
-    iEval (rewrite Hsplit7) in "Hmalloc_code".
+    iEval (rewrite Hsplit9) in "Hmalloc_code".
     focus_block_nochangePC 1 "Hmalloc_code" as a_reject Ha_reject
       "Hreject_code" "Hmalloc_cont".
-    assert (Haddr7 : a_reject =
-      allocator_malloc_block_addr allocator_malloc_pcc_addr 7).
+    assert (Haddr9 : a_reject =
+      allocator_malloc_block_addr allocator_malloc_pcc_addr 9).
     { rewrite -Hstart. unfold allocator_malloc_block_addr. solve_addr. }
     subst a_reject.
     iDestruct "Hca1" as (wca1) "Hca1".
@@ -126,19 +126,19 @@ Section AllocatorMalloc.
     { rewrite -Hstart. exact H. }
     iNext. iIntros "(HPC & Hca0 & Hca1 & Hreject_code)".
     iDestruct ("Hmalloc_cont" with "Hreject_code") as "Hmalloc_code".
-    iEval (rewrite -Hsplit7) in "Hmalloc_code".
+    iEval (rewrite -Hsplit9) in "Hmalloc_code".
     (* Return to the caller and restore the service invariant. *)
-    assert (Hsplit9 : allocator_malloc_instrs =
-      concat (encodeInstrsW <$> take 9 assembled_allocator_malloc) ++
-      allocator_malloc_instrs_n 9) by reflexivity.
-    iEval (rewrite Hsplit9) in "Hmalloc_code".
+    assert (Hsplit11 : allocator_malloc_instrs =
+      concat (encodeInstrsW <$> take 11 assembled_allocator_malloc) ++
+      allocator_malloc_instrs_n 11) by reflexivity.
+    iEval (rewrite Hsplit11) in "Hmalloc_code".
     focus_block_nochangePC 1 "Hmalloc_code" as a_ret Ha_ret
       "Hret_code" "Hmalloc_cont".
-    assert (Haddr9 : a_ret =
-      allocator_malloc_block_addr allocator_malloc_pcc_addr 9).
+    assert (Haddr11 : a_ret =
+      allocator_malloc_block_addr allocator_malloc_pcc_addr 11).
     { rewrite -Hstart. unfold allocator_malloc_block_addr. solve_addr. }
     subst a_ret.
-    assert (Hret_eq : allocator_malloc_instrs_n 9 =
+    assert (Hret_eq : allocator_malloc_instrs_n 11 =
       encodeInstrsW [Jalr cnull cra]) by reflexivity.
     iEval (rewrite Hret_eq) in "Hret_code".
     iDestruct "Hcnull" as (wnull) "Hcnull".
@@ -148,7 +148,7 @@ Section AllocatorMalloc.
     iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code & _)".
     iEval (rewrite -Hret_eq) in "Hret_code".
     iDestruct ("Hmalloc_cont" with "Hret_code") as "Hmalloc_code".
-    iEval (rewrite -Hsplit9) in "Hmalloc_code".
+    iEval (rewrite -Hsplit11) in "Hmalloc_code".
     iDestruct ("Hcode_cont" with "Hmalloc_code") as "Hcode".
     iEval (rewrite -/allocator_code) in "Hcode".
     iMod ("Hclose" with "[Himports Hcode Hdata Hna]") as "Hna".
@@ -469,37 +469,127 @@ Section AllocatorMalloc.
       { unfold allocator_malloc_block_addr. solve_addr. }
       iEval (rewrite Hpc4) in "HPC".
       iApply (allocator_translate_spec E allocator_pcc_b allocator_pcc_e
-        (allocator_malloc_block_addr allocator_malloc_pcc_addr 4) next b finish with
-        "[- $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hctp $Hca2 $Htranslate_code]").
+        (allocator_malloc_block_addr allocator_malloc_pcc_addr 4) next next b with
+        "[- $HPC $Hct0 $Hct1 $Hct3 $Hctp $Hca2 $Htranslate_code]").
       { unfold allocator_malloc_block_addr; cbn; solve_addr. }
       { exact Hdisjoint. }
       { solve_addr. }
+      { exact Hbase. }
       iNext. iIntros
-        "(HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hctp & Hca2 & Htranslate_code)".
+        "(HPC & Hct0 & Hct1 & Hct3 & Hctp & Hca2 & Htranslate_code)".
       iDestruct ("Hmalloc_cont" with "Htranslate_code") as "Hmalloc_code".
       iEval (rewrite -Hsplit4) in "Hmalloc_code".
-      (* The same-value shadow store over the cells claimed by [ι]. *)
+      (* Paint the header words quarantined: they are unclaimed (D11). *)
       assert (Hsplit5 : allocator_malloc_instrs =
         concat (encodeInstrsW <$> take 5 assembled_allocator_malloc) ++
         (allocator_malloc_instrs_n 5 ++
          concat (encodeInstrsW <$> drop 6 assembled_allocator_malloc)))
         by reflexivity.
       iEval (rewrite Hsplit5) in "Hmalloc_code".
-      focus_block_nochangePC 1 "Hmalloc_code" as a_paint Ha_paint
-        "Hpaint_code" "Hmalloc_cont".
-      assert (Haddr5 : a_paint =
+      focus_block_nochangePC 1 "Hmalloc_code" as a_hpaint Ha_hpaint
+        "Hhpaint_code" "Hmalloc_cont".
+      assert (Haddr5 : a_hpaint =
         allocator_malloc_block_addr allocator_malloc_pcc_addr 5).
       { rewrite -Hstart. unfold allocator_malloc_block_addr.
-        clear -Ha_paint. cbn [take concat fmap] in *. solve_addr. }
-      subst a_paint.
+        clear -Ha_hpaint. cbn [take concat fmap] in *. solve_addr. }
+      subst a_hpaint.
       assert (Hpc5 : (allocator_malloc_block_addr allocator_malloc_pcc_addr 4 ^+
         length (allocator_malloc_instrs_n 4))%a =
         allocator_malloc_block_addr allocator_malloc_pcc_addr 5).
       { unfold allocator_malloc_block_addr. solve_addr. }
       iEval (rewrite Hpc5) in "HPC".
+      pose proof heap_shadow_same_size as Hss.
+      pose (sh := (shadow_b ^+ (next - heap_b))%a).
       pose (sb := (shadow_b ^+ (b - heap_b))%a).
       pose (se := (shadow_b ^+ (finish - heap_b))%a).
-      pose proof heap_shadow_same_size as Hss.
+      assert (Hhshadow : (shadow_b <= sh /\ sh < sb /\ sb <= shadow_e)%a).
+      { unfold sh, sb. clear -Hss Hrange Hnext Hheap_valid. solve_addr. }
+      assert (Hhlen_shadow : (sb - sh = b - next)%Z).
+      { unfold sh, sb. clear -Hss Hrange Hnext Hheap_valid. solve_addr. }
+      assert (Hhtranslation : ∀ x, (next <= x /\ x < b)%a ->
+        heap_to_shadow x = Some (sh ^+ (x - next))%a).
+      { intros x Hx. rewrite allocator_translation_affine.
+        unfold translate_region.
+        assert (Hxheap : withinBounds heap_b heap_e x = true).
+        { apply withinBounds_true_iff. clear -Hx Hrange Hnext. solve_addr. }
+        rewrite Hxheap. unfold sh.
+        clear -Hx Hrange Hnext Hheap_valid Hss. solve_addr. }
+      assert (Hhpaint_eq : allocator_malloc_instrs_n 5 =
+        allocator_paint_instrs ctp ca2 ShadowQuarantined) by reflexivity.
+      iEval (rewrite Hhpaint_eq) in "Hhpaint_code".
+      replace allocator_header_words with (b - next)%Z
+        by (unfold allocator_header_words in *; clear -Hbase; solve_addr).
+      iCombine "Hhdr_shadow Hhdr_claims" as "Hheader".
+      rewrite -big_sepL_sep.
+      iApply (allocator_paint_spec ShadowLive ShadowQuarantined ctp ca2 E RX Global
+        allocator_pcc_b allocator_pcc_e
+        (allocator_malloc_block_addr allocator_malloc_pcc_addr 5)
+        next b sh sb emp (λ a, addr_alloc a Unclaimed)
+        with "[- $HPC $Hctp $Hca2 $Hhpaint_code $Hheader]").
+      { reflexivity. }
+      { rewrite -Hhpaint_eq. clear -Hpc.
+        unfold allocator_malloc_block_addr in *; cbn in *; solve_addr. }
+      { exact Hdisjoint. }
+      { clear -Hrange Hnext. solve_addr. }
+      { exact Hhshadow. }
+      { exact Hhlen_shadow. }
+      { exact Hhtranslation. }
+      { vm_compute;
+        repeat (constructor;
+          [rewrite !elem_of_cons elem_of_nil; intuition congruence|]);
+        try apply not_elem_of_nil; constructor.
+        { apply not_elem_of_nil. }
+        { constructor. } }
+      { right. intros a Rs Cs' _. iIntros "_ HC [_ Hc]".
+        iDestruct (addr_alloc_lookup with "HC Hc") as %HCa.
+        iPureIntro. by left. }
+      iNext. iIntros "(HPC & Hctp & Hca2 & _ & Hheader & Hhpaint_code)".
+      iDestruct (big_sepL_sep with "Hheader") as "[Hhdr_shadow Hhdr_claims]".
+      iEval (rewrite -Hhpaint_eq) in "Hhpaint_code".
+      iDestruct ("Hmalloc_cont" with "Hhpaint_code") as "Hmalloc_code".
+      iEval (rewrite -Hsplit5) in "Hmalloc_code".
+      (* Load the payload count. *)
+      assert (Hsplit6 : allocator_malloc_instrs =
+        concat (encodeInstrsW <$> take 6 assembled_allocator_malloc) ++
+        (allocator_malloc_instrs_n 6 ++
+         concat (encodeInstrsW <$> drop 7 assembled_allocator_malloc)))
+        by reflexivity.
+      iEval (rewrite Hsplit6) in "Hmalloc_code".
+      focus_block_nochangePC 1 "Hmalloc_code" as a_count Ha_count
+        "Hcount_code" "Hmalloc_cont".
+      assert (Haddr6 : a_count =
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 6).
+      { rewrite -Hstart. unfold allocator_malloc_block_addr.
+        clear -Ha_count. cbn [take concat fmap] in *. solve_addr. }
+      subst a_count.
+      assert (Hpc6 : (allocator_malloc_block_addr allocator_malloc_pcc_addr 5 ^+
+        length (allocator_paint_instrs ctp ca2 ShadowQuarantined))%a =
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 6).
+      { clear -Hpc. unfold allocator_malloc_block_addr in *. cbn in *. solve_addr. }
+      iEval (rewrite Hpc6) in "HPC".
+      codefrag_facts "Hcount_code".
+      (* Sub ca2 ct2 ct1. *)
+      iInstr "Hcount_code".
+      iDestruct ("Hmalloc_cont" with "Hcount_code") as "Hmalloc_code".
+      iEval (rewrite -Hsplit6) in "Hmalloc_code".
+      (* The same-value shadow store over the cells claimed by [ι]. *)
+      assert (Hsplit7 : allocator_malloc_instrs =
+        concat (encodeInstrsW <$> take 7 assembled_allocator_malloc) ++
+        (allocator_malloc_instrs_n 7 ++
+         concat (encodeInstrsW <$> drop 8 assembled_allocator_malloc)))
+        by reflexivity.
+      iEval (rewrite Hsplit7) in "Hmalloc_code".
+      focus_block_nochangePC 1 "Hmalloc_code" as a_paint Ha_paint
+        "Hpaint_code" "Hmalloc_cont".
+      assert (Haddr7 : a_paint =
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 7).
+      { rewrite -Hstart. unfold allocator_malloc_block_addr.
+        clear -Ha_paint. cbn [take concat fmap] in *. solve_addr. }
+      subst a_paint.
+      assert (Hpc7 : (allocator_malloc_block_addr allocator_malloc_pcc_addr 6 ^+ 1)%a =
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 7).
+      { unfold allocator_malloc_block_addr. solve_addr. }
+      iEval (rewrite Hpc7) in "HPC".
       assert (Hshadow : (shadow_b <= sb /\ sb < se /\ se <= shadow_e)%a).
       { unfold sb, se. clear -Hss Hrange Hnext Hheap_valid. solve_addr. }
       assert (Hlen_shadow : (se - sb = finish - b)%Z).
@@ -512,12 +602,12 @@ Section AllocatorMalloc.
         { apply withinBounds_true_iff. clear -Hx Hrange Hnext. solve_addr. }
         rewrite Hxheap. unfold sb.
         clear -Hx Hrange Hnext Hheap_valid Hss. solve_addr. }
-      assert (Hpaint_eq : allocator_malloc_instrs_n 5 =
+      assert (Hpaint_eq : allocator_malloc_instrs_n 7 =
         allocator_paint_instrs ctp ca2 ShadowLive) by reflexivity.
       iEval (rewrite Hpaint_eq) in "Hpaint_code".
       iApply (allocator_paint_spec ShadowLive ShadowLive ctp ca2 E RX Global
         allocator_pcc_b allocator_pcc_e
-        (allocator_malloc_block_addr allocator_malloc_pcc_addr 5)
+        (allocator_malloc_block_addr allocator_malloc_pcc_addr 7)
         b finish sb se emp (λ a, addr_alloc a (Claimed ι))
         with "[- $HPC $Hctp $Hca2 $Hpaint_code $Hpayload]").
       { reflexivity. }
@@ -538,28 +628,29 @@ Section AllocatorMalloc.
       iNext. iIntros "(HPC & Hctp & Hca2 & _ & Hpayload & Hpaint_code)".
       iEval (rewrite -Hpaint_eq) in "Hpaint_code".
       iDestruct ("Hmalloc_cont" with "Hpaint_code") as "Hmalloc_code".
-      iEval (rewrite -Hsplit5) in "Hmalloc_code".
-      clear Hsplit Hsplit1 Hsplit2 Hsplit3 Hsplit4 H0 H1 H2 H3 H4 H5 Ha_prepare Ha_zero
-        Ha_fetch Ha_translate Ha_paint Hpc3 Hpc4 Hpc5 Hzero_eq Hfetch_eq Hpaint_eq.
+      iEval (rewrite -Hsplit7) in "Hmalloc_code".
+      clear Hsplit Hsplit1 Hsplit2 Hsplit3 Hsplit4 Hsplit5 Hsplit6 Hsplit7 Ha_prepare Ha_zero
+        Ha_fetch Ha_translate Ha_hpaint Ha_count Ha_paint Hpc3 Hpc4 Hpc5 Hpc6 Hpc7
+        Hzero_eq Hfetch_eq Hhpaint_eq Hpaint_eq.
       (* Publish the new bump cursor and return the capability. *)
-      assert (Hsplit6 : allocator_malloc_instrs =
-        concat (encodeInstrsW <$> take 6 assembled_allocator_malloc) ++
-        (allocator_malloc_instrs_n 6 ++
-         concat (encodeInstrsW <$> drop 7 assembled_allocator_malloc)))
+      assert (Hsplit8 : allocator_malloc_instrs =
+        concat (encodeInstrsW <$> take 8 assembled_allocator_malloc) ++
+        (allocator_malloc_instrs_n 8 ++
+         concat (encodeInstrsW <$> drop 9 assembled_allocator_malloc)))
         by reflexivity.
-      iEval (rewrite Hsplit6) in "Hmalloc_code".
+      iEval (rewrite Hsplit8) in "Hmalloc_code".
       focus_block_nochangePC 1 "Hmalloc_code" as a_publish Ha_publish
         "Hpublish_code" "Hmalloc_cont".
-      assert (Haddr6 : a_publish =
-        allocator_malloc_block_addr allocator_malloc_pcc_addr 6).
+      assert (Haddr8 : a_publish =
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 8).
       { rewrite -Hstart. unfold allocator_malloc_block_addr.
         clear -Ha_publish. cbn [take concat fmap] in *. solve_addr. }
       subst a_publish.
-      assert (Hpc6 : (allocator_malloc_block_addr allocator_malloc_pcc_addr 5 ^+
+      assert (Hpc8 : (allocator_malloc_block_addr allocator_malloc_pcc_addr 7 ^+
         length (allocator_paint_instrs ctp ca2 ShadowLive))%a =
-        allocator_malloc_block_addr allocator_malloc_pcc_addr 6).
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 8).
       { clear -Hpc. unfold allocator_malloc_block_addr in *. cbn in *. solve_addr. }
-      iEval (rewrite Hpc6) in "HPC".
+      iEval (rewrite Hpc8) in "HPC".
       iDestruct "Hca1" as (wca1) "Hca1".
       iApply (allocator_malloc_publish_spec with
         "[- $HPC $Hcgp $Hct0 $Hct4 $Hca0 $Hca1 $Hslot $Hpublish_code]").
@@ -572,19 +663,19 @@ Section AllocatorMalloc.
       iNext. iIntros
         "(HPC & Hcgp & Hct0 & Hct4 & Hca0 & Hca1 & Hslot & Hpublish_code)".
       iDestruct ("Hmalloc_cont" with "Hpublish_code") as "Hmalloc_code".
-      iEval (rewrite -Hsplit6) in "Hmalloc_code".
-      assert (Hsplit9 : allocator_malloc_instrs =
-        concat (encodeInstrsW <$> take 9 assembled_allocator_malloc) ++
-        allocator_malloc_instrs_n 9) by reflexivity.
-      iEval (rewrite Hsplit9) in "Hmalloc_code".
+      iEval (rewrite -Hsplit8) in "Hmalloc_code".
+      assert (Hsplit11 : allocator_malloc_instrs =
+        concat (encodeInstrsW <$> take 11 assembled_allocator_malloc) ++
+        allocator_malloc_instrs_n 11) by reflexivity.
+      iEval (rewrite Hsplit11) in "Hmalloc_code".
       focus_block_nochangePC 1 "Hmalloc_code" as a_ret Ha_ret
         "Hret_code" "Hmalloc_cont".
-      assert (Haddr9 : a_ret =
-        allocator_malloc_block_addr allocator_malloc_pcc_addr 9).
+      assert (Haddr11 : a_ret =
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 11).
       { rewrite -Hstart. unfold allocator_malloc_block_addr.
         clear -Ha_ret. cbn [take concat fmap] in *. solve_addr. }
       subst a_ret.
-      assert (Hret_eq : allocator_malloc_instrs_n 9 =
+      assert (Hret_eq : allocator_malloc_instrs_n 11 =
         encodeInstrsW [Jalr cnull cra]) by reflexivity.
       iEval (rewrite Hret_eq) in "Hret_code".
       iDestruct "Hcnull" as (wnull) "Hcnull".
@@ -595,7 +686,7 @@ Section AllocatorMalloc.
       iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code & _)".
       iEval (rewrite -Hret_eq) in "Hret_code".
       iDestruct ("Hmalloc_cont" with "Hret_code") as "Hmalloc_code".
-      iEval (rewrite -Hsplit9) in "Hmalloc_code".
+      iEval (rewrite -Hsplit11) in "Hmalloc_code".
       iDestruct ("Hcode_cont" with "Hmalloc_code") as "Hcode".
       iEval (rewrite -/allocator_code) in "Hcode".
       (* Put the chunk's cells back: header words, then cells claimed by [ι]. *)
@@ -669,15 +760,15 @@ Section AllocatorMalloc.
       iDestruct ("Hmalloc_cont" with "Hprepare_code") as "Hmalloc_code".
       iEval (rewrite -Hsplit1) in "Hmalloc_code".
       (* Capacity is exhausted; return ALLOC_NO_MEMORY without changing the state. *)
-      assert (Hsplit8 : allocator_malloc_instrs =
-        concat (encodeInstrsW <$> take 8 assembled_allocator_malloc) ++
-        (allocator_malloc_instrs_n 8 ++ allocator_malloc_instrs_n 9))
+      assert (Hsplit10 : allocator_malloc_instrs =
+        concat (encodeInstrsW <$> take 10 assembled_allocator_malloc) ++
+        (allocator_malloc_instrs_n 10 ++ allocator_malloc_instrs_n 11))
         by reflexivity.
-      iEval (rewrite Hsplit8) in "Hmalloc_code".
+      iEval (rewrite Hsplit10) in "Hmalloc_code".
       focus_block_nochangePC 1 "Hmalloc_code" as a_oom Ha_oom
         "Hoom_code" "Hmalloc_cont".
-      assert (Haddr8 : a_oom =
-        allocator_malloc_block_addr allocator_malloc_pcc_addr 8).
+      assert (Haddr10 : a_oom =
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 10).
       { rewrite -Hstart. unfold allocator_malloc_block_addr.
         clear -Ha_oom. cbn [take concat fmap] in *. solve_addr. }
       subst a_oom.
@@ -689,19 +780,19 @@ Section AllocatorMalloc.
       { exact Hdisjoint. }
       iNext. iIntros "(HPC & Hca0 & Hca1 & Hoom_code)".
       iDestruct ("Hmalloc_cont" with "Hoom_code") as "Hmalloc_code".
-      iEval (rewrite -Hsplit8) in "Hmalloc_code".
-      assert (Hsplit9 : allocator_malloc_instrs =
-        concat (encodeInstrsW <$> take 9 assembled_allocator_malloc) ++
-        allocator_malloc_instrs_n 9) by reflexivity.
-      iEval (rewrite Hsplit9) in "Hmalloc_code".
+      iEval (rewrite -Hsplit10) in "Hmalloc_code".
+      assert (Hsplit11 : allocator_malloc_instrs =
+        concat (encodeInstrsW <$> take 11 assembled_allocator_malloc) ++
+        allocator_malloc_instrs_n 11) by reflexivity.
+      iEval (rewrite Hsplit11) in "Hmalloc_code".
       focus_block_nochangePC 1 "Hmalloc_code" as a_ret Ha_ret
         "Hret_code" "Hmalloc_cont".
-      assert (Haddr9 : a_ret =
-        allocator_malloc_block_addr allocator_malloc_pcc_addr 9).
+      assert (Haddr11 : a_ret =
+        allocator_malloc_block_addr allocator_malloc_pcc_addr 11).
       { rewrite -Hstart. unfold allocator_malloc_block_addr.
         clear -Ha_ret. cbn [take concat fmap] in *. solve_addr. }
       subst a_ret.
-      assert (Hret_eq : allocator_malloc_instrs_n 9 =
+      assert (Hret_eq : allocator_malloc_instrs_n 11 =
         encodeInstrsW [Jalr cnull cra]) by reflexivity.
       iEval (rewrite Hret_eq) in "Hret_code".
       iDestruct "Hcnull" as (wnull) "Hcnull".
@@ -712,7 +803,7 @@ Section AllocatorMalloc.
       iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code & _)".
       iEval (rewrite -Hret_eq) in "Hret_code".
       iDestruct ("Hmalloc_cont" with "Hret_code") as "Hmalloc_code".
-      iEval (rewrite -Hsplit9) in "Hmalloc_code".
+      iEval (rewrite -Hsplit11) in "Hmalloc_code".
       iDestruct ("Hcode_cont" with "Hmalloc_code") as "Hcode".
       iEval (rewrite -/allocator_code) in "Hcode".
       iMod ("Hclose" with "[Himports Hcode Hslot Hheaders Htoks Hcells Hna]") as "Hna".

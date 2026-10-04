@@ -43,6 +43,12 @@ Section AllocatorServiceInitializationProofs.
     - intros a ι s hdr. rewrite lookup_allocator_initial_cells.
       destruct (is_heap_address a); last done.
       case_decide; done.
+    - intros a c s hdr. rewrite lookup_allocator_initial_cells.
+      destruct (is_heap_address a); last done.
+      intros [= _ _ <-]. split; [done|]. intros (? & ? & ? & ? & Hin & _). set_solver.
+    - intros a c s hdr. rewrite lookup_allocator_initial_cells.
+      destruct (is_heap_address a); last done.
+      intros [= _ <- <-]. done.
     - set_solver.
     - set_solver.
   Qed.

@@ -129,8 +129,10 @@ Section AllocatorFree.
     iDestruct "Hct3" as (w3) "Hct3".
     iAssert ((allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
       allocator_headers (heap_b ^+ 1)%a next allocations ∗
+      [[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ∗
+      allocator_cells Cs ∗
       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
-        (allocator_free_block_addr allocator_free_pcc_addr 14) ∗
+        (allocator_free_block_addr allocator_free_pcc_addr 10) ∗
       cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
       ca0 ↦ᵣ wreq ∗
       ct0 ↦ᵣ - ∗
@@ -139,18 +141,21 @@ Section AllocatorFree.
       ct3 ↦ᵣ - ∗
       ct4 ↦ᵣ - ∗
       ca2 ↦ᵣ - ∗
+      ctp ↦ᵣ - ∗
       codefrag allocator_free_pcc_addr allocator_free_instrs) -∗
       WP Seq (Instr Executable) @ E {{ φ }})%I
-      with "[- Hslot Hheaders HPC Hcgp Hca0 Hct0 Hct1 Hct2 Hct3 Hct4 Hca2 Hprepare_code Hfree_cont]"
+      with "[- Hslot Hheaders Himports Hcells HPC Hcgp Hca0 Hct0 Hct1 Hct2 Hct3 Hct4 Hca2 Hctp
+               Hprepare_code Hfree_cont]"
       as "Hreject".
-    { iIntros "(Hslot & Hheaders & HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hfreecode)".
+    { iIntros "(Hslot & Hheaders & Himports & Hcells & HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 &
+        Hct3 & Hct4 & Hca2 & Hctp & Hfreecode)".
       (* The validity check rejects the request; set ALLOC_INVALID. *)
       assert (Hsplit6 : allocator_free_instrs =
-        concat (encodeInstrsW <$> take 14 assembled_allocator_free) ++
-        (allocator_free_instrs_n 14 ++ allocator_free_instrs_n 15)) by reflexivity.
+        concat (encodeInstrsW <$> take 10 assembled_allocator_free) ++
+        (allocator_free_instrs_n 10 ++ allocator_free_instrs_n 11)) by reflexivity.
       iEval (rewrite Hsplit6) in "Hfreecode".
       focus_block_nochangePC 1 "Hfreecode" as a_invalid Ha_invalid "Hinvalid_code" "Hfreecode_cont".
-      assert (Haddr : a_invalid = allocator_free_block_addr allocator_free_pcc_addr 14).
+      assert (Haddr : a_invalid = allocator_free_block_addr allocator_free_pcc_addr 10).
       { unfold allocator_free_block_addr in *. solve_addr. }
       subst a_invalid.
       (* Mov ca0 ALLOC_INVALID. *)
@@ -161,8 +166,8 @@ Section AllocatorFree.
       iIntros "!> (HPC & Hi & Hca0)". wp_pure.
       iSpecialize ("Hinvalid_code" with "Hi").
       iDestruct "Hca1" as (wca1) "Hca1".
-      assert (Hstep : (allocator_free_pcc_addr ^+ 83)%a =
-        (allocator_free_block_addr allocator_free_pcc_addr 14 ^+ 1)%a)
+      assert (Hstep : (allocator_free_pcc_addr ^+ 73)%a =
+        (allocator_free_block_addr allocator_free_pcc_addr 10 ^+ 1)%a)
         by (unfold allocator_free_block_addr; solve_addr).
       iEval (rewrite Hstep) in "HPC".
       (* Mov ca1 0. *)
@@ -171,18 +176,18 @@ Section AllocatorFree.
       iEval (rewrite -Hsplit6) in "Hfreecode".
       (* Return to the caller and restore the service invariant. *)
       assert (Hsplit7 : allocator_free_instrs =
-        concat (encodeInstrsW <$> take 15 assembled_allocator_free) ++
-        allocator_free_instrs_n 15) by reflexivity.
+        concat (encodeInstrsW <$> take 11 assembled_allocator_free) ++
+        allocator_free_instrs_n 11) by reflexivity.
       iEval (rewrite Hsplit7) in "Hfreecode".
       focus_block_nochangePC 1 "Hfreecode" as a_ret Ha_ret "Hret_code" "Hfreecode_cont".
-      assert (Haddr : a_ret = allocator_free_block_addr allocator_free_pcc_addr 15).
+      assert (Haddr : a_ret = allocator_free_block_addr allocator_free_pcc_addr 11).
       { unfold allocator_free_block_addr in *. solve_addr. }
       subst a_ret.
-      assert (Hret : (allocator_free_block_addr allocator_free_pcc_addr 14 ^+ 2)%a =
-        allocator_free_block_addr allocator_free_pcc_addr 15)
+      assert (Hret : (allocator_free_block_addr allocator_free_pcc_addr 10 ^+ 2)%a =
+        allocator_free_block_addr allocator_free_pcc_addr 11)
         by (unfold allocator_free_block_addr; solve_addr).
       iEval (rewrite Hret) in "HPC".
-      assert (Hret_eq : allocator_free_instrs_n 15 =
+      assert (Hret_eq : allocator_free_instrs_n 11 =
         encodeInstrsW [Jalr cnull cra]) by reflexivity.
       iEval (rewrite Hret_eq) in "Hret_code".
       iDestruct "Hcnull" as (wnull) "Hcnull".
@@ -210,22 +215,77 @@ Section AllocatorFree.
       { intros Hmember. apply Hinvalid. exists p, g, b, e, a. auto. }
       iDestruct ("Hfree_cont" with "Hprepare_code") as "Hfreecode".
       iEval (rewrite -Hsplit) in "Hfreecode".
-      assert (Hsplit_search : allocator_free_instrs =
+      (* Fetch the shadow capability. *)
+      assert (Hsplit2 : allocator_free_instrs =
         concat (encodeInstrsW <$> take 2 assembled_allocator_free) ++
-        (concat (encodeInstrsW <$> take 4 (drop 2 assembled_allocator_free)) ++
-         concat (encodeInstrsW <$> drop 6 assembled_allocator_free))) by reflexivity.
-      iEval (rewrite Hsplit_search) in "Hfreecode".
-      focus_block_nochangePC 1 "Hfreecode" as a_search Ha_search "Hsearchcode" "Hsearch_cont".
-      assert (Ha_search_eq : a_search = allocator_free_block_addr allocator_free_pcc_addr 2)
-        by (unfold allocator_free_block_addr in *; solve_addr).
-      subst a_search.
-      iDestruct "Hct4" as (w4) "Hct4".
+        (allocator_free_instrs_n 2 ++
+         concat (encodeInstrsW <$> drop 3 assembled_allocator_free))) by reflexivity.
+      iEval (rewrite Hsplit2) in "Hfreecode".
+      focus_block_nochangePC 1 "Hfreecode" as a_fetch Ha_fetch
+        "Hfetch_code" "Hfreecode_cont".
+      assert (Haddr : a_fetch = allocator_free_block_addr allocator_free_pcc_addr 2).
+      { clear -Ha_fetch. unfold allocator_free_block_addr in *. solve_addr. }
+      subst a_fetch.
+      iEval (rewrite allocator_imports_split) in "Himports".
+      iDestruct "Himports" as "(Hshadow_import & Hseal_import & Hrevoker_import)".
+      assert (Hfetch_eq : allocator_free_instrs_n 2 =
+        fetch.fetch_instrs allocator_shadow_import_off ctp ct3 ca2)
+        by reflexivity.
+      iEval (rewrite Hfetch_eq) in "Hfetch_code".
+      iDestruct "Hctp" as (wctp) "Hctp".
       iDestruct "Hca2" as (wa2) "Hca2".
-      iApply (allocator_free_search_missing_spec with
-        "[- $Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hsearchcode]"); eauto.
-      iNext. iIntros "(Hheaders & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hsearchcode & HPC)".
-      iDestruct ("Hsearch_cont" with "Hsearchcode") as "Hfreecode".
-      iEval (rewrite -Hsplit_search) in "Hfreecode".
+      pose proof allocator_size_imports as Himports_size.
+      rewrite allocator_imports_length in Himports_size.
+      iApply (allocator_fetch_spec with
+        "[- $HPC $Hctp $Hct3 $Hca2 $Hfetch_code $Hshadow_import]").
+      { reflexivity. }
+      { rewrite -Hfetch_eq; unfold allocator_free_block_addr; cbn; solve_addr. }
+      { apply withinBounds_true_iff. unfold allocator_shadow_import_off. solve_addr. }
+      { exact Hdisjoint. }
+      { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
+        destruct (is_heap_address shadow_b) eqn:Hheap; last reflexivity.
+        exfalso. unfold is_heap_address in Hheap.
+        apply withinBounds_true_iff in Hheap;
+        pose proof heap_shadow_disjoint as Hd;
+        rewrite /disjoint_from_shadow elem_of_disjoint in Hd;
+        apply (Hd shadow_b); apply elem_of_finz_seq_between; try exact Hheap;
+        pose proof shadow_valid; solve_addr. }
+      { discriminate. }
+      { discriminate. }
+      { discriminate. }
+      iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Hshadow_import & Hfetch_code)".
+      iEval (rewrite /lload_word /lift_word /=) in "Hctp".
+      iEval (cbn [load_word]) in "Hctp".
+      iEval (rewrite -Hfetch_eq) in "Hfetch_code".
+      iDestruct ("Hfreecode_cont" with "Hfetch_code") as "Hfreecode".
+      iEval (rewrite -Hsplit2) in "Hfreecode".
+      (* The local header check finds no entry with these bounds. *)
+      assert (Hsplit3 : allocator_free_instrs =
+        concat (encodeInstrsW <$> take 3 assembled_allocator_free) ++
+        (allocator_free_instrs_n 3 ++
+         concat (encodeInstrsW <$> drop 4 assembled_allocator_free))) by reflexivity.
+      iEval (rewrite Hsplit3) in "Hfreecode".
+      focus_block_nochangePC 1 "Hfreecode" as a_check Ha_check
+        "Hcheck_code" "Hfreecode_cont".
+      assert (Haddr3 : a_check = allocator_free_block_addr allocator_free_pcc_addr 3).
+      { clear -Ha_check. unfold allocator_free_block_addr in *. solve_addr. }
+      subst a_check.
+      assert (Hpc3 : (allocator_free_block_addr allocator_free_pcc_addr 2 ^+
+        length (fetch.fetch_instrs allocator_shadow_import_off ctp ct3 ca2))%a =
+        allocator_free_block_addr allocator_free_pcc_addr 3).
+      { clear -Hpc. unfold allocator_free_block_addr in *. solve_addr. }
+      iEval (rewrite Hpc3) in "HPC".
+      iDestruct "Hct4" as (w4) "Hct4".
+      iApply (allocator_free_local_check_spec _ _ _ _ next b e allocations live issued Cs with
+        "[- $Hcells $Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hctp $Hcheck_code]");
+        try done; first solve_addr.
+      iNext. iIntros "(Hcells & Hheaders & Hct0 & Hct1 & Hct2 & Hct4 & Hcheck_code & Hout)".
+      iDestruct "Hout" as "[(%Hhas & _)|(_ & HPC & Hct3 & Hca2 & Hctp)]"; first done.
+      iDestruct ("Hfreecode_cont" with "Hcheck_code") as "Hfreecode".
+      iEval (rewrite -Hsplit3) in "Hfreecode".
+      iAssert ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]])%I
+        with "[Hshadow_import Hseal_import Hrevoker_import]" as "Himports".
+      { iApply allocator_imports_split. iFrame. }
       iApply "Hreject". iFrame.
     - iApply (allocator_free_prepare_invalid_spec with
         "[- $Hslot $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hct2 $Hct3 $Hprepare_code]"); eauto.
@@ -498,16 +558,6 @@ Section AllocatorFree.
     { rewrite (st_own_split_alloc ι (finz.seq_between b e))
         finz_seq_between_length -free_auth_split.
       iFrame. }
-    (* Take the cells of [ι]: they are claimed and unpainted. *)
-    iDestruct (allocator_cells_range_acc (finz.seq_between b e)
-                 (λ _, (Claimed ι, ShadowLive, false)) with "Hcells")
-      as "[Hrange Hcells_close]".
-    { apply finz_seq_between_NoDup. }
-    { intros x Hx. apply elem_of_finz_seq_between in Hx.
-      by apply (acw_live _ _ _ _ _ Hcwf b e r0 ι). }
-    iEval (rewrite /cell_res' /cell_res /=) in "Hrange".
-    iDestruct (big_sepL_sep with "Hrange") as "[Hclaims Hrange]".
-    iDestruct (big_sepL_sep with "Hrange") as "[Hshadows _]".
     iEval (rewrite /allocator_code) in "Hcode".
     focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfreecode" "Hcode_cont".
     assert (Ha_eq : a_free = allocator_free_pcc_addr).
@@ -558,45 +608,25 @@ Section AllocatorFree.
     injection Heq as <- <- <- <- <-.
     iDestruct ("Hfree_cont" with "Hprepare_code") as "Hfreecode".
     iEval (rewrite -Hsplit) in "Hfreecode".
-    (* Follow authentic headers until both original bounds match. *)
-    assert (Hmember : allocator_has_bounds allocations b e) by (exists r0, ι; done).
-    assert (Hsplit_search : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 2 assembled_allocator_free) ++
-      (concat (encodeInstrsW <$> take 4 (drop 2 assembled_allocator_free)) ++
-       concat (encodeInstrsW <$> drop 6 assembled_allocator_free))) by reflexivity.
-    iEval (rewrite Hsplit_search) in "Hfreecode".
-    focus_block_nochangePC 1 "Hfreecode" as a_search Ha_search "Hsearchcode" "Hsearch_cont".
-    assert (Ha_search_eq : a_search = allocator_free_block_addr allocator_free_pcc_addr 2)
-      by (unfold allocator_free_block_addr in *; solve_addr).
-    subst a_search.
-    iDestruct "Hct4" as (w4) "Hct4".
-    iDestruct "Hca2" as (wa2) "Hca2".
-    iApply (allocator_free_search_found_spec with
-      "[- $Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hsearchcode]"); eauto.
-    iNext. iIntros "(Hheaders & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hsearchcode & HPC)".
-    iDestruct ("Hsearch_cont" with "Hsearchcode") as "Hfreecode".
-    iEval (rewrite -Hsplit_search) in "Hfreecode".
-    iDestruct "Hct3" as (w3') "Hct3".
-    iDestruct "Hct4" as (w4') "Hct4".
-    iDestruct "Hca2" as (wa2') "Hca2".
     (* Fetch the shadow capability. *)
     assert (Hsplit2 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 6 assembled_allocator_free) ++
-      (allocator_free_instrs_n 6 ++
-       concat (encodeInstrsW <$> drop 7 assembled_allocator_free))) by reflexivity.
+      concat (encodeInstrsW <$> take 2 assembled_allocator_free) ++
+      (allocator_free_instrs_n 2 ++
+       concat (encodeInstrsW <$> drop 3 assembled_allocator_free))) by reflexivity.
     iEval (rewrite Hsplit2) in "Hfreecode".
     focus_block_nochangePC 1 "Hfreecode" as a_fetch Ha_fetch
       "Hfetch_code" "Hfreecode_cont".
-    assert (Haddr : a_fetch = allocator_free_block_addr allocator_free_pcc_addr 6).
+    assert (Haddr : a_fetch = allocator_free_block_addr allocator_free_pcc_addr 2).
     { clear -Ha_fetch. unfold allocator_free_block_addr in *. solve_addr. }
     subst a_fetch.
     iEval (rewrite allocator_imports_split) in "Himports".
     iDestruct "Himports" as "(Hshadow_import & Hseal_import & Hrevoker_import)".
-    assert (Hfetch_eq : allocator_free_instrs_n 6 =
+    assert (Hfetch_eq : allocator_free_instrs_n 2 =
       fetch.fetch_instrs allocator_shadow_import_off ctp ct3 ca2)
       by reflexivity.
     iEval (rewrite Hfetch_eq) in "Hfetch_code".
     iDestruct "Hctp" as (wctp) "Hctp".
+    iDestruct "Hca2" as (wa2) "Hca2".
     pose proof allocator_size_imports as Himports_size.
     rewrite allocator_imports_length in Himports_size.
     iApply (allocator_fetch_spec with
@@ -622,29 +652,46 @@ Section AllocatorFree.
     iEval (rewrite -Hfetch_eq) in "Hfetch_code".
     iDestruct ("Hfreecode_cont" with "Hfetch_code") as "Hfreecode".
     iEval (rewrite -Hsplit2) in "Hfreecode".
-    (* Translate the payload base and check its shadow entry. *)
+    (* The local header check finds the entry of [ι] (D11). *)
+    assert (Hmember : allocator_has_bounds allocations b e) by (exists r0, ι; done).
     assert (Hsplit3 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 7 assembled_allocator_free) ++
-      (allocator_free_instrs_n 7 ++
-       concat (encodeInstrsW <$> drop 8 assembled_allocator_free))) by reflexivity.
+      concat (encodeInstrsW <$> take 3 assembled_allocator_free) ++
+      (allocator_free_instrs_n 3 ++
+       concat (encodeInstrsW <$> drop 4 assembled_allocator_free))) by reflexivity.
     iEval (rewrite Hsplit3) in "Hfreecode".
-    focus_block_nochangePC 1 "Hfreecode" as a_translate Ha_translate
-      "Htranslate_code" "Hfreecode_cont".
-    assert (Haddr3 : a_translate =
-      allocator_free_block_addr allocator_free_pcc_addr 7).
-    { clear -Ha_translate. unfold allocator_free_block_addr in *. solve_addr. }
-    subst a_translate.
-    assert (Hpc3 : (allocator_free_block_addr allocator_free_pcc_addr 6 ^+
+    focus_block_nochangePC 1 "Hfreecode" as a_check Ha_check
+      "Hcheck_code" "Hfreecode_cont".
+    assert (Haddr3 : a_check = allocator_free_block_addr allocator_free_pcc_addr 3).
+    { clear -Ha_check. unfold allocator_free_block_addr in *. solve_addr. }
+    subst a_check.
+    assert (Hpc3 : (allocator_free_block_addr allocator_free_pcc_addr 2 ^+
       length (fetch.fetch_instrs allocator_shadow_import_off ctp ct3 ca2))%a =
-      allocator_free_block_addr allocator_free_pcc_addr 7).
+      allocator_free_block_addr allocator_free_pcc_addr 3).
     { clear -Hpc. unfold allocator_free_block_addr in *. solve_addr. }
     iEval (rewrite Hpc3) in "HPC".
+    iDestruct "Hct4" as (w4) "Hct4".
+    iApply (allocator_free_local_check_spec _ _ _ _ next b e allocations live issued Cs with
+      "[- $Hcells $Hheaders $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hctp $Hcheck_code]");
+      try done; first solve_addr.
+    iNext. iIntros "(Hcells & Hheaders & Hct0 & Hct1 & Hct2 & Hct4 & Hcheck_code & Hout)".
+    iDestruct "Hout" as "[(_ & HPC & Hct3 & Hca2 & Hctp)|(%Hmiss & _)]"; last done.
+    iDestruct "Hct4" as (w4') "Hct4".
+    iDestruct ("Hfreecode_cont" with "Hcheck_code") as "Hfreecode".
+    iEval (rewrite -Hsplit3) in "Hfreecode".
+    (* Take the cells of [ι]: they are claimed and unpainted. *)
+    iDestruct (allocator_cells_range_acc (finz.seq_between b e)
+                 (λ _, (Claimed ι, ShadowLive, false)) with "Hcells")
+      as "[Hrange Hcells_close]".
+    { apply finz_seq_between_NoDup. }
+    { intros x Hx. apply elem_of_finz_seq_between in Hx.
+      by apply (acw_live _ _ _ _ _ Hcwf b e r0 ι). }
+    iEval (rewrite /cell_res' /cell_res /=) in "Hrange".
+    iDestruct (big_sepL_sep with "Hrange") as "[Hclaims Hrange]".
+    iDestruct (big_sepL_sep with "Hrange") as "[Hshadows _]".
     pose proof heap_shadow_same_size as Hss.
     pose proof heap_valid as Hheap_valid.
     pose (sb := (shadow_b ^+ (b - heap_b))%a).
     pose (se := (shadow_b ^+ (e - heap_b))%a).
-    assert (Hsb : (shadow_b + (b - heap_b))%a = Some sb).
-    { unfold sb. clear -Hss Hvalid Hnext Hheap_valid. solve_addr. }
     assert (Hshadow : (shadow_b <= sb /\ sb < se /\ se <= shadow_e)%a).
     { unfold sb, se. clear -Hss Hvalid Hnext Hheap_valid. solve_addr. }
     assert (Hlen_shadow : (se - sb = e - b)%Z).
@@ -658,39 +705,27 @@ Section AllocatorFree.
       assert (Hxheap : withinBounds heap_b heap_e x = true).
       { apply withinBounds_true_iff. clear -Hx Hvalid Hnext. solve_addr. }
       rewrite Hxheap. unfold sb. clear -Hx Hvalid Hnext Hheap_valid Hss. solve_addr. }
-    assert (Hbtranslate : heap_to_shadow b = Some sb).
-    { rewrite Htranslation; last (clear -Hvalid; solve_addr). f_equal. solve_addr. }
-    assert (Hb_in : b ∈ finz.seq_between b e).
-    { apply elem_of_finz_seq_between. clear -Hvalid. solve_addr. }
-    iDestruct (big_sepL_elem_of_acc _ _ b Hb_in with "Hshadows") as "[Hsb Hshadows_close]".
-    iApply (allocator_free_shadow_check_spec _ _ _ _ next _ _ sb with
-      "[- $Hsb $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hca2 $Hctp $Htranslate_code]");
-      try assumption; try (clear -Hvalid Hnext; solve_addr).
-    iNext. iIntros "(Hsb & Hct0 & Hct1 & Hct2 & Hctp & Htranslate_code & HPC & Hct3 & Hca2)".
-    iDestruct ("Hshadows_close" with "Hsb") as "Hshadows".
-    iDestruct ("Hfreecode_cont" with "Htranslate_code") as "Hfreecode".
-    iEval (rewrite -Hsplit3) in "Hfreecode".
     (* Paint the payload quarantined: the status token moves to [APainting]. *)
     iMod (reg_painting E ι with "Hfull") as "Hpainting".
     assert (Hsplit4 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 8 assembled_allocator_free) ++
-      (allocator_free_instrs_n 8 ++
-       concat (encodeInstrsW <$> drop 9 assembled_allocator_free))) by reflexivity.
+      concat (encodeInstrsW <$> take 4 assembled_allocator_free) ++
+      (allocator_free_instrs_n 4 ++
+       concat (encodeInstrsW <$> drop 5 assembled_allocator_free))) by reflexivity.
     iEval (rewrite Hsplit4) in "Hfreecode".
     focus_block_nochangePC 1 "Hfreecode" as a_paint Ha_paint
       "Hpaint_code" "Hfreecode_cont".
     assert (Haddr4 : a_paint =
-      allocator_free_block_addr allocator_free_pcc_addr 8).
+      allocator_free_block_addr allocator_free_pcc_addr 4).
     { clear -Ha_paint. unfold allocator_free_block_addr in *. solve_addr. }
     subst a_paint.
-    assert (Hpaint_eq : allocator_free_instrs_n 8 =
+    assert (Hpaint_eq : allocator_free_instrs_n 4 =
       allocator_paint_instrs ctp ca2 ShadowQuarantined) by reflexivity.
     iEval (rewrite Hpaint_eq) in "Hpaint_code".
     iCombine "Hshadows Hclaims" as "Hpayload".
     rewrite -big_sepL_sep.
     iApply (allocator_paint_spec ShadowLive ShadowQuarantined ctp ca2 E RX Global
       allocator_pcc_b allocator_pcc_e
-      (allocator_free_block_addr allocator_free_pcc_addr 8) b e sb se
+      (allocator_free_block_addr allocator_free_pcc_addr 4) b e sb se
       (ι ↦st{1} APainting) (λ a, addr_alloc a (Claimed ι))
       with "[- $HPC $Hctp $Hca2 $Hpaint_code $Hpainting $Hpayload]").
     { reflexivity. }
@@ -713,19 +748,19 @@ Section AllocatorFree.
       as "(Hquar & #Hq & Hshadows)".
     (* Set ALLOC_OK. *)
     assert (Hsplit5 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 9 assembled_allocator_free) ++
-      (allocator_free_instrs_n 9 ++
-       concat (encodeInstrsW <$> drop 10 assembled_allocator_free))) by reflexivity.
+      concat (encodeInstrsW <$> take 5 assembled_allocator_free) ++
+      (allocator_free_instrs_n 5 ++
+       concat (encodeInstrsW <$> drop 6 assembled_allocator_free))) by reflexivity.
     iEval (rewrite Hsplit5) in "Hfreecode".
     focus_block_nochangePC 1 "Hfreecode" as a_success Ha_success
       "Hsuccess_code" "Hfreecode_cont".
     assert (Haddr5 : a_success =
-      allocator_free_block_addr allocator_free_pcc_addr 9).
+      allocator_free_block_addr allocator_free_pcc_addr 5).
     { clear -Ha_success. unfold allocator_free_block_addr in *. solve_addr. }
     subst a_success.
-    assert (Hpc5 : (allocator_free_block_addr allocator_free_pcc_addr 8 ^+
+    assert (Hpc5 : (allocator_free_block_addr allocator_free_pcc_addr 4 ^+
        length (allocator_paint_instrs ctp ca2 ShadowQuarantined))%a =
-       allocator_free_block_addr allocator_free_pcc_addr 9).
+       allocator_free_block_addr allocator_free_pcc_addr 5).
     { clear -Hpc. unfold allocator_free_block_addr in *; cbn in *; solve_addr. }
     iEval (rewrite Hpc5) in "HPC".
     iDestruct "Hca1" as (wca1) "Hca1".
@@ -735,18 +770,18 @@ Section AllocatorFree.
     iDestruct ("Hfreecode_cont" with "Hsuccess_code") as "Hfreecode".
     iEval (rewrite -Hsplit5) in "Hfreecode".
     (* Fetch the revoker capability. *)
-    assert (Hsplit10 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 10 assembled_allocator_free) ++
-      (allocator_free_instrs_n 10 ++
-       concat (encodeInstrsW <$> drop 11 assembled_allocator_free))) by reflexivity.
-    iEval (rewrite Hsplit10) in "Hfreecode".
+    assert (Hsplit6 : allocator_free_instrs =
+      concat (encodeInstrsW <$> take 6 assembled_allocator_free) ++
+      (allocator_free_instrs_n 6 ++
+       concat (encodeInstrsW <$> drop 7 assembled_allocator_free))) by reflexivity.
+    iEval (rewrite Hsplit6) in "Hfreecode".
     focus_block_nochangePC 1 "Hfreecode" as a_rfetch Ha_rfetch
       "Hrfetch_code" "Hfreecode_cont".
-    assert (Haddr10 : a_rfetch =
-      allocator_free_block_addr allocator_free_pcc_addr 10).
+    assert (Haddr6 : a_rfetch =
+      allocator_free_block_addr allocator_free_pcc_addr 6).
     { clear -Ha_rfetch. unfold allocator_free_block_addr in *. solve_addr. }
     subst a_rfetch.
-    assert (Hrfetch_eq : allocator_free_instrs_n 10 =
+    assert (Hrfetch_eq : allocator_free_instrs_n 6 =
       fetch.fetch_instrs allocator_revoker_import_off ct3 ct4 ca2)
       by reflexivity.
     iEval (rewrite Hrfetch_eq) in "Hrfetch_code".
@@ -766,24 +801,24 @@ Section AllocatorFree.
     iEval (cbn [load_word]) in "Hct3".
     iEval (rewrite -Hrfetch_eq) in "Hrfetch_code".
     iDestruct ("Hfreecode_cont" with "Hrfetch_code") as "Hfreecode".
-    iEval (rewrite -Hsplit10) in "Hfreecode".
+    iEval (rewrite -Hsplit6) in "Hfreecode".
     (* Store to the revoker: the sweep kills [ι]. *)
-    assert (Hsplit11 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 11 assembled_allocator_free) ++
-      (allocator_free_instrs_n 11 ++
-       concat (encodeInstrsW <$> drop 12 assembled_allocator_free))) by reflexivity.
-    iEval (rewrite Hsplit11) in "Hfreecode".
+    assert (Hsplit7 : allocator_free_instrs =
+      concat (encodeInstrsW <$> take 7 assembled_allocator_free) ++
+      (allocator_free_instrs_n 7 ++
+       concat (encodeInstrsW <$> drop 8 assembled_allocator_free))) by reflexivity.
+    iEval (rewrite Hsplit7) in "Hfreecode".
     focus_block_nochangePC 1 "Hfreecode" as a_revoke Ha_revoke
       "Hrevoke_code" "Hfreecode_cont".
-    assert (Haddr11 : a_revoke =
-      allocator_free_block_addr allocator_free_pcc_addr 11).
+    assert (Haddr7 : a_revoke =
+      allocator_free_block_addr allocator_free_pcc_addr 7).
     { clear -Ha_revoke. unfold allocator_free_block_addr in *. solve_addr. }
     subst a_revoke.
-    assert (Hpc11 : (allocator_free_block_addr allocator_free_pcc_addr 10 ^+
+    assert (Hpc7 : (allocator_free_block_addr allocator_free_pcc_addr 6 ^+
       length (fetch.fetch_instrs allocator_revoker_import_off ct3 ct4 ca2))%a =
-      allocator_free_block_addr allocator_free_pcc_addr 11).
+      allocator_free_block_addr allocator_free_pcc_addr 7).
     { clear -Hpc. unfold allocator_free_block_addr in *. solve_addr. }
-    iEval (rewrite Hpc11) in "HPC".
+    iEval (rewrite Hpc7) in "HPC".
     iDestruct "Hcnull" as (wnull) "Hcnull".
     (* The rest of the register file: the frame, and the registers that hold
        no word with authority over [ι]. *)
@@ -825,27 +860,27 @@ Section AllocatorFree.
     iNext. iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hdead &
       Hrevoke_code)".
     iDestruct ("Hfreecode_cont" with "Hrevoke_code") as "Hfreecode".
-    iEval (rewrite -Hsplit11) in "Hfreecode".
+    iEval (rewrite -Hsplit7) in "Hfreecode".
     iDestruct "Hdead" as (b1 e1) "(#Hobj1 & Hdead & _ & Hcells_dead)".
     iDestruct (alloc_obj_agree with "Hobj Hobj1") as %[<- <-].
     (* Unpaint the revoked payload. *)
-    assert (Hsplit12 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 12 assembled_allocator_free) ++
-      (allocator_free_instrs_n 12 ++
-       concat (encodeInstrsW <$> drop 13 assembled_allocator_free))) by reflexivity.
-    iEval (rewrite Hsplit12) in "Hfreecode".
+    assert (Hsplit8 : allocator_free_instrs =
+      concat (encodeInstrsW <$> take 8 assembled_allocator_free) ++
+      (allocator_free_instrs_n 8 ++
+       concat (encodeInstrsW <$> drop 9 assembled_allocator_free))) by reflexivity.
+    iEval (rewrite Hsplit8) in "Hfreecode".
     focus_block_nochangePC 1 "Hfreecode" as a_unpaint Ha_unpaint
       "Hunpaint_code" "Hfreecode_cont".
-    assert (Haddr12 : a_unpaint =
-      allocator_free_block_addr allocator_free_pcc_addr 12).
+    assert (Haddr8 : a_unpaint =
+      allocator_free_block_addr allocator_free_pcc_addr 8).
     { clear -Ha_unpaint. unfold allocator_free_block_addr in *. solve_addr. }
     subst a_unpaint.
-    assert (Hunpaint_eq : allocator_free_instrs_n 12 =
+    assert (Hunpaint_eq : allocator_free_instrs_n 8 =
       allocator_paint_instrs ctp ca2 ShadowLive) by reflexivity.
     iEval (rewrite Hunpaint_eq) in "Hunpaint_code".
     iApply (allocator_paint_spec ShadowQuarantined ShadowLive ctp ca2 E RX Global
       allocator_pcc_b allocator_pcc_e
-      (allocator_free_block_addr allocator_free_pcc_addr 12) b e sb se
+      (allocator_free_block_addr allocator_free_pcc_addr 8) b e sb se
       emp (λ a, addr_alloc a Unclaimed)
       with "[- $HPC $Hctp $Hca2 $Hunpaint_code $Hcells_dead]").
     { reflexivity. }
@@ -861,46 +896,46 @@ Section AllocatorFree.
     iNext. iIntros "(HPC & Hctp & Hca2 & _ & Hcells_free & Hunpaint_code)".
     iEval (rewrite -Hunpaint_eq) in "Hunpaint_code".
     iDestruct ("Hfreecode_cont" with "Hunpaint_code") as "Hfreecode".
-    iEval (rewrite -Hsplit12) in "Hfreecode".
+    iEval (rewrite -Hsplit8) in "Hfreecode".
     (* Jump to the return. *)
-    assert (Hsplit13 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 13 assembled_allocator_free) ++
-      (allocator_free_instrs_n 13 ++
-       concat (encodeInstrsW <$> drop 14 assembled_allocator_free))) by reflexivity.
-    iEval (rewrite Hsplit13) in "Hfreecode".
+    assert (Hsplit9 : allocator_free_instrs =
+      concat (encodeInstrsW <$> take 9 assembled_allocator_free) ++
+      (allocator_free_instrs_n 9 ++
+       concat (encodeInstrsW <$> drop 10 assembled_allocator_free))) by reflexivity.
+    iEval (rewrite Hsplit9) in "Hfreecode".
     focus_block_nochangePC 1 "Hfreecode" as a_jmp Ha_jmp
       "Hjmp_code" "Hfreecode_cont".
-    assert (Haddr13 : a_jmp =
-      allocator_free_block_addr allocator_free_pcc_addr 13).
+    assert (Haddr9 : a_jmp =
+      allocator_free_block_addr allocator_free_pcc_addr 9).
     { clear -Ha_jmp. unfold allocator_free_block_addr in *. solve_addr. }
     subst a_jmp.
-    assert (Hpc13 : (allocator_free_block_addr allocator_free_pcc_addr 12 ^+
+    assert (Hpc9 : (allocator_free_block_addr allocator_free_pcc_addr 8 ^+
        length (allocator_paint_instrs ctp ca2 ShadowLive))%a =
-       allocator_free_block_addr allocator_free_pcc_addr 13).
+       allocator_free_block_addr allocator_free_pcc_addr 9).
     { clear -Hpc. unfold allocator_free_block_addr in *; cbn in *; solve_addr. }
-    iEval (rewrite Hpc13) in "HPC".
+    iEval (rewrite Hpc9) in "HPC".
     codefrag_facts "Hjmp_code".
     (* Jmp .free_return. *)
     iInstr "Hjmp_code".
     iDestruct ("Hfreecode_cont" with "Hjmp_code") as "Hfreecode".
-    iEval (rewrite -Hsplit13) in "Hfreecode".
+    iEval (rewrite -Hsplit9) in "Hfreecode".
     (* Return and restore the service invariant. *)
-    assert (Hsplit15 : allocator_free_instrs =
-      concat (encodeInstrsW <$> take 15 assembled_allocator_free) ++
-      allocator_free_instrs_n 15) by reflexivity.
-    iEval (rewrite Hsplit15) in "Hfreecode".
+    assert (Hsplit11 : allocator_free_instrs =
+      concat (encodeInstrsW <$> take 11 assembled_allocator_free) ++
+      allocator_free_instrs_n 11) by reflexivity.
+    iEval (rewrite Hsplit11) in "Hfreecode".
     focus_block_nochangePC 1 "Hfreecode" as a_ret Ha_ret
       "Hret_code" "Hfreecode_cont".
-    assert (Haddr15 : a_ret =
-      allocator_free_block_addr allocator_free_pcc_addr 15).
+    assert (Haddr11 : a_ret =
+      allocator_free_block_addr allocator_free_pcc_addr 11).
     { unfold allocator_free_block_addr. clear -Ha_ret.
       cbn [take concat fmap] in *. solve_addr. }
     subst a_ret.
     match goal with
     | |- context [ WCap true RX Global allocator_pcc_b allocator_pcc_e ?x ] =>
-        assert (Hpc15 : x = allocator_free_block_addr allocator_free_pcc_addr 15)
+        assert (Hpc11 : x = allocator_free_block_addr allocator_free_pcc_addr 11)
           by (clear -Hpc; unfold allocator_free_block_addr in *; cbn in *; solve_addr);
-        rewrite Hpc15
+        rewrite Hpc11
     end.
     (* Take the registers back from the register file. *)
     iDestruct (big_sepM_insert with "Hregs") as "[Hcgp Hregs]";
@@ -915,7 +950,7 @@ Section AllocatorFree.
       first (simplify_map_eq; apply Hrmap_none; set_solver).
     iDestruct (big_sepM_insert with "Hregs") as "[Hcnull Hrmap]";
       first (apply Hrmap_none; set_solver).
-    assert (Hret_eq : allocator_free_instrs_n 15 =
+    assert (Hret_eq : allocator_free_instrs_n 11 =
       encodeInstrsW [Jalr cnull cra]) by reflexivity.
     iEval (rewrite Hret_eq) in "Hret_code".
     iApply (allocator_return_spec with
@@ -925,7 +960,7 @@ Section AllocatorFree.
     iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code & Hlc)".
     iEval (rewrite -Hret_eq) in "Hret_code".
     iDestruct ("Hfreecode_cont" with "Hret_code") as "Hfreecode".
-    iEval (rewrite -Hsplit15) in "Hfreecode".
+    iEval (rewrite -Hsplit11) in "Hfreecode".
     iDestruct ("Hcode_cont" with "Hfreecode") as "Hcode".
     iEval (rewrite -/allocator_code) in "Hcode".
     iAssert ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]])%I

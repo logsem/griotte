@@ -21,7 +21,8 @@ Definition allocator_positive_size (w : Word) : Prop :=
   ∃ n : Z, w = WInt n ∧ (0 < n)%Z.
 
 (** The first two free blocks check only the tag and the allocated prefix.
-    Exact allocation identity is checked by traversing the header list. *)
+    Exact allocation identity is checked locally, from the shadow entries
+    around the base and the header below it. *)
 
 Definition allocator_free_in_prefix {MP : MachineParameters}
   (next : Addr) (w : Word) : Prop :=
@@ -49,6 +50,13 @@ Definition allocator_entry_ids (allocations : list allocator_header_entry) : lis
 Definition allocator_entries_wf (allocations : list allocator_header_entry) : Prop :=
   Forall (λ '(_, _, reserved, _), reserved = (0%Z, 0%Z)) allocations ∧
   NoDup (allocator_entry_ids allocations).
+
+(** The header words of the entries: the three words below each payload base.
+    They are exactly the painted cells of the heap (D11). *)
+Definition allocator_is_header (allocations : list allocator_header_entry)
+    (a : Addr) : Prop :=
+  ∃ (b e : Addr) reserved ι, (b, e, reserved, ι) ∈ allocations ∧
+    (b - allocator_header_words <= a < b)%Z.
 
 Definition allocator_header_bounds (h stop b e : Addr) : Prop :=
   (h + allocator_header_words)%a = Some b ∧ (b < e /\ e <= stop)%a.
@@ -102,8 +110,9 @@ Section AllocatorHeaders.
       [(102, 106, r1, ι1); (108, 111, r2, ι2)]. Unfolding owns the header at 100,
       then the header at 106, then the pure endpoint equality [111 = 111].
 
-      Traversal frames a visited prefix and recurses on the remaining suffix.
-      Malloc appends a singleton segment at the old bump pointer. *)
+      [free] reads one header, three words below a payload base, through
+      [allocator_headers_end_acc]. Malloc appends a singleton segment at the
+      old bump pointer. *)
 
   Fixpoint allocator_headers (h stop : Addr)
     (allocations : list allocator_header_entry) : iProp Σ :=
@@ -176,7 +185,8 @@ End AllocatorTokens.
 
 (** The per-cell state of the service invariant (§4.8): the address claim,
     the shadow entry and the memory, as far as the allocator holds it. The
-    flag [hdr] marks a header word, whose memory is in the header chain. A
+    flag [hdr] marks a header word, whose memory is in the header chain; its
+    shadow entry is painted, by a pure clause of [allocator_cells_wf]. A
     claimed cell belongs to a live allocation: it is unpainted and its memory
     is with the client. Heap roots and unclaimed non-header cells (the unused
     suffix and revoked payloads) are unpainted, with their memory here. *)
@@ -203,7 +213,7 @@ Section AllocatorCells.
 End AllocatorCells.
 
 (** The pure clauses of the service invariant: every heap address has a
-    cell, the heap root, the cursor
+    cell, the heap root, the header words (exactly the painted cells), the cursor
     clause (every cell above the bump cursor is unclaimed, unpainted and not a
     header), the claim/header clause in both directions (the cells of a live
     entry are claimed by its identifier, and every claimed cell lies in the
@@ -221,6 +231,10 @@ Record allocator_cells_wf {MP : MachineParameters} (next : Addr)
   acw_claimed a ι s hdr :
     Cs !! a = Some (Claimed ι, s, hdr) ->
     ∃ b e reserved, (b, e, reserved, ι) ∈ allocations ∧ ι ∈ live ∧ (b <= a < e)%a;
+  acw_header a c s hdr :
+    Cs !! a = Some (c, s, hdr) -> (hdr = true <-> allocator_is_header allocations a);
+  acw_painted a c s hdr :
+    Cs !! a = Some (c, s, hdr) -> (s = ShadowQuarantined <-> hdr = true);
   acw_live_ids : live ⊆ list_to_set (allocator_entry_ids allocations);
   acw_issued : list_to_set (allocator_entry_ids allocations) ⊆ issued;
 }.

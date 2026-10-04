@@ -156,8 +156,107 @@ Proof.
     + eapply (IH e0 b e b' e' Htail); eauto; do 2 eexists; eassumption.
 Qed.
 
+(** A payload base is preceded by its three header words. *)
+Lemma allocator_chain_member_header h stop allocations (b e : Addr) reserved ι :
+  allocator_chain h stop allocations ->
+  (b, e, reserved, ι) ∈ allocations ->
+  (h + allocator_header_words <= b)%Z.
+Proof.
+  revert h. induction allocations as [| [ [ [b0 e0] r0] ι0] rest IH]; intros h Hchain Hin.
+  - set_solver.
+  - destruct Hchain as ((Hbase & Hbe & Hstop) & Htail).
+    unfold allocator_header_words in *.
+    rewrite elem_of_cons in Hin. destruct Hin as [Heq|Hin].
+    + injection Heq as -> -> -> ->. solve_addr.
+    + specialize (IH e0 Htail Hin). solve_addr.
+Qed.
+
+(** Header words lie below the bump pointer. *)
+Lemma allocator_chain_header_bounds h stop allocations a :
+  allocator_chain h stop allocations ->
+  allocator_is_header allocations a ->
+  (h <= a /\ a < stop)%a.
+Proof.
+  intros Hchain (b & e & reserved & ι & Hin & Ha).
+  pose proof (allocator_chain_member_header _ _ _ _ _ _ _ Hchain Hin).
+  pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hchain Hin).
+  unfold allocator_header_words in *. solve_addr.
+Qed.
+
+(** No payload word is a header word. *)
+Lemma allocator_chain_payload_not_header h stop allocations b e reserved ι a :
+  allocator_chain h stop allocations ->
+  (b, e, reserved, ι) ∈ allocations ->
+  (b <= a < e)%a ->
+  ¬ allocator_is_header allocations a.
+Proof.
+  revert h. induction allocations as [| [ [ [b0 e0] r0] ι0] rest IH];
+    intros h Hchain Hin Ha (b' & e' & r' & ι' & Hin' & Ha').
+  - set_solver.
+  - destruct Hchain as ((Hbase & Hbe & Hstop) & Htail).
+    unfold allocator_header_words in *.
+    rewrite elem_of_cons in Hin. rewrite elem_of_cons in Hin'.
+    destruct Hin as [Heq|Hin]; destruct Hin' as [Heq'|Hin'].
+    + injection Heq as -> -> -> ->. injection Heq' as -> -> -> ->. solve_addr.
+    + injection Heq as -> -> -> ->.
+      pose proof (allocator_chain_member_header e0 stop rest b' e' r' ι' Htail Hin').
+      unfold allocator_header_words in *. solve_addr.
+    + injection Heq' as -> -> -> ->.
+      pose proof (allocator_chain_member_header e0 stop rest b e reserved ι Htail Hin).
+      unfold allocator_header_words in *. solve_addr.
+    + apply (IH e0 Htail Hin Ha). by exists b', e', r', ι'.
+Qed.
+
+(** The local header check (D11): if the word below [b] is a header word and
+    [b] is not, then [b] is the base of an entry. *)
+Lemma allocator_is_header_base allocations a b :
+  allocator_is_header allocations a ->
+  ¬ allocator_is_header allocations b ->
+  (a + 1)%a = Some b ->
+  ∃ e reserved ι, (b, e, reserved, ι) ∈ allocations.
+Proof.
+  intros (b' & e' & r' & ι' & Hin' & Ha) Hb Hab.
+  unfold allocator_header_words in *.
+  destruct (decide (b = b')) as [->|Hne]; first by exists e', r', ι'.
+  exfalso. apply Hb. exists b', e', r', ι'. split; first done.
+  unfold allocator_header_words. solve_addr.
+Qed.
+
+Lemma allocator_is_header_below allocations b e reserved ι a :
+  (b, e, reserved, ι) ∈ allocations ->
+  (a + 1)%a = Some b ->
+  allocator_is_header allocations a.
+Proof.
+  intros Hin Ha. exists b, e, reserved, ι. split; first done.
+  unfold allocator_header_words. solve_addr.
+Qed.
+
 Section AllocatorHeaderContracts.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
+
+  (** The first header word of an entry: its recorded end. *)
+  Lemma allocator_headers_end_acc :
+    ∀ h stop allocations (b e : Addr) reserved ι,
+      (b, e, reserved, ι) ∈ allocations ->
+      allocator_headers h stop allocations ⊢
+      (b ^+ (- allocator_header_words))%a ↦ₐ WInt e ∗
+      ((b ^+ (- allocator_header_words))%a ↦ₐ WInt e -∗ allocator_headers h stop allocations).
+  Proof.
+    intros h stop allocations. revert h.
+    induction allocations as [| [ [ [b0 e0] r0] ι0] rest IH];
+      intros h b e reserved ι Hin; simpl.
+    - set_solver.
+    - rewrite elem_of_cons in Hin. destruct Hin as [Heq|Hin].
+      + injection Heq as <- <- <- <-.
+        iIntros "(%Hbounds & (%Hbase & Hend & Hreserved) & Htail)".
+        assert ((b ^+ (- allocator_header_words))%a = h) as ->
+          by (unfold allocator_header_words in *; solve_addr).
+        iFrame "Hend". iIntros "Hend". iFrame. done.
+      + iIntros "(%Hbounds & Hhead & Htail)".
+        iDestruct (IH with "Htail") as "[Hend Hclose]"; first exact Hin.
+        iFrame "Hend". iIntros "Hend". iFrame. iSplit; first done.
+        iApply ("Hclose" with "Hend").
+  Qed.
 
   Lemma allocator_headers_chain_spec :
     ∀ h stop allocations,
@@ -173,7 +272,7 @@ Section AllocatorHeaderContracts.
   Qed.
 
   (** The split point is a header address or the terminal bump pointer.
-      This is the prefix/suffix decomposition used by the traversal loop. *)
+      This is the prefix/suffix decomposition used when malloc appends. *)
 
   Lemma allocator_headers_app_spec :
     ∀ h stop prefix suffix,
@@ -358,13 +457,32 @@ Section AllocatorCellsContracts.
         repeat case_decide; try done; exfalso; set_solver.
   Qed.
 
+  (** The shadow entries of two distinct cells. *)
+  Lemma allocator_cells_shadow_pair Cs a1 a2 c1 s1 hdr1 c2 s2 hdr2 :
+    a1 ≠ a2 ->
+    Cs !! a1 = Some (c1, s1, hdr1) ->
+    Cs !! a2 = Some (c2, s2, hdr2) ->
+    allocator_cells Cs -∗
+    a1 ↦ₛ s1 ∗ a2 ↦ₛ s2 ∗ (a1 ↦ₛ s1 -∗ a2 ↦ₛ s2 -∗ allocator_cells Cs).
+  Proof.
+    iIntros (Hne Ha1 Ha2) "Hcells". rewrite /allocator_cells.
+    iDestruct (big_sepM_delete with "Hcells") as "[H1 Hcells]"; first exact Ha1.
+    iDestruct (big_sepM_delete with "Hcells") as "[H2 Hcells]".
+    { rewrite lookup_delete_ne; [exact Ha2|done]. }
+    iDestruct "H1" as "(Hc1 & Hs1 & H1)". iDestruct "H2" as "(Hc2 & Hs2 & H2)".
+    cbn. iFrame "Hs1 Hs2". iIntros "Hs1 Hs2".
+    iApply (big_sepM_delete _ _ a1); first exact Ha1. iFrame.
+    iApply (big_sepM_delete _ _ a2); first (rewrite lookup_delete_ne; [exact Ha2|done]).
+    iFrame.
+  Qed.
+
 End AllocatorCellsContracts.
 
 (** [malloc] appends the entry of [ι] over [[b, finish)], with its header at
     [[next, b)], to the cells and the header list. *)
 Definition allocator_malloc_cell (b : Addr) (ι : AId) (a : Addr) :
     AddrClaim * AllocStatus * bool :=
-  if decide (a < b)%a then (Unclaimed, ShadowLive, true) else (Claimed ι, ShadowLive, false).
+  if decide (a < b)%a then (Unclaimed, ShadowQuarantined, true) else (Claimed ι, ShadowLive, false).
 
 Lemma allocator_cells_wf_malloc {MP : MachineParameters} next b finish allocations
     live issued Cs ι :
@@ -380,7 +498,7 @@ Lemma allocator_cells_wf_malloc {MP : MachineParameters} next b finish allocatio
 Proof.
   intros Hchain Hwf Hnext Hb Hfinish Hι.
   unfold allocator_header_words in Hb.
-  destruct Hwf as [Hdom Hroot Hcursor Hlive Hclaimed Hlive_ids Hissued].
+  destruct Hwf as [Hdom Hroot Hcursor Hlive Hclaimed Hheader Hpainted Hlive_ids Hissued].
   assert (∀ x, x ∈ allocator_entry_ids allocations -> x ≠ ι) as Hids.
   { intros x Hx ->. apply Hι, Hissued. by apply elem_of_list_to_set. }
   constructor.
@@ -408,6 +526,32 @@ Proof.
       rewrite elem_of_finz_seq_between in Ha. solve_addr.
     + intros Hcs. destruct (Hclaimed a ι' s hdr Hcs) as (b' & e' & reserved & Hin & Hι' & Ha').
       exists b', e', reserved. split; [set_solver|]. split; [set_solver|done].
+  - (* The new header words are the cells below [b]. *)
+    assert (∀ a, allocator_is_header (allocations ++ [(b, finish, (0%Z, 0%Z), ι)]) a <->
+              allocator_is_header allocations a ∨ (next <= a < b)%a) as Hnew.
+    { intros a. split.
+      - intros (b' & e' & r' & ι' & Hin & Ha). apply elem_of_app in Hin as [Hin|Hin].
+        + left. by exists b', e', r', ι'.
+        + right. apply list_elem_of_singleton in Hin. simplify_eq.
+          unfold allocator_header_words in *. solve_addr.
+      - intros [(b' & e' & r' & ι' & Hin & Ha)|Ha].
+        + exists b', e', r', ι'. split; [set_solver|done].
+        + exists b, finish, (0%Z, 0%Z), ι. split; [set_solver|].
+          unfold allocator_header_words. solve_addr. }
+    intros a c s hdr. rewrite lookup_allocator_cells_update Hnew.
+    case_decide as Ha.
+    + rewrite elem_of_finz_seq_between in Ha.
+      assert (¬ allocator_is_header allocations a) as Hold.
+      { intros Hh. pose proof (allocator_chain_header_bounds _ _ _ _ Hchain Hh). solve_addr. }
+      rewrite /allocator_malloc_cell. case_decide; intros Heq; simplify_eq.
+      * split; [intros _; right; solve_addr|done].
+      * split; [done|]. intros [?|?]; [done|solve_addr].
+    + intros Hcs. rewrite (Hheader _ _ _ _ Hcs).
+      rewrite elem_of_finz_seq_between in Ha.
+      split; [by left|]. intros [?|?]; [done|solve_addr].
+  - intros a c s hdr. rewrite lookup_allocator_cells_update.
+    case_decide as Ha; last apply Hpainted.
+    rewrite /allocator_malloc_cell. case_decide; intros Heq; simplify_eq; done.
   - rewrite allocator_entry_ids_app list_to_set_app_L /=. set_solver.
   - rewrite allocator_entry_ids_app list_to_set_app_L /=. set_solver.
 Qed.
@@ -428,7 +572,7 @@ Lemma allocator_cells_wf_free {MP : MachineParameters} next allocations live iss
 Proof.
   intros Hchain Hentries Hwf Hin.
   pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hchain Hin) as Hbounds.
-  destruct Hwf as [Hdom Hroot Hcursor Hlive Hclaimed Hlive_ids Hissued].
+  destruct Hwf as [Hdom Hroot Hcursor Hlive Hclaimed Hheader Hpainted Hlive_ids Hissued].
   constructor.
   - intros a Ha. rewrite lookup_allocator_cells_update. case_decide; [by eexists|by apply Hdom].
   - rewrite lookup_allocator_cells_update decide_False //.
@@ -451,6 +595,15 @@ Proof.
     rewrite not_elem_of_singleton. intros ->.
     destruct (allocator_entries_wf_unique _ _ _ _ _ _ _ _ Hentries Hin Hin') as (-> & -> & _).
     apply Ha. by apply elem_of_finz_seq_between.
+  - intros a c s hdr. rewrite lookup_allocator_cells_update.
+    case_decide as Ha; last apply Hheader.
+    rewrite /allocator_free_cell. intros [= _ _ <-].
+    apply elem_of_finz_seq_between in Ha.
+    split; [done|]. intros Hh. exfalso.
+    by apply (allocator_chain_payload_not_header _ _ _ _ _ _ _ a Hchain Hin).
+  - intros a c s hdr. rewrite lookup_allocator_cells_update.
+    case_decide as Ha; last apply Hpainted.
+    rewrite /allocator_free_cell. by intros [= _ <- <-].
   - set_solver.
   - done.
 Qed.
