@@ -108,29 +108,31 @@ Section griotte_lang_rules.
      }
    Qed.
 
-   Lemma wp_jmp_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rimm imm:
+   Lemma wp_jmp_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rimm wimm imm:
      decodeInstrW w.(lw) = Jmp (inr rimm) →
+     IsLInt wimm imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
      rimm ≠ cnull ->
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ w
-         ∗ ▷ rimm ↦ᵣ WInt imm
+         ∗ ▷ rimm ↦ᵣ wimm
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
          ∗ pc_a ↦ₐ w
-         ∗ rimm ↦ᵣ WInt imm
+         ∗ rimm ↦ᵣ wimm
      }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
+     iIntros (Hinstr Hwimm Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
+     destruct (IsLInt_inv _ _ Hwimm) as [πimm ->].
      iDestruct (map_of_regs_2 with "HPC Hrimm") as "[Hmap %]".
      iApply (wp_Jmp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      { set_solver+. }
      iNext. iIntros (regs' retv) "(%Hspec & Hpc_a & Hmap)".
      assert (lz_of_argument (<[PC:=WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π]>
-               (<[rimm:=WInt imm @@? None]> ∅)) (inr rimm) = Some imm) as Hz0.
+               (<[rimm:=WInt imm @@? πimm]> ∅)) (inr rimm) = Some imm) as Hz0.
      { rewrite /lz_of_argument /llookup_reg lookup_insert_ne // lookup_insert_eq /=.
        by case_decide. }
 

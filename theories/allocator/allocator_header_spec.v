@@ -118,40 +118,6 @@ Proof.
   intros Hin. apply list_elem_of_fmap. by exists (b, e, reserved, ι).
 Qed.
 
-Lemma allocator_history_map_fst allocations :
-  fst <$> ((λ '(b, e, reserved, ι), (ι, (b, e, reserved))) <$> allocations) =
-  allocator_entry_ids allocations.
-Proof.
-  rewrite /allocator_entry_ids -list_fmap_compose.
-  apply list_fmap_ext. by intros _ [ [ [b e] reserved] ι] _.
-Qed.
-
-Lemma allocator_history_map_member allocations ι b e reserved :
-  allocator_history_map allocations !! ι = Some (b, e, reserved) ->
-  (b, e, reserved, ι) ∈ allocations.
-Proof.
-  intros Hlookup. apply elem_of_list_to_map_2, list_elem_of_fmap in Hlookup.
-  destruct Hlookup as ([ [ [b' e'] r'] ι'] & Heq & Hin). by simplify_eq.
-Qed.
-
-Lemma allocator_history_map_lookup allocations ι b e reserved :
-  NoDup (allocator_entry_ids allocations) ->
-  (b, e, reserved, ι) ∈ allocations ->
-  allocator_history_map allocations !! ι = Some (b, e, reserved).
-Proof.
-  intros Hnodup Hin. apply elem_of_list_to_map_1.
-  - by rewrite allocator_history_map_fst.
-  - apply list_elem_of_fmap. by exists (b, e, reserved, ι).
-Qed.
-
-Lemma allocator_history_map_fresh allocations ι :
-  ι ∉ allocator_entry_ids allocations ->
-  allocator_history_map allocations !! ι = None.
-Proof.
-  intros Hι. apply not_elem_of_list_to_map_1.
-  by rewrite allocator_history_map_fst.
-Qed.
-
 Lemma allocator_entries_wf_snoc allocations b e ι :
   ι ∉ allocator_entry_ids allocations ->
   allocator_entries_wf allocations ->
@@ -248,72 +214,6 @@ Section AllocatorHeaderContracts.
   Qed.
 
 End AllocatorHeaderContracts.
-
-Section AllocatorHistoryContracts.
-  Context {Σ : gFunctors} {allocator_historyg : allocatorHistoryG Σ}.
-
-  Lemma allocator_allocation_persistent_spec :
-    ∀ ι b e reserved, Persistent (allocator_allocation ι b e reserved).
-  Proof.
-    intros ι b e reserved. apply _.
-  Qed.
-
-  Lemma allocator_history_lookup_spec :
-    ∀ allocations ι b e reserved,
-      allocator_history allocations -∗
-      allocator_allocation ι b e reserved -∗
-      ⌜allocator_history_map allocations !! ι = Some (b, e, reserved)⌝.
-  Proof.
-    intros allocations ι b e reserved. apply ghost_map_lookup.
-  Qed.
-
-  (** A receipt names a ghost header entry. *)
-  Lemma allocator_history_member_spec allocations ι b e reserved :
-    allocator_history allocations -∗
-    allocator_allocation ι b e reserved -∗
-    ⌜(b, e, reserved, ι) ∈ allocations⌝.
-  Proof.
-    iIntros "Hhistory Hreceipt".
-    iDestruct (allocator_history_lookup_spec with "Hhistory Hreceipt") as %Hlookup.
-    iPureIntro. by apply allocator_history_map_member.
-  Qed.
-
-  (** Receipt uniqueness: under the history, a base names one identifier. *)
-  Lemma allocator_receipt_unique h stop allocations ι ι' b e e' reserved reserved' :
-    allocator_chain h stop allocations ->
-    allocator_history allocations -∗
-    allocator_allocation ι b e reserved -∗
-    allocator_allocation ι' b e' reserved' -∗
-    ⌜ι = ι' ∧ e = e' ∧ reserved = reserved'⌝.
-  Proof.
-    iIntros (Hchain) "Hhistory Hreceipt Hreceipt'".
-    iDestruct (allocator_history_member_spec with "Hhistory Hreceipt") as %Hin.
-    iDestruct (allocator_history_member_spec with "Hhistory Hreceipt'") as %Hin'.
-    iPureIntro.
-    destruct (allocator_chain_base_unique _ _ _ _ _ _ _ _ _ _ Hchain Hin Hin')
-      as (-> & -> & ->).
-    done.
-  Qed.
-
-  Lemma allocator_history_insert_spec :
-    ∀ allocations ι b e reserved,
-      allocator_history_map allocations !! ι = None ->
-      allocator_history allocations
-      ==∗
-      allocator_history (allocations ++ [(b, e, reserved, ι)]) ∗
-      allocator_allocation ι b e reserved.
-  Proof.
-    intros allocations ι b e reserved Hfresh.
-    iIntros "Hhistory".
-    iMod (ghost_map_insert_persist ι (b, e, reserved) with "Hhistory") as "[Hhistory Hreceipt]";
-      first exact Hfresh.
-    iModIntro. iFrame "Hreceipt".
-    rewrite /allocator_history /allocator_history_map fmap_app list_to_map_app /=
-      -insert_union_r; last exact Hfresh.
-    rewrite right_id. iExact "Hhistory".
-  Qed.
-
-End AllocatorHistoryContracts.
 
 Section AllocatorEntriesContracts.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}.

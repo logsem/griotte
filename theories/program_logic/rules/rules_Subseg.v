@@ -264,8 +264,10 @@ Section griotte_lang_rules.
     iNext. iIntros (regs' retv) "(Hspec & Hpc_a & _ & Hmap)". iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_subseg_success E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a' π :
+  Lemma wp_subseg_success E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 (t : bool) p g b e a w1 n1 w2 n2 a1 a2 pc_a' π :
     decodeInstrW w.(lw) = Subseg dst (inr r1) (inr r2) →
+    IsLInt w1 n1 →
+    IsLInt w2 n2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
@@ -279,18 +281,20 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a @@? π
-        ∗ ▷ r1 ↦ᵣ WInt n1
-        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
+        ∗ ▷ r1 ↦ᵣ w1
+        ∗ ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
-          ∗ r2 ↦ᵣ WInt n2
+          ∗ r1 ↦ᵣ w1
+          ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WCap t p g a1 a2 a @@? π
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' Hcnull Hcnull' Hcnull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hw1 Hw2 Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' Hcnull Hcnull' Hcnull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
@@ -324,8 +328,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_same E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a n1 a1 pc_a'  π:
+  Lemma wp_subseg_success_same E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a w1 n1 a1 pc_a'  π:
     decodeInstrW w.(lw) = Subseg dst (inr r1) (inr r1) →
+    IsLInt w1 n1 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 →
     isWithin a1 a1 b e = true →
@@ -336,16 +341,17 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a @@? π
-        ∗ ▷ r1 ↦ᵣ WInt n1 }}}
+        ∗ ▷ r1 ↦ᵣ w1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
+          ∗ r1 ↦ᵣ w1
           ∗ dst ↦ᵣ WCap t p g a1 a1 a @@? π
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hw1 Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     assert (Hle' : (a1 <=? a1)%a = true) by solve_addr.
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
@@ -379,8 +385,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_l E pc_p pc_g pc_b pc_e pc_a pc_π w dst r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a'  π:
+  Lemma wp_subseg_success_l E pc_p pc_g pc_b pc_e pc_a pc_π w dst r2 (t : bool) p g b e a n1 w2 n2 a1 a2 pc_a'  π:
     decodeInstrW w.(lw) = Subseg dst (inl n1) (inr r2) →
+    IsLInt w2 n2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
@@ -393,16 +400,17 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a @@? π
-        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
+        ∗ ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r2 ↦ᵣ WInt n2
+          ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WCap t p g a1 a2 a @@? π
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
+    iIntros (Hinstr Hw2 Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
@@ -436,8 +444,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_r E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a n1 n2 a1 a2 pc_a'  π:
+  Lemma wp_subseg_success_r E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a w1 n1 n2 a1 a2 pc_a'  π:
     decodeInstrW w.(lw) = Subseg dst (inr r1) (inl n2) →
+    IsLInt w1 n1 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
@@ -450,16 +459,17 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a @@? π
-        ∗ ▷ r1 ↦ᵣ WInt n1 }}}
+        ∗ ▷ r1 ↦ᵣ w1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
+          ∗ r1 ↦ᵣ w1
           ∗ dst ↦ᵣ WCap t p g a1 a2 a @@? π
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hw1 Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
@@ -546,8 +556,10 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_pc E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_pc E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 w1 n1 w2 n2 a1 a2 pc_a' :
     decodeInstrW w.(lw) = Subseg PC (inr r1) (inr r2) →
+    IsLInt w1 n1 →
+    IsLInt w2 n2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
@@ -559,17 +571,19 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ r1 ↦ᵣ WInt n1
-        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
+        ∗ ▷ r1 ↦ᵣ w1
+        ∗ ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g a1 a2 pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
-          ∗ r2 ↦ᵣ WInt n2
+          ∗ r1 ↦ᵣ w1
+          ∗ r2 ↦ᵣ w2
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hw1 Hw2 Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
@@ -602,8 +616,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_pc_same E pc_p pc_g pc_b pc_e pc_a pc_π w r1 n1 a1 pc_a' :
+  Lemma wp_subseg_success_pc_same E pc_p pc_g pc_b pc_e pc_a pc_π w r1 w1 n1 a1 pc_a' :
     decodeInstrW w.(lw) = Subseg PC (inr r1) (inr r1) →
+    IsLInt w1 n1 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 →
     isWithin a1 a1 pc_b pc_e = true →
@@ -612,15 +627,16 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ r1 ↦ᵣ WInt n1 }}}
+        ∗ ▷ r1 ↦ᵣ w1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g a1 a1 pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
+          ∗ r1 ↦ᵣ w1
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hw1 Hvpc Hn1 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     assert (Hle' : (a1 <=? a1)%a = true) by solve_addr.
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
@@ -653,8 +669,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_pc_l E pc_p pc_g pc_b pc_e pc_a pc_π w r2 n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_pc_l E pc_p pc_g pc_b pc_e pc_a pc_π w r2 n1 w2 n2 a1 a2 pc_a' :
     decodeInstrW w.(lw) = Subseg PC (inl n1) (inr r2) →
+    IsLInt w2 n2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
@@ -665,15 +682,16 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
+        ∗ ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g a1 a2 pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r2 ↦ᵣ WInt n2
+          ∗ r2 ↦ᵣ w2
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
+    iIntros (Hinstr Hw2 Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
@@ -706,8 +724,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_pc_r E pc_p pc_g pc_b pc_e pc_a pc_π w r1 n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_pc_r E pc_p pc_g pc_b pc_e pc_a pc_π w r1 w1 n1 n2 a1 a2 pc_a' :
     decodeInstrW w.(lw) = Subseg PC (inr r1) (inl n2) →
+    IsLInt w1 n1 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
@@ -718,15 +737,16 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ r1 ↦ᵣ WInt n1 }}}
+        ∗ ▷ r1 ↦ᵣ w1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g a1 a2 pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
+          ∗ r1 ↦ᵣ w1
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hw1 Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
@@ -810,8 +830,10 @@ Section griotte_lang_rules.
 
    (* Similar rules in case we have a SealRange instead of a capability, where some cases are impossible, because a SealRange is not a valid PC *)
 
-  Lemma wp_subseg_success_sr E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a'  π:
+  Lemma wp_subseg_success_sr E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 (t : bool) p g b e a w1 n1 w2 n2 a1 a2 pc_a'  π:
     decodeInstrW w.(lw) = Subseg dst (inr r1) (inr r2) →
+    IsLInt w1 n1 →
+    IsLInt w2 n2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
@@ -823,18 +845,20 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WSealRange t p g b e a @@? π
-        ∗ ▷ r1 ↦ᵣ WInt n1
-        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
+        ∗ ▷ r1 ↦ᵣ w1
+        ∗ ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
-          ∗ r2 ↦ᵣ WInt n2
+          ∗ r1 ↦ᵣ w1
+          ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WSealRange t p g a1 a2 a @@? π
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ??? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hw1 Hw2 Hvpc Hn1 Hn2 Hwb Hpc_a' ??? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -867,8 +891,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_same_sr E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a n1 a1 pc_a'  π:
+  Lemma wp_subseg_success_same_sr E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a w1 n1 a1 pc_a'  π:
     decodeInstrW w.(lw) = Subseg dst (inr r1) (inr r1) →
+    IsLInt w1 n1 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 →
     isWithin a1 a1 b e = true →
@@ -879,16 +904,17 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WSealRange t p g b e a @@? π
-        ∗ ▷ r1 ↦ᵣ WInt n1 }}}
+        ∗ ▷ r1 ↦ᵣ w1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
+          ∗ r1 ↦ᵣ w1
           ∗ dst ↦ᵣ WSealRange t p g a1 a1 a @@? π
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hw1 Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -921,8 +947,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_l_sr E pc_p pc_g pc_b pc_e pc_a pc_π w dst r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a'  π:
+  Lemma wp_subseg_success_l_sr E pc_p pc_g pc_b pc_e pc_a pc_π w dst r2 (t : bool) p g b e a n1 w2 n2 a1 a2 pc_a'  π:
     decodeInstrW w.(lw) = Subseg dst (inl n1) (inr r2) →
+    IsLInt w2 n2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
@@ -933,16 +960,17 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WSealRange t p g b e a @@? π
-        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
+        ∗ ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r2 ↦ᵣ WInt n2
+          ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WSealRange t p g a1 a2 a @@? π
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
+    iIntros (Hinstr Hw2 Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -975,8 +1003,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_r_sr E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a n1 n2 a1 a2 pc_a'  π:
+  Lemma wp_subseg_success_r_sr E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a w1 n1 n2 a1 a2 pc_a'  π:
     decodeInstrW w.(lw) = Subseg dst (inr r1) (inl n2) →
+    IsLInt w1 n1 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
@@ -987,16 +1016,17 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WSealRange t p g b e a @@? π
-        ∗ ▷ r1 ↦ᵣ WInt n1 }}}
+        ∗ ▷ r1 ↦ᵣ w1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
+          ∗ r1 ↦ᵣ w1
           ∗ dst ↦ᵣ WSealRange t p g a1 a2 a @@? π
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hw1 Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg_pure with "[$Hmap Hpc_a]"); eauto; try solve_subseg_root_free; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -1083,8 +1113,10 @@ Section griotte_lang_rules.
 
   (** Case 3: an identifier-less source narrowed to a tagged, non-empty heap
       result. The new base must be a heap root. *)
-  Lemma wp_subseg_success_root E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_root E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 (t : bool) p g b e a w1 n1 w2 n2 a1 a2 pc_a' :
     decodeInstrW w.(lw) = Subseg dst (inr r1) (inr r2) →
+    IsLInt w1 n1 →
+    IsLInt w2 n2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
@@ -1097,21 +1129,23 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a @@? None
-        ∗ ▷ r1 ↦ᵣ WInt n1
-        ∗ ▷ r2 ↦ᵣ WInt n2
+        ∗ ▷ r1 ↦ᵣ w1
+        ∗ ▷ r2 ↦ᵣ w2
         ∗ ▷ addr_alloc a1 HeapRoot }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
-          ∗ r2 ↦ᵣ WInt n2
+          ∗ r1 ↦ᵣ w1
+          ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WCap t p g a1 a2 a @@? None
           ∗ addr_alloc a1 HeapRoot
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' Hcnull Hcnull' Hcnull'' ϕ)
+    iIntros (Hinstr Hw1 Hw2 Hvpc Hn1 Hn2 Hwb Hle Hpc_a' Hcnull Hcnull' Hcnull'' ϕ)
       "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2 & >Hroot) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Subseg _ _ _ _ _ _ _ _ _ _ _ _ (Some a1) with "[$Hmap $Hpc_a Hroot]");
@@ -1147,9 +1181,11 @@ Section griotte_lang_rules.
   (** Case 4, the rebase: an identifier-less source narrowed to exactly the
       range of a non-dead identifier [ι] takes [ι]. The allocate step
       ([rules_registry]) gives [alloc_obj] and the status token. *)
-  Lemma wp_subseg_rebase E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 p g b e a n1 n2 a1 a2 pc_a'
+  Lemma wp_subseg_rebase E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 p g b e a w1 n1 w2 n2 a1 a2 pc_a'
       ι q s :
     decodeInstrW w.(lw) = Subseg dst (inr r1) (inr r2) →
+    IsLInt w1 n1 →
+    IsLInt w2 n2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
@@ -1163,28 +1199,30 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? None
-        ∗ ▷ r1 ↦ᵣ WInt n1
-        ∗ ▷ r2 ↦ᵣ WInt n2
+        ∗ ▷ r1 ↦ᵣ w1
+        ∗ ▷ r2 ↦ᵣ w2
         ∗ alloc_obj ι a1 a2
         ∗ ι ↦st{q} s }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
-          ∗ r2 ↦ᵣ WInt n2
+          ∗ r1 ↦ᵣ w1
+          ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ (WCap true p g a1 a2 a) @@ ι
           ∗ alloc_obj ι a1 a2
           ∗ ι ↦st{q} s
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hs Hpc_a' Hcnull Hcnull' Hcnull'' ϕ)
+    iIntros (Hinstr Hw1 Hw2 Hvpc Hn1 Hn2 Hwb Hle Hs Hpc_a' Hcnull Hcnull' Hcnull'' ϕ)
       "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2 & #Hobj & Htok) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     set (regs := <[PC:=WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π]>
-                   (<[r1:=lword_of_word (WInt n1)]>
-                      (<[r2:=lword_of_word (WInt n2)]>
+                   (<[r1:=WInt n1 @@? π1]>
+                      (<[r2:=WInt n2 @@? π2]>
                          (<[dst:=WCap true p g b e a @@? None]> ∅)))).
     set (v := WCap true p g a1 a2 a @@ ι).
     iApply (wp_instr_step with "Hpc_a Hmap"); eauto.

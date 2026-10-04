@@ -154,8 +154,9 @@ Section griotte_lang_rules.
     }
   Qed.
 
-  Lemma wp_jnz_success_jmp_reg E rcond rimm pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond :
-    decodeInstrW w.(lw) = Jnz (inl imm) rcond →
+  Lemma wp_jnz_success_jmp_reg E rcond rimm pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wimm imm wcond :
+    decodeInstrW w.(lw) = Jnz (inr rimm) rcond →
+    IsLInt wimm imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     wcond.(lw) ≠ WInt 0%Z →
     (pc_a + imm)%a = Some pc_a' ->
@@ -164,18 +165,19 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ rimm ↦ᵣ WInt imm
+        ∗ ▷ rimm ↦ᵣ wimm
         ∗ ▷ rcond ↦ᵣ wcond
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ rimm ↦ᵣ WInt imm
+          ∗ rimm ↦ᵣ wimm
           ∗ rcond ↦ᵣ wcond
           }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hne Hpca' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
+    iIntros (Hinstr Hwimm Hvpc Hne Hpca' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
+    destruct (IsLInt_inv _ _ Hwimm) as [πimm ->].
     iDestruct (map_of_regs_3 with "HPC Hrimm Hrcond") as "[Hmap (%&%&%)]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -198,8 +200,9 @@ Section griotte_lang_rules.
     }
   Qed.
 
-  Lemma wp_jnz_success_jmp_same E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm :
+  Lemma wp_jnz_success_jmp_same E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wcond imm :
     decodeInstrW w.(lw) = Jnz (inr rcond) rcond →
+    IsLInt wcond imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     imm ≠ 0%Z →
     (pc_a + imm)%a = Some pc_a' ->
@@ -207,22 +210,23 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ rcond ↦ᵣ WInt imm
+        ∗ ▷ rcond ↦ᵣ wcond
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-        ∗ ▷ rcond ↦ᵣ WInt imm
+        ∗ ▷ rcond ↦ᵣ wcond
           }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hne Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    iIntros (Hinstr Hwcond Hvpc Hne Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    destruct (IsLInt_inv _ _ Hwcond) as [πcond ->].
     iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    assert (nonZero (lw (lword_of_word (WInt imm))) = true).
+    assert (nonZero (WInt imm) = true).
     { unfold nonZero, Z.eqb in *.
       destruct imm; auto.
     }
@@ -268,24 +272,26 @@ Section griotte_lang_rules.
     }
   Qed.
 
-  Lemma wp_jnz_success_jmpPC_reg E rimm pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm :
-    decodeInstrW w.(lw) = Jnz (inl imm) PC →
+  Lemma wp_jnz_success_jmpPC_reg E rimm pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wimm imm :
+    decodeInstrW w.(lw) = Jnz (inr rimm) PC →
+    IsLInt wimm imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + imm)%a = Some pc_a' ->
     rimm ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ rimm ↦ᵣ WInt imm
+        ∗ ▷ rimm ↦ᵣ wimm
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ rimm ↦ᵣ WInt imm
+          ∗ rimm ↦ᵣ wimm
           }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
+    iIntros (Hinstr Hwimm Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
+    destruct (IsLInt_inv _ _ Hwimm) as [πimm ->].
     iDestruct (map_of_regs_2 with "HPC Hrimm") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
     { set_solver+. }
@@ -302,21 +308,23 @@ Section griotte_lang_rules.
     }
   Qed.
 
-  Lemma wp_jnz_success_next_z E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm :
+  Lemma wp_jnz_success_next_z E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond :
     decodeInstrW w.(lw) = Jnz (inl imm) rcond →
+    IsLInt wcond 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ rcond ↦ᵣ WInt 0%Z }}}
+        ∗ ▷ rcond ↦ᵣ wcond }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
-          ∗ rcond ↦ᵣ WInt 0%Z }}}.
+          ∗ rcond ↦ᵣ wcond }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    iIntros (Hinstr Hwcond Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    destruct (IsLInt_inv _ _ Hwcond) as [πcond ->].
     iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -334,8 +342,9 @@ Section griotte_lang_rules.
   Qed.
 
   (* TODO ideally, I would like to not require the register rimm *)
-  Lemma wp_jnz_success_next_reg E rimm rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wimm :
+  Lemma wp_jnz_success_next_reg E rimm rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wimm wcond :
     decodeInstrW w.(lw) = Jnz (inr rimm) rcond →
+    IsLInt wcond 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rimm ≠ cnull ->
@@ -343,15 +352,16 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rimm ↦ᵣ wimm
-        ∗ ▷ rcond ↦ᵣ WInt 0%Z }}}
+        ∗ ▷ rcond ↦ᵣ wcond }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ w
           ∗ rimm ↦ᵣ wimm
-          ∗ rcond ↦ᵣ WInt 0%Z }}}.
+          ∗ rcond ↦ᵣ wcond }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpc_a' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
+    iIntros (Hinstr Hwcond Hvpc Hpc_a' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
+    destruct (IsLInt_inv _ _ Hwcond) as [πcond ->].
     iDestruct (map_of_regs_3 with "HPC Hrcond Hrimm") as "[Hmap (%&%&%)]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }

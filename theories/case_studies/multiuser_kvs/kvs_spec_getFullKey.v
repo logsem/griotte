@@ -19,42 +19,6 @@ Section KVS_getFullKey.
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
-  (* TODO: move to rules_BinOp *)
-  (** [wp_binop_success_dst_r] for an integer register with any identifier. *)
-  Lemma wp_binop_success_dst_r_prov E dst pc_p pc_g pc_b pc_e pc_a pc_π w ins n1 r2 n2 π2
-      pc_a' :
-    decodeInstrW w.(lw) = ins →
-    is_BinOp ins dst (inr dst) (inr r2) →
-    (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
-    dst ≠ cnull ->
-    r2 ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
-        ∗ r2 ↦ᵣ WInt n2 @@? π2
-        ∗ dst ↦ᵣ WInt n1
-    }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
-          ∗ r2 ↦ᵣ WInt n2 @@? π2
-          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
-      }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
-    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [| * Hfail].
-    { iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
-              (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
-  Qed.
-
   (*** Specification for known code *)
   Lemma KVS_getFullKey_spec
     (pc_b pc_e pc_a : Addr)
@@ -135,11 +99,7 @@ Section KVS_getFullKey.
     (* lshiftl rdst rdst 16; *)
     iInstr "Hcode".
     (* lor rdst rdst rkey *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_binop_success_dst_r_prov with "[$HPC $Hi $Hrkey $Hrdst]"); try solve_pure.
-    iIntros "!> (HPC & Hi & Hrkey & Hrdst)". wp_pure.
-    iSpecialize ("Hcode" with "Hi"). cbn [denote].
+    iInstr "Hcode".
 
     iApply "Hpost"; iFrame.
   Qed.

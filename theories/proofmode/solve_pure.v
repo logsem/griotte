@@ -175,6 +175,11 @@ Proof. auto. Qed.
         | match goal with H : InCtx (is_heap_address _ = false) |- _ => exact H end ]
   : solve_pure.
 
+(* IsLInt: an abstract word is an integer when the context says so. Only
+   frozen (literal) hypotheses are used, so no evar is instantiated. *)
+#[global] Instance IsLInt_InCtx w z : InCtx (w.(lw) = WInt z) → IsLInt w z.
+Proof. by constructor. Qed.
+
 Ltac griotte_freeze_hyp_once1 h :=
   let P := type of h in
   lazymatch type of P with
@@ -370,3 +375,37 @@ Proof. intros. solve_tag_iinstr. Qed.
 Goal forall w, canStore RW (clear_tag w) = true.
 Proof. intros. solve_tag_iinstr. Qed.
 End TagSolvePureTests.
+
+Module IsLIntSolvePureTests.
+
+Local Ltac solve_lint := ltac2:(solve_pure_iinstr ()).
+
+Goal exists z, IsLInt (lword_of_word (WInt 3)) z ∧ z = 3.
+Proof. eexists. split; [solve_lint | reflexivity]. Qed.
+
+Goal forall ι, exists z, IsLInt (WInt 3 @@ ι) z ∧ z = 3.
+Proof. intros. eexists. split; [solve_lint | reflexivity]. Qed.
+
+Goal forall (w : LWord) (n : Z), w.(lw) = WInt n → exists z, IsLInt w z ∧ z = n.
+Proof. intros. eexists. split; [solve_lint | reflexivity]. Qed.
+
+Goal forall (p : Perm) (g : Locality) (b e a : Addr) (π : option AId), True.
+Proof.
+  intros.
+  Fail assert (exists z, IsLInt (WCap true p g b e a @@? π) z)
+    by (eexists; solve_lint).
+  exact I.
+Qed.
+
+Goal True.
+Proof. Fail assert (IsLInt (WInt 5) 0) by solve_lint. exact I. Qed.
+
+Goal forall (w : LWord) (n : Z), w.(lw) = WInt n → True.
+Proof.
+  intros.
+  (* The word must be known: no hypothesis picks it. *)
+  Fail assert (exists w' z, IsLInt w' z) by (do 2 eexists; solve_lint).
+  exact I.
+Qed.
+
+End IsLIntSolvePureTests.

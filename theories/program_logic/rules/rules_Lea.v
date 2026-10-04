@@ -161,8 +161,9 @@ Section griotte_lang_rules.
          iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
    Qed.
 
-   Lemma wp_lea_success_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv z a' :
+   Lemma wp_lea_success_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv wz z a' :
      decodeInstrW w.(lw) = Lea PC (inr rv) →
+     IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (a' + 1)%a = Some pc_a' →
      (pc_a + z)%a = Some a' →
@@ -170,14 +171,15 @@ Section griotte_lang_rules.
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ rv ↦ᵣ WInt z }}}
+           ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ w
-              ∗ rv ↦ᵣ WInt z }}}.
+              ∗ rv ↦ᵣ wz }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_2 with "HPC Hrv") as "[Hmap %]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }
@@ -198,8 +200,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a z a' π :
+   Lemma wp_lea_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z a' π :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
+     IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (a + z)%a = Some a' →
@@ -209,15 +212,16 @@ Section griotte_lang_rules.
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π
-           ∗ ▷ rv ↦ᵣ WInt z }}}
+           ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ w
-              ∗ rv ↦ᵣ WInt z
+              ∗ rv ↦ᵣ wz
               ∗ r1 ↦ᵣ WCap t p g b e a' @@? π }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_3 with "HPC Hrv Hr1") as "[Hmap (%&%&%)]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }
@@ -312,8 +316,9 @@ Section griotte_lang_rules.
 
    (* Similar rules in case we have a SealRange instead of a capability, where some cases are impossible, because a SealRange is not a valid PC *)
 
-   Lemma wp_lea_success_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a z a' π :
+   Lemma wp_lea_success_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z a' π :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
+     IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (a + z)%ot = Some a' →
@@ -323,15 +328,16 @@ Section griotte_lang_rules.
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π
-           ∗ ▷ rv ↦ᵣ WInt z }}}
+           ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ w
-              ∗ rv ↦ᵣ WInt z
+              ∗ rv ↦ᵣ wz
               ∗ r1 ↦ᵣ WSealRange t p g b e a' @@? π }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_3 with "HPC Hrv Hr1") as "[Hmap (%&%&%)]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }
@@ -394,8 +400,9 @@ Section griotte_lang_rules.
      Unshelve. all:auto.
    Qed.
 
-   Lemma wp_lea_overflow_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv z :
+   Lemma wp_lea_overflow_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv wz z :
      decodeInstrW w.(lw) = Lea PC (inr rv) →
+     IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (pc_a + z)%a = None →
@@ -403,14 +410,15 @@ Section griotte_lang_rules.
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ rv ↦ᵣ WInt z }}}
+           ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap false pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ w
-              ∗ rv ↦ᵣ WInt z }}}.
+              ∗ rv ↦ᵣ wz }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_2 with "HPC Hrv") as "[Hmap %]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }
@@ -429,8 +437,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_overflow_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a z π :
+   Lemma wp_lea_overflow_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
+     IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (a + z)%a = None →
@@ -440,15 +449,16 @@ Section griotte_lang_rules.
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π
-           ∗ ▷ rv ↦ᵣ WInt z }}}
+           ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ w
-              ∗ rv ↦ᵣ WInt z
+              ∗ rv ↦ᵣ wz
               ∗ r1 ↦ᵣ WCap false p g b e a @@? π }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_3 with "HPC Hrv Hr1") as "[Hmap (%&%&%)]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }
@@ -535,8 +545,9 @@ Section griotte_lang_rules.
      Unshelve. all:auto.
    Qed.
 
-   Lemma wp_lea_overflow_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a z π :
+   Lemma wp_lea_overflow_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
+     IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (a + z)%ot = None →
@@ -546,15 +557,16 @@ Section griotte_lang_rules.
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π
-           ∗ ▷ rv ↦ᵣ WInt z }}}
+           ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ w
-              ∗ rv ↦ᵣ WInt z
+              ∗ rv ↦ᵣ wz
               ∗ r1 ↦ᵣ WSealRange false p g b e a @@? π }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_3 with "HPC Hrv Hr1") as "[Hmap (%&%&%)]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }
@@ -613,18 +625,20 @@ Section griotte_lang_rules.
      Unshelve. all:auto.
    Qed.
 
-   Lemma wp_Lea_fail_integer Ep pc_p pc_g pc_b pc_e pc_a pc_π w r1 z z' :
+   Lemma wp_Lea_fail_integer Ep pc_p pc_g pc_b pc_e pc_a pc_π w r1 w1 z z' :
      decodeInstrW w.(lw) = Lea r1 (inl z) →
+     IsLInt w1 z' →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ w
-         ∗ ▷ r1 ↦ᵣ WInt z'
+         ∗ ▷ r1 ↦ᵣ w1
      }}}
        Instr Executable @ Ep
        {{{ RET FailedV; True }}}.
    Proof.
-     iIntros (Hdecode Hvpc φ) "(>HPC & >Hpc_a & >Hsrc) Hφ".
+     iIntros (Hdecode Hw1 Hvpc φ) "(>HPC & >Hpc_a & >Hsrc) Hφ".
+     destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
      iDestruct (map_of_regs_2 with "HPC Hsrc") as "[Hmap %]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }

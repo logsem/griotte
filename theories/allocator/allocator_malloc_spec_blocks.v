@@ -13,125 +13,6 @@ Definition allocator_malloc_block_addr {MP : MachineParameters}
   (pc_a : Addr) (n : nat) : Addr :=
   (pc_a ^+ length (concat (take n assembled_allocator_malloc)))%a.
 
-Section binop_lea_prov.
-  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
-
-  (* TODO: move to rules_BinOp *)
-  (** [wp_binop_success_dst_r] for an integer register with any identifier. *)
-  Lemma wp_binop_success_dst_r_prov E dst pc_p pc_g pc_b pc_e pc_a pc_π w ins n1 r2 n2 π2
-      pc_a' :
-    decodeInstrW w.(lw) = ins →
-    is_BinOp ins dst (inr dst) (inr r2) →
-    (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
-    dst ≠ cnull ->
-    r2 ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
-        ∗ r2 ↦ᵣ WInt n2 @@? π2
-        ∗ dst ↦ᵣ WInt n1
-    }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
-          ∗ r2 ↦ᵣ WInt n2 @@? π2
-          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
-      }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
-    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [| * Hfail].
-    { iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
-              (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
-  Qed.
-
-  (* TODO: move to rules_BinOp *)
-  (** [wp_binop_success_r_r] for a second integer register with any identifier. *)
-  Lemma wp_binop_success_r_r_prov E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 n1 r2 n2 π2
-      pc_a' :
-    decodeInstrW w.(lw) = ins →
-    is_BinOp ins dst (inr r1) (inr r2) →
-    (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
-    dst ≠ cnull ->
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
-        ∗ r1 ↦ᵣ WInt n1
-        ∗ r2 ↦ᵣ WInt n2 @@? π2
-        ∗ dst ↦ᵣ wdst
-    }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
-          ∗ r2 ↦ᵣ WInt n2 @@? π2
-          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
-      }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull Hncull' Hncull'' ϕ) "(HPC & Hpc_a & Hr1 & Hr2 & Hdst) Hφ".
-    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
-    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [| * Hfail].
-    { iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
-              (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
-    { destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
-  Qed.
-
-  (* TODO: move to rules_Lea *)
-  (** [wp_lea_success_reg] for an offset register with any identifier. *)
-  Lemma wp_lea_success_reg_prov Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool)
-      p g b e a z πz a' π :
-    decodeInstrW w.(lw) = Lea r1 (inr rv) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    (a + z)%a = Some a' →
-    rv ≠ cnull ->
-    r1 ≠ cnull ->
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ w
-          ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π
-          ∗ ▷ rv ↦ᵣ WInt z @@? πz }}}
-      Instr Executable @ Ep
-      {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ pc_a ↦ₐ w
-             ∗ rv ↦ᵣ WInt z @@? πz
-             ∗ r1 ↦ᵣ WCap t p g b e a' @@? π }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hrv Hr1") as "[Hmap (%&%&%)]".
-    iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
-    iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [ | | | | * Hfail ].
-    3,4: by simplify_lmap_eq.
-    { iApply "Hφ". iFrame. incrementPC_inv; simplify_lmap_eq.
-      rewrite (insert_insert_ne _ PC r1) // insert_insert_eq.
-      rewrite (insert_insert_ne _ r1 PC) // (insert_insert_ne _ r1 rv) // insert_insert_eq.
-      iApply (regs_of_map_3 with "Hmap"); eauto. }
-    { simplify_lmap_eq. }
-    { destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-      all: try destruct p; cbn in * ; congruence. }
-    Unshelve. all: auto.
-  Qed.
-
-End binop_lea_prov.
-
 Section AllocatorMallocBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
@@ -171,11 +52,7 @@ Section AllocatorMallocBlocks.
     (* Jnz .malloc_invalid ct3. *)
     iInstr "Hcode".
     (* Lt ct3 0 ca0. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_binop_success_z_r_prov with "[$HPC $Hi $Hca0 $Hct3]"); try solve_pure.
-    iIntros "!> (HPC & Hi & Hca0 & Hct3)". wp_pure.
-    iSpecialize ("Hcode" with "Hi"). cbn [denote].
+    iInstr "Hcode".
     replace (0 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
     (* Jnz .malloc_size_ok ct3. *)
     iInstr "Hcode".
@@ -219,11 +96,7 @@ Section AllocatorMallocBlocks.
       (* Jnz .malloc_invalid ct3. *)
       iInstr "Hcode".
       (* Lt ct3 0 ca0. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_binop_success_z_r_prov with "[$HPC $Hi $Hca0 $Hct3]"); try solve_pure.
-      iIntros "!> (HPC & Hi & Hca0 & Hct3)". wp_pure.
-      iSpecialize ("Hcode" with "Hi"). cbn [denote].
+      iInstr "Hcode".
       destruct (decide (0 < z)%Z) as [Hzpos|Hznonpos].
       { exfalso. apply Hinvalid. exists z. split; [reflexivity|exact Hzpos]. }
       replace (0 <? z)%Z with false by (symmetry; apply Z.ltb_ge; lia).
@@ -443,12 +316,7 @@ Section AllocatorMallocBlocks.
     (* Sub ct3 ct3 allocator_header_words. *)
     iInstr "Hcode".
     (* Lt ct3 ct3 ca0. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_binop_success_dst_r_prov with "[$HPC $Hi $Hca0 $Hct3]"); try solve_pure.
-    { apply isCorrectPC_intro; [solve_addr | auto]. }
-    iIntros "!> (HPC & Hi & Hca0 & Hct3)". wp_pure.
-    iSpecialize ("Hcode" with "Hi"). cbn [denote].
+    iInstr "Hcode".
     replace (heap_e - next - 3 <? n)%Z with false
       by (symmetry; apply Z.ltb_ge; solve_addr).
     (* Jnz .malloc_no_memory ct3. *)
@@ -459,12 +327,7 @@ Section AllocatorMallocBlocks.
     assert (Hbword : (next + 3)%Z = b) by solve_addr.
     rewrite Hbword.
     (* Add ct2 ct1 ca0. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_binop_success_r_r_prov with "[$HPC $Hi $Hct1 $Hca0 $Hct2]"); try solve_pure.
-    { apply isCorrectPC_intro; [solve_addr | auto]. }
-    iIntros "!> (HPC & Hi & Hct1 & Hca0 & Hct2)". wp_pure.
-    iSpecialize ("Hcode" with "Hi"). cbn [denote].
+    iInstr "Hcode".
     assert (Heword : (b + n)%Z = finish) by solve_addr.
     rewrite Heword.
     (* Mov ct4 ct0. *)
@@ -479,7 +342,7 @@ Section AllocatorMallocBlocks.
     (* Subseg ct4 ct1 ct2. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_subseg_rebase _ _ _ _ _ _ _ _ ct4 ct1 ct2 RW Global heap_b heap_e b b finish
+    iApply (wp_subseg_rebase _ _ _ _ _ _ _ _ ct4 ct1 ct2 RW Global heap_b heap_e b _ b _ finish
               b finish _ ι 1 ALive with "[$HPC $Hi $Hct4 $Hct1 $Hct2 $Hobj $Htok]");
       try solve_pure.
     { apply isCorrectPC_intro; [solve_addr | auto]. }
@@ -632,12 +495,7 @@ Section AllocatorMallocBlocks.
     iInstr "Hcode".
     unfold allocator_header_words in Hoom.
     (* Lt ct3 ct3 ca0. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_binop_success_dst_r_prov with "[$HPC $Hi $Hca0 $Hct3]"); try solve_pure.
-    { apply isCorrectPC_intro; [solve_addr | auto]. }
-    iIntros "!> (HPC & Hi & Hca0 & Hct3)". wp_pure.
-    iSpecialize ("Hcode" with "Hi"). cbn [denote].
+    iInstr "Hcode".
     replace (heap_e - next - 3 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
     (* Jnz .malloc_no_memory ct3. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -699,12 +557,7 @@ Section AllocatorMallocBlocks.
     assert (Hstep1 : (pc_a ^+ 45)%a = ((pc_a ^+ 44)%a ^+ 1)%a) by solve_addr.
     iEval (rewrite Hstep1) in "HPC".
     (* Lea ct0 ca0. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_lea_success_reg_prov with "[$HPC $Hi $Hct0 $Hca0]"); try solve_pure.
-    { apply isCorrectPC_intro; [solve_addr | auto]. }
-    iIntros "!> (HPC & Hi & Hca0 & Hct0)". wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iInstr "Hcode".
     (* Store cgp ct0. *)
     iInstr_success "Hcode".
     { eapply (disjoint_from_shadow_not_in allocator_cgp_b allocator_cgp_e allocator_cgp_b).

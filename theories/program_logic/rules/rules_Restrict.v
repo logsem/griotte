@@ -164,8 +164,9 @@ Section griotte_lang_rules.
       iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
   Qed.
 
-  Lemma wp_restrict_success_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv z p' g':
+  Lemma wp_restrict_success_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv wz z p' g':
     decodeInstrW w.(lw) = Restrict PC (inr rv) →
+    IsLInt wz z →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     (p',g') = (decodePermPair z) ->
@@ -175,14 +176,15 @@ Section griotte_lang_rules.
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ w
-         ∗ ▷ rv ↦ᵣ WInt z }}}
+         ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true p' g' pc_b pc_e pc_a' @@? pc_π
            ∗ pc_a ↦ₐ w
-           ∗ rv ↦ᵣ WInt z }}}.
+           ∗ rv ↦ᵣ wz }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows Hcnull ϕ) "(>HPC & >Hpc_a & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' HdecPair HPflows HLflows Hcnull ϕ) "(>HPC & >Hpc_a & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_2 with "HPC Hrv") as "[Hmap %]".
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -208,8 +210,9 @@ Section griotte_lang_rules.
        incrementPC_inv; simplify_lmap_eq; eauto. congruence. }
    Qed.
 
-   Lemma wp_restrict_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a z p' g' π :
+   Lemma wp_restrict_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z p' g' π :
      decodeInstrW w.(lw) = Restrict r1 (inr rv) →
+     IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (p',g') = (decodePermPair z) ->
@@ -221,15 +224,16 @@ Section griotte_lang_rules.
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ w
          ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π
-         ∗ ▷ rv ↦ᵣ WInt z }}}
+         ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
            ∗ pc_a ↦ₐ w
-           ∗ rv ↦ᵣ WInt z
+           ∗ rv ↦ᵣ wz
            ∗ r1 ↦ᵣ WCap t p' g' b e a @@? π }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' HdecPair HPflows HLflows Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_3 with "HPC Hr1 Hrv") as "[Hmap (%&%&%)]".
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -345,8 +349,9 @@ Section griotte_lang_rules.
 
    (* Similar rules in case we have a SealRange instead of a capability, where some cases are impossible, because a SealRange is not a valid PC *)
 
- Lemma wp_restrict_success_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a z p' g' π :
+ Lemma wp_restrict_success_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z p' g' π :
      decodeInstrW w.(lw) = Restrict r1 (inr rv) →
+     IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (p',g') = (decodeSealPermPair z) ->
@@ -358,15 +363,16 @@ Section griotte_lang_rules.
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ w
          ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π
-         ∗ ▷ rv ↦ᵣ WInt z }}}
+         ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
            ∗ pc_a ↦ₐ w
-           ∗ rv ↦ᵣ WInt z
+           ∗ rv ↦ᵣ wz
            ∗ r1 ↦ᵣ WSealRange t p' g' b e a @@? π }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     iIntros (Hinstr Hwz Hvpc Hpca' HdecPair HPflows HLflows Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_3 with "HPC Hr1 Hrv") as "[Hmap (%&%&%)]".
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
      { by unfold regs_of; rewrite !dom_insert; set_solver+. }

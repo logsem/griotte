@@ -307,9 +307,10 @@ Section griotte_lang_rules.
       destruct Hfail; pose proof PC_not_cnull; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_Get_fail E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w zsrc wdst :
+  Lemma wp_Get_fail E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc zsrc wdst :
     decodeInstrW w.(lw) = get_i →
     is_Get get_i dst src →
+    IsLInt wsrc zsrc →
     (forall dst' src', get_i <> GetOType dst' src') ->
     (forall dst' src', get_i <> GetWType dst' src') ->
     (forall dst' src', get_i <> GetTag dst' src') ->
@@ -319,11 +320,12 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
       ∗ ▷ pc_a ↦ₐ w
       ∗ ▷ dst ↦ᵣ wdst
-      ∗ ▷ src ↦ᵣ WInt zsrc }}}
+      ∗ ▷ src ↦ᵣ wsrc }}}
       Instr Executable @ E
       {{{ RET FailedV; True }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hnot_otype Hnot_wtype Hnot_tag Hvpc Hcnull φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
+    iIntros (Hdecode Hinstr Hwsrc Hnot_otype Hnot_wtype Hnot_tag Hvpc Hcnull φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
+    destruct (IsLInt_inv _ _ Hwsrc) as [πsrc ->].
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }

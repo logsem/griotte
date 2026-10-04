@@ -50,12 +50,6 @@ Definition allocator_entries_wf (allocations : list allocator_header_entry) : Pr
   Forall (λ '(_, _, reserved, _), reserved = (0%Z, 0%Z)) allocations ∧
   NoDup (allocator_entry_ids allocations).
 
-(** The receipts' authority, keyed by identifier. The service invariant no
-    longer holds it: no receipt is handed out (D31). *)
-Definition allocator_history_map (allocations : list allocator_header_entry) :
-  gmap AId (Addr * Addr * (Z * Z)) :=
-  list_to_map ((λ '(b, e, reserved, ι), (ι, (b, e, reserved))) <$> allocations).
-
 Definition allocator_header_bounds (h stop b e : Addr) : Prop :=
   (h + allocator_header_words)%a = Some b ∧ (b < e /\ e <= stop)%a.
 
@@ -129,15 +123,6 @@ Section AllocatorHeaders.
   Qed.
 
 End AllocatorHeaders.
-
-Section AllocatorHistory.
-  Context {Σ : gFunctors} {allocator_historyg : allocatorHistoryG Σ}.
-
-  Definition allocator_history (allocations : list allocator_header_entry) : iProp Σ :=
-    @ghost_map_auth Σ AId (Addr * Addr * (Z * Z)) _ _ allocator_history_inG
-      allocator_history_gname 1 (allocator_history_map allocations).
-
-End AllocatorHistory.
 
 (** The service invariant can remain open across an entire allocator call. *)
 

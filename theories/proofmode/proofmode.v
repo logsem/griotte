@@ -801,9 +801,20 @@ Ltac instr_finish hprog hlc hlc' :=
   try wp_pure_lc hlc';
   try (iCombine_ident (INamed hlc) hlc' as (INamed hlc)).
 
+(* Integer operands are matched through [IsLInt] rather than by framing a
+   [WInt _] points-to, so a rule only applies if its [IsLInt] premises are
+   proved. Fail otherwise, so that the dispatcher tries the next rule (e.g.
+   [wp_binop_fail_z_r] when the register holds a capability). Other side
+   goals are left to the caller. *)
+Ltac instr_commit_lint :=
+  lazymatch goal with
+  | |- IsLInt _ _ => solve [ltac2:(solve_pure_iinstr ())]
+  | _ => idtac
+  end.
+
 Ltac instr_apply_rule hprog hlc hlc' rule :=
   iApplyCapAuto rule;
-  [ .. | instr_finish hprog hlc hlc' ].
+  [ instr_commit_lint .. | instr_finish hprog hlc hlc' ].
 
 (* TODO: find a way of displaying an error message if iApplyCapAuto fails,
    displaying the rule it was called on, and without silencing iApplyCapAuto's
@@ -889,7 +900,7 @@ Ltac instr_auto_apply_failure hprog hlc hlc' rule :=
 
 Ltac instr_apply_invalidation hprog hlc hlc' rule :=
   iApplyCapAuto rule;
-  [ try instr_auto_solve_invalidation; instr_guard_invalidation_premise ..
+  [ instr_commit_lint; try instr_auto_solve_invalidation; instr_guard_invalidation_premise ..
   | instr_finish hprog hlc hlc'; try done ].
 
 Ltac instr_auto hprog hlc :=

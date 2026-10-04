@@ -42,6 +42,33 @@ Proof. by intros [=]. Qed.
 Lemma MkLWord_eta (v : LWord) : MkLWord v.(lw) v.(lprov) = v.
 Proof. by destruct v. Qed.
 
+(** ** Integers with any identifier *)
+
+(** [w] is logically the integer [z], whatever its identifier. Rules take
+    integer operands through this class, so that a register holding
+    [WInt z], [WInt z @@ ι], [WInt z @@? π] or an abstract word known to be
+    an integer all match. The class is inductive, not definitional: an
+    [IsLInt] goal is then never closed by an equality from the context
+    unless the [InCtx] instance in [solve_pure.v] is used. *)
+Inductive IsLInt (w : LWord) (z : Z) : Prop := MkIsLInt (_ : w.(lw) = WInt z).
+Existing Class IsLInt.
+#[global] Hint Mode IsLInt ! - : typeclass_instances.
+
+#[global] Instance IsLInt_MkLWord z π : IsLInt (WInt z @@? π) z.
+Proof. by constructor. Qed.
+#[global] Instance IsLInt_lword_of_word z : IsLInt (lword_of_word (WInt z)) z.
+Proof. by constructor. Qed.
+
+Lemma is_lint w z : IsLInt w z → w.(lw) = WInt z.
+Proof. by intros []. Qed.
+
+Lemma IsLInt_eq w z : IsLInt w z → w = WInt z @@? w.(lprov).
+Proof. intros [<-]. by destruct w. Qed.
+
+(** Proofs of rules start with [destruct (IsLInt_inv _ _ Hw) as [π ->]]. *)
+Lemma IsLInt_inv w z : IsLInt w z → ∃ π, w = WInt z @@? π.
+Proof. intros ->%IsLInt_eq. by eexists. Qed.
+
 (** ** Lifted word operations *)
 
 (** The uniform lift of an operation on words: it keeps the identifier. *)
@@ -257,6 +284,10 @@ Lemma lz_of_argument_Some_inv (regs : LReg) (arg : Z + RegName) (z : Z) :
 Proof.
   unfold lz_of_argument. intro. repeat case_match; simplify_eq/=; eauto.
 Qed.
+
+Lemma lz_of_argument_IsLInt (regs : LReg) (r : RegName) (w : LWord) (z : Z) :
+  regs !!ₗ r = Some w → IsLInt w z → lz_of_argument regs (inr r) = Some z.
+Proof. intros Hr [Hw]. rewrite /lz_of_argument Hr. destruct w; cbn in *; by subst. Qed.
 
 Lemma lz_of_argument_Some_inv' (regs regs' : LReg) (arg : Z + RegName) (z : Z) :
   lz_of_argument regs arg = Some z →

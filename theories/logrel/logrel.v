@@ -293,6 +293,13 @@ Section logrel.
     Contractive (λ interp, ▷ zcond P C)%I.
   Proof. solve_contractive. Qed.
 
+  (** [zcond] for any word that is an integer, without destructing it. *)
+  Lemma zcond_IsLInt (P : V) (C : CmptName) W1 W2 w z :
+    IsLInt w z → zcond P C -∗ P W1 C w -∗ P W2 C w.
+  Proof.
+    intros (π & ->)%IsLInt_inv. iIntros "#Hz HP". by iApply "Hz".
+  Qed.
+
   (** [rcond] states that stored values satisfying [P] are safe after the
       deep-permission load filter and the current world's heap revocation filter. *)
   Definition rcond (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
@@ -1067,6 +1074,9 @@ Section logrel.
 
   Lemma interp_int W C z π : ⊢ interp W C (WInt z @@? π).
   Proof. by apply interp_untagged. Qed.
+
+  Lemma interp_IsLInt W C w z : IsLInt w z → ⊢ interp W C w.
+  Proof. intros (π & ->)%IsLInt_inv. apply interp_int. Qed.
 
   Lemma interp_lnull W C : ⊢ interp W C lnull.
   Proof. by apply interp_untagged. Qed.
