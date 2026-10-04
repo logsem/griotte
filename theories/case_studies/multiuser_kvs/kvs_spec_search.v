@@ -9,7 +9,7 @@ Section KVS_search.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
@@ -17,7 +17,7 @@ Section KVS_search.
   Definition kvs_search_found_resources `{KVS : kvsLayout}
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName)
-    (pkvs : kvs_physical_map) (idx : nat) (fkey : full_key_t) (w : Word) : iProp Σ :=
+    (pkvs : kvs_physical_map) (idx : nat) (fkey : full_key_t) (w : LWord) : iProp Σ :=
     let instrs := kvs_search_instrs rkey ridx ridx_empty rscratch in
     (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
@@ -75,7 +75,7 @@ Section KVS_search.
   Lemma kvs_search_empty_iteration_spec `{KVS : kvsLayout}
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName) (n fkey : Z)
-    (wempty wscratch w1 w2 : Word) :
+    (wempty wscratch w1 w2 : LWord) :
     let instrs := kvs_search_instrs rkey ridx ridx_empty rscratch in
     disjoint_from_shadow cgp_b cgp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
@@ -141,7 +141,7 @@ Section KVS_search.
   Lemma kvs_search_found_iteration_spec `{KVS : kvsLayout}
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName)
-    (n fkey kidx : Z) (widx wempty wscratch : Word) :
+    (n fkey kidx : Z) (widx wempty wscratch : LWord) :
     let instrs := kvs_search_instrs rkey ridx ridx_empty rscratch in
     disjoint_from_shadow cgp_b cgp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
@@ -237,7 +237,7 @@ Section KVS_search.
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName)
     (pkvs : kvs_physical_map) (fkey : full_key_t) : iProp Σ :=
-    ((∃ (idx : nat) (w : Word),
+    ((∃ (idx : nat) (w : LWord),
        ⌜pkvs !! idx = Some (Some (fkey, w))⌝ ∗
        kvs_search_found_resources pc_b pc_e pc_a cgp_b cgp_e
          rkey ridx ridx_empty rscratch pkvs idx fkey w) ∨
@@ -248,7 +248,7 @@ Section KVS_search.
   Lemma kvs_search_full_block_spec `{KVS : kvsLayout}
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName) (fkey : full_key_t)
-    (wempty wscratch : Word) :
+    (wempty wscratch : LWord) :
     let instrs := kvs_search_instrs rkey ridx ridx_empty rscratch in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
@@ -329,7 +329,7 @@ Section KVS_search.
     remember 0%Z as n.
     iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
     rewrite{2} (_ : cgp_b = (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a); last by solve_addr.
-    assert (forall i, (0 <= i < Z.to_nat n) -> ∀ (k : Z) (w : Word), pkvs !! i = Some (Some (k,w)) -> k ≠ fkey)
+    assert (forall i, (0 <= i < Z.to_nat n) -> ∀ (k : Z) (w : LWord), pkvs !! i = Some (Some (k,w)) -> k ≠ fkey)
     as Hfkey_notin_nfirst.
     { rewrite Heqn; intros i Hi; lia. }
 
@@ -598,7 +598,7 @@ Section KVS_search.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName)
-    (pkvs : kvs_physical_map) (idx : nat) (fkey : full_key_t) (w : Word)
+    (pkvs : kvs_physical_map) (idx : nat) (fkey : full_key_t) (w : LWord)
     :
     let instrs := (kvs_search_instrs rkey ridx ridx_empty rscratch) in
     disjoint_from_shadow cgp_b cgp_e ->

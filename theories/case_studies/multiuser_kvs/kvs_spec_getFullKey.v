@@ -10,20 +10,56 @@ Section KVS_getFullKey.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
+  (* TODO: move to rules_BinOp *)
+  (** [wp_binop_success_dst_r] for an integer register with any identifier. *)
+  Lemma wp_binop_success_dst_r_prov E dst pc_p pc_g pc_b pc_e pc_a pc_π w ins n1 r2 n2 π2
+      pc_a' :
+    decodeInstrW w.(lw) = ins →
+    is_BinOp ins dst (inr dst) (inr r2) →
+    (pc_a + 1)%a = Some pc_a' →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    dst ≠ cnull ->
+    r2 ≠ cnull ->
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ pc_a ↦ₐ w
+        ∗ r2 ↦ᵣ WInt n2 @@? π2
+        ∗ dst ↦ᵣ WInt n1
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ pc_a ↦ₐ w
+          ∗ r2 ↦ᵣ WInt n2 @@? π2
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
+      }}}.
+  Proof.
+    iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [| * Hfail].
+    { iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
+              (insert_insert_ne _ PC dst) // insert_insert_eq.
+      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+    { destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
+  Qed.
+
   (*** Specification for known code *)
   Lemma KVS_getFullKey_spec
     (pc_b pc_e pc_a : Addr)
     (rdst rsealkey rkey rscratch1 rscratch2 : RegName)
-    (user_key nkey : Z) (l_user_key : Locality) ( user_key_addr : Addr )
+    (user_key nkey : Z) (πnkey : option AId) (l_user_key : Locality) ( user_key_addr : Addr )
     :
     let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
     is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
@@ -42,7 +78,7 @@ Section KVS_getFullKey.
       PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
       rdst ↦ᵣ - ∗
       rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
-      rkey ↦ᵣ WInt nkey ∗
+      rkey ↦ᵣ WInt nkey @@? πnkey ∗
       rscratch1 ↦ᵣ - ∗
       rscratch2 ↦ᵣ - ∗
 
@@ -54,7 +90,7 @@ Section KVS_getFullKey.
           PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
           rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
-          rkey ↦ᵣ WInt nkey ∗
+          rkey ↦ᵣ WInt nkey @@? πnkey ∗
           rscratch1 ↦ᵣ WInt (pc_b - pc_a) ∗
           rscratch2 ↦ᵣ WInt pc_a ∗
 
@@ -99,7 +135,11 @@ Section KVS_getFullKey.
     (* lshiftl rdst rdst 16; *)
     iInstr "Hcode".
     (* lor rdst rdst rkey *)
-    iInstr "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_binop_success_dst_r_prov with "[$HPC $Hi $Hrkey $Hrdst]"); try solve_pure.
+    iIntros "!> (HPC & Hi & Hrkey & Hrdst)". wp_pure.
+    iSpecialize ("Hcode" with "Hi"). cbn [denote].
 
     iApply "Hpost"; iFrame.
   Qed.
@@ -108,13 +148,13 @@ Section KVS_getFullKey.
   Lemma KVS_getFullKey_spec_invalid_sealed_user_key
     (pc_b pc_e pc_a : Addr)
     (rdst rsealkey rkey rscratch1 rscratch2 : RegName)
-    ( wsealkey : Word )
+    ( wsealkey : LWord )
     :
     let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
     is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
 
-    (is_sealed_with_o wsealkey KVS_OTYPE = false \/ get_tag wsealkey = false) ->
+    (is_sealed_with_o wsealkey.(lw) KVS_OTYPE = false \/ get_tag wsealkey.(lw) = false) ->
 
     rscratch1 ≠ cnull ->
     rscratch2 ≠ cnull ->
@@ -164,15 +204,15 @@ Section KVS_getFullKey.
     wp_instr.
     iApply (wp_unseal_unknown' with "[$HPC $Hi $Hrdst $Hrsealkey]"); try solve_pure.
     iIntros "!>" (ret)
-      "[-> | [(% & % & % & % & % & %o & %wsb & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec & %Htag & %Hrange)
-      | (%tsr & %psr & %gsr & %bsr & %esr & %asr & %ot & %sb
+      "[-> | [(% & % & % & % & % & % & %o & %wsb & %π & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec & %Htag & %Hrange)
+      | (%tsr & %psr & %gsr & %bsr & %esr & %asr & %πsr & %ot & %sb & %π
          & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & %Hsealed & %Hinvalid)]]".
     { wp_pure; wp_end; iIntros "%Hcontr";done. }
     {
     destruct Hnot_sealed_with_kvs_otype as [Hnot_sealed_with_kvs_otype | Hclear].
     2: { rewrite spec /= Htag in Hclear; done. }
     rewrite spec in Hnot_sealed_with_kvs_otype.
-    rewrite /kvs_service_unsealing_key /load_word //= in Heq; simplify_eq.
+    rewrite /kvs_service_unsealing_key /lload_word /lift_word /load_word //= in Heq; simplify_eq.
     apply withinBounds_le_addr in Hrange.
     assert (o = KVS_OTYPE) as -> by solve_addr.
     cbn in Hnot_sealed_with_kvs_otype.

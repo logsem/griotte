@@ -12,7 +12,7 @@ Definition kvs_idx_t := nat.
 
 (*** Physical KVS  *)
 
-Definition kvs_physical_entry : Type := option (full_key_t * Word).
+Definition kvs_physical_entry : Type := option (full_key_t * LWord).
 Definition kvs_dom : gset nat := set_seq 0 SIZE_MAP.
 Definition kvs_physical_map : Type := gmap kvs_idx_t kvs_physical_entry.
 
@@ -68,12 +68,12 @@ Section KVS_physical_map.
   Definition wf_kvs_physical_map (pkvs : kvs_physical_map) : Prop :=
     dom pkvs = kvs_dom ∧ NoDup (kvs_keys pkvs).
 
-  Definition option_pair_ASM_Some (k : full_key_t) (w : Word) :=
-    [ WInt ASM_SOME; WInt k; w].
-  Definition option_pair_ASM_None (wuk wmk : Word) :=
-    [ WInt ASM_NONE; wuk; wmk].
+  Definition option_pair_ASM_Some (k : full_key_t) (w : LWord) : list LWord :=
+    [ lword_of_word (WInt ASM_SOME); lword_of_word (WInt k); w].
+  Definition option_pair_ASM_None (wuk wmk : LWord) : list LWord :=
+    [ lword_of_word (WInt ASM_NONE); wuk; wmk].
 
-  Definition option_pair_ASM (opt_kw : kvs_physical_entry) (wuk wmk : Word) :=
+  Definition option_pair_ASM (opt_kw : kvs_physical_entry) (wuk wmk : LWord) :=
     match opt_kw with
     | None => option_pair_ASM_None wuk wmk
     | Some (k, w) => option_pair_ASM_Some k w
@@ -83,7 +83,7 @@ Section KVS_physical_map.
     (a : Addr) (idx : kvs_idx_t) (opt_kw : kvs_physical_entry) : iProp Σ :=
     let a_opt_idx := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
     let a_opt_idx_next := (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a in
-    ∃ (wuk wmk : Word),
+    ∃ (wuk wmk : LWord),
       [[ a_opt_idx, a_opt_idx_next ]] ↦ₐ [[ option_pair_ASM opt_kw wuk wmk ]].
 
   Definition physical_kvs_entry' (a : Addr) (idx : kvs_idx_t) (opt_kw : kvs_physical_entry) : iProp Σ :=
@@ -100,7 +100,7 @@ Section KVS_physical_map.
       | Some (_,w) => a_val ↦ₐ w
       end).
 
-  Definition physical_kvs_entry_some' (a : Addr) (idx : kvs_idx_t) (k : full_key_t) (w : Word) : iProp Σ :=
+  Definition physical_kvs_entry_some' (a : Addr) (idx : kvs_idx_t) (k : full_key_t) (w : LWord) : iProp Σ :=
     let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
     let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a in
     let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a in
@@ -116,7 +116,7 @@ Section KVS_physical_map.
       a_key ↦ₐ - ∗
       a_val ↦ₐ -).
 
-  Lemma destruct_physical_kvs_entry_some (a : Addr) (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+  Lemma destruct_physical_kvs_entry_some (a : Addr) (idx : kvs_idx_t) (k : full_key_t) (w : LWord) :
   (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
   = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
     ->
@@ -234,7 +234,7 @@ Section KVS_physical_map.
 
   Lemma kvs_physical_map_open_in
     (a : Addr) (pkvs : kvs_physical_map)
-    (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+    (idx : kvs_idx_t) (k : full_key_t) (w : LWord) :
 
     pkvs !! idx = Some (Some (k, w)) ->
 
@@ -288,7 +288,7 @@ Section KVS_physical_map.
     econstructor.
   Qed.
 
-  Lemma wf_kvs_neq (pkvs : kvs_physical_map) (idx idx' : nat) (k k' : full_key_t) (w w' : Word) :
+  Lemma wf_kvs_neq (pkvs : kvs_physical_map) (idx idx' : nat) (k k' : full_key_t) (w w' : LWord) :
     wf_kvs_physical_map pkvs ->
     idx ≠ idx' ->
     pkvs !! idx = Some (Some (k, w)) ->
@@ -308,7 +308,7 @@ Section KVS_physical_map.
   Qed.
 
   Lemma kvs_physical_map_open_neq
-    (a : Addr) (pkvs : kvs_physical_map) (idx idx' : nat) (k : full_key_t) (w : Word):
+    (a : Addr) (pkvs : kvs_physical_map) (idx idx' : nat) (k : full_key_t) (w : LWord):
     pkvs !! idx = Some (Some (k, w)) ->
     0 <= idx' < SIZE_MAP ->
     idx ≠ idx' ->
@@ -348,7 +348,7 @@ Section KVS_physical_map.
   Lemma kvs_keys_empty : kvs_keys ∅ = [].
   Proof. rewrite /kvs_keys map_fold_empty; done. Qed.
 
-  Definition kvs_elem_of_kvs (pkvs : kvs_physical_map) (k : full_key_t) ( w : Word ) :=
+  Definition kvs_elem_of_kvs (pkvs : kvs_physical_map) (k : full_key_t) ( w : LWord ) :=
     (∃ idx, pkvs !! idx = Some (Some (k, w))).
   Lemma elem_of_kvs_keys_1 (pkvs : kvs_physical_map) (k : full_key_t) :
     k ∈ kvs_keys pkvs -> (∃ w, kvs_elem_of_kvs pkvs k w).
@@ -417,7 +417,7 @@ Section KVS_physical_map.
   Qed.
 
   Lemma NoDup_kvs_keys_update
-    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w w' : Word) :
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w w' : LWord) :
     pkvs !! idx = Some (Some (k, w)) ->
     NoDup (kvs_keys pkvs) ->
     NoDup (kvs_keys (<[idx := Some (k, w') ]>pkvs)).
@@ -447,7 +447,7 @@ Section KVS_physical_map.
   Qed.
 
   Lemma wf_kvs_physical_map_update
-    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : LWord) :
     (∃ w', pkvs !! idx = Some (Some (k, w'))) ->
     wf_kvs_physical_map pkvs ->
     wf_kvs_physical_map (<[idx:= Some (k, w)]> pkvs).
@@ -462,8 +462,8 @@ Section KVS_physical_map.
   Qed.
 
   Lemma kvs_physical_map_close_update
-    (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word):
-    (∃ w' : Word, pkvs !! idx = Some (Some (k, w'))) ->
+    (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : LWord):
+    (∃ w' : LWord, pkvs !! idx = Some (Some (k, w'))) ->
 
     is_physical_kvs_open a pkvs idx -∗
     physical_kvs_entry a idx (Some (k,w)) -∗
@@ -477,7 +477,7 @@ Section KVS_physical_map.
   Qed.
 
   Lemma NoDup_kvs_keys_insert_Some
-    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : LWord) :
     k ∉ kvs_keys pkvs ->
     NoDup (kvs_keys pkvs) ->
     NoDup (kvs_keys (<[idx:= Some (k, w)]> pkvs)).
@@ -521,7 +521,7 @@ Section KVS_physical_map.
   Qed.
 
   Lemma wf_kvs_physical_map_insert
-    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : LWord) :
     pkvs !! idx = Some None ->
     k ∉ kvs_keys pkvs ->
     wf_kvs_physical_map pkvs ->
@@ -537,7 +537,7 @@ Section KVS_physical_map.
   Qed.
 
   Lemma kvs_physical_map_close_insert
-    (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word):
+    (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : LWord):
     pkvs !! idx = Some None ->
     k ∉ kvs_keys pkvs ->
 
@@ -620,23 +620,23 @@ End KVS_physical_map.
 
 
 (*** Logical KVS  *)
-Definition kvs_user_map : Type := gmap map_key_t Word.
+Definition kvs_user_map : Type := gmap map_key_t LWord.
 Definition kvs_logical_map : Type := gmap user_key_t kvs_user_map.
 
 (* CMRA for KVS *)
 
 Definition kvs_elem_of_logical_kvs
-  (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) ( w : Word ) :=
+  (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) ( w : LWord ) :=
   (∃ ukvs, lkvs !! uk = Some ukvs ∧  ukvs !! mk = Some w).
 
 Definition kvs_synced_logical_kvs (pkvs : kvs_physical_map) (lkvs : kvs_logical_map) : Prop :=
-  ∀ (k : user_key_t * map_key_t) (w : Word),
+  ∀ (k : user_key_t * map_key_t) (w : LWord),
   is_uint16 k.2 ->
   ( kvs_elem_of_logical_kvs lkvs k.1 k.2 w ↔ kvs_elem_of_kvs pkvs (kvs_full_key k.1 k.2) w).
 
 Lemma kvs_synced_logical_lookup_Some
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map) (m : kvs_user_map)
-  (uk : user_key_t) (mk : map_key_t) (w : Word) :
+  (uk : user_key_t) (mk : map_key_t) (w : LWord) :
   let fkey := kvs_full_key uk mk in
   is_uint16 mk ->
   kvs_synced_logical_kvs pkvs lkvs ->
@@ -671,14 +671,14 @@ Qed.
 
 
 Definition kvs_logical_kvs_insert
-  (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) (w : Word) :=
+  (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) (w : LWord) :=
   <[uk := (<[ mk := w ]> (default ∅ (lkvs !! uk))) ]> lkvs.
 
 Notation "<<[ ( uk , mk ) := w ]>> lkvs" :=
   (kvs_logical_kvs_insert lkvs uk mk w) (at level 10).
 
 Lemma kvs_logical_kvs_insert_lookup_eq
-  (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) (w : Word) (m : kvs_user_map) :
+  (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) (w : LWord) (m : kvs_user_map) :
   (<<[ ( uk, mk ) := w ]>> lkvs) !! uk = Some m ->
   m = <[mk := w]> (default ∅ (lkvs !! uk)).
 Proof.
@@ -688,7 +688,7 @@ Proof.
 Qed.
 
 Lemma kvs_logical_kvs_insert_lookup_ne
-  (lkvs : kvs_logical_map) (uk uk' : user_key_t) (mk : map_key_t) (w : Word) (m : kvs_user_map) :
+  (lkvs : kvs_logical_map) (uk uk' : user_key_t) (mk : map_key_t) (w : LWord) (m : kvs_user_map) :
   uk ≠ uk' ->
   (<<[ ( uk, mk ) := w ]>> lkvs) !! uk' = Some m ->
   lkvs !! uk' = Some m.
@@ -737,7 +737,7 @@ Qed.
 Lemma kvs_synced_logical_kvs_update
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
-  (uk : user_key_t) (mk : map_key_t) (w : Word) :
+  (uk : user_key_t) (mk : map_key_t) (w : LWord) :
   let k := kvs_full_key uk mk in
   NoDup (kvs_keys pkvs) ->
   is_uint16 mk ->
@@ -796,7 +796,7 @@ Qed.
 Local Lemma kvs_synced_logical_kvs_insert_1
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
-  (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : Word) :
+  (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
   let fkey := kvs_full_key uk mk in
   is_uint16 mk ->
   pkvs !! idx = Some None ->
@@ -836,7 +836,7 @@ Qed.
 Local Lemma kvs_synced_logical_kvs_insert_2
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
-  (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : Word) :
+  (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
   let fkey := kvs_full_key uk mk in
   is_uint16 mk ->
   pkvs !! idx = Some None ->
@@ -872,7 +872,7 @@ Qed.
 Lemma kvs_synced_logical_kvs_insert
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
-  (uk : user_key_t) (mk : map_key_t) (w : Word) :
+  (uk : user_key_t) (mk : map_key_t) (w : LWord) :
   let fkey := kvs_full_key uk mk in
   is_uint16 mk ->
   pkvs !! idx = Some None ->
@@ -920,7 +920,7 @@ Qed.
 Local Lemma kvs_synced_logical_kvs_delete_1
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
-  (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : Word) :
+  (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
   let fkey := kvs_full_key uk mk in
   is_uint16 mk ->
   pkvs !! idx = Some (Some (fkey, w)) ->
@@ -958,7 +958,7 @@ Qed.
 Local Lemma kvs_synced_logical_kvs_delete_2
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
-  (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : Word) :
+  (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
   let fkey := kvs_full_key uk mk in
   is_uint16 mk ->
   pkvs !! idx = Some (Some (fkey, w)) ->
@@ -993,7 +993,7 @@ Qed.
 Lemma kvs_synced_logical_kvs_delete
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
-  (uk : user_key_t) (mk : map_key_t) (w : Word) :
+  (uk : user_key_t) (mk : map_key_t) (w : LWord) :
   let fkey := kvs_full_key uk mk in
   NoDup (kvs_keys pkvs) ->
   is_uint16 mk ->
@@ -1060,7 +1060,7 @@ End KVS_logical_map.
 
 (*** User KVS  *)
 
-Definition kvs_logical_user_map : Type := gmap map_key_t (option Word).
+Definition kvs_logical_user_map : Type := gmap map_key_t (option LWord).
 
 Definition kvs_synced_logical_user_kvs
   (m : kvs_user_map) (ukvs : kvs_logical_user_map) : Prop :=
@@ -1069,7 +1069,7 @@ Definition kvs_synced_logical_user_kvs
 
 
 Lemma kvs_synced_logical_user_kvs_Some
-  (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) (w : Word) :
+  (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) (w : LWord) :
   kvs_synced_logical_user_kvs m ukvs ->
   ukvs !! uk = Some (Some w) ->
   m !! uk = Some w.
@@ -1093,7 +1093,7 @@ Proof.
 Qed.
 
 Lemma kvs_synced_logical_user_kvs_insert
-  (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) (w : Word) :
+  (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) (w : LWord) :
   kvs_synced_logical_user_kvs m ukvs ->
   kvs_synced_logical_user_kvs (<[uk:=w]> m) ( <[uk:=Some w]> ukvs ).
 Proof.
@@ -1126,14 +1126,14 @@ Qed.
 
 Class KvsUserG Σ :=
   Build_KvsUserG {
-      kvs_user_genG :: ghost_mapG Σ map_key_t (option Word);
+      kvs_user_genG :: ghost_mapG Σ map_key_t (option LWord);
       γkvs_user : user_key_t -> gname;
     }.
 
 Notation "uk '↪●UKVS' ukvs" :=
-  ( ghost_map_auth (K:=map_key_t) (V:= option Word) (γkvs_user uk) 1%Qp ukvs)%I (at level 20) : bi_scope.
+  ( ghost_map_auth (K:=map_key_t) (V:= option LWord) (γkvs_user uk) 1%Qp ukvs)%I (at level 20) : bi_scope.
 Notation "k '↦(UKVS)[' dq ']' o" :=
-  ( ghost_map_elem (K:=map_key_t) (V:= option Word) (γkvs_user k.1) k.2 dq o)%I (at level 20) : bi_scope.
+  ( ghost_map_elem (K:=map_key_t) (V:= option LWord) (γkvs_user k.1) k.2 dq o)%I (at level 20) : bi_scope.
 Notation "k '↦(UKVS)' o" :=
   (k ↦(UKVS)[ (DfracOwn 1) ] o)%I (at level 20) : bi_scope.
 
@@ -1146,7 +1146,7 @@ Notation "k '↦(KVS)' ⊥" :=
 
 
 Lemma kvs_user_kvs_valid `{KvsUserG}
-  (uk : user_key_t) (mk : map_key_t) (ukvs : kvs_logical_user_map ) (o : option Word) :
+  (uk : user_key_t) (mk : map_key_t) (ukvs : kvs_logical_user_map ) (o : option LWord) :
   uk ↪●UKVS ukvs  -∗ (uk,mk) ↦(UKVS) o -∗ ⌜ ukvs !! mk = Some o ⌝.
 Proof.
   iIntros "Hauth Hfrag".
@@ -1154,7 +1154,7 @@ Proof.
 Qed.
 
 Lemma kvs_user_kvs_update `{KvsUserG}
-  (uk : user_key_t) (mk : map_key_t) (ukvs : kvs_logical_user_map) (o o' : option Word) :
+  (uk : user_key_t) (mk : map_key_t) (ukvs : kvs_logical_user_map) (o o' : option LWord) :
   uk ↪●UKVS ukvs -∗ (uk,mk) ↦(UKVS) o
   ==∗
   uk ↪●UKVS (<[mk := o']> ukvs) ∗ (uk,mk) ↦(UKVS) o'.
@@ -1288,7 +1288,7 @@ Section KVS_init.
 
   Lemma kvs_initial_map_init (b e : Addr) :
     (b + (ASM_SIZEOF_KVS_ENTRY * SIZE_MAP))%a = Some e ->
-    ([[b,e]]↦ₐ[[kvs_data]]) -∗
+    ([[b,e]]↦ₐ[[lword_of_word <$> kvs_data]]) -∗
     [∗ map] idx↦kw ∈ kvs_physical_map_init, physical_kvs_entry b idx kw.
   Proof.
     rewrite /kvs_physical_map_init /kvs_data.
@@ -1308,10 +1308,10 @@ Section KVS_init.
       lia.
     }
 
-    replace (WInt ASM_NONE :: WInt EMPTY_SLOT :: WInt DEFAULT_VAL :: _)
+    replace (lword_of_word (WInt ASM_NONE) :: lword_of_word (WInt EMPTY_SLOT) :: lword_of_word (WInt DEFAULT_VAL) :: _)
       with (
-       [WInt ASM_NONE ; WInt EMPTY_SLOT ; WInt DEFAULT_VAL] ++
-         (repeat_list [WInt ASM_NONE; WInt EMPTY_SLOT; WInt DEFAULT_VAL] n)
+       [lword_of_word (WInt ASM_NONE) ; lword_of_word (WInt EMPTY_SLOT) ; lword_of_word (WInt DEFAULT_VAL)] ++
+         (lword_of_word <$> repeat_list [WInt ASM_NONE; WInt EMPTY_SLOT; WInt DEFAULT_VAL] n)
       ) by done.
 
     iDestruct (region_pointsto_split
@@ -1364,7 +1364,7 @@ End KVS_init.
 
 Lemma kvs_logical_user_init_pre
   {Σ : gFunctors}
-  {kvs_logical_user_preg : ghost_mapG Σ map_key_t (option Word) }
+  {kvs_logical_user_preg : ghost_mapG Σ map_key_t (option LWord) }
   (all_user_keys : gset user_key_t) (init_logical_user_map : kvs_logical_user_map) :
   ⊢ |==> (∃ (γf : user_key_t -> gname),
           ([∗ set] uk ∈ all_user_keys,
@@ -1393,7 +1393,7 @@ Lemma kvs_logical_user_map_init_None `{ KvsUserG Σ } (uk : user_key_t) :
   ([∗ set] mk ∈ kvs_all_map_keys, (uk, mk)↦(KVS) ⊥).
 Proof.
   iIntros "H".
-  iApply (big_sepM_gset_to_gmap (fun (mk : map_key_t) (o : option Word) => mk ↪[γkvs_user uk] o)%I _ None).
+  iApply (big_sepM_gset_to_gmap (fun (mk : map_key_t) (o : option LWord) => mk ↪[γkvs_user uk] o)%I _ None).
   rewrite /kvs_logical_user_map_init.
   iFrame "H".
 Qed.
@@ -1414,9 +1414,9 @@ Section KVS_preamble.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
@@ -1427,19 +1427,19 @@ Section KVS_preamble.
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in
-      [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]] ∗
+      [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗
       codefrag KVS_pcc_b' kvs_service_instrs ∗
       physical_kvs_inv.
 
   Definition safe_kvs_pointsto (W : WORLD) (C : CmptName) (uk : user_key_t) (mk : map_key_t) : iProp Σ :=
-    (∃ (w : Word), (uk,mk)↦(KVS) w ∗ (∀ W', ⌜related_sts_priv_world W W'⌝ -∗
-          ⌜heap_wf (heap_std W')⌝ -∗ interp_in_mem RWL W' C w))
+    (∃ (w : LWord), (uk,mk)↦(KVS) w ∗ (∀ W', ⌜related_sts_priv_world W W'⌝ -∗
+          interp_in_mem RWL W' C w))
     ∨
       (uk,mk)↦(KVS) ⊥.
 
   Definition kvs_otype_inv
     {KVS_layout : kvsLayout}
-    (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
+    (W : WORLD) (C : CmptName) (w : LWord) : iProp Σ :=
     ∃ (uk : user_key_t) (a : Addr),
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
@@ -1453,17 +1453,17 @@ Section KVS_preamble.
 
   Program Definition kvs_otype_prop
     {KVS_layout : kvsLayout} :
-    (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
-    λne (W : WORLD) (C : CmptName) (w : Word), (kvs_otype_inv W C w)%I.
+    (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ):=
+    λne (W : WORLD) (C : CmptName) (w : LWord), (kvs_otype_inv W C w)%I.
   Solve All Obligations with solve_proper.
 
-  Definition kvs_otype_propC {KVS : kvsLayout} : WORLD * CmptName * leibnizO Word -> iProp Σ :=
+  Definition kvs_otype_propC {KVS : kvsLayout} : WORLD * CmptName * leibnizO LWord -> iProp Σ :=
     safeC kvs_otype_prop.
 
-  Lemma mono_priv_ot_kvs {KVS : kvsLayout} (C : CmptName) (w : Word) :
+  Lemma mono_priv_ot_kvs {KVS : kvsLayout} (C : CmptName) (w : LWord) :
     ⊢ future_priv_mono C kvs_otype_propC w.
   Proof.
-    iIntros (W W' Hrelated_W_W' Hheap_wf).
+    iIntros (W W' Hrelated_W_W').
     iModIntro.
     iIntros "Hot_kvs".
     rewrite /kvs_otype_propC /= /kvs_otype_inv.
@@ -1472,8 +1472,8 @@ Section KVS_preamble.
     iApply (big_sepS_impl with "Hs").
     iModIntro; iIntros (??) "[ (%w' & H' & H) | $ ]".
     iLeft; iFrame.
-    iIntros (W'' Hrelated_W'_W'' Hheap_wf').
-    iApply ("H" with "[] []"); last done.
+    iIntros (W'' Hrelated_W'_W'').
+    iApply "H".
     iPureIntro.
     by eapply related_sts_priv_trans_world.
   Qed.
@@ -1492,7 +1492,7 @@ Section UserKvsInit.
     .
   Context {kvs_alloc_preg: gen_heapGpreS user_key_t kvs_user_map Σ}.
   Context {kvs_physical_user_preg : ghost_varG Σ kvs_physical_map }.
-  Context {kvs_logical_user_preg : ghost_mapG Σ user_key_t (option Word) }.
+  Context {kvs_logical_user_preg : ghost_mapG Σ user_key_t (option LWord) }.
 
   (** Initialisation of the user kvs resources, assuming an initial empty KVS.
      `UK` is the _finite_ set of user keys that we want to initialise. *)
@@ -1505,9 +1505,9 @@ Section UserKvsInit.
     in
 
     (
-      [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]]
+      [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ lword_of_word <$> imports ]]
       ∗ codefrag KVS_pcc_b' kvs_service_instrs
-      ∗ [[KVS_cgp_b,KVS_cgp_e]]↦ₐ[[kvs.kvs_data]]
+      ∗ [[KVS_cgp_b,KVS_cgp_e]]↦ₐ[[lword_of_word <$> kvs.kvs_data]]
     )
     ={E}=∗
     (

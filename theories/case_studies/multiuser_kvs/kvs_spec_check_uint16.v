@@ -9,14 +9,50 @@ Section KVS_check_uint16.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
 
+  (* TODO: move to rules_BinOp *)
+  (** [wp_binop_success_r_z] for an integer register with any identifier. *)
+  Lemma wp_binop_success_r_z_prov E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 n1 π1 n2
+      pc_a' :
+    decodeInstrW w.(lw) = ins →
+    is_BinOp ins dst (inr r1) (inl n2) →
+    (pc_a + 1)%a = Some pc_a' →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ pc_a ↦ₐ w
+        ∗ r1 ↦ᵣ WInt n1 @@? π1
+        ∗ dst ↦ᵣ wdst
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ pc_a ↦ₐ w
+          ∗ r1 ↦ᵣ WInt n1 @@? π1
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
+      }}}.
+  Proof.
+    iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr1 & Hdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [| * Hfail].
+    { iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
+              (insert_insert_ne _ dst PC) // insert_insert_eq.
+      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+    { destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
+  Qed.
+
   Lemma KVS_check_uint16_spec `{KVS : kvsLayout}
     (pc_b pc_e pc_a : Addr)
-    (rv rdst : RegName) (wrv : Word)
+    (rv rdst : RegName) (wrv : LWord)
     :
     let instrs := (kvs_check_uint16_instrs rv rdst) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
@@ -32,7 +68,7 @@ Section KVS_check_uint16.
 
       ▷ (
           ∀ nkey,
-            ⌜ wrv = WInt nkey ⌝ ∗
+            ⌜ wrv.(lw) = WInt nkey ⌝ ∗
             PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             rv ↦ᵣ wrv ∗
             codefrag pc_a instrs ∗
@@ -52,10 +88,15 @@ Section KVS_check_uint16.
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* lt rdst (UINT16_MIN-1)%Z rv; *)
-    destruct (is_z wrv) eqn:His_z_wrv; cycle 1.
+    destruct (is_z wrv.(lw)) eqn:His_z_wrv; cycle 1.
     { iInstr "Hcode"; wp_end; iIntros (?); done. }
-    destruct wrv as [ nkey | | | ]; try done.
-    iInstr "Hcode".
+    destruct wrv as [ [ nkey | | | ] π]; try done.
+    (* lt rdst (UINT16_MIN-1)%Z rv; *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_binop_success_z_r_prov with "[$HPC $Hi $Hrv $Hrdst]"); try solve_pure.
+    iIntros "!> (HPC & Hi & Hrv & Hrdst)". wp_pure.
+    iSpecialize ("Hcode" with "Hi"). cbn [denote].
 
     destruct (decide ( UINT16_MIN <= nkey )%Z) as [Hnkey_pass_min_uint16 | Hnkey_fail_min_uint16] ; cycle 1.
     { replace (-1 <? nkey)%Z with false by (rewrite /UINT16_MIN in Hnkey_fail_min_uint16; lia).
@@ -77,7 +118,11 @@ Section KVS_check_uint16.
     (* jnz (".kvs_key_check_uint16_min")%asm rdst; *)
     iInstr "Hcode".
     (* lt rdst rv UINT16_MAX; *)
-    iInstr "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_binop_success_r_z_prov with "[$HPC $Hi $Hrv $Hrdst]"); try solve_pure.
+    iIntros "!> (HPC & Hi & Hrv & Hrdst)". wp_pure.
+    iSpecialize ("Hcode" with "Hi"). cbn [denote].
 
     destruct (decide (nkey < UINT16_MAX )%Z) as [Hnkey_pass_max_uint16 | Hnkey_fail_max_uint16] ; cycle 1.
     { replace (nkey <? 65536)%Z with false by (rewrite /UINT16_MAX in Hnkey_fail_max_uint16; lia).
@@ -107,7 +152,7 @@ Section KVS_check_uint16.
 
   Lemma KVS_check_uint16_spec_is_uint16 `{KVS : kvsLayout}
     (pc_b pc_e pc_a : Addr)
-    (rv rdst : RegName) (nkey : Z)
+    (rv rdst : RegName) (nkey : Z) (πnkey : option AId)
     :
     let instrs := (kvs_check_uint16_instrs rv rdst) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
@@ -118,13 +163,13 @@ Section KVS_check_uint16.
 
     (
       PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
-      rv ↦ᵣ WInt nkey ∗
+      rv ↦ᵣ WInt nkey @@? πnkey ∗
       rdst ↦ᵣ - ∗
       codefrag pc_a instrs ∗
 
       ▷ (
           PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          rv ↦ᵣ WInt nkey ∗
+          rv ↦ᵣ WInt nkey @@? πnkey ∗
           codefrag pc_a instrs ∗
           rdst ↦ᵣ WInt ASM_TRUE
           -∗
@@ -135,7 +180,7 @@ Section KVS_check_uint16.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & Hcode & Hpost)".
     iApply (KVS_check_uint16_spec with "[- $HPC $Hrv $Hrdst $Hcode]"); eauto.
-    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & Hcode & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; simplify_eq.
+    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & Hcode & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; cbn in Hnkey_eq; simplify_eq.
     iApply "Hpost"; iFrame.
   Qed.
 
@@ -150,11 +195,11 @@ Section KVS_check_uint16.
 
   Lemma KVS_check_uint16_spec_not_uint16 `{KVS : kvsLayout}
     (pc_b pc_e pc_a : Addr)
-    (rv rdst : RegName) (wrv : Word)
+    (rv rdst : RegName) (wrv : LWord)
     :
     let instrs := (kvs_check_uint16_instrs rv rdst) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
-    ¬ word_is_uint16 wrv ->
+    ¬ word_is_uint16 wrv.(lw) ->
 
     rv ≠ cnull ->
     rdst ≠ cnull ->
@@ -178,7 +223,7 @@ Section KVS_check_uint16.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & Hcode & Hpost)".
     iApply (KVS_check_uint16_spec with "[- $HPC $Hrv $Hrdst $Hcode]"); eauto.
-    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & Hcode & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; simplify_eq.
+    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & Hcode & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; rewrite Hnkey_eq in Hnkey; simplify_eq.
     iApply "Hpost"; iFrame.
   Qed.
 

@@ -203,7 +203,8 @@ Proof.
     kvs_switcher_b kvs_switcher_e kvs_switcher_call
     kvs_switcher_return kvs_switcher_sealing_type
     kvs_trusted_stack_b kvs_trusted_stack_e _ _ _ _
-    (replicate 100 (WInt 0)) _ eq_refl kvs_stack_b kvs_stack_e
+    (replicate 100 (WInt 0)) _ eq_refl
+    ltac:(by apply Forall_replicate) kvs_stack_b kvs_stack_e
     (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

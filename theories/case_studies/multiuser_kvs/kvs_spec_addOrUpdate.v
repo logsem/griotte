@@ -11,9 +11,9 @@ Section KVS_spec_addOrUpdate.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
@@ -21,9 +21,9 @@ Section KVS_spec_addOrUpdate.
 
   (*** KVS INSERT: Key in the KVS *)
   Lemma KVS_update_spec_layer_0
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
-    (idx : kvs_idx_t) ( wnkey : Word )
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
+    (idx : kvs_idx_t) ( wnkey : LWord )
     (pkvs : kvs_physical_map)
     :
 
@@ -45,7 +45,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -60,7 +60,7 @@ Section KVS_spec_addOrUpdate.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ▷ (
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
@@ -75,7 +75,7 @@ Section KVS_spec_addOrUpdate.
           (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
-          is_physical_kvs KVS_cgp_b (<[idx := Some (fkey, store_word RW wca2)]> pkvs)
+          is_physical_kvs KVS_cgp_b (<[idx := Some (fkey, lstore_word RW wca2)]> pkvs)
 
           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -162,8 +162,8 @@ Section KVS_spec_addOrUpdate.
   Qed.
 
   Lemma KVS_update_spec_layer_1
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
     (E : coPset)
     :
@@ -188,7 +188,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -205,7 +205,7 @@ Section KVS_spec_addOrUpdate.
       ▷ (
           na_own cerise_nais E ∗
 
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
@@ -218,9 +218,9 @@ Section KVS_spec_addOrUpdate.
 
           user_key_addr ↦ₐ WInt user_key ∗
 
-          ↪●LKVS (<<[ (user_key, nkey):= store_word RW wca2 ]>> lkvs) ∗
-          is_logical_kvs (<<[ (user_key, nkey):= store_word RW wca2 ]>> lkvs) ∗
-          user_key ↦(LKVS) (<[ nkey := store_word RW wca2 ]> m)
+          ↪●LKVS (<<[ (user_key, nkey):= lstore_word RW wca2 ]>> lkvs) ∗
+          is_logical_kvs (<<[ (user_key, nkey):= lstore_word RW wca2 ]>> lkvs) ∗
+          user_key ↦(LKVS) (<[ nkey := lstore_word RW wca2 ]> m)
 
           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -276,7 +276,7 @@ Section KVS_spec_addOrUpdate.
     rewrite Heq_addr.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iMod (kvs_physical_kvs_update (<[idx:=Some (kvs_full_key user_key nkey, store_word RW wca2)]> pkvs) with
+    iMod (kvs_physical_kvs_update (<[idx:=Some (kvs_full_key user_key nkey, lstore_word RW wca2)]> pkvs) with
            "Hpkvs_frag Hpkvs_frag'") as "[Hpkvs_frag Hpkvs_frag']".
 
     iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HPKVS $Hpkvs_frag']") as "Hna" ; auto.
@@ -287,17 +287,17 @@ Section KVS_spec_addOrUpdate.
     }
 
     iDestruct "Hnodup_pkvs" as "%Hnodup_pkvs".
-    iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := store_word RW wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
-    replace ( <[user_key:=<[nkey:=store_word RW wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= store_word RW wca2 ]>> lkvs ).
+    iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := lstore_word RW wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
+    replace ( <[user_key:=<[nkey:=lstore_word RW wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= lstore_word RW wca2 ]>> lkvs ).
     2: { rewrite /kvs_logical_kvs_insert Hlkvs_user_key //. }
-    eapply (kvs_synced_logical_kvs_update _ _ _ _ _ (store_word RW wca2)) in Hsync; eauto.
+    eapply (kvs_synced_logical_kvs_update _ _ _ _ _ (lstore_word RW wca2)) in Hsync; eauto.
 
     iApply "Hpost"; iFrame; done.
   Qed.
 
   Lemma KVS_update_spec_layer_2
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
     (E : coPset)
     :
@@ -322,7 +322,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -334,7 +334,7 @@ Section KVS_spec_addOrUpdate.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ ( na_own cerise_nais E ∗
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
@@ -346,7 +346,7 @@ Section KVS_spec_addOrUpdate.
           cnull ↦ᵣ - ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
-          user_key ↦(LKVS) (<[nkey := store_word RW wca2]> m)
+          user_key ↦(LKVS) (<[nkey := lstore_word RW wca2]> m)
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -379,8 +379,8 @@ Section KVS_spec_addOrUpdate.
 
 
   Lemma KVS_update_spec
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
@@ -402,7 +402,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -415,7 +415,7 @@ Section KVS_spec_addOrUpdate.
       ▷ (user_key, nkey) ↦(KVS) - ∗
 
       ▷ ( na_own cerise_nais E ∗
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
@@ -428,7 +428,7 @@ Section KVS_spec_addOrUpdate.
           user_key_addr ↦ₐ WInt user_key ∗
 
           user_kvs_inv user_key ∗
-          (user_key, nkey) ↦(KVS) (store_word RW wca2)
+          (user_key, nkey) ↦(KVS) (lstore_word RW wca2)
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -454,16 +454,16 @@ Section KVS_spec_addOrUpdate.
                      & Ha_user_key
                      & Hm)".
 
-    iMod ( kvs_user_kvs_update _ _ _ _ (Some (store_word RW wca2)) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
-    apply (kvs_synced_logical_user_kvs_insert _ _ nkey (store_word RW wca2)) in Hsync.
+    iMod ( kvs_user_kvs_update _ _ _ _ (Some (lstore_word RW wca2)) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
+    apply (kvs_synced_logical_user_kvs_insert _ _ nkey (lstore_word RW wca2)) in Hsync.
     iAssert (user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
 
     iApply "Hpost"; iFrame; done.
   Qed.
 
   Lemma KVS_add_spec_layer_0
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (pkvs : kvs_physical_map)
     :
 
@@ -485,7 +485,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -500,7 +500,7 @@ Section KVS_spec_addOrUpdate.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ▷ (
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca1 ↦ᵣ WInt 0 ∗
@@ -521,7 +521,7 @@ Section KVS_spec_addOrUpdate.
               ⌜ pkvs !! idx_empty = Some None ⌝ ∗
               ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
 
-              is_physical_kvs KVS_cgp_b (<[idx_empty := Some (fkey, store_word RW wca2)]> pkvs)
+              is_physical_kvs KVS_cgp_b (<[idx_empty := Some (fkey, lstore_word RW wca2)]> pkvs)
             )
             ∨
               (* THERE IS NO EMPTY SLOT AVAILABLE*)
@@ -674,8 +674,8 @@ Section KVS_spec_addOrUpdate.
 
   (*** KVS INSERT: Key not in the KVS *)
   Lemma KVS_add_spec_layer_1
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
     (E : coPset)
     :
@@ -699,7 +699,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -714,7 +714,7 @@ Section KVS_spec_addOrUpdate.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ ( na_own cerise_nais E ∗
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca1 ↦ᵣ WInt 0 ∗
@@ -730,9 +730,9 @@ Section KVS_spec_addOrUpdate.
             (* THERE IS AN EMPTY SLOT AVAILABLE*)
             ( ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
 
-              ↪●LKVS (<<[ ( user_key, nkey ) := store_word RW wca2 ]>> lkvs) ∗
-              is_logical_kvs (<<[ ( user_key, nkey ) := store_word RW wca2 ]>> lkvs) ∗
-              user_key ↦(LKVS) (<[ nkey := store_word RW wca2 ]> m)
+              ↪●LKVS (<<[ ( user_key, nkey ) := lstore_word RW wca2 ]>> lkvs) ∗
+              is_logical_kvs (<<[ ( user_key, nkey ) := lstore_word RW wca2 ]>> lkvs) ∗
+              user_key ↦(LKVS) (<[ nkey := lstore_word RW wca2 ]> m)
             )
             ∨
               (* THERE IS NO EMPTY SLOT AVAILABLE*)
@@ -796,7 +796,7 @@ Section KVS_spec_addOrUpdate.
                          | (Hca0 & HPKVS)
                        ] )".
     all: rewrite Heq_addr; subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    - iMod (kvs_physical_kvs_update (<[idx_empty:=Some (kvs_full_key user_key nkey, store_word RW wca2)]> pkvs) with
+    - iMod (kvs_physical_kvs_update (<[idx_empty:=Some (kvs_full_key user_key nkey, lstore_word RW wca2)]> pkvs) with
              "Hpkvs_frag Hpkvs_frag'") as "[Hpkvs_frag Hpkvs_frag']".
       iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HPKVS $Hpkvs_frag']") as "Hna" ; auto.
       { iNext.
@@ -805,10 +805,10 @@ Section KVS_spec_addOrUpdate.
         rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.
       }
 
-      iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := store_word RW wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
-      replace ( <[user_key:=<[nkey:=store_word RW wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= store_word RW wca2 ]>> lkvs ).
+      iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := lstore_word RW wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
+      replace ( <[user_key:=<[nkey:=lstore_word RW wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= lstore_word RW wca2 ]>> lkvs ).
       2: { rewrite /kvs_logical_kvs_insert Hlkvs_user_key //. }
-      eapply (kvs_synced_logical_kvs_insert _ _ _ _ _ (store_word RW wca2)) in Hsync; eauto.
+      eapply (kvs_synced_logical_kvs_insert _ _ _ _ _ (lstore_word RW wca2)) in Hsync; eauto.
 
 
       iApply "Hpost"; iFrame "∗%".
@@ -826,8 +826,8 @@ Section KVS_spec_addOrUpdate.
   Qed.
 
   Lemma KVS_add_spec_layer_2
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
     (E : coPset)
     :
@@ -852,7 +852,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -864,7 +864,7 @@ Section KVS_spec_addOrUpdate.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca1 ↦ᵣ WInt 0 ∗
@@ -878,7 +878,7 @@ Section KVS_spec_addOrUpdate.
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
            (
              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-             user_key ↦(LKVS) (<[ nkey := store_word RW wca2 ]> m)
+             user_key ↦(LKVS) (<[ nkey := lstore_word RW wca2 ]> m)
            )
            ∨
              (* THERE IS NO EMPTY SLOT AVAILABLE*)
@@ -921,8 +921,8 @@ Section KVS_spec_addOrUpdate.
   Qed.
 
   Lemma KVS_add_spec
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
@@ -944,7 +944,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -957,7 +957,7 @@ Section KVS_spec_addOrUpdate.
       ▷ (user_key, nkey) ↦(KVS) ⊥ ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca1 ↦ᵣ WInt 0 ∗
@@ -972,7 +972,7 @@ Section KVS_spec_addOrUpdate.
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
            (
              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-             (user_key, nkey) ↦(KVS) (store_word RW wca2)
+             (user_key, nkey) ↦(KVS) (lstore_word RW wca2)
            )
            ∨
              (* THERE IS NO EMPTY SLOT AVAILABLE*)
@@ -1004,8 +1004,8 @@ Section KVS_spec_addOrUpdate.
               & Ha_user_key
               & [ (Hca0 & Hm) | (Hca0 & Hm) ] )".
 
-    - iMod ( kvs_user_kvs_update _ _ _ _ (Some (store_word RW wca2)) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
-      apply (kvs_synced_logical_user_kvs_insert _ _ nkey (store_word RW wca2)) in Hsync.
+    - iMod ( kvs_user_kvs_update _ _ _ _ (Some (lstore_word RW wca2)) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
+      apply (kvs_synced_logical_user_kvs_insert _ _ nkey (lstore_word RW wca2)) in Hsync.
       iAssert (user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
       iApply "Hpost"; iFrame; iLeft; iFrame; done.
 
@@ -1018,12 +1018,12 @@ Section KVS_spec_addOrUpdate.
 
   Lemma KVS_addOrUpdate_spec_not_uint16_map_key_pre
     (pc_b pc_e pc_a : Addr)
-    (wret : Word)
-    (wca1 : Word)
+    (wret : LWord)
+    (wca1 : LWord)
     :
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
-    ¬ word_is_uint16 wca1 ->
+    ¬ word_is_uint16 wca1.(lw) ->
 
     (
       (* initial register file *)
@@ -1037,7 +1037,7 @@ Section KVS_spec_addOrUpdate.
       (* initial memory layout *)
       codefrag pc_a kvs_addOrUpdate_instrs ∗
 
-      ▷ (PC ↦ᵣ updatePcPerm wret ∗
+      ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
@@ -1081,14 +1081,14 @@ Section KVS_spec_addOrUpdate.
   Qed.
 
   Lemma KVS_addOrUpdate_spec_not_uint16_map_key
-    (wret : Word)
-    (wca1 : Word)
+    (wret : LWord)
+    (wca1 : LWord)
     (E : coPset)
     :
 
     ↑(Nkvs.@"physical") ⊆ E ->
 
-    ¬ word_is_uint16 wca1 ->
+    ¬ word_is_uint16 wca1.(lw) ->
 
     ( na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
@@ -1102,7 +1102,7 @@ Section KVS_spec_addOrUpdate.
       cnull ↦ᵣ - ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
@@ -1140,15 +1140,15 @@ Section KVS_spec_addOrUpdate.
   Lemma KVS_addOrUpdate_spec_invalid_sealed_user_key_pre
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
-    (wret : Word)
-    (wca0 : Word)
-    (nkey : Z)
+    (wret : LWord)
+    (wca0 : LWord)
+    (nkey : Z) (πnkey : option AId)
     :
 
     is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
     is_uint16 nkey ->
-    (is_sealed_with_o wca0 KVS_OTYPE = false \/ get_tag wca0 = false) ->
+    (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
@@ -1157,7 +1157,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to addOrUpdate *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to addOrUpdate *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       ctp ↦ᵣ - ∗ (* scratch *)
@@ -1202,9 +1202,9 @@ Section KVS_spec_addOrUpdate.
   Qed.
 
   Lemma KVS_addOrUpdate_spec_invalid_sealed_user_key
-    (wret : Word)
-    (wca0 : Word)
-    (nkey : Z)
+    (wret : LWord)
+    (wca0 : LWord)
+    (nkey : Z) (πnkey : option AId)
     (E : coPset)
     :
 
@@ -1212,7 +1212,7 @@ Section KVS_spec_addOrUpdate.
     ↑(Nkvs.@"physical") ⊆ E ->
 
     is_uint16 nkey ->
-    (is_sealed_with_o wca0 KVS_OTYPE = false \/ get_tag wca0 = false) ->
+    (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     ( na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
@@ -1222,7 +1222,7 @@ Section KVS_spec_addOrUpdate.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to addOrUpdate *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to addOrUpdate *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       ctp ↦ᵣ - ∗ (* scratch *)
@@ -1257,19 +1257,19 @@ Section KVS_spec_addOrUpdate.
   Qed.
 
   Lemma KVS_add_spec_known_to_known
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
-    (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
+    (arg_rmap : LReg) (cstk : CSTK) (E : coPset)
     (user_key : user_key_t) (nkey : map_key_t)
-    (l_user_key : Locality) (user_key_addr : Addr) (wnew : Word) :
+    (l_user_key : Locality) (user_key_addr : Addr) (wnew : LWord) :
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    arg_rmap !! ca0 = Some (kvs_user_seal_key l_user_key user_key_addr) ->
-    arg_rmap !! ca1 = Some (WInt nkey) ->
+    arg_rmap !! ca0 = Some (lword_of_word (kvs_user_seal_key l_user_key user_key_addr)) ->
+    arg_rmap !! ca1 = Some (lword_of_word (WInt nkey)) ->
     arg_rmap !! ca2 = Some wnew ->
     na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
     na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
@@ -1283,7 +1283,7 @@ Section KVS_spec_addOrUpdate.
          user_kvs_inv user_key ∗
          ⌜ wca1 = WInt 0 ⌝ ∗
          ((⌜ wca0 = WInt ASM_TRUE ⌝ ∗
-           (user_key, nkey) ↦(KVS) (store_word RW wnew))
+           (user_key, nkey) ↦(KVS) (lstore_word RW wnew))
           ∨
           (⌜ wca0 = WInt ASM_FALSE ⌝ ∗
            (user_key, nkey) ↦(KVS) ⊥)))
@@ -1295,7 +1295,7 @@ Section KVS_spec_addOrUpdate.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg Hca2_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "[ #Hkvs #Hkvs_logical ]" (arg_rmap' rmap')
-       "#Halloc (%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
+       "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hcstk
        & (Huser_key & Huser_kvs & Hkey)
        & Hpost)".
@@ -1342,10 +1342,10 @@ Section KVS_spec_addOrUpdate.
     set (rmap_ret3 := <[ct2 := wct2]> rmap_ret2).
     set (rmap_ret4 := <[cnull := wcnull]> rmap_ret3).
     set (rmap_ret5 := <[ca2 := wca2]> rmap_ret4).
-    set (rmap_ret6 := <[ca3 := WInt 0]> rmap_ret5).
-    set (rmap_ret7 := <[ca4 := WInt 0]> rmap_ret6).
-    set (rmap_ret8 := <[ca5 := WInt 0]> rmap_ret7).
-    set (rmap_ret := <[ct0 := WInt 0]> rmap_ret8).
+    set (rmap_ret6 := <[ca3 := lword_of_word (WInt 0)]> rmap_ret5).
+    set (rmap_ret7 := <[ca4 := lword_of_word (WInt 0)]> rmap_ret6).
+    set (rmap_ret8 := <[ca5 := lword_of_word (WInt 0)]> rmap_ret7).
+    set (rmap_ret := <[ct0 := lword_of_word (WInt 0)]> rmap_ret8).
     iEval (cbn) in "HPC".
 
     iDestruct "Hres" as "[(Hca0 & Hkey) | (Hca0 & Hkey)]".

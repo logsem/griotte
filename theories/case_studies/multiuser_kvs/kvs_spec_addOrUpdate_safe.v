@@ -12,9 +12,9 @@ Section KVS_spec_addOrUpdate_safe.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
@@ -23,7 +23,7 @@ Section KVS_spec_addOrUpdate_safe.
   (*** Specification from unknown *)
   Lemma KVS_addOrupdate_spec_safe
     (Wca W : WORLD) (C : CmptName)
-    (wret wca0 wca1 wca2 : Word)
+    (wret wca0 wca1 wca2 : LWord)
     (E : coPset)
     :
 
@@ -54,7 +54,7 @@ Section KVS_spec_addOrUpdate_safe.
       world_interp W C ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          (ca0 ↦ᵣ WInt ASM_TRUE ∨ ca0 ↦ᵣ WInt ASM_FALSE) ∗
@@ -76,26 +76,26 @@ Section KVS_spec_addOrUpdate_safe.
       & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld & Hpost)".
 
     (* Destruct validity map key *)
-    destruct (decide (word_is_uint16 wca1)) as [Hwca1_uint16|Hwca1_uint16]; cycle 1.
+    destruct (decide (word_is_uint16 wca1.(lw))) as [Hwca1_uint16|Hwca1_uint16]; cycle 1.
     { (* the map key argument is not a uint16 *)
       iApply KVS_addOrUpdate_spec_not_uint16_map_key; eauto; iFrame "∗#".
       iNext; iIntros "(Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull)".
       iApply "Hpost"; iFrame.
     }
-    destruct wca1 as [nkey| | | ]; cbn in Hwca1_uint16; try done.
+    destruct wca1 as [ [nkey| | | ] πnkey]; cbn in Hwca1_uint16; try done.
 
     (* Untagged user keys fail at UnSeal, before opening seal resources. *)
-    destruct (get_tag wca0) eqn:Hwca0_tag; cycle 1.
+    destruct (get_tag wca0.(lw)) eqn:Hwca0_tag; cycle 1.
     { iApply KVS_addOrUpdate_spec_invalid_sealed_user_key; eauto; iFrame "∗#". }
 
     (* Destruct validity user key *)
-    destruct ( is_sealed_with_o wca0 KVS_OTYPE ) eqn:Hwca0_sealed_with_kvs_ot; cycle 1.
+    destruct ( is_sealed_with_o wca0.(lw) KVS_OTYPE ) eqn:Hwca0_sealed_with_kvs_ot; cycle 1.
     { (* the user key argument is not a valid sealed user key *)
       iApply KVS_addOrUpdate_spec_invalid_sealed_user_key; eauto; iFrame "∗#".
     }
     (* The inputs are valid. *)
     rewrite /is_sealed_with_o in Hwca0_sealed_with_kvs_ot.
-    destruct wca0 as [ | | | ot wsb ]; try done.
+    destruct wca0 as [ [ | | | ot wsb ] π0]; try done.
     rewrite Z.eqb_eq in Hwca0_sealed_with_kvs_ot.
     assert (ot = KVS_OTYPE) by solve_addr+Hwca0_sealed_with_kvs_ot; simplify_eq.
 
@@ -105,12 +105,13 @@ Section KVS_spec_addOrUpdate_safe.
     (* Open sealing predicate of sealed user key *)
     iEval (rewrite fixpoint_interp1_eq /= /interp_sb Hwca0_tag) in "Hinterp_wca0".
     iDestruct "Hinterp_wca0" as "[#Hinterp_wca0 %Hvalid_wca0]".
-    iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb]})%I as "#Hinterp_wca0'".
+    iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb @@? π0]})%I as "#Hinterp_wca0'".
     { iApply sts_seals_std_weaken; last iFrame "Hinterp_wca0"; last set_solver+. }
 
     iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
                 as "(Hworld & Hres_open & HP)".
     iDestruct "HP" as "(%uk & %a & >%Heq_sb & >%Hbounds & >%Huser_key_shadow & >Ha & HLUKVS & Hinterp)".
+    rewrite /lforce_global /lift_word in Heq_sb.
     destruct wsb as [ t_user_key p_user_key l_user_key | ] ; cbn in * ; simplify_eq.
 
     assert (nkey ∈ kvs_all_map_keys) as Hnkey_is_map_key by rewrite -is_uint16_in_kvs_all_map_keys //.
@@ -126,22 +127,22 @@ Section KVS_spec_addOrUpdate_safe.
 
       iAssert (∀ W' : WORLD,
         ⌜related_sts_priv_world W W'⌝ -∗
-        ⌜heap_wf (heap_std W')⌝ -∗
-        interp_in_mem RWL W' C (store_word RW wca2))%I as "Hw_interp".
-      { iIntros (W' Hrelated_W_W' Hheap_wf).
-        rewrite /store_word.
-        destruct (canStore RW wca2) eqn:Hcan_store.
-        - iApply (monotone.interp_in_mem_monotone_nl Wca W' C RWL wca2 with "[]").
-          { exact Hheap_wf. }
+        interp_in_mem RWL W' C (lstore_word RW wca2))%I as "Hw_interp".
+      { iIntros (W' Hrelated_W_W').
+        destruct (canStore RW wca2.(lw)) eqn:Hcan_store.
+        - rewrite (lstore_word_canStore RW wca2 Hcan_store).
+          iApply (monotone.interp_in_mem_monotone_nl Wca W' C RWL wca2 with "[]").
           { eapply related_sts_priv_trans_world; eauto. }
-          { cbn. apply (canStore_global_nonisWL RW wca2); [reflexivity|exact Hcan_store]. }
+          { cbn. apply (canStore_global_nonisWL RW wca2.(lw)); [reflexivity|exact Hcan_store]. }
           iApply interp_to_in_mem; iFrame "#".
-        - iApply interp_to_in_mem. iApply interp_clear_tag.
+        - rewrite (_ : lstore_word RW wca2 = lclear_tag wca2);
+            last by rewrite /lstore_word /lclear_tag /lift_word /store_word Hcan_store.
+          iApply interp_to_in_mem. iApply interp_clear_tag.
       }
       iDestruct (big_sepS_delete _ _ nkey with "[$Hinterp Hnkey Hw_interp]") as "Hinterp"; eauto.
       { rewrite /safe_kvs_pointsto; eauto. }
 
-      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
+      iAssert (kvs_otype_propC (W, C, (lforce_global (lword_of_word (WSealable (kvs_user_seal_key_scap l_user_key a))))))
         with "[$Ha $HLUKVS $Hinterp]"
         as "HP".
       { iFrame "∗%"; auto. }
@@ -162,21 +163,21 @@ Section KVS_spec_addOrUpdate_safe.
          ]".
       + iAssert (∀ W' : WORLD,
           ⌜related_sts_priv_world W W'⌝ -∗
-          ⌜heap_wf (heap_std W')⌝ -∗
-          interp_in_mem RWL W' C (store_word RW wca2))%I as "Hw_interp".
-        { iIntros (W' Hrelated_W_W' Hheap_wf).
-          rewrite /store_word.
-          destruct (canStore RW wca2) eqn:Hcan_store.
-          - iApply (monotone.interp_in_mem_monotone_nl Wca W' C RWL wca2 with "[]").
-            { exact Hheap_wf. }
+          interp_in_mem RWL W' C (lstore_word RW wca2))%I as "Hw_interp".
+        { iIntros (W' Hrelated_W_W').
+          destruct (canStore RW wca2.(lw)) eqn:Hcan_store.
+          - rewrite (lstore_word_canStore RW wca2 Hcan_store).
+            iApply (monotone.interp_in_mem_monotone_nl Wca W' C RWL wca2 with "[]").
             { eapply related_sts_priv_trans_world; eauto. }
-            { cbn. apply (canStore_global_nonisWL RW wca2); [reflexivity|exact Hcan_store]. }
+            { cbn. apply (canStore_global_nonisWL RW wca2.(lw)); [reflexivity|exact Hcan_store]. }
             iApply interp_to_in_mem; iFrame "#".
-          - iApply interp_to_in_mem. iApply interp_clear_tag.
+          - rewrite (_ : lstore_word RW wca2 = lclear_tag wca2);
+              last by rewrite /lstore_word /lclear_tag /lift_word /store_word Hcan_store.
+            iApply interp_to_in_mem. iApply interp_clear_tag.
         }
         iDestruct ( big_sepS_delete  with "[$Hinterp Hnkey Hw_interp]") as "Hinterp"; eauto.
         { rewrite /safe_kvs_pointsto; eauto. }
-        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
+        iAssert (kvs_otype_propC (W, C, (lforce_global (lword_of_word (WSealable (kvs_user_seal_key_scap l_user_key a))))))
           with "[$Ha $HLUKVS $Hinterp]"
           as "HP".
         { iFrame "∗%"; auto. }
@@ -185,7 +186,7 @@ Section KVS_spec_addOrUpdate_safe.
         iApply "Hpost"; iFrame.
 
       + iDestruct ( big_sepS_delete with "[$Hinterp $Hnkey]") as "Hinterp"; eauto.
-        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
+        iAssert (kvs_otype_propC (W, C, (lforce_global (lword_of_word (WSealable (kvs_user_seal_key_scap l_user_key a))))))
           with "[$Ha $HLUKVS $Hinterp]"
           as "HP".
         { iFrame "∗%"; auto. }
@@ -253,7 +254,7 @@ Section KVS_spec_addOrUpdate_safe.
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "#Halloc (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -317,12 +318,9 @@ Section KVS_spec_addOrUpdate_safe.
 
     destruct Hl_unk as [ Hnodup Htemps ]; auto.
     set (Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) (revoke W0)).
-    iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_C") as %Hheap_wf_cur.
-    assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
-      by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf_cur).
     assert (related_sts_pub_world W0 Wfixed) as Hrelated_pub_W0_Wfixed.
     { subst Wfixed. apply related_pub_revoke_close_list; exact Htemps. }
-    iDestruct (RevokedResources_mono_pub W0 Wfixed C l l Hheap_wf_fixed
+    iDestruct (RevokedResources_mono_pub W0 Wfixed C l l
       Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
     clear Hrelated_pub_W0_Wfixed.
 
@@ -332,7 +330,7 @@ Section KVS_spec_addOrUpdate_safe.
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ) ; eauto; last iFrame "∗#".
     { apply related_pub_revoke_close_list; eauto. }
-    { apply regmap_full_dom in Hrmap_init.
+    { apply lregmap_full_dom in Hrmap_init.
       repeat (rewrite dom_insert_L).
       repeat (rewrite dom_delete_L).
       rewrite Hrmap_init. set_solver+. }

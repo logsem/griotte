@@ -10,9 +10,9 @@ Section KVS_spec_read.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
@@ -26,9 +26,9 @@ Section KVS_spec_read.
       original word. Nonheap values are therefore returned unchanged.
    **)
   Lemma KVS_read_spec_in_layer_0
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
-    (idx : kvs_idx_t) ( w : Word )
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
+    (idx : kvs_idx_t) ( w : LWord )
     (pkvs : kvs_physical_map)
     :
 
@@ -50,7 +50,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -64,12 +64,12 @@ Section KVS_spec_read.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ▷ (
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
            (∃ actual, ca1 ↦ᵣ actual ∗
-             ⌜actual = w ∨ (is_heap_cap w = true ∧ actual = clear_tag w)⌝) ∗ (* result of the read *)
+             ⌜lload_heap w actual⌝) ∗ (* result of the read *)
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
@@ -139,13 +139,14 @@ Section KVS_spec_read.
     (* Load ca1 cgp 0: the heap shadow can clear the returned tag. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_preserve_or_clear _ _ _ _ _ _ (a_read ^+ 7)%a with "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val]");
+    iApply (wp_load_preserve_or_clear _ _ _ _ _ _ _ (a_read ^+ 7)%a with "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val]");
       try solve_pure; try solve_addr.
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
       rewrite /withinBounds; solve_addr. }
     iIntros "!>" (ret)
       "[-> | (%actual & -> & %Hactual & HPC & Hi & Hca1 & Hcgp & Hcgp_val)]".
     { wp_pure; wp_end; iIntros "%Hcontr"; done. }
+    rewrite lload_word_RW in Hactual.
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Mov ca1 0 *)
     iInstr "Hcode".
@@ -159,10 +160,10 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_in_layer_1
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
-    (w : Word)
+    (w : LWord)
     (E : coPset)
     :
 
@@ -185,7 +186,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -199,12 +200,12 @@ Section KVS_spec_read.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ ( na_own cerise_nais E ∗
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
            (∃ actual, ca1 ↦ᵣ actual ∗
-             ⌜actual = w ∨ (is_heap_cap w = true ∧ actual = clear_tag w)⌝) ∗ (* result of the read *)
+             ⌜lload_heap w actual⌝) ∗ (* result of the read *)
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
@@ -279,10 +280,10 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_in_layer_2
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
-    (w : Word)
+    (w : LWord)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
@@ -306,7 +307,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to read *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -317,12 +318,12 @@ Section KVS_spec_read.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
           (∃ actual, ca1 ↦ᵣ actual ∗
-             ⌜actual = w ∨ (is_heap_cap w = true ∧ actual = clear_tag w)⌝) ∗ (* result of the read *)
+             ⌜lload_heap w actual⌝) ∗ (* result of the read *)
          ctp ↦ᵣ - ∗ (* scratch *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
@@ -363,9 +364,9 @@ Section KVS_spec_read.
 
 
   Lemma KVS_read_spec_in
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
-    (w : Word)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
+    (w : LWord)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
@@ -387,7 +388,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to read *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       ctp ↦ᵣ - ∗ (* scratch *)
@@ -399,12 +400,12 @@ Section KVS_spec_read.
       ▷ (user_key, nkey) ↦(KVS) w ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
           (∃ actual, ca1 ↦ᵣ actual ∗
-             ⌜actual = w ∨ (is_heap_cap w = true ∧ actual = clear_tag w)⌝) ∗ (* result of the read *)
+             ⌜lload_heap w actual⌝) ∗ (* result of the read *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          ctp ↦ᵣ - ∗ (* scratch *)
@@ -446,9 +447,9 @@ Section KVS_spec_read.
   (** Read layers retaining the observed heap shadow status. *)
   Lemma KVS_read_spec_in_layer_0_world
     (W : WORLD) (C : CmptName)
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
-    (idx : kvs_idx_t) ( w : Word )
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
+    (idx : kvs_idx_t) ( w : LWord )
     (pkvs : kvs_physical_map)
     :
 
@@ -464,15 +465,14 @@ Section KVS_spec_read.
 
     pkvs !! idx = Some (Some (kvs_full_key user_key nkey, w)) ->
 
-    ( allocator_ctx ∗
-      region W C ∗
+    ( region W C ∗
       (* initial register file *)
 
       PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -487,7 +487,7 @@ Section KVS_spec_read.
 
       ▷ (
           region W C ∗
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -511,7 +511,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
-      "(#Halloc & Hregion & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
+      "(Hregion & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
         & Hcode & Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
 
@@ -563,7 +563,7 @@ Section KVS_spec_read.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (load_read_retained _ W C with
-      "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val $Hregion $Halloc]");
+      "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val $Hregion]");
       try solve_pure; try solve_addr.
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
       rewrite /withinBounds; solve_addr. }
@@ -583,10 +583,10 @@ Section KVS_spec_read.
 
   Lemma KVS_read_spec_in_layer_1_world
     (W : WORLD) (C : CmptName)
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
-    (w : Word)
+    (w : LWord)
     (E : coPset)
     :
 
@@ -601,8 +601,7 @@ Section KVS_spec_read.
 
     m !! nkey = Some w ->
 
-    ( allocator_ctx ∗
-      region W C ∗
+    ( region W C ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
 
@@ -611,7 +610,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -626,7 +625,7 @@ Section KVS_spec_read.
 
       ▷ ( region W C ∗
           na_own cerise_nais E ∗
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -650,7 +649,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
-      "(#Halloc & Hregion & #Hkvs_inv & Hna
+      "(Hregion & #Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key
         & >Hlkvs_auth & (%pkvs & >%Hsync & >Hpkvs_frag) & >Hm & Hpost)".
@@ -687,7 +686,7 @@ Section KVS_spec_read.
 
 
     iApply (KVS_read_spec_in_layer_0_world W C with
-             "[- $Halloc $Hregion $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2 $Hcnull
+             "[- $Hregion $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2 $Hcnull
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); last iFrame; eauto.
     iNext; iIntros "(Hregion & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2 & Hcnull
@@ -707,10 +706,10 @@ Section KVS_spec_read.
 
   Lemma KVS_read_spec_in_layer_2_world
     (W : WORLD) (C : CmptName)
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
-    (w : Word)
+    (w : LWord)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
@@ -725,8 +724,7 @@ Section KVS_spec_read.
 
     m !! nkey = Some w ->
 
-    ( allocator_ctx ∗
-      region W C ∗
+    ( region W C ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
       na_own cerise_nais E ∗
@@ -736,7 +734,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to read *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -748,7 +746,7 @@ Section KVS_spec_read.
 
       ▷ (region W C ∗
          na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -770,14 +768,14 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
-      "(#Halloc & Hregion & #Hkvs_inv & #Hkvs_logical_inv & Hna
+      "(Hregion & #Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
       & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_logical_inv Hna")
       as "( (%lkvs & Hlkvs_auth & HLKVS) & Hna & Hkvs_logical_inv_close)"; eauto.
 
     iApply (KVS_read_spec_in_layer_1_world W C with
-             "[- $Halloc $Hregion $Hkvs_inv
+             "[- $Hregion $Hkvs_inv
                  $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2 $Hcnull
                  $Ha_user_key
                  $Hlkvs_auth $HLKVS $Hm]"); last iFrame; eauto.
@@ -794,9 +792,9 @@ Section KVS_spec_read.
 
   Lemma KVS_read_spec_in_world
     (W : WORLD) (C : CmptName)
-    (wret wca2 : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
-    (w : Word)
+    (wret wca2 : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
+    (w : LWord)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
@@ -809,8 +807,7 @@ Section KVS_spec_read.
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
-    ( allocator_ctx ∗
-      region W C ∗
+    ( region W C ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
       na_own cerise_nais E ∗
@@ -820,7 +817,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to read *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       ctp ↦ᵣ - ∗ (* scratch *)
@@ -833,7 +830,7 @@ Section KVS_spec_read.
 
       ▷ (region W C ∗
          na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -856,14 +853,14 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
-      "(#Halloc & Hregion & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
+      "(Hregion & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
        & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
     iDestruct (kvs_user_kvs_valid with "Hukvs_auth Hk") as "%Hk".
     opose proof (kvs_synced_logical_user_kvs_Some _ _ _ _ _ Hk) as Hm_kvs; eauto.
 
     iApply (KVS_read_spec_in_layer_2_world W C
-             with "[- $Halloc $Hregion $Hkvs_inv $Hkvs_logical_inv $Hna
+             with "[- $Hregion $Hkvs_inv $Hkvs_logical_inv $Hna
                     $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2 $Hcnull
                     $Ha_user_key $Hm]"); eauto.
     iNext; iIntros "(Hregion & Hna
@@ -876,8 +873,8 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_notin_layer_0
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (pkvs : kvs_physical_map)
     :
 
@@ -899,7 +896,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -913,7 +910,7 @@ Section KVS_spec_read.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ▷ (
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
@@ -1017,8 +1014,8 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_notin_layer_1
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
     (E : coPset)
     :
@@ -1041,7 +1038,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -1055,7 +1052,7 @@ Section KVS_spec_read.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ ( na_own cerise_nais E ∗
-          PC ↦ᵣ updatePcPerm wret ∗
+          PC ↦ᵣ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
@@ -1132,8 +1129,8 @@ Section KVS_spec_read.
 
 
   Lemma KVS_read_spec_notin_layer_2
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
     (E : coPset)
     :
@@ -1157,7 +1154,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to read *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -1168,7 +1165,7 @@ Section KVS_spec_read.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
@@ -1210,8 +1207,8 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_notin
-    (wret : Word)
-    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (wret : LWord)
+    (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (E : coPset)
     :
 
@@ -1232,7 +1229,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to read *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -1244,7 +1241,7 @@ Section KVS_spec_read.
       ▷ (user_key, nkey) ↦(KVS) ⊥ ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
@@ -1287,12 +1284,12 @@ Section KVS_spec_read.
 
   Lemma KVS_read_spec_not_uint16_map_key_pre
     (pc_b pc_e pc_a : Addr)
-    (wret : Word)
-    (wca1 : Word)
+    (wret : LWord)
+    (wca1 : LWord)
     :
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
-    ¬ word_is_uint16 wca1 ->
+    ¬ word_is_uint16 wca1.(lw) ->
 
     (
       (* initial register file *)
@@ -1306,7 +1303,7 @@ Section KVS_spec_read.
       (* initial memory layout *)
       codefrag pc_a kvs_read_instrs ∗
 
-      ▷ (PC ↦ᵣ updatePcPerm wret ∗
+      ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
@@ -1350,14 +1347,14 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_not_uint16_map_key
-    (wret : Word)
-    (wca1 : Word)
+    (wret : LWord)
+    (wca1 : LWord)
     (E : coPset)
     :
 
     ↑(Nkvs.@"physical") ⊆ E ->
 
-    ¬ word_is_uint16 wca1 ->
+    ¬ word_is_uint16 wca1.(lw) ->
 
     ( na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
@@ -1371,7 +1368,7 @@ Section KVS_spec_read.
       cnull ↦ᵣ - ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
+         PC ↦ᵣ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
@@ -1408,15 +1405,15 @@ Section KVS_spec_read.
   Lemma KVS_read_spec_invalid_sealed_user_key_pre
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
-    (wret : Word)
-    (wca0 : Word)
-    (nkey : Z)
+    (wret : LWord)
+    (wca0 : LWord)
+    (nkey : Z) (πnkey : option AId)
     :
 
     is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
     is_uint16 nkey ->
-    (is_sealed_with_o wca0 KVS_OTYPE = false \/ get_tag wca0 = false) ->
+    (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
@@ -1426,7 +1423,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to read *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       ctp ↦ᵣ - ∗ (* scratch *)
@@ -1471,9 +1468,9 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_invalid_sealed_user_key
-    (wret : Word)
-    (wca0 : Word)
-    (nkey : Z)
+    (wret : LWord)
+    (wca0 : LWord)
+    (nkey : Z) (πnkey : option AId)
     (E : coPset)
     :
 
@@ -1481,7 +1478,7 @@ Section KVS_spec_read.
     ↑(Nkvs.@"physical") ⊆ E ->
 
     is_uint16 nkey ->
-    (is_sealed_with_o wca0 KVS_OTYPE = false \/ get_tag wca0 = false) ->
+    (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     ( na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
@@ -1491,7 +1488,7 @@ Section KVS_spec_read.
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to read *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       ctp ↦ᵣ - ∗ (* scratch *)
@@ -1526,20 +1523,20 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_known_to_known
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
-    (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
+    (arg_rmap : LReg) (cstk : CSTK) (E : coPset)
     (user_key : user_key_t) (nkey : map_key_t)
-    (l_user_key : Locality) (user_key_addr : Addr) (w : Word) :
+    (l_user_key : Locality) (user_key_addr : Addr) (w : LWord) :
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    is_heap_cap w = false ->
+    is_heap_cap w.(lw) = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    arg_rmap !! ca0 = Some (kvs_user_seal_key l_user_key user_key_addr) ->
-    arg_rmap !! ca1 = Some (WInt nkey) ->
+    arg_rmap !! ca0 = Some (lword_of_word (kvs_user_seal_key l_user_key user_key_addr)) ->
+    arg_rmap !! ca1 = Some (lword_of_word (WInt nkey)) ->
     na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
     na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ⊢
@@ -1561,7 +1558,7 @@ Section KVS_spec_read.
     iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "[ #Hkvs #Hkvs_logical ]" (arg_rmap' rmap')
-      "#Halloc (%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
+      "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hcstk
        & (Huser_key & Huser_kvs & Hkey)
        & Hpost)".
@@ -1607,11 +1604,11 @@ Section KVS_spec_read.
     set (rmap_ret2 := <[ct1 := wct1]> rmap_ret1).
     set (rmap_ret3 := <[ct2 := wct2]> rmap_ret2).
     set (rmap_ret4 := <[cnull := wcnull]> rmap_ret3).
-    set (rmap_ret5 := <[ca2 := WInt 0]> rmap_ret4).
-    set (rmap_ret6 := <[ca3 := WInt 0]> rmap_ret5).
-    set (rmap_ret7 := <[ca4 := WInt 0]> rmap_ret6).
-    set (rmap_ret8 := <[ca5 := WInt 0]> rmap_ret7).
-    set (rmap_ret := <[ct0 := WInt 0]> rmap_ret8).
+    set (rmap_ret5 := <[ca2 := lword_of_word (WInt 0)]> rmap_ret4).
+    set (rmap_ret6 := <[ca3 := lword_of_word (WInt 0)]> rmap_ret5).
+    set (rmap_ret7 := <[ca4 := lword_of_word (WInt 0)]> rmap_ret6).
+    set (rmap_ret8 := <[ca5 := lword_of_word (WInt 0)]> rmap_ret7).
+    set (rmap_ret := <[ct0 := lword_of_word (WInt 0)]> rmap_ret8).
     iEval (cbn) in "HPC".
 
     iApply ("Hpost" $! (WInt ASM_TRUE) w rmap_ret

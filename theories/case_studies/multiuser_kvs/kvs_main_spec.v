@@ -16,8 +16,8 @@ Section KVS_main_spec.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg:kvsG Σ} {KVS_layout : kvsLayout} {KVS_layout_Wf : kvsLayoutWf}
@@ -27,7 +27,7 @@ Section KVS_main_spec.
   Context {B : CmptName}.
 
   Implicit Types W : WORLD.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma kvs_main_spec
 
@@ -35,7 +35,7 @@ Section KVS_main_spec.
     (cgp_b cgp_e : Addr)
     (static_sealed_b static_sealed_e : Addr)
     (csp_b csp_e : Addr)
-    (rmap : Reg)
+    (rmap : LReg)
     (KVS_USER_KEY_MAIN : Z)
 
     (b_assert e_assert : Addr) (a_flag : Addr)
@@ -72,7 +72,7 @@ Section KVS_main_spec.
     frame_match Ws Cs cstk W0 B ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
-      allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv ∗
+      na_inv cerise_nais Nswitcher switcher_inv ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
 
@@ -90,10 +90,10 @@ Section KVS_main_spec.
       ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
 
       (* initial memory layout *)
-      [[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗
+      [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗
       codefrag pc_a kvs_main_code ∗
-      [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data) ]] ∗
-      [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
+      [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> kvs_main_data ]] ∗
+      [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ lword_of_word <$> kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
 
       user_kvs_inv KVS_USER_KEY_MAIN ∗
       (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥ ∗
@@ -112,7 +112,7 @@ Section KVS_main_spec.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous HB_f_nonheap Hframe_match
             )
-      "(#Hassert & #Halloc & #Hswitcher
+      "(#Hassert & #Hswitcher
       & #Hkvs & #Hkvs_logical
       & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
       & Hna
@@ -134,7 +134,7 @@ Section KVS_main_spec.
        & Himport_kvs_addOrUpdate & Himport_kvs_read & Himport_kvs_erase
        & Himport_sealed_user_key & Himports_main)".
     (* Extract the static sealed user key address  *)
-    iDestruct (region_pointsto_single with "Hstatic_sealed_main") as "(% & Hstatic_sealed_b & %Heq')" ; last (rewrite /kvs_main_static_sealed in Heq' ; simplify_eq).
+    iDestruct (region_pointsto_single with "Hstatic_sealed_main") as "(% & Hstatic_sealed_b & %Heq')" ; last (rewrite /kvs_main_static_sealed /= in Heq' ; simplify_eq).
     { rewrite /kvs_main_static_sealed //= in Hstatic_sealed_contiguous. }
 
     (* Revoke the world to get the stack frame *)
@@ -155,7 +155,7 @@ Section KVS_main_spec.
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap KVS_USER_KEY_MAIN b_assert e_assert B_f Nswitcher stk_mem cstk
       with
-      "[- $Halloc $Hswitcher $Hkvs $Hkvs_logical
+      "[- $Hswitcher $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
        $Hna $HPC $Hcgp $Hcsp $Hrmap
        $Himport_switcher $Himport_kvs_addOrUpdate
@@ -215,7 +215,7 @@ Section KVS_main_spec.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp].
     set (rmap_B :=
-      <[ctp := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call]>
+      <[ctp := lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
         (delete ca5 (delete ca4 (delete ca3
           (delete ca2 (delete ct1 (delete ct0 rmap_ret))))))).
     set (stk_mem_B := region_addrs_zeroes csp_b csp_e).
@@ -244,7 +244,7 @@ Section KVS_main_spec.
     { subst rmap_B.
       repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L).
       rewrite Hdom_rmap_ret; set_solver. }
-    iFrame "Halloc Hswitcher Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
+    iFrame "Hswitcher Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
       Hstack_revoked_W1 Hinterp_W1_B_f HentryB_f HK".
     iFrame "%".

@@ -14,8 +14,8 @@ Section KVS_Main_Blocks.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg : kvsG Σ} {KVS_layout : kvsLayout}
@@ -34,7 +34,7 @@ Section KVS_Main_Blocks.
       (kvs_main_imports static_sealed_b b_switcher e_switcher
         a_switcher_call ot_switcher b_assert e_assert B_f))%a = Some pc_a ->
     [[pc_b, pc_a]] ↦ₐ
-      [[kvs_main_imports static_sealed_b b_switcher e_switcher
+      [[lword_of_word <$> kvs_main_imports static_sealed_b b_switcher e_switcher
           a_switcher_call ot_switcher b_assert e_assert B_f]]
     ⊣⊢
       pc_b ↦ₐ WSentry true XSRW_ Local
@@ -100,32 +100,32 @@ Section KVS_Main_Blocks.
   Qed.
 
   Definition kvs_main_add_arg_rmap
-      (sealed_key wca3 wca4 wca5 : Word) : Reg :=
+      (sealed_key wca3 wca4 wca5 : LWord) : LReg :=
     {[ ca0 := sealed_key;
-       ca1 := WInt 1;
-       ca2 := WInt 12;
+       ca1 := lword_of_word (WInt 1);
+       ca2 := lword_of_word (WInt 12);
        ca3 := wca3;
        ca4 := wca4;
        ca5 := wca5;
-       ct0 := WInt 0 ]}.
+       ct0 := lword_of_word (WInt 0) ]}.
 
-  Definition kvs_main_adversary_arg_rmap : Reg :=
-    {[ ca0 := WInt 0;
-       ca1 := WInt 0;
-       ca2 := WInt 0;
-       ca3 := WInt 0;
-       ca4 := WInt 0;
-       ca5 := WInt 0;
-       ct0 := WInt 0 ]}.
+  Definition kvs_main_adversary_arg_rmap : LReg :=
+    {[ ca0 := lword_of_word (WInt 0);
+       ca1 := lword_of_word (WInt 0);
+       ca2 := lword_of_word (WInt 0);
+       ca3 := lword_of_word (WInt 0);
+       ca4 := lword_of_word (WInt 0);
+       ca5 := lword_of_word (WInt 0);
+       ct0 := lword_of_word (WInt 0) ]}.
 
-  Definition kvs_main_read_arg_rmap (sealed_key : Word) : Reg :=
+  Definition kvs_main_read_arg_rmap (sealed_key : LWord) : LReg :=
     {[ ca0 := sealed_key;
-       ca1 := WInt 1;
-       ca2 := WInt 0;
-       ca3 := WInt 0;
-       ca4 := WInt 0;
-       ca5 := WInt 0;
-       ct0 := WInt 0 ]}.
+       ca1 := lword_of_word (WInt 1);
+       ca2 := lword_of_word (WInt 0);
+       ca3 := lword_of_word (WInt 0);
+       ca4 := lword_of_word (WInt 0);
+       ca5 := lword_of_word (WInt 0);
+       ct0 := lword_of_word (WInt 0) ]}.
 
   Lemma kvs_main_add_arg_rmap_is_arg sealed_key wca3 wca4 wca5 :
     is_arg_rmap (kvs_main_add_arg_rmap sealed_key wca3 wca4 wca5) 8.
@@ -156,16 +156,16 @@ Section KVS_Main_Blocks.
 
   Lemma kvs_main_adversary_phase_spec
       (Nswitcher : namespace) (W : WORLD) (C : CmptName)
-      (wcgp wcra wcs0 wcs1 : Word)
+      (wcgp wcra wcs0 wcs1 : LWord)
       (b_stk e_stk a_stk : Addr) (target : Sealable)
-      (stk_mem : list Word) (rmap : Reg)
+      (stk_mem : list LWord) (rmap : LReg)
       (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap =
       all_registers_s ∖
         ({[PC; cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_own cerise_nais ⊤
     ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp ∗ cra ↦ᵣ wcra
@@ -184,7 +184,7 @@ Section KVS_Main_Blocks.
     ∗ ⌜revoked_addresses W (finz.seq_between a_stk e_stk)⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
-    ∗ ▷ (∀ (W2 : WORLD) (rmap' : Reg) (stk_mem' : list Word) l' rcgp rcra rcs0 rcs1,
+    ∗ ▷ (∀ (W2 : WORLD) (rmap' : LReg) (stk_mem' : list LWord) l' rcgp rcra rcs0 rcs1,
         ⌜extract_temporaries_condition
           W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk))⌝
         ∗ RevokedResources W2 C l'
@@ -205,7 +205,7 @@ Section KVS_Main_Blocks.
              ∧ (a_stk + 4)%a = Some (a_stk ^+ 4)%a)%a⌝
         ∗ world_interp (revoke W2) C
         ∗ cstack_frag cstk
-        ∗ PC ↦ᵣ updatePcPerm (rcra)
+        ∗ PC ↦ᵣ lupdatePcPerm (rcra)
         ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra
         ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
         ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -222,7 +222,7 @@ Section KVS_Main_Blocks.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hstk_shadow Hstk_heap Hrmap)
-      "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
+      "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0
        & Hrmap & Hstk & Hworld & Hrevoked & %Hrevoked
@@ -230,7 +230,7 @@ Section KVS_Main_Blocks.
     iApply (switcher_cc_specification Nswitcher W C wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk target stk_mem kvs_main_adversary_arg_rmap
       rmap cstk Ws Cs 0 with
-      "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
+      "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
        $Hcs0 $Hcs1  $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
        $Htarget $Hentry $Hpost]").
     - exact Hstk_shadow.
@@ -248,9 +248,9 @@ Section KVS_Main_Blocks.
 
   Lemma kvs_main_add_phase_spec
       (pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e : Addr)
-      (rmap : Reg) (KVS_USER_KEY_MAIN : Z)
+      (rmap : LReg) (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert : Addr) (B_f : Sealable)
-      (Nswitcher : namespace) (stk_mem : list Word) (cstk : CSTK) :
+      (Nswitcher : namespace) (stk_mem : list LWord) (cstk : CSTK) :
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
@@ -263,7 +263,7 @@ Section KVS_Main_Blocks.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
     ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ∗ inv (export_table_PCCN Nkvs_exp_tbl)
@@ -290,7 +290,7 @@ Section KVS_Main_Blocks.
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
     ∗ cstack_frag cstk
-    ∗ ▷ (∀ (rmap_ret : Reg),
+    ∗ ▷ (∀ (rmap_ret : LReg),
         ⌜dom rmap_ret =
           all_registers_s ∖ {[PC; csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝
         ∗ na_own cerise_nais ⊤
@@ -308,7 +308,7 @@ Section KVS_Main_Blocks.
         ∗ cstack_frag cstk
         ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
         ∗ user_kvs_inv KVS_USER_KEY_MAIN
-        ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) WInt 12
+        ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
         ∗ pc_b ↦ₐ
             WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
         ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ
@@ -322,7 +322,7 @@ Section KVS_Main_Blocks.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds Hstatic_sealed_b)
-      "(#Halloc & #Hswitcher & #Hkvs & #Hkvs_logical
+      "(#Hswitcher & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
        & #Hkvs_exp_tbl_addOrUpdate
        & Hna & HPC & Hcgp & Hcsp & Hrmap
@@ -443,7 +443,7 @@ Section KVS_Main_Blocks.
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
               kvs_addOrUpdate_pcc_off
              with
-             "[- $Halloc $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
+             "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
                  $Hstk $Hcstk_frag
                  $HKVS_f
@@ -487,7 +487,7 @@ Section KVS_Main_Blocks.
         [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
             /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
       subst rcgp rcra rcs0 rcs1.
-      iEval (cbn) in "HPC".
+      iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
       focus_block 5 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
       ; clear dependent a_insert_kvs.
       (* Jnz 2 ca0 *)
@@ -506,7 +506,7 @@ Section KVS_Main_Blocks.
       [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
           /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs0 rcs1.
-    iEval (cbn) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct "HKVS_post"
       as "(Hstatic_sealed_b & HLUKVS & %Hwca1_ret
            & [(%Hwca0_ret & Hkvs_1)
@@ -551,10 +551,10 @@ Section KVS_Main_Blocks.
 
   Lemma kvs_main_read_assert_phase_spec
       (pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e : Addr)
-      (rmap : Reg) (wca0 wca1 wcra wcs0 : Word)
+      (rmap : LReg) (wca0 wca1 wcra wcs0 : LWord)
       (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert a_flag : Addr) (Nassert Nswitcher : namespace)
-      (stk_mem : list Word) (cstk : CSTK) :
+      (stk_mem : list LWord) (cstk : CSTK) :
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
@@ -569,7 +569,7 @@ Section KVS_Main_Blocks.
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
     ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ∗ inv (export_table_PCCN Nkvs_exp_tbl)
@@ -594,7 +594,7 @@ Section KVS_Main_Blocks.
     ∗ cstack_frag cstk
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
-    ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) WInt 12
+    ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
     ∗ pc_b ↦ₐ
         WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ (pc_b ^+ KVS_READ_OFFSET)%a ↦ₐ
@@ -606,7 +606,7 @@ Section KVS_Main_Blocks.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap HNswitcher_assert Hdom_rmap HsubBounds Hstatic_sealed_b)
-      "(#Hassert & #Halloc & #Hswitcher & #Hkvs & #Hkvs_logical
+      "(#Hassert & #Hswitcher & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
        & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
        & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
@@ -721,7 +721,7 @@ Section KVS_Main_Blocks.
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
               kvs_read_pcc_off
              with
-             "[- $Halloc $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
+             "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
                  $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag
                  $HKVS_f
@@ -769,7 +769,7 @@ Section KVS_Main_Blocks.
         [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
             /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
       subst rcgp rcra rcs0 rcs1.
-      iEval (cbn) in "HPC".
+      iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
       focus_block 13 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
       ; clear dependent a_insert_kvs.
       (* Jnz 2 ca0 *)
@@ -788,7 +788,7 @@ Section KVS_Main_Blocks.
       [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
           /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs0 rcs1.
-    iEval (cbn) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct "HKVS_read_post"
       as "(Hstatic_sealed_b & HLUKVS & Hkvs_1 & %Hwca0_ret & %Hwca1_ret)".
     subst wca0_ret wca1_ret.
