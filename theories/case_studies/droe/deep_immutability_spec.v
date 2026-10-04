@@ -9,8 +9,8 @@ Section DROE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -18,7 +18,7 @@ Section DROE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Local Lemma droe_extend_data_world {E : coPset}
       (W_init_C : WORLD) (cgp_b cgp_e : Addr) :
@@ -50,11 +50,11 @@ Section DROE.
     iDestruct ( init_PermRes W1 C cgp_b RO_DRO (safeC (interp_in_mem_dro_eq (WInt 42)))
                 with "[] [$Hcgp_b] []" ) as "PermRes_cgp_b"; auto.
     { rewrite /future_priv_mono.
-      iIntros "!>" (W W' Hrelated Hwf) "H"; cbn.
+      iIntros "!>" (W W' Hrelated) "H"; cbn.
       iDestruct "H" as "[%Hval Hinterp]".
       iSplitR; [done |].
       iApply (interp_in_mem_monotone_nl W W' C RWL (WInt 42) with "Hinterp");
-        [exact Hwf | exact Hrelated |].
+        [exact Hrelated |].
       cbn. done.
     }
     { cbn.
@@ -77,11 +77,11 @@ Section DROE.
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
           as [Hsub_shadow Hsub_heap];
         split; [exact Hsub_shadow|apply heap_cap_valid_disjoint; exact Hsub_heap]).
+      rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
-      rewrite (addr_key_disjoint _ cgp_b cgp_e cgp_b Hcgp_heap);
-        last (apply elem_of_finz_seq_between; solve_addr).
+      rewrite addr_key_None.
       iExists RO_DRO, (interp_in_mem_dro_eq _).
       iEval (cbn).
       iSplit; first done.
@@ -90,7 +90,7 @@ Section DROE.
       iSplit; first iFrame "Hrel_cgp_b".
       iSplit.
       { iIntros "!>" (W1').
-        iIntros "!>" (W1'' z) "[-> H]".
+        iIntros "!>" (W1'' z π) "[%Heq H]"; simplify_eq.
         rewrite /interp_in_mem_dro_eq /=.
         iSplitR; [done |].
         iEval (rewrite /interp_in_mem_pre /=).
@@ -106,7 +106,7 @@ Section DROE.
       iSplit.
       + rewrite /monoReq; simplify_map_eq.
         iIntros (?) "%Hcontra"; rewrite /canStore in Hcontra.
-        destruct (isLocalWord w); done.
+        destruct (isLocalWord w.(lw)); done.
       + iPureIntro.
         by rewrite lookup_insert_eq.
     }
@@ -121,30 +121,9 @@ Section DROE.
     iDestruct ( init_PermRes W2 C (cgp_b ^+1)%a RO_DRO  (safeC (interp_in_mem_dro_eq (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
                 with "[] [$Hcgp_a] []" ) as "PermRes_cgp_a"; auto.
     { rewrite /future_priv_mono.
-      iIntros "!>" (W W' Hrelared Hwf) "[%Hval H]"; cbn.
+      iIntros "!>" (W W' Hrelared) "[%Hval H]"; cbn.
       iSplitR; [done |].
-      assert (HfilterW : filter_heap W
-          (WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b) =
-          WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b).
-      { apply filter_heap_nonheap. unfold heap_authority_base.
-        destruct (decide (cgp_b < (cgp_b ^+ 1)%a)%a); [|done].
-        unfold heap_cap_base, memory_cap_base. rewrite Hcgp_nonheap. reflexivity. }
-      assert (HfilterW' : filter_heap W'
-          (WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b) =
-          WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b).
-      { apply filter_heap_nonheap. unfold heap_authority_base.
-        destruct (decide (cgp_b < (cgp_b ^+ 1)%a)%a); [|done].
-        unfold heap_cap_base, memory_cap_base. rewrite Hcgp_nonheap. reflexivity. }
-      iEval (rewrite /interp_in_mem_pre /load_word /= HfilterW) in "H".
-      iEval (rewrite /interp_in_mem_pre /load_word /= HfilterW').
-      iApply (interp_monotone_nl_cap_nonheap W W' C true RO_DRO Global
-        cgp_b (cgp_b ^+ 1)%a cgp_b with "H").
-      - pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b
-          (cgp_b ^+ 1)%a ltac:(solve_addr) ltac:(solve_addr)
-          (conj Hcgp_shadow Hcgp_heap)) as [_ Hdisj].
-        exact Hdisj.
-      - exact Hrelared.
-      - done.
+      iApply (interp_in_mem_monotone_nl W W' C RWL with "H"); [exact Hrelared | done].
     }
     { cbn. iSplit; [done |].
       iApply interp_to_in_mem.
@@ -174,11 +153,11 @@ Section DROE.
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
           as [Hsub_shadow Hsub_heap];
         split; [exact Hsub_shadow|apply heap_cap_valid_disjoint; exact Hsub_heap]).
+      rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
-      rewrite (addr_key_disjoint _ cgp_b cgp_e (cgp_b ^+ 1)%a Hcgp_heap);
-        last (apply elem_of_finz_seq_between; solve_addr).
+      rewrite addr_key_None.
       iExists RO_DRO, (interp_in_mem_dro_eq _).
       iEval (cbn).
       iSplit; first done.
@@ -187,7 +166,7 @@ Section DROE.
       iSplit; first iFrame "Hrel_cgp_a".
       iSplit.
       { iIntros "!>" (W1').
-        iIntros "!>" (W1'' z) "[% H]"; done.
+        iIntros "!>" (W1'' z π) "[% H]"; done.
       }
       iSplit.
       { iIntros "!>" (W1').
@@ -199,7 +178,7 @@ Section DROE.
       iSplit.
       + rewrite /monoReq; simplify_map_eq.
         iIntros (?) "%Hcontra"; rewrite /canStore in Hcontra.
-        destruct (isLocalWord w); done.
+        destruct (isLocalWord w.(lw)); done.
       + iPureIntro.
         by rewrite lookup_insert_eq.
     }
@@ -214,7 +193,7 @@ Section DROE.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
-    (rmap : Reg)
+    (rmap : LReg)
 
     (C_f : Sealable)
 
@@ -237,8 +216,8 @@ Section DROE.
     (* [cra] is saved in [cs0], while [cs1] is left unchanged across the call.
        Requiring these incoming words to be nonheap avoids shadow ownership;
        the adequacy setup initializes both registers to integer zero. *)
-    is_heap_cap (default (WInt 0) (rmap !! cra)) = false ->
-    is_heap_cap (default (WInt 0) (rmap !! cs1)) = false ->
+    is_heap_cap (default (lword_of_word (WInt 0)) (rmap !! cra)).(lw) = false ->
+    is_heap_cap (default (lword_of_word (WInt 0)) (rmap !! cs1)).(lw) = false ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -255,7 +234,7 @@ Section DROE.
     frame_match Ws Cs cstk W_init_C C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -264,9 +243,9 @@ Section DROE.
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
       ∗ codefrag pc_a droe_main_code
-      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]]
+      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> droe_main_data ]]
 
       ∗ world_interp W_init_C C
 
@@ -284,7 +263,7 @@ Section DROE.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcra_nonheap Hcs1_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
-      "(#Hassert & #Halloc & #Hswitcher & Hna
+      "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
@@ -391,6 +370,12 @@ Section DROE.
     (* Add ct1 ct2 1%Z; *)
     iInstr "Hcode".
     (* Subseg ca0 ct2 ct1; *)
+    assert (is_heap_address (cgp_b ^+ 1)%a = false) as Hcgp1_nonheap.
+    { apply not_true_is_false; intros Hheap.
+      apply withinBounds_true_iff in Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hcgp_heap.
+      eapply (Hcgp_heap (cgp_b ^+ 1)%a); apply elem_of_finz_seq_between;
+        [solve_addr + Hcgp_contiguous | exact Hheap]. }
     iInstr "Hcode".
     (* Restrict ca0 ro_dro *)
     iInstr "Hcode".
@@ -448,14 +433,14 @@ Section DROE.
     iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by rewrite ?lookup_delete_ne //.
 
     set ( rmap_arg :=
-           {[ ca0 := WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
+           {[ ca0 := lword_of_word (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a);
               ca1 := wca1;
               ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
-           ]} : Reg
+              ct0 := lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+           ]} : LReg
         ).
 
     rewrite !(delete_delete _ _ ct2).
@@ -510,7 +495,7 @@ Section DROE.
     iEval (cbn) in "Hct1".
     iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
        with
-             "[- $Halloc $Hswitcher $Hna
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_g $HK]"); eauto; iFrame "%".
@@ -546,7 +531,7 @@ Section DROE.
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
-    assert (∀ r : RegName, r ∈ dom rmap' → rmap' !! r = Some (WInt 0)) as Hrmap_init'.
+    assert (∀ r : RegName, r ∈ dom rmap' → rmap' !! r = Some (lword_of_word (WInt 0))) as Hrmap_init'.
     { intros r Hr.
       rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
       pose proof Hr as Hr'.
@@ -556,32 +541,32 @@ Section DROE.
     iClear "Hrmap_zero".
 
     (* ---- extract the needed registers ct0 ct1 ct2 ct3 ct4 ----  *)
-    assert ( rmap' !! ct0 = Some (WInt 0) ) as Hwct0'.
+    assert ( rmap' !! ct0 = Some (lword_of_word (WInt 0)) ) as Hwct0'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
     iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by rewrite ?lookup_delete_ne //.
-    assert ( rmap' !! ct1 = Some (WInt 0) ) as Hwct1'.
+    assert ( rmap' !! ct1 = Some (lword_of_word (WInt 0)) ) as Hwct1'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
     iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by rewrite ?lookup_delete_ne //.
-    assert ( rmap' !! ct2 = Some (WInt 0) ) as Hwct2'.
+    assert ( rmap' !! ct2 = Some (lword_of_word (WInt 0)) ) as Hwct2'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
     iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by rewrite ?lookup_delete_ne //.
-    assert ( rmap' !! ct3 = Some (WInt 0) ) as Hwct3'.
+    assert ( rmap' !! ct3 = Some (lword_of_word (WInt 0)) ) as Hwct3'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
     iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by rewrite ?lookup_delete_ne //.
-    assert ( rmap' !! ct4 = Some (WInt 0) ) as Hwct4'.
+    assert ( rmap' !! ct4 = Some (lword_of_word (WInt 0)) ) as Hwct4'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
     iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by rewrite ?lookup_delete_ne //.
-    assert ( rmap' !! cnull = Some (WInt 0) ) as Hwcnull'.
+    assert ( rmap' !! cnull = Some (lword_of_word (WInt 0)) ) as Hwcnull'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
@@ -609,6 +594,7 @@ Section DROE.
     }
     iEval (cbn) in "PermRes_cgp_b".
 
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     (* Mov cs0 cra; *)
     iInstr "Hcode".
     iDestruct (PermRes_acc with "PermRes_cgp_b") as "[ [Hcgp_b Hcgp_b_interp] PermRes_cgp_b]".

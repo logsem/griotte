@@ -99,6 +99,7 @@ Proof.
     droe_trusted_stack_b droe_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
+    ltac:(by apply Forall_replicate)
     droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -426,7 +427,7 @@ Lemma droe_initial_memory_correct :
   is_initial_memory droe_initial_memory.
 Proof.
   rewrite /is_initial_memory /droe_initial_memory.
-  repeat split; try reflexivity.
+  repeat split; try reflexivity; try apply Forall_nil_2.
   - rewrite /droe_C_code /encodeInstrsW;
       repeat constructor; done.
   - rewrite /droe_C_data; repeat constructor; done.
