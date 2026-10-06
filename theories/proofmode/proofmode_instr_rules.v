@@ -90,7 +90,7 @@ Ltac dispatch_instr_rule instr cont :=
   | Jnz (inr _) PC => cont (@wp_jnz_success_jmpPC_reg)
   | Jnz (inl _) _ => (cont (@wp_jnz_success_next_z) || cont (@wp_jnz_success_jmp_z) )
   | Jnz (inr ?r) ?r => cont (@wp_jnz_success_jmp_same)
-  | Jnz (inl _) _ => (cont (@wp_jnz_success_next_reg) || cont (@wp_jnz_success_jmp_reg) )
+  | Jnz (inr _) _ => (cont (@wp_jnz_success_next_reg) || cont (@wp_jnz_success_jmp_reg) )
   (* Jmp *)
   | Jmp (inl _) => cont (@wp_jmp_success_z)
   | Jmp (inr _) => cont (@wp_jmp_success_reg)
