@@ -3,6 +3,7 @@ From griotte Require Import logrel monotone interp_weakening fundamental.
 From griotte Require Import region_invariants_revocation.
 From griotte Require Export world_ghost_theory world_interp_stack.
 From griotte Require Import switcher_preamble.
+From griotte Require Import map_simpl.
 
 Section switcher_helper.
 
@@ -619,6 +620,105 @@ Section switcher_helper.
                "[$Hworld_interp Hrevoked Hstk]") as "Hworld_interp"; last by iFrame.
         rewrite /close_list_resources_gen big_sepL_app.
         iFrame.
+    Qed.
+
+    (** Jump to a safe return address [wret], with safe callee-save
+        registers [cgp], [cs0], [cs1], [csp], safe return values [ca0],
+        [ca1], and cleared registers. *)
+    Lemma switcher_jump_to_caller_spec
+      (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+      (rmap : Reg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 : Word) :
+      dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+      frame_match Ws Cs cstk W C ->
+
+      interp W C wret -∗
+      interp W C wcgp -∗
+      interp W C wcs0 -∗
+      interp W C wcs1 -∗
+      interp W C wcsp -∗
+      interp W C wca0 -∗
+      interp W C wca1 -∗
+      PC ↦ᵣ updatePcPerm wret -∗
+      cra ↦ᵣ wret -∗
+      cgp ↦ᵣ wcgp -∗
+      cs0 ↦ᵣ wcs0 -∗
+      cs1 ↦ᵣ wcs1 -∗
+      csp ↦ᵣ wcsp -∗
+      ca0 ↦ᵣ wca0 -∗
+      ca1 ↦ᵣ wca1 -∗
+      ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) -∗
+      world_interp W C -∗
+      interp_continuation cstk Ws Cs -∗
+      cstack_frag cstk -∗
+      na_own cerise_nais ⊤ -∗
+      £ 1 -∗
+      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    Proof.
+      iIntros (Hdom Hframe) "#Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1
+        HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc".
+      iDestruct (jmp_or_fail_spec with "Hwret") as "Hcont".
+      destruct (decide (isCorrectPC (updatePcPerm wret))); cycle 1.
+      { iApply "Hcont"; iFrame. by iIntros (?). }
+
+      iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
+      iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".
+      { apply not_elem_of_dom; rewrite Hdom; set_solver+. }
+      iDestruct (big_sepM_insert with "[$Hrmap $Hca1]") as "Hrmap".
+      { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Hdom; set_solver+. }
+      iDestruct (big_sepM_insert with "[$Hrmap $Hcs0]") as "Hrmap".
+      { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Hdom; set_solver+. }
+      iDestruct (big_sepM_insert with "[$Hrmap $Hcs1]") as "Hrmap".
+      { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Hdom; set_solver+. }
+      iDestruct (big_sepM_insert with "[$Hrmap $Hcgp]") as "Hrmap".
+      { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Hdom; set_solver+. }
+      iDestruct (big_sepM_insert with "[$Hrmap $Hcra]") as "Hrmap".
+      { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Hdom; set_solver+. }
+      iDestruct (big_sepM_insert with "[$Hrmap $Hcsp]") as "Hrmap".
+      { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Hdom; set_solver+. }
+      set (regs := <[csp := _]> _ ).
+      set (regs' := <[PC := WInt 0]> regs).
+
+      iDestruct "Hcont" as "(%&%&%&%&%&Hcont)".
+      iDestruct "Hcont" as "(%Hwret & #Hcont)".
+      iAssert (future_world g W W) as "Hfuture".
+      { destruct g; cbn; iPureIntro; [ apply related_sts_priv_refl_world
+                                     | apply related_sts_pub_refl_world].
+      }
+      iSpecialize ("Hcont" $! W with "Hfuture").
+      iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
+
+      iApply ("Hcont'" $! cstk Ws Cs regs'); iFrame.
+      iSplit.
+      { iSplit.
+        + iIntros (r); iPureIntro.
+          rewrite -elem_of_dom.
+          subst regs regs'.
+          repeat (rewrite dom_insert_L).
+          rewrite Hdom.
+          set_solver+.
+        + iIntros (r v) "%HrPC %Hr".
+          subst regs' regs.
+          clear -Hr HrPC Hrmap_zeroes.
+          rewrite lookup_insert_ne in Hr; last done.
+          destruct (decide (r = csp)); simplify_map_eq; first done.
+          destruct (decide (r = cra)); simplify_map_eq; first done.
+          destruct (decide (r = cgp)); simplify_map_eq; first done.
+          destruct (decide (r = cs1)); simplify_map_eq; first done.
+          destruct (decide (r = cs0)); simplify_map_eq; first done.
+          destruct (decide (r = ca1)); simplify_map_eq; first done.
+          destruct (decide (r = ca0)); simplify_map_eq; first done.
+          eapply map_Forall_lookup_1 in Hr; eauto; cbn in Hr; simplify_eq.
+          iApply interp_int.
+      }
+      iSplit; last done.
+      rewrite /registers_pointsto.
+      subst regs'.
+      rewrite insert_insert_eq.
+      iApply big_sepM_insert; last iFrame.
+      subst regs.
+      simplify_map_eq.
+      rewrite -not_elem_of_dom Hdom.
+      set_solver+.
     Qed.
 
 End switcher_helper.
