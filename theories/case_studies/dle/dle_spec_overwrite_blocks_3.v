@@ -52,12 +52,12 @@ Section DLE_Overwrite_Blocks_3.
       "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b & Hcode_main & Hpost)".
     rewrite /dle_switcher_entry.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
-    dle_unfold_code "Hcode_main".
+    unfold_code dle_main_code "Hcode_main".
 
     (* Block 3: return from the first call *)
-    dle_focus_block 3 "Hcode_main" at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    focus_block 3 "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    dle_change_pc_to (a_callB ^+ 3)%a.
+    change_pc_to (a_callB ^+ 3)%a.
     (* Store cgp 42%Z *)
     iInstr "Hcode".
     { solve_addr+Hcgp_contiguous. }
@@ -71,7 +71,7 @@ Section DLE_Overwrite_Blocks_3.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_callB ^+ 8)%a = (pc_a ^+ dle_instr_offset 3 8)%a) as ->
-      by (dle_offsets_compute; solve_addr).
+      by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame.
   Qed.
 

@@ -156,7 +156,7 @@ Section Switcher_Call_Blocks_5.
     iApply (switcher_call_block_16_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]");
-      [done|switcher_offsets_compute; solve_addr|done|done|].
+      [done|offsets_compute; solve_addr|done|done|].
     iNext.
     iIntros "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
       & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc)".

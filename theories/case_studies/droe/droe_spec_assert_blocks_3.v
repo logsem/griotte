@@ -47,12 +47,12 @@ Section DROE_Assert_Blocks_3.
       "(#Hassert & Hna & HPC & Hcgp & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4
       & Hcnull & Hcs0 & Hcra & Hcgp_b & Himport_assert & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
-    droe_unfold_code "Hcode_main".
+    unfold_code droe_main_code "Hcode_main".
 
     (* Block 3: return from the call *)
-    droe_focus_block 3 "Hcode_main" at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    focus_block 3 "Hcode_main" of droe_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    droe_change_pc_to (a_callB ^+ 2)%a.
+    change_pc_to (a_callB ^+ 2)%a.
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Load ct0 cgp *)

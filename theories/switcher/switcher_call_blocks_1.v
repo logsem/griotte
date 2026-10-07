@@ -71,7 +71,7 @@ Section Switcher_Call_Blocks_1.
       iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
       { intros Hcontr; inversion Hcontr; done. }
       { transitivity (Some (a_switcher_call ^+ switcher_block_offset 17)%a); auto.
-        switcher_offsets_compute; solve_addr. }
+        offsets_compute; solve_addr. }
       iIntros "!> (HPC & Hi & Hct2)".
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
@@ -109,7 +109,7 @@ Section Switcher_Call_Blocks_1.
       iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
       { intros Hcontr; inversion Hcontr; done. }
       { transitivity (Some (a_switcher_call ^+ switcher_block_offset 17)%a); auto.
-        switcher_offsets_compute; solve_addr. }
+        offsets_compute; solve_addr. }
       iIntros "!> (HPC & Hi & Hct2)".
       iEval (simplify_map_eq) in "HPC".
       wp_pure.

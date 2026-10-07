@@ -68,7 +68,7 @@ Section Switcher_Call_Blocks_6.
     switcher_unfold_code "Hcode".
     switcher_focus_block 17 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     iApply (switcher_call_block_17_spec_aux with "[- $HPC $Hca0 $Hca1 $Hcode]");
-      [done|switcher_offsets_compute; solve_addr|].
+      [done|offsets_compute; solve_addr|].
     iNext; iIntros "(HPC & Hca0 & Hca1 & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     iApply "Hpost"; iFrame.

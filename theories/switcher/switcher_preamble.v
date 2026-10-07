@@ -4,6 +4,7 @@ From griotte Require Import logrel memory_region rules proofmode.
 From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Import bitblast.
 From griotte Require Import map_simpl register_tactics.
+From griotte Require Export code_blocks.
 From griotte Require Export switcher.
 From griotte Require Export clear_stack_spec clear_registers_spec.
 
@@ -313,19 +314,7 @@ End Switcher_preamble.
 
 (** The offset of the first instruction of block [n] of the switcher, from
     [a_switcher_call]. *)
-Definition switcher_block_offset `{MachineParameters} (n : nat) : Z :=
-  Z.of_nat (sum_list (length <$> take n assembled_switcher)).
-
-(** Compute the offsets of the blocks in the goal and the hypotheses. *)
-Ltac switcher_offsets_compute :=
-  repeat match goal with
-    | |- context [switcher_block_offset ?n] =>
-        let v := eval vm_compute in (switcher_block_offset n) in
-        change (switcher_block_offset n) with v
-    | H : context [switcher_block_offset ?n] |- _ =>
-        let v := eval vm_compute in (switcher_block_offset n) in
-        change (switcher_block_offset n) with v in H
-    end.
+Notation switcher_block_offset := (code_block_offset assembled_switcher).
 
 (** The PC capability of the switcher at offset [off] of the code. *)
 Notation switcher_pc off :=
@@ -339,19 +328,12 @@ Notation switcher_code := (codefrag a_switcher_call switcher_instrs) (only parsi
 
 (** Unfold the code of the switcher in [h], in order to focus on its blocks. *)
 Ltac switcher_unfold_code h :=
-  rewrite /switcher_instrs /assembled_switcher;
+  iEval (rewrite /switcher_instrs /assembled_switcher) in h;
   repeat (iEval (cbn [fmap list_fmap]) in h);
   repeat (iEval (cbn [concat]) in h).
 
-(** Change the address of the PC to [a']. *)
-Ltac switcher_change_pc_to a' :=
-  match goal with |- context [ environments.Esnoc _ _ (PC ↦ᵣ WCap _ _ _ _ ?a)%I ] =>
-    rewrite (_ : a = a');
-    [| switcher_offsets_compute; solve_addr]
-  end.
-
 (** Change the PC to [a_switcher_call ^+ off]. *)
-Ltac switcher_change_pc off := switcher_change_pc_to (a_switcher_call ^+ off)%a.
+Ltac switcher_change_pc off := change_pc_to (a_switcher_call ^+ off)%a.
 
 (** Focus on block [n] of the switcher, whose first address is
     [a_switcher_call ^+ switcher_block_offset n]. The PC is moved to this
@@ -364,7 +346,7 @@ Tactic Notation "switcher_focus_block" constr(n) constr(h)
   let Ha' := fresh in
   pose proof Ha as Ha'; cbn in Ha';
   assert (a = (a_switcher_call ^+ switcher_block_offset n)%a) as ->
-    by (switcher_offsets_compute; solve_addr);
+    by (offsets_compute; solve_addr);
   clear Ha';
   try switcher_change_pc (switcher_block_offset n).
 
@@ -396,7 +378,7 @@ Section Switcher_Code.
     pose proof switcher_call_entry_point as Hcall.
     pose proof switcher_size as Hsize.
     cbn in Hret, Hcall, Hsize.
-    switcher_offsets_compute.
+    offsets_compute.
     solve_addr.
   Qed.
 
@@ -419,14 +401,10 @@ Section Switcher_Code.
     [[ (a ^+ 4)%a , e ]] ↦ₐ [[ ws ]] -∗
     [[ a , e ]] ↦ₐ [[ w0 :: w1 :: w2 :: w3 :: ws ]].
   Proof.
-    iIntros (Ha4 He) "(H0 & H1 & H2 & H3) Hstk".
-    iApply (region_pointsto_cons _ (a ^+ 1)%a); [solve_addr|solve_addr|iFrame].
-    iApply (region_pointsto_cons _ (a ^+ 2)%a); [solve_addr|solve_addr|].
-    replace ((a ^+ 1) ^+ 1)%a with (a ^+ 2)%a by solve_addr; iFrame.
-    iApply (region_pointsto_cons _ (a ^+ 3)%a); [solve_addr|solve_addr|].
-    replace ((a ^+ 2) ^+ 1)%a with (a ^+ 3)%a by solve_addr; iFrame.
-    iApply (region_pointsto_cons _ (a ^+ 4)%a); [solve_addr|solve_addr|].
-    replace ((a ^+ 3) ^+ 1)%a with (a ^+ 4)%a by solve_addr; iFrame.
+    iIntros (Ha4 He) "Hcells Hstk".
+    iApply (region_pointsto_region_cells_app a (a ^+ 4)%a e [w0; w1; w2; w3] ws);
+      [done|done|].
+    region_cells_simpl; iFrame.
   Qed.
 
   Lemma switcher_stk_cells_region_4 a w0 w1 w2 w3 :
@@ -434,23 +412,9 @@ Section Switcher_Code.
     switcher_stk_cells a w0 w1 w2 w3 ⊣⊢
     [[ a , (a ^+ 4)%a ]] ↦ₐ [[ [w0; w1; w2; w3] ]].
   Proof.
-    iIntros (Ha4); iSplit.
-    - iIntros "H".
-      iDestruct (switcher_stk_cells_region _ _ _ _ _ (a ^+ 4)%a [] with "H []")
-        as "$"; [done|solve_addr|].
-      rewrite /region_pointsto finz_seq_between_empty; [done|solve_addr].
-    - iIntros "H".
-      iDestruct (region_pointsto_cons _ (a ^+ 1)%a with "H") as "[$ H]";
-        [solve_addr|solve_addr|].
-      iDestruct (region_pointsto_cons _ (a ^+ 2)%a with "H") as "[H1 H]";
-        [solve_addr|solve_addr|].
-      replace ((a ^+ 1) ^+ 1)%a with (a ^+ 2)%a by solve_addr; iFrame "H1".
-      iDestruct (region_pointsto_cons _ (a ^+ 3)%a with "H") as "[H2 H]";
-        [solve_addr|solve_addr|].
-      replace ((a ^+ 2) ^+ 1)%a with (a ^+ 3)%a by solve_addr; iFrame "H2".
-      iDestruct (region_pointsto_cons _ (a ^+ 4)%a with "H") as "[H3 H]";
-        [solve_addr|solve_addr|].
-      replace ((a ^+ 3) ^+ 1)%a with (a ^+ 4)%a by solve_addr; iFrame "H3".
+    iIntros (Ha4); iSplit; iIntros "H".
+    - iRegionMerge; iFrame.
+    - iRegionSplit "H" as "H"; iFrame.
   Qed.
 
 End Switcher_Code.

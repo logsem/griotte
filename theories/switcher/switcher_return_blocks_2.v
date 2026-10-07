@@ -165,7 +165,7 @@ Section Switcher_Return_Blocks_2.
 
     (* Block 12: restore the callee-save registers *)
     switcher_focus_block 12 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
-    switcher_change_pc_to ((a_switcher_call ^+ switcher_block_offset 12) ^+ 5)%a.
+    change_pc_to ((a_switcher_call ^+ switcher_block_offset 12) ^+ 5)%a.
     iApply (switcher_return_block_12_restore_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); [done|done|done|solve_addr|].

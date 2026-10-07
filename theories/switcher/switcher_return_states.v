@@ -32,7 +32,7 @@ Section Switcher_Return_States.
   (** The return entry point is the first address of block 12. *)
   Lemma switcher_return_block_12 :
     a_switcher_return = (a_switcher_call ^+ switcher_block_offset 12)%a.
-  Proof. rewrite switcher_return_offset. by switcher_offsets_compute. Qed.
+  Proof. rewrite switcher_return_offset. by offsets_compute. Qed.
 
   (** The bounds of the caller's stack frame, as stored in the call frame. *)
   Lemma switcher_stk_bounds_frame (b e a : Addr) :

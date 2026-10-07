@@ -111,8 +111,8 @@ Section DROE.
       )".
     iExtractList "Hrmap" [cra;ca0;ca1;ct0;ct1;ct2;ct3;cs0;cs1]
       as ["Hcra"; "Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hcs0"; "Hcs1"].
-    iDestruct (droe_data_split with "Hcgp_main") as "[Hcgp_b Hcgp_a]"; first done.
-    iDestruct (droe_imports_split with "Himports_main") as "Himports"; first done.
+    iRegionSplit "Hcgp_main" as "[Hcgp_b Hcgp_a]".
+    iRegionSplit "Himports_main" as "Himports".
 
     (* Revoke the world to get the stack frame *)
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
@@ -137,9 +137,10 @@ Section DROE.
     iMod (droe_world_share with "Hworld_interp_C Hstack_revoked_W0 Hinterp_W0_C_f Hcgp_b Hcgp_a")
       as "(Hworld_interp_C & #Hrel_cgp_b & #Hinterp_ca0 & #Hinterp_W3_C_f
            & #Hstack_revoked_W3 & %Hstack_revoked_W3)"; [done..|].
-    iDestruct (droe_switcher_call_args with "Hca0 Hinterp_ca0 Hca1 Hct0 Hct2 Hct3 Hrmap")
+    iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"; "Hct3"].
+    iDestruct (switcher_call_args_1 with "Hca0 Hinterp_ca0 Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
-    { rewrite !dom_delete_L Hrmap_dom; set_solver+. }
+    { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
     (* Call to the adversary *)
     iApply (switcher_cc_specification with

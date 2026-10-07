@@ -178,3 +178,19 @@ Tactic Notation "iInsert" constr(Hmap) constr(rname):=
 
 Tactic Notation "iInsertList" constr(Hmap) constr(rnames):=
     iInsert0 Hmap rnames.
+
+(** Insert the register points-to of the hypotheses [Hregs] into the
+    register map [Hmap]. Unlike [iInsertList], it does not prove that the
+    registers are not already in the map, nor simplify the map: it is cheaper
+    when only the domain of the resulting map is needed afterwards. *)
+Ltac iInsertRegs0 Hmap Hregs :=
+  lazymatch Hregs with
+  | nil => idtac
+  | ?Hreg :: ?Htail =>
+      let pat := constr:((Hreg ++ " " ++ Hmap)%string) in
+      iDestruct (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with pat) as Hmap;
+      iInsertRegs0 Hmap Htail
+  end.
+
+Tactic Notation "iInsertRegs" constr(Hmap) constr(Hregs) :=
+    iInsertRegs0 Hmap Hregs.

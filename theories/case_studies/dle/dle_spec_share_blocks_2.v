@@ -49,10 +49,10 @@ Section DLE_Share_Blocks_2.
       "(HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hcs0 & Hcs1 & Hcra & Hmem & Hpost)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
-    dle_unfold_code "Hcode_main".
+    unfold_code dle_main_code "Hcode_main".
 
     (* Block 1: fetch the entry point of the switcher *)
-    dle_focus_block 1 "Hcode_main" at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
+    focus_block 1 "Hcode_main" of dle_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto.
     { solve_addr. }
@@ -71,7 +71,7 @@ Section DLE_Share_Blocks_2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 3: save the entry points and call the adversary *)
-    dle_focus_block 3 "Hcode_main" at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    focus_block 3 "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov cs0 ct0 *)
     iInstr "Hcode".
@@ -81,7 +81,7 @@ Section DLE_Share_Blocks_2.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_callB ^+ 3)%a = (pc_a ^+ dle_instr_offset 3 3)%a) as ->
-      by (dle_offsets_compute; solve_addr).
+      by (offsets_compute; solve_addr).
     iApply "Hpost"; rewrite /dle_static_mem /dle_switcher_entry; iFrame.
   Qed.
 

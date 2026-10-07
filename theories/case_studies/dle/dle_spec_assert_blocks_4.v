@@ -43,12 +43,12 @@ Section DLE_Assert_Blocks_4.
       "(#Hassert & Hna & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
       & Hcgp_b & Himport_assert & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
-    dle_unfold_code "Hcode_main".
+    unfold_code dle_main_code "Hcode_main".
 
     (* Block 3: return from the second call *)
-    dle_focus_block 3 "Hcode_main" at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    focus_block 3 "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    dle_change_pc_to (a_callB ^+ 8)%a.
+    change_pc_to (a_callB ^+ 8)%a.
     (* Load ct0 cgp *)
     iInstr "Hcode".
     { split; [done| solve_addr]. }

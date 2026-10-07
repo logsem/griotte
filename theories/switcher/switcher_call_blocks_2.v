@@ -356,7 +356,7 @@ Section Switcher_Call_Blocks_2.
     (* Block 3: push the stack pointer on the trusted stack *)
     switcher_focus_block 3 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     iApply (switcher_call_block_3_spec with
-      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); [done|done|done|switcher_offsets_compute; solve_addr|].
+      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); [done|done|done|offsets_compute; solve_addr|].
     iNext.
     iIntros "[
       (%tstk_next' & HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc

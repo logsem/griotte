@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
 From griotte Require Export fetch_spec assert_spec switcher_preamble deep_immutability.
+From griotte Require Export case_study_spec_helpers.
 
 (** * Shared interfaces of the proof of [droe_spec]
 
@@ -19,73 +20,22 @@ From griotte Require Export fetch_spec assert_spec switcher_preamble deep_immuta
     The block-group lemmas start and end at addresses of the code
     [droe_main_code], given by [droe_block_offset] and [droe_instr_offset]. *)
 
-(** The list of the sub-blocks of a code [l1 ++ l2 ++ ... ++ ln]. *)
-Ltac app_chain_to_list c :=
-  lazymatch c with
-  | ?l1 ++ ?l2 => let r := app_chain_to_list l2 in constr:(l1 :: r)
-  | ?l => constr:([l])
-  end.
-
 Section DROE_Code.
   Context `{MP: MachineParameters}.
 
   (** The blocks of [droe_main_code], as focused by [focus_block]. *)
-  Definition droe_main_blocks : list (list Word) :=
-    ltac:(let c := eval cbv beta delta [droe_main_code] zeta in droe_main_code in
-          let r := app_chain_to_list c in exact r).
+  Definition droe_main_blocks : list (list Word) := ltac:(code_blocks_of droe_main_code).
 
   Lemma droe_main_code_blocks : droe_main_code = concat droe_main_blocks.
   Proof. reflexivity. Qed.
 
-  (** Offset of the first instruction of the block [n] in [droe_main_code]. *)
-  Definition droe_block_offset (n : nat) : Z :=
-    Z.of_nat (sum_list (length <$> take n droe_main_blocks)).
-
-  (** Offset of the [i]-th instruction of the block [n] in [droe_main_code]. *)
-  Definition droe_instr_offset (n i : nat) : Z :=
-    (droe_block_offset n + Z.of_nat i)%Z.
-
 End DROE_Code.
 
-(** Compute the offsets of the blocks in the goal and the hypotheses. *)
-Ltac droe_offsets_compute :=
-  repeat match goal with
-    | |- context [droe_instr_offset ?n ?i] =>
-        let v := eval vm_compute in (droe_instr_offset n i) in
-        change (droe_instr_offset n i) with v
-    | H : context [droe_instr_offset ?n ?i] |- _ =>
-        let v := eval vm_compute in (droe_instr_offset n i) in
-        change (droe_instr_offset n i) with v in H
-    | |- context [droe_block_offset ?n] =>
-        let v := eval vm_compute in (droe_block_offset n) in
-        change (droe_block_offset n) with v
-    | H : context [droe_block_offset ?n] |- _ =>
-        let v := eval vm_compute in (droe_block_offset n) in
-        change (droe_block_offset n) with v in H
-    end.
+(** Offset of the first instruction of the block [n] in [droe_main_code]. *)
+Notation droe_block_offset := (code_block_offset droe_main_blocks).
 
-(** Change the address of the PC to [a']. *)
-Ltac droe_change_pc_to a' :=
-  match goal with |- context [ environments.Esnoc _ _ (PC ↦ᵣ WCap _ _ _ _ ?a)%I ] =>
-    rewrite (_ : a = a');
-    [| droe_offsets_compute; solve_addr]
-  end.
-
-(** Unfold the code in [h], in order to focus on its blocks. *)
-Ltac droe_unfold_code h :=
-  iEval (cbv beta delta [droe_main_code] zeta) in h.
-
-(** Focus on block [n] of [droe_main_code] (at address [pc_a]), whose first
-    address [a] is [pc_a + droe_block_offset n]. The PC is moved to [a], when
-    possible. *)
-Tactic Notation "droe_focus_block" constr(n) constr(h) "at" constr(pc_a)
-    "as" ident(a) ident(Ha) constr(hi) constr(hcont) :=
-  focus_block_nochangePC n h as a Ha hi hcont;
-  let Ha' := fresh in
-  assert ((pc_a + droe_block_offset n)%a = Some a) as Ha'
-      by (cbn in Ha; droe_offsets_compute; solve_addr);
-  clear Ha; rename Ha' into Ha;
-  try droe_change_pc_to a.
+(** Offset of the [i]-th instruction of the block [n] in [droe_main_code]. *)
+Notation droe_instr_offset := (code_instr_offset droe_main_blocks).
 
 Section DROE_States.
   Context

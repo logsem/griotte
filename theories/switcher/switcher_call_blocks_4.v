@@ -286,7 +286,7 @@ Section Switcher_Call_Blocks_4.
 
     (* Block 7: read the entry of the export table *)
     switcher_focus_block 7 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
-    switcher_change_pc_to ((a_switcher_call ^+ switcher_block_offset 7) ^+ 1)%a.
+    change_pc_to ((a_switcher_call ^+ switcher_block_offset 7) ^+ 1)%a.
     iApply (switcher_call_block_7_after_unseal_spec with
       "[- $Htbl_entry $HPC $Hcs0 $Hct1 $Hct2 $Hcode]"); [done|done|lia|].
     iNext; iIntros "(HPC & Hcs0 & Hct1 & Hct2 & Hcode)".
@@ -329,7 +329,7 @@ Section Switcher_Call_Blocks_4.
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     rewrite (_ : ((a_switcher_call ^+ switcher_block_offset 11) ^+ 1)%a = a_switcher_return);
-      last (rewrite switcher_return_offset; switcher_offsets_compute; solve_addr).
+      last (rewrite switcher_return_offset; offsets_compute; solve_addr).
     iApply ("Hpost" $! arg_rmap' rmap'); iFrame; done.
   Qed.
 

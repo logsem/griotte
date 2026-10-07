@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
 From griotte Require Export fetch_spec assert_spec switcher_preamble deep_locality.
+From griotte Require Export case_study_spec_helpers.
 
 (** * Shared interfaces of the proof of [dle_spec]
 
@@ -21,73 +22,22 @@ From griotte Require Export fetch_spec assert_spec switcher_preamble deep_locali
     The block-group lemmas start and end at addresses of the code
     [dle_main_code], given by [dle_block_offset] and [dle_instr_offset]. *)
 
-(** The list of the sub-blocks of a code [l1 ++ l2 ++ ... ++ ln]. *)
-Ltac app_chain_to_list c :=
-  lazymatch c with
-  | ?l1 ++ ?l2 => let r := app_chain_to_list l2 in constr:(l1 :: r)
-  | ?l => constr:([l])
-  end.
-
 Section DLE_Code.
   Context `{MP: MachineParameters}.
 
   (** The blocks of [dle_main_code], as focused by [focus_block]. *)
-  Definition dle_main_blocks : list (list Word) :=
-    ltac:(let c := eval cbv beta delta [dle_main_code] zeta in dle_main_code in
-          let r := app_chain_to_list c in exact r).
+  Definition dle_main_blocks : list (list Word) := ltac:(code_blocks_of dle_main_code).
 
   Lemma dle_main_code_blocks : dle_main_code = concat dle_main_blocks.
   Proof. reflexivity. Qed.
 
-  (** Offset of the first instruction of the block [n] in [dle_main_code]. *)
-  Definition dle_block_offset (n : nat) : Z :=
-    Z.of_nat (sum_list (length <$> take n dle_main_blocks)).
-
-  (** Offset of the [i]-th instruction of the block [n] in [dle_main_code]. *)
-  Definition dle_instr_offset (n i : nat) : Z :=
-    (dle_block_offset n + Z.of_nat i)%Z.
-
 End DLE_Code.
 
-(** Compute the offsets of the blocks in the goal and the hypotheses. *)
-Ltac dle_offsets_compute :=
-  repeat match goal with
-    | |- context [dle_instr_offset ?n ?i] =>
-        let v := eval vm_compute in (dle_instr_offset n i) in
-        change (dle_instr_offset n i) with v
-    | H : context [dle_instr_offset ?n ?i] |- _ =>
-        let v := eval vm_compute in (dle_instr_offset n i) in
-        change (dle_instr_offset n i) with v in H
-    | |- context [dle_block_offset ?n] =>
-        let v := eval vm_compute in (dle_block_offset n) in
-        change (dle_block_offset n) with v
-    | H : context [dle_block_offset ?n] |- _ =>
-        let v := eval vm_compute in (dle_block_offset n) in
-        change (dle_block_offset n) with v in H
-    end.
+(** Offset of the first instruction of the block [n] in [dle_main_code]. *)
+Notation dle_block_offset := (code_block_offset dle_main_blocks).
 
-(** Change the address of the PC to [a']. *)
-Ltac dle_change_pc_to a' :=
-  match goal with |- context [ environments.Esnoc _ _ (PC ↦ᵣ WCap _ _ _ _ ?a)%I ] =>
-    rewrite (_ : a = a');
-    [| dle_offsets_compute; solve_addr]
-  end.
-
-(** Unfold the code in [h], in order to focus on its blocks. *)
-Ltac dle_unfold_code h :=
-  iEval (cbv beta delta [dle_main_code] zeta) in h.
-
-(** Focus on block [n] of [dle_main_code] (at address [pc_a]), whose first
-    address [a] is [pc_a + dle_block_offset n]. The PC is moved to [a], when
-    possible. *)
-Tactic Notation "dle_focus_block" constr(n) constr(h) "at" constr(pc_a)
-    "as" ident(a) ident(Ha) constr(hi) constr(hcont) :=
-  focus_block_nochangePC n h as a Ha hi hcont;
-  let Ha' := fresh in
-  assert ((pc_a + dle_block_offset n)%a = Some a) as Ha'
-      by (cbn in Ha; dle_offsets_compute; solve_addr);
-  clear Ha; rename Ha' into Ha;
-  try dle_change_pc_to a.
+(** Offset of the [i]-th instruction of the block [n] in [dle_main_code]. *)
+Notation dle_instr_offset := (code_instr_offset dle_main_blocks).
 
 Section DLE_States.
   Context

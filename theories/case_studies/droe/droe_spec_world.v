@@ -2,7 +2,6 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening proofmode.
 From griotte Require Import sts_multiple_updates.
 From griotte Require Import world_ghost_theory world_interp_stack.
-From griotte Require Import register_tactics.
 From griotte Require Import droe_spec_states.
 
 (** * Logical steps of the proof of [droe_spec]
@@ -24,80 +23,6 @@ Section DROE_World.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-
-  (** ** Initial memory *)
-
-  Lemma droe_data_split (cgp_b cgp_e : Addr) :
-    (cgp_b + length droe_main_data)%a = Some cgp_e ->
-    [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]] -∗
-    cgp_b ↦ₐ WInt 0 ∗
-    (cgp_b ^+ 1)%a ↦ₐ WInt 0.
-  Proof.
-    iIntros (Hcgp_contiguous) "Hcgp_main".
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[$ Hcgp_main]".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[$ _]".
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-  Qed.
-
-  Lemma droe_imports_split (pc_b pc_a : Addr) (C_f : Sealable) :
-    (pc_b + length (droe_main_imports C_f))%a = Some pc_a ->
-    [[ pc_b , pc_a ]] ↦ₐ [[ droe_main_imports C_f ]] -∗
-    droe_imports pc_b C_f.
-  Proof.
-    iIntros (Himports_contiguous) "Himports_main".
-    iDestruct (region_pointsto_cons with "Himports_main") as "[$ Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[$ Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[$ _]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
-  Qed.
-
-  (** ** Arguments of a call to the switcher
-
-      The entry point of the adversary takes one argument, [ca0]. The other
-      argument registers are passed unchanged. *)
-
-  Lemma droe_switcher_call_args W C (rmap : Reg) (wca0 wca1 wct0 wct2 wct3 : Word) :
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; ct0 ; ct1 ; ct2 ; ct3 ; cs0 ; cs1 ]} ->
-    ca0 ↦ᵣ wca0 -∗
-    interp W C wca0 -∗
-    ca1 ↦ᵣ wca1 -∗
-    ct0 ↦ᵣ wct0 -∗
-    ct2 ↦ᵣ wct2 -∗
-    ct3 ↦ᵣ wct3 -∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
-    ∃ arg_rmap rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
-      ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
-      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
-                                     (if decide (rarg ∈ dom_arg_rmap 1)
-                                      then interp W C warg
-                                      else True)) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
-  Proof.
-    iIntros (Hrmap_dom) "Hca0 #Hinterp_ca0 Hca1 Hct0 Hct2 Hct3 Hrmap".
-    iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as ["Hca2"; "Hca3"; "Hca4"; "Hca5"].
-    iInsertList "Hrmap" [ct2;ct3].
-    iExists {[ ca0 := wca0; ca1 := wca1; ca2 := wca2; ca3 := wca3;
-               ca4 := wca4; ca5 := wca5; ct0 := wct0 ]}, _.
-    iFrame "Hrmap".
-    iSplit.
-    { iPureIntro.
-      repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom /dom_arg_rmap.
-      set_solver+.
-    }
-    iSplit; first by rewrite /is_arg_rmap.
-    repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
-    done.
-  Qed.
 
   (** ** Sharing the data with the adversary
 
