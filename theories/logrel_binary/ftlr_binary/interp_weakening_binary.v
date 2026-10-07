@@ -2,11 +2,9 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Import memory_region monotone_binary.
-From griotte Require Export logrel_binary.
+From griotte Require Export logrel_binary ftlr_base_binary.
 
-(** Weakening lemmas for the binary [interp].
-    The weakening lemmas that need the induction hypothesis of the fundamental
-    theorem (weakening into a sentry) are not part of this file. *)
+(** Weakening lemmas for the binary [interp]. *)
 Section fundamental.
   Context
     {Σ:gFunctors}
@@ -120,6 +118,88 @@ Section fundamental.
         assert (region_state_nwl W x g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
+  Qed.
+
+  Lemma interp_weakening W C p p' g g' b b' e e' a a' :
+    (b <= b')%a ->
+    (e' <= e)%a ->
+    PermFlowsTo p' p ->
+    LocalityFlowsTo g' g ->
+    ftlr_IH -∗
+    interp W C (WCap p g b e a, WCap p g b e a) -∗
+    interp W C (WCap p' g' b' e' a', WCap p' g' b' e' a').
+  Proof.
+    intros Hb He Hp Hl. iIntros "#IH HA".
+    destruct (isO p') eqn:HpO'.
+    { rewrite !fixpoint_interp1_eq !interp1_eq HpO'; auto. }
+    destruct (isO p) eqn:HpO.
+    { eapply notisO_flowsfrom in Hp ; eauto; congruence. }
+    { iApply (interp_weakeningEO _ _ p p' g g'); eauto. }
+  Qed.
+
+  Lemma interp_weakeningSentry W C p g g' b b' e e' a a' :
+      isO p = false ->
+      (b <= b')%a ->
+      (e' <= e)%a ->
+      LocalityFlowsTo g' g ->
+      ftlr_IH -∗
+      interp W C (WCap p g b e a, WCap p g b e a) -∗
+      interp W C (WSentry p g' b' e' a', WSentry p g' b' e' a').
+  Proof.
+    intros HpnotO Hb He Hl.
+    iIntros "#IH HA".
+    rewrite !fixpoint_interp1_eq !interp1_eq /=.
+    rewrite HpnotO.
+    destruct (has_sreg_access p) eqn:HpXSR; auto.
+    iDestruct "HA" as "[#A %Hpwl_cond]".
+    iSplit; first done.
+    iModIntro.
+    rewrite /enter_cond /interp_expr /=.
+    iIntros (W') "#Hfuture %g'' %Hflows !>".
+    iIntros (stk Ws Cs regs1 regs2)
+      "(#Hspec & #Hreg & Hmap & Hsmap & Hj & Hworld_interp & Hcont & Hown & Hcstk & Hcstk_spec & %Hframe)".
+    rewrite /interp_conf.
+    iApply ("IH" with "Hspec Hreg Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Hcstk Hcstk_spec"); eauto.
+    iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
+    destruct (isO p) eqn:HpO; auto.
+    destruct (has_sreg_access p) eqn:HpXSR'; auto.
+    iSplit; cycle 1.
+    {
+      destruct (isWL p) eqn:Hpwl; auto.
+      simplify_eq.
+      destruct g',g'' ; auto.
+    }
+    destruct (decide (b' < e'))%a; cycle 1.
+    { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
+    rewrite (isWithin_finz_seq_between_decomposition b' e' b e); try solve_addr.
+    rewrite !big_sepL_app. iDestruct "A" as "[_ [A2 _]]".
+    iApply (big_sepL_impl with "A2"); auto.
+    iModIntro; iIntros (k x Hx) "Hw".
+    iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & #HmonoR & %Hstate)".
+    iExists p'',φ.
+    iFrame "Hrel".
+    iDestruct ( (monoReq_nwl_future W W' C g g' p p'' x φ)
+                with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
+    repeat(iSplit; auto).
+    destruct g''.
+    - destruct g';cbn in Hflows; last done.
+      destruct g;cbn in Hl; last done.
+      iDestruct "Hfuture" as "%Hfuture".
+      destruct (isWL p); first done.
+      iPureIntro; eapply region_state_nwl_monotone_nl; eauto.
+    - destruct (isWL p); simplify_eq.
+      + destruct g';cbn in Hflows; first done.
+        iDestruct "Hfuture" as "%Hfuture".
+        iPureIntro; eapply region_state_pwl_monotone; eauto.
+      + destruct g'.
+        * destruct g;cbn in Hl; last done.
+          iDestruct "Hfuture" as "%Hfuture".
+          eapply region_state_nwl_monotone_nl in Hstate; eauto.
+          iPureIntro; by left.
+        * iDestruct "Hfuture" as "%Hfuture".
+          iPureIntro; eapply region_state_nwl_monotone; eauto.
+          destruct g; last done.
+          by left.
   Qed.
 
   Lemma interp_next_PC W C p g b e a a' :
