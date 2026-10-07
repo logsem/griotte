@@ -459,3 +459,42 @@ Ltac iGo_lockstep hsprog hprog :=
                     iGo_lockstep (Option.get (Ltac1.to_constr hsprog))
                       (Option.get (Ltac1.to_constr hprog))) in
   f hsprog hprog.
+
+(** ** Lockstep code blocks
+
+    Both runs execute the same code at the same addresses: the impl and spec
+    code fragments are focused on the same block. The impl [focus_block]
+    moves the program counters of both runs, as it rewrites the old address
+    everywhere in the goal. *)
+
+Ltac focus_block_lockstep0 n hs h a_base Ha_base hsi hscont hi hcont :=
+  let a' := fresh "a_base_spec" in
+  let Ha' := fresh "Ha_base_spec" in
+  focus_block_spec_nochangePC0 n hs a' Ha' hsi hscont;
+  focus_block n h as a_base Ha_base hi hcont;
+  assert (a' = a_base) as -> by (clear -Ha' Ha_base; solve_addr);
+  clear Ha'.
+
+Tactic Notation "focus_block_lockstep" constr(n) constr(hs) constr(h) "as"
+       ident(a_base) ident(Ha_base) constr(hsi) constr(hscont) constr(hi) constr(hcont) :=
+  focus_block_lockstep0 n hs h a_base Ha_base hsi hscont hi hcont.
+
+Ltac focus_block_nochangePC_lockstep0 n hs h a_base Ha_base hsi hscont hi hcont :=
+  let a' := fresh "a_base_spec" in
+  let Ha' := fresh "Ha_base_spec" in
+  focus_block_spec_nochangePC0 n hs a' Ha' hsi hscont;
+  focus_block_nochangePC n h as a_base Ha_base hi hcont;
+  assert (a' = a_base) as -> by (clear -Ha' Ha_base; solve_addr);
+  clear Ha'.
+
+Tactic Notation "focus_block_nochangePC_lockstep" constr(n) constr(hs) constr(h) "as"
+       ident(a_base) ident(Ha_base) constr(hsi) constr(hscont) constr(hi) constr(hcont) :=
+  focus_block_nochangePC_lockstep0 n hs h a_base Ha_base hsi hscont hi hcont.
+
+Tactic Notation "focus_block_0_lockstep" constr(hs) constr(h) "as"
+       constr(hsi) constr(hscont) constr(hi) constr(hcont) :=
+  focus_block_0_spec hs as hsi hscont; focus_block_0 h as hi hcont.
+
+Tactic Notation "unfocus_block_lockstep" constr(hsi) constr(hscont) constr(hi) constr(hcont)
+       "as" constr(hs) constr(h) :=
+  unfocus_block_spec hsi hscont as hs; unfocus_block hi hcont as h.

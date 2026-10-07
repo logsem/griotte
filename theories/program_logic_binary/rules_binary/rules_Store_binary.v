@@ -21,6 +21,13 @@ Section spec_rules.
     v1 = v2 ∧ (v1 = NextIV → regs1 = regs2 ∧ mem1 = mem2).
   Proof. solve_spec_determ_gen Store_failure ltac:(unfold reg_allows_store in * ). Qed.
 
+  (* Generalises [Store_spec_determ] to any source argument. *)
+  Lemma Store_spec_determ_arg regs r1 (r2 : Z + RegName) mem regs1 regs2 mem1 mem2 v1 v2 :
+    Store_spec regs r1 r2 regs1 mem mem1 v1 →
+    Store_spec regs r1 r2 regs2 mem mem2 v2 →
+    v1 = v2 ∧ (v1 = NextIV → regs1 = regs2 ∧ mem1 = mem2).
+  Proof. solve_spec_determ_gen Store_failure ltac:(unfold reg_allows_store in * ). Qed.
+
    Lemma step_store Ep
      pc_p pc_g pc_b pc_e pc_a
      r1 (r2 : Z + RegName) w mem regs :

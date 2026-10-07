@@ -70,13 +70,6 @@ Section fundamental.
       split; eapply canStore_flowsto; eauto.
   Qed.
 
-  (* TODO: move to rules_Store_binary.v (generalises [Store_spec_determ] to any source argument) *)
-  Lemma Store_spec_determ_arg regs r1 (r2 : Z + RegName) mem regs1 regs2 mem1 mem2 v1 v2 :
-    Store_spec regs r1 r2 regs1 mem mem1 v1 →
-    Store_spec regs r1 r2 regs2 mem mem2 v2 →
-    v1 = v2 ∧ (v1 = NextIV → regs1 = regs2 ∧ mem1 = mem2).
-  Proof. solve_spec_determ_gen Store_failure ltac:(unfold reg_allows_store in * ). Qed.
-
   Lemma store_case (W : WORLD) (C : CmptName) (regs1 regs2 : Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr) (w : Word)
     (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : V)
