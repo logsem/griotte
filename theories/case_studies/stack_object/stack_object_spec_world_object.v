@@ -1,57 +1,92 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region proofmode.
-From griotte Require Import switcher assert.
 From griotte Require Import region_invariants_revocation region_invariants_allocation.
 From griotte Require Import interp_weakening monotone world_std_revocation.
-From griotte Require Import stack_object stack_object_helpers.
+From griotte Require Import world_ghost_theory world_interp_stack.
+From griotte Require Import stack_object_spec_states.
 
-Section Stack_Object_Resources.
+(** * Opening and closing the world around [checkints]
+
+    The lemmas of this file do not execute code. They are used around the
+    block group [stack_object_spec_checkints_blocks_2] in the proof of
+    [stack_object_f_spec]: [so_world_open_object] revokes the world of the
+    call and gives the points-to predicates of the stack object [in], and
+    the closing part of its postcondition puts them back in the world, once
+    [checkints] has shown that they only contain integers. *)
+
+Section SO_World_List.
   Context
-    {Σ : gFunctors}
-    {ceriseg : ceriseG Σ}
-    `{MP : MachineParameters}
-    {swlayout : switcherLayout}
-    {assertlayout : assertLayout}.
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    `{MP: MachineParameters}
+  .
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Lemma so_main_imports_pointsto
-      pc_b pc_a (C_f : Sealable) :
-    (pc_b + length (so_main_imports C_f))%a = Some pc_a ->
-    [[pc_b, pc_a]] ↦ₐ [[so_main_imports C_f]]
-    ⊣⊢
-      pc_b ↦ₐ
-        WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
-      ∗ (pc_b ^+ 1)%a ↦ₐ
-        WSentry RX Global b_assert e_assert b_assert
-      ∗ (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f
-      ∗ region_pointsto (pc_b ^+ 3)%a pc_a [].
+  Lemma open_world_interp_list (W : WORLD) (C' : CmptName)
+    (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
+    (l' : list Addr)
+    :
+
+    let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
+    NoDup la ->
+    la ## l' ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => (std W) !! a = Some ρ) l ->
+
+    ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' a p φ)
+    ∗ world_interp_open W C' l' -∗
+
+    ∃ lv,
+      world_interp_open W C' (la++l')
+      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C' a ρ)
+      ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
+      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C' φ p v ρ)
+      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C',v))
+      ∗ ⌜ length lv = length la ⌝
+      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
+  .
   Proof.
-    intros Himports.
-    cbn in Himports.
-    rewrite /so_main_imports.
-    iSplit.
-    - iIntros "Himports".
-      iDestruct (region_pointsto_cons with "Himports") as "[Hswitcher Himports]".
-      { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-      { solve_addr. }
-      iDestruct (region_pointsto_cons with "Himports") as "[Hassert Himports]".
-      { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-      { solve_addr. }
-      iDestruct (region_pointsto_cons with "Himports") as "[Htarget Himports]".
-      { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-      { solve_addr. }
-      iFrame.
-    - iIntros "(Hswitcher & Hassert & Htarget & Himports)".
-      iApply (region_pointsto_cons _ (pc_b ^+ 1)%a); [solve_addr|solve_addr|].
-      iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 2)%a); [solve_addr|solve_addr|].
-      iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 3)%a); [solve_addr|solve_addr|].
-      iFrame.
+    intros la.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (????) "(Hrels & [Hr Hsts])".
+    iDestruct (region_open_list W C' l l' with "[$Hrels $Hr $Hsts]") as
+      "(% & $ & $ & $ & $ & $ & $ & $)"; auto.
   Qed.
 
-End Stack_Object_Resources.
+  Lemma close_world_interp_list (W : WORLD) (C' : CmptName)
+    (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
+    (l' : list Addr)
+    (lv : list Word)
+    :
 
-Section Stack_Object_Region_Resources.
+    let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
+    length l = length lv ->
+    NoDup la ->
+    la ## l' ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => ∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) l ->
+
+    world_interp_open W C' (la++l')
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C' a ρ)
+    ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
+    ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C' φ p v ρ)
+    ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C',v))
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' a p φ)
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
+      -∗ world_interp_open W C' l'.
+  Proof.
+    intros la.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (?????) "([Hr $] & Hstd & Hv & Hmono & Hφ & Hrel & Hp)".
+    iDestruct (region_close_list with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "$"; auto.
+  Qed.
+
+End SO_World_List.
+
+Section SO_World_Object.
   Context
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
@@ -445,7 +480,10 @@ Section Stack_Object_Region_Resources.
       iIntros (k x Hx)
         "(%px & %Px & %Hpx_flow & %Hpers_Px & Hrelx
          & Hzcondx & Hrcondx & Hwcondx & Hmonox & %Hstatex)".
-      iFrame "∗%".
+      iExists px, Px.
+      iFrame "Hrelx Hzcondx Hrcondx Hwcondx".
+      iSplit; first done.
+      iSplit; first done.
       apply list_elem_of_lookup_2 in Hx.
       rewrite Forall_forall in Hobject_states.
       assert (std W0 !! x = std W2 !! x) as Hxeq.
@@ -471,104 +509,51 @@ Section Stack_Object_Region_Resources.
     iExact "Hinterp_wca0_W2".
   Qed.
 
-  Lemma stack_object_reinstate_fresh_object
-      (W0 W2 : WORLD) (C : CmptName)
-      (stack_b stack_e stack_a a_stk1 a_stk2 : Addr) :
-    let W3 := reinstate W2 [a_stk1] in
-    (a_stk1 + 1)%a = Some a_stk2 ->
-    (stack_b <= a_stk1)%a /\
-    (a_stk1 < a_stk2)%a /\
-    (a_stk2 <= stack_e)%a ->
-    std W0 !! a_stk1 = Some Temporary ->
-    std W2 !! a_stk1 = Some Revoked ->
-    related_sts_priv_world W0 W2 ->
-    interp W0 C (WCap RWL Local stack_b stack_e stack_a)
-    ∗ world_interp W2 C
-    ∗ a_stk1 ↦ₐ WInt 0
-    ∗ £ 1
+
+  (** Revoke the world [W0] of the call to [f], and open the region of the
+      readable stack object [(p, g, b, e, a)], which does not overlap with
+      the stack frame [[csp_b, csp_e)]. The closing part puts the cells of
+      the object back in the world, provided that they contain integers,
+      and gives back the stack frame. *)
+  Lemma so_world_open_object
+      (W0 : WORLD) (C : CmptName)
+      (p : Perm) (g : Locality) (b e a : Addr)
+      (csp_b csp_e : Addr) :
+    readAllowed p = true ->
+    finz.seq_between b e ## finz.seq_between csp_b csp_e ->
+    interp W0 C (WCap RWL Local csp_b csp_e csp_b) -∗
+    interp W0 C (WCap p g b e a) -∗
+    world_interp W0 C -∗
+    £ 1
     ={⊤}=∗
-      world_interp W3 C
-      ∗ ⌜related_sts_pub_world W2 W3⌝
-      ∗ ⌜std W3 !! a_stk1 = Some Temporary⌝
-      ∗ interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1).
+    ∃ l_revoked stk_mem la object_mem,
+      ⌜extract_temporaries_condition W0 (l_revoked ++ finz.seq_between csp_b csp_e)⌝ ∗
+      ▷ StackRevokedResources W0 C (finz.seq_between csp_b csp_e) ∗
+      ⌜la ≡ₚ finz.seq_between b e⌝ ∗
+      ([∗ list] a;v ∈ la;object_mem, a ↦ₐ v) ∗
+      ▷ (⌜Forall (fun w => exists z : Z, w = WInt z) object_mem⌝ ∗
+          ([∗ list] a;v ∈ la;object_mem, a ↦ₐ v) ∗
+          £ 1
+          ={⊤}=∗
+          world_interp (close_list (so_object_temporaries W0 b e) (revoke W0)) C ∗
+          RevokedResources W0 C (so_revoked_without_object W0 b e l_revoked) ∗
+          [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
+          interp (close_list (so_object_temporaries W0 b e) (revoke W0)) C
+            (WCap p g b e (finz.max b e))).
   Proof.
-    intros W3 Ha_stk2 Hbounds Ha_stk1_W0 Ha_stk1_W2 Hpriv.
-    iIntros "(#Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
-    destruct Hbounds as (Hstack_b_stk1 & Hastk1_stk2 & Hastk2_stack_e).
-
-    (* Turn the freshly zeroed stack cell into the closing resource required
-       by [world_interp_restore_world], consuming exactly one later credit. *)
-    iAssert (
-        |={⊤}=> ([∗ list] a ∈ [a_stk1],
-          ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝
-            ∗ temp_resources W2 C φ a p ∗ rel C a p φ)
-      )%I with "[Ha_stk1 Hlc]" as ">Hclosing_resources".
-    { cbn.
-      iDestruct (read_allowed_inv _ _ a_stk1 with "Hinterp_stack")
-        as "(%pastk1 & %Pastk1 & %Hpastk1_rwl & %Hpers_Pastk1
-             & #Hrel_astk1 & Hzcond_Pastk1 & Hrcond_Pastk1
-             & Hwcond_Pastk1 & Hmono_Pastk1)"; auto.
-      { solve_addr+Ha_stk2 Hstack_b_stk1 Hastk1_stk2 Hastk2_stack_e. }
-      replace (writeAllowed pastk1) with true.
-      2: { symmetry; eapply writeAllowed_flowsto; eauto. }
-      iDestruct (lc_fupd_elim_later with "[$] [$Hwcond_Pastk1]")
-        as ">#Hwcond_Pastk1'".
-      assert (isWL pastk1 = true) as Hpastk1_wl.
-      { apply isWL_flowsto in Hpastk1_rwl; done. }
-      iModIntro.
-      iSplitL; last done.
-      iExists pastk1, (safeC Pastk1).
-      iSplit; first iPureIntro.
-      { intros Wcv; apply Hpers_Pastk1. }
-      iSplit; last iFrame "#".
-      iFrame "Ha_stk1".
-      iSplit; first iPureIntro.
-      { by apply isWL_nonO. }
-      rewrite /monoReq !Hpastk1_wl Ha_stk1_W0.
-      iSplit; first iApply "Hmono_Pastk1".
-      rewrite /=.
-      iApply "Hwcond_Pastk1'".
-      iApply interp_int.
-    }
-
-    (* Reinstate the cell and package both its state transition and the safe
-       singleton RWL capability needed by the adversary call. *)
-    iMod (world_interp_restore_world W2 W2 C [a_stk1]
-      with "[$Hworld_interp] [Hclosing_resources]")
-      as "Hworld_interp".
-    { apply close_list_related_sts_pub. }
-    { iClear "#".
-      iApply (big_sepL_impl with "Hclosing_resources").
-      iModIntro; iIntros (k ka Hka) "(%&%&$&(%&$&$&?&$)&$)".
-      by rewrite mono_temporary_eq.
-    }
-
-    assert (related_sts_pub_world W2 W3) as Hpub.
-    { apply close_list_related_sts_pub. }
-    assert (std W3 !! a_stk1 = Some Temporary) as Ha_stk1_W3.
-    { apply close_list_lookup_in; auto; set_solver+. }
-
-    iAssert (interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1))%I
-      as "#Hinterp_fresh".
-    { iEval (rewrite fixpoint_interp1_eq interp1_eq).
-      cbn.
-      iSplit; last done.
-      rewrite (finz_seq_between_singleton a_stk1 a_stk2);
-        last solve_addr+Ha_stk2 Hastk1_stk2.
-      cbn.
-      iSplit; last done.
-      iClear "∗".
-      iDestruct "Hinterp_stack" as "-#Hinterp"; iClear "#".
-      iDestruct (read_allowed_inv _ _ a_stk1 with "Hinterp")
-        as "(%px & %Px & %Hpx_flow & %HPx_pers & Hrelx
-             & Hzcondx & Hrcondx & Hwcondx & Hmonox)"; auto.
-      { solve_addr+Ha_stk2 Hstack_b_stk1 Hastk1_stk2 Hastk2_stack_e. }
-      iFrame "∗%".
-      apply readAllowed_flowsto in Hpx_flow; last done.
-      rewrite Hpx_flow; iFrame.
-      rewrite /monoReq Ha_stk1_W0 Ha_stk1_W3; done.
-    }
-    iModIntro. iFrame "#∗%".
+    iIntros (Hp Hno_overlap) "#Hinterp_csp #Hinterp_object Hworld_interp_C Hlc".
+    iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")
+      as (l_revoked) "(%Hextract & Hworld_interp_C & Hstack_revoked & _
+                       & >[%stk_mem Hstk] & Hl_revoked & _)".
+    iMod (stack_object_open_region_for_checkints
+            W0 C p g b e a csp_b csp_e l_revoked stk_mem
+           with "[$Hinterp_object $Hworld_interp_C $Hl_revoked $Hstk $Hlc]")
+      as (object_mem) "(_ & %Hobject & Hobject & Hclose)"; [done|done|done|].
+    iModIntro.
+    iExists l_revoked, stk_mem, _, object_mem.
+    iFrame.
+    iSplit; first done.
+    iPureIntro; by symmetry.
   Qed.
 
-End Stack_Object_Region_Resources.
+End SO_World_Object.

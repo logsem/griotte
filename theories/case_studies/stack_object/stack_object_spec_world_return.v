@@ -3,9 +3,15 @@ From griotte Require Import memory_region proofmode.
 From griotte Require Import region_invariants_revocation interp_weakening monotone.
 From griotte Require Import world_ghost_theory world_std_revocation.
 From griotte Require Import world_interp_stack.
-From griotte Require Import stack_object_helpers.
+From griotte Require Import stack_object_spec_states.
 
-Section Stack_Object_Return_Repair.
+(** * Repair of the world before the return of [f]
+
+    The lemma of this file does not execute code. It is used after the
+    block group [stack_object_spec_return_blocks_4], before the return to
+    the switcher, in the proof of [stack_object_f_spec]. *)
+
+Section SO_World_Return.
   Context
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
@@ -14,11 +20,20 @@ Section Stack_Object_Return_Repair.
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
-  Lemma stack_object_repair_world_for_return
-      (W0 W3 W4 : WORLD) (C : CmptName)
+  (** The callback [g] returned the public future [W4] of the world [W3] of
+      the call, which is revoked by the switcher. The addresses revoked
+      before the call ([l0]) and by the switcher ([l4]) overlap on the
+      temporary addresses of the stack object [in], and [l4] contains the
+      stack object [z] at [a_stk1]. The world is repaired by closing both
+      lists, without duplicates, and the stack frame [[csp_b, csp_e)] (the
+      secret at [csp_b], [z], and the stack frame of the callee). *)
+  Lemma so_world_return
+      (W0 W4 : WORLD) (C : CmptName)
       (object_b object_e csp_b csp_e a_stk1 a_stk2 : Addr)
       (l0 l4 : list Addr)
       (stk_head0 : Word) (stk_tail : list Word) :
+    let W3 := reinstate
+      (close_list (so_object_temporaries W0 object_b object_e) (revoke W0)) [a_stk1] in
     let W5 := revoke W4 in
     let object_temps := so_object_temporaries W0 object_b object_e in
     let l0_rest := so_revoked_without_object W0 object_b object_e l0 in
@@ -31,11 +46,11 @@ Section Stack_Object_Return_Repair.
       W0 (l0 ++ finz.seq_between csp_b csp_e) ->
     extract_temporaries_condition
       W4 (l4 ++ finz.seq_between (a_stk2 ^+ 4)%a csp_e) ->
-    W3 = reinstate
-      (close_list object_temps (revoke W0)) [a_stk1] ->
     std W3 !! a_stk1 = Some Temporary ->
     related_sts_priv_world W0 W3 ->
-    related_sts_pub_world W3 W4 ->
+    revoked_addresses W3 (finz.seq_between a_stk2 csp_e) ->
+    related_sts_pub_world
+      (std_update_multiple W3 (finz.seq_between (a_stk2 ^+ 4)%a csp_e) Temporary) W4 ->
     so_object_addresses object_b object_e
       ## finz.seq_between csp_b csp_e ->
     (csp_b + 1)%a = Some a_stk1 ->
@@ -45,10 +60,8 @@ Section Stack_Object_Return_Repair.
       (a_stk2 ^+ 4 <= csp_e)%a /\
       (a_stk2 + 4)%a = Some (a_stk2 ^+ 4)%a ->
     revoked_addresses W5 l4 ->
-    Forall (fun a => std W5 !! a = Some Revoked) l0_rest ->
     Forall (fun a => std W5 !! a = Some Revoked)
       (finz.seq_between a_stk2 csp_e) ->
-    std W5 !! csp_b = Some Revoked ->
     world_interp W5 C
     ∗ RevokedResources W0 C l0_rest
     ∗ RevokedResources W4 C l4
@@ -66,16 +79,56 @@ Section Stack_Object_Return_Repair.
         ∗ [[csp_b, csp_e]] ↦ₐ
             [[stk_head0 :: stk_head1 :: stk_tail]].
   Proof.
-    intros W5 object_temps l0_rest l4_no_fresh l4_object l4_rest
+    intros W3 W5 object_temps l0_rest l4_no_fresh l4_object l4_rest
       closing_revoked closing.
-    intros Hextract0 Hextract4 HW3 Hfresh_W3 Hpriv Hpub Hobject_stack
-      Hfresh Hnext Hnext_end Hreturned_bounds Hl4_W5
-      Hl0_rest_W5 Hstack_W5 Hhead_W5.
+    intros Hextract0 Hextract4 Hfresh_W3 Hpriv Hrevoked_W3 Hpub_ext Hobject_stack
+      Hfresh Hnext Hnext_end Hreturned_bounds Hl4_W5 Hstack_W5.
     destruct Hextract0 as [Hl0_nodup Hl0_temporaries].
     destruct Hextract4 as [Hl4_nodup Hl4_temporaries].
     destruct Hreturned_bounds as
       (Hcsp_b_ret & Hret_csp_e & Hret_add).
     iIntros "(Hworld & Hl0_rest & Hl4 & Hhead0 & Htail)".
+
+    (* [W4] is a public future of [W3]: the stack frame of the callee was
+       revoked in [W3]. *)
+    assert (related_sts_pub_world W3 W4) as Hpub.
+    { eapply related_sts_pub_trans_world; last exact Hpub_ext.
+      apply related_sts_pub_update_multiple_temp.
+      apply Forall_forall; intros x Hx.
+      rewrite /revoked_addresses Forall_forall in Hrevoked_W3.
+      apply Hrevoked_W3.
+      rewrite !elem_of_finz_seq_between in Hx |- *; solve_addr+Hx Hcsp_b_ret.
+    }
+
+    (* The addresses revoked before the call, and the secret, are revoked in
+       [W5], by separation. *)
+    iMod (world_interp_revoked_by_separation_many_with_RevokedResources
+           with "[$Hl0_rest $Hworld]")
+      as "(Hworld & Hl0_rest & %Hl0_rest_W5)".
+    { apply Forall_forall.
+      intros x Hx.
+      subst l0_rest.
+      apply list_elem_of_filter in Hx as [_ Hl].
+      rewrite -revoke_dom_eq.
+      eapply elem_of_mono_pub; eauto.
+      rewrite -!close_list_dom_eq.
+      rewrite -revoke_dom_eq.
+      assert (std W0 !! x = Some Temporary).
+      { apply Hl0_temporaries; apply elem_of_app; by left. }
+      rewrite elem_of_dom; done.
+    }
+    iMod (world_interp_revoked_by_separation with "[$Hhead0 $Hworld]")
+      as "(Hworld & Hhead0 & %Hhead_W5)".
+    { rewrite -revoke_dom_eq.
+      eapply elem_of_mono_pub; eauto.
+      rewrite -!close_list_dom_eq.
+      rewrite -revoke_dom_eq.
+      assert (std W0 !! csp_b = Some Temporary).
+      { apply Hl0_temporaries; apply elem_of_app; right.
+        apply elem_of_finz_seq_between; solve_addr+Hfresh Hnext Hnext_end.
+      }
+      rewrite elem_of_dom; done.
+    }
     subst W3.
 
     (* Recover the original split between the incoming object's temporary
@@ -424,4 +477,4 @@ Section Stack_Object_Return_Repair.
     iFrame.
   Qed.
 
-End Stack_Object_Return_Repair.
+End SO_World_Return.
