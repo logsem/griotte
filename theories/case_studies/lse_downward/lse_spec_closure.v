@@ -4,6 +4,8 @@ From griotte Require Import fetch_spec assert_spec switcher switcher_spec_return
 From griotte Require Import lse.
 From griotte Require Import world_interp_stack.
 From griotte Require Import proofmode register_tactics.
+From griotte Require Import lse_spec_states lse_spec_world
+  lse_spec_f_blocks_1 lse_spec_f_blocks_2.
 
 Section LSE.
   Context
@@ -65,7 +67,16 @@ Section LSE.
       -∗
     ot_switcher_prop W C (WCap RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a).
   Proof.
-    intros imports.
+    (* Outline of the proof:
+       - unfold [ot_switcher_prop] and introduce the state of the machine at
+         the entry point of [f];
+       - [lse_world_f]: revoke the world, to get the stack frame;
+       - [lse_f_blocks_1_spec]: block 4, push the capability of [a] on the
+         stack and load [a];
+       - [lse_f_blocks_2_spec]: blocks 5-6, assert that [a] contains [2],
+         and jump to the switcher;
+       - [switcher_ret_specification]: return to the caller of [f]. *)
+    intros imports; subst imports.
     iIntros (Hswitcher_assert HNswitcher_lse HNassert_lse
                Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size)
       "(#Hassert & #Hswitcher
@@ -85,179 +96,58 @@ Section LSE.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
-    rewrite /interp_conf.
-    rewrite /registers_pointsto.
-
+      "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & _ & _)".
+    rewrite /interp_conf /registers_pointsto.
+    assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by done.
+    assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).
+    pose proof (regmap_full_dom _ Hrmap_init) as Hrmap_dom.
     iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
+    iExtractList "Hrmap" [ct0;ct1;cs0;cs1;ca0;ca1;cnull]
+      as ["Hct0";"Hct1";"Hcs0";"Hcs1";"Hca0";"Hca1";"Hcnull"].
 
+    (* Revoke the world, to get the stack frame *)
+    set (csp_b := (csp_b' ^+ 4)%a).
+    iMod (lse_world_f with "Hinterp_W0_csp Hworld_interp_C")
+      as (l stk_mem) "(%Hextract & %Hpub_W0_Wfixed & Hworld_interp_C & Hrevoked_l & Hstk)".
+
+    (* Block 4: push the capability of [a] on the stack, load [a] *)
     iMod (na_inv_acc with "Hlse_code Hna")
       as "(( >Himports_main & >Hcode_main & >Hcgp_b) & Hna & Hlse_code_close)"; auto.
-    codefrag_facts "Hcode_main" ; rename H into Hpc_contiguous; clear H0.
-
-    (* --- Extract registers ca0  --- *)
-    assert ( is_Some (rmap !! ct0) ) as [wct0 Hwct0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cs0) ) as [wcs0 Hwcs0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cs1) ) as [wcs1 Hwcs1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cnull) ) as [wcnull Hwcnull].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
-
-    (* Extract the imports *)
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_f Himports_main]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
-
-    (* Revoke the world to get the stack frame *)
-    set ( csp_b := (csp_b' ^+ 4)%a ).
-    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
-
-    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
-        as (l) "(%Hl_unk & Hworld_interp_C & #Hstack_revoked_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
-
-    set (W1 := revoke W0).
-    assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
-
-
-    (* --------------------------------------------------- *)
-    (* ----------------- Start the proof ----------------- *)
-    (* --------------------------------------------------- *)
-
-    rewrite /lse_main_code /LSE_main_code_run.
-    rewrite -!app_assoc.
-    rewrite /LSE_main_code_f.
-    assert (SubBounds pc_b pc_e (pc_a ^+ length LSE_main_code_run)%a
-              (pc_a ^+ length lse_main_code)%a).
-    { solve_addr. }
-    focus_block_nochangePC 4 "Hcode_main" as a_f Ha_f "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     rewrite /length_lse_main_imports.
-    iEval (cbn) in "HPC".
-    replace (pc_b ^+ (3%nat + 21%nat))%a with a_f by solve_addr.
+    change_pc_to (pc_a ^+ lse_block_offset 4)%a.
+    iApply (lse_f_blocks_1_spec with
+             "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hcode_main]");
+      [done|done|].
+    iNext; iIntros (stk_mem' wcs0' wcs1')
+      "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & Hcode_main)".
 
-    (* GetB cs0 cgp; *)
-    iInstr "Hcode".
-    (* Add cs1 cs0; *)
-    iInstr "Hcode".
-    (* Subseg cgp cs0 cs1; *)
-    iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1%nat)%a); [solve_addr+Hcgp_size|reflexivity]. }
-    { solve_addr+Hcgp_size. }
-    (* Store csp cgp; *)
-    destruct ( decide ((csp_b < csp_e)%a) ) as [Hcsp_size|Hcsp_size]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcgp $Hcsp]"); try solve_pure.
-      { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      iIntros "!> _".
-      wp_pure; wp_end; iIntros (?); done.
-    }
-    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
-    rewrite finz_seq_between_length in Hstklen.
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
-    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
-    assert (is_Some (csp_b + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hcsp_size|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]"; eauto.
-    { solve_addr+Hcsp_size Hastk1. }
-    iInstr "Hcode".
-    { rewrite /withinBounds; solve_addr+Hcsp_size. }
-    (* Load ct0 cgp; *)
-    iInstr "Hcode".
-    { split; [solve_pure| solve_addr+Hcgp_size]. }
-    (* Mov ct1 2; *)
-    iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 2: ASSERT ----------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block 5 "Hcode_main" as a_assert_c Ha_assert_c "Hcode" "Hcont"; iHide "Hcont" as hcont
-    ; clear dependent Ha_f.
-    iApply (assert_success_spec
-             with
-             "[- $Hassert $Hna $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra $Hcnull
-              $Hcode $Himport_assert]") ; auto.
-    { apply withinBounds_true_iff; solve_addr. }
-    { solve_ndisj. }
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcs0 & Hcs1 & Hcra & Hct0 & Hct1 & Hcnull
-                    & Hcode & Himport_assert)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 3: RETURN ----------------- *)
-    (* --------------------------------------------------- *)
-    focus_block 6 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont
-    ; clear dependent Ha_assert_c.
-    (* Mov ca0 0%Z; *)
-    iInstr "Hcode".
-    (* Mov ca1 0%Z; *)
-    iInstr "Hcode".
-    (* Jalr cnull cra *)
-    iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    iMod ("Hlse_code_close" with "[$Hna Himport_C_f Himport_switcher Himport_assert Himports_main $Hcode_main $Hcgp_b]")
+    (* Blocks 5-6: assert that [a] contains [2], and return *)
+    iApply (lse_f_blocks_2_spec with
+             "[- $Hassert $Hna $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra $Hca0 $Hca1 $Hcnull
+              $Himport_assert $Hcode_main]"); [done|solve_ndisj|].
+    iNext; iIntros "(Hna & HPC & Hcgp & Hcs0 & Hcs1 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
+                    & Hcnull & Himport_assert & Hcode_main)".
+    iEval (cbn [updatePcPerm]) in "HPC".
+    iMod ("Hlse_code_close" with
+           "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main $Hcgp_b]")
       as "Hna".
-    { iNext.
-      iDestruct (region_pointsto_cons with "[$Himport_C_f $Himports_main]") as "Himports_main"
-      ; [solve_addr|solve_addr|].
-      iDestruct (region_pointsto_cons with "[$Himport_assert $Himports_main]") as "Himports_main"
-      ; [solve_addr|solve_addr|].
-      iDestruct (region_pointsto_cons with "[$Himport_switcher $Himports_main]") as "$" ;solve_addr.
-    }
+    { iNext. iRegionMerge. iFrame. }
+    iInsertRegs "Hrmap" ["Hcnull";"Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].
 
-    (* Put all the registers under the same map *)
-    iInsertList "Hrmap" [cra;cgp;cs1;cs0;ct1;ct0;cnull].
-    iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk".
-    { solve_addr+Hastk1. }
-    { solve_addr+Hastk1 Hcsp_size. }
-
-    iApply (switcher_ret_specification _ W0 W1
-             with
-             "[ $Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
-             $Hrmap $Hca0 $Hca1 $Hcsp]"
-           ); auto.
-    { apply related_pub_revoke_close_list.
-      destruct Hl_unk; auto.
-    }
-    { apply regmap_full_dom in Hrmap_init.
-      repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hrmap_init; set_solver+.
-    }
+    (* Return to the caller of [f] *)
+    iApply (switcher_ret_specification _ W0 (revoke W0) with
+             "[$Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+              $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
+    { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
     { subst csp_b.
-      destruct Hsync_csp as [Hsync_csp <-].
-      auto.
-    }
-    { destruct Hl_unk; auto. }
-    { intros a; destruct Hl_unk as [_ Hl_unk]; destruct (Hl_unk a); auto. }
+      destruct Hsync_csp as [Hcsp_sync Hcsp_base].
+      rewrite -Hcsp_base; auto. }
+    { destruct Hextract; auto. }
+    { intros a; destruct Hextract as [_ Htemp]; destruct (Htemp a); auto. }
     { iSplit; iApply interp_int. }
   Qed.
 
