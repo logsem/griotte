@@ -82,6 +82,34 @@ Section griotte_lang_rules.
       Subseg_failure regs dst src1 src2 regs' →
       Subseg_spec regs dst src1 src2 regs' FailedV.
 
+  (* Once the success conditions of a capability Subseg hold, no failure case applies. *)
+  Lemma Subseg_failure_cap_contra regs dst src1 src2 regs' p g b e a a1 a2 :
+    Subseg_failure regs dst src1 src2 regs' →
+    regs !!ᵣ dst = Some (WCap p g b e a) →
+    addr_of_argument regs src1 = Some a1 →
+    addr_of_argument regs src2 = Some a2 →
+    isWithin a1 a2 b e = true →
+    is_Some (incrementPC (<[ dst := WCap p g a1 a2 a ]ᵣ> regs)) →
+    False.
+  Proof.
+    intros Hfail Hdst Ha1 Ha2 Hwb [? Hinc].
+    destruct Hfail; simplify_eq/=; congruence.
+  Qed.
+
+  (* Same for a seal range. *)
+  Lemma Subseg_failure_sr_contra regs dst src1 src2 regs' p g b e a a1 a2 :
+    Subseg_failure regs dst src1 src2 regs' →
+    regs !!ᵣ dst = Some (WSealRange p g b e a) →
+    otype_of_argument regs src1 = Some a1 →
+    otype_of_argument regs src2 = Some a2 →
+    isWithin a1 a2 b e = true →
+    is_Some (incrementPC (<[ dst := WSealRange p g a1 a2 a ]ᵣ> regs)) →
+    False.
+  Proof.
+    intros Hfail Hdst Ha1 Ha2 Hwb [? Hinc].
+    destruct Hfail; simplify_eq/=; congruence.
+  Qed.
+
   Lemma wp_Subseg Ep pc_p pc_g pc_b pc_e pc_a w dst src1 src2 regs :
     decodeInstrW w = Subseg dst src1 src2 ->
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
@@ -307,9 +335,9 @@ Section griotte_lang_rules.
      { (* Success with WSealRange (contradiction) *)
         simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -350,9 +378,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a1 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -393,9 +421,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -436,8 +464,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence. }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -474,8 +503,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence. }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -547,9 +577,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      try destruct_perm pc_p; cbn in *; congruence. }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -586,9 +616,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: try destruct_perm pc_p; cbn in *; congruence. }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a1 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -625,9 +655,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: try destruct_perm pc_p; cbn in *; congruence. }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -664,9 +694,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: try destruct_perm pc_p; cbn in *; congruence. }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -699,9 +729,9 @@ Section griotte_lang_rules.
     { (* Success with WSealRange (contradiction) *)
       simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: try destruct_perm pc_p; cbn in *; congruence. }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -747,8 +777,9 @@ Section griotte_lang_rules.
               (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
       iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+      exfalso; eapply (Subseg_failure_sr_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /otype_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -789,8 +820,9 @@ Section griotte_lang_rules.
               (insert_insert_ne _ PC dst) // insert_insert_eq.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+      exfalso; eapply (Subseg_failure_sr_contra _ _ _ _ _ _ _ _ _ _ a1 a1 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /otype_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -831,8 +863,9 @@ Section griotte_lang_rules.
               (insert_insert_ne _ PC dst) // insert_insert_eq.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+      exfalso; eapply (Subseg_failure_sr_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /otype_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -873,8 +906,9 @@ Section griotte_lang_rules.
               (insert_insert_ne _ PC dst) // insert_insert_eq.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+      exfalso; eapply (Subseg_failure_sr_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /otype_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -911,8 +945,9 @@ Section griotte_lang_rules.
       rewrite (insert_insert_ne _ PC dst) // insert_insert_eq insert_insert_ne // insert_insert_eq.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+      exfalso; eapply (Subseg_failure_sr_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /otype_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
