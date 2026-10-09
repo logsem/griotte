@@ -70,14 +70,14 @@ Section fundamental.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iSplit; cycle 1.
     { case_eq (isWL p'); intros Hpwl'; auto.
-      assert (isWL p = true) as Hpwl by (destruct_perm p; destruct_perm p'; naive_solver).
+      pose proof (isWL_flowsto p' p Hp Hpwl') as Hpwl.
       rewrite Hpwl in Hpwl_cond.
       destruct g; try congruence.
       destruct g'; simpl in Hl; try tauto. auto.
     }
 
     case_eq (isWL p'); intros Hpwl'; auto.
-    - assert (isWL p = true) as Hpwl by (destruct_perm p; destruct_perm p'; naive_solver).
+    - pose proof (isWL_flowsto p' p Hp Hpwl') as Hpwl.
       rewrite Hpwl in Hpwl_cond.
       destruct g; try congruence.
       destruct g'; simpl in Hl; try tauto.

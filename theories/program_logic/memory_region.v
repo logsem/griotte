@@ -192,6 +192,77 @@ Section region.
        rewrite (_: finz.dist b e - finz.dist b a = finz.dist a e)...
    Qed.
 
+  (** A region of memory is the separated conjunction of its cells. *)
+  Lemma region_pointsto_cells (b e : Addr) (ws : list Word) :
+    (b + length ws)%a = Some e →
+    [[ b , e ]] ↦ₐ [[ ws ]] ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ w.
+  Proof.
+    revert b. induction ws as [|w ws IH]; intros b Hb; cbn in Hb |- *.
+    - rewrite /region_pointsto finz_seq_between_empty; [done|solve_addr].
+    - rewrite (region_pointsto_cons b (b ^+ 1)%a); [|solve_addr|solve_addr].
+      rewrite IH; [|solve_addr].
+      rewrite (_ : (b ^+ 0%nat)%a = b); [|solve_addr].
+      f_equiv. apply big_sepL_proper. intros k y Hk%lookup_lt_Some.
+      rewrite (_ : ((b ^+ 1) ^+ k)%a = (b ^+ S k)%a); [done|solve_addr].
+  Qed.
+
+  Lemma region_pointsto_cells_app (b a e : Addr) (ws ws' : list Word) :
+    (b + length ws)%a = Some a →
+    (a <= e)%a →
+    [[ b , e ]] ↦ₐ [[ ws ++ ws' ]] ⊣⊢
+    ([∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ w) ∗
+    [[ a , e ]] ↦ₐ [[ ws' ]].
+  Proof.
+    intros Ha Hae.
+    rewrite (region_pointsto_split b e a); [|solve_addr|rewrite /finz.dist; solve_addr].
+    by rewrite region_pointsto_cells.
+  Qed.
+
+  (** [region_cells b [w0; ...; wn]] unfolds (by [cbn]) to
+      [b ↦ₐ w0 ∗ cell_addr b 1 ↦ₐ w1 ∗ ... ∗ cell_addr b n ↦ₐ wn], where
+      [cell_addr b i] reduces to [b ^+ i] (or [b] for [i = 0]). It is the
+      normal form used by [iRegionSplit] and [iRegionMerge]. *)
+  Definition cell_addr (b : Addr) (i : nat) : Addr :=
+    match i with 0%nat => b | S _ => (b ^+ i)%a end.
+
+  Lemma cell_addr_eq b i : cell_addr b i = (b ^+ i)%a.
+  Proof. destruct i; cbn; solve_addr. Qed.
+
+  Fixpoint region_cells_from (b : Addr) (i : nat) (w : Word) (ws : list Word) : iProp Σ :=
+    match ws with
+    | [] => cell_addr b i ↦ₐ w
+    | w' :: ws' => cell_addr b i ↦ₐ w ∗ region_cells_from b (S i) w' ws'
+    end.
+
+  Definition region_cells (b : Addr) (ws : list Word) : iProp Σ :=
+    match ws with [] => emp | w :: ws' => region_cells_from b 0 w ws' end.
+
+  Lemma region_cells_from_big_sepL b i w ws :
+    region_cells_from b i w ws ⊣⊢ [∗ list] k ↦ y ∈ w :: ws, (b ^+ (i + k)%nat)%a ↦ₐ y.
+  Proof.
+    revert i w. induction ws as [|w' ws IH]; intros i w; cbn [region_cells_from].
+    - by rewrite big_sepL_singleton Nat.add_0_r cell_addr_eq.
+    - rewrite big_sepL_cons IH Nat.add_0_r cell_addr_eq.
+      f_equiv. apply big_sepL_proper. intros k y _. by rewrite Nat.add_succ_r.
+  Qed.
+
+  Lemma region_cells_big_sepL b ws :
+    region_cells b ws ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ w.
+  Proof. destruct ws as [|w ws]; first done. apply region_cells_from_big_sepL. Qed.
+
+  Lemma region_pointsto_region_cells (b e : Addr) (ws : list Word) :
+    (b + length ws)%a = Some e →
+    [[ b , e ]] ↦ₐ [[ ws ]] ⊣⊢ region_cells b ws.
+  Proof. intros. by rewrite region_cells_big_sepL region_pointsto_cells. Qed.
+
+  Lemma region_pointsto_region_cells_app (b a e : Addr) (ws ws' : list Word) :
+    (b + length ws)%a = Some a →
+    (a <= e)%a →
+    [[ b , e ]] ↦ₐ [[ ws ++ ws' ]] ⊣⊢
+    region_cells b ws ∗
+    [[ a , e ]] ↦ₐ [[ ws' ]].
+  Proof. intros. by rewrite region_cells_big_sepL region_pointsto_cells_app. Qed.
+
    Lemma within_in_range:
      forall a b b' e e',
     (b <= b')%a ->
@@ -214,6 +285,56 @@ Global Notation "[[ b , e ]] ⊂ₐ [[ b' , e' ]]" := (included b e b' e')
 
 Global Notation "a ∈ₐ [[ b , e ]]" := (in_range a b e)
             (at level 50, format "a ∈ₐ [[ b , e ]]") : bi_scope.
+
+(** Normalise the spine of the list [l] into [x0 :: ... :: xn :: t], by
+    unfolding the definitions that produce the list (e.g. a constant
+    [Definition data := [w0; w1]]). *)
+Ltac list_spine l :=
+  let l := eval hnf in l in
+  lazymatch l with
+  | ?x :: ?t => let t := list_spine t in constr:(x :: t)
+  | _ => l
+  end.
+
+(** Unfold [region_cells b [w0; ...; wn]] into
+    [b ↦ₐ w0 ∗ (b ^+ 1) ↦ₐ w1 ∗ ... ∗ (b ^+ n) ↦ₐ wn], in [h]. *)
+Ltac region_cells_simpl_in h :=
+  iEval (cbn [region_cells region_cells_from cell_addr];
+         cbv [Z.of_nat Pos.of_succ_nat Pos.succ]) in h.
+
+(** Same as [region_cells_simpl_in], in the goal. *)
+Ltac region_cells_simpl :=
+  iEval (cbn [region_cells region_cells_from cell_addr];
+         cbv [Z.of_nat Pos.of_succ_nat Pos.succ]).
+
+(** Split [h : [[b, e]] ↦ₐ [[ws]]], for a concrete list [ws = [w0; ...; wn]]
+    (possibly behind definitions), into
+    [b ↦ₐ w0 ∗ (b ^+ 1) ↦ₐ w1 ∗ ... ∗ (b ^+ n) ↦ₐ wn], destructed with
+    [pat]. The side condition [(b + length ws)%a = Some e] is solved by
+    [done] or [solve_addr]. *)
+Tactic Notation "iRegionSplit" constr(h) "as" constr(pat) :=
+  lazymatch goal with |- environments.envs_entails ?Δ _ =>
+  lazymatch reduction.pm_eval (environments.envs_lookup h Δ) with
+  | Some (_, region_pointsto ?b ?e ?ws) =>
+      let ws := list_spine ws in
+      let x := iFresh in
+      iDestruct (region_pointsto_region_cells b e ws with h) as x;
+      [first [done | solve_addr] | region_cells_simpl_in x; iDestruct x as pat]
+  | _ => fail "iRegionSplit:" h "is not of the form [[_, _]] ↦ₐ [[_]]"
+  end end.
+
+(** Turn the goal [[[b, e]] ↦ₐ [[ws]]], for a concrete list
+    [ws = [w0; ...; wn]] (possibly behind definitions), into
+    [b ↦ₐ w0 ∗ (b ^+ 1) ↦ₐ w1 ∗ ... ∗ (b ^+ n) ↦ₐ wn]. The side condition
+    [(b + length ws)%a = Some e] is solved by [done] or [solve_addr]. *)
+Ltac iRegionMerge :=
+  lazymatch goal with
+  | |- environments.envs_entails _ (region_pointsto ?b ?e ?ws) =>
+      let ws := list_spine ws in
+      iApply (region_pointsto_region_cells b e ws);
+      [first [done | solve_addr] | region_cells_simpl]
+  | _ => fail "iRegionMerge: the goal is not of the form [[_, _]] ↦ₐ [[_]]"
+  end.
 
 Section codefrag.
   Context {Σ:gFunctors} {ceriseg:ceriseG Σ}

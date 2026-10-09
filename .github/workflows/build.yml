@@ -18,7 +18,7 @@ jobs:
     env:
       OPAM_LOCAL: "_opam"
       OCAML_VERSION: "4.14.0"
-      JOBS_LIMIT: "2"
+      JOBS_LIMIT: "8"
 
     steps:
       - name: Checkout code

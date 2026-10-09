@@ -1,9 +1,11 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone.
 From griotte Require Import fetch_spec assert_spec switcher switcher_spec_call.
-From griotte Require Import lse lse_spec_closure.
+From griotte Require Import lse.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
+From griotte Require Import lse_spec_states lse_spec_world
+  lse_spec_run_blocks_1 lse_spec_run_blocks_2.
 
 Section LSE.
   Context
@@ -96,6 +98,13 @@ Section LSE.
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    (* Outline of the proof:
+       - [lse_world_call]: revoke the world, to get the stack frame;
+       - [lse_run_blocks_1_spec]: blocks 0-3, set [a] to [2], fetch the
+         imports and jump to the switcher;
+       - [switcher_call_args_0] and [switcher_cc_specification]: call to
+         [C_f];
+       - [lse_run_blocks_2_spec]: block 3, halt. *)
     intros imports; subst imports.
     iIntros (HNswitcher_assert HNswitcher_lse HNassert_lse Hsize_lse_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match
@@ -116,171 +125,58 @@ Section LSE.
       & #Hentry_f & #Hentry_f'
       & #Hot_switcher
       )".
+    assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by done.
+    assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).
     iMod (na_inv_acc with "Hlse Hna")
       as "(( >Himports_main & >Hcode_main & >Hcgp_b) & Hna & Hlse_close)"; auto.
-    codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
-    (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
+    iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iExtractList "Hrmap" [cra;ct0;ct1;cs0;cs1]
       as ["Hcra"; "Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
 
-    (* Extract the imports *)
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_f Himports_main]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
+    (* Revoke the world, to get the stack frame *)
+    iMod (lse_world_call with "Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
+      as (stk_mem) "(%Hrevoked_stk & Hworld_interp_C & #Hinterp_W1_C_f
+                     & Hstack_revoked & Hstk)".
 
-    (* Revoke the world to get the stack frame *)
-    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
-
-    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
-        as (l
-           ) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hrevoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
-    set (W1 := revoke W0).
-
-    (* --------------------------------------------------------------- *)
-    (* ----------------- Start the proof of the code ----------------- *)
-    (* --------------------------------------------------------------- *)
-
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 0 : INIT ------------------ *)
-    (* --------------------------------------------------- *)
-    rewrite /lse_main_code /LSE_main_code_run.
-    rewrite -!app_assoc.
-    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
-
-    (* Store cgp 0%Z; *)
-    iInstr "Hcode".
-    { apply withinBounds_true_iff; solve_addr. }
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* -------------- BLOCK 1 to 3 : FETCH --------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
-    { apply withinBounds_true_iff; solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
-    iFrame "Himport_switcher".
-    iNext ; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
-    iEval (cbn) in "Hct0".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch1.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hcs0 $Hcs1 $Hcode $Himport_C_f]"); eauto.
-    { apply withinBounds_true_iff; solve_addr. }
-    iNext ; iIntros "(HPC & Hct1 & Hcs0 & Hcs1 & Hcode & Himport_C_f)".
-    iEval (cbn) in "Hct1".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 3: CALL B ----------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block 3 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch2.
-    (* Jalr cra ct0; *)
-    iInstr "Hcode".
-
-
-    (*  -- prove that the LSE_awkward entry point is safe-to-share -- *)
-
-    (* -- separate argument registers -- *)
-    iExtractList "Hrmap" [ca0;ca1;ca2;ca3;ca4;ca5]
-      as ["Hca0"; "Hca1"; "Hca2"; "Hca3"; "Hca4"; "Hca5"].
-
-    set ( rmap_arg :=
-           {[ ca0 := wca0;
-              ca1 := wca1;
-              ca2 := wca2;
-              ca3 := wca3;
-              ca4 := wca4;
-              ca5 := wca5;
-              ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
-           ]} : Reg
-        ).
-
-    set (rmap' := (delete ca5 _)).
-
-    pose proof (revoke_related_sts_priv_world W0) as Hpriv_W0_W1.
-
-    (* Show that the entry point to C_f is still safe in W1 *)
-    iAssert (interp W1 C (WSealed ot_switcher C_f)) as "#Hinterp_W1_C_f".
-    { iApply interp_monotone_sd; eauto. }
-    iClear "Hinterp_W0_C_f".
-
-    (* Show that the arguments are safe, when necessary *)
-    iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg
-                                           ∗ (if decide (rarg ∈ dom_arg_rmap 0)
-                                             then interp W1 C warg
-                                             else True)
-            )%I
-      with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
-    { subst rmap_arg.
-      repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
-      done.
-    }
-
-    (* Prepare the closing resources for the switcher call spec *)
-    iDestruct ( StackRevokedResources_mono_priv with "Hstack_revoked_W0" ) as "#Hstack_revoked_W1"; eauto.
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
+    (* Blocks 0-3: set [a] to [2], fetch the imports and jump to the
+       switcher *)
+    iApply (lse_run_blocks_1_spec with
+             "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hcgp_b
+              $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|].
+    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hcgp_b
+                    & Himport_switcher & Himport_C_f & Hcode_main)".
     iMod ("Hlse_close" with
-           "[$Hna Himport_assert Himport_switcher Himport_C_f Himports_main $Hcode_main $Hcgp_b]")
+           "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main $Hcgp_b]")
       as "Hna".
-    { iNext.
-      iDestruct (region_pointsto_cons with "[$Himport_C_f $Himports_main]") as "Himports_main"
-      ; [solve_addr|solve_addr|].
-      iDestruct (region_pointsto_cons with "[$Himport_assert $Himports_main]") as "Himports_main"
-      ; [solve_addr|solve_addr|].
-      iDestruct (region_pointsto_cons with "[$Himport_switcher $Himports_main]") as "$" ;solve_addr.
-    }
+    { iNext. iRegionMerge. iFrame. }
+    iInsertRegs "Hrmap" ["Hct0"].
+    iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
+      as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
+    { rewrite dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
-    (* Apply the spec switcher call *)
+    (* Call to [C_f] *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
-              $Hinterp_W1_C_f $HK]"); eauto; iFrame "%".
-    { subst rmap'.
-      repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
-      rewrite /dom_arg_rmap Hrmap_dom.
-      set_solver+.
-    }
-    { by rewrite /is_arg_rmap. }
-
-    clear dependent wct0 wct1 wcs0 wcs1.
-    clear dependent wca0 wca1 wca2 wca3 wca4 wca5 rmap.
-    clear stk_mem.
+              $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
+              $Hinterp_W1_C_f $HK]"); [done|done|].
+    iSplit; first done.
     iNext.
-    iIntros (W2 rmap stk_mem l')
-      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W2 & %Hstack_revoked_W2
-      & Hna & %Hcsp_bounds
-      & Hworld_interp_C
-      & Hcstk_frag
-      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-      & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)"; clear l'.
-    iEval (cbn) in "HPC".
+    clear dependent arg_rmap rmap' stk_mem.
+    iIntros (W2 rmap' stk_mem l')
+      "(_ & _ & _ & _ & _ & _ & _ & _
+      & Hna & _
+      & _
+      & _
+      & HPC & _)".
+    iEval (cbn [updatePcPerm]) in "HPC".
 
-    (* Halt *)
+    (* Block 3: halt *)
     iMod (na_inv_acc with "Hlse Hna")
       as "(( >Himports_main & >Hcode_main & >Hcgp_b) & Hna & Hlse_close)"; auto.
-    replace (encodeInstrsW [Jalr cra ct0; Halt]) with
-      (encodeInstrsW [Jalr cra ct0] ++ encodeInstrsW [Halt])
-    by auto.
-    rewrite -app_assoc.
-    focus_block 4 "Hcode_main" as a_callB' Ha_callB' "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iMod ("Hlse_close" with "[$Hna $Himports_main $Hcode_main $Hcgp_b]") as "Hna".
-    wp_end; iIntros "_"; iFrame.
+    iApply (lse_run_blocks_2_spec with "[- $HPC $Hcode_main]"); first done.
+    iNext; iIntros "Hcode_main".
+    iApply ("Hlse_close" with "[$Hna $Himports_main $Hcode_main $Hcgp_b]").
   Qed.
 
 End LSE.
