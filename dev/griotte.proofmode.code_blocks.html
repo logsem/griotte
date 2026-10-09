@@ -1,0 +1,165 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">griotte.proofmode.code_blocks</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.proofmode</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="griotte.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab87"></a><h1 class="section">Offsets of the blocks of a code</h1>
+
+
+<div class="paragraph"> </div>
+
+    A code <span class="inlinecode"><span class="id" title="var">l1</span></span> <span class="inlinecode">++</span> <span class="inlinecode"><span class="id" title="var">l2</span></span> <span class="inlinecode">++</span> <span class="inlinecode">...</span> <span class="inlinecode">++</span> <span class="inlinecode"><span class="id" title="var">ln</span></span> is split into the list of its blocks
+    <span class="inlinecode">[<span class="id" title="var">l1</span>;</span> <span class="inlinecode"><span class="id" title="var">l2</span>;</span> <span class="inlinecode">...;</span> <span class="inlinecode"><span class="id" title="var">ln</span>]</span>, as focused by <span class="inlinecode"><span class="id" title="var">focus_block</span></span>. The offsets of the
+    blocks and of their instructions are given by <span class="inlinecode"><a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a></span> and
+    <span class="inlinecode"><a class="idref" href="griotte.proofmode.code_blocks.html#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a></span>, and computed by <span class="inlinecode"><span class="id" title="var">offsets_compute</span></span>. 
+<div class="paragraph"> </div>
+
+ The list of the sub-blocks of a code <span class="inlinecode"><span class="id" title="var">l1</span></span> <span class="inlinecode">++</span> <span class="inlinecode"><span class="id" title="var">l2</span></span> <span class="inlinecode">++</span> <span class="inlinecode">...</span> <span class="inlinecode">++</span> <span class="inlinecode"><span class="id" title="var">ln</span></span>. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Ltac</span> <span class="id" title="var">app_chain_to_list</span> <span class="id" title="var">c</span> :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">lazymatch</span> <span class="id" title="var">c</span> <span class="id" title="keyword">with</span><br/>
+&nbsp;&nbsp;| ?<span class="id" title="var">l1</span> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> ?<span class="id" title="var">l2</span> ⇒ <span class="id" title="keyword">let</span> <span class="id" title="var">r</span> := <span class="id" title="var">app_chain_to_list</span> <span class="id" title="var">l2</span> <span class="id" title="tactic">in</span> <span class="id" title="keyword">constr</span>:(<span class="id" title="var">l1</span> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#::list_scope:x_'::'_x"><span class="id" title="notation">::</span></a> <span class="id" title="var">r</span>)<br/>
+&nbsp;&nbsp;| ?<span class="id" title="var">l</span> ⇒ <span class="id" title="keyword">constr</span>:(<span class="id" title="notation">[</span><span class="id" title="var">l</span><span class="id" title="notation">]</span>)<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Build the list of the blocks of the code <span class="inlinecode"><span class="id" title="var">c</span></span>, a constant (possibly
+    applied to its implicit arguments) whose body is a chain of <span class="inlinecode">++</span>.
+    To be used as <span class="inlinecode"><span class="id" title="keyword">Definition</span></span> <span class="inlinecode"><span class="id" title="var">blocks</span></span> <span class="inlinecode">:=</span> <span class="inlinecode"><span class="id" title="keyword">ltac</span>:(<span class="id" title="var">code_blocks_of</span></span> <span class="inlinecode"><span class="id" title="var">c</span>)</span>. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Ltac</span> <span class="id" title="var">code_blocks_of</span> <span class="id" title="var">c</span> :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">let</span> <span class="id" title="var">c</span> := <span class="id" title="tactic">eval</span> <span class="id" title="tactic">red</span> <span class="id" title="tactic">in</span> <span class="id" title="var">c</span> <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;<span class="id" title="keyword">let</span> <span class="id" title="var">c</span> := <span class="id" title="tactic">eval</span> <span class="id" title="tactic">cbv</span> <span class="id" title="keyword">beta</span> <span class="id" title="keyword">zeta</span> <span class="id" title="tactic">in</span> <span class="id" title="var">c</span> <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;<span class="id" title="keyword">let</span> <span class="id" title="var">r</span> := <span class="id" title="var">app_chain_to_list</span> <span class="id" title="var">c</span> <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;<span class="id" title="tactic">exact</span> <span class="id" title="var">r</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Offset of the first instruction of the block <span class="inlinecode"><span class="id" title="var">n</span></span> in <span class="inlinecode"><span class="id" title="definition">concat</span></span> <span class="inlinecode"><span class="id" title="var">blocks</span></span>. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Definition</span> <a id="code_block_offset" class="idref" href="#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> {<a id="A:1" class="idref" href="#A:1"><span class="id" title="binder">A</span></a>} (<a id="blocks:2" class="idref" href="#blocks:2"><span class="id" title="binder">blocks</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> (<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.proofmode.code_blocks.html#A:1"><span class="id" title="variable">A</span></a>)) (<a id="n:3" class="idref" href="#n:3"><span class="id" title="binder">n</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#nat"><span class="id" title="inductive">nat</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Numbers.BinNums.html#Z"><span class="id" title="inductive">Z</span></a> :=<br/>
+&nbsp;&nbsp;<span class="id" title="definition">Z.of_nat</span> (<a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.list_numbers.html#list.sum_list"><span class="id" title="abbreviation">sum_list</span></a> (<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#length"><span class="id" title="definition">length</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#2eea06883886179dcc86cdc5a1870594"><span class="id" title="notation">&lt;$&gt;</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.list_basics.html#list.take"><span class="id" title="abbreviation">take</span></a> <a class="idref" href="griotte.proofmode.code_blocks.html#n:3"><span class="id" title="variable">n</span></a> <a class="idref" href="griotte.proofmode.code_blocks.html#blocks:2"><span class="id" title="variable">blocks</span></a>)).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Offset of the <span class="inlinecode"><span class="id" title="var">i</span></span>-th instruction of the block <span class="inlinecode"><span class="id" title="var">n</span></span> in <span class="inlinecode"><span class="id" title="definition">concat</span></span> <span class="inlinecode"><span class="id" title="var">blocks</span></span>. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Definition</span> <a id="code_instr_offset" class="idref" href="#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a> {<a id="A:4" class="idref" href="#A:4"><span class="id" title="binder">A</span></a>} (<a id="blocks:5" class="idref" href="#blocks:5"><span class="id" title="binder">blocks</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> (<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.proofmode.code_blocks.html#A:4"><span class="id" title="variable">A</span></a>)) (<a id="n:6" class="idref" href="#n:6"><span class="id" title="binder">n</span></a> <a id="i:7" class="idref" href="#i:7"><span class="id" title="binder">i</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#nat"><span class="id" title="inductive">nat</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Numbers.BinNums.html#Z"><span class="id" title="inductive">Z</span></a> :=<br/>
+&nbsp;&nbsp;(<a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> <a class="idref" href="griotte.proofmode.code_blocks.html#blocks:5"><span class="id" title="variable">blocks</span></a> <a class="idref" href="griotte.proofmode.code_blocks.html#n:6"><span class="id" title="variable">n</span></a> <span class="id" title="notation">+</span> <span class="id" title="definition">Z.of_nat</span> <a class="idref" href="griotte.proofmode.code_blocks.html#i:7"><span class="id" title="variable">i</span></a>)%<span class="id" title="var">Z</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Compute the offsets of the blocks in the goal and the hypotheses. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Ltac</span> <span class="id" title="var">offsets_compute</span> :=<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">repeat</span> <span class="id" title="keyword">match</span> <span class="id" title="keyword">goal</span> <span class="id" title="keyword">with</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;| |- <span class="id" title="keyword">context</span> [<a class="idref" href="griotte.proofmode.code_blocks.html#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a> ?<span class="id" title="var">bs</span> ?<span class="id" title="var">n</span> ?<span class="id" title="var">i</span>] ⇒<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">let</span> <span class="id" title="var">v</span> := <span class="id" title="tactic">eval</span> <span class="id" title="keyword">vm_compute</span> <span class="id" title="tactic">in</span> (<a class="idref" href="griotte.proofmode.code_blocks.html#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a> <span class="id" title="var">bs</span> <span class="id" title="var">n</span> <span class="id" title="var">i</span>) <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">change</span> (<a class="idref" href="griotte.proofmode.code_blocks.html#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a> <span class="id" title="var">bs</span> <span class="id" title="var">n</span> <span class="id" title="var">i</span>) <span class="id" title="keyword">with</span> <span class="id" title="var">v</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;| <span class="id" title="var">H</span> : <span class="id" title="keyword">context</span> [<a class="idref" href="griotte.proofmode.code_blocks.html#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a> ?<span class="id" title="var">bs</span> ?<span class="id" title="var">n</span> ?<span class="id" title="var">i</span>] |- <span class="id" title="var">_</span> ⇒<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">let</span> <span class="id" title="var">v</span> := <span class="id" title="tactic">eval</span> <span class="id" title="keyword">vm_compute</span> <span class="id" title="tactic">in</span> (<a class="idref" href="griotte.proofmode.code_blocks.html#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a> <span class="id" title="var">bs</span> <span class="id" title="var">n</span> <span class="id" title="var">i</span>) <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">change</span> (<a class="idref" href="griotte.proofmode.code_blocks.html#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a> <span class="id" title="var">bs</span> <span class="id" title="var">n</span> <span class="id" title="var">i</span>) <span class="id" title="keyword">with</span> <span class="id" title="var">v</span> <span class="id" title="tactic">in</span> <span class="id" title="var">H</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;| |- <span class="id" title="keyword">context</span> [<a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> ?<span class="id" title="var">bs</span> ?<span class="id" title="var">n</span>] ⇒<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">let</span> <span class="id" title="var">v</span> := <span class="id" title="tactic">eval</span> <span class="id" title="keyword">vm_compute</span> <span class="id" title="tactic">in</span> (<a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> <span class="id" title="var">bs</span> <span class="id" title="var">n</span>) <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">change</span> (<a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> <span class="id" title="var">bs</span> <span class="id" title="var">n</span>) <span class="id" title="keyword">with</span> <span class="id" title="var">v</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;| <span class="id" title="var">H</span> : <span class="id" title="keyword">context</span> [<a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> ?<span class="id" title="var">bs</span> ?<span class="id" title="var">n</span>] |- <span class="id" title="var">_</span> ⇒<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">let</span> <span class="id" title="var">v</span> := <span class="id" title="tactic">eval</span> <span class="id" title="keyword">vm_compute</span> <span class="id" title="tactic">in</span> (<a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> <span class="id" title="var">bs</span> <span class="id" title="var">n</span>) <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">change</span> (<a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> <span class="id" title="var">bs</span> <span class="id" title="var">n</span>) <span class="id" title="keyword">with</span> <span class="id" title="var">v</span> <span class="id" title="tactic">in</span> <span class="id" title="var">H</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Change the address of the PC to <span class="inlinecode"><span class="id" title="var">a'</span></span>. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Ltac</span> <span class="id" title="var">change_pc_to</span> <span class="id" title="var">a'</span> :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">match</span> <span class="id" title="keyword">goal</span> <span class="id" title="keyword">with</span> |- <span class="id" title="keyword">context</span> [ <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.environments.html#Esnoc"><span class="id" title="constructor">environments.Esnoc</span></a> <span class="id" title="var">_</span> <span class="id" title="var">_</span> (<a class="idref" href="griotte.opsem.registers.html#PC"><span class="id" title="constructor">PC</span></a> <a class="idref" href="griotte.program_logic.cerise_instance.html#db884c99aed36a9ddaddcd7edc424755"><span class="id" title="notation">↦ᵣ</span></a> <a class="idref" href="griotte.opsem.machine_word.html#WCap"><span class="id" title="abbreviation">WCap</span></a> <span class="id" title="var">_</span> <span class="id" title="var">_</span> <span class="id" title="var">_</span> <span class="id" title="var">_</span> ?<span class="id" title="var">a</span>)%<span class="id" title="var">I</span> ] ⇒<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> (<span class="id" title="var">_</span> : <span class="id" title="var">a</span> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <span class="id" title="var">a'</span>);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;[| <span class="id" title="var">offsets_compute</span>; <span class="id" title="var">solve_addr</span>]<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Unfold the code <span class="inlinecode"><span class="id" title="var">c</span></span>, a constant, in <span class="inlinecode"><span class="id" title="var">h</span></span>, in order to focus on its
+    blocks. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Tactic Notation</span> "unfold_code" <span class="id" title="var">reference</span>(<span class="id" title="var">c</span>) <span class="id" title="keyword">constr</span>(<span class="id" title="var">h</span>) :=<br/>
+&nbsp;&nbsp;<span class="id" title="var">iEval</span> (<span class="id" title="tactic">cbv</span> <span class="id" title="keyword">beta</span> <span class="id" title="keyword">delta</span> [<span class="id" title="var">c</span>] <span class="id" title="keyword">zeta</span>) <span class="id" title="tactic">in</span> <span class="id" title="var">h</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Focus on block <span class="inlinecode"><span class="id" title="var">n</span></span> of the code <span class="inlinecode"><span class="id" title="definition">concat</span></span> <span class="inlinecode"><span class="id" title="var">blocks</span></span> (at address <span class="inlinecode"><span class="id" title="var">pc_a</span></span>),
+    whose first address <span class="inlinecode"><span class="id" title="var">a</span></span> is <span class="inlinecode"><span class="id" title="var">pc_a</span></span> <span class="inlinecode">+</span> <span class="inlinecode"><a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a></span> <span class="inlinecode"><span class="id" title="var">blocks</span></span> <span class="inlinecode"><span class="id" title="var">n</span></span>. The PC
+    is moved to <span class="inlinecode"><span class="id" title="var">a</span></span>, when possible. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Tactic Notation</span> "focus_block" <span class="id" title="keyword">constr</span>(<span class="id" title="var">n</span>) <span class="id" title="keyword">constr</span>(<span class="id" title="var">h</span>) "of" <span class="id" title="keyword">constr</span>(<span class="id" title="var">blocks</span>) "at" <span class="id" title="keyword">constr</span>(<span class="id" title="var">pc_a</span>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;"as" <span class="id" title="var">ident</span>(<span class="id" title="var">a</span>) <span class="id" title="var">ident</span>(<span class="id" title="var">Ha</span>) <span class="id" title="keyword">constr</span>(<span class="id" title="var">hi</span>) <span class="id" title="keyword">constr</span>(<span class="id" title="var">hcont</span>) :=<br/>
+&nbsp;&nbsp;<span class="id" title="var">focus_block_nochangePC</span> <span class="id" title="var">n</span> <span class="id" title="var">h</span> <span class="id" title="keyword">as</span> <span class="id" title="var">a</span> <span class="id" title="var">Ha</span> <span class="id" title="var">hi</span> <span class="id" title="var">hcont</span>;<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">let</span> <span class="id" title="var">Ha'</span> := <span class="id" title="tactic">fresh</span> <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;<span class="id" title="tactic">assert</span> ((<span class="id" title="var">pc_a</span> <a class="idref" href="griotte.opsem.addresses.html#83f9bcf2054d3d441d475f25e3e951c6"><span class="id" title="notation">+</span></a> <a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> <span class="id" title="var">blocks</span> <span class="id" title="var">n</span>)%<span class="id" title="var">a</span> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#Some"><span class="id" title="constructor">Some</span></a> <span class="id" title="var">a</span>) <span class="id" title="keyword">as</span> <span class="id" title="var">Ha'</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">by</span> (<span class="id" title="var">cbn</span> <span class="id" title="tactic">in</span> <span class="id" title="var">Ha</span>; <span class="id" title="var">offsets_compute</span>; <span class="id" title="var">solve_addr</span>);<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">clear</span> <span class="id" title="var">Ha</span>; <span class="id" title="tactic">rename</span> <span class="id" title="var">Ha'</span> <span class="id" title="var">into</span> <span class="id" title="var">Ha</span>;<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">try</span> <span class="id" title="var">change_pc_to</span> <span class="id" title="var">a</span>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">griotte.switcher.switcher_return_states</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.proofmode</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="griotte.program_logic.memory_region.html#"><span class="id" title="library">memory_region</span></a> <a class="idref" href="griotte.program_logic.rules.html#"><span class="id" title="library">rules</span></a> <a class="idref" href="griotte.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="griotte.logrel.logrel.html#"><span class="id" title="library">logrel</span></a> <a class="idref" href="griotte.switcher.switcher.html#"><span class="id" title="library">switcher</span></a> <a class="idref" href="griotte.switcher.switcher_preamble.html#"><span class="id" title="library">switcher_preamble</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab104"></a><h1 class="section">Shared interfaces of the return routine of the switcher</h1>
+
+
+<div class="paragraph"> </div>
+
+    The proofs of <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_spec_return.html#switcher_ret_specification_gen"><span class="id" title="lemma">switcher_ret_specification_gen</span></a></span> (functional
+    specification) and <span class="inlinecode"><a class="idref" href="griotte.switcher.interp_switcher_return.html#interp_expr_switcher_return"><span class="id" title="lemma">interp_expr_switcher_return</span></a></span> (validity of the return
+    entry point) run the same code. They share the block-group lemmas of
+    <span class="inlinecode"><span class="id" title="var">switcher_return_blocks_n</span></span>, which only depend on this file:
+<ul class="doclist">
+<li> <span class="inlinecode"><span class="id" title="library">switcher_return_blocks_1</span></span>: first part of block 12, pop the topmost
+      frame of the trusted stack,
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">switcher_return_blocks_2</span></span>: second part of block 12 and blocks 13-15,
+      restore the callee-save registers, clear the stack frame and the
+      registers, and jump back to the caller.
+
+</li>
+</ul>
+
+<div class="paragraph"> </div>
+
+    The block-group lemmas start and end at the first address of blocks of
+    the code <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher.html#switcher_instrs"><span class="id" title="definition">switcher_instrs</span></a></span>, given by <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#switcher_block_offset"><span class="id" title="abbreviation">switcher_block_offset</span></a></span> (see
+    <span class="inlinecode"><span class="id" title="library">switcher_preamble</span></span>). 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="Switcher_Return_States" class="idref" href="#Switcher_Return_States"><span class="id" title="section">Switcher_Return_States</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="f00a50dc61adc9c2ecc7be08a1786820" class="idref" href="#f00a50dc61adc9c2ecc7be08a1786820"><span class="id" title="variable">Σ</span></a>:<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#gFunctors"><span class="id" title="record">gFunctors</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Return_States.ceriseg" class="idref" href="#Switcher_Return_States.ceriseg"><span class="id" title="variable">ceriseg</span></a>:<a class="idref" href="griotte.program_logic.cerise_instance.html#ceriseG"><span class="id" title="class">ceriseG</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>} {<a id="Switcher_Return_States.sealsg" class="idref" href="#Switcher_Return_States.sealsg"><span class="id" title="variable">sealsg</span></a>: <a class="idref" href="griotte.logrel.seal_store.html#sealStoreG"><span class="id" title="class">sealStoreG</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Return_States.Cname" class="idref" href="#Switcher_Return_States.Cname"><span class="id" title="variable">Cname</span></a> : <a class="idref" href="griotte.model.sts.html#CmptNameG"><span class="id" title="class">CmptNameG</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Return_States.stsg" class="idref" href="#Switcher_Return_States.stsg"><span class="id" title="variable">stsg</span></a> : <a class="idref" href="griotte.model.sts.html#STSG"><span class="id" title="class">STSG</span></a> <a class="idref" href="griotte.opsem.addresses.html#Addr"><span class="id" title="abbreviation">Addr</span></a> <a class="idref" href="griotte.model.world_std_sts.html#region_type"><span class="id" title="inductive">region_type</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Return_States.cstackg" class="idref" href="#Switcher_Return_States.cstackg"><span class="id" title="variable">cstackg</span></a> : <a class="idref" href="griotte.logrel.call_stack.html#CSTACKG"><span class="id" title="class">CSTACKG</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>} {<a id="Switcher_Return_States.relg" class="idref" href="#Switcher_Return_States.relg"><span class="id" title="variable">relg</span></a> : <a class="idref" href="griotte.model.world_ghost_resources.html#relGS"><span class="id" title="class">relGS</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;`{<a id="Switcher_Return_States.MP" class="idref" href="#Switcher_Return_States.MP"><span class="id" title="variable">MP</span></a>: <a class="idref" href="griotte.opsem.machine_parameters.html#MachineParameters"><span class="id" title="class">MachineParameters</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Return_States.swlayout" class="idref" href="#Switcher_Return_States.swlayout"><span class="id" title="variable">swlayout</span></a> : <a class="idref" href="griotte.switcher.switcher.html#switcherLayout"><span class="id" title="class">switcherLayout</span></a>} {<a id="Switcher_Return_States.swlayoutwf" class="idref" href="#Switcher_Return_States.swlayoutwf"><span class="id" title="variable">swlayoutwf</span></a> : <a class="idref" href="griotte.switcher.switcher.html#switcherLayoutWf"><span class="id" title="class">switcherLayoutWf</span></a>}<br/>
+&nbsp;&nbsp;.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The return entry point is the first address of block 12. 
+</div>
+<div class="code">
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="switcher_return_block_12" class="idref" href="#switcher_return_block_12"><span class="id" title="lemma">switcher_return_block_12</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.switcher.switcher.html#a_switcher_return"><span class="id" title="method">a_switcher_return</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> (<a class="idref" href="griotte.switcher.switcher.html#a_switcher_call"><span class="id" title="method">a_switcher_call</span></a> <a class="idref" href="griotte.opsem.addresses.html#58e53c8acf01fb8822eb5bae448055ec"><span class="id" title="notation">^+</span></a> <a class="idref" href="griotte.switcher.switcher_preamble.html#switcher_block_offset"><span class="id" title="abbreviation">switcher_block_offset</span></a> 12)%<span class="id" title="var">a</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>. <span class="id" title="tactic">rewrite</span> <a class="idref" href="griotte.switcher.switcher_preamble.html#switcher_return_offset"><span class="id" title="lemma">switcher_return_offset</span></a>. <span class="id" title="tactic">by</span> <span class="id" title="var">offsets_compute</span>. <span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The bounds of the caller's stack frame, as stored in the call frame. 
+</div>
+<div class="code">
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="switcher_stk_bounds_frame" class="idref" href="#switcher_stk_bounds_frame"><span class="id" title="lemma">switcher_stk_bounds_frame</span></a> (<a id="b:11" class="idref" href="#b:11"><span class="id" title="binder">b</span></a> <a id="e:12" class="idref" href="#e:12"><span class="id" title="binder">e</span></a> <a id="a:13" class="idref" href="#a:13"><span class="id" title="binder">a</span></a> : <a class="idref" href="griotte.opsem.addresses.html#Addr"><span class="id" title="abbreviation">Addr</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<a class="idref" href="griotte.switcher.switcher_return_states.html#b:11"><span class="id" title="variable">b</span></a> <a class="idref" href="griotte.opsem.addresses.html#8ccc7a9bb9ba1c27ed0dba9945a4cbb0"><span class="id" title="notation">≤</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#a:13"><span class="id" title="variable">a</span></a>)%<span class="id" title="var">a</span> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<a class="idref" href="griotte.switcher.switcher_return_states.html#a:13"><span class="id" title="variable">a</span></a> <a class="idref" href="griotte.opsem.addresses.html#58e53c8acf01fb8822eb5bae448055ec"><span class="id" title="notation">^+</span></a> 3 <a class="idref" href="griotte.opsem.addresses.html#::Addr_scope:x_'&lt;'_x"><span class="id" title="notation">&lt;</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#e:12"><span class="id" title="variable">e</span></a>)%<span class="id" title="var">a</span> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#is_Some"><span class="id" title="definition">is_Some</span></a> (<a class="idref" href="griotte.switcher.switcher_return_states.html#a:13"><span class="id" title="variable">a</span></a> <a class="idref" href="griotte.opsem.addresses.html#83f9bcf2054d3d441d475f25e3e951c6"><span class="id" title="notation">+</span></a> 4)%<span class="id" title="var">a</span> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.switcher.switcher_preamble.html#switcher_stk_bounds"><span class="id" title="definition">switcher_stk_bounds</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#b:11"><span class="id" title="variable">b</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#e:12"><span class="id" title="variable">e</span></a> <a class="idref" href="griotte.switcher.switcher_return_states.html#a:13"><span class="id" title="variable">a</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>. <span class="id" title="tactic">intros</span> ?? [<span class="id" title="var">a4</span> ?]. <span class="id" title="tactic">rewrite</span> /<a class="idref" href="griotte.switcher.switcher_preamble.html#switcher_stk_bounds"><span class="id" title="definition">switcher_stk_bounds</span></a>. <span class="id" title="tactic">split</span>; [|<span class="id" title="tactic">split</span>]; <span class="id" title="var">solve_addr</span>. <span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="griotte.switcher.switcher_return_states.html#Switcher_Return_States"><span class="id" title="section">Switcher_Return_States</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">griotte.case_studies.cmdc.cmdc_spec_states</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.proofmode</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="griotte.program_logic.rules.html#"><span class="id" title="library">rules</span></a> <a class="idref" href="griotte.logrel.logrel.html#"><span class="id" title="library">logrel</span></a> <a class="idref" href="griotte.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="griotte.case_studies.macros.fetch_spec.html#"><span class="id" title="library">fetch_spec</span></a> <a class="idref" href="griotte.case_studies.macros.assert_spec.html#"><span class="id" title="library">assert_spec</span></a> <a class="idref" href="griotte.switcher.switcher_preamble.html#"><span class="id" title="library">switcher_preamble</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc.html#"><span class="id" title="library">cmdc</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="griotte.case_studies.case_study_spec_helpers.html#"><span class="id" title="library">case_study_spec_helpers</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab17"></a><h1 class="section">Shared interfaces of the proof of <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc_spec.html#cmdc_spec"><span class="id" title="lemma">cmdc_spec</span></a></span></h1>
+
+
+<div class="paragraph"> </div>
+
+    The proof of <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc_spec.html#cmdc_spec"><span class="id" title="lemma">cmdc_spec</span></a></span> is split along the control flow of
+    <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a></span>. The block-group lemmas only depend on this
+    file:
+<ul class="doclist">
+<li> <span class="inlinecode"><span class="id" title="library">cmdc_spec_init_blocks_1</span></span>: block 0, initialisation of the data and of
+      the argument of the call to <span class="inlinecode"><span class="id" title="var">B.f</span></span>,
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">cmdc_spec_call_blocks_2</span></span>: blocks 1-3 (resp. 6-8), fetch the imports
+      and jump to the switcher, for the call to <span class="inlinecode"><span class="id" title="var">B.f</span></span> (resp. <span class="inlinecode"><span class="id" title="var">C.g</span></span>),
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">cmdc_spec_check_blocks_3</span></span>: blocks 3-4 (resp. 8-9), from the return
+      of the call to <span class="inlinecode"><span class="id" title="var">B.f</span></span> (resp. <span class="inlinecode"><span class="id" title="var">C.g</span></span>), assert the value of <span class="inlinecode"><span class="id" title="var">c</span></span> (resp.
+      <span class="inlinecode"><span class="id" title="var">b</span></span>),
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">cmdc_spec_prep_blocks_4</span></span>: block 5, overwrite <span class="inlinecode"><span class="id" title="var">b</span></span> and prepare the
+      argument of the call to <span class="inlinecode"><span class="id" title="var">C.g</span></span>,
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">cmdc_spec_halt_blocks_5</span></span>: block 10, halt.
+
+</li>
+</ul>
+
+<div class="paragraph"> </div>
+
+    The two calls have the same shape, so that <span class="inlinecode"><span class="id" title="library">cmdc_spec_call_blocks_2</span></span> and
+    <span class="inlinecode"><span class="id" title="library">cmdc_spec_check_blocks_3</span></span> are parametrised by the call (<span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call"><span class="id" title="inductive">cmdc_call</span></a></span>).
+
+<div class="paragraph"> </div>
+
+    The logical steps between the block groups, which do not execute code,
+    are in <span class="inlinecode"><span class="id" title="library">cmdc_spec_world</span></span>.
+
+<div class="paragraph"> </div>
+
+    The block-group lemmas start and end at addresses of the code
+    <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a></span>, given by <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_block_offset"><span class="id" title="abbreviation">cmdc_block_offset</span></a></span> and <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_instr_offset"><span class="id" title="abbreviation">cmdc_instr_offset</span></a></span>. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="CMDC_Code" class="idref" href="#CMDC_Code"><span class="id" title="section">CMDC_Code</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="CMDC_Code.MP" class="idref" href="#CMDC_Code.MP"><span class="id" title="variable">MP</span></a>: <a class="idref" href="griotte.opsem.machine_parameters.html#MachineParameters"><span class="id" title="class">MachineParameters</span></a>}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The blocks of <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a></span>, as focused by <span class="inlinecode"><span class="id" title="var">focus_block</span></span>. 
+</div>
+<div class="code">
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="cmdc_main_blocks" class="idref" href="#cmdc_main_blocks"><span class="id" title="definition">cmdc_main_blocks</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> (<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.opsem.machine_word.html#Word"><span class="id" title="inductive">Word</span></a>) := <span class="id" title="keyword">ltac</span>:(<span class="id" title="var">code_blocks_of</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="cmdc_main_code_blocks" class="idref" href="#cmdc_main_code_blocks"><span class="id" title="lemma">cmdc_main_code_blocks</span></a> : <a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <span class="id" title="definition">concat</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_main_blocks"><span class="id" title="definition">cmdc_main_blocks</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>. <span class="id" title="tactic">reflexivity</span>. <span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#CMDC_Code"><span class="id" title="section">CMDC_Code</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Offset of the first instruction of the block <span class="inlinecode"><span class="id" title="var">n</span></span> in <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a></span>. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Notation</span> <a id="cmdc_block_offset" class="idref" href="#cmdc_block_offset"><span class="id" title="abbreviation">cmdc_block_offset</span></a> := (<a class="idref" href="griotte.proofmode.code_blocks.html#code_block_offset"><span class="id" title="definition">code_block_offset</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_main_blocks"><span class="id" title="definition">cmdc_main_blocks</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Offset of the <span class="inlinecode"><span class="id" title="var">i</span></span>-th instruction of the block <span class="inlinecode"><span class="id" title="var">n</span></span> in <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a></span>. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Notation</span> <a id="cmdc_instr_offset" class="idref" href="#cmdc_instr_offset"><span class="id" title="abbreviation">cmdc_instr_offset</span></a> := (<a class="idref" href="griotte.proofmode.code_blocks.html#code_instr_offset"><span class="id" title="definition">code_instr_offset</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_main_blocks"><span class="id" title="definition">cmdc_main_blocks</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab18"></a><h2 class="section">The two calls of <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a></span></h2>
+
+
+<div class="paragraph"> </div>
+
+    The call to <span class="inlinecode"><span class="id" title="var">B.f</span></span> (blocks 1-4) and the call to <span class="inlinecode"><span class="id" title="var">C.g</span></span> (blocks 6-9) have
+    the same code, up to the import of the callee and the value asserted
+    after the return. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Inductive</span> <a id="cmdc_call" class="idref" href="#cmdc_call"><span class="id" title="definition, inductive"><span id="cmdc_call_rect" class="id"><span id="cmdc_call_ind" class="id"><span id="cmdc_call_rec" class="id"><span id="cmdc_call_sind" class="id">cmdc_call</span></span></span></span></span></a> := <a id="cmdc_call_B" class="idref" href="#cmdc_call_B"><span class="id" title="constructor">cmdc_call_B</span></a> | <a id="cmdc_call_C" class="idref" href="#cmdc_call_C"><span class="id" title="constructor">cmdc_call_C</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The first block of the call: fetch the entry point of the switcher. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Definition</span> <a id="cmdc_call_block" class="idref" href="#cmdc_call_block"><span class="id" title="definition">cmdc_call_block</span></a> (<a id="c:4" class="idref" href="#c:4"><span class="id" title="binder">c</span></a> : <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call"><span class="id" title="inductive">cmdc_call</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#nat"><span class="id" title="inductive">nat</span></a> :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">match</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#c:4"><span class="id" title="variable">c</span></a> <span class="id" title="keyword">with</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call_B"><span class="id" title="constructor">cmdc_call_B</span></a> ⇒ 1 | <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call_C"><span class="id" title="constructor">cmdc_call_C</span></a> ⇒ 6 <span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The index of the import of the callee. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Definition</span> <a id="cmdc_call_import" class="idref" href="#cmdc_call_import"><span class="id" title="definition">cmdc_call_import</span></a> (<a id="c:6" class="idref" href="#c:6"><span class="id" title="binder">c</span></a> : <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call"><span class="id" title="inductive">cmdc_call</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Numbers.BinNums.html#Z"><span class="id" title="inductive">Z</span></a> :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">match</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#c:6"><span class="id" title="variable">c</span></a> <span class="id" title="keyword">with</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call_B"><span class="id" title="constructor">cmdc_call_B</span></a> ⇒ 2 | <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call_C"><span class="id" title="constructor">cmdc_call_C</span></a> ⇒ 3 <span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The callee. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Definition</span> <a id="cmdc_call_target" class="idref" href="#cmdc_call_target"><span class="id" title="definition">cmdc_call_target</span></a> (<a id="c:8" class="idref" href="#c:8"><span class="id" title="binder">c</span></a> : <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call"><span class="id" title="inductive">cmdc_call</span></a>) (<a id="B_f:9" class="idref" href="#B_f:9"><span class="id" title="binder">B_f</span></a> <a id="C_g:10" class="idref" href="#C_g:10"><span class="id" title="binder">C_g</span></a> : <a class="idref" href="griotte.opsem.machine_word.html#Sealable"><span class="id" title="inductive">Sealable</span></a>) : <a class="idref" href="griotte.opsem.machine_word.html#Sealable"><span class="id" title="inductive">Sealable</span></a> :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">match</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#c:8"><span class="id" title="variable">c</span></a> <span class="id" title="keyword">with</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call_B"><span class="id" title="constructor">cmdc_call_B</span></a> ⇒ <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#B_f:9"><span class="id" title="variable">B_f</span></a> | <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call_C"><span class="id" title="constructor">cmdc_call_C</span></a> ⇒ <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#C_g:10"><span class="id" title="variable">C_g</span></a> <span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The value asserted after the return of the call. 
+</div>
+<div class="code">
+<span class="id" title="keyword">Definition</span> <a id="cmdc_call_expected" class="idref" href="#cmdc_call_expected"><span class="id" title="definition">cmdc_call_expected</span></a> (<a id="c:12" class="idref" href="#c:12"><span class="id" title="binder">c</span></a> : <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call"><span class="id" title="inductive">cmdc_call</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Numbers.BinNums.html#Z"><span class="id" title="inductive">Z</span></a> :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">match</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#c:12"><span class="id" title="variable">c</span></a> <span class="id" title="keyword">with</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call_B"><span class="id" title="constructor">cmdc_call_B</span></a> ⇒ 0 | <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#cmdc_call_C"><span class="id" title="constructor">cmdc_call_C</span></a> ⇒ 42 <span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="CMDC_States" class="idref" href="#CMDC_States"><span class="id" title="section">CMDC_States</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="a907e0210c2e31ff6c2705814ee51de4" class="idref" href="#a907e0210c2e31ff6c2705814ee51de4"><span class="id" title="variable">Σ</span></a>:<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#gFunctors"><span class="id" title="record">gFunctors</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="CMDC_States.ceriseg" class="idref" href="#CMDC_States.ceriseg"><span class="id" title="variable">ceriseg</span></a>:<a class="idref" href="griotte.program_logic.cerise_instance.html#ceriseG"><span class="id" title="class">ceriseG</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#08441172cd4c14450ee9e66c55932a87"><span class="id" title="variable">Σ</span></a>} {<a id="CMDC_States.sealsg" class="idref" href="#CMDC_States.sealsg"><span class="id" title="variable">sealsg</span></a>: <a class="idref" href="griotte.logrel.seal_store.html#sealStoreG"><span class="id" title="class">sealStoreG</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#08441172cd4c14450ee9e66c55932a87"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="CMDC_States.Cname" class="idref" href="#CMDC_States.Cname"><span class="id" title="variable">Cname</span></a> : <a class="idref" href="griotte.model.sts.html#CmptNameG"><span class="id" title="class">CmptNameG</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="CMDC_States.stsg" class="idref" href="#CMDC_States.stsg"><span class="id" title="variable">stsg</span></a> : <a class="idref" href="griotte.model.sts.html#STSG"><span class="id" title="class">STSG</span></a> <a class="idref" href="griotte.opsem.addresses.html#Addr"><span class="id" title="abbreviation">Addr</span></a> <a class="idref" href="griotte.model.world_std_sts.html#region_type"><span class="id" title="inductive">region_type</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#08441172cd4c14450ee9e66c55932a87"><span class="id" title="variable">Σ</span></a>} {<a id="CMDC_States.relg" class="idref" href="#CMDC_States.relg"><span class="id" title="variable">relg</span></a> : <a class="idref" href="griotte.model.world_ghost_resources.html#relGS"><span class="id" title="class">relGS</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#08441172cd4c14450ee9e66c55932a87"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="CMDC_States.cstackg" class="idref" href="#CMDC_States.cstackg"><span class="id" title="variable">cstackg</span></a> : <a class="idref" href="griotte.logrel.call_stack.html#CSTACKG"><span class="id" title="class">CSTACKG</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#08441172cd4c14450ee9e66c55932a87"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;`{<a id="CMDC_States.MP" class="idref" href="#CMDC_States.MP"><span class="id" title="variable">MP</span></a>: <a class="idref" href="griotte.opsem.machine_parameters.html#MachineParameters"><span class="id" title="class">MachineParameters</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="CMDC_States.swlayout" class="idref" href="#CMDC_States.swlayout"><span class="id" title="variable">swlayout</span></a> : <a class="idref" href="griotte.switcher.switcher.html#switcherLayout"><span class="id" title="class">switcherLayout</span></a>} {<a id="CMDC_States.swlayoutWf" class="idref" href="#CMDC_States.swlayoutWf"><span class="id" title="variable">swlayoutWf</span></a> : <a class="idref" href="griotte.switcher.switcher.html#switcherLayoutWf"><span class="id" title="class">switcherLayoutWf</span></a>} {<a id="CMDC_States.assertlayout" class="idref" href="#CMDC_States.assertlayout"><span class="id" title="variable">assertlayout</span></a> : <a class="idref" href="griotte.case_studies.macros.assert.html#assertLayout"><span class="id" title="class">assertLayout</span></a>}<br/>
+&nbsp;&nbsp;.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The bounds of the code and of the imports, as given to <span class="inlinecode"><a class="idref" href="griotte.case_studies.cmdc.cmdc_spec.html#cmdc_spec"><span class="id" title="lemma">cmdc_spec</span></a></span>. 
+</div>
+<div class="code">
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="cmdc_code_bounds" class="idref" href="#cmdc_code_bounds"><span class="id" title="definition">cmdc_code_bounds</span></a> (<a id="pc_b:25" class="idref" href="#pc_b:25"><span class="id" title="binder">pc_b</span></a> <a id="pc_e:26" class="idref" href="#pc_e:26"><span class="id" title="binder">pc_e</span></a> <a id="pc_a:27" class="idref" href="#pc_a:27"><span class="id" title="binder">pc_a</span></a> : <a class="idref" href="griotte.opsem.addresses.html#Addr"><span class="id" title="abbreviation">Addr</span></a>) (<a id="B_f:28" class="idref" href="#B_f:28"><span class="id" title="binder">B_f</span></a> <a id="C_g:29" class="idref" href="#C_g:29"><span class="id" title="binder">C_g</span></a> : <a class="idref" href="griotte.opsem.machine_word.html#Sealable"><span class="id" title="inductive">Sealable</span></a>) : <span class="id" title="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="definition">SubBounds</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#pc_b:25"><span class="id" title="variable">pc_b</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#pc_e:26"><span class="id" title="variable">pc_e</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#pc_a:27"><span class="id" title="variable">pc_a</span></a> (<a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#pc_a:27"><span class="id" title="variable">pc_a</span></a> <a class="idref" href="griotte.opsem.addresses.html#58e53c8acf01fb8822eb5bae448055ec"><span class="id" title="notation">^+</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#length"><span class="id" title="definition">length</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_code"><span class="id" title="definition">cmdc_main_code</span></a>)%<span class="id" title="var">a</span> <span class="id" title="notation">∧</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#pc_b:25"><span class="id" title="variable">pc_b</span></a> <a class="idref" href="griotte.opsem.addresses.html#83f9bcf2054d3d441d475f25e3e951c6"><span class="id" title="notation">+</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#length"><span class="id" title="definition">length</span></a> (<a class="idref" href="griotte.case_studies.cmdc.cmdc.html#cmdc_main_imports"><span class="id" title="definition">cmdc_main_imports</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#B_f:28"><span class="id" title="variable">B_f</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#C_g:29"><span class="id" title="variable">C_g</span></a>))%<span class="id" title="var">a</span> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#Some"><span class="id" title="constructor">Some</span></a> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#pc_a:27"><span class="id" title="variable">pc_a</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The capability of the entry point of the switcher. 
+</div>
+<div class="code">
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="cmdc_switcher_entry" class="idref" href="#cmdc_switcher_entry"><span class="id" title="definition">cmdc_switcher_entry</span></a> : <a class="idref" href="griotte.opsem.machine_word.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_word.html#WSentry"><span class="id" title="constructor">WSentry</span></a> <a class="idref" href="griotte.opsem.permissions.html#XSRW_"><span class="id" title="abbreviation">XSRW_</span></a> <a class="idref" href="griotte.opsem.permissions.html#Local"><span class="id" title="constructor">Local</span></a> <a class="idref" href="griotte.switcher.switcher.html#b_switcher"><span class="id" title="method">b_switcher</span></a> <a class="idref" href="griotte.switcher.switcher.html#e_switcher"><span class="id" title="method">e_switcher</span></a> <a class="idref" href="griotte.switcher.switcher.html#a_switcher_call"><span class="id" title="method">a_switcher_call</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="griotte.case_studies.cmdc.cmdc_spec_states.html#CMDC_States"><span class="id" title="section">CMDC_States</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>
