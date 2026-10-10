@@ -1,11 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import sts_multiple_updates.
-From griotte Require Import logrel_binary interp_weakening_binary monotone_binary.
-From griotte Require Import region_invariants_revocation_binary.
-From griotte Require Import rules proofmode proofmode_binary register_tactics_binary map_simpl.
-From griotte Require Import world_ghost_theory_binary world_interp_stack_binary stack_world_resources_binary.
+From griotte Require Import logrel_binary.
+From griotte Require Import rules proofmode proofmode_binary register_tactics_binary.
 From griotte Require Import switcher_preamble_binary switcher_spec_return_binary.
-From griotte Require Import stack_callee_secret_binary.
+From griotte Require Import stack_callee_secret_spec_world_binary stack_callee_secret_spec_f_blocks_1_binary.
+From griotte Require Export stack_callee_secret_spec_states_binary.
 
 (** * Binary specification of the entry point of the trusted callee
 
@@ -35,17 +33,6 @@ Section Stack_callee_secret_f.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  (** The resources of [T] that are never shared: its imports and code, the
-      same in both runs, and its private data, the secret of each run. *)
-  Definition stack_callee_secret_inv
-    (pc_b pc_a cgp_b : Addr) (B_adv : Sealable) (secret1 secret2 : Z) : iProp Σ :=
-    [[ pc_b , pc_a ]] ↦ₐ [[ stack_callee_secret_imports B_adv ]]
-    ∗ [[ pc_b , pc_a ]] ↣ₐ [[ stack_callee_secret_imports B_adv ]]
-    ∗ codefrag pc_a stack_callee_secret_code
-    ∗ spec_codefrag pc_a stack_callee_secret_code
-    ∗ cgp_b ↦ₐ WInt secret1
-    ∗ cgp_b ↣ₐ WInt secret2.
-
   (** [T.f] is a valid entry point, in any world [W] and for any caller [C]. *)
   Lemma stack_callee_secret_f_spec
     (pc_b pc_e pc_a : Addr)
@@ -67,6 +54,14 @@ Section Stack_callee_secret_f.
         (WCap RW Global cgp_b cgp_e cgp_b, WCap RW Global cgp_b cgp_e cgp_b)
         stack_callee_secret_f_args W C.
   Proof.
+    (* Outline of the proof:
+       - introduce the state of both machines at the entry point of [T.f];
+       - [stack_callee_secret_world_f]: revoke the world, to get the stack
+         frame of [T.f];
+       - open the invariant of [T], and [stack_callee_secret_f_blocks_1_spec]:
+         block 3, write the secret at the base of the stack frame, and jump
+         to the switcher; then close the invariant of [T];
+       - [switcher_ret_specification]: return to the caller of [T.f]. *)
     iIntros (HsubBounds Himports_contiguous Hcgp_contiguous) "[#Hswitcher #HT]".
     iIntros (stk Ws Cs regs1 regs2 a_stk e_stk)
       "(#Hspec & HK & %Hframe_match
@@ -82,8 +77,9 @@ Section Stack_callee_secret_f.
     rewrite /interp_conf /registers_pointsto /spec_registers_pointsto.
     rewrite /stack_callee_secret_inv.
     rewrite /stack_callee_secret_data /= in Hcgp_contiguous.
-    assert (length (stack_callee_secret_imports B_adv) = 2) as Himports_len by reflexivity.
-    rewrite Himports_len in Himports_contiguous.
+    rewrite /stack_callee_secret_imports /= in Himports_contiguous.
+    assert (stack_callee_secret_code_bounds pc_b pc_e pc_a) as Hbounds.
+    { split; first done. exact Himports_contiguous. }
     set (csp_b := (a_stk ^+ 4)%a).
 
     (* Extract the registers, in both runs *)
@@ -91,142 +87,52 @@ Section Stack_callee_secret_f.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
-    destruct (Hfullmap1 ct0) as [wct0 Hwct0].
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
-    destruct (Hfullmap1 ca0) as [wca0 Hwca0].
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
-    destruct (Hfullmap1 ca1) as [wca1 Hwca1].
-    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
-    destruct (Hfullmap1 cnull) as [wcnull Hwcnull].
-    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
-
+    iExtractList "Hrmap" [ct0;ca0;ca1;cnull] as ["Hct0";"Hca0";"Hca1";"Hcnull"].
     iDestruct (big_sepM_delete _ _ PC with "Hsmap") as "[HsPC Hsmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hsmap") as "[Hscgp Hsmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hsmap") as "[Hscsp Hsmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cra with "Hsmap") as "[Hscra Hsmap]"; first by simplify_map_eq.
-    destruct (Hfullmap2 ct0) as [swct0 Hswct0].
-    iDestruct (big_sepM_delete _ _ ct0 with "Hsmap") as "[Hsct0 Hsmap]"; first by simplify_map_eq.
-    destruct (Hfullmap2 ca0) as [swca0 Hswca0].
-    iDestruct (big_sepM_delete _ _ ca0 with "Hsmap") as "[Hsca0 Hsmap]"; first by simplify_map_eq.
-    destruct (Hfullmap2 ca1) as [swca1 Hswca1].
-    iDestruct (big_sepM_delete _ _ ca1 with "Hsmap") as "[Hsca1 Hsmap]"; first by simplify_map_eq.
-    destruct (Hfullmap2 cnull) as [swcnull Hswcnull].
-    iDestruct (big_sepM_delete _ _ cnull with "Hsmap") as "[Hscnull Hsmap]"; first by simplify_map_eq.
+    iExtractList "Hsmap" [ct0;ca0;ca1;cnull] as ["Hsct0";"Hsca0";"Hsca1";"Hscnull"].
 
-    (* Open the invariant of T *)
+    (* Revoke the world, to get the stack frame of T.f, in both runs *)
+    iMod (stack_callee_secret_world_f with "Hinterp_csp Hworld_interp")
+      as (l stk_mem stk_mem_spec)
+           "(%Hextract & %Hpub_W_Wfixed & Hworld_interp & Hrevoked_l & Hstk & Hsstk)".
+
+    (* Block 3: write the secret at the base of the stack frame, and return *)
     iMod (na_inv_acc with "HT Hna")
       as "((>Himports_main & >Hsimports_main & >Hcode_main & >Hscode_main & >Hsecret & >Hssecret)
           & Hna & HT_close)"; auto.
-    codefrag_facts "Hcode_main".
-
-    (* Revoke the world to get the stack frame of T.f, in both runs *)
-    iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp]")
-      as (l) "(%Hl_unk & Hworld_interp & _ & _
-              & >(%stk_mem & %stk_mem_spec & Hstk & Hsstk) & Hrevoked_l & _)".
-
-    (* --------------------------------------------------- *)
-    (* ----------------- Start the proof ----------------- *)
-    (* --------------------------------------------------- *)
-
-    (* Unfold the code, so that the focusing tactics see its two blocks *)
-    rewrite /stack_callee_secret_code.
-    focus_block_nochangePC_lockstep 1 "Hscode_main" "Hcode_main" as a_f Ha_f
-      "Hscode" "Hscls" "Hcode" "Hcls".
-    iHide "Hcls" as hcont. iHide "Hscls" as hscont.
-    assert ((pc_b ^+ Z.of_nat stack_callee_secret_f_offset)%a = a_f) as Hpc_f.
-    { assert (length (stack_callee_secret_imports (SCap RO Global za za za)) = 2)
-        as Himports_len' by reflexivity.
-      rewrite /stack_callee_secret_f_offset Himports_len'.
-      solve_addr. }
-    rewrite Hpc_f.
-
-    (* Load ct0 cgp *)
-    iInstr_lockstep "Hscode" "Hcode".
-    1,2: split; [done| solve_addr].
-
-    (* The stack frame of T.f may be empty: the Store then fails in the
-       implementation run *)
-    destruct (decide (csp_b < e_stk)%a) as [Hcsp_size|Hcsp_size]; cycle 1.
-    { (* Store csp ct0 *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hct0 $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; subst csp_b; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done.
-    }
-    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
-    iDestruct (big_sepL2_length with "Hsstk") as %Hsstklen.
-    rewrite finz_seq_between_length in Hstklen.
-    rewrite finz_seq_between_length in Hsstklen.
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
-    rewrite finz_dist_S in Hsstklen; last solve_addr+Hcsp_size.
-    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
-    destruct stk_mem_spec as [|sw0 stk_mem_spec]; simplify_eq.
-    assert (is_Some (csp_b + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hcsp_size|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]"; eauto.
-    { solve_addr+Hcsp_size Hastk1. }
-    iDestruct (spec_region_pointsto_cons with "Hsstk") as "[Hsa_stk Hsstk]"; eauto.
-    { solve_addr+Hcsp_size Hastk1. }
-
-    (* Store csp ct0 *)
-    iInstr_lockstep "Hscode" "Hcode".
-    1,2: rewrite /withinBounds; subst csp_b; solve_addr.
-
-    (* Mov ca0 0 *)
-    iInstr_lockstep "Hscode" "Hcode".
-
-    (* Mov ca1 0 *)
-    iInstr_lockstep "Hscode" "Hcode".
-
-    (* Jalr cnull cra *)
-    iInstr_lockstep "Hscode" "Hcode".
-
-    subst hcont hscont.
-    unfocus_block_lockstep "Hscode" "Hscls" "Hcode" "Hcls" as "Hscode_main" "Hcode_main".
-    iEval (cbn) in "HPC".
-    iEval (cbn) in "HsPC".
-
-    (* Close the invariant of T *)
+    rewrite (stack_callee_secret_f_entry pc_b pc_e pc_a Hbounds).
+    iApply (stack_callee_secret_f_blocks_1_spec with
+             "[- $Hspec $Hj $HPC $HsPC $Hcgp $Hscgp $Hcsp $Hscsp $Hcra $Hscra
+              $Hct0 $Hsct0 $Hca0 $Hsca0 $Hca1 $Hsca1 $Hcnull $Hscnull
+              $Hsecret $Hssecret $Hstk $Hsstk $Hcode_main $Hscode_main]");
+      [done|done|].
+    iNext; iIntros (stk_mem' stk_mem_spec' wcnull' swcnull')
+      "(Hj & HPC & HsPC & Hcgp & Hscgp & Hcsp & Hscsp & Hcra & Hscra
+      & Hct0 & Hsct0 & Hca0 & Hsca0 & Hca1 & Hsca1 & Hcnull & Hscnull
+      & Hsecret & Hssecret & Hstk & Hsstk & Hcode_main & Hscode_main)".
     iMod ("HT_close" with
            "[$Hna $Himports_main $Hsimports_main $Hcode_main $Hscode_main $Hsecret $Hssecret]")
       as "Hna".
+    iInsertRegs "Hrmap" ["Hcnull"; "Hct0"; "Hcra"; "Hcgp"].
+    iInsertRegsSpec "Hsmap" ["Hscnull"; "Hsct0"; "Hscra"; "Hscgp"].
 
-    (* Put the registers back in the register maps *)
-    iInsertList "Hrmap" [cra;cgp;ct0;cnull].
-    iInsertListSpec "Hsmap" [cra;cgp;ct0;cnull].
-
-    (* Reassemble the stack frames, which now contain the secrets *)
-    iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk".
-    { exact Hastk1. }
-    { subst csp_b; solve_addr+Hastk1 Hcsp_size. }
-    iDestruct (spec_region_pointsto_cons with "[$Hsa_stk $Hsstk]") as "Hsstk".
-    { exact Hastk1. }
-    { subst csp_b; solve_addr+Hastk1 Hcsp_size. }
-
-    (* Return to the caller *)
+    (* Return to the caller of T.f *)
     iApply (switcher_ret_specification _ W (revoke W) C _ _ e_stk csp_b l _ _ stk Ws Cs
               (WInt 0, WInt 0) (WInt 0, WInt 0)
              with
              "[$Hswitcher $Hspec $Hstk $Hsstk $Hcstk_frag $Hcstk_frag_spec $HK $Hworld_interp
                $Hna $Hj $HPC $HsPC $Hrevoked_l $Hrmap $Hsmap
                $Hca0 $Hsca0 $Hca1 $Hsca1 $Hcsp $Hscsp]"); auto.
-    { apply related_pub_revoke_close_list.
-      destruct Hl_unk; auto.
-    }
-    { repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom1; set_solver+.
-    }
-    { repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom2; set_solver+.
-    }
+    { rewrite !dom_insert_L !dom_delete_L Hdom1; set_solver+. }
+    { rewrite !dom_insert_L !dom_delete_L Hdom2; set_solver+. }
     { subst csp_b.
       destruct Hcsp_sync as [Hcsp_sync <-].
-      auto.
-    }
-    { destruct Hl_unk; auto. }
-    { intros a; destruct Hl_unk as [_ Hl_unk]; destruct (Hl_unk a); auto. }
+      auto. }
+    { destruct Hextract; auto. }
+    { intros a; destruct Hextract as [_ Htemp]; destruct (Htemp a); auto. }
     { iSplit; iApply interp_int. }
   Qed.
 
