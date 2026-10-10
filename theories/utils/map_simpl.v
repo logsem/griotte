@@ -230,12 +230,36 @@ Local Ltac clear_all :=
 
 Definition boxed {A} (P: A): A := P.
 Theorem boxed_eq `(P : A): (boxed P) = P. Proof. auto. Qed.
-Local Ltac box_all := repeat (match goal with
-      |  |- context [Ins ?k ?v] => lazymatch v with
-                                 | boxed _ => fail | _ => let name := fresh "name" in remember v as name in * at 1; rewrite -{1}(boxed_eq name) end end).
 
+(* Abstract the values of the reified map by variables, so that the kernel
+   never sees them when checking the [vm_compute] step: the kernel VM
+   normalises the values it sees, and a value such as
+   [WCap p g b e (b ^+ 1)%a] then costs seconds at [Qed]. The values are
+   abstracted by [generalize] (a beta-redex in the proof term), not by
+   [remember], which produces a [let] whose body the kernel VM unfolds. *)
+Local Ltac box_all := repeat (match goal with
+      |  |- context [Ins ?k ?v] =>
+           lazymatch v with
+           | boxed _ => fail
+           | _ =>
+               let name := fresh "name" in
+               let Heq := fresh "Heq" in
+               generalize (@eq_refl _ v); generalize v at 1; intros name Heq;
+               rewrite -{1}Heq -{1}(boxed_eq name)
+           end
+      end).
+
+(* Compute [simpl_rmap R] on the abstracted map [R] only: the result [r] does
+   not mention the values either, so neither does the [vm_compute] cast. The
+   values are put back by [subst] before instantiating the right-hand side. *)
 Ltac simpl_rmap_compute :=
-  clear_all; box_all; vm_compute simpl_rmap; subst.
+  clear_all; box_all;
+  lazymatch goal with
+  | |- simpl_rmap ?R = _ =>
+      let r := eval vm_compute in (simpl_rmap R) in
+      refine (eq_trans (@eq_refl _ r <: simpl_rmap R = r) _)
+  end;
+  subst.
 
 Ltac2 map_simpl_aux k a x :=
   let (x', m, fm) := (reify_helper k a x []) in
