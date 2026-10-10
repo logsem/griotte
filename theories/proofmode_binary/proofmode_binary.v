@@ -207,7 +207,7 @@ Ltac2 iApplyCapAutoSpecCore lemma :=
   on_lasts [ (fun _ => try (ltac1:(iFrameSpecCtx))) ];
   let iFrameCap := fun () => record_framed_spec tbl (iFrameAuto ()) in
   grepeat (fun _ =>
-    Control.extend [] (fun _ => try (Control.once solve_pure))
+    Control.extend [] (fun _ => try (Control.once solve_pure_iinstr))
       [ (fun _ => try (iFrameCap ())) ]);
   on_lasts [ (fun _ =>
     ltac1:(iUnlockFramed);
