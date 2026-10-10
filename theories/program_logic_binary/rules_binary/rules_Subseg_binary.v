@@ -244,9 +244,9 @@ Section spec_rules.
      { (* Success with WSealRange (contradiction) *)
         simplify_map_eq. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      }
+      exfalso; eapply (Subseg_failure_cap_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /addr_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 
@@ -291,8 +291,9 @@ Section spec_rules.
               (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
       iDestruct (spec_regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+      exfalso; eapply (Subseg_failure_sr_contra _ _ _ _ _ _ _ _ _ _ a1 a2 Hfail);
+        rewrite /incrementPC /incrementPC_gen /insert_reg /lookup_reg /otype_of_argument /z_of_argument;
+        simplify_map_eq; eauto. }
     Unshelve. all: auto.
   Qed.
 

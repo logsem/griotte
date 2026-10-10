@@ -549,8 +549,8 @@ Section wp_interp.
   Proof.
     iIntros (HE Hinstr Hvpc Hpc_a' Hpsr Hsr ?? ϕ) "H Hφ".
     iApply (wp_unseal_unknown with "H"); eauto.
-    iNext. iIntros (retv) "[? | (%&%&%&%&%&%&%&H)]"
-    ; iApply "Hφ" ; auto.
+    iNext. iIntros (retv) "[%Hretv | (%&%&%&%&%&%&%&H)]"; iApply "Hφ".
+    { iLeft; iPureIntro; exact Hretv. }
     iDestruct "H" as "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Heq & ? & ? & ?)".
     simplify_eq.
     iRight. iFrame.

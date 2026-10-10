@@ -259,25 +259,98 @@ Section monotone.
       iApply "Hw".
   Qed.
 
+  Lemma interp_addr_mono_pub
+      (W W' : WORLD) (C : CmptName) (p : Perm) (g : Locality) (a : Addr) :
+    related_sts_pub_world W W' ->
+    (∃ (p' : Perm) (P : V),
+        ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
+        rel C a p' (safeC P) ∗ ▷ zcond P C ∗
+        (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
+        (if writeAllowed p' then ▷ wcond P C interp else True) ∗
+        monoReq W C a p' P ∗
+        ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
+    -∗
+    (∃ (p' : Perm) (P : V),
+        ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
+        rel C a p' (safeC P) ∗ ▷ zcond P C ∗
+        (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
+        (if writeAllowed p' then ▷ wcond P C interp else True) ∗
+        monoReq W' C a p' P ∗
+        ⌜if isWL p then region_state_pwl W' a else region_state_nwl W' a g⌝).
+  Proof.
+    iIntros (Hrelated) "Hw".
+    iDestruct "Hw" as (p' P Hpfl' Hpers)
+      "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
+    destruct (isWL p) eqn:Hwl.
+    - iPoseProof (monoReq_mono_pub_pwl with "HmonoR") as "HmonoR'"; eauto.
+      pose proof (region_state_pwl_monotone W W' a Hrelated Hstate) as Hstate'.
+      iExists p', P.
+      iSplit; first done. iSplit; first done.
+      iSplitL "Hrel"; first iExact "Hrel".
+      iSplitL "Hzcond"; first iExact "Hzcond".
+      iSplitL "Hrcond"; first iExact "Hrcond".
+      iSplitL "Hwcond"; first iExact "Hwcond".
+      iSplitL "HmonoR'"; first iExact "HmonoR'".
+      iPureIntro; exact Hstate'.
+    - iPoseProof (monoReq_mono_pub_nwl with "HmonoR") as "HmonoR'"; eauto.
+      pose proof (region_state_nwl_monotone W W' a g Hrelated Hstate) as Hstate'.
+      iExists p', P.
+      iSplit; first done. iSplit; first done.
+      iSplitL "Hrel"; first iExact "Hrel".
+      iSplitL "Hzcond"; first iExact "Hzcond".
+      iSplitL "Hrcond"; first iExact "Hrcond".
+      iSplitL "Hwcond"; first iExact "Hwcond".
+      iSplitL "HmonoR'"; first iExact "HmonoR'".
+      iPureIntro; exact Hstate'.
+  Qed.
+
+  Lemma interp_addr_mono_priv_nwl
+      (W W' : WORLD) (C : CmptName) (p : Perm) (a : Addr) :
+    related_sts_priv_world W W' ->
+    (∃ (p' : Perm) (P : V),
+        ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
+        rel C a p' (safeC P) ∗ ▷ zcond P C ∗
+        (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
+        (if writeAllowed p' then ▷ wcond P C interp else True) ∗
+        monoReq W C a p' P ∗ ⌜region_state_nwl W a Global⌝)
+    -∗
+    (∃ (p' : Perm) (P : V),
+        ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
+        rel C a p' (safeC P) ∗ ▷ zcond P C ∗
+        (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
+        (if writeAllowed p' then ▷ wcond P C interp else True) ∗
+        monoReq W' C a p' P ∗ ⌜region_state_nwl W' a Global⌝).
+  Proof.
+    iIntros (Hrelated) "Hw".
+    iDestruct "Hw" as (p' P Hpfl' Hpers)
+      "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
+    iPoseProof (monoReq_mono_priv_nwl with "HmonoR") as "HmonoR'"; eauto.
+    pose proof (region_state_nwl_monotone_nl W W' a Hrelated Hstate) as Hstate'.
+    iExists p', P.
+    iSplit; first done. iSplit; first done.
+    iSplitL "Hrel"; first iExact "Hrel".
+    iSplitL "Hzcond"; first iExact "Hzcond".
+    iSplitL "Hrcond"; first iExact "Hrcond".
+    iSplitL "Hwcond"; first iExact "Hwcond".
+    iSplitL "HmonoR'"; first iExact "HmonoR'".
+    iPureIntro; exact Hstate'.
+  Qed.
+
   Lemma interp_monotone_cap (W W' : WORLD) C p g b e a :
     ⌜related_sts_pub_world W W'⌝
     -∗ interp W C (WCap p g b e a, WCap p g b e a)
     -∗ interp W' C (WCap p g b e a, WCap p g b e a).
   Proof.
     iIntros (Hrelated) "#Hw".
-    rewrite !interp_diag_eq // /interp1_diag.
-    destruct p eqn:Hp;auto; cycle 1.
-    destruct rx,w; cbn; auto.
-    all: try (destruct g; auto).
-    all: iApply (big_sepL_mono with "Hw").
-    all: iIntros (n y Hsome) "Hw".
-    all: iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-    all: first [ iDestruct (monoReq_mono_pub_nwl with "HmonoR") as "HmonoR'"; eauto; [] 
-               | iDestruct (monoReq_mono_pub_pwl with "HmonoR") as "HmonoR'"; eauto; [] ].
-    all: iExists p',P; iFrame "∗%".
-    all: iPureIntro.
-    all: first [ eapply (region_state_nwl_monotone W W'); eauto; done
-               | eapply (region_state_pwl_monotone W W'); eauto; done ].
+    rewrite !fixpoint_interp1_eq !interp1_eq.
+    destruct (isO p); first done.
+    destruct (has_sreg_access p); first done.
+    iDestruct "Hw" as "[Hw %Hlocal]".
+    iSplit; last done.
+    iApply (big_sepL_mono with "Hw").
+    iIntros (n y Hsome) "Hy".
+    iApply (interp_addr_mono_pub W W' C p g y with "Hy").
+    exact Hrelated.
   Qed.
 
   Lemma interp_monotone_sealrange (W W' : WORLD) C p g b e a :
@@ -333,16 +406,17 @@ Section monotone.
     -∗ interp W' C (WCap p g b e a, WCap p g b e a).
   Proof.
     iIntros (Hrelated Hnl) "#Hw".
-    destruct g ; cbn in Hnl ; try done.
-    rewrite !interp_diag_eq // /interp1_diag.
-    destruct p eqn:Hp;auto; cycle 1.
-    destruct rx,w; cbn; auto.
-    all: iApply (big_sepL_mono with "Hw").
-    all: iIntros (n y Hsome) "Hw".
-    all: iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-    all: iDestruct (monoReq_mono_priv_nwl with "HmonoR") as "HmonoR'"; eauto.
-    all: iExists p',P; iFrame "∗%".
-    all: iPureIntro; apply (region_state_nwl_monotone_nl W W');auto.
+    destruct g; cbn in Hnl; try done.
+    rewrite !fixpoint_interp1_eq !interp1_eq.
+    destruct (isO p); first done.
+    destruct (has_sreg_access p); first done.
+    iDestruct "Hw" as "[Hw %Hlocal]".
+    destruct (isWL p) eqn:Hwl; first congruence.
+    iSplit; last done.
+    iApply (big_sepL_mono with "Hw").
+    iIntros (n y Hsome) "Hy".
+    iApply (interp_addr_mono_priv_nwl W W' C p y with "Hy").
+    exact Hrelated.
   Qed.
 
   Lemma interp_monotone_nl W W' C ww :
