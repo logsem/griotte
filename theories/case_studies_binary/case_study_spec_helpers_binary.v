@@ -12,10 +12,14 @@ From griotte Require Export code_blocks.
       the code in both runs,
     - [iSpecRegionSplit]: the counterpart of [iRegionSplit] for the
       specification run,
+    - [region_pointsto_reassemble], [spec_region_pointsto_reassemble]:
+      merge a region from its part below an address, the cell at this
+      address, and its part above,
     - [iInsertRegsSpec]: the counterpart of [iInsertRegs] for the
       specification run,
-    - [switcher_call_args_1_binary]: the argument registers of a call to the
-      switcher, for an entry point with one argument. *)
+    - [switcher_call_args_0_binary], [switcher_call_args_1_binary]: the
+      argument registers of a call to the switcher, for an entry point
+      with no argument (resp. one argument). *)
 
 (** ** Code blocks in both runs *)
 
@@ -81,6 +85,45 @@ Section spec_region_cells.
 
 End spec_region_cells.
 
+(** ** Merging a region around one address, in both runs *)
+
+Section Region_reassemble.
+  Context {Σ:gFunctors} {ceriseg:ceriseG Σ} {specg : specG Σ} `{MP: MachineParameters}.
+
+  Lemma region_pointsto_reassemble (b a e : Addr) (lo hi : list Word) (w : Word) :
+    (b <= a)%a →
+    (a ^+ 1 <= e)%a →
+    (a + 1)%a = Some (a ^+ 1)%a →
+    length lo = finz.dist b a →
+    [[ b, a ]] ↦ₐ [[ lo ]] -∗
+    a ↦ₐ w -∗
+    [[ (a ^+ 1)%a, e ]] ↦ₐ [[ hi ]] -∗
+    [[ b, e ]] ↦ₐ [[ lo ++ w :: hi ]].
+  Proof.
+    iIntros (Hba Hae Ha Hlen) "Hlo Hw Hhi".
+    rewrite (region_pointsto_split b e a lo (w :: hi)); [|solve_addr|done].
+    rewrite (region_pointsto_cons a (a ^+ 1)%a e); [|done|done].
+    iFrame.
+  Qed.
+
+  Lemma spec_region_pointsto_reassemble (b a e : Addr) (lo hi : list Word) (w : Word) :
+    (b <= a)%a →
+    (a ^+ 1 <= e)%a →
+    (a + 1)%a = Some (a ^+ 1)%a →
+    length lo = finz.dist b a →
+    [[ b, a ]] ↣ₐ [[ lo ]] -∗
+    a ↣ₐ w -∗
+    [[ (a ^+ 1)%a, e ]] ↣ₐ [[ hi ]] -∗
+    [[ b, e ]] ↣ₐ [[ lo ++ w :: hi ]].
+  Proof.
+    iIntros (Hba Hae Ha Hlen) "Hlo Hw Hhi".
+    rewrite (spec_region_pointsto_split b e a lo (w :: hi)); [|solve_addr|done].
+    rewrite (spec_region_pointsto_cons a (a ^+ 1)%a e); [|done|done].
+    iFrame.
+  Qed.
+
+End Region_reassemble.
+
 (** Split [h : [[b, e]] ↣ₐ [[ws]]], for a concrete list [ws], into
     [b ↣ₐ w0 ∗ (b ^+ 1) ↣ₐ w1 ∗ ... ∗ (b ^+ n) ↣ₐ wn], destructed with
     [pat], as [iRegionSplit] does in the implementation run. *)
@@ -116,11 +159,13 @@ Tactic Notation "iInsertRegsSpec" constr(Hmap) constr(Hregs) :=
 
 (** ** Arguments of a call to the switcher
 
-    [switcher_call_args_1_binary] builds the argument registers
+    [switcher_call_args_0_binary] (resp. [switcher_call_args_1_binary])
+    builds the argument registers
     [arg_rmap] and [arg_smap] of both runs, and the other registers [rmap']
     and [smap'], expected by the specification of the switcher call, for an
-    entry point with one argument, passed in [ca0]. The argument must be
-    safe to share; the other argument registers are passed unchanged. *)
+    entry point with no argument (resp. one argument, passed in [ca0]). The
+    argument must be safe to share; the other argument registers are passed
+    unchanged. *)
 Section Switcher_call_args.
   Context
     {Σ:gFunctors}
@@ -134,6 +179,47 @@ Section Switcher_call_args.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
+
+  Lemma switcher_call_args_0_binary W C (rmap smap : Reg) :
+    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ->
+    dom smap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ->
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
+    ([∗ map] r↦w ∈ smap, r ↣ᵣ w) -∗
+    ∃ arg_rmap arg_smap rmap' smap',
+      ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
+      ⌜ dom smap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
+      ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
+      ⌜ is_arg_rmap arg_smap 8 ⌝ ∗
+      ([∗ map] rarg↦warg;sarg ∈ arg_rmap;arg_smap,
+         rarg ↦ᵣ warg ∗
+         rarg ↣ᵣ sarg ∗
+         (if decide (rarg ∈ dom_arg_rmap 0)
+          then interp W C (warg, sarg)
+          else True)) ∗
+      ([∗ map] r↦w ∈ rmap', r ↦ᵣ w) ∗
+      ([∗ map] r↦w ∈ smap', r ↣ᵣ w).
+  Proof.
+    iIntros (Hrmap_dom Hsmap_dom) "Hrmap Hsmap".
+    iExtractList "Hrmap" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
+      as ["Hca0"; "Hca1"; "Hca2"; "Hca3"; "Hca4"; "Hca5"; "Hct0"].
+    iExtractList "Hsmap" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
+      as ["Hsca0"; "Hsca1"; "Hsca2"; "Hsca3"; "Hsca4"; "Hsca5"; "Hsct0"].
+    iExists {[ ca0 := wca0; ca1 := wca1; ca2 := wca2; ca3 := wca3;
+               ca4 := wca4; ca5 := wca5; ct0 := wct0 ]},
+      {[ ca0 := wca6; ca1 := wca7; ca2 := wca8; ca3 := wca9;
+         ca4 := wca10; ca5 := wca11; ct0 := wct1 ]}, _, _.
+    iFrame "Hrmap Hsmap".
+    iSplit.
+    { iPureIntro. rewrite !dom_delete_L Hrmap_dom /dom_arg_rmap. set_solver+. }
+    iSplit.
+    { iPureIntro. rewrite !dom_delete_L Hsmap_dom /dom_arg_rmap. set_solver+. }
+    iSplit; first by rewrite /is_arg_rmap /dom_arg_rmap /=; iPureIntro; set_solver+.
+    iSplit; first by rewrite /is_arg_rmap /dom_arg_rmap /=; iPureIntro; set_solver+.
+    repeat (rewrite big_sepM2_insert; [|by simplify_map_eq|by simplify_map_eq]).
+    rewrite big_sepM2_empty.
+    rewrite /dom_arg_rmap /=.
+    iFrame.
+  Qed.
 
   Lemma switcher_call_args_1_binary W C (rmap smap : Reg) (wca0 swca0 : Word) :
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ]} ->
