@@ -10,6 +10,7 @@ From griotte Require Import switcher_adequacy_binary.
 From griotte Require Import write_only_secret_binary write_only_secret_spec_binary.
 From griotte Require Import mkregion_helpers disjoint_regions_tactics.
 From griotte Require Import adequacy_helpers_binary compartment_layout adequacy_common_binary.
+From griotte Require Import contextual_equivalence_binary.
 
 
 (** * Adequacy of the write-only sharing example
@@ -323,3 +324,66 @@ Proof.
   - eapply (@write_only_secret_adequacy_one_sided Σ cnames B); eauto; try typeclasses eauto.
   - eapply (@write_only_secret_adequacy_one_sided Σ cnames B); eauto; try typeclasses eauto.
 Qed.
+
+(** * Contextual equivalence *)
+
+Section ctx_equiv.
+  Context `{MP: MachineParameters}.
+
+  (** The trusted part, shared by both programs: the switcher, and the layout
+      and the code of the main compartment. *)
+  Context (sw : cmptSwitcher) (main : cmpt).
+  Context (Hmain_size :
+            (cmpt_b_cgp main + length (write_only_secret_main_data 0))%a = Some (cmpt_e_cgp main)).
+  Context (Hmain_code : cmpt_code main = write_only_secret_main_code)
+          (Hmain_exports : cmpt_exp_tbl_entries main = []).
+
+  #[local] Instance write_only_secret_switcherLayout : switcherLayout := cmptSwitcher_switcherLayout sw.
+
+  (** The program is the main compartment, holding [secret] in its data region. *)
+  Definition write_only_secret_prog (secret : Z) : cmpt :=
+    cmpt_with_data main (write_only_secret_main_data secret) Hmain_size.
+
+  (** The context is the adversary compartment [B_adv]. It imports the switcher,
+      and exports the entry point [B.f] imported by [main]. *)
+  #[local] Instance write_only_secret_linking : Linking cmpt cmpt := {
+    is_context B_adv := is_adv_cmpt [switcher_entry sw] [write_only_secret_B_f_args] B_adv;
+    link B_adv P σ :=
+      let '(reg, sreg, m) := σ in
+      P ## B_adv ∧
+      switcher_cmpt_disjoint P sw ∧
+      switcher_cmpt_disjoint B_adv sw ∧
+      cmpt_imports P = write_only_secret_main_imports (cmpt_export B_adv (cmpt_exp_tbl_entries_start B_adv)) ∧
+      is_initial_registers_of sw P reg ∧
+      is_initial_sregisters_of sw sreg ∧
+      m = mk_initial_switcher sw ∪ mk_initial_cmpt P ∪ mk_initial_cmpt B_adv
+  }.
+
+  (** END-TO-END THEOREM *)
+  Theorem write_only_secret_ctx_equiv (secret1 secret2 : Z) :
+    ctx_equiv (write_only_secret_prog secret1) (write_only_secret_prog secret2).
+  Proof.
+    intros B_adv [ [reg1 sreg1] m1] [ [reg2 sreg2] m2] HB Hl1 Hl2.
+    destruct HB as (HB_imports & HB_code & HB_data & HB_exports).
+    inversion HB_exports as [|? w ? ? (off & ->) Hnil]; subst.
+    inversion Hnil; subst.
+    destruct Hl1 as (HmainB & Hsw_main & Hsw_B & Himports & Hreg1 & Hsreg1 & ->).
+    destruct Hl2 as (_ & _ & _ & _ & Hreg2 & Hsreg2 & ->).
+    assert (reg2 = reg1) as ->.
+    { by eapply (is_initial_registers_of_unique sw main). }
+    assert (sreg2 = sreg1) as ->.
+    { by eapply is_initial_sregisters_of_unique. }
+    set (Layout :=
+           {| switcher_cmpt := sw;
+              main_cmpt := main;
+              main_data_size := Hmain_size;
+              B_cmpt := B_adv;
+              offset_B_f := off;
+              cmpts_disjoints := HmainB;
+              switcher_cmpt_disjoints := conj Hsw_main Hsw_B |}).
+    rewrite /halt_equiv /halts.
+    apply (write_only_secret_adequacy (Layout := Layout) _ _ _ _ secret1 secret2); try done.
+    all: by repeat split.
+  Qed.
+
+End ctx_equiv.

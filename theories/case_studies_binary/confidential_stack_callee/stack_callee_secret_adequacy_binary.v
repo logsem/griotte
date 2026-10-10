@@ -11,6 +11,7 @@ From griotte Require Import stack_callee_secret_binary stack_callee_secret_spec_
 From griotte Require Import stack_callee_secret_spec_run_binary.
 From griotte Require Import mkregion_helpers disjoint_regions_tactics.
 From griotte Require Import adequacy_helpers_binary compartment_layout adequacy_common_binary.
+From griotte Require Import contextual_equivalence_binary.
 
 
 (** * Adequacy of the trusted-callee stack confidentiality example
@@ -419,3 +420,72 @@ Proof.
   - eapply (@stack_callee_secret_adequacy_one_sided Σ cnames B); eauto; try typeclasses eauto.
   - eapply (@stack_callee_secret_adequacy_one_sided Σ cnames B); eauto; try typeclasses eauto.
 Qed.
+
+(** * Contextual equivalence *)
+
+Section ctx_equiv.
+  Context `{MP: MachineParameters}.
+
+  (** The trusted part, shared by both programs: the switcher, and the layout,
+      the code and the export table of the trusted compartment [T]. *)
+  Context (sw : cmptSwitcher) (T : cmpt).
+  Context (HT_size :
+            (cmpt_b_cgp T + length (stack_callee_secret_data 0))%a = Some (cmpt_e_cgp T)).
+
+  #[local] Instance stack_callee_secret_switcherLayout : switcherLayout := cmptSwitcher_switcherLayout sw.
+
+  Context (HT_code : cmpt_code T = stack_callee_secret_code)
+          (HT_exports : cmpt_exp_tbl_entries T = stack_callee_secret_export_table_entries).
+
+  (** The program is the trusted compartment [T], holding [secret] in its data
+      region. *)
+  Definition stack_callee_secret_prog (secret : Z) : cmpt :=
+    cmpt_with_data T (stack_callee_secret_data secret) HT_size.
+
+  (** The context is the adversary compartment [B_adv]. It imports the switcher
+      and the entry point [T.f] exported by [T], and exports the entry point
+      [B.adv] imported by [T]. *)
+  #[local] Instance stack_callee_secret_linking : Linking cmpt cmpt := {
+    is_context B_adv :=
+      is_adv_cmpt
+        [switcher_entry sw; WSealed (ot_switcher sw) (cmpt_export T (cmpt_exp_tbl_entries_start T))]
+        [stack_callee_secret_B_adv_args] B_adv;
+    link B_adv P σ :=
+      let '(reg, sreg, m) := σ in
+      P ## B_adv ∧
+      switcher_cmpt_disjoint P sw ∧
+      switcher_cmpt_disjoint B_adv sw ∧
+      cmpt_imports P = stack_callee_secret_imports (cmpt_export B_adv (cmpt_exp_tbl_entries_start B_adv)) ∧
+      is_initial_registers_of sw P reg ∧
+      is_initial_sregisters_of sw sreg ∧
+      m = mk_initial_switcher sw ∪ mk_initial_cmpt P ∪ mk_initial_cmpt B_adv
+  }.
+
+  (** END-TO-END THEOREM *)
+  Theorem stack_callee_secret_ctx_equiv (secret1 secret2 : Z) :
+    ctx_equiv (stack_callee_secret_prog secret1) (stack_callee_secret_prog secret2).
+  Proof.
+    intros B_adv [ [reg1 sreg1] m1] [ [reg2 sreg2] m2] HB Hl1 Hl2.
+    destruct HB as (HB_imports & HB_code & HB_data & HB_exports).
+    inversion HB_exports as [|? w ? ? (off & ->) Hnil]; subst.
+    inversion Hnil; subst.
+    destruct Hl1 as (HTB & Hsw_T & Hsw_B & Himports & Hreg1 & Hsreg1 & ->).
+    destruct Hl2 as (_ & _ & _ & _ & Hreg2 & Hsreg2 & ->).
+    assert (reg2 = reg1) as ->.
+    { by eapply (is_initial_registers_of_unique sw T). }
+    assert (sreg2 = sreg1) as ->.
+    { by eapply is_initial_sregisters_of_unique. }
+    set (Layout :=
+           {| switcher_cmpt := sw;
+              T_cmpt := T;
+              T_data_size := HT_size;
+              B_cmpt := B_adv;
+              offset_B_adv := off;
+              cmpts_disjoints := HTB;
+              switcher_cmpt_disjoints := conj Hsw_T Hsw_B |}).
+    rewrite /halt_equiv /halts.
+    apply (stack_callee_secret_adequacy (Layout := Layout) _ _ _ _ secret1 secret2); try done.
+    all: by repeat split.
+  Qed.
+
+End ctx_equiv.

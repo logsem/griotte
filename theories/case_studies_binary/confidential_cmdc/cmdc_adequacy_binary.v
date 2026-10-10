@@ -10,6 +10,7 @@ From griotte Require Import switcher_adequacy_binary.
 From griotte Require Import cmdc_binary cmdc_spec_binary.
 From griotte Require Import mkregion_helpers disjoint_regions_tactics.
 From griotte Require Import adequacy_helpers_binary compartment_layout adequacy_common_binary.
+From griotte Require Import contextual_equivalence_binary.
 
 
 (** * Adequacy of the CMDC confidentiality example
@@ -405,3 +406,82 @@ Proof.
   - eapply (@cmdc_conf_adequacy_one_sided Σ cnames B C); eauto; try typeclasses eauto.
   - eapply (@cmdc_conf_adequacy_one_sided Σ cnames B C); eauto; try typeclasses eauto.
 Qed.
+
+(** * Contextual equivalence *)
+
+Section ctx_equiv.
+  Context `{MP: MachineParameters}.
+
+  (** The trusted part, shared by both programs: the switcher, and the layout
+      and the code of the main compartment. *)
+  Context (sw : cmptSwitcher) (main : cmpt).
+  Context (Hmain_size :
+            (cmpt_b_cgp main + length (cmdc_conf_main_data 0 0))%a = Some (cmpt_e_cgp main)).
+  Context (Hmain_code : cmpt_code main = cmdc_conf_main_code)
+          (Hmain_exports : cmpt_exp_tbl_entries main = []).
+
+  #[local] Instance cmdc_conf_switcherLayout : switcherLayout := cmptSwitcher_switcherLayout sw.
+
+  (** The program is the main compartment, holding [secrets] in its data
+      region. *)
+  Definition cmdc_conf_prog (secrets : Z * Z) : cmpt :=
+    cmpt_with_data main (cmdc_conf_main_data secrets.1 secrets.2) Hmain_size.
+
+  (** The context is the pair of adversary compartments [B_adv] and [C_adv]. They
+      import the switcher, and export the entry points [B.f] and [C.g]
+      imported by [main]. *)
+  #[local] Instance cmdc_conf_linking : Linking (cmpt * cmpt) cmpt := {
+    is_context BC :=
+      let '(B_adv, C_adv) := BC in
+      is_adv_cmpt [switcher_entry sw] [cmdc_conf_B_f_args] B_adv ∧
+      is_adv_cmpt [switcher_entry sw] [cmdc_conf_C_g_args] C_adv;
+    link BC P σ :=
+      let '(B_adv, C_adv) := BC in
+      let '(reg, sreg, m) := σ in
+      (P ## B_adv ∧ P ## C_adv ∧ B_adv ## C_adv) ∧
+      switcher_cmpt_disjoint P sw ∧
+      switcher_cmpt_disjoint B_adv sw ∧
+      switcher_cmpt_disjoint C_adv sw ∧
+      cmpt_imports P =
+        cmdc_conf_main_imports
+          (cmpt_export B_adv (cmpt_exp_tbl_entries_start B_adv))
+          (cmpt_export C_adv (cmpt_exp_tbl_entries_start C_adv)) ∧
+      is_initial_registers_of sw P reg ∧
+      is_initial_sregisters_of sw sreg ∧
+      m = mk_initial_switcher sw ∪ mk_initial_cmpt P ∪
+            mk_initial_cmpt B_adv ∪ mk_initial_cmpt C_adv
+  }.
+
+  (** END-TO-END THEOREM *)
+  Theorem cmdc_conf_ctx_equiv (secrets1 secrets2 : Z * Z) :
+    ctx_equiv (cmdc_conf_prog secrets1) (cmdc_conf_prog secrets2).
+  Proof.
+    intros [B_adv C_adv] [ [reg1 sreg1] m1] [ [reg2 sreg2] m2] [HB HC] Hl1 Hl2.
+    destruct HB as (HB_imports & HB_code & HB_data & HB_exports).
+    inversion HB_exports as [|? wB ? ? (offB & ->) HnilB]; subst.
+    inversion HnilB; subst.
+    destruct HC as (HC_imports & HC_code & HC_data & HC_exports).
+    inversion HC_exports as [|? wC ? ? (offC & ->) HnilC]; subst.
+    inversion HnilC; subst.
+    destruct Hl1 as (Hdisj & Hsw_main & Hsw_B & Hsw_C & Himports & Hreg1 & Hsreg1 & ->).
+    destruct Hl2 as (_ & _ & _ & _ & _ & Hreg2 & Hsreg2 & ->).
+    assert (reg2 = reg1) as ->.
+    { by eapply (is_initial_registers_of_unique sw main). }
+    assert (sreg2 = sreg1) as ->.
+    { by eapply is_initial_sregisters_of_unique. }
+    set (Layout :=
+           {| switcher_cmpt := sw;
+              main_cmpt := main;
+              main_data_size := Hmain_size;
+              B_cmpt := B_adv;
+              offset_B_f := offB;
+              C_cmpt := C_adv;
+              offset_C_g := offC;
+              cmpts_disjoints := Hdisj;
+              switcher_cmpt_disjoints := conj Hsw_main (conj Hsw_B Hsw_C) |}).
+    rewrite /halt_equiv /halts.
+    apply (cmdc_conf_adequacy (Layout := Layout) _ _ _ _ secrets1 secrets2); try done.
+    all: by repeat split.
+  Qed.
+
+End ctx_equiv.

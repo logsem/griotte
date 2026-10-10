@@ -41,6 +41,10 @@ Section initial_capabilities.
   Definition trusted_stack_cap (sw : cmptSwitcher) : Word :=
     WCap RWL Local (b_trusted_stack sw) (e_trusted_stack sw) (b_trusted_stack sw).
 
+  (** The import of the switcher's call entry point. *)
+  Definition switcher_entry (sw : cmptSwitcher) : Word :=
+    WSentry XSRW_ Local (b_switcher sw) (e_switcher sw) (a_switcher_call sw).
+
   (** The (unsealed) export-table capability for the entry at address [a]. *)
   Definition cmpt_export (C_cmpt : cmpt) (a : Addr) : Sealable :=
     SCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) a.
