@@ -15,8 +15,6 @@ From griotte Require Export code_blocks.
     - [region_pointsto_reassemble], [spec_region_pointsto_reassemble]:
       merge a region from its part below an address, the cell at this
       address, and its part above,
-    - [iInsertRegsSpec]: the counterpart of [iInsertRegs] for the
-      specification run,
     - [switcher_call_args_0_binary], [switcher_call_args_1_binary]: the
       argument registers of a call to the switcher, for an entry point
       with no argument (resp. one argument). *)
@@ -140,22 +138,6 @@ Tactic Notation "iSpecRegionSplit" constr(h) "as" constr(pat) :=
         iDestruct x as pat]
   | _ => fail "iSpecRegionSplit:" h "is not of the form [[_, _]] ↣ₐ [[_]]"
   end end.
-
-(** ** Register maps of the specification run *)
-
-(** Insert the spec register points-to of the hypotheses [Hregs] into the
-    spec register map [Hmap], see [iInsertRegs]. *)
-Ltac iInsertRegsSpec0 Hmap Hregs :=
-  lazymatch Hregs with
-  | nil => idtac
-  | ?Hreg :: ?Htail =>
-      let pat := constr:((Hreg ++ " " ++ Hmap)%string) in
-      iDestruct (big_sepM_insert_2 (λ r w, r ↣ᵣ w)%I with pat) as Hmap;
-      iInsertRegsSpec0 Hmap Htail
-  end.
-
-Tactic Notation "iInsertRegsSpec" constr(Hmap) constr(Hregs) :=
-    iInsertRegsSpec0 Hmap Hregs.
 
 (** ** Arguments of a call to the switcher
 

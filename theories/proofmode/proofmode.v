@@ -317,51 +317,39 @@ Tactic Notation "unfocus_block" constr(hi) constr(hcont) "as" constr(h) :=
 
 (* "iApply with on-demand framing" *)
 
-(* TODO: These proofs should probably not use the proof mode tactics *)
-Lemma envs_clear_spatial_sound_rev {PROP: bi} (Δ: envs PROP) :
-  envs_wf Δ →
-  of_envs (envs_clear_spatial Δ) ∗ [∗] env_spatial Δ ⊢ of_envs Δ.
+(* Variant of Iris' [tac_specialize_frame] where the conclusion [Q] of the
+   wand is kept in the goal: the premise [P1] is framed in place from the
+   context, and [P2 -∗ Q] is unlocked once [P1] has been framed entirely.
+   The wand [R] is not a hypothesis of the context but is given as a proof
+   [⊢ R] (e.g. an instruction rule, after the elimination of its Coq-level
+   premises by [iIntoEmpValid]); as with [iPoseProof], it is used as an
+   intuitionistic hypothesis. *)
+Lemma tac_specialize_frame' {PROP: bi} (Δ: envs PROP) R P1 P2 Q :
+  (⊢ R) →
+  IntoWand true false R P1 P2 →
+  envs_entails Δ (P1 ∗ locked (P2 -∗ Q)%I) →
+  envs_entails Δ Q.
 Proof.
-  intros.
-  rewrite !of_envs_eq /envs_clear_spatial /=.
-  rewrite -persistent_and_sep_assoc.
-  iIntros "H". iDestruct "H" as "[% [[? _] ?]]". iFrame. iSplit; eauto.
+  intros HR ? HΔ. rewrite envs_entails_unseal in HΔ |- *. rewrite HΔ. unlock.
+  assert (⊢ □ R) as HR' by (iIntros "!>"; iApply HR).
+  rewrite -(bi.emp_sep (P1 ∗ (P2 -∗ Q))%I) {1}HR'.
+  iIntros "(HR & HP1 & HQ)". iApply "HQ".
+  iApply (into_wand true false R P1 P2 with "HR HP1").
 Qed.
 
-Lemma tac_specialize_assert_delay {PROP: bi} (Δ: envs PROP) j q R P1 P2 P1' F Q :
-  envs_lookup j Δ = Some (q, R) →
-  IntoWand q false R P1 P2 → AddModal P1' P1 Q →
-  envs_entails (envs_delete true j q Δ) (P1' ∗ F) →
-  match
-    envs_app false (Esnoc Enil j P2)
-      (envs_clear_spatial (envs_delete true j q Δ))
-  with
-  | Some Δ1 =>
-    envs_entails Δ1 (F -∗ Q)
-  | None => False
-  end → envs_entails Δ Q.
+(* Specialization of the wand [R] with on-demand framing of its premise [P1],
+   where its conclusion [P2] is applied to the goal [Q] as in [iApply]. [P2]
+   is unified with the goal before framing. *)
+Lemma tac_specialize_frame_apply {PROP: bi} (Δ: envs PROP) R P1 P2 B Q :
+  (⊢ R) →
+  IntoWand true false R P1 P2 →
+  IntoWand false false P2 B Q →
+  envs_entails Δ (P1 ∗ locked B) →
+  envs_entails Δ Q.
 Proof.
-  rewrite envs_entails_unseal. intros ??? HH.
-  destruct (envs_app _ _ _) eqn:?; last done.
-  intros HQ.
-  rewrite envs_lookup_sound //.
-  set Δ' := envs_delete true j q Δ in HH Heqo |- *.
-  iIntros "[HR HΔ']".
-  iAssert (⌜envs_wf Δ'⌝)%I as %?.
-  { rewrite of_envs_eq. iDestruct "HΔ'" as "[? ?]". eauto. }
-  rewrite envs_clear_spatial_sound.
-  set Δ'i := envs_clear_spatial Δ'.
-  set Δ's := env_spatial Δ'.
-  iDestruct "HΔ'" as "[#HΔ'i Hs]".
-  iDestruct (envs_clear_spatial_sound_rev with "[$HΔ'i $Hs]") as "HΔ'"; auto.
-  iDestruct (HH with "HΔ'") as "[HP1' HF]".
-  iApply add_modal; first eauto.
-  iFrame. iIntros "HP1".
-  iApply (HQ with "[HR HP1] HF").
-  { iApply (envs_app_singleton_sound with "[] [HR HP1]"); first eauto.
-    + iApply "HΔ'i".
-    + iApply (into_wand with "[HR]"); eauto.
-  }
+  intros ??? HΔ. eapply tac_specialize_frame'; [done..|].
+  rewrite envs_entails_unseal in HΔ |- *. rewrite HΔ. unlock.
+  iIntros "[$ HB] HP2". iApply (into_wand false false P2 B Q with "HP2 HB").
 Qed.
 
 (* Typeclass instances to look-up framable resources in the goal, for
@@ -469,16 +457,18 @@ Ltac2 on_lasts tacs :=
 
 (* iApplyCapAuto_init *)
 
-Ltac2 iSpecializeDelay (h: constr) :=
-  refine '(tac_specialize_assert_delay _ $h _ _ _ _ _ _ _ _ _ _ _ _);
-  Control.shelve_unifiable ();
-  Control.dispatch [
-    (fun _ => ltac1:(pm_reflexivity));
-    (fun _ => ltac1:(solve_to_wand tt));
-    (fun _ => ltac1:(class_apply @add_modal_id));
-    (fun _ => ltac1:(pm_reduce));
-    (fun _ => ltac1:(pm_reduce))
-  ].
+(* Starts the application of the rule [lem]: its conclusion is applied to the
+   goal, and the goal becomes [P1 ∗ locked B], where [P1] is the premise of
+   the rule and [B] the premise of its conclusion. As with [iPoseProofCore],
+   the Coq-level premises of [lem] become goals, before the main goal; the
+   rule does not go through the context. *)
+Ltac iSpecializeFrameApplyStart lem :=
+  notypeclasses refine
+    (tac_specialize_frame_apply _ _ _ _ _ _ (into_emp_valid_proj _ _ _ lem) _ _ _);
+  [iIntoEmpValid; try tc_solve
+  |solve_to_wand tt
+  |tc_solve
+  |pm_reduce].
 
 Ltac iApplyHypLast H :=
   eapply tac_apply with H _ _ _;
@@ -488,18 +478,7 @@ Ltac iApplyHypLast H :=
 
 Ltac2 iApplyCapAutoT_init0 lemma :=
   let tbl := { contents := [] } in
-  let x := iFresh () in
-  ltac1:(x lem |- once (iPoseProofCore lem as false (fun H => iRename H into x)))
-    (Ltac1.of_constr x) (Ltac1.of_constr lemma);
-  on_lasts [(fun _ =>
-    iSpecializeDelay x > [|
-      ltac1:(h |-
-        let f := iFresh in
-        iIntros f;
-        iApplyHypLast h;
-        iRevert f) (Ltac1.of_constr x)
-    ]
-  )];
+  ltac1:(lem |- once (iSpecializeFrameApplyStart lem)) (Ltac1.of_constr lemma);
   tbl.
 
 Ltac2 iApplyCapAuto_init0 lemma :=
@@ -565,22 +544,27 @@ Ltac2 iApplyCapAuto_cleanup () :=
 
 (* iApplyCapAutoCore *)
 
-Ltac iNamedAccu_fail_explain :=
-  lazymatch goal with
-  | |- envs_entails _ (?remaining ∗ _) =>
-    fail "iApplyCapAuto: the following resources could not be found in the context:"
-         remaining
-  end.
+(* Once the premise of the rule has been framed, unlocks the rest of the
+   goal, or reports the resources that could not be framed. *)
+Ltac iUnlockFramed :=
+  first
+    [ notypeclasses refine (tac_unlock_emp _ _ _)
+    | notypeclasses refine (tac_unlock_True _ _ _)
+    | notypeclasses refine (tac_unlock _ _ _)
+    | lazymatch goal with
+      | |- envs_entails _ (?remaining ∗ locked _) =>
+        fail "iApplyCapAuto: the following resources could not be found in the context:"
+             remaining
+      end ].
 
 Ltac2 iApplyCapAutoCore lemma :=
   let tbl := iApplyCapAutoT_init0 lemma in
   let iFrameCap := fun () => record_framed tbl (iFrameAuto ()) in
   grepeat (fun _ =>
     Control.extend [] (fun _ => try (Control.once solve_pure_iinstr))
-      [ (fun _ => try (iFrameCap ())); (fun _ => ()) ]);
-  on_lasts [ (fun _ => ltac1:(iNamedAccu || iNamedAccu_fail_explain)); (fun _ => ()) ];
+      [ (fun _ => try (iFrameCap ())) ]);
   on_lasts [ (fun _ =>
-    iNamedIntro ();
+    ltac1:(iUnlockFramed);
     try ltac1:(iNext);
     reintro_cap_resources tbl;
     iApplyCapAuto_cleanup ()
@@ -639,8 +623,9 @@ Ltac iInstr_get_rule0 hi cont :=
 Tactic Notation "iInstr_get_rule" constr(hi) tactic(cont) := iInstr_get_rule0 hi cont.
 
 Ltac iInstr_close hprog :=
-  (* because of iApplyCapAuto's context shuffling, [hi] and [hcont]
-     are not valid anymore... recover them. *)
+  (* [hi] goes through the instruction rule and is re-introduced from its
+     post-condition, so its name may have changed: recover [hi] and
+     [hcont] by shape. *)
   (* XXX make this a bit more robust *)
   lazymatch goal with |- context [ Esnoc _ ?hi (_ ↦ₐ encodeInstrW _)%I ] =>
   lazymatch goal with |- context [ Esnoc _ ?hcont (_ ↦ₐ encodeInstrW _ -∗ _)%I ] =>
@@ -673,6 +658,21 @@ Tactic Notation "iCombine_ident" constr(H1) constr(H2) "as" constr(pat) :=
   iCombine_ident [H1;H2] as pat.
 
 
+(* Rewrites [WInt (if decide (r = cnull) then 0 else 0)] (from the rules
+   writing an immediate to a register) to [WInt 0]. The occurrences are found
+   syntactically, then changed by conversion when [decide (r = cnull)]
+   computes (concrete [r]), or rewritten otherwise. *)
+Ltac simpl_cnull_zero :=
+  repeat
+    match goal with
+    | |- context [ WInt (if decide (?r = cnull) then ?z1 else ?z2) ] =>
+        unify z1 0%Z; unify z2 0%Z;
+        first
+          [ change (WInt (if decide (r = cnull) then z1 else z2)) with (WInt 0)
+          | replace (WInt (if decide (r = cnull) then z1 else z2)) with (WInt 0)
+              by (destruct (decide _); done) ]
+    end.
+
 (* TODO: find a way of displaying an error message if iApplyCapAuto fails,
    displaying the rule it was called on, and without silencing iApplyCapAuto's
    own error messages? *)
@@ -690,7 +690,7 @@ Ltac iInstr_lc hprog hlc:=
   iInstr_get_rule hi ltac:(fun rule =>
                              iApplyCapAuto rule;
                              [ .. | iInstr_close hprog
-                                    ; repeat (replace ( WInt (if decide (_ = cnull) then 0 else 0) ) with (WInt 0) by (destruct (decide _); done))
+                                    ; simpl_cnull_zero
                                     ; try wp_pure_lc hlc'
                                     ; try (iCombine_ident (INamed hlc) hlc' as (INamed hlc))
                           ])

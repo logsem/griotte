@@ -236,8 +236,8 @@ Section Switcher_Return_Blocks_2.
     unfocus_block_lockstep "Hscode" "Hscls" "Hcode" "Hcls" as "Hscode" "Hcode".
 
     (* Blocks 14-15 *)
-    iInsertList "Hrmap" [ctp;ca2;ct0;ct1].
-    iInsertListSpec "Hsmap" [ctp;ca2;ct0;ct1].
+    iInsertRegs "Hrmap" ["Hctp";"Hca2";"Hct0";"Hct1"].
+    iInsertRegsSpec "Hsmap" ["Hsctp";"Hsca2";"Hsct0";"Hsct1"].
     switcher_change_pc (switcher_block_offset 14).
     iApply (switcher_blocks_14_15_spec with
       "[- $Hspec $Hj $HPC $HsPC $Hcra $Hscra $Hrmap $Hsmap]").

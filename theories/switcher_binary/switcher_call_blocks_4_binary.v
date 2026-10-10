@@ -325,8 +325,8 @@ Section Switcher_Call_Blocks_4.
     (* Block 10: clear the other registers *)
     switcher_focus_block_lockstep 10 "Hscode" "Hcode" as "Hscode" "Hscls" "Hcode" "Hcls".
     iHide "Hcls" as hcont. iHide "Hscls" as hscont.
-    iInsertList "Hregs" [ct1;ctp;ct2;cs1;cs0].
-    iInsertListSpec "Hsregs" [ct1;ctp;ct2;cs1;cs0].
+    iInsertRegs "Hregs" ["Hct1";"Hctp";"Hct2";"Hcs1";"Hcs0"].
+    iInsertRegsSpec "Hsregs" ["Hsct1";"Hsctp";"Hsct2";"Hscs1";"Hscs0"].
     iApply (clear_registers_pre_call_spec with
       "[- $Hspec $Hj $HPC $HsPC $Hcode $Hscode $Hregs $Hsregs]"); try solve_pure.
     { rewrite !dom_insert_L Hdom. set_solver-. }

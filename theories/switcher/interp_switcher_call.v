@@ -171,7 +171,7 @@ Section fundamental.
     assert (is_Some (rmap !! ca1)) as [? ?] by (apply elem_of_dom; rewrite Hdom; set_solver-).
     iExtract "Hrmap" ca0 as "Hca0".
     iExtract "Hrmap" ca1 as "Hca1".
-    iInsertList "Hrmap" [ct1;ctp;ct2].
+    iInsertRegs "Hrmap" ["Hct1";"Hctp";"Hct2"].
     iApply (switcher_call_blocks_5_spec with
       "[- $HPC $Hcsp $Hcells $Hrmap $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1]"); first done.
     { repeat (rewrite dom_insert_L). repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }

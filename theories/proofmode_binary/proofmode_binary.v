@@ -41,22 +41,30 @@ Section elim_modal_cps.
     iApply HE; first done. iFrame.
   Qed.
 
-  (** Proof mode version, on hypothesis [i]: the goal becomes [B -∗ G]. *)
-  Lemma tac_elim_modal_cps (Δ : envs PROP) i M B G :
-    envs_lookup i Δ = Some (false, M) →
-    ElimModal True false false M B G G →
-    envs_entails (envs_delete true i false Δ) (B -∗ G) →
+  (** Specialization of the wand [R] with on-demand framing of its premise
+      [P1] (as in [tac_specialize_frame']), where the update [P2] of its
+      conclusion is eliminated into the goal [G]. The update is resolved
+      against [G] before framing, so that its mask is fixed by the goal. *)
+  Lemma tac_specialize_frame_elim_modal (Δ : envs PROP) R P1 P2 B G :
+    (⊢ R) →
+    IntoWand true false R P1 P2 →
+    ElimModal True false false P2 B G G →
+    envs_entails Δ (P1 ∗ locked (B -∗ G)%I) →
     envs_entails Δ G.
   Proof.
-    rewrite envs_entails_unseal => Hlookup HE HG.
-    rewrite envs_lookup_sound // HG /=.
-    iIntros "[HM HG]". iApply (elim_modal_cps with "HM HG").
+    intros ?? HE HΔ. eapply tac_specialize_frame'; [done..|].
+    rewrite envs_entails_unseal in HΔ |- *. rewrite HΔ. unlock.
+    iIntros "[$ HG] HP2". iApply (elim_modal_cps _ _ _ HE with "HP2 HG").
   Qed.
 End elim_modal_cps.
 
-Ltac iElimModalCPS h :=
-  notypeclasses refine (tac_elim_modal_cps _ h _ _ _ _ _ _);
-  [pm_reflexivity
+(* Starts the application of the spec rule [lem]: the goal becomes
+   [P1 ∗ locked (B -∗ G)] (see [iSpecializeFrameApplyStart]). *)
+Ltac iSpecializeFrameElimModalStart lem :=
+  notypeclasses refine
+    (tac_specialize_frame_elim_modal _ _ _ _ _ _ (into_emp_valid_proj _ _ _ lem) _ _ _);
+  [iIntoEmpValid; try tc_solve
+  |solve_to_wand tt
   |tc_solve
   |pm_reduce].
 
@@ -189,30 +197,18 @@ Ltac iFrameSpecCtx :=
 
 Ltac2 iApplyCapAutoSpecT_init0 lemma :=
   let tbl := { contents := [] } in
-  let x := iFresh () in
-  ltac1:(x lem |- once (iPoseProofCore lem as false (fun H => iRename H into x)))
-    (Ltac1.of_constr x) (Ltac1.of_constr lemma);
-  on_lasts [(fun _ =>
-    iSpecializeDelay x > [|
-      ltac1:(h |-
-        let f := iFresh in
-        iIntros f;
-        iElimModalCPS h;
-        iRevert f) (Ltac1.of_constr x)
-    ]
-  )];
+  ltac1:(lem |- once (iSpecializeFrameElimModalStart lem)) (Ltac1.of_constr lemma);
   tbl.
 
 Ltac2 iApplyCapAutoSpecCore lemma :=
   let tbl := iApplyCapAutoSpecT_init0 lemma in
-  on_lasts [ (fun _ => try (ltac1:(iFrameSpecCtx))); (fun _ => ()) ];
+  on_lasts [ (fun _ => try (ltac1:(iFrameSpecCtx))) ];
   let iFrameCap := fun () => record_framed_spec tbl (iFrameAuto ()) in
   grepeat (fun _ =>
-    Control.extend [] (fun _ => try (Control.once solve_pure))
-      [ (fun _ => try (iFrameCap ())); (fun _ => ()) ]);
-  on_lasts [ (fun _ => ltac1:(iNamedAccu || iNamedAccu_fail_explain)); (fun _ => ()) ];
+    Control.extend [] (fun _ => try (Control.once solve_pure_iinstr))
+      [ (fun _ => try (iFrameCap ())) ]);
   on_lasts [ (fun _ =>
-    iNamedIntro ();
+    ltac1:(iUnlockFramed);
     reintro_spec_resources tbl;
     iApplyCapAuto_cleanup ()
   )].
@@ -417,8 +413,7 @@ Ltac iInstr_spec0 hprog :=
   iInstr_spec_get_rule hi ltac:(fun rule =>
     iApplyCapAutoSpec rule;
     [ .. | iInstr_spec_close hprog;
-           repeat (replace (WInt (if decide (_ = cnull) then 0 else 0)) with (WInt 0)
-                     by (destruct (decide _); done));
+           simpl_cnull_zero;
            try iSpecSeq ]).
 
 Tactic Notation "iInstr_spec" constr(H) := iInstr_spec0 H.
