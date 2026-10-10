@@ -328,19 +328,9 @@ Section Adequacy.
                 ltac:(solve_addr+H0 H1 H2) HsubBounds Himports_contiguous T_data_size).
       iFrame "#".
     }
-    iMod (world_interp_salloc W0 B ot_switcher_propC (ot_switcher switcher_cmpt)
-            {[ (WSealable T_f, WSealable T_f); borrow_pair (WSealable T_f, WSealable T_f) ]}
-           with "Hsealed_pred_ot_switcher [] [] Hworld_interp_B")
-      as "(Hworld_interp_B & #Hseal_T_f)"; first done.
-    { iIntros (w); iApply mono_priv_ot_switcher. }
-    { rewrite normalise_sealed_words_borrow big_sepS_singleton; iFrame "Hot_switcher_T_f". }
-    iAssert (interp W0' B (WSealed (ot_switcher switcher_cmpt) T_f,
-                           WSealed (ot_switcher switcher_cmpt) T_f))
-      as "#Hinterp_T_f".
-    { rewrite interp_sealed_inv /interp_sb.
-      iSplit; first done.
-      iSplit; first done.
-      iFrame "Hseal_T_f". }
+    iMod (seal_main_export_binary W0 B T_f
+           with "Hsealed_pred_ot_switcher Hot_switcher_T_f Hworld_interp_B")
+      as "(Hworld_interp_B & #Hinterp_T_f)"; [done..|].
 
     (* 8 - Initialise the world of B: its compartment becomes permanent, its
        exported entry is sealed, and the stack is allocated as revoked,
@@ -348,20 +338,13 @@ Section Adequacy.
     iMod (initialise_adversary_world_revoked_binary W0' switcher_cmpt _ B
            with "Hsealed_pred_ot_switcher HB_imports HB_code HB_data [] [] Hworld_interp_B")
       as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hrevoked_stack_B & #HB_exports)";
-      auto.
+      [auto..| | |].
     { (* The exported entry B.adv satisfies the sealing predicate of the switcher *)
-      iIntros "!>" (i a Ha) "#Hpcc_interp #Hcgp_interp".
-      destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
-      rewrite B_exp_tbl /= in Hi.
-      destruct i as [|i]; last lia.
-      replace (cmpt_exp_tbl_entries_start B_cmpt ^+ 0%nat)%a
-        with (cmpt_exp_tbl_entries_start B_cmpt) by solve_addr.
-      iApply (adversary_export_prop_binary _ _ _ _ 0 stack_callee_secret_B_adv_args offset_B_adv
-               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries
-                     Hpcc_interp Hcgp_interp Hentry_B_adv Hentry_B_adv'").
-      - by rewrite B_exp_tbl.
-      - solve_addr.
-      - rewrite /stack_callee_secret_B_adv_args; lia.
+      iApply (adversary_exports_prop_binary _ _ _ _
+                [(stack_callee_secret_B_adv_args, offset_B_adv)]
+               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
+        [by rewrite B_exp_tbl | by repeat constructor |].
+      rewrite /= finz_add_0_default; iFrame "Hentry_B_adv Hentry_B_adv'".
     }
     { rewrite B_imports.
       iIntros "_".

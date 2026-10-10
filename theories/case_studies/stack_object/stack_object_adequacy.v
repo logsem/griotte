@@ -267,42 +267,22 @@ Section Adequacy.
     iAssert (ot_switcher_prop W0' C (WSealable SO_f)) as "#Hot_switcher_SO_f".
     { iApply (stack_object_f_spec _ _ _ _ _ _ _ _ _ W0' assertN switcherN soN soN);
         try iFrame "#"; eauto; solve_ndisj. }
-    iMod (world_interp_salloc W0 C ot_switcher_propC (ot_switcher switcher_cmpt)
-            {[ WSealable SO_f; borrow (WSealable SO_f) ]}
-           with "Hsealed_pred_ot_switcher [] [] Hworld_interp_C")
-      as "(Hworld_interp_C & #Hseal_SO_f)"; first done.
-    { iIntros (w); iApply mono_priv_ot_switcher. }
-    { rewrite normalise_sealed_words_borrow big_sepS_singleton; iFrame "Hot_switcher_SO_f". }
-    iAssert (interp W0' C (WSealed (ot_switcher switcher_cmpt) SO_f)) as "#Hinterp_SO".
-    { by iEval (rewrite fixpoint_interp1_eq /= /interp_sb). }
+    iMod (seal_main_export W0 C SO_f
+           with "Hsealed_pred_ot_switcher Hot_switcher_SO_f Hworld_interp_C")
+      as "(Hworld_interp_C & #Hinterp_SO)"; [done..|].
 
     (* Initialises the world for C *)
     pose proof switcher_cmpt_disjoints as (Hsw_main & Hsw_C).
     iMod (initialise_adversary_world W0' switcher_cmpt _ C
            with "Hsealed_pred_ot_switcher HC_imports HC_code HC_data Hstack [] [] Hworld_interp_C")
       as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)";
-      auto.
+      [auto..| | |].
     { (* The exported entries C.f and C.g satisfy the sealing predicate of the switcher *)
-      iIntros "!>" (i a Ha) "#Hpcc_interp #Hcgp_interp".
-      destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
-      rewrite C_exp_tbl /= in Hi.
-      destruct i as [| [|i] ]; [| |lia].
-      - replace (cmpt_exp_tbl_entries_start C_cmpt ^+ 0%nat)%a
-          with (cmpt_exp_tbl_entries_start C_cmpt) by solve_addr.
-        iApply (adversary_export_prop _ _ _ _ 0 0 offset_adv_f
-                 with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
-                       Hpcc_interp Hcgp_interp Hentry_Cf Hentry_Cf'").
-        + by rewrite C_exp_tbl.
-        + solve_addr.
-        + lia.
-      - replace (cmpt_exp_tbl_entries_start C_cmpt ^+ 1%nat)%a
-          with (cmpt_exp_tbl_entries_start C_cmpt ^+ 1)%a by solve_addr.
-        iApply (adversary_export_prop _ _ _ _ 1 2 offset_adv_g
-                 with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
-                       Hpcc_interp Hcgp_interp Hentry_Cg Hentry_Cg'").
-        + by rewrite C_exp_tbl.
-        + done.
-        + lia.
+      iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f); (2, offset_adv_g)]
+               with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
+        [by rewrite C_exp_tbl | by repeat constructor |].
+      rewrite /= finz_add_0_default.
+      iFrame "Hentry_Cf Hentry_Cf' Hentry_Cg Hentry_Cg'".
     }
     { rewrite C_imports.
       iIntros "(#Hpcc_interp & #Hcgp_interp & #Hexports)".

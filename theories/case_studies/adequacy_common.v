@@ -482,7 +482,7 @@ Section adversary_world.
     iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports Hworld".
     destruct (adv_world_free_cmpt W C_cmpt Hfree) as (Hfree_imports & Hfree_code & Hfree_data).
     iMod (alloc_compartment_interp with "HC_imports HC_code HC_data [Himports] Hworld")
-      as "($ & $ & $ & _ & $)"; eauto.
+      as "($ & $ & $ & _ & $)"; [done..| |done].
     iIntros "(#Hpcc & #Hcgp & Hworld)".
     iMod (world_interp_open_sealing_update' _ C _ ot_switcher_propC switcher.ot_switcher
             (exported_entries_words C_cmpt) with "Hseal_pred [] [] Hworld")
@@ -694,7 +694,87 @@ Section adversary_exports.
     by apply cmpt_exp_tbl_addrs_elem_of.
   Qed.
 
+  (** All the entries of the export table of an adversary [C_cmpt] satisfy
+      the sealing predicate of the switcher, given its export table as a list
+      of pairs (number of arguments, offset) and the entry-point resources of
+      each entry. This is the premise of [initialise_adversary_world]. *)
+  Lemma adversary_exports_prop
+    (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
+    (exports : list (nat * nat)) :
+    cmpt_exp_tbl_entries C_cmpt = (λ e : nat * nat, WInt (encode_entry_point e.1 e.2)) <$> exports →
+    Forall (λ e, e.1 < 7) exports →
+    na_inv cerise_nais Nswitcher switcher_inv ⊢
+    inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ cmpt_pcc_cap C_cmpt) -∗
+    inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ cmpt_cgp_cap C_cmpt) -∗
+    ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
+       inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ v)) -∗
+    ([∗ list] i ↦ e ∈ exports,
+       WSealed switcher.ot_switcher
+         (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a) ↦□ₑ e.1 ∗
+       WSealed switcher.ot_switcher
+         (borrow_sb (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a)) ↦□ₑ e.1) -∗
+    □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
+        interp W C (cmpt_pcc_cap C_cmpt) -∗
+        interp W C (cmpt_cgp_cap C_cmpt) -∗
+        ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a))).
+  Proof.
+    intros Htbl Hargs.
+    iIntros "#Hswitcher #Hpcc #Hcgp #Hentries #Hexports !>"
+      (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
+    destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
+    rewrite Htbl length_fmap in Hi.
+    destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [args offset] He].
+    iDestruct (big_sepL_lookup with "Hexports") as "[Hentry Hentry']"; first exact He.
+    iApply (adversary_export_prop _ _ _ _ i args offset
+             with "Hswitcher Hpcc Hcgp Hentries Hinterp_pcc Hinterp_cgp Hentry Hentry'").
+    - by rewrite Htbl list_lookup_fmap He.
+    - done.
+    - by apply (Forall_lookup_1 _ _ _ _ Hargs He).
+  Qed.
+
 End adversary_exports.
+
+(** ** Exported entry points of the main compartment *)
+Section main_exports.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}.
+
+  (** Seal an exported entry [sb] of the main compartment with [ot_switcher]
+      in the world [W], given that it satisfies the sealing predicate of the
+      switcher in the updated world. *)
+  Lemma seal_main_export (W : WORLD) (C : CmptName) (sb : Sealable) :
+    let W' := <o[ switcher.ot_switcher := {[ WSealable sb; borrow (WSealable sb) ]} ]o> W in
+    isGlobalSealable sb = true →
+    switcher.ot_switcher ∉ dom (seal_std W) →
+    seal_pred switcher.ot_switcher ot_switcher_propC -∗
+    ot_switcher_prop W' C (WSealable sb) -∗
+    world_interp W C
+    ==∗
+    world_interp W' C ∗
+    interp W' C (WSealed switcher.ot_switcher sb).
+  Proof.
+    intros W' Hglobal Hfresh.
+    iIntros "#Hseal_pred #Hprop Hworld".
+    iMod (world_interp_salloc W C ot_switcher_propC switcher.ot_switcher
+            {[ WSealable sb; borrow (WSealable sb) ]}
+           with "Hseal_pred [] [] Hworld")
+      as "($ & #Hseal)"; first done.
+    { iIntros (w); iApply mono_priv_ot_switcher. }
+    { rewrite normalise_sealed_words_borrow big_sepS_singleton.
+      replace (force_global (WSealable sb)) with (WSealable sb)
+        by (destruct sb as [? [] | ? [] ]; by cbn in * ).
+      iFrame "Hprop". }
+    iModIntro.
+    by iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+  Qed.
+
+End main_exports.
 
 (** ** Size obligations of the main compartment *)
 Section main_sizes.

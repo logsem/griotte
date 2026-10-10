@@ -227,20 +227,12 @@ Section Adequacy.
     iMod (initialise_adversary_world_revoked_binary _ switcher_cmpt _ B
            with "Hsealed_pred_ot_switcher HB_imports HB_code HB_data [] [] Hworld_interp_B")
       as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hrevoked_stack_B & #HB_exports)";
-      auto.
+      [auto..| | |].
     { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
-      iIntros "!>" (i a Ha) "#Hpcc_interp #Hcgp_interp".
-      destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
-      rewrite B_exp_tbl /= in Hi.
-      destruct i as [|i]; last lia.
-      replace (cmpt_exp_tbl_entries_start B_cmpt ^+ 0%nat)%a
-        with (cmpt_exp_tbl_entries_start B_cmpt) by solve_addr.
-      iApply (adversary_export_prop_binary _ _ _ _ 0 write_only_secret_B_f_args offset_B_f
-               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries
-                     Hpcc_interp Hcgp_interp Hentry_Bf Hentry_Bf'").
-      - by rewrite B_exp_tbl.
-      - solve_addr.
-      - rewrite /write_only_secret_B_f_args; lia.
+      iApply (adversary_exports_prop_binary _ _ _ _ [(write_only_secret_B_f_args, offset_B_f)]
+               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
+        [by rewrite B_exp_tbl | by repeat constructor |].
+      rewrite /= finz_add_0_default; iFrame "Hentry_Bf Hentry_Bf'".
     }
     { rewrite B_imports.
       iIntros "_".

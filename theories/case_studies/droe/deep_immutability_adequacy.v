@@ -216,20 +216,12 @@ Section Adequacy.
     iMod (initialise_adversary_world _ switcher_cmpt _ C
            with "Hsealed_pred_ot_switcher HC_imports HC_code HC_data Hstack [] [] Hworld_interp_C")
       as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)";
-      auto.
+      [auto..| | |].
     { (* The exported entry C.f satisfies the sealing predicate of the switcher *)
-      iIntros "!>" (i a Ha) "#Hpcc_interp #Hcgp_interp".
-      destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
-      rewrite C_exp_tbl /= in Hi.
-      destruct i as [|i]; last lia.
-      replace (cmpt_exp_tbl_entries_start C_cmpt ^+ 0%nat)%a
-        with (cmpt_exp_tbl_entries_start C_cmpt) by solve_addr.
-      iApply (adversary_export_prop _ _ _ _ 0 1 1
-               with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
-                     Hpcc_interp Hcgp_interp Hentry_Cf Hentry_Cf'").
-      - by rewrite C_exp_tbl.
-      - solve_addr.
-      - lia.
+      iApply (adversary_exports_prop _ _ _ _ [(1, 1)]
+               with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
+        [by rewrite C_exp_tbl | by repeat constructor |].
+      rewrite /= finz_add_0_default; iFrame "Hentry_Cf Hentry_Cf'".
     }
     { rewrite C_imports.
       iIntros "_".
