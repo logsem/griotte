@@ -2,11 +2,12 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import sts_multiple_updates.
 From griotte Require Import logrel_binary interp_weakening_binary monotone_binary.
 From griotte Require Import region_invariants_revocation_binary.
-From griotte Require Import rules proofmode proofmode_binary register_tactics_binary map_simpl.
+From griotte Require Import rules proofmode proofmode_binary register_tactics_binary.
 From griotte Require Import world_ghost_theory_binary world_interp_stack_binary stack_world_resources_binary.
-From griotte Require Import switcher_preamble_binary switcher_spec_call_binary.
-From griotte Require Import fetch_spec_binary switcher_spec_call_diag_binary.
-From griotte Require Import cmdc_binary cmdc_spec_post_B_binary.
+From griotte Require Import switcher_preamble_binary switcher_spec_call_binary switcher_spec_call_diag_binary.
+From griotte Require Import cmdc_spec_states_binary cmdc_spec_world_binary
+  cmdc_spec_init_blocks_1_binary cmdc_spec_call_blocks_2_binary
+  cmdc_spec_prep_blocks_3_binary cmdc_spec_halt_blocks_4_binary.
 
 (** * Binary specification of the CMDC confidentiality example
 
@@ -18,7 +19,7 @@ From griotte Require Import cmdc_binary cmdc_spec_post_B_binary.
     [b]. The cell [b] is shared with [B] as a permanent region of the world
     of [B]. After [B.f] returns, [main] opens the world of [B] at [b] and
     keeps it open: [B] does not run anymore, and [main] owns the points-to
-    of [b]. The rest of the execution is specified by [cmdc_spec_post_B]. *)
+    of [b]. *)
 
 Section CMDC.
   Context
@@ -115,6 +116,21 @@ Section CMDC.
       ⊢ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → ⤇ Seq (Instr Halted) ∗ na_own cerise_nais ⊤ }})%I.
   Proof.
+    (* Outline of the proof:
+       - [cmdc_init_blocks_1_spec]: block 0, store [secret_c] into [c],
+         erase [b], and prepare the argument [b] of the call to [B.f],
+       - [cmdc_call_blocks_2_spec cmdc_call_B]: blocks 1-3, fetch the
+         imports and jump to the switcher,
+       - [cmdc_world_share]: share [b] in the world of [B],
+       - [switcher_cc_specification_diag]: call to [B.f],
+       - [cmdc_world_return]: get [b] back from the world of [B],
+       - [cmdc_prep_blocks_3_spec]: block 4, erase [c], store [secret_b]
+         into [b], and prepare the argument [c] of the call to [C.g],
+       - [cmdc_call_blocks_2_spec cmdc_call_C]: blocks 5-7, fetch the
+         imports and jump to the switcher,
+       - [cmdc_world_share]: share [c] in the world of [C],
+       - [switcher_cc_specification_diag]: call to [C.g],
+       - [cmdc_halt_blocks_4_spec]: block 7, halt. *)
     intros imports; subst imports.
     iIntros (Hrmap_dom HsubBounds Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
                Hrevoked_stack_B Hrevoked_stack_C)
@@ -127,338 +143,145 @@ Section CMDC.
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
       & #Hstack_revoked_B & #Hstack_revoked_C)".
-    codefrag_facts "Hcode_main".
-    rewrite /cmdc_conf_main_data /= in Hcgp_contiguous.
-    rewrite /cmdc_conf_main_imports /= in Himports_contiguous.
-    iDestruct (big_sepL2_length with "Hcsp_stk") as "%Hlen_stack".
-
-    (* Extract the needed registers from the register map *)
-    iExtractList "Hrmap" [ca0;ctp;ct0;ct1;cs0;cs1;cra]
-      as ["Hca0";"Hctp";"Hct0";"Hct1";"Hcs0";"Hcs1";"Hcra"].
+    iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1;cra]
+      as ["Hca0";"Hca1";"Hctp";"Hct0";"Hct1";"Hcs0";"Hcs1";"Hcra"].
     iDestruct "Hca0" as "(Hca0 & Hsca0 & ->)".
+    iDestruct "Hca1" as "(Hca1 & Hsca1 & ->)".
     iDestruct "Hctp" as "(Hctp & Hsctp & ->)".
     iDestruct "Hct0" as "(Hct0 & Hsct0 & ->)".
     iDestruct "Hct1" as "(Hct1 & Hsct1 & ->)".
     iDestruct "Hcs0" as "(Hcs0 & Hscs0 & ->)".
     iDestruct "Hcs1" as "(Hcs1 & Hscs1 & ->)".
     iDestruct "Hcra" as "(Hcra & Hscra & ->)".
+    iRegionSplit "Hcgp_main" as "(Hcgp_b & Hcgp_c & Hsecret_b & Hsecret_c)".
+    iSpecRegionSplit "Hscgp_main" as "(Hscgp_b & Hscgp_c & Hssecret_b & Hssecret_c)".
+    iRegionSplit "Himports_main" as "(Himport_switcher & Himport_B_f & Himport_C_g)".
+    iSpecRegionSplit "Hsimports_main" as "(Hsimport_switcher & Hsimport_B_f & Hsimport_C_g)".
+    assert (cmdc_code_bounds pc_b pc_e pc_a) as Hbounds.
+    { split; first done. exact Himports_contiguous. }
 
-    (* Extract the addresses of b, c, secret_b and secret_c, in both runs *)
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_c Hcgp_main]".
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hsecret_b Hcgp_main]".
-    { transitivity (Some (cgp_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hsecret_c _]".
-    { transitivity (Some (cgp_b ^+ 4)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (spec_region_pointsto_cons with "Hscgp_main") as "[Hscgp_b Hscgp_main]".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (spec_region_pointsto_cons with "Hscgp_main") as "[Hscgp_c Hscgp_main]".
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (spec_region_pointsto_cons with "Hscgp_main") as "[Hssecret_b Hscgp_main]".
-    { transitivity (Some (cgp_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (spec_region_pointsto_cons with "Hscgp_main") as "[Hssecret_c _]".
-    { transitivity (Some (cgp_b ^+ 4)%a); auto; solve_addr. }
-    { solve_addr. }
+    (* Block 0: store secret_c into c, erase b, and prepare the argument b *)
+    iApply (cmdc_init_blocks_1_spec with
+             "[- $Hspec $Hj $HPC $HsPC $Hcgp $Hscgp $Hca0 $Hsca0 $Hct0 $Hsct0 $Hct1 $Hsct1
+              $Hcgp_b $Hscgp_b $Hcgp_c $Hscgp_c $Hsecret_c $Hssecret_c $Hcode_main $Hscode_main]");
+      [done|done|].
+    iNext; iIntros "(Hj & HPC & HsPC & Hcgp & Hscgp & Hca0 & Hsca0
+                    & [%wct0 [Hct0 Hsct0]] & [%wct1 [Hct1 Hsct1]]
+                    & Hcgp_b & Hscgp_b & Hcgp_c & Hscgp_c & _ & _ & Hcode_main & Hscode_main)".
 
-    (* Extract the imports, in both runs *)
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_B_f Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_g _]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (spec_region_pointsto_cons with "Hsimports_main") as "[Hsimport_switcher Hsimports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (spec_region_pointsto_cons with "Hsimports_main") as "[Hsimport_B_f Hsimports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (spec_region_pointsto_cons with "Hsimports_main") as "[Hsimport_C_g _]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
+    (* Blocks 1-3: fetch the imports and jump to the switcher *)
+    iApply (cmdc_call_blocks_2_spec cmdc_call_B pc_b pc_e pc_a B_f C_g with
+             "[- $Hspec $Hj $HPC $HsPC $Hctp $Hsctp $Hct0 $Hsct0 $Hct1 $Hsct1 $Hcs0 $Hscs0
+              $Hcra $Hscra $Himport_switcher $Hsimport_switcher $Himport_B_f $Hsimport_B_f
+              $Hcode_main $Hscode_main]"); first done.
+    iNext; iIntros "(Hj & HPC & HsPC & Hctp & Hsctp & Hct0 & Hsct0 & Hct1 & Hsct1
+                    & Hcs0 & Hscs0 & Hcra & Hscra & Himport_switcher & Hsimport_switcher
+                    & _ & _ & Hcode_main & Hscode_main)".
 
-
-    (* --------------------------------------------------- *)
-    (* ----------------- Start the proof ----------------- *)
-    (* --------------------------------------------------- *)
-
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 0 : INIT ------------------ *)
-    (* --------------------------------------------------- *)
-
-    focus_block_0_lockstep "Hscode_main" "Hcode_main" as "Hscode" "Hscls" "Hcode" "Hcls".
-    iHide "Hcls" as hcont. iHide "Hscls" as hscont.
-
-    (* Lea cgp 3%Z *)
-    iInstr_lockstep "Hscode" "Hcode".
-    1,2: transitivity (Some (cgp_b ^+ 3)%a); auto; solve_addr.
-
-    (* Load ct0 cgp *)
-    iInstr_lockstep "Hscode" "Hcode".
-    1,2: split; [done| solve_addr].
-    iEval (cbn) in "Hct0"; iEval (cbn) in "Hsct0".
-
-    (* Lea cgp (-2)%Z *)
-    iInstr_lockstep "Hscode" "Hcode".
-    1,2: transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr.
-
-    (* Store cgp ct0 *)
-    iInstr_spec_lookup "Hscode" as "Hsi" "Hscode".
-    iMod (step_store_success_reg _ _ _ _ _ _ _ _ _ _ _ RW
-             with "[$HsPC $Hsi $Hsct0 $Hscgp $Hscgp_c $Hj]")
-      as "(Hj & HsPC & Hsi & Hsct0 & Hscgp & Hscgp_c)"
-    ; auto; try solve_pure.
-    { solve_addr. }
-    iSpecSeq.
-    iSpecialize ("Hscode" with "[$]").
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_success_reg _ _ _ _ _ _ _ _ _ _ _
-             with "[$HPC $Hi $Hct0 Hcgp $Hcgp_c]"); auto; try solve_pure.
-    { solve_addr. }
-    { by cbn. }
-    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hcgp_c)".
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    (* Lea cgp (-1)%Z *)
-    iInstr_lockstep "Hscode" "Hcode".
-    1,2: transitivity (Some cgp_b%a); auto; solve_addr.
-
-    (* Store cgp 0%Z *)
-    iInstr_lockstep "Hscode" "Hcode".
-    1,2: solve_addr.
-
-    (* Mov ca0 cgp *)
-    iInstr_lockstep "Hscode" "Hcode".
-
-    (* GetA ct0 ca0 *)
-    iInstr_lockstep "Hscode" "Hcode".
-
-    (* Add ct1 ct0 1%Z *)
-    iInstr_lockstep "Hscode" "Hcode".
-
-    (* Subseg ca0 ct0 ct1 *)
-    iInstr_lockstep "Hscode" "Hcode".
-    1,3: transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr.
-    1,2: solve_addr.
-
-    subst hcont hscont.
-    unfocus_block_lockstep "Hscode" "Hscls" "Hcode" "Hcls" as "Hscode_main" "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* -------------- BLOCK 1 and 2 : FETCH -------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block_lockstep 1 "Hscode_main" "Hcode_main" as a_fetch1 Ha_fetch1
-      "Hscode" "Hscls" "Hcode" "Hcls".
-    iHide "Hcls" as hcont. iHide "Hscls" as hscont.
-    iApply (fetch_spec_lockstep with
-             "[- $Hspec $Hj $HPC $HsPC $Hctp $Hsctp $Hct0 $Hsct0 $Hct1 $Hsct1 $Hcode $Hscode]"); eauto.
-    { solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
-    iFrame "Himport_switcher Hsimport_switcher".
-    iNext ; iIntros "(Hj & HPC & HsPC & Hctp & Hsctp & Hct0 & Hsct0 & Hct1 & Hsct1
-                      & Hcode & Hscode & Himport_switcher & Hsimport_switcher)".
-    iEval (cbn) in "Hctp".
-    iEval (cbn) in "Hsctp".
-    subst hcont hscont.
-    unfocus_block_lockstep "Hscode" "Hscls" "Hcode" "Hcls" as "Hscode_main" "Hcode_main".
-
-    focus_block_lockstep 2 "Hscode_main" "Hcode_main" as a_fetch2 Ha_fetch2
-      "Hscode" "Hscls" "Hcode" "Hcls".
-    iHide "Hcls" as hcont. iHide "Hscls" as hscont.
-    iApply (fetch_spec_lockstep with
-             "[- $Hspec $Hj $HPC $HsPC $Hct1 $Hsct1 $Hct0 $Hsct0 $Hcs0 $Hscs0 $Hcode $Hscode
-                 $Himport_B_f $Hsimport_B_f]"); eauto.
-    { solve_addr. }
-    iNext ; iIntros "(Hj & HPC & HsPC & Hct1 & Hsct1 & Hct0 & Hsct0 & Hcs0 & Hscs0
-                      & Hcode & Hscode & Himport_B_f & Hsimport_B_f)".
-    iEval (cbn) in "Hct1".
-    iEval (cbn) in "Hsct1".
-    subst hcont hscont.
-    unfocus_block_lockstep "Hscode" "Hscls" "Hcode" "Hcls" as "Hscode_main" "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 3: CALL B ----------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block_lockstep 3 "Hscode_main" "Hcode_main" as a_callB Ha_callB
-      "Hscode" "Hscls" "Hcode" "Hcls".
-    iHide "Hcls" as hcont. iHide "Hscls" as hscont.
-
-    (* Jalr cra ctp *)
-    iInstr_lockstep "Hscode" "Hcode".
-
-    (* Relinquish [b] and prove that the capability pointing to it is safe to share *)
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_b]") as "%Hcgp_b_stk".
-    assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
-    { clear -Hcgp_b_stk.
-      apply not_elem_of_finz_seq_between.
-      apply not_elem_of_finz_seq_between in Hcgp_b_stk.
-      destruct Hcgp_b_stk; [left|right]; solve_addr.
-    }
-
-    iDestruct ( init_PermRes W_init_B B cgp_b RW interpC (WInt 0, WInt 0)
-                with "[] [$Hcgp_b] [$Hscgp_b] []" ) as "Hcgp_b".
-    { done. }
-    { iApply future_priv_mono_interp_z. }
-    { iApply interp_int. }
-    iMod (world_interp_extend_perm with "Hworld_interp_B Hcgp_b")
-      as "(Hworld_interp_B & #Hrel_cgp_b)"; auto.
-
-    set (W1 := (<s[cgp_b:=Permanent]s>W_init_B)).
-    assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1.
-    { subst W1; eapply related_sts_priv_world_fresh_Permanent. }
-
-    iAssert (interp W1 B (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b,
-                          WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_W1_B_b".
-    { iEval (rewrite interp_diag_eq // /interp1_diag /=).
-      rewrite (finz_seq_between_cons cgp_b); last solve_addr.
-      rewrite (finz_seq_between_empty (cgp_b ^+ 1)%a); last solve_addr.
-      iApply big_sepL_singleton.
-      iExists RW, interp.
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
-      iSplit; first iFrame "Hrel_cgp_b".
-      iSplit; first (iNext ; by iApply zcond_interp).
-      iSplit; first (iNext ; by iApply rcond_interp).
-      iSplit; first (iNext ; by iApply wcond_interp).
-      subst W1.
-      iSplit.
-      + iApply (monoReq_interp _ _ _ _  Permanent); last done.
-        rewrite /std_update.
-        by rewrite lookup_insert_eq.
-      + iPureIntro.
-        by rewrite lookup_insert_eq.
-    }
-
-    (* Prove that the adversary's entry point is safe to share *)
-    iAssert (interp W1 B (WSealed ot_switcher B_f, WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
-    { iApply (interp_monotone_sd with "[%] Hinterp_Winit_B_f"); eauto. }
-
-    (* Prepare the argument registers for the call to the adversary *)
-    iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5] as ["Hca1";"Hca2";"Hca3";"Hca4";"Hca5"].
-    iDestruct "Hca1" as "(Hca1 & Hsca1 & ->)".
-    iDestruct "Hca2" as "(Hca2 & Hsca2 & ->)".
-    iDestruct "Hca3" as "(Hca3 & Hsca3 & ->)".
-    iDestruct "Hca4" as "(Hca4 & Hsca4 & ->)".
-    iDestruct "Hca5" as "(Hca5 & Hsca5 & ->)".
-    iPoseProof (arg_rmap_interp W1 B cmdc_conf_B_f_args ca0 with "Hinterp_W1_B_b") as "Hi0".
-    iPoseProof (arg_rmap_zero_interp W1 B cmdc_conf_B_f_args ca1) as "Hi1".
-    iPoseProof (arg_rmap_zero_interp W1 B cmdc_conf_B_f_args ca2) as "Hi2".
-    iPoseProof (arg_rmap_zero_interp W1 B cmdc_conf_B_f_args ca3) as "Hi3".
-    iPoseProof (arg_rmap_zero_interp W1 B cmdc_conf_B_f_args ca4) as "Hi4".
-    iPoseProof (arg_rmap_zero_interp W1 B cmdc_conf_B_f_args ca5) as "Hi5".
-    iPoseProof (arg_rmap_zero_interp W1 B cmdc_conf_B_f_args ct0) as "Hi6".
-    iDestruct (arg_rmap_prepare W1 B cmdc_conf_B_f_args
-                with "Hca0 Hsca0 Hi0 Hca1 Hsca1 Hi1 Hca2 Hsca2 Hi2 Hca3 Hsca3 Hi3
-                      Hca4 Hsca4 Hi4 Hca5 Hsca5 Hi5 Hct0 Hsct0 Hi6")
-      as "Hrmap_arg".
-
-    (* The other registers *)
+    (* Share b in the world of B *)
+    iMod (cmdc_world_share _ _ _ (cgp_b ^+ 1)%a with
+           "Hworld_interp_B Hstack_revoked_B Hinterp_Winit_B_f Hcgp_b Hscgp_b Hcsp_stk")
+      as "(Hworld_interp_B & #Hrel_cgp_b & #Hinterp_ca0 & #Hinterp_B_f
+           & Hstack_revoked_B' & %Hrevoked_B & %Hcgp_b_stk & Hcsp_stk)";
+      [solve_addr|done|done|].
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hsrmap]".
     iDestruct (big_sepM_sep with "Hsrmap") as "[Hsrmap _]".
-    iInsertList "Hrmap" [ctp].
-    iInsertListSpec "Hsrmap" [ctp].
+    iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"].
+    iInsertRegsSpec "Hsrmap" ["Hsca1"; "Hsctp"; "Hsct0"].
+    iDestruct (switcher_call_args_1_binary with "Hca0 Hsca0 Hinterp_ca0 Hrmap Hsrmap")
+      as (arg_rmap arg_smap rmap' smap')
+           "(%Hrmap'_dom & %Hsmap'_dom & %Harg_rmap & %Harg_smap & Hrmap_arg & Hrmap & Hsrmap)".
+    { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
+    { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
-    (* Prepare the stack resources required by the cross-compartment call specification *)
-    assert ( revoked_addresses W1 (finz.seq_between csp_b csp_e) ) as Hrevoked_stack_B_W1.
-    { rewrite /revoked_addresses Forall_forall.
-      rewrite /revoked_addresses Forall_forall in Hrevoked_stack_B.
-      intros a Ha; cbn in *.
-      rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_b_stk Ha).
-      by apply Hrevoked_stack_B.
-    }
-    iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_B") as "Hstack_revoked_B_W1"; eauto.
-
-    iApply (switcher_cc_specification_diag _ W1 B with
+    (* Call to B.f *)
+    iApply (switcher_cc_specification_diag with
              "[- $Hswitcher $Hspec $Hna $Hj
               $HPC $HsPC $Hcgp $Hscgp $Hcra $Hscra $Hcsp $Hscsp $Hct1 $Hsct1
               $Hcs0 $Hscs0 $Hcs1 $Hscs1 $Hrmap $Hsrmap $Hrmap_arg
-              $Hcsp_stk $Hscsp_stk $Hworld_interp_B $Hstack_revoked_B_W1
+              $Hcsp_stk $Hscsp_stk $Hworld_interp_B $Hstack_revoked_B'
               $Hcstk_frag $Hcstk_frag_spec
-              $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
-    { repeat first [rewrite dom_insert_L | rewrite dom_delete_L].
-      rewrite Hrmap_dom; set_solver. }
-    { repeat first [rewrite dom_insert_L | rewrite dom_delete_L].
-      rewrite Hrmap_dom; set_solver. }
-    { apply is_arg_rmap_of. }
-    { apply is_arg_rmap_of. }
-
+              $Hinterp_B_f $HentryB_f $HK]"); [done..|].
+    iSplit; first done.
     iNext.
-    iIntros (W2_B rmap' stk_mem' stk_mem_spec' l')
-      "( _ & _ & _
-      & %HW1_pubB_W2 & _ & %Hdom_rmap' & _ & _
+    clear dependent arg_rmap arg_smap rmap' smap' rmap.
+    iIntros (W_ret_B rmap stk_mem' stk_mem_spec' l)
+      "( _ & _ & _ & %Hrelated_pub_B & _ & %Hrmap_dom & _ & _
       & Hna & Hj & %Hcsp_bounds
       & Hworld_interp_B & Hcstk_frag & Hcstk_frag_spec
       & HPC & HsPC & Hcgp & Hscgp & Hcra & Hscra & Hcs0 & Hscs0 & Hcs1 & Hscs1 & Hcsp & Hscsp
       & [%warg0 (Hca0 & Hsca0 & _)] & [%warg1 (Hca1 & Hsca1 & _)]
       & Hrmap & Hcsp_stk & Hscsp_stk & HK)".
-    iEval (cbn) in "HPC".
-    iEval (cbn) in "HsPC".
+    iEval (cbn [updatePcPerm]) in "HPC".
+    iEval (cbn [updatePcPerm]) in "HsPC".
+    change_pc_to (pc_a ^+ cmdc_block_offset 4)%a.
 
-    (* We open the world of B at [b], to get its points-to predicates in both runs.
-       The address [b] is still Permanent, as public future worlds preserve
-       Permanent regions. The world of B stays open: B does not run anymore. *)
-    assert (std W2_B !! cgp_b = Some Permanent) as HW2_B_cgp_b.
-    { eapply region_state_pub_perm in HW1_pubB_W2; eauto.
-      subst W1.
-      rewrite std_update_multiple_insert_commute; last done.
-      rewrite !lookup_insert_eq; done.
-    }
+    (* Get b back from the world of B *)
+    destruct Hcsp_bounds as (Hcsp_b4 & _ & _).
+    iMod (cmdc_world_return with "Hworld_interp_B Hrel_cgp_b") as (wb swb) "[Hcgp_b Hscgp_b]";
+      [done|solve_addr|done|].
+    iExtractList "Hrmap" [ctp;ct0;ct1] as ["Hctp";"Hct0";"Hct1"].
+    iDestruct "Hctp" as "(Hctp & Hsctp & ->)".
+    iDestruct "Hct0" as "(Hct0 & Hsct0 & ->)".
+    iDestruct "Hct1" as "(Hct1 & Hsct1 & ->)".
 
-    rewrite (open_world_interp_empty _ B).
-    iDestruct (
-       open_world_interp_permanent with "[$Hworld_interp_B] [$Hrel_cgp_b]"
-      ) as "(_ & _ & [%v Hcgp_b] )"; auto.
-    { set_solver+. }
-    {
-      eapply (region_state_priv_perm W2_B); eauto.
-      eapply revoke_related_sts_priv_world.
-    }
-    iEval (cbn) in "Hcgp_b".
-    iDestruct (PermRes_acc with "Hcgp_b") as "[ (>Hcgp_b & >Hscgp_b & _) _]".
+    (* Block 4: erase c, store secret_b into b, and prepare the argument c *)
+    iApply (cmdc_prep_blocks_3_spec with
+             "[- $Hspec $Hj $HPC $HsPC $Hcgp $Hscgp $Hca0 $Hsca0 $Hct0 $Hsct0 $Hct1 $Hsct1
+              $Hcgp_b $Hscgp_b $Hcgp_c $Hscgp_c $Hsecret_b $Hssecret_b $Hcode_main $Hscode_main]");
+      [done|done|].
+    iNext; iIntros "(Hj & HPC & HsPC & Hcgp & Hscgp & Hca0 & Hsca0
+                    & [%wct0' [Hct0 Hsct0]] & [%wct1' [Hct1 Hsct1]]
+                    & _ & _ & Hcgp_c & Hscgp_c & _ & _ & Hcode_main & Hscode_main)".
 
-    subst hcont hscont.
-    unfocus_block_lockstep "Hscode" "Hscls" "Hcode" "Hcls" as "Hscode_main" "Hcode_main".
+    (* Blocks 5-7: fetch the imports and jump to the switcher *)
+    iApply (cmdc_call_blocks_2_spec cmdc_call_C pc_b pc_e pc_a B_f C_g with
+             "[- $Hspec $Hj $HPC $HsPC $Hctp $Hsctp $Hct0 $Hsct0 $Hct1 $Hsct1 $Hcs0 $Hscs0
+              $Hcra $Hscra $Himport_switcher $Hsimport_switcher $Himport_C_g $Hsimport_C_g
+              $Hcode_main $Hscode_main]"); first done.
+    iNext; iIntros "(Hj & HPC & HsPC & Hctp & Hsctp & Hct0 & Hsct0 & Hct1 & Hsct1
+                    & Hcs0 & Hscs0 & Hcra & Hscra & _ & _ & _ & _ & Hcode_main & Hscode_main)".
 
-    (* --------------------------------------------------- *)
-    (* -------- BLOCKS 4 to 7: AFTER THE CALL TO B ------- *)
-    (* --------------------------------------------------- *)
+    (* Share c in the world of C *)
+    iMod (cmdc_world_share _ _ _ (cgp_b ^+ 2)%a with
+           "Hworld_interp_C Hstack_revoked_C Hinterp_Winit_C_g Hcgp_c Hscgp_c Hcsp_stk")
+      as "(Hworld_interp_C & _ & #Hinterp_ca0_C & #Hinterp_C_g
+           & Hstack_revoked_C' & %Hrevoked_C & _ & Hcsp_stk)";
+      [solve_addr|done|done|].
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hsrmap]".
+    iDestruct (big_sepM_sep with "Hsrmap") as "[Hsrmap _]".
+    iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"].
+    iInsertRegsSpec "Hsrmap" ["Hsca1"; "Hsctp"; "Hsct0"].
+    iDestruct (switcher_call_args_1_binary with "Hca0 Hsca0 Hinterp_ca0_C Hrmap Hsrmap")
+      as (arg_rmap arg_smap rmap' smap')
+           "(%Hrmap'_dom & %Hsmap'_dom & %Harg_rmap & %Harg_smap & Hrmap_arg & Hrmap & Hsrmap)".
+    { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
+    { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
-    assert ((pc_a + length cmdc_conf_pre_B_code)%a = Some (a_callB ^+ 1)%a) as Ha_post.
-    { rewrite /cmdc_conf_pre_B_code.
-      simpl in Ha_callB |- *.
-      solve_addr.
-    }
+    (* Call to C.g *)
+    iApply (switcher_cc_specification_diag with
+             "[- $Hswitcher $Hspec $Hna $Hj
+              $HPC $HsPC $Hcgp $Hscgp $Hcra $Hscra $Hcsp $Hscsp $Hct1 $Hsct1
+              $Hcs0 $Hscs0 $Hcs1 $Hscs1 $Hrmap $Hsrmap $Hrmap_arg
+              $Hcsp_stk $Hscsp_stk $Hworld_interp_C $Hstack_revoked_C'
+              $Hcstk_frag $Hcstk_frag_spec
+              $Hinterp_C_g $HentryC_g $HK]"); [done..|].
+    iSplit; first done.
+    iNext.
+    iIntros (W_ret_C rmap'' stk_mem'' stk_mem_spec'' l')
+      "( _ & _ & _ & _ & _ & _ & _ & _
+      & Hna & Hj & _ & _ & _ & _
+      & HPC & HsPC
+      & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & _)".
+    iEval (cbn [updatePcPerm]) in "HPC".
+    iEval (cbn [updatePcPerm]) in "HsPC".
+    change_pc_to (pc_a ^+ cmdc_instr_offset 7 1)%a.
 
-    iApply (cmdc_spec_post_B
-              pc_b pc_e pc_a (a_callB ^+ 1)%a cgp_b cgp_e csp_b csp_e rmap' C_g W_init_C
-              stk Ws Cs _ _ _ _ _ _ _ _ _ _ _ secret_b1 secret_b2 Nswitcher
-              Hdom_rmap' HsubBounds Ha_post Hcgp_contiguous Himports_contiguous Hcgp_c Hrevoked_stack_C
-             with "[$Hswitcher $Hspec $Hna $Hj
-                    $HPC $HsPC $Hcgp $Hscgp $Hcsp $Hscsp $Hcra $Hscra
-                    $Hcs0 $Hscs0 $Hcs1 $Hscs1 $Hca0 $Hsca0 $Hca1 $Hsca1 $Hrmap
-                    $Himport_switcher $Hsimport_switcher $Himport_C_g $Hsimport_C_g
-                    $Hcode_main $Hscode_main
-                    $Hcgp_b $Hscgp_b $Hcgp_c $Hscgp_c $Hsecret_b $Hssecret_b
-                    $Hcsp_stk $Hscsp_stk
-                    $Hworld_interp_C $HK $Hcstk_frag $Hcstk_frag_spec
-                    $Hinterp_Winit_C_g $HentryC_g $Hstack_revoked_C]").
+    (* Block 7: halt *)
+    iApply (cmdc_halt_blocks_4_spec with "[$Hspec $Hj $HPC $HsPC $Hcode_main $Hscode_main Hna]");
+      first done.
+    iNext; iIntros "Hj".
+    wp_end; iIntros "_"; iFrame.
   Qed.
 
 End CMDC.
