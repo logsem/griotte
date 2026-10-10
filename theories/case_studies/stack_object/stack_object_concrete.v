@@ -179,10 +179,12 @@ Definition so_C_exports : list Word :=
 Program Definition so_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt so_main_pcc_b so_main_code_start so_main_pcc_e
-    so_main_data_b so_main_data_e so_main_exports_pcc so_main_exports_cgp
+    so_main_data_b so_main_data_e so_main_data_e so_main_data_e
+    so_main_exports_pcc so_main_exports_cgp
     so_main_exports_entries_b so_main_exports_entries_e
-    so_main_imports_concrete so_main_code so_main_data so_export_table_entries
-    _ _ _ _ _ _ _).
+    so_main_imports_concrete so_main_code so_main_data [] so_export_table_entries
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -195,9 +197,11 @@ Defined.
 Program Definition so_concrete_C_cmpt : cmpt.
 Proof.
   refine (@mkCmpt so_C_pcc_b so_C_code_start so_C_pcc_e
-    so_C_data_b so_C_data_e so_C_exports_pcc so_C_exports_cgp
+    so_C_data_b so_C_data_e so_C_data_e so_C_data_e
+    so_C_exports_pcc so_C_exports_cgp
     so_C_exports_entries_b so_C_exports_entries_e
-    so_C_imports so_C_code so_C_data so_C_exports _ _ _ _ _ _ _).
+    so_C_imports so_C_code so_C_data [] so_C_exports _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

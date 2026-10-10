@@ -398,6 +398,53 @@ Section wp_interp.
     iFrame; done.
   Qed.
 
+  Lemma wp_unseal_unknown' E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
+    decodeInstrW wi = UnSeal r1 r1 r2 →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
+
+    {{{  PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          ∗ pc_a ↦ₐ wi
+          ∗ r1 ↦ᵣ wsealr
+          ∗ r2 ↦ᵣ wsealed
+    }}}
+      Instr Executable @ E
+      {{{ retv, RET retv;
+          ⌜ retv = FailedV ⌝
+          ∨ ∃ psr gsr bsr esr asr wsb,
+              ⌜ retv = NextIV ⌝
+              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ wi
+              ∗ r1 ↦ᵣ WSealable wsb
+              ∗ r2 ↦ᵣ wsealed
+              ∗ ⌜ wsealr = (WSealRange psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
+              ∗ ⌜ wsealed = WSealed asr wsb ⌝
+      }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpc_a' ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
+
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
+    iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+
+    destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
+    simplify_map_eq.
+    apply incrementPC_Some_inv in H8.
+    destruct H8 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
+    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
+    simplify_eq.
+    iExists p, g, b, e, a, sb.
+    rewrite (insert_insert_ne _ _ PC) //.
+    rewrite !insert_insert_eq.
+    iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+    iFrame; done.
+  Qed.
+
   Lemma wp_unseal_unknown_sealed E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 psr gsr bsr esr asr wsealed  :
     decodeInstrW wi = UnSeal r2 r1 r2 →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
