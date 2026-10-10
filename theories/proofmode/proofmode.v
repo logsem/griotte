@@ -648,6 +648,21 @@ Tactic Notation "iCombine_ident" constr(H1) constr(H2) "as" constr(pat) :=
   iCombine_ident [H1;H2] as pat.
 
 
+(* Rewrites [WInt (if decide (r = cnull) then 0 else 0)] (from the rules
+   writing an immediate to a register) to [WInt 0]. The occurrences are found
+   syntactically, then changed by conversion when [decide (r = cnull)]
+   computes (concrete [r]), or rewritten otherwise. *)
+Ltac simpl_cnull_zero :=
+  repeat
+    match goal with
+    | |- context [ WInt (if decide (?r = cnull) then ?z1 else ?z2) ] =>
+        unify z1 0%Z; unify z2 0%Z;
+        first
+          [ change (WInt (if decide (r = cnull) then z1 else z2)) with (WInt 0)
+          | replace (WInt (if decide (r = cnull) then z1 else z2)) with (WInt 0)
+              by (destruct (decide _); done) ]
+    end.
+
 (* TODO: find a way of displaying an error message if iApplyCapAuto fails,
    displaying the rule it was called on, and without silencing iApplyCapAuto's
    own error messages? *)
@@ -665,7 +680,7 @@ Ltac iInstr_lc hprog hlc:=
   iInstr_get_rule hi ltac:(fun rule =>
                              iApplyCapAuto rule;
                              [ .. | iInstr_close hprog
-                                    ; repeat (replace ( WInt (if decide (_ = cnull) then 0 else 0) ) with (WInt 0) by (destruct (decide _); done))
+                                    ; simpl_cnull_zero
                                     ; try wp_pure_lc hlc'
                                     ; try (iCombine_ident (INamed hlc) hlc' as (INamed hlc))
                           ])

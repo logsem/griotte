@@ -415,8 +415,7 @@ Ltac iInstr_spec0 hprog :=
   iInstr_spec_get_rule hi ltac:(fun rule =>
     iApplyCapAutoSpec rule;
     [ .. | iInstr_spec_close hprog;
-           repeat (replace (WInt (if decide (_ = cnull) then 0 else 0)) with (WInt 0)
-                     by (destruct (decide _); done));
+           simpl_cnull_zero;
            try iSpecSeq ]).
 
 Tactic Notation "iInstr_spec" constr(H) := iInstr_spec0 H.
