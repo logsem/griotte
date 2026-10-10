@@ -2,7 +2,7 @@ From iris.algebra Require Import gmap agree auth excl csum excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Export stdpp_extra griotte_lang.
-From griotte Require Export sts world_std_sts.
+From griotte Require Export sts world_std_sts region_keys.
 Import uPred.
 
 (** CMRA for heap and its predicates. Contains: *)
@@ -12,21 +12,21 @@ Import uPred.
 
 (** REL: saved predicates associating Address to gname and permission *)
 Definition relUR : ucmra :=
-  (gmapUR Addr (agreeR (leibnizO (gname * Perm)))).
+  (gmapUR LAddr (agreeR (leibnizO (gname * Perm)))).
 Definition relT :=
-  (gmap Addr (leibnizO (gname * Perm))).
+  (gmap LAddr (leibnizO (gname * Perm))).
 
 Class relGpreS Σ {Cname : CmptNameG} :=
   RelGpreS {
       relPreG_invPreG : invGpreS Σ;
-      relPreG_saved_pred :: savedPredG Σ (WorldT * CmptName * Word);
+      relPreG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       relPreG_rel :: inG Σ (authR relUR);
     }.
 
 Class relGS Σ {Cname : CmptNameG} :=
   RelGS {
       relG_rel :: inG Σ (authR relUR);
-      relG_saved_pred :: savedPredG Σ (WorldT * CmptName * Word);
+      relG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       γrel : CmptName -> gname
     }.
 
@@ -36,14 +36,14 @@ Definition relPreΣ {Cname : CmptNameG} :=
 Instance subG_relPreΣ {Σ} {Cname : CmptNameG}:
   subG relPreΣ Σ →
   invGpreS Σ →
-  subG (savedPredΣ (WorldT * CmptName * Word)) Σ →
+  subG (savedPredΣ (WorldT * CmptName * LWord)) Σ →
   relGpreS Σ.
 Proof. solve_inG. Qed.
 
 Section REL_defs.
   Context {Σ:gFunctors} {Cname : CmptNameG} {relg : relGS Σ}.
 
-  Definition REL_def (C : CmptName) (a : Addr) (γ : gname) (p : Perm) : iProp Σ :=
+  Definition REL_def (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) : iProp Σ :=
     own (γrel C) (◯ {[ a := to_agree (γ,p) ]}).
   Definition REL_aux : { x | x = @REL_def }. by eexists. Qed.
   Definition REL := proj1_sig REL_aux.
@@ -55,8 +55,8 @@ Section REL_defs.
   Definition RELS := proj1_sig RELS_aux.
   Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
 
-  Definition rel_def (C : CmptName) (a : Addr) (p : Perm)
-    (φ : (WorldT * CmptName * Word) -> iProp Σ)
+  Definition rel_def (C : CmptName) (a : LAddr) (p : Perm)
+    (φ : (WorldT * CmptName * LWord) -> iProp Σ)
     : iProp Σ :=
     (∃ (γpred : gnameO), REL C a γpred p ∗ saved_pred_own γpred DfracDiscarded φ)%I.
   Definition rel_aux : { x | x = @rel_def }. by eexists. Qed.
@@ -101,19 +101,19 @@ Section rel.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
 
-  Global Instance REL_persistent (C : CmptName) (a : Addr) (γ : gname) (p : Perm) :
+  Global Instance REL_persistent (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) :
     Persistent (REL C a γ p).
   Proof. rewrite REL_eq /REL_def.
          apply _.
   Qed.
 
-  Global Instance rel_persistent (C : CmptName) (a : Addr) (p : Perm)
-    (φ : (WORLD * CmptName * Word) -> iProp Σ) :
+  Global Instance rel_persistent (C : CmptName) (a : LAddr) (p : Perm)
+    (φ : (WORLD * CmptName * LWord) -> iProp Σ) :
     Persistent (rel C a p φ).
   Proof. rewrite rel_eq /rel_def REL_eq /REL_def.
          apply _.
@@ -122,7 +122,7 @@ Section rel.
 
   Lemma reg_in
     (C : CmptName) (M : relT)
-    (a : Addr) (γ : gnameO) (p : leibnizO Perm) :
+    (a : LAddr) (γ : gnameO) (p : leibnizO Perm) :
     RELS C M ∗ REL C a γ p
     -∗ ⌜M = <[a := (γ,p)]>(delete a M)⌝.
   Proof.
@@ -147,7 +147,7 @@ Section rel.
     done.
   Qed.
 
-  Lemma reg_get (C : CmptName) (M : relT) (a : Addr)
+  Lemma reg_get (C : CmptName) (M : relT) (a : LAddr)
     (γ : gnameO) (p : leibnizO Perm) :
     RELS C M ∧ ⌜M !! a = Some (γ,p)⌝
     ==∗
@@ -169,7 +169,7 @@ Section rel.
 
   Lemma update_RELS {invg: invGS Σ}
     (E : coPset) (C : CmptName) (M : relT)
-    (a : Addr) (γ : gname) (p : Perm) :
+    (a : LAddr) (γ : gname) (p : Perm) :
     M !! a = None ->
     RELS C M ={E}=∗
     RELS C (<[a := (γ,p)]> M) ∗ REL C a γ p.
@@ -210,21 +210,6 @@ Section rel.
     iIntros (x). iApply (saved_pred_agree with "Hpred1 Hpred2").
   Qed.
 
-  Lemma RELS_sub C M (m : gmap Addr Word) :
-    RELS C M -∗ ([∗ map] a↦_ ∈ m, ∃ p φ, rel C a p φ) -∗
-    ⌜∀ (a : Addr), is_Some(m !! a) -> is_Some(M !! a)⌝.
-  Proof.
-    iIntros "HM Hmap".
-    iIntros (a [x Hx]).
-    iDestruct (big_sepM_delete _ _ a with "Hmap") as "[Ha _]";eauto.
-    iDestruct "Ha" as (p φ) "#Hrel".
-    rewrite rel_eq /rel_def.
-    iDestruct "Hrel" as (γpred) "#[Hown _]".
-    iDestruct (reg_in with "[$HM $Hown]") as %HMeq; eauto.
-    rewrite HMeq. rewrite lookup_insert_eq. eauto.
-  Qed.
-
-
   Lemma future_pub_mono_eq_pred C γ φ φ' w :
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
@@ -241,18 +226,6 @@ Section rel.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma mono_pub_eq_pred C γ φ φ' :
-    saved_pred_own γ DfracDiscarded φ
-    -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ mono_pub C φ
-    -∗ ▷ mono_pub C φ'.
-  Proof.
-    iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (w).
-    iSpecialize ("Hmono" $! w).
-    iApply (future_pub_mono_eq_pred with "Hφ Hφ' Hmono");auto.
-  Qed.
-
   Lemma future_priv_mono_eq_pred C γ φ φ' w :
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
@@ -267,18 +240,6 @@ Section rel.
     iIntros "Hφv".
     iRewrite - "Hφeq0" in "Hφv"; iRewrite - "Hφeq1".
     iApply "Hmono"; eauto.
-  Qed.
-
-  Lemma mono_priv_eq_pred C γ p φ φ':
-    saved_pred_own γ DfracDiscarded φ
-    -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ mono_priv C φ p
-    -∗ ▷ mono_priv C φ' p.
-  Proof.
-    iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (w Hglobalw).
-    iSpecialize ("Hmono" $! w Hglobalw).
-    iApply (future_priv_mono_eq_pred with "Hφ Hφ' Hmono");auto.
   Qed.
 
   Lemma future_pub_mono_eq_pred_rel C γ p p' φ φ' w :
@@ -298,18 +259,6 @@ Section rel.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma mono_pub_eq_pred_rel C γ p p' φ φ' :
-    rel C γ p φ
-    -∗ rel C γ p' φ'
-    -∗ ▷ mono_pub C φ
-    -∗ ▷ mono_pub C φ'.
-  Proof.
-    iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (w).
-    iSpecialize ("Hmono" $! w).
-    iApply (future_pub_mono_eq_pred_rel with "Hrel Hrel' Hmono"); eauto.
-  Qed.
-
   Lemma future_priv_mono_eq_pred_rel C γ p p' φ φ' w :
     rel C γ p φ
     -∗ rel C γ p' φ'
@@ -327,30 +276,12 @@ Section rel.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma mono_priv_eq_pred_rel C γ p p' φ φ' :
-    rel C γ p φ
-    -∗ rel C γ p' φ'
-    -∗ ▷ mono_priv C φ p
-    -∗ ▷ mono_priv C φ' p.
-  Proof.
-    iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (w Hglobalw).
-    iSpecialize ("Hmono" $! w Hglobalw).
-    iApply (future_priv_mono_eq_pred_rel with "Hrel Hrel' Hmono"); eauto.
-  Qed.
 
 End rel.
 
 (* No Excl' here: do not want the valid option element, as this disallows us from changing the branch in the sum type *)
 Lemma csum_alter_l_r {A : cmra} {C : ofe} (a : A) (c : C) : ✓ a → Cinl (Excl c) ~~> Cinr a.
-Proof.
-  intros Hv. by apply cmra_update_exclusive.
-Qed.
-
-Lemma Excl_included_false : ∀ {A : ofe} {a b : A}, Excl a ≼ Excl b → False.
-Proof.
-  intros * Hi. by apply (exclusive_included _ _ Hi).
-Qed.
+Proof. intros Hv. by apply cmra_update_exclusive. Qed.
 
 (* resources *)
 
@@ -374,33 +305,15 @@ Global Instance subG_sealStorePreΣ {Σ}:
   sealStorePreG Σ.
 Proof. solve_inG. Qed.
 
-(* Auxiliary lemma's about gmap domains *)
-Lemma gmap_none_convert `{Countable K} {A B: Type} (g1 : gmap K A) (g2 : gmap K B) (i : K): dom g1 = dom g2 →
-    g1 !! i = None → g2 !! i = None.
-Proof.
-  intros Hdom Hnon.
-  apply not_elem_of_dom in Hnon.
-  rewrite Hdom in Hnon.
-  by apply not_elem_of_dom.
-Qed.
-
-Lemma gmap_isSome_convert `{Countable K} {A B: Type} (g1 : gmap K A) (g2 : gmap K B) (i : K): dom g1 = dom g2 →
-    is_Some (g1 !! i) → is_Some (g2 !! i).
-Proof.
-  intros Hdom Hnon.
-  apply elem_of_dom in Hnon.
-  rewrite Hdom in Hnon.
-  by apply elem_of_dom.
-Qed.
 
 Section Store.
   Context `{!sealStoreG Σ}
       {Cname : CmptNameG}
-      {stsg : STSG Addr region_type OType Word Σ}
+      {stsg : STSG LAddr region_type OType LWord Σ}
       {relg : relGS Σ}.
   Implicit Types W : WORLD.
 
-  Definition seal_pred (o : OType) (P : WORLD * CmptName * Word → iProp Σ) :=
+  Definition seal_pred (o : OType) (P : WORLD * CmptName * LWord → iProp Σ) :=
     (∃ γpred: gname, own SG_sealN ({[o := Cinr (to_agree γpred)]})
                      ∗ saved_pred_own γpred DfracDiscarded P)%I.
   Global Instance seal_pred_persistent i P : Persistent (seal_pred i P).
@@ -420,7 +333,7 @@ Section Store.
     iIntros (x). iApply (saved_pred_agree with "Hpred1 Hpred2").
   Qed.
 
-  Lemma seal_store_update_alloc (o : OType) (P : WORLD * CmptName * Word → iProp Σ):
+  Lemma seal_store_update_alloc (o : OType) (P : WORLD * CmptName * LWord → iProp Σ):
    can_alloc_pred o ==∗ seal_pred o P.
   Proof.
     rewrite /seal_pred /can_alloc_pred.

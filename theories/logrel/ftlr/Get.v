@@ -11,7 +11,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -19,13 +19,13 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
-  Implicit Types w : (leibnizO Word).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-  Lemma get_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg) (p p' : Perm)
-        (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst r : RegName) (ins: instr)
+  Lemma get_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg) (p p' : Perm)
+        (g : Locality) (b e a : Addr) (w : LWord) (ρ : region_type) (dst r : RegName) (ins: instr)
         (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     is_Get ins dst r →
     ftlr_instr W C regs p p' g b e a w ins ρ P cstk Ws Cs.
@@ -56,8 +56,6 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      assert (is_Some (<[dst:=WInt z]> (<[PC:=WCap true x0 x1 x2 x3 x4]> regs) !! csp)) as [??].
-      { destruct (decide (dst = csp)); simplify_map_eq=>//. }
       iApply ("IH" $! _ _ _ _ _ (<[dst := _]> (<[PC := _]> regs))
                with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
         ; eauto.

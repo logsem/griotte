@@ -107,7 +107,7 @@ Section Checkra_spec.
   Lemma checkra_spec
     (rsrc r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (wsrc w1 w2 : Word)
+    (wsrc w1 w2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkra_ := (checkra_instrs rsrc r1 r2) in
@@ -123,10 +123,10 @@ Section Checkra_spec.
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a checkra_
-    ∗ ▷ ( (∃ t p g b e a,
-          ⌜ readAllowed p = true ∧ wsrc = WCap t p g b e a⌝
+    ∗ ▷ ( (∃ t p g b e a π,
+          ⌜ readAllowed p = true ∧ wsrc = WCap t p g b e a @@? π⌝
           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
-          ∗ rsrc ↦ᵣ WCap t p g b e a
+          ∗ rsrc ↦ᵣ WCap t p g b e a @@? π
           ∗ r1 ↦ᵣ WInt 0%Z
           ∗ r2 ↦ᵣ WInt 0%Z
           ∗ codefrag pc_a checkra_ )
@@ -139,6 +139,7 @@ Section Checkra_spec.
     iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >Hcode & Hpost & #Hfailed)".
     codefrag_facts "Hcode".
     rename H into HcontRegion; clear H0.
+    destruct wsrc as [wsrc πsrc].
 
     iInstr "Hcode".
     iInstr "Hcode".

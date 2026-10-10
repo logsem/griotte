@@ -638,7 +638,7 @@ Module Asm_Griotte.
   Definition jalr rdst rsrc := (ASM_Instr (Jalr rdst rsrc)).
 
   Definition mov dst src  := (ASM_Instr (Mov dst src)).
-  (** Offsets are signed displacements in memory cells. Label expressions use
+  (** Offsets are signed displacements measured in address units. Label expressions use
       the same instruction-relative resolution as the other immediates. *)
   Definition load_imm dst src imm := ASM_Instr (Load dst src imm).
   Definition store_imm dst src imm := ASM_Instr (Store dst src imm).

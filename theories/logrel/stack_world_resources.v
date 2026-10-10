@@ -9,28 +9,25 @@ Section Stack_World_Resources.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
 
   (** ** Lemmas about [StackWorldResource], [StackWorldResources] and [StackOpenWorldResources] *)
 
   (* Length *)
-  Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
-    StackWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
+  Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lws : list LWord) :
+    StackWorldResources interp W C la lws -∗ ⌜ length la = length lws ⌝.
   Proof. iIntros "H"; iApply (big_sepL2_length with "H"). Qed.
 
-  Lemma StackOpenWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
-    StackOpenWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
-  Proof. iIntros "[H _]"; iApply (big_sepL2_length with "H"). Qed.
 
   (* App *)
   Lemma StackWorldResources_app
-    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) (lv lv' : list Word) :
+    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) (lv lv' : list LWord) :
     length la = length lv ->
     StackWorldResources interp W C (la++la')( lv++lv' ) ⊣⊢
     (StackWorldResources interp W C la lv ∗
@@ -41,24 +38,9 @@ Section Stack_World_Resources.
          - iApply big_sepL2_app'; last iFrame; auto.
   Qed.
 
-  Lemma StackOpenWorldResources_app
-    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) (lv lv' : list Word) :
-    length la = length lv ->
-    StackOpenWorldResources interp W C (la++la') (lv++lv') ⊣⊢
-    (StackOpenWorldResources interp W C la lv ∗
-     StackOpenWorldResources interp W C la' lv')%I.
-  Proof. rewrite /StackOpenWorldResources.
-         intros Hlen.
-         iSplit; [iIntros "[H1 H2]"| iIntros "[ [H1 H1'] [H2 H2'] ]"].
-         - iDestruct (big_sepL_app with "H2") as "[$ $]".
-           iApply StackWorldResources_app; done.
-         - iSplitR "H1' H2'".
-           + iApply StackWorldResources_app; auto.
-           + iApply big_sepL_app; auto; iFrame.
-  Qed.
 
   (* Zeroing *)
-  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
+  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) :
     StackWorldResource interp W C a v -∗
     StackWorldResource interp W C a (WInt 0).
   Proof.
@@ -71,9 +53,9 @@ Section Stack_World_Resources.
       ; iIntros (???) "!>H /="; iApply "Hzcond"; done.
   Qed.
 
-  Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
+  Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list LWord) :
     length lv' = length la ->
-    Forall (λ y : Word, y = WInt 0) lv' ->
+    Forall (λ y : LWord, y = WInt 0) lv' ->
     StackWorldResources interp W C la lv -∗
     StackWorldResources interp W C la lv'.
   Proof.
@@ -91,9 +73,9 @@ Section Stack_World_Resources.
     iApply (IHla lv lv'); eauto.
   Qed.
 
-  Lemma StackOpenWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
+  Lemma StackOpenWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list LWord) :
     length lv' = length la ->
-    Forall (λ y : Word, y = WInt 0) lv' ->
+    Forall (λ y : LWord, y = WInt 0) lv' ->
     StackOpenWorldResources interp W C la lv -∗
     StackOpenWorldResources interp W C la lv'.
   Proof.
@@ -102,43 +84,48 @@ Section Stack_World_Resources.
   Qed.
 
   (* Get interp *)
-  Lemma StackWorldResource_interp W C a w :
-    StackWorldResource interp W C a w -∗ interp W C w.
+  Lemma StackWorldResource_interp_in_mem W C a w :
+    StackWorldResource interp W C a w -∗ interp_in_mem RWL W C w.
   Proof.
     iIntros "(%Pa & %pa & HPa & ? & ? & (?&?&Hrcond&?&%) & %)".
     iDestruct ("Hrcond" with "HPa") as "HPa'".
-    rewrite /load_word.
+    iEval (rewrite /interp_in_mem_pre) in "HPa'".
     destruct ( isDRO pa ) eqn:Hpa.
     { eapply isDRO_flowsto in Hpa; eauto; done. }
     destruct ( isDL pa ) eqn:Hpa'.
     { eapply isDL_flowsto in Hpa'; eauto; done. }
+    assert (lload_word pa w = w) as ->.
+    { destruct w as [w π]. by rewrite /lload_word /lift_word /= /load_word Hpa Hpa'. }
+    rewrite /interp_in_mem /= /interp_in_mem_pre.
+    assert (lload_word RWL w = w) as ->.
+    { destruct w as [w π]. by rewrite /lload_word /lift_word /= /load_word. }
     done.
   Qed.
 
   (* Derive [StackWorldResource] from [rel] *)
   Lemma StackWorldResource_from_rel_stack W C a :
-    rel C a RWL interpC -∗ StackWorldResource interp W C a (WInt 0).
+    rel C (LNonHeap a) RWL interp_in_memC -∗ StackWorldResource interp W C a (WInt 0).
   Proof.
     iIntros "Hrel".
-    iExists interp, RWL; cbn. iFrame.
+    iExists (interp_in_mem RWL), RWL; cbn. iFrame.
     iSplit; first (iApply interp_int).
-    iSplit; first (iApply future_pub_mono_interp_z).
+    iSplit; first (iApply future_pub_mono_interp_in_mem_z).
     iSplit; last done.
     iSplit.
     { iIntros (v) "!>".
       iIntros (W0 W1 Hrelated) "Hinterp".
       rewrite /=.
-      iApply monotone.interp_monotone; eauto.
+      iApply monotone.interp_in_mem_monotone; eauto.
     }
-    iSplit; first (iApply zcond_interp).
-    iSplit; first (iApply rcond_interp).
-    iSplit; first (iApply wcond_interp).
-    iPureIntro. apply persistent_cond_interp.
+    iSplit; first (iApply zcond_interp_in_mem).
+    iSplit; first (iApply rcond_interp_in_mem).
+    iSplit; first (iApply wcond_interp_in_mem).
+    iPureIntro. apply persistent_cond_interp_in_mem.
   Qed.
 
   Lemma StackWorldResources_from_rel_stack W C la :
-    ([∗ list] a ∈ la, rel C a RWL interpC) -∗
-    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
+    ([∗ list] a ∈ la, rel C (LNonHeap a) RWL interp_in_memC) -∗
+    StackWorldResources interp W C la (replicate (length la) (lword_of_word (WInt 0))).
   Proof.
     induction la; [iIntros "H" | iIntros "[Ha H]"]; first done; cbn.
     iDestruct (IHla with "H") as "$".
@@ -157,7 +144,7 @@ Section Stack_World_Resources.
  *)
 
   Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
-    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
+    StackWorldResources interp W C la (replicate (length la) (lword_of_word (WInt 0))).
 
   Global Instance StackRevokedResources_Persistent W C la : Persistent (StackRevokedResources W C la).
   Proof. apply _. Qed.
@@ -183,7 +170,7 @@ Section Stack_World_Resources.
     iModIntro. iIntros (?????) "H".
     apply lookup_replicate in H0 as [-> ?].
     iDestruct "H" as "[%P [%p (HP&#Hmono&#Hrel&(#Hmono'&#Hzcond&#Hwcond&#Hrcond&%Hpers)&%Hp) ] ]"
-    ; pose proof (Hpers (W,C, WInt 0))
+    ; pose proof (Hpers (W,C, lword_of_word (WInt 0)))
     ; iDestruct "HP" as "#HP".
     iFrame "∗#%".
     iApply "Hzcond"; done.
@@ -192,7 +179,11 @@ Section Stack_World_Resources.
 
   (** Interface for revoked addresses *)
   Definition revoked_addresses (W : WORLD) (la : list Addr) :=
-    Forall (λ a, std W !! a = Some Revoked) la.
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la.
+
+  (** Region keys revoked in a world, e.g. the unknown temporary regions of a revocation. *)
+  Definition revoked_keys (W : WORLD) (l : list LAddr) :=
+    Forall (λ k, std W !! k = Some Revoked) l.
 
   Lemma revoked_addresses_app (W : WORLD) (la la' : list Addr) :
     revoked_addresses W (la++la') <-> revoked_addresses W la ∧ revoked_addresses W la'.
@@ -200,8 +191,8 @@ Section Stack_World_Resources.
 
   Lemma revoked_addresses_weaken (W : WORLD) (la la' : list Addr) :
     la' ⊆ la ->
-    Forall (λ a, std W !! a = Some Revoked) la ->
-    Forall (λ a, std W !! a = Some Revoked) la'.
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la ->
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la'.
   Proof.
     intros Hl Hla.
     rewrite Forall_forall in Hla; apply Forall_forall.

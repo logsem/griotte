@@ -1,3 +1,4 @@
+From griotte.program_logic Require Import allocator_resources.
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
@@ -202,8 +203,9 @@ Proof.
     kvs_switcher_b kvs_switcher_e kvs_switcher_call
     kvs_switcher_return kvs_switcher_sealing_type
     kvs_trusted_stack_b kvs_trusted_stack_e _ _ _ _
-    (replicate 100 (WInt 0)) _ eq_refl kvs_stack_b kvs_stack_e
-    (replicate 100 (WInt 0)) _ _).
+    (replicate 100 (WInt 0)) _ eq_refl
+    ltac:(by apply Forall_replicate) kvs_stack_b kvs_stack_e
+    (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -214,20 +216,35 @@ Proof.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
       solve_addr.
+  - solve_disjoint_from_mmio.
+  - reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Program Definition kvs_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance kvs_assert_b
-    kvs_assert_e kvs_assert_cap kvs_assert_flag _ _ _ _).
+    kvs_assert_e kvs_assert_cap kvs_assert_flag _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
+  - vm_compute; reflexivity.
   - unfold_kvs_addresses.
     unfold disjoint, set_disjoint_instance.
     intros x Hx Hx'.
     rewrite !elem_of_finz_seq_between in Hx, Hx'.
     solve_addr.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Local Instance kvs_concrete_switcherLayout : switcherLayout.
@@ -262,13 +279,14 @@ Definition kvs_KVS_imports : list Word :=
 
 Program Definition kvs_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt kvs_main_pcc_b kvs_main_code_start kvs_main_pcc_e
+  refine (@mkCmpt machine_parameters_instance kvs_main_pcc_b kvs_main_code_start kvs_main_pcc_e
     kvs_main_data_b kvs_main_data_e
     kvs_main_static_sealed_b kvs_main_static_sealed_e
     kvs_main_exports_pcc kvs_main_exports_cgp
     kvs_main_exports_entries_b kvs_main_exports_entries_e
     kvs_main_imports_concrete kvs_main_code kvs_main_data
-    kvs_main_static_sealed_concrete [] _ _ _ _ _ _ _ _).
+    kvs_main_static_sealed_concrete [] _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -292,17 +310,42 @@ Proof.
     + disj_regions.
     + disj_regions.
     + constructor.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition kvs_concrete_B_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt kvs_B_pcc_b kvs_B_code_start kvs_B_pcc_e
+  refine (@mkCmpt machine_parameters_instance kvs_B_pcc_b kvs_B_code_start kvs_B_pcc_e
     kvs_B_data_b kvs_B_data_e
     kvs_B_static_sealed_b kvs_B_static_sealed_e
     kvs_B_exports_pcc kvs_B_exports_cgp
     kvs_B_exports_entries_b kvs_B_exports_entries_e
     kvs_B_imports kvs_B_code kvs_B_data
-    kvs_B_static_sealed kvs_B_exports _ _ _ _ _ _ _ _).
+    kvs_B_static_sealed kvs_B_exports _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -327,16 +370,41 @@ Proof.
     + disj_regions.
     + disj_regions.
     + constructor.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition kvs_concrete_KVS_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt kvs_KVS_pcc_b kvs_KVS_code_start kvs_KVS_pcc_e
+  refine (@mkCmpt machine_parameters_instance kvs_KVS_pcc_b kvs_KVS_code_start kvs_KVS_pcc_e
     kvs_KVS_data_b kvs_KVS_data_e kvs_KVS_data_e kvs_KVS_data_e
     kvs_KVS_exports_pcc kvs_KVS_exports_cgp
     kvs_KVS_exports_entries_b kvs_KVS_exports_entries_e
     kvs_KVS_imports kvs_service_instrs kvs_data []
-    kvs_export_table_entries _ _ _ _ _ _ _ _).
+    kvs_export_table_entries _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -367,6 +435,30 @@ Proof.
     + set_solver.
     + disj_regions.
     + constructor.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Ltac solve_kvs_cmpt_disjoint :=
@@ -511,19 +603,24 @@ Proof.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma kvs_concrete_adequacy reg' sreg' mem' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma kvs_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma kvs_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! kvs_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@kvs_adequacy machine_parameters_instance kvs_concrete_layout
       kvs_initial_registers reg' kvs_initial_sregisters sreg'
-      kvs_initial_memory mem' es kvs_initial_registers_correct
-      kvs_initial_sregisters_correct kvs_initial_memory_correct Hrun)
+      kvs_initial_memory mem' initial_heap_shadow sh' es kvs_initial_registers_correct
+      kvs_initial_sregisters_correct kvs_initial_memory_correct eq_refl kvs_initial_heap_disjoint Hrun)
     as Hadequacy.
   cbn [kvs_concrete_layout kvs_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
@@ -536,21 +633,21 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem kvs_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
         (kvs_initial_registers, kvs_initial_sregisters,
-         kvs_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+         kvs_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! kvs_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
-    (machine_run_correct 15000 Executable
-      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory)
+    (machine_run_correct (N.to_nat (15000%N)) Executable
+      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[reg' sreg'] mem'] Hrun].
-  exists reg', sreg', mem'. split.
+  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
+  exists reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply kvs_concrete_adequacy; exact Hrun.
 Qed.

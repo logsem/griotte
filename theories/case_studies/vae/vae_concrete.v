@@ -1,3 +1,4 @@
+From griotte.program_logic Require Import allocator_resources.
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
@@ -73,7 +74,7 @@ Ltac unfold_vae_addresses_in H :=
     vae_stack_b, vae_stack_e in H.
 
 (** The concrete adversary's first entry calls [awkward] with its second entry
-    [g]. The callback [g] uses the adversary data cell as a one-shot flag: on
+    [g]. The callback [g] uses the adversary data address as a one-shot flag: on
     its first invocation it sets the flag and makes one nested call to
     [awkward], while later invocations return immediately. Both entries save
     and restore their outer return capabilities around nested calls. *)
@@ -157,7 +158,8 @@ Proof.
     vae_trusted_stack_b vae_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
-    vae_stack_b vae_stack_e (replicate 100 (WInt 0)) _ _).
+    ltac:(by apply Forall_replicate)
+    vae_stack_b vae_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -168,20 +170,35 @@ Proof.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
       solve_addr.
+  - solve_disjoint_from_mmio.
+  - reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Program Definition vae_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance
-    vae_assert_b vae_assert_e vae_assert_cap vae_assert_flag _ _ _ _).
+    vae_assert_b vae_assert_e vae_assert_cap vae_assert_flag _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
+  - vm_compute; reflexivity.
   - unfold_vae_addresses.
     unfold disjoint, set_disjoint_instance.
     intros x Hx Hx'.
     rewrite !elem_of_finz_seq_between in Hx, Hx'.
     solve_addr.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Local Instance vae_concrete_switcherLayout : switcherLayout.
@@ -216,13 +233,14 @@ Definition vae_C_exports : list Word :=
 
 Program Definition vae_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     vae_main_pcc_b vae_main_code_start vae_main_pcc_e
     vae_main_data_b vae_main_data_e vae_main_data_e vae_main_data_e
     vae_main_exports_pcc vae_main_exports_cgp
     vae_main_exports_entries_b vae_main_exports_entries_e
     vae_main_imports_concrete vae_main_code vae_main_data [] vae_export_table_entries
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -231,17 +249,42 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_vae_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition vae_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     vae_C_pcc_b vae_C_code_start vae_C_pcc_e
     vae_C_data_b vae_C_data_e vae_C_data_e vae_C_data_e
     vae_C_exports_pcc vae_C_exports_cgp
     vae_C_exports_entries_b vae_C_exports_entries_e
     vae_C_imports vae_C_code vae_C_data [] vae_C_exports
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -250,6 +293,30 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_vae_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The two
@@ -422,26 +489,31 @@ Qed.
 Lemma vae_initial_memory_correct : is_initial_memory vae_initial_memory.
 Proof.
   rewrite /is_initial_memory /vae_initial_memory.
-  repeat split; try reflexivity.
+  repeat split; try reflexivity; try apply Forall_nil_2.
   - rewrite /vae_C_code /encodeInstrsW; repeat constructor; done.
   - rewrite /vae_C_data; repeat constructor; done.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma vae_concrete_adequacy reg' sreg' mem' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma vae_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma vae_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! vae_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@vae_adequacy machine_parameters_instance vae_concrete_layout
       vae_initial_registers reg' vae_initial_sregisters sreg'
-      vae_initial_memory mem' es
+      vae_initial_memory mem' initial_heap_shadow sh' es
       vae_initial_registers_correct vae_initial_sregisters_correct
-      vae_initial_memory_correct Hrun) as Hadequacy.
+      vae_initial_memory_correct eq_refl vae_initial_heap_disjoint Hrun) as Hadequacy.
   cbn [vae_concrete_layout vae_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
 Qed.
@@ -453,20 +525,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem vae_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (vae_initial_registers, vae_initial_sregisters, vae_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+        (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! vae_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
-    (machine_run_correct 15000 Executable
-      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory)
+    (machine_run_correct (N.to_nat (15000%N)) Executable
+      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[reg' sreg'] mem'] Hrun].
-  exists reg', sreg', mem'. split.
+  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
+  exists reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply vae_concrete_adequacy; exact Hrun.
 Qed.

@@ -10,13 +10,13 @@ Section WorldInterpStack.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   (*** World interpretation for stack region *)
 
@@ -30,10 +30,10 @@ Section WorldInterpStack.
     la ## la' ->
 
     interp W C (WCap true RWL g b e a) ∗
-    world_interp_open W C la'
+    world_interp_open W C (LNonHeap <$> la')
     -∗
 
-    world_interp_open W C (la++la') ∗
+    world_interp_open W C (LNonHeap <$> (la++la')) ∗
     (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
            ▷ StackOpenWorldResources interp W C la lv)
   .
@@ -45,18 +45,18 @@ Section WorldInterpStack.
   Qed.
 
   Lemma close_world_interp_opening_resources (W : WORLD) (C : CmptName)
-  (lv : list Word)
+  (lv : list LWord)
   (la la' : list Addr):
 
     NoDup la ->
     la ## la' ->
     length lv = length la ->
 
-    world_interp_open W C (la++la') ∗
+    world_interp_open W C (LNonHeap <$> (la++la')) ∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
     StackOpenWorldResources interp W C la lv
     -∗
-   world_interp_open W C la'.
+   world_interp_open W C (LNonHeap <$> la').
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (???) "([Hr [Hsts $ ] ] & Hres )"; cbn in * |- *.
@@ -70,10 +70,10 @@ Section WorldInterpStack.
     world_interp W C
     ==∗
     ∃ l_unk_temp,
-      ⌜ extract_temporaries_condition W (l_unk_temp ++ la) ⌝ ∗
+      ⌜ extract_temporaries_condition W (l_unk_temp ++ (LNonHeap <$> la)) ⌝ ∗
       world_interp (revoke W) C ∗
       ▷ StackRevokedResources W C la ∗
-      ▷ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) la⌝ ∗
+      ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝ ∗
       ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]]) ∗
       ▷ RevokedResources W C l_unk_temp ∗
       ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
@@ -87,10 +87,10 @@ Section WorldInterpStack.
   Qed.
 
   Lemma world_interp_reinstate_stack
-    { E : coPset } (W : WORLD) (C : CmptName) (la : list Addr) (lv : list Word) :
+    { E : coPset } (W : WORLD) (C : CmptName) (la : list Addr) (lv : list LWord) :
     NoDup la →
-    Forall (eq (WInt 0)) lv ->
-    Forall (λ a, std W !! a = Some Revoked) la ->
+    Forall (eq (lword_of_word (WInt 0))) lv ->
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la ->
 
     world_interp W C -∗
     StackRevokedResources W C la -∗

@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export griotte_lang sts.
+From griotte Require Export griotte_lang sts region_keys logical_words.
 From griotte Require Export stdpp_extra.
 
 Section world_standard_sts.
@@ -73,49 +73,6 @@ Section world_standard_sts.
     inversion Hrel; done.
   Qed.
 
-  Lemma std_rel_priv_rtc_Permanent (ρ1 ρ2 : region_type) :
-    ρ1 = Permanent →
-    rtc std_rel_priv ρ1 ρ2 → ρ2 = Permanent.
-  Proof.
-    intros Hρ1 Hrtc.
-    induction Hrtc;auto.
-    subst. apply IHHrtc. apply std_rel_priv_Permanent; auto.
-  Qed.
-
-  Lemma std_rel_Permanent (ρ : region_type) :
-    (std_rel_pub Permanent ρ ∨ std_rel_priv Permanent ρ) → ρ = Permanent.
-  Proof.
-    intros Hrel.
-    destruct Hrel.
-    + by apply std_rel_pub_Permanent.
-    + by apply std_rel_priv_Permanent.
-  Qed.
-
-  Lemma std_rtc_Permanent (ρ1 ρ2 : region_type) :
-    ρ1 = Permanent →
-    rtc (λ x y : region_type, std_rel_pub x y ∨ std_rel_priv x y) ρ1 ρ2 → ρ2 = Permanent.
-  Proof.
-    intros Hρ1 Hrtc.
-    induction Hrtc;auto.
-    subst. apply IHHrtc. apply std_rel_Permanent; auto.
-  Qed.
-
-  Lemma std_rel_priv_Revoked (ρ : region_type) :
-    std_rel_priv Revoked ρ → ρ = Revoked.
-  Proof.
-    intros Hrel.
-    inversion Hrel; done.
-  Qed.
-
-  Lemma std_rel_priv_rtc_Revoked (ρ1 ρ2 : region_type) :
-    ρ1 = Revoked →
-    rtc std_rel_priv ρ1 ρ2 → ρ2 = Revoked.
-  Proof.
-    intros Hρ1 Hrtc.
-    induction Hrtc;auto.
-    subst. apply IHHrtc. apply std_rel_priv_Revoked; auto.
-  Qed.
-
   Lemma std_rel_rtc_Permanent (ρ1 ρ2 : region_type) :
     ρ1 = Permanent →
     rtc (λ ρ0 ρ0' : region_type, std_rel_pub ρ0 ρ0' ∨ std_rel_priv ρ0 ρ0') ρ1 ρ2 →
@@ -144,24 +101,6 @@ Section world_standard_sts.
     subst. apply IHHrtc. apply std_rel_pub_Temporary; auto.
   Qed.
 
-  Lemma std_rel_pub_Revoked (ρ : region_type) :
-    std_rel_pub Revoked ρ → ρ = Permanent ∨ ρ = Temporary.
-  Proof.
-    intros Hrel.
-    inversion Hrel; auto.
-  Qed.
-
-  Lemma std_rel_pub_rtc_Revoked (ρ1 ρ2 : region_type) :
-    ρ1 = Revoked →
-    rtc std_rel_pub ρ1 ρ2 → ρ2 = Permanent ∨ ρ2 = Temporary ∨ ρ2 = Revoked.
-  Proof.
-    intros Hρ1 Hrtc.
-    inversion Hrtc; subst; auto.
-    apply std_rel_pub_Revoked in H as [-> | ->];auto.
-    - left. eapply std_rel_pub_rtc_Permanent;eauto.
-    - right. left. eapply std_rel_pub_rtc_Temporary;eauto.
-  Qed.
-
   (* ------------------------- DEFINITION STD STS CLASS -------------------------- *)
 
   Global Program Instance sts_std : STS_STD region_type :=
@@ -175,31 +114,31 @@ End world_standard_sts.
 Section world_standard_sts_mono.
   Context {Σ:gFunctors}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation SEAL_STD := (leibnizO (seals_std OType Word)).
-  Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
-  Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels) * (seals_std OType Word)) : Type).
+  Notation STS_STD := (leibnizO (STS_std_states LAddr region_type)).
+  Notation SEAL_STD := (leibnizO (seals_std OType LWord)).
+  Notation WORLD := (prodO (prodO (prodO STS_STD STS) SEAL_STD) (leibnizO Heap)).
+  Notation WorldT := (((STS_std_states LAddr region_type) * (STS_states * STS_rels) * (seals_std OType LWord) * Heap) : Type).
   Implicit Types W : WORLD.
 
-  Definition future_pub_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
+  Definition future_pub_mono (C : CmptName) (φ : (WORLD * CmptName * LWord) -> iProp Σ) (v  : LWord) : iProp Σ :=
     (□ ∀ (W W' : WORLD),
         ⌜ related_sts_pub_world W W'⌝
         → φ (W,C,v) -∗ φ (W',C,v))%I.
 
-  Definition future_priv_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
+  Definition future_priv_mono (C : CmptName) (φ : (WORLD * CmptName * LWord) -> iProp Σ) (v  : LWord) : iProp Σ :=
     (□ ∀ (W W' : WORLD),
         ⌜ related_sts_priv_world W W'⌝
         → φ (W,C,v) -∗ φ (W',C,v))%I.
 
-  Definition mono_pub (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) :=
-    (∀ (w : Word), future_pub_mono C φ w)%I.
-  Definition mono_priv (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (p : Perm) :=
-    (∀ (w : Word), ⌜canStore p w = true⌝ -∗ future_priv_mono C φ w)%I.
+  Definition mono_pub (C : CmptName) (φ : (WORLD * CmptName * LWord) -> iProp Σ) :=
+    (∀ (w : LWord), future_pub_mono C φ w)%I.
+  Definition mono_priv (C : CmptName) (φ : (WORLD * CmptName * LWord) -> iProp Σ) (p : Perm) :=
+    (∀ (w : LWord), ⌜canStore p w.(lw) = true⌝ -∗ future_priv_mono C φ w)%I.
 
-  Lemma future_priv_mono_is_future_pub_mono (C : CmptName) (φ: (WORLD * CmptName * Word) → iProp Σ) v :
+  Lemma future_priv_mono_is_future_pub_mono (C : CmptName) (φ: (WORLD * CmptName * LWord) → iProp Σ) v :
     future_priv_mono C φ v -∗ future_pub_mono C φ v.
   Proof.
     iIntros "#H". unfold future_pub_mono. iModIntro.
@@ -222,7 +161,7 @@ Section world_standard_sts_mono.
 End world_standard_sts_mono.
 
 Notation STS := (leibnizO (STS_states * STS_rels)).
-Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-Notation SEAL_STD := (leibnizO (seals_std OType Word)).
-Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
-Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels) * (seals_std OType Word)) : Type).
+Notation STS_STD := (leibnizO (STS_std_states LAddr region_type)).
+Notation SEAL_STD := (leibnizO (seals_std OType LWord)).
+Notation WORLD := (prodO (prodO (prodO STS_STD STS) SEAL_STD) (leibnizO Heap)).
+Notation WorldT := (((STS_std_states LAddr region_type) * (STS_states * STS_rels) * (seals_std OType LWord) * Heap) : Type).

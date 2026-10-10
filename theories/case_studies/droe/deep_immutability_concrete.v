@@ -1,3 +1,4 @@
+From griotte.program_logic Require Import allocator_resources.
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
@@ -72,7 +73,7 @@ Ltac unfold_droe_addresses_in H :=
 
 (** The concrete adversary follows the outer read-only capability in [ca0],
     reads through the nested capability, and stores the observed word in its
-    own data cell before returning. It therefore directly tests whether the
+    own data address before returning. It therefore directly tests whether the
     supposedly deeply immutable value can be observed through the nesting. *)
 Definition droe_C_code : list Word :=
   encodeInstrsW [
@@ -98,7 +99,8 @@ Proof.
     droe_trusted_stack_b droe_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
-    droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _).
+    ltac:(by apply Forall_replicate)
+    droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -109,20 +111,35 @@ Proof.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
       solve_addr.
+  - solve_disjoint_from_mmio.
+  - reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Program Definition droe_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance
-    droe_assert_b droe_assert_e droe_assert_cap droe_assert_flag _ _ _ _).
+    droe_assert_b droe_assert_e droe_assert_cap droe_assert_flag _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
+  - vm_compute; reflexivity.
   - unfold_droe_addresses.
     unfold disjoint, set_disjoint_instance.
     intros x Hx Hx'.
     rewrite !elem_of_finz_seq_between in Hx, Hx'.
     solve_addr.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Local Instance droe_concrete_switcherLayout : switcherLayout.
@@ -143,13 +160,14 @@ Definition droe_main_imports_concrete : list Word :=
 
 Program Definition droe_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     droe_main_pcc_b droe_main_code_a droe_main_pcc_e
     droe_main_cgp_b droe_main_cgp_e droe_main_cgp_e droe_main_cgp_e
     droe_main_exp_pcc droe_main_exp_cgp
     droe_main_exp_entries_b droe_main_exp_entries_e
     droe_main_imports_concrete droe_main_code droe_main_data [] []
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -158,17 +176,42 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_droe_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition droe_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     droe_C_pcc_b droe_C_code_a droe_C_pcc_e
     droe_C_cgp_b droe_C_cgp_e droe_C_cgp_e droe_C_cgp_e
     droe_C_exp_pcc droe_C_exp_cgp
     droe_C_exp_entries_b droe_C_exp_entries_e
     droe_C_imports droe_C_code droe_C_data [] droe_C_exports
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -177,6 +220,30 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_droe_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The two
@@ -308,7 +375,7 @@ Qed.
 
 Global Instance droe_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout
        machine_parameters_instance
        droe_concrete_cmptSwitcher
@@ -360,18 +427,23 @@ Lemma droe_initial_memory_correct :
   is_initial_memory droe_initial_memory.
 Proof.
   rewrite /is_initial_memory /droe_initial_memory.
-  repeat split; try reflexivity.
+  repeat split; try reflexivity; try apply Forall_nil_2.
   - rewrite /droe_C_code /encodeInstrsW;
       repeat constructor; done.
   - rewrite /droe_C_data; repeat constructor; done.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma droe_concrete_adequacy reg' sreg' mem' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma droe_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma droe_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! droe_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
@@ -379,10 +451,10 @@ Proof.
     (@droe_adequacy machine_parameters_instance droe_concrete_layout
       droe_initial_registers reg'
       droe_initial_sregisters sreg'
-      droe_initial_memory mem' es
+      droe_initial_memory mem' initial_heap_shadow sh' es
       droe_initial_registers_correct
       droe_initial_sregisters_correct
-      droe_initial_memory_correct Hrun) as Hadequacy.
+      droe_initial_memory_correct eq_refl droe_initial_heap_disjoint Hrun) as Hadequacy.
   cbn [droe_concrete_layout droe_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
 Qed.
@@ -395,20 +467,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem droe_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (droe_initial_registers, droe_initial_sregisters, droe_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+        (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! droe_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct 3000 Executable
-      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory)
+      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[reg' sreg'] mem'] Hrun].
-  exists reg', sreg', mem'. split.
+  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
+  exists reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply droe_concrete_adequacy; exact Hrun.
 Qed.

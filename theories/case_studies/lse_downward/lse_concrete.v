@@ -1,3 +1,4 @@
+From griotte.program_logic Require Import allocator_resources.
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
@@ -134,7 +135,8 @@ Proof.
     lse_trusted_stack_b lse_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
-    lse_stack_b lse_stack_e (replicate 100 (WInt 0)) _ _).
+    ltac:(by apply Forall_replicate)
+    lse_stack_b lse_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -145,20 +147,35 @@ Proof.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
       solve_addr.
+  - solve_disjoint_from_mmio.
+  - reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Program Definition lse_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance
-    lse_assert_b lse_assert_e lse_assert_cap lse_assert_flag _ _ _ _).
+    lse_assert_b lse_assert_e lse_assert_cap lse_assert_flag _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
+  - vm_compute; reflexivity.
   - unfold_lse_addresses.
     unfold disjoint, set_disjoint_instance.
     intros x Hx Hx'.
     rewrite !elem_of_finz_seq_between in Hx, Hx'.
     solve_addr.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Local Instance lse_concrete_switcherLayout : switcherLayout.
@@ -187,13 +204,14 @@ Definition lse_C_exports : list Word := [WInt (encode_entry_point 0 2)].
 
 Program Definition lse_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     lse_main_pcc_b lse_main_code_start lse_main_pcc_e
     lse_main_data_b lse_main_data_e lse_main_data_e lse_main_data_e
     lse_main_exports_pcc lse_main_exports_cgp
     lse_main_exports_entries_b lse_main_exports_entries_e
     lse_main_imports_concrete lse_main_code lse_main_data [] lse_export_table_entries
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -202,17 +220,42 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_lse_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition lse_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     lse_C_pcc_b lse_C_code_start lse_C_pcc_e
     lse_C_data_b lse_C_data_e lse_C_data_e lse_C_data_e
     lse_C_exports_pcc lse_C_exports_cgp
     lse_C_exports_entries_b lse_C_exports_entries_e
     lse_C_imports lse_C_code lse_C_data [] lse_C_exports
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -221,6 +264,30 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_lse_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The two
@@ -407,26 +474,31 @@ Qed.
 Lemma lse_initial_memory_correct : is_initial_memory lse_initial_memory.
 Proof.
   rewrite /is_initial_memory /lse_initial_memory.
-  repeat split; try reflexivity.
+  repeat split; try reflexivity; try apply Forall_nil_2.
   - rewrite /lse_C_code /encodeInstrsW; repeat constructor; done.
   - rewrite /lse_C_data; repeat constructor; done.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma lse_concrete_adequacy reg' sreg' mem' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma lse_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma lse_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (lse_initial_registers, lse_initial_sregisters, lse_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! lse_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@lse_adequacy machine_parameters_instance lse_concrete_layout
       lse_initial_registers reg' lse_initial_sregisters sreg'
-      lse_initial_memory mem' es
+      lse_initial_memory mem' initial_heap_shadow sh' es
       lse_initial_registers_correct lse_initial_sregisters_correct
-      lse_initial_memory_correct Hrun) as Hadequacy.
+      lse_initial_memory_correct eq_refl lse_initial_heap_disjoint Hrun) as Hadequacy.
   cbn [lse_concrete_layout lse_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
 Qed.
@@ -438,20 +510,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem lse_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (lse_initial_registers, lse_initial_sregisters, lse_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+        (lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! lse_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
-    (machine_run_correct 7500 Executable
-      (lse_initial_registers, lse_initial_sregisters, lse_initial_memory)
+    (machine_run_correct (N.to_nat (7500%N)) Executable
+      (lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[reg' sreg'] mem'] Hrun].
-  exists reg', sreg', mem'. split.
+  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
+  exists reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply lse_concrete_adequacy; exact Hrun.
 Qed.

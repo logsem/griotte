@@ -12,9 +12,9 @@ Section Check_No_Overlap_spec.
   Lemma check_no_overlap_spec
     (rsrc1 rsrc2 r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (w1 w2 : Word)
-    (t1 : bool) (p1 : Perm) (g1 : Locality) (b1 e1 a1 : Addr)
-    (t2 : bool) (p2 : Perm) (g2 : Locality) (b2 e2 a2 : Addr)
+    (w1 w2 : LWord)
+    (t1 : bool) (p1 : Perm) (g1 : Locality) (b1 e1 a1 : Addr) (π1 : option AId)
+    (t2 : bool) (p2 : Perm) (g2 : Locality) (b2 e2 a2 : Addr) (π2 : option AId)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let check_no_overlap := (check_no_overlap_instrs rsrc1 rsrc2 r1 r2) in
@@ -27,14 +27,14 @@ Section Check_No_Overlap_spec.
     r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1)
-    ∗ ▷ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2)
+    ∗ ▷ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
+    ∗ ▷ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a check_no_overlap
     ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
-          ∗ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1)
-          ∗ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2)
+          ∗ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
+          ∗ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
           ∗ r1 ↦ᵣ WInt 0%Z
           ∗ r2 ↦ᵣ WInt 0%Z
           ∗ ⌜ (finz.seq_between b1 e1) ## (finz.seq_between b2 e2) ⌝

@@ -1,7 +1,7 @@
-From griotte Require Export stdpp_extra.
+From griotte Require Export stdpp_extra machine_utils_extra.
 From griotte Require Export machine_base machine_parameters machine_instructions.
 
-Definition ExecConf := (Reg * SReg * Mem)%type.
+Definition ExecConf := (Reg * SReg * Mem * ShadowTbl)%type.
 
 Inductive ConfFlag : Type :=
 | Executable
@@ -11,17 +11,19 @@ Inductive ConfFlag : Type :=
 
 Definition Conf: Type := ConfFlag * ExecConf.
 
-Definition reg (ϕ: ExecConf) := (fst (fst ϕ)).
-Definition sreg (ϕ: ExecConf) := (snd (fst ϕ)).
-Definition mem (ϕ: ExecConf) := snd ϕ.
+Definition reg (ϕ: ExecConf) := (fst (fst (fst ϕ))).
+Definition sreg (ϕ: ExecConf) := (snd (fst (fst ϕ))).
+Definition mem (ϕ: ExecConf) := (snd (fst ϕ)).
+Definition shadowtbl (ϕ: ExecConf) := snd ϕ.
 
 Definition update_reg (φ: ExecConf) (r: RegName) (w: Word): ExecConf :=
-  (<[r:=w]ᵣ>(reg φ), sreg φ, mem φ).
+  (<[r:=w]ᵣ>(reg φ), sreg φ, mem φ, shadowtbl φ).
 Definition update_sreg (φ: ExecConf) (sr: SRegName) (w: Word): ExecConf :=
-  (reg φ, <[sr:=w]>(sreg φ), mem φ).
+  (reg φ, <[sr:=w]>(sreg φ), mem φ, shadowtbl φ).
 Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
-  (reg φ, sreg φ, <[a:=w]>(mem φ)).
-
+  (reg φ, sreg φ, <[a:=w]>(mem φ), shadowtbl φ).
+Definition update_shadowtbl (φ: ExecConf) (a: Addr) (s: AllocStatus): ExecConf :=
+  (reg φ, sreg φ, mem φ, <[a:=s]> (shadowtbl φ)).
 
 (* Note that the `None` values here also undo any previous changes that were tentatively made in the same step. This is more consistent across the board. *)
 Definition updatePC_gen (φ: ExecConf) (imm : Z): option Conf :=
@@ -68,6 +70,25 @@ Definition otype_of_argument regs src : option OType :=
 
 Section opsem.
   Context `{MachineParameters}.
+  Definition get_shadow_address (a : Addr) : Addr := a.
+
+  (** The revoker's atomic sweep clears the tag of exactly the words that the
+      Load filter strips: those whose heap base is quarantined. *)
+  Definition sweep_word (shadow : ShadowTbl) (w : Word) : Word :=
+    match heap_cap_base w with
+    | Some base =>
+        match shadow !! base with
+        | Some ShadowQuarantined => clear_tag w
+        | _ => w
+        end
+    | None => w
+    end.
+
+  Definition sweep_mem (shadow : ShadowTbl) (m : Mem) : Mem :=
+    sweep_word shadow <$> m.
+
+  Definition revoker_sweep (φ : ExecConf) : ExecConf :=
+    (reg φ, sreg φ, sweep_mem (shadowtbl φ) (mem φ), shadowtbl φ).
 
   Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with
@@ -103,8 +124,29 @@ Section opsem.
       | WCap true p g b e a =>
         ea ← (a + imm)%a;
         if readAllowed p && withinBounds b e ea then
-          asrc ← (mem φ) !! ea;
-          updatePC (update_reg φ dst (load_word p asrc))
+          if (is_shadow_address ea)
+          then
+            heap_a ← shadow_to_heap ea;
+            status ← (shadowtbl φ) !! heap_a;
+            updatePC (update_reg φ dst (WInt (encodeAllocStatus status)))
+          else if (is_revoker_address ea)
+          then
+            (* The revoker reads as zero. *)
+            updatePC (update_reg φ dst (WInt 0))
+          else
+            asrc ← (mem φ) !! ea;
+            match heap_cap_base asrc with
+            | Some base =>
+                status ← (shadowtbl φ) !! base;
+                let loaded_word :=
+                  match status with
+                  | ShadowLive => load_word p asrc
+                  | ShadowQuarantined => clear_tag (load_word p asrc)
+                  end
+                in
+                updatePC (update_reg φ dst loaded_word)
+            | _ => updatePC (update_reg φ dst (load_word p asrc))
+            end
         else None
       | _ => None
       end
@@ -115,7 +157,20 @@ Section opsem.
       | WCap true p g b e a =>
         ea ← (a + imm)%a;
         if writeAllowed p && withinBounds b e ea then
-          updatePC (update_mem φ ea (store_word p tostore))
+          if (is_shadow_address ea)
+          then
+            heap_a ← shadow_to_heap ea;
+            (* Integer stores decode to an allocation status. *)
+            match tostore with
+            | WInt z => updatePC (update_shadowtbl φ heap_a (decodeAllocStatus z))
+            | _ => None
+            end
+          else if (is_revoker_address ea)
+          then
+            (* Any store to the revoker sweeps memory; the value is ignored. *)
+            updatePC (revoker_sweep φ)
+          else
+            updatePC (update_mem φ ea (store_word p tostore))
         else None
       | _ => None
       end
@@ -192,7 +247,7 @@ Section opsem.
       n2 ← z_of_argument (reg φ) ρ2;
       match z_to_addr n1, z_to_addr n2 with
       | Some a1, Some a2 =>
-        let new_tag := t && isWithin a1 a2 b e in
+        let new_tag := t && isWithin a1 a2 b e && (a1 <=? a2)%a in
         updatePC (update_reg φ dst (WCap new_tag p g a1 a2 a))
       | _, _ => updatePC (update_reg φ dst (WCap false p g b e a))
       end
@@ -292,6 +347,9 @@ Section opsem.
       exec i plevel φ = (Failed, φ).
   Proof. unfold exec. by intros * ->. Qed.
 
+(* TODO I don't think that we need to check whether PC
+   is in the heap memory or not, at least it's not the case
+   in cheriot-sail *)
   Inductive step: Conf → Conf → Prop :=
   | step_exec_regfail:
       forall φ,
@@ -315,5 +373,6 @@ Section opsem.
         decodeInstrW wa = i →
         exec i p φ = c →
         step (Executable, φ) (c.1, c.2).
+
 
 End opsem.

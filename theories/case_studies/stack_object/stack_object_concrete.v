@@ -1,3 +1,4 @@
+From griotte.program_logic Require Import allocator_resources.
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
@@ -131,7 +132,8 @@ Proof.
     so_switcher_b so_switcher_e so_switcher_call so_switcher_return
     so_switcher_sealing_type so_trusted_stack_b so_trusted_stack_e
     _ _ _ _ (replicate 100 (WInt 0)) _ eq_refl
-    so_stack_b so_stack_e (replicate 100 (WInt 0)) _ _).
+    ltac:(by apply Forall_replicate)
+    so_stack_b so_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -141,17 +143,32 @@ Proof.
   - unfold_so_addresses.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx'; solve_addr.
+  - solve_disjoint_from_mmio.
+  - reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Program Definition so_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance
-    so_assert_b so_assert_e so_assert_cap so_assert_flag _ _ _ _).
+    so_assert_b so_assert_e so_assert_cap so_assert_flag _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
+  - vm_compute; reflexivity.
   - unfold_so_addresses; unfold disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'. solve_addr.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Local Instance so_concrete_switcherLayout : switcherLayout.
@@ -178,12 +195,13 @@ Definition so_C_exports : list Word :=
 
 Program Definition so_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt so_main_pcc_b so_main_code_start so_main_pcc_e
+  refine (@mkCmpt machine_parameters_instance so_main_pcc_b so_main_code_start so_main_pcc_e
     so_main_data_b so_main_data_e so_main_data_e so_main_data_e
     so_main_exports_pcc so_main_exports_cgp
     so_main_exports_entries_b so_main_exports_entries_e
     so_main_imports_concrete so_main_code so_main_data [] so_export_table_entries
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -192,15 +210,40 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_so_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition so_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt so_C_pcc_b so_C_code_start so_C_pcc_e
+  refine (@mkCmpt machine_parameters_instance so_C_pcc_b so_C_code_start so_C_pcc_e
     so_C_data_b so_C_data_e so_C_data_e so_C_data_e
     so_C_exports_pcc so_C_exports_cgp
     so_C_exports_entries_b so_C_exports_entries_e
-    so_C_imports so_C_code so_C_data [] so_C_exports _ _ _ _ _ _ _ _).
+    so_C_imports so_C_code so_C_data [] so_C_exports _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -209,6 +252,30 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_so_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The empty
@@ -380,24 +447,29 @@ Qed.
 Lemma so_initial_memory_correct : is_initial_memory so_initial_memory.
 Proof.
   rewrite /is_initial_memory /so_initial_memory.
-  repeat split; try reflexivity.
+  repeat split; try reflexivity; try apply Forall_nil_2.
   - rewrite /so_C_code /encodeInstrsW; repeat constructor; done.
   - rewrite /so_C_data; repeat constructor; done.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma so_concrete_adequacy reg' sreg' mem' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma so_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma so_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (so_initial_registers, so_initial_sregisters, so_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! so_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof (@so_adequacy machine_parameters_instance so_concrete_layout
     so_initial_registers reg' so_initial_sregisters sreg'
-    so_initial_memory mem' es so_initial_registers_correct
-    so_initial_sregisters_correct so_initial_memory_correct Hrun) as Hadequacy.
+    so_initial_memory mem' initial_heap_shadow sh' es so_initial_registers_correct
+    so_initial_sregisters_correct so_initial_memory_correct eq_refl so_initial_heap_disjoint Hrun) as Hadequacy.
   cbn [so_concrete_layout so_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
 Qed.
@@ -409,19 +481,19 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem so_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (so_initial_registers, so_initial_sregisters, so_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+        (so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! so_assert_flag = Some (WInt 0%Z).
 Proof.
-  pose proof (machine_run_correct 7000 Executable
-    (so_initial_registers, so_initial_sregisters, so_initial_memory)
+  pose proof (machine_run_correct (N.to_nat (7000%N)) Executable
+    (so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow)
     Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[reg' sreg'] mem'] Hrun].
-  exists reg', sreg', mem'. split.
+  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
+  exists reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply so_concrete_adequacy; exact Hrun.
 Qed.

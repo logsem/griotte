@@ -192,13 +192,6 @@ Section Switcher.
       let blocks_call_asm := length switcher_call_asm in
       concat (firstn blocks_call_asm assembled_switcher).
 
-  Definition is_switcher_entry_point `{switcherLayout} (w : Word) :=
-    bool_decide
-      (w = (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-           ∨
-      (w = (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
-      ))
-  .
 
   Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
     let args := Z.land nargs 7 in
@@ -220,7 +213,31 @@ Section Switcher.
         (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
 
         ot_switcher_size :
-        (ot_switcher < ot_switcher ^+ 1)%ot
+        (ot_switcher < ot_switcher ^+ 1)%ot;
+
+        trusted_stack_disjoint_from_shadow :
+        disjoint_from_shadow b_trusted_stack e_trusted_stack;
+
+        switcher_base_not_shadow : is_shadow_address b_switcher = false;
+        switcher_not_heap_range : not_heap_range b_switcher e_switcher
       }.
+
+  Lemma switcher_base_not_heap
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
+    is_heap_address b_switcher = false.
+  Proof. exact (proj1 switcher_not_heap_range). Qed.
+
+  Lemma switcher_disjoint_from_heap
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
+    disjoint_from_heap b_switcher e_switcher.
+  Proof. exact (proj2 switcher_not_heap_range). Qed.
+
+  Lemma switcher_call_sentry_not_heap
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
+    is_heap_cap (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) = false.
+  Proof.
+    rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
+    reflexivity.
+  Qed.
 
 End Switcher.

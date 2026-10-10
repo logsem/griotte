@@ -16,20 +16,6 @@ Lemma withinBounds_le_addr {z} (b e a : finz z):
   (b <= a)%f ∧ (a < e)%f.
 Proof. rewrite withinBounds_true_iff //. Qed.
 
-Lemma isWithinBounds_bounds_alt {z} b e (a0 a1 a2 : finz z) :
-  withinBounds  b e a0 = true →
-  withinBounds b e a2 = true →
-  (a0 ≤ a1)%Z ∧ (a1 ≤ a2)%Z →
-  withinBounds b e a1 = true.
-Proof. rewrite !withinBounds_true_iff. solve_addr. Qed.
-
-Lemma isWithinBounds_bounds_alt' {z} b e (a0 a1 a2 : finz z) :
-  withinBounds b e a0 = true →
-  withinBounds b e a2 = true →
-  (a0 ≤ a1)%Z ∧ (a1 < a2)%Z →
-  withinBounds b e a1 = true.
-Proof. rewrite !withinBounds_true_iff. solve_addr. Qed.
-
 Lemma le_addr_withinBounds {z} (b e a : finz z):
   (b <= a)%f → (a < e)%f →
   withinBounds b e a = true .
@@ -140,10 +126,3 @@ Global Instance finz_le_ord `{finz_bound : Z} : Ord (@finz finz_bound) :=
      le_a_decision := finz_le_dec;
      le_a_preorder := finz_le_preorder |}.
 
-Lemma leb_finz_spec { finz_bound : Z } :
-  forall (a1 a2 : (@finz finz_bound)),
-  reflect (a1 <= a2)%f (a1 <=? a2)%f.
-Proof.
-  intros.
-  apply Z.leb_spec0.
-Qed.

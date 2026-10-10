@@ -17,6 +17,16 @@ Inductive Word: Type :=
 Notation WCap t p g b e a := (WSealable (SCap t p g b e a)).
 Notation WSealRange t p g b e a := (WSealable (SSealRange t p g b e a)).
 
+(** Base used by the memory revocation filter. Sealing ranges are keys, not
+    memory capabilities; sentries retain the base of their executable cap. *)
+Definition memory_cap_base (w : Word) : option Addr :=
+  match w with
+  | WCap _ _ _ b _ _ => Some b
+  | WSealed _ (SCap _ _ _ b _ _) => Some b
+  | WSentry _ _ _ b _ _ => Some b
+  | _ => None
+  end.
+
 (* Sealed words retain the tag of their payload. Integers carry no authority. *)
 Definition get_tag_sealable (sb : Sealable) : bool :=
   match sb with
@@ -525,10 +535,6 @@ Qed.
 
 (* Lemmas about store_word *)
 
-Lemma store_word_cases p w :
-  store_word p w = w ∨ store_word p w = clear_tag w.
-Proof. rewrite /store_word. destruct (canStore p w); auto. Qed.
-
 Lemma store_word_isWL p w :
   isWL p = true → store_word p w = w.
 Proof.
@@ -554,13 +560,6 @@ Lemma store_word_canStore p w :
   canStore p w = true → store_word p w = w.
 Proof.
   intros Hstore. by rewrite /store_word Hstore.
-Qed.
-
-Lemma get_tag_store_word p w :
-  get_tag (store_word p w) = true → get_tag w = true.
-Proof.
-  destruct (store_word_cases p w) as [-> | ->]; first done.
-  by rewrite get_tag_clear_tag.
 Qed.
 
 Lemma canStore_store_word p w :
@@ -817,15 +816,6 @@ Lemma isCorrectPC_executeAllowed_InBounds p g b e a :
 Proof.
   unfold InBounds. intros. constructor; eauto.
 Qed.
-
-Lemma isCorrectPC_ExecPCPerm_InBounds p g b e a :
-  executeAllowed p = true →
-  InBounds b e a →
-  isCorrectPC (WCap true p g b e a).
-Proof.
-  unfold InBounds. intros. constructor; eauto.
-Qed.
-
 Lemma seal_capability_inj (o : OType) (c1 c2 : Word) :
   is_cap c1 ->
   is_cap c2 ->

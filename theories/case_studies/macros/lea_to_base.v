@@ -28,8 +28,8 @@ Section Lea_To_Base_spec.
   Lemma lea_to_base_spec
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (w1 w2 : Word)
-    (t : bool) (p : Perm) (g : Locality) (b e a : Addr)
+    (w1 w2 : LWord)
+    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let lea_to_base := (lea_to_base_instrs r r1 r2) in
@@ -41,12 +41,12 @@ Section Lea_To_Base_spec.
     r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ r ↦ᵣ WCap t p g b e a
+    ∗ ▷ r ↦ᵣ WCap t p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a lea_to_base
     ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
-         ∗ r ↦ᵣ WCap t p g b e b
+         ∗ r ↦ᵣ WCap t p g b e b @@? π
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt 0%Z
          ∗ codefrag pc_a lea_to_base

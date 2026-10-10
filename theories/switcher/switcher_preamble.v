@@ -8,12 +8,25 @@ From griotte Require Export code_blocks.
 From griotte Require Export switcher.
 From griotte Require Export clear_stack_spec clear_registers_spec.
 
+Lemma switcher_disjoint_subseg `{MP : MachineParameters} b e b' e' :
+  (b <= b')%a -> (e' <= e)%a ->
+  disjoint_from_mmio b e ∧ disjoint_from_heap b e ->
+  disjoint_from_mmio b' e' ∧ disjoint_from_heap b' e'.
+Proof.
+  intros Hb He [Hs Hh]. split.
+  - by eapply disjoint_from_mmio_weaken.
+  - rewrite /disjoint_from_heap elem_of_disjoint in Hh |- *.
+    intros x Hx Hregion; eapply Hh; try exact Hregion.
+    apply elem_of_finz_seq_between; apply elem_of_finz_seq_between in Hx.
+    solve_addr.
+Qed.
+
 Section Switcher_preamble.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -21,22 +34,6 @@ Section Switcher_preamble.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-
-  Lemma is_switcher_entry_point_call `{switcherLayout} :
-    is_switcher_entry_point (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) = true.
-  Proof.
-    rewrite /is_switcher_entry_point.
-    rewrite bool_decide_eq_true_2; first done.
-    by left.
-  Qed.
-
-  Lemma is_switcher_entry_point_return `{switcherLayout} :
-    is_switcher_entry_point (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
-  Proof.
-    rewrite /is_switcher_entry_point.
-    rewrite bool_decide_eq_true_2; first done.
-    by right.
-  Qed.
 
   Lemma encode_entry_point_eq_nargs nargs off_entry :
     (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point nargs off_entry) 7)) = nargs.
@@ -84,17 +81,17 @@ Section Switcher_preamble.
       (1) Although we know that they contain zeroes due to the caller's clearing,
           it makes the proofs more annoying, and we never rely on this information anyway.
    *)
-  Program Definition execute_entry_point_register (wpcc wcgp wstk : Word) (nargs : nat) :
-    (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ) :=
-    λne (W : WORLD) (C : CmptName) (reg : leibnizO Reg),
+  Program Definition execute_entry_point_register (wpcc wcgp wstk : LWord) (nargs : nat) :
+    (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ) :=
+    λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg
        ∧ ⌜ reg !! PC = Some wpcc ⌝
        ∧ ⌜ reg !! cgp = Some wcgp ⌝
-       ∧ ⌜ reg !! cra = Some (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝
+       ∧ ⌜ reg !! cra = Some (lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)) ⌝
        ∧ ⌜ reg !! csp = Some wstk ⌝
        ∗ interp W C wstk
-       ∗ (∀ (r : RegName) (v : Word), (⌜r ∈ (dom_arg_rmap nargs)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
-       ∗ (∀ (r : RegName) (v : Word), (⌜r ∉ ({[PC; cra; cgp; csp]} ∪ (dom_arg_rmap nargs) : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → ⌜ v = WInt 0 ⌝))
+       ∗ (∀ (r : RegName) (v : LWord), (⌜r ∈ (dom_arg_rmap nargs)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
+       ∗ (∀ (r : RegName) (v : LWord), (⌜r ∉ ({[PC; cra; cgp; csp]} ∪ (dom_arg_rmap nargs) : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → ⌜ v = WInt 0 ⌝))
       )%I.
   Solve All Obligations with solve_proper.
 
@@ -137,7 +134,7 @@ Section Switcher_preamble.
       to re-instate validity of the caller's stack.
       This will become clearer in the proof of [switcher_ret_specification].
    *)
-  Program Definition execute_entry_point (wpcc wcgp : Word) (nargs : nat) :
+  Program Definition execute_entry_point (wpcc wcgp : LWord) (nargs : nat) :
     (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
       ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) regs a_stk e_stk,
@@ -179,8 +176,8 @@ Section Switcher_preamble.
       Similarly, [related_sts_priv_world].
    *)
   Program Definition ot_switcher_prop :
-    (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
-    λne (W : WORLD) (C : CmptName) (w : Word),
+    (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ):=
+    λne (W : WORLD) (C : CmptName) (w : LWord),
        (∃ (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr)
           (bpcc epcc : Addr)
           (bcgp ecgp : Addr)
@@ -193,11 +190,16 @@ Section Switcher_preamble.
            ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
            ∗ ⌜ (0 <= nargs <= 7 )%nat ⌝
            ∗ ⌜ is_Some (bpcc + off)%a ⌝
+           ∗ ⌜ is_shadow_address a_tbl = false ⌝
+           ∗ ⌜ is_shadow_address b_tbl = false ⌝
+           ∗ ⌜ is_shadow_address (b_tbl ^+ 1)%a = false ⌝
+           ∗ ⌜ is_heap_address bpcc = false ⌝
+           ∗ ⌜ is_heap_address bcgp = false ⌝
            ∗ inv (export_table_PCCN Cname) ( b_tbl ↦ₐ WCap true RX Global bpcc epcc bpcc)
            ∗ inv (export_table_CGPN Cname) ( (b_tbl ^+ 1)%a ↦ₐ WCap true RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN Cname a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
-           ∗ (seal_capability w ot_switcher) ↦□ₑ nargs
-           ∗ (seal_capability (borrow w) ot_switcher) ↦□ₑ nargs
+           ∗ (seal_capability w.(lw) ot_switcher) ↦□ₑ nargs
+           ∗ (seal_capability (borrow w.(lw)) ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap true RX Global bpcc epcc (bpcc ^+ off)%a)
@@ -207,14 +209,11 @@ Section Switcher_preamble.
       )%I.
   Solve All Obligations with solve_proper.
 
-  Definition ot_switcher_propC : (WORLD * CmptName * Word) -> iPropI Σ :=
+  Definition ot_switcher_propC : (WORLD * CmptName * LWord) -> iPropI Σ :=
     safeC ot_switcher_prop.
 
-  Lemma persistent_cond_ot_switcher :
-    persistent_cond ot_switcher_prop.
-  Proof. intros [ [] ] ; cbn; apply _. Qed.
 
-  Lemma mono_priv_ot_switcher (C : CmptName) (w : Word) :
+  Lemma mono_priv_ot_switcher (C : CmptName) (w : LWord) :
     ⊢ future_priv_mono C ot_switcher_propC w.
   Proof.
     iIntros (W W' Hrelated_W_W').
@@ -224,7 +223,8 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
+       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
+      "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
     iExists _,_.
     repeat (iSplit ; first done).
@@ -236,18 +236,6 @@ Section Switcher_preamble.
     by eapply related_sts_priv_trans_world.
   Qed.
 
-  Lemma ot_switcher_prop_borrow (W : WORLD) (C : CmptName) ( w : Word ) :
-    ot_switcher_prop W C w -∗ ot_switcher_prop W C (borrow w).
-  Proof.
-    iIntros "Hot_switcher".
-    iEval (cbn) in "Hot_switcher".
-    iEval (cbn).
-    iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
-    iFrame "#∗%".
-    iExists Local; iPureIntro; done.
-  Qed.
 
   (** [cframe_interp] interprets a call-frame, i.e.,
       describes how the physical call-frame is linked to the logical call-frame [frm : cframe].
@@ -273,7 +261,8 @@ Section Switcher_preamble.
     let a_stk := frm.(a_stk) in
     let e_stk := frm.(e_stk) in
     a_tstk ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
-    ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝ ∗
+    ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
+      disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ⌝ ∗
     cframe_stk_own frm%I.
 
   (** [cstack_interp] interprets a call-stack.
@@ -308,7 +297,7 @@ Section Switcher_preamble.
       The used part is contained in the definition of [stack_interp].
    *)
   Definition switcher_inv : iProp Σ :=
-    ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list Word),
+    ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list LWord),
      mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk
      ∗ ⌜ (ot_switcher < (ot_switcher ^+1) )%ot ⌝
      ∗ codefrag a_switcher_call switcher_instrs

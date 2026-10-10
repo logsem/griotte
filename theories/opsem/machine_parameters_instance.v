@@ -2,6 +2,7 @@ From stdpp Require Import countable.
 From griotte Require Import machine_base machine_parameters.
 
 Local Open Scope Z_scope.
+Local Transparent MemNum.
 
 Local Definition encode_countable `{Countable A} (x : A) : Z :=
   Z.pos (encode x).
@@ -66,33 +67,79 @@ Local Lemma encode_word_type_correct :
   end.
 Proof. intros w w'. destruct_word w; destruct_word w'; done. Qed.
 
+Local Definition encode_alloc_status (s : AllocStatus) : Z :=
+  match s with ShadowLive => 0 | ShadowQuarantined => 1 end.
+
+Local Definition decode_alloc_status (z : Z) : AllocStatus :=
+  if Z.eqb z 0 then ShadowLive else ShadowQuarantined.
+
+Local Lemma decode_encode_alloc_status s :
+  decode_alloc_status (encode_alloc_status s) = s.
+Proof. by destruct s. Qed.
+
+Local Definition default_heap_region : HeapRegion := {|
+    heap_b := 0%a;
+    heap_e := @finz.FinZ MemNum 1%Z eq_refl eq_refl;
+    heap_valid := ltac:(solve_addr)
+  |}.
+
+Local Definition default_shadow_region : ShadowRegion := {|
+    shadow_b := @finz.FinZ MemNum 2%Z eq_refl eq_refl;
+    shadow_e := @finz.FinZ MemNum 3%Z eq_refl eq_refl;
+    shadow_valid := ltac:(solve_addr)
+  |}.
+
+Local Definition default_revoker_region : RevokerRegion := {|
+    revoker_addr := @finz.FinZ MemNum 4%Z eq_refl eq_refl
+  |}.
+
 Local Instance machine_parameters_instance : MachineParameters := {|
-  decodeInstr := decode_countable Fail;
-  encodeInstr := encode_countable;
-  decode_encode_instr_inv := decode_encode_countable Fail;
+  instruction_encoding_mixin := {|
+    decodeInstr := decode_countable Fail;
+    encodeInstr := encode_countable;
+    decode_encode_instr_inv := decode_encode_countable Fail
+  |};
+  permission_encoding_mixin := {|
+    encodePerm := encode_countable;
+    encodePerm_inj := encode_countable_inj;
+    decodePerm := decode_countable (O LG LM);
 
-  encodePerm := encode_countable;
-  encodePerm_inj := encode_countable_inj;
-  decodePerm := decode_countable (O LG LM);
+    encodeLoc := encode_countable;
+    encodeLoc_inj := encode_countable_inj;
 
-  encodeLoc := encode_countable;
-  encodeLoc_inj := encode_countable_inj;
+    decodePermPair := decode_countable ((O LG LM), Local);
+    encodePermPair := encode_countable;
+    decode_encode_permPair_inv := decode_encode_countable ((O LG LM), Local);
 
-  decodePermPair := decode_countable ((O LG LM), Local);
-  encodePermPair := encode_countable;
-  decode_encode_permPair_inv := decode_encode_countable ((O LG LM), Local);
+    encodeSealPerms := encode_countable;
+    encodeSealPerms_inj := encode_countable_inj;
+    decodeSealPerms := decode_countable (false, false);
+    decode_encode_seal_perms_inv := decode_encode_countable (false, false);
 
-  encodeSealPerms := encode_countable;
-  encodeSealPerms_inj := encode_countable_inj;
-  decodeSealPerms := decode_countable (false, false);
-  decode_encode_seal_perms_inv := decode_encode_countable (false, false);
-
-  decodeSealPermPair := decode_countable ((false, false), Local);
-  encodeSealPermPair := encode_countable;
-  decode_encode_SealPermPair_inv :=
-    decode_encode_countable ((false, false), Local);
-
-  encodeWordType := encode_word_type;
-  decodeWordType := decode_word_type;
-  encodeWordType_correct := encode_word_type_correct
+    decodeSealPermPair := decode_countable ((false, false), Local);
+    encodeSealPermPair := encode_countable;
+    decode_encode_SealPermPair_inv :=
+      decode_encode_countable ((false, false), Local)
+  |};
+  word_encoding_mixin := {|
+    encodeWordType := encode_word_type;
+    decodeWordType := decode_word_type;
+    encodeWordType_correct := encode_word_type_correct
+  |};
+  encodeAllocStatus := encode_alloc_status;
+  decodeAllocStatus := decode_alloc_status;
+  decode_encode_alloc_status_inv := decode_encode_alloc_status;
+  heap_mixin := default_heap_region;
+  shadow_mixin := default_shadow_region;
+  heap_shadow_translation_mixin :=
+    @affine_heap_shadow_translation default_heap_region default_shadow_region eq_refl;
+  heap_shadow_disjoint := ltac:(
+    unfold disjoint; intros a Hheap Hshadow;
+    rewrite !elem_of_finz_seq_between in Hheap;
+    rewrite !elem_of_finz_seq_between in Hshadow;
+    unfold finz.le_lt in Hheap; unfold finz.le_lt in Hshadow;
+    cbn in Hheap; cbn in Hshadow; lia);
+  revoker_mixin := default_revoker_region;
+  revoker_not_heap := eq_refl;
+  revoker_not_shadow := eq_refl
 |}.

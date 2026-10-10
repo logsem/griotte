@@ -1,3 +1,4 @@
+From griotte.program_logic Require Import allocator_resources.
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
@@ -78,7 +79,7 @@ Ltac unfold_dle_addresses_in H :=
 
 (** The concrete adversary examines the argument passed in [ca0]. If it is a
     capability, the adversary follows it to the nested capability and attempts
-    to overwrite the nested cell with [7]; otherwise it simply returns. This
+    to overwrite the nested address with [7]; otherwise it simply returns. This
     instantiates the unknown compartment with a direct attack on deep locality. *)
 Definition dle_C_code : list Word :=
   encodeInstrsW [
@@ -106,7 +107,8 @@ Proof.
     dle_trusted_stack_b dle_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
-    dle_stack_b dle_stack_e (replicate 100 (WInt 0)) _ _).
+    ltac:(by apply Forall_replicate)
+    dle_stack_b dle_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -117,20 +119,35 @@ Proof.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
       solve_addr.
+  - solve_disjoint_from_mmio.
+  - reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Program Definition dle_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance
-    dle_assert_b dle_assert_e dle_assert_cap dle_assert_flag _ _ _ _).
+    dle_assert_b dle_assert_e dle_assert_cap dle_assert_flag _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
+  - vm_compute; reflexivity.
   - unfold_dle_addresses.
     unfold disjoint, set_disjoint_instance.
     intros x Hx Hx'.
     rewrite !elem_of_finz_seq_between in Hx, Hx'.
     solve_addr.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
 Defined.
 
 Local Instance dle_concrete_switcherLayout : switcherLayout.
@@ -152,13 +169,14 @@ Definition dle_main_imports_concrete : list Word :=
 
 Program Definition dle_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     dle_main_pcc_b dle_main_code_start dle_main_pcc_e
     dle_main_data_b dle_main_data_e dle_main_data_e dle_main_data_e
     dle_main_exports_pcc dle_main_exports_cgp
     dle_main_exports_entries_b dle_main_exports_entries_e
     dle_main_imports_concrete dle_main_code dle_main_data [] []
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -167,17 +185,42 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_dle_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition dle_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     dle_C_pcc_b dle_C_code_start dle_C_pcc_e
     dle_C_data_b dle_C_data_e dle_C_data_e dle_C_data_e
     dle_C_exports_pcc dle_C_exports_cgp
     dle_C_exports_entries_b dle_C_exports_entries_e
     dle_C_imports dle_C_code dle_C_data [] dle_C_exports
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -186,6 +229,30 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_dle_addresses; disj_regions.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - solve_disjoint_from_mmio.
+  - solve_disjoint_from_mmio.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The two
@@ -317,7 +384,7 @@ Qed.
 
 Global Instance dle_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout
        machine_parameters_instance
        dle_concrete_cmptSwitcher
@@ -370,18 +437,23 @@ Lemma dle_initial_memory_correct :
   is_initial_memory dle_initial_memory.
 Proof.
   rewrite /is_initial_memory /dle_initial_memory.
-  repeat split; try reflexivity.
+  repeat split; try reflexivity; try apply Forall_nil_2.
   - rewrite /dle_C_code /encodeInstrsW;
       repeat constructor; done.
   - rewrite /dle_C_data; repeat constructor; done.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma dle_concrete_adequacy reg' sreg' mem' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma dle_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma dle_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! dle_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
@@ -389,10 +461,10 @@ Proof.
     (@dle_adequacy machine_parameters_instance dle_concrete_layout
       dle_initial_registers reg'
       dle_initial_sregisters sreg'
-      dle_initial_memory mem' es
+      dle_initial_memory mem' initial_heap_shadow sh' es
       dle_initial_registers_correct
       dle_initial_sregisters_correct
-      dle_initial_memory_correct Hrun) as Hadequacy.
+      dle_initial_memory_correct eq_refl dle_initial_heap_disjoint Hrun) as Hadequacy.
   cbn [dle_concrete_layout dle_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
 Qed.
@@ -405,20 +477,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem dle_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (dle_initial_registers, dle_initial_sregisters, dle_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+        (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! dle_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct 5000 Executable
-      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory)
+      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[reg' sreg'] mem'] Hrun].
-  exists reg', sreg', mem'. split.
+  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
+  exists reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply dle_concrete_adequacy; exact Hrun.
 Qed.

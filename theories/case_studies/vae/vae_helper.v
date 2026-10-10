@@ -6,7 +6,7 @@ Section VAE_helper.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -15,11 +15,11 @@ Section VAE_helper.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Definition awkN : namespace := nroot .@ "awkN".
   Definition awk_inv C i a :=
-    (∃ x:bool, sts_state_loc (A:=Addr) C i x
+    (∃ x:bool, sts_state_loc (A:=LAddr) C i x
             ∗ if x
               then a ↦ₐ WInt 1%Z
               else a ↦ₐ WInt 0%Z)%I.
@@ -116,7 +116,7 @@ Section VAE_helper.
     intros Hloc Hrel.
     rewrite /related_sts_priv_world /=.
     split; first apply related_sts_std_priv_refl.
-    split; last apply related_sts_seals_std_refl.
+    split; last (split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]).
     split; [set_solver|split;[set_solver|] ].
     intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
     repeat (split; first done).
@@ -138,7 +138,7 @@ Section VAE_helper.
     intros Hloc Hrel.
     rewrite /related_sts_pub_world /=.
     split; first apply related_sts_std_pub_refl.
-    split; last apply related_sts_seals_std_refl.
+    split; last (split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]).
     split; [set_solver|split;[set_solver|] ].
     intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
     repeat (split; first done).
@@ -196,15 +196,15 @@ Section VAE_helper.
       parameter keeps this pure repair independent of any concrete stack
       layout used by the VAE closure theorem. *)
   Lemma awk_two_call_world_repair
-      (W0 W3 W6 : WORLD) (closing : list Addr)
+      (W0 W3 W6 : WORLD) (closing : list LAddr)
       (b : bool) (i : positive) :
     let W1 := revoke W0 in
     let W2 := <l[i:=false]l>W1 in
     let W4 := revoke W3 in
     let W5 := <l[i:=true]l>W4 in
     let W7 := revoke W6 in
-    (forall a : Addr, std W0 !! a = Some Temporary <-> a ∈ closing) ->
-    Forall (fun a : Addr => std W7 !! a = Some Revoked) closing ->
+    (forall a : LAddr, std W0 !! a = Some Temporary <-> a ∈ closing) ->
+    Forall (fun a : LAddr => std W7 !! a = Some Revoked) closing ->
     related_sts_pub_world W2 W3 ->
     related_sts_pub_world W5 W6 ->
     loc W1 !! i = Some (encode b) ->
@@ -261,9 +261,9 @@ Section VAE_helper.
     }
 
     split; [|split]; cbn; cycle 1.
-    - destruct W0 as [ [W0_std [W0_loc W0_rel] ] W0_seals],
-          W3 as [ [W3_std [W3_loc W3_rel] ] W3_seals],
-          W6 as [ [W6_std [W6_loc W6_rel] ] W6_seals]; cbn.
+    - destruct W0 as [ [ [W0_std [W0_loc W0_rel] ] W0_seals] W_heap0 ],
+          W3 as [ [ [W3_std [W3_loc W3_rel] ] W3_seals] W_heap3 ],
+          W6 as [ [ [W6_std [W6_loc W6_rel] ] W6_seals] W_heap6 ]; cbn.
       destruct Hrelated_pub_W2_W3 as
         (HW2_W3_std & HW2_W3_cus & HW2_W3_seals).
       destruct Hrelated_pub_W5_W6 as
