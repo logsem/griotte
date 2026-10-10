@@ -93,7 +93,8 @@ Proof.
     cmdc_concrete_cmptSwitcher wo_concrete_main_cmpt _
     cmdc_concrete_B_cmpt 1 _ _).
   - vm_compute; solve_addr.
-  - solve_wo_concrete_disjoint.
+  - (* The regions are concrete: their disjointness is decided by computation. *)
+    apply list_to_set_disj_2; apply (bool_decide_unpack _); vm_compute; reflexivity.
   - split; solve_wo_concrete_disjoint.
 Defined.
 
