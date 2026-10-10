@@ -37,7 +37,7 @@
 </div>
 
 <div class="doc">
-<a id="lab266"></a><h1 class="section">Return routine, end of block 12 and blocks 13-15, binary model</h1>
+<a id="lab265"></a><h1 class="section">Return routine, end of block 12 and blocks 13-15, binary model</h1>
 
 
 <div class="paragraph"> </div>
@@ -287,8 +287,8 @@ End of block 12 and blocks 13-15: restore the callee-save registers
 
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Blocks&nbsp;14-15&nbsp;*)</span><br/>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iInsertList</span> "Hrmap" <span class="id" title="notation">[</span><a class="idref" href="griotte.opsem.registers.html#ctp"><span class="id" title="definition">ctp</span></a><span class="id" title="notation">;</span><a class="idref" href="griotte.opsem.registers.html#ca2"><span class="id" title="definition">ca2</span></a><span class="id" title="notation">;</span><a class="idref" href="griotte.opsem.registers.html#ct0"><span class="id" title="definition">ct0</span></a><span class="id" title="notation">;</span><a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a><span class="id" title="notation">]</span>.<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iInsertListSpec</span> "Hsmap" <span class="id" title="notation">[</span><a class="idref" href="griotte.opsem.registers.html#ctp"><span class="id" title="definition">ctp</span></a><span class="id" title="notation">;</span><a class="idref" href="griotte.opsem.registers.html#ca2"><span class="id" title="definition">ca2</span></a><span class="id" title="notation">;</span><a class="idref" href="griotte.opsem.registers.html#ct0"><span class="id" title="definition">ct0</span></a><span class="id" title="notation">;</span><a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a><span class="id" title="notation">]</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iInsertRegs</span> "Hrmap" <span class="id" title="notation">[</span>"Hctp"<span class="id" title="notation">;</span>"Hca2"<span class="id" title="notation">;</span>"Hct0"<span class="id" title="notation">;</span>"Hct1"<span class="id" title="notation">]</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iInsertRegsSpec</span> "Hsmap" <span class="id" title="notation">[</span>"Hsctp"<span class="id" title="notation">;</span>"Hsca2"<span class="id" title="notation">;</span>"Hsct0"<span class="id" title="notation">;</span>"Hsct1"<span class="id" title="notation">]</span>.<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">switcher_change_pc</span> (<a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#switcher_block_offset"><span class="id" title="abbreviation">switcher_block_offset</span></a> 14).<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iApply</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">(</span></a><a class="idref" href="griotte.switcher_binary.switcher_blocks_14_15_binary.html#switcher_blocks_14_15_spec"><span class="id" title="lemma">switcher_blocks_14_15_spec</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">with</span></a><br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"[- $Hspec $Hj $HPC $HsPC $Hcra $Hscra $Hrmap $Hsmap]"<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">)</span></a>.<br/>
