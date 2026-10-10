@@ -241,8 +241,8 @@ Section switcher_helper.
       Hrmap Hworld_interp HK Hcstk Hcstk_spec Hj Hna Hlc".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hsmap]".
     iDestruct (big_sepM_sep with "Hsmap") as "[Hsmap %Hrmap_zero]".
-    iInsertList "Hrmap" [csp;cs1;cs0;ca1;ca0;cgp;cra].
-    iInsertListSpec "Hsmap" [csp;cs1;cs0;ca1;ca0;cgp;cra].
+    iInsertRegs "Hrmap" ["Hcsp";"Hcs1";"Hcs0";"Hca1";"Hca0";"Hcgp";"Hcra"].
+    iInsertRegsSpec "Hsmap" ["Hscsp";"Hscs1";"Hscs0";"Hsca1";"Hsca0";"Hscgp";"Hscra"].
     iDestruct (big_sepM_insert with "[$Hrmap $HPC]") as "Hrmap".
     { apply not_elem_of_dom; rewrite !dom_insert_L Hdom; set_solver+. }
     iDestruct (big_sepM_insert with "[$Hsmap $HsPC]") as "Hsmap".

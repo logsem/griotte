@@ -7,8 +7,9 @@ From griotte Require Export register_tactics.
 
     [iExtract] and [iExtractList] of [register_tactics] are generic in the
     points-to predicate, and work as well on maps of spec register points-to
-    predicates. The insertion tactics below are the counterparts of [iInsert]
-    and [iInsertList] for spec register points-to predicates [r ↣ᵣ w]. *)
+    predicates. The insertion tactics below are the counterparts of [iInsert],
+    [iInsertList] and [iInsertRegs] for spec register points-to predicates
+    [r ↣ᵣ w]. *)
 
 Ltac iInsertSpec_core m' Hmap rnames Hrdom :=
   match rnames with
@@ -45,3 +46,18 @@ Tactic Notation "iInsertSpec" constr(Hmap) constr(rname):=
 
 Tactic Notation "iInsertListSpec" constr(Hmap) constr(rnames):=
     iInsertSpec0 Hmap rnames.
+
+(** Insert the spec register points-to of the hypotheses [Hregs] into the
+    spec register map [Hmap], see [iInsertRegs]: no disjointness proof and no
+    simplification of the resulting map. *)
+Ltac iInsertRegsSpec0 Hmap Hregs :=
+  lazymatch Hregs with
+  | nil => idtac
+  | ?Hreg :: ?Htail =>
+      let pat := constr:((Hreg ++ " " ++ Hmap)%string) in
+      iDestruct (big_sepM_insert_2 (λ r w, r ↣ᵣ w)%I with pat) as Hmap;
+      iInsertRegsSpec0 Hmap Htail
+  end.
+
+Tactic Notation "iInsertRegsSpec" constr(Hmap) constr(Hregs) :=
+    iInsertRegsSpec0 Hmap Hregs.

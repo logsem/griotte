@@ -227,8 +227,8 @@ Section fundamental.
     assert (is_Some (smap !! ca1)) as [? ?] by (apply elem_of_dom; rewrite Hsdom; set_solver-).
     iExtractList "Hrmap" [ca0;ca1] as ["Hca0";"Hca1"].
     iExtractList "Hsmap" [ca0;ca1] as ["Hsca0";"Hsca1"].
-    iInsertList "Hrmap" [ct1;ctp;ct2].
-    iInsertListSpec "Hsmap" [ct1;ctp;ct2].
+    iInsertRegs "Hrmap" ["Hct1";"Hctp";"Hct2"].
+    iInsertRegsSpec "Hsmap" ["Hsct1";"Hsctp";"Hsct2"].
     iApply (switcher_call_blocks_5_spec with
       "[- $Hspec $Hj $HPC $HsPC $Hcs0 $Hcsp $Hscsp $Hcells $Hscells $Hrmap $Hsmap $Hcode $Hscode]");
       first done.
