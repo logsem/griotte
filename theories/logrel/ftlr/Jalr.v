@@ -58,7 +58,7 @@ Section fundamental.
       iApply wp_value; auto.
     }
 
-    iAssert (interp W C (WSentry p g b e pc_a')) as "Hinterp_ret".
+    iAssert (interp W C (WSentry true p g b e pc_a')) as "Hinterp_ret".
     {
       iApply (interp_weakeningSentry with "IH Hinv_interp");eauto;try solve_addr.
       - destruct Hp as [Hexec _].
@@ -79,8 +79,20 @@ Section fundamental.
       iApply wp_value; iIntros; discriminate.
     }
 
-    destruct (updatePcPerm wsrc) eqn:Hwsrc ; [ | destruct sb | | ]; cycle 1.
-    { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
+    destruct (updatePcPerm wsrc) as
+      [z | [t0 p0 g0 b0 e0 a0 | t0 sp0 g0 b0 e0 a0] | t0 p0 g0 b0 e0 a0 | ot sb]
+      eqn:Hwsrc; cycle 1.
+    { destruct t0; cycle 1.
+      { iNext; iIntros "_".
+        rewrite insert_reg_commute //; simplify_map_eq.
+        iApply (wp_bind (fill [SeqCtx])).
+        iExtract "Hmap" PC as "HPC".
+        iApply (wp_notCorrectPC_tag with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        iApply wp_pure_step_later; auto; iNext; iIntros "_".
+        iApply wp_value; auto.
+      }
+      destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         rewrite insert_reg_commute //; simplify_map_eq.
         iApply (wp_bind (fill [SeqCtx])).
@@ -92,7 +104,7 @@ Section fundamental.
       }
 
 
-      destruct_word wsrc; cbn in Hwsrc; try discriminate.
+      destruct_word wsrc; try destruct t; cbn in Hwsrc; try discriminate.
       { destruct c; inv Hwsrc.
         iNext ; iIntros "_".
 
@@ -101,7 +113,7 @@ Section fundamental.
         { destruct ρ;auto;contradiction. }
 
         rewrite !insert_reg_insert insert_reg_commute //.
-        iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry p g b e pc_a']ᵣ> regs) with
+        iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry true p g b e pc_a']ᵣ> regs) with
                  "[%] [] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.

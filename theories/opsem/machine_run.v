@@ -6,7 +6,7 @@ From griotte Require Import machine_parameters machine_base griotte_lang.
 
 Definition isCorrectPCb (w: Word): bool :=
   match w with
-  | WCap p g b e a =>
+  | WCap true p g b e a =>
     (b <=? a)%a && (a <? e)%a && executeAllowed p
   | _ => false
   end.
@@ -16,6 +16,7 @@ Lemma isCorrectPCb_isCorrectPC w :
 Proof.
   rewrite /isCorrectPCb. destruct_word w.
   1,3,4,5 : split; try congruence; inversion 1.
+  destruct t; last (split; [congruence | inversion 1]).
   rewrite !andb_true_iff !Z.leb_le !Z.ltb_lt.
   split.
   - intros [? ?]. constructor; [solve_addr | naive_solver].
@@ -46,12 +47,12 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
         if isCorrectPCb pc
         then (
             let a := match pc with
-                     | WCap _ _ _ _ a => a
+                     | WCap _ _ _ _ _ a => a
                      | _ => addresses.top (* dummy *)
                      end
             in
             let p := match pc with
-                     | WCap p _ _ _ _ => p
+                     | WCap _ p _ _ _ _ => p
                      | _ => RWX (* dummy *)
                      end
             in
@@ -90,7 +91,8 @@ Proof.
         constructor.
     + destruct (isCorrectPCb wpc) eqn:HPC.
       * apply isCorrectPCb_isCorrectPC in HPC.
-        destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC]. destruct sb as [p g b e a | ]; last by inversion HPC.
+        destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC]. destruct sb as [t p g b e a | ]; last by inversion HPC.
+        destruct t; last by inversion HPC.
         destruct (m !! a) as [wa | ] eqn:HeMem.
         ** eapply IHfuel in Hc as [φ' Hc]. eexists.
            eapply rtc_l; last eapply Hc.

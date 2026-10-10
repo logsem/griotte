@@ -80,13 +80,13 @@ Ltac unfold_so_addresses_in H :=
     before returning to the main program. *)
 Definition so_C_code : list Word :=
   encodeInstrsW [
-    Store csp cra;
+    Store csp cra 0;
     Lea csp 1%Z;
     Mov ca0 csp;
     GetA cs0 ca0;
     machine_instructions.Add cs1 cs0 1%Z;
     Subseg ca0 cs0 cs1;
-    Store ca0 0%Z;
+    Store ca0 0%Z 0;
     Lea csp 1%Z;
     Mov ctp PC;
     GetB cs0 ctp;
@@ -95,13 +95,13 @@ Definition so_C_code : list Word :=
     Lea ctp cs0;
     Mov ct0 ctp;
     Lea ct0 0%Z;
-    Load ct0 ct0;
+    Load ct0 ct0 0;
     Mov ct1 ctp;
     Lea ct1 1%Z;
-    Load ct1 ct1;
+    Load ct1 ct1 0;
     Mov ca1 ctp;
     Lea ca1 2%Z;
-    Load ca1 ca1;
+    Load ca1 ca1 0;
     Mov cs0 0%Z;
     Mov cs1 0%Z;
     Mov cs0 cra;
@@ -109,7 +109,7 @@ Definition so_C_code : list Word :=
     Jalr cra ct0;
     Lea csp (-1)%Z;
     Lea csp (-1)%Z;
-    Load cra csp;
+    Load cra csp 0;
     Mov ca0 0%Z;
     Mov ca1 0%Z;
     Mov ct0 0%Z;
@@ -118,8 +118,8 @@ Definition so_C_code : list Word :=
     Mov cs1 0%Z;
     Jalr cnull cra;
     Lea ca0 (-1)%Z;
-    Store ca0 7%Z;
-    Store ca1 9%Z;
+    Store ca0 7%Z 0;
+    Store ca1 9%Z 0;
     Jalr cnull cra
   ].
 
@@ -161,14 +161,14 @@ Local Instance so_concrete_assertLayout : assertLayout.
 Proof. exact (cmptAssert_assertLayout so_concrete_cmptAssert). Defined.
 
 Definition so_C_f : Sealable :=
-  SCap RO Global so_C_exports_pcc so_C_exports_entries_e
+  SCap true RO Global so_C_exports_pcc so_C_exports_entries_e
     so_C_exports_entries_b.
 Definition so_C_g : Sealable :=
-  SCap RO Global so_C_exports_pcc so_C_exports_entries_e
+  SCap true RO Global so_C_exports_pcc so_C_exports_entries_e
     (so_C_exports_entries_b ^+ 1)%a.
 Definition so_main_imports_concrete : list Word := so_main_imports so_C_f.
 Definition so_C_imports : list Word :=
-  [ WSentry XSRW_ Local so_switcher_b so_switcher_e so_switcher_call
+  [ WSentry true XSRW_ Local so_switcher_b so_switcher_e so_switcher_call
   ; WSealed so_switcher_sealing_type
       (so_entry_f_sb so_main_exports_pcc so_main_exports_entries_e)
   ; WSealed so_switcher_sealing_type so_C_g
@@ -333,23 +333,25 @@ Qed.
 
 Global Instance so_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout machine_parameters_instance
        so_concrete_cmptSwitcher so_concrete_cmptAssert
        so_concrete_main_cmpt so_concrete_C_cmpt 3 40
+       _ _
        so_concrete_cmpts_disjoints
        so_concrete_switcher_cmpt_disjoints
        so_concrete_assert_cmpt_disjoints
        so_concrete_assert_switcher_disjoints).
+  all: vm_compute; eauto.
 Defined.
 
 Definition so_initial_registers : Reg :=
-  <[PC := WCap RX Global so_main_pcc_b so_main_pcc_e so_main_code_start]>
-  (<[cgp := WCap RW Global so_main_data_b so_main_data_e so_main_data_b]>
-  (<[csp := WCap RWL Local so_stack_b so_stack_e so_stack_b]>
+  <[PC := WCap true RX Global so_main_pcc_b so_main_pcc_e so_main_code_start]>
+  (<[cgp := WCap true RW Global so_main_data_b so_main_data_e so_main_data_b]>
+  (<[csp := WCap true RWL Local so_stack_b so_stack_e so_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 Definition so_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local so_trusted_stack_b so_trusted_stack_e
+  <[MTDC := WCap true RWL Local so_trusted_stack_b so_trusted_stack_e
       so_trusted_stack_b]> ∅.
 Definition so_initial_memory : Mem := mk_initial_memory.
 

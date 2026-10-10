@@ -38,8 +38,8 @@ Section KVS_spec_read.
 
     ((* initial register file *)
 
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
@@ -124,13 +124,10 @@ Section KVS_spec_read.
     iInstr "Hcode".
     (* Jnz 5 ct1 *)
     iInstr "Hcode".
-    { injection; intros; lia. }
     (* Lea cgp 1 *)
     iInstr "Hcode".
-    { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx. }
     (* Load ca1 cgp *)
     iInstr "Hcode".
-    { split; done. }
     (* Mov ca1 0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
@@ -163,8 +160,8 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
@@ -280,8 +277,8 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
@@ -357,8 +354,8 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
@@ -433,8 +430,8 @@ Section KVS_spec_read.
 
     ((* initial register file *)
 
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
@@ -572,8 +569,8 @@ Section KVS_spec_read.
     ( na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
 
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
@@ -685,8 +682,8 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
@@ -757,8 +754,8 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
@@ -824,7 +821,7 @@ Section KVS_spec_read.
 
     (
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ - ∗
       ca1 ↦ᵣ wca1 ∗ (* Key to read *)
@@ -890,7 +887,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ - ∗
       ca1 ↦ᵣ wca1 ∗ (* Key to read *)
@@ -941,14 +938,14 @@ Section KVS_spec_read.
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
     is_uint16 nkey ->
-    is_sealed_with_o wca0 KVS_OTYPE = false ->
+    (is_sealed_with_o wca0 KVS_OTYPE = false \/ get_tag wca0 = false) ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
     (
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
@@ -1004,14 +1001,14 @@ Section KVS_spec_read.
     ↑(Nkvs.@"physical") ⊆ E ->
 
     is_uint16 nkey ->
-    is_sealed_with_o wca0 KVS_OTYPE = false ->
+    (is_sealed_with_o wca0 KVS_OTYPE = false \/ get_tag wca0 = false) ->
 
     ( na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)

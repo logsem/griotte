@@ -29,13 +29,13 @@ Section fundamental.
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
-            -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
+            -∗ registers_pointsto (<[PC:= WCap true p_ih g_ih b_ih e_ih a_ih]> r_ih)
             -∗ world_interp W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
             -∗ na_own cerise_nais ⊤
             -∗ cstack_frag cstk
-            -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih)
+            -∗ □ interp W_ih C_ih (WCap true p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih C_ih))%I.
 
   Definition ftlr_instr_base (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
@@ -44,7 +44,7 @@ Section fundamental.
     : Prop :=
     validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
-    → isCorrectPC (WCap p g b e a)
+    → isCorrectPC (WCap true p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
     → (persistent_cond P)
@@ -53,13 +53,13 @@ Section fundamental.
     → ρ ≠ Revoked
     → Pinstr
     -> ftlr_IH
-    -∗ fixpoint interp1 W C (WCap p g b e a)
+    -∗ fixpoint interp1 W C (WCap true p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
     -∗ rel C a p' (safeC P)
-    -∗ □ (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
+    -∗ □ (if decide (readAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a)
             then ▷ (rcond P C p' interp)
             else emp)
-    -∗ □ (if decide (writeAllowed_a_in_regs (<[PC:=(WCap p g b e a)]> regs) a)
+    -∗ □ (if decide (writeAllowed_a_in_regs (<[PC:=(WCap true p g b e a)]> regs) a)
           then ▷ wcond P C interp
           else emp)
     -∗ monoReq W C a p' P
@@ -70,7 +70,7 @@ Section fundamental.
     -∗ na_own cerise_nais ⊤
     -∗ cstack_frag cstk
     -∗ sts_state_std C a ρ
-    -∗ PC ↦ᵣ (WCap p g b e a)
+    -∗ PC ↦ᵣ (WCap true p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
     -∗ WP Instr Executable
         {{ v, WP Seq (griotte_lang.of_val v)

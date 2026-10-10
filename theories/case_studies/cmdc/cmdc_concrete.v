@@ -95,21 +95,21 @@ Ltac unfold_cmdc_addresses_in H :=
     capability discipline. *)
 Definition cmdc_B_code : list Word :=
   encodeInstrsW [
-    Store ca0 7%Z;
-    Store csp ca0;
+    Store ca0 7%Z 0;
+    Store csp ca0 0;
     Jalr cnull cra
   ].
 Definition cmdc_C_code : list Word :=
   encodeInstrsW [
-    Store ca0 9%Z;
+    Store ca0 9%Z 0;
     Jalr cnull cra
   ].
 Definition cmdc_B_data : list Word := [WInt 0].
 Definition cmdc_C_data : list Word := [WInt 0].
 Definition cmdc_B_imports : list Word :=
-  [WSentry XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
+  [WSentry true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
 Definition cmdc_C_imports : list Word :=
-  [WSentry XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
+  [WSentry true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
 Definition cmdc_B_exports : list Word := [WInt (encode_entry_point 1 1)].
 Definition cmdc_C_exports : list Word := [WInt (encode_entry_point 1 1)].
 
@@ -158,10 +158,10 @@ Proof.
 Defined.
 
 Definition cmdc_B_f : Sealable :=
-  SCap RO Global cmdc_B_exports_pcc cmdc_B_exports_entries_e
+  SCap true RO Global cmdc_B_exports_pcc cmdc_B_exports_entries_e
     cmdc_B_exports_entries_b.
 Definition cmdc_C_g : Sealable :=
-  SCap RO Global cmdc_C_exports_pcc cmdc_C_exports_entries_e
+  SCap true RO Global cmdc_C_exports_pcc cmdc_C_exports_entries_e
     cmdc_C_exports_entries_b.
 Definition cmdc_main_imports_concrete : list Word :=
   cmdc_main_imports cmdc_B_f cmdc_C_g.
@@ -408,7 +408,7 @@ Qed.
 
 Global Instance cmdc_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout
        machine_parameters_instance
        cmdc_concrete_cmptSwitcher
@@ -416,24 +416,27 @@ Proof.
        cmdc_concrete_main_cmpt
        cmdc_concrete_B_cmpt
        1
+       _
        cmdc_concrete_C_cmpt
        1
+       _
        cmdc_concrete_cmpts_disjoints
        cmdc_concrete_switcher_cmpt_disjoints
        cmdc_concrete_assert_cmpt_disjoints
        cmdc_concrete_assert_switcher_disjoints).
+  all: vm_compute; eauto.
 Defined.
 
 Definition cmdc_initial_registers : Reg :=
-  <[PC := WCap RX Global cmdc_main_pcc_b cmdc_main_pcc_e
+  <[PC := WCap true RX Global cmdc_main_pcc_b cmdc_main_pcc_e
       cmdc_main_code_start]>
-  (<[cgp := WCap RW Global cmdc_main_data_b cmdc_main_data_e
+  (<[cgp := WCap true RW Global cmdc_main_data_b cmdc_main_data_e
       cmdc_main_data_b]>
-  (<[csp := WCap RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
+  (<[csp := WCap true RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition cmdc_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local cmdc_trusted_stack_b cmdc_trusted_stack_e
+  <[MTDC := WCap true RWL Local cmdc_trusted_stack_b cmdc_trusted_stack_e
       cmdc_trusted_stack_b]> ∅.
 
 Definition cmdc_initial_memory : Mem := mk_initial_memory.

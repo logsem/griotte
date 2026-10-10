@@ -78,7 +78,7 @@ Ltac unfold_lse_addresses_in H :=
     restores its return capability and returns to the caller. *)
 Definition lse_C_code : list Word :=
   encodeInstrsW [
-    Store csp cra;
+    Store csp cra 0;
     Lea csp 1%Z;
 
     Mov ct0 PC;
@@ -87,7 +87,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0;
+    Load ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -95,7 +95,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1;
+    Load ct1 ct1 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
 
@@ -105,7 +105,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0;
+    Load ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -113,12 +113,12 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1;
+    Load ct1 ct1 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
 
     Lea csp (-1)%Z;
-    Load cra csp;
+    Load cra csp 0;
     Mov ca0 0%Z;
     Mov ca1 0%Z;
     Jalr cnull cra
@@ -172,13 +172,13 @@ Proof.
 Defined.
 
 Definition lse_C_f : Sealable :=
-  SCap RO Global lse_C_exports_pcc lse_C_exports_entries_e
+  SCap true RO Global lse_C_exports_pcc lse_C_exports_entries_e
     lse_C_exports_entries_b.
 
 Definition lse_main_imports_concrete : list Word := lse_main_imports lse_C_f.
 
 Definition lse_C_imports : list Word :=
-  [ WSentry XSRW_ Local lse_switcher_b lse_switcher_e lse_switcher_call
+  [ WSentry true XSRW_ Local lse_switcher_b lse_switcher_e lse_switcher_call
   ; WSealed lse_switcher_sealing_type
       (lse_entry_f_sb lse_main_exports_pcc lse_main_exports_entries_e)
   ].
@@ -352,7 +352,7 @@ Qed.
 
 Global Instance lse_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout
        machine_parameters_instance
        lse_concrete_cmptSwitcher
@@ -360,21 +360,23 @@ Proof.
        lse_concrete_main_cmpt
        lse_concrete_C_cmpt
        2
+       _
        lse_concrete_cmpts_disjoints
        lse_concrete_switcher_cmpt_disjoints
        lse_concrete_assert_cmpt_disjoints
        lse_concrete_assert_switcher_disjoints).
+  vm_compute; eauto.
 Defined.
 
 Definition lse_initial_registers : Reg :=
-  <[PC := WCap RX Global lse_main_pcc_b lse_main_pcc_e lse_main_code_start]>
-  (<[cgp := WCap RW Global lse_main_data_b lse_main_data_e
+  <[PC := WCap true RX Global lse_main_pcc_b lse_main_pcc_e lse_main_code_start]>
+  (<[cgp := WCap true RW Global lse_main_data_b lse_main_data_e
       lse_main_data_b]>
-  (<[csp := WCap RWL Local lse_stack_b lse_stack_e lse_stack_b]>
+  (<[csp := WCap true RWL Local lse_stack_b lse_stack_e lse_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition lse_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local lse_trusted_stack_b lse_trusted_stack_e
+  <[MTDC := WCap true RWL Local lse_trusted_stack_b lse_trusted_stack_e
       lse_trusted_stack_b]> ∅.
 
 Definition lse_initial_memory : Mem := mk_initial_memory.

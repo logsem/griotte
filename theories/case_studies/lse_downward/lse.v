@@ -57,7 +57,7 @@ int __cheri_compartment("known") run()
   Definition LSE_main_code_run : list Word :=
     (* set a := 2 *)
     encodeInstrsW [
-        Store cgp 2
+        Store cgp 2 0
       ]
     (* call B.adv LSE.awkward *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
@@ -75,9 +75,9 @@ int __cheri_compartment("known") run()
         machine_instructions.Add cs1 cs0 1;
         Subseg cgp cs0 cs1; (* cgp := (RW, Global, a, a+1, a) *)
         (* csp = (RWL, Local, bstk, estk, bstk)  *)
-        Store csp cgp; (* bstk -> (RW, Global, a, a+1, a) *)
+        Store csp cgp 0; (* bstk -> (RW, Global, a, a+1, a) *)
         (* -- assert (a == 2) -- *)
-        Load ct0 cgp;
+        Load ct0 cgp 0;
         Mov ct1 2
       ]
       ++ assert_instrs 1 cgp cs0 cs1 (* asserts that ( *ct0 = *ct1 ) *)
@@ -97,14 +97,14 @@ int __cheri_compartment("known") run()
     (B_adv : Sealable)
     : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
-      WSentry RX Global b_assert e_assert b_assert;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_adv
     ].
 
   Definition length_lse_main_imports `{!switcherLayout} `{!assertLayout} :=
     length
-      (lse_main_imports (SCap RO Global za za za)).
+      (lse_main_imports (SCap true RO Global za za za)).
 
   Definition lse_exp_tbl_entry_f `{!switcherLayout} `{!assertLayout} :=
     WInt (encode_entry_point 0
@@ -112,7 +112,7 @@ int __cheri_compartment("known") run()
 
   Definition lse_entry_f_sb
     b_lse_exp_tbl e_lse_exp_tbl : Sealable :=
-      SCap RO Global b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+2)%a.
+      SCap true RO Global b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+2)%a.
 
   Definition lse_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
     [ lse_exp_tbl_entry_f ].

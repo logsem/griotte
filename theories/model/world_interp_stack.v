@@ -29,7 +29,7 @@ Section WorldInterpStack.
     Forall (fun a' : Addr => (b <= a' < e)%a ) la ->
     la ## la' ->
 
-    interp W C (WCap RWL g b e a) ∗
+    interp W C (WCap true RWL g b e a) ∗
     world_interp_open W C la'
     -∗
 
@@ -66,7 +66,7 @@ Section WorldInterpStack.
   Lemma world_interp_revoke_stack (W : WORLD) (C : CmptName) (b e a : Addr) :
     let la := finz.seq_between b e in
 
-    interp W C (WCap RWL Local b e a) ∗
+    interp W C (WCap true RWL Local b e a) ∗
     world_interp W C
     ==∗
     ∃ l_unk_temp,

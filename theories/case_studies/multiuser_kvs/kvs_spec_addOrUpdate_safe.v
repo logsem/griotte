@@ -39,8 +39,8 @@ Section KVS_spec_addOrUpdate_safe.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ interp Wca C wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ wca1 ∗ (* Key to update *)
@@ -83,6 +83,10 @@ Section KVS_spec_addOrUpdate_safe.
     }
     destruct wca1 as [nkey| | | ]; cbn in Hwca1_uint16; try done.
 
+    (* Untagged user keys fail at UnSeal, before opening seal resources. *)
+    destruct (get_tag wca0) eqn:Hwca0_tag; cycle 1.
+    { iApply KVS_addOrUpdate_spec_invalid_sealed_user_key; eauto; iFrame "∗#". }
+
     (* Destruct validity user key *)
     destruct ( is_sealed_with_o wca0 KVS_OTYPE ) eqn:Hwca0_sealed_with_kvs_ot; cycle 1.
     { (* the user key argument is not a valid sealed user key *)
@@ -95,16 +99,18 @@ Section KVS_spec_addOrUpdate_safe.
     assert (ot = KVS_OTYPE) by solve_addr+Hwca0_sealed_with_kvs_ot; simplify_eq.
 
 
+    cbn in Hwca0_tag.
+
     (* Open sealing predicate of sealed user key *)
     iDestruct (monotone.interp_monotone_sd with "[] Hinterp_wca0") as "Hinterp_wca0_W"; auto.
-    iEval (rewrite fixpoint_interp1_eq /= /interp_sb) in "Hinterp_wca0".
+    iEval (rewrite fixpoint_interp1_eq /= /interp_sb Hwca0_tag) in "Hinterp_wca0".
     iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb]})%I as "#Hinterp_wca0'".
     { iApply sts_seals_std_weaken; last iFrame "Hinterp_wca0"; last set_solver+. }
 
     iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
                 as "(Hworld & Hres_open & HP)".
     iDestruct "HP" as "(%uk & %a & >%Heq_sb & >%Hbounds & >Ha & HLUKVS & Hinterp)".
-    destruct wsb as [ p_user_key l_user_key | ] ; cbn in * ; simplify_eq.
+    destruct wsb as [ t_user_key p_user_key l_user_key | ] ; cbn in * ; simplify_eq.
 
     assert (nkey ∈ kvs_all_map_keys) as Hnkey_is_map_key by rewrite -is_uint16_in_kvs_all_map_keys //.
     iDestruct (big_sepS_delete with "Hinterp") as "[Hinterp_nkey Hinterp]"; eauto.
@@ -113,15 +119,18 @@ Section KVS_spec_addOrUpdate_safe.
     iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
     - iApply KVS_update_spec; last iFrame "∗#"; eauto.
       iNext.
-      iIntros "(%Hcan_store & Hna
+      iIntros "(Hna
                 & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
                 & Ha & HLUKVS & Hnkey)".
 
-      iAssert ( ∀ W' : WORLD, ⌜related_sts_priv_world W W'⌝ -∗ interp W' C wca2 )%I as "Hw_interp".
+      iAssert ( ∀ W' : WORLD, ⌜related_sts_priv_world W W'⌝ -∗ interp W' C (store_word RW wca2) )%I as "Hw_interp".
       { cbn ; iIntros (W' Hrelated_W_W').
-        iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
-        + eapply related_sts_priv_trans_world; eauto.
-        + eapply (canStore_global_nonisWL RW); done.
+        rewrite /store_word.
+        destruct (canStore RW wca2) eqn:Hcan_store.
+        - iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
+          + eapply related_sts_priv_trans_world; eauto.
+          + eapply (canStore_global_nonisWL RW); done.
+        - iApply interp_clear_tag.
       }
       iDestruct (big_sepS_delete _ _ nkey with "[$Hinterp Hnkey Hw_interp]") as "Hinterp"; eauto.
       { rewrite /safe_kvs_pointsto; eauto. }
@@ -142,14 +151,17 @@ Section KVS_spec_addOrUpdate_safe.
                 & HLUKVS & Hrest)".
 
       iDestruct "Hrest" as
-        "[ (%Hcan_store & Hca0 & Hnkey)
+        "[ (Hca0 & Hnkey)
            | (Hca0 & Hnkey)
          ]".
-      + iAssert ( ∀ W' : WORLD, ⌜related_sts_priv_world W W'⌝ -∗ interp W' C wca2 )%I as "Hw_interp".
+      + iAssert ( ∀ W' : WORLD, ⌜related_sts_priv_world W W'⌝ -∗ interp W' C (store_word RW wca2) )%I as "Hw_interp".
         { cbn ; iIntros (W' Hrelated_W_W').
-          iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
-          + eapply related_sts_priv_trans_world; eauto.
-          + eapply (canStore_global_nonisWL RW); done.
+          rewrite /store_word.
+          destruct (canStore RW wca2) eqn:Hcan_store.
+          - iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
+            + eapply related_sts_priv_trans_world; eauto.
+            + eapply (canStore_global_nonisWL RW); done.
+          - iApply interp_clear_tag.
         }
         iDestruct ( big_sepS_delete  with "[$Hinterp Hnkey Hw_interp]") as "Hinterp"; eauto.
         { rewrite /safe_kvs_pointsto; eauto. }
@@ -186,14 +198,14 @@ Section KVS_spec_addOrUpdate_safe.
     na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
     na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
-    inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
+    inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
+    inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
     inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr)
         (kvs_addOrUpdate_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_addOrUpdate) ∗
-    WSealed ot_switcher (SCap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ↦□ₑ kvs_addOrUpdate_nargs ∗
-    WSealed ot_switcher (SCap RO Local b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ↦□ₑ kvs_addOrUpdate_nargs
+    WSealed ot_switcher (SCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ↦□ₑ kvs_addOrUpdate_nargs ∗
+    WSealed ot_switcher (SCap true RO Local b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ↦□ₑ kvs_addOrUpdate_nargs
     -∗
-    ot_switcher_prop W C (WCap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
+    ot_switcher_prop W C (WCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.
     iIntros
       "(#Hspred & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher
@@ -213,6 +225,7 @@ Section KVS_spec_addOrUpdate_safe.
     iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr).
     iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_addOrUpdate_nargs; lia).
+    iSplit; first (iPureIntro; exists KVS_pcc_b'; exact KVS_size_imports).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as

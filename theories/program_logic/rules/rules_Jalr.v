@@ -22,7 +22,7 @@ Section griotte_lang_rules.
   | Jalr_spec_success regs' pc_a' wsrc :
     regs !!ᵣ rsrc = Some wsrc ->
     (pc_a + 1)%a = Some pc_a' ->
-    regs' = (<[rdst := (WSentry pc_p pc_g pc_b pc_e pc_a') ]ᵣ>
+    regs' = (<[rdst := (WSentry true pc_p pc_g pc_b pc_e pc_a') ]ᵣ>
               (<[PC :=  updatePcPerm wsrc ]ᵣ>
                regs)) →
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' NextIV
@@ -32,8 +32,8 @@ Section griotte_lang_rules.
 
   Lemma wp_Jalr Ep pc_p pc_g pc_b pc_e pc_a w rdst rsrc regs :
     decodeInstrW w = Jalr rdst rsrc ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Jalr rdst rsrc) ⊆ dom regs →
 
     {{{ ▷ pc_a ↦ₐ w ∗
@@ -76,12 +76,12 @@ Section griotte_lang_rules.
 
   Lemma wp_jalr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w rsrc wsrc rdst wdst :
     decodeInstrW w = Jalr rdst rsrc →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rsrc ↦ᵣ wsrc
         ∗ ▷ rdst ↦ᵣ wdst
@@ -91,7 +91,7 @@ Section griotte_lang_rules.
           PC ↦ᵣ updatePcPerm wsrc
           ∗ pc_a ↦ₐ w
           ∗ rsrc ↦ᵣ wsrc
-          ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
+          ∗ rdst ↦ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
@@ -110,11 +110,11 @@ Section griotte_lang_rules.
 
   Lemma wp_jalr_success_cnull E pc_p pc_g pc_b pc_e pc_a pc_a' w rsrc wsrc wdst :
     decodeInstrW w = Jalr cnull rsrc →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rsrc ↦ᵣ wsrc
         ∗ ▷ cnull ↦ᵣ wdst
@@ -143,19 +143,19 @@ Section griotte_lang_rules.
 
   Lemma wp_jalr_successPC E pc_p pc_g pc_b pc_e pc_a pc_a' w rdst wdst :
     decodeInstrW w = Jalr rdst PC →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rdst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ updatePcPerm (WCap pc_p pc_g pc_b pc_e pc_a)
+          PC ↦ᵣ updatePcPerm (WCap true pc_p pc_g pc_b pc_e pc_a)
           ∗ pc_a ↦ₐ w
-          ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
+          ∗ rdst ↦ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".
@@ -174,11 +174,11 @@ Section griotte_lang_rules.
 
   Lemma wp_jalr_success_rdst E pc_p pc_g pc_b pc_e pc_a pc_a' w wdst rdst :
     decodeInstrW w = Jalr rdst rdst →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rdst ↦ᵣ wdst
     }}}
@@ -186,7 +186,7 @@ Section griotte_lang_rules.
       {{{ RET NextIV;
           PC ↦ᵣ updatePcPerm wdst
           ∗ pc_a ↦ₐ w
-          ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
+          ∗ rdst ↦ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".

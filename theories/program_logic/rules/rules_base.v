@@ -35,9 +35,9 @@ Section griotte_lang_rules.
 
 
   (* Conditionally unify on the read register value *)
-  Definition read_reg_inr  (regs : Reg) (r : RegName) p g b e a :=
+  Definition read_reg_inr  (regs : Reg) (r : RegName) (t : bool) p g b e a :=
     match regs !! r with
-      | Some (WCap p' g' b' e' a') => WCap p' g' b' e' a' = WCap p g b e a
+      | Some (WCap t' p' g' b' e' a') => WCap t' p' g' b' e' a' = WCap t p g b e a
       | Some _ => True
       | None => False end.
 
@@ -614,11 +614,23 @@ Section griotte_lang_rules.
     iModIntro. iSplitR; auto. iFrame. cbn. by iApply "Hϕ".
   Qed.
 
+  Lemma wp_notCorrectPC_tag E w :
+    get_tag w = false →
+    {{{ PC ↦ᵣ w }}}
+      Instr Executable @ E
+    {{{ RET FailedV; PC ↦ᵣ w }}}.
+  Proof.
+    iIntros (Htag φ) "HPC Hφ".
+    iApply (wp_notCorrectPC with "HPC").
+    { by apply not_isCorrectPC_untagged. }
+    iNext. iIntros "HPC". by iApply "Hφ".
+  Qed.
+
   (* Subcases for respectively permissions and bounds *)
 
-  Lemma wp_notCorrectPC_perm E pc_p pc_g pc_b pc_e pc_a :
+  Lemma wp_notCorrectPC_perm E (t : bool) pc_p pc_g pc_b pc_e pc_a :
     executeAllowed pc_p = false ->
-    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a}}}
+    {{{ PC ↦ᵣ WCap t pc_p pc_g pc_b pc_e pc_a}}}
       Instr Executable @ E
       {{{ RET FailedV; True }}}.
   Proof.
@@ -629,9 +641,9 @@ Section griotte_lang_rules.
     by iApply "Hwp".
   Qed.
 
-  Lemma wp_notCorrectPC_range E pc_p pc_g pc_b pc_e pc_a :
+  Lemma wp_notCorrectPC_range E (t : bool) pc_p pc_g pc_b pc_e pc_a :
        ¬ (pc_b <= pc_a < pc_e)%a →
-      {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a}}}
+      {{{ PC ↦ᵣ WCap t pc_p pc_g pc_b pc_e pc_a}}}
       Instr Executable @ E
       {{{ RET FailedV; True }}}.
   Proof.
@@ -646,11 +658,11 @@ Section griotte_lang_rules.
 
   Lemma wp_halt E pc_p pc_g pc_b pc_e pc_a w :
     decodeInstrW w = Halt →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
 
-    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}
       Instr Executable @ E
-    {{{ RET HaltedV; PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}.
+    {{{ RET HaltedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
@@ -670,11 +682,11 @@ Section griotte_lang_rules.
 
   Lemma wp_fail E pc_p pc_g pc_b pc_e pc_a w :
     decodeInstrW w = Fail →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
 
-    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}.
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
@@ -732,9 +744,9 @@ Ltac iFailWP Hcont fail_case_name :=
 
 (*--- register equality ---*)
   Lemma addr_ne_reg_ne {regs : leibnizO Reg} {r1 r2 : RegName}
-        {p0 g0 b0 e0 a0 p g b e a}:
-    regs !! r1 = Some (WCap p0 g0 b0 e0 a0)
-    → regs !! r2 = Some (WCap p g b e a)
+        {t0 t : bool} {p0 g0 b0 e0 a0 p g b e a}:
+    regs !! r1 = Some (WCap t0 p0 g0 b0 e0 a0)
+    → regs !! r2 = Some (WCap t p g b e a)
     → a0 ≠ a → r1 ≠ r2.
   Proof.
     intros Hr1 Hr2 Hne.
@@ -759,6 +771,8 @@ Definition regs_of (i: instr): gset RegName :=
   | GetL r1 r2 => {[ r1; r2 ]}
   | GetOType dst src => {[ dst; src ]}
   | GetWType dst src => {[ dst; src ]}
+  | GetTag dst src => {[ dst; src ]}
+  | ClearTag dst src => {[ dst; src ]}
   | machine_instructions.Add r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Sub r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Mul r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
@@ -770,8 +784,8 @@ Definition regs_of (i: instr): gset RegName :=
   | Mov r arg => {[ r ]} ∪ regs_of_argument arg
   | Restrict r1 arg => {[ r1 ]} ∪ regs_of_argument arg
   | Subseg r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | Load r1 r2 => {[ r1; r2 ]}
-  | Store r1 arg => {[ r1 ]} ∪ regs_of_argument arg
+  | Load r1 r2 _ => {[ r1; r2 ]}
+  | Store r1 arg _ => {[ r1 ]} ∪ regs_of_argument arg
   | Jnz arg1 r2 => {[ r2 ]} ∪ regs_of_argument arg1
   | Jmp arg => regs_of_argument arg
   | Jalr rdst rsrc => {[ rdst; rsrc ]}
@@ -819,9 +833,9 @@ Qed.
 
 Definition incrementPC_gen (regs: Reg) (n : Z) : option Reg :=
   match regs !! PC with
-  | Some (WCap p g b e a) =>
+  | Some (WCap t p g b e a) =>
     match (a + n)%a with
-    | Some a' => Some (<[ PC := WCap p g b e a' ]> regs)
+    | Some a' => Some (<[ PC := WCap t p g b e a' ]> regs)
     | None => None
     end
   | _ => None
@@ -831,28 +845,28 @@ Definition incrementPC (regs: Reg) : option Reg := incrementPC_gen regs 1.
 
 Lemma incrementPC_gen_Some_inv regs regs' n :
   incrementPC_gen regs n = Some regs' ->
-  exists p g b e a a',
-    regs !! PC = Some (WCap p g b e a) ∧
+  exists t p g b e a a',
+    regs !! PC = Some (WCap t p g b e a) ∧
     (a + n)%a = Some a' ∧
-    regs' = <[ PC := WCap p g b e a' ]> regs.
+    regs' = <[ PC := WCap t p g b e a' ]> regs.
 Proof.
   unfold incrementPC_gen.
   destruct (regs !! PC) ; try congruence.
   destruct_word w;try congruence.
   case_eq (a+n)%a; try congruence. intros ? ?. inversion 1.
-  do 6 eexists. split; eauto.
+  do 7 eexists. split; eauto.
 Qed.
 Lemma incrementPC_Some_inv regs regs' :
   incrementPC regs = Some regs' ->
-  exists p g b e a a',
-    regs !! PC = Some (WCap p g b e a) ∧
+  exists t p g b e a a',
+    regs !! PC = Some (WCap t p g b e a) ∧
     (a + 1)%a = Some a' ∧
-    regs' = <[ PC := WCap p g  b e a' ]> regs.
+    regs' = <[ PC := WCap t p g  b e a' ]> regs.
 Proof. apply incrementPC_gen_Some_inv. Qed.
 
-Lemma incrementPC_gen_None_inv regs p g b e a n :
+Lemma incrementPC_gen_None_inv regs (t : bool) p g b e a n :
   incrementPC_gen regs n = None ->
-  regs !! PC = Some (WCap p g b e a) ->
+  regs !! PC = Some (WCap t p g b e a) ->
   (a + n)%a = None.
 Proof.
   unfold incrementPC_gen.
@@ -860,9 +874,9 @@ Proof.
   destruct_word w;try congruence.
   case_eq (a0+n)%a; try congruence.
 Qed.
-Lemma incrementPC_None_inv regs p g b e a :
+Lemma incrementPC_None_inv regs (t : bool) p g b e a :
   incrementPC regs = None ->
-  regs !! PC = Some (WCap p g b e a) ->
+  regs !! PC = Some (WCap t p g b e a) ->
   (a + 1)%a = None.
 Proof. apply incrementPC_gen_None_inv. Qed.
 
@@ -874,7 +888,7 @@ Lemma incrementPC_gen_overflow_mono regs regs' n :
 Proof.
   intros Hi HPC Hincl. unfold incrementPC_gen in *. destruct HPC as [c HPC].
   pose proof (lookup_weaken _ _ _ _ HPC Hincl) as HPC'.
-  rewrite HPC HPC' in Hi |- *. destruct c as [| [? ? ? ? aa | ] | | ]; auto.
+  rewrite HPC HPC' in Hi |- *. destruct c as [| [? ? ? ? ? aa | ] | | ]; auto.
   destruct (aa+n)%a; last by auto. congruence.
 Qed.
 Lemma incrementPC_overflow_mono regs regs' :
@@ -890,7 +904,7 @@ Lemma incrementPC_gen_fail_updatePC_gen regs sregs m n :
 Proof.
    rewrite /incrementPC_gen /updatePC_gen /=; cbn.
    destruct (regs !! PC) as [X|]; auto.
-   destruct X as [| [? ? ? ? a' | ] | |]; auto.
+   destruct X as [| [? ? ? ? ? a' | ] | |]; auto.
    destruct (a' + n)%a; auto. congruence.
 Qed.
 Lemma incrementPC_fail_updatePC regs sregs m :
@@ -900,25 +914,25 @@ Proof. apply incrementPC_gen_fail_updatePC_gen. Qed.
 
 Lemma incrementPC_gen_success_updatePC_gen regs sregs m regs' n :
   incrementPC_gen regs n = Some regs' ->
-  ∃ p g b e a a',
-    regs !! PC = Some (WCap p g b e a) ∧
+  ∃ t p g b e a a',
+    regs !! PC = Some (WCap t p g b e a) ∧
     (a + n)%a = Some a' ∧
-    updatePC_gen (regs, sregs, m) n = Some (NextI, (<[ PC := WCap p g b e a' ]> regs, sregs, m)) ∧
-    regs' = <[ PC := WCap p g b e a' ]> regs.
+    updatePC_gen (regs, sregs, m) n = Some (NextI, (<[ PC := WCap t p g b e a' ]> regs, sregs, m)) ∧
+    regs' = <[ PC := WCap t p g b e a' ]> regs.
 Proof.
   rewrite /incrementPC_gen /updatePC_gen /update_reg /=; cbn.
   destruct (regs !! PC) as [X|] eqn:?; auto; try congruence; [].
-  destruct X as [| [? ? ? ? a'|]| |] eqn:?; try congruence; [].
+  destruct X as [| [? ? ? ? ? a'|]| |] eqn:?; try congruence; [].
   destruct (a' + n)%a eqn:?; [| congruence]. inversion 1; subst regs'.
-  do 6 eexists. repeat split; auto.
+  do 7 eexists. repeat split; auto.
 Qed.
 Lemma incrementPC_success_updatePC regs sregs m regs' :
   incrementPC regs = Some regs' ->
-  ∃ p g b e a a',
-    regs !! PC = Some (WCap p g b e a) ∧
+  ∃ t p g b e a a',
+    regs !! PC = Some (WCap t p g b e a) ∧
     (a + 1)%a = Some a' ∧
-    updatePC (regs, sregs, m) = Some (NextI, (<[ PC := WCap p g b e a' ]> regs, sregs, m)) ∧
-    regs' = <[ PC := WCap p g b e a' ]> regs.
+    updatePC (regs, sregs, m) = Some (NextI, (<[ PC := WCap t p g b e a' ]> regs, sregs, m)) ∧
+    regs' = <[ PC := WCap t p g b e a' ]> regs.
 Proof. apply incrementPC_gen_success_updatePC_gen. Qed.
 
 Lemma updatePC_gen_success_incl m m' regs regs' sregs sregs' w n :
@@ -930,7 +944,7 @@ Proof.
   cbn in *.
   destruct (regs !! PC) as [ w1 |] eqn:Hrr.
   { pose proof (lookup_weaken _ _ _ _ Hrr Hincl) as Hregs'. rewrite Hregs'.
-    destruct w1 as [|[ ? ? ? ? a1|] | | ]; simplify_eq.
+    destruct w1 as [|[ ? ? ? ? ? a1|] | | ]; simplify_eq.
     destruct (a1 + n)%a eqn:Ha1; simplify_eq. rewrite /update_reg /=.
     f_equal. f_equal.
     assert (HH: forall (reg1 reg2:Reg), reg1 = reg2 -> reg1 !! PC = reg2 !! PC)
@@ -954,7 +968,7 @@ Proof.
   intros [w HPC] Hincl Hfail. rewrite /updatePC_gen /= in Hfail |- *.
   cbn in *.
   rewrite !HPC in Hfail. have -> := lookup_weaken _ _ _ _ HPC Hincl.
-  destruct w as [| [? ? ? ? a1 | ]| |]; simplify_eq; auto;[].
+  destruct w as [| [? ? ? ? ? a1 | ]| |]; simplify_eq; auto;[].
   destruct (a1 + n)%a; simplify_eq; auto.
 Qed.
 
@@ -968,7 +982,7 @@ Proof. apply updatePC_gen_fail_incl. Qed.
 Ltac incrementPC_inv :=
   match goal with
   | H : incrementPC _ = Some _ |- _ =>
-    apply incrementPC_Some_inv in H as (?&?&?&?&?&?&?&?&?)
+    apply incrementPC_Some_inv in H as (?&?&?&?&?&?&?&?&?&?)
   | H : incrementPC _ = None |- _ =>
     eapply incrementPC_None_inv in H
   end; simplify_eq.
@@ -984,3 +998,156 @@ Tactic Notation "incrementPC_inv" "as" simple_intropattern(pat):=
   | H : incrementPC_gen _ _ = None |- _ =>
     eapply incrementPC_gen_None_inv in H
   end; simplify_eq.
+
+Section instruction_outcomes.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+
+  (* A failed instruction rolls back every tentative write. The premise is
+     about all extensions of the owned registers, so no absent register or
+     memory cell can be mistaken for evidence of runtime failure. *)
+  Local Lemma wp_instr_failed_map E pc_p pc_g pc_b pc_e pc_a w i (regs : Reg) :
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, regs ⊆ r →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ E
+    {{{ RET FailedV; pc_a ↦ₐ w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hinstr Hvpc HPC Hfailed φ) "(>Hpc_a & >Hmap) Hφ".
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 ns l1 l2 nt) "[[Hr Hsr] Hm] /=".
+    destruct σ1 as [ [r sr] m]; cbn.
+    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
+    have ? := lookup_weaken _ _ _ _ HPC Hregs.
+    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
+    iNext. iIntros (e2 σ2 efs Hpstep).
+    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_". iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+    rewrite (Hfailed r sr m Hregs) in Hstep.
+    simplify_eq. cbn; iFrame. iApply "Hφ"; iFrame. done.
+  Qed.
+
+
+  (* Failure with PC alone; all resources are returned unchanged. *)
+  Lemma wp_instr_failed_0 E pc_p pc_g pc_b pc_e pc_a w i :
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ ▷ pc_a ↦ₐ w }}}
+      Instr Executable @ E
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hmem) Hφ".
+    iDestruct (map_of_regs_1 with "HPC") as "Hmap".
+    iApply (wp_instr_failed_map _ _ _ _ _ _ _ _
+      (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a]> ∅)
+      with "[$Hmap $Hmem]").
+    - exact Hinstr.
+    - exact Hvpc.
+    - rewrite lookup_insert. case_decide; done.
+    - intros r sr m Hincl. apply Hfailed.
+      all: eapply lookup_weaken; last exact Hincl.
+      all: rewrite ?lookup_insert ?lookup_empty; repeat case_decide; congruence.
+    - iNext. iIntros "(Hmem & Hmap)".
+      iDestruct (regs_of_map_1 with "Hmap") as "HPC".
+      iApply "Hφ". iFrame.
+  Qed.
+
+  (* Failure with PC and 1 explicit register; all resources are returned unchanged. *)
+  Lemma wp_instr_failed_1 E pc_p pc_g pc_b pc_e pc_a w i r1 w1 :
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+       r !! r1 = Some w1 →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ pc_a ↦ₐ w }}}
+      Instr Executable @ E
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ r1 ↦ᵣ w1 ∗ pc_a ↦ₐ w }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hmem) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %Hne]".
+    iApply (wp_instr_failed_map _ _ _ _ _ _ _ _
+      (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a]> (<[r1 := w1]> ∅))
+      with "[$Hmap $Hmem]").
+    - exact Hinstr.
+    - exact Hvpc.
+    - rewrite lookup_insert. case_decide; done.
+    - intros r sr m Hincl. apply Hfailed.
+      all: eapply lookup_weaken; last exact Hincl.
+      all: rewrite ?lookup_insert ?lookup_empty; repeat case_decide; congruence.
+    - iNext. iIntros "(Hmem & Hmap)".
+      iDestruct (regs_of_map_2 with "Hmap") as "(HPC & Hr1)"; eauto.
+      iApply "Hφ". iFrame.
+  Qed.
+
+  (* Failure with PC and 2 explicit registers; all resources are returned unchanged. *)
+  Lemma wp_instr_failed_2 E pc_p pc_g pc_b pc_e pc_a w i r1 w1 r2 w2 :
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+       r !! r1 = Some w1 →
+       r !! r2 = Some w2 →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2 ∗ ▷ pc_a ↦ₐ w }}}
+      Instr Executable @ E
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ pc_a ↦ₐ w }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hr2 & >Hmem) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
+    destruct Hne as (Hne0 & Hne1 & Hne2).
+    iApply (wp_instr_failed_map _ _ _ _ _ _ _ _
+      (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a]> (<[r1 := w1]> (<[r2 := w2]> ∅)))
+      with "[$Hmap $Hmem]").
+    - exact Hinstr.
+    - exact Hvpc.
+    - rewrite lookup_insert. case_decide; done.
+    - intros r sr m Hincl. apply Hfailed.
+      all: eapply lookup_weaken; last exact Hincl.
+      all: rewrite ?lookup_insert ?lookup_empty; repeat case_decide; congruence.
+    - iNext. iIntros "(Hmem & Hmap)".
+      iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hr1 & Hr2)"; eauto.
+      iApply "Hφ". iFrame.
+  Qed.
+
+  (* Failure with PC and 3 explicit registers; all resources are returned unchanged. *)
+  Lemma wp_instr_failed_3 E pc_p pc_g pc_b pc_e pc_a w i r1 w1 r2 w2 r3 w3 :
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+       r !! r1 = Some w1 →
+       r !! r2 = Some w2 →
+       r !! r3 = Some w3 →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+          ▷ r1 ↦ᵣ w1 ∗
+          ▷ r2 ↦ᵣ w2 ∗
+          ▷ r3 ↦ᵣ w3 ∗
+          ▷ pc_a ↦ₐ w }}}
+      Instr Executable @ E
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+          r1 ↦ᵣ w1 ∗
+          r2 ↦ᵣ w2 ∗
+          r3 ↦ᵣ w3 ∗
+          pc_a ↦ₐ w }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hr2 & >Hr3 & >Hmem) Hφ".
+    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hr3") as "[Hmap %Hne]".
+    destruct Hne as (Hne0 & Hne1 & Hne2 & Hne3 & Hne4 & Hne5).
+    iApply (wp_instr_failed_map _ _ _ _ _ _ _ _
+      (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a]> (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅))))
+      with "[$Hmap $Hmem]").
+    - exact Hinstr.
+    - exact Hvpc.
+    - rewrite lookup_insert. case_decide; done.
+    - intros r sr m Hincl. apply Hfailed.
+      all: eapply lookup_weaken; last exact Hincl.
+      all: rewrite ?lookup_insert ?lookup_empty; repeat case_decide; congruence.
+    - iNext. iIntros "(Hmem & Hmap)".
+      iDestruct (regs_of_map_4 with "Hmap") as "(HPC & Hr1 & Hr2 & Hr3)"; eauto.
+      iApply "Hφ". iFrame.
+  Qed.
+End instruction_outcomes.

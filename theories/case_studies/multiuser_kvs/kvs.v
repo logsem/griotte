@@ -457,12 +457,12 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
 
   Local Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
-    WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+    WSealRange true (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
 
   Local Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
     : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      WSentry true XSRW_ Local b_switcher e_switcher a_cc_switcher;
       (kvs_service_unsealing_key_pre KVS_OTYPE)
     ].
 
@@ -521,7 +521,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Definition kvs_addOrUpdate_exp_tbl_off : nat := 2.
   Definition kvs_addOrUpdate_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_addOrUpdate_exp_tbl_off)%a.
   Definition KVS_addOrUpdate {KVS : kvsLayout} (g : Locality) : Sealable :=
-    SCap RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr.
+    SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr.
 
   (* Meta information about read entry point *)
   Definition kvs_read_nargs : nat := 2.
@@ -532,7 +532,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Definition kvs_read_exp_tbl_off : nat := 3.
   Definition kvs_read_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_read_exp_tbl_off)%a.
   Definition KVS_read {KVS : kvsLayout} (g : Locality) : Sealable :=
-    SCap RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr%a.
+    SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr%a.
 
   (* Meta information about erase entry point *)
   Definition kvs_erase_nargs : nat := 2.
@@ -543,7 +543,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Definition kvs_erase_exp_tbl_off : nat := 4.
   Definition kvs_erase_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_erase_exp_tbl_off)%a.
   Definition KVS_erase {KVS : kvsLayout} (g : Locality) : Sealable :=
-    SCap RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
+    SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
 
   (* Export table of KVS service *)
   Definition kvs_export_table_entries : list Word :=
@@ -554,14 +554,14 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
 
   Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
-    WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+    WSealRange true (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
   Definition kvs_imports {KVS : kvsLayout} (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType) :=
     kvs_imports_pre b_switcher e_switcher a_cc_switcher KVS_OTYPE ot_switcher.
 
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
 
   Definition kvs_user_seal_key_scap {KVS : kvsLayout} (g : Locality) (a : Addr) :=
-    (SCap RO g a (a ^+ 1)%a a).
+    (SCap true RO g a (a ^+ 1)%a a).
 
   Definition kvs_user_seal_key {KVS : kvsLayout} (g : Locality) (a : Addr) :=
     WSealed KVS_OTYPE (kvs_user_seal_key_scap g a).
@@ -630,13 +630,17 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
 End KVS_Service.
 
-Ltac solve_addr_kvs :=
+Global Ltac solve_addr.solve_addr_prepare ::=
   repeat match goal with
     | H : context [ ASM_SIZEOF_KVS_ENTRY ] |- _ => rewrite /ASM_SIZEOF_KVS_ENTRY in H
     | _ : _ |- context [ ASM_SIZEOF_KVS_ENTRY ] => rewrite /ASM_SIZEOF_KVS_ENTRY
-    end
-  ; solve_addr.
-
-Tactic Notation "solve_addr" := solve_addr_kvs.
-Tactic Notation "solve_addr" "-" hyp_list(Hs) := clear Hs; solve_addr_kvs.
-Tactic Notation "solve_addr" "+" hyp_list(Hs) := clear -Hs; solve_addr_kvs.
+    | H : context [ SIZE_MAP ] |- _ => rewrite /SIZE_MAP in H
+    | _ : _ |- context [ SIZE_MAP ] => rewrite /SIZE_MAP
+    | H : context [ UNSEALING_USER_KEY_OFFSET ] |- _ => rewrite /UNSEALING_USER_KEY_OFFSET in H
+    | _ : _ |- context [ UNSEALING_USER_KEY_OFFSET ] => rewrite /UNSEALING_USER_KEY_OFFSET
+    end;
+  try match goal with
+  | Hwf : @kvsLayoutWf ?mp ?layout |- _ =>
+      let Hsize := fresh "Hotype_size" in
+      pose proof (@KVS_OTYPE_size mp layout Hwf) as Hsize
+  end.

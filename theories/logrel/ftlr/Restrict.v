@@ -25,23 +25,23 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma PermPairFlows_interp_preserved W C p p' g g' b e a :
+  Lemma PermPairFlows_interp_preserved W C t p p' g g' b e a :
     PermFlowsTo p' p = true →
     LocalityFlowsTo g' g = true →
     ftlr_IH -∗
-    interp W C (WCap p g b e a) -∗
-    interp W C (WCap p' g' b e a).
+    interp W C (WCap t p g b e a) -∗
+    interp W C (WCap t p' g' b e a).
   Proof.
     intros Hp Hg. iIntros "#IH HA".
     iApply (interp_weakening with "IH HA");eauto;try solve_addr.
   Qed.
 
-  Lemma SealPermPairFlows_interp_preserved W C p p' g g' b e a :
+  Lemma SealPermPairFlows_interp_preserved W C t p p' g g' b e a :
     SealPermFlowsTo p' p = true →
     LocalityFlowsTo g' g = true →
     ftlr_IH -∗
-    interp W C (WSealRange p g b e a) -∗
-    interp W C (WSealRange p' g' b e a).
+    interp W C (WSealRange t p g b e a) -∗
+    interp W C (WSealRange t p' g' b e a).
   Proof.
     intros Hp Hg. iIntros "#IH HA".
     iApply (interp_weakening_ot with "HA");eauto;try solve_addr.
@@ -66,12 +66,11 @@ Section fundamental.
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
     destruct HSpec as [ * Hdst Hz Hpair HPfl HLfl HincrPC
-                      | * Hdst Hz Hpair HPfl HLfl  HincrPC
-                      | ]
-    ; cycle 2.
-    - iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto.
-    - apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
+                      | * Hdst Hz Hpair HPfl HLfl HincrPC
+                      | * Hdst Hz Hpair Hflows HincrPC
+                      | * Hdst Hz Hpair Hflows HincrPC
+                      | ].
+    - apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       assert (HPCsrc: match src with inl _ => True | inr src => PC <> src end).
@@ -109,7 +108,7 @@ Section fundamental.
         iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
         { destruct ρ;auto;contradiction. }
 
-        assert (is_Some (<[dst:=WCap p'0 g' b0 e0 a0]> (<[PC:=WCap p'' g'' b'' e'' a'']> regs) !! csp)) as [??].
+        assert (is_Some (<[dst:=WCap t p'0 g' b0 e0 a0]> (<[PC:=WCap true p'' g'' b'' e'' a'']> regs) !! csp)) as [??].
         { destruct (decide (dst = csp)); simplify_map_eq=>//. }
         iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         - intros; simpl. repeat (rewrite lookup_insert_is_Some'; right); eauto.
@@ -123,7 +122,8 @@ Section fundamental.
           + simplify_map_eq. iApply "Hreg"; auto.
         - iApply (interp_next_PC with "Hinv_interp"); eauto.
       }
-    - apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
+
+    - apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       assert (HPCsrc: match src with inl _ => True | inr src => PC <> src end).
@@ -143,9 +143,9 @@ Section fundamental.
       simplify_map_eq; map_simpl "Hmap".
       rewrite insert_reg_insert_commute; auto.
       simplify_map_eq; map_simpl "Hmap".
-      assert (is_Some (<[dst:=WSealRange p'0 g' b0 e0 a0]ᵣ> regs !! csp)) as [??].
+      assert (is_Some (<[dst:=WSealRange t p'0 g' b0 e0 a0]ᵣ> regs !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealRange p'0 g' b0 e0 a0]ᵣ> regs) with
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealRange t p'0 g' b0 e0 a0]ᵣ> regs) with
                "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       + intros. by rewrite lookup_insert_is_Some' ; right.
       + iIntros (ri v Hri Hvs).
@@ -157,6 +157,87 @@ Section fundamental.
           iApply SealPermPairFlows_interp_preserved; eauto.
         * simplify_map_eq. iApply "Hreg"; auto.
       + iApply (interp_next_PC with "Hinv_interp"); eauto.
+
+    - match type of HincrPC with
+      | incrementPC (<[dst := ?wnew]ᵣ> _) = _ =>
+          set (wout := wnew) in HincrPC
+      end.
+      assert (Htagout : get_tag wout = false).
+      { by rewrite /wout /= ?get_tag_clear_tag_sealable. }
+      incrementPC_inv as (t0 & p0' & g0' & b0' & e0' & a0' & a_next & HPC0 & Ha0 & ->).
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      destruct (decide (dst = PC)) as [->|HdstPC].
+      + assert (Hwout : wout = WCap t0 p0' g0' b0' e0' a0').
+        { rewrite /insert_reg /= lookup_insert /= in HPC0. by simplify_eq. }
+        rewrite Hwout /= in Htagout. subst t0.
+        map_simpl "Hmap".
+        iApply (wp_bind (fill [SeqCtx])).
+        iExtract "Hmap" PC as "HPC".
+        iApply (wp_notCorrectPC_tag with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        iApply wp_pure_step_later; auto. iNext; iIntros "_".
+        iApply wp_value; auto.
+      + rewrite /insert_reg lookup_insert_ne in HPC0; last congruence.
+        rewrite lookup_insert_eq in HPC0.
+        injection HPC0 as <- <- <- <- <- <-.
+        iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+        iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+        { destruct ρ; auto; contradiction. }
+        iApply ("IH" $! _ _ _ _ _
+          (<[dst:=wout]ᵣ> (<[PC:=WCap true p g b e a]> regs)) p g b e a_next
+          with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        * intros rr. rewrite /insert_reg !lookup_insert_is_Some'; eauto.
+        * iIntros (ri wi Hri Hregs_ri).
+          destruct (decide (ri = dst)) as [->|Hne].
+          { rewrite /insert_reg lookup_insert_eq in Hregs_ri.
+            injection Hregs_ri as <-.
+            destruct (decide (dst = cnull));
+              [iApply interp_int | by iApply interp_untagged]. }
+          rewrite /insert_reg !lookup_insert_ne in Hregs_ri; try congruence.
+          iApply "Hreg"; eauto.
+        * iApply (interp_next_PC with "Hinv_interp"); eauto.
+
+    - match type of HincrPC with
+      | incrementPC (<[dst := ?wnew]ᵣ> _) = _ =>
+          set (wout := wnew) in HincrPC
+      end.
+      assert (Htagout : get_tag wout = false).
+      { by rewrite /wout /= ?get_tag_clear_tag_sealable. }
+      incrementPC_inv as (t0 & p0' & g0' & b0' & e0' & a0' & a_next & HPC0 & Ha0 & ->).
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      destruct (decide (dst = PC)) as [->|HdstPC].
+      + assert (Hwout : wout = WCap t0 p0' g0' b0' e0' a0').
+        { rewrite /insert_reg /= lookup_insert /= in HPC0. by simplify_eq. }
+        rewrite Hwout /= in Htagout. subst t0.
+        map_simpl "Hmap".
+        iApply (wp_bind (fill [SeqCtx])).
+        iExtract "Hmap" PC as "HPC".
+        iApply (wp_notCorrectPC_tag with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        iApply wp_pure_step_later; auto. iNext; iIntros "_".
+        iApply wp_value; auto.
+      + rewrite /insert_reg lookup_insert_ne in HPC0; last congruence.
+        rewrite lookup_insert_eq in HPC0.
+        injection HPC0 as <- <- <- <- <- <-.
+        iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+        iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+        { destruct ρ; auto; contradiction. }
+        iApply ("IH" $! _ _ _ _ _
+          (<[dst:=wout]ᵣ> (<[PC:=WCap true p g b e a]> regs)) p g b e a_next
+          with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        * intros rr. rewrite /insert_reg !lookup_insert_is_Some'; eauto.
+        * iIntros (ri wi Hri Hregs_ri).
+          destruct (decide (ri = dst)) as [->|Hne].
+          { rewrite /insert_reg lookup_insert_eq in Hregs_ri.
+            injection Hregs_ri as <-.
+            destruct (decide (dst = cnull));
+              [iApply interp_int | by iApply interp_untagged]. }
+          rewrite /insert_reg !lookup_insert_ne in Hregs_ri; try congruence.
+          iApply "Hreg"; eauto.
+        * iApply (interp_next_PC with "Hinv_interp"); eauto.
+
+    - iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iApply wp_value; auto.
   Qed.
 
 End fundamental.

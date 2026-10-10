@@ -194,9 +194,9 @@ Section Switcher.
 
   Definition is_switcher_entry_point `{switcherLayout} (w : Word) :=
     bool_decide
-      (w = (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (w = (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
            ∨
-      (w = (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return)
+      (w = (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
       ))
   .
 

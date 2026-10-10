@@ -62,7 +62,7 @@ Section fundamental.
     }
 
     map_simpl "Hmap".
-    incrementPC_inv as (p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
+    incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
     rewrite insert_insert_eq.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".
 

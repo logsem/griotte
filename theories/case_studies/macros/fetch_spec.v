@@ -23,13 +23,13 @@ Section Fetch.
     rscratch1 ≠ cnull ->
     rscratch2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rdst ↦ᵣ wdst
     ∗ ▷ rscratch1 ↦ᵣ w1
     ∗ ▷ rscratch2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a fetch_
     ∗ ▷ (pc_b ^+ n)%a ↦ₐ wentry
-    ∗ ▷ (PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ rdst ↦ᵣ load_word pc_p wentry
          ∗ rscratch1 ↦ᵣ WInt 0%Z
          ∗ rscratch2 ↦ᵣ WInt 0%Z

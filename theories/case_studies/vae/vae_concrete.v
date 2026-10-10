@@ -79,7 +79,7 @@ Ltac unfold_vae_addresses_in H :=
     and restore their outer return capabilities around nested calls. *)
 Definition vae_C_code : list Word :=
   encodeInstrsW [
-    Store csp cra;
+    Store csp cra 0;
     Lea csp 1%Z;
     Mov ct0 PC;
     GetB cs0 ct0;
@@ -87,7 +87,7 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0;
+    Load ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -95,7 +95,7 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1;
+    Load ct1 ct1 0;
     Mov cs0 0%Z;
     Mov ca0 PC;
     GetB cs0 ca0;
@@ -103,18 +103,18 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ca0 cs0;
     Lea ca0 2%Z;
-    Load ca0 ca0;
+    Load ca0 ca0 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
     Lea csp (-1)%Z;
-    Load cra csp;
+    Load cra csp 0;
     Mov ca0 0%Z;
     Jalr cnull cra;
 
-    Load ct0 cgp;
+    Load ct0 cgp 0;
     Jnz 31%Z ct0;
-    Store cgp 1%Z;
-    Store csp cra;
+    Store cgp 1%Z 0;
+    Store csp cra 0;
     Lea csp 1%Z;
     Mov ct0 PC;
     GetB cs0 ct0;
@@ -122,7 +122,7 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0;
+    Load ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -130,7 +130,7 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1;
+    Load ct1 ct1 0;
     Mov cs0 0%Z;
     Mov ca0 PC;
     GetB cs0 ca0;
@@ -138,11 +138,11 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ca0 cs0;
     Lea ca0 2%Z;
-    Load ca0 ca0;
+    Load ca0 ca0 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
     Lea csp (-1)%Z;
-    Load cra csp;
+    Load cra csp 0;
     Mov ca0 0%Z;
     Jalr cnull cra
   ].
@@ -195,17 +195,17 @@ Proof.
 Defined.
 
 Definition vae_C_f : Sealable :=
-  SCap RO Global vae_C_exports_pcc vae_C_exports_entries_e
+  SCap true RO Global vae_C_exports_pcc vae_C_exports_entries_e
     vae_C_exports_entries_b.
 
 Definition vae_C_g : Sealable :=
-  SCap RO Global vae_C_exports_pcc vae_C_exports_entries_e
+  SCap true RO Global vae_C_exports_pcc vae_C_exports_entries_e
     (vae_C_exports_entries_b ^+ 1)%a.
 
 Definition vae_main_imports_concrete : list Word := vae_main_imports vae_C_f.
 
 Definition vae_C_imports : list Word :=
-  [ WSentry XSRW_ Local vae_switcher_b vae_switcher_e vae_switcher_call
+  [ WSentry true XSRW_ Local vae_switcher_b vae_switcher_e vae_switcher_call
   ; WSealed vae_switcher_sealing_type
       (vae_entry_awkward_sb vae_main_exports_pcc vae_main_exports_entries_e)
   ; WSealed vae_switcher_sealing_type vae_C_g
@@ -371,25 +371,27 @@ Qed.
 
 Global Instance vae_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout machine_parameters_instance
        vae_concrete_cmptSwitcher vae_concrete_cmptAssert
        vae_concrete_main_cmpt vae_concrete_C_cmpt 3 34
+       _ _
        vae_concrete_cmpts_disjoints
        vae_concrete_switcher_cmpt_disjoints
        vae_concrete_assert_cmpt_disjoints
        vae_concrete_assert_switcher_disjoints).
+  all: vm_compute; eauto.
 Defined.
 
 Definition vae_initial_registers : Reg :=
-  <[PC := WCap RX Global vae_main_pcc_b vae_main_pcc_e vae_main_code_start]>
-  (<[cgp := WCap RW Global vae_main_data_b vae_main_data_e
+  <[PC := WCap true RX Global vae_main_pcc_b vae_main_pcc_e vae_main_code_start]>
+  (<[cgp := WCap true RW Global vae_main_data_b vae_main_data_e
       vae_main_data_b]>
-  (<[csp := WCap RWL Local vae_stack_b vae_stack_e vae_stack_b]>
+  (<[csp := WCap true RWL Local vae_stack_b vae_stack_e vae_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition vae_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local vae_trusted_stack_b vae_trusted_stack_e
+  <[MTDC := WCap true RWL Local vae_trusted_stack_b vae_trusted_stack_e
       vae_trusted_stack_b]> ∅.
 
 Definition vae_initial_memory : Mem := mk_initial_memory.

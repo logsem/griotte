@@ -126,8 +126,8 @@ Section KVS_Main.
     (b_assert e_assert : Addr)
     (B_f : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
-      WSentry RX Global b_assert e_assert b_assert;
+      WSentry true XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      WSentry true RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_f;
       WSealed ot_switcher (KVS_addOrUpdate Global);
       WSealed ot_switcher (KVS_read Global);

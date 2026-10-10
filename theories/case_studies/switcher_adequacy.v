@@ -19,11 +19,11 @@ Section helpers_switcher_adequacy.
     (W : WORLD) (C : CmptName) ( b_pcc e_pcc b_cgp e_cgp : Addr )
     (args off : nat) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp W C (WCap RX Global b_pcc e_pcc b_pcc) -∗
-    interp W C (WCap RW Global b_cgp e_cgp b_cgp) -∗
+    ⊢ interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
+    interp W C (WCap true RW Global b_cgp e_cgp b_cgp) -∗
     □ ∀ (W' : WORLD),
     ⌜related_sts_priv_world W W'⌝
-    → ▷ execute_entry_point (WCap RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap RW Global b_cgp e_cgp b_cgp)
+    → ▷ execute_entry_point (WCap true RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap true RW Global b_cgp e_cgp b_cgp)
         args W' C.
   Proof.
     iIntros "#Hinv_switcher #Hinterp_pcc #Hinterp_cgp".
@@ -32,7 +32,7 @@ Section helpers_switcher_adequacy.
       as "Hinterp_pcc'"; eauto.
     iDestruct (interp_monotone_nl with "[] [] [$Hinterp_cgp]")
       as "Hinterp_cgp'"; eauto.
-    iDestruct (interp_weakeningEO W' C
+    iDestruct (interp_weakeningEO W' C true
                  RX RX Global Global b_pcc b_pcc e_pcc e_pcc b_pcc (b_pcc ^+ off%nat)%a
                 with "Hinterp_pcc'") as "Hinterp_PCC"; eauto; try solve_addr.
     iModIntro;iNext.
@@ -82,17 +82,19 @@ Section helpers_switcher_adequacy.
     let e_cgp := (cmpt_e_cgp C_cmpt) in
     (entries_etbl <= a_etbl < e_etbl)%a
     → 0 <= args < 7
+    → is_Some (b_pcc + off%nat)%a
     → na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ inv (export_table_PCCN CNAME) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
-    -∗ inv (export_table_CGPN CNAME) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
+    ⊢ inv (export_table_PCCN CNAME) (b_etbl ↦ₐ WCap true RX Global b_pcc e_pcc b_pcc)
+    -∗ inv (export_table_CGPN CNAME) (b_etbl1 ↦ₐ WCap true RW Global b_cgp e_cgp b_cgp)
     -∗ inv (export_table_entryN CNAME a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
-    -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
-    -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
-    -∗ WSealed ot_switcher (SCap RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
-    -∗ WSealed ot_switcher (SCap RO Local b_etbl e_etbl a_etbl) ↦□ₑ args
-    -∗ ot_switcher_prop W C (WCap RO g_etbl b_etbl e_etbl a_etbl).
+    -∗ interp W C (WCap true RX Global b_pcc e_pcc b_pcc)
+    -∗ interp W C (WCap true RW Global b_cgp e_cgp b_cgp)
+    -∗ WSealed ot_switcher (SCap true RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
+    -∗ WSealed ot_switcher (SCap true RO Local b_etbl e_etbl a_etbl) ↦□ₑ args
+    -∗ ot_switcher_prop W C (WCap true RO g_etbl b_etbl e_etbl a_etbl).
   Proof.
-    intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
+    intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
+      Ha_etbl Hargs Hentry.
     iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry_borrow".
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off.
     iFrame "#".
@@ -117,6 +119,7 @@ Section helpers_switcher_adequacy.
       solve_addr.
     }
     iSplit; first (iPureIntro ; lia).
+    iSplit; first (iPureIntro; exact Hentry).
     iSplit.
     { subst b_etbl1 b_etbl.
       replace (cmpt_exp_tbl_cgp C_cmpt ) with (cmpt_exp_tbl_pcc C_cmpt ^+ 1)%a; auto.

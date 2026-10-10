@@ -19,7 +19,7 @@ Section region_alloc_cmpt.
 
   Definition exported_entries_sealable (C_cmpt : cmpt) : list Sealable :=
     let export_tbl_addrs := finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) in
-    let exported_word g a := (SCap RO g (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) a) in
+    let exported_word g a := (SCap true RO g (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) a) in
     ((exported_word Global) <$> export_tbl_addrs) ++ ((exported_word Local) <$> export_tbl_addrs).
 
   Definition exported_entries_words (C_cmpt : cmpt) : gset Word :=
@@ -179,8 +179,8 @@ Section region_alloc_cmpt.
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
-    let pcc_cap := (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
-    let cgp_cap := (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
+    let pcc_cap := (WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
+    let cgp_cap := (WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
     let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
     let Wfinal := std_update_compartment W C_cmpt in
 
@@ -285,6 +285,7 @@ Section region_alloc_cmpt.
       - iSplit; last iApply future_priv_mono_interp_z.
         by rewrite fixpoint_interp1_eq /=.
       - iSplit; last iApply future_priv_mono_interp_global.
+        destruct tag; last (iApply interp_untagged; done).
         rewrite fixpoint_interp1_eq interp1_eq.
         destruct Hw as (Hp & Hb & He).
         destruct (isO p) eqn:HpO; first done.
@@ -479,8 +480,8 @@ Section region_alloc_cmpt.
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
-    let pcc_cap := (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
-    let cgp_cap := (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
+    let pcc_cap := (WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
+    let cgp_cap := (WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
     let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
     let Wfinal := std_update_compartment W C_cmpt in
 

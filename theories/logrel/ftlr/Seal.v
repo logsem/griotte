@@ -29,7 +29,7 @@ Section fundamental.
     permit_seal p = true ->
     withinBounds b e a = true ->
     interp W C (WSealable sb) -∗
-    interp W C (WSealRange p g b e a) -∗
+    interp W C (WSealRange true p g b e a) -∗
     world_interp W C
     ==∗
     ∃ W', ⌜ related_sts_pub_world W W' ⌝ ∗
@@ -37,7 +37,11 @@ Section fundamental.
           interp W' C (WSealed a sb).
   Proof.
     iIntros (Hseal Hwb) "#HVsb #HVsr Hworld_interp".
-    rewrite (fixpoint_interp1_eq W C (WSealRange _ _ _ _ _)).
+    destruct (get_tag_sealable sb) eqn:Htag.
+    2: { iModIntro. iExists W. iFrame.
+         iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+         iApply interp_untagged. done. }
+    rewrite (fixpoint_interp1_eq W C (WSealRange true _ _ _ _ _)).
     iDestruct "HVsr" as "[Hss _]"; rewrite Hseal.
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_elem_of_acc with "Hss") as "[HSa0 _]"; eauto.
@@ -63,7 +67,7 @@ Section fundamental.
     subst W'.
     iModIntro.
     iExists _; iFrame "∗%".
-    iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    iEval (rewrite fixpoint_interp1_eq /= Htag /interp_sb).
     iApply sts_seals_std_weaken; last iFrame "#".
     set_solver+.
   Qed.
@@ -86,15 +90,11 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ * Hr1 Hr2 Hseal Hwb HincrPC | ]; cycle 1.
-    {
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto.
-    }
-
-    - apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
-      assert (p'' = p ∧ g'' = g ∧ a'' = a ∧ b'' = b ∧ e'' = e) as (-> & -> & -> & -> & ->).
-      { destruct (decide (PC = dst)); simplify_map_eq; auto. }
+    destruct HSpec as [ * Hr1 Hr2 Htag Hseal Hwb HincrPC
+                      | * Hr1 Hr2 Hvalid HincrPC | ].
+    - apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
+      assert (t'' = true ∧ p'' = p ∧ g'' = g ∧ a'' = a ∧ b'' = b ∧ e'' = e) as (-> & -> & -> & -> & -> & ->).
+      { destruct (decide (PC = dst)); simplify_map_eq; naive_solver. }
       assert (r1 ≠ PC) as Hne.
       { destruct (decide (PC = r1)); last auto. simplify_map_eq; auto. }
       assert (r1 ≠ cnull); simplify_map_eq.
@@ -118,7 +118,7 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      assert (is_Some (<[dst:=WSealed a0 sb]> (<[PC:=WCap p g b e a]> regs) !! csp)) as [??].
+      assert (is_Some (<[dst:=WSealed a0 sb]> (<[PC:=WCap true p g b e a]> regs) !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
 
       (* TODO can I extract a lemma from here? *)
@@ -142,6 +142,48 @@ Section fundamental.
         }
       + iApply (interp_monotone with "[] []"); eauto.
         iApply (interp_next_PC with "Hinv_interp"); eauto.
+
+    - match type of HincrPC with
+      | incrementPC (<[dst := ?wnew]ᵣ> _) = _ =>
+          set (wout := wnew) in HincrPC
+      end.
+      assert (Htagout : get_tag wout = false).
+      { by rewrite /wout /= ?get_tag_clear_tag_sealable. }
+      incrementPC_inv as (t0 & p0' & g0' & b0' & e0' & a0' & a_next & HPC0 & Ha0 & ->).
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      destruct (decide (dst = PC)) as [->|HdstPC].
+      + assert (Hwout : wout = WCap t0 p0' g0' b0' e0' a0').
+        { rewrite /insert_reg /= lookup_insert /= in HPC0. by simplify_eq. }
+        rewrite Hwout /= in Htagout. subst t0.
+        map_simpl "Hmap".
+        iApply (wp_bind (fill [SeqCtx])).
+        iExtract "Hmap" PC as "HPC".
+        iApply (wp_notCorrectPC_tag with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        iApply wp_pure_step_later; auto. iNext; iIntros "_".
+        iApply wp_value; auto.
+      + rewrite /insert_reg lookup_insert_ne in HPC0; last congruence.
+        rewrite lookup_insert_eq in HPC0.
+        injection HPC0 as <- <- <- <- <- <-.
+        iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+        iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+        { destruct ρ; auto; contradiction. }
+        iApply ("IH" $! _ _ _ _ _
+          (<[dst:=wout]ᵣ> (<[PC:=WCap true p g b e a]> regs)) p g b e a_next
+          with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        * intros rr. rewrite /insert_reg !lookup_insert_is_Some'; eauto.
+        * iIntros (ri wi Hri Hregs_ri).
+          destruct (decide (ri = dst)) as [->|Hne].
+          { rewrite /insert_reg lookup_insert_eq in Hregs_ri.
+            injection Hregs_ri as <-.
+            destruct (decide (dst = cnull));
+              [iApply interp_int | by iApply interp_untagged]. }
+          rewrite /insert_reg !lookup_insert_ne in Hregs_ri; try congruence.
+          iApply "Hreg"; eauto.
+        * iApply (interp_next_PC with "Hinv_interp"); eauto.
+
+    - iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iApply wp_value; auto.
   Qed.
 
 End fundamental.

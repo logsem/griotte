@@ -26,7 +26,7 @@ Section VAE_Main.
 
   Definition VAE_main_code_init : list Word :=
     (* set a := 0 *)
-    encodeInstrsW [Store cgp 0]
+    encodeInstrsW [Store cgp 0 0]
     (* call B.adv VAE.awkward *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++ fetch_instrs 2 ct1 cs0 cs1 (* ct1 -> {B.f}_(ot_switcher)  *)
@@ -38,7 +38,7 @@ Section VAE_Main.
 
   Definition VAE_main_code_f (ot_switcher : OType) : list Word :=
     (* set a := 0 *)
-    encodeInstrsW [Store cgp 0]
+    encodeInstrsW [Store cgp 0 0]
     (* call g () *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++
@@ -51,7 +51,7 @@ Section VAE_Main.
     ]
     (* set a := 1 *)
     ++ encodeInstrsW [
-      Store cgp 1;
+      Store cgp 1 0;
       Mov cra cs0; (* cra -> return_to-switcher *)
       Mov ct1 cs1  (* ct1 -> fun_g *)
     ]
@@ -65,7 +65,7 @@ Section VAE_Main.
       Jalr cra ct0; (* jmp to arg_1 *)
 
       (* assert (a == 1) *)
-      Load ct0 cgp; (* ct0 -> a *)
+      Load ct0 cgp 0; (* ct0 -> a *)
       Mov ct1 1%Z  (* ct1 -> 1 *)
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
@@ -89,14 +89,14 @@ Section VAE_Main.
     (B_adv : Sealable)
     : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
-      WSentry RX Global b_assert e_assert b_assert;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_adv
     ].
 
   Definition length_vae_main_imports `{!switcherLayout} `{!assertLayout} :=
     length
-      (vae_main_imports (SCap RO Global za za za)).
+      (vae_main_imports (SCap true RO Global za za za)).
 
   Definition vae_exp_tbl_entry_awkward `{!switcherLayout} `{!assertLayout} :=
     WInt (encode_entry_point 1
@@ -104,7 +104,7 @@ Section VAE_Main.
 
   Definition vae_entry_awkward_sb
     b_vae_exp_tbl e_vae_exp_tbl : Sealable :=
-      SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+2)%a.
+      SCap true RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+2)%a.
 
   Definition vae_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
     [ vae_exp_tbl_entry_awkward ].

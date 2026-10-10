@@ -20,7 +20,7 @@ Section Counter_Main.
      pc  := (RX, Global, b_main, e_main, b_main_code)
      cgp := (RW, Global, b, e, b)
 
-     b_main + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
+     b_main + 0 : WSentry true XSRW_ b_switcher e_switcher a_cc_switcher
      b_main + 1 : WSealed ot_switcher C.f
 
       data:
@@ -36,10 +36,10 @@ Section Counter_Main.
       (* #"main_b_code"; *)
 
       (* get a *)
-      Load cs0 cgp;
+      Load cs0 cgp 0;
       (* set a := a + 1 *)
       Add cs0 cs0 1%Z;
-      Store cgp cs0
+      Store cgp cs0 0
       (* call C_f*)
     ]
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
@@ -68,7 +68,7 @@ Section Counter_Main.
   Definition counter_main_imports `{!switcherLayout}
     (C_f : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSealed ot_switcher C_f
     ].
 

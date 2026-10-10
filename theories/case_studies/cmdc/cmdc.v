@@ -9,8 +9,8 @@ Section CMDC_Main.
   (* Expect:
      pc := (RX, Global, b_main, e_main, b_main_code )
 
-     b_main + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
-     b_main + 1 : WSentry RX b_assert e_assert a_assert
+     b_main + 0 : WSentry true XSRW_ b_switcher e_switcher a_cc_switcher
+     b_main + 1 : WSentry true RX b_assert e_assert a_assert
      b_main + 2 : WSealed ot_switcher B.f
      b_main + 3 : WSealed ot_switcher C.g
 
@@ -20,12 +20,12 @@ Section CMDC_Main.
       (* #"main_b_code"; *)
 
       (* set b <- 0 *)
-      Store cgp 0%Z;
+      Store cgp 0%Z 0;
       Mov ca0 cgp;
 
       (* set c <- 0 *)
       Lea cgp 1%Z;
-      Store cgp 0%Z;
+      Store cgp 0%Z 0;
 
       (* call B.f b *)
       GetA ct0 ca0;
@@ -38,7 +38,7 @@ Section CMDC_Main.
     encodeInstrsW [
       Jalr cra ctp;
       (* assert c == 0 *)
-      Load ct0 cgp; (* ct0 -> c *)
+      Load ct0 cgp 0; (* ct0 -> c *)
       Mov ct1 0%Z
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
@@ -50,7 +50,7 @@ Section CMDC_Main.
 
       (* set b <- 42 *)
       Lea cgp (-1)%Z;
-      Store cgp 42%Z;
+      Store cgp 42%Z 0;
 
       (* call C.g c *)
       GetA ct0 ca0;
@@ -63,7 +63,7 @@ Section CMDC_Main.
     encodeInstrsW [
       Jalr cra ctp;
       (* assert b == 42 *)
-      Load ct0 cgp; (* ct0 -> c *)
+      Load ct0 cgp 0; (* ct0 -> c *)
       Mov ct1 42%Z
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
@@ -77,8 +77,8 @@ Section CMDC_Main.
   Definition cmdc_main_imports `{!switcherLayout} `{!assertLayout}
     (B_f C_g : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
-      WSentry RX Global b_assert e_assert b_assert;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_f;
       WSealed ot_switcher C_g
     ].

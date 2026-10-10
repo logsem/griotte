@@ -35,9 +35,9 @@ Qed.
 Local Definition encode_word_type (w : Word) : Z :=
   match w with
   | WInt _ => 0
-  | WCap _ _ _ _ _ => 1
-  | WSentry _ _ _ _ _ => 2
-  | WSealRange _ _ _ _ _ => 3
+  | WCap _ _ _ _ _ _ => 1
+  | WSentry _ _ _ _ _ _ => 2
+  | WSealRange _ _ _ _ _ _ => 3
   | WSealed _ _ => 4
   end.
 
@@ -52,11 +52,11 @@ Local Definition decode_word_type (z : Z) : Word :=
 
 Local Lemma encode_word_type_correct :
   forall w w', match w, w' with
-  | WCap _ _ _ _ _, WCap _ _ _ _ _ =>
+  | WCap _ _ _ _ _ _, WCap _ _ _ _ _ _ =>
       encode_word_type w = encode_word_type w'
-  | WSentry _ _ _ _ _, WSentry _ _ _ _ _ =>
+  | WSentry _ _ _ _ _ _, WSentry _ _ _ _ _ _ =>
       encode_word_type w = encode_word_type w'
-  | WSealRange _ _ _ _ _, WSealRange _ _ _ _ _ =>
+  | WSealRange _ _ _ _ _ _, WSealRange _ _ _ _ _ _ =>
       encode_word_type w = encode_word_type w'
   | WSealed _ _, WSealed _ _ =>
       encode_word_type w = encode_word_type w'

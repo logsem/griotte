@@ -76,7 +76,7 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      assert (is_Some (<[dst:=WInt (rules_BinOp.denote (decodeInstrW w) n1 n2)]> (<[PC:=WCap x x0 x1 x2 x3]> regs) !! csp)) as [??].
+      assert (is_Some (<[dst:=WInt (rules_BinOp.denote (decodeInstrW w) n1 n2)]> (<[PC:=WCap true x0 x1 x2 x3 x4]> regs) !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
       iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
       ; eauto.
