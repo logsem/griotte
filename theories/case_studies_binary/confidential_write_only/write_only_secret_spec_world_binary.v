@@ -25,7 +25,7 @@ Section Write_only_pred.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -104,7 +104,7 @@ Section Write_only_secret_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}

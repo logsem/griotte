@@ -5,6 +5,7 @@ From griotte Require Import sts_multiple_updates.
 From griotte Require Import logrel_binary interp_weakening_binary monotone_binary.
 From griotte Require Import region_invariants_revocation_binary region_invariants_allocation_binary.
 From griotte Require Import world_interp_allocation_compartments_binary stack_world_resources_binary.
+From griotte Require Import world_ghost_theory_binary sealing_invariants_binary.
 From griotte Require Import switcher_preamble_binary interp_switcher_call_binary interp_switcher_return_binary.
 From griotte Require Import switcher_adequacy_binary.
 From griotte Require Import stack_callee_secret_binary stack_callee_secret_spec_binary.
@@ -159,7 +160,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_inv_preg: na_invGpreS Σ}.
-  Context {sts_preg: STS_preG Addr region_type Σ}.
+  Context {sts_preg: STS_preG Addr region_type OType (Word * Word) Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context {spec_preg: specGpreS Σ}.
@@ -299,14 +300,16 @@ Section Adequacy.
            with "[$HT_etbl_entries $HsT_etbl_entries]")
       as "#Hinv_T_etbl_entry_f".
 
-    (* 7 - The entry point T.f is safe to share, in any world *)
+    (* 7 - The entry point T.f satisfies the sealing predicate of the
+       switcher, and is sealed with [ot_switcher] in the world of B *)
     pose proof (main_code_size_obligations _ _ _ T_imports T_code)
       as (HsubBounds & Himports_contiguous).
-    iAssert (∀ W, interp W B (WSealed (ot_switcher switcher_cmpt) T_f,
-                              WSealed (ot_switcher switcher_cmpt) T_f))%I
-      as "#Hinterp_T_f".
-    { iIntros (W).
-      pose proof (cmpt_exp_tbl_pcc_size T_cmpt) as H0.
+    set (W0 := (∅, (∅, ∅), ∅) : WORLD).
+    set (W0' := <o[ ot_switcher switcher_cmpt :=
+                    {[ (WSealable T_f, WSealable T_f); borrow_pair (WSealable T_f, WSealable T_f) ]}
+                 ]o> W0).
+    iAssert (ot_switcher_prop W0' B (WSealable T_f, WSealable T_f)) as "#Hot_switcher_T_f".
+    { pose proof (cmpt_exp_tbl_pcc_size T_cmpt) as H0.
       pose proof (cmpt_exp_tbl_cgp_size T_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size T_cmpt) as H2.
       rewrite T_exp_tbl /= in H2.
@@ -317,21 +320,49 @@ Section Adequacy.
         with ((cmpt_exp_tbl_pcc T_cmpt) ^+ 2)%a by solve_addr+H0 H1.
       replace (cmpt_exp_tbl_cgp T_cmpt)
         with (cmpt_exp_tbl_pcc T_cmpt ^+ 1)%a by solve_addr+H0.
-      iApply (stack_callee_secret_f_interp
+      iApply (stack_callee_secret_f_ot_switcher_prop
                 (cmpt_b_pcc T_cmpt) (cmpt_e_pcc T_cmpt) (cmpt_a_code T_cmpt)
                 (cmpt_b_cgp T_cmpt) (cmpt_e_cgp T_cmpt)
-                (cmpt_exp_tbl_pcc T_cmpt) (cmpt_exp_tbl_entries_end T_cmpt)
-                B_adv secret1 secret2 W B switcherN TN
+                (cmpt_exp_tbl_pcc T_cmpt) (cmpt_exp_tbl_entries_end T_cmpt) Global
+                B_adv secret1 secret2 W0' B switcherN TN
                 ltac:(solve_addr+H0 H1 H2) HsubBounds Himports_contiguous T_data_size).
       iFrame "#".
     }
+    iMod (world_interp_salloc W0 B ot_switcher_propC (ot_switcher switcher_cmpt)
+            {[ (WSealable T_f, WSealable T_f); borrow_pair (WSealable T_f, WSealable T_f) ]}
+           with "Hsealed_pred_ot_switcher [] [] Hworld_interp_B")
+      as "(Hworld_interp_B & #Hseal_T_f)"; first done.
+    { iIntros (w); iApply mono_priv_ot_switcher. }
+    { rewrite normalise_sealed_words_borrow big_sepS_singleton; iFrame "Hot_switcher_T_f". }
+    iAssert (interp W0' B (WSealed (ot_switcher switcher_cmpt) T_f,
+                           WSealed (ot_switcher switcher_cmpt) T_f))
+      as "#Hinterp_T_f".
+    { rewrite interp_sealed_inv /interp_sb.
+      iSplit; first done.
+      iSplit; first done.
+      iFrame "Hseal_T_f". }
 
-    (* 8 - Initialise the world of B: its compartment becomes permanent, and
-       the stack is allocated as revoked, because we keep its points-to
-       predicates. *)
-    iMod (initialise_adversary_world_revoked_binary _ switcher_cmpt _ B
-           with "HB_imports HB_code HB_data [] Hworld_interp_B")
-      as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hrevoked_stack_B)"; auto.
+    (* 8 - Initialise the world of B: its compartment becomes permanent, its
+       exported entry is sealed, and the stack is allocated as revoked,
+       because we keep its points-to predicates. *)
+    iMod (initialise_adversary_world_revoked_binary W0' switcher_cmpt _ B
+           with "Hsealed_pred_ot_switcher HB_imports HB_code HB_data [] [] Hworld_interp_B")
+      as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hrevoked_stack_B & #HB_exports)";
+      auto.
+    { (* The exported entry B.adv satisfies the sealing predicate of the switcher *)
+      iIntros "!>" (i a Ha) "#Hpcc_interp #Hcgp_interp".
+      destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
+      rewrite B_exp_tbl /= in Hi.
+      destruct i as [|i]; last lia.
+      replace (cmpt_exp_tbl_entries_start B_cmpt ^+ 0%nat)%a
+        with (cmpt_exp_tbl_entries_start B_cmpt) by solve_addr.
+      iApply (adversary_export_prop_binary _ _ _ _ 0 stack_callee_secret_B_adv_args offset_B_adv
+               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries
+                     Hpcc_interp Hcgp_interp Hentry_B_adv Hentry_B_adv'").
+      - by rewrite B_exp_tbl.
+      - solve_addr.
+      - rewrite /stack_callee_secret_B_adv_args; lia.
+    }
     { rewrite B_imports.
       iIntros "_".
       (* Switcher entry point *)
@@ -339,19 +370,22 @@ Section Adequacy.
       { iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done. }
       (* T.f *)
       iSplit; last done.
-      iSplit; [| iIntros (???) "!> _" ] ; iApply "Hinterp_T_f".
+      iSplit.
+      - iApply interp_monotone_sd; auto.
+        iPureIntro.
+        apply related_sts_pub_priv_world.
+        eapply std_update_compartment_pub; eauto; (apply Forall_true; intros; done).
+      - iIntros (W W' Hrelated) "!> Hinterp".
+        iApply interp_monotone_sd; auto.
     }
 
     (* 9 - The exported entry point of B is safe to share *)
-    iAssert (interp (adv_world_revoked (∅, (∅, ∅)) switcher_cmpt B_cmpt) B
+    iAssert (interp (adv_world_revoked W0' switcher_cmpt B_cmpt) B
                (WSealed (ot_switcher switcher_cmpt) B_adv, WSealed (ot_switcher switcher_cmpt) B_adv))
       as "#Hinterp_B".
-    { iApply (adversary_export_interp_binary _ _ _ _ _ 0 stack_callee_secret_B_adv_args offset_B_adv
-               with "Hswitcher Hsealed_pred_ot_switcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries
-                     Hinterp_pcc_B Hinterp_cgp_B Hentry_B_adv Hentry_B_adv'").
-      - by rewrite B_exp_tbl.
-      - pose proof (cmpt_exp_tbl_entries_size B_cmpt); solve_addr.
-      - rewrite /stack_callee_secret_B_adv_args; lia.
+    { iApply (adversary_export_interp_binary _ _ _ 0 with "HB_exports").
+      - solve_addr.
+      - rewrite B_exp_tbl /=; lia.
     }
 
     (* 10 - Extract registers, in both runs *)
@@ -410,7 +444,7 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type ; relPreΣ
+              ; STS_preΣ Addr region_type OType (Word * Word) ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * (Word * Word))
               ; specΣ
       ]).

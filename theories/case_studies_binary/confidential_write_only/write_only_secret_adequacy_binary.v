@@ -139,7 +139,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_inv_preg: na_invGpreS Σ}.
-  Context {sts_preg: STS_preG Addr region_type Σ}.
+  Context {sts_preg: STS_preG Addr region_type OType (Word * Word) Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context {spec_preg: specGpreS Σ}.
@@ -225,8 +225,23 @@ Section Adequacy.
        the stack is allocated as revoked, because we keep its points-to
        predicates. *)
     iMod (initialise_adversary_world_revoked_binary _ switcher_cmpt _ B
-           with "HB_imports HB_code HB_data [] Hworld_interp_B")
-      as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hrevoked_stack_B)"; auto.
+           with "Hsealed_pred_ot_switcher HB_imports HB_code HB_data [] [] Hworld_interp_B")
+      as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hrevoked_stack_B & #HB_exports)";
+      auto.
+    { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
+      iIntros "!>" (i a Ha) "#Hpcc_interp #Hcgp_interp".
+      destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
+      rewrite B_exp_tbl /= in Hi.
+      destruct i as [|i]; last lia.
+      replace (cmpt_exp_tbl_entries_start B_cmpt ^+ 0%nat)%a
+        with (cmpt_exp_tbl_entries_start B_cmpt) by solve_addr.
+      iApply (adversary_export_prop_binary _ _ _ _ 0 write_only_secret_B_f_args offset_B_f
+               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries
+                     Hpcc_interp Hcgp_interp Hentry_Bf Hentry_Bf'").
+      - by rewrite B_exp_tbl.
+      - solve_addr.
+      - rewrite /write_only_secret_B_f_args; lia.
+    }
     { rewrite B_imports.
       iIntros "_".
       iSplit; last done.
@@ -234,15 +249,12 @@ Section Adequacy.
     }
 
     (* 7 - The exported entry point of B is safe to share *)
-    iAssert (interp (adv_world_revoked (∅, (∅, ∅)) switcher_cmpt B_cmpt) B
+    iAssert (interp (adv_world_revoked (∅, (∅, ∅), ∅) switcher_cmpt B_cmpt) B
                (WSealed (ot_switcher switcher_cmpt) B_f, WSealed (ot_switcher switcher_cmpt) B_f))
       as "#Hinterp_B".
-    { iApply (adversary_export_interp_binary _ _ _ _ _ 0 write_only_secret_B_f_args offset_B_f
-               with "Hswitcher Hsealed_pred_ot_switcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries
-                     Hinterp_pcc_B Hinterp_cgp_B Hentry_Bf Hentry_Bf'").
-      - by rewrite B_exp_tbl.
-      - pose proof (cmpt_exp_tbl_entries_size B_cmpt); solve_addr.
-      - rewrite /write_only_secret_B_f_args; lia.
+    { iApply (adversary_export_interp_binary _ _ _ 0 with "HB_exports").
+      - solve_addr.
+      - rewrite B_exp_tbl /=; lia.
     }
 
     (* 8 - Extract registers, in both runs *)
@@ -258,7 +270,7 @@ Section Adequacy.
     pose proof (main_code_size_obligations _ _ _ main_imports main_code)
       as (HsubBounds & Himports_contiguous).
     pose proof main_data_size as Hmain_data_size; cbn in Hmain_data_size.
-    assert (cmpt_b_cgp main_cmpt ∉ dom (std (adv_world_revoked (∅, (∅, ∅)) switcher_cmpt B_cmpt)))
+    assert (cmpt_b_cgp main_cmpt ∉ dom (std (adv_world_revoked (∅, (∅, ∅), ∅) switcher_cmpt B_cmpt)))
       as Hcgp_b.
     { apply (main_cgp_not_in_adv_world _ _ main_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.
@@ -314,7 +326,7 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type ; relPreΣ
+              ; STS_preΣ Addr region_type OType (Word * Word) ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * (Word * Word))
               ; specΣ
       ]).
