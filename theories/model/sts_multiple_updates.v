@@ -11,8 +11,11 @@ Section std_updates.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {Wd : Type} {eqWd : EqDecision Wd} {countWd : Countable Wd}
     `{MP: MachineParameters}.
+
+  (* The lemmas of this file do not depend on the type of sealed words. *)
+  Local Notation WORLD := (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.

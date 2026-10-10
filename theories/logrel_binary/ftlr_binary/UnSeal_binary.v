@@ -11,7 +11,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -25,27 +25,33 @@ Section fundamental.
 
   (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result.
      The payloads may differ: they are related by the predicate of the otype. *)
-  Lemma unsealing_preserves_interp W C sb1 sb2 p0 g0 b0 e0 a0:
+  Lemma unsealing_preserves_interp W C sb1 sb2 p0 g0 b0 e0 a0 s:
         permit_unseal p0 = true →
         withinBounds b0 e0 a0 = true →
         interp W C (WSealed a0 sb1, WSealed a0 sb2) -∗
         interp W C (WSealRange p0 g0 b0 e0 a0, WSealRange p0 g0 b0 e0 a0) -∗
-        ▷ interp W C (WSealable sb1, WSealable sb2).
+        world_interp_open W C s
+        -∗
+        ▷ (interp W C (WSealable sb1, WSealable sb2) ∗
+           world_interp_open W C s).
   Proof.
-    iIntros (Hpseal Hwb) "#HVsd #HVsr".
+    iIntros (Hpseal Hwb) "#HVsd #HVsr Hworld_interp".
     rewrite interp_sealed_inv (interp_diag_eq _ _ (WSealRange _ _ _ _ _)) //.
     rewrite /interp1_diag /= Hpseal /interp_sb.
     iDestruct "HVsr" as "[_ Hss]".
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
-    iDestruct "HSa0" as (P) "( #Hmono & HsealP & HWcond)".
-    iDestruct "HVsd" as "[_ (%P' & % & #Hmono' & HsealP' & _ & HP' & HPborrowed')]".
-    iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv".
-    iSpecialize ("Hequiv" $! (W,C,(WSealable sb1, WSealable sb2))).
-    rewrite /=.
-    iAssert (▷ P W C (WSealable sb1, WSealable sb2))%I as "HP". { iNext; by iRewrite "Hequiv". }
+    iDestruct "HSa0" as (P) "(%Hpers & HsealP & %Hdom & Hrcond)".
+    assert (∀ WCv : WORLD * CmptName * (Word * Word), Persistent (safeC P WCv)) as Hpers'.
+    { intros [ [W0 C0] w0 ]; rewrite //=; eapply (Hpers (W0, C0, w0)). }
+    iDestruct "HVsd" as "[_ [%Hloc HVsd]]".
+    iAssert (sts_seals_std C a0 {[(WSealable sb1, WSealable sb2)]}) as "#HVsd'".
+    { iApply sts_seals_std_weaken; last iFrame "HVsd"; set_solver+. }
+    iDestruct (world_interp_open_seal_pred_singleton with "HsealP HVsd' Hworld_interp")
+      as "(Hworld_interp & #HP)".
     iNext.
-    iApply ("HWcond" $! W (WSealable sb1, WSealable sb2) with "HP").
+    iFrame.
+    by iApply "Hrcond".
   Qed.
 
   Lemma unseal_case (W : WORLD) (C : CmptName) (regs1 regs2 : Reg)
@@ -85,7 +91,8 @@ Section fundamental.
     iAssert (⌜∃ sb2, w2 = WSealed a0 sb2⌝)%I as %[sb2 ->].
     { iDestruct (interp_eq_unless_sealed with "HVsd") as %[<-|(o & ? & sb2 & ? & ->)]; simplify_eq; eauto. }
     (* Unsealing yields related payloads, which are not sealed, hence equal *)
-    iDestruct (unsealing_preserves_interp with "HVsd HVsr") as "HVsb"; auto.
+    iDestruct (unsealing_preserves_interp with "HVsd HVsr Hworld_interp")
+      as "[#HVsb Hworld_interp]"; auto.
     iAssert (▷ ⌜WSealable sb1 = WSealable sb2⌝)%I as ">%Hsb".
     { iNext. by iApply (interp_eq_not_sealed with "HVsb"). }
     simplify_eq.

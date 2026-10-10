@@ -4,8 +4,11 @@ From griotte Require Export stdpp_extra.
 Section world_std_revocation.
   Context {Σ:gFunctors}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {Wd : Type} {eqWd : EqDecision Wd} {countWd : Countable Wd}
     `{MP: MachineParameters}.
+
+  (* The lemmas of this file do not depend on the type of sealed words. *)
+  Local Notation WORLD := (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -194,14 +197,7 @@ Section world_std_revocation.
   Lemma revoke_std_sta_lookup_Some Wstd_sta (i : Addr) :
     is_Some (Wstd_sta !! i) ↔ is_Some (revoke_std_sta Wstd_sta !! i).
   Proof.
-    split; intros Hi.
-    - assert (std ((Wstd_sta, (∅,∅), ∅) : WORLD) = Wstd_sta) as Heq;auto.
-      rewrite -Heq in Hi.
-      apply (revoke_lookup_Some ((Wstd_sta, (∅,∅), ∅) : WORLD) i) in Hi.
-      auto.
-    - assert (std ((Wstd_sta, (∅,∅), ∅) : WORLD) = Wstd_sta) as <-;auto.
-      apply (revoke_lookup_Some ((Wstd_sta, (∅,∅), ∅) : WORLD) i).
-      auto.
+    by rewrite /revoke_std_sta lookup_fmap fmap_is_Some.
   Qed.
 
   Lemma revoke_lookup_Monotemp Wstd_sta i :

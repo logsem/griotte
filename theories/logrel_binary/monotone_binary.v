@@ -9,7 +9,7 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -220,16 +220,7 @@ Section monotone.
     -∗ interp W' C (WSealed ot1 sb1, WSealed ot2 sb2).
   Proof.
     iIntros (Hrelated) "#Hinterp".
-    rewrite !interp_sealed_inv /interp_sb.
-    iDestruct "Hinterp" as "[%Heq (%P & %Hpers & #Hmono & #Hseal_pred & %Hloc & HP & HPborrowed)]".
-    iSplit; first done.
-    iExists P; iFrame "#%".
-    iApply later_sep_1; iNext.
-    iDestruct ("Hmono" $! _ W W' with "[] [$HP]") as "HP'"
-    ; eauto.
-    iDestruct ("Hmono" $! _ W W' with "[] [$HPborrowed]") as "HPborrowed'"
-    ; eauto.
-    iFrame "#".
+    by rewrite !interp_sealed_inv /interp_sb.
   Qed.
 
   Lemma interp_monotone_sentry W W' C p g b e a :
@@ -353,6 +344,36 @@ Section monotone.
     exact Hrelated.
   Qed.
 
+  Lemma safe_to_seal_monotone C W W' b e :
+    related_sts_priv_world W W' ->
+    safe_to_seal W C interp b e -∗
+    safe_to_seal W' C interp b e.
+  Proof.
+    iIntros (Hrelated) "#Hw"; rewrite /safe_to_seal.
+    generalize (finz.seq_between b e) as l; intros l.
+    iApply big_sepL_mono; last done.
+    iIntros (k o Hk) "(%P & HP_pers & Hseal & %Hdom & Hwcond)".
+    iExists P; iFrame.
+    iPureIntro.
+    destruct Hrelated as (_ & _ & [ Hrelated_dom _ ]).
+    by apply Hrelated_dom.
+  Qed.
+
+  Lemma safe_to_unseal_monotone C W W' b e :
+    related_sts_priv_world W W' ->
+    safe_to_unseal W C interp b e -∗
+    safe_to_unseal W' C interp b e.
+  Proof.
+    iIntros (Hrelated) "#Hw"; rewrite /safe_to_unseal.
+    generalize (finz.seq_between b e) as l; intros l.
+    iApply big_sepL_mono; last done.
+    iIntros (k o Hk) "(%P & HP_pers & Hseal & %Hdom & Hwcond)".
+    iExists P; iFrame.
+    iPureIntro.
+    destruct Hrelated as (_ & _ & [ Hrelated_dom _ ]).
+    by apply Hrelated_dom.
+  Qed.
+
   Lemma interp_monotone_sealrange (W W' : WORLD) C p g b e a :
     ⌜related_sts_priv_world W W'⌝
     -∗ interp W C (WSealRange p g b e a, WSealRange p g b e a)
@@ -360,6 +381,12 @@ Section monotone.
   Proof.
     iIntros (Hrelated) "#Hw".
     rewrite !interp_diag_eq // /interp1_diag /=; auto.
+    iDestruct "Hw" as "[Hw_seal Hw_unseal]".
+    iSplitL "Hw_seal".
+    - destruct (permit_seal p); last done.
+      iApply safe_to_seal_monotone; eauto.
+    - destruct (permit_unseal p); last done.
+      iApply safe_to_unseal_monotone; eauto.
   Qed.
 
   Lemma interp_monotone (W W' : WORLD) C ww :

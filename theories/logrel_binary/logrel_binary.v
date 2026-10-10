@@ -4,7 +4,7 @@ From griotte Require Export griotte_lang memory_region.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Export cerise_instance entry rules_base machine_instructions call_stack_binary.
-From griotte Require Export memory_region_binary seal_store_binary region_invariants_binary.
+From griotte Require Export memory_region_binary region_invariants_binary sealing_invariants_binary.
 From griotte Require Export world_ghost_theory_binary.
 Import uPred.
 
@@ -31,17 +31,18 @@ Ltac solve_proper ::= (repeat intros ?; simpl; auto_equiv).
     with an untrusted compartment [C] in world [W].
 
     The relation is the diagonal, except for sealed words: two sealed words
-    with the same otype are related when their payloads are related by the
-    predicate associated to the otype in the seal store, and have the same
-    locality (the locality of a sealed payload is observable through
-    [canStore]). *)
+    with the same otype are related when the pair of their payloads is
+    recorded in the world as sealed with that otype (the sealing map of the
+    world then relates the payloads by the predicate associated to the otype),
+    and the payloads have the same locality (the locality of a sealed payload
+    is observable through [canStore]). *)
 Section logrel.
 
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -572,18 +573,47 @@ Section logrel.
               end)%I.
   Solve All Obligations with auto;solve_proper.
 
+  (* NOTE : Using [force_global_pair] is a bit like a hack,
+     waiting for an actual normalisation function for [sealing_map].
+
+     Having both [w] and [borrow_pair w] in [sts_seals_std]
+     forces to have both P(w) and P(borrow_pair w),
+     where P is the sealing predicate associated with [o].
+     The problem is that P is not Persistent in general,
+     and therefore, having both P(w) ∗ P(borrow_pair w)
+     might not be possible.
+   *)
+  Definition unseal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word * Word), P W C (force_global_pair w) -∗ interp W C w).
+  Global Instance unseal_cond_ne n :
+    Proper ((=) ==> (=) ==> dist n ==> dist n) unseal_cond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance unseal_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ unseal_cond P C interp)%I.
+  Proof. solve_contractive. Qed.
+
+  Definition seal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word * Word), interp W C w -∗ P W C (force_global_pair w)).
+  Global Instance seal_cond_ne n :
+    Proper ((=) ==> (=) ==> dist n ==> dist n) seal_cond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance seal_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ seal_cond P C interp)%I.
+  Proof. solve_contractive. Qed.
+
   (* (un)seal permission definitions *)
   Definition safe_to_seal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
        ∃ P : V, ⌜persistent_cond P⌝
-                ∗ (∀ w, future_priv_mono C (safeC P) w)
                 ∗ (seal_pred a (safeC P))
-                ∗ ▷ wcond P C interp)%I.
+                ∗ ⌜ a ∈ dom (seal_std W) ⌝
+                ∗ ▷ seal_cond P C interp)%I.
   Definition safe_to_unseal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
-       ∃ P : V, (∀ w, future_priv_mono C (safeC P) w)
+       ∃ P : V, ⌜persistent_cond P⌝
                 ∗ (seal_pred a (safeC P))
-                ∗ ▷ rcond P C RO interp)%I.
+                ∗ ⌜ a ∈ dom (seal_std W) ⌝
+                ∗ ▷ unseal_cond P C interp)%I.
 
   (** Interp for sealing capability. *)
   Program Definition interp_sr (interp : V) : Vd :=
@@ -595,17 +625,12 @@ Section logrel.
   Solve All Obligations with solve_proper.
 
   (** Interp for a pair of sealed words with the same otype [o]:
-      the payloads are equal, and related by the predicate of [o], before
-      and after borrowing. *)
+      the payloads are equal, and the pair of payloads, before and after
+      borrowing, is recorded as sealed with [o] in the world. *)
   Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (sb1 sb2 : Sealable) : iProp Σ :=
-    (∃ (P : V) ,
-        ⌜persistent_cond P⌝
-        ∗ (∀ w, future_priv_mono C (safeC P) w)
-        ∗ seal_pred o (safeC P)
-        ∗ ⌜sb1 = sb2⌝
-        ∗ ▷ P W C (WSealable sb1, WSealable sb2)
-        ∗ ▷ P W C (borrow (WSealable sb1), borrow (WSealable sb2))
-    )%I.
+    (⌜sb1 = sb2⌝
+     ∗ sts_seals_std C o {[ (WSealable sb1, WSealable sb2);
+                            borrow_pair (WSealable sb1, WSealable sb2) ]})%I.
 
   (** Diagonal part of the relation, on a single word. *)
   Definition interp1_diag (interp : V) (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
@@ -777,26 +802,7 @@ Section logrel.
         destruct (permit_seal sr), (permit_unseal sr);
           rewrite /safe_to_seal /safe_to_unseal; apply _.
     - apply _.
-    - destruct w2 as [ | | | o2 sb2 ]; try apply _.
-      apply bi.sep_persistent; first apply _.
-      rewrite /interp_sb.
-      apply exist_persistent; intros P.
-      unfold Persistent. iIntros "(%Hpers & #Hmono & #Hs & %Hloc & HP & HPborrowed)".
-      iAssert (<pers> ▷ P W C (WSealable sb1, WSealable sb2))%I with "[ HP ]" as "HP".
-      { iApply later_persistently_1.
-        ospecialize (Hpers (W,C,_)); cbn in Hpers.
-        by iApply persistent_persistently_2.
-      }
-      iAssert (<pers> ▷ P W C (borrow (WSealable sb1), borrow (WSealable sb2)))%I
-        with "[ HPborrowed ]" as "HPborrowed".
-      { iApply later_persistently_1.
-        ospecialize (Hpers (W,C,_)); cbn in Hpers.
-        by iApply persistent_persistently_2.
-      }
-      iApply persistently_sep_2; iSplitR; auto.
-      iApply persistently_sep_2; iSplitR; auto; iFrame "Hs".
-      iApply persistently_sep_2; iSplitR; auto.
-      iApply persistently_sep_2;iFrame.
+    - destruct w2 as [ | | | o2 sb2 ]; apply _.
   Qed.
 
   (* Non-curried version of interp *)
@@ -852,7 +858,7 @@ Section logrel.
     iDestruct (interp_eq_unless_sealed with "Hinterp") as %[->|(o & sb1 & sb2 & -> & ->)]
     ; first done.
     rewrite interp_sealed_inv.
-    iDestruct "Hinterp" as "[_ (%P & _ & _ & _ & %Hsb & _)]".
+    iDestruct "Hinterp" as "[_ [%Hsb _] ]".
     by subst.
   Qed.
 
@@ -864,7 +870,7 @@ Section logrel.
     iDestruct (interp_eq_unless_sealed with "Hinterp") as "[->|(%o & %sb1 & %sb2 & -> & ->)]"
     ; first done.
     rewrite interp_sealed_inv.
-    iDestruct "Hinterp" as "[_ (%P & _ & _ & _ & %Hloc & _)]".
+    iDestruct "Hinterp" as "[_ [%Hsb _] ]".
     by subst.
   Qed.
 
