@@ -319,22 +319,32 @@ Tactic Notation "unfocus_block" constr(hi) constr(hcont) "as" constr(h) :=
 
 (* Variant of Iris' [tac_specialize_frame] where the conclusion [Q] of the
    wand is kept in the goal: the premise [P1] is framed in place from the
-   context, and [P2 -∗ Q] is unlocked once [P1] has been framed entirely. *)
-Lemma tac_specialize_frame' {PROP: bi} (Δ: envs PROP) j q R P1 P2 Q :
-  envs_lookup j Δ = Some (q, R) →
-  IntoWand q false R P1 P2 →
-  envs_entails (envs_delete true j q Δ) (P1 ∗ locked (P2 -∗ Q)%I) →
+   context, and [P2 -∗ Q] is unlocked once [P1] has been framed entirely.
+   The wand [R] is not a hypothesis of the context but is given as a proof
+   [⊢ R] (e.g. an instruction rule, after the elimination of its Coq-level
+   premises by [iIntoEmpValid]); as with [iPoseProof], it is used as an
+   intuitionistic hypothesis. *)
+Lemma tac_specialize_frame' {PROP: bi} (Δ: envs PROP) R P1 P2 Q :
+  (⊢ R) →
+  IntoWand true false R P1 P2 →
+  envs_entails Δ (P1 ∗ locked (P2 -∗ Q)%I) →
   envs_entails Δ Q.
-Proof. intros ???. eapply (tac_specialize_frame _ j q false); eauto. done. Qed.
+Proof.
+  intros HR ? HΔ. rewrite envs_entails_unseal in HΔ |- *. rewrite HΔ. unlock.
+  assert (⊢ □ R) as HR' by (iIntros "!>"; iApply HR).
+  rewrite -(bi.emp_sep (P1 ∗ (P2 -∗ Q))%I) {1}HR'.
+  iIntros "(HR & HP1 & HQ)". iApply "HQ".
+  iApply (into_wand true false R P1 P2 with "HR HP1").
+Qed.
 
-(* Specialization of the wand [j] with on-demand framing of its premise [P1],
+(* Specialization of the wand [R] with on-demand framing of its premise [P1],
    where its conclusion [P2] is applied to the goal [Q] as in [iApply]. [P2]
    is unified with the goal before framing. *)
-Lemma tac_specialize_frame_apply {PROP: bi} (Δ: envs PROP) j q R P1 P2 B Q :
-  envs_lookup j Δ = Some (q, R) →
-  IntoWand q false R P1 P2 →
+Lemma tac_specialize_frame_apply {PROP: bi} (Δ: envs PROP) R P1 P2 B Q :
+  (⊢ R) →
+  IntoWand true false R P1 P2 →
   IntoWand false false P2 B Q →
-  envs_entails (envs_delete true j q Δ) (P1 ∗ locked B) →
+  envs_entails Δ (P1 ∗ locked B) →
   envs_entails Δ Q.
 Proof.
   intros ??? HΔ. eapply tac_specialize_frame'; [done..|].
@@ -447,12 +457,15 @@ Ltac2 on_lasts tacs :=
 
 (* iApplyCapAuto_init *)
 
-(* Starts the application of the rule [h]: its conclusion is applied to the
+(* Starts the application of the rule [lem]: its conclusion is applied to the
    goal, and the goal becomes [P1 ∗ locked B], where [P1] is the premise of
-   the rule and [B] the premise of its conclusion. *)
-Ltac iSpecializeFrameApplyStart h :=
-  notypeclasses refine (tac_specialize_frame_apply _ h _ _ _ _ _ _ _ _ _ _);
-  [pm_reflexivity
+   the rule and [B] the premise of its conclusion. As with [iPoseProofCore],
+   the Coq-level premises of [lem] become goals, before the main goal; the
+   rule does not go through the context. *)
+Ltac iSpecializeFrameApplyStart lem :=
+  notypeclasses refine
+    (tac_specialize_frame_apply _ _ _ _ _ _ (into_emp_valid_proj _ _ _ lem) _ _ _);
+  [iIntoEmpValid; try tc_solve
   |solve_to_wand tt
   |tc_solve
   |pm_reduce].
@@ -465,10 +478,7 @@ Ltac iApplyHypLast H :=
 
 Ltac2 iApplyCapAutoT_init0 lemma :=
   let tbl := { contents := [] } in
-  let x := iFresh () in
-  ltac1:(x lem |- once (iPoseProofCore lem as false (fun H => iRename H into x)))
-    (Ltac1.of_constr x) (Ltac1.of_constr lemma);
-  on_lasts [(fun _ => ltac1:(x |- iSpecializeFrameApplyStart x) (Ltac1.of_constr x))];
+  ltac1:(lem |- once (iSpecializeFrameApplyStart lem)) (Ltac1.of_constr lemma);
   tbl.
 
 Ltac2 iApplyCapAuto_init0 lemma :=

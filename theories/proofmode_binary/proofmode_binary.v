@@ -41,15 +41,15 @@ Section elim_modal_cps.
     iApply HE; first done. iFrame.
   Qed.
 
-  (** Specialization of the wand [j] with on-demand framing of its premise
+  (** Specialization of the wand [R] with on-demand framing of its premise
       [P1] (as in [tac_specialize_frame']), where the update [P2] of its
       conclusion is eliminated into the goal [G]. The update is resolved
       against [G] before framing, so that its mask is fixed by the goal. *)
-  Lemma tac_specialize_frame_elim_modal (Δ : envs PROP) j q R P1 P2 B G :
-    envs_lookup j Δ = Some (q, R) →
-    IntoWand q false R P1 P2 →
+  Lemma tac_specialize_frame_elim_modal (Δ : envs PROP) R P1 P2 B G :
+    (⊢ R) →
+    IntoWand true false R P1 P2 →
     ElimModal True false false P2 B G G →
-    envs_entails (envs_delete true j q Δ) (P1 ∗ locked (B -∗ G)%I) →
+    envs_entails Δ (P1 ∗ locked (B -∗ G)%I) →
     envs_entails Δ G.
   Proof.
     intros ?? HE HΔ. eapply tac_specialize_frame'; [done..|].
@@ -58,11 +58,12 @@ Section elim_modal_cps.
   Qed.
 End elim_modal_cps.
 
-(* Starts the application of the spec rule [h]: the goal becomes
-   [P1 ∗ locked (B -∗ G)]. *)
-Ltac iSpecializeFrameElimModalStart h :=
-  notypeclasses refine (tac_specialize_frame_elim_modal _ h _ _ _ _ _ _ _ _ _ _);
-  [pm_reflexivity
+(* Starts the application of the spec rule [lem]: the goal becomes
+   [P1 ∗ locked (B -∗ G)] (see [iSpecializeFrameApplyStart]). *)
+Ltac iSpecializeFrameElimModalStart lem :=
+  notypeclasses refine
+    (tac_specialize_frame_elim_modal _ _ _ _ _ _ (into_emp_valid_proj _ _ _ lem) _ _ _);
+  [iIntoEmpValid; try tc_solve
   |solve_to_wand tt
   |tc_solve
   |pm_reduce].
@@ -196,10 +197,7 @@ Ltac iFrameSpecCtx :=
 
 Ltac2 iApplyCapAutoSpecT_init0 lemma :=
   let tbl := { contents := [] } in
-  let x := iFresh () in
-  ltac1:(x lem |- once (iPoseProofCore lem as false (fun H => iRename H into x)))
-    (Ltac1.of_constr x) (Ltac1.of_constr lemma);
-  on_lasts [(fun _ => ltac1:(x |- iSpecializeFrameElimModalStart x) (Ltac1.of_constr x))];
+  ltac1:(lem |- once (iSpecializeFrameElimModalStart lem)) (Ltac1.of_constr lemma);
   tbl.
 
 Ltac2 iApplyCapAutoSpecCore lemma :=
