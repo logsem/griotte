@@ -37,14 +37,14 @@
 </div>
 
 <div class="doc">
-<a id="lab103"></a><h1 class="section">Return routine, end of block 12 and blocks 13-15</h1>
+<a id="lab240"></a><h1 class="section">Return routine, end of block 12 and blocks 13-15</h1>
 
 
 <div class="paragraph"> </div>
 
     The end of block 12 restores the callee-save registers of the caller,
     block 13 clears the caller's stack frame, and blocks 14-15 clear the
-    registers and jump back to the caller (<span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_blocks_14_15.html#switcher_blocks_14_15_spec"><span class="id" title="lemma">switcher_blocks_14_15_spec</span></a></span>, see
+    registers and jump back to the caller (<span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_blocks_14_15_binary.html#switcher_blocks_14_15_spec"><span class="id" title="lemma">switcher_blocks_14_15_spec</span></a></span>, see
     <span class="inlinecode"><span class="id" title="library">switcher_blocks_14_15</span></span>). 
 </div>
 <div class="code">
@@ -160,7 +160,7 @@
 
 <div class="doc">
 End of block 12 and blocks 13-15: restore the callee-save registers
-      from the caller's stack frame <span class="inlinecode">[<span class="id" title="var">a</span>,</span> <span class="inlinecode"><span class="id" title="var">e</span>)],</span> <span class="inlinecode"><span class="id" title="tactic">clear</span></span> <span class="inlinecode"><span class="id" title="var">it</span>,</span> <span class="inlinecode"><span class="id" title="tactic">clear</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.adequacy_common.html#registers"><span class="id" title="section">registers</span></a></span>
+      from the caller's stack frame <span class="inlinecode">[<span class="id" title="var">a</span>,</span> <span class="inlinecode"><span class="id" title="var">e</span>)],</span> <span class="inlinecode"><span class="id" title="tactic">clear</span></span> <span class="inlinecode"><span class="id" title="var">it</span>,</span> <span class="inlinecode"><span class="id" title="tactic">clear</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.adequacy_common_binary.html#registers"><span class="id" title="section">registers</span></a></span>
       <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">jump</span></span> <span class="inlinecode"><span class="id" title="var">back</span></span> <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span>.</span> <span class="inlinecode"></span>
 </div>
 <div class="code">

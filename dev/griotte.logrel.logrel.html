@@ -153,8 +153,8 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#frame_match"><span class="id" title="definition">frame_match</span></a></span> expresses that the call stack <span class="inlinecode"><span class="id" title="var">cstk</span></span>, the stack of worlds <span class="inlinecode"><span class="id" title="var">Ws</span></span> and compartments <span class="inlinecode"><span class="id" title="var">Cs</span></span>,
-      match with the current world <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> and compartment <span class="inlinecode"><a class="idref" href="griotte.case_studies.vae.vae_spec_closure.html#VAE.C"><span class="id" title="variable">C</span></a></span>.
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#frame_match"><span class="id" title="definition">frame_match</span></a></span> expresses that the call stack <span class="inlinecode"><span class="id" title="var">cstk</span></span>, the stack of worlds <span class="inlinecode"><span class="id" title="var">Ws</span></span> and compartments <span class="inlinecode"><span class="id" title="var">Cs</span></span>,
+      match with the current world <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> and compartment <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.confidential_cmdc.cmdc_spec_binary.html#CMDC.C"><span class="id" title="variable">C</span></a></span>.
 
 <div class="paragraph"> </div>
 
@@ -176,7 +176,7 @@ interp : is a unary logical relation.
 
 <div class="paragraph"> </div>
 
-      With the <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#frame_match"><span class="id" title="definition">frame_match</span></a></span> criteria, the user can take private transition during
+      With the <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#frame_match"><span class="id" title="definition">frame_match</span></a></span> criteria, the user can take private transition during
       the duration of their call, and calling the switcher pushed the world
       into the stack of world <span class="inlinecode"><span class="id" title="var">Ws</span></span> (done by the switcher).
       When the user return, they have to show that they end up in a
@@ -258,10 +258,10 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#zcond"><span class="id" title="definition">zcond</span></a></span> states that if the safety predicate <span class="inlinecode"><span class="id" title="var">P</span></span> is safe for some integer in some world,
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#zcond"><span class="id" title="definition">zcond</span></a></span> states that if the safety predicate <span class="inlinecode"><span class="id" title="var">P</span></span> is safe for some integer in some world,
       then this integer is safe in any worlds.
-      We don't have simply <span class="inlinecode">□</span> <span class="inlinecode">∀</span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> <span class="inlinecode"><span class="id" title="var">z</span>,</span> <span class="inlinecode"><span class="id" title="var">P</span></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.vae.vae_spec_closure.html#VAE.C"><span class="id" title="variable">C</span></a></span> <span class="inlinecode">(<a class="idref" href="griotte.opsem.machine_word.html#WInt"><span class="id" title="constructor">WInt</span></a></span> <span class="inlinecode"><span class="id" title="var">z</span>)</span>, because for RO capabilities,
-      we might not have <span class="inlinecode"><span class="id" title="var">P</span></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.vae.vae_spec_closure.html#VAE.C"><span class="id" title="variable">C</span></a></span> <span class="inlinecode">(<a class="idref" href="griotte.opsem.machine_word.html#WInt"><span class="id" title="constructor">WInt</span></a></span> <span class="inlinecode"><span class="id" title="var">z</span>)</span> !
+      We don't have simply <span class="inlinecode">□</span> <span class="inlinecode">∀</span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> <span class="inlinecode"><span class="id" title="var">z</span>,</span> <span class="inlinecode"><span class="id" title="var">P</span></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.confidential_cmdc.cmdc_spec_binary.html#CMDC.C"><span class="id" title="variable">C</span></a></span> <span class="inlinecode">(<a class="idref" href="griotte.opsem.machine_word.html#WInt"><span class="id" title="constructor">WInt</span></a></span> <span class="inlinecode"><span class="id" title="var">z</span>)</span>, because for RO capabilities,
+      we might not have <span class="inlinecode"><span class="id" title="var">P</span></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.confidential_cmdc.cmdc_spec_binary.html#CMDC.C"><span class="id" title="variable">C</span></a></span> <span class="inlinecode">(<a class="idref" href="griotte.opsem.machine_word.html#WInt"><span class="id" title="constructor">WInt</span></a></span> <span class="inlinecode"><span class="id" title="var">z</span>)</span> !
    
 </div>
 <div class="code">
@@ -280,10 +280,10 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#rcond"><span class="id" title="definition">rcond</span></a></span> states that the safety predicate <span class="inlinecode"><span class="id" title="var">P</span></span> implies <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span>,
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#rcond"><span class="id" title="definition">rcond</span></a></span> states that the safety predicate <span class="inlinecode"><span class="id" title="var">P</span></span> implies <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span>,
       downgraded to the permission with which it is loaded, due to deep permissions.
       It comes from the fact that loading from memory gives a value that respects <span class="inlinecode"><span class="id" title="var">P</span></span>,
-      and therefore we need to <span class="inlinecode"><span class="id" title="var">P</span></span> to be safe to share (ie., <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span>). 
+      and therefore we need to <span class="inlinecode"><span class="id" title="var">P</span></span> to be safe to share (ie., <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span>). 
 </div>
 <div class="code">
 &nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="rcond" class="idref" href="#rcond"><span class="id" title="definition">rcond</span></a> (<a id="P:78" class="idref" href="#P:78"><span class="id" title="binder">P</span></a> : <a class="idref" href="griotte.logrel.logrel.html#V"><span class="id" title="abbreviation">V</span></a>) (<a id="C:79" class="idref" href="#C:79"><span class="id" title="binder">C</span></a> : <a class="idref" href="griotte.model.sts.html#CmptName"><span class="id" title="method">CmptName</span></a>) (<a id="p:80" class="idref" href="#p:80"><span class="id" title="binder">p</span></a> : <a class="idref" href="griotte.opsem.permissions.html#Perm"><span class="id" title="inductive">Perm</span></a>) (<a id="interp:81" class="idref" href="#interp:81"><span class="id" title="binder">interp</span></a> : <a class="idref" href="griotte.logrel.logrel.html#V"><span class="id" title="abbreviation">V</span></a>) : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#iProp_solution.iProp"><span class="id" title="abbreviation">iProp</span></a> <a class="idref" href="griotte.logrel.logrel.html#b4befdf258562bf9308a782dec71529a"><span class="id" title="variable">Σ</span></a> :=<br/>
@@ -299,7 +299,7 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#wcond"><span class="id" title="definition">wcond</span></a></span> states that <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> implies the safety predicate <span class="inlinecode"><span class="id" title="var">P</span></span>.
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#wcond"><span class="id" title="definition">wcond</span></a></span> states that <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> implies the safety predicate <span class="inlinecode"><span class="id" title="var">P</span></span>.
       It comes from the fact that storing in memory consists of storing
       a value that is safe to share, but we need to store a value respecting <span class="inlinecode"><span class="id" title="var">P</span></span>. 
 </div>
@@ -317,7 +317,7 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#persistent_cond"><span class="id" title="definition">persistent_cond</span></a></span> states that the safety predicate <span class="inlinecode"><span class="id" title="var">P</span></span> is persistent. 
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#persistent_cond"><span class="id" title="definition">persistent_cond</span></a></span> states that the safety predicate <span class="inlinecode"><span class="id" title="var">P</span></span> is persistent. 
 </div>
 <div class="code">
 &nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="persistent_cond" class="idref" href="#persistent_cond"><span class="id" title="definition">persistent_cond</span></a> (<a id="P:98" class="idref" href="#P:98"><span class="id" title="binder">P</span></a>:<a class="idref" href="griotte.logrel.logrel.html#V"><span class="id" title="abbreviation">V</span></a>) := (<span class="id" title="notation">∀</span> <a id="WCv:99" class="idref" href="#WCv:99"><span class="id" title="binder">WCv</span></a><span class="id" title="notation">,</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.derived_connectives.html#Persistent"><span class="id" title="class">Persistent</span></a> (<a class="idref" href="griotte.logrel.logrel.html#P:98"><span class="id" title="variable">P</span></a> <a class="idref" href="griotte.logrel.logrel.html#WCv:99"><span class="id" title="variable">WCv</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#:::x_'.1'"><span class="id" title="notation">.1.1</span></a> <a class="idref" href="griotte.logrel.logrel.html#WCv:99"><span class="id" title="variable">WCv</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#:::x_'.1'"><span class="id" title="notation">.1</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#:::x_'.2'"><span class="id" title="notation">.2</span></a>  <a class="idref" href="griotte.logrel.logrel.html#WCv:99"><span class="id" title="variable">WCv</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#:::x_'.2'"><span class="id" title="notation">.2</span></a>)).<br/>
@@ -326,7 +326,7 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#valid_stk_interp"><span class="id" title="definition">valid_stk_interp</span></a></span> is a predicate stating that the safety predicate <span class="inlinecode">φ</span>
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#valid_stk_interp"><span class="id" title="definition">valid_stk_interp</span></a></span> is a predicate stating that the safety predicate <span class="inlinecode">φ</span>
       is a safety predicate for the stack (RWL capability). 
 </div>
 <div class="code">
@@ -344,7 +344,7 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#StackWorldResource"><span class="id" title="definition">StackWorldResource</span></a></span> keeps track of the safety resources of a stack address <span class="inlinecode"><span class="id" title="var">a</span></span> containing word <span class="inlinecode"><span class="id" title="var">w</span></span>.
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#StackWorldResource"><span class="id" title="definition">StackWorldResource</span></a></span> keeps track of the safety resources of a stack address <span class="inlinecode"><span class="id" title="var">a</span></span> containing word <span class="inlinecode"><span class="id" title="var">w</span></span>.
       Note that it does not own the points-to predicate (a ↦ₐ w). 
 </div>
 <div class="code">
@@ -384,7 +384,7 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#StackWorldResources"><span class="id" title="definition">StackWorldResources</span></a></span> keeps track of the safety resources of the stack region <span class="inlinecode"><span class="id" title="var">la</span></span> containing words <span class="inlinecode"><span class="id" title="var">lw</span></span>.
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#StackWorldResources"><span class="id" title="definition">StackWorldResources</span></a></span> keeps track of the safety resources of the stack region <span class="inlinecode"><span class="id" title="var">la</span></span> containing words <span class="inlinecode"><span class="id" title="var">lw</span></span>.
 
 <div class="paragraph"> </div>
 
@@ -407,7 +407,7 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#StackOpenWorldResources"><span class="id" title="definition">StackOpenWorldResources</span></a></span> keeps track of the safety resources of the stack region <span class="inlinecode"><span class="id" title="var">la</span></span> containing words <span class="inlinecode"><span class="id" title="var">lw</span></span>,
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#StackOpenWorldResources"><span class="id" title="definition">StackOpenWorldResources</span></a></span> keeps track of the safety resources of the stack region <span class="inlinecode"><span class="id" title="var">la</span></span> containing words <span class="inlinecode"><span class="id" title="var">lw</span></span>,
       but also owns the fragmental view of the world for the stack region.
       This resource is obtained by opening shared stack region, and is used to reinstate it later.
 
@@ -427,17 +427,17 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span> provides a WP rule for the continuation relation.
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span> provides a WP rule for the continuation relation.
       It matches the states of the machine at the point where the switcher returns to the caller.
 
 <div class="paragraph"> </div>
 
-      <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span> is somewhat the dual of <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span>:
+      <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span> is somewhat the dual of <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span>:
 <ul class="doclist">
-<li> <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span> matches the state of the machine after the execution of return-to-switcher
+<li> <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span> matches the state of the machine after the execution of return-to-switcher
 
 </li>
-<li> <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> matches the state of the machine after the execution of call-switcher
+<li> <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> matches the state of the machine after the execution of call-switcher
 
 </li>
 </ul>
@@ -453,7 +453,7 @@ interp : is a unary logical relation.
         original registers
 
 </li>
-<li> <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#ca0"><span class="id" title="definition">ca0</span></a></span> and <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#ca1"><span class="id" title="definition">ca1</span></a></span> contain some return values, <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> in the current world
+<li> <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#ca0"><span class="id" title="definition">ca0</span></a></span> and <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#ca1"><span class="id" title="definition">ca1</span></a></span> contain some return values, <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> in the current world
 
 </li>
 <li> all the other registers have been clear and point to zero
@@ -478,11 +478,11 @@ interp : is a unary logical relation.
 
 </li>
 <li> Because the region invariant is open, we need to give the user a way to close the region invariant.
-        That's the role of the resources <span class="inlinecode"><span class="id" title="var">closing_resources</span></span> <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.vae.vae_spec_closure.html#VAE.C"><span class="id" title="variable">C</span></a></span> <span class="inlinecode"><span class="id" title="var">a</span></span> <span class="inlinecode"><span class="id" title="var">v</span></span>.
+        That's the role of the resources <span class="inlinecode"><span class="id" title="var">closing_resources</span></span> <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#W"><span class="id" title="constructor">W</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.confidential_cmdc.cmdc_spec_binary.html#CMDC.C"><span class="id" title="variable">C</span></a></span> <span class="inlinecode"><span class="id" title="var">a</span></span> <span class="inlinecode"><span class="id" title="var">v</span></span>.
 
 </li>
-<li> Finally, we have the <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont"><span class="id" title="definition">interp_cont</span></a></span> of the (depoped) stack frame (we don't see it in this def,
-        but we see it in the definition of <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont"><span class="id" title="definition">interp_cont</span></a></span> later),
+<li> Finally, we have the <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont"><span class="id" title="definition">interp_cont</span></a></span> of the (depoped) stack frame (we don't see it in this def,
+        but we see it in the definition of <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont"><span class="id" title="definition">interp_cont</span></a></span> later),
         and the fragmental view of the call-stack <span class="inlinecode"><span class="id" title="var">cstk</span></span>.
 
 </li>
@@ -546,21 +546,21 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_callee_part_of_the_stack"><span class="id" title="definition">interp_callee_part_of_the_stack</span></a></span> interprets the stack pointer of the caller <span class="inlinecode"><span class="id" title="var">wstk</span></span>.
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_callee_part_of_the_stack"><span class="id" title="definition">interp_callee_part_of_the_stack</span></a></span> interprets the stack pointer of the caller <span class="inlinecode"><span class="id" title="var">wstk</span></span>.
       When a caller calls the switcher-call routine with a capability <span class="inlinecode"><a class="idref" href="griotte.opsem.machine_word.html#WCap"><span class="id" title="abbreviation">WCap</span></a></span> <span class="inlinecode"><span class="id" title="var">p</span></span> <span class="inlinecode"><span class="id" title="var">g</span></span> <span class="inlinecode"><span class="id" title="var">b</span></span> <span class="inlinecode"><span class="id" title="var">e</span></span> <span class="inlinecode"><span class="id" title="var">a</span></span> in the <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#csp"><span class="id" title="definition">csp</span></a></span>
-      register, the switcher is using the region `<span class="inlinecode"><span class="id" title="var">a</span>,<span class="id" title="var">a</span>+4)`</span> <span class="inlinecode"><span class="id" title="keyword">for</span></span> <span class="inlinecode"><span class="id" title="keyword">as</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">saved</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.adequacy_common.html#registers"><span class="id" title="section">registers</span></a></span> <span class="inlinecode"><span class="id" title="var">area</span>,</span>
+      register, the switcher is using the region `<span class="inlinecode"><span class="id" title="var">a</span>,<span class="id" title="var">a</span>+4)`</span> <span class="inlinecode"><span class="id" title="keyword">for</span></span> <span class="inlinecode"><span class="id" title="keyword">as</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">saved</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.adequacy_common_binary.html#registers"><span class="id" title="section">registers</span></a></span> <span class="inlinecode"><span class="id" title="var">area</span>,</span>
       <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">giving</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><a class="idref" href="griotte.program_logic.memory_region.html#region"><span class="id" title="section">region</span></a></span> <span class="inlinecode">`[<span class="id" title="var">a</span>+4,<span class="id" title="var">e</span>)`</span> <span class="inlinecode"><span class="id" title="keyword">as</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">frame</span>.</span>
 
-      <span class="inlinecode"><span class="id" title="var">If</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span></span> <span class="inlinecode"><span class="id" title="keyword">is</span></span> <span class="inlinecode"><span class="id" title="var">trusted</span>,</span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">saved</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.adequacy_common.html#registers"><span class="id" title="section">registers</span></a></span> <span class="inlinecode"><span class="id" title="var">area</span></span> <span class="inlinecode"><span class="id" title="keyword">is</span></span> <span class="inlinecode"><span class="id" title="var">expected</span></span> <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">be</span></span> <span class="inlinecode"><span class="id" title="var">solely</span></span> <span class="inlinecode"><span class="id" title="var">accessed</span></span> <span class="inlinecode"><span class="id" title="tactic">by</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="library">switcher</span>,</span>
+      <span class="inlinecode"><span class="id" title="var">If</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span></span> <span class="inlinecode"><span class="id" title="keyword">is</span></span> <span class="inlinecode"><span class="id" title="var">trusted</span>,</span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">saved</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.adequacy_common_binary.html#registers"><span class="id" title="section">registers</span></a></span> <span class="inlinecode"><span class="id" title="var">area</span></span> <span class="inlinecode"><span class="id" title="keyword">is</span></span> <span class="inlinecode"><span class="id" title="var">expected</span></span> <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">be</span></span> <span class="inlinecode"><span class="id" title="var">solely</span></span> <span class="inlinecode"><span class="id" title="var">accessed</span></span> <span class="inlinecode"><span class="id" title="tactic">by</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="library">switcher</span>,</span>
       <span class="inlinecode"><span class="id" title="var">sharing</span></span> <span class="inlinecode"><span class="id" title="tactic">in</span></span> <span class="inlinecode"><span class="id" title="var">fact</span></span> <span class="inlinecode"><span class="id" title="var">only</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><a class="idref" href="griotte.program_logic.memory_region.html#region"><span class="id" title="section">region</span></a></span> <span class="inlinecode">`[<span class="id" title="var">a</span>+4,<span class="id" title="var">e</span>)`</span> <span class="inlinecode"><span class="id" title="keyword">with</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span>.</span>
 
       <span class="inlinecode"><span class="id" title="var">If</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span></span> <span class="inlinecode"><span class="id" title="keyword">is</span></span> <span class="inlinecode"><span class="id" title="var">untrusted</span>,</span> <span class="inlinecode"><span class="id" title="var">there</span></span> <span class="inlinecode"><span class="id" title="var">are</span></span> <span class="inlinecode"><span class="id" title="keyword">no</span></span> <span class="inlinecode"><span class="id" title="var">guarantees</span></span> <span class="inlinecode"><span class="id" title="var">that</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span></span> <span class="inlinecode"><span class="id" title="var">won't</span></span> <span class="inlinecode"><span class="id" title="var">share</span></span> <span class="inlinecode"><span class="id" title="var">its</span></span> <span class="inlinecode"><span class="id" title="var">entire</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">frame</span></span>
       <span class="inlinecode"><span class="id" title="keyword">with</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>,</span> <span class="inlinecode"><span class="id" title="var">through</span></span> <span class="inlinecode"><span class="id" title="var">one</span></span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">arguments</span>.</span>
       <span class="inlinecode"><span class="id" title="definition">In</span></span> <span class="inlinecode"><span class="id" title="var">that</span></span> <span class="inlinecode"><span class="id" title="tactic">case</span>,</span> <span class="inlinecode"><span class="id" title="var">we</span></span> <span class="inlinecode"><span class="id" title="var">need</span></span> <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">capture</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">worst</span></span> <span class="inlinecode"><span class="id" title="var">possible</span></span> <span class="inlinecode"><span class="id" title="tactic">case</span>,</span> <span class="inlinecode"><span class="id" title="var">i.e</span>.,</span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span></span> <span class="inlinecode"><span class="id" title="keyword">is</span></span> <span class="inlinecode"><span class="id" title="var">sharing</span></span> <span class="inlinecode"><span class="id" title="var">all</span></span> <span class="inlinecode"><span class="id" title="var">its</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">frame</span>,</span>
-      <span class="inlinecode"><span class="id" title="var">making</span></span> <span class="inlinecode"><span class="id" title="tactic">in</span></span> <span class="inlinecode"><span class="id" title="var">fact</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">entire</span></span> <span class="inlinecode"><span class="id" title="var">caller's</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span></span> <span class="inlinecode">[<a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a>].</span>
+      <span class="inlinecode"><span class="id" title="var">making</span></span> <span class="inlinecode"><span class="id" title="tactic">in</span></span> <span class="inlinecode"><span class="id" title="var">fact</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">entire</span></span> <span class="inlinecode"><span class="id" title="var">caller's</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span></span> <span class="inlinecode">[<a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a>].</span>
       <span class="inlinecode"><span class="id" title="var">This</span></span> <span class="inlinecode"><span class="id" title="keyword">is</span></span> <span class="inlinecode"><span class="id" title="var">specifically</span></span> <span class="inlinecode"><span class="id" title="var">important</span></span> <span class="inlinecode"><span class="id" title="tactic">in</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode">[<span class="id" title="var">ftlr_switcher_call</span>],</span>
-      <span class="inlinecode"><span class="id" title="keyword">where</span></span> <span class="inlinecode"><span class="id" title="var">we</span></span> <span class="inlinecode"><span class="id" title="var">don't</span></span> <span class="inlinecode"><span class="id" title="var">have</span></span> <span class="inlinecode"><span class="id" title="var">any</span></span> <span class="inlinecode"><span class="id" title="var">information</span></span> <span class="inlinecode"><span class="id" title="var">about</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.adequacy_common.html#registers"><span class="id" title="section">registers</span></a>,</span>
-      <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">so</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">points</span>-<span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">predicate</span></span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">saved</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.adequacy_common.html#registers"><span class="id" title="section">registers</span></a></span> <span class="inlinecode"><span class="id" title="var">are</span></span> <span class="inlinecode"><span class="id" title="tactic">in</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><a class="idref" href="griotte.program_logic.memory_region.html#region"><span class="id" title="section">region</span></a></span> <span class="inlinecode"><span class="id" title="var">invariant</span>.</span>
+      <span class="inlinecode"><span class="id" title="keyword">where</span></span> <span class="inlinecode"><span class="id" title="var">we</span></span> <span class="inlinecode"><span class="id" title="var">don't</span></span> <span class="inlinecode"><span class="id" title="var">have</span></span> <span class="inlinecode"><span class="id" title="var">any</span></span> <span class="inlinecode"><span class="id" title="var">information</span></span> <span class="inlinecode"><span class="id" title="var">about</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.adequacy_common_binary.html#registers"><span class="id" title="section">registers</span></a>,</span>
+      <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">so</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">points</span>-<span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">predicate</span></span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">saved</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.adequacy_common_binary.html#registers"><span class="id" title="section">registers</span></a></span> <span class="inlinecode"><span class="id" title="var">are</span></span> <span class="inlinecode"><span class="id" title="tactic">in</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><a class="idref" href="griotte.program_logic.memory_region.html#region"><span class="id" title="section">region</span></a></span> <span class="inlinecode"><span class="id" title="var">invariant</span>.</span>
    <span class="inlinecode"></span>
 </div>
 <div class="code">
@@ -580,10 +580,10 @@ interp : is a unary logical relation.
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont"><span class="id" title="definition">interp_cont</span></a></span> is the continuation relation.
+<span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont"><span class="id" title="definition">interp_cont</span></a></span> is the continuation relation.
       It takes a call-stack <span class="inlinecode"><span class="id" title="var">cstk</span></span>, a list of world <span class="inlinecode"><span class="id" title="var">Ws</span></span> and a list of compartments <span class="inlinecode"><span class="id" title="var">Cs</span></span>, all of same size.
       All together, they keep track of the stack of continuations.
-      <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont"><span class="id" title="definition">interp_cont</span></a></span> contains 3 components:
+      <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont"><span class="id" title="definition">interp_cont</span></a></span> contains 3 components:
 <ul class="doclist">
 <li> the recursive part of the definition, stating that the rest of the stack is also part of the continuation
 
@@ -591,7 +591,7 @@ interp : is a unary logical relation.
 <li> safety of the stack callee stack pointer
 
 </li>
-<li> <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span>, which provides a WP rule for the continuation,
+<li> <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span>, which provides a WP rule for the continuation,
         matching the machine state after the return-to-caller
 
 </li>
@@ -727,7 +727,7 @@ Enter condition of the logical relation
 </div>
 
 <div class="doc">
-<a id="lab68"></a><h1 class="section">Definitions interp</h1>
+<a id="lab142"></a><h1 class="section">Definitions interp</h1>
 
 <div class="paragraph"> </div>
 
@@ -811,7 +811,7 @@ Interp trivially holds for O-permission capability.
 </div>
 
 <div class="doc">
-Interp for sentry in <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#enter_cond"><span class="id" title="definition">enter_cond</span></a></span>. 
+Interp for sentry in <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#enter_cond"><span class="id" title="definition">enter_cond</span></a></span>. 
 </div>
 <div class="code">
 &nbsp;&nbsp;<span class="id" title="keyword">Program Definition</span> <a id="interp_sentry" class="idref" href="#interp_sentry"><span class="id" title="definition">interp_sentry</span></a> (<a id="interp:249" class="idref" href="#interp:249"><span class="id" title="binder">interp</span></a> : <a class="idref" href="griotte.logrel.logrel.html#V"><span class="id" title="abbreviation">V</span></a>) : <a class="idref" href="griotte.logrel.logrel.html#V"><span class="id" title="abbreviation">V</span></a> :=<br/>
@@ -971,8 +971,8 @@ Definition of interp, pre-fixpoint.
 </div>
 
 <div class="doc">
-To be able to use the fixpoint combinator to define <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span>,
-      we need to show that all case of <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> are contractive. 
+To be able to use the fixpoint combinator to define <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span>,
+      we need to show that all case of <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> are contractive. 
 </div>
 <div class="code">
 &nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="interp_cap_O_contractive" class="idref" href="#interp_cap_O_contractive"><span class="id" title="instance">interp_cap_O_contractive</span></a> :<br/>
@@ -1034,7 +1034,7 @@ To be able to use the fixpoint combinator to define <span class="inlinecode"><a 
 </div>
 
 <div class="doc">
-Definition of <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> via the fixpoint combinator. 
+Definition of <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> via the fixpoint combinator. 
 </div>
 <div class="code">
 &nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="fixpoint_interp1_eq" class="idref" href="#fixpoint_interp1_eq"><span class="id" title="lemma">fixpoint_interp1_eq</span></a> (<a id="W:333" class="idref" href="#W:333"><span class="id" title="binder">W</span></a> : <a class="idref" href="griotte.model.world_std_sts.html#WORLD"><span class="id" title="abbreviation">WORLD</span></a>) (<a id="C:334" class="idref" href="#C:334"><span class="id" title="binder">C</span></a> : <a class="idref" href="griotte.model.sts.html#CmptName"><span class="id" title="method">CmptName</span></a>) (<a id="w:335" class="idref" href="#w:335"><span class="id" title="binder">w</span></a> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.ofe.html#leibnizO"><span class="id" title="abbreviation">leibnizO</span></a> <a class="idref" href="griotte.opsem.machine_word.html#Word"><span class="id" title="inductive">Word</span></a>) :<br/>
@@ -1058,7 +1058,7 @@ Definition of <span class="inlinecode"><a class="idref" href="griotte.logrel.log
 </div>
 
 <div class="doc">
-We have, and we <i>WANT</i>, <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> to be Persistent 
+We have, and we <i>WANT</i>, <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> to be Persistent 
 </div>
 <div class="code">
 &nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="interp_persistent" class="idref" href="#interp_persistent"><span class="id" title="instance">interp_persistent</span></a> <a id="W:336" class="idref" href="#W:336"><span class="id" title="binder">W</span></a> <a id="C:337" class="idref" href="#C:337"><span class="id" title="binder">C</span></a> <a id="w:338" class="idref" href="#w:338"><span class="id" title="binder">w</span></a> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.derived_connectives.html#Persistent"><span class="id" title="class">Persistent</span></a> (<a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a> <a class="idref" href="griotte.logrel.logrel.html#W:336"><span class="id" title="variable">W</span></a> <a class="idref" href="griotte.logrel.logrel.html#C:337"><span class="id" title="variable">C</span></a> <a class="idref" href="griotte.logrel.logrel.html#w:338"><span class="id" title="variable">w</span></a>).<br/>

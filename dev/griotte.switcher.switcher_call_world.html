@@ -39,14 +39,14 @@
 </div>
 
 <div class="doc">
-<a id="lab96"></a><h1 class="section">Logical steps of the call routine of the switcher</h1>
+<a id="lab233"></a><h1 class="section">Logical steps of the call routine of the switcher</h1>
 
 
 <div class="paragraph"> </div>
 
     The lemmas of this file do not execute code. They are used between the
     block groups of <span class="inlinecode"><span class="id" title="var">switcher_call_blocks_n</span></span> by the proofs of
-    <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_spec_call.html#switcher_cc_specification_gen"><span class="id" title="lemma">switcher_cc_specification_gen</span></a></span> and <span class="inlinecode"><a class="idref" href="griotte.switcher.interp_switcher_call.html#interp_expr_switcher_call"><span class="id" title="lemma">interp_expr_switcher_call</span></a></span>. 
+    <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_spec_call_binary.html#switcher_cc_specification_gen"><span class="id" title="lemma">switcher_cc_specification_gen</span></a></span> and <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.interp_switcher_call_binary.html#interp_expr_switcher_call"><span class="id" title="lemma">interp_expr_switcher_call</span></a></span>. 
 </div>
 <div class="code">
 
@@ -70,14 +70,14 @@
 </div>
 
 <div class="doc">
-<a id="lab97"></a><h2 class="section">Stack frame of an untrusted caller</h2>
+<a id="lab234"></a><h2 class="section">Stack frame of an untrusted caller</h2>
 
 
 <div class="paragraph"> </div>
 
       When the caller is untrusted, its stack is shared in the world. The
       switcher opens the part <span class="inlinecode">[<span class="id" title="var">a</span>,</span> <span class="inlinecode"><span class="id" title="var">e</span>)]</span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">above</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span></span>
-      <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">spill</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">save</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies.adequacy_common.html#registers"><span class="id" title="section">registers</span></a></span> <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="tactic">clear</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee's</span></span> <span class="inlinecode"><span class="id" title="var">frame</span>,</span>
+      <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">spill</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">save</span></span> <span class="inlinecode"><a class="idref" href="griotte.case_studies_binary.adequacy_common_binary.html#registers"><span class="id" title="section">registers</span></a></span> <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="tactic">clear</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee's</span></span> <span class="inlinecode"><span class="id" title="var">frame</span>,</span>
       <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="keyword">then</span></span> <span class="inlinecode"><span class="id" title="var">closes</span></span> <span class="inlinecode"><span class="id" title="var">it</span></span> <span class="inlinecode"><span class="id" title="keyword">with</span></span> <span class="inlinecode"><span class="id" title="var">safe</span></span> <span class="inlinecode"><span class="id" title="var">words</span>.</span> <span class="inlinecode"></span>
 </div>
 <div class="code">
@@ -185,7 +185,7 @@ The opened part <span class="inlinecode">[<span class="id" title="var">a</span>,
 </div>
 
 <div class="doc">
-<a id="lab98"></a><h2 class="section">Entry point of the callee</h2>
+<a id="lab235"></a><h2 class="section">Entry point of the callee</h2>
 
 <div class="paragraph"> </div>
 
@@ -315,7 +315,7 @@ The registers when entering the callee.
 </div>
 
 <div class="doc">
-<a id="lab99"></a><h2 class="section">Switcher invariant</h2>
+<a id="lab236"></a><h2 class="section">Switcher invariant</h2>
 
 <div class="paragraph"> </div>
 
@@ -365,7 +365,7 @@ The registers when entering the callee.
 </div>
 
 <div class="doc">
-<a id="lab100"></a><h2 class="section">Functional specification</h2>
+<a id="lab237"></a><h2 class="section">Functional specification</h2>
 
 <div class="paragraph"> </div>
 

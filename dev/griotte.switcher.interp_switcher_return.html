@@ -66,8 +66,8 @@
 
 <div class="doc">
 Informal proof of the interp of the return-to-switcher entry point.
-      When we call an adversary entry point, we first need to prove that it is safe (see <span class="inlinecode"><a class="idref" href="griotte.case_studies.switcher_adequacy.html#ot_switcher_interp"><span class="id" title="lemma">ot_switcher_interp</span></a></span>),
-      which is defined by <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#ot_switcher_prop"><span class="id" title="definition">ot_switcher_prop</span></a></span>.
+      When we call an adversary entry point, we first need to prove that it is safe (see <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_adequacy_binary.html#ot_switcher_interp"><span class="id" title="lemma">ot_switcher_interp</span></a></span>),
+      which is defined by <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#ot_switcher_prop"><span class="id" title="definition">ot_switcher_prop</span></a></span>.
       Concretely, it means when the adversary starts the execution,
       it contains (among others) the return-to-switcher entry point,
       and so it must be safe-to-share.
@@ -82,7 +82,7 @@ Informal proof of the interp of the return-to-switcher entry point.
 <div class="paragraph"> </div>
 
       We extract the registers used in the code out of the map into individual resources,
-      and we derive <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> of their content
+      and we derive <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> of their content
       (because safe-to-exec means that all registers are safe-to-share).
       We open the switcher's invariant, giving the points-to of the code region,
       allowing us to execute through the code.
@@ -114,7 +114,7 @@ Informal proof of the interp of the return-to-switcher entry point.
          It's not a problem though, because the code will fail.
       2) The call-stack is not empty,
          in which case we can derive information about the top-most frame
-         with <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#cframe_interp"><span class="id" title="definition">cframe_interp</span></a></span>.
+         with <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#cframe_interp"><span class="id" title="definition">cframe_interp</span></a></span>.
 
 <div class="paragraph"> </div>
 

@@ -1,0 +1,129 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">griotte.switcher_binary.switcher_call_states_binary</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.proofmode</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="griotte.program_logic.memory_region.html#"><span class="id" title="library">memory_region</span></a> <a class="idref" href="griotte.program_logic_binary.memory_region_binary.html#"><span class="id" title="library">memory_region_binary</span></a> <a class="idref" href="griotte.program_logic.rules.html#"><span class="id" title="library">rules</span></a> <a class="idref" href="griotte.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a> <a class="idref" href="griotte.proofmode_binary.proofmode_binary.html#"><span class="id" title="library">proofmode_binary</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="griotte.switcher.switcher.html#"><span class="id" title="library">switcher</span></a> <a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#"><span class="id" title="library">switcher_preamble_binary</span></a> <a class="idref" href="griotte.switcher_binary.switcher_macros_spec_binary.html#"><span class="id" title="library">switcher_macros_spec_binary</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab252"></a><h1 class="section">Shared interfaces of the call routine of the switcher, binary model</h1>
+
+
+<div class="paragraph"> </div>
+
+    The proofs of <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_spec_call_binary.html#switcher_cc_specification_gen"><span class="id" title="lemma">switcher_cc_specification_gen</span></a></span> (functional specification)
+    and <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.interp_switcher_call_binary.html#interp_expr_switcher_call"><span class="id" title="lemma">interp_expr_switcher_call</span></a></span> (validity of the call entry point) run the
+    same code, in both runs in lockstep. They share the block-group lemmas of
+    <span class="inlinecode"><span class="id" title="var">switcher_call_blocks_n_binary</span></span>, which only depend on this file:
+<ul class="doclist">
+<li> <span class="inlinecode"><span class="id" title="library">switcher_call_blocks_1_binary</span></span>: blocks 0-1, checks on <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#csp"><span class="id" title="definition">csp</span></a></span> (and the
+      failure when <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#csp"><span class="id" title="definition">csp</span></a></span> is sealed),
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">switcher_call_blocks_2_binary</span></span>: blocks 2-3, spill of the callee-save
+      registers and push on the trusted stack,
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">switcher_call_blocks_3_binary</span></span>: blocks 4-7, chop and clear the callee
+      stack, load the unsealing capability and unseal the entry point,
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">switcher_call_blocks_4_binary</span></span>: blocks 7-11, load the callee and jump
+      to it,
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">switcher_call_blocks_5_binary</span></span>: block 16 and blocks 14-15, the trusted
+      stack is exhausted,
+
+</li>
+<li> <span class="inlinecode"><span class="id" title="library">switcher_call_blocks_6_binary</span></span>: block 17, the forced unwind.
+
+</li>
+</ul>
+
+<div class="paragraph"> </div>
+
+    The block-group lemmas start and end at the first address of blocks of
+    the code <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher.html#switcher_instrs"><span class="id" title="definition">switcher_instrs</span></a></span>, given by <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#switcher_block_offset"><span class="id" title="abbreviation">switcher_block_offset</span></a></span> (see
+    <span class="inlinecode"><span class="id" title="library">switcher_preamble_binary</span></span>). 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="Switcher_Call_States" class="idref" href="#Switcher_Call_States"><span class="id" title="section">Switcher_Call_States</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="cd3db2c410c4bccc4cc5814145911d95" class="idref" href="#cd3db2c410c4bccc4cc5814145911d95"><span class="id" title="variable">Σ</span></a>:<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#gFunctors"><span class="id" title="record">gFunctors</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Call_States.ceriseg" class="idref" href="#Switcher_Call_States.ceriseg"><span class="id" title="variable">ceriseg</span></a>:<a class="idref" href="griotte.program_logic.cerise_instance.html#ceriseG"><span class="id" title="class">ceriseG</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>} {<a id="Switcher_Call_States.sealsg" class="idref" href="#Switcher_Call_States.sealsg"><span class="id" title="variable">sealsg</span></a>: <a class="idref" href="griotte.logrel_binary.seal_store_binary.html#sealStoreG"><span class="id" title="class">sealStoreG</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Call_States.Cname" class="idref" href="#Switcher_Call_States.Cname"><span class="id" title="variable">Cname</span></a> : <a class="idref" href="griotte.model.sts.html#CmptNameG"><span class="id" title="class">CmptNameG</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Call_States.stsg" class="idref" href="#Switcher_Call_States.stsg"><span class="id" title="variable">stsg</span></a> : <a class="idref" href="griotte.model.sts.html#STSG"><span class="id" title="class">STSG</span></a> <a class="idref" href="griotte.opsem.addresses.html#Addr"><span class="id" title="abbreviation">Addr</span></a> <a class="idref" href="griotte.model.world_std_sts.html#region_type"><span class="id" title="inductive">region_type</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>} {<a id="Switcher_Call_States.relg" class="idref" href="#Switcher_Call_States.relg"><span class="id" title="variable">relg</span></a> : <a class="idref" href="griotte.model_binary.world_ghost_resources_binary.html#relGS"><span class="id" title="class">relGS</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Call_States.specg" class="idref" href="#Switcher_Call_States.specg"><span class="id" title="variable">specg</span></a> : <a class="idref" href="griotte.program_logic_binary.spec_instance_binary.html#specG"><span class="id" title="class">specG</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Call_States.cstackg" class="idref" href="#Switcher_Call_States.cstackg"><span class="id" title="variable">cstackg</span></a> : <a class="idref" href="griotte.logrel.call_stack.html#CSTACKG"><span class="id" title="class">CSTACKG</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>} {<a id="Switcher_Call_States.cstackg_spec" class="idref" href="#Switcher_Call_States.cstackg_spec"><span class="id" title="variable">cstackg_spec</span></a> : <a class="idref" href="griotte.logrel_binary.call_stack_binary.html#CSTACK_specG"><span class="id" title="class">CSTACK_specG</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#0101b9beac487b383a5ba2a8f6922788"><span class="id" title="variable">Σ</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;`{<a id="Switcher_Call_States.MP" class="idref" href="#Switcher_Call_States.MP"><span class="id" title="variable">MP</span></a>: <a class="idref" href="griotte.opsem.machine_parameters.html#MachineParameters"><span class="id" title="class">MachineParameters</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<a id="Switcher_Call_States.swlayout" class="idref" href="#Switcher_Call_States.swlayout"><span class="id" title="variable">swlayout</span></a> : <a class="idref" href="griotte.switcher.switcher.html#switcherLayout"><span class="id" title="class">switcherLayout</span></a>} {<a id="Switcher_Call_States.swlayoutwf" class="idref" href="#Switcher_Call_States.swlayoutwf"><span class="id" title="variable">swlayoutwf</span></a> : <a class="idref" href="griotte.switcher.switcher.html#switcherLayoutWf"><span class="id" title="class">switcherLayoutWf</span></a>}<br/>
+&nbsp;&nbsp;.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The checks of blocks 0 and 1 on the stack pointer <span class="inlinecode"><span class="id" title="var">wcsp</span></span>. 
+</div>
+<div class="code">
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="switcher_csp_checked" class="idref" href="#switcher_csp_checked"><span class="id" title="definition">switcher_csp_checked</span></a> (<a id="wcsp:13" class="idref" href="#wcsp:13"><span class="id" title="binder">wcsp</span></a> : <a class="idref" href="griotte.opsem.machine_word.html#Word"><span class="id" title="inductive">Word</span></a>) : <span class="id" title="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.program_logic.rules.rules_Get.html#denote"><span class="id" title="definition">rules_Get.denote</span></a> (<a class="idref" href="griotte.opsem.machine_instructions.html#GetP"><span class="id" title="constructor">GetP</span></a> <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a> <a class="idref" href="griotte.opsem.registers.html#csp"><span class="id" title="definition">csp</span></a>) <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#wcsp:13"><span class="id" title="variable">wcsp</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#Some"><span class="id" title="constructor">Some</span></a> (<a class="idref" href="griotte.opsem.machine_parameters.html#encodePerm"><span class="id" title="method">encodePerm</span></a> <a class="idref" href="griotte.opsem.permissions.html#RWL"><span class="id" title="abbreviation">RWL</span></a>) <span class="id" title="notation">∧</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.program_logic.rules.rules_Get.html#denote"><span class="id" title="definition">rules_Get.denote</span></a> (<a class="idref" href="griotte.opsem.machine_instructions.html#GetL"><span class="id" title="constructor">GetL</span></a> <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a> <a class="idref" href="griotte.opsem.registers.html#csp"><span class="id" title="definition">csp</span></a>) <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#wcsp:13"><span class="id" title="variable">wcsp</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#Some"><span class="id" title="constructor">Some</span></a> (<a class="idref" href="griotte.opsem.machine_parameters.html#encodeLoc"><span class="id" title="method">encodeLoc</span></a> <a class="idref" href="griotte.opsem.permissions.html#Local"><span class="id" title="constructor">Local</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="switcher_csp_checked_stk" class="idref" href="#switcher_csp_checked_stk"><span class="id" title="lemma">switcher_csp_checked_stk</span></a> <a id="b:14" class="idref" href="#b:14"><span class="id" title="binder">b</span></a> <a id="e:15" class="idref" href="#e:15"><span class="id" title="binder">e</span></a> <a id="a:16" class="idref" href="#a:16"><span class="id" title="binder">a</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#switcher_csp_checked"><span class="id" title="definition">switcher_csp_checked</span></a> (<a class="idref" href="griotte.opsem.machine_word.html#WCap"><span class="id" title="abbreviation">WCap</span></a> <a class="idref" href="griotte.opsem.permissions.html#RWL"><span class="id" title="abbreviation">RWL</span></a> <a class="idref" href="griotte.opsem.permissions.html#Local"><span class="id" title="constructor">Local</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#b:14"><span class="id" title="variable">b</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#e:15"><span class="id" title="variable">e</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#a:16"><span class="id" title="variable">a</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>. <span class="id" title="var">done</span>. <span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="switcher_csp_checked_cap" class="idref" href="#switcher_csp_checked_cap"><span class="id" title="lemma">switcher_csp_checked_cap</span></a> <a id="p:17" class="idref" href="#p:17"><span class="id" title="binder">p</span></a> <a id="g:18" class="idref" href="#g:18"><span class="id" title="binder">g</span></a> <a id="b:19" class="idref" href="#b:19"><span class="id" title="binder">b</span></a> <a id="e:20" class="idref" href="#e:20"><span class="id" title="binder">e</span></a> <a id="a:21" class="idref" href="#a:21"><span class="id" title="binder">a</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#switcher_csp_checked"><span class="id" title="definition">switcher_csp_checked</span></a> (<a class="idref" href="griotte.opsem.machine_word.html#WCap"><span class="id" title="abbreviation">WCap</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#p:17"><span class="id" title="variable">p</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#g:18"><span class="id" title="variable">g</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#b:19"><span class="id" title="variable">b</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#e:20"><span class="id" title="variable">e</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#a:21"><span class="id" title="variable">a</span></a>) <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#p:17"><span class="id" title="variable">p</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="griotte.opsem.permissions.html#RWL"><span class="id" title="abbreviation">RWL</span></a> <span class="id" title="notation">∧</span> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#g:18"><span class="id" title="variable">g</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="griotte.opsem.permissions.html#Local"><span class="id" title="constructor">Local</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> [<span class="id" title="var">Hp</span> <span class="id" title="var">Hg</span>]; <span class="id" title="var">cbn</span> <span class="id" title="tactic">in</span> <span class="id" title="var">Hp</span>, <span class="id" title="var">Hg</span>; <span class="id" title="var">simplify_eq</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">split</span>; [<span class="id" title="tactic">by</span> <span class="id" title="tactic">apply</span> <a class="idref" href="griotte.opsem.machine_parameters.html#encodePerm_inj"><span class="id" title="method">encodePerm_inj</span></a> | <span class="id" title="tactic">by</span> <span class="id" title="tactic">apply</span> <a class="idref" href="griotte.opsem.machine_parameters.html#encodeLoc_inj"><span class="id" title="method">encodeLoc_inj</span></a>].<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="griotte.switcher_binary.switcher_call_states_binary.html#Switcher_Call_States"><span class="id" title="section">Switcher_Call_States</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>

@@ -116,15 +116,15 @@ Property of capability sealed by the switcher's otype
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#execute_entry_point_register"><span class="id" title="definition">execute_entry_point_register</span></a></span> describes the register state of the machine
+<span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#execute_entry_point_register"><span class="id" title="definition">execute_entry_point_register</span></a></span> describes the register state of the machine
       after jumping to the callee, at the end of the switcher-call.
       <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#PC"><span class="id" title="constructor">PC</span></a></span> and <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a></span> contain the callee compartment's code and data capabilities.
-      They don't have to be <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span>, and are <i>not</i> <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span>
+      They don't have to be <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span>, and are <i>not</i> <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span>
       when the compartment is one of the trusted ones.
 
 <div class="paragraph"> </div>
 
-      <span class="inlinecode"><span class="id" title="var">cps</span></span> contains the callee's stack frame. It has to be <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> because it always comes from the caller,
+      <span class="inlinecode"><span class="id" title="var">cps</span></span> contains the callee's stack frame. It has to be <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> because it always comes from the caller,
       which is usually untrusted.
 
 <div class="paragraph"> </div>
@@ -156,9 +156,9 @@ Property of capability sealed by the switcher's otype
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#csp_sync"><span class="id" title="definition">csp_sync</span></a></span> is a small pure side-condition that relates the stack pointer of the caller,
+<span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#csp_sync"><span class="id" title="definition">csp_sync</span></a></span> is a small pure side-condition that relates the stack pointer of the caller,
       with the stack pointer of the callee.
-      See <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> to understand how they are related.
+      See <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> to understand how they are related.
    
 </div>
 <div class="code">
@@ -175,17 +175,17 @@ Property of capability sealed by the switcher's otype
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> provides a WP rule matching the state of the machine
+<span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> provides a WP rule matching the state of the machine
       after the execution of call-switcher.
 
 <div class="paragraph"> </div>
 
-      <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> is somewhat the dual of <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span>:
+      <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> is somewhat the dual of <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span>:
 <ul class="doclist">
-<li> <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> matches the state of the machine after the execution of call-switcher
+<li> <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> matches the state of the machine after the execution of call-switcher
 
 </li>
-<li> <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span> matches the state of the machine after the execution of return-to-switcher
+<li> <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp_cont_exec"><span class="id" title="definition">interp_cont_exec</span></a></span> matches the state of the machine after the execution of return-to-switcher
 
 </li>
 </ul>
@@ -195,23 +195,23 @@ Property of capability sealed by the switcher's otype
       It is the WP rule to prove to show that the execution of an entry point is valid.
       In case of known code entry point, it contains all the information available when invoked.
       In case of unknown code entry point, we can show this by validity of
-      the code and data capability (see the use of <span class="inlinecode"><a class="idref" href="griotte.switcher.interp_switcher_return.html#fundamental"><span class="id" title="section">fundamental</span></a></span> in <span class="inlinecode"><a class="idref" href="griotte.case_studies.switcher_adequacy.html#ot_switcher_interp"><span class="id" title="lemma">ot_switcher_interp</span></a></span>).
+      the code and data capability (see the use of <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.interp_switcher_return_binary.html#fundamental"><span class="id" title="section">fundamental</span></a></span> in <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_adequacy_binary.html#ot_switcher_interp"><span class="id" title="lemma">ot_switcher_interp</span></a></span>).
 
 <div class="paragraph"> </div>
 
-      An important point is the use of <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#csp_sync"><span class="id" title="definition">csp_sync</span></a></span> and the stack capability <span class="inlinecode"><a class="idref" href="griotte.opsem.machine_word.html#WCap"><span class="id" title="abbreviation">WCap</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#RWL"><span class="id" title="abbreviation">RWL</span></a></span> <span class="inlinecode"><span class="id" title="keyword">Local</span></span> <span class="inlinecode"><span class="id" title="var">a_stk4</span></span> <span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#e_stk"><span class="id" title="projection">e_stk</span></a></span> <span class="inlinecode"><span class="id" title="var">a_stk4</span></span>.
+      An important point is the use of <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#csp_sync"><span class="id" title="definition">csp_sync</span></a></span> and the stack capability <span class="inlinecode"><a class="idref" href="griotte.opsem.machine_word.html#WCap"><span class="id" title="abbreviation">WCap</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#RWL"><span class="id" title="abbreviation">RWL</span></a></span> <span class="inlinecode"><span class="id" title="keyword">Local</span></span> <span class="inlinecode"><span class="id" title="var">a_stk4</span></span> <span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#e_stk"><span class="id" title="projection">e_stk</span></a></span> <span class="inlinecode"><span class="id" title="var">a_stk4</span></span>.
       If the call stack is not empty, we know that the caller's stack looks like
       <span class="inlinecode"><a class="idref" href="griotte.opsem.machine_word.html#WCap"><span class="id" title="abbreviation">WCap</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.opsem.permissions.html#RWL"><span class="id" title="abbreviation">RWL</span></a></span> <span class="inlinecode"><span class="id" title="keyword">Local</span></span> <span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#b_stk"><span class="id" title="projection">b_stk</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#e_stk"><span class="id" title="projection">e_stk</span></a></span> <span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#a_stk"><span class="id" title="projection">a_stk</span></a></span> (it is tested by the switcher's call routine).
       The switcher reserves the area `<span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#a_stk"><span class="id" title="projection">a_stk</span></a>,</span> <span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#a_stk"><span class="id" title="projection">a_stk</span></a>+4)`</span> <span class="inlinecode"><span class="id" title="keyword">for</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>-<span class="id" title="var">saved</span></span> <span class="inlinecode"><span class="id" title="var">area</span>,</span>
       <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">passes</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">rest</span>,</span> <span class="inlinecode"><span class="id" title="var">i.e</span>.</span> <span class="inlinecode">`[<a class="idref" href="griotte.logrel.call_stack.html#a_stk"><span class="id" title="projection">a_stk</span></a>+4,</span> <span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#e_stk"><span class="id" title="projection">e_stk</span></a>)`</span>  <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span>.</span>
 
-      <span class="inlinecode">[<a class="idref" href="griotte.switcher.switcher_preamble.html#csp_sync"><span class="id" title="definition">csp_sync</span></a>]</span> <span class="inlinecode"><span class="id" title="var">synchronises</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller's</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span></span> <span class="inlinecode"><span class="id" title="keyword">with</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span>.</span>
+      <span class="inlinecode">[<a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#csp_sync"><span class="id" title="definition">csp_sync</span></a>]</span> <span class="inlinecode"><span class="id" title="var">synchronises</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller's</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span></span> <span class="inlinecode"><span class="id" title="keyword">with</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">callee</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span>.</span>
       <span class="inlinecode"><span class="id" title="var">It's</span></span> <span class="inlinecode"><span class="id" title="var">important</span></span> <span class="inlinecode"><span class="id" title="var">when</span></span> <span class="inlinecode"><span class="id" title="var">proving</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">functional</span></span> <span class="inlinecode"><span class="id" title="var">specification</span></span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="keyword">return</span>-<span class="id" title="var">to</span>-<span class="id" title="library">switcher</span></span> <span class="inlinecode"><span class="id" title="var">routine</span>,</span>
       <span class="inlinecode"><span class="id" title="var">because</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="library">switcher</span></span> <span class="inlinecode"><span class="id" title="var">uses</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span></span> <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="tactic">clear</span></span> <span class="inlinecode">(<span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">therefore</span></span> <span class="inlinecode"><span class="id" title="var">re</span>-<span class="id" title="var">instate</span>)</span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">stack</span>.</span>
       <span class="inlinecode"><span class="id" title="var">But</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span></span> <span class="inlinecode"><span class="id" title="var">gives</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode">`<span class="id" title="var">revoked_resources</span>`</span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode"><span class="id" title="var">its</span></span> <span class="inlinecode"><span class="id" title="library">own</span></span> <span class="inlinecode"><span class="id" title="var">stack</span></span> <span class="inlinecode"><span class="id" title="var">pointer</span>.</span>
       <span class="inlinecode"><span class="id" title="var">Synchronising</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller</span></span> <span class="inlinecode"><span class="id" title="var">and</span></span> <span class="inlinecode"><span class="id" title="var">callee</span></span> <span class="inlinecode"><span class="id" title="keyword">is</span></span> <span class="inlinecode"><span class="id" title="var">important</span></span> <span class="inlinecode"><span class="id" title="keyword">for</span></span> <span class="inlinecode"><span class="id" title="keyword">using</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller's</span></span> <span class="inlinecode">`<span class="id" title="var">revoked_resources</span>`</span>
       <span class="inlinecode"><span class="id" title="var">to</span></span> <span class="inlinecode"><span class="id" title="var">re</span>-<span class="id" title="var">instate</span></span> <span class="inlinecode"><span class="id" title="var">validity</span></span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">caller's</span></span> <span class="inlinecode"><span class="id" title="var">stack</span>.</span>
-      <span class="inlinecode"><span class="id" title="var">This</span></span> <span class="inlinecode"><span class="id" title="var">will</span></span> <span class="inlinecode"><span class="id" title="var">become</span></span> <span class="inlinecode"><span class="id" title="var">clearer</span></span> <span class="inlinecode"><span class="id" title="tactic">in</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">proof</span></span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode">[<a class="idref" href="griotte.switcher.switcher_spec_return.html#switcher_ret_specification"><span class="id" title="lemma">switcher_ret_specification</span></a>].</span>
+      <span class="inlinecode"><span class="id" title="var">This</span></span> <span class="inlinecode"><span class="id" title="var">will</span></span> <span class="inlinecode"><span class="id" title="var">become</span></span> <span class="inlinecode"><span class="id" title="var">clearer</span></span> <span class="inlinecode"><span class="id" title="tactic">in</span></span> <span class="inlinecode"><span class="id" title="var">the</span></span> <span class="inlinecode"><span class="id" title="var">proof</span></span> <span class="inlinecode"><span class="id" title="keyword">of</span></span> <span class="inlinecode">[<a class="idref" href="griotte.switcher_binary.switcher_spec_return_binary.html#switcher_ret_specification"><span class="id" title="lemma">switcher_ret_specification</span></a>].</span>
    <span class="inlinecode"></span>
 </div>
 <div class="code">
@@ -238,7 +238,7 @@ Property of capability sealed by the switcher's otype
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#ot_switcher_prop"><span class="id" title="definition">ot_switcher_prop</span></a></span> is the sealing predicate for the switcher's otype, used for sealing entry points.
+<span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#ot_switcher_prop"><span class="id" title="definition">ot_switcher_prop</span></a></span> is the sealing predicate for the switcher's otype, used for sealing entry points.
       Any (regular) compartment's are sealed with this otype, and must therefore respect this predicate.
       Only the switcher can unseal this otype.
 
@@ -254,15 +254,15 @@ Property of capability sealed by the switcher's otype
 
 <div class="paragraph"> </div>
 
-      For the most of the definition, <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#ot_switcher_prop"><span class="id" title="definition">ot_switcher_prop</span></a></span> describes the logical state of the physical state described above.
+      For the most of the definition, <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#ot_switcher_prop"><span class="id" title="definition">ot_switcher_prop</span></a></span> describes the logical state of the physical state described above.
       In addition, it contains the resources <span class="inlinecode">(<a class="idref" href="griotte.opsem.machine_word.html#seal_capability"><span class="id" title="definition">seal_capability</span></a></span> <span class="inlinecode"><span class="id" title="var">w</span></span> <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher.html#ot_switcher"><span class="id" title="projection">ot_switcher</span></a>)</span> <span class="inlinecode">↦□ₑ</span> <span class="inlinecode"><span class="id" title="var">nargs</span></span>,
       which states that entry point uses <span class="inlinecode"><span class="id" title="var">nargs</span></span> (the others are cleared by the switcher).
       It's a <span class="inlinecode"><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.derived_connectives.html#Persistent"><span class="id" title="class">Persistent</span></a></span> knowledge, and is used by the functional spec of the switcher's call
-      for requiring the caller to only show <span class="inlinecode"><a class="idref" href="griotte.logrel.logrel.html#interp"><span class="id" title="definition">interp</span></a></span> of the actual arguments.
+      for requiring the caller to only show <span class="inlinecode"><a class="idref" href="griotte.logrel_binary.logrel_binary.html#interp"><span class="id" title="definition">interp</span></a></span> of the actual arguments.
 
 <div class="paragraph"> </div>
 
-      Finally, <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> is called, with <span class="inlinecode"><span class="id" title="var">PCC</span>+<span class="id" title="var">off</span></span> in the <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#PC"><span class="id" title="constructor">PC</span></a></span>.
+      Finally, <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#execute_entry_point"><span class="id" title="definition">execute_entry_point</span></a></span> is called, with <span class="inlinecode"><span class="id" title="var">PCC</span>+<span class="id" title="var">off</span></span> in the <span class="inlinecode"><a class="idref" href="griotte.opsem.registers.html#PC"><span class="id" title="constructor">PC</span></a></span>.
       It is guarded by a □-modality, because the entry point can be invoked at any time.
       Similarly, <span class="inlinecode"><a class="idref" href="griotte.model.sts.html#related_sts_priv_world"><span class="id" title="definition">related_sts_priv_world</span></a></span>.
    
@@ -331,7 +331,7 @@ Property of capability sealed by the switcher's otype
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#cframe_interp"><span class="id" title="definition">cframe_interp</span></a></span> interprets a call-frame, i.e.,
+<span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#cframe_interp"><span class="id" title="definition">cframe_interp</span></a></span> interprets a call-frame, i.e.,
       describes how the physical call-frame is linked to the logical call-frame <span class="inlinecode"><span class="id" title="var">frm</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><a class="idref" href="griotte.logrel.call_stack.html#cframe"><span class="id" title="record">cframe</span></a></span>.
       We have 2 situations to take into account:
 <ul class="doclist">
@@ -371,7 +371,7 @@ Property of capability sealed by the switcher's otype
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#cstack_interp"><span class="id" title="definition">cstack_interp</span></a></span> interprets a call-stack.
+<span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#cstack_interp"><span class="id" title="definition">cstack_interp</span></a></span> interprets a call-stack.
       It simply interpret the topmost stack frame,
       as well as the rest of the call-stack.
    
@@ -388,7 +388,7 @@ Property of capability sealed by the switcher's otype
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#switcher_inv"><span class="id" title="definition">switcher_inv</span></a></span> describes the invariant of the switcher,
+<span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#switcher_inv"><span class="id" title="definition">switcher_inv</span></a></span> describes the invariant of the switcher,
       and describe the private state of the switcher.
 
 <div class="paragraph"> </div>
@@ -438,7 +438,7 @@ Property of capability sealed by the switcher's otype
 </div>
 
 <div class="doc">
-<a id="lab101"></a><h1 class="section">Code of the switcher</h1>
+<a id="lab238"></a><h1 class="section">Code of the switcher</h1>
 
 
 <div class="paragraph"> </div>
@@ -507,7 +507,7 @@ Change the PC to <span class="inlinecode"><a class="idref" href="griotte.switche
 
 <div class="doc">
 Focus on block <span class="inlinecode"><span class="id" title="var">n</span></span> of the switcher, whose first address is
-    <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher.html#a_switcher_call"><span class="id" title="projection">a_switcher_call</span></a></span> <span class="inlinecode">^+</span> <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher_preamble.html#switcher_block_offset"><span class="id" title="abbreviation">switcher_block_offset</span></a></span> <span class="inlinecode"><span class="id" title="var">n</span></span>. The PC is moved to this
+    <span class="inlinecode"><a class="idref" href="griotte.switcher.switcher.html#a_switcher_call"><span class="id" title="projection">a_switcher_call</span></a></span> <span class="inlinecode">^+</span> <span class="inlinecode"><a class="idref" href="griotte.switcher_binary.switcher_preamble_binary.html#switcher_block_offset"><span class="id" title="abbreviation">switcher_block_offset</span></a></span> <span class="inlinecode"><span class="id" title="var">n</span></span>. The PC is moved to this
     address, when possible. 
 </div>
 <div class="code">
