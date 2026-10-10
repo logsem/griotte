@@ -228,11 +228,11 @@ Section Adequacy.
 
     (* CMPT C *)
     iMod (initialise_adversary_compartment (Σ := Σ) _ C with "Hcmpt_C")
-      as "(HC_imports & HC_code & HC_data & #HC_etbl_pcc & #HC_etbl_cgp & #HC_etbl_entries)".
+      as "(HC_imports & HC_code & HC_data & _ & #HC_etbl_pcc & #HC_etbl_cgp & #HC_etbl_entries)".
 
     (* CMPT MAIN *)
     iMod (initialise_compartment (Σ := Σ) with "Hcmpt_main")
-      as "(Hmain_imports & Hmain_code & _ & Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_entries)".
+      as "(Hmain_imports & Hmain_code & _ & _ & Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_entries)".
     iEval (rewrite cmpt_code_codefrag) in "Hmain_code".
     pose proof (main_spec_size_obligations _ _ _ _ main_imports main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
