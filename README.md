@@ -6,6 +6,11 @@ a minimal implementation of the CHERIoT's RTOS switcher's,
 and principle to reason about interactions between known and unknown compartments
 through the switcher.
 
+It also provides a binary (relational) logical relation, used to prove
+confidentiality properties: two runs of the same known code, which differ only in
+some secret data, cannot be distinguished by unknown compartments, in the sense that
+one run halts if and only if the other one does.
+
 # Building the proofs
 
 ## With Docker
@@ -266,7 +271,7 @@ compartment.
 - `name_spec{_*}_closure.v` contains the specifications of the example,
   when an entry point for known code is involved.
 - `name_adequacy.v` contains the end-to-end theorem of the example.
-- `name_concrete_adequacy.v` contains a concrete implementation of the adequacy with a concrete
+- `name_concrete.v` contains a concrete implementation of the adequacy with a concrete
 instance of the machine and a concrete adversary.
 
 The case studies are:
@@ -286,10 +291,108 @@ The case studies are:
 - `stack_object/`: Example showing that the switcher can support stack objects,
   but requires additional checks.
 
+## Binary model
+
+The binary model relates two runs of the machine: the *implementation* run,
+described by the usual resources (`↦ᵣ`, `↦ₛᵣ`, `↦ₐ`), and the *specification* run,
+described by a ghost copy of the machine state (`↣ᵣ`, `↣ₛᵣ`, `↣ₐ`, and `⤇ e` for its
+current expression). Both runs execute the same code; the logical relation relates
+pairs of words, and is diagonal except for sealed words, whose payloads may differ.
+Each directory mirrors its unary counterpart, and files carry a `_binary` suffix.
+
+### Specification side `program_logic_binary/`
+
+- `spec_instance_binary.v`: Ghost state of the specification run, its points-to
+  predicates, the invariant `spec_ctx` tying it to an actual execution, and the
+  generic lemmas to step the specification run.
+
+- `memory_region_binary.v`: Specification counterparts of the region points-to
+  and `codefrag`.
+
+- `rules_binary/`: Rules stepping the specification run, one file per instruction,
+  and the determinism lemma of each instruction.
+
+### Proofmode `proofmode_binary/`
+
+- `proofmode_binary.v` and `proofmode_instr_rules_binary.v` define the tactics
+  `iInstr_spec`/`iGo_spec`, to step the specification run, and
+  `iInstr_lockstep`/`iGo_lockstep`, to step both runs at once.
+
+- `register_tactics_binary.v`: Specification counterparts of the register-map tactics.
+
+### Model of the Kripke worlds `model_binary/`
+
+Copies of the files of `model/` whose definitions involve words, where the shared
+resources hold a pair of words: one in the implementation memory and one in the
+specification memory. The other files of `model/` are reused unchanged.
+
+### Logical relation and FTLR `logrel_binary/`
+
+- `call_stack_binary.v`: Call stack of the specification run. The logical relation
+  relates the two call stacks frame by frame.
+
+- `seal_store_binary.v`: Sealing predicates over pairs of words.
+
+- `logrel_binary.v`: The definition of the binary logical relation.
+
+- `monotone_binary.v`, `stack_world_resources_binary.v`, `wp_rules_interp_binary.v`:
+  Binary counterparts of the corresponding unary files.
+
+- `ftlr_binary/fundamental_binary.v`: Contains the binary *Fundamental Theorem of
+  Logical Relations*. Each case (one for each instruction) is proved in a separate
+  file of `ftlr_binary/`.
+
+### Switcher `switcher_binary/`
+
+- `switcher_preamble_binary.v`: The switcher's invariant, holding the switcher's
+  state of both runs.
+
+- `clear_registers_spec_binary.v`, `clear_stack_spec_binary.v`,
+  `switcher_macros_spec_binary.v`: Specifications of the macros used by the switcher.
+
+- `interp_switcher_{call,return}_binary.v` (and the `interp_switcher_call_*` files):
+  Proof that the switcher's sentries are in the binary logical relation.
+
+- `switcher_spec_{call,return}_binary.v` (and the `switcher_spec_call_*` files):
+  Specification and proofs of the switcher's sentries for known code,
+  invoking unknown code.
+
+- `switcher_adequacy_binary.v`: Proof of validity of the adversaries exported
+  cross-compartment sealed entry points.
+
+### Case studies `case_studies_binary/`
+
+- `adequacy_helpers_binary.v`: Helper lemmas for the end-to-end theorems, in
+  particular `binary_adequacy`, which turns a proof in the binary logical relation
+  into "if the first run halts, then the second run halts".
+
+- `fetch_spec_binary.v`, `switcher_spec_call_diag_binary.v`: Specifications of
+  macros used by the examples.
+
+Each example follows the structure of the unary case studies (`name_binary.v`,
+`name_spec{_*}_binary.v`, `name_adequacy_binary.v`, `name_concrete_binary.v`).
+Its end-to-end theorem states that, for two initial memories that differ only in
+the secret, the first run halts if and only if the second run halts.
+
+The case studies are:
+- `confidential_stack/`: A known compartment keeps a secret in its stack frame,
+  and leaves a stale copy of it above its stack pointer, before calling an
+  unknown compartment.
+
+- `confidential_stack_callee/`: An unknown compartment calls a known compartment,
+  which stores a secret in its stack frame before returning.
+
+- `confidential_cmdc/`: Confidentiality variant of the CMDC example: each of two
+  unknown compartments never learns the secret of the other one.
+
+- `confidential_write_only/`: A known compartment shares with an unknown
+  compartment a write-only capability to a secret.
+
 ## Assumptions `theories/assumptions.v`
 
 The file `assumptions.v` prints the assumptions of the FTLR,
-and then of each end-to-end theorems of the case studies.
+and then of each end-to-end theorems of the case studies,
+for the unary and the binary models.
 
 Uncomment the file to check the assumptions. 
 Be aware that it can be long to execute (10-15 minutes).
