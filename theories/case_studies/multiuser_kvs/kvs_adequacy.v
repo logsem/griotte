@@ -37,6 +37,8 @@ Class memory_layout `{MP: MachineParameters} := {
     (* adv compartments B *)
     B_cmpt : cmpt ;
     offset_adv_f : nat;
+    offset_adv_f_valid :
+      is_Some (cmpt_b_pcc B_cmpt + offset_adv_f%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints :
@@ -106,13 +108,13 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let B_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc B_cmpt)
       (cmpt_exp_tbl_entries_end B_cmpt)
       (cmpt_exp_tbl_entries_start B_cmpt)
@@ -464,13 +466,13 @@ Section Adequacy.
     (* 6 - Seal the exported entries of the KVS with [ot_switcher] in the
        world of B *)
     subst B_f kvs_addOrUpdate kvs_read kvs_erase; rewrite /cmpt_export; cbn.
-    set (B_f := (SCap RO Global _ _ (cmpt_exp_tbl_entries_start B_cmpt))).
-    set (kvs_addOrUpdate := (SCap RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_addOrUpdate_exp_tbl_off)%a)).
-    set (kvs_addOrUpdate' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_addOrUpdate_exp_tbl_off)%a)).
-    set (kvs_read := (SCap RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_read_exp_tbl_off)%a)).
-    set (kvs_read' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_read_exp_tbl_off)%a)).
-    set (kvs_erase := (SCap RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_erase_exp_tbl_off)%a)).
-    set (kvs_erase' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_erase_exp_tbl_off)%a)).
+    set (B_f := (SCap true RO Global _ _ (cmpt_exp_tbl_entries_start B_cmpt))).
+    set (kvs_addOrUpdate := (SCap true RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_addOrUpdate_exp_tbl_off)%a)).
+    set (kvs_addOrUpdate' := (SCap true RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_addOrUpdate_exp_tbl_off)%a)).
+    set (kvs_read := (SCap true RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_read_exp_tbl_off)%a)).
+    set (kvs_read' := (SCap true RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_read_exp_tbl_off)%a)).
+    set (kvs_erase := (SCap true RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_erase_exp_tbl_off)%a)).
+    set (kvs_erase' := (SCap true RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_erase_exp_tbl_off)%a)).
 
     set ( adversary_imports :=
             ({[ WSealable kvs_addOrUpdate ; WSealable kvs_addOrUpdate']}
@@ -582,7 +584,8 @@ Section Adequacy.
     { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f)]
                with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
-        [by rewrite B_exp_tbl | by repeat constructor |].
+        [by rewrite B_exp_tbl | by repeat constructor |
+         by apply Forall_singleton, offset_adv_f_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Bf Hentry_Bf'".
     }
     { rewrite B_imports.

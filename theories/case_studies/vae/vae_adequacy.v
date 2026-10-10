@@ -26,6 +26,10 @@ Class memory_layout `{MP: MachineParameters} := {
     C_cmpt : cmpt ;
     offset_adv_f : nat;
     offset_adv_g : nat;
+    offset_adv_f_valid :
+      is_Some (cmpt_b_pcc C_cmpt + offset_adv_f%nat)%a;
+    offset_adv_g_valid :
+      is_Some (cmpt_b_pcc C_cmpt + offset_adv_g%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints :
@@ -78,19 +82,19 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let C_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc C_cmpt)
       (cmpt_exp_tbl_entries_end C_cmpt)
       (cmpt_exp_tbl_entries_start C_cmpt)
   in
   let C_g :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc C_cmpt)
       (cmpt_exp_tbl_entries_end C_cmpt)
       ((cmpt_exp_tbl_entries_start C_cmpt) ^+ 1)%a
@@ -277,7 +281,18 @@ Section Adequacy.
     set (W1' := <o[ ot_switcher switcher_cmpt :=
                     {[ WSealable awk_f; borrow (WSealable awk_f) ]} ]o> W1).
     iAssert (ot_switcher_prop W1' C (WSealable awk_f)) as "#Hot_switcher_awk_f".
-    { iApply (vae_awkward_spec _ _ _ _ _ _ _ _ _ W1' assertN switcherN vaeN vaeN);
+    { assert (is_Some (cmpt_b_pcc main_cmpt +
+                         length (vae_main_imports
+                                   (SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt)
+                                      (cmpt_exp_tbl_entries_end C_cmpt)
+                                      (cmpt_exp_tbl_entries_start C_cmpt))
+                                 ++ VAE_main_code_init))%a)
+        as Hentry_some.
+      { pose proof (cmpt_code_size main_cmpt) as Hcode_size.
+        rewrite main_code /vae_main_code !length_app in Hcode_size.
+        rewrite length_app.
+        solve_addr+Hmain_imports_size Hcode_size. }
+      iApply (vae_awkward_spec _ _ _ _ _ _ _ _ _ W1' assertN switcherN vaeN vaeN);
         try iFrame "#"; eauto; solve_ndisj. }
     iMod (seal_main_export W1 C awk_f
            with "Hsealed_pred_ot_switcher Hot_switcher_awk_f Hworld_interp_C")
@@ -292,7 +307,9 @@ Section Adequacy.
     { (* The exported entries C.f and C.g satisfy the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f); (0, offset_adv_g)]
                with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
-        [by rewrite C_exp_tbl | by repeat constructor |].
+        [by rewrite C_exp_tbl | by repeat constructor |
+         by apply Forall_cons; split;
+           [apply offset_adv_f_valid | apply Forall_singleton, offset_adv_g_valid] |].
       rewrite /= finz_add_0_default.
       iFrame "Hentry_Cf Hentry_Cf' Hentry_Cg Hentry_Cg'".
     }

@@ -333,7 +333,7 @@ Notation switcher_block_offset := (code_block_offset assembled_switcher).
 
 (** The PC capability of the switcher at offset [off] of the code. *)
 Notation switcher_pc off :=
-  (WCap XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ off)%a) (only parsing).
+  (WCap true XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ off)%a) (only parsing).
 
 (** The PC capability of the switcher at the beginning of block [n]. *)
 Notation switcher_block_pc n := (switcher_pc (switcher_block_offset n)) (only parsing).

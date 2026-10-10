@@ -38,14 +38,14 @@ Section Switcher_Call_Blocks_4.
 
     inv (export_table_entryN Nexp_tbl atbl_tgt)
       (atbl_tgt ↦ₐ WInt (encode_entry_point nargs off_tgt)) ∗
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
     cs0 ↦ᵣ wcs0 ∗
-    ct1 ↦ᵣ WCap RO g btbl_tgt etbl_tgt atbl_tgt ∗
+    ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
     ct2 ↦ᵣ wct2 ∗
     codefrag pc_a switcher_instrs_7 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
-        ct1 ↦ᵣ WCap RO g btbl_tgt etbl_tgt atbl_tgt ∗
+        ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
         ct2 ↦ᵣ WInt nargs ∗
         codefrag pc_a switcher_instrs_7 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -86,7 +86,7 @@ Section Switcher_Call_Blocks_4.
     Nexp_tbl nargs off_tgt :
     let switcher_instrs_7 := (switcher_instrs_n 7) in
     let len_switcher_7 := length switcher_instrs_7 in
-    let wct1 := WSealed o (SCap RO Global btbl_tgt etbl_tgt atbl_tgt) in
+    let wct1 := WSealed o (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_7)%a ->
     (o < o ^+ 1)%ot ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
@@ -94,14 +94,14 @@ Section Switcher_Call_Blocks_4.
 
     inv (export_table_entryN Nexp_tbl atbl_tgt)
       (atbl_tgt ↦ₐ WInt (encode_entry_point nargs off_tgt)) ∗
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
-    cs0 ↦ᵣ WSealRange (true, true) Global o (o ^+ 1)%ot o ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    cs0 ↦ᵣ WSealRange true (true, true) Global o (o ^+ 1)%ot o ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     codefrag pc_a switcher_instrs_7 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
-        ct1 ↦ᵣ WCap RO Global btbl_tgt etbl_tgt atbl_tgt ∗
+        ct1 ↦ᵣ WCap true RO Global btbl_tgt etbl_tgt atbl_tgt ∗
         ct2 ↦ᵣ WInt nargs ∗
         codefrag pc_a switcher_instrs_7 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -148,14 +148,15 @@ Section Switcher_Call_Blocks_4.
     Nexp_tbl nargs off_tgt :
     let switcher_instrs_8 := (switcher_instrs_n 8) in
     let len_switcher_8 := length switcher_instrs_8 in
-    let wct1 := WCap RO g btbl_tgt etbl_tgt atbl_tgt in
+    let wct1 := WCap true RO g btbl_tgt etbl_tgt atbl_tgt in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_8)%a ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt ^+ 1 < atbl_tgt)%a ->
+    is_Some (bpcc_tgt + off_tgt)%a ->
 
-    inv (export_table_PCCN Nexp_tbl) (btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt) ∗
+    inv (export_table_PCCN Nexp_tbl) (btbl_tgt ↦ₐ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt) ∗
     inv (export_table_CGPN Nexp_tbl) ((btbl_tgt ^+ 1)%a ↦ₐ wcgp_tgt) ∗
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ WInt off_tgt ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -163,13 +164,13 @@ Section Switcher_Call_Blocks_4.
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
     codefrag pc_a switcher_instrs_8 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_8)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_8)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
         cs1 ↦ᵣ WInt (btbl_tgt - atbl_tgt) ∗
-        ct1 ↦ᵣ WCap RO g btbl_tgt etbl_tgt (btbl_tgt ^+ 1)%a ∗
+        ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt (btbl_tgt ^+ 1)%a ∗
         ct2 ↦ᵣ WInt (nargs + 1) ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WCap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a ∗
+        cra ↦ᵣ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a ∗
         codefrag pc_a switcher_instrs_8 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
@@ -177,7 +178,7 @@ Section Switcher_Call_Blocks_4.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_8 len_switcher_8 wct1; subst switcher_instrs_8 len_switcher_8 wct1.
-    iIntros (Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1)
+    iIntros (Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1 Hentry)
       "(#Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -216,19 +217,13 @@ Section Switcher_Call_Blocks_4.
     wp_pure.
 
     (* --- Lea cra cs0 --- *)
-    destruct (bpcc_tgt + off_tgt)%a eqn:Hentry;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_reg with "[$HPC $Hi $Hcs0 $Hcra]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
+    destruct Hentry as [a_entry Hentry].
     iInstr "Hcode".
 
     (* --- Add ct2 ct2 1 --- *)
     iInstr "Hcode".
 
-    replace f with (bpcc_tgt ^+ off_tgt)%a by solve_addr.
+    replace a_entry with (bpcc_tgt ^+ off_tgt)%a by solve_addr.
     iApply "Hpost"; iFrame.
   Qed.
 
@@ -241,16 +236,17 @@ Section Switcher_Call_Blocks_4.
     (Nexp_tbl : namespace) (nargs : nat) (off : Z) :
     (b_tbl <= a_tbl < e_tbl)%a ->
     (b_tbl ^+ 1 < a_tbl)%a ->
+    is_Some (bpcc + off)%a ->
     (nargs <= 7) ->
 
-    inv (export_table_PCCN Nexp_tbl) (b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc) ∗
+    inv (export_table_PCCN Nexp_tbl) (b_tbl ↦ₐ WCap true RX Global bpcc epcc bpcc) ∗
     inv (export_table_CGPN Nexp_tbl) ((b_tbl ^+ 1)%a ↦ₐ wcgp_tgt) ∗
     inv (export_table_entryN Nexp_tbl a_tbl)
       (a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off)) ∗
     PC ↦ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    ct1 ↦ᵣ WCap RO g_tbl b_tbl e_tbl a_tbl ∗
+    ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ wct2 ∗
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
@@ -258,15 +254,15 @@ Section Switcher_Call_Blocks_4.
     ▷ ( PC ↦ᵣ switcher_block_pc 9 ∗
         cs0 ↦ᵣ WInt off ∗
         cs1 ↦ᵣ WInt (b_tbl - a_tbl) ∗
-        ct1 ↦ᵣ WCap RO g_tbl b_tbl e_tbl (b_tbl ^+ 1)%a ∗
+        ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl (b_tbl ^+ 1)%a ∗
         ct2 ↦ᵣ WInt (Z.of_nat nargs + 1) ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WCap RX Global bpcc epcc (bpcc ^+ off)%a ∗
+        cra ↦ᵣ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         switcher_code -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Htbl Htbl1 Hnargs)
+    iIntros (Htbl Htbl1 Hentry Hnargs)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2
       & Hcgp & Hcra & Hcode & Hpost)".
     pose proof switcher_SubBounds as Hsub.
@@ -285,7 +281,7 @@ Section Switcher_Call_Blocks_4.
     switcher_focus_block 8 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     iApply (switcher_call_block_8_spec with
       "[- $Htbl_pcc $Htbl_cgp $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]");
-      [done|done|done|].
+      [done|done|done|done|].
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     switcher_change_pc (switcher_block_offset 9).
@@ -304,13 +300,13 @@ Section Switcher_Call_Blocks_4.
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     ctp ↦ᵣ wctp ∗
-    cra ↦ᵣ WCap RX Global bpcc epcc a_tgt ∗
+    cra ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : Reg),
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ᵣ WCap RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        PC ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
+        cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
@@ -354,18 +350,19 @@ Section Switcher_Call_Blocks_4.
     (arg_rmap rmap : Reg) :
     (b_tbl <= a_tbl < e_tbl)%a ->
     (b_tbl ^+ 1 < a_tbl)%a ->
+    is_Some (bpcc + off)%a ->
     (nargs <= 7) ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    inv (export_table_PCCN Nexp_tbl) (b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc) ∗
+    inv (export_table_PCCN Nexp_tbl) (b_tbl ↦ₐ WCap true RX Global bpcc epcc bpcc) ∗
     inv (export_table_CGPN Nexp_tbl) ((b_tbl ^+ 1)%a ↦ₐ wcgp_tgt) ∗
     inv (export_table_entryN Nexp_tbl a_tbl)
       (a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off)) ∗
     PC ↦ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    ct1 ↦ᵣ WCap RO g_tbl b_tbl e_tbl a_tbl ∗
+    ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ wct2 ∗
     ctp ↦ᵣ wctp ∗
     cgp ↦ᵣ wcgp ∗
@@ -377,9 +374,9 @@ Section Switcher_Call_Blocks_4.
     ▷ ( ∀ (arg_rmap' rmap' : Reg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ᵣ WCap RX Global bpcc epcc (bpcc ^+ off)%a ∗
+        PC ↦ᵣ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
@@ -387,14 +384,14 @@ Section Switcher_Call_Blocks_4.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Htbl Htbl1 Hnargs Hargs Hdom)
+    iIntros (Htbl Htbl1 Hentry Hnargs Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
       & Hcgp & Hcra & Hargs & Hregs & Hcode & Hpost)".
 
     (* Blocks 7-8: load the callee *)
     iApply (switcher_call_blocks_7_8_spec with
       "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]");
-      [done|done|done|].
+      [done|done|done|done|].
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode)".
 
     (* Block 9: clear the unused argument registers *)
@@ -430,18 +427,19 @@ Section Switcher_Call_Blocks_4.
     (arg_rmap rmap : Reg) :
     (b_tbl <= a_tbl < e_tbl)%a ->
     (b_tbl ^+ 1 < a_tbl)%a ->
+    is_Some (bpcc + off)%a ->
     (nargs <= 7) ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    inv (export_table_PCCN Nexp_tbl) (b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc) ∗
+    inv (export_table_PCCN Nexp_tbl) (b_tbl ↦ₐ WCap true RX Global bpcc epcc bpcc) ∗
     inv (export_table_CGPN Nexp_tbl) ((b_tbl ^+ 1)%a ↦ₐ wcgp_tgt) ∗
     inv (export_table_entryN Nexp_tbl a_tbl)
       (a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off)) ∗
     PC ↦ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    ct1 ↦ᵣ WCap RO g_tbl b_tbl e_tbl a_tbl ∗
+    ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ wct2 ∗
     ctp ↦ᵣ wctp ∗
     cgp ↦ᵣ wcgp ∗
@@ -452,9 +450,9 @@ Section Switcher_Call_Blocks_4.
     ▷ ( ∀ (arg_rmap' rmap' : Reg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ᵣ WCap RX Global bpcc epcc (bpcc ^+ off)%a ∗
+        PC ↦ᵣ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs)
                      then ⌜ arg_rmap !! r = Some w ⌝
@@ -464,14 +462,14 @@ Section Switcher_Call_Blocks_4.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Htbl Htbl1 Hnargs Hargs Hdom)
+    iIntros (Htbl Htbl1 Hentry Hnargs Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
       & Hcgp & Hcra & Hargs & Hregs & Hcode & Hpost)".
 
     (* Blocks 7-8: load the callee *)
     iApply (switcher_call_blocks_7_8_spec with
       "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]");
-      [done|done|done|].
+      [done|done|done|done|].
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode)".
 
     (* Block 9: clear the unused argument registers *)

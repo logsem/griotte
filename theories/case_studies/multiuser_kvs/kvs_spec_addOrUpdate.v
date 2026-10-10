@@ -130,9 +130,11 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     (* Jnz 5 ctp *)
     iInstr "Hcode".
+    { injection; intros; lia. }
     (* Lea cgp 2 *)
     iInstr "Hcode".
-    (* Store cgp (inr ca2) *)
+    { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); last done; solve_addr+Hcgp_idx. }
+    (* Store cgp (inr ca2) 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (rules_Store.wp_store_success_reg_store_word with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val]"); try solve_pure.
@@ -579,16 +581,18 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       (* jnz (".addOrUpdate_empty_slot_found")%asm ctp; *)
       iInstr "Hcode".
+      { intro; simplify_eq; lia. }
       (* mul ct1 ct1 ASM_SIZEOF_KVS_ENTRY *)
       iInstr "Hcode".
-      replace (idx_empty * 3)%Z with (ASM_SIZEOF_KVS_ENTRY * idx_empty)%Z
-        by (rewrite /ASM_SIZEOF_KVS_ENTRY; lia).
       (* lea cgp ct1; *)
       iInstr "Hcode".
+      { transitivity (Some (KVS_cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx_empty)%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       (* store cgp ASM_SOME; *)
       iInstr "Hcode".
+      { solve_addr+Hcgp_bounds. }
       (* lea cgp 1; *)
       iInstr "Hcode".
+      { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       (* store cgp ca0; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
@@ -599,6 +603,7 @@ Section KVS_spec_addOrUpdate.
       iInstr_close "Hcode".
       (* lea cgp 1; *)
       iInstr "Hcode".
+      { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       (* store cgp ca2; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.

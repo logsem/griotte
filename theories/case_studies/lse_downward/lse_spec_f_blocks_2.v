@@ -27,7 +27,7 @@ Section LSE_F_Blocks_2.
     ↑Nassert ⊆ E ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
     na_own cerise_nais E ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
     cgp ↦ᵣ wcgp ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗

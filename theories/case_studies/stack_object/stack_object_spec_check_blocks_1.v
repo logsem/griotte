@@ -25,25 +25,25 @@ Section SO_Check_Blocks_1.
     (csp_b csp_e : Addr)
     (wca0 wca1 wct1 wcs0 wcs1 : Word) :
     so_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ so_block_offset 3)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 3)%a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     codefrag pc_a so_main_code ∗
-    ▷ (∀ p g b e a,
+    ▷ (∀ t p g b e a,
         ⌜readAllowed p = true⌝ ∗
-        ⌜wca0 = WCap p g b e a⌝ ∗
+        ⌜wca0 = WCap t p g b e a⌝ ∗
         ⌜finz.seq_between b e ## finz.seq_between csp_b csp_e⌝ ∗
-        PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
-        ca0 ↦ᵣ WCap p g b e a ∗
+        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
+        ca0 ↦ᵣ WCap t p g b e a ∗
         ca1 ↦ᵣ wca1 ∗
         ct1 ↦ᵣ wca1 ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
-        csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         codefrag pc_a so_main_code ∗
         £ 1
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -67,7 +67,7 @@ Section SO_Check_Blocks_1.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iSplitL; last (iModIntro; iNext; iIntros (?); done).
     iNext; iIntros "H".
-    iDestruct "H" as (p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
+    iDestruct "H" as (t p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: check that [in] does not overlap with the stack frame *)
@@ -78,7 +78,7 @@ Section SO_Check_Blocks_1.
     iNext; iIntros "(HPC & Hca0 & Hcsp & Hcs1 & Hcs0 & %Hno_overlap & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ so_block_offset 6)%a.
-    iApply ("Hpost" $! p g b e a); iFrame "∗%"; done.
+    iApply ("Hpost" $! t p g b e a); iFrame "∗%"; done.
   Qed.
 
 End SO_Check_Blocks_1.

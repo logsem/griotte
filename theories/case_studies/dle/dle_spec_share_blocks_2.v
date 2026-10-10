@@ -24,7 +24,7 @@ Section DLE_Share_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wct0 wct1 wct2 wct3 wcs0 wcs1 wcra : Word) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ dle_block_offset 1)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ dle_block_offset 1)%a ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
@@ -33,8 +33,8 @@ Section DLE_Share_Blocks_2.
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
     dle_static_mem pc_b pc_a C_f ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 3)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 3)%a ∗
         ct0 ↦ᵣ dle_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         ct2 ↦ᵣ WInt 0 ∗

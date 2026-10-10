@@ -27,8 +27,8 @@ Section Counter_Main_Blocks_1.
     (wct0 wct1 wcs0 wcs1 wcra : Word) :
     counter_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -38,13 +38,13 @@ Section Counter_Main_Blocks_1.
     pc_b ↦ₐ counter_switcher_entry ∗
     (pc_b ^+ 1)%a ↦ₐ WSealed ot_switcher C_f ∗
     codefrag pc_a counter_main_code ∗
-    ▷ (PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    ▷ (PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ counter_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ wcra ∗
         cs1 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
         cgp_b ↦ₐ WInt (cnt + 1) ∗
         pc_b ↦ₐ counter_switcher_entry ∗
         (pc_b ^+ 1)%a ↦ₐ WSealed ot_switcher C_f ∗
@@ -62,17 +62,16 @@ Section Counter_Main_Blocks_1.
     (* Block 0: increment the counter *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Load cs0 cgp *)
+    (* Load cs0 cgp 0 *)
     iInstr "Hcode".
     { split; first done. apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
     (* Add cs0 cs0 1 *)
     iInstr "Hcode".
-    (* Store cgp cs0 *)
+    (* Store cgp cs0 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_store_success_reg with "[$HPC $Hi $Hcs0 $Hcgp $Hcgp_b]"); try solve_pure.
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
-    { done. }
     iIntros "!> (HPC & Hi & Hcs0 & Hcgp & Hcgp_b)".
     iSpecialize ("Hcode" with "Hi").
     wp_pure.

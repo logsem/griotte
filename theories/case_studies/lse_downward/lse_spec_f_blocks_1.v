@@ -25,9 +25,9 @@ Section LSE_F_Blocks_1.
     (wct0 wct1 wcs0 wcs1 : Word) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ lse_block_offset 4)%a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 4)%a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -36,9 +36,9 @@ Section LSE_F_Blocks_1.
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     codefrag pc_a lse_main_code ∗
     ▷ (∀ stk_mem' wcs0' wcs1',
-        PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
+        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
         cgp ↦ᵣ lse_a_cap cgp_b ∗
-        csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ WInt 2 ∗
         ct1 ↦ᵣ WInt 2 ∗
         cs0 ↦ᵣ wcs0' ∗
@@ -69,7 +69,7 @@ Section LSE_F_Blocks_1.
     { solve_addr+Hcgp_bounds. }
     destruct (decide (csp_b < csp_e)%a) as [Hcsp_size|Hcsp_size]; cycle 1.
     { (* The stack frame is empty: the push fails *)
-      (* Store csp cgp *)
+      (* Store csp cgp 0 *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (wp_store_fail_reg with "[$HPC $Hi $Hcgp $Hcsp]"); try solve_pure.
@@ -83,10 +83,10 @@ Section LSE_F_Blocks_1.
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]".
     { transitivity (Some (csp_b ^+ 1)%a); [solve_addr+Hcsp_size|reflexivity]. }
     { solve_addr+Hcsp_size. }
-    (* Store csp cgp *)
+    (* Store csp cgp 0 *)
     iInstr "Hcode".
     { rewrite /withinBounds; solve_addr+Hcsp_size. }
-    (* Load ct0 cgp *)
+    (* Load ct0 cgp 0 *)
     iInstr "Hcode".
     { split; [solve_pure|solve_addr+Hcgp_bounds]. }
     (* Mov ct1 2 *)

@@ -24,7 +24,7 @@ Section DROE_Share_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wct0 wct1 wct2 wct3 wcs0 wcra : Word) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ droe_block_offset 1)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ droe_block_offset 1)%a ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
@@ -32,8 +32,8 @@ Section DROE_Share_Blocks_2.
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     droe_static_mem pc_b pc_a C_f ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
         ct0 ↦ᵣ droe_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         ct2 ↦ᵣ WInt 0 ∗

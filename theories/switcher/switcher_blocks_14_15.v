@@ -29,7 +29,7 @@ Section Switcher_Blocks_14_15.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_15)%a ->
     is_Some (rmap !! cnull) ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
     codefrag pc_a switcher_instrs_15 ∗

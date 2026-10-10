@@ -46,11 +46,11 @@ Section DROE_World.
     StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     cgp_b ↦ₐ WInt 42 -∗
-    (cgp_b ^+ 1)%a ↦ₐ WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b
+    (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b
     ={⊤}=∗
     world_interp W3 C ∗
     rel C cgp_b RO_DRO droe_b_pred ∗
-    interp W3 C (WCap RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a) ∗
+    interp W3 C (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a) ∗
     interp W3 C (WSealed ot_switcher C_f) ∗
     StackRevokedResources W3 C (finz.seq_between csp_b csp_e) ∗
     ⌜ revoked_addresses W3 (finz.seq_between csp_b csp_e) ⌝.
@@ -76,7 +76,7 @@ Section DROE_World.
     set (W2 := <s[cgp_b:=Permanent]s> W1).
 
     (* And prove that the RO_DRO capability pointing to it is safe *)
-    iAssert (interp W2 C (WCap RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
+    iAssert (interp W2 C (WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
@@ -110,7 +110,7 @@ Section DROE_World.
     (* Second, extend the world such that [cgp_b+1] is permanent, with value
        the RW capability pointing to [cgp_b] *)
     iDestruct (init_PermRes W2 C (cgp_b ^+1)%a RO_DRO
-                 (safeC (interp_dro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+                 (safeC (interp_dro_eq (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
                 with "[] [$Hcgp_a] []") as "PermRes_cgp_a"; auto.
     { rewrite /future_priv_mono.
       iIntros "!>" (W W' Hrelated) "[% H]"; cbn.

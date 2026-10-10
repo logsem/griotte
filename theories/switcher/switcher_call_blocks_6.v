@@ -24,11 +24,11 @@ Section Switcher_Call_Blocks_6.
     SubBounds b_switcher e_switcher pc_a
       (pc_a ^+ length (switcher_instrs_n 17))%a ->
     (pc_a ^+ 2 + (-61))%a = Some a_switcher_return ->
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag pc_a (switcher_instrs_n 17) ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
         ca1 ↦ᵣ WInt 0 ∗
         codefrag pc_a (switcher_instrs_n 17) -∗
@@ -55,7 +55,7 @@ Section Switcher_Call_Blocks_6.
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     switcher_code ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
         ca1 ↦ᵣ WInt 0 ∗
         switcher_code -∗

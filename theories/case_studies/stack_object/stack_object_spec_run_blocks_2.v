@@ -22,9 +22,9 @@ Section SO_Run_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (φ : language.val griotte_lang -> iProp Σ) :
     so_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
     codefrag pc_a so_main_code ∗
-    ▷ (PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
+    ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
         codefrag pc_a so_main_code
         -∗ WP Instr Halted {{ φ }})
     ⊢ WP Seq (Instr Executable) {{ φ }}.

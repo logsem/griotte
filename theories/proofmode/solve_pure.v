@@ -111,6 +111,7 @@ Proof. auto. Qed.
 #[export] Hint Resolve is_Get_GetA : solve_pure.
 #[export] Hint Resolve is_Get_GetOType : solve_pure.
 #[export] Hint Resolve is_Get_GetWType : solve_pure.
+#[export] Hint Resolve is_Get_GetTag : solve_pure.
 
 (* is_BinOp *)
 #[export] Hint Mode is_BinOp ! - - - : solve_pure.
@@ -127,19 +128,46 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (is_z _ = false) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (is_z _ = true) => reflexivity : solve_pure.
 
+(* validity tags *)
+#[export] Hint Extern 1 (get_tag _ = true) => reflexivity : solve_pure.
+#[export] Hint Extern 1 (get_tag_sealable _ = true) => reflexivity : solve_pure.
+
 (* canStore *)
-#[export] Hint Extern 1 (canStore WO (WCap _ Global _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore WO (WCap _ Local _ _ _ ) = false) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RW (WCap _ Global _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RW (WCap _ Local _ _ _ ) = false) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RWX (WCap _ Global _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RWX (WCap _ Local _ _ _ ) = false) => done : solve_pure.
-#[export] Hint Extern 1 (canStore WLO (WCap _ _ _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RWL (WCap _ _ _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RWLX (WCap _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WO (WCap true _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WO (WCap true _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RW (WCap true _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RW (WCap true _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWX (WCap true _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWX (WCap true _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WLO (WCap true _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWL (WCap true _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWLX (WCap true _ _ _ _ _ ) = true) => done : solve_pure.
 #[export] Hint Resolve canStoreRWL : solve_pure.
 
+(* Untagged data does not require store-local permission. Avoid choosing
+   permissions or payloads while solving a side condition. *)
+#[export] Hint Extern 1 (canStore ?p ?w = true) =>
+  (without_evars p; without_evars w;
+   rewrite (canStore_untagged p w); [reflexivity | first [reflexivity | apply get_tag_clear_tag]]) : solve_pure.
+#[export] Hint Resolve get_tag_clear_tag get_tag_clear_tag_sealable : solve_pure.
+
+(* store_word *)
+#[export] Hint Extern 1 (store_word WLO ?w = ?w) =>
+  apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (store_word RWL ?w = ?w) =>
+  apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (store_word RWLX ?w = ?w) =>
+  apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (?w = store_word WLO ?w) =>
+  symmetry; apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (?w = store_word RWL ?w) =>
+  symmetry; apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (?w = store_word RWLX ?w) =>
+  symmetry; apply store_word_isWL; reflexivity : solve_pure.
+
 (* denote - required for Get *)
+#[export] Hint Extern 1 (rules_Get.denote (GetTag _ _) _ = Some _) =>
+  apply gettag_denote : solve_pure.
 #[export] Hint Extern 1 (denote (GetWType _ _) ?w = Some _) =>
   (eapply getwtype_denote ; reflexivity) : solve_pure.
 #[export] Hint Extern 1 (rules_Get.denote _ _ = Some _) => reflexivity : solve_pure. (* unification fails if lhs has evars *)
@@ -187,7 +215,7 @@ Goal forall p g b e a,
   executeAllowed p = true →
   SubBounds b e a (a ^+ 5)%a →
   ContiguousRegion a 5 →
-  isCorrectPC (WCap p g b e a).
+  isCorrectPC (WCap true p g b e a).
 Proof. intros. solve_pure. Qed.
 
 Goal forall (r_t1 r_t2: RegName), exists r1 r2,
@@ -199,7 +227,7 @@ Goal forall p g b e a,
   executeAllowed p = true →
   SubBounds b e a (a ^+ 5)%a →
   ContiguousRegion a 5 →
-  isCorrectPC (WCap p g b e (a ^+ 1)%a).
+  isCorrectPC (WCap true p g b e (a ^+ 1)%a).
 Proof. intros. solve_pure. Qed.
 
 Goal forall (r_t1 r_t2 r_t3: RegName), exists r1 r2 r3,
@@ -210,5 +238,6 @@ Proof. do 3 eexists. repeat apply conj; first solve_pure. all: reflexivity. Qed.
 Goal forall (P: Prop), P → P. intros. solve_pure. Qed.
 
 Goal forall w, canStore RWL w = true. Proof. intros. solve_pure. Qed.
+Goal forall w, store_word RWL w = w. Proof. intros. solve_pure. Qed.
 Goal has_sreg_access XSRW_ = true. Proof. solve_pure. Qed.
 Goal has_sreg_access RW = false. Proof. solve_pure. Qed.

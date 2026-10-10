@@ -49,10 +49,10 @@ Section Switcher_KtK_Call.
 
     (▷ switcher_inv ∗ na_own cerise_nais (E ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais E) ∗
     na_own cerise_nais (E ∖ ↑Nswitcher) ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_code ∗
-    b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
@@ -64,7 +64,7 @@ Section Switcher_KtK_Call.
     ctp ↦ᵣ wctp ∗
     ct2 ↦ᵣ wct2 ∗
     ct1 ↦ᵣ wct1_caller ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
     switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller ∗
     [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ drop 4 stk_mem ]] ∗
     ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
@@ -76,7 +76,7 @@ Section Switcher_KtK_Call.
             PC ↦ᵣ updatePcPerm wcra_caller ∗
             cgp ↦ᵣ wcgp_caller ∗
             cra ↦ᵣ wcra_caller ∗
-            csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+            csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
             cs0 ↦ᵣ wcs0_caller ∗
             cs1 ↦ᵣ wcs1_caller ∗
             ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
@@ -129,7 +129,7 @@ Section Switcher_KtK_Call.
 
     :
     let a_stk4 := (a_stk ^+ 4)%a in
-    let wct1_caller := WSealed ot_switcher (SCap RO Global btbl_tgt etbl_tgt atbl_tgt) in
+    let wct1_caller := WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     let frame :=
            {| wret := wcra_caller;
@@ -151,6 +151,7 @@ Section Switcher_KtK_Call.
     (btbl_tgt < (btbl_tgt ^+1))%a →
     ((btbl_tgt ^+1) < atbl_tgt)%a  →
     (0 <= nargs <= 7 )%nat →
+    is_Some (bpcc_tgt + off_tgt)%a →
 
     (* Well formed register map *)
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
@@ -160,19 +161,19 @@ Section Switcher_KtK_Call.
     na_inv cerise_nais Nswitcher switcher_inv
 
     (* Entry Point Invariant *)
-    ∗ inv (export_table_PCCN Nexp_tbl)             ( btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt)
-    ∗ inv (export_table_CGPN Nexp_tbl)             ( (btbl_tgt ^+ 1)%a ↦ₐ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt)
+    ∗ inv (export_table_PCCN Nexp_tbl)             ( btbl_tgt ↦ₐ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt)
+    ∗ inv (export_table_CGPN Nexp_tbl)             ( (btbl_tgt ^+ 1)%a ↦ₐ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt)
     ∗ inv (export_table_entryN Nexp_tbl atbl_tgt) ( atbl_tgt ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off_tgt))
 
 
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais E
     (* Registers *)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ wct1_caller
     ∗ cs0 ↦ᵣ wcs0_caller
@@ -193,11 +194,11 @@ Section Switcher_KtK_Call.
               ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais E
               (* Registers *)
-              ∗ PC ↦ᵣ WCap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
-              ∗ cgp ↦ᵣ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-              ∗ cra ↦ᵣ (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return)
+              ∗ PC ↦ᵣ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
+              ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+              ∗ cra ↦ᵣ (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
               (* Stack register *)
-              ∗ csp ↦ᵣ WCap RWL Local a_stk4 e_stk a_stk4
+              ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
               (* All the other registers *)
               (* Entry point of the target compartment *)
               ∗ ( [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg
@@ -222,7 +223,7 @@ Section Switcher_KtK_Call.
                 ∗ PC ↦ᵣ updatePcPerm wcra_caller
                 ∗ cgp ↦ᵣ wcgp_caller
                 ∗ cra ↦ᵣ wcra_caller
-                ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+                ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
                 ∗ cs0 ↦ᵣ wcs0_caller
                 ∗ cs1 ↦ᵣ wcs1_caller
                 ∗ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
@@ -255,7 +256,7 @@ Section Switcher_KtK_Call.
        - [switcher_inv_push_frame]: push the frame and close the switcher
          invariant. *)
     intros astk4 wct1_caller callee_stk_region frame.
-    iIntros (HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hdom Harg_rmap)
+    iIntros (HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hdom Harg_rmap)
       "(#Hswitcher & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
 
@@ -307,14 +308,14 @@ Section Switcher_KtK_Call.
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); first done.
-    iNext; iIntros (wsb) "(%Hwsb & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & Hb_switcher & Hct1 & Hcode)".
+    iNext; iIntros (wsb) "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & Hb_switcher & Hct1 & Hcode)".
     subst wct1_caller; simplify_eq.
 
     (* Blocks 7-11: load the callee and jump to it *)
     iApply (switcher_call_blocks_4_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
         $Hct2 $Hctp $Hcgp $Hcra $Hargs $Hregs $Hcode]");
-      [done|done|lia|done| |].
+      [done|done|done|lia|done| |].
     { rewrite !dom_delete_L Hdom. set_solver. }
     iNext; iIntros (arg_rmap' rmap')
       "(%Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hargs & Hregs & Hcode)".

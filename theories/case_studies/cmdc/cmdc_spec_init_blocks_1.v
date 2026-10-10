@@ -24,17 +24,17 @@ Section CMDC_Init_Blocks_1.
     (wca0 wct0 wct1 : Word) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cgp_b ↦ₐ WInt 0 ∗
     (cgp_b ^+ 1)%a ↦ₐ WInt 0 ∗
     codefrag pc_a cmdc_main_code ∗
-    ▷ ( PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 1)%a ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ 1)%a ∗
-        ca0 ↦ᵣ WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
+    ▷ ( PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 1)%a ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e (cgp_b ^+ 1)%a ∗
+        ca0 ↦ᵣ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
         (∃ w, ct0 ↦ᵣ w) ∗
         (∃ w, ct1 ↦ᵣ w) ∗
         cgp_b ↦ₐ WInt 0 ∗
@@ -49,7 +49,7 @@ Section CMDC_Init_Blocks_1.
 
     (* Block 0: initialisation *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* Store cgp 0%Z *)
+    (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
     { solve_addr. }
     (* Mov ca0 cgp *)
@@ -57,7 +57,7 @@ Section CMDC_Init_Blocks_1.
     (* Lea cgp 1%Z *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    (* Store cgp 0%Z *)
+    (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
     { solve_addr. }
     (* GetA ct0 ca0 *)

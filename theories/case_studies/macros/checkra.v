@@ -141,6 +141,9 @@ Section Checkra_spec.
     rename H into HcontRegion; clear H0.
 
     iInstr "Hcode".
+    { rewrite /rules_Get.denote.
+      destruct_word wsrc;done.
+    }
     iInstr "Hcode".
 
     destruct (is_cap wsrc) eqn:His_cap_wsrc; cycle 1.

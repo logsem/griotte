@@ -53,10 +53,10 @@ Section fundamental.
     (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) ∗
     (▷ switcher_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_code ∗
-    b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
@@ -129,14 +129,14 @@ Section fundamental.
     interp W C wcs1 ∗
     interp W C wcra ∗
     interp W C wcgp ∗
-    interp W C (WCap RWL Local b e a) ∗
+    interp W C (WCap true RWL Local b e a) ∗
     ([∗ list] w ∈ lv, interp W C w) ∗
     (▷ switcher_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_code ∗
-    b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
@@ -148,7 +148,7 @@ Section fundamental.
     ctp ↦ᵣ wctp ∗
     ct2 ↦ᵣ wct2 ∗
     ct1 ↦ᵣ wct1 ∗
-    csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+    csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
     switcher_stk_cells a wcs0 wcs1 wcra wcgp ∗
     [[ (a ^+ 4)%a , e ]] ↦ₐ [[ drop 4 lv ]] ∗
     switcher_stk_opened W C a e lv ∗
@@ -199,7 +199,7 @@ Section fundamental.
 
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;
@@ -278,10 +278,11 @@ Section fundamental.
     { iApply "Hreg"; eauto; done. }
 
     (* Open the caller's stack frame *)
-    assert ((∃ b e a, wcsp = WCap RWL Local b e a ∧ (b <= a)%a)
-            ∨ (∀ b e a, wcsp = WCap RWL Local b e a → (a < b)%a))
+    assert ((∃ b e a, wcsp = WCap true RWL Local b e a ∧ (b <= a)%a)
+            ∨ (∀ b e a, wcsp = WCap true RWL Local b e a → (a < b)%a))
       as [(b & e & a & -> & Hba) | Hnot_stk].
-    { destruct wcsp as [| [p g b e a|] | |]; try (right; intros; discriminate).
+    { destruct wcsp as [| [t p g b e a|] | |]; try (right; intros; discriminate).
+      destruct t; [|right; intros; discriminate].
       destruct (decide (p = RWL ∧ g = Local)) as [ [-> ->] | Hpg].
       - destruct (decide (b <= a)%a);
           [left; eauto | right; intros ??? Heq; inversion Heq; subst; solve_addr].
@@ -318,7 +319,7 @@ Section fundamental.
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); first done.
-    iNext; iIntros (wsb) "(-> & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & Hb_switcher & Hct1 & Hcode)".
+    iNext; iIntros (wsb) "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & Hb_switcher & Hct1 & Hcode)".
 
     (* Close the caller's stack frame *)
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; [done|solve_addr|].
@@ -329,8 +330,9 @@ Section fundamental.
     { iFrame "#". iApply big_sepL_forall. iIntros (k w Hk).
       apply lookup_replicate in Hk as [-> _]. iApply interp_int. }
 
-    iDestruct ("Hentry_prop" with "[//]")
-      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Nexp_tbl Heq Htbl Hbtbl Hbtbl1 Hnargs)
+    iDestruct ("Hentry_prop" with "[//] [//]")
+      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Nexp_tbl Heq Htbl Hbtbl Hbtbl1 Hnargs
+          Hentry_some)
            "(Htbl1 & Htbl2 & Htbl3 & #Hentry & _ & #Hexec)".
     simplify_eq.
     iSpecialize ("Hexec" $! W with "[]").
@@ -357,7 +359,7 @@ Section fundamental.
     }
     iApply (switcher_call_blocks_4_spec W C with
       "[- $Htbl1 $Htbl2 $Htbl3 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcgp $Hcra $Hparams $Hrest $Hcode]");
-      [done|done|lia| | |].
+      [done|done|done|lia| | |].
     { rewrite /is_arg_rmap /dom_arg_rmap.
       apply dom_filter_L. clear -Hfull_rmap.
       rewrite /rmap'. split.
@@ -396,7 +398,7 @@ Section fundamental.
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
 
     (* Execute the entry point of the callee *)
-    iAssert (interp W C (WCap RWL Local (a ^+ 4)%a e (a ^+ 4)%a)) as "#Hstk4v".
+    iAssert (interp W C (WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a)) as "#Hstk4v".
     { iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
     iDestruct (switcher_call_entry_registers W W C nargs arg_rmap' rmap'' with
                 "[$HPC $Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
@@ -420,7 +422,7 @@ Section fundamental.
 
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.

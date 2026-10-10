@@ -52,8 +52,8 @@ Section DLE_States.
 
   (** The imported words, in the order of [dle_main_imports]. *)
   Definition dle_imports (pc_b : Addr) (C_f : Sealable) : iProp Σ :=
-    pc_b ↦ₐ WSentry XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry RX Global b_assert e_assert b_assert ∗
+    pc_b ↦ₐ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
     (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f.
 
   (** The imports and the code, that the block groups return unchanged. *)
@@ -68,6 +68,6 @@ Section DLE_States.
 
   (** The capability of the entry point of the switcher. *)
   Definition dle_switcher_entry : Word :=
-    WSentry XSRW_ Local b_switcher e_switcher a_switcher_call.
+    WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
 End DLE_States.

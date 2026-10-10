@@ -218,10 +218,10 @@ Section SO_States.
 
   (** The capability of the entry point of the switcher. *)
   Definition so_switcher_entry : Word :=
-    WSentry XSRW_ Local b_switcher e_switcher a_switcher_call.
+    WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
   (** The capability of the entry point of the assert routine. *)
   Definition so_assert_entry : Word :=
-    WSentry RX Global b_assert e_assert b_assert.
+    WSentry true RX Global b_assert e_assert b_assert.
 
 End SO_States.

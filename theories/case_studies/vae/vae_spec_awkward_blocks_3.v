@@ -35,8 +35,8 @@ Section VAE_Awkward_Blocks_3.
     world_interp W C ∗
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
     na_own cerise_nais E ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 9 4)%a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 9 4)%a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wret ∗
     ca0 ↦ᵣ wca0 ∗
@@ -52,7 +52,7 @@ Section VAE_Awkward_Blocks_3.
     ▷ (world_interp W C ∗
         na_own cerise_nais E ∗
         PC ↦ᵣ updatePcPerm wret ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ wret ∗
         cs0 ↦ᵣ wret ∗
         ca0 ↦ᵣ WInt 0 ∗
@@ -80,7 +80,7 @@ Section VAE_Awkward_Blocks_3.
     focus_block 9 "Hcode_main" of vae_main_blocks at pc_a as a_load Ha_load "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_load ^+ 4)%a.
-    (* Load ct0 cgp *)
+    (* Load ct0 cgp 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.

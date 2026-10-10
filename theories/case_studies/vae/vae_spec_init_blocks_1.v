@@ -30,8 +30,8 @@ Section VAE_Init_Blocks_1.
     loc W !! i = Some (encode false) ->
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -41,13 +41,13 @@ Section VAE_Init_Blocks_1.
     (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
     codefrag pc_a vae_main_code ∗
     ▷ (world_interp W C ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ vae_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 3 1)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 3 1)%a ∗
         pc_b ↦ₐ vae_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
         codefrag pc_a vae_main_code
@@ -64,7 +64,7 @@ Section VAE_Init_Blocks_1.
     (* Block 0: set the flag to [0] *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Store cgp 0 *)
+    (* Store cgp 0 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.

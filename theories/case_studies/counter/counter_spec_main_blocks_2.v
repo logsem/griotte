@@ -23,7 +23,7 @@ Section Counter_Main_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wret wcra wca0 wca1 wcs1 wcnull : Word) :
     counter_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wret ∗
     cs1 ↦ᵣ wcs1 ∗

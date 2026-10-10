@@ -32,27 +32,27 @@ Section Switcher_Call_Blocks_5.
     (b_stk <= a_stk)%a ->
     (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
     (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
     (∃ wcgp', cgp ↦ᵣ wcgp') ∗
     (∃ wcra', cra ↦ᵣ wcra') ∗
     (∃ wca0, ca0 ↦ᵣ wca0) ∗
     (∃ wca1, ca1 ↦ᵣ wca1) ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
     a_stk ↦ₐ wcs0 ∗
     (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
     (a_stk ^+ 2)%a ↦ₐ wcra ∗
     (a_stk ^+ 3)%a ↦ₐ wcgp ∗
     codefrag pc_a switcher_instrs_16 ∗
-    ▷  (( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
+    ▷  (( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
              cs0 ↦ᵣ wcs0 ∗
              cs1 ↦ᵣ wcs1 ∗
              cgp ↦ᵣ wcgp ∗
              cra ↦ᵣ wcra ∗
              ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
              ca1 ↦ᵣ WInt 0 ∗
-             csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+             csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
              a_stk ↦ₐ wcs0 ∗
              (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
              (a_stk ^+ 2)%a ↦ₐ wcra ∗
@@ -123,7 +123,7 @@ Section Switcher_Call_Blocks_5.
     (∃ wcra', cra ↦ᵣ wcra') ∗
     (∃ wca0, ca0 ↦ᵣ wca0) ∗
     (∃ wca1, ca1 ↦ᵣ wca1) ∗
-    csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+    csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
     switcher_stk_cells a wcs0 wcs1 wcra wcgp ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
@@ -136,7 +136,7 @@ Section Switcher_Call_Blocks_5.
         cra ↦ᵣ wcra ∗
         ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
         ca1 ↦ᵣ WInt 0 ∗
-        csp ↦ᵣ WCap RWL Local b e a ∗
+        csp ↦ᵣ WCap true RWL Local b e a ∗
         switcher_stk_cells a wcs0 wcs1 wcra wcgp ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code ∗

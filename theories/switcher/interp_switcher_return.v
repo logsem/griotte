@@ -93,7 +93,7 @@ Section fundamental.
 
   Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;
@@ -167,7 +167,7 @@ Section fundamental.
 
     (* Block 12: pop the trusted stack *)
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [done|done|].
+      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|].
     iNext; iIntros (a_tstk1)
       "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & Hcode & Hlc)".
 
@@ -292,7 +292,7 @@ Section fundamental.
 
   Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.

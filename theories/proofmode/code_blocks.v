@@ -51,7 +51,7 @@ Ltac offsets_compute :=
 
 (** Change the address of the PC to [a']. *)
 Ltac change_pc_to a' :=
-  match goal with |- context [ environments.Esnoc _ _ (PC ↦ᵣ WCap _ _ _ _ ?a)%I ] =>
+  match goal with |- context [ environments.Esnoc _ _ (PC ↦ᵣ WCap _ _ _ _ _ ?a)%I ] =>
     rewrite (_ : a = a');
     [| offsets_compute; solve_addr]
   end.

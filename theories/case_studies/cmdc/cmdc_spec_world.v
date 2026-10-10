@@ -49,7 +49,7 @@ Section CMDC_World.
     ={⊤}=∗
     world_interp W' C ∗
     rel C a RW interpC ∗
-    interp W' C (WCap RW Global a a_e a) ∗
+    interp W' C (WCap true RW Global a a_e a) ∗
     interp W' C (WSealed ot_switcher target) ∗
     StackRevokedResources W' C stk ∗
     ⌜ revoked_addresses W' stk ⌝ ∗

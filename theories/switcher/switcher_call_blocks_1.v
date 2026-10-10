@@ -21,7 +21,7 @@ Section Switcher_Call_Blocks_1.
   .
 
   Lemma switcher_call_blocks_1_spec (wcsp wct2 wctp : Word) :
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
     csp ↦ᵣ wcsp ∗
     ct2 ↦ᵣ wct2 ∗
     ctp ↦ᵣ wctp ∗

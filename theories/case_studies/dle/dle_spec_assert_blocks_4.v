@@ -25,8 +25,8 @@ Section DLE_Assert_Blocks_4.
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
     na_own cerise_nais ⊤ ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 8)%a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 8)%a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
@@ -35,7 +35,7 @@ Section DLE_Assert_Blocks_4.
     cnull ↦ᵣ wcnull ∗
     cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 42 ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
     codefrag pc_a dle_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -49,7 +49,7 @@ Section DLE_Assert_Blocks_4.
     focus_block 3 "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_callB ^+ 8)%a.
-    (* Load ct0 cgp *)
+    (* Load ct0 cgp 0 *)
     iInstr "Hcode".
     { split; [done| solve_addr]. }
     (* Mov ct1 42%Z *)

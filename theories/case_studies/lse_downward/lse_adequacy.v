@@ -25,6 +25,8 @@ Class memory_layout `{MP: MachineParameters} := {
     (* adv compartments C *)
     C_cmpt : cmpt ;
     offset_adv_f : nat;
+    offset_adv_f_valid :
+      is_Some (cmpt_b_pcc C_cmpt + offset_adv_f%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints :
@@ -78,13 +80,13 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let C_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc C_cmpt)
       (cmpt_exp_tbl_entries_end C_cmpt)
       (cmpt_exp_tbl_entries_start C_cmpt)
@@ -252,7 +254,15 @@ Section Adequacy.
     set (W0' := <o[ ot_switcher switcher_cmpt :=
                     {[ WSealable main_f; borrow (WSealable main_f) ]} ]o> W0).
     iAssert (ot_switcher_prop W0' C (WSealable main_f)) as "#Hot_switcher_main_f".
-    { iApply (lse_f_spec _ _ _ _ _ _ _ _ _ W0' assertN switcherN lseN lseN);
+    { assert (is_Some (cmpt_b_pcc main_cmpt +
+                         (length_lse_main_imports + length LSE_main_code_run))%a)
+        as Hentry_some.
+      { pose proof (cmpt_code_size main_cmpt) as Hcode_size.
+        rewrite main_code /lse_main_code /LSE_main_code_run /LSE_main_code_f /= in Hcode_size.
+        rewrite /lse_main_imports /= in Hmain_imports_size.
+        rewrite /length_lse_main_imports /lse_main_imports /LSE_main_code_run /=.
+        solve_addr+Hmain_imports_size Hcode_size. }
+      iApply (lse_f_spec _ _ _ _ _ _ _ _ _ W0' assertN switcherN lseN lseN);
         try iFrame "#"; eauto; solve_ndisj. }
     iMod (seal_main_export W0 C main_f
            with "Hsealed_pred_ot_switcher Hot_switcher_main_f Hworld_interp_C")
@@ -267,7 +277,8 @@ Section Adequacy.
     { (* The exported entry C.f satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f)]
                with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
-        [by rewrite C_exp_tbl | by repeat constructor |].
+        [by rewrite C_exp_tbl | by repeat constructor |
+         by apply Forall_singleton, offset_adv_f_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Cf Hentry_Cf'".
     }
     { rewrite C_imports.

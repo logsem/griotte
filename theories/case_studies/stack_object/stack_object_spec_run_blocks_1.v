@@ -24,7 +24,7 @@ Section SO_Run_Blocks_1.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wct0 wct1 wcs0 wcs1 wcra : Word) :
     so_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -33,12 +33,12 @@ Section SO_Run_Blocks_1.
     pc_b ↦ₐ so_switcher_entry ∗
     (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
     codefrag pc_a so_main_code ∗
-    ▷ (PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    ▷ (PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ct0 ↦ᵣ so_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
         pc_b ↦ₐ so_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
         codefrag pc_a so_main_code

@@ -94,20 +94,21 @@ Section SO.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length so_main_data)%a = Some cgp_e ->
+    is_Some (pc_b + length (imports ++ SO_main_code_run))%a ->
 
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais Nso
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
-    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
+    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
+    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
         ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
-    ∗ WSealed ot_switcher (SCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
-    ∗ WSealed ot_switcher (SCap RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap true RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
-    ot_switcher_prop W C (WCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a).
+    ot_switcher_prop W C (WCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a).
   Proof.
     (* Outline of the proof:
        - unfold [ot_switcher_prop] and introduce the state of the machine at
@@ -129,7 +130,7 @@ Section SO.
        - [switcher_ret_specification_gen]: return to the caller of [f]. *)
     intros imports; subst imports.
     iIntros (Hswitcher_assert HNswitcher_so HNassert_so
-               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size)
+               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher
       & #Hso_code
       & #Hso_exp_PCC
@@ -145,6 +146,7 @@ Section SO.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
+    iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
@@ -175,15 +177,20 @@ Section SO.
            [|offsets_compute; cbn in Hso_imports; solve_addr]) in "HPC".
     iApply (so_check_blocks_1_spec with
              "[- $HPC $Hca0 $Hca1 $Hct1 $Hcs0 $Hcs1 $Hcsp $Hcode_main]"); first done.
-    iNext; iIntros (p g b e a)
+    iNext; iIntros (t p g b e a)
       "(%Hp & -> & %Hno_overlap & HPC & Hca0 & Hca1 & Hct1 & Hcs0 & Hcs1 & Hcsp
       & Hcode_main & Hlc)".
+    destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad]; cycle 1.
+    { (* Block 6 fails on an untagged, non-empty object *)
+      destruct t; first (exfalso; apply Hbad; auto).
+      iApply (so_checkints_blocks_2_untagged_spec with
+               "[$HPC $Hca0 $Hcs0 $Hcs1 $Hcode_main]"); [done|solve_addr]. }
 
     (* Revoke the world and open the region of [in] *)
     iMod (so_world_open_object with "Hinterp_W0_csp Hinterp_wca0 Hworld_interp_C Hlc")
       as (l_revoked stk_mem la object_mem)
            "(%Hextract & Hstack_revoked & %Hla & Hobject & Hclose_object)";
-      [done|done|].
+      [done|done|done|].
 
     (* Block 6: [in] only contains integers *)
     iApply (so_checkints_blocks_2_spec with

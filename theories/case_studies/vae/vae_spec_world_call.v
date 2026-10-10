@@ -219,7 +219,7 @@ Section VAE_World_Call.
       frame. The entry point of [B.adv] is still safe in the revoked
       world. *)
   Lemma vae_world_run_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
-    interp W0 C (WCap RWL Local csp_b csp_e csp_b) -∗
+    interp W0 C (WCap true RWL Local csp_b csp_e csp_b) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
     ={⊤}=∗

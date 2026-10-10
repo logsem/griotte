@@ -26,8 +26,8 @@ Section DROE_Assert_Blocks_3.
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
     na_own cerise_nais ⊤ ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     ct0 ↦ᵣ wct0 ∗
@@ -39,7 +39,7 @@ Section DROE_Assert_Blocks_3.
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 42 ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
     codefrag pc_a droe_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -55,7 +55,7 @@ Section DROE_Assert_Blocks_3.
     change_pc_to (a_callB ^+ 2)%a.
     (* Mov cra cs0 *)
     iInstr "Hcode".
-    (* Load ct0 cgp *)
+    (* Load ct0 cgp 0 *)
     iInstr "Hcode".
     { split; [done| solve_addr]. }
     (* Mov ct1 42%Z *)

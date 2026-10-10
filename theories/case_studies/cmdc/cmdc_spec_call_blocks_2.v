@@ -65,7 +65,7 @@ Section CMDC_Call_Blocks_2.
     (wctp wct0 wct1 wcs0 wcra : Word) :
     let n := cmdc_call_block c in
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset n)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset n)%a ∗
     ctp ↦ᵣ wctp ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -74,12 +74,12 @@ Section CMDC_Call_Blocks_2.
     pc_b ↦ₐ cmdc_switcher_entry ∗
     (pc_b ^+ cmdc_call_import c)%a ↦ₐ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
     codefrag pc_a cmdc_main_code ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ctp ↦ᵣ cmdc_switcher_entry ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
         cs0 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
         pc_b ↦ₐ cmdc_switcher_entry ∗
         (pc_b ^+ cmdc_call_import c)%a ↦ₐ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
         codefrag pc_a cmdc_main_code

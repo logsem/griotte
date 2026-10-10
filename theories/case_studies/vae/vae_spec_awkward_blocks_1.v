@@ -32,8 +32,8 @@ Section VAE_Awkward_Blocks_1.
     related_sts_priv_world W (<l[i:=false]l>W) ->
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ vae_block_offset 4)%a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ vae_block_offset 4)%a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ wcra ∗
     ca0 ↦ᵣ wca0 ∗
     ct0 ↦ᵣ wct0 ∗
@@ -43,9 +43,9 @@ Section VAE_Awkward_Blocks_1.
     pc_b ↦ₐ vae_switcher_entry ∗
     codefrag pc_a vae_main_code ∗
     ▷ (world_interp (<l[i:=false]l>W) C ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ vae_block_offset 7)%a ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ vae_block_offset 7)%a ∗
         ca0 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ vae_switcher_entry ∗
         ct1 ↦ᵣ wca0 ∗
@@ -66,7 +66,7 @@ Section VAE_Awkward_Blocks_1.
     (* Block 4: set the flag to [0] *)
     focus_block 4 "Hcode_main" of vae_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Store cgp 0 *)
+    (* Store cgp 0 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.

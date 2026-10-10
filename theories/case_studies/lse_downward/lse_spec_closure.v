@@ -49,6 +49,7 @@ Section LSE.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
+    is_Some (pc_b + (length_lse_main_imports + length LSE_main_code_run))%a ->
 
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
@@ -57,15 +58,15 @@ Section LSE.
          ∗ codefrag pc_a lse_main_code
          ∗ cgp_b ↦ₐ WInt 2
         )
-    ∗ inv (export_table_PCCN LSEN) (b_lse_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN LSEN) ((b_lse_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
+    ∗ inv (export_table_PCCN LSEN) (b_lse_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
+    ∗ inv (export_table_CGPN LSEN) ((b_lse_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN LSEN (b_lse_exp_tbl ^+ 2)%a)
         ((b_lse_exp_tbl ^+ 2)%a ↦ₐ lse_exp_tbl_entry_f)
-    ∗ WSealed ot_switcher (SCap RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
-    ∗ WSealed ot_switcher (SCap RO Local b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
+    ∗ WSealed ot_switcher (SCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
+    ∗ WSealed ot_switcher (SCap true RO Local b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
-    ot_switcher_prop W C (WCap RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a).
+    ot_switcher_prop W C (WCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a).
   Proof.
     (* Outline of the proof:
        - unfold [ot_switcher_prop] and introduce the state of the machine at
@@ -78,7 +79,7 @@ Section LSE.
        - [switcher_ret_specification]: return to the caller of [f]. *)
     intros imports; subst imports.
     iIntros (Hswitcher_assert HNswitcher_lse HNassert_lse
-               Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size)
+               Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher
       & #Hlse_code
       & #Hlse_exp_PCC
@@ -94,6 +95,7 @@ Section LSE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
+    iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as

@@ -36,8 +36,12 @@ Class memory_layout `{MP: MachineParameters} := {
     (* adv compartments B and C *)
     B_cmpt : cmpt ;
     offset_B_f : nat;
+    offset_B_f_valid :
+      is_Some (cmpt_b_pcc B_cmpt + offset_B_f%nat)%a;
     C_cmpt : cmpt ;
     offset_C_g : nat;
+    offset_C_g_valid :
+      is_Some (cmpt_b_pcc C_cmpt + offset_C_g%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints :
@@ -102,19 +106,19 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let B_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc B_cmpt)
       (cmpt_exp_tbl_entries_end B_cmpt)
       (cmpt_exp_tbl_entries_start B_cmpt)
   in
   let C_g :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc C_cmpt)
       (cmpt_exp_tbl_entries_end C_cmpt)
       (cmpt_exp_tbl_entries_start C_cmpt)
@@ -300,7 +304,8 @@ Section Adequacy.
     { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(cmdc_B_f_args, offset_B_f)]
                with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
-        [by rewrite B_exp_tbl | by repeat constructor |].
+        [by rewrite B_exp_tbl | by repeat constructor |
+         by apply Forall_singleton, offset_B_f_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Bf Hentry_Bf'".
     }
     { rewrite B_imports.
@@ -315,7 +320,8 @@ Section Adequacy.
     { (* The exported entry C.g satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(cmdc_C_g_args, offset_C_g)]
                with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
-        [by rewrite C_exp_tbl | by repeat constructor |].
+        [by rewrite C_exp_tbl | by repeat constructor |
+         by apply Forall_singleton, offset_C_g_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Cg Hentry_Cg'".
     }
     { rewrite C_imports.

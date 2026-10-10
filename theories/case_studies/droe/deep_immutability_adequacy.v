@@ -77,13 +77,13 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let C_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc C_cmpt)
       (cmpt_exp_tbl_entries_end C_cmpt)
       (cmpt_exp_tbl_entries_start C_cmpt)
@@ -218,9 +218,13 @@ Section Adequacy.
       as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)";
       [auto..| | |].
     { (* The exported entry C.f satisfies the sealing predicate of the switcher *)
+      assert (is_Some (cmpt_b_pcc C_cmpt + 1%nat)%a) as Hentry_C.
+      { exists (cmpt_a_code C_cmpt).
+        pose proof (cmpt_import_size C_cmpt) as Himports_size.
+        by rewrite C_imports /= in Himports_size. }
       iApply (adversary_exports_prop _ _ _ _ [(1, 1)]
                with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
-        [by rewrite C_exp_tbl | by repeat constructor |].
+        [by rewrite C_exp_tbl | by repeat constructor | by apply Forall_singleton |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Cf Hentry_Cf'".
     }
     { rewrite C_imports.

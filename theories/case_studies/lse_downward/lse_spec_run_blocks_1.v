@@ -27,8 +27,8 @@ Section LSE_Run_Blocks_1.
     (wct0 wct1 wcs0 wcs1 wcra : Word) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -38,13 +38,13 @@ Section LSE_Run_Blocks_1.
     pc_b ↦ₐ lse_switcher_entry ∗
     (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
     codefrag pc_a lse_main_code ∗
-    ▷ (PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    ▷ (PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ lse_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ lse_instr_offset 3 1)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ lse_instr_offset 3 1)%a ∗
         cgp_b ↦ₐ WInt 2 ∗
         pc_b ↦ₐ lse_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
@@ -62,7 +62,7 @@ Section LSE_Run_Blocks_1.
     (* Block 0: set [a] to [2] *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Store cgp 2 *)
+    (* Store cgp 2 0 *)
     iInstr "Hcode".
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

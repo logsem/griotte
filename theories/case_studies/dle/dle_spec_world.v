@@ -41,10 +41,10 @@ Section DLE_World.
     StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     cgp_b ↦ₐ WInt 0 -∗
-    (cgp_b ^+ 1)%a ↦ₐ WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b
+    (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b
     ={⊤}=∗
     world_interp W3 C ∗
-    interp W3 C (WCap RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a) ∗
+    interp W3 C (WCap true RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a) ∗
     interp W3 C (WSealed ot_switcher C_f) ∗
     StackRevokedResources W3 C (finz.seq_between csp_b csp_e) ∗
     ⌜ revoked_addresses W3 (finz.seq_between csp_b csp_e) ⌝.
@@ -65,7 +65,7 @@ Section DLE_World.
     set (W2 := <s[cgp_b:=Temporary]s> W1).
 
     (* And prove that the RW_DL capability pointing to it is safe *)
-    iAssert (interp W2 C (WCap RW_DL Local cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
+    iAssert (interp W2 C (WCap true RW_DL Local cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
     { iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.

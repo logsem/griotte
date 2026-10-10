@@ -29,13 +29,13 @@ Section Switcher_Return_Blocks_1.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (b_trusted_stack <= a_tstk)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
-    ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
+    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     csp ↦ᵣ wcsp ∗
     a_tstk ↦ₐ wtstk ∗
     codefrag pc_a switcher_instrs_12 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-        ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+        ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
         csp ↦ᵣ wtstk ∗
         a_tstk ↦ₐ wtstk ∗
         ⌜ (a_tstk < e_trusted_stack)%a ⌝ ∗
@@ -55,17 +55,8 @@ Section Switcher_Return_Blocks_1.
     (* --- Load csp ctp --- *)
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Load.wp_load_fail_not_withinbounds with "[HPC Hi Hctp Hcsp]")
-      ; try iFrame
-      ; try solve_pure.
-      { rewrite /withinBounds.
-        apply andb_false_iff; right.
-        solve_addr+Htstk_ae.
-      }
-      iNext; iIntros "_".
-      wp_pure; wp_end; by iIntros (?).
+      iInstr_fail "Hcode".
+      wp_end; by iIntros (?).
     }
 
     iInstr "Hcode".
@@ -80,10 +71,10 @@ Section Switcher_Return_Blocks_1.
     let len_switcher_12 := length switcher_instrs_12 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-    ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
     csp ↦ᵣ WInt 0 ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
     codefrag pc_a switcher_instrs_12
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -99,13 +90,14 @@ Section Switcher_Return_Blocks_1.
       as [Hb_trusted_stack1'|Hb_trusted_stack1'].
     {
       assert ((b_trusted_stack + -1) = None)%a by solve_addr+Hb_trusted_stack1'.
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
-      ; try iFrame
-      ; try solve_pure.
-      iNext; iIntros "_".
-      wp_pure; wp_end; by iIntros (?).
+      iInstr_invalidate "Hcode".
+
+      (* --- WriteSR mtdc ctp --- *)
+      iInstr "Hcode".
+
+      (* --- Lea csp (-1)%Z --- *)
+      iInstr_fail "Hcode".
+      wp_end; by iIntros (?).
     }
     assert (is_Some (b_trusted_stack + -1))%a
       as [b_trusted_stack1 Hb_trusted_stack1] by solve_addr+Hb_trusted_stack1'.
@@ -116,13 +108,8 @@ Section Switcher_Return_Blocks_1.
     iInstr "Hcode".
 
     (* --- Lea csp (-1)%Z --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (rules_Lea.wp_Lea_fail_integer with "[HPC Hi Hcsp]")
-    ; try iFrame
-    ; try solve_pure.
-    iNext; iIntros "_".
-    wp_pure; wp_end; by iIntros (?).
+    iInstr_fail "Hcode".
+    wp_end; by iIntros (?).
   Qed.
 
   Lemma switcher_return_block_12_pop_spec
@@ -132,19 +119,20 @@ Section Switcher_Return_Blocks_1.
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
+    (b_trusted_stack < a_tstk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-    ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk4 ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk4 ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     codefrag pc_a switcher_instrs_12 ∗
     ▷ ( (∃ a_tstk1,
             ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
-            PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
-            ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-            csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
-            mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+            PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
+            ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+            csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
+            mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
             codefrag pc_a switcher_instrs_12 ∗
             £ 1)
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -154,24 +142,13 @@ Section Switcher_Return_Blocks_1.
   Proof.
     intros switcher_instrs_12 len_switcher_12.
     subst switcher_instrs_12 len_switcher_12.
-    iIntros (Hsub_reg Ha_stk4) "(HPC & Hctp & Hcsp & Hmtdc & Hcode & Hpost)".
+    iIntros (Hsub_reg Hnonempty Ha_stk4) "(HPC & Hctp & Hcsp & Hmtdc & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
     (* --- Lea ctp (-1)%Z --- *)
-    destruct (decide (a_tstk <= (a_tstk ^+ -1))%a) as [Ha_tstk1'|Ha_tstk1'].
-    {
-      assert ((a_tstk + -1) = None)%a by solve_addr+Ha_tstk1'.
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
-      ; try iFrame
-      ; try solve_pure.
-      iNext; iIntros "_".
-      wp_pure; wp_end; by iIntros (?).
-    }
     assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1]
-      by solve_addr+Ha_tstk1'.
+      by solve_addr+Hnonempty.
     iInstr "Hcode".
     replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
 
@@ -188,26 +165,26 @@ Section Switcher_Return_Blocks_1.
 
 
   (** Pop the topmost frame of the trusted stack, which contains the stack
-      pointer [WCap RWL Local b e (a ^+ 4)] of the caller. *)
+      pointer [WCap true RWL Local b e (a ^+ 4)] of the caller. *)
   Lemma switcher_return_blocks_1_spec
     (a_tstk b e a : Addr) (wctp wcsp : Word) :
-    (b_trusted_stack <= a_tstk)%a ->
+    (b_trusted_stack < a_tstk)%a ->
     (a + 4)%a = Some (a ^+ 4)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ wctp ∗
     csp ↦ᵣ wcsp ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    a_tstk ↦ₐ WCap RWL Local b e (a ^+ 4)%a ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    a_tstk ↦ₐ WCap true RWL Local b e (a ^+ 4)%a ∗
     switcher_code ∗
     ▷ ( ∀ a_tstk1,
         ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
         ⌜ (a_tstk < e_trusted_stack)%a ⌝ ∗
         PC ↦ᵣ switcher_pc (switcher_block_offset 12 + 5) ∗
-        ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-        csp ↦ᵣ WCap RWL Local b e (a ^+ 3)%a ∗
-        mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-        a_tstk ↦ₐ WCap RWL Local b e (a ^+ 4)%a ∗
+        ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+        csp ↦ᵣ WCap true RWL Local b e (a ^+ 3)%a ∗
+        mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+        a_tstk ↦ₐ WCap true RWL Local b e (a ^+ 4)%a ∗
         switcher_code ∗
         £ 1 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
@@ -222,10 +199,10 @@ Section Switcher_Return_Blocks_1.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
     iApply (switcher_return_block_12_load_spec with
-      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); [done|done|].
+      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); [done|solve_addr+Hb_tstk|].
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & Hcode)".
     iApply (switcher_return_block_12_pop_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [done|done|].
+      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [done|done|done|].
     iNext; iIntros "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & Hcode & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     switcher_change_pc (switcher_block_offset 12 + 5)%Z.
@@ -234,10 +211,10 @@ Section Switcher_Return_Blocks_1.
 
   (** When the trusted stack is empty, the execution fails. *)
   Lemma switcher_return_blocks_1_empty_spec (wctp wcsp : Word) :
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ wctp ∗
     csp ↦ᵣ wcsp ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
     b_trusted_stack ↦ₐ WInt 0 ∗
     switcher_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.

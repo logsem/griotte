@@ -29,8 +29,8 @@ Section SO_Return_Blocks_4.
     ↑Nassert ⊆ E ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
     na_own cerise_nais E ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ so_block_offset 10)%a ∗
-    csp ↦ᵣ WCap RWL Local csp_b csp_e a_stk2 ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 10)%a ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
@@ -46,7 +46,7 @@ Section SO_Return_Blocks_4.
     codefrag pc_a so_main_code ∗
     ▷ (na_own cerise_nais E ∗
         PC ↦ᵣ updatePcPerm wret ∗
-        csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
         ct2 ↦ᵣ WInt 0 ∗
@@ -76,7 +76,7 @@ Section SO_Return_Blocks_4.
     (* Lea csp (-2)%Z *)
     iInstr "Hcode".
     { transitivity (Some csp_b); auto. solve_addr+Hastk2. }
-    (* Load ct0 csp *)
+    (* Load ct0 csp 0 *)
     iInstr "Hcode".
     { split; auto. rewrite /withinBounds. solve_addr. }
     (* Mov ct1 so_secret *)

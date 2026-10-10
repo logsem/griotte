@@ -41,7 +41,7 @@ Section SO_World_Call.
     std W0 !! a_stk1 = Some Temporary ->
     std W2 !! a_stk1 = Some Revoked ->
     related_sts_priv_world W0 W2 ->
-    interp W0 C (WCap RWL Local stack_b stack_e stack_a)
+    interp W0 C (WCap true RWL Local stack_b stack_e stack_a)
     ∗ world_interp W2 C
     ∗ a_stk1 ↦ₐ WInt 0
     ∗ £ 1
@@ -49,7 +49,7 @@ Section SO_World_Call.
       world_interp W3 C
       ∗ ⌜related_sts_pub_world W2 W3⌝
       ∗ ⌜std W3 !! a_stk1 = Some Temporary⌝
-      ∗ interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1).
+      ∗ interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1).
   Proof.
     intros W3 Ha_stk2 Hbounds Ha_stk1_W0 Ha_stk1_W2 Hpriv.
     iIntros "(#Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
@@ -107,7 +107,7 @@ Section SO_World_Call.
     assert (std W3 !! a_stk1 = Some Temporary) as Ha_stk1_W3.
     { apply close_list_lookup_in; auto; set_solver+. }
 
-    iAssert (interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1))%I
+    iAssert (interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1))%I
       as "#Hinterp_fresh".
     { iEval (rewrite fixpoint_interp1_eq interp1_eq).
       cbn.
@@ -137,7 +137,7 @@ Section SO_World_Call.
       are safe in [W3], and the stack frame of the callee is revoked. *)
   Lemma so_world_call
       (W0 : WORLD) (C : CmptName)
-      (p : Perm) (g : Locality) (b e : Addr)
+      (t : bool) (p : Perm) (g : Locality) (b e : Addr)
       (csp_b csp_e a_stk1 a_stk2 : Addr)
       (l_revoked : list Addr) (wct1 : Word) :
     let W2 := close_list (so_object_temporaries W0 b e) (revoke W0) in
@@ -147,17 +147,17 @@ Section SO_World_Call.
     (csp_b + 1)%a = Some a_stk1 ->
     (a_stk1 + 1)%a = Some a_stk2 ->
     (a_stk2 <= csp_e)%a ->
-    interp W0 C (WCap RWL Local csp_b csp_e csp_b) -∗
+    interp W0 C (WCap true RWL Local csp_b csp_e csp_b) -∗
     interp W0 C wct1 -∗
     world_interp W2 C -∗
-    interp W2 C (WCap p g b e (finz.max b e)) -∗
+    interp W2 C (WCap t p g b e (finz.max b e)) -∗
     StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
     a_stk1 ↦ₐ WInt 0 -∗
     £ 1
     ={⊤}=∗
     world_interp W3 C ∗
-    interp W3 C (WCap p g b e (finz.max b e)) ∗
-    interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1) ∗
+    interp W3 C (WCap t p g b e (finz.max b e)) ∗
+    interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1) ∗
     (if is_sealed_with_o wct1 ot_switcher then interp W3 C wct1 else True) ∗
     StackRevokedResources W3 C (finz.seq_between a_stk2 csp_e) ∗
     ⌜revoked_addresses W3 (finz.seq_between a_stk2 csp_e)⌝ ∗
@@ -314,7 +314,7 @@ Section SO_World_Call.
       Revoke the world [W0], to get the stack frame. The entry point of the
       adversary is still safe in the revoked world. *)
   Lemma so_world_run_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
-    interp W0 C (WCap RWL Local csp_b csp_e csp_b) -∗
+    interp W0 C (WCap true RWL Local csp_b csp_e csp_b) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
     ={⊤}=∗

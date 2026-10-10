@@ -32,7 +32,7 @@ Section CMDC_Check_Blocks_3.
     focus_block (S (S n)) "Hcode_main" of cmdc_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     change_pc_to (a_call ^+ 1)%a;
-    (* Load ct0 cgp *)
+    (* Load ct0 cgp 0 *)
     iInstr "Hcode"; [split; [done | solve_addr] |];
     (* Mov ct1 0%Z, resp. Mov ct1 42%Z *)
     iInstr "Hcode";
@@ -60,8 +60,8 @@ Section CMDC_Check_Blocks_3.
     (cgp_b <= a_chk < cgp_e)%a ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
     na_own cerise_nais ⊤ ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e a_chk ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
@@ -70,11 +70,11 @@ Section CMDC_Check_Blocks_3.
     cnull ↦ᵣ wcnull ∗
     cra ↦ᵣ wcra ∗
     a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
     codefrag pc_a cmdc_main_code ∗
     ▷ ( na_own cerise_nais ⊤ ∗
-        PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset (n + 4))%a ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e a_chk ∗
+        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset (n + 4))%a ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
         ct2 ↦ᵣ WInt 0 ∗
@@ -83,7 +83,7 @@ Section CMDC_Check_Blocks_3.
         cnull ↦ᵣ WInt 0 ∗
         cra ↦ᵣ wcra ∗
         a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
-        (pc_b ^+ 1)%a ↦ₐ WSentry RX Global b_assert e_assert b_assert ∗
+        (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
         codefrag pc_a cmdc_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.

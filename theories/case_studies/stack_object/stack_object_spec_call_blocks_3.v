@@ -26,8 +26,8 @@ Section SO_Call_Blocks_3.
     (csp_b csp_e : Addr) (stk_mem : list Word)
     (wca1 wct0 wct1 wcs0 wcs1 wcra : Word) :
     so_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
-    csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ca1 ↦ᵣ wca1 ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -41,14 +41,14 @@ Section SO_Call_Blocks_3.
         ⌜(csp_b + 1)%a = Some a_stk1⌝ ∗
         ⌜(a_stk1 + 1)%a = Some a_stk2⌝ ∗
         ⌜(a_stk2 <= csp_e)%a⌝ ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        csp ↦ᵣ WCap RWL Local csp_b csp_e a_stk2 ∗
-        ca1 ↦ᵣ WCap RWL Local a_stk1 a_stk2 a_stk1 ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
+        ca1 ↦ᵣ WCap true RWL Local a_stk1 a_stk2 a_stk1 ∗
         ct0 ↦ᵣ so_switcher_entry ∗
         ct1 ↦ᵣ wct1 ∗
         cs0 ↦ᵣ wcra ∗
         cs1 ↦ᵣ wct1 ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ so_block_offset 10)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_block_offset 10)%a ∗
         csp_b ↦ₐ WInt so_secret ∗
         a_stk1 ↦ₐ WInt 0 ∗
         [[a_stk2, csp_e]] ↦ₐ [[stk_mem']] ∗
@@ -83,7 +83,7 @@ Section SO_Call_Blocks_3.
     assert (is_Some (csp_b + 1)%a) as [a_stk1 Hastk1]; [solve_addr+Hcsp_size|].
     iDestruct (region_pointsto_cons with "Hstk") as "[Hastk0 Hstk]"; eauto.
     { solve_addr+Hcsp_size Hastk1. }
-    (* Store csp so_secret *)
+    (* Store csp so_secret 0 *)
     iInstr "Hcode".
     { rewrite /withinBounds; solve_addr+Hcsp_size. }
     (* Lea csp 1 *)
@@ -95,28 +95,19 @@ Section SO_Call_Blocks_3.
     (* Add cs1 cs0 1 *)
     iInstr "Hcode".
     destruct (decide ((a_stk1 < csp_e)%a)) as [Hcsp_size'|Hcsp_size']; cycle 1.
-    { (* The stack frame has only one cell: the subseg fails *)
-      destruct (z_to_addr (a_stk1 + 1))%a as [a_stk2|] eqn:Hastk2; cycle 1.
+    { (* The stack frame has only one cell: the subseg clears the tag of
+         [ca1], and the store fails *)
+      destruct (z_to_addr (a_stk1 + 1))%a as [a_stk2|] eqn:Hastk2.
       - (* Subseg ca1 cs0 cs1 *)
-        iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (wp_subseg_fail_src2_nonaddr with "[$HPC $Hi $Hca1 $Hcs0 $Hcs1]"); try solve_pure.
-        iIntros "!> _".
-        wp_pure; wp_end; iIntros (?); done.
+        iInstr_invalidate "Hcode".
+        (* Store ca1 0%Z 0 *)
+        iInstr_fail "Hcode".
+        wp_end; iIntros (?); done.
       - (* Subseg ca1 cs0 cs1 *)
-        iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (wp_subseg_fail_not_iswithin_cap with "[$HPC $Hi $Hca1 $Hcs0 $Hcs1]"); try solve_pure.
-        { eauto. }
-        { assert (csp_e < a_stk2)%a as Hcsp_e_stk2
-            by solve_addr+Hastk1 Hcsp_size Hcsp_size' Hastk2.
-          rewrite /isWithin.
-          apply andb_false_iff.
-          right.
-          solve_addr+Hcsp_e_stk2.
-        }
-        iIntros "!> _".
-        wp_pure; wp_end; iIntros (?); done.
+        iInstr_invalidate "Hcode".
+        (* Store ca1 0%Z 0 *)
+        iInstr_fail "Hcode".
+        wp_end; iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     rewrite finz_seq_between_length in Hstklen'.
@@ -129,7 +120,7 @@ Section SO_Call_Blocks_3.
     iInstr "Hcode".
     { transitivity (Some a_stk2); auto. solve_addr+Hastk2. }
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
-    (* Store ca1 0%Z *)
+    (* Store ca1 0%Z 0 *)
     iInstr "Hcode".
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* Lea csp 1%Z *)

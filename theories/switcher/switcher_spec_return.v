@@ -54,12 +54,12 @@ Section Switcher.
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
     ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -138,7 +138,7 @@ Section Switcher.
 
     (* Block 12: pop the trusted stack *)
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [done|done|].
+      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|].
     iNext; iIntros (a_tstk1)
       "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & Hcode & Hlc)".
 
@@ -252,12 +252,12 @@ Section Switcher.
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
     ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ RevokedResources W0 C l
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
