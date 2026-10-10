@@ -55,11 +55,13 @@ Definition wo_main_imports_concrete : list Word :=
 Program Definition wo_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt wo_main_pcc_b wo_main_code_start wo_main_pcc_e
-    wo_main_data_b wo_main_data_e wo_main_exports_pcc
+    wo_main_data_b wo_main_data_e wo_main_data_e wo_main_data_e
+    wo_main_exports_pcc
     wo_main_exports_cgp wo_main_exports_entries_b
     wo_main_exports_entries_e wo_main_imports_concrete
-    write_only_secret_main_code (write_only_secret_main_data 0) []
-    _ _ _ _ _ _ _).
+    write_only_secret_main_code (write_only_secret_main_data 0) [] []
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
