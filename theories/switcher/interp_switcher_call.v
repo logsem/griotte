@@ -19,7 +19,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -287,6 +287,9 @@ Section fundamental.
           [left; eauto | right; intros ??? Heq; inversion Heq; subst; solve_addr].
       - right; intros ??? Heq; inversion Heq; subst; tauto. }
     2: { iApply (switcher_call_blocks_2_fail_spec with "[$HPC $Hcsp $Hcs0 $Hcode]"); done. }
+    iDestruct (switcher_entry_point_prop with "Hp_ot_switcher [] Hworld_interp")
+      as "[Hworld_interp Hentry_prop]".
+    { case_match; [iExact "Hct1v"|done]. }
     iDestruct (switcher_call_stk_open with "Hspv Hworld_interp")
       as (lv) "(Hstk & Hstk_opened & #Hlv)"; first done.
     iDestruct (big_sepL2_length with "Hstk") as %Hlen_lv.
@@ -313,8 +316,6 @@ Section fundamental.
     }
 
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
-    iDestruct (switcher_entry_point_prop with "Hp_ot_switcher []") as "Hentry_prop".
-    { case_match; [iExact "Hct1v"|done]. }
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); first done.
     iNext; iIntros (wsb) "(-> & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & Hb_switcher & Hct1 & Hcode)".
@@ -330,7 +331,7 @@ Section fundamental.
 
     iDestruct ("Hentry_prop" with "[//]")
       as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Nexp_tbl Heq Htbl Hbtbl Hbtbl1 Hnargs)
-           "(Htbl1 & Htbl2 & Htbl3 & #Hentry & #Hexec)".
+           "(Htbl1 & Htbl2 & Htbl3 & #Hentry & _ & #Hexec)".
     simplify_eq.
     iSpecialize ("Hexec" $! W with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }

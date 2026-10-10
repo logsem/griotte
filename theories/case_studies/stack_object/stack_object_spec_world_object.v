@@ -17,9 +17,9 @@ From griotte Require Import stack_object_spec_states.
 Section SO_World_List.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG} {CNames : gset CmptName}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
   Implicit Types W : WORLD.
@@ -51,7 +51,7 @@ Section SO_World_List.
   Proof.
     intros la.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (????) "(Hrels & [Hr Hsts])".
+    iIntros (????) "(Hrels & [Hr [Hsts Hseals] ])".
     iDestruct (region_open_list W C' l l' with "[$Hrels $Hr $Hsts]") as
       "(% & $ & $ & $ & $ & $ & $ & $)"; auto.
   Qed.

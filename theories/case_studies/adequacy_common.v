@@ -43,6 +43,35 @@ Section initial_capabilities.
   Definition stack_addrs (sw : cmptSwitcher) : list Addr :=
     finz.seq_between (b_stack sw) (e_stack sw).
 
+  (** The addresses of the entries of the export table of a compartment. *)
+  Definition cmpt_exp_tbl_addrs (C_cmpt : cmpt) : list Addr :=
+    finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt).
+
+  Lemma cmpt_exp_tbl_addrs_lookup (C_cmpt : cmpt) (i : nat) (a : Addr) :
+    cmpt_exp_tbl_addrs C_cmpt !! i = Some a →
+    a = (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a ∧ i < length (cmpt_exp_tbl_entries C_cmpt).
+  Proof.
+    intros Ha.
+    pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
+    assert (i < length (cmpt_exp_tbl_entries C_cmpt)) as Hi.
+    { apply lookup_lt_Some in Ha.
+      rewrite /cmpt_exp_tbl_addrs finz_seq_between_length /finz.dist in Ha.
+      solve_addr. }
+    rewrite /cmpt_exp_tbl_addrs (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt)))
+      in Ha; [|done|done].
+    by simplify_eq.
+  Qed.
+
+  Lemma cmpt_exp_tbl_addrs_elem_of (C_cmpt : cmpt) (i : nat) :
+    i < length (cmpt_exp_tbl_entries C_cmpt) →
+    (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a ∈ cmpt_exp_tbl_addrs C_cmpt.
+  Proof.
+    intros Hi.
+    pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
+    apply list_elem_of_lookup_2 with i.
+    by rewrite /cmpt_exp_tbl_addrs (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt))).
+  Qed.
+
 End initial_capabilities.
 
 (** ** Initial register files *)
@@ -225,7 +254,7 @@ Qed.
 Section world_init.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {Cname : CmptNameG}
     {seal_store_preg : sealStorePreG Σ}
-    {sts_preg : STS_preG Addr region_type Σ} {relpreg : relGpreS Σ}
+    {sts_preg : STS_preG Addr region_type OType Word Σ} {relpreg : relGpreS Σ}
     {cstack_preg : CSTACK_preG Σ}
     `{MP: MachineParameters}.
 
@@ -233,16 +262,15 @@ Section world_init.
     CNames = list_to_set Cs →
     NoDup Cs →
     ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
-            (stsg : STSG Addr region_type Σ) (cstackg : CSTACKG Σ),
+            (stsg : STSG Addr region_type OType Word Σ) (cstackg : CSTACKG Σ),
       ([∗ set] o ∈ ots, can_alloc_pred o) ∗
       cstack_full [] ∗
       cstack_frag [] ∗
-      [∗ list] C ∈ Cs, world_interp (∅, (∅, ∅)) C.
+      [∗ list] C ∈ Cs, world_interp (∅, (∅, ∅), ∅) C.
   Proof.
     intros HCNames HNoDup.
-    iMod (seal_store_init ots) as (seal_storeg) "Hseal_store".
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
-    iMod world_interp_init as (relg stsg) "Hworld_interp".
+    iMod (world_interp_init ots) as (relg stsg seal_storeg) "[Hworld_interp Hseal_store]".
     rewrite HCNames big_sepS_list_to_set //.
     iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.
   Qed.
@@ -255,9 +283,10 @@ Section adversary_world.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}.
 
   (** The world of an adversary compartment [C_cmpt] after the allocation of its
       imports, code and data (permanent), and of the switcher stack with state [ρ]. *)
@@ -361,10 +390,121 @@ Section adversary_world.
     eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
   Qed.
 
+  (** ** Sealed entries exported by an adversary *)
+
+  Lemma exported_entries_words_normalise (C_cmpt : cmpt) :
+    normalise_sealed_words (exported_entries_words C_cmpt) =
+    list_to_set ((λ a, WSealable (cmpt_export C_cmpt a)) <$> cmpt_exp_tbl_addrs C_cmpt).
+  Proof.
+    rewrite /normalise_sealed_words /exported_entries_words /exported_entries_sealable
+      /cmpt_exp_tbl_addrs /cmpt_export.
+    apply set_eq; intros w.
+    rewrite elem_of_map elem_of_list_to_set.
+    setoid_rewrite elem_of_list_to_set.
+    split.
+    - intros (w' & -> & Hw').
+      apply list_elem_of_fmap in Hw' as (sb & -> & Hsb).
+      apply list_elem_of_fmap.
+      apply elem_of_app in Hsb as [Hsb|Hsb];
+        apply list_elem_of_fmap in Hsb as (a & -> & Ha); by exists a.
+    - intros (a & -> & Ha)%list_elem_of_fmap.
+      eexists; split; last first.
+      { apply list_elem_of_fmap; eexists; split; first done.
+        apply elem_of_app; left; apply list_elem_of_fmap; by exists a. }
+      done.
+  Qed.
+
+  Lemma cmpt_exp_tbl_addrs_exports_NoDup (C_cmpt : cmpt) :
+    NoDup ((λ a, WSealable (cmpt_export C_cmpt a)) <$> cmpt_exp_tbl_addrs C_cmpt).
+  Proof.
+    apply NoDup_fmap_2_strong; last apply finz_seq_between_NoDup.
+    intros a a' _ _ Heq; by simplify_eq.
+  Qed.
+
+  Lemma exported_entries_sealed_words (C_cmpt : cmpt) (v : Word) :
+    v ∈ exported_entries_sealed C_cmpt →
+    ∃ sb, v = WSealed switcher.ot_switcher sb ∧
+          {[WSealable sb; borrow (WSealable sb)]} ⊆ exported_entries_words C_cmpt.
+  Proof.
+    rewrite /exported_entries_sealed /exported_entries_words elem_of_list_to_set.
+    intros (sb & -> & Hsb)%list_elem_of_fmap.
+    exists sb; split; first done.
+    apply union_subseteq; split; apply singleton_subseteq_l, elem_of_list_to_set,
+      list_elem_of_fmap.
+    - by exists sb.
+    - rewrite /exported_entries_sealable in Hsb |- *.
+      apply elem_of_app in Hsb as [Hsb|Hsb]; apply list_elem_of_fmap in Hsb as (a & -> & Ha);
+        (eexists; split; [done|]); apply elem_of_app; right; apply list_elem_of_fmap; by exists a.
+  Qed.
+
+  (** The sealed exported entries are safe, once their sealed words are in the
+      sealing part of the world. *)
+  Lemma exported_entries_sealed_interp (W : WORLD) (C : CmptName) (C_cmpt : cmpt) :
+    sts_seals_std C switcher.ot_switcher (exported_entries_words C_cmpt) -∗
+    [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W C v.
+  Proof.
+    iIntros "#Hseal".
+    iApply big_sepS_intro; iIntros "!>" (v Hv).
+    destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & Hsub).
+    iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    iApply sts_seals_std_weaken; done.
+  Qed.
+
+  (** Allocate an adversary compartment [C_cmpt] in the world: its imports,
+      code and data become permanent, and its exported entries are sealed with
+      [ot_switcher] in the world. The caller proves that the exported entries
+      satisfy the sealing predicate of the switcher ([Hexports]) and that the
+      imports are safe ([Himports]). *)
+  Lemma alloc_adversary_compartment {E : coPset} (W : WORLD) (C_cmpt : cmpt) (C : CmptName) :
+    let W' := std_update_compartment W C_cmpt in
+    (∀ a, a ∈ cmpt_region C_cmpt → std W !! a = None) →
+    Forall is_z (cmpt_code C_cmpt) →
+    Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
+    seal_pred switcher.ot_switcher ot_switcher_propC -∗
+    [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ cmpt_imports C_cmpt ]] -∗
+    [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ cmpt_code C_cmpt ]] -∗
+    [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ cmpt_data C_cmpt ]] -∗
+    □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
+        interp W' C (cmpt_pcc_cap C_cmpt) -∗
+        interp W' C (cmpt_cgp_cap C_cmpt) -∗
+        ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
+    ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
+      [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
+     [∗ list] v ∈ cmpt_imports C_cmpt, interpC (W', C, v) ∗ future_priv_mono C interpC v) -∗
+    world_interp W C
+    ={E}=∗
+    world_interp W' C ∗
+    interp W' C (cmpt_pcc_cap C_cmpt) ∗
+    interp W' C (cmpt_cgp_cap C_cmpt) ∗
+    [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v.
+  Proof.
+    intros W' Hfree Hcode Hdata.
+    iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports Hworld".
+    destruct (adv_world_free_cmpt W C_cmpt Hfree) as (Hfree_imports & Hfree_code & Hfree_data).
+    iMod (alloc_compartment_interp with "HC_imports HC_code HC_data [Himports] Hworld")
+      as "($ & $ & $ & _ & $)"; eauto.
+    iIntros "(#Hpcc & #Hcgp & Hworld)".
+    iMod (world_interp_open_sealing_update' _ C _ ot_switcher_propC switcher.ot_switcher
+            (exported_entries_words C_cmpt) with "Hseal_pred [] [] Hworld")
+      as "(Hworld & #Hseal)".
+    { iIntros (w); iApply mono_priv_ot_switcher. }
+    { rewrite exported_entries_words_normalise big_sepS_list_to_set;
+        last apply cmpt_exp_tbl_addrs_exports_NoDup.
+      rewrite big_sepL_fmap.
+      iApply big_sepL_intro; iIntros "!>" (i a Ha); iNext.
+      iApply ("Hexports" with "[//] Hpcc Hcgp"). }
+    iDestruct (exported_entries_sealed_interp W' with "Hseal") as "#Hexp".
+    iModIntro; iFrame "Hworld Hexp".
+    iApply "Himports"; iFrame "#".
+  Qed.
+
   (** Initialise the world of an adversary compartment [C_cmpt]:
       - its imports, code and data become permanent;
+      - its exported entries are sealed with [ot_switcher] in the world;
       - the switcher stack becomes temporary.
-      The caller proves that the imports are safe ([Himports]). *)
+      The caller proves that the exported entries satisfy the sealing
+      predicate of the switcher ([Hexports]) and that the imports are safe
+      ([Himports]). *)
   Lemma initialise_adversary_world {E : coPset}
     (W : WORLD) (sw : cmptSwitcher) (C_cmpt : cmpt) (C : CmptName) :
     let W' := std_update_compartment W C_cmpt in
@@ -374,25 +514,31 @@ Section adversary_world.
     Forall is_z (cmpt_code C_cmpt) →
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
     Forall is_z (stack_content sw) →
+    seal_pred switcher.ot_switcher ot_switcher_propC -∗
     [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ cmpt_imports C_cmpt ]] -∗
     [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ cmpt_code C_cmpt ]] -∗
     [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ cmpt_data C_cmpt ]] -∗
     [[ b_stack sw, e_stack sw ]] ↦ₐ [[ stack_content sw ]] -∗
-    ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt)) -∗
+    □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
+        interp W' C (cmpt_pcc_cap C_cmpt) -∗
+        interp W' C (cmpt_cgp_cap C_cmpt) -∗
+        ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
+    ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
+      [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
      [∗ list] v ∈ cmpt_imports C_cmpt, interpC (W', C, v) ∗ future_priv_mono C interpC v) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
     interp Wadv C (cmpt_pcc_cap C_cmpt) ∗
     interp Wadv C (cmpt_cgp_cap C_cmpt) ∗
-    interp Wadv C (stack_cap sw).
+    interp Wadv C (stack_cap sw) ∗
+    [∗ set] v ∈ exported_entries_sealed C_cmpt, interp Wadv C v.
   Proof.
     intros W' Wadv Hsw Hfree Hcode Hdata Hstack.
-    iIntros "HC_imports HC_code HC_data Hstack Himports Hworld".
-    destruct (adv_world_free_cmpt W C_cmpt) as (Hfree_imports & Hfree_code & Hfree_data).
-    { intros a Ha; apply Hfree; by left. }
-    iMod (alloc_compartment_interp with "HC_imports HC_code HC_data Himports Hworld")
-      as "(Hworld & #Hpcc & #Hcgp & _)"; eauto.
+    iIntros "#Hseal_pred HC_imports HC_code HC_data Hstack #Hexports Himports Hworld".
+    iMod (alloc_adversary_compartment with
+           "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hworld")
+      as "(Hworld & #Hpcc & #Hcgp & #Hexp)"; eauto.
     iMod (world_interp_extend_temp_sepL2 _ _ (stack_addrs sw) (stack_content sw) RWL interpC
            with "Hworld [Hstack]") as "(Hworld & #Hrel_stk)".
     { done. }
@@ -417,9 +563,13 @@ Section adversary_world.
     }
     iSplit; first (iApply interp_monotone_nl; eauto).
     iSplit; first (iApply interp_monotone_nl; eauto).
-    iApply interp_stack_temporary; last done.
-    apply Forall_forall; intros a Ha.
-    by apply std_sta_update_multiple_lookup_in_i.
+    iSplit.
+    { iApply interp_stack_temporary; last done.
+      apply Forall_forall; intros a Ha.
+      by apply std_sta_update_multiple_lookup_in_i. }
+    iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
+    destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _).
+    by iApply interp_monotone_sd.
   Qed.
 
   (** Same as [initialise_adversary_world], but the switcher stack is
@@ -432,24 +582,30 @@ Section adversary_world.
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ stack_addrs sw → std W !! a = None) →
     Forall is_z (cmpt_code C_cmpt) →
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
+    seal_pred switcher.ot_switcher ot_switcher_propC -∗
     [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ cmpt_imports C_cmpt ]] -∗
     [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ cmpt_code C_cmpt ]] -∗
     [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ cmpt_data C_cmpt ]] -∗
-    ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt)) -∗
+    □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
+        interp W' C (cmpt_pcc_cap C_cmpt) -∗
+        interp W' C (cmpt_cgp_cap C_cmpt) -∗
+        ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
+    ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
+      [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
      [∗ list] v ∈ cmpt_imports C_cmpt, interpC (W', C, v) ∗ future_priv_mono C interpC v) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
     interp Wadv C (cmpt_pcc_cap C_cmpt) ∗
     interp Wadv C (cmpt_cgp_cap C_cmpt) ∗
-    StackRevokedResources Wadv C (stack_addrs sw).
+    StackRevokedResources Wadv C (stack_addrs sw) ∗
+    [∗ set] v ∈ exported_entries_sealed C_cmpt, interp Wadv C v.
   Proof.
     intros W' Wadv Hsw Hfree Hcode Hdata.
-    iIntros "HC_imports HC_code HC_data Himports Hworld".
-    destruct (adv_world_free_cmpt W C_cmpt) as (Hfree_imports & Hfree_code & Hfree_data).
-    { intros a Ha; apply Hfree; by left. }
-    iMod (alloc_compartment_interp with "HC_imports HC_code HC_data Himports Hworld")
-      as "(Hworld & #Hpcc & #Hcgp & _)"; eauto.
+    iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports Hworld".
+    iMod (alloc_adversary_compartment with
+           "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hworld")
+      as "(Hworld & #Hpcc & #Hcgp & #Hexp)"; eauto.
     iMod (world_interp_extend_revoked_sepL2 _ _ (stack_addrs sw) RWL interpC with "Hworld")
       as "(Hworld & Hrel_stk)".
     { apply adv_world_free_stack; first done.
@@ -463,7 +619,10 @@ Section adversary_world.
     }
     iSplit; first (iApply interp_monotone_nl; eauto).
     iSplit; first (iApply interp_monotone_nl; eauto).
-    by iApply StackWorldResources_from_rel_stack.
+    iSplitL "Hrel_stk"; first by iApply StackWorldResources_from_rel_stack.
+    iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
+    destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _).
+    by iApply interp_monotone_sd.
   Qed.
 
 End adversary_world.
@@ -477,46 +636,62 @@ Section adversary_exports.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
 
   (** The [i]-th entry of the export table of an adversary [C_cmpt],
-      at address [a], is safe to share once sealed. *)
-  Lemma adversary_export_interp
-    (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (ot : OType) (Nswitcher : namespace)
+      at address [a], satisfies the sealing predicate of the switcher. *)
+  Lemma adversary_export_prop
+    (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
     (i args off : nat) (a : Addr) :
-    let exp_tbl_addrs :=
-      finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) in
     cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point args off)) →
     (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a = a →
     args < 7 →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
-    seal_pred ot ot_switcher_propC -∗
     inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ cmpt_pcc_cap C_cmpt) -∗
     inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ cmpt_cgp_cap C_cmpt) -∗
-    ([∗ list] a;v ∈ exp_tbl_addrs ; cmpt_exp_tbl_entries C_cmpt,
+    ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
        inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ v)) -∗
     interp W C (cmpt_pcc_cap C_cmpt) -∗
     interp W C (cmpt_cgp_cap C_cmpt) -∗
     WSealed switcher.ot_switcher (cmpt_export C_cmpt a) ↦□ₑ args -∗
     WSealed switcher.ot_switcher (borrow_sb (cmpt_export C_cmpt a)) ↦□ₑ args -∗
-    interp W C (WSealed ot (cmpt_export C_cmpt a)).
+    ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a)).
   Proof.
-    intros exp_tbl_addrs Hi Ha Hargs.
-    iIntros "#Hswitcher #Hseal #Hpcc #Hcgp #Hentries #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry'".
+    intros Hi Ha Hargs.
+    iIntros "#Hswitcher #Hpcc #Hcgp #Hentries #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry'".
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
     assert (i < length (cmpt_exp_tbl_entries C_cmpt)) as Hi_lt
         by (by apply lookup_lt_Some in Hi).
-    assert (exp_tbl_addrs !! i = Some a) as Ha_lookup.
-    { subst exp_tbl_addrs.
-      rewrite (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt))) //.
+    assert (cmpt_exp_tbl_addrs C_cmpt !! i = Some a) as Ha_lookup.
+    { rewrite /cmpt_exp_tbl_addrs
+        (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt))) //.
       f_equal; solve_addr. }
     iDestruct (big_sepL2_lookup with "Hentries") as "Hentry_inv"; [done..|].
-    iApply (ot_switcher_interp_entry _ _ _ _ args off with "[$] [$] [$] [$] [$] [$] [$] [$] [$]");
+    iApply (ot_switcher_interp _ _ _ Global _ args off with
+              "Hswitcher Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp Hentry Hentry'");
       last lia.
     solve_addr.
+  Qed.
+
+  (** The [i]-th sealed entry of the export table of an adversary [C_cmpt]
+      is safe to share. *)
+  Lemma adversary_export_interp (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (i : nat) (a : Addr) :
+    (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a = a →
+    i < length (cmpt_exp_tbl_entries C_cmpt) →
+    ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp W C v) -∗
+    interp W C (WSealed switcher.ot_switcher (cmpt_export C_cmpt a)).
+  Proof.
+    intros <- Hi.
+    iIntros "#Hexp".
+    iApply (big_sepS_elem_of with "Hexp").
+    rewrite /exported_entries_sealed /exported_entries_sealable elem_of_list_to_set.
+    apply list_elem_of_fmap; eexists; split; first done.
+    apply elem_of_app; left.
+    apply list_elem_of_fmap; eexists; split; first done.
+    by apply cmpt_exp_tbl_addrs_elem_of.
   Qed.
 
 End adversary_exports.

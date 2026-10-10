@@ -357,7 +357,7 @@ Section SO_World_Return.
         destruct Hpub as (_ & _ & Hseals34).
         clear -Hseals03 Hseals34.
         cbn in *.
-        eapply related_sts_seals_trans; eauto.
+        eapply related_sts_seals_trans; eauto; apply related_sts_seals_std_refl.
       - split.
         + destruct Hpriv as [ [Hdom03 _] _].
           destruct Hpub as [ [Hdom34 _] _].

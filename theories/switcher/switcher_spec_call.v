@@ -17,7 +17,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -353,13 +353,14 @@ Section Switcher.
     }
 
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
-    iDestruct (switcher_entry_point_prop with "Hp_ot_switcher Htarget_v") as "Hentry_prop".
+    iDestruct (switcher_entry_point_prop with "Hp_ot_switcher Htarget_v Hworld_interp")
+      as "[Hworld_interp Hentry_prop]".
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); first done.
     iNext; iIntros (wsb) "(-> & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & Hb_switcher & Hct1 & Hcode)".
     iDestruct ("Hentry_prop" with "[//]")
       as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Nexp_tbl Heq Htbl Hbtbl Hbtbl1 Hnargs)
-           "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hexec)".
+           "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & _ & #Hexec)".
     simplify_eq.
     iAssert ([∗ map] r↦w ∈ arg_rmap,
                r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True)%I

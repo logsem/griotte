@@ -350,6 +350,39 @@ Section sealing_interp.
     iApply big_sepS_subseteq; eauto.
   Qed.
 
+  (* Since [Po] is persistent, the sealing map can be given back immediately:
+     only the obtained predicates are under a later. *)
+  Lemma sealing_map_seal_pred_persistent
+    (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers : ∀ WCv, Persistent (Po WCv)}
+    (ws : gset Word) :
+    seal_pred o Po -∗
+    sts_seals_std C o ws -∗
+    sealing_map W C -∗
+    sts_full_world W C -∗
+    sealing_map W C ∗ sts_full_world W C ∗
+    ▷ ([∗ set] w ∈ (normalise_sealed_words ws), Po (W, C, w)).
+  Proof.
+    iIntros "#Hspred Hseal Hseals Hsts".
+    iDestruct (sts_full_seals_std_subseteq with "Hsts Hseal") as "(%ws' & %Hws' & %Hws_sub)".
+    iEval (rewrite sealing_map_eq /sealing_map_def /=) in "Hseals".
+    iDestruct (big_sepM_lookup_acc with "Hseals") as "[H Hseals]"; first done.
+    iDestruct "H" as "(Hseal_ws & %Po' & #Hspred_Po' & #Hmono & HPos)".
+    iDestruct (seal_pred_agree with "Hspred Hspred_Po'") as "#Heq".
+    (* [HPs] is persistent, so [HPos] is not consumed. *)
+    iAssert (▷ [∗ set] w ∈ (normalise_sealed_words ws'), Po (W, C, w))%I
+      with "[HPos]" as "#HPs".
+    { rewrite -big_sepS_later.
+      iApply (big_sepS_impl with "HPos").
+      iIntros "!> !>" (w _) "HPo'".
+      by iRewrite ("Heq" $! (W, C, w)). }
+    iDestruct ("Hseals" with "[$Hseal_ws $Hspred_Po' $Hmono $HPos]") as "Hseals".
+    rewrite -/(sealing_map_def W C) -sealing_map_eq.
+    iFrame "∗".
+    iNext.
+    apply normalise_sealed_words_mono in Hws_sub.
+    iApply big_sepS_subseteq; eauto.
+  Qed.
+
   Lemma sealing_map_seal_pred_singleton (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
     seal_pred o Po -∗
     sts_seals_std C o {[ w ]} -∗

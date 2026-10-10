@@ -199,7 +199,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type Σ}.
+  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -294,16 +294,46 @@ Section Adequacy.
        its points-to predicates. *)
     pose proof switcher_cmpt_disjoints as (Hsw_main & Hsw_B & Hsw_C).
     iMod (initialise_adversary_world_revoked _ switcher_cmpt _ B
-           with "HB_imports HB_code HB_data [] Hworld_interp_B")
-      as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & Hrevoked_stack_B)"; auto.
+           with "Hsealed_pred_ot_switcher HB_imports HB_code HB_data [] [] Hworld_interp_B")
+      as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & Hrevoked_stack_B & #HB_exports)";
+      auto.
+    { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
+      iIntros "!>" (i a Ha) "#Hpcc_interp #Hcgp_interp".
+      destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
+      rewrite B_exp_tbl /= in Hi.
+      destruct i as [|i]; last lia.
+      replace (cmpt_exp_tbl_entries_start B_cmpt ^+ 0%nat)%a
+        with (cmpt_exp_tbl_entries_start B_cmpt) by solve_addr.
+      iApply (adversary_export_prop _ _ _ _ 0 cmdc_B_f_args offset_B_f
+               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries
+                     Hpcc_interp Hcgp_interp Hentry_Bf Hentry_Bf'").
+      - by rewrite B_exp_tbl.
+      - solve_addr.
+      - rewrite /cmdc_B_f_args; lia.
+    }
     { rewrite B_imports.
       iIntros "_".
       iSplit; last done.
       iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
     }
     iMod (initialise_adversary_world_revoked _ switcher_cmpt _ C
-           with "HC_imports HC_code HC_data [] Hworld_interp_C")
-      as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & Hrevoked_stack_C)"; auto.
+           with "Hsealed_pred_ot_switcher HC_imports HC_code HC_data [] [] Hworld_interp_C")
+      as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & Hrevoked_stack_C & #HC_exports)";
+      auto.
+    { (* The exported entry C.g satisfies the sealing predicate of the switcher *)
+      iIntros "!>" (i a Ha) "#Hpcc_interp #Hcgp_interp".
+      destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
+      rewrite C_exp_tbl /= in Hi.
+      destruct i as [|i]; last lia.
+      replace (cmpt_exp_tbl_entries_start C_cmpt ^+ 0%nat)%a
+        with (cmpt_exp_tbl_entries_start C_cmpt) by solve_addr.
+      iApply (adversary_export_prop _ _ _ _ 0 cmdc_C_g_args offset_C_g
+               with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
+                     Hpcc_interp Hcgp_interp Hentry_Cg Hentry_Cg'").
+      - by rewrite C_exp_tbl.
+      - solve_addr.
+      - rewrite /cmdc_C_g_args; lia.
+    }
     { rewrite C_imports.
       iIntros "_".
       iSplit; last done.
@@ -311,23 +341,17 @@ Section Adequacy.
     }
 
     (* 7 - The exported entry points of B and C are safe to share *)
-    iAssert (interp (adv_world_revoked (∅, (∅, ∅)) switcher_cmpt B_cmpt) B
+    iAssert (interp (adv_world_revoked (∅, (∅, ∅), ∅) switcher_cmpt B_cmpt) B
                (WSealed (ot_switcher switcher_cmpt) B_f)) as "#Hinterp_B".
-    { iApply (adversary_export_interp _ _ _ _ _ 0 cmdc_B_f_args offset_B_f
-               with "Hswitcher Hsealed_pred_ot_switcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries
-                     Hinterp_pcc_B Hinterp_cgp_B Hentry_Bf Hentry_Bf'").
-      - by rewrite B_exp_tbl.
-      - pose proof (cmpt_exp_tbl_entries_size B_cmpt); solve_addr.
-      - rewrite /cmdc_B_f_args; lia.
+    { iApply (adversary_export_interp _ _ _ 0 with "HB_exports").
+      - solve_addr.
+      - rewrite B_exp_tbl /=; lia.
     }
-    iAssert (interp (adv_world_revoked (∅, (∅, ∅)) switcher_cmpt C_cmpt) C
+    iAssert (interp (adv_world_revoked (∅, (∅, ∅), ∅) switcher_cmpt C_cmpt) C
                (WSealed (ot_switcher switcher_cmpt) C_g)) as "#Hinterp_C".
-    { iApply (adversary_export_interp _ _ _ _ _ 0 cmdc_C_g_args offset_C_g
-               with "Hswitcher Hsealed_pred_ot_switcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
-                     Hinterp_pcc_C Hinterp_cgp_C Hentry_Cg Hentry_Cg'").
-      - by rewrite C_exp_tbl.
-      - pose proof (cmpt_exp_tbl_entries_size C_cmpt); solve_addr.
-      - rewrite /cmdc_C_g_args; lia.
+    { iApply (adversary_export_interp _ _ _ 0 with "HC_exports").
+      - solve_addr.
+      - rewrite C_exp_tbl /=; lia.
     }
 
     (* 8 - Extract registers *)
@@ -402,8 +426,8 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type ; relPreΣ
-              ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
+              ; STS_preΣ Addr region_type OType Word ; relPreΣ
+              ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@cmdc_adequacy' Σ cnames B C); eauto; try typeclasses eauto.
   apply NoDup_cons; split ; [set_solver | apply NoDup_singleton].
