@@ -99,6 +99,7 @@ Section switcher_macros.
 
       (* Store r2 0 *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
+      (* Store r2 0 *)
       iInstr_spec_lookup "Hscode" as "Hsi" "Hscode".
       wp_instr.
       iApply (wp_store_interp_z_cap with "[$Hctx $Hj $HPC $HsPC $Hi $Hsi $Hworld_interp $Hr2 $Hsr2 $Hinterp]")
@@ -113,12 +114,14 @@ Section switcher_macros.
 
       (* Lea r2 1 *)
       destruct (csp_a + 1)%a eqn:Ha;cycle 1.
-      { iInstr_lookup "Hcode" as "Hi" "Hcode".
+      { (* Lea r2 1 *)
+        iInstr_lookup "Hcode" as "Hi" "Hcode".
         wp_instr.
         iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hr2]")
         ; try solve_pure
         ; eauto.
         iIntros "!> _". wp_pure. wp_end. iFrame. }
+      (* Lea r2 1 *)
       iInstr_lockstep "Hscode" "Hcode".
 
       (* Add r1 r1 1 *)
@@ -133,6 +136,68 @@ Section switcher_macros.
       iApply interp_lea;eauto.
       destruct csp_p,rx,w;auto. done.
   Qed.
+
+  Lemma big_sepM2_arg_rmap (Φ : RegName → Word → Word → iProp Σ)
+    w0 w1 w2 w3 w4 w5 w6 s0 s1 s2 s3 s4 s5 s6 :
+    ([∗ map] r↦w;s ∈ <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
+                       (<[ca5:=w5]> (<[ct0:=w6]> ∅))))));
+                     <[ca0:=s0]> (<[ca1:=s1]> (<[ca2:=s2]> (<[ca3:=s3]> (<[ca4:=s4]>
+                       (<[ca5:=s5]> (<[ct0:=s6]> ∅)))))), Φ r w s)
+    ⊣⊢ Φ ca0 w0 s0 ∗ Φ ca1 w1 s1 ∗ Φ ca2 w2 s2 ∗ Φ ca3 w3 s3 ∗ Φ ca4 w4 s4
+       ∗ Φ ca5 w5 s5 ∗ Φ ct0 w6 s6.
+  Proof.
+    rewrite !big_sepM2_insert ?big_sepM2_empty ?right_id //; by simplify_map_eq.
+  Qed.
+
+  Lemma is_arg_rmap_8 w0 w1 w2 w3 w4 w5 w6 :
+    is_arg_rmap (<[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
+                  (<[ca5:=w5]> (<[ct0:=w6]> ∅))))))) 8.
+  Proof. rewrite /is_arg_rmap /dom_arg_rmap !dom_insert_L dom_empty_L. set_solver. Qed.
+
+  Lemma is_arg_rmap_8_inv (arg_rmap : Reg) :
+    is_arg_rmap arg_rmap 8 →
+    ∃ w0 w1 w2 w3 w4 w5 w6,
+      arg_rmap = <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
+                   (<[ca5:=w5]> (<[ct0:=w6]> ∅)))))).
+  Proof.
+    intros Hargmap.
+    assert (is_Some (arg_rmap !! ca0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+    assert (is_Some (arg_rmap !! ca1)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+    assert (is_Some (arg_rmap !! ca2)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+    assert (is_Some (arg_rmap !! ca3)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+    assert (is_Some (arg_rmap !! ca4)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+    assert (is_Some (arg_rmap !! ca5)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+    assert (is_Some (arg_rmap !! ct0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+    exists x,x0,x1,x2,x3,x4,x5. apply map_eq.
+    intros i. destruct (decide (ca0 = i));simplify_map_eq=>//.
+    destruct (decide (ca1 = i));simplify_map_eq=>//.
+    destruct (decide (ca2 = i));simplify_map_eq=>//.
+    destruct (decide (ca3 = i));simplify_map_eq=>//.
+    destruct (decide (ca4 = i));simplify_map_eq=>//.
+    destruct (decide (ca5 = i));simplify_map_eq=>//.
+    destruct (decide (ct0 = i));simplify_map_eq=>//.
+    repeat (rewrite lookup_insert_ne; auto).
+    apply not_elem_of_dom. rewrite Hargmap. set_solver.
+  Qed.
+
+  (* Closes one argument-count case of [clear_registers_pre_call_skip_spec]
+     after the symbolic execution. *)
+  Local Ltac clear_args_post :=
+    iApply "Hcont";
+    iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅)))))));
+    iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅)))))));
+    rewrite big_sepM2_arg_rmap;
+    iSplitR; [iPureIntro; apply is_arg_rmap_8|];
+    iSplitR; [iPureIntro; apply is_arg_rmap_8|];
+    do 7 (match goal with
+          | |- context [decide (?r ∈ ?s)] =>
+              let Hd := fresh "Hd" in
+              destruct (decide (r ∈ s)) as [Hd|Hd];
+              try (exfalso; revert Hd; compute_done)
+          end);
+    iFrame "Hj HPC HsPC Hct2 Hsct2 Hcode Hscode Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0
+            Hsca0 Hsca1 Hsca2 Hsca3 Hsca4 Hsca5 Hsct0";
+    iFrame "#"; done.
 
   Lemma clear_registers_pre_call_skip_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
@@ -184,170 +249,39 @@ Section switcher_macros.
     iIntros (Hexec Hbounds Hargmap Hargsmap Hz)
       "(#Hctx & Hj & HPC & HsPC & Hct2 & Hsct2 & Hargs & Hcode & Hscode & Hcont)".
     codefrag_facts "Hcode". clear H0.
-
-    assert (∃ w0 w1 w2 w3 w4 w5 w, arg_rmap = <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
-             (<[ca5:=w5]> (<[ct0:=w]> ∅))))))) as [w0 [w1 [w2 [w3 [w4 [w5 [w Heq] ] ] ] ] ] ].
-    { assert (is_Some (arg_rmap !! ca0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca1)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca2)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca3)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca4)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca5)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ct0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      exists x,x0,x1,x2,x3,x4,x5. apply map_eq.
-      intros i. destruct (decide (ca0 = i));simplify_map_eq=>//.
-      destruct (decide (ca1 = i));simplify_map_eq=>//.
-      destruct (decide (ca2 = i));simplify_map_eq=>//.
-      destruct (decide (ca3 = i));simplify_map_eq=>//.
-      destruct (decide (ca4 = i));simplify_map_eq=>//.
-      destruct (decide (ca5 = i));simplify_map_eq=>//.
-      destruct (decide (ct0 = i));simplify_map_eq=>//.
-      repeat (rewrite lookup_insert_ne; auto).
-      apply not_elem_of_dom. rewrite Hargmap. set_solver. }
-    assert (∃ w0 w1 w2 w3 w4 w5 w, arg_smap = <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
-             (<[ca5:=w5]> (<[ct0:=w]> ∅))))))) as [s0 [s1 [s2 [s3 [s4 [s5 [s Hseq] ] ] ] ] ] ].
-    { assert (is_Some (arg_smap !! ca0)) as [??];[apply elem_of_dom; rewrite Hargsmap; set_solver|].
-      assert (is_Some (arg_smap !! ca1)) as [??];[apply elem_of_dom; rewrite Hargsmap; set_solver|].
-      assert (is_Some (arg_smap !! ca2)) as [??];[apply elem_of_dom; rewrite Hargsmap; set_solver|].
-      assert (is_Some (arg_smap !! ca3)) as [??];[apply elem_of_dom; rewrite Hargsmap; set_solver|].
-      assert (is_Some (arg_smap !! ca4)) as [??];[apply elem_of_dom; rewrite Hargsmap; set_solver|].
-      assert (is_Some (arg_smap !! ca5)) as [??];[apply elem_of_dom; rewrite Hargsmap; set_solver|].
-      assert (is_Some (arg_smap !! ct0)) as [??];[apply elem_of_dom; rewrite Hargsmap; set_solver|].
-      exists x,x0,x1,x2,x3,x4,x5. apply map_eq.
-      intros i. destruct (decide (ca0 = i));simplify_map_eq=>//.
-      destruct (decide (ca1 = i));simplify_map_eq=>//.
-      destruct (decide (ca2 = i));simplify_map_eq=>//.
-      destruct (decide (ca3 = i));simplify_map_eq=>//.
-      destruct (decide (ca4 = i));simplify_map_eq=>//.
-      destruct (decide (ca5 = i));simplify_map_eq=>//.
-      destruct (decide (ct0 = i));simplify_map_eq=>//.
-      repeat (rewrite lookup_insert_ne; auto).
-      apply not_elem_of_dom. rewrite Hargsmap. set_solver. }
-
-    rewrite Heq Hseq.
-    repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
+    destruct (is_arg_rmap_8_inv _ Hargmap) as (w0 & w1 & w2 & w3 & w4 & w5 & w & ->).
+    destruct (is_arg_rmap_8_inv _ Hargsmap) as (s0 & s1 & s2 & s3 & s4 & s5 & s & ->).
+    clear Hargmap Hargsmap.
+    rewrite big_sepM2_arg_rmap.
     iDestruct "Hargs" as "((Hca0 & Hsca0 & #Hca0v) & (Hca1 & Hsca1 & #Hca1v) & (Hca2 & Hsca2 & #Hca2v)
-    & (Hca3 & Hsca3 & #Hca3v) & (Hca4 & Hsca4 & #Hca4v) & (Hca5 & Hsca5 & #Hca5v) & (Hct0 & Hsct0 & #Hct0v) & _)".
+    & (Hca3 & Hsca3 & #Hca3v) & (Hca4 & Hsca4 & #Hca4v) & (Hca5 & Hsca5 & #Hca5v) & (Hct0 & Hsct0 & #Hct0v))".
 
     (* Hardcoded proof of cases *)
     destruct (decide (1 = nargs));[subst|].
     { iGo_lockstep "Hscode" "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
-      iFrame. cbn.
-      destruct (decide (_ ∈ ∅)) as [Hcontra|]; first set_solver+Hcontra.
-      rewrite /is_arg_rmap /dom_arg_rmap; cbn.
-      repeat iSplit; try done.
-      all: iPureIntro; rewrite /is_arg_rmap !dom_insert_L; set_solver. }
-
+      clear_args_post. }
     destruct (decide (2 = nargs));[subst|].
     { iGo_lockstep "Hscode" "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
-      iFrame "∗ #".
-      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; try set_solver+Hca0.
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit; try done.
-      all: iPureIntro; rewrite /is_arg_rmap !dom_insert_L; set_solver. }
-
+      clear_args_post. }
     destruct (decide (3 = nargs));[subst|].
     { iGo_lockstep "Hscode" "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
-      iFrame "∗ #".
-      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
-      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit; try done.
-      all: iPureIntro; rewrite /is_arg_rmap !dom_insert_L; set_solver. }
-
+      clear_args_post. }
     destruct (decide (4 = nargs));[subst|].
     { iGo_lockstep "Hscode" "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
-      iFrame "∗ #".
-      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
-      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
-      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit; try done.
-      all: iPureIntro; rewrite /is_arg_rmap !dom_insert_L; set_solver. }
-
+      clear_args_post. }
     destruct (decide (5 = nargs));[subst|].
     { iGo_lockstep "Hscode" "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
-      iFrame "∗ #".
-      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
-      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
-      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
-      destruct (decide (ca3 ∈ _)) as [Hca3|Hca3]; last set_solver+Hca3.
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit; try done.
-      all: iPureIntro; rewrite /is_arg_rmap !dom_insert_L; set_solver. }
-
+      clear_args_post. }
     destruct (decide (6 = nargs));[subst|].
     { iGo_lockstep "Hscode" "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
-      iFrame "∗ #".
-      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
-      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
-      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
-      destruct (decide (ca3 ∈ _)) as [Hca3|Hca3]; last set_solver+Hca3.
-      destruct (decide (ca4 ∈ _)) as [Hca4|Hca4]; last set_solver+Hca4.
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit; try done.
-      all: iPureIntro; rewrite /is_arg_rmap !dom_insert_L; set_solver. }
-
+      clear_args_post. }
     destruct (decide (7 = nargs));[subst|].
     { iGo_lockstep "Hscode" "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
-      iFrame "∗ #".
-      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
-      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
-      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
-      destruct (decide (ca3 ∈ _)) as [Hca3|Hca3]; last set_solver+Hca3.
-      destruct (decide (ca4 ∈ _)) as [Hca4|Hca4]; last set_solver+Hca4.
-      destruct (decide (ca5 ∈ _)) as [Hca5|Hca5]; last set_solver+Hca5.
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit; try done.
-      all: iPureIntro; rewrite /is_arg_rmap !dom_insert_L; set_solver. }
-
+      clear_args_post. }
     destruct (decide (8 = nargs));[subst|].
     { iGo_lockstep "Hscode" "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM2_insert;[|simplify_map_eq=>//..]).
-      iFrame "∗ #".
-      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
-      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
-      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
-      destruct (decide (ca3 ∈ _)) as [Hca3|Hca3]; last set_solver+Hca3.
-      destruct (decide (ca4 ∈ _)) as [Hca4|Hca4]; last set_solver+Hca4.
-      destruct (decide (ca5 ∈ _)) as [Hca5|Hca5]; last set_solver+Hca5.
-      destruct (decide (ct0 ∈ _)) as [Hct0|Hct0]; last set_solver+Hct0.
-      repeat iSplit; try done.
-      all: iPureIntro; rewrite /is_arg_rmap !dom_insert_L; set_solver. }
-
+      clear_args_post. }
     exfalso. lia.
   Qed.
-
 
 End switcher_macros.
