@@ -443,9 +443,7 @@ Section griotte_lang_rules.
       rewrite insert_insert_ne // insert_insert_eq (insert_insert_ne _ PC cnull) // insert_insert_eq.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto.
       iApply "Hφ". iFrame.
-    - destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence.
-      match goal with H : denote (GetTag _ _) ?v = None |- _ =>
-        destruct_word v; discriminate end.
+    - destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; congruence.
   Qed.
 
   Lemma wp_GetTag_PC_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_a' w wn :
