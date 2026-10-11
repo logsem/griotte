@@ -194,6 +194,8 @@ Definition cmpt_with_data (C : cmpt) (data : list Word)
     cmpt_e_pcc := cmpt_e_pcc C;
     cmpt_b_cgp := cmpt_b_cgp C;
     cmpt_e_cgp := cmpt_e_cgp C;
+    cmpt_b_static_sealed := cmpt_b_static_sealed C;
+    cmpt_e_static_sealed := cmpt_e_static_sealed C;
     cmpt_exp_tbl_pcc := cmpt_exp_tbl_pcc C;
     cmpt_exp_tbl_cgp := cmpt_exp_tbl_cgp C;
     cmpt_exp_tbl_entries_start := cmpt_exp_tbl_entries_start C;
@@ -201,10 +203,12 @@ Definition cmpt_with_data (C : cmpt) (data : list Word)
     cmpt_imports := cmpt_imports C;
     cmpt_code := cmpt_code C;
     cmpt_data := data;
+    cmpt_static_sealed := cmpt_static_sealed C;
     cmpt_exp_tbl_entries := cmpt_exp_tbl_entries C;
     cmpt_import_size := cmpt_import_size C;
     cmpt_code_size := cmpt_code_size C;
     cmpt_data_size := Hdata;
+    cmpt_static_sealed_size := cmpt_static_sealed_size C;
     cmpt_exp_tbl_pcc_size := cmpt_exp_tbl_pcc_size C;
     cmpt_exp_tbl_cgp_size := cmpt_exp_tbl_cgp_size C;
     cmpt_exp_tbl_entries_size := cmpt_exp_tbl_entries_size C;
@@ -226,6 +230,8 @@ Section initial_resources_generic.
     ([∗ list] k;v ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt); cmpt_imports C_cmpt, φ k v) ∗
     ([∗ list] k;v ∈ finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt); cmpt_code C_cmpt, φ k v) ∗
     ([∗ list] k;v ∈ finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt); cmpt_data C_cmpt, φ k v) ∗
+    ([∗ list] k;v ∈ finz.seq_between (cmpt_b_static_sealed C_cmpt) (cmpt_e_static_sealed C_cmpt);
+                    cmpt_static_sealed C_cmpt, φ k v) ∗
     φ (cmpt_exp_tbl_pcc C_cmpt) PCC ∗
     φ (cmpt_exp_tbl_cgp C_cmpt) CGP ∗
     ([∗ list] k;v ∈ finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt);
@@ -236,6 +242,9 @@ Section initial_resources_generic.
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_C".
     iDestruct (big_sepM_union with "Hcmpt_C") as "[HC HC_etbl]".
     { eapply cmpt_exp_tbl_disjoint ; eauto. }
+    iDestruct (big_sepM_union with "HC") as "[HC HC_static_sealed]".
+    { eapply cmpt_static_sealed_disjoint ; eauto. }
+    rewrite /cmpt_static_sealed_mregion.
     iDestruct (big_sepM_union with "HC") as "[HC_code HC_data]".
     { eapply cmpt_cgp_disjoint ; eauto. }
     rewrite /cmpt_pcc_mregion.
@@ -246,6 +255,8 @@ Section initial_resources_generic.
     { apply (cmpt_code_size C_cmpt). }
     iDestruct (mkregion_sepM_to_sepL2 with "HC_data") as "HC_data".
     { apply (cmpt_data_size C_cmpt). }
+    iDestruct (mkregion_sepM_to_sepL2 with "HC_static_sealed") as "HC_static_sealed".
+    { apply (cmpt_static_sealed_size C_cmpt). }
     iDestruct (mkregion_sepM_to_sepL2 with "HC_imports") as "HC_imports".
     { by pose proof (cmpt_import_size C_cmpt) as H ; cbn in *. }
 
@@ -321,7 +332,7 @@ Section initial_resources_binary.
     intros PCC CGP exp_tbl_addrs.
     iIntros "Hcmpt_C".
     iDestruct (initialise_compartment_gen (λ k v, (k ↦ₐ v ∗ k ↣ₐ v)%I) with "Hcmpt_C")
-      as "(HC_imports & HC_code & HC_data & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
+      as "(HC_imports & HC_code & HC_data & _ & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
     iFrame "HC_imports HC_code HC_data".
 
     iMod (inv_alloc (export_table_PCCN (nroot .@ C)) E _ with "HC_etbl_pcc")%I as "$".
@@ -487,7 +498,7 @@ Section initial_resources_exported.
     intros PCC CGP.
     iIntros "Hcmpt_C".
     iDestruct (initialise_compartment_gen φ (cmpt_with_data C_cmpt data Hdata) with "Hcmpt_C")
-      as "(Himports & Hcode & Hdata & Hetbl_pcc & Hetbl_cgp & Hetbl_entries)".
+      as "(Himports & Hcode & Hdata & _ & Hetbl_pcc & Hetbl_cgp & Hetbl_entries)".
     iFrame.
   Qed.
 

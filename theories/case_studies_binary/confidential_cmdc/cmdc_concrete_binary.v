@@ -57,10 +57,12 @@ Program Definition cmdc_conf_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt cmdc_conf_main_pcc_b cmdc_conf_main_code_start
     cmdc_conf_main_pcc_e cmdc_conf_main_data_b cmdc_conf_main_data_e
+    cmdc_conf_main_data_e cmdc_conf_main_data_e
     cmdc_conf_main_exports_pcc cmdc_conf_main_exports_cgp
     cmdc_conf_main_exports_entries_b cmdc_conf_main_exports_entries_e
     cmdc_conf_main_imports_concrete cmdc_conf_main_code
-    (cmdc_conf_main_data 0 0) [] _ _ _ _ _ _ _).
+    (cmdc_conf_main_data 0 0) [] [] _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

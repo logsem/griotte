@@ -145,11 +145,12 @@ Program Definition droe_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt
     droe_main_pcc_b droe_main_code_a droe_main_pcc_e
-    droe_main_cgp_b droe_main_cgp_e
+    droe_main_cgp_b droe_main_cgp_e droe_main_cgp_e droe_main_cgp_e
     droe_main_exp_pcc droe_main_exp_cgp
     droe_main_exp_entries_b droe_main_exp_entries_e
-    droe_main_imports_concrete droe_main_code droe_main_data []
-    _ _ _ _ _ _ _).
+    droe_main_imports_concrete droe_main_code droe_main_data [] []
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -163,11 +164,12 @@ Program Definition droe_concrete_C_cmpt : cmpt.
 Proof.
   refine (@mkCmpt
     droe_C_pcc_b droe_C_code_a droe_C_pcc_e
-    droe_C_cgp_b droe_C_cgp_e
+    droe_C_cgp_b droe_C_cgp_e droe_C_cgp_e droe_C_cgp_e
     droe_C_exp_pcc droe_C_exp_cgp
     droe_C_exp_entries_b droe_C_exp_entries_e
-    droe_C_imports droe_C_code droe_C_data droe_C_exports
-    _ _ _ _ _ _ _).
+    droe_C_imports droe_C_code droe_C_data [] droe_C_exports
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

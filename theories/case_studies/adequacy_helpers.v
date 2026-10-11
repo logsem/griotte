@@ -136,6 +136,7 @@ Section adequacy_helpers.
       [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ cmpt_imports C_cmpt ]] ∗
       [[ (cmpt_a_code C_cmpt), (cmpt_e_pcc C_cmpt) ]] ↦ₐ [[ cmpt_code C_cmpt ]] ∗
       [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ cmpt_data C_cmpt ]] ∗
+      [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ cmpt_static_sealed C_cmpt ]] ∗
       cmpt_exp_tbl_pcc C_cmpt ↦ₐ PCC ∗
       cmpt_exp_tbl_cgp C_cmpt ↦ₐ CGP ∗
       [[ (cmpt_exp_tbl_entries_start C_cmpt), (cmpt_exp_tbl_entries_end C_cmpt) ]] ↦ₐ [[ cmpt_exp_tbl_entries C_cmpt ]].
@@ -145,6 +146,9 @@ Section adequacy_helpers.
       iEval (rewrite /mk_initial_cmpt) in "Hcmpt_C".
       iDestruct (big_sepM_union with "Hcmpt_C") as "[HC HC_etbl]".
       { eapply cmpt_exp_tbl_disjoint ; eauto. }
+      iDestruct (big_sepM_union with "HC") as "[HC HC_static_sealed]".
+      { eapply cmpt_static_sealed_disjoint ; eauto. }
+      rewrite /cmpt_static_sealed_mregion.
       iDestruct (big_sepM_union with "HC") as "[HC_code HC_data]".
       { eapply cmpt_cgp_disjoint ; eauto. }
       rewrite /cmpt_pcc_mregion.
@@ -156,6 +160,8 @@ Section adequacy_helpers.
       { apply (cmpt_code_size C_cmpt). }
       iDestruct (mkregion_prepare with "[HC_data]") as ">HC_data"; auto.
       { apply (cmpt_data_size C_cmpt). }
+      iDestruct (mkregion_prepare with "[HC_static_sealed]") as ">HC_static_sealed"; auto.
+      { apply (cmpt_static_sealed_size C_cmpt). }
       iDestruct (mkregion_prepare with "[HC_imports]") as ">HC_imports"; auto.
       { by pose proof (cmpt_import_size C_cmpt) as H ; cbn in *. }
 
@@ -188,6 +194,7 @@ Section adequacy_helpers.
       [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ cmpt_imports C_cmpt ]] ∗
       [[ (cmpt_a_code C_cmpt), (cmpt_e_pcc C_cmpt) ]] ↦ₐ [[ cmpt_code C_cmpt ]] ∗
       [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ cmpt_data C_cmpt ]] ∗
+      [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ cmpt_static_sealed C_cmpt ]] ∗
       inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ PCC) ∗
       inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ CGP) ∗
       ([∗ list] a;v ∈ exp_tbl_addrs ; cmpt_exp_tbl_entries C_cmpt,
@@ -196,7 +203,7 @@ Section adequacy_helpers.
       intros PCC CGP exp_tbl_addrs.
       iIntros "Hcmpt_C".
       iMod (initialise_compartment with "Hcmpt_C")
-        as "(HC_imports & HC_code & HC_data & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
+        as "(HC_imports & HC_code & HC_data & Hstatic_sealed & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
       iFrame.
 
       iMod (inv_alloc (export_table_PCCN (nroot .@ C)) E _ with "HC_etbl_pcc")%I as "$".

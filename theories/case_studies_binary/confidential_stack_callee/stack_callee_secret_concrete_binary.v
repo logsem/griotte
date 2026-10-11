@@ -96,11 +96,13 @@ Definition scs_T_imports_concrete : list Word :=
 Program Definition scs_concrete_T_cmpt : cmpt.
 Proof.
   refine (@mkCmpt scs_T_pcc_b scs_T_code_start scs_T_pcc_e
-    scs_T_data_b scs_T_data_e scs_T_exports_pcc
+    scs_T_data_b scs_T_data_e scs_T_data_e scs_T_data_e
+    scs_T_exports_pcc
     scs_T_exports_cgp scs_T_exports_entries_b
     scs_T_exports_entries_e scs_T_imports_concrete
-    stack_callee_secret_code (stack_callee_secret_data 0)
-    stack_callee_secret_export_table_entries _ _ _ _ _ _ _).
+    stack_callee_secret_code (stack_callee_secret_data 0) []
+    stack_callee_secret_export_table_entries _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -113,9 +115,11 @@ Defined.
 Program Definition scs_concrete_B_cmpt : cmpt.
 Proof.
   refine (@mkCmpt scs_B_pcc_b scs_B_code_start scs_B_pcc_e
-    scs_B_data_b scs_B_data_e scs_B_exports_pcc scs_B_exports_cgp
+    scs_B_data_b scs_B_data_e scs_B_data_e scs_B_data_e
+    scs_B_exports_pcc scs_B_exports_cgp
     scs_B_exports_entries_b scs_B_exports_entries_e scs_B_imports
-    scs_B_code scs_B_data scs_B_exports _ _ _ _ _ _ _).
+    scs_B_code scs_B_data [] scs_B_exports _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

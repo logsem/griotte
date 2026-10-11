@@ -78,10 +78,12 @@ Definition ss_main_imports_concrete : list Word :=
 Program Definition ss_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt ss_main_pcc_b ss_main_code_start ss_main_pcc_e
-    ss_main_data_b ss_main_data_e ss_main_exports_pcc
+    ss_main_data_b ss_main_data_e ss_main_data_e ss_main_data_e
+    ss_main_exports_pcc
     ss_main_exports_cgp ss_main_exports_entries_b
     ss_main_exports_entries_e ss_main_imports_concrete
-    stack_secret_main_code (stack_secret_main_data 0) [] _ _ _ _ _ _ _).
+    stack_secret_main_code (stack_secret_main_data 0) [] [] _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -94,9 +96,11 @@ Defined.
 Program Definition ss_concrete_B_cmpt : cmpt.
 Proof.
   refine (@mkCmpt ss_B_pcc_b ss_B_code_start ss_B_pcc_e
-    ss_B_data_b ss_B_data_e ss_B_exports_pcc ss_B_exports_cgp
+    ss_B_data_b ss_B_data_e ss_B_data_e ss_B_data_e
+    ss_B_exports_pcc ss_B_exports_cgp
     ss_B_exports_entries_b ss_B_exports_entries_e ss_B_imports
-    ss_B_code ss_B_data ss_B_exports _ _ _ _ _ _ _).
+    ss_B_code ss_B_data [] ss_B_exports _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

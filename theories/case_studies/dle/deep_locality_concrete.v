@@ -154,11 +154,12 @@ Program Definition dle_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt
     dle_main_pcc_b dle_main_code_start dle_main_pcc_e
-    dle_main_data_b dle_main_data_e
+    dle_main_data_b dle_main_data_e dle_main_data_e dle_main_data_e
     dle_main_exports_pcc dle_main_exports_cgp
     dle_main_exports_entries_b dle_main_exports_entries_e
-    dle_main_imports_concrete dle_main_code dle_main_data []
-    _ _ _ _ _ _ _).
+    dle_main_imports_concrete dle_main_code dle_main_data [] []
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -172,11 +173,12 @@ Program Definition dle_concrete_C_cmpt : cmpt.
 Proof.
   refine (@mkCmpt
     dle_C_pcc_b dle_C_code_start dle_C_pcc_e
-    dle_C_data_b dle_C_data_e
+    dle_C_data_b dle_C_data_e dle_C_data_e dle_C_data_e
     dle_C_exports_pcc dle_C_exports_cgp
     dle_C_exports_entries_b dle_C_exports_entries_e
-    dle_C_imports dle_C_code dle_C_data dle_C_exports
-    _ _ _ _ _ _ _).
+    dle_C_imports dle_C_code dle_C_data [] dle_C_exports
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
