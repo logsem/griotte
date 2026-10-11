@@ -58,55 +58,51 @@ Section HTS_Spec_Share.
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
-    iDestruct "Hret" as (a_ret Ha_ret) "[Herr|Hok]".
+    iDestruct "Hret" as "[Herr|Hok]".
     { (* Block 4: halt when malloc returned an integer. *)
-      iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcode)".
-      codefrag_facts "Hcode". clear H0.
-      iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
-      iEval (cbv [fmap list_fmap concat]) in "Hcode".
-      hts_focus_entry_block 4 "Hcode" as a_result Ha_result "Hblock" "Hcont"
-        from Ha_ret.
+      iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcode_main)".
+      codefrag_facts "Hcode_main". clear H0.
+      unfold_code hts_main_code "Hcode_main".
+      focus_block 4 "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
       (* GetTag ct0 ca0. *)
-      iInstr "Hblock".
+      iInstr "Hcode".
       (* Jnz 2 ct0. *)
-      iInstr "Hblock".
+      iInstr "Hcode".
       (* Halt. *)
-      iInstr "Hblock".
+      iInstr "Hcode".
       wp_end. iIntros (_). iFrame "Hna". }
     iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
       & Hworld & #Hstack_revoked & %Hstack_revoked & HK & #Hobj
       & Hfree_auth & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
-      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp)".
+      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
        & Himport_free)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
     pose proof Hbounds as Hbnd; rewrite /hts_buffer_bounds in Hbnd.
-    codefrag_facts "Hcode". clear H0.
-    iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
-    iEval (cbv [fmap list_fmap concat]) in "Hcode".
+    codefrag_facts "Hcode_main". clear H0.
+    unfold_code hts_main_code "Hcode_main".
     iEval (rewrite /hts_buffer) in "Hca0".
 
     (* Block 4: the malloc result is tagged. *)
-    hts_focus_entry_block 4 "Hcode" as a_result Ha_result "Hblock" "Hcont"
-      from Ha_ret.
+    focus_block 4 "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
     (* GetTag ct0 ca0. *)
-    iInstr "Hblock".
+    iInstr "Hcode".
     (* Jnz 2 ct0. *)
-    iInstr "Hblock".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: save the buffer in the stack slot below the callee frames,
        and initialize it. *)
-    focus_block 5 "Hcode" as a_store Ha_store "Hblock" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 5 "Hcode_main" of hts_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     destruct (decide (csp_b < csp_e)%a) as [Hstk_nonempty|Hstk_empty]; cycle 1.
     { (* Empty stack: the store to the stack slot faults. *)
-      iInstr_lookup "Hblock" as "Hi" "Hblock".
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (wp_store_fail_reg_imm _ 0 RX Global pc_b pc_e a_store None None _ csp ca0
         RWL Local csp_b csp_e csp_b csp_b with "[$HPC $Hi $Hca0 $Hcsp]").
@@ -130,26 +126,26 @@ Section HTS_Spec_Share.
     iDestruct (region_pointsto_cons _ _ _ _ _ Hcsp_succ Hcsp_le with "Hstk")
       as "[Hslot Hstk]".
     (* Store csp ca0 0. *)
-    iInstr "Hblock".
+    iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in;
         [exact (disjoint_from_mmio_shadow _ _ Hstk_shadow)|rewrite /withinBounds; solve_addr]. }
     { apply withinBounds_true_iff; solve_addr. }
     (* Lea csp 1. *)
-    iInstr "Hblock".
+    iInstr "Hcode".
     (* Store ca0 0 0. *)
-    iInstr_success "Hblock".
+    iInstr_success "Hcode".
     { apply hts_heap_not_shadow. solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 6: fetch the switcher for the first adversary call. *)
-    focus_block 6 "Hcode" as a_fetch6 Ha_fetch6 "Hfetch" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 6 "Hcode_main" of hts_main_blocks at pc_a as a_fetch6 Ha_fetch6 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp;ct2] as ["[Hctp _]";"[Hct2 _]"].
     iApply (fetch_spec hts_switcher_offset ctp ct0 ct2 RX Global
       pc_b pc_e a_fetch6
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hfetch]").
+      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hcode]").
     { reflexivity. }
     { solve_addr. }
     { rewrite /hts_switcher_offset. apply withinBounds_true_iff. solve_addr. }
@@ -161,17 +157,17 @@ Section HTS_Spec_Share.
     replace (pc_b ^+ hts_switcher_offset)%a with pc_b
       by (rewrite /hts_switcher_offset; solve_addr).
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hfetch & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hctp".
-    subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 7: fetch the adversary entry. *)
-    focus_block 7 "Hcode" as a_fetch7 Ha_fetch7 "Hfetch" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 7 "Hcode_main" of hts_main_blocks at pc_a as a_fetch7 Ha_fetch7 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
     iApply (fetch_spec hts_adv_offset ct1 ct0 ct2 RX Global
       pc_b pc_e a_fetch7 (WSealed ot_switcher C_f)
-      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hfetch]").
+      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hcode]").
     { reflexivity. }
     { solve_addr. }
     { rewrite /hts_adv_offset. apply withinBounds_true_iff. solve_addr. }
@@ -182,18 +178,19 @@ Section HTS_Spec_Share.
     { done. }
     replace (pc_b ^+ hts_adv_offset)%a with (pc_b ^+ 2)%a by reflexivity.
     iFrame "Himport_adv".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hfetch & Himport_adv)".
+    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hcode & Himport_adv)".
     iEval (cbn) in "Hct1".
-    subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 8: call the adversary with the buffer. *)
-    focus_block 8 "Hcode" as a_advcall Ha_advcall "Hblock" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 8 "Hcode_main" of hts_main_blocks at pc_a as a_advcall Ha_advcall "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
-    iInstr_success "Hblock".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
-    assert (hts_block_addr pc_a 9 (a_advcall ^+ 1)%a) as Ha_next.
-    { rewrite /hts_block_addr. solve_addr. }
+    iInstr_success "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    assert ((a_advcall ^+ 1)%a = (pc_a ^+ hts_block_offset 9)%a) as Ha_next
+      by (offsets_compute; solve_addr).
+    rewrite Ha_next.
     clear Ha_result Ha_store Ha_fetch6 Ha_fetch7.
 
     (* Share the buffer in the world. *)
@@ -238,7 +235,7 @@ Section HTS_Spec_Share.
          (delete ct1 (delete ct0 rmap)))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C ι b) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (a_advcall ^+ 1)%a)
+      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 9)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
       (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
       adv_arg adv_other cstk Ws Cs 1
@@ -271,7 +268,7 @@ Section HTS_Spec_Share.
     subst rcgp rcra.
     iEval (cbn) in "HPC".
     iApply "Hcontinue".
-    iExists ι, b, (a_advcall ^+ 1)%a, Wret.
+    iExists ι, b, Wret.
     iFrame "∗#%".
   Qed.
 End HTS_Spec_Share.

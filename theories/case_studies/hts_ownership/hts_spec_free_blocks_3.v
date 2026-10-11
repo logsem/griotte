@@ -169,12 +169,12 @@ Section HTS_Spec_Free.
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
-    iDestruct "Hret" as (ι b a_ret Wret) "(%Ha_ret & %Hbounds & %Hstk_nonempty
+    iDestruct "Hret" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & %Hrelated_share_ret & #Hrel_b & Hframe & [%w0 Hca0] & [%w1 Hca1]
       & Hregs & Hslot & [%stk Hstk] & Hworld & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & Howner & #Hobj & Hright)".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
-      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp & Howner_word)".
+      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
        & Himport_free & Himport_alloc_cap)".
@@ -190,51 +190,49 @@ Section HTS_Spec_Free.
       as (v_b) "(%Hι_ret & %Hstd_rev & Hworld_open & Hstate_b & Hright
         & [Hb Hb_share])".
 
-    codefrag_facts "Hcode". clear H0.
-    iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
-    iEval (cbv [fmap list_fmap concat]) in "Hcode".
+    codefrag_facts "Hcode_main". clear H0.
+    unfold_code hts_main_code "Hcode_main".
 
     (* Block 10: reload the saved buffer. Its tag is kept: the free right
        of ι is a live witness. *)
-    hts_focus_entry_block 10 "Hcode" as a_reload Ha_reload "Hblock" "Hcont"
-      from Ha_ret.
+    focus_block 10 "Hcode_main" of hts_main_blocks at pc_a as a_reload Ha_reload "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Load ca0 csp (-1). *)
     iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
       csp_b csp_e (hts_buffer b @@ ι) _ (LoadLive ι (1/2)%Qp)
-      with "[- $HPC $Hcsp $Hca0 $Hslot $Hblock $Hright]").
+      with "[- $HPC $Hcsp $Hca0 $Hslot $Hcode $Hright]").
     { exact (disjoint_from_mmio_shadow _ _ Hstk_shadow). }
     { solve_addr. }
     { exact Hstk_nonempty. }
     { solve_addr. }
     iNext. iIntros (actual (_ & _ & _ & Hlivepost))
-      "(HPC & Hcsp & Hca0 & Hslot & Hblock & Hright)".
+      "(HPC & Hcsp & Hca0 & Hslot & Hcode & Hright)".
     rewrite (Hlivepost eq_refl); last first.
     { intros _. left. cbn. split; first done. exists b.
       rewrite /heap_authority_base decide_True; last solve_addr.
       by rewrite /heap_cap_base /= Hb_heap. }
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 11: store cgp, which covers exactly p, in live b, and move the
        buffer to the second argument register. *)
-    focus_block 11 "Hcode" as a_private Ha_private "Hblock" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 11 "Hcode_main" of hts_main_blocks at pc_a as a_private Ha_private "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iEval (cbn) in "Hca0".
     iExtractList "Hrmap" [ct0;ct1;ct2] as ["[Hct0 _]";"[Hct1 _]";"[Hct2 _]"].
     (* Store ca0 cgp 0. *)
-    iInstr_success "Hblock".
+    iInstr_success "Hcode".
     { apply hts_heap_not_shadow. solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     (* Mov ca1 ca0. *)
-    iInstr "Hblock".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 12: fetch the allocator capability for free. *)
-    focus_block 12 "Hcode" as a_fetch12 Ha_fetch12 "Hfetch" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 12 "Hcode_main" of hts_main_blocks at pc_a as a_fetch12 Ha_fetch12 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iApply (fetch_spec hts_alloc_cap_offset ca0 ct0 ct2 RX Global
       pc_b pc_e a_fetch12 (allocator_capability Global owner_a)
-      _ _ _ _ with "[- $HPC $Hca0 $Hct0 $Hct2 $Hfetch]").
+      _ _ _ _ with "[- $HPC $Hca0 $Hct0 $Hct2 $Hcode]").
     { reflexivity. }
     { solve_addr. }
     { rewrite /hts_alloc_cap_offset. apply withinBounds_true_iff. solve_addr. }
@@ -245,18 +243,18 @@ Section HTS_Spec_Free.
     { done. }
     replace (pc_b ^+ hts_alloc_cap_offset)%a with (pc_b ^+ 5)%a by reflexivity.
     iFrame "Himport_alloc_cap".
-    iNext; iIntros "(HPC & Hca0 & Hct0 & Hct2 & Hfetch & Himport_alloc_cap)".
+    iNext; iIntros "(HPC & Hca0 & Hct0 & Hct2 & Hcode & Himport_alloc_cap)".
     iEval (cbn) in "Hca0".
-    subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 13: fetch the switcher entry for free. *)
-    focus_block 13 "Hcode" as a_fetch13 Ha_fetch13 "Hfetch" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 13 "Hcode_main" of hts_main_blocks at pc_a as a_fetch13 Ha_fetch13 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp] as ["[Hctp _]"].
     iApply (fetch_spec hts_switcher_offset ctp ct0 ct2 RX Global
       pc_b pc_e a_fetch13
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hfetch]").
+      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hcode]").
     { reflexivity. }
     { solve_addr. }
     { rewrite /hts_switcher_offset. apply withinBounds_true_iff. solve_addr. }
@@ -268,17 +266,17 @@ Section HTS_Spec_Free.
     replace (pc_b ^+ hts_switcher_offset)%a with pc_b
       by (rewrite /hts_switcher_offset; solve_addr).
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hfetch & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hctp".
-    subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 14: fetch the sealed free entry. *)
-    focus_block 14 "Hcode" as a_fetch14 Ha_fetch14 "Hfetch" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 14 "Hcode_main" of hts_main_blocks at pc_a as a_fetch14 Ha_fetch14 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iApply (fetch_spec hts_free_offset ct1 ct0 ct2 RX Global
       pc_b pc_e a_fetch14
       (WSealed ot_switcher (allocator_free Global))
-      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hfetch]").
+      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hcode]").
     { reflexivity. }
     { solve_addr. }
     { rewrite /hts_free_offset. apply withinBounds_true_iff. solve_addr. }
@@ -290,18 +288,20 @@ Section HTS_Spec_Free.
     { done. }
     replace (pc_b ^+ hts_free_offset)%a with (pc_b ^+ 4)%a by reflexivity.
     iFrame "Himport_free".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hfetch & Himport_free)".
+    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hcode & Himport_free)".
     iEval (cbn) in "Hct1".
-    subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 15: call the trusted free entry while the live world cell is open. *)
-    focus_block 15 "Hcode" as a_freecall Ha_freecall "Hblock" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 15 "Hcode_main" of hts_main_blocks at pc_a as a_freecall Ha_freecall
+      "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
-    iInstr "Hblock".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
-    assert (hts_block_addr pc_a 16 (a_freecall ^+ 1)%a) as Ha_next.
-    { rewrite /hts_block_addr. solve_addr. }
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    assert ((a_freecall ^+ 1)%a = (pc_a ^+ hts_block_offset 16)%a) as Ha_next
+      by (offsets_compute; solve_addr).
+    rewrite Ha_next.
     clear Ha_reload Ha_private Ha_fetch12 Ha_fetch13 Ha_fetch14.
 
     iAssert ([[b,(b ^+ 1)%a]] ↦ₕ[ι]
@@ -330,7 +330,7 @@ Section HTS_Spec_Free.
          (delete ct1 (delete ct0 rmap)))))))).
     iPoseProof (hts_free_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (a_freecall ^+ 1)%a)
+      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 16)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a b (b ^+ 1)%a b
       free_arg cstk RW Global ι
       [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
@@ -348,7 +348,7 @@ Section HTS_Spec_Free.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (a_freecall ^+ 1)%a)
+      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 16)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other cstk
       allocator_free_nargs ⊤ allocator_exp_tblN
       allocator_exp_tbl_b
@@ -407,8 +407,6 @@ Section HTS_Spec_Free.
         "(#Hquar & _ & Howner_word & %Hfree_values)".
       destruct Hfree_values as [-> ->].
       iApply "Hcontinue".
-      iExists (a_freecall ^+ 1)%a.
-      iSplit; first done.
       iRight. iExists ι, b, Wret.
       iFrame "∗#%".
     - iDestruct "Hcall" as
@@ -423,9 +421,7 @@ Section HTS_Spec_Free.
       subst rcra.
       iEval (cbn) in "HPC".
       iApply "Hcontinue".
-      iExists (a_freecall ^+ 1)%a.
-      iSplit; first done.
-      iLeft. iExists _. iFrame "Hna HPC Hca0 Hcode".
+      iLeft. iExists _. iFrame "Hna HPC Hca0 Hcode_main".
       iSplit; first (iPureIntro; rewrite /ENOTENOUGHTRUSTEDSTACK; lia).
       iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
       by iExists _.

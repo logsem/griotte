@@ -132,8 +132,35 @@ Section Heap_Temporal_Safety.
     default [] (assembled_hts_main !! n).
   Definition hts_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (assembled_hts_main_n n).
+  (** The code of [main], as the chain of its blocks. *)
   Definition hts_main_code : list Word :=
-    concat (encodeInstrsW <$> assembled_hts_main).
+    hts_main_instrs_n 0 ++
+    hts_main_instrs_n 1 ++
+    hts_main_instrs_n 2 ++
+    hts_main_instrs_n 3 ++
+    hts_main_instrs_n 4 ++
+    hts_main_instrs_n 5 ++
+    hts_main_instrs_n 6 ++
+    hts_main_instrs_n 7 ++
+    hts_main_instrs_n 8 ++
+    hts_main_instrs_n 9 ++
+    hts_main_instrs_n 10 ++
+    hts_main_instrs_n 11 ++
+    hts_main_instrs_n 12 ++
+    hts_main_instrs_n 13 ++
+    hts_main_instrs_n 14 ++
+    hts_main_instrs_n 15 ++
+    hts_main_instrs_n 16 ++
+    hts_main_instrs_n 17 ++
+    hts_main_instrs_n 18 ++
+    hts_main_instrs_n 19 ++
+    hts_main_instrs_n 20 ++
+    hts_main_instrs_n 21 ++
+    hts_main_instrs_n 22.
+
+  Lemma hts_main_code_assembled :
+    hts_main_code = concat (encodeInstrsW <$> assembled_hts_main).
+  Proof. reflexivity. Qed.
 
   Definition hts_main_data : list Word := [WInt 0].
 

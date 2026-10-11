@@ -41,49 +41,47 @@ Section HTS_Spec_Assert.
   Proof.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_contiguous HsubBounds) "(#Hctx & Hret)".
     iDestruct "Hctx" as "(#Hassert & _)".
-    iDestruct "Hret" as (a_ret Ha_ret) "(Hframe & Hregs)".
+    iDestruct "Hret" as "(Hframe & Hregs)".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & _ & _ & _
-      & Himports & Hcode & Hp & _)".
+      & Himports & Hcode_main & Hp & _)".
     iDestruct "Himports" as "(_ & Himport_assert & _)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
     rewrite /hts_main_data in Hcgp_contiguous.
     assert (cgp_b < cgp_e)%a as Hcgp_size by solve_addr.
-    codefrag_facts "Hcode". clear H0.
-    iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
-    iEval (cbv [fmap list_fmap concat]) in "Hcode".
+    codefrag_facts "Hcode_main". clear H0.
+    unfold_code hts_main_code "Hcode_main".
 
     (* Block 21: load p and prepare zero for the assertion. *)
-    hts_focus_entry_block 21 "Hcode" as a_prep Ha_prep "Hblock" "Hcont"
-      from Ha_ret.
+    focus_block 21 "Hcode_main" of hts_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct0;ct1] as ["[Hct0 _]";"[Hct1 _]"].
     (* Load ct0 cgp 0. *)
-    iInstr "Hblock".
+    iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; [exact Hcgp_shadow|rewrite /withinBounds; solve_addr]. }
     { done. }
     { split; first done. apply withinBounds_true_iff; solve_addr. }
     (* Mov ct1 0. *)
-    iInstr "Hblock".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 22: fetch and call the assertion service. *)
-    focus_block 22 "Hcode" as a_assert Ha_assert "Hblock" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 22 "Hcode_main" of hts_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct2;ct3;ct4;cnull] as
       ["[Hct2 _]";"[Hct3 _]";"[Hct4 _]";"[Hcnull _]"].
     iApply (assert_success_spec with
       "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1
-        $Hcnull $Hcra $Hblock $Himport_assert]"); auto.
+        $Hcnull $Hcra $Hcode $Himport_assert]"); auto.
     { solve_addr. }
     iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0
-      & Hct1 & Hcnull & Hblock & Himport_assert)".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+      & Hct1 & Hcnull & Hcode & Himport_assert)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 23: halt with the assertion service token restored. *)
-    focus_block 23 "Hcode" as a_halt Ha_halt "Hblock" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 23 "Hcode_main" of hts_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     (* Halt. *)
-    iInstr "Hblock".
+    iInstr "Hcode".
     wp_end; iIntros "_"; iFrame.
   Qed.
 End HTS_Spec_Assert.

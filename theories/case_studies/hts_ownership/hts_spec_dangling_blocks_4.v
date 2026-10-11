@@ -56,43 +56,41 @@ Section HTS_Spec_Dangling.
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
-    iDestruct "Hret" as (a_ret Ha_ret) "[Herr|Hok]".
+    iDestruct "Hret" as "[Herr|Hok]".
     { (* Block 16: halt when free failed. *)
-      iDestruct "Herr" as (z) "(%Hz & Hna & HPC & Hca0 & _ & Hcode)".
-      codefrag_facts "Hcode". clear H0.
-      iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
-      iEval (cbv [fmap list_fmap concat]) in "Hcode".
-      hts_focus_entry_block 16 "Hcode" as a_free_result Ha_free_result
-        "Hblock" "Hcont" from Ha_ret.
+      iDestruct "Herr" as (z) "(%Hz & Hna & HPC & Hca0 & _ & Hcode_main)".
+      codefrag_facts "Hcode_main". clear H0.
+      unfold_code hts_main_code "Hcode_main".
+      focus_block 16 "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
+        "Hcode" "Hcont".
       (* Jnz 2 ca0. *)
-      iInstr "Hblock".
+      iInstr "Hcode".
       { intros [= ->]. done. }
       (* Halt. *)
-      iInstr "Hblock".
+      iInstr "Hcode".
       wp_end. by iIntros (?). }
     iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & %Hb_lookup & %Hstd_rev & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
       & [%stk Hstk] & Hworld_open & Hstate_b & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & #Hquar)".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
-      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp & Howner_word)".
+      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
        & Himport_free & Himport_alloc_cap)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
-    codefrag_facts "Hcode". clear H0.
-    iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
-    iEval (cbv [fmap list_fmap concat]) in "Hcode".
+    codefrag_facts "Hcode_main". clear H0.
+    unfold_code hts_main_code "Hcode_main".
 
     (* Block 16: the free result is ALLOC_OK. *)
-    hts_focus_entry_block 16 "Hcode" as a_free_result Ha_free_result
-      "Hblock" "Hcont" from Ha_ret.
+    focus_block 16 "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
+      "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jnz 2 ca0. *)
-    iInstr "Hblock".
+    iInstr "Hcode".
     (* Jmp 2. *)
-    iInstr "Hblock".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Quarantine b in the world and close its world entry. The dangling
        saved alias remains private. *)
@@ -108,21 +106,21 @@ Section HTS_Spec_Dangling.
       Hadv_nonheap with "Hadv") as "#Hinterp_adv_free".
 
     (* Block 17: clear the second adversary argument. *)
-    focus_block 17 "Hcode" as a_zero Ha_zero "Hblock" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 17 "Hcode_main" of hts_main_blocks at pc_a as a_zero Ha_zero "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     (* Mov ca0 0. *)
-    iInstr "Hblock".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 18: fetch the switcher entry. *)
-    focus_block 18 "Hcode" as a_fetch18 Ha_fetch18 "Hfetch" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 18 "Hcode_main" of hts_main_blocks at pc_a as a_fetch18 Ha_fetch18 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp;ct2] as ["[Hctp _]";"[Hct2 _]"].
     iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
     iApply (fetch_spec hts_switcher_offset ctp ct0 ct2 RX Global
       pc_b pc_e a_fetch18
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hfetch]").
+      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hcode]").
     { reflexivity. }
     { solve_addr. }
     { rewrite /hts_switcher_offset. apply withinBounds_true_iff. solve_addr. }
@@ -134,17 +132,17 @@ Section HTS_Spec_Dangling.
     replace (pc_b ^+ hts_switcher_offset)%a with pc_b
       by (rewrite /hts_switcher_offset; solve_addr).
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hfetch & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hctp".
-    subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 19: fetch the adversary entry. *)
-    focus_block 19 "Hcode" as a_fetch19 Ha_fetch19 "Hfetch" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 19 "Hcode_main" of hts_main_blocks at pc_a as a_fetch19 Ha_fetch19 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
     iApply (fetch_spec hts_adv_offset ct1 ct0 ct2 RX Global
       pc_b pc_e a_fetch19 (WSealed ot_switcher C_f)
-      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hfetch]").
+      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hcode]").
     { reflexivity. }
     { solve_addr. }
     { rewrite /hts_adv_offset. apply withinBounds_true_iff. solve_addr. }
@@ -155,18 +153,20 @@ Section HTS_Spec_Dangling.
     { done. }
     replace (pc_b ^+ hts_adv_offset)%a with (pc_b ^+ 2)%a by reflexivity.
     iFrame "Himport_adv".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hfetch & Himport_adv)".
+    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hcode & Himport_adv)".
     iEval (cbn) in "Hct1".
-    subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 20: call the adversary with zero. *)
-    focus_block 20 "Hcode" as a_advcall2 Ha_advcall2 "Hblock" "Hcont";
-      iHide "Hcont" as hcont.
+    focus_block 20 "Hcode_main" of hts_main_blocks at pc_a as a_advcall2 Ha_advcall2
+      "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
-    iInstr_success "Hblock".
-    subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
-    assert (hts_block_addr pc_a 21 (a_advcall2 ^+ 1)%a) as Ha_next.
-    { rewrite /hts_block_addr. solve_addr. }
+    iInstr_success "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    assert ((a_advcall2 ^+ 1)%a = (pc_a ^+ hts_block_offset 21)%a) as Ha_next
+      by (offsets_compute; solve_addr).
+    rewrite Ha_next.
     clear Ha_free_result Ha_zero Ha_fetch18 Ha_fetch19.
 
     iAssert (interp (hts_Wfree Wret ι) C (WInt 0)) as "#Hinterp_zero".
@@ -193,7 +193,7 @@ Section HTS_Spec_Dangling.
          (delete ct1 (delete ct0 rmap)))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wfree Wret ι) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (a_advcall2 ^+ 1)%a)
+      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 21)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f stk
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp
@@ -223,7 +223,6 @@ Section HTS_Spec_Dangling.
     subst rcgp rcra.
     iEval (cbn) in "HPC".
     iApply "Hcontinue".
-    iExists (a_advcall2 ^+ 1)%a.
     iFrame "∗#%".
   Qed.
 End HTS_Spec_Dangling.

@@ -258,7 +258,7 @@ Proof.
           by rewrite (assert_code_nonheap hts_assert_cmpt).
         * apply word_rooted_not_heap_cap, sealed_cap_nonheap.
           exact (cmpt_exp_tbl_base_not_heap hts_adv_cmpt).
-      + rewrite Hmain_code. apply word_rooted_code.
+      + rewrite Hmain_code hts_main_code_assembled. apply word_rooted_code.
       + rewrite Hmain_data. repeat constructor. apply word_rooted_int.
       + by rewrite Hmain_static.
       + by rewrite Hmain_exports.

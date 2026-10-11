@@ -8,6 +8,7 @@ From griotte.case_studies.hts_no_ownership Require Import heap_temporal_safety_a
 From griotte Require Import world_ghost_theory heap_region.
 From griotte Require Import world_interp_stack region_invariants heap_ghost region_keys.
 From griotte Require Import proofmode register_tactics map_simpl.
+From griotte Require Export code_blocks.
 
 (** * Interfaces of the control-flow segments of [hts_main_asm]
 
@@ -19,7 +20,27 @@ From griotte Require Import proofmode register_tactics map_simpl.
     - [hts_malloc_ret]: after [malloc] (block 4),
     - [hts_adv1_ret]: after [adv(buf)] (block 9),
     - [hts_free_ret]: after [free] (block 15),
-    - [hts_adv2_ret]: after [adv(0)] (block 20). *)
+    - [hts_adv2_ret]: after [adv(0)] (block 20).
+
+    The return addresses of the calls are addresses of the code
+    [hts_main_code], given by [hts_block_offset]. *)
+
+Section HTS_Code.
+  Context `{MP: MachineParameters}.
+
+  (** The blocks of [hts_main_code], as focused by [focus_block]. *)
+  Definition hts_main_blocks : list (list Word) := ltac:(code_blocks_of hts_main_code).
+
+  Lemma hts_main_code_blocks : hts_main_code = concat hts_main_blocks.
+  Proof. reflexivity. Qed.
+
+End HTS_Code.
+
+(** Offset of the first instruction of the block [n] in [hts_main_code]. *)
+Notation hts_block_offset := (code_block_offset hts_main_blocks).
+
+(** Offset of the [i]-th instruction of the block [n] in [hts_main_code]. *)
+Notation hts_instr_offset := (code_instr_offset hts_main_blocks).
 
 (** Pure facts about the allocator layout, shared by the known calls. *)
 Section HTS_Layout.
@@ -178,10 +199,6 @@ Section HTS_States.
     codefrag pc_a hts_main_code ∗
     cgp_b ↦ₐ WInt 0.
 
-  (** [a] is the first address of block [n] of [hts_main_asm]. *)
-  Definition hts_block_addr (n : nat) (a : Addr) : Prop :=
-    (pc_a + length (concat (take n (encodeInstrsW <$> assembled_hts_main))))%a = Some a.
-
   Definition hts_buffer_bounds (b : Addr) : Prop :=
     (heap_b < b)%a ∧ (b < b ^+ 1)%a ∧ (b ^+ 1 <= heap_e)%a.
 
@@ -243,9 +260,8 @@ Section HTS_States.
   (** Return from the call to malloc. Allocator failure and trusted-stack
       exhaustion both return an integer in [ca0]. *)
   Definition hts_malloc_ret : iProp Σ :=
-    ∃ a_ret : Addr,
-      ⌜hts_block_addr 4 a_ret⌝ ∗
-      ((∃ z, hts_halt_ready a_ret z) ∨ hts_malloc_ok a_ret).
+    (∃ z, hts_halt_ready (pc_a ^+ hts_block_offset 4)%a z) ∨
+    hts_malloc_ok (pc_a ^+ hts_block_offset 4)%a.
 
   (** Return from the first adversary call: [b] was shared in [hts_Wshare b],
       and the switcher returns a public future [Wret] of it. [p] and the
@@ -253,15 +269,14 @@ Section HTS_States.
       adversary may have freed [b]: its liveness is only known after the
       reload of the saved buffer. *)
   Definition hts_adv1_ret : iProp Σ :=
-    ∃ (ι : AId) (b a_ret : Addr) (Wret : WORLD),
-      ⌜hts_block_addr 9 a_ret⌝ ∗
+    ∃ (ι : AId) (b : Addr) (Wret : WORLD),
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare ι b)
           (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
-      hts_frame a_ret (csp_b ^+ 1)%a ∗
+      hts_frame (pc_a ^+ hts_block_offset 9)%a (csp_b ^+ 1)%a ∗
       (∃ w, ca0 ↦ᵣ w) ∗
       (∃ w, ca1 ↦ᵣ w) ∗
       hts_zero_regs ∗
@@ -297,26 +312,13 @@ Section HTS_States.
   (** Return from the call to free. The allocator cannot fail: only
       trusted-stack exhaustion returns a nonzero code. *)
   Definition hts_free_ret : iProp Σ :=
-    ∃ a_ret : Addr,
-      ⌜hts_block_addr 15 a_ret⌝ ∗
-      ((∃ z, ⌜z ≠ 0%Z⌝ ∗ hts_halt_ready a_ret z) ∨ hts_free_ok a_ret).
+    (∃ z, ⌜z ≠ 0%Z⌝ ∗ hts_halt_ready (pc_a ^+ hts_block_offset 15)%a z) ∨
+    hts_free_ok (pc_a ^+ hts_block_offset 15)%a.
 
   (** Return from the second adversary call: only [p] and the code are
       needed for the assertion. *)
   Definition hts_adv2_ret : iProp Σ :=
-    ∃ a_ret : Addr,
-      ⌜hts_block_addr 20 a_ret⌝ ∗
-      hts_frame a_ret (csp_b ^+ 1)%a ∗
-      hts_zero_regs.
+    hts_frame (pc_a ^+ hts_block_offset 20)%a (csp_b ^+ 1)%a ∗
+    hts_zero_regs.
 
 End HTS_States.
-
-(** Focus on the first block of a segment, whose start address [a_ret] is
-    given by [Hret : hts_block_addr pc_a n a_ret]. *)
-Tactic Notation "hts_focus_entry_block" constr(n) constr(h) "as"
-    ident(a) ident(Ha) constr(hi) constr(hcont) "from" hyp(Hret) :=
-  rewrite /hts_block_addr /assembled_hts_main /assembled_hts_main' in Hret;
-  cbn in Hret;
-  focus_block_nochangePC n h as a Ha hi hcont;
-  let Ha' := fresh "Ha" in
-  pose proof Ha as Ha'; cbn in Ha'; changePCto a; clear Ha' Hret.
