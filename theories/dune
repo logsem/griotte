@@ -1,5 +1,8 @@
 (include_subdirs qualified)
 
+(dirs :standard \ program_logic_binary model_binary logrel_binary
+                  proofmode_binary switcher_binary case_studies_binary)
+
 (rocq.theory
  (name griotte)
  (package griotte)
