@@ -32,8 +32,8 @@ Section Fetch_binary.
 
     spec_ctx
     ∗ ⤇ Seq (Instr Executable)
-    ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-    ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ rdst ↦ᵣ wdst
     ∗ rdst ↣ᵣ swdst
     ∗ rscratch1 ↦ᵣ w1
@@ -45,8 +45,8 @@ Section Fetch_binary.
     ∗ (pc_b ^+ n)%a ↦ₐ wentry
     ∗ (pc_b ^+ n)%a ↣ₐ wentry
     ∗ ▷ (⤇ Seq (Instr Executable)
-         ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
-         ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e a_last
+         ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+         ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ rdst ↦ᵣ load_word pc_p wentry
          ∗ rdst ↣ᵣ load_word pc_p wentry
          ∗ rscratch1 ↦ᵣ WInt 0%Z
@@ -100,7 +100,7 @@ Section Fetch_binary.
     (* Lea rdst n *)
     iInstr_lockstep "Hsprog" "Hprog".
 
-    (* Load rdst rdst *)
+    (* Load rdst rdst 0 *)
     iInstr_lockstep "Hsprog" "Hprog".
 
     (* Mov rscratch1 0 *)

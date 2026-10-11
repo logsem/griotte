@@ -39,6 +39,8 @@ Class stack_callee_secret_memory_layout `{MP: MachineParameters} := {
     (* adv compartment B *)
     B_cmpt : cmpt ;
     offset_B_adv : nat;
+    offset_B_adv_valid :
+      is_Some (cmpt_b_pcc B_cmpt + offset_B_adv%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints : T_cmpt ## B_cmpt ;
@@ -82,19 +84,19 @@ Definition is_initial_memory `{stack_callee_secret_memory_layout} (secret : Z) (
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let B_adv :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc B_cmpt)
       (cmpt_exp_tbl_entries_end B_cmpt)
       (cmpt_exp_tbl_entries_start B_cmpt)
   in
   let T_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc T_cmpt)
       (cmpt_exp_tbl_entries_end T_cmpt)
       (cmpt_exp_tbl_entries_start T_cmpt)
@@ -137,11 +139,11 @@ Qed.
 Lemma sealed_entry_points_neq `{MP: MachineParameters}
   (C1 C2 : cmpt) (o : OType) (g1 g2 : Locality) (a1 a2 : Addr) :
   C1 ## C2 ->
-  WSealed o (SCap RO g1 (cmpt_exp_tbl_pcc C1) (cmpt_exp_tbl_entries_end C1) a1)
-  ≠ WSealed o (SCap RO g2 (cmpt_exp_tbl_pcc C2) (cmpt_exp_tbl_entries_end C2) a2).
+  WSealed o (SCap true RO g1 (cmpt_exp_tbl_pcc C1) (cmpt_exp_tbl_entries_end C1) a1)
+  ≠ WSealed o (SCap true RO g2 (cmpt_exp_tbl_pcc C2) (cmpt_exp_tbl_entries_end C2) a2).
 Proof.
   intros Hdisjoint Heq.
-  apply (exported_entry_point_disjoint C1 C2 RO RO g1 g2 a1 a2 Hdisjoint).
+  apply (exported_entry_point_disjoint C1 C2 true true RO RO g1 g2 a1 a2 Hdisjoint).
   inversion Heq; congruence.
 Qed.
 
@@ -188,10 +190,10 @@ Section Adequacy.
 
     (* 1 - We give names to the exported entry points for which we want to
        know the number of arguments. *)
-    change (SCap RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
+    change (SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
               (cmpt_exp_tbl_entries_start B_cmpt))
       with (cmpt_export B_cmpt (cmpt_exp_tbl_entries_start B_cmpt)) in T_imports.
-    change (SCap RO Global (cmpt_exp_tbl_pcc T_cmpt) (cmpt_exp_tbl_entries_end T_cmpt)
+    change (SCap true RO Global (cmpt_exp_tbl_pcc T_cmpt) (cmpt_exp_tbl_entries_end T_cmpt)
               (cmpt_exp_tbl_entries_start T_cmpt))
       with (cmpt_export T_cmpt (cmpt_exp_tbl_entries_start T_cmpt)) in B_imports.
     set (B_adv := cmpt_export B_cmpt (cmpt_exp_tbl_entries_start B_cmpt)).
@@ -282,16 +284,16 @@ Section Adequacy.
            with "[$HT_imports $HsT_imports $HT_code $HsT_code $HT_secret $HsT_secret]") as "#HT".
     iMod (inv_alloc (export_table_PCCN TN) ⊤
             (cmpt_exp_tbl_pcc T_cmpt
-               ↦ₐ WCap RX Global (cmpt_b_pcc T_cmpt) (cmpt_e_pcc T_cmpt) (cmpt_b_pcc T_cmpt)
+               ↦ₐ WCap true RX Global (cmpt_b_pcc T_cmpt) (cmpt_e_pcc T_cmpt) (cmpt_b_pcc T_cmpt)
              ∗ cmpt_exp_tbl_pcc T_cmpt
-               ↣ₐ WCap RX Global (cmpt_b_pcc T_cmpt) (cmpt_e_pcc T_cmpt) (cmpt_b_pcc T_cmpt))%I
+               ↣ₐ WCap true RX Global (cmpt_b_pcc T_cmpt) (cmpt_e_pcc T_cmpt) (cmpt_b_pcc T_cmpt))%I
            with "[$HT_etbl_pcc $HsT_etbl_pcc]")
       as "#Hinv_T_etbl_PCC".
     iMod (inv_alloc (export_table_CGPN TN) ⊤
             (cmpt_exp_tbl_cgp T_cmpt
-               ↦ₐ WCap RW Global (cmpt_b_cgp T_cmpt) (cmpt_e_cgp T_cmpt) (cmpt_b_cgp T_cmpt)
+               ↦ₐ WCap true RW Global (cmpt_b_cgp T_cmpt) (cmpt_e_cgp T_cmpt) (cmpt_b_cgp T_cmpt)
              ∗ cmpt_exp_tbl_cgp T_cmpt
-               ↣ₐ WCap RW Global (cmpt_b_cgp T_cmpt) (cmpt_e_cgp T_cmpt) (cmpt_b_cgp T_cmpt))%I
+               ↣ₐ WCap true RW Global (cmpt_b_cgp T_cmpt) (cmpt_e_cgp T_cmpt) (cmpt_b_cgp T_cmpt))%I
            with "[$HT_etbl_cgp $HsT_etbl_cgp]")
       as "#Hinv_T_etbl_CGP".
     iMod (inv_alloc (export_table_entryN TN (cmpt_exp_tbl_entries_start T_cmpt)) ⊤
@@ -304,6 +306,13 @@ Section Adequacy.
        switcher, and is sealed with [ot_switcher] in the world of B *)
     pose proof (main_code_size_obligations _ _ _ T_imports T_code)
       as (HsubBounds & Himports_contiguous).
+    assert (is_Some (cmpt_b_pcc T_cmpt + Z.of_nat stack_callee_secret_f_offset)%a) as HT_f_some.
+    { pose proof (cmpt_import_size T_cmpt) as Hi.
+      pose proof (cmpt_code_size T_cmpt) as Hc.
+      rewrite T_imports in Hi. rewrite T_code /stack_callee_secret_code length_app in Hc.
+      rewrite /stack_callee_secret_f_offset.
+      cbn [length stack_callee_secret_imports] in Hi |- *.
+      solve_addr. }
     set (W0 := (∅, (∅, ∅), ∅) : WORLD).
     set (W0' := <o[ ot_switcher switcher_cmpt :=
                     {[ (WSealable T_f, WSealable T_f); borrow_pair (WSealable T_f, WSealable T_f) ]}
@@ -325,7 +334,7 @@ Section Adequacy.
                 (cmpt_b_cgp T_cmpt) (cmpt_e_cgp T_cmpt)
                 (cmpt_exp_tbl_pcc T_cmpt) (cmpt_exp_tbl_entries_end T_cmpt) Global
                 B_adv secret1 secret2 W0' B switcherN TN
-                ltac:(solve_addr+H0 H1 H2) HsubBounds Himports_contiguous T_data_size).
+                ltac:(solve_addr+H0 H1 H2) HsubBounds Himports_contiguous T_data_size HT_f_some).
       iFrame "#".
     }
     iMod (seal_main_export_binary W0 B T_f
@@ -343,7 +352,8 @@ Section Adequacy.
       iApply (adversary_exports_prop_binary _ _ _ _
                 [(stack_callee_secret_B_adv_args, offset_B_adv)]
                with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
-        [by rewrite B_exp_tbl | by repeat constructor |].
+        [by rewrite B_exp_tbl | by repeat constructor |
+         by apply Forall_singleton, offset_B_adv_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_B_adv Hentry_B_adv'".
     }
     { rewrite B_imports.
@@ -484,7 +494,7 @@ Section ctx_equiv.
   Proof.
     intros B_adv [ [reg1 sreg1] m1] [ [reg2 sreg2] m2] HB Hl1 Hl2.
     destruct HB as (HB_imports & HB_code & HB_data & HB_exports).
-    inversion HB_exports as [|? w ? ? (off & ->) Hnil]; subst.
+    inversion HB_exports as [|? w ? ? (off & -> & Hoff) Hnil]; subst.
     inversion Hnil; subst.
     destruct Hl1 as (HTB & Hsw_T & Hsw_B & Himports & Hreg1 & Hsreg1 & ->).
     destruct Hl2 as (_ & _ & _ & _ & Hreg2 & Hsreg2 & ->).
@@ -498,6 +508,7 @@ Section ctx_equiv.
               T_data_size := HT_size;
               B_cmpt := B_adv;
               offset_B_adv := off;
+              offset_B_adv_valid := Hoff;
               cmpts_disjoints := HTB;
               switcher_cmpt_disjoints := conj Hsw_T Hsw_B |}).
     rewrite /halt_equiv /halts.

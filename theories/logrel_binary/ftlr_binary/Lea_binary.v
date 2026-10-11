@@ -48,20 +48,27 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ p0 g0 b0 e0 a0 z a0' Hdst Hz Hoffset HincrPC
-                      | p0 g0 b0 e0 a0 z a0' Hdst Hz Hoffset HincrPC | ]
-    ; cycle 2.
+    destruct HSpec as [ t0 p0 g0 b0 e0 a0 z a0' Hdst Hz Hoffset HincrPC
+                      | t0 p0 g0 b0 e0 a0 z a0' Hdst Hz Hoffset HincrPC
+                      | t0 p0 g0 b0 e0 a0 z Hdst Hz Hoffset HincrPC
+                      | t0 p0 g0 b0 e0 a0 z Hdst Hz Hoffset HincrPC
+                      | ]
+    ; cycle 4.
     { ftlr_impl_fail. }
 
     (* The specification run performs the same update *)
     all: iDestruct (interp_reg_lookup_same with "Hinv_interp Hreg") as %Hdst2; [exact Hdst|done|].
     all: iDestruct (interp_z_of_argument _ _ _ _ _ src with "Hinv_interp Hreg") as %Hz2.
     all: rewrite Hz2 in Hz.
-    all: apply incrementPC_Some_inv in HincrPC as (p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
+    all: apply incrementPC_Some_inv in HincrPC as (t2&p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
     1: eapply Lea_spec_determ in HSpec2 as [Hv2 Hregs2];
        last (eapply Lea_spec_success_cap; eauto; transfer_incrementPC HPC Ha2).
     2: eapply Lea_spec_determ in HSpec2 as [Hv2 Hregs2];
        last (eapply Lea_spec_success_sr; eauto; transfer_incrementPC HPC Ha2).
+    3: eapply Lea_spec_determ in HSpec2 as [Hv2 Hregs2];
+       last (eapply Lea_spec_invalidated_cap; eauto; transfer_incrementPC HPC Ha2).
+    4: eapply Lea_spec_determ in HSpec2 as [Hv2 Hregs2];
+       last (eapply Lea_spec_invalidated_sr; eauto; transfer_incrementPC HPC Ha2).
     all: specialize (Hregs2 eq_refl); subst retv2 regs2'.
     all: iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
     all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
@@ -69,9 +76,19 @@ Section fundamental.
     all: iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
     all: try (destruct ρ;auto;contradiction).
 
+    (* An invalidated PC is not a valid program counter *)
+    3: destruct (decide (dst = PC)) as [->|HdstPC3].
+    3: { rewrite /insert_reg in HPC; simplify_map_eq.
+         iApply (wp_bind (fill [SeqCtx])).
+         iExtract "Hmap" PC as "HPC".
+         iApply (wp_notCorrectPC_tag with "HPC"); first done.
+         iNext; iIntros "HPC /=".
+         ftlr_impl_fail. }
+
     (* The new PC is the old one, with another address *)
-    all: assert (p2 = p ∧ g2 = g ∧ b2 = b ∧ e2 = e) as (-> & -> & -> & ->)
-      by (rewrite /insert_reg in HPC; destruct (decide (PC = dst)); simplify_map_eq; auto).
+    all: assert (t2 = true ∧ p2 = p ∧ g2 = g ∧ b2 = b ∧ e2 = e) as (-> & -> & -> & -> & ->)
+      by (rewrite /insert_reg in HPC; rewrite /lookup_reg in Hdst;
+          destruct (decide (PC = dst)); simplify_map_eq; auto).
     all: iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
              with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
     all: try (iApply (interp_next_PC with "Hinv_interp"); eauto).
@@ -80,6 +97,8 @@ Section fundamental.
     all: iDestruct (interp_reg_lookup with "Hinv_interp Hreg") as "Hw"; [exact Hdst|exact Hdst2|].
     - iApply (interp_weakening with "IH Hw"); eauto; try solve_addr; try reflexivity.
     - iApply (interp_weakening_ot with "Hw"); eauto; try solve_addr; try reflexivity.
+    - iApply interp_untagged; done.
+    - iApply interp_untagged; done.
   Qed.
 
 End fundamental.

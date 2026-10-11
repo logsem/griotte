@@ -24,8 +24,8 @@ Section spec_rules.
   Lemma step_Jmp Ep pc_p pc_g pc_b pc_e pc_a w rimm regs :
     ↑specN ⊆ Ep →
     decodeInstrW w = Jmp rimm ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Jmp rimm) ⊆ dom regs →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
@@ -77,7 +77,7 @@ Section spec_rules.
        iFailWP "Hφ" Jmp_fail_PC_overflow. }
 
        eapply (incrementPC_gen_success_updatePC_gen _ sr m _ imm) in Hregs'
-         as (p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+         as (t'' & p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
        eapply updatePC_gen_success_incl with (sregs':=sr) (m':=m) in HuPC; eauto.
        rewrite HuPC in Hstep.
        eassert ((c, σ2) = (NextI, _)) as HH.
@@ -92,16 +92,16 @@ Section spec_rules.
    Lemma step_jmp_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
      ↑specN ⊆ Ep →
      decodeInstrW w = Jmp (inl imm) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
      spec_ctx ∗
-     ⤇ Seq (Instr Executable) ∗
-     PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
-     pc_a ↣ₐ w
-     ={Ep}=∗
-     ⤇ Seq (Instr NextI) ∗
-     PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
-     pc_a ↣ₐ w.
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    pc_a ↣ₐ w
+    ={Ep}=∗
+    ⤇ Seq (Instr NextI) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+    pc_a ↣ₐ w.
    Proof.
      iIntros (HE Hinstr Hvpc Hpca') "(#Hctx & Hj & HPC & Hpc_a)".
      iDestruct (spec_map_of_regs_1 with "HPC") as "Hmap".
@@ -112,31 +112,31 @@ Section spec_rules.
      destruct Hspec as [| * Hfail].
      { (* Success *)
        iModIntro. iFrame.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
        rewrite insert_insert_eq //.
        iDestruct (spec_regs_of_map_1 with "Hmap") as "?"; eauto; iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
+       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
      }
    Qed.
 
    Lemma step_jmp_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_a' w rimm imm:
      ↑specN ⊆ Ep →
      decodeInstrW w = Jmp (inr rimm) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
      rimm ≠ cnull ->
      spec_ctx ∗
-     ⤇ Seq (Instr Executable) ∗
-     PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
-     pc_a ↣ₐ w ∗
-     rimm ↣ᵣ WInt imm
-     ={Ep}=∗
-     ⤇ Seq (Instr NextI) ∗
-     PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
-     pc_a ↣ₐ w ∗
-     rimm ↣ᵣ WInt imm.
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    pc_a ↣ₐ w ∗
+    rimm ↣ᵣ WInt imm
+    ={Ep}=∗
+    ⤇ Seq (Instr NextI) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+    pc_a ↣ₐ w ∗
+    rimm ↣ᵣ WInt imm.
    Proof.
      iIntros (HE Hinstr Hvpc Hpca' Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hrimm)".
      iDestruct (spec_map_of_regs_2 with "HPC Hrimm") as "[Hmap %]".
@@ -147,12 +147,12 @@ Section spec_rules.
      destruct Hspec as [| * Hfail].
      { (* Success *)
        iModIntro. iFrame.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
        rewrite insert_insert_eq //.
        iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
+       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
      }
    Qed.
 

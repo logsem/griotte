@@ -48,22 +48,28 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ p0 g0 b0 e0 a0 a1 a2 Hdst Hao1 Hao2 Hwi HincrPC
-                      | p0 g0 b0 e0 a0 a1 a2 Hdst Hao1 Hao2 Hwi HincrPC
+    destruct HSpec as [ t0 p0 g0 b0 e0 a0 n1 n2 a1 a2 Hdst Hz1 Hz2 Hao1 Hao2 HincrPC
+                      | t0 p0 g0 b0 e0 a0 n1 n2 Hdst Hz1 Hz2 Hunrep HincrPC
+                      | t0 p0 g0 b0 e0 a0 n1 n2 a1 a2 Hdst Hz1 Hz2 Hao1 Hao2 HincrPC
+                      | t0 p0 g0 b0 e0 a0 n1 n2 Hdst Hz1 Hz2 Hunrep HincrPC
                       | ]
-    ; cycle 2.
+    ; cycle 4.
     { ftlr_impl_fail. }
 
     (* The specification run performs the same update *)
     all: iDestruct (interp_reg_lookup_same with "Hinv_interp Hreg") as %Hdst2; [exact Hdst|done|].
-    all: iDestruct (interp_z_of_argument _ _ _ _ _ r1 with "Hinv_interp Hreg") as %Hz1.
-    all: iDestruct (interp_z_of_argument _ _ _ _ _ r2 with "Hinv_interp Hreg") as %Hz2.
-    all: rewrite /addr_of_argument /otype_of_argument Hz1 Hz2 in Hao1 Hao2.
-    all: apply incrementPC_Some_inv in HincrPC as (p2&g2&b2&e2&a3&a4&HPC&Ha3&->).
+    all: iDestruct (interp_z_of_argument _ _ _ _ _ r1 with "Hinv_interp Hreg") as %Hz1'.
+    all: iDestruct (interp_z_of_argument _ _ _ _ _ r2 with "Hinv_interp Hreg") as %Hz2'.
+    all: rewrite Hz1' in Hz1; rewrite Hz2' in Hz2.
+    all: apply incrementPC_Some_inv in HincrPC as (t2&p2&g2&b2&e2&a3&a4&HPC&Ha3&->).
     1: eapply Subseg_spec_determ in HSpec2 as [Hv2 Hregs2];
        last (eapply Subseg_spec_success_cap; eauto; transfer_incrementPC HPC Ha3).
     2: eapply Subseg_spec_determ in HSpec2 as [Hv2 Hregs2];
+       last (eapply Subseg_spec_unrepresentable_cap; eauto; transfer_incrementPC HPC Ha3).
+    3: eapply Subseg_spec_determ in HSpec2 as [Hv2 Hregs2];
        last (eapply Subseg_spec_success_sr; eauto; transfer_incrementPC HPC Ha3).
+    4: eapply Subseg_spec_determ in HSpec2 as [Hv2 Hregs2];
+       last (eapply Subseg_spec_unrepresentable_sr; eauto; transfer_incrementPC HPC Ha3).
     all: specialize (Hregs2 eq_refl); subst retv2 regs2'.
     all: iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
     all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
@@ -71,9 +77,33 @@ Section fundamental.
     all: iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
     all: try (destruct ρ;auto;contradiction).
     all: iDestruct (interp_reg_lookup with "Hinv_interp Hreg") as "#Hw"; [exact Hdst|exact Hdst2|].
-    all: apply isWithin_implies in Hwi; destruct Hwi as [Hwi_b Hwi_e].
 
-    - iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+    - destruct (isWithin a1 a2 b0 e0) eqn:Hwi; cycle 1.
+      { (* The new bounds are not within the old ones: the tag is cleared *)
+        rewrite ?Hwi ?andb_false_r in HPC |- *.
+        destruct (decide (dst = PC)) as [->|HdstPC].
+        { rewrite /insert_reg in HPC; simplify_map_eq.
+          iApply (wp_bind (fill [SeqCtx])).
+          iExtract "Hmap" PC as "HPC".
+          iApply (wp_notCorrectPC_tag with "HPC"); first done.
+          iNext; iIntros "HPC /=".
+          ftlr_impl_fail.
+        }
+        rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+                 with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
+        + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
+          iIntros (_ _).
+          iApply interp_untagged; done.
+        + iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
+      }
+      rewrite ?Hwi ?andb_true_r in HPC |- *.
+      apply isWithin_implies in Hwi; destruct Hwi as [Hwi_b Hwi_e].
+      assert (t2 = true) as ->.
+      { destruct (decide (dst = PC)) as [->|HdstPC].
+        - rewrite /insert_reg in HPC; rewrite /lookup_reg in Hdst; simplify_map_eq; done.
+        - rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq; done. }
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
                with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
       + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
         iIntros (HdstPC Hdstnull).
@@ -84,7 +114,38 @@ Section fundamental.
           iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
         * rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
           iApply (interp_next_PC with "Hinv_interp"); eauto.
-    - assert (dst ≠ PC) as HdstPC.
+    - (* Unrepresentable bounds: the tag is cleared *)
+      destruct (decide (dst = PC)) as [->|HdstPC].
+      { rewrite /insert_reg in HPC; simplify_map_eq.
+        iApply (wp_bind (fill [SeqCtx])).
+        iExtract "Hmap" PC as "HPC".
+        iApply (wp_notCorrectPC_tag with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        ftlr_impl_fail.
+      }
+      rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+               with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
+      + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
+        iIntros (_ _).
+        iApply interp_untagged; done.
+      + iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
+    - destruct (isWithin a1 a2 b0 e0) eqn:Hwi; cycle 1.
+      { (* The new bounds are not within the old ones: the tag is cleared *)
+        rewrite ?Hwi ?andb_false_r in HPC |- *.
+        assert (dst ≠ PC) as HdstPC.
+        { intros ->; rewrite /insert_reg in HPC; simplify_map_eq. }
+        rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+                 with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
+        + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
+          iIntros (_ _).
+          iApply interp_untagged; done.
+        + iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
+      }
+      rewrite ?Hwi ?andb_true_r in HPC |- *.
+      apply isWithin_implies in Hwi; destruct Hwi as [Hwi_b Hwi_e].
+      assert (dst ≠ PC) as HdstPC.
       { intros ->; rewrite /insert_reg in HPC; simplify_map_eq. }
       rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
       iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
@@ -92,6 +153,16 @@ Section fundamental.
       + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
         iIntros (_ Hdstnull).
         iApply (interp_weakening_ot with "Hw"); eauto; try solve_addr; try reflexivity.
+      + iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
+    - (* Unrepresentable bounds: the tag is cleared *)
+      assert (dst ≠ PC) as HdstPC.
+      { intros ->; rewrite /insert_reg in HPC; simplify_map_eq. }
+      rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+               with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
+      + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
+        iIntros (_ _).
+        iApply interp_untagged; done.
       + iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 

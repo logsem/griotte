@@ -62,7 +62,7 @@ Section fundamental.
     { ftlr_impl_fail. }
 
     (* The specification run reads a related word, with the same denotation *)
-    iDestruct (interp_reg_lookup_Some _ _ _ _ (WCap p g b e a) r with "Hreg") as %[w2 Hw2].
+    iDestruct (interp_reg_lookup_Some _ _ _ _ (WCap true p g b e a) r with "Hreg") as %[w2 Hw2].
     iDestruct (interp_reg_lookup with "Hinv_interp Hreg") as "Hw"; [exact Hw1|exact Hw2|].
     iDestruct (interp_denote _ _ (decodeInstrW w) with "Hw") as %Hdenote.
     assert (dst <> PC) as HdstPC.

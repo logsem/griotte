@@ -27,8 +27,8 @@ Section Switcher_Call_Blocks_6.
     (pc_a ^+ 2 + (-61))%a = Some a_switcher_return ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
-    PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
     ca0 ↣ᵣ swca0 ∗
     ca1 ↦ᵣ wca1 ∗
@@ -36,8 +36,8 @@ Section Switcher_Call_Blocks_6.
     codefrag pc_a (switcher_instrs_n 17) ∗
     spec_codefrag pc_a (switcher_instrs_n 17) ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
         ca0 ↣ᵣ WInt ECOMPARTMENTFAIL ∗
         ca1 ↦ᵣ WInt 0 ∗
@@ -73,8 +73,8 @@ Section Switcher_Call_Blocks_6.
     switcher_code ∗
     switcher_spec_code ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
         ca0 ↣ᵣ WInt ECOMPARTMENTFAIL ∗
         ca1 ↦ᵣ WInt 0 ∗

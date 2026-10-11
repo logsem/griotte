@@ -35,8 +35,8 @@ Section Switcher_Call_Blocks_2.
 
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
-    PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs0 ↣ᵣ swcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
@@ -45,15 +45,15 @@ Section Switcher_Call_Blocks_2.
     cra ↣ᵣ swcra ∗
     cgp ↦ᵣ wcgp ∗
     cgp ↣ᵣ swcgp ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
-    csp ↣ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↣ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     [[a_stk,e_stk]]↦ₐ[[stk_mem]] ∗
     [[a_stk,e_stk]]↣ₐ[[stk_mem_spec]] ∗
     codefrag pc_a switcher_instrs_2 ∗
     spec_codefrag pc_a switcher_instrs_2 ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_2)%a ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_2)%a ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_2)%a ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_2)%a ∗
         cs0 ↦ᵣ wcs0 ∗
         cs0 ↣ᵣ swcs0 ∗
         cs1 ↦ᵣ wcs1 ∗
@@ -62,8 +62,8 @@ Section Switcher_Call_Blocks_2.
         cra ↣ᵣ swcra ∗
         cgp ↦ᵣ wcgp ∗
         cgp ↣ᵣ swcgp ∗
-        csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
-        csp ↣ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+        csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+        csp ↣ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcra wcgp ∗
         switcher_stk_cells_spec a_stk swcs0 swcs1 swcra swcgp ∗
         [[(a_stk ^+ 4)%a,e_stk]]↦ₐ[[drop 4 stk_mem]] ∗
@@ -201,8 +201,8 @@ Section Switcher_Call_Blocks_2.
 
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
-    PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs0 ↣ᵣ swcs0 ∗
     ctp ↦ᵣ wctp ∗
@@ -211,25 +211,25 @@ Section Switcher_Call_Blocks_2.
     ct2 ↣ᵣ swct2 ∗
     csp ↦ᵣ wstk ∗
     csp ↣ᵣ wstk ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[a_tstk1,e_trusted_stack]]↦ₐ[[tstk_next]] ∗
     [[a_tstk1,e_trusted_stack]]↣ₐ[[ststk_next]] ∗
     codefrag pc_a switcher_instrs_3 ∗
     spec_codefrag pc_a switcher_instrs_3 ∗
     ▷ ( ( ⤇ Seq (Instr Executable) ∗
-          PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_3)%a ∗
-          PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_3)%a ∗
+          PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_3)%a ∗
+          PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_3)%a ∗
           cs0 ↦ᵣ WInt a_tstk1 ∗
           cs0 ↣ᵣ WInt a_tstk1 ∗
           ctp ↦ᵣ WInt 1 ∗
           ctp ↣ᵣ WInt 1 ∗
-          ct2 ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-          ct2 ↣ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+          ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+          ct2 ↣ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
           csp ↦ᵣ wstk ∗
           csp ↣ᵣ wstk ∗
-          mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-          mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+          mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+          mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
           a_tstk1 ↦ₐ wstk ∗
           a_tstk1 ↣ₐ wstk ∗
           [[a_tstk2,e_trusted_stack]]↦ₐ[[drop 1 tstk_next]] ∗
@@ -240,18 +240,18 @@ Section Switcher_Call_Blocks_2.
           £ 2 )
         ∨
         ( ⤇ Seq (Instr Executable) ∗
-          PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ 120)%a ∗
-          PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ 120)%a ∗
+          PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 120)%a ∗
+          PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 120)%a ∗
           cs0 ↦ᵣ WInt (a_tstk + 1) ∗
           cs0 ↣ᵣ WInt (a_tstk + 1) ∗
           ctp ↦ᵣ WInt 0 ∗
           ctp ↣ᵣ WInt 0 ∗
-          ct2 ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-          ct2 ↣ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+          ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+          ct2 ↣ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
           csp ↦ᵣ wstk ∗
           csp ↣ᵣ wstk ∗
-          mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-          mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+          mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+          mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
           [[a_tstk1,e_trusted_stack]]↦ₐ[[tstk_next]] ∗
           [[a_tstk1,e_trusted_stack]]↣ₐ[[ststk_next]] ∗
           codefrag pc_a switcher_instrs_3 ∗
@@ -361,12 +361,12 @@ Section Switcher_Call_Blocks_2.
     ctp ↣ᵣ swctp ∗
     ct2 ↦ᵣ wct2 ∗
     ct2 ↣ᵣ swct2 ∗
-    csp ↦ᵣ WCap RWL Local b e a ∗
-    csp ↣ᵣ WCap RWL Local b e a ∗
+    csp ↦ᵣ WCap true RWL Local b e a ∗
+    csp ↣ᵣ WCap true RWL Local b e a ∗
     [[ a , e ]] ↦ₐ [[ stk_mem ]] ∗
     [[ a , e ]] ↣ₐ [[ stk_mem_spec ]] ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↣ₐ [[ ststk_next ]] ∗
     switcher_code ∗
@@ -379,8 +379,8 @@ Section Switcher_Call_Blocks_2.
         cra ↣ᵣ swcra ∗
         cgp ↦ᵣ wcgp ∗
         cgp ↣ᵣ swcgp ∗
-        csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
-        csp ↣ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+        csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
+        csp ↣ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
         switcher_stk_cells a wcs0 wcs1 wcra wcgp ∗
         switcher_stk_cells_spec a swcs0 swcs1 swcra swcgp ∗
         [[ (a ^+ 4)%a , e ]] ↦ₐ [[ drop 4 stk_mem ]] ∗
@@ -395,12 +395,12 @@ Section Switcher_Call_Blocks_2.
             cs0 ↣ᵣ WInt (a_tstk ^+ 1)%a ∗
             ctp ↦ᵣ WInt 1 ∗
             ctp ↣ᵣ WInt 1 ∗
-            ct2 ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
-            ct2 ↣ᵣ WCap RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
-            mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
-            mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
-            (a_tstk ^+ 1)%a ↦ₐ WCap RWL Local b e (a ^+ 4)%a ∗
-            (a_tstk ^+ 1)%a ↣ₐ WCap RWL Local b e (a ^+ 4)%a ∗
+            ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
+            ct2 ↣ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
+            mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
+            mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
+            (a_tstk ^+ 1)%a ↦ₐ WCap true RWL Local b e (a ^+ 4)%a ∗
+            (a_tstk ^+ 1)%a ↣ₐ WCap true RWL Local b e (a ^+ 4)%a ∗
             [[ (a_tstk ^+ 2)%a , e_trusted_stack ]] ↦ₐ [[ drop 1 tstk_next ]] ∗
             [[ (a_tstk ^+ 2)%a , e_trusted_stack ]] ↣ₐ [[ drop 1 ststk_next ]] ∗
             £ 2 )
@@ -411,10 +411,10 @@ Section Switcher_Call_Blocks_2.
             cs0 ↣ᵣ WInt (a_tstk + 1)%Z ∗
             ctp ↦ᵣ WInt 0 ∗
             ctp ↣ᵣ WInt 0 ∗
-            ct2 ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-            ct2 ↣ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-            mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-            mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+            ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+            ct2 ↣ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+            mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+            mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
             [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
             [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↣ₐ [[ ststk_next ]] ) )
         -∗
@@ -474,7 +474,7 @@ Section Switcher_Call_Blocks_2.
   (** Block 2 fails when the stack pointer is not a valid stack capability. *)
   Lemma switcher_call_blocks_2_fail_spec (wcsp wcs0 : Word) :
     switcher_csp_checked wcsp ->
-    (∀ b e a, wcsp = WCap RWL Local b e a -> (a < b)%a) ->
+    (∀ b e a, wcsp = WCap true RWL Local b e a -> (a < b)%a) ->
 
     PC ↦ᵣ switcher_block_pc 2 ∗
     csp ↦ᵣ wcsp ∗
@@ -489,13 +489,21 @@ Section Switcher_Call_Blocks_2.
     focus_block_nochangePC 2 "Hcode" as a_block Ha_block "Hcode" "Hcls".
     assert (a_block = (a_switcher_call ^+ switcher_block_offset 2)%a) as ->
       by (cbn in Ha_block; offsets_compute; solve_addr).
+    destruct (is_cap wcsp) eqn:Hcap; cycle 1.
+    { (* Store csp cs0 *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_store_fail_reg_not_cap with "[$HPC $Hi $Hcs0 $Hcsp]"); try solve_pure.
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    destruct wcsp as [| [t p g b e a|] | | ]; cbn in Hcap; try discriminate.
+    destruct t.
+    2: {
+      (* Store csp cs0 *)
+      iInstr_fail "Hcode".
+      wp_end. iIntros "%Hcontr"; done. }
     (* Store csp cs0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    destruct (is_cap wcsp) eqn:Hcap; cycle 1.
-    { iApply (wp_store_fail_reg_not_cap with "[$HPC $Hi $Hcs0 $Hcsp]"); try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
-    destruct wcsp as [| [p g b e a|] | | ]; cbn in Hcap; try discriminate.
     destruct (switcher_csp_checked_cap _ _ _ _ _ Hchecked) as [-> ->].
     specialize (Hnot_stk b e a eq_refl).
     iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs0 $Hcsp]"); try solve_pure.

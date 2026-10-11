@@ -54,13 +54,11 @@ Section fundamental.
     (* The moved words are related *)
     destruct HSpec2 as [w2 Hw2 Hincr2 | w2 Hw2 Hincr2].
     2: { iDestruct (interp_word_of_argument with "Hinv_interp Hreg") as "Hw"; [exact Hw1|exact Hw2|].
-         iDestruct (interp_eq_unless_sealed with "Hw") as %Hweq.
+         iDestruct (interp_eq with "Hw") as %<-.
          exfalso.
          destruct (decide (dst = PC)) as [->|HdstPC].
-         - destruct Hweq as [<-|(?&?&?&->&->)].
-           + eapply incrementPC_gen_PC_eq; [| exact Hincr | exact Hincr2].
-             by rewrite /insert_reg; simplify_map_eq.
-           + by rewrite /incrementPC /incrementPC_gen /insert_reg in Hincr; simplify_map_eq.
+         - eapply incrementPC_gen_PC_eq; [| exact Hincr | exact Hincr2].
+           by rewrite /insert_reg; simplify_map_eq.
          - eapply incrementPC_gen_PC_eq; [| exact Hincr | exact Hincr2].
            by rewrite !insert_reg_lookup_PC // !lookup_insert_eq. }
     iDestruct (interp_word_of_argument with "Hinv_interp Hreg") as "#Hw"; [exact Hw1|exact Hw2|].
@@ -72,12 +70,18 @@ Section fundamental.
 
     destruct (decide (dst = PC)) as [->|HdstPC].
     { (* The PC is overwritten: the new PC is the same capability on both sides *)
-      iDestruct (interp_eq_unless_sealed with "Hw") as %[<-|(?&?&?&->&->)]; cycle 1.
-      { by rewrite /incrementPC /incrementPC_gen /insert_reg in Hincr; simplify_map_eq. }
+      iDestruct (interp_eq with "Hw") as %<-.
       rewrite /insert_reg in Hincr Hincr2.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
-      incrementPC_inv as (p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
       rewrite !insert_insert_eq.
+      destruct t0; cycle 1.
+      { iApply (wp_bind (fill [SeqCtx])).
+        iExtract "Hmap" PC as "HPC".
+        iApply (wp_notCorrectPC_tag with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        ftlr_impl_fail.
+      }
       destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".

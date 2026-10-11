@@ -52,8 +52,8 @@ Section switcher_helpers_cframe.
     (a_stk ^+ 3 < e_stk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
-    interp W C (WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk,
-                WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
+    interp W C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk,
+                WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
     cframe_stk_own {|
         wret := wret;
         wcgp := wcgp0;
@@ -150,8 +150,8 @@ Section switcher_helpers_cframe.
     (a_stk ^+ 3 < e_stk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
-    interp W C (WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk,
-                WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
+    interp W C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk,
+                WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
     world_interp_open W C l_register_save_area
     -∗
 
@@ -263,7 +263,7 @@ Section switcher_helpers_cframe.
   Lemma open_revoked_stack_addr
     (W0 Wcur : WORLD) (C : CmptName) (b e a a' : Addr) (l : list Addr) :
     (b <= a')%a -> (a' < e)%a ->
-    interp W0 C (WCap RWL Local b e a, WCap RWL Local b e a) -∗
+    interp W0 C (WCap true RWL Local b e a, WCap true RWL Local b e a) -∗
     close_addr_resources_gen C Wcur l a' false -∗
     ▷ ((∃ w sw, a' ↦ₐ w ∗ a' ↣ₐ sw
                 ∗ (∃ W', ⌜related_sts_pub_world W' (close_list l Wcur)⌝ ∗ interp W' C (w, sw)))
@@ -322,8 +322,8 @@ Section switcher_helpers_cframe.
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
     related_sts_pub_world W0 Wfixed ->
 
-    interp W0 C (WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk,
-                 WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
+    interp W0 C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk,
+                 WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
     cframe_stk_own
       {|
         wret := wret;

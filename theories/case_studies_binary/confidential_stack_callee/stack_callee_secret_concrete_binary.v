@@ -57,7 +57,7 @@ Ltac unfold_scs_addresses_in H :=
     returns that word to [T]. *)
 Definition scs_B_code : list Word :=
   encodeInstrsW [
-    Store csp cra;
+    Store csp cra 0;
     Lea csp 1%Z
   ]
   ++ fetch_instrs 0 ctp ct0 ct1 (* ctp -> switcher entry point *)
@@ -67,17 +67,17 @@ Definition scs_B_code : list Word :=
     Jalr cra ctp;
     (* the stack frame of T.f starts 4 words above the stack pointer *)
     Lea csp 4%Z;
-    Load ca0 csp;
+    Load ca0 csp 0;
     Lea csp (-5)%Z;
-    Load cra csp;
+    Load cra csp 0;
     Jalr cnull cra
   ].
 Definition scs_B_data : list Word := [WInt 0].
 Definition scs_T_f : Sealable :=
-  SCap RO Global scs_T_exports_pcc scs_T_exports_entries_e
+  SCap true RO Global scs_T_exports_pcc scs_T_exports_entries_e
     scs_T_exports_entries_b.
 Definition scs_B_imports : list Word :=
-  [WSentry XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call;
+  [WSentry true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call;
    WSealed cmdc_switcher_sealing_type scs_T_f].
 Definition scs_B_exports : list Word :=
   [WInt (encode_entry_point stack_callee_secret_B_adv_args 2)].
@@ -88,7 +88,7 @@ Proof.
 Defined.
 
 Definition scs_B_adv : Sealable :=
-  SCap RO Global scs_B_exports_pcc scs_B_exports_entries_e
+  SCap true RO Global scs_B_exports_pcc scs_B_exports_entries_e
     scs_B_exports_entries_b.
 Definition scs_T_imports_concrete : list Word :=
   stack_callee_secret_imports scs_B_adv.
@@ -151,17 +151,18 @@ Proof.
   refine (@Build_stack_callee_secret_memory_layout
     machine_parameters_instance
     cmdc_concrete_cmptSwitcher scs_concrete_T_cmpt _
-    scs_concrete_B_cmpt 2 _ _).
+    scs_concrete_B_cmpt 2 _ _ _).
   - vm_compute; solve_addr.
+  - vm_compute; eauto.
   - (* The regions are concrete: their disjointness is decided by computation. *)
     apply list_to_set_disj_2; apply (bool_decide_unpack _); vm_compute; reflexivity.
   - split; solve_scs_concrete_disjoint.
 Defined.
 
 Definition scs_initial_registers : Reg :=
-  <[PC := WCap RX Global scs_T_pcc_b scs_T_pcc_e scs_T_code_start]>
-  (<[cgp := WCap RW Global scs_T_data_b scs_T_data_e scs_T_data_b]>
-  (<[csp := WCap RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
+  <[PC := WCap true RX Global scs_T_pcc_b scs_T_pcc_e scs_T_code_start]>
+  (<[cgp := WCap true RW Global scs_T_data_b scs_T_data_e scs_T_data_b]>
+  (<[csp := WCap true RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 (** The initial memory, holding [secret] in the data region of [T]. *)

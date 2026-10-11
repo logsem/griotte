@@ -66,7 +66,7 @@ Section Stack_callee_secret_States.
 
   (** The capability of the entry point of the switcher. *)
   Definition stack_callee_secret_switcher_entry : Word :=
-    WSentry XSRW_ Local b_switcher e_switcher a_switcher_call.
+    WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
   (** The entry point [T.f] is the first instruction of block 3. *)
   Lemma stack_callee_secret_f_entry (pc_b pc_e pc_a : Addr) :

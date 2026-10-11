@@ -30,8 +30,8 @@ Section spec_rules.
     ↑specN ⊆ Ep →
     decodeInstrW w = i →
     is_BinOp i dst arg1 arg2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of i ⊆ dom regs →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
@@ -103,7 +103,7 @@ Section spec_rules.
     (* Success *)
 
     eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-      as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+      as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
     eapply updatePC_success_incl with (sregs':= sr) (m':=m) in HuPC.
     2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
     simplify_pair_eq. iFrame.
@@ -118,16 +118,16 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inl n1) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WInt (denote ins n1 n2).
   Proof.
@@ -151,18 +151,18 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inr r1) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r1 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
     dst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
     dst ↣ᵣ WInt (denote ins n1 n2).
@@ -188,18 +188,18 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inl n1) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r2 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r2 ↣ᵣ WInt n2 ∗
     dst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r2 ↣ᵣ WInt n2 ∗
     dst ↣ᵣ WInt (denote ins n1 n2).
@@ -225,20 +225,20 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inr r1) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
     r2 ↣ᵣ WInt n2 ∗
     dst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
     r2 ↣ᵣ WInt n2 ∗
@@ -265,18 +265,18 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inr r) (inr r) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r ↣ᵣ WInt n ∗
     dst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r ↣ᵣ WInt n ∗
     dst ↣ᵣ WInt (denote ins n n).
@@ -302,16 +302,16 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inr dst) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WInt n1
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WInt (denote ins n1 n2).
   Proof.
@@ -335,16 +335,16 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inl n1) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WInt n2
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WInt (denote ins n1 n2).
   Proof.
@@ -368,18 +368,18 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inr dst) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r2 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r2 ↣ᵣ WInt n2 ∗
     dst ↣ᵣ WInt n1
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r2 ↣ᵣ WInt n2 ∗
     dst ↣ᵣ WInt (denote ins n1 n2).
@@ -405,18 +405,18 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inr r1) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r1 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
     dst ↣ᵣ WInt n2
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
     dst ↣ᵣ WInt (denote ins n1 n2).
@@ -442,16 +442,16 @@ Section spec_rules.
     decodeInstrW w = ins →
     is_BinOp ins dst (inr dst) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WInt n
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WInt (denote ins n n).
   Proof.
@@ -474,15 +474,12 @@ Section spec_rules.
     ↑specN ⊆ E →
     decodeInstrW w = ins →
     is_BinOp ins dst (inl n1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_z w2 = false →
     r2 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
-    pc_a ↣ₐ w ∗
-    dst ↣ᵣ wdst ∗
-    r2 ↣ᵣ w2
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ dst ↣ᵣ wdst ∗ r2 ↣ᵣ w2
     ={E}=∗
     ⤇ Seq (Instr Failed) ∗
     pc_a ↣ₐ w.
@@ -494,7 +491,55 @@ Section spec_rules.
     iDestruct "H" as (retv regs') "(Hj & %Hspec & Hpc_a & Hmap)".
     destruct Hspec as [* Hsucc |].
     { (* Success (contradiction) *)  destruct w2; simplify_map_eq. }
-    { (* Failure, done *) iModIntro. by iFrame. }
+    { (* Failure, done *) by iModIntro; iFrame. }
+  Qed.
+
+  Lemma step_binop_fail_r_r_1 E ins dst r1 r2 w wdst w1 w2 pc_p pc_g pc_b pc_e pc_a :
+    ↑specN ⊆ E →
+    decodeInstrW w = ins →
+    is_BinOp ins dst (inr r1) (inr r2) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    is_z w1 = false →
+    r1 ≠ cnull ->
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ dst ↣ᵣ wdst ∗ r1 ↣ᵣ w1 ∗ r2 ↣ᵣ w2
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    pc_a ↣ₐ w.
+  Proof.
+    iIntros (HE Hdecode Hinstr Hvpc Hzf Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr1 & Hr2)".
+    iDestruct (spec_map_of_regs_4 with "HPC Hdst Hr1 Hr2") as "[Hmap (%&%&%&%&%&%)]".
+    iMod (step_BinOp with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
+    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hpc_a & Hmap)".
+    destruct Hspec as [* Hsucc |].
+    { (* Success (contradiction) *) simplify_map_eq. destruct w1; by exfalso. }
+    { (* Failure, done *) by iModIntro; iFrame. }
+  Qed.
+
+  Lemma step_binop_fail_r_r_2 E ins dst r1 r2 w wdst w2 w3 pc_p pc_g pc_b pc_e pc_a :
+    ↑specN ⊆ E →
+    decodeInstrW w = ins →
+    is_BinOp ins dst (inr r1) (inr r2) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    is_z w3 = false →
+    r2 ≠ cnull ->
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ dst ↣ᵣ wdst ∗ r1 ↣ᵣ w2 ∗ r2 ↣ᵣ w3
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    pc_a ↣ₐ w.
+  Proof.
+    iIntros (HE Hdecode Hinstr Hvpc Hzf Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr1 & Hr2)".
+    iDestruct (spec_map_of_regs_4 with "HPC Hdst Hr1 Hr2") as "[Hmap (%&%&%&%&%&%)]".
+    iMod (step_BinOp with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
+    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hpc_a & Hmap)".
+    destruct Hspec as [* Hsucc |].
+    { (* Success (contradiction) *) simplify_map_eq. destruct w3; by exfalso. }
+    { (* Failure, done *) by iModIntro; iFrame. }
   Qed.
 
 End spec_rules.

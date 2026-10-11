@@ -23,25 +23,29 @@ Section fundamental.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO (Word * Word)) -n> iPropO Σ).
   Implicit Types interp : (V).
 
-  Lemma allow_load_map_or_true_intro (regs : Reg) (src : RegName) (mem : gmap Addr Word) :
+  Lemma allow_load_map_or_true_imm_intro (regs : Reg) (src : RegName) (imm : Z)
+    (mem : gmap Addr Word) :
     is_Some (regs !! src) →
-    (∀ p g b e a, reg_allows_load regs src p g b e a → is_Some (mem !! a)) →
-    allow_load_map_or_true src regs mem.
+    (∀ p g b e a ea, reg_allows_load_imm regs src imm p g b e a ea → is_Some (mem !! ea)) →
+    allow_load_map_or_true_imm src imm regs mem.
   Proof.
     intros [wsrc Hsrc] Hmem.
-    rewrite /allow_load_map_or_true /read_reg_inr Hsrc.
-    destruct wsrc as [ | [p g b e a|] | | ].
-    2: exists p, g, b, e, a.
-    1,3-5: exists RO, Global, za, za, za.
+    rewrite /allow_load_map_or_true_imm /read_reg_inr Hsrc.
+    destruct wsrc as [ | [t p g b e a|] | | ].
+    2: exists t, p, g, b, e, a.
+    1,3-5: exists false, RO, Global, za, za, za.
     all: split; first done.
-    all: case_decide as Hallow; [by apply Hmem in Hallow | done].
+    all: rewrite /reg_allows_load_imm.
+    all: destruct (_ + imm)%a eqn:Hea; last done.
+    all: case_decide as Hallow; last done.
+    all: eapply Hmem; destruct Hallow as (?&_&?&?); repeat split; eauto.
   Qed.
 
   Lemma load_case (W : WORLD) (C : CmptName) (regs1 regs2 : Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst src : RegName) (P:V)
+    (w : Word) (ρ : region_type) (dst src : RegName) (imm : Z) (P:V)
     (stk : cstack_pair) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr W C regs1 regs2 p p' g b e a w (Load dst src) ρ P stk Ws Cs.
+    ftlr_instr W C regs1 regs2 p p' g b e a w (Load dst src imm) ρ P stk Ws Cs.
   Proof.
     intros Hp HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi; rewrite /ftlr_post.
     iIntros "#IH #Hspec #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe
@@ -57,29 +61,34 @@ Section fundamental.
     (* The address of the PC is readable *)
     iAssert (▷ rcond P C p' interp)%I as "#HrcondP".
     { rewrite decide_True; first done.
-      exists PC, (WCap p g b e a); split; first by simplify_map_eq.
+      exists PC, (WCap true p g b e a); split; first by simplify_map_eq.
       split.
       - destruct Hp as [Hexec _]; by apply executeAllowed_is_readAllowed.
-      - cbn; split; [solve_addr | done]. }
+      - cbn; by eapply isCorrectPC_withinBounds. }
     iClear "Hrcond Hwcond".
 
     (* The source register *)
-    assert (is_Some (<[PC:=WCap p g b e a]> regs1 !!ᵣ src)) as [wsrc Hwsrc].
+    assert (is_Some (<[PC:=WCap true p g b e a]> regs1 !!ᵣ src)) as [wsrc Hwsrc].
     { apply is_Some_lookup_reg, lookup_insert_is_Some'; eauto. }
-    assert ((∃ p0 g0 b0 e0 a0, wsrc = WCap p0 g0 b0 e0 a0 ∧ readAllowed p0 = true ∧ withinBounds b0 e0 a0 = true)
-            ∨ (∀ p0 g0 b0 e0 a0, ¬ reg_allows_load (<[PC:=WCap p g b e a]> regs1) src p0 g0 b0 e0 a0))
-      as [(p0 & g0 & b0 & e0 & a0 & -> & Hra & Hwb) | Hnallow].
-    { destruct wsrc as [ | [p0 g0 b0 e0 a0|] | | ].
-      2: destruct (readAllowed p0) eqn:Hra; destruct (withinBounds b0 e0 a0) eqn:Hwb.
-      2: left; eauto 10.
-      all: right; intros ????? (Hr & Hra' & Hwb'); simplify_eq; congruence. }
+    assert ((∃ p0 g0 b0 e0 a0 ea, wsrc = WCap true p0 g0 b0 e0 a0 ∧ (a0 + imm)%a = Some ea ∧
+                                  readAllowed p0 = true ∧ withinBounds b0 e0 ea = true)
+            ∨ (∀ p0 g0 b0 e0 a0 ea,
+                  ¬ reg_allows_load_imm (<[PC:=WCap true p g b e a]> regs1) src imm p0 g0 b0 e0 a0 ea))
+      as [(p0 & g0 & b0 & e0 & a0 & ea & -> & Hea & Hra & Hwb) | Hnallow].
+    { destruct wsrc as [ | [ [|] p0 g0 b0 e0 a0 | ] | | ].
+      all: try (right; intros ?????? (Hr & _); rewrite Hwsrc in Hr; simplify_eq; done).
+      destruct (a0 + imm)%a as [ea|] eqn:Hea.
+      2: right; intros ?????? (Hr & Hea' & _); rewrite Hwsrc in Hr; simplify_eq; congruence.
+      destruct (readAllowed p0) eqn:Hra; destruct (withinBounds b0 e0 ea) eqn:Hwb.
+      1: left; eauto 10.
+      all: right; intros ?????? (Hr & Hea' & Hra' & Hwb'); rewrite Hwsrc in Hr; simplify_eq; congruence. }
     2: { (* The load fails in the implementation run *)
-      iApply (wp_load _ _ _ _ _ _ dst src w (<[a:=w]> ∅) (<[PC:=WCap p g b e a]> regs1) (DfracOwn 1) with "[Hmap Ha]"); eauto.
+      iApply (wp_load_imm _ _ _ _ _ _ dst src imm w (<[a:=w]> ∅) (<[PC:=WCap true p g b e a]> regs1) (DfracOwn 1) with "[Hmap Ha]"); eauto.
       { by simplify_map_eq. }
       { rewrite /subseteq /map_subseteq. intros rr _.
         apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
       { by simplify_map_eq. }
-      { apply allow_load_map_or_true_intro; first (apply lookup_insert_is_Some'; eauto).
+      { apply allow_load_map_or_true_imm_intro; first (apply lookup_insert_is_Some'; eauto).
         intros * Hallow; by apply Hnallow in Hallow. }
       { iSplitL "Ha"; iNext; [by iApply memMap_resource_1 | done]. }
       iNext. iIntros (regs' retv) "(%HSpec & Hmem & Hmap)".
@@ -91,29 +100,30 @@ Section fundamental.
     iDestruct (interp_reg_lookup_same with "Hinv_interp Hreg") as %Hwsrc2; [exact Hwsrc|done|].
     iDestruct (interp_reg_lookup with "Hinv_interp Hreg") as "#Hvsrc"; [exact Hwsrc|exact Hwsrc2|].
     apply withinBounds_le_addr in Hwb as Hwb'.
-    iDestruct (read_allowed_inv _ _ a0 with "Hvsrc")
+    iDestruct (read_allowed_inv _ _ ea with "Hvsrc")
       as (pS PS HflpS HpersS) "(HrelS & HzcondS & HrcondS & HwcondS & HmonoS)"
     ; [solve_addr|by rewrite Hra|].
     assert (∀ Wv : WORLD * CmptName * (Word * Word), Persistent (PS Wv.1.1 Wv.1.2 Wv.2))
       as HpersS' by apply HpersS.
-    destruct (decide (a0 = a)) as [-> | Hne].
+    destruct (decide (ea = a)) as [-> | Hne].
     - (* The source capability points to the instruction *)
       iDestruct (rel_agree C a _ _ p' pS with "[$Hinva $HrelS]") as "[<- _]".
-      iApply (wp_load _ _ _ _ _ _ dst src w (<[a:=w]> ∅) (<[PC:=WCap p g b e a]> regs1) (DfracOwn 1) with "[Hmap Ha]"); eauto.
+      iApply (wp_load_imm _ _ _ _ _ _ dst src imm w (<[a:=w]> ∅) (<[PC:=WCap true p g b e a]> regs1) (DfracOwn 1) with "[Hmap Ha]"); eauto.
       { by simplify_map_eq. }
       { rewrite /subseteq /map_subseteq. intros rr _.
         apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
       { by simplify_map_eq. }
-      { apply allow_load_map_or_true_intro; first (apply lookup_insert_is_Some'; eauto).
-        intros * (Hr & _); rewrite Hwsrc in Hr; simplify_eq; by simplify_map_eq. }
+      { apply allow_load_map_or_true_imm_intro; first (apply lookup_insert_is_Some'; eauto).
+        intros * (Hr & Hea' & _); rewrite Hwsrc in Hr; simplify_eq; by simplify_map_eq. }
       { iSplitL "Ha"; iNext; [by iApply memMap_resource_1 | done]. }
       iNext. iIntros (regs' retv) "(%HSpec & Hmem & Hmap)".
-      destruct HSpec as [p1 g1 b1 e1 a1 loadv Hallow Hmem_a HincrPC | ]; cycle 1.
+      destruct HSpec as [p1 g1 b1 e1 a1 ea1 loadv Hallow Hmem_a HincrPC | ]; cycle 1.
       { ftlr_impl_fail. }
-      destruct Hallow as (Hr1 & _ & _); rewrite Hwsrc in Hr1; injection Hr1 as <- <- <- <- <-.
+      destruct Hallow as (Hr1 & Hea1 & _ & _); rewrite Hwsrc in Hr1; injection Hr1 as <- <- <- <- <-.
+      rewrite Hea in Hea1; injection Hea1 as <-.
       rewrite lookup_insert_eq in Hmem_a; injection Hmem_a as <-.
 
-      iMod (step_load _ _ _ _ _ _ dst src w (<[a:=w]> ∅) (<[PC:=WCap p g b e a]> regs2) (DfracOwn 1)
+      iMod (step_load_imm _ _ _ _ _ _ dst src imm w (<[a:=w]> ∅) (<[PC:=WCap true p g b e a]> regs2) (DfracOwn 1)
              with "[$Hspec $Hj Hsa $Hsmap]") as (retv2 regs2') "(Hj & %HSpec2 & Hsmem & Hsmap)".
       { solve_ndisj. }
       { done. }
@@ -122,12 +132,12 @@ Section fundamental.
       { rewrite /subseteq /map_subseteq. intros rr _.
         apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
       { by simplify_map_eq. }
-      { apply allow_load_map_or_true_intro; first (apply lookup_insert_is_Some'; eauto).
-        intros * (Hr & _); rewrite Hwsrc2 in Hr; simplify_eq; by simplify_map_eq. }
+      { apply allow_load_map_or_true_imm_intro; first (apply lookup_insert_is_Some'; eauto).
+        intros * (Hr & Hea' & _); rewrite Hwsrc2 in Hr; simplify_eq; by simplify_map_eq. }
       { by iApply spec_memMap_resource_1. }
-      apply incrementPC_Some_inv in HincrPC as (p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
-      eapply Load_spec_determ in HSpec2 as [Hv2 Hregs2];
-        last (eapply Load_spec_success; [split; eauto | by simplify_map_eq | transfer_incrementPC HPC Ha2]).
+      apply incrementPC_Some_inv in HincrPC as (t2&p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
+      eapply Load_spec_imm_determ in HSpec2 as [Hv2 Hregs2];
+        last (eapply Load_spec_success_imm; [repeat split; eauto | by simplify_map_eq | transfer_incrementPC HPC Ha2]).
       specialize (Hregs2 eq_refl); subst retv2 regs2'.
       iDestruct (memMap_resource_1 with "Hmem") as "Ha".
       iDestruct (spec_memMap_resource_1 with "Hsmem") as "Hsa".
@@ -145,6 +155,12 @@ Section fundamental.
 
       destruct (decide (dst = PC)) as [->|HdstPC].
       + rewrite /insert_reg in HPC; simplify_map_eq.
+        destruct t2; cycle 1.
+        { iApply (wp_bind (fill [SeqCtx])).
+          iExtract "Hmap" PC as "HPC".
+          iApply (wp_notCorrectPC_tag with "HPC"); first done.
+          iNext; iIntros "HPC /=".
+          ftlr_impl_fail. }
         iApply ("IH" $! _ _ _ _ _ (<[PC:=_]ᵣ> _) (<[PC:=_]ᵣ> _)
                  with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
         * iApply (interp_reg_insert _ _ _ _ PC with "[]"); first by iApply interp_reg_insert_PC.
@@ -159,41 +175,39 @@ Section fundamental.
         * iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
 
     - (* The source capability points to another address: open the world there *)
-      iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ a0 with "Hvsrc")
+      iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hvsrc")
         as %(ρ0 & Hstd0 & Hnotrevoked0); eauto.
-      iDestruct (open_world_interp_next _ _ _ a0 pS _ ρ0 with "HrelS Hworld_interp")
+      iDestruct (open_world_interp_next _ _ _ ea pS _ ρ0 with "HrelS Hworld_interp")
         as "(Hworld_interp & Hstate0 & HWorldRes0)"; eauto.
       { set_solver. }
       { destruct ρ0; simplify_eq; try done; [by left | by right]. }
       iDestruct "HWorldRes0" as (v) "(>%HpOS & >Ha0 & >Hsa0 & HP0 & #Hmono0)".
       assert (Persistent (PS W C v)) as HpersPS by apply (HpersS (W,C,v)).
       iDestruct "HP0" as "#HP0".
-      iApply (wp_load _ _ _ _ _ _ dst src w (<[a0:=v.1]> (<[a:=w]> ∅)) (<[PC:=WCap p g b e a]> regs1) (DfracOwn 1) with "[Hmap Ha Ha0]"); eauto.
+      iApply (wp_load_imm _ _ _ _ _ _ dst src imm w (<[ea:=v.1]> (<[a:=w]> ∅)) (<[PC:=WCap true p g b e a]> regs1) (DfracOwn 1) with "[Hmap Ha Ha0]"); eauto.
       { by simplify_map_eq. }
       { rewrite /subseteq /map_subseteq. intros rr _.
         apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
       { by simplify_map_eq. }
-      { apply allow_load_map_or_true_intro; first (apply lookup_insert_is_Some'; eauto).
-        intros * (Hr & _); rewrite Hwsrc in Hr; simplify_eq; by simplify_map_eq. }
+      { apply allow_load_map_or_true_imm_intro; first (apply lookup_insert_is_Some'; eauto).
+        intros * (Hr & Hea' & _); rewrite Hwsrc in Hr; simplify_eq; by simplify_map_eq. }
       { iSplitL "Ha Ha0"; iNext; [ rewrite memMap_resource_2ne //; iFrame | done]. }
       iNext. iIntros (regs' retv) "(%HSpec & Hmem & Hmap)".
-      destruct HSpec as [p1 g1 b1 e1 a1 loadv Hallow Hmem_a HincrPC | ]; cycle 1.
+      destruct HSpec as [p1 g1 b1 e1 a1 ea1 loadv Hallow Hmem_a HincrPC | ]; cycle 1.
       { ftlr_impl_fail. }
-      destruct Hallow as (Hr1 & _ & _); rewrite Hwsrc in Hr1; injection Hr1 as <- <- <- <- <-.
+      destruct Hallow as (Hr1 & Hea1 & _ & _); rewrite Hwsrc in Hr1; injection Hr1 as <- <- <- <- <-.
+      rewrite Hea in Hea1; injection Hea1 as <-.
       rewrite lookup_insert_eq in Hmem_a; injection Hmem_a as <-.
 
       (* The loaded words are related *)
       iAssert (interp W C (load_word p0 v.1, load_word p0 v.2)) as "#Hload".
       { iDestruct ("HrcondS" $! W v with "HP0") as "Hl".
         by iApply (interp_weakening_word_load _ _ p0 pS v with "Hl"). }
-      apply incrementPC_Some_inv in HincrPC as (p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
+      apply incrementPC_Some_inv in HincrPC as (t2&p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
       iAssert (⌜dst = PC → load_word p0 v.1 = load_word p0 v.2⌝)%I as %Hdst_eq.
-      { iIntros (->).
-        rewrite /insert_reg in HPC; simplify_map_eq.
-        iDestruct (interp_eq_not_sealed with "Hload") as %Heq; last done.
-        by rewrite HPC. }
+      { iIntros (_). by iDestruct (interp_eq with "Hload") as %?. }
 
-      iMod (step_load _ _ _ _ _ _ dst src w (<[a0:=v.2]> (<[a:=w]> ∅)) (<[PC:=WCap p g b e a]> regs2) (DfracOwn 1)
+      iMod (step_load_imm _ _ _ _ _ _ dst src imm w (<[ea:=v.2]> (<[a:=w]> ∅)) (<[PC:=WCap true p g b e a]> regs2) (DfracOwn 1)
              with "[$Hspec $Hj Hsa Hsa0 $Hsmap]") as (retv2 regs2') "(Hj & %HSpec2 & Hsmem & Hsmap)".
       { solve_ndisj. }
       { done. }
@@ -202,20 +216,20 @@ Section fundamental.
       { rewrite /subseteq /map_subseteq. intros rr _.
         apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
       { by simplify_map_eq. }
-      { apply allow_load_map_or_true_intro; first (apply lookup_insert_is_Some'; eauto).
-        intros * (Hr & _); rewrite Hwsrc2 in Hr; simplify_eq; by simplify_map_eq. }
+      { apply allow_load_map_or_true_imm_intro; first (apply lookup_insert_is_Some'; eauto).
+        intros * (Hr & Hea' & _); rewrite Hwsrc2 in Hr; simplify_eq; by simplify_map_eq. }
       { rewrite spec_memMap_resource_2ne //; iFrame. }
       destruct (decide (dst = PC)) as [->|HdstPC].
       { specialize (Hdst_eq eq_refl).
         rewrite Hdst_eq in HPC.
-        eapply Load_spec_determ in HSpec2 as [Hv2 Hregs2];
-          last (eapply Load_spec_success; [split; eauto | by simplify_map_eq | transfer_incrementPC HPC Ha2]).
+        eapply Load_spec_imm_determ in HSpec2 as [Hv2 Hregs2];
+          last (eapply Load_spec_success_imm; [repeat split; eauto | by simplify_map_eq | transfer_incrementPC HPC Ha2]).
         specialize (Hregs2 eq_refl); subst retv2 regs2'.
         iDestruct (memMap_resource_2ne with "Hmem") as "[Ha0 Ha]"; first done.
         iDestruct (spec_memMap_resource_2ne with "Hsmem") as "[Hsa0 Hsa]"; first done.
         iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
         iApply wp_pure_step_later; auto; iNext; iIntros "_".
-        iDestruct (close_world_interp_next _ _ _ a0 pS _ v ρ0 with "Hworld_interp Hstate0 HrelS [Ha0 Hsa0]")
+        iDestruct (close_world_interp_next _ _ _ ea pS _ v ρ0 with "Hworld_interp Hstate0 HrelS [Ha0 Hsa0]")
           as "Hworld_interp"; eauto.
         { set_solver. }
         { destruct ρ0; simplify_eq; try done; [by left | by right]. }
@@ -224,6 +238,12 @@ Section fundamental.
         iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
         { destruct ρ;auto;contradiction. }
         rewrite /insert_reg in HPC; simplify_map_eq.
+        destruct t2; cycle 1.
+        { iApply (wp_bind (fill [SeqCtx])).
+          iExtract "Hmap" PC as "HPC".
+          iApply (wp_notCorrectPC_tag with "HPC"); first done.
+          iNext; iIntros "HPC /=".
+          ftlr_impl_fail. }
         iApply ("IH" $! _ _ _ _ _ (<[PC:=load_word p0 v.1]ᵣ> _) (<[PC:=load_word p0 v.2]ᵣ> _)
                  with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
         - iApply (interp_reg_insert _ _ _ _ PC (load_word p0 v.1) (load_word p0 v.2) with "[]")
@@ -232,14 +252,14 @@ Section fundamental.
         - iModIntro. iEval (rewrite Hdst_eq HPC) in "Hload".
           iApply (interp_weakening with "IH Hload"); eauto; try solve_addr; try reflexivity.
       }
-      eapply Load_spec_determ in HSpec2 as [Hv2 Hregs2];
-        last (eapply Load_spec_success; [split; eauto | by simplify_map_eq | transfer_incrementPC HPC Ha2]).
+      eapply Load_spec_imm_determ in HSpec2 as [Hv2 Hregs2];
+        last (eapply Load_spec_success_imm; [repeat split; eauto | by simplify_map_eq | transfer_incrementPC HPC Ha2]).
       specialize (Hregs2 eq_refl); subst retv2 regs2'.
       iDestruct (memMap_resource_2ne with "Hmem") as "[Ha0 Ha]"; first done.
       iDestruct (spec_memMap_resource_2ne with "Hsmem") as "[Hsa0 Hsa]"; first done.
       iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
       iApply wp_pure_step_later; auto; iNext; iIntros "_".
-      iDestruct (close_world_interp_next _ _ _ a0 pS _ v ρ0 with "Hworld_interp Hstate0 HrelS [Ha0 Hsa0]")
+      iDestruct (close_world_interp_next _ _ _ ea pS _ v ρ0 with "Hworld_interp Hstate0 HrelS [Ha0 Hsa0]")
         as "Hworld_interp"; eauto.
       { set_solver. }
       { destruct ρ0; simplify_eq; try done; [by left | by right]. }

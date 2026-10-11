@@ -20,8 +20,8 @@ Section Stack_secret_Halt_Blocks_3.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length stack_secret_main_code)%a ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ stack_secret_instr_offset 3 1)%a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e (pc_a ^+ stack_secret_instr_offset 3 1)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ stack_secret_instr_offset 3 1)%a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ stack_secret_instr_offset 3 1)%a ∗
     codefrag pc_a stack_secret_main_code ∗
     spec_codefrag pc_a stack_secret_main_code ∗
     ▷ ( ⤇ Seq (Instr Halted) -∗ WP Instr Halted {{ φ }})

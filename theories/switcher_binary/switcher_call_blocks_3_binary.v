@@ -33,25 +33,25 @@ Section Switcher_Call_Blocks_3.
 
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
-    PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs0 ↣ᵣ swcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cs1 ↣ᵣ swcs1 ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
-    csp ↣ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↣ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     codefrag pc_a switcher_instrs_4 ∗
     spec_codefrag pc_a switcher_instrs_4 ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_4)%a ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_4)%a ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_4)%a ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_4)%a ∗
         cs0 ↦ᵣ WInt e_stk ∗
         cs0 ↣ᵣ WInt e_stk ∗
         cs1 ↦ᵣ WInt a_stk ∗
         cs1 ↣ᵣ WInt a_stk ∗
-        csp ↦ᵣ WCap RWL Local a_stk e_stk a_stk ∗
-        csp ↣ᵣ WCap RWL Local a_stk e_stk a_stk ∗
+        csp ↦ᵣ WCap true RWL Local a_stk e_stk a_stk ∗
+        csp ↣ᵣ WCap true RWL Local a_stk e_stk a_stk ∗
         codefrag pc_a switcher_instrs_4 ∗
         spec_codefrag pc_a switcher_instrs_4 -∗
         switcher_wp
@@ -81,8 +81,8 @@ Section Switcher_Call_Blocks_3.
 
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
-    PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs0 ↣ᵣ swcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
@@ -92,8 +92,8 @@ Section Switcher_Call_Blocks_3.
     codefrag pc_a switcher_instrs_6 ∗
     spec_codefrag pc_a switcher_instrs_6 ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_6)%a ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_6)%a ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_6)%a ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ len_switcher_6)%a ∗
         cs0 ↦ᵣ wpc_b ∗
         cs0 ↣ᵣ wpc_b ∗
         cs1 ↦ᵣ WInt (b_switcher - (pc_a ^+ 1)%a) ∗
@@ -154,21 +154,22 @@ Section Switcher_Call_Blocks_3.
 
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
-    PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
-    cs0 ↦ᵣ WSealRange (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-    cs0 ↣ᵣ WSealRange (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    cs0 ↣ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     ct1 ↦ᵣ wct1 ∗
     ct1 ↣ᵣ swct1 ∗
     codefrag pc_a switcher_instrs_7 ∗
     spec_codefrag pc_a switcher_instrs_7 ∗
     ▷ ( ∀ wsb,
         ⌜ wct1 = WSealed ot_switcher wsb ⌝ ∗
+        ⌜ get_tag_sealable wsb = true ⌝ ∗
         ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ 1)%a ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ 1)%a ∗
-        cs0 ↦ᵣ WSealRange (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-        cs0 ↣ᵣ WSealRange (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 1)%a ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 1)%a ∗
+        cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        cs0 ↣ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
         ct1 ↦ᵣ WSealable wsb ∗
         ct1 ↣ᵣ WSealable wsb ∗
         codefrag pc_a switcher_instrs_7 ∗
@@ -183,22 +184,23 @@ Section Switcher_Call_Blocks_3.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    destruct (is_sealed_with_o wct1 ot_switcher) eqn:Hwct1; cycle 1.
+    destruct wct1 as [ z | sb | t p g b e a | ot wsb ].
+    1-3: (* UnSeal ct1 cs0 ct1 *) (iInstr_fail "Hcode"; wp_end; iIntros "%Hcontr"; done).
+    destruct (get_tag_sealable wsb && withinBounds ot_switcher (ot_switcher ^+ 1)%ot ot)
+      eqn:Hvalid; cycle 1.
     { (* UnSeal ct1 cs0 ct1 *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_unseal_nomatch_r2 with "[$HPC $Hi $Hct1 $Hcs0]"); try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
-    assert (∃ wsb, wct1 = WSealed ot_switcher wsb) as [wsb ->].
-    { destruct wct1 as [ | [] | |]; cbn in Hwct1; try discriminate.
-      exists sb. apply Z.eqb_eq in Hwct1.
-      replace ot with ot_switcher by solve_addr.
-      done. }
+      iInstr_invalidate "Hcode".
+      { cbn; rewrite andb_true_r; exact Hvalid. }
+      (* Load cs0 ct1 *)
+      iInstr_fail "Hcode".
+      wp_end; iIntros "%Hcontr"; done. }
+    apply andb_true_iff in Hvalid as [Htag Hwb].
+    assert (ot = ot_switcher) as ->.
+    { apply withinBounds_le_addr in Hwb. pose proof ot_switcher_size. solve_addr. }
     rewrite (Hct1 wsb eq_refl).
     (* UnSeal ct1 cs0 ct1 *)
     iInstr_lockstep "Hscode" "Hcode".
     all: try done.
-    1,2: rewrite /withinBounds; pose proof ot_switcher_size; solve_finz.
     iApply "Hpost"; iFrame; done.
   Qed.
 
@@ -218,30 +220,31 @@ Section Switcher_Call_Blocks_3.
     cs0 ↣ᵣ swcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cs1 ↣ᵣ swcs1 ∗
-    csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
-    csp ↣ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+    csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
+    csp ↣ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
     [[ (a ^+ 4)%a , e ]] ↦ₐ [[ stk_mem ]] ∗
     [[ (a ^+ 4)%a , e ]] ↣ₐ [[ stk_mem_spec ]] ∗
-    b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-    b_switcher ↣ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↣ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     ct1 ↦ᵣ wct1 ∗
     ct1 ↣ᵣ swct1 ∗
     switcher_code ∗
     switcher_spec_code ∗
     ▷ ( ∀ wsb,
         ⌜ wct1 = WSealed ot_switcher wsb ⌝ ∗
+        ⌜ get_tag_sealable wsb = true ⌝ ∗
         ⤇ Seq (Instr Executable) ∗
         PC ↦ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
         PC ↣ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
-        cs0 ↦ᵣ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-        cs0 ↣ᵣ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        cs0 ↦ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        cs0 ↣ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
         (∃ wcs1', cs1 ↦ᵣ wcs1' ∗ cs1 ↣ᵣ wcs1') ∗
-        csp ↦ᵣ WCap RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
-        csp ↣ᵣ WCap RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
+        csp ↦ᵣ WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
+        csp ↣ᵣ WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
         [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
         [[ (a ^+ 4)%a , e ]] ↣ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
-        b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-        b_switcher ↣ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        b_switcher ↣ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
         ct1 ↦ᵣ WSealable wsb ∗
         ct1 ↣ᵣ WSealable wsb ∗
         switcher_code ∗
@@ -296,7 +299,7 @@ Section Switcher_Call_Blocks_3.
     iHide "Hcls" as hcont. iHide "Hscls" as hscont.
     iApply (switcher_call_block_7_unseal_spec with
       "[- $Hspec $Hj $HPC $HsPC $Hcs0 $Hscs0 $Hct1 $Hsct1 $Hcode $Hscode]"); [done|done|].
-    iNext; iIntros (wsb) "(-> & Hj & HPC & HsPC & Hcs0 & Hscs0 & Hct1 & Hsct1 & Hcode & Hscode)".
+    iNext; iIntros (wsb) "(-> & %Htag & Hj & HPC & HsPC & Hcs0 & Hscs0 & Hct1 & Hsct1 & Hcode & Hscode)".
     subst hcont hscont.
     unfocus_block_lockstep "Hscode" "Hscls" "Hcode" "Hcls" as "Hscode" "Hcode".
     switcher_change_pc (switcher_block_offset 7 + 1)%Z.

@@ -24,8 +24,8 @@ Section spec_rules.
   Lemma step_Jalr Ep pc_p pc_g pc_b pc_e pc_a w rdst rsrc regs :
     ↑specN ⊆ Ep →
     decodeInstrW w = Jalr rdst rsrc ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Jalr rdst rsrc) ⊆ dom regs →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
@@ -67,13 +67,13 @@ Section spec_rules.
   Lemma step_jalr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w rsrc wsrc rdst wdst :
     ↑specN ⊆ E →
     decodeInstrW w = Jalr rdst rsrc →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     rsrc ↣ᵣ wsrc ∗
     rdst ↣ᵣ wdst
@@ -82,7 +82,7 @@ Section spec_rules.
     PC ↣ᵣ updatePcPerm wsrc ∗
     pc_a ↣ₐ w ∗
     rsrc ↣ᵣ wsrc ∗
-    rdst ↣ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'.
+    rdst ↣ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a'.
   Proof.
     iIntros (HE Hinstr Hvpc Hpca' Hcnull Hcnull') "(#Hctx & Hj & HPC & Hpc_a & Hrsrc & Hrdst)".
     iDestruct (spec_map_of_regs_3 with "HPC Hrsrc Hrdst") as "[Hmap (%&%&%)]".
@@ -101,12 +101,12 @@ Section spec_rules.
   Lemma step_jalr_success_cnull E pc_p pc_g pc_b pc_e pc_a pc_a' w rsrc wsrc wdst :
     ↑specN ⊆ E →
     decodeInstrW w = Jalr cnull rsrc →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     rsrc ↣ᵣ wsrc ∗
     cnull ↣ᵣ wdst
@@ -134,19 +134,19 @@ Section spec_rules.
   Lemma step_jalr_successPC E pc_p pc_g pc_b pc_e pc_a pc_a' w rdst wdst :
     ↑specN ⊆ E →
     decodeInstrW w = Jalr rdst PC →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     rdst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ updatePcPerm (WCap pc_p pc_g pc_b pc_e pc_a) ∗
+    PC ↣ᵣ updatePcPerm (WCap true pc_p pc_g pc_b pc_e pc_a) ∗
     pc_a ↣ₐ w ∗
-    rdst ↣ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'.
+    rdst ↣ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a'.
   Proof.
     iIntros (HE Hinstr Hvpc Hpca' Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hrdst)".
     iDestruct (spec_map_of_regs_2 with "HPC Hrdst") as "[Hmap %]".
@@ -165,19 +165,19 @@ Section spec_rules.
   Lemma step_jalr_success_rdst E pc_p pc_g pc_b pc_e pc_a pc_a' w wdst rdst :
     ↑specN ⊆ E →
     decodeInstrW w = Jalr rdst rdst →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     rdst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
     PC ↣ᵣ updatePcPerm wdst ∗
     pc_a ↣ₐ w ∗
-    rdst ↣ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'.
+    rdst ↣ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a'.
   Proof.
     iIntros (HE Hinstr Hvpc Hpca' Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hrdst)".
     iDestruct (spec_map_of_regs_2 with "HPC Hrdst") as "[Hmap %]".
@@ -192,5 +192,6 @@ Section spec_rules.
      iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
    { congruence. }
   Qed.
+
 
 End spec_rules.

@@ -64,8 +64,8 @@ Section Switcher.
     ∗ world_interp Wcur C
     ∗ na_own cerise_nais ⊤
     ∗ ⤇ Seq (Instr Executable)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ([∗ map] k↦y ∈ smap, k ↣ᵣ y)
@@ -73,8 +73,8 @@ Section Switcher.
     ∗ ca0 ↣ᵣ wca0.2
     ∗ ca1 ↦ᵣ wca1.1
     ∗ ca1 ↣ᵣ wca1.2
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
-    ∗ csp ↣ᵣ WCap RWL Local csp_b csp_e csp_b
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+    ∗ csp ↣ᵣ WCap true RWL Local csp_b csp_e csp_b
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → ⤇ Seq (Instr Halted) ∗ na_own cerise_nais ⊤ }}.
   Proof.
@@ -177,7 +177,7 @@ Section Switcher.
     (* Block 12: pop both trusted stacks *)
     iApply (switcher_return_blocks_1_spec with
       "[- $Hspec $Hj $HPC $HsPC $Hctp $Hsctp $Hcsp $Hscsp $Hmtdc $Hsmtdc $Ha_tstk $Hsa_tstk
-        $Hcode $Hscode]"); [done|done|].
+        $Hcode $Hscode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|].
     iNext; iIntros (a_tstk1)
       "(%Ha_tstk1 & %Htstk_ae & Hj & HPC & HsPC & Hctp & Hsctp & Hcsp & Hscsp & Hmtdc & Hsmtdc
       & Ha_tstk & Hsa_tstk & Hcode & Hscode & Hlc)".
@@ -276,7 +276,7 @@ Section Switcher.
       iClear "Hexec_topmost_frm".
       iApply (switcher_jump_to_caller_spec Wfixed C stk Ws Cs arg_rmap'
                 (wastk2, swastk2) (wastk3, swastk3) (wastk, swastk) (wastk1, swastk1)
-                (WCap RWL Local b_stk csp_e a_stk, WCap RWL Local b_stk csp_e a_stk) wca0 wca1 with
+                (WCap true RWL Local b_stk csp_e a_stk, WCap true RWL Local b_stk csp_e a_stk) wca0 wca1 with
                "Hspec Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk'
                 Hinterp_Wfixed_wca0 Hinterp_Wfixed_wca1 HPC HsPC Hcra Hscra Hcgp Hscgp Hcs0 Hscs0
                 Hcs1 Hscs1 Hcsp Hscsp Hca0 Hsca0 Hca1 Hsca1
@@ -316,8 +316,8 @@ Section Switcher.
     ∗ world_interp Wcur C
     ∗ na_own cerise_nais ⊤
     ∗ ⤇ Seq (Instr Executable)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ RevokedResources W0 C l
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ([∗ map] k↦y ∈ smap, k ↣ᵣ y)
@@ -325,8 +325,8 @@ Section Switcher.
     ∗ ca0 ↣ᵣ wca0.2
     ∗ ca1 ↦ᵣ wca1.1
     ∗ ca1 ↣ᵣ wca1.2
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
-    ∗ csp ↣ᵣ WCap RWL Local csp_b csp_e csp_b
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+    ∗ csp ↣ᵣ WCap true RWL Local csp_b csp_e csp_b
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → ⤇ Seq (Instr Halted) ∗ na_own cerise_nais ⊤ }}.
   Proof.

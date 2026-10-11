@@ -94,18 +94,20 @@ Global Instance cmdc_conf_concrete_layout : cmdc_conf_memory_layout.
 Proof.
   refine (@Build_cmdc_conf_memory_layout machine_parameters_instance
     cmdc_concrete_cmptSwitcher cmdc_conf_concrete_main_cmpt _
-    cmdc_concrete_B_cmpt 1 cmdc_concrete_C_cmpt 1 _ _).
+    cmdc_concrete_B_cmpt 1 _ cmdc_concrete_C_cmpt 1 _ _ _).
   - vm_compute; solve_addr.
+  - vm_compute; eauto.
+  - vm_compute; eauto.
   - repeat split; solve_cmdc_conf_concrete_disjoint.
   - repeat split; solve_cmdc_conf_concrete_disjoint.
 Defined.
 
 Definition cmdc_conf_initial_registers : Reg :=
-  <[PC := WCap RX Global cmdc_conf_main_pcc_b cmdc_conf_main_pcc_e
+  <[PC := WCap true RX Global cmdc_conf_main_pcc_b cmdc_conf_main_pcc_e
       cmdc_conf_main_code_start]>
-  (<[cgp := WCap RW Global cmdc_conf_main_data_b cmdc_conf_main_data_e
+  (<[cgp := WCap true RW Global cmdc_conf_main_data_b cmdc_conf_main_data_e
       cmdc_conf_main_data_b]>
-  (<[csp := WCap RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
+  (<[csp := WCap true RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 (** The initial memory, holding [secrets] [(secret_b, secret_c)] in the data

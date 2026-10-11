@@ -24,17 +24,17 @@ Section Stack_callee_secret_F_Blocks_1.
     (stk_mem stk_mem_spec : list Word)
     (wct0 swct0 wca0 swca0 wca1 swca1 wcnull swcnull : Word)
     (secret1 secret2 : Z) :
-    let wcra := WSentry XSRW_ Local b_switcher e_switcher a_switcher_return in
+    let wcra := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return in
     stack_callee_secret_code_bounds pc_b pc_e pc_a ->
     (cgp_b + 1)%a = Some cgp_e ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_block_offset 3)%a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_block_offset 3)%a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-    cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
-    csp ↣ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_block_offset 3)%a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_block_offset 3)%a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+    cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↣ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     cra ↦ᵣ wcra ∗
     cra ↣ᵣ wcra ∗
     ct0 ↦ᵣ wct0 ∗
@@ -53,12 +53,12 @@ Section Stack_callee_secret_F_Blocks_1.
     spec_codefrag pc_a stack_callee_secret_code ∗
     ▷ (∀ stk_mem' stk_mem_spec' wcnull' swcnull',
         ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
-        csp ↣ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+        csp ↣ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         cra ↦ᵣ wcra ∗
         cra ↣ᵣ wcra ∗
         ct0 ↦ᵣ WInt secret1 ∗
@@ -93,13 +93,13 @@ Section Stack_callee_secret_F_Blocks_1.
       as a_f Ha_f "Hscode" "Hscont" "Hcode" "Hcont".
     iHide "Hcont" as hcont. iHide "Hscont" as hscont.
 
-    (* Load ct0 cgp *)
+    (* Load ct0 cgp 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [done| solve_addr].
 
     destruct (decide (csp_b < csp_e)%a) as [Hcsp_size|Hcsp_size]; cycle 1.
     { (* The stack frame is empty: the store fails in the implementation run *)
-      (* Store csp ct0 *)
+      (* Store csp ct0 0 *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (wp_store_fail_reg with "[$HPC $Hi $Hct0 $Hcsp]"); try solve_pure.
@@ -119,7 +119,7 @@ Section Stack_callee_secret_F_Blocks_1.
     iDestruct (spec_region_pointsto_cons with "Hsstk") as "[Hsstk0 Hsstk]";
       [exact Hcsp1|solve_addr+Hcsp_size|].
 
-    (* Store csp ct0 *)
+    (* Store csp ct0 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: rewrite /withinBounds; solve_addr+Hcsp_size.
 

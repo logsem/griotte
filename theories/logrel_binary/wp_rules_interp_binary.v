@@ -36,8 +36,8 @@ Section wp_interp.
     (wi wsrc wsrc' wdst wdst' : Word)
     :
     ↑specN ⊆ E →
-    decodeInstrW wi = Store rdst (inr rsrc) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW wi = Store rdst (inr rsrc) 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
@@ -46,8 +46,8 @@ Section wp_interp.
            ∗ ⤇ Seq (Instr Executable)
            ∗ interp W C (wsrc, wsrc')
            ∗ interp W C (wdst, wdst')
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
            ∗ rsrc ↦ᵣ wsrc
@@ -60,21 +60,20 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           ( ∃ p g b e a,
-           ⌜ wdst = WCap p g b e a ⌝
-           ∗ ⌜ wdst' = WCap p g b e a ⌝
+           ⌜ wdst = WCap true p g b e a ⌝
+           ∗ ⌜ wdst' = WCap true p g b e a ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ ⤇ Seq (Instr NextI)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rsrc ↣ᵣ wsrc'
-           ∗ rdst ↦ᵣ WCap p g b e a
-           ∗ rdst ↣ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ WCap true p g b e a
+           ∗ rdst ↣ᵣ WCap true p g b e a
            ∗ world_interp W C
-           ∗ ⌜ canStore p wsrc = true ⌝
-           ∗ ⌜ canStore p wsrc' = true ⌝
+           ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
@@ -90,20 +89,27 @@ Section wp_interp.
       iApply (wp_store_fail_reg_not_cap _ _ _ _ _ _ _ rdst rsrc with "[$]")
       ; try solve_pure.
       iIntros "!> _ !>". iApply "Hφ"; by iLeft. }
-    destruct wdst;try done. destruct sb; try done.
-    iDestruct (interp_eq_not_sealed with "Hinterp_dst") as %<-; first done.
-    iDestruct (interp_canStore _ _ p with "Hinterp_src") as %Hcan_eq.
+    destruct wdst; try done. destruct sb; try done.
+    destruct tag; cycle 1.
+    {
+      iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap %Hdistinct]".
+      try (destruct Hdistinct as (? & ? & ?)).
+      iApply (wp_store_fail_tag _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a)
+                with "[$Hi $Hmap]"); eauto; try (by rewrite /lookup_reg; simplify_map_eq).
+      iNext; iIntros "_ !>". iApply "Hφ"; by iLeft.
+    }
+    iDestruct (interp_eq with "Hinterp_dst") as %<-.
+    iDestruct (interp_eq with "Hinterp_src") as %<-.
 
-    destruct (decide (canStore p wsrc = true))%a as [Hstore_src|Hstore_src]; cycle 1.
+    destruct (decide (writeAllowed p = true))%a as [Hp_stk_wa|Hp_stk_wa]; cycle 1.
     {
       iApply (wp_store_fail_reg_perm with "[HPC Hi Hdst Hsrc]")
       ; try iFrame
       ; try solve_pure.
-      { by destruct ( canStore p wsrc ); auto. }
+      { by destruct (writeAllowed p); auto. }
       iNext; iIntros "_ !>".
       iApply "Hφ"; by iLeft.
     }
-    pose proof ( canStore_writeAllowed p wsrc Hstore_src ) as Hp_stk_wa.
     destruct (decide (b <= a))%a as [Hba|Hba]; cycle 1.
     {
       iApply (wp_store_fail_reg with "[HPC Hi Hdst Hsrc]")
@@ -143,42 +149,44 @@ Section wp_interp.
     ; [|eauto|]; [ destruct ρ;auto;done|].
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & >Hsa & Hinterp & HmonoP) WorldRes ]".
 
-    iApply (wp_store_success_reg _ _ _ _ _ _ _ _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
+    iApply (wp_store_success_reg_store_word _ _ _ _ _ _ _ _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
     ; try iFrame
     ; try solve_pure.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hi & Hsrc & Hdst & Ha)".
 
-    iMod (step_store_success_reg _ _ _ _ _ _ _ _ rdst rsrc
+    iMod (step_store_success_reg_store_word _ _ _ _ _ _ _ _ rdst rsrc
            with "[$Hsctx $Hj $HsPC $Hsi $Hssrc $Hsdst $Hsa]")
       as "(Hj & HsPC & Hsi & Hssrc & Hsdst & Hsa)"; eauto.
     { rewrite /withinBounds; solve_addr. }
 
-    iAssert (P W C (wsrc, wsrc')) as "Hinterp'".
+    iAssert (P W C (store_word p wsrc, store_word p wsrc)) as "Hinterp'".
     {
-      iDestruct ("Hwcond" with "Hinterp_src") as "HP".
-      iFrame "HP".
+      iApply "Hwcond".
+      rewrite /store_word.
+      destruct (canStore p wsrc); first done.
+      iApply interp_clear_tag.
     }
-    iAssert (mono_invariant C p' (safeC P) (wsrc, wsrc') ρ) as "Hmono'".
+    iAssert (mono_invariant C p' (safeC P) (store_word p wsrc, store_word p wsrc) ρ) as "Hmono'".
     {
       rewrite /monoReq Hρ mono_invariant_eq.
       destruct ρ;[simpl..|exfalso;done].
       - destruct (isWL p');auto.
         destruct (isDL p'); first done.
-        iSpecialize ("Hmono" $! (wsrc, wsrc') with "[%]"); last done.
-        split; eapply canStore_flowsto; eauto; by rewrite -Hcan_eq.
-      - iSpecialize ("Hmono" $! (wsrc, wsrc') with "[%]"); last done.
-        split; eapply canStore_flowsto; eauto; by rewrite -Hcan_eq.
+        iSpecialize ("Hmono" $! (_, _) with "[%]"); last done.
+        split; eapply canStore_store_word_flowsto; eauto.
+      - iSpecialize ("Hmono" $! (_, _) with "[%]"); last done.
+        split; eapply canStore_store_word_flowsto; eauto.
     }
 
-    iDestruct ("WorldRes" $! (wsrc, wsrc') with "[$Ha $Hsa $Hinterp' $Hmono']") as "WorldRes".
+    iDestruct ("WorldRes" $! (_, _) with "[$Ha $Hsa $Hinterp' $Hmono']") as "WorldRes".
     iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; eauto.
     { destruct ρ;auto;contradiction. }
 
     iModIntro.
     iApply "Hφ"; iRight; iFrame "∗%".
     repeat (iSplit; first done).
-    iPureIntro; split; [by rewrite -Hcan_eq | solve_addr].
+    iPureIntro; solve_addr.
   Qed.
 
   Lemma wp_store_interp_cap (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
@@ -187,8 +195,8 @@ Section wp_interp.
     (wi wsrc wsrc' : Word)
     :
     ↑specN ⊆ E →
-    decodeInstrW wi = Store rdst (inr rsrc) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW wi = Store rdst (inr rsrc) 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
@@ -196,15 +204,15 @@ Section wp_interp.
      {{{ spec_ctx
            ∗ ⤇ Seq (Instr Executable)
            ∗ interp W C (wsrc, wsrc')
-           ∗ interp W C (WCap p g b e a, WCap p g b e a)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ interp W C (WCap true p g b e a, WCap true p g b e a)
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rsrc ↣ᵣ wsrc'
-           ∗ rdst ↦ᵣ (WCap p g b e a)
-           ∗ rdst ↣ᵣ (WCap p g b e a)
+           ∗ rdst ↦ᵣ (WCap true p g b e a)
+           ∗ rdst ↣ᵣ (WCap true p g b e a)
            ∗ world_interp W C
      }}}
        Instr Executable @ E
@@ -212,17 +220,16 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (⌜ retv = NextIV ⌝
            ∗ ⤇ Seq (Instr NextI)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rsrc ↣ᵣ wsrc'
-           ∗ rdst ↦ᵣ WCap p g b e a
-           ∗ rdst ↣ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ WCap true p g b e a
+           ∗ rdst ↣ᵣ WCap true p g b e a
            ∗ world_interp W C
-           ∗ ⌜ canStore p wsrc = true ⌝
-           ∗ ⌜ canStore p wsrc' = true ⌝
+           ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
@@ -239,16 +246,16 @@ Section wp_interp.
     (wi wdst wdst' : Word) (z : Z)
     :
     ↑specN ⊆ E →
-    decodeInstrW wi = Store rdst (inl z) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW wi = Store rdst (inl z) 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
 
      {{{ spec_ctx
            ∗ ⤇ Seq (Instr Executable)
            ∗ interp W C (wdst, wdst')
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
            ∗ rdst ↦ᵣ wdst
@@ -259,16 +266,16 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           ( ∃ p g b e a,
-           ⌜ wdst = WCap p g b e a ⌝
-           ∗ ⌜ wdst' = WCap p g b e a ⌝
+           ⌜ wdst = WCap true p g b e a ⌝
+           ∗ ⌜ wdst' = WCap true p g b e a ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ ⤇ Seq (Instr NextI)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
-           ∗ rdst ↦ᵣ WCap p g b e a
-           ∗ rdst ↣ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ WCap true p g b e a
+           ∗ rdst ↣ᵣ WCap true p g b e a
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -285,8 +292,16 @@ Section wp_interp.
       iApply (wp_store_fail_z_not_cap with "[$]")
       ; try solve_pure; eauto.
       iIntros "!> _ !>". iApply "Hφ"; by iLeft. }
-    destruct wdst;try done. destruct sb; try done.
-    iDestruct (interp_eq_not_sealed with "Hinterp_dst") as %<-; first done.
+    destruct wdst; try done. destruct sb; try done.
+    destruct tag; cycle 1.
+    {
+      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %Hdistinct]".
+      try (destruct Hdistinct as (? & ? & ?)).
+      iApply (wp_store_fail_tag _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a)
+                with "[$Hi $Hmap]"); eauto; try (by rewrite /lookup_reg; simplify_map_eq).
+      iNext; iIntros "_ !>". iApply "Hφ"; by iLeft.
+    }
+    iDestruct (interp_eq with "Hinterp_dst") as %<-.
 
     destruct (decide (writeAllowed p = true))%a as [Hstore_src|Hstore_src]; cycle 1.
     {
@@ -381,20 +396,20 @@ Section wp_interp.
     (wi : Word) (z : Z)
     :
     ↑specN ⊆ E →
-    decodeInstrW wi = Store rdst (inl z) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW wi = Store rdst (inl z) 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
 
      {{{ spec_ctx
            ∗ ⤇ Seq (Instr Executable)
-           ∗ interp W C (WCap p g b e a, WCap p g b e a)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ interp W C (WCap true p g b e a, WCap true p g b e a)
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
-           ∗ rdst ↦ᵣ (WCap p g b e a)
-           ∗ rdst ↣ᵣ (WCap p g b e a)
+           ∗ rdst ↦ᵣ (WCap true p g b e a)
+           ∗ rdst ↣ᵣ (WCap true p g b e a)
            ∗ world_interp W C
      }}}
        Instr Executable @ E
@@ -402,12 +417,12 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (⌜ retv = NextIV ⌝
            ∗ ⤇ Seq (Instr NextI)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
-           ∗ rdst ↦ᵣ WCap p g b e a
-           ∗ rdst ↣ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ WCap true p g b e a
+           ∗ rdst ↣ᵣ WCap true p g b e a
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -424,7 +439,7 @@ Section wp_interp.
   Lemma wp_unseal_unknown E W C pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed wsealed' :
     ↑specN ⊆ E →
     decodeInstrW wi = UnSeal r2 r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
@@ -432,8 +447,8 @@ Section wp_interp.
     {{{ spec_ctx
           ∗ ⤇ Seq (Instr Executable)
           ∗ interp W C (wsealed, wsealed')
-          ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-          ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+          ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ wi
           ∗ pc_a ↣ₐ wi
           ∗ r1 ↦ᵣ wsealr
@@ -444,65 +459,94 @@ Section wp_interp.
       Instr Executable @ E
       {{{ retv, RET retv;
           ⌜ retv = FailedV ⌝
-          ∨ ∃ psr gsr bsr esr asr wsb wsb',
+          ∨ (∃ psr gsr bsr esr asr ot wsb,
               ⌜ retv = NextIV ⌝
               ∗ ⤇ Seq (Instr NextI)
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-              ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ pc_a ↣ₐ wi
               ∗ r1 ↦ᵣ wsealr
               ∗ r1 ↣ᵣ wsealr
-              ∗ r2 ↦ᵣ WSealable wsb
-              ∗ r2 ↣ᵣ WSealable wsb'
-              ∗ ⌜ wsealr = (WSealRange psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
-              ∗ ⌜ wsealed = WSealed asr wsb ⌝
-              ∗ ⌜ wsealed' = WSealed asr wsb' ⌝
+              ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb)
+              ∗ r2 ↣ᵣ WSealable (machine_word.unseal gsr wsb)
+              ∗ ⌜ wsealr = (WSealRange true psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
+              ∗ ⌜ wsealed = WSealed ot wsb ⌝
+              ∗ ⌜ wsealed' = WSealed ot wsb ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝
+              ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
+          ∨ ∃ tsr psr gsr bsr esr asr ot sb,
+              ⌜ retv = NextIV ⌝
+              ∗ ⤇ Seq (Instr NextI)
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ wi
+              ∗ pc_a ↣ₐ wi
+              ∗ r1 ↦ᵣ wsealr
+              ∗ r1 ↣ᵣ wsealr
+              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb))
+              ∗ r2 ↣ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb))
+              ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr ⌝
+              ∗ ⌜ wsealed = WSealed ot sb ⌝
+              ∗ ⌜ wsealed' = WSealed ot sb ⌝
+              ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
+                    withinBounds bsr esr ot = false ⌝
       }}}.
   Proof.
     iIntros (HE Hinstr Hvpc Hpc_a' ?? ϕ)
       "(#Hsctx & Hj & #Hinterp & HPC & HsPC & Hpc_a & Hspc_a & Hr1 & Hsr1 & Hr2 & Hsr2) Hφ".
+    iDestruct (interp_eq with "Hinterp") as %<-.
     iApply wp_fupd.
 
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
+    iDestruct (spec_map_of_regs_3 with "HsPC Hsr1 Hsr2") as "[Hsmap _]".
     iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    iNext. iIntros (regs' retv) "(%Hspec & Hpc_a & Hmap)".
 
-    destruct Hspec as [ psr gsr bsr esr asr sb Hr1 Hr2 Hpsr Hwb HincrPC | ]
+    (* The specification run performs the same step *)
+    destruct Hspec as [ psr gsr bsr esr asr o sb Hr1 Hr2 Htag Hpsr Hwb HincrPC
+                      | tsr psr gsr bsr esr asr o sb Hr1 Hr2 Hvalid HincrPC
+                      | ]
     ; last (iModIntro; iApply "Hφ"; by iLeft).
-    rewrite /lookup_reg in Hr1 Hr2.
-    simplify_map_eq.
-    apply incrementPC_Some_inv in HincrPC.
-    destruct HincrPC as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
-    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-    simplify_eq.
-    iDestruct (interp_eq_unless_sealed with "Hinterp")
-      as "%Heq"; destruct Heq as [<- | (o & sb1 & sb' & Heq1 & ->)]
-    ; simplify_eq.
-    + iMod (step_unseal_r2 with "[$Hsctx $Hj $HsPC $Hspc_a $Hsr1 $Hsr2]")
-        as "(Hj & HsPC & Hspc_a & Hsr1 & Hsr2)"; eauto.
-      iModIntro; iApply "Hφ"; iRight.
-      iExists psr, gsr, bsr, esr, asr, sb, sb.
-      rewrite /insert_reg decide_False //.
+    all: iMod (step_UnSeal with "[$Hsctx $Hj $Hsmap $Hspc_a]")
+      as (retv2 regs2') "(Hj & %HSpec2 & Hspc_a & Hsmap)"; eauto.
+    all: try (by simplify_map_eq).
+    all: try (by unfold regs_of; rewrite !dom_insert; set_solver+).
+    1: eapply UnSeal_spec_determ in HSpec2 as [Hv2 Hregs2];
+       last (eapply UnSeal_spec_success; eauto).
+    2: eapply UnSeal_spec_determ in HSpec2 as [Hv2 Hregs2];
+       last (eapply UnSeal_spec_invalidated; eauto).
+    all: specialize (Hregs2 eq_refl); subst retv2 regs2'.
+    all: rewrite /lookup_reg in Hr1 Hr2; simplify_map_eq.
+    all: apply incrementPC_Some_inv in HincrPC
+      as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
+    all: rewrite /insert_reg decide_False // in HPC |- *.
+    all: rewrite lookup_insert_ne // lookup_insert_eq in HPC.
+    all: simplify_eq.
+    - iModIntro; iApply "Hφ"; iRight; iLeft.
+      iExists psr, gsr, bsr, esr, asr, o, sb.
       rewrite (insert_insert_ne _ _ PC) //.
       rewrite (insert_insert_ne _ _ r1) //.
       rewrite !insert_insert_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hsmap") as "[HsPC Hsmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hsmap") as "[Hsr1 Hsmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hsmap") as "[Hsr2 Hsmap]"; first by simplify_map_eq.
       iFrame; done.
-    + iMod (step_unseal_r2 with "[$Hsctx $Hj $HsPC $Hspc_a $Hsr1 $Hsr2]")
-        as "(Hj & HsPC & Hspc_a & Hsr1 & Hsr2)"; eauto.
-      iModIntro; iApply "Hφ"; iRight.
-      iExists psr, gsr, bsr, esr, o, sb1, sb'.
-      rewrite /insert_reg decide_False //.
+    - iModIntro; iApply "Hφ"; iRight; iRight.
+      iExists tsr, psr, gsr, bsr, esr, asr, o, sb.
       rewrite (insert_insert_ne _ _ PC) //.
       rewrite (insert_insert_ne _ _ r1) //.
       rewrite !insert_insert_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hsmap") as "[HsPC Hsmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hsmap") as "[Hsr1 Hsmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hsmap") as "[Hsr2 Hsmap]"; first by simplify_map_eq.
       iFrame; done.
   Qed.
 
@@ -510,7 +554,7 @@ Section wp_interp.
     psr gsr bsr esr asr wsealed wsealed' :
     ↑specN ⊆ E →
     decodeInstrW wi = UnSeal r2 r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     permit_unseal psr = true ->
     (bsr <= asr < esr)%ot ->
@@ -520,40 +564,60 @@ Section wp_interp.
     {{{ spec_ctx
           ∗ ⤇ Seq (Instr Executable)
           ∗ interp W C (wsealed, wsealed')
-          ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-          ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+          ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ wi
           ∗ pc_a ↣ₐ wi
-          ∗ r1 ↦ᵣ WSealRange psr gsr bsr esr asr
-          ∗ r1 ↣ᵣ WSealRange psr gsr bsr esr asr
+          ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
+          ∗ r1 ↣ᵣ WSealRange true psr gsr bsr esr asr
           ∗ r2 ↦ᵣ wsealed
           ∗ r2 ↣ᵣ wsealed'
     }}}
       Instr Executable @ E
       {{{ retv, RET retv;
           ⌜ retv = FailedV ⌝
-          ∨ ∃ wsb wsb',
+          ∨ (∃ ot wsb,
               ⌜ retv = NextIV ⌝
               ∗ ⤇ Seq (Instr NextI)
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-              ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ pc_a ↣ₐ wi
-              ∗ r1 ↦ᵣ WSealRange psr gsr bsr esr asr
-              ∗ r1 ↣ᵣ WSealRange psr gsr bsr esr asr
-              ∗ r2 ↦ᵣ WSealable wsb
-              ∗ r2 ↣ᵣ WSealable wsb'
-              ∗ ⌜ wsealed = WSealed asr wsb ⌝
-              ∗ ⌜ wsealed' = WSealed asr wsb' ⌝
+              ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
+              ∗ r1 ↣ᵣ WSealRange true psr gsr bsr esr asr
+              ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb)
+              ∗ r2 ↣ᵣ WSealable (machine_word.unseal gsr wsb)
+              ∗ ⌜ wsealed = WSealed ot wsb ⌝
+              ∗ ⌜ wsealed' = WSealed ot wsb ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝
+              ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
+          ∨ ∃ ot sb,
+              ⌜ retv = NextIV ⌝
+              ∗ ⤇ Seq (Instr NextI)
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ wi
+              ∗ pc_a ↣ₐ wi
+              ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
+              ∗ r1 ↣ᵣ WSealRange true psr gsr bsr esr asr
+              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb))
+              ∗ r2 ↣ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb))
+              ∗ ⌜ wsealed = WSealed ot sb ⌝
+              ∗ ⌜ wsealed' = WSealed ot sb ⌝
+              ∗ ⌜ get_tag_sealable sb && withinBounds bsr esr ot = false ⌝
       }}}.
   Proof.
     iIntros (HE Hinstr Hvpc Hpc_a' Hpsr Hsr ?? ϕ) "H Hφ".
     iApply (wp_unseal_unknown with "H"); eauto.
-    iNext. iIntros (retv) "[%Hretv | (%&%&%&%&%&%&%&H)]"; iApply "Hφ".
+    iNext. iIntros (retv) "[%Hretv | [H | H]]"; iApply "Hφ".
     { iLeft; iPureIntro; exact Hretv. }
-    iDestruct "H" as "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Heq & ? & ? & ?)".
-    simplify_eq.
-    iRight. iFrame.
+    - iDestruct "H" as (??????? ) "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Heq & ? & ? & ? & ? & ?)".
+      simplify_eq.
+      iRight; iLeft. iFrame.
+    - iDestruct "H" as (???????? ) "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Heq & ? & ? & %Hinvalid)".
+      simplify_eq.
+      rewrite Hpsr !andb_true_r /= in Hinvalid.
+      iRight; iRight. iFrame. done.
   Qed.
 
   Lemma wp_load_interp (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
@@ -561,8 +625,8 @@ Section wp_interp.
     (wi wsrc wsrc' wdst wdst' : Word)
     :
     ↑specN ⊆ E →
-    decodeInstrW wi = Load rdst rsrc →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW wi = Load rdst rsrc 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
@@ -570,8 +634,8 @@ Section wp_interp.
      {{{ spec_ctx
            ∗ ⤇ Seq (Instr Executable)
            ∗ interp W C (wsrc, wsrc')
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
            ∗ rsrc ↦ᵣ wsrc
@@ -584,16 +648,16 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           ( ∃ p g b e a wload wload',
-           ⌜ wsrc = WCap p g b e a ⌝
-           ∗ ⌜ wsrc' = WCap p g b e a ⌝
+           ⌜ wsrc = WCap true p g b e a ⌝
+           ∗ ⌜ wsrc' = WCap true p g b e a ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ ⤇ Seq (Instr NextI)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
-           ∗ rsrc ↦ᵣ WCap p g b e a
-           ∗ rsrc ↣ᵣ WCap p g b e a
+           ∗ rsrc ↦ᵣ WCap true p g b e a
+           ∗ rsrc ↣ᵣ WCap true p g b e a
            ∗ rdst ↦ᵣ wload
            ∗ rdst ↣ᵣ wload'
            ∗ interp W C (wload, wload')
@@ -617,7 +681,14 @@ Section wp_interp.
       iApply "Hφ"; by iLeft.
     }
     destruct wsrc;try done. destruct sb; try done.
-    iDestruct (interp_eq_not_sealed with "Hinterp_src") as %<-; first done.
+    destruct tag; cycle 1.
+    {
+      iDestruct (map_of_regs_3 with "HPC Hdst Hsrc") as "[Hmap (%&%&%)]".
+      iApply (wp_load_fail_tag _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a)
+                with "[$Hi $Hmap]"); eauto; try (by rewrite /lookup_reg; simplify_map_eq).
+      iNext; iIntros "_ !>". iApply "Hφ"; by iLeft.
+    }
+    iDestruct (interp_eq with "Hinterp_src") as %<-.
 
     destruct (decide (readAllowed p = true))%a as [Hra_src|Hra_src]; cycle 1.
     {
@@ -698,21 +769,21 @@ Section wp_interp.
     (wi wdst wdst' : Word)
     :
     ↑specN ⊆ E →
-    decodeInstrW wi = Load rdst rsrc →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW wi = Load rdst rsrc 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
      {{{ spec_ctx
            ∗ ⤇ Seq (Instr Executable)
-           ∗ interp W C (WCap p g b e a, WCap p g b e a)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ interp W C (WCap true p g b e a, WCap true p g b e a)
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
-           ∗ rsrc ↦ᵣ (WCap p g b e a)
-           ∗ rsrc ↣ᵣ (WCap p g b e a)
+           ∗ rsrc ↦ᵣ (WCap true p g b e a)
+           ∗ rsrc ↣ᵣ (WCap true p g b e a)
            ∗ rdst ↦ᵣ wdst
            ∗ rdst ↣ᵣ wdst'
            ∗ world_interp W C
@@ -723,12 +794,12 @@ Section wp_interp.
           (∃ wload wload',
               ⌜ retv = NextIV ⌝
            ∗ ⤇ Seq (Instr NextI)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-           ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ pc_a ↣ₐ wi
-           ∗ rsrc ↦ᵣ (WCap p g b e a)
-           ∗ rsrc ↣ᵣ (WCap p g b e a)
+           ∗ rsrc ↦ᵣ (WCap true p g b e a)
+           ∗ rsrc ↣ᵣ (WCap true p g b e a)
            ∗ rdst ↦ᵣ wload
            ∗ rdst ↣ᵣ wload'
            ∗ interp W C (wload, wload')

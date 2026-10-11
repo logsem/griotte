@@ -220,15 +220,18 @@ Section monotone.
     -∗ interp W' C (WSealed ot1 sb1, WSealed ot2 sb2).
   Proof.
     iIntros (Hrelated) "#Hinterp".
-    by rewrite !interp_sealed_inv /interp_sb.
+    destruct (get_tag_sealable sb1) eqn:Htag.
+    - by rewrite !interp_sealed_inv // /interp_sb.
+    - by rewrite !(interp_untagged_world W W' C C) //.
   Qed.
 
-  Lemma interp_monotone_sentry W W' C p g b e a :
+  Lemma interp_monotone_sentry W W' C t p g b e a :
     ⌜related_sts_pub_world W W'⌝
-    -∗ interp W C (WSentry p g b e a, WSentry p g b e a)
-    -∗ interp W' C (WSentry p g b e a, WSentry p g b e a).
+    -∗ interp W C (WSentry t p g b e a, WSentry t p g b e a)
+    -∗ interp W' C (WSentry t p g b e a, WSentry t p g b e a).
   Proof.
     iIntros (Hrelated) "#Hw".
+    destruct t; last (iApply interp_untagged; done).
     rewrite !interp_diag_eq // /interp1_diag /=.
     iModIntro. iIntros (W'').
     destruct g.
@@ -327,12 +330,13 @@ Section monotone.
     iPureIntro; exact Hstate'.
   Qed.
 
-  Lemma interp_monotone_cap (W W' : WORLD) C p g b e a :
+  Lemma interp_monotone_cap (W W' : WORLD) C t p g b e a :
     ⌜related_sts_pub_world W W'⌝
-    -∗ interp W C (WCap p g b e a, WCap p g b e a)
-    -∗ interp W' C (WCap p g b e a, WCap p g b e a).
+    -∗ interp W C (WCap t p g b e a, WCap t p g b e a)
+    -∗ interp W' C (WCap t p g b e a, WCap t p g b e a).
   Proof.
     iIntros (Hrelated) "#Hw".
+    destruct t; last (iApply interp_untagged; done).
     rewrite !fixpoint_interp1_eq !interp1_eq.
     destruct (isO p); first done.
     destruct (has_sreg_access p); first done.
@@ -374,12 +378,13 @@ Section monotone.
     by apply Hrelated_dom.
   Qed.
 
-  Lemma interp_monotone_sealrange (W W' : WORLD) C p g b e a :
+  Lemma interp_monotone_sealrange (W W' : WORLD) C t p g b e a :
     ⌜related_sts_priv_world W W'⌝
-    -∗ interp W C (WSealRange p g b e a, WSealRange p g b e a)
-    -∗ interp W' C (WSealRange p g b e a, WSealRange p g b e a).
+    -∗ interp W C (WSealRange t p g b e a, WSealRange t p g b e a)
+    -∗ interp W' C (WSealRange t p g b e a, WSealRange t p g b e a).
   Proof.
     iIntros (Hrelated) "#Hw".
+    destruct t; last (iApply interp_untagged; done).
     rewrite !interp_diag_eq // /interp1_diag /=; auto.
     iDestruct "Hw" as "[Hw_seal Hw_unseal]".
     iSplitL "Hw_seal".
@@ -406,13 +411,14 @@ Section monotone.
     - iApply (interp_monotone_sd with "[] [$]"); eauto.
   Qed.
 
-  Lemma interp_monotone_nl_sentry W W' C p g b e a :
+  Lemma interp_monotone_nl_sentry W W' C t p g b e a :
     ⌜related_sts_priv_world W W'⌝
-    -∗ ⌜isLocalWord (WSentry p g b e a) = false⌝
-    -∗ interp W C (WSentry p g b e a, WSentry p g b e a)
-    -∗ interp W' C (WSentry p g b e a, WSentry p g b e a).
+    -∗ ⌜isLocalWord (WSentry t p g b e a) = false⌝
+    -∗ interp W C (WSentry t p g b e a, WSentry t p g b e a)
+    -∗ interp W' C (WSentry t p g b e a, WSentry t p g b e a).
   Proof.
     iIntros (Hrelated Hnl) "#Hw".
+    destruct t; last (iApply interp_untagged; done).
     rewrite !interp_diag_eq // /interp1_diag /=.
     destruct g ; cbn in Hnl ; try done.
     iModIntro. iIntros (W'').
@@ -426,13 +432,14 @@ Section monotone.
     iApply "Hw".
   Qed.
 
-  Lemma interp_monotone_nl_cap (W W' : WORLD) C p g b e a :
+  Lemma interp_monotone_nl_cap (W W' : WORLD) C t p g b e a :
     ⌜related_sts_priv_world W W'⌝
-    -∗ ⌜isLocalWord (WCap p g b e a) = false⌝
-    -∗ interp W C (WCap p g b e a, WCap p g b e a)
-    -∗ interp W' C (WCap p g b e a, WCap p g b e a).
+    -∗ ⌜isLocalWord (WCap t p g b e a) = false⌝
+    -∗ interp W C (WCap t p g b e a, WCap t p g b e a)
+    -∗ interp W' C (WCap t p g b e a, WCap t p g b e a).
   Proof.
     iIntros (Hrelated Hnl) "#Hw".
+    destruct t; last (iApply interp_untagged; done).
     destruct g; cbn in Hnl; try done.
     rewrite !fixpoint_interp1_eq !interp1_eq.
     destruct (isO p); first done.
@@ -463,19 +470,36 @@ Section monotone.
     - iApply (interp_monotone_sd with "[] [$]"); eauto.
   Qed.
 
+  Lemma interp_monotone_general_untagged C p ww ρ :
+    get_tag ww.1 = false →
+    ⊢ monotonicity_guarantees_region C interpC p ww ρ.
+  Proof.
+    intros Htag. unfold monotonicity_guarantees_region.
+    destruct ww as [w1 w2]; cbn in Htag.
+    destruct ρ; simpl; auto.
+    - destruct (isWL p); [|destruct (isDL p)];
+        iModIntro; iIntros (W0 W1) "_ H";
+        iDestruct (interp_eq with "H") as %<-;
+        iApply interp_untagged; done.
+    - iModIntro; iIntros (W0 W1) "_ H".
+      iDestruct (interp_eq with "H") as %<-.
+      iApply interp_untagged; done.
+  Qed.
+
   (* The general monotonicity statement that interp gives you when writing a word into a
      pointer (p0, l, a2, a1, a0) ; simply a bundling of all individual monotonicity statements *)
-  Lemma interp_monotone_generalW (W : WORLD) (C : CmptName) (ρ : region_type)
+  Lemma interp_monotone_generalW (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
     (p p' p'' : Perm) (g g' : Locality) (b e a b' e' a' : Addr) :
     std W !! a' = Some ρ →
     withinBounds b' e' a' = true →
     PermFlowsTo p' p'' →
-    canStore p' (WCap p g b e a) = true →
-    interp W C (WCap p' g' b' e' a', WCap p' g' b' e' a') -∗
-    monotonicity_guarantees_region C interpC p'' (WCap p g b e a, WCap p g b e a) ρ.
+    canStore p' (WCap t p g b e a) = true →
+    interp W C (WCap true p' g' b' e' a', WCap true p' g' b' e' a') -∗
+    monotonicity_guarantees_region C interpC p'' (WCap t p g b e a, WCap t p g b e a) ρ.
   Proof.
     unfold monotonicity_guarantees_region.
     iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
+    destruct t; last (iApply interp_monotone_general_untagged; done).
     destruct ρ;simpl;auto.
     - destruct (isWL p'') eqn: HpwlP''; [| destruct (isDL p'') eqn: HpdlP'']
       ; iModIntro; simpl;auto
@@ -497,17 +521,18 @@ Section monotone.
         simplify_eq.
   Qed.
 
-  Lemma interp_monotone_generalSentry (W : WORLD) (C : CmptName) (ρ : region_type)
+  Lemma interp_monotone_generalSentry (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
     (p p' p'' : Perm) (g g' : Locality) (b e a b' e' a' : Addr) :
     std W !! a' = Some ρ →
     withinBounds b' e' a' = true →
     PermFlowsTo p' p'' →
-    canStore p' (WSentry p g b e a) = true →
-    interp W C (WCap p' g' b' e' a', WCap p' g' b' e' a') -∗
-    monotonicity_guarantees_region C interpC p'' (WSentry p g b e a, WSentry p g b e a) ρ.
+    canStore p' (WSentry t p g b e a) = true →
+    interp W C (WCap true p' g' b' e' a', WCap true p' g' b' e' a') -∗
+    monotonicity_guarantees_region C interpC p'' (WSentry t p g b e a, WSentry t p g b e a) ρ.
   Proof.
     unfold monotonicity_guarantees_region.
     iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
+    destruct t; last (iApply interp_monotone_general_untagged; done).
     destruct ρ;simpl;auto.
     - destruct (isWL p'') eqn: HpwlP''; [| destruct (isDL p'') eqn: HpdlP'']
       ;iModIntro; simpl;auto ; iIntros (W0 W1) "%Hrelated HIW0".
@@ -534,7 +559,7 @@ Section monotone.
     std W !! a = Some ρ →
     withinBounds b e a = true →
     PermFlowsTo p p' →
-    interp W C (WCap p g b e a, WCap p g b e a) -∗
+    interp W C (WCap true p g b e a, WCap true p g b e a) -∗
     monotonicity_guarantees_region C interpC p' (WInt z, WInt z) ρ.
   Proof.
     unfold monotonicity_guarantees_region.
@@ -550,15 +575,15 @@ Section monotone.
       iApply interp_monotone_nl; last eauto; eauto.
   Qed.
 
-  Lemma interp_monotone_generalSr (W : WORLD) (C : CmptName) (ρ : region_type)
+  Lemma interp_monotone_generalSr (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (sp : SealPerms) (sg : Locality) (sb se sa : OType) :
     std W !! a = Some ρ →
     withinBounds b e a = true →
     PermFlowsTo p p' →
-    interp W C (WCap p g b e a, WCap p g b e a) -∗
+    interp W C (WCap true p g b e a, WCap true p g b e a) -∗
     monotonicity_guarantees_region C interpC p'
-      (WSealRange sp sg sb se sa, WSealRange sp sg sb se sa) ρ.
+      (WSealRange t sp sg sb se sa, WSealRange t sp sg sb se sa) ρ.
   Proof.
     unfold monotonicity_guarantees_region.
     iIntros (Hstd Hwb Hfl') "#Hvdst".
@@ -577,7 +602,7 @@ Section monotone.
     std W !! a = Some ρ →
     withinBounds b e a = true →
     PermFlowsTo p p' →
-    interp W C (WCap p g b e a, WCap p g b e a) -∗
+    interp W C (WCap true p g b e a, WCap true p g b e a) -∗
     monotonicity_guarantees_region C interpC p' (WSealed ot1 sb1, WSealed ot2 sb2) ρ.
   Proof.
     unfold monotonicity_guarantees_region.
@@ -602,14 +627,14 @@ Section monotone.
     withinBounds b' e' a' = true →
     PermFlowsTo p' p'' →
     canStore p' ww.1 = true →
-    interp W C (WCap p' g' b' e' a', WCap p' g' b' e' a') -∗
+    interp W C (WCap true p' g' b' e' a', WCap true p' g' b' e' a') -∗
     interp W C ww -∗
     monotonicity_guarantees_region C interpC p'' ww ρ.
   Proof.
     iIntros (Hstd Hwb Hfl Hcan) "#Hvdst #Hww".
     destruct ww as [w1 w2]; cbn in Hcan.
     iDestruct (interp_eq_unless_sealed with "Hww") as "[<-|(%o & %sb1 & %sb2 & -> & ->)]".
-    - destruct w1 as [ z | [ p g b e a | sp sg sb se sa ] | p g b e a | o sb ].
+    - destruct w1 as [ z | [ t p g b e a | t sp sg sb se sa ] | t p g b e a | o sb ].
       + iApply interp_monotone_generalZ; eauto.
       + iApply interp_monotone_generalW; eauto.
       + iApply interp_monotone_generalSr; eauto.

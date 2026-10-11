@@ -43,8 +43,8 @@ Section switcher_helper.
 
     related_sts_pub_world W0 Wfixed ->
     interp W0 C
-      (WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk,
-       WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
+      (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk,
+       WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
     world_interp Wcur C -∗
     [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]] -∗
     [[a_stk,a_stk4]]↣ₐ[[region_addrs_zeroes a_stk a_stk4]] -∗
@@ -72,10 +72,10 @@ Section switcher_helper.
     {
       replace a_stk4 with (a_stk ^+4)%a by (subst a_stk; solve_addr+Ha_stk4 He_a1).
       replace (a_stk ^+4)%a with csp_b by (subst a_stk; solve_addr+Ha_stk4 He_a1).
-      iAssert (interp W0 C (WCap RWL Local csp_b csp_e a_stk, WCap RWL Local csp_b csp_e a_stk)) as "Hvalid".
+      iAssert (interp W0 C (WCap true RWL Local csp_b csp_e a_stk, WCap true RWL Local csp_b csp_e a_stk)) as "Hvalid".
       {
         rewrite /is_untrusted_caller_frm /=; destruct (is_untrusted_caller ccrel); auto.
-        iApply (interp_weakening _ _ _ _ _ _ b_stk csp_b with "[] Hinterp_callee_wstk"); auto.
+        iApply (interp_weakening _ _ true _ _ _ _ b_stk csp_b with "[] Hinterp_callee_wstk"); auto.
         + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
         + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
         + iApply fundamental_ih.

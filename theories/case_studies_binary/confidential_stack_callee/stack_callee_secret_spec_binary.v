@@ -49,9 +49,9 @@ Section Stack_callee_secret_f.
     na_inv cerise_nais Nswitcher switcher_inv_binary
     ∗ na_inv cerise_nais TN (stack_callee_secret_inv pc_b pc_a cgp_b B_adv secret1 secret2)
     ⊢ execute_entry_point
-        (WCap RX Global pc_b pc_e (pc_b ^+ Z.of_nat stack_callee_secret_f_offset)%a,
-         WCap RX Global pc_b pc_e (pc_b ^+ Z.of_nat stack_callee_secret_f_offset)%a)
-        (WCap RW Global cgp_b cgp_e cgp_b, WCap RW Global cgp_b cgp_e cgp_b)
+        (WCap true RX Global pc_b pc_e (pc_b ^+ Z.of_nat stack_callee_secret_f_offset)%a,
+         WCap true RX Global pc_b pc_e (pc_b ^+ Z.of_nat stack_callee_secret_f_offset)%a)
+        (WCap true RW Global cgp_b cgp_e cgp_b, WCap true RW Global cgp_b cgp_e cgp_b)
         stack_callee_secret_f_args W C.
   Proof.
     (* Outline of the proof:
@@ -151,24 +151,25 @@ Section Stack_callee_secret_f.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length stack_callee_secret_code)%a ->
     (pc_b + length (stack_callee_secret_imports B_adv))%a = Some pc_a ->
     (cgp_b + length (stack_callee_secret_data secret1))%a = Some cgp_e ->
+    is_Some (pc_b + Z.of_nat stack_callee_secret_f_offset)%a ->
 
     na_inv cerise_nais Nswitcher switcher_inv_binary
     ∗ na_inv cerise_nais TN (stack_callee_secret_inv pc_b pc_a cgp_b B_adv secret1 secret2)
     ∗ inv (export_table_PCCN TN)
-        (b_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b ∗ b_tbl ↣ₐ WCap RX Global pc_b pc_e pc_b)
+        (b_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b ∗ b_tbl ↣ₐ WCap true RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN TN)
-        ((b_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b
-         ∗ (b_tbl ^+ 1)%a ↣ₐ WCap RW Global cgp_b cgp_e cgp_b)
+        ((b_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b
+         ∗ (b_tbl ^+ 1)%a ↣ₐ WCap true RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN TN (b_tbl ^+ 2)%a)
         ((b_tbl ^+ 2)%a ↦ₐ stack_callee_secret_exp_tbl_entry_f
          ∗ (b_tbl ^+ 2)%a ↣ₐ stack_callee_secret_exp_tbl_entry_f)
-    ∗ WSealed ot_switcher (SCap RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a) ↦□ₑ stack_callee_secret_f_args
-    ∗ WSealed ot_switcher (SCap RO Local b_tbl e_tbl (b_tbl ^+ 2)%a) ↦□ₑ stack_callee_secret_f_args
+    ∗ WSealed ot_switcher (SCap true RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a) ↦□ₑ stack_callee_secret_f_args
+    ∗ WSealed ot_switcher (SCap true RO Local b_tbl e_tbl (b_tbl ^+ 2)%a) ↦□ₑ stack_callee_secret_f_args
     -∗
     ot_switcher_prop W C
-      (WCap RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a, WCap RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a).
+      (WCap true RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a, WCap true RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a).
   Proof.
-    iIntros (Htbl_size HsubBounds Himports_contiguous Hcgp_contiguous)
+    iIntros (Htbl_size HsubBounds Himports_contiguous Hcgp_contiguous Hentry_some)
       "(#Hswitcher & #HT & #Htbl_pcc & #Htbl_cgp & #Htbl_f & #Hentry_f & #Hentry_f_borrow)".
     rewrite /stack_callee_secret_exp_tbl_entry_f.
     iExists g_tbl, b_tbl, e_tbl, (b_tbl ^+ 2)%a, pc_b, pc_e, cgp_b, cgp_e,
@@ -180,6 +181,7 @@ Section Stack_callee_secret_f.
     iSplit ; first (iPureIntro; solve_addr).
     iSplit ; first (iPureIntro; solve_addr).
     iSplit ; first (iPureIntro; rewrite /stack_callee_secret_f_args; lia).
+    iSplit ; first done.
     iIntros "!> %W' %Hrelated !>".
     iApply (stack_callee_secret_f_spec pc_b pc_e pc_a cgp_b cgp_e B_adv secret1 secret2
               W' C Nswitcher TN with "[$Hswitcher $HT]"); eauto.

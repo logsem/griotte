@@ -27,8 +27,8 @@ Section spec_rules.
     decodeInstrW w = get_i →
     is_Get get_i dst src →
 
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of get_i ⊆ dom regs →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
@@ -86,7 +86,7 @@ Section spec_rules.
     (* Success *)
 
     eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-        as (p' & g' & b' & e' & a' & a'' & a_pc' & HPC'' & HuPC & ->).
+        as (t' & p' & g' & b' & e' & a' & a'' & a_pc' & HPC'' & HuPC & ->).
     eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
     simplify_pair_eq. iFrame.
     iMod ((spec_regs_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
@@ -99,18 +99,18 @@ Section spec_rules.
     ↑specN ⊆ E →
     decodeInstrW w = get_i →
     is_Get get_i dst PC →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
-    denote get_i (WCap pc_p pc_g pc_b pc_e pc_a) = Some z →
+    denote get_i (WCap true pc_p pc_g pc_b pc_e pc_a) = Some z →
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WInt z.
   Proof.
@@ -133,18 +133,18 @@ Section spec_rules.
     ↑specN ⊆ E →
     decodeInstrW w = get_i →
     is_Get get_i r r →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
     denote get_i wr = Some z →
     r ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r ↣ᵣ wr
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r ↣ᵣ WInt z.
   Proof.
@@ -167,20 +167,20 @@ Section spec_rules.
     ↑specN ⊆ E →
     decodeInstrW w = get_i →
     is_Get get_i dst src →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
     denote get_i wsrc = Some z →
     src ≠ cnull ->
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     src ↣ᵣ wsrc ∗
     dst ↣ᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     src ↣ᵣ wsrc ∗
     dst ↣ᵣ WInt z.
@@ -200,19 +200,52 @@ Section spec_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
+  Lemma step_Get_fail E get_i dst src pc_p pc_g pc_b pc_e pc_a w zsrc wdst :
+    ↑specN ⊆ E →
+    decodeInstrW w = get_i →
+    is_Get get_i dst src →
+    (forall dst' src', get_i <> GetOType dst' src') ->
+    (forall dst' src', get_i <> GetWType dst' src') ->
+    (forall dst' src', get_i <> GetTag dst' src') ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    src ≠ cnull ->
+
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    pc_a ↣ₐ w ∗
+    dst ↣ᵣ wdst ∗
+    src ↣ᵣ WInt zsrc
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    True.
+  Proof.
+    iIntros (HE Hdecode Hinstr Hnot_otype Hnot_wtype Hnot_tag Hvpc Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hsrc & Hdst)".
+    iDestruct (spec_map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
+    iMod (step_Get with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
+    { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hpc_a & Hmap)".
+    destruct Hspec as [* Hsucc |].
+    { (* Success (contradiction) *)
+      destruct_or! Hinstr; simplify_map_eq; rewrite Hinstr /denote in H2; naive_solver.
+    }
+    { (* Failure, done *) by iModIntro; iFrame. }
+  Qed.
+
   Lemma step_Get_unknown E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_a' w wsrc wdst :
     ↑specN ⊆ E →
     decodeInstrW w = get_i →
     is_Get get_i dst src →
     (forall dst' src', get_i <> GetOType dst' src') ->
     (forall dst' src', get_i <> GetWType dst' src') ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (forall dst' src', get_i <> GetTag dst' src') ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull ->
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ wdst ∗
     src ↣ᵣ wsrc
@@ -224,12 +257,12 @@ Section spec_rules.
           ⌜ denote get_i wsrc = Some z ⌝ ∗
           ⌜ (is_cap wsrc || is_sealr wsrc || is_sentry wsrc || is_sealed wsrc) = true ⌝ ∗
           ⌜ retv = NextIV ⌝ ∗
-          PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+          PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
           pc_a ↣ₐ w ∗
           src ↣ᵣ wsrc ∗
           dst ↣ᵣ WInt z)).
   Proof.
-    iIntros (HE Hdecode Hinstr Hnot_otype Hnot_wtype Hvpc Hpc_a' Hcnull Hcnull') "(#Hctx & Hj & HPC & Hpc_a & Hsrc & Hdst)".
+    iIntros (HE Hdecode Hinstr Hnot_otype Hnot_wtype Hnot_tag Hvpc Hpc_a' Hcnull Hcnull') "(#Hctx & Hj & HPC & Hpc_a & Hsrc & Hdst)".
     iDestruct (spec_map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iMod (step_Get with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
@@ -246,12 +279,186 @@ Section spec_rules.
       iSplit; last done.
       iPureIntro.
       destruct w0 as [| [|] | |]; cbn; try done
-      ; destruct (decodeInstrW w); simplify_map_eq
-      ; specialize (Hnot_otype dst0 r)
-      ; specialize (Hnot_wtype dst0 r)
-      ; try contradiction.
+      ; destruct_or! Hinstr; simplify_map_eq; rewrite Hinstr /denote in H2; naive_solver.
     }
     { (* Failure, done *) iModIntro. iExists FailedV. iFrame. by iLeft. }
   Qed.
+
+  Lemma step_GetTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_a' w wn :
+    ↑specN ⊆ E →
+    decodeInstrW w = GetTag cnull cnull →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ cnull ↣ᵣ wn
+    ={E}=∗
+    ⤇ Seq (Instr NextI) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↣ₐ w ∗ cnull ↣ᵣ WInt 0%Z.
+  Proof.
+    iIntros (HE Hdecode Hvpc Hinc) "(#Hctx & Hj & HPC & Hmem & Hn)".
+    iDestruct (spec_map_of_regs_2 with "HPC Hn") as "[Hmap %]".
+    iMod (step_Get with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
+    all: try (unfold is_Get; do 7 right; reflexivity).
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hmem & Hmap)".
+    rewrite Hdecode in Hspec.
+    destruct Hspec as [| * Hfail].
+    - incrementPC_inv; simplify_map_eq.
+      rewrite insert_insert_ne // insert_insert_eq insert_insert_ne // insert_insert_eq.
+      iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto.
+      iModIntro. iFrame.
+    - destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; congruence.
+  Qed.
+
+  Lemma step_GetTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wd wn :
+    ↑specN ⊆ E →
+    decodeInstrW w = GetTag dst cnull →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' → dst ≠ cnull →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ cnull ↣ᵣ wn ∗ dst ↣ᵣ wd
+    ={E}=∗
+    ⤇ Seq (Instr NextI) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↣ₐ w ∗ dst ↣ᵣ WInt 0%Z ∗ cnull ↣ᵣ wn.
+  Proof.
+    iIntros (HE Hdecode Hvpc Hinc Hne) "(#Hctx & Hj & HPC & Hmem & Hs & Hd)".
+    iDestruct (spec_map_of_regs_3 with "HPC Hd Hs") as "[Hmap (%&%&%)]".
+    iMod (step_Get with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
+    all: try (unfold is_Get; do 7 right; reflexivity).
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hmem & Hmap)".
+    rewrite Hdecode in Hspec.
+    destruct Hspec as [| * Hfail].
+    - incrementPC_inv; simplify_map_eq.
+      rewrite insert_insert_ne // insert_insert_eq (insert_insert_ne _ PC dst) // insert_insert_eq.
+      iDestruct (spec_regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto.
+      iModIntro. iFrame.
+    - destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; congruence.
+  Qed.
+
+  Lemma step_GetTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_a' w src wn ws :
+    ↑specN ⊆ E →
+    decodeInstrW w = GetTag cnull src →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' → src ≠ cnull →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ cnull ↣ᵣ wn ∗ src ↣ᵣ ws
+    ={E}=∗
+    ⤇ Seq (Instr NextI) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↣ₐ w ∗ cnull ↣ᵣ WInt 0%Z ∗ src ↣ᵣ ws.
+  Proof.
+    iIntros (HE Hdecode Hvpc Hinc Hne) "(#Hctx & Hj & HPC & Hmem & Hd & Hs)".
+    iDestruct (spec_map_of_regs_3 with "HPC Hd Hs") as "[Hmap (%&%&%)]".
+    iMod (step_Get with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
+    all: try (unfold is_Get; do 7 right; reflexivity).
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hmem & Hmap)".
+    rewrite Hdecode in Hspec.
+    destruct Hspec as [| * Hfail].
+    - incrementPC_inv; simplify_map_eq.
+      rewrite insert_insert_ne // insert_insert_eq (insert_insert_ne _ PC cnull) // insert_insert_eq.
+      iDestruct (spec_regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto.
+      iModIntro. iFrame.
+    - destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; congruence.
+  Qed.
+
+  Lemma step_GetTag_PC_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_a' w wn :
+    ↑specN ⊆ E →
+    decodeInstrW w = GetTag cnull PC →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ cnull ↣ᵣ wn
+    ={E}=∗
+    ⤇ Seq (Instr NextI) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↣ₐ w ∗ cnull ↣ᵣ WInt 0%Z.
+  Proof.
+    iIntros (HE Hdecode Hvpc Hinc) "(#Hctx & Hj & HPC & Hmem & Hn)".
+    iDestruct (spec_map_of_regs_2 with "HPC Hn") as "[Hmap %]".
+    iMod (step_Get with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
+    all: try (unfold is_Get; do 7 right; reflexivity).
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hmem & Hmap)".
+    rewrite Hdecode in Hspec.
+    destruct Hspec as [| * Hfail].
+    - incrementPC_inv; simplify_map_eq.
+      rewrite insert_insert_ne // insert_insert_eq insert_insert_ne // insert_insert_eq.
+      iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto.
+      iModIntro. iFrame.
+    - destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; congruence.
+  Qed.
+
+  Lemma step_GetTag_cnull_toPC E pc_p pc_g pc_b pc_e pc_a w wn :
+    ↑specN ⊆ E →
+    decodeInstrW w = GetTag PC cnull →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ cnull ↣ᵣ wn
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    True.
+  Proof.
+    iIntros (HE Hdecode Hvpc) "(#Hctx & Hj & HPC & Hmem & Hn)".
+    iDestruct (spec_map_of_regs_2 with "HPC Hn") as "[Hmap %]".
+    iMod (step_Get with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
+    all: try (unfold is_Get; do 7 right; reflexivity).
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hmem & Hmap)".
+    rewrite Hdecode in Hspec.
+    destruct Hspec as [| * Hfail].
+    - incrementPC_inv; simplify_map_eq.
+    - by iModIntro; iFrame.
+  Qed.
+
+  Lemma step_GetTag_toPC_failure E pc_p pc_g pc_b pc_e pc_a w src ws :
+    ↑specN ⊆ E →
+    decodeInstrW w = GetTag PC src →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    src ≠ cnull →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w ∗ src ↣ᵣ ws
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    True.
+  Proof.
+    iIntros (HE Hdecode Hvpc Hne) "(#Hctx & Hj & HPC & Hmem & Hsrc)".
+    iDestruct (spec_map_of_regs_2 with "HPC Hsrc") as "[Hmap %]".
+    iMod (step_Get with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
+    all: try (unfold is_Get; do 7 right; reflexivity).
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hmem & Hmap)".
+    rewrite Hdecode in Hspec.
+    destruct Hspec as [|].
+    - incrementPC_inv; simplify_map_eq.
+    - by iModIntro; iFrame.
+  Qed.
+
+  Lemma step_GetTag_PC_failure E pc_p pc_g pc_b pc_e pc_a w  :
+    ↑specN ⊆ E →
+    decodeInstrW w = GetTag PC PC →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ w
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    True.
+  Proof.
+    iIntros (HE Hdecode Hvpc) "(#Hctx & Hj & HPC & Hmem)".
+    iDestruct (spec_map_of_regs_1 with "HPC") as "Hmap".
+    iMod (step_Get with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
+    all: try (unfold is_Get; do 7 right; reflexivity).
+    iDestruct "H" as (retv regs') "(Hj & %Hspec & Hmem & Hmap)".
+    rewrite Hdecode in Hspec.
+    destruct Hspec as [|].
+    - incrementPC_inv; simplify_map_eq.
+    - by iModIntro; iFrame.
+  Qed.
+
 
 End spec_rules.

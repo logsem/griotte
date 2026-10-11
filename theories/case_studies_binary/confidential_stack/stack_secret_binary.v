@@ -29,7 +29,7 @@ Section Stack_secret_main.
      cgp := (RW, Global, b_data, e_data, b_data )
      csp := (RWL, Local, b_stk, e_stk, b_stk )
 
-     b_main + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
+     b_main + 0 : WSentry true XSRW_ b_switcher e_switcher a_cc_switcher
      b_main + 1 : WSealed ot_switcher B.f
 
      b_data + 0 : secret
@@ -37,12 +37,12 @@ Section Stack_secret_main.
   Definition stack_secret_main_code : list Word :=
     encodeInstrsW [
       (* keep the secret in main's stack frame, at a_stk *)
-      Load ct0 cgp;
-      Store csp ct0;
+      Load ct0 cgp 0;
+      Store csp ct0 0;
       Lea csp 1%Z;
       (* leave a stale copy at a_stk + 5, above the 4 words spilled by the switcher *)
       Lea csp 4%Z;
-      Store csp ct0;
+      Store csp ct0 0;
       (* the stack pointer at the call is a_stk + 1 *)
       Lea csp (-4)%Z
     ]
@@ -59,7 +59,7 @@ Section Stack_secret_main.
 
   Definition stack_secret_main_imports `{!switcherLayout} (B_f : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSealed ot_switcher B_f
     ].
 

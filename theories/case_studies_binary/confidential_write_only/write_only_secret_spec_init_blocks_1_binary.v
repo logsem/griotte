@@ -21,21 +21,21 @@ Section Write_only_secret_Init_Blocks_1.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length write_only_secret_main_code)%a ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-    cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+    cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ca0 ↣ᵣ swca0 ∗
     codefrag pc_a write_only_secret_main_code ∗
     spec_codefrag pc_a write_only_secret_main_code ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ write_only_secret_block_offset 1)%a ∗
-        PC ↣ᵣ WCap RX Global pc_b pc_e (pc_a ^+ write_only_secret_block_offset 1)%a ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ WCap WO Global cgp_b cgp_e cgp_b ∗
-        ca0 ↣ᵣ WCap WO Global cgp_b cgp_e cgp_b ∗
+        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ write_only_secret_block_offset 1)%a ∗
+        PC ↣ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ write_only_secret_block_offset 1)%a ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ WCap true WO Global cgp_b cgp_e cgp_b ∗
+        ca0 ↣ᵣ WCap true WO Global cgp_b cgp_e cgp_b ∗
         codefrag pc_a write_only_secret_main_code ∗
         spec_codefrag pc_a write_only_secret_main_code
         -∗ WP Seq (Instr Executable) {{ φ }})

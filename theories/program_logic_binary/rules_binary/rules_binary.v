@@ -8,4 +8,5 @@ From griotte Require Export
      rules_Lea_binary rules_Mov_binary rules_Restrict_binary rules_Subseg_binary
      rules_Jmp_binary rules_Jnz_binary rules_Jalr_binary
      rules_Seal_binary rules_UnSeal_binary
-     rules_ReadSR_binary rules_WriteSR_binary.
+     rules_ReadSR_binary rules_WriteSR_binary
+     rules_ClearTag_binary.

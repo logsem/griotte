@@ -39,23 +39,23 @@ Section switcher_macros.
     r2 ≠ cnull ->
     ( spec_ctx
       ∗ ⤇ Seq (Instr Executable)
-      ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ csp ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_a
-      ∗ csp ↣ᵣ WCap csp_p csp_g csp_b csp_e csp_a
-      ∗ interp W C (WCap csp_p csp_g csp_b csp_e csp_a, WCap csp_p csp_g csp_b csp_e csp_a)
+      ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
+      ∗ csp ↣ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
+      ∗ interp W C (WCap true csp_p csp_g csp_b csp_e csp_a, WCap true csp_p csp_g csp_b csp_e csp_a)
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
       ∗ r1 ↣ᵣ WInt csp_e ∗ r2 ↣ᵣ WInt csp_a
       ∗ codefrag pc_a (clear_stack_instrs r1 r2)
       ∗ spec_codefrag pc_a (clear_stack_instrs r1 r2)
       ∗ world_interp W C
       ∗ ▷ ( (⤇ Seq (Instr Executable)
-             ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
-             ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
-             ∗ csp ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_a
-             ∗ csp ↣ᵣ WCap csp_p csp_g csp_b csp_e csp_a
-             ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_e
-             ∗ r1 ↣ᵣ WInt 0 ∗ r2 ↣ᵣ WCap csp_p csp_g csp_b csp_e csp_e
+             ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
+             ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
+             ∗ csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
+             ∗ csp ↣ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
+             ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_e
+             ∗ r1 ↣ᵣ WInt 0 ∗ r2 ↣ᵣ WCap true csp_p csp_g csp_b csp_e csp_e
              ∗ codefrag pc_a (clear_stack_instrs r1 r2)
              ∗ spec_codefrag pc_a (clear_stack_instrs r1 r2))
             ∗ world_interp W C
@@ -75,10 +75,10 @@ Section switcher_macros.
     (* Mov r2 csp *)
     iInstr_lockstep "Hscode" "Hcode".
 
-    remember (WCap csp_p csp_g csp_b csp_e csp_a) as sp.
-    iAssert (r2 ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_a)%I with "[Hr2]" as "Hr2"; first by rewrite Heqsp.
-    iAssert (r2 ↣ᵣ WCap csp_p csp_g csp_b csp_e csp_a)%I with "[Hsr2]" as "Hsr2"; first by rewrite Heqsp.
-    iAssert (interp W C (WCap csp_p csp_g csp_b csp_e csp_a, WCap csp_p csp_g csp_b csp_e csp_a))%I
+    remember (WCap true csp_p csp_g csp_b csp_e csp_a) as sp.
+    iAssert (r2 ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a)%I with "[Hr2]" as "Hr2"; first by rewrite Heqsp.
+    iAssert (r2 ↣ᵣ WCap true csp_p csp_g csp_b csp_e csp_a)%I with "[Hsr2]" as "Hsr2"; first by rewrite Heqsp.
+    iAssert (interp W C (WCap true csp_p csp_g csp_b csp_e csp_a, WCap true csp_p csp_g csp_b csp_e csp_a))%I
       with "[Hinterp]" as "Hinterp"; first by rewrite Heqsp.
     clear Heqsp.
     iLöb as "IH" forall (csp_a).
@@ -105,22 +105,15 @@ Section switcher_macros.
       iApply (wp_store_interp_z_cap with "[$Hctx $Hj $HPC $HsPC $Hi $Hsi $Hworld_interp $Hr2 $Hsr2 $Hinterp]")
       ; try solve_pure; try solve_ndisj.
       iIntros "!>" (v) "[-> | (-> & Hj & HPC & HsPC & Hi & Hsi & Hr2 & Hsr2
-      & Hworld_interp & %Hwa & _)] /=".
+      & Hworld_interp & %Hwa & %Hstorebounds)] /=".
       { wp_pure. wp_end. iFrame. }
       wp_pure.
       iSpecSeq.
       iSpecialize ("Hcode" with "[$]").
       iSpecialize ("Hscode" with "[$]").
 
-      (* Lea r2 1 *)
-      destruct (csp_a + 1)%a eqn:Ha;cycle 1.
-      { (* Lea r2 1 *)
-        iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hr2]")
-        ; try solve_pure
-        ; eauto.
-        iIntros "!> _". wp_pure. wp_end. iFrame. }
+      assert (is_Some (csp_a + 1)%a) as [f Ha].
+      { solve_addr. }
       (* Lea r2 1 *)
       iInstr_lockstep "Hscode" "Hcode".
 
@@ -212,8 +205,8 @@ Section switcher_macros.
 
     ( spec_ctx
       ∗ ⤇ Seq (Instr Executable)
-      ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
       ∗ ct2 ↣ᵣ WInt (Z.of_nat nargs)
       ∗ ( [∗ map] rarg↦warg;sarg ∈ arg_rmap;arg_smap,
@@ -229,8 +222,8 @@ Section switcher_macros.
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ ⌜ is_arg_rmap arg_smap' 8 ⌝
               ∗ ⤇ Seq (Instr Executable)
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
-              ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
+              ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
               ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
               ∗ ct2 ↣ᵣ WInt (Z.of_nat nargs)
               ∗ (  [∗ map] rarg↦warg;sarg ∈ arg_rmap';arg_smap',

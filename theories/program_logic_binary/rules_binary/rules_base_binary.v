@@ -33,7 +33,16 @@ Ltac solve_spec_determ_gen F pre :=
   repeat match goal with H : _ ∧ _ |- _ => destruct H end;
   simplify_eq;
   repeat split; try done; try congruence;
-  intros; simplify_eq; try done; try congruence.
+  intros; simplify_eq; try done; try congruence;
+  (* Validity-tag cases: equal decoded permissions and contradictory flows. *)
+  repeat match goal with
+    H1 : (?x, ?y) = ?d, H2 : (?x', ?y') = ?d |- _ =>
+      rewrite <- H1 in H2; inversion H2; clear H2; subst
+  end;
+  repeat match goal with
+    H : _ && _ = false |- _ => apply andb_false_iff in H; destruct H
+  end;
+  simplify_eq; try done; try congruence.
 
 Ltac solve_spec_determ F := solve_spec_determ_gen F idtac.
 
@@ -78,6 +87,161 @@ Section rules_base_binary.
       as (v) "[Hj (%x & %y & HΨ)]"; first done.
     - iApply "Hcont". iIntros (x y v) "H". by iExists x, y.
     - iModIntro. iExists v, x, y. iFrame.
+  Qed.
+
+
+  (** ** Runtime failure of an instruction
+
+      Spec counterparts of [wp_instr_failed_N] ([rules_base.v]): a failed
+      instruction leaves the state unchanged. *)
+  Lemma step_instr_failed_map E pc_p pc_g pc_b pc_e pc_a w i (regs : Reg) :
+    ↑specN ⊆ E →
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, regs ⊆ r →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    pc_a ↣ₐ w ∗
+    ([∗ map] k↦y ∈ regs, k ↣ᵣ y)
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    pc_a ↣ₐ w ∗
+    ([∗ map] k↦y ∈ regs, k ↣ᵣ y).
+  Proof.
+    iIntros (HE Hinstr Hvpc HPC Hfailed) "(#Hctx & Hj & Hpc_a & Hmap)".
+    iMod (spec_step_exec _
+            (λ v, ⌜v = FailedV⌝ ∗ pc_a ↣ₐ w ∗ ([∗ map] k↦y ∈ regs, k ↣ᵣ y))%I
+           with "Hctx Hj Hmap Hpc_a [] ")
+      as (v) "(Hj & -> & Hpc_a & Hmap)"; [done..| |by iFrame].
+    iIntros ([[r sr] m] c σ' Hincl _ Hexec) "Hσ Hmap Hpc_a".
+    rewrite Hinstr (Hfailed r sr m Hincl) in Hexec. simplify_eq.
+    by iFrame.
+  Qed.
+
+  Lemma step_instr_failed_0 E pc_p pc_g pc_b pc_e pc_a w i :
+    ↑specN ⊆ E →
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    pc_a ↣ₐ w
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    pc_a ↣ₐ w.
+  Proof.
+    iIntros (HE Hinstr Hvpc Hfailed) "(#Hctx & Hj & HPC & Hmem)".
+    iDestruct (spec_map_of_regs_1 with "HPC") as "Hmap".
+    iMod (step_instr_failed_map with "[$Hctx $Hj $Hmap $Hmem]") as "($ & $ & Hmap)".
+    1-3: done.
+    - by simplify_map_eq.
+    - intros r sr m Hincl. apply Hfailed.
+      all: eapply lookup_weaken; last exact Hincl.
+      all: by simplify_map_eq.
+    - by iDestruct (spec_regs_of_map_1 with "Hmap") as "$".
+  Qed.
+
+  Lemma step_instr_failed_1 E pc_p pc_g pc_b pc_e pc_a w i r1 w1 :
+    ↑specN ⊆ E →
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+       r !! r1 = Some w1 →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    r1 ↣ᵣ w1 ∗
+    pc_a ↣ₐ w
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    r1 ↣ᵣ w1 ∗
+    pc_a ↣ₐ w.
+  Proof.
+    iIntros (HE Hinstr Hvpc Hfailed) "(#Hctx & Hj & HPC & Hr1 & Hmem)".
+    iDestruct (spec_map_of_regs_2 with "HPC Hr1") as "[Hmap %Hne]".
+    iMod (step_instr_failed_map with "[$Hctx $Hj $Hmap $Hmem]") as "($ & $ & Hmap)".
+    1-3: done.
+    - by simplify_map_eq.
+    - intros r sr m Hincl. apply Hfailed.
+      all: eapply lookup_weaken; last exact Hincl.
+      all: by simplify_map_eq.
+    - by iDestruct (spec_regs_of_map_2 with "Hmap") as "[$ $]".
+  Qed.
+
+  Lemma step_instr_failed_2 E pc_p pc_g pc_b pc_e pc_a w i r1 w1 r2 w2 :
+    ↑specN ⊆ E →
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+       r !! r1 = Some w1 →
+       r !! r2 = Some w2 →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    r1 ↣ᵣ w1 ∗
+    r2 ↣ᵣ w2 ∗
+    pc_a ↣ₐ w
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    r1 ↣ᵣ w1 ∗
+    r2 ↣ᵣ w2 ∗
+    pc_a ↣ₐ w.
+  Proof.
+    iIntros (HE Hinstr Hvpc Hfailed) "(#Hctx & Hj & HPC & Hr1 & Hr2 & Hmem)".
+    iDestruct (spec_map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
+    destruct Hne as (Hne0 & Hne1 & Hne2).
+    iMod (step_instr_failed_map with "[$Hctx $Hj $Hmap $Hmem]") as "($ & $ & Hmap)".
+    1-3: done.
+    - by simplify_map_eq.
+    - intros r sr m Hincl. apply Hfailed.
+      all: eapply lookup_weaken; last exact Hincl.
+      all: by simplify_map_eq.
+    - by iDestruct (spec_regs_of_map_3 with "Hmap") as "($ & $ & $)".
+  Qed.
+
+  Lemma step_instr_failed_3 E pc_p pc_g pc_b pc_e pc_a w i r1 w1 r2 w2 r3 w3 :
+    ↑specN ⊆ E →
+    decodeInstrW w = i →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (∀ r sr m, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+       r !! r1 = Some w1 →
+       r !! r2 = Some w2 →
+       r !! r3 = Some w3 →
+       exec i pc_p (r, sr, m) = (Failed, (r, sr, m))) →
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    r1 ↣ᵣ w1 ∗
+    r2 ↣ᵣ w2 ∗
+    r3 ↣ᵣ w3 ∗
+    pc_a ↣ₐ w
+    ={E}=∗
+    ⤇ Seq (Instr Failed) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    r1 ↣ᵣ w1 ∗
+    r2 ↣ᵣ w2 ∗
+    r3 ↣ᵣ w3 ∗
+    pc_a ↣ₐ w.
+  Proof.
+    iIntros (HE Hinstr Hvpc Hfailed) "(#Hctx & Hj & HPC & Hr1 & Hr2 & Hr3 & Hmem)".
+    iDestruct (spec_map_of_regs_4 with "HPC Hr1 Hr2 Hr3") as "[Hmap %Hne]".
+    destruct Hne as (Hne0 & Hne1 & Hne2 & Hne3 & Hne4 & Hne5).
+    iMod (step_instr_failed_map with "[$Hctx $Hj $Hmap $Hmem]") as "($ & $ & Hmap)".
+    1-3: done.
+    - by simplify_map_eq.
+    - intros r sr m Hincl. apply Hfailed.
+      all: eapply lookup_weaken; last exact Hincl.
+      all: by simplify_map_eq.
+    - by iDestruct (spec_regs_of_map_4 with "Hmap") as "($ & $ & $ & $)".
   Qed.
 
 End rules_base_binary.

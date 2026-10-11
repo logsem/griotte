@@ -20,8 +20,8 @@ Section CMDC_Halt_Blocks_4.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_conf_main_code)%a ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset 7 1)%a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset 7 1)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset 7 1)%a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset 7 1)%a ∗
     codefrag pc_a cmdc_conf_main_code ∗
     spec_codefrag pc_a cmdc_conf_main_code ∗
     ▷ ( ⤇ Seq (Instr Halted) -∗ WP Instr Halted {{ φ }})

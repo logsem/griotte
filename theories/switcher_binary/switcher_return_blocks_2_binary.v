@@ -37,8 +37,8 @@ Section Switcher_Return_Blocks_2.
 
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ 5)%a ∗
-    PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ 5)%a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 5)%a ∗
+    PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 5)%a ∗
     cgp ↦ᵣ wcgp_old ∗
     cgp ↣ᵣ swcgp_old ∗
     cra ↦ᵣ wcra_old ∗
@@ -51,15 +51,15 @@ Section Switcher_Return_Blocks_2.
     ct0 ↣ᵣ swct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct1 ↣ᵣ swct1 ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
-    csp ↣ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
+    csp ↣ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcra wcgp ∗
     switcher_stk_cells_spec a_stk swcs0 swcs1 swcra swcgp ∗
     codefrag pc_a switcher_instrs_12 ∗
     spec_codefrag pc_a switcher_instrs_12 ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ 14)%a ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ 14)%a ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 14)%a ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 14)%a ∗
         cgp ↦ᵣ wcgp ∗
         cgp ↣ᵣ swcgp ∗
         cra ↦ᵣ wcra ∗
@@ -72,8 +72,8 @@ Section Switcher_Return_Blocks_2.
         ct0 ↣ᵣ WInt e_stk ∗
         ct1 ↦ᵣ WInt a_stk ∗
         ct1 ↣ᵣ WInt a_stk ∗
-        csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
-        csp ↣ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+        csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+        csp ↣ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcra wcgp ∗
         switcher_stk_cells_spec a_stk swcs0 swcs1 swcra swcgp ∗
         codefrag pc_a switcher_instrs_12 ∗
@@ -163,8 +163,8 @@ Section Switcher_Return_Blocks_2.
     ca2 ↣ᵣ swca2 ∗
     ctp ↦ᵣ wctp ∗
     ctp ↣ᵣ swctp ∗
-    csp ↦ᵣ WCap RWL Local b e (a ^+ 3)%a ∗
-    csp ↣ᵣ WCap RWL Local b e (a ^+ 3)%a ∗
+    csp ↦ᵣ WCap true RWL Local b e (a ^+ 3)%a ∗
+    csp ↣ᵣ WCap true RWL Local b e (a ^+ 3)%a ∗
     switcher_stk_cells a wcs0 wcs1 wcra wcgp ∗
     switcher_stk_cells_spec a swcs0 swcs1 swcra swcgp ∗
     [[ (a ^+ 4)%a , e ]] ↦ₐ [[ stk_mem ]] ∗
@@ -186,8 +186,8 @@ Section Switcher_Return_Blocks_2.
         cs0 ↣ᵣ swcs0 ∗
         cs1 ↦ᵣ wcs1 ∗
         cs1 ↣ᵣ swcs1 ∗
-        csp ↦ᵣ WCap RWL Local b e a ∗
-        csp ↣ᵣ WCap RWL Local b e a ∗
+        csp ↦ᵣ WCap true RWL Local b e a ∗
+        csp ↣ᵣ WCap true RWL Local b e a ∗
         [[ a , (a ^+ 4)%a ]] ↦ₐ [[ region_addrs_zeroes a (a ^+ 4)%a ]] ∗
         [[ a , (a ^+ 4)%a ]] ↣ₐ [[ region_addrs_zeroes a (a ^+ 4)%a ]] ∗
         [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗

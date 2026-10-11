@@ -62,12 +62,12 @@ Section Stack_callee_secret_run.
       ∗ ⤇ Seq (Instr Executable)
 
       (* initial register files *)
-      ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-      ∗ PC ↣ᵣ WCap RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
-      ∗ cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
-      ∗ csp ↣ᵣ WCap RWL Local csp_b csp_e csp_b
+      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ PC ↣ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+      ∗ csp ↣ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ r ↣ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
 
       (* initial stack *)

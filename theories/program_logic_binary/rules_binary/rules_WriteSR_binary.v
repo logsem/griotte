@@ -25,8 +25,8 @@ Section spec_rules.
   Lemma step_WriteSR Ep pc_p pc_g pc_b pc_e pc_a w dst src regs sregs :
     ↑specN ⊆ Ep →
     decodeInstrW w = WriteSR dst src ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (WriteSR dst src) ⊆ dom regs →
     (if (has_sreg_access pc_p)
     then sregs_of (WriteSR dst src) ⊆ dom sregs
@@ -79,32 +79,30 @@ Section spec_rules.
     }
 
     eapply (incrementPC_success_updatePC _ (<[dst:=wsrc]> sr) m) in Hregs'
-      as (p' & g' & b' & e' & a'' & a''' & HPC'' & a_pc' & HuPC & ->).
+      as (t' & p' & g' & b' & e' & a'' & a''' & HPC'' & a_pc' & HuPC & ->).
     eapply updatePC_success_incl with (sregs':=<[dst:=wsrc]>sr) (m':=m) in HuPC; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((spec_regs_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iMod ((spec_sregs_update_inSepM _ _ dst) with "Hsr Hsmap") as "[Hsr Hsmap]"; eauto.
     iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
-    rewrite /incrementPC in H'regs'; simplify_map_eq.
-    by rewrite HPC in HPC''; inv HPC''.
   Qed.
 
   Lemma step_writesr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst src wsrc :
     ↑specN ⊆ E →
     decodeInstrW w = WriteSR dst src →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ₛᵣ wdst ∗
     src ↣ᵣ wsrc
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     dst ↣ₛᵣ wsrc ∗
     src ↣ᵣ wsrc.
@@ -135,19 +133,19 @@ Section spec_rules.
   Lemma step_writesr_success_fromPC E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst :
     ↑specN ⊆ E →
     decodeInstrW w = WriteSR dst PC →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ₛᵣ wdst
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
-    dst ↣ₛᵣ WCap pc_p pc_g pc_b pc_e pc_a.
+    dst ↣ₛᵣ WCap true pc_p pc_g pc_b pc_e pc_a.
   Proof.
     iIntros (HE Hinstr Hvpc Hxsr Hpca') "(#Hctx & Hj & HPC & Hpc_a & Hdst)".
     iDestruct (spec_map_of_regs_1 with "HPC") as "Hmap".
@@ -170,5 +168,6 @@ Section spec_rules.
         congruence.
     }
   Qed.
+
 
 End spec_rules.

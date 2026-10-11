@@ -42,11 +42,11 @@ Section Switcher_Call_States.
     rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local).
 
   Lemma switcher_csp_checked_stk b e a :
-    switcher_csp_checked (WCap RWL Local b e a).
+    switcher_csp_checked (WCap true RWL Local b e a).
   Proof. done. Qed.
 
   Lemma switcher_csp_checked_cap p g b e a :
-    switcher_csp_checked (WCap p g b e a) -> p = RWL ∧ g = Local.
+    switcher_csp_checked (WCap true p g b e a) -> p = RWL ∧ g = Local.
   Proof.
     intros [Hp Hg]; cbn in Hp, Hg; simplify_eq.
     split; [by apply encodePerm_inj | by apply encodeLoc_inj].

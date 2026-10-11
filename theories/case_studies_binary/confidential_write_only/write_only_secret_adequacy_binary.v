@@ -37,6 +37,8 @@ Class write_only_secret_memory_layout `{MP: MachineParameters} := {
     (* adv compartment B *)
     B_cmpt : cmpt ;
     offset_B_f : nat;
+    offset_B_f_valid :
+      is_Some (cmpt_b_pcc B_cmpt + offset_B_f%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints : main_cmpt ## B_cmpt ;
@@ -79,13 +81,13 @@ Definition is_initial_memory `{write_only_secret_memory_layout} (secret : Z) (me
   let e_switcher := (e_switcher switcher_cmpt) in
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let B_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc B_cmpt)
       (cmpt_exp_tbl_entries_end B_cmpt)
       (cmpt_exp_tbl_entries_start B_cmpt)
@@ -231,7 +233,8 @@ Section Adequacy.
     { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop_binary _ _ _ _ [(write_only_secret_B_f_args, offset_B_f)]
                with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
-        [by rewrite B_exp_tbl | by repeat constructor |].
+        [by rewrite B_exp_tbl | by repeat constructor |
+         by apply Forall_singleton, offset_B_f_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Bf Hentry_Bf'".
     }
     { rewrite B_imports.
@@ -369,7 +372,7 @@ Section ctx_equiv.
   Proof.
     intros B_adv [ [reg1 sreg1] m1] [ [reg2 sreg2] m2] HB Hl1 Hl2.
     destruct HB as (HB_imports & HB_code & HB_data & HB_exports).
-    inversion HB_exports as [|? w ? ? (off & ->) Hnil]; subst.
+    inversion HB_exports as [|? w ? ? (off & -> & Hoff) Hnil]; subst.
     inversion Hnil; subst.
     destruct Hl1 as (HmainB & Hsw_main & Hsw_B & Himports & Hreg1 & Hsreg1 & ->).
     destruct Hl2 as (_ & _ & _ & _ & Hreg2 & Hsreg2 & ->).
@@ -383,6 +386,7 @@ Section ctx_equiv.
               main_data_size := Hmain_size;
               B_cmpt := B_adv;
               offset_B_f := off;
+              offset_B_f_valid := Hoff;
               cmpts_disjoints := HmainB;
               switcher_cmpt_disjoints := conj Hsw_main Hsw_B |}).
     rewrite /halt_equiv /halts.

@@ -21,8 +21,8 @@ Section Stack_callee_secret_Run_Blocks_2.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length stack_callee_secret_code)%a ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_instr_offset 2 1)%a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_instr_offset 2 1)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_instr_offset 2 1)%a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_instr_offset 2 1)%a ∗
     codefrag pc_a stack_callee_secret_code ∗
     spec_codefrag pc_a stack_callee_secret_code ∗
     ▷ ( ⤇ Seq (Instr Halted) ∗

@@ -28,7 +28,7 @@ Section CMDC_Main.
      pc := (RX, Global, b_main, e_main, b_main_code )
      cgp := (RW, Global, b_data, e_data, b_data )
 
-     b_main + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
+     b_main + 0 : WSentry true XSRW_ b_switcher e_switcher a_cc_switcher
      b_main + 1 : WSealed ot_switcher B.f
      b_main + 2 : WSealed ot_switcher C.g
 
@@ -43,13 +43,13 @@ Section CMDC_Main.
 
       (* set c <- secret_c *)
       Lea cgp 3%Z;
-      Load ct0 cgp;
+      Load ct0 cgp 0;
       Lea cgp (-2)%Z;
-      Store cgp ct0;
+      Store cgp ct0 0;
 
       (* set b <- 0 *)
       Lea cgp (-1)%Z;
-      Store cgp 0%Z;
+      Store cgp 0%Z 0;
 
       (* call B.f b *)
       Mov ca0 cgp;
@@ -67,14 +67,14 @@ Section CMDC_Main.
     encodeInstrsW [
       (* set c <- 0 *)
       Lea cgp 1%Z;
-      Store cgp 0%Z;
+      Store cgp 0%Z 0;
       Mov ca0 cgp;
 
       (* set b <- secret_b *)
       Lea cgp 1%Z;
-      Load ct0 cgp;
+      Load ct0 cgp 0;
       Lea cgp (-2)%Z;
-      Store cgp ct0;
+      Store cgp ct0 0;
 
       (* call C.g c *)
       GetA ct0 ca0;
@@ -95,11 +95,11 @@ Section CMDC_Main.
   Definition cmdc_conf_pre_B_code : list Word :=
     encodeInstrsW [
       Lea cgp 3%Z;
-      Load ct0 cgp;
+      Load ct0 cgp 0;
       Lea cgp (-2)%Z;
-      Store cgp ct0;
+      Store cgp ct0 0;
       Lea cgp (-1)%Z;
-      Store cgp 0%Z;
+      Store cgp 0%Z 0;
       Mov ca0 cgp;
       GetA ct0 ca0;
       Add ct1 ct0 1%Z;
@@ -117,7 +117,7 @@ Section CMDC_Main.
 
   Definition cmdc_conf_main_imports `{!switcherLayout} (B_f C_g : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSealed ot_switcher B_f;
       WSealed ot_switcher C_g
     ].

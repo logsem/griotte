@@ -53,7 +53,7 @@ Section fundamental.
     { ftlr_impl_fail. }
 
     (* The condition and the offset are the same in both runs *)
-    all: iDestruct (interp_reg_lookup_Some _ _ _ _ (WCap p g b e a) rcond with "Hreg") as %[wcond2 Hrcond2].
+    all: iDestruct (interp_reg_lookup_Some _ _ _ _ (WCap true p g b e a) rcond with "Hreg") as %[wcond2 Hrcond2].
     all: iDestruct (interp_reg_lookup with "Hinv_interp Hreg") as "Hcond"; [exact Hrcond|exact Hrcond2|].
     all: iDestruct (interp_nonZero with "Hcond") as %Hnz2.
     all: iDestruct (interp_z_of_argument _ _ _ _ _ rimm with "Hinv_interp Hreg") as %Hz.
@@ -69,8 +69,8 @@ Section fundamental.
            ; rewrite Hrcond2 in Hrcond2'; simplify_eq; try congruence.
            rewrite /incrementPC /incrementPC_gen !lookup_insert_eq in Hincr Hincr2.
            by case_match. }
-      incrementPC_inv as (p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
-      incrementPC_inv as (p1&g1&b1&e1&a1&a1'&?&Ha1'&?); simplify_map_eq.
+      incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
+      incrementPC_inv as (t1&p1&g1&b1&e1&a1&a1'&?&Ha1'&?); simplify_map_eq.
       rewrite !insert_insert_eq.
       iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -94,8 +94,8 @@ Section fundamental.
            ; rewrite Hrcond2 in Hrcond2'; simplify_eq; try congruence.
            rewrite /incrementPC_gen !lookup_insert_eq in HincrPC HincrPC2.
            by case_match. }
-      incrementPC_inv as (p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
-      incrementPC_inv as (p1&g1&b1&e1&a1&a1'&?&Ha1'&?); simplify_map_eq.
+      incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
+      incrementPC_inv as (t1&p1&g1&b1&e1&a1&a1'&?&Ha1'&?); simplify_map_eq.
       rewrite !insert_insert_eq.
       iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".

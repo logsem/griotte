@@ -61,8 +61,8 @@ Section fundamental.
          by case_match. }
     simplify_eq.
 
-    incrementPC_inv as (p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
-    incrementPC_inv as (p1&g1&b1&e1&a1&a1'&?&Ha1'&?); simplify_map_eq.
+    incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
+    incrementPC_inv as (t1&p1&g1&b1&e1&a1&a1'&?&Ha1'&?); simplify_map_eq.
     rewrite !insert_insert_eq.
     iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".

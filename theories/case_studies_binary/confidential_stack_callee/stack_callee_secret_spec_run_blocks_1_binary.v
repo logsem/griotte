@@ -27,8 +27,8 @@ Section Stack_callee_secret_Run_Blocks_1.
     stack_callee_secret_code_bounds pc_b pc_e pc_a ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e pc_a ∗
     ctp ↦ᵣ wctp ∗
     ctp ↣ᵣ swctp ∗
     ct0 ↦ᵣ wct0 ∗
@@ -46,8 +46,8 @@ Section Stack_callee_secret_Run_Blocks_1.
     codefrag pc_a stack_callee_secret_code ∗
     spec_codefrag pc_a stack_callee_secret_code ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ctp ↦ᵣ stack_callee_secret_switcher_entry ∗
         ctp ↣ᵣ stack_callee_secret_switcher_entry ∗
         ct0 ↦ᵣ WInt 0 ∗
@@ -56,8 +56,8 @@ Section Stack_callee_secret_Run_Blocks_1.
         ct1 ↣ᵣ target ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs0 ↣ᵣ WInt 0 ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_instr_offset 2 1)%a ∗
-        cra ↣ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_instr_offset 2 1)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_instr_offset 2 1)%a ∗
+        cra ↣ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ stack_callee_secret_instr_offset 2 1)%a ∗
         pc_b ↦ₐ stack_callee_secret_switcher_entry ∗
         pc_b ↣ₐ stack_callee_secret_switcher_entry ∗
         (pc_b ^+ 1)%a ↦ₐ target ∗

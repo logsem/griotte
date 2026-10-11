@@ -53,14 +53,14 @@ Section fundamental.
     (▷ switcher_inv_binary ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     ⤇ Seq (Instr Executable) ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↣ₐ [[ ststk_next ]] ∗
     switcher_code ∗
     switcher_spec_code ∗
-    b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-    b_switcher ↣ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↣ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     cstack_full (map fst stk) ∗
     cstack_full_spec (map snd stk) ∗
     cstack_interp (map fst stk) a_tstk ∗
@@ -161,19 +161,19 @@ Section fundamental.
     interp W C (wcs1, swcs1) ∗
     interp W C (wcra, swcra) ∗
     interp W C (wcgp, swcgp) ∗
-    interp W C (WCap RWL Local b e a, WCap RWL Local b e a) ∗
+    interp W C (WCap true RWL Local b e a, WCap true RWL Local b e a) ∗
     ([∗ list] w;sw ∈ lv;slv, interp W C (w, sw)) ∗
     (▷ switcher_inv_binary ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     ⤇ Seq (Instr Executable) ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↣ₐ [[ ststk_next ]] ∗
     switcher_code ∗
     switcher_spec_code ∗
-    b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-    b_switcher ↣ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    b_switcher ↣ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     cstack_full (map fst stk) ∗
     cstack_full_spec (map snd stk) ∗
     cstack_interp (map fst stk) a_tstk ∗
@@ -194,8 +194,8 @@ Section fundamental.
     ct2 ↣ᵣ swct2 ∗
     ct1 ↦ᵣ wct1 ∗
     ct1 ↣ᵣ swct1 ∗
-    csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
-    csp ↣ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+    csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
+    csp ↣ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
     switcher_stk_cells a wcs0 wcs1 wcra wcgp ∗
     switcher_stk_cells_spec a swcs0 swcs1 swcra swcgp ∗
     [[ (a ^+ 4)%a , e ]] ↦ₐ [[ drop 4 lv ]] ∗
@@ -266,7 +266,7 @@ Section fundamental.
     iDestruct "Hlc" as "[Hlc _]".
     iApply (switcher_jump_to_caller_spec W C stk Ws Cs rmap'
               (wcra, swcra) (wcgp, swcgp) (wcs0, swcs0) (wcs1, swcs1)
-              (WCap RWL Local b e a, WCap RWL Local b e a)
+              (WCap true RWL Local b e a, WCap true RWL Local b e a)
               (WInt ENOTENOUGHTRUSTEDSTACK, WInt ENOTENOUGHTRUSTEDSTACK) (WInt 0, WInt 0) with
              "Hspec Hcrav Hcgpv Hcs0v Hcs1v Hspv [] [] HPC HsPC Hcra Hscra Hcgp Hscgp Hcs0 Hscs0
               Hcs1 Hscs1 Hcsp Hscsp Hca0 Hsca0 Hca1 Hsca1 Hrmap Hworld_interp Hcont Hcstk Hcstk_spec
@@ -287,8 +287,8 @@ Section fundamental.
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv_binary
     ⊢ interp_expr interp (interp_cont interp) W C
-        (WCap XSRW_ Local b_switcher e_switcher a_switcher_call,
-         WCap XSRW_ Local b_switcher e_switcher a_switcher_call).
+        (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call,
+         WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     (* Outline of the proof:
        - open the switcher invariant of both runs;
@@ -373,10 +373,11 @@ Section fundamental.
     iDestruct ("Hreg" $! ct1 with "[//] [//] [//]") as "#Hct1v".
 
     (* Open the caller's stack frame *)
-    assert ((∃ b e a, wcsp = WCap RWL Local b e a ∧ (b <= a)%a)
-            ∨ (∀ b e a, wcsp = WCap RWL Local b e a → (a < b)%a))
+    assert ((∃ b e a, wcsp = WCap true RWL Local b e a ∧ (b <= a)%a)
+            ∨ (∀ b e a, wcsp = WCap true RWL Local b e a → (a < b)%a))
       as [(b & e & a & -> & Hba) | Hnot_stk].
-    { destruct wcsp as [| [p g b e a|] | |]; try (right; intros; discriminate).
+    { destruct wcsp as [| [t p g b e a|] | |]; try (right; intros; discriminate).
+      destruct t; [|right; intros; discriminate].
       destruct (decide (p = RWL ∧ g = Local)) as [ [-> ->] | Hpg].
       - destruct (decide (b <= a)%a);
           [left; eauto | right; intros ??? Heq; inversion Heq; subst; solve_addr].
@@ -425,7 +426,7 @@ Section fundamental.
     iApply (switcher_call_blocks_3_spec with
       "[- $Hspec $Hj $HPC $HsPC $Hcs0 $Hscs0 $Hcs1 $Hscs1 $Hcsp $Hscsp $Hstk $Hsstk
         $Hb_switcher $Hsb_switcher $Hct1 $Hsct1 $Hcode $Hscode]"); [done|done|].
-    iNext; iIntros (wsb) "(-> & Hj & HPC & HsPC & Hcs0 & Hscs0 & (%wcs1' & Hcs1 & Hscs1)
+    iNext; iIntros (wsb) "(-> & %Htag & Hj & HPC & HsPC & Hcs0 & Hscs0 & (%wcs1' & Hcs1 & Hscs1)
       & Hcsp & Hscsp & Hstk & Hsstk & Hb_switcher & Hsb_switcher & Hct1 & Hsct1 & Hcode & Hscode)".
 
     (* Close the caller's stack frame *)
@@ -442,8 +443,9 @@ Section fundamental.
       apply lookup_replicate in Hsk as [-> _].
       iApply interp_int. }
 
-    iDestruct ("Hentry_prop" with "[//]")
-      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Nexp_tbl Heq Heq' Htbl Hbtbl Hbtbl1 Hnargs)
+    iDestruct ("Hentry_prop" with "[//] [//]")
+      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Nexp_tbl Heq Heq' Htbl Hbtbl Hbtbl1 Hnargs
+          Hentry_some)
            "(Htbl1 & Htbl2 & Htbl3 & #Hentry & _ & #Hexec)".
     cbn in Heq; simplify_eq.
     iSpecialize ("Hexec" $! W with "[]").
@@ -494,7 +496,7 @@ Section fundamental.
     iApply (switcher_call_blocks_4_spec W C with
       "[- $Hspec $Hj $Htbl1 $Htbl2 $Htbl3 $HPC $HsPC $Hcs0 $Hscs0 $Hcs1 $Hscs1 $Hct1 $Hsct1
         $Hct2 $Hsct2 $Hctp $Hsctp $Hcgp $Hscgp $Hcra $Hscra $Hparams $Hrest $Hsrest $Hcode $Hscode]");
-      [done|done|lia|done|done| | |].
+      [done|done|done|lia|done|done| | |].
     { clear -Hfull_rmap. apply regmap_full_dom in Hfull_rmap as Heq'.
       rewrite /rmap' !map_filter_delete !dom_delete_L.
       cut (dom (filter (λ v, ¬ Pf v) rmap) = all_registers_s ∖ dom_arg_rmap 8);[set_solver|].
@@ -540,7 +542,7 @@ Section fundamental.
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hsinv $Hna]") as "Hna".
 
     (* Execute the entry point of the callee *)
-    iAssert (interp W C (WCap RWL Local (a ^+ 4)%a e (a ^+ 4)%a, WCap RWL Local (a ^+ 4)%a e (a ^+ 4)%a))
+    iAssert (interp W C (WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a, WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a))
       as "#Hstk4v".
     { iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
     iDestruct (switcher_call_entry_registers W W C nargs arg_rmap' arg_smap' rmap'' smap'' with
@@ -568,8 +570,8 @@ Section fundamental.
 
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv_binary
-    ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call,
-                  WSentry XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call,
+                  WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /= /interp1_pair /=.

@@ -74,6 +74,6 @@ Section CMDC_States.
 
   (** The capability of the entry point of the switcher. *)
   Definition cmdc_switcher_entry : Word :=
-    WSentry XSRW_ Local b_switcher e_switcher a_switcher_call.
+    WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
 End CMDC_States.

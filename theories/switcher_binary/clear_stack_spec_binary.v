@@ -24,10 +24,10 @@ Section ClearStackMacro.
 
     ( spec_ctx
       ∗ ⤇ Seq (Instr Executable)
-      ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ csp ↦ᵣ WCap RWL csp_g csp_b csp_e csp_a
-      ∗ csp ↣ᵣ WCap RWL csp_g csp_b csp_e csp_a
+      ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ csp ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a
+      ∗ csp ↣ᵣ WCap true RWL csp_g csp_b csp_e csp_a
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
       ∗ r1 ↣ᵣ WInt csp_e ∗ r2 ↣ᵣ WInt csp_a
       ∗ codefrag pc_a (clear_stack_instrs r1 r2)
@@ -35,12 +35,12 @@ Section ClearStackMacro.
       ∗ ([[ csp_a , csp_e ]] ↦ₐ [[ ws ]])
       ∗ ([[ csp_a , csp_e ]] ↣ₐ [[ ws' ]])
       ∗ ▷ ( (⤇ Seq (Instr Executable)
-             ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
-             ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
-             ∗ csp ↦ᵣ WCap RWL csp_g csp_b csp_e csp_a
-             ∗ csp ↣ᵣ WCap RWL csp_g csp_b csp_e csp_a
-             ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap RWL csp_g csp_b csp_e csp_e
-             ∗ r1 ↣ᵣ WInt 0 ∗ r2 ↣ᵣ WCap RWL csp_g csp_b csp_e csp_e
+             ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
+             ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
+             ∗ csp ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a
+             ∗ csp ↣ᵣ WCap true RWL csp_g csp_b csp_e csp_a
+             ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_e
+             ∗ r1 ↣ᵣ WInt 0 ∗ r2 ↣ᵣ WCap true RWL csp_g csp_b csp_e csp_e
              ∗ codefrag pc_a (clear_stack_instrs r1 r2)
              ∗ spec_codefrag pc_a (clear_stack_instrs r1 r2)
              ∗ ([[ csp_a , csp_e ]] ↦ₐ [[region_addrs_zeroes csp_a csp_e]])
@@ -60,9 +60,9 @@ Section ClearStackMacro.
     (* Mov r2 csp *)
     iInstr_lockstep "Hscode" "Hcode".
 
-    remember (WCap RWL csp_g csp_b csp_e csp_a) as sp.
-    iAssert (r2 ↦ᵣ WCap RWL csp_g csp_b csp_e csp_a)%I with "[Hr2]" as "Hr2"; first by rewrite Heqsp.
-    iAssert (r2 ↣ᵣ WCap RWL csp_g csp_b csp_e csp_a)%I with "[Hsr2]" as "Hsr2"; first by rewrite Heqsp.
+    remember (WCap true RWL csp_g csp_b csp_e csp_a) as sp.
+    iAssert (r2 ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a)%I with "[Hr2]" as "Hr2"; first by rewrite Heqsp.
+    iAssert (r2 ↣ᵣ WCap true RWL csp_g csp_b csp_e csp_a)%I with "[Hsr2]" as "Hsr2"; first by rewrite Heqsp.
     clear Heqsp.
     iAssert (⌜(csp_b <= csp_a)%a ⌝)%I as "-#Hbounds1"; first done.
     iAssert (⌜(csp_a <= csp_e)%a ⌝)%I as "-#Hbounds2"; first done.

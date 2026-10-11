@@ -25,10 +25,10 @@ Section CMDC_Init_Blocks_1.
     (cgp_b + length (cmdc_conf_main_data 0 0))%a = Some cgp_e ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-    cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+    cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ca0 ↣ᵣ swca0 ∗
     ct0 ↦ᵣ wct0 ∗
@@ -44,12 +44,12 @@ Section CMDC_Init_Blocks_1.
     codefrag pc_a cmdc_conf_main_code ∗
     spec_codefrag pc_a cmdc_conf_main_code ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 1)%a ∗
-        PC ↣ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 1)%a ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
-        ca0 ↣ᵣ WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
+        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 1)%a ∗
+        PC ↣ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 1)%a ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
+        ca0 ↣ᵣ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
         (∃ w, ct0 ↦ᵣ w ∗ ct0 ↣ᵣ w) ∗
         (∃ w, ct1 ↦ᵣ w ∗ ct1 ↣ᵣ w) ∗
         cgp_b ↦ₐ WInt 0 ∗
@@ -80,7 +80,7 @@ Section CMDC_Init_Blocks_1.
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (cgp_b ^+ 3)%a); auto; solve_addr.
 
-    (* Load ct0 cgp *)
+    (* Load ct0 cgp 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [done| solve_addr].
 
@@ -88,7 +88,7 @@ Section CMDC_Init_Blocks_1.
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr.
 
-    (* Store cgp ct0 *)
+    (* Store cgp ct0 0 *)
     iInstr_spec_lookup "Hscode" as "Hsi" "Hscode".
     iMod (step_store_success_reg _ _ _ _ _ _ _ _ _ _ _ RW
              with "[$HsPC $Hsi $Hsct0 $Hscgp $Hscgp_c $Hj]")
@@ -97,13 +97,12 @@ Section CMDC_Init_Blocks_1.
     { solve_addr. }
     iSpecSeq.
     iSpecialize ("Hscode" with "[$]").
-    (* Store cgp ct0 *)
+    (* Store cgp ct0 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_store_success_reg _ _ _ _ _ _ _ _ _ _ _
              with "[$HPC $Hi $Hct0 Hcgp $Hcgp_c]"); auto; try solve_pure.
     { solve_addr. }
-    { by cbn. }
     iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hcgp_c)".
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
@@ -112,7 +111,7 @@ Section CMDC_Init_Blocks_1.
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some cgp_b%a); auto; solve_addr.
 
-    (* Store cgp 0%Z *)
+    (* Store cgp 0%Z 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: solve_addr.
 

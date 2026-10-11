@@ -58,8 +58,8 @@ Section fundamental.
   Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv_binary
     ⊢ interp_expr interp (interp_cont interp) W C
-        (WCap XSRW_ Local b_switcher e_switcher a_switcher_return,
-         WCap XSRW_ Local b_switcher e_switcher a_switcher_return).
+        (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return,
+         WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     (* Outline of the proof:
        - open the switcher invariant of both runs;
@@ -151,7 +151,7 @@ Section fundamental.
     (* Block 12: pop both trusted stacks *)
     iApply (switcher_return_blocks_1_spec with
       "[- $Hspec $Hj $HPC $HsPC $Hctp $Hsctp $Hcsp $Hscsp $Hmtdc $Hsmtdc $Ha_tstk $Hsa_tstk
-        $Hcode $Hscode]"); [done|done|].
+        $Hcode $Hscode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|].
     iNext; iIntros (a_tstk1)
       "(%Ha_tstk1 & %Htstk_ae & Hj & HPC & HsPC & Hctp & Hsctp & Hcsp & Hscsp & Hmtdc & Hsmtdc
       & Ha_tstk & Hsa_tstk & Hcode & Hscode & Hlc)".
@@ -285,7 +285,7 @@ Section fundamental.
 
       iApply (switcher_jump_to_caller_spec W C stk Ws Cs arg_rmap'
                 (wastk2, swastk2) (wastk3, swastk3) (wastk, swastk) (wastk1, swastk1)
-                (WCap RWL Local b_stk e_stk a_stk, WCap RWL Local b_stk e_stk a_stk)
+                (WCap true RWL Local b_stk e_stk a_stk, WCap true RWL Local b_stk e_stk a_stk)
                 (wca0, swca0) (wca1, swca1) with
                "Hspec Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk
                 Hinterp_wca0 Hinterp_wca1 HPC HsPC Hcra Hscra Hcgp Hscgp Hcs0 Hscs0
@@ -296,8 +296,8 @@ Section fundamental.
 
   Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv_binary
-    ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return,
-                  WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return,
+                  WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /= /interp1_pair /=.

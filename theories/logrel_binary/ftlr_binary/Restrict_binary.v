@@ -48,21 +48,27 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ p0 g0 b0 e0 a0 n p1 g1 Hdst Hz Hpair HPfl HLfl HincrPC
-                      | p0 g0 b0 e0 a0 n p1 g1 Hdst Hz Hpair HPfl HLfl HincrPC
+    destruct HSpec as [ t0 p0 g0 b0 e0 a0 n p1 g1 Hdst Hz Hpair HPfl HLfl HincrPC
+                      | t0 p0 g0 b0 e0 a0 n p1 g1 Hdst Hz Hpair HPfl HLfl HincrPC
+                      | t0 p0 g0 b0 e0 a0 n p1 g1 Hdst Hz Hpair Hflows HincrPC
+                      | t0 p0 g0 b0 e0 a0 n p1 g1 Hdst Hz Hpair Hflows HincrPC
                       | ]
-    ; cycle 2.
+    ; cycle 4.
     { ftlr_impl_fail. }
 
     (* The specification run performs the same update *)
     all: iDestruct (interp_reg_lookup_same with "Hinv_interp Hreg") as %Hdst2; [exact Hdst|done|].
     all: iDestruct (interp_z_of_argument _ _ _ _ _ src with "Hinv_interp Hreg") as %Hz2.
     all: rewrite Hz2 in Hz.
-    all: apply incrementPC_Some_inv in HincrPC as (p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
+    all: apply incrementPC_Some_inv in HincrPC as (t2&p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
     1: eapply Restrict_spec_determ in HSpec2 as [Hv2 Hregs2];
        last (eapply Restrict_spec_success_cap; eauto; transfer_incrementPC HPC Ha2).
     2: eapply Restrict_spec_determ in HSpec2 as [Hv2 Hregs2];
        last (eapply Restrict_spec_success_sr; eauto; transfer_incrementPC HPC Ha2).
+    3: eapply Restrict_spec_determ in HSpec2 as [Hv2 Hregs2];
+       last (eapply Restrict_spec_invalidated_cap; eauto; transfer_incrementPC HPC Ha2).
+    4: eapply Restrict_spec_determ in HSpec2 as [Hv2 Hregs2];
+       last (eapply Restrict_spec_invalidated_sr; eauto; transfer_incrementPC HPC Ha2).
     all: specialize (Hregs2 eq_refl); subst retv2 regs2'.
     all: iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
     all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
@@ -71,7 +77,11 @@ Section fundamental.
     all: try (destruct ρ;auto;contradiction).
     all: iDestruct (interp_reg_lookup with "Hinv_interp Hreg") as "#Hw"; [exact Hdst|exact Hdst2|].
 
-    - iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+    - assert (t2 = true) as ->.
+      { destruct (decide (dst = PC)) as [->|HdstPC].
+        - rewrite /insert_reg in HPC; rewrite /lookup_reg in Hdst; simplify_map_eq; done.
+        - rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq; done. }
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
                with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
       + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
         iIntros (HdstPC Hdstnull).
@@ -90,6 +100,32 @@ Section fundamental.
       + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
         iIntros (_ Hdstnull).
         iApply (interp_weakening_ot with "Hw"); eauto; try solve_addr.
+      + iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
+    - (* The restricted capability is invalidated *)
+      destruct (decide (dst = PC)) as [->|HdstPC].
+      { rewrite /insert_reg in HPC; simplify_map_eq.
+        iApply (wp_bind (fill [SeqCtx])).
+        iExtract "Hmap" PC as "HPC".
+        iApply (wp_notCorrectPC_tag with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        ftlr_impl_fail.
+      }
+      rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+               with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
+      + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
+        iIntros (_ _).
+        iApply interp_untagged; done.
+      + iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
+    - (* The restricted sealing capability is invalidated *)
+      assert (dst ≠ PC) as HdstPC.
+      { intros ->; rewrite /insert_reg in HPC; simplify_map_eq. }
+      rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+               with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
+      + iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
+        iIntros (_ _).
+        iApply interp_untagged; done.
       + iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 

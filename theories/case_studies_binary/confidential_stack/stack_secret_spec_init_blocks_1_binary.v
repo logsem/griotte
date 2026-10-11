@@ -27,12 +27,12 @@ Section Stack_secret_Init_Blocks_1.
     (csp_b ^+ 5 < csp_e)%a ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-    cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
-    csp ↣ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+    cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↣ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct0 ↣ᵣ swct0 ∗
     cgp_b ↦ₐ WInt secret1 ∗
@@ -44,12 +44,12 @@ Section Stack_secret_Init_Blocks_1.
     codefrag pc_a stack_secret_main_code ∗
     spec_codefrag pc_a stack_secret_main_code ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ stack_secret_block_offset 1)%a ∗
-        PC ↣ᵣ WCap RX Global pc_b pc_e (pc_a ^+ stack_secret_block_offset 1)%a ∗
-        cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        cgp ↣ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-        csp ↦ᵣ WCap RWL Local csp_b csp_e (csp_b ^+ 1)%a ∗
-        csp ↣ᵣ WCap RWL Local csp_b csp_e (csp_b ^+ 1)%a ∗
+        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ stack_secret_block_offset 1)%a ∗
+        PC ↣ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ stack_secret_block_offset 1)%a ∗
+        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cgp ↣ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e (csp_b ^+ 1)%a ∗
+        csp ↣ᵣ WCap true RWL Local csp_b csp_e (csp_b ^+ 1)%a ∗
         ct0 ↦ᵣ WInt secret1 ∗
         ct0 ↣ᵣ WInt secret2 ∗
         cgp_b ↦ₐ WInt secret1 ∗
@@ -79,11 +79,11 @@ Section Stack_secret_Init_Blocks_1.
     focus_block_0_lockstep "Hscode_main" "Hcode_main" as "Hscode" "Hscont" "Hcode" "Hcont".
     iHide "Hcont" as hcont. iHide "Hscont" as hscont.
 
-    (* Load ct0 cgp *)
+    (* Load ct0 cgp 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [done| solve_addr].
 
-    (* Store csp ct0 *)
+    (* Store csp ct0 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: rewrite /withinBounds; solve_addr.
 
@@ -93,7 +93,7 @@ Section Stack_secret_Init_Blocks_1.
     (* Lea csp 4%Z *)
     iInstr_lockstep "Hscode" "Hcode".
 
-    (* Store csp ct0 *)
+    (* Store csp ct0 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: rewrite /withinBounds; solve_addr.
 

@@ -25,8 +25,8 @@ Section spec_rules.
   Lemma step_ReadSR Ep pc_p pc_g pc_b pc_e pc_a w dst src regs sregs :
     ↑specN ⊆ Ep →
     decodeInstrW w = ReadSR dst src ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (ReadSR dst src) ⊆ dom regs →
     (if (has_sreg_access pc_p)
     then sregs_of (ReadSR dst src) ⊆ dom sregs
@@ -81,7 +81,7 @@ Section spec_rules.
     }
 
     eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-      as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+      as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
     eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((spec_regs_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
@@ -93,19 +93,19 @@ Section spec_rules.
   Lemma step_readsr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst src wsrc :
     ↑specN ⊆ E →
     decodeInstrW w = ReadSR dst src →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ wdst ∗
     src ↣ₛᵣ wsrc
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     dst ↣ᵣ wsrc ∗
     src ↣ₛᵣ wsrc.
@@ -133,22 +133,22 @@ Section spec_rules.
     }
   Qed.
 
-  Lemma step_readsr_success_toPC E pc_p pc_g pc_b pc_e pc_a w src p g b e a a':
+  Lemma step_readsr_success_toPC E pc_p pc_g pc_b pc_e pc_a w src (t : bool) p g b e a a':
     ↑specN ⊆ E →
     decodeInstrW w = ReadSR PC src →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (a + 1)%a = Some a' →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
-    src ↣ₛᵣ WCap p g b e a
+    src ↣ₛᵣ WCap t p g b e a
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap p g b e a' ∗
+    PC ↣ᵣ WCap t p g b e a' ∗
     pc_a ↣ₐ w ∗
-    src ↣ₛᵣ WCap p g b e a.
+    src ↣ₛᵣ WCap t p g b e a.
   Proof.
     iIntros (HE Hinstr Hvpc Hxsr Hpca') "(#Hctx & Hj & HPC & Hpc_a & Hsrc)".
     iDestruct (spec_map_of_regs_1 with "HPC") as "Hmap".
@@ -171,5 +171,6 @@ Section spec_rules.
         congruence.
     }
   Qed.
+
 
 End spec_rules.

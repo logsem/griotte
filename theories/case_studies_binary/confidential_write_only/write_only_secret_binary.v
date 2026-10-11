@@ -20,7 +20,7 @@ Section Write_only_secret_main.
      pc := (RX, Global, b_main, e_main, b_main_code )
      cgp := (RW, Global, b_data, b_data + 1, b_data )
 
-     b_main + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
+     b_main + 0 : WSentry true XSRW_ b_switcher e_switcher a_cc_switcher
      b_main + 1 : WSealed ot_switcher B.f
 
      b_data + 0 : secret
@@ -44,7 +44,7 @@ Section Write_only_secret_main.
 
   Definition write_only_secret_main_imports `{!switcherLayout} (B_f : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSealed ot_switcher B_f
     ].
 

@@ -28,27 +28,27 @@ Section initial_capabilities.
 
   (** Initial PC of a compartment: its PCC, pointing to the start of the code. *)
   Definition cmpt_entry_pc (C_cmpt : cmpt) : Word :=
-    WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_a_code C_cmpt).
+    WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_a_code C_cmpt).
 
   (** PCC and CGP of a compartment, as stored in its export table. *)
   Definition cmpt_pcc_cap (C_cmpt : cmpt) : Word :=
-    WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt).
+    WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt).
   Definition cmpt_cgp_cap (C_cmpt : cmpt) : Word :=
-    WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt).
+    WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt).
 
   (** Stack and trusted-stack capabilities of the switcher. *)
   Definition stack_cap (sw : cmptSwitcher) : Word :=
-    WCap RWL Local (b_stack sw) (e_stack sw) (b_stack sw).
+    WCap true RWL Local (b_stack sw) (e_stack sw) (b_stack sw).
   Definition trusted_stack_cap (sw : cmptSwitcher) : Word :=
-    WCap RWL Local (b_trusted_stack sw) (e_trusted_stack sw) (b_trusted_stack sw).
+    WCap true RWL Local (b_trusted_stack sw) (e_trusted_stack sw) (b_trusted_stack sw).
 
   (** The import of the switcher's call entry point. *)
   Definition switcher_entry (sw : cmptSwitcher) : Word :=
-    WSentry XSRW_ Local (b_switcher sw) (e_switcher sw) (a_switcher_call sw).
+    WSentry true XSRW_ Local (b_switcher sw) (e_switcher sw) (a_switcher_call sw).
 
   (** The (unsealed) export-table capability for the entry at address [a]. *)
   Definition cmpt_export (C_cmpt : cmpt) (a : Addr) : Sealable :=
-    SCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) a.
+    SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) a.
 
   Definition stack_addrs (sw : cmptSwitcher) : list Addr :=
     finz.seq_between (b_stack sw) (e_stack sw).
@@ -182,13 +182,13 @@ Definition exported_entries (ot : OType) (entries : list (Sealable * nat)) : gma
 
 Lemma global_ne_borrow_sb (sb sb' : Sealable) :
   isGlobalSealable sb = true → sb ≠ borrow_sb sb'.
-Proof. destruct sb as [? [] | ? [] ], sb'; cbn; intros Hg Heq; simplify_eq. Qed.
+Proof. destruct sb as [ [] ? [] | [] ? [] ], sb'; cbn; intros Hg Heq; simplify_eq. Qed.
 
 Lemma borrow_sb_inj_global (sb sb' : Sealable) :
   isGlobalSealable sb = true → isGlobalSealable sb' = true →
   borrow_sb sb = borrow_sb sb' → sb = sb'.
 Proof.
-  destruct sb as [? [] | ? [] ], sb' as [? [] | ? [] ]; cbn; intros; simplify_eq; done.
+  destruct sb as [ [] ? [] | [] ? [] ], sb' as [ [] ? [] | [] ? [] ]; cbn; intros; simplify_eq; done.
 Qed.
 
 Lemma exported_entries_keys_NoDup (ot : OType) (entries : list (Sealable * nat)) :
@@ -221,7 +221,7 @@ Proof.
       * by eapply global_ne_borrow_sb.
   - intros Hin.
     destruct (Hkeys _ Hin) as (sb' & Hsb' & [Heq | Heq]); simplify_eq.
-    + pose proof (Hglobal _ Hsb') as Hg'; by destruct sb as [? [] | ? [] ].
+    + pose proof (Hglobal _ Hsb') as Hg'; by destruct sb as [ [] ? [] | [] ? [] ].
     + apply borrow_sb_inj_global in Heq; [simplify_eq; done | done | by apply Hglobal].
 Qed.
 
@@ -438,7 +438,8 @@ Section adversary_world.
     iIntros "#Hseal".
     iApply big_sepS_intro; iIntros "!>" (v Hv).
     destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & Hsub).
-    rewrite interp_sealed_inv /interp_sb.
+    destruct (get_tag_sealable sb) eqn:Htag; last (by rewrite interp_untagged_eq).
+    rewrite interp_sealed_inv // /interp_sb.
     iSplit; first done.
     iSplit; first done.
     iApply sts_seals_std_weaken; done.
@@ -582,6 +583,7 @@ Section adversary_exports.
     cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point args off)) →
     (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a = a →
     args < 7 →
+    is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
     na_inv cerise_nais Nswitcher switcher_inv_binary ⊢
     inv (export_table_PCCN (nroot.@C))
       (cmpt_exp_tbl_pcc C_cmpt ↦ₐ cmpt_pcc_cap C_cmpt ∗ cmpt_exp_tbl_pcc C_cmpt ↣ₐ cmpt_pcc_cap C_cmpt) -∗
@@ -595,7 +597,7 @@ Section adversary_exports.
     WSealed switcher.ot_switcher (borrow_sb (cmpt_export C_cmpt a)) ↦□ₑ args -∗
     ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a), WSealable (cmpt_export C_cmpt a)).
   Proof.
-    intros Hi Ha Hargs.
+    intros Hi Ha Hargs Hentry_some.
     iIntros "#Hswitcher #Hpcc #Hcgp #Hentries #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry'".
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
     assert (i < length (cmpt_exp_tbl_entries C_cmpt)) as Hi_lt
@@ -607,8 +609,7 @@ Section adversary_exports.
     iDestruct (big_sepL2_lookup with "Hentries") as "Hentry_inv"; [done..|].
     iApply (ot_switcher_interp _ _ _ Global _ args off with
               "Hswitcher Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp Hentry Hentry'");
-      last lia.
-    solve_addr.
+      [solve_addr|lia|done].
   Qed.
 
   (** The [i]-th sealed entry of the export table of an adversary [C_cmpt]
@@ -641,6 +642,7 @@ Section adversary_exports.
     (exports : list (nat * nat)) :
     cmpt_exp_tbl_entries C_cmpt = (λ e : nat * nat, WInt (encode_entry_point e.1 e.2)) <$> exports →
     Forall (λ e, e.1 < 7) exports →
+    Forall (λ e : nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
     na_inv cerise_nais Nswitcher switcher_inv_binary ⊢
     inv (export_table_PCCN (nroot.@C))
       (cmpt_exp_tbl_pcc C_cmpt ↦ₐ cmpt_pcc_cap C_cmpt ∗ cmpt_exp_tbl_pcc C_cmpt ↣ₐ cmpt_pcc_cap C_cmpt) -∗
@@ -658,7 +660,7 @@ Section adversary_exports.
         interp W C (cmpt_cgp_cap C_cmpt, cmpt_cgp_cap C_cmpt) -∗
         ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a), WSealable (cmpt_export C_cmpt a))).
   Proof.
-    intros Htbl Hargs.
+    intros Htbl Hargs Hentries_some.
     iIntros "#Hswitcher #Hpcc #Hcgp #Hentries #Hexports !>"
       (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
@@ -670,6 +672,7 @@ Section adversary_exports.
     - by rewrite Htbl list_lookup_fmap He.
     - done.
     - by apply (Forall_lookup_1 _ _ _ _ Hargs He).
+    - by apply (Forall_lookup_1 _ _ _ _ Hentries_some He).
   Qed.
 
 End adversary_exports.
@@ -711,10 +714,11 @@ Section main_exports.
     { iIntros (w); iApply mono_priv_ot_switcher. }
     { rewrite normalise_sealed_words_borrow big_sepS_singleton.
       replace (force_global_pair (WSealable sb, WSealable sb)) with (WSealable sb, WSealable sb)
-        by (destruct sb as [? [] | ? [] ]; by cbn in * ).
+        by (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
       iFrame "Hprop". }
     iModIntro.
-    rewrite interp_sealed_inv /interp_sb.
+    rewrite interp_sealed_inv; last (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
+    rewrite /interp_sb.
     iSplit; first done.
     iSplit; first done.
     iFrame "Hseal".
@@ -746,7 +750,7 @@ Section main_sizes.
     C1 ## C2 → cmpt_export C1 a1 ≠ cmpt_export C2 a2.
   Proof.
     intros Hdis Heq.
-    apply (exported_entry_point_disjoint C1 C2 RO RO Global Global a1 a2 Hdis).
+    apply (exported_entry_point_disjoint C1 C2 true true RO RO Global Global a1 a2 Hdis).
     rewrite /cmpt_export in Heq; by rewrite Heq.
   Qed.
 

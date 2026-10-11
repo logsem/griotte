@@ -81,8 +81,8 @@ Section CMDC_Call_Blocks_2.
     cmdc_code_bounds pc_b pc_e pc_a ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset n)%a ∗
-    PC ↣ᵣ WCap RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset n)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset n)%a ∗
+    PC ↣ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset n)%a ∗
     ctp ↦ᵣ wctp ∗
     ctp ↣ᵣ swctp ∗
     ct0 ↦ᵣ wct0 ∗
@@ -100,8 +100,8 @@ Section CMDC_Call_Blocks_2.
     codefrag pc_a cmdc_conf_main_code ∗
     spec_codefrag pc_a cmdc_conf_main_code ∗
     ▷ ( ⤇ Seq (Instr Executable) ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ctp ↦ᵣ cmdc_switcher_entry ∗
         ctp ↣ᵣ cmdc_switcher_entry ∗
         ct0 ↦ᵣ WInt 0 ∗
@@ -110,8 +110,8 @@ Section CMDC_Call_Blocks_2.
         ct1 ↣ᵣ target ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs0 ↣ᵣ WInt 0 ∗
-        cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
-        cra ↣ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
+        cra ↣ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
         pc_b ↦ₐ cmdc_switcher_entry ∗
         pc_b ↣ₐ cmdc_switcher_entry ∗
         (pc_b ^+ cmdc_call_import c)%a ↦ₐ target ∗

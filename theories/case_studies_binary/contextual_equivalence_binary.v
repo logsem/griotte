@@ -52,7 +52,8 @@ Section Contexts.
     cmpt_imports C = imports ∧
     Forall is_z (cmpt_code C) ∧
     Forall (is_initial_data_word C) (cmpt_data C) ∧
-    Forall2 (λ (n : nat) w, ∃ (off : nat), w = WInt (encode_entry_point n off))
+    Forall2 (λ (n : nat) w, ∃ (off : nat),
+               w = WInt (encode_entry_point n off) ∧ is_Some (cmpt_b_pcc C + off)%a)
       arities (cmpt_exp_tbl_entries C).
 
 End Contexts.

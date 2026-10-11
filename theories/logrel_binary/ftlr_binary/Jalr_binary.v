@@ -52,14 +52,14 @@ Section fundamental.
     { ftlr_impl_fail. }
 
     (* The specification run jumps to a related word *)
-    iDestruct (interp_reg_lookup_Some _ _ _ _ (WCap p g b e a) rsrc with "Hreg") as %[wsrc2 Hrsrc2].
+    iDestruct (interp_reg_lookup_Some _ _ _ _ (WCap true p g b e a) rsrc with "Hreg") as %[wsrc2 Hrsrc2].
     iDestruct (interp_reg_lookup with "Hinv_interp Hreg") as "#Hwsrc"; [exact Hrsrc|exact Hrsrc2|].
     eapply Jalr_spec_determ in HSpec2 as [Hv2 Hregs2];
       last (eapply Jalr_spec_success; eauto).
     specialize (Hregs2 eq_refl); subst retv2 regs2'.
     iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
 
-    iAssert (interp W C (WSentry p g b e pc_a', WSentry p g b e pc_a')) as "Hinterp_ret".
+    iAssert (interp W C (WSentry true p g b e pc_a', WSentry true p g b e pc_a')) as "Hinterp_ret".
     {
       iApply (interp_weakeningSentry with "IH Hinv_interp");eauto;try solve_addr.
       - destruct Hp as [Hexec _].
@@ -80,22 +80,24 @@ Section fundamental.
     }
 
     rewrite !insert_reg_insert !insert_reg_PC !insert_reg_insert_commute //.
-    iDestruct (interp_eq_unless_sealed with "Hwsrc") as %[<-|(o & sb1 & sb2 & -> & ->)]; cycle 1.
-    { (* Sealed words are not valid program counters *)
-      iNext; iIntros "_".
-      iApply (wp_bind (fill [SeqCtx])).
-      iExtract "Hmap" PC as "HPC".
-      iApply (wp_notCorrectPC with "HPC"); first by inversion 1.
-      iNext; iIntros "HPC /=".
-      ftlr_impl_fail.
-    }
+    iDestruct (interp_eq with "Hwsrc") as %<-.
 
-    iAssert (interp_reg interp W C (<[rdst:=WSentry p g b e pc_a']ᵣ> regs1,
-                                    <[rdst:=WSentry p g b e pc_a']ᵣ> regs2)) as "#Hreg'".
+    iAssert (interp_reg interp W C (<[rdst:=WSentry true p g b e pc_a']ᵣ> regs1,
+                                    <[rdst:=WSentry true p g b e pc_a']ᵣ> regs2)) as "#Hreg'".
     { iApply (interp_reg_insert with "Hreg"); by iIntros. }
 
-    destruct (updatePcPerm wsrc) eqn:Hwsrc ; [ | destruct sb | | ]; cycle 1.
-    { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
+    destruct (updatePcPerm wsrc) as
+      [z | [t0 p0 g0 b0 e0 a0 | t0 sp0 g0 b0 e0 a0] | t0 p0 g0 b0 e0 a0 | ot sb]
+      eqn:Hwsrc; cycle 1.
+    { destruct t0; cycle 1.
+      { iNext; iIntros "_".
+        iApply (wp_bind (fill [SeqCtx])).
+        iExtract "Hmap" PC as "HPC".
+        iApply (wp_notCorrectPC_tag with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        ftlr_impl_fail.
+      }
+      destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".
@@ -108,11 +110,11 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      destruct_word wsrc; cbn in Hwsrc; try discriminate.
+      destruct_word wsrc; try destruct t; cbn in Hwsrc; try discriminate.
       { (* Jump to a capability *)
         destruct c; inv Hwsrc.
         iNext ; iIntros "_".
-        iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry p g b e pc_a']ᵣ> regs1) (<[rdst:=WSentry p g b e pc_a']ᵣ> regs2)
+        iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry true p g b e pc_a']ᵣ> regs1) (<[rdst:=WSentry true p g b e pc_a']ᵣ> regs2)
                  with "Hspec Hreg' Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec") ; eauto.
       }
       (* Jump to a sentry *)

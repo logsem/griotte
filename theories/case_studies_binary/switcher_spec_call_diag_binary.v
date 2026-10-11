@@ -56,15 +56,15 @@ Section Switcher_call_diag.
     ∗ na_own cerise_nais ⊤
     ∗ ⤇ Seq (Instr Executable)
     (* Registers *)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
-    ∗ PC ↣ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cgp ↣ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     ∗ cra ↣ᵣ wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
-    ∗ csp ↣ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↣ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ wct1_caller
     ∗ ct1 ↣ᵣ wct1_caller
@@ -123,8 +123,8 @@ Section Switcher_call_diag.
             ∗ cs0 ↣ᵣ wcs0_caller
             ∗ cs1 ↦ᵣ wcs1_caller
             ∗ cs1 ↣ᵣ wcs1_caller
-            ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
-            ∗ csp ↣ᵣ WCap RWL Local b_stk e_stk a_stk
+            ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+            ∗ csp ↣ᵣ WCap true RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ warg0.1 ∗ ca0 ↣ᵣ warg0.2 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1.1 ∗ ca1 ↣ᵣ warg1.2 ∗ interp W2 C warg1)
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ r ↣ᵣ w ∗ ⌜ w = WInt 0 ⌝ )

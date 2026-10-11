@@ -26,7 +26,7 @@ Section Stack_callee_secret.
      cgp := (RW, Global, b_data, e_data, b_data )
      csp := (RWL, Local, b_stk, e_stk, b_stk )
 
-     b_T + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
+     b_T + 0 : WSentry true XSRW_ b_switcher e_switcher a_cc_switcher
      b_T + 1 : WSealed ot_switcher B.adv
 
      b_data + 0 : secret
@@ -50,8 +50,8 @@ Section Stack_callee_secret.
   Definition stack_callee_secret_code_f : list Word :=
     encodeInstrsW [
       (* write the secret at the base of the stack frame of T.f *)
-      Load ct0 cgp;
-      Store csp ct0;
+      Load ct0 cgp 0;
+      Store csp ct0 0;
       (* return 0 *)
       Mov ca0 0%Z;
       Mov ca1 0%Z;
@@ -65,7 +65,7 @@ Section Stack_callee_secret.
 
   Definition stack_callee_secret_imports `{!switcherLayout} (B_adv : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSealed ot_switcher B_adv
     ].
 
@@ -74,7 +74,7 @@ Section Stack_callee_secret.
 
   (** Offset of [T.f] from the beginning of the code region of [T]. *)
   Definition stack_callee_secret_f_offset `{!switcherLayout} : nat :=
-    length (stack_callee_secret_imports (SCap RO Global za za za))
+    length (stack_callee_secret_imports (SCap true RO Global za za za))
     + length stack_callee_secret_code_run.
 
   (** The entry of [T.f] in the export table of [T]. *)

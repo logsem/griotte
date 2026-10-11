@@ -79,7 +79,7 @@ Section Write_only_pred.
     (a + 1)%a = Some a' →
     std W !! a = Some Permanent →
     rel C a WO (safeC write_only_pred) -∗
-    interp W C (WCap WO Global a a' a, WCap WO Global a a' a).
+    interp W C (WCap true WO Global a a' a, WCap true WO Global a a' a).
   Proof.
     iIntros (Ha' Hstd) "#Hrel".
     iEval (rewrite interp_diag_eq // /interp1_diag /=).
@@ -135,7 +135,7 @@ Section Write_only_secret_World.
     [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
     ={⊤}=∗
     world_interp W' C ∗
-    interp W' C (WCap WO Global a a' a, WCap WO Global a a' a) ∗
+    interp W' C (WCap true WO Global a a' a, WCap true WO Global a a' a) ∗
     interp W' C (WSealed ot_switcher target, WSealed ot_switcher target) ∗
     StackRevokedResources W' C stk ∗
     ⌜ revoked_addresses W' stk ⌝ ∗

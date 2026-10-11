@@ -28,7 +28,7 @@ Section fundamental.
     permit_seal p = true ->
     withinBounds b e a = true ->
     interp W C (WSealable sb, WSealable sb) -∗
-    interp W C (WSealRange p g b e a, WSealRange p g b e a) -∗
+    interp W C (WSealRange true p g b e a, WSealRange true p g b e a) -∗
     world_interp W C
     ==∗
     ∃ W', ⌜ related_sts_pub_world W W' ⌝ ∗
@@ -36,7 +36,11 @@ Section fundamental.
           interp W' C (WSealed a sb, WSealed a sb).
   Proof.
     iIntros (Hseal Hwb) "#HVsb #HVsr Hworld_interp".
-    rewrite (interp_diag_eq _ _ (WSealRange _ _ _ _ _)) //.
+    destruct (get_tag_sealable sb) eqn:Htag.
+    2: { iModIntro. iExists W. iFrame.
+         iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+         iApply interp_untagged. done. }
+    rewrite (interp_diag_eq _ _ (WSealRange _ _ _ _ _ _)) //.
     rewrite /interp1_diag /= Hseal.
     iDestruct "HVsr" as "[Hss _]".
     apply seq_between_dist_Some in Hwb.
@@ -62,7 +66,7 @@ Section fundamental.
     subst W'.
     iModIntro.
     iExists _; iFrame "∗%".
-    rewrite interp_sealed_inv /interp_sb.
+    rewrite interp_sealed_inv // /interp_sb.
     iSplit; first done.
     iSplit; first done.
     iApply sts_seals_std_weaken; last iFrame "#".
@@ -107,13 +111,37 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ p0 g0 b0 e0 a0 sb Hr1 Hr2 Hseal Hwb HincrPC | ]; cycle 1.
+    destruct HSpec as [ p0 g0 b0 e0 a0 sb Hr1 Hr2 Htag Hseal Hwb HincrPC
+                      | t0 p0 g0 b0 e0 a0 sb Hr1 Hr2 Hvalid HincrPC
+                      | ]; cycle 2.
     { ftlr_impl_fail. }
+    2: { (* The sealed word is untagged *)
+      iDestruct (interp_reg_lookup_same with "Hinv_interp Hreg") as %Hr1'; [exact Hr1|done|].
+      iDestruct (interp_reg_lookup_same with "Hinv_interp Hreg") as %Hr2'; [exact Hr2|done|].
+      apply incrementPC_Some_inv in HincrPC as (t2&p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
+      eapply Seal_spec_determ in HSpec2 as [Hv2 Hregs2];
+        last (eapply Seal_spec_invalidated; eauto; transfer_incrementPC HPC Ha2).
+      specialize (Hregs2 eq_refl); subst retv2 regs2'.
+      iMod (step_seq_nexti with "Hspec Hj") as "Hj"; first solve_ndisj.
+      iApply wp_pure_step_later; auto; iNext; iIntros "_".
+      iDestruct ("WorldRes" with "[$Ha $Hsa $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ;auto;contradiction. }
+      assert (dst ≠ PC) as HdstPC.
+      { intros ->; rewrite /insert_reg in HPC; simplify_map_eq. }
+      rewrite insert_reg_lookup_PC // in HPC; simplify_map_eq.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) (<[dst:=_]ᵣ> _)
+               with "Hspec [] Hmap Hsmap Hj Hworld_interp Hcont [//] Hown Htframe Htframe_spec"); eauto.
+      - iApply (interp_reg_insert with "[]"); first by iApply interp_reg_insert_PC.
+        iIntros (_ _).
+        iApply interp_untagged; cbn; apply get_tag_clear_tag_sealable.
+      - iModIntro; iApply (interp_next_PC with "Hinv_interp"); eauto.
+    }
 
     (* The specification run performs the same update *)
     iDestruct (interp_reg_lookup_same with "Hinv_interp Hreg") as %Hr1'; [exact Hr1|done|].
     iDestruct (interp_reg_lookup_same with "Hinv_interp Hreg") as %Hr2'; [exact Hr2|done|].
-    apply incrementPC_Some_inv in HincrPC as (p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
+    apply incrementPC_Some_inv in HincrPC as (t2&p2&g2&b2&e2&a2&a3&HPC&Ha2&->).
     eapply Seal_spec_determ in HSpec2 as [Hv2 Hregs2];
        last (eapply Seal_spec_success; eauto; transfer_incrementPC HPC Ha2).
     specialize (Hregs2 eq_refl); subst retv2 regs2'.

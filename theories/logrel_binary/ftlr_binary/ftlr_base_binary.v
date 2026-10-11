@@ -60,18 +60,18 @@ Proof.
   destruct (decide (r = PC)) as [->|]; simplify_map_eq; done.
 Qed.
 
-Lemma incrementPC_gen_build (regs : Reg) p g b e a a' n :
-  regs !! PC = Some (WCap p g b e a) →
+Lemma incrementPC_gen_build (regs : Reg) t p g b e a a' n :
+  regs !! PC = Some (WCap t p g b e a) →
   (a + n)%a = Some a' →
-  incrementPC_gen regs n = Some (<[PC:=WCap p g b e a']> regs).
+  incrementPC_gen regs n = Some (<[PC:=WCap t p g b e a']> regs).
 Proof. rewrite /incrementPC_gen; intros -> ->; done. Qed.
 
 (** Rebuild, in the specification run, the PC increment performed by the
     implementation run, from the lookup [HPC] of the PC and the new address [Ha]. *)
 Ltac transfer_incrementPC HPC Ha :=
-  lazymatch type of HPC with _ !! PC = Some (WCap ?p ?g ?b ?e ?a) =>
+  lazymatch type of HPC with _ !! PC = Some (WCap ?t ?p ?g ?b ?e ?a) =>
   lazymatch type of Ha with (_ + ?n)%a = Some ?a' =>
-    apply (incrementPC_gen_build _ p g b e a a' n); [ | exact Ha ];
+    apply (incrementPC_gen_build _ t p g b e a a' n); [ | exact Ha ];
     rewrite -HPC;
     first [ by simplify_map_eq
           | apply insert_reg_PC_eq; by simplify_map_eq
@@ -110,8 +110,8 @@ Section fundamental.
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
             spec_ctx
             -∗ interp_reg interp W_ih C_ih (r1_ih, r2_ih)
-            -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r1_ih)
-            -∗ spec_registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r2_ih)
+            -∗ registers_pointsto (<[PC:= WCap true p_ih g_ih b_ih e_ih a_ih]> r1_ih)
+            -∗ spec_registers_pointsto (<[PC:= WCap true p_ih g_ih b_ih e_ih a_ih]> r2_ih)
             -∗ ⤇ Seq (Instr Executable)
             -∗ world_interp W_ih C_ih
             -∗ interp_continuation stk Ws Cs
@@ -119,7 +119,7 @@ Section fundamental.
             -∗ na_own cerise_nais ⊤
             -∗ cstack_frag (map fst stk)
             -∗ cstack_frag_spec (map snd stk)
-            -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih, WCap p_ih g_ih b_ih e_ih a_ih)
+            -∗ □ interp W_ih C_ih (WCap true p_ih g_ih b_ih e_ih a_ih, WCap true p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih C_ih))%I.
 
   (** Postcondition of the instruction cases. *)
@@ -133,7 +133,7 @@ Section fundamental.
     (stk : cstack_pair) (Ws : list WORLD) (Cs : list CmptName)
     : Prop :=
     validPCperm p g
-    → isCorrectPC (WCap p g b e a)
+    → isCorrectPC (WCap true p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
     → (persistent_cond P)
@@ -143,13 +143,13 @@ Section fundamental.
     → Pinstr
     -> ftlr_IH
     -∗ spec_ctx
-    -∗ interp W C (WCap p g b e a, WCap p g b e a)
+    -∗ interp W C (WCap true p g b e a, WCap true p g b e a)
     -∗ interp_reg interp W C (regs1, regs2)
     -∗ rel C a p' (safeC P)
-    -∗ □ (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs1) a)
+    -∗ □ (if decide (readAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs1) a)
             then ▷ (rcond P C p' interp)
             else emp)
-    -∗ □ (if decide (writeAllowed_a_in_regs (<[PC:=(WCap p g b e a)]> regs1) a)
+    -∗ □ (if decide (writeAllowed_a_in_regs (<[PC:=(WCap true p g b e a)]> regs1) a)
           then ▷ wcond P C interp
           else emp)
     -∗ monoReq W C a p' P
@@ -162,8 +162,8 @@ Section fundamental.
     -∗ cstack_frag_spec (map snd stk)
     -∗ sts_state_std C a ρ
     -∗ ⤇ Seq (Instr Executable)
-    -∗ ([∗ map] k↦y ∈ <[PC:=WCap p g b e a]> regs1, k ↦ᵣ y)
-    -∗ ([∗ map] k↦y ∈ <[PC:=WCap p g b e a]> regs2, k ↣ᵣ y)
+    -∗ ([∗ map] k↦y ∈ <[PC:=WCap true p g b e a]> regs1, k ↦ᵣ y)
+    -∗ ([∗ map] k↦y ∈ <[PC:=WCap true p g b e a]> regs2, k ↣ᵣ y)
     -∗ WP Instr Executable {{ v, ftlr_post v }}.
 
   Definition ftlr_instr (W : WORLD) (C : CmptName) (regs1 regs2 : Reg)

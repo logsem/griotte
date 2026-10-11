@@ -31,8 +31,8 @@ Section ClearRegistersMacro.
 
     ( spec_ctx
       ∗ ⤇ Seq (Instr Executable)
-      ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ ( [∗ map] r↦w ∈ smap, r ↣ᵣ w )
       ∗ codefrag pc_a (rclear_instrs' l)
@@ -41,8 +41,8 @@ Section ClearRegistersMacro.
               ⌜ dom rmap' = list_to_set l ⌝
               ∗ ⌜ dom smap' = list_to_set l ⌝
               ∗ ⤇ Seq (Instr Executable)
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
-              ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
+              ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ ( [∗ map] r↦w ∈ smap', r ↣ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag pc_a (rclear_instrs' l)
@@ -154,8 +154,8 @@ Section ClearRegistersMacro.
 
     ( spec_ctx
       ∗ ⤇ Seq (Instr Executable)
-      ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ ( [∗ map] r↦w ∈ smap, r ↣ᵣ w )
       ∗ codefrag pc_a clear_registers_post_call_instrs
@@ -164,8 +164,8 @@ Section ClearRegistersMacro.
               ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
               ∗ ⌜ dom smap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
               ∗ ⤇ Seq (Instr Executable)
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
-              ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
+              ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ ( [∗ map] r↦w ∈ smap', r ↣ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag pc_a clear_registers_post_call_instrs
@@ -190,8 +190,8 @@ Section ClearRegistersMacro.
 
     ( spec_ctx
       ∗ ⤇ Seq (Instr Executable)
-      ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ ( [∗ map] r↦w ∈ smap, r ↣ᵣ w )
       ∗ codefrag pc_a clear_registers_pre_call_instrs
@@ -200,8 +200,8 @@ Section ClearRegistersMacro.
               ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝
               ∗ ⌜ dom smap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝
               ∗ ⤇ Seq (Instr Executable)
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
-              ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
+              ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ ( [∗ map] r↦w ∈ smap', r ↣ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag pc_a clear_registers_pre_call_instrs

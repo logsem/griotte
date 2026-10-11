@@ -55,12 +55,12 @@ Ltac unfold_ss_addresses_in H :=
     to [main]. *)
 Definition ss_B_code : list Word :=
   encodeInstrsW [
-    Load ca0 csp;
+    Load ca0 csp 0;
     Jalr cnull cra
   ].
 Definition ss_B_data : list Word := [WInt 0].
 Definition ss_B_imports : list Word :=
-  [WSentry XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
+  [WSentry true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
 Definition ss_B_exports : list Word :=
   [WInt (encode_entry_point stack_secret_B_f_args 1)].
 
@@ -70,7 +70,7 @@ Proof.
 Defined.
 
 Definition ss_B_f : Sealable :=
-  SCap RO Global ss_B_exports_pcc ss_B_exports_entries_e
+  SCap true RO Global ss_B_exports_pcc ss_B_exports_entries_e
     ss_B_exports_entries_b.
 Definition ss_main_imports_concrete : list Word :=
   stack_secret_main_imports ss_B_f.
@@ -131,17 +131,18 @@ Global Instance ss_concrete_layout : stack_secret_memory_layout.
 Proof.
   refine (@Build_stack_secret_memory_layout machine_parameters_instance
     cmdc_concrete_cmptSwitcher ss_concrete_main_cmpt _
-    ss_concrete_B_cmpt 1 _ _ _).
+    ss_concrete_B_cmpt 1 _ _ _ _).
   - vm_compute; solve_addr.
+  - vm_compute; eauto.
   - vm_compute; solve_addr.
   - solve_ss_concrete_disjoint.
   - split; solve_ss_concrete_disjoint.
 Defined.
 
 Definition ss_initial_registers : Reg :=
-  <[PC := WCap RX Global ss_main_pcc_b ss_main_pcc_e ss_main_code_start]>
-  (<[cgp := WCap RW Global ss_main_data_b ss_main_data_e ss_main_data_b]>
-  (<[csp := WCap RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
+  <[PC := WCap true RX Global ss_main_pcc_b ss_main_pcc_e ss_main_code_start]>
+  (<[cgp := WCap true RW Global ss_main_data_b ss_main_data_e ss_main_data_b]>
+  (<[csp := WCap true RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 (** The initial memory, holding [secret] in the data region of [main]. *)

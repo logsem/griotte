@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode spec_patterns coq_tactics ltac_tactics reduction.
 From griotte Require Export proofmode.
 From griotte Require Export rules_binary memory_region_binary.
-From griotte Require Import proofmode_instr_rules_binary.
+From griotte Require Import proofmode_instr_support proofmode_instr_rules_binary.
 From griotte Require Export NamedProp.
 From machine_utils Require Export tactics.
 
@@ -20,10 +20,15 @@ Set Default Proof Mode "Classic".
 
     Tactics:
     - [iInstr_spec "Hscode"]: one spec step on the spec code fragment
-      [spec_codefrag] named ["Hscode"], followed by the [Seq] reduction;
+      [spec_codefrag] named ["Hscode"], followed by the [Seq] reduction
+      ([iInstr_spec_success] is a synonym); [iInstr_spec_fail] and
+      [iInstr_spec_invalidate] select the runtime-failure and invalidation
+      rules, as [iInstr_fail] and [iInstr_invalidate];
     - [iGo_spec "Hscode"]: repeated [iInstr_spec];
     - [iInstr_lockstep "Hscode" "Hcode"]: one spec step, then one impl step
       ([iInstr "Hcode"]), when both sides run the same code;
+      [iInstr_lockstep_success], [iInstr_lockstep_fail] and
+      [iInstr_lockstep_invalidate] pair the corresponding variants;
     - [iGo_lockstep "Hscode" "Hcode"]: repeated [iInstr_lockstep]. *)
 
 (** ** Eliminating an update into a continuation *)
@@ -239,11 +244,11 @@ Ltac iSpecSeq :=
 (** ** Code fragments on the spec side *)
 
 Ltac changePC_spec_next_block new_a :=
-  match goal with |- context [ Esnoc _ _ (PC ↣ᵣ WCap _ _ _ _ ?prev_a)%I ] =>
+  match goal with |- context [ Esnoc _ _ (PC ↣ᵣ WCap _ _ _ _ _ ?prev_a)%I ] =>
     rewrite (_: prev_a = new_a) ; [ | solve_block_move ] end.
 
 Ltac changePC_specto0 new_a :=
-  match goal with |- context [ Esnoc _ _ (PC ↣ᵣ WCap _ _ _ _ ?a)%I ] =>
+  match goal with |- context [ Esnoc _ _ (PC ↣ᵣ WCap _ _ _ _ _ ?a)%I ] =>
     rewrite (_: a = new_a); [| solve_addr]
   end.
 Tactic Notation "changePC_specto" constr(a) := changePC_specto0 a.
@@ -361,7 +366,7 @@ Tactic Notation "unfocus_block_spec" constr(hi) constr(hcont) "as" constr(h) :=
 Ltac iInstr_spec_lookup0 hprog hi hcont :=
   let hprog := constr:(hprog:ident) in
   lazymatch goal with |- context [ Esnoc _ hprog (spec_codefrag ?a_base _) ] =>
-  lazymatch goal with |- context [ Esnoc _ ?hpc (PC ↣ᵣ (WCap _ _ _ _ ?pc_a))%I ] =>
+  lazymatch goal with |- context [ Esnoc _ ?hpc (PC ↣ᵣ (WCap _ _ _ _ _ ?pc_a))%I ] =>
     let base_off := eval unfold as_weak_addr_incr in (@as_weak_addr_incr pc_a a_base _ _) in
     lazymatch base_off with
     | (?base, ?off) =>
@@ -378,7 +383,7 @@ Ltac iInstr_spec_lookup0 hprog hi hcont :=
 Tactic Notation "iInstr_spec_lookup" constr(hprog) "as" constr(hi) constr(hcont) :=
   iInstr_spec_lookup0 hprog hi hcont.
 
-Ltac iInstr_spec_get_rule0 hi cont :=
+Ltac instr_spec_get_rule_using dispatch hi cont :=
   let hi := constr:(hi:ident) in
   once (
     (lazymatch goal with |- context [ Esnoc _ hi (_ ↣ₐ encodeInstrW ?instr)%I ] => idtac end
@@ -387,8 +392,11 @@ Ltac iInstr_spec_get_rule0 hi cont :=
          end + fail "" hi "not found"))
   );
   lazymatch goal with |- context [ Esnoc _ hi (_ ↣ₐ encodeInstrW ?instr)%I ] =>
-    dispatch_spec_instr_rule instr cont
+    dispatch instr cont
   end.
+
+Ltac iInstr_spec_get_rule0 hi cont :=
+  instr_spec_get_rule_using dispatch_spec_instr_rule hi cont.
 
 Tactic Notation "iInstr_spec_get_rule" constr(hi) tactic(cont) :=
   iInstr_spec_get_rule0 hi cont.
@@ -406,17 +414,49 @@ Ltac iInstr_spec_close hprog :=
     iRename hcont into hprog
   end end.
 
-Ltac iInstr_spec0 hprog :=
+Ltac instr_spec_finish hprog :=
+  iInstr_spec_close hprog;
+  simpl_cnull_zero;
+  try iSpecSeq.
+
+Ltac instr_spec_apply_rule hprog rule :=
+  iApplyCapAutoSpec rule;
+  [ .. | instr_spec_finish hprog ].
+
+(* As [instr_apply_invalidation]: the semantic premises that automation
+   cannot prove are left to the caller. *)
+Ltac instr_spec_apply_invalidation hprog rule :=
+  iApplyCapAutoSpec rule;
+  [ try instr_auto_solve_invalidation; instr_guard_invalidation_premise ..
+  | instr_spec_finish hprog; try done ].
+
+Ltac instr_spec_using_rule dispatch apply_rule hprog :=
   let hi := iFresh in
   let hcont := iFresh in
   iInstr_spec_lookup hprog as hi hcont;
-  iInstr_spec_get_rule hi ltac:(fun rule =>
-    iApplyCapAutoSpec rule;
-    [ .. | iInstr_spec_close hprog;
-           simpl_cnull_zero;
-           try iSpecSeq ]).
+  instr_spec_get_rule_using dispatch hi ltac:(fun rule =>
+    apply_rule hprog rule).
 
-Tactic Notation "iInstr_spec" constr(H) := iInstr_spec0 H.
+Ltac instr_spec_using dispatch hprog :=
+  instr_spec_using_rule dispatch instr_spec_apply_rule hprog.
+
+Ltac iInstr_spec0 hprog := instr_spec_using dispatch_spec_instr_rule hprog.
+
+Tactic Notation "iInstr_spec_success" constr(H) := iInstr_spec0 H.
+Tactic Notation "iInstr_spec" constr(H) := iInstr_spec_success H.
+
+(* Runtime failure of the current spec instruction: the PC and the operand
+   registers are returned unchanged and the spec thread is [Failed]. *)
+Tactic Notation "iInstr_spec_fail" constr(H) :=
+  instr_spec_using dispatch_spec_instr_failure H;
+  try solve [instr_auto_solve_failure | by simplify_map_eq].
+
+(* The spec instruction executes, but its result is a capability whose
+   validity tag is cleared. *)
+Tactic Notation "iInstr_spec_invalidate" constr(H) :=
+  instr_normalize_register_aliases;
+  instr_spec_using_rule dispatch_spec_instr_invalidation
+    instr_spec_apply_invalidation H.
 
 Ltac2 rec iGo_spec hprog :=
   let stop_if_at_least_two_goals () :=
@@ -438,6 +478,12 @@ Ltac iInstr_lockstep0 hsprog hprog :=
   iInstr_spec hsprog; [ .. | iInstr hprog ].
 
 Tactic Notation "iInstr_lockstep" constr(Hs) constr(H) := iInstr_lockstep0 Hs H.
+Tactic Notation "iInstr_lockstep_success" constr(Hs) constr(H) :=
+  iInstr_spec_success Hs; [ .. | iInstr_success H ].
+Tactic Notation "iInstr_lockstep_fail" constr(Hs) constr(H) :=
+  iInstr_spec_fail Hs; [ .. | iInstr_fail H ].
+Tactic Notation "iInstr_lockstep_invalidate" constr(Hs) constr(H) :=
+  iInstr_spec_invalidate Hs; [ .. | iInstr_invalidate H ].
 
 Ltac2 rec iGo_lockstep hsprog hprog :=
   let stop_if_at_least_two_goals () :=

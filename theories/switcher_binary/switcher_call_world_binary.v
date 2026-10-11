@@ -84,7 +84,7 @@ Section Switcher_Call_World.
 
   Lemma switcher_call_stk_open W C (b e a : Addr) :
     (b <= a)%a ->
-    interp W C (WCap RWL Local b e a, WCap RWL Local b e a) -∗
+    interp W C (WCap true RWL Local b e a, WCap true RWL Local b e a) -∗
     world_interp W C -∗
     ∃ lv slv,
       [[ a , e ]] ↦ₐ [[ lv ]] ∗
@@ -165,6 +165,7 @@ Section Switcher_Call_World.
     world_interp W C ∗
     ▷ (⌜ ∀ wsb, wct1 = WSealed ot_switcher wsb → swct1 = WSealed ot_switcher wsb ⌝ ∗
        ∀ wsb, ⌜ wct1 = WSealed ot_switcher wsb ⌝ -∗
+              ⌜ get_tag_sealable wsb = true ⌝ -∗
               ot_switcher_prop W C (WSealable wsb, WSealable wsb)).
   Proof.
     iIntros "#Hp_ot_switcher #Htarget_v Hworld_interp".
@@ -172,7 +173,7 @@ Section Switcher_Call_World.
     { iFrame; iNext; iSplit.
       - iPureIntro; intros wsb ->; cbn in Hsealed.
         by rewrite Z.eqb_refl in Hsealed.
-      - iIntros (wsb ->); cbn in Hsealed.
+      - iIntros (wsb -> ?); cbn in Hsealed.
         by rewrite Z.eqb_refl in Hsealed. }
     assert (∃ wsb0, wct1 = WSealed ot_switcher wsb0) as [wsb0 ->].
     { destruct wct1 as [ | [] | |]; cbn in Hsealed; try discriminate.
@@ -180,12 +181,12 @@ Section Switcher_Call_World.
       replace ot with ot_switcher by solve_addr.
       done.
     }
-    iDestruct (interp_eq_unless_sealed with "Htarget_v") as %Heq.
-    assert (∃ swsb0, swct1 = WSealed ot_switcher swsb0) as [swsb0 ->].
-    { destruct Heq as [<-|(o & sb1 & sb2 & Heq1 & ->)]; eauto.
-      inversion Heq1; subst; eauto. }
-    iDestruct (interp_sealed_inv with "Htarget_v") as "[_ [%Hsb_eq Hsb]]".
-    subst swsb0.
+    iDestruct (interp_eq with "Htarget_v") as %<-.
+    destruct (get_tag_sealable wsb0) eqn:Htag; cycle 1.
+    { iFrame; iNext; iSplit.
+      - iPureIntro; intros wsb Hwsb; simplify_eq; done.
+      - iIntros (wsb Hwsb Htag'); simplify_eq; congruence. }
+    iDestruct (interp_sealed_inv with "Htarget_v") as "[_ [_ Hsb]]"; first done.
     iAssert (sts_seals_std C ot_switcher {[(WSealable wsb0, WSealable wsb0)]})
       as "#Hsb'".
     { iApply sts_seals_std_weaken; last iFrame "Hsb"; set_solver+. }
@@ -196,14 +197,14 @@ Section Switcher_Call_World.
     iPoseProof "HP" as "HP'".
     iDestruct "HP'" as (??????????? Heq1 Heq2) "_".
     cbn in Heq1, Heq2.
-    destruct wsb0 as [p g b e a | sp g b e a]; cbn in Heq1; first last.
+    destruct wsb0 as [t p g b e a | t sp g b e a]; cbn in Heq1; first last.
     { discriminate. }
     iSplit.
     - iPureIntro; intros wsb Hwsb; simplify_eq; done.
-    - iIntros (wsb Hwsb); simplify_eq.
+    - iIntros (wsb Hwsb _); simplify_eq.
       destruct g; first done.
       by iApply (ot_switcher_prop_borrow _ _
-                  (WCap RO Global b_tbl e_tbl a_tbl, WCap RO Global b_tbl e_tbl a_tbl)).
+                  (WCap true RO Global b_tbl e_tbl a_tbl, WCap true RO Global b_tbl e_tbl a_tbl)).
   Qed.
 
   (** The registers when entering the callee, in both runs. *)
@@ -219,8 +220,8 @@ Section Switcher_Call_World.
     PC ↣ᵣ wpcc ∗
     cgp ↦ᵣ wcgp ∗
     cgp ↣ᵣ wcgp ∗
-    cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-    cra ↣ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    cra ↣ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     csp ↦ᵣ wstk ∗
     csp ↣ᵣ wstk ∗
     interp W' C (wstk, wstk) ∗
@@ -377,13 +378,13 @@ Section Switcher_Call_World.
 
     cstack_full cstk' -∗
     cstack_frag cstk -∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a -∗
-    (a_tstk ^+ 1)%a ↦ₐ WCap RWL Local frm.(b_stk) frm.(e_stk) (frm.(a_stk) ^+ 4)%a -∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a -∗
+    (a_tstk ^+ 1)%a ↦ₐ WCap true RWL Local frm.(b_stk) frm.(e_stk) (frm.(a_stk) ^+ 4)%a -∗
     [[ (a_tstk ^+ 2)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     cstack_interp cstk' a_tstk -∗
     cframe_stk_own frm -∗
     switcher_code -∗
-    b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher -∗
+    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher -∗
     seal_pred ot_switcher ot_switcher_propC
     ==∗
     switcher_inv ∗ cstack_frag (frm :: cstk).
@@ -414,13 +415,13 @@ Section Switcher_Call_World.
 
     cstack_full_spec cstk' -∗
     cstack_frag_spec cstk -∗
-    mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a -∗
-    (a_tstk ^+ 1)%a ↣ₐ WCap RWL Local frm.(b_stk) frm.(e_stk) (frm.(a_stk) ^+ 4)%a -∗
+    mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a -∗
+    (a_tstk ^+ 1)%a ↣ₐ WCap true RWL Local frm.(b_stk) frm.(e_stk) (frm.(a_stk) ^+ 4)%a -∗
     [[ (a_tstk ^+ 2)%a , e_trusted_stack ]] ↣ₐ [[ tstk_next ]] -∗
     cstack_interp_spec cstk' a_tstk -∗
     cframe_stk_own_spec frm -∗
     switcher_spec_code -∗
-    b_switcher ↣ₐ WSealRange (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher
+    b_switcher ↣ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher
     ==∗
     switcher_inv_spec ∗ cstack_frag_spec (frm :: cstk).
   Proof.
@@ -447,7 +448,7 @@ Section Switcher_Call_World.
   Lemma StackRevokedResources_interp (W : WORLD) (C : CmptName) (b e a : Addr) :
     StackRevokedResources W C (finz.seq_between b e) -∗
     interp (std_update_multiple W (finz.seq_between b e) Temporary) C
-      (WCap RWL Local b e a, WCap RWL Local b e a).
+      (WCap true RWL Local b e a, WCap true RWL Local b e a).
   Proof.
     rewrite /StackRevokedResources /StackWorldResources zip_with_replicate big_sepL2_replicate_r; last done.
     iIntros "[_ Hres]".
@@ -483,7 +484,7 @@ Section Switcher_Call_World.
     [[ (a ^+ 4)%a , e ]] ↣ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]]
     ={E}=∗
     world_interp W' C ∗
-    interp W' C (WCap RWL Local (a ^+ 4)%a e (a ^+ 4)%a, WCap RWL Local (a ^+ 4)%a e (a ^+ 4)%a) ∗
+    interp W' C (WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a, WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a) ∗
     ⌜ related_sts_pub_world W W' ⌝ ∗
     ⌜ revoked_addresses W (finz.seq_between (a ^+ 4)%a e) ⌝.
   Proof.
@@ -597,8 +598,8 @@ Section Switcher_Call_World.
       (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) W2 ->
     (b_stk <= a_stk ^+ 4 ∧ a_stk ^+ 4 <= e_stk ∧ (a_stk + 4) = Some (a_stk ^+ 4))%a ->
 
-    interp W2 C (WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a,
-                 WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a) -∗
+    interp W2 C (WCap true RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a,
+                 WCap true RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a) -∗
     StackRevokedResources W C (finz.seq_between a_stk e_stk) -∗
     world_interp_open W2 C (finz.seq_between (a_stk ^+ 4)%a e_stk) -∗
     StackOpenWorldResources interp W2 C (finz.seq_between (a_stk ^+ 4)%a e_stk)

@@ -89,7 +89,7 @@ Section Stack_callee_secret_World.
 
       Revoke the world, to get the stack frame of [T.f], in both runs. *)
   Lemma stack_callee_secret_world_f W C (csp_b csp_e : Addr) :
-    interp W C (WCap RWL Local csp_b csp_e csp_b, WCap RWL Local csp_b csp_e csp_b) -∗
+    interp W C (WCap true RWL Local csp_b csp_e csp_b, WCap true RWL Local csp_b csp_e csp_b) -∗
     world_interp W C
     ={⊤}=∗
     ∃ l stk_mem stk_mem_spec,

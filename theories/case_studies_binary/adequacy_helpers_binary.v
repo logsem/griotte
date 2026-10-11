@@ -66,7 +66,8 @@ Proof.
     destruct (isCorrectPCb wpc) eqn:HPC; last done.
     apply isCorrectPCb_isCorrectPC in HPC.
     destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC].
-    destruct sb as [p g b e a | ]; last by inversion HPC.
+    destruct sb as [t p g b e a | ]; last by inversion HPC.
+    destruct t; last by inversion HPC.
     destruct (m !! a) as [wa | ] eqn:HeMem; last done.
     eapply IHfuel in Hc as [φ' Hc]. eexists.
     eapply rtc_l; last eapply Hc.
@@ -223,8 +224,8 @@ Section initial_resources_generic.
   (** Splits the initial memory of a compartment, for any points-to
       predicate [φ]. *)
   Lemma initialise_compartment_gen (φ : Addr → Word → iProp Σ) (C_cmpt : cmpt) :
-    let PCC := WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
-    let CGP := WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+    let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
+    let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
     ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, φ k y)
     -∗
     ([∗ list] k;v ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt); cmpt_imports C_cmpt, φ k v) ∗
@@ -310,8 +311,8 @@ Section initial_resources_binary.
   (** The compartment of an adversary is identical in both runs. Its export
       table is placed in invariants holding the points-to of both runs. *)
   Lemma initialise_adversary_compartment_binary {E : coPset} ( C_cmpt : cmpt ) ( C : CmptName ) :
-    let PCC := WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
-    let CGP := WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+    let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
+    let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
     let exp_tbl_addrs :=
       (finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)) in
     ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ y ∗ k ↣ₐ y)
@@ -361,9 +362,9 @@ Section initial_resources_binary.
     can_alloc_pred (ot_switcher switcher_cmpt) -∗
     cstack_full [] -∗
     cstack_full_spec [] -∗
-    mtdc ↦ₛᵣ WCap RWL Local (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt)
+    mtdc ↦ₛᵣ WCap true RWL Local (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt)
       (b_trusted_stack switcher_cmpt) -∗
-    mtdc ↣ₛᵣ WCap RWL Local (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt)
+    mtdc ↣ₛᵣ WCap true RWL Local (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt)
       (b_trusted_stack switcher_cmpt)
     ={E}=∗
     seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
@@ -483,8 +484,8 @@ Section initial_resources_exported.
   Lemma initialise_compartment_with_data_exp_tbl_gen
     (φ : Addr → Word → iProp Σ) (C_cmpt : cmpt) (data : list Word)
     (Hdata : (cmpt_b_cgp C_cmpt + length data)%a = Some (cmpt_e_cgp C_cmpt)) :
-    let PCC := WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
-    let CGP := WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+    let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
+    let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
     ([∗ map] k↦y ∈ mk_initial_cmpt (cmpt_with_data C_cmpt data Hdata), φ k y)
     -∗
     ([∗ list] k;v ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt); cmpt_imports C_cmpt, φ k v) ∗

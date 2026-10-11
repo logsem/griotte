@@ -38,7 +38,7 @@ Section Switcher_preamble.
   Implicit Types C : CmptName.
 
   Lemma is_switcher_entry_point_call :
-    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call) = true.
+    is_switcher_entry_point (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) = true.
   Proof.
     rewrite /is_switcher_entry_point.
     rewrite bool_decide_eq_true_2; first done.
@@ -46,7 +46,7 @@ Section Switcher_preamble.
   Qed.
 
   Lemma is_switcher_entry_point_return :
-    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
+    is_switcher_entry_point (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
   Proof.
     rewrite /is_switcher_entry_point.
     rewrite bool_decide_eq_true_2; first done.
@@ -103,8 +103,8 @@ Section Switcher_preamble.
        ∧ ⌜ regs.2 !! PC = Some wpcc.2 ⌝
        ∧ ⌜ regs.1 !! cgp = Some wcgp.1 ⌝
        ∧ ⌜ regs.2 !! cgp = Some wcgp.2 ⌝
-       ∧ ⌜ regs.1 !! cra = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝
-       ∧ ⌜ regs.2 !! cra = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝
+       ∧ ⌜ regs.1 !! cra = Some (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝
+       ∧ ⌜ regs.2 !! cra = Some (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝
        ∧ ⌜ regs.1 !! csp = Some wstk ⌝
        ∧ ⌜ regs.2 !! csp = Some wstk ⌝
        ∗ interp W C (wstk, wstk)
@@ -147,7 +147,7 @@ Section Switcher_preamble.
        ( spec_ctx
          ∗ interp_continuation stk Ws Cs
          ∗ ⌜frame_match Ws Cs stk W C⌝
-         ∗ (execute_entry_point_register wpcc wcgp (WCap RWL Local a_stk4 e_stk a_stk4) nargs W C
+         ∗ (execute_entry_point_register wpcc wcgp (WCap true RWL Local a_stk4 e_stk a_stk4) nargs W C
               (regs1, regs2))
          ∗ registers_pointsto regs1
          ∗ spec_registers_pointsto regs2
@@ -174,17 +174,18 @@ Section Switcher_preamble.
           (nargs : nat) (off : Z)
           (Cname : namespace)
          ,
-           ⌜ ww.1 = WCap RO g_tbl b_tbl e_tbl a_tbl ⌝
+           ⌜ ww.1 = WCap true RO g_tbl b_tbl e_tbl a_tbl ⌝
            ∗ ⌜ ww.2 = ww.1 ⌝
            ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
            ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
            ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
            ∗ ⌜ (0 <= nargs <= 7 )%nat ⌝
+           ∗ ⌜ is_Some (bpcc + off)%a ⌝
            ∗ inv (export_table_PCCN Cname)
-               (b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc ∗ b_tbl ↣ₐ WCap RX Global bpcc epcc bpcc)
+               (b_tbl ↦ₐ WCap true RX Global bpcc epcc bpcc ∗ b_tbl ↣ₐ WCap true RX Global bpcc epcc bpcc)
            ∗ inv (export_table_CGPN Cname)
-               ((b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp
-                ∗ (b_tbl ^+ 1)%a ↣ₐ WCap RW Global bcgp ecgp bcgp)
+               ((b_tbl ^+ 1)%a ↦ₐ WCap true RW Global bcgp ecgp bcgp
+                ∗ (b_tbl ^+ 1)%a ↣ₐ WCap true RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN Cname a_tbl)
                (a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off)
                 ∗ a_tbl ↣ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
@@ -192,8 +193,8 @@ Section Switcher_preamble.
            ∗ (seal_capability (borrow ww.1) ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
-                            (WCap RX Global bpcc epcc (bpcc ^+ off)%a, WCap RX Global bpcc epcc (bpcc ^+ off)%a)
-                            (WCap RW Global bcgp ecgp bcgp, WCap RW Global bcgp ecgp bcgp)
+                            (WCap true RX Global bpcc epcc (bpcc ^+ off)%a, WCap true RX Global bpcc epcc (bpcc ^+ off)%a)
+                            (WCap true RW Global bcgp ecgp bcgp, WCap true RW Global bcgp ecgp bcgp)
                             nargs
                             W' C))
       )%I.
@@ -216,7 +217,7 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME Hww1 Hww2
-       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry Hentry Hentry_borrow".
     iExists _,_.
     repeat (iSplit ; first done).
@@ -236,7 +237,7 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME Hww1 Hww2
-       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
     destruct ww as [w1 w2]; cbn in Hww1, Hww2 |- *; subst.
     iFrame "#∗%".
     iExists Local; iPureIntro; done.
@@ -261,7 +262,7 @@ Section Switcher_preamble.
     let b_stk := frm.(b_stk) in
     let a_stk := frm.(a_stk) in
     let e_stk := frm.(e_stk) in
-    a_tstk ↦ₐ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+    a_tstk ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
     ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝ ∗
     cframe_stk_own frm%I.
 
@@ -287,7 +288,7 @@ Section Switcher_preamble.
     let b_stk := frm.(b_stk) in
     let a_stk := frm.(a_stk) in
     let e_stk := frm.(e_stk) in
-    a_tstk ↣ₐ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+    a_tstk ↣ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
     ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝ ∗
     cframe_stk_own_spec frm%I.
 
@@ -307,10 +308,10 @@ Section Switcher_preamble.
       and the sealing predicate of the switcher's otype. *)
   Definition switcher_inv : iProp Σ :=
     ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list Word),
-     mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk
+     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk
      ∗ ⌜ (ot_switcher < (ot_switcher ^+1) )%ot ⌝
      ∗ codefrag a_switcher_call switcher_instrs
-     ∗ b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
+     ∗ b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
      ∗ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
      ∗ ⌜ (b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a ⌝
      ∗ cstack_full cstk
@@ -325,9 +326,9 @@ Section Switcher_preamble.
       same [a_tstk]. *)
   Definition switcher_inv_spec : iProp Σ :=
     ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list Word),
-     mtdc ↣ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk
+     mtdc ↣ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk
      ∗ spec_codefrag a_switcher_call switcher_instrs
-     ∗ b_switcher ↣ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
+     ∗ b_switcher ↣ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
      ∗ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↣ₐ [[ tstk_next ]]
      ∗ ⌜ (b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a ⌝
      ∗ cstack_full_spec cstk
@@ -362,7 +363,7 @@ Notation switcher_block_offset := (code_block_offset assembled_switcher).
 
 (** The PC capability of the switcher at offset [off] of the code. *)
 Notation switcher_pc off :=
-  (WCap XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ off)%a) (only parsing).
+  (WCap true XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ off)%a) (only parsing).
 
 (** The PC capability of the switcher at the beginning of block [n]. *)
 Notation switcher_block_pc n := (switcher_pc (switcher_block_offset n)) (only parsing).

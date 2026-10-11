@@ -24,8 +24,8 @@ Section spec_rules.
   Lemma step_Mov Ep pc_p pc_g pc_b pc_e pc_a  w dst src regs :
     ↑specN ⊆ Ep →
     decodeInstrW w = Mov dst src ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Mov dst src) ⊆ dom regs →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
@@ -71,7 +71,7 @@ Section spec_rules.
       iFrame. iApply "Hφ"; iFrame. iPureIntro. econstructor; eauto. }
 
     eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-      as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+      as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
     eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((spec_regs_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
@@ -83,16 +83,16 @@ Section spec_rules.
   Lemma step_move_success_z_gen E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 z :
     ↑specN ⊆ E →
     decodeInstrW w = Mov r1 (inl z) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ wr1
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt (if (decide (r1 = cnull)) then 0 else z).
   Proof.
@@ -115,17 +115,17 @@ Section spec_rules.
   Lemma step_move_success_z E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 z :
     ↑specN ⊆ E →
     decodeInstrW w = Mov r1 (inl z) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ wr1
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt z.
   Proof.
@@ -135,22 +135,43 @@ Section spec_rules.
     by iFrame.
   Qed.
 
+  Lemma step_move_success_cnull_z E pc_p pc_g pc_b pc_e pc_a pc_a' w w0 z :
+    ↑specN ⊆ E →
+    decodeInstrW w = Mov cnull (inl z) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+
+    spec_ctx ∗
+    ⤇ Seq (Instr Executable) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    pc_a ↣ₐ w ∗
+    cnull ↣ᵣ w0
+    ={E}=∗
+    ⤇ Seq (Instr NextI) ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+    pc_a ↣ₐ w ∗
+    cnull ↣ᵣ WInt 0.
+  Proof.
+    iIntros (HE Hinstr Hvpc Hpca') "(#Hctx & Hj & HPC & Hpc_a & Hr1)".
+    iMod (step_move_success_z_gen with "[$Hctx $Hj $HPC $Hpc_a $Hr1]") as "H"; eauto.
+  Qed.
+
   Lemma step_move_success_reg E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 rv wrv :
     ↑specN ⊆ E →
     decodeInstrW w = Mov r1 (inr rv) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     rv ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ wr1 ∗
     rv ↣ᵣ wrv
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ wrv ∗
     rv ↣ᵣ wrv.
@@ -173,17 +194,17 @@ Section spec_rules.
   Lemma step_move_success_reg_same E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 :
     ↑specN ⊆ E →
     decodeInstrW w = Mov r1 (inr r1) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ wr1
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ wr1.
   Proof.
@@ -205,15 +226,15 @@ Section spec_rules.
   Lemma step_move_success_reg_samePC E pc_p pc_g pc_b pc_e pc_a pc_a' w :
     ↑specN ⊆ E →
     decodeInstrW w = Mov PC (inr PC) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w.
   Proof.
     iIntros (HE Hinstr Hvpc Hpca') "(#Hctx & Hj & HPC & Hpc_a)".
@@ -230,22 +251,22 @@ Section spec_rules.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma step_move_success_reg_toPC E pc_p pc_g pc_b pc_e pc_a w r1 p g b e a a':
+  Lemma step_move_success_reg_toPC E pc_p pc_g pc_b pc_e pc_a w r1 (t : bool) p g b e a a':
     ↑specN ⊆ E →
     decodeInstrW w = Mov PC (inr r1) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (a + 1)%a = Some a' →
     r1 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
-    r1 ↣ᵣ WCap p g b e a
+    r1 ↣ᵣ WCap t p g b e a
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap p g b e a' ∗
+    PC ↣ᵣ WCap t p g b e a' ∗
     pc_a ↣ₐ w ∗
-    r1 ↣ᵣ WCap p g b e a.
+    r1 ↣ᵣ WCap t p g b e a.
   Proof.
     iIntros (HE Hinstr Hvpc Hpca' Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hr1)".
     iDestruct (spec_map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
@@ -265,19 +286,19 @@ Section spec_rules.
   Lemma step_move_success_reg_fromPC E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 :
     ↑specN ⊆ E →
     decodeInstrW w = Mov r1 (inr PC) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ wr1
     ={E}=∗
     ⤇ Seq (Instr NextI) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
-    r1 ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a.
+    r1 ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a.
   Proof.
     iIntros (HE Hinstr Hvpc Hpca' Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hr1)".
     iDestruct (spec_map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
@@ -293,5 +314,6 @@ Section spec_rules.
     { (* Failure (contradiction) *)
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
+
 
 End spec_rules.

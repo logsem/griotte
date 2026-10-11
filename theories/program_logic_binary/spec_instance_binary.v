@@ -57,7 +57,7 @@ Section definitions.
     pointsto (hG := spec_reg_heapG) r dq w.
   Local Definition spec_reg_pointsto_aux : seal (@spec_reg_pointsto_def).
   Proof. by eexists. Qed.
-  Definition spec_reg_pointsto := spec_reg_pointsto_aux.(unseal).
+  Definition spec_reg_pointsto := spec_reg_pointsto_aux.(stdpp.base.unseal).
   Definition spec_reg_pointsto_unseal :
     @spec_reg_pointsto = @spec_reg_pointsto_def := spec_reg_pointsto_aux.(seal_eq).
 
@@ -65,7 +65,7 @@ Section definitions.
     pointsto (hG := spec_sreg_heapG) sr dq w.
   Local Definition spec_sreg_pointsto_aux : seal (@spec_sreg_pointsto_def).
   Proof. by eexists. Qed.
-  Definition spec_sreg_pointsto := spec_sreg_pointsto_aux.(unseal).
+  Definition spec_sreg_pointsto := spec_sreg_pointsto_aux.(stdpp.base.unseal).
   Definition spec_sreg_pointsto_unseal :
     @spec_sreg_pointsto = @spec_sreg_pointsto_def := spec_sreg_pointsto_aux.(seal_eq).
 
@@ -73,7 +73,7 @@ Section definitions.
     pointsto (hG := spec_mem_heapG) a dq w.
   Local Definition spec_mem_pointsto_aux : seal (@spec_mem_pointsto_def).
   Proof. by eexists. Qed.
-  Definition spec_mem_pointsto := spec_mem_pointsto_aux.(unseal).
+  Definition spec_mem_pointsto := spec_mem_pointsto_aux.(stdpp.base.unseal).
   Definition spec_mem_pointsto_unseal :
     @spec_mem_pointsto = @spec_mem_pointsto_def := spec_mem_pointsto_aux.(seal_eq).
 
@@ -81,7 +81,7 @@ Section definitions.
     own spec_expr_name (◯E (e : leibnizO griotte_lang.expr)).
   Local Definition spec_res_aux : seal (@spec_res_def).
   Proof. by eexists. Qed.
-  Definition spec_res := spec_res_aux.(unseal).
+  Definition spec_res := spec_res_aux.(stdpp.base.unseal).
   Definition spec_res_unseal : @spec_res = @spec_res_def := spec_res_aux.(seal_eq).
 
   (** Interpretation of the spec machine state. Same nesting as the unary
@@ -589,8 +589,8 @@ Section spec_inv.
       map and the instruction points-to are handed back to the continuation. *)
   Lemma spec_step_exec E Φ (regs : Reg) pc_p pc_g pc_b pc_e pc_a dq w :
     ↑specN ⊆ E →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     spec_ctx -∗
     ⤇ Seq (Instr Executable) -∗
     ([∗ map] k↦y ∈ regs, k ↣ᵣ y) -∗
@@ -639,20 +639,20 @@ Section spec_inv.
   Lemma step_halt E pc_p pc_g pc_b pc_e pc_a dq w :
     ↑specN ⊆ E →
     decodeInstrW w = Halt →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ{dq} w
     ={E}=∗
     ⤇ Seq (Instr Halted) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ{dq} w.
   Proof.
     iIntros (HE Hinstr Hvpc) "(#Hctx & Hj & HPC & Hpc_a)".
     iDestruct (spec_map_of_regs_1 with "HPC") as "Hmap".
     iMod (spec_step_exec _
-            (λ v, ⌜v = HaltedV⌝ ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ{dq} w)%I
+            (λ v, ⌜v = HaltedV⌝ ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ{dq} w)%I
            with "Hctx Hj Hmap Hpc_a [] ")
       as (v) "(Hj & -> & HPC & Hpc_a)"; first done.
     1,2: by simplify_map_eq.
@@ -666,20 +666,20 @@ Section spec_inv.
   Lemma step_fail E pc_p pc_g pc_b pc_e pc_a dq w :
     ↑specN ⊆ E →
     decodeInstrW w = Fail →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ{dq} w
     ={E}=∗
     ⤇ Seq (Instr Failed) ∗
-    PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     pc_a ↣ₐ{dq} w.
   Proof.
     iIntros (HE Hinstr Hvpc) "(#Hctx & Hj & HPC & Hpc_a)".
     iDestruct (spec_map_of_regs_1 with "HPC") as "Hmap".
     iMod (spec_step_exec _
-            (λ v, ⌜v = FailedV⌝ ∗ PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ{dq} w)%I
+            (λ v, ⌜v = FailedV⌝ ∗ PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↣ₐ{dq} w)%I
            with "Hctx Hj Hmap Hpc_a [] ")
       as (v) "(Hj & -> & HPC & Hpc_a)"; first done.
     1,2: by simplify_map_eq.

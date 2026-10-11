@@ -93,17 +93,18 @@ Global Instance wo_concrete_layout : write_only_secret_memory_layout.
 Proof.
   refine (@Build_write_only_secret_memory_layout machine_parameters_instance
     cmdc_concrete_cmptSwitcher wo_concrete_main_cmpt _
-    cmdc_concrete_B_cmpt 1 _ _).
+    cmdc_concrete_B_cmpt 1 _ _ _).
   - vm_compute; solve_addr.
+  - vm_compute; eauto.
   - (* The regions are concrete: their disjointness is decided by computation. *)
     apply list_to_set_disj_2; apply (bool_decide_unpack _); vm_compute; reflexivity.
   - split; solve_wo_concrete_disjoint.
 Defined.
 
 Definition wo_initial_registers : Reg :=
-  <[PC := WCap RX Global wo_main_pcc_b wo_main_pcc_e wo_main_code_start]>
-  (<[cgp := WCap RW Global wo_main_data_b wo_main_data_e wo_main_data_b]>
-  (<[csp := WCap RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
+  <[PC := WCap true RX Global wo_main_pcc_b wo_main_pcc_e wo_main_code_start]>
+  (<[cgp := WCap true RW Global wo_main_data_b wo_main_data_e wo_main_data_b]>
+  (<[csp := WCap true RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 (** The initial memory, holding [secret] in the data region of [main]. *)
