@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export rules_base si_modality.
 
-(** * Ghost steps on the state interpretation (§4.5)
+(** * Ghost steps on the state interpretation
 
     The registry and the address claims live in the state interpretation,
     so every change to them, and every observation of them, needs it. They
@@ -167,7 +167,7 @@ Section rules_registry.
     iApply ("Hwp" with "[//] Hobj Htok Hcells").
   Qed.
 
-  (** ** Observation (D18)
+  (** ** Observation
 
       A register word with authority is not dead, and its base is claimed by
       its identifier, or is a heap root if it has none. *)
@@ -229,7 +229,7 @@ Section rules_registry.
   Qed.
 
   (** Every tagged, non-empty register capability with an identifier lies in
-      the heap: provenance and the registry's heap clause (§4.3). *)
+      the heap: provenance and the registry's heap clause. *)
   Definition regs_prov_heap (regs : LReg) : Prop :=
     ∀ r v ι b e, regs !! r = Some v →
       get_tag v.(lw) = true → memory_cap_bounds v.(lw) = Some (b, e) → (b < e)%a →

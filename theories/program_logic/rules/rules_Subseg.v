@@ -106,7 +106,7 @@ Section griotte_lang_rules.
       Subseg_failure regs dst src1 src2 regs' →
       Subseg_spec regs dst src1 src2 regs' FailedV.
 
-  (** The premise of the generic rule (§4.4). An identifier-less source that
+  (** The premise of the generic rule. An identifier-less source that
       would give a tagged, non-empty heap result needs its new base to be a
       heap root. Otherwise (the source has an identifier, or the result is
       untagged, empty or not in the heap) nothing is needed: this is the pure

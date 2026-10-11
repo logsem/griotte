@@ -202,7 +202,7 @@ Section HTS_World.
   Qed.
 
   (** After the first adversary call, [ι] keeps its bounds in [Wret]: its
-      status is the case split of the reload (D41). *)
+      status is the case split of the reload. *)
   Lemma hts_Wret_heap_lookup ι b Wret :
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C ι b)

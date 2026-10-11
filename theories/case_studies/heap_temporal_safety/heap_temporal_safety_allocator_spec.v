@@ -9,8 +9,8 @@ From griotte.allocator Require Export allocator_malloc_spec allocator_free_spec
 (** The trusted calls of [main] to [malloc] and [free] are instances of the
     public switcher-call specifications: [malloc] at size one with the empty
     freshness set, and [free] of the whole object. The argument is in [ca0]
-    (D36), and the allocator-entry condition of [free] is discharged inside
-    [allocator_free_switcher_spec] (D23). Neither call requires the private
+   , and the allocator-entry condition of [free] is discharged inside
+    [allocator_free_switcher_spec]. Neither call requires the private
     pointer to satisfy [interp]. *)
 
 Section Heap_Temporal_Safety_Allocator.

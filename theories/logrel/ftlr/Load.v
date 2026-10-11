@@ -27,7 +27,7 @@ Section fundamental.
   Implicit Types interp : (D).
 
   (** The witness the world supplies for the word that a load from [r] reads
-      in [mem]: the quarantine witness for a quarantined identifier (§4.5). *)
+      in [mem]: the quarantine witness for a quarantined identifier. *)
   Definition load_witness_mem (W : WORLD) (regs : LReg) (r : RegName) (imm : Z) (mem : LMem)
     : load_witness :=
     match regs !! r with
@@ -445,7 +445,7 @@ Section fundamental.
     }
 
     (* The world's heap provenance supplies the status witness of the
-       load rule (§4.5). *)
+       load rule. *)
     iDestruct (world_interp_open_heap_provenance with "Hworld_interp") as "[Hworld_interp #Hprov]".
 
     (* Step 1: open the region, if necessary, and store all the resources obtained from the region in allow_load_res imm *)
@@ -502,7 +502,7 @@ Section fundamental.
     (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
     iDestruct (mem_map_recover_res imm with "Hinv_interp Hreg Hrcond' Hw Hmem HLoadMem") as
       "[Hworld_interp [Ha #Hnormal ] ]"; eauto.
-    (* The world's witness makes the loaded word valid (§4.5). *)
+    (* The world's witness makes the loaded word valid. *)
     rewrite (load_witness_mem_eq _ _ _ _ _ _ _ _ _ _ _ _ Hallow' Hl) in Hpost.
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#HLVInterp"; first exact Hpost.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".

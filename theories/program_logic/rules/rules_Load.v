@@ -27,7 +27,7 @@ Section griotte_lang_rules.
     lw <$> regs !!ₗ r = Some (WCap true p g b e a) ∧
     readAllowed p = true ∧ withinBounds b e a = true.
 
-  (** ** Status witnesses (§4.5)
+  (** ** Status witnesses
 
       The loaded word's identifier decides the post. Every load gets the
       plain post: the loaded word, or its untagged copy if it is a heap
@@ -2030,7 +2030,7 @@ Section load_exact.
 
   (** Loading an identifier-less word that satisfies [load_exact_cond]
       (e.g. a heap root, which has authority) keeps it exactly: the fourth
-      variant of the load rule (§4.5). *)
+      variant of the load rule. *)
   Lemma wp_load_success_exact E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w''
       p g b e a pc_a' πs :
     is_shadow_address a = false →

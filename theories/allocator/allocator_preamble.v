@@ -52,7 +52,7 @@ Definition allocator_entries_wf (allocations : list allocator_header_entry) : Pr
   NoDup (allocator_entry_ids allocations).
 
 (** The header words of the entries: the three words below each payload base.
-    They are exactly the painted cells of the heap (D11). *)
+    They are exactly the painted cells of the heap. *)
 Definition allocator_is_header (allocations : list allocator_header_entry)
     (a : Addr) : Prop :=
   ∃ (b e : Addr) reserved ι, (b, e, reserved, ι) ∈ allocations ∧
@@ -140,7 +140,7 @@ Definition Nallocator_service : namespace := nroot .@ "allocator_service".
 (** The namespace of the invariants on the allocator's export table entries. *)
 Definition allocator_exp_tblN : namespace := nroot .@ "allocator_exports".
 
-(** The core [FreeAuth] instance (D35): the allocator keeps the whole client
+(** The core [FreeAuth] instance: the allocator keeps the whole client
     half, and the client holds nothing. It is passed explicitly, never found by
     instance resolution, so that a layer can swap it. *)
 Lemma free_auth_core_split {Σ : gFunctors} `{!allocRegistryG Σ} (ι : AId) :
@@ -155,7 +155,7 @@ Definition free_auth_core {Σ : gFunctors} `{!allocRegistryG Σ} : FreeAuth Σ :
   free_auth_split := free_auth_core_split;
 |}.
 
-(** The allocator's piece of the status token of [ι] (D17, D35). While [ι] is
+(** The allocator's piece of the status token of [ι]. While [ι] is
     live ([ι ∈ live]), one share and the kept part of the client half; from
     [AQuar] on, the whole token. *)
 Section AllocatorTokens.
@@ -183,7 +183,7 @@ Section AllocatorTokens.
 
 End AllocatorTokens.
 
-(** The per-cell state of the service invariant (§4.8): the address claim,
+(** The per-cell state of the service invariant: the address claim,
     the shadow entry and the memory, as far as the allocator holds it. The
     flag [hdr] marks a header word, whose memory is in the header chain; its
     shadow entry is painted, by a pure clause of [allocator_cells_wf]. A
@@ -218,7 +218,7 @@ End AllocatorCells.
     header), the claim/header clause in both directions (the cells of a live
     entry are claimed by its identifier, and every claimed cell lies in the
     range of the live entry carrying its identifier), and the issued set
-    (D31), which contains every identifier of the header list. *)
+   , which contains every identifier of the header list. *)
 Record allocator_cells_wf {MP : MachineParameters} (next : Addr)
     (allocations : list allocator_header_entry) (live issued : gset AId)
     (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) : Prop := {

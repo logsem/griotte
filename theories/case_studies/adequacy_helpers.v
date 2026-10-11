@@ -235,7 +235,7 @@ Section adequacy_helpers.
 
 End adequacy_helpers.
 
-(** ** Ghost initialisation (§4.2) *)
+(** ** Ghost initialisation *)
 Section adequacy_ghost_init.
   Context `{MP : MachineParameters}.
 

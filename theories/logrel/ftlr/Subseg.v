@@ -51,7 +51,7 @@ Section fundamental.
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
     (* A valid source without an identifier stays clear of the heap, so the
-       pure branch of the Subseg rule applies (§4.4, case 3 never arises). *)
+       pure branch of the Subseg rule applies. *)
     iAssert (⌜∀ r t p0 g0 b0 e0 a0,
                <[PC:=WCap true p g b e a @@? None]> regs !!ₗ r = Some (WCap t p0 g0 b0 e0 a0 @@? None) →
                t = true → (b0 < e0)%a → disjoint_from_heap b0 e0⌝)%I as %Hnoid.

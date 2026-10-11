@@ -104,7 +104,7 @@ Section griotte_lang_rules.
 
   (** A shadow store keeps erasure if it stores the cell's current bit, or if
       the caller holds the cell's permission: the cell is unclaimed, or
-      claimed by a painting allocation (§4.5). Heap roots are never painted. *)
+      claimed by a painting allocation. Heap roots are never painted. *)
   Definition shadow_store_perm (a : Addr) : iProp Σ :=
     addr_alloc a Unclaimed ∨ ∃ ι q, addr_alloc a (Claimed ι) ∗ ι ↦st{q} APainting.
 
@@ -1838,7 +1838,7 @@ iApply "Hφ".
   Qed.
 
   (** A shadow store of the status [revoked] to [heap_a]: either it stores the
-      current bit, or [heap_a] is in the permission set [sperm] (§4.5). *)
+      current bit, or [heap_a] is in the permission set [sperm]. *)
   Lemma wp_store_success_shadow E pc_p pc_g pc_b pc_e pc_a pc_π
     dst src w regs regs' mem shadow (sperm : gset Addr) p g b e a heap_a revoked πs :
     decodeInstrW w.(lw) = Store dst src 0 →
@@ -2855,7 +2855,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
   Qed.
 
 
-  (** ** The revoker store (D16)
+  (** ** The revoker store
 
       A store to the revoker sweeps memory. It kills a chosen set [K] of
       quarantined identifiers, whose ranges are painted: their cells become

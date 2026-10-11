@@ -750,7 +750,7 @@ Section wp_interp.
   Qed.
 
   (** A load through a valid capability: the world supplies the quarantine
-      witness of the loaded word, which makes the loaded word valid (§4.5). *)
+      witness of the loaded word, which makes the loaded word valid. *)
   Lemma wp_load_interp_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
@@ -844,7 +844,7 @@ Section wp_interp.
 
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
       [by eapply readAllowed_nonO|done|].
-    (* The world's heap provenance supplies the status witness (§4.5). *)
+    (* The world's heap provenance supplies the status witness. *)
     iDestruct (world_interp_open_heap_provenance with "Hworld_interp") as "[Hworld_interp #Hprov]".
     iDestruct (heap_provenance_load_witness W w with "Hprov") as "Hwit".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
@@ -1035,7 +1035,7 @@ Section wp_interp.
   Qed.
 
   (** A load through the world's witness keeps the world's view of the loaded
-      word: a quarantined identifier's capability is loaded untagged (§4.8). *)
+      word: a quarantined identifier's capability is loaded untagged. *)
   Lemma shadow_read_retained W p raw actual :
     load_post (load_witness_of W raw) p raw actual →
     filter_heap W actual = actual.

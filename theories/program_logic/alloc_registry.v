@@ -295,7 +295,7 @@ Proof.
   rewrite /reg_auth /reg_names fmap_empty big_sepM_empty. by iFrame.
 Qed.
 
-(** * The address claim (D10)
+(** * The address claim
 
     Every heap address carries a claim, owned exclusively: no non-dead
     allocation covers it ([Unclaimed]), the non-dead allocation [ι] covers it
@@ -384,7 +384,7 @@ Proof.
   iModIntro. iExists {| addr_alloc_name := γ |}. iFrame.
 Qed.
 
-(** * The client half of the status token (D35)
+(** * The client half of the status token
 
     While [ι] is live, half of its status token is split by an instance of
     [FreeAuth] into the part kept by the allocator and the part held by the
@@ -397,7 +397,7 @@ Class FreeAuth (Σ : gFunctors) `{!allocRegistryG Σ} := {
   free_auth_split ι : free_auth_kept ι ∗ free_auth_held ι ⊣⊢ ι ↦st{1/2} ALive;
 }.
 
-(** * Heap-cell points-to (D17)
+(** * Heap-cell points-to
 
     A heap cell of [ι] carries one share of [ι]'s status token, with the range
     of [ι]. The region machinery uses the same atom over region keys,

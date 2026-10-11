@@ -180,7 +180,7 @@ Section logrel.
   (** The Load filter as the world sees it. A word with heap authority and an
       identifier [ι] loads untagged once the world has [ι] Quarantined;
       every other word loads unchanged. The lookup is by the word's
-      identifier, not by address (D5, D21). *)
+      identifier, not by address. *)
   Definition filter_heap (W : WORLD) (w : LWord) : LWord :=
     match heap_authority_base w.(lw), w.(lprov) with
     | Some _, Some ι =>
@@ -732,7 +732,7 @@ Section logrel.
   Definition interp_z : V := λne _ _ w, ⌜match w.(lw) with WInt z => True | _ => False end⌝%I.
 
   (** Heap authority belongs to the live object of the word's identifier [ι],
-      whose range covers both bounds (§4.6). *)
+      whose range covers both bounds. *)
   Definition heap_cap_live (W : WORLD) (p : Perm) (b e : Addr) (ι : AId) : Prop :=
     ∃ o, heap_std W !! ι = Some o ∧
          alloc_object_status o = AllocObjectLive ∧
@@ -799,7 +799,7 @@ Section logrel.
 
   (** A valid capability over a heap payload names the live object covering
       it, and every cell of the payload is a live, non-revoked key of the
-      world (D21). *)
+      world. *)
   Lemma free_heap_cap_payload W p g b e π :
     (heap_b < b ∧ b < e ∧ e <= heap_e)%a ->
     heap_cap_O_valid W p g b e π ->
@@ -1797,7 +1797,7 @@ Section logrel.
 
   (** ** Loads in the current world
 
-      The world supplies a status witness for the Load rule (§4.5): the
+      The world supplies a status witness for the Load rule: the
       quarantine witness [ι ⊒ AQuar] when it has the loaded word's
       identifier [ι] Quarantined, and the plain witness otherwise. *)
   Definition load_witness_of (W : WORLD) (v : LWord) : load_witness :=

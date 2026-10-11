@@ -113,7 +113,7 @@ Section Heap_Temporal_Safety_Interp.
 
   (** The registers outside the arguments carry no identifier at entry: the
       switcher's return sentry and the stack capability have none, and every
-      other non-argument register holds zero (D23). *)
+      other non-argument register holds zero. *)
   Lemma free_entry_regs_idfree (regs : LReg) (wcsp : Word) (nargs : nat) :
     regs !! csp = Some (lword_of_word wcsp) ->
     (∀ (r : RegName) (v : LWord),

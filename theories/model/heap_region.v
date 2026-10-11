@@ -241,7 +241,7 @@ Section heap_region.
   Context {Σ : gFunctors} `{!allocRegistryG Σ}.
 
   (** Each entry of a world's heap carries the registry's record of its range
-      (D18). A quarantined entry carries the registry's witness that its
+     . A quarantined entry carries the registry's witness that its
       object reached [AQuar]. *)
   Definition heap_entry_provenance (ι : AId) (o : AllocObject) : iProp Σ :=
     alloc_obj ι (alloc_object_base o) (alloc_object_end o) ∗

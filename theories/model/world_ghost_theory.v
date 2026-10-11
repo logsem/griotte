@@ -428,7 +428,7 @@ Section world_ghost_theory.
     iSplit ; iIntros "[Hr $]"; iApply region_open_nil; done.
   Qed.
 
-  (** Liveness from a status share (D40): a share [ι ↦st{q} ALive] held outside
+  (** Liveness from a status share: a share [ι ↦st{q} ALive] held outside
       the world shows that the world's entry for [ι], if any, is not Quarantined. *)
   Lemma world_interp_open_status_live W C s ι o q :
     heap_std W !! ι = Some o →
@@ -1857,7 +1857,7 @@ Section world_ghost_theory.
     apply elem_of_dom in Hin as [? Hx]. by rewrite lookup_empty in Hx.
   Qed.
 
-  (** The D15 sync step: a world moves its entry for a freed [ι] to Quarantined
+  (** The sync step: a world moves its entry for a freed [ι] to Quarantined
       using only [ι ⊒ AQuar], whatever regions are open. *)
   Lemma region_open_sync_quarantine W C l ι :
     ι ⊒ AQuar -∗

@@ -29,7 +29,7 @@ Section HTS_Reload.
     hts_main_instrs_n 10.
 
   (** Reload of the saved buffer from the stack slot [s], just below the
-      current stack pointer, with the load witness [wit] (D41): the plain
+      current stack pointer, with the load witness [wit]: the plain
       post (variant 1) for [LoadPlain], the untagged word (variant 2) for
       [LoadQuar ι]. *)
   Lemma hts_reload_retained_buffer_spec
@@ -228,7 +228,7 @@ Section HTS_Spec_Free.
     iEval (cbv [fmap list_fmap concat]) in "Hcode".
 
     (* Block 9: reload the saved buffer. The world's entry for ι after the
-       adversary call decides the load witness (D41). *)
+       adversary call decides the load witness. *)
     hts_focus_entry_block 9 "Hcode" as a_reload Ha_reload "Hblock" "Hcont"
       from Ha_ret.
     iHide "Hcont" as hcont.

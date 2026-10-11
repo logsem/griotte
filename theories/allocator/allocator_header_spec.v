@@ -207,7 +207,7 @@ Proof.
     + apply (IH e0 Htail Hin Ha). by exists b', e', r', ι'.
 Qed.
 
-(** The local header check (D11): if the word below [b] is a header word and
+(** The local header check: if the word below [b] is a header word and
     [b] is not, then [b] is the base of an entry. *)
 Lemma allocator_is_header_base allocations a b :
   allocator_is_header allocations a ->

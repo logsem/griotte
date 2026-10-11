@@ -5,12 +5,12 @@ From griotte.allocator Require Import allocator allocator_preamble.
 From griotte.allocator Require Export allocator_malloc_spec allocator_free_spec.
 
 (** The public specifications of [malloc] and [free]: calls through the
-    switcher from a known caller (§4.8). They take the same ghost resources as
+    switcher from a known caller. They take the same ghost resources as
     the functional specifications, with generic resources only. The argument
-    is in [ca0] (D36). The callers carry no register condition: the
+    is in [ca0]. The callers carry no register condition: the
     switcher-entry facts (the non-argument registers are zero, the stack and
     return capabilities carry no identifier) discharge the allocator-entry
-    condition of the functional [free] (D23). *)
+    condition of the functional [free]. *)
 
 Section AllocatorSwitcherSpec.
   Context
@@ -118,7 +118,7 @@ Section AllocatorSwitcherSpec.
       iPureIntro. split; [exact Hbounds|done].
   Qed.
 
-  (** The result of [free]: only [ι ⊒ AQuar] (D12). *)
+  (** The result of [free]: only [ι ⊒ AQuar]. *)
   Definition allocator_free_result (ι : AId) (w0 w1 : LWord) : iProp Σ :=
     (ι ⊒ AQuar ∗ ⌜w0 = WInt ALLOC_OK ∧ w1 = WInt 0⌝)%I.
 
@@ -161,7 +161,7 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
     (* The registers framed by [free] hold zero or the stack capability:
-       none carries an identifier (D23). *)
+       none carries an identifier. *)
     set (rmap0 := delete cnull (delete ctp (delete ct4 (delete ct3
       (delete ct2 (delete ct1 rmap')))))).
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap #Hzero]".

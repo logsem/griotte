@@ -4,7 +4,7 @@ From griotte Require Export addresses region_keys.
 (** Allocation objects describe payloads, not allocator headers or free addresses.
     The heap is keyed by allocation identifier; each object records its range.
     A world does not require the ranges of its objects to be disjoint: the
-    allocation registry keeps the ranges of live objects disjoint (D5). *)
+    allocation registry keeps the ranges of live objects disjoint. *)
 Inductive AllocObjectStatus := AllocObjectLive | AllocObjectQuarantined.
 
 Global Instance alloc_object_status_eq_dec : EqDecision AllocObjectStatus.
