@@ -23,7 +23,7 @@ Section Stack_callee_secret_f.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -163,12 +163,13 @@ Section Stack_callee_secret_f.
         ((b_tbl ^+ 2)%a ↦ₐ stack_callee_secret_exp_tbl_entry_f
          ∗ (b_tbl ^+ 2)%a ↣ₐ stack_callee_secret_exp_tbl_entry_f)
     ∗ WSealed ot_switcher (SCap RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a) ↦□ₑ stack_callee_secret_f_args
+    ∗ WSealed ot_switcher (SCap RO Local b_tbl e_tbl (b_tbl ^+ 2)%a) ↦□ₑ stack_callee_secret_f_args
     -∗
     ot_switcher_prop W C
       (WCap RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a, WCap RO g_tbl b_tbl e_tbl (b_tbl ^+ 2)%a).
   Proof.
     iIntros (Htbl_size HsubBounds Himports_contiguous Hcgp_contiguous)
-      "(#Hswitcher & #HT & #Htbl_pcc & #Htbl_cgp & #Htbl_f & #Hentry_f)".
+      "(#Hswitcher & #HT & #Htbl_pcc & #Htbl_cgp & #Htbl_f & #Hentry_f & #Hentry_f_borrow)".
     rewrite /stack_callee_secret_exp_tbl_entry_f.
     iExists g_tbl, b_tbl, e_tbl, (b_tbl ^+ 2)%a, pc_b, pc_e, cgp_b, cgp_e,
       stack_callee_secret_f_args, (Z.of_nat stack_callee_secret_f_offset), TN.
@@ -182,60 +183,6 @@ Section Stack_callee_secret_f.
     iIntros "!> %W' %Hrelated !>".
     iApply (stack_callee_secret_f_spec pc_b pc_e pc_a cgp_b cgp_e B_adv secret1 secret2
               W' C Nswitcher TN with "[$Hswitcher $HT]"); eauto.
-  Qed.
-
-  (** The entry point [T.f], sealed by the switcher, is safe to share with
-      the adversary. *)
-  Lemma stack_callee_secret_f_interp
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (b_tbl e_tbl : Addr)
-    (B_adv : Sealable)
-    (secret1 secret2 : Z)
-    (W : WORLD) (C : CmptName)
-    (Nswitcher TN : namespace)
-    :
-    (b_tbl <= b_tbl ^+ 2 < e_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length stack_callee_secret_code)%a ->
-    (pc_b + length (stack_callee_secret_imports B_adv))%a = Some pc_a ->
-    (cgp_b + length (stack_callee_secret_data secret1))%a = Some cgp_e ->
-
-    na_inv cerise_nais Nswitcher switcher_inv_binary
-    ∗ na_inv cerise_nais TN (stack_callee_secret_inv pc_b pc_a cgp_b B_adv secret1 secret2)
-    ∗ inv (export_table_PCCN TN)
-        (b_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b ∗ b_tbl ↣ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN TN)
-        ((b_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b
-         ∗ (b_tbl ^+ 1)%a ↣ₐ WCap RW Global cgp_b cgp_e cgp_b)
-    ∗ inv (export_table_entryN TN (b_tbl ^+ 2)%a)
-        ((b_tbl ^+ 2)%a ↦ₐ stack_callee_secret_exp_tbl_entry_f
-         ∗ (b_tbl ^+ 2)%a ↣ₐ stack_callee_secret_exp_tbl_entry_f)
-    ∗ WSealed ot_switcher (SCap RO Global b_tbl e_tbl (b_tbl ^+ 2)%a) ↦□ₑ stack_callee_secret_f_args
-    ∗ WSealed ot_switcher (SCap RO Local b_tbl e_tbl (b_tbl ^+ 2)%a) ↦□ₑ stack_callee_secret_f_args
-    ∗ seal_pred ot_switcher ot_switcher_propC
-    -∗
-    interp W C
-      (WSealed ot_switcher (SCap RO Global b_tbl e_tbl (b_tbl ^+ 2)%a),
-       WSealed ot_switcher (SCap RO Global b_tbl e_tbl (b_tbl ^+ 2)%a)).
-  Proof.
-    iIntros (Htbl_size HsubBounds Himports_contiguous Hcgp_contiguous)
-      "(#Hswitcher & #HT & #Htbl_pcc & #Htbl_cgp & #Htbl_f
-       & #Hentry_f & #Hentry_f' & #Hsealed_pred_ot_switcher)".
-    rewrite interp_sealed_inv.
-    iSplit; first done.
-    rewrite /interp_sb.
-    iExists ot_switcher_prop.
-    iFrame "Hsealed_pred_ot_switcher".
-    iSplit; first (iPureIntro ; apply persistent_cond_ot_switcher).
-    iSplit; first (iIntros (w) ; iApply mono_priv_ot_switcher).
-    iSplit; first done.
-    iSplit; iNext.
-    - iApply (stack_callee_secret_f_ot_switcher_prop
-                pc_b pc_e pc_a cgp_b cgp_e b_tbl e_tbl Global B_adv secret1 secret2 W C Nswitcher TN
-               with "[$Hswitcher $HT $Htbl_pcc $Htbl_cgp $Htbl_f $Hentry_f]"); eauto.
-    - iApply (stack_callee_secret_f_ot_switcher_prop
-                pc_b pc_e pc_a cgp_b cgp_e b_tbl e_tbl Local B_adv secret1 secret2 W C Nswitcher TN
-               with "[$Hswitcher $HT $Htbl_pcc $Htbl_cgp $Htbl_f $Hentry_f']"); eauto.
   Qed.
 
 End Stack_callee_secret_f.

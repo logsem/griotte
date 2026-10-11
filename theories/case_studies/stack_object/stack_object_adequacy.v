@@ -156,7 +156,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type Σ}.
+  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -259,18 +259,33 @@ Section Adequacy.
     { pose proof (cmpt_exp_tbl_entries_start_eq main_cmpt).
       pose proof (cmpt_exp_tbl_pcc_size main_cmpt).
       solve_addr. }
-    iAssert (interp (∅, (∅, ∅)) C (WSealed (ot_switcher switcher_cmpt) SO_f))
-      as "#Hinterp_SO".
-    { iApply (stack_object_f_spec_safe _ _ _ _ _ _ _ _ (∅, (∅, ∅)) assertN switcherN soN soN);
+    (* Seal the exported entry of the main compartment with [ot_switcher] in
+       the world *)
+    set (W0 := (∅, (∅, ∅), ∅) : WORLD).
+    set (W0' := <o[ ot_switcher switcher_cmpt :=
+                    {[ WSealable SO_f; borrow (WSealable SO_f) ]} ]o> W0).
+    iAssert (ot_switcher_prop W0' C (WSealable SO_f)) as "#Hot_switcher_SO_f".
+    { iApply (stack_object_f_spec _ _ _ _ _ _ _ _ _ W0' assertN switcherN soN soN);
         try iFrame "#"; eauto; solve_ndisj. }
+    iMod (seal_main_export W0 C SO_f
+           with "Hsealed_pred_ot_switcher Hot_switcher_SO_f Hworld_interp_C")
+      as "(Hworld_interp_C & #Hinterp_SO)"; [done..|].
 
     (* Initialises the world for C *)
     pose proof switcher_cmpt_disjoints as (Hsw_main & Hsw_C).
-    iMod (initialise_adversary_world _ switcher_cmpt _ C
-           with "HC_imports HC_code HC_data Hstack [] Hworld_interp_C")
-      as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C)"; auto.
+    iMod (initialise_adversary_world W0' switcher_cmpt _ C
+           with "Hsealed_pred_ot_switcher HC_imports HC_code HC_data Hstack [] [] Hworld_interp_C")
+      as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)";
+      [auto..| | |].
+    { (* The exported entries C.f and C.g satisfy the sealing predicate of the switcher *)
+      iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f); (2, offset_adv_g)]
+               with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
+        [by rewrite C_exp_tbl | by repeat constructor |].
+      rewrite /= finz_add_0_default.
+      iFrame "Hentry_Cf Hentry_Cf' Hentry_Cg Hentry_Cg'".
+    }
     { rewrite C_imports.
-      iIntros "[#Hpcc_interp #Hcgp_interp]".
+      iIntros "(#Hpcc_interp & #Hcgp_interp & #Hexports)".
       (* Switcher cross-compartment *)
       iSplit.
       { iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done. }
@@ -287,21 +302,15 @@ Section Adequacy.
       (* C.g *)
       iSplit; last done.
       iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-      iApply (adversary_export_interp _ _ _ _ _ 1 2 offset_adv_g
-               with "Hswitcher Hsealed_pred_ot_switcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
-                     Hpcc_interp Hcgp_interp Hentry_Cg Hentry_Cg'").
-      - by rewrite C_exp_tbl.
+      iApply (adversary_export_interp _ _ _ 1 with "Hexports").
       - done.
-      - lia.
+      - rewrite C_exp_tbl /=; lia.
     }
-    iAssert (interp (adv_world (∅, (∅, ∅)) switcher_cmpt C_cmpt) C
+    iAssert (interp (adv_world W0' switcher_cmpt C_cmpt) C
                (WSealed (ot_switcher switcher_cmpt) C_f)) as "#Hinterp_C_f".
-    { iApply (adversary_export_interp _ _ _ _ _ 0 0 offset_adv_f
-               with "Hswitcher Hsealed_pred_ot_switcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
-                     Hinterp_pcc_C Hinterp_cgp_C Hentry_Cf Hentry_Cf'").
-      - by rewrite C_exp_tbl.
+    { iApply (adversary_export_interp _ _ _ 0 with "HC_exports").
       - solve_addr.
-      - lia.
+      - rewrite C_exp_tbl /=; lia.
     }
 
     (* Extract registers *)
@@ -361,8 +370,8 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type ; relPreΣ
-              ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
+              ; STS_preΣ Addr region_type OType Word ; relPreΣ
+              ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@so_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.

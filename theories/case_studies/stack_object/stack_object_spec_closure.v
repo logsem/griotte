@@ -15,7 +15,7 @@ Section SO.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -103,8 +103,8 @@ Section SO.
     ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
         ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
-    ∗ WSealed ot_switcher (SCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)
-        ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
     ot_switcher_prop W C (WCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a).
@@ -135,7 +135,8 @@ Section SO.
       & #Hso_exp_PCC
       & #Hso_exp_CGP
       & #Hso_exp_awkward
-      & #Hentry_SO & #Hot_switcher)".
+      & #Hentry_SO & #Hentry_SO_borrow
+      & #Hot_switcher)".
     iExists g_so_exp_tbl, b_so_exp_tbl, e_so_exp_tbl, (b_so_exp_tbl ^+ 2)%a,
     pc_b, pc_e, cgp_b, cgp_e, 2, _, SON.
     iFrame "#".
@@ -272,66 +273,6 @@ Section SO.
       destruct Hsync_csp as [].
       rewrite -H0; auto. }
     { iSplit; iApply interp_int. }
-  Qed.
-
-
-  Lemma stack_object_f_spec_safe
-
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-
-    (b_so_exp_tbl e_so_exp_tbl : Addr)
-
-    (C_f : Sealable)
-
-    (W : WORLD)
-
-    (Nassert Nswitcher Nso SON : namespace)
-
-    :
-
-    let imports := so_main_imports C_f in
-
-    Nswitcher ## Nassert ->
-    Nswitcher ## Nso ->
-    Nassert ## Nso ->
-    (b_so_exp_tbl <= b_so_exp_tbl ^+ 2 < e_so_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
-    (pc_b + length imports)%a = Some pc_a ->
-    (cgp_b + length so_main_data)%a = Some cgp_e ->
-
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv cerise_nais Nswitcher switcher_inv
-    ∗ na_inv cerise_nais Nso
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
-    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
-    ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
-        ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
-    ∗ WSealed ot_switcher (SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)
-        ↦□ₑ 2
-    ∗ WSealed ot_switcher (SCap RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)
-        ↦□ₑ 2
-    ∗ seal_pred ot_switcher ot_switcher_propC
-      -∗
-    interp W C
-      (WSealed ot_switcher (SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)).
-  Proof.
-    intros imports.
-    iIntros (Hswitcher_assert HNswitcher_so HNassert_so
-               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size)
-      "(#Hassert & #Hswitcher
-      & #Hso_code
-      & #Hso_exp_PCC
-      & #Hso_exp_CGP
-      & #Hso_exp_awkward
-      & #Hentry_SO & #Hentry_SO' & #Hot_switcher)".
-    iEval (rewrite fixpoint_interp1_eq /=).
-    rewrite /interp_sb.
-    iFrame "Hot_switcher".
-    iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
-    iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
-    iSplit; iNext ; iApply stack_object_f_spec; try iFrame "#"; eauto.
   Qed.
 
 End SO.

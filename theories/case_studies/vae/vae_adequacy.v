@@ -155,7 +155,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type Σ}.
+  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -203,7 +203,7 @@ Section Adequacy.
     iMod (initialise_world [C] {[ ot_switcher switcher_cmpt ]})
       as (seal_storeg relg stsg cstackg) "(Hseal_store & Hcstk_full & Hcstk_frag & [Hworld_interp_C _])";
       [done | apply NoDup_singleton |].
-    set (W0 := (∅, (∅, ∅))).
+    set (W0 := (∅, (∅, ∅), ∅) : WORLD).
 
     (* Get initial sregister mtdc *)
     iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first exact Hsreg.
@@ -272,17 +272,32 @@ Section Adequacy.
     iDestruct (inv_alloc awkN _ (awk_inv C i _) with "[Hcgp_b Hst_i]") as ">#Hawk_inv".
     { iExists false; iFrame. }
 
-    iAssert (interp W1 C (WSealed (ot_switcher switcher_cmpt) awk_f)) as "#Hinterp_VAE".
-    { iApply (vae_awkward_safe _ _ _ _ _ _ _ _ W1 assertN switcherN vaeN vaeN);
+    (* Seal the exported entry of the main compartment with [ot_switcher] in
+       the world *)
+    set (W1' := <o[ ot_switcher switcher_cmpt :=
+                    {[ WSealable awk_f; borrow (WSealable awk_f) ]} ]o> W1).
+    iAssert (ot_switcher_prop W1' C (WSealable awk_f)) as "#Hot_switcher_awk_f".
+    { iApply (vae_awkward_spec _ _ _ _ _ _ _ _ _ W1' assertN switcherN vaeN vaeN);
         try iFrame "#"; eauto; solve_ndisj. }
+    iMod (seal_main_export W1 C awk_f
+           with "Hsealed_pred_ot_switcher Hot_switcher_awk_f Hworld_interp_C")
+      as "(Hworld_interp_C & #Hinterp_VAE)"; [done..|].
 
     (* Initialises the world for C *)
     pose proof switcher_cmpt_disjoints as (Hsw_main & Hsw_C).
-    iMod (initialise_adversary_world W1 switcher_cmpt _ C
-           with "HC_imports HC_code HC_data Hstack [] Hworld_interp_C")
-      as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C)"; auto.
+    iMod (initialise_adversary_world W1' switcher_cmpt _ C
+           with "Hsealed_pred_ot_switcher HC_imports HC_code HC_data Hstack [] [] Hworld_interp_C")
+      as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)";
+      [auto..| | |].
+    { (* The exported entries C.f and C.g satisfy the sealing predicate of the switcher *)
+      iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f); (0, offset_adv_g)]
+               with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
+        [by rewrite C_exp_tbl | by repeat constructor |].
+      rewrite /= finz_add_0_default.
+      iFrame "Hentry_Cf Hentry_Cf' Hentry_Cg Hentry_Cg'".
+    }
     { rewrite C_imports.
-      iIntros "[#Hpcc_interp #Hcgp_interp]".
+      iIntros "(#Hpcc_interp & #Hcgp_interp & #Hexports)".
       (* Switcher cross-compartment *)
       iSplit.
       { iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done. }
@@ -299,21 +314,15 @@ Section Adequacy.
       (* C.g *)
       iSplit; last done.
       iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-      iApply (adversary_export_interp _ _ _ _ _ 1 0 offset_adv_g
-               with "Hswitcher Hsealed_pred_ot_switcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
-                     Hpcc_interp Hcgp_interp Hentry_Cg Hentry_Cg'").
-      - by rewrite C_exp_tbl.
+      iApply (adversary_export_interp _ _ _ 1 with "Hexports").
       - done.
-      - lia.
+      - rewrite C_exp_tbl /=; lia.
     }
-    iAssert (interp (adv_world W1 switcher_cmpt C_cmpt) C
+    iAssert (interp (adv_world W1' switcher_cmpt C_cmpt) C
                (WSealed (ot_switcher switcher_cmpt) C_f)) as "#Hinterp_C_f".
-    { iApply (adversary_export_interp _ _ _ _ _ 0 0 offset_adv_f
-               with "Hswitcher Hsealed_pred_ot_switcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries
-                     Hinterp_pcc_C Hinterp_cgp_C Hentry_Cf Hentry_Cf'").
-      - by rewrite C_exp_tbl.
+    { iApply (adversary_export_interp _ _ _ 0 with "HC_exports").
       - solve_addr.
-      - lia.
+      - rewrite C_exp_tbl /=; lia.
     }
 
     (* Extract registers *)
@@ -336,7 +345,7 @@ Section Adequacy.
     { solve_ndisj. }
     { solve_ndisj. }
     { solve_ndisj. }
-    { rewrite /adv_world_with /std_update_compartment /W1.
+    { rewrite /adv_world_with /std_update_compartment /W1' /W1.
       rewrite !std_update_multiple_loc_sta.
       by simplify_map_eq.
     }
@@ -377,8 +386,8 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type ; relPreΣ
-              ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
+              ; STS_preΣ Addr region_type OType Word ; relPreΣ
+              ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@vae_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.

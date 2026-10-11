@@ -15,7 +15,7 @@ Section DLE_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -191,7 +191,7 @@ Section DLE_World.
     iDestruct (big_sepL_elem_of_extract _ (fun a => ▷ ∃ v, a ↦ₐ v)%I cgp_b
                 with "[] [$Hrevoked_l]")
       as (l'') "(_ & _ & >[%wcgpb Hcgp_b])".
-    { assert (W4.1 !! cgp_b = Some Temporary) as HW4.
+    { assert (std W4 !! cgp_b = Some Temporary) as HW4.
       { eapply region_state_pub_temp; eauto. }
       destruct Hl_unk as [_ Hl_unk].
       apply Hl_unk in HW4.

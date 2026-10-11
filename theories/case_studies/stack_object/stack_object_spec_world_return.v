@@ -16,7 +16,7 @@ Section SO_World_Return.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
@@ -312,8 +312,9 @@ Section SO_World_Return.
           apply elem_of_finz_seq_between.
           solve_addr+Hx Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add.
       }
-      destruct W4 as [W4std W4cus]; cbn.
-      split; [|apply related_sts_pub_refl]; cbn.
+      destruct W4 as [ [W4std W4cus] W4seals]; cbn.
+      split; [|split];
+        [|apply related_sts_pub_refl|apply related_sts_seals_std_refl]; cbn.
       split.
       - setoid_rewrite <- close_list_dom_eq.
         setoid_rewrite <- revoke_dom_eq. done.
@@ -343,15 +344,20 @@ Section SO_World_Return.
         - apply elem_of_app; left. subst closing_revoked.
           by apply elem_of_app; left.
         - by apply elem_of_app; right. }
-      destruct W0 as [W0std W0cus].
-      destruct W4 as [W4std W4cus]. cbn in *.
-      split; cbn; cycle 1.
-      - destruct Hpriv as (_ & Hcus03).
-        destruct Hpub as (_ & Hcus34).
+      destruct W0 as [ [W0std W0cus] W0seals].
+      destruct W4 as [ [W4std W4cus] W4seals]. cbn in *.
+      split; [|split]; cbn; cycle 1.
+      - destruct Hpriv as (_ & Hcus03 & _).
+        destruct Hpub as (_ & Hcus34 & _).
         clear -Hcus03 Hcus34.
         cbn in *.
         eapply related_sts_pub_trans; eauto.
         apply related_sts_pub_refl.
+      - destruct Hpriv as (_ & _ & Hseals03).
+        destruct Hpub as (_ & _ & Hseals34).
+        clear -Hseals03 Hseals34.
+        cbn in *.
+        eapply related_sts_seals_trans; eauto; apply related_sts_seals_std_refl.
       - split.
         + destruct Hpriv as [ [Hdom03 _] _].
           destruct Hpub as [ [Hdom34 _] _].
@@ -365,7 +371,7 @@ Section SO_World_Return.
             specialize (Hinitial_W5 x Hx_close).
             rewrite close_list_std_sta_revoked in Hx5; auto.
             simplify_eq; apply rtc_refl.
-          * assert (std (W4std, W4cus) !! x = Some Permanent)
+          * assert (std (W4std, W4cus, W4seals) !! x = Some Permanent)
               as Hx4.
             { eapply region_state_priv_perm.
               - eapply related_sts_priv_pub_trans_world; eauto.

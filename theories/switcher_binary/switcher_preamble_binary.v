@@ -26,7 +26,7 @@ Section Switcher_preamble.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -189,6 +189,7 @@ Section Switcher_preamble.
                (a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off)
                 ∗ a_tbl ↣ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
            ∗ (seal_capability ww.1 ot_switcher) ↦□ₑ nargs
+           ∗ (seal_capability (borrow ww.1) ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap RX Global bpcc epcc (bpcc ^+ off)%a, WCap RX Global bpcc epcc (bpcc ^+ off)%a)
@@ -215,8 +216,8 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME Hww1 Hww2
-       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hcont)".
-    iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
+       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+    iFrame "Hinvpcc Hinvcgp Hinventry Hentry Hentry_borrow".
     iExists _,_.
     repeat (iSplit ; first done).
     iModIntro.
@@ -225,6 +226,20 @@ Section Switcher_preamble.
     iApply "Hcont".
     iPureIntro.
     by eapply related_sts_priv_trans_world.
+  Qed.
+
+  Lemma ot_switcher_prop_borrow (W : WORLD) (C : CmptName) (ww : Word * Word) :
+    ot_switcher_prop W C ww -∗ ot_switcher_prop W C (borrow_pair ww).
+  Proof.
+    iIntros "Hot_switcher".
+    iEval (cbn) in "Hot_switcher".
+    iEval (cbn).
+    iDestruct "Hot_switcher" as
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME Hww1 Hww2
+       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+    destruct ww as [w1 w2]; cbn in Hww1, Hww2 |- *; subst.
+    iFrame "#∗%".
+    iExists Local; iPureIntro; done.
   Qed.
 
   (** ** Interpretation of the call stacks *)

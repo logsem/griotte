@@ -10,7 +10,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -273,18 +273,12 @@ Section fundamental.
   Proof.
     iIntros "Hinterp".
     rewrite !interp_sealed_inv /interp_sb.
-    iDestruct "Hinterp" as "[%Heq (%P & %HpersP & Hmono & Hsealpred & %Hloc & _ & HPborrowed)]".
-    opose proof (HpersP (W,C,_)) as HpersPborrowed; cbn in HpersPborrowed.
-    iDestruct "HPborrowed" as "#HPborrowed".
-    replace (borrow (WSealable (borrow_sb sb1))) with (WSealable (borrow_sb sb1))
-    by (destruct sb1; auto).
-    replace (borrow (WSealable (borrow_sb sb2))) with (WSealable (borrow_sb sb2))
-    by (destruct sb2; auto).
+    iDestruct "Hinterp" as "[%Heq [%Hsb Hseals] ]".
     iSplit; first done.
-    iExists P.
-    iFrame "∗#%".
-    iPureIntro.
-    by subst.
+    iSplit; first (iPureIntro; by subst).
+    iApply sts_seals_std_weaken; last iFrame.
+    rewrite /borrow_pair /= !borrow_sb_idempotent.
+    set_solver+.
   Qed.
 
   Lemma interp_deeplocal_word W C (ww : Word * Word) :

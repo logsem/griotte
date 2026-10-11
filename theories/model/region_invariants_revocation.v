@@ -14,8 +14,8 @@ Section region_invariant_revocation.
 
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
-    {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
@@ -255,7 +255,7 @@ Section region_invariant_revocation.
       iMod ("IH" with "[] [] Hfull Hr") as (Mρ' Hdom_new) "[Hfull Hr]"; auto.
       { iPureIntro. intros a Ha. apply Hin. apply elem_of_cons. by right. }
       rewrite /revoke_list /=.
-      destruct W as [Wstd_sta Wloc].
+      destruct W as [ [Wstd_sta Wloc] Wseals].
       destruct (Wstd_sta !! x) eqn:Hsome;[|iExists _; cbn; rewrite Hsome ; by iFrame "%∗"].
       destruct r;[|iExists _; cbn; rewrite Hsome; by iFrame..].
       destruct Hin with x as [γp Hsomea];[apply list_elem_of_here|].
@@ -422,7 +422,7 @@ Section region_invariant_revocation.
         iMod ("IH" with "[] [] [] [$Hrel $Hfull $Hr]") as "(Hfull & Hr & Hl)"; auto.
         iDestruct "Hr" as (M Mρ) "(HM & #Hdom & #Hdom' & Hr)".
         iDestruct "Hdom" as %Hdom. iDestruct "Hdom'" as %Hdom'. iClear "IH".
-        rewrite /revoke_list /=. destruct W as [ Wstd_sta Wloc].
+        rewrite /revoke_list /=. destruct W as [ [ Wstd_sta Wloc] Wseals].
         destruct (Wstd_sta !! x) eqn:Hsome.
         2: { iFrame. iModIntro. rewrite Hsome. iFrame. iFrame. auto. }
         rewrite Hsome.
@@ -671,7 +671,7 @@ Section region_invariant_revocation.
   Proof.
     iIntros (Hrevoked Hdom Hstd Hrelated) "Hfull Hr".
     rewrite /revoke in Hdom |- *.
-    destruct W as [Wstd_sta Wloc].
+    destruct W as [ [Wstd_sta Wloc] Wseals].
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
     iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
@@ -723,9 +723,6 @@ Section region_invariant_revocation.
   Qed.
 
 
-(* ------------------------------------------------------------------------------- *)
-(* ----------------------------- SEPARATION LEMMAS ------------------------------- *)
-(* ------------------------------------------------------------------------------- *)
 
   Lemma close_addr_resources_separation
     (C : CmptName) (W : WORLD) (a1 a2 : Addr) (v : Word) :

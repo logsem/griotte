@@ -18,7 +18,7 @@ Section Switcher_Call_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -138,19 +138,38 @@ Section Switcher_Call_World.
 
   (** ** Entry point of the callee *)
 
+  (** Since [Po] is persistent, the world interpretation is given back
+      immediately: only the sealing predicate is under a later. *)
+  Lemma world_interp_seal_pred_singleton_persistent
+    (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)}
+    (w : Word * Word) :
+    seal_pred o Po -∗
+    sts_seals_std C o {[ w ]} -∗
+    world_interp W C -∗
+    world_interp W C ∗ ▷ Po (W, C, force_global_pair w).
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "#Hspred Hseal ($ & Hsts & Hseals)".
+    iDestruct (sealing_map_seal_pred_persistent with "Hspred Hseal Hseals Hsts")
+      as "($ & $ & H)"; eauto.
+    by rewrite normalise_sealed_words_singleton big_sepS_singleton.
+  Qed.
+
   (** The sealing predicate of [ot_switcher] describes the entry point of
       the callee, once unsealed. It relates identical entry points, hence
       the spec run unseals the same entry point. *)
   Lemma switcher_entry_point_prop W C (wct1 swct1 : Word) :
     seal_pred ot_switcher ot_switcher_propC -∗
     (if is_sealed_with_o wct1 ot_switcher then interp W C (wct1, swct1) else True) -∗
+    world_interp W C -∗
+    world_interp W C ∗
     ▷ (⌜ ∀ wsb, wct1 = WSealed ot_switcher wsb → swct1 = WSealed ot_switcher wsb ⌝ ∗
        ∀ wsb, ⌜ wct1 = WSealed ot_switcher wsb ⌝ -∗
               ot_switcher_prop W C (WSealable wsb, WSealable wsb)).
   Proof.
-    iIntros "#Hp_ot_switcher #Htarget_v".
+    iIntros "#Hp_ot_switcher #Htarget_v Hworld_interp".
     destruct (is_sealed_with_o wct1 ot_switcher) eqn:Hsealed; cycle 1.
-    { iNext; iSplit.
+    { iFrame; iNext; iSplit.
       - iPureIntro; intros wsb ->; cbn in Hsealed.
         by rewrite Z.eqb_refl in Hsealed.
       - iIntros (wsb ->); cbn in Hsealed.
@@ -165,20 +184,26 @@ Section Switcher_Call_World.
     assert (∃ swsb0, swct1 = WSealed ot_switcher swsb0) as [swsb0 ->].
     { destruct Heq as [<-|(o & sb1 & sb2 & Heq1 & ->)]; eauto.
       inversion Heq1; subst; eauto. }
-    iDestruct (interp_sealed_inv with "Htarget_v") as "[_ Hsb]".
-    iDestruct "Hsb" as (P HpersP) "(HmonoP & HPseal & %Hloc & HP & HPborrow)".
-    iDestruct (seal_pred_agree with "Hp_ot_switcher HPseal") as "Hagree".
-    iSpecialize ("Hagree" $! (W,C,(WSealable wsb0, WSealable swsb0))).
+    iDestruct (interp_sealed_inv with "Htarget_v") as "[_ [%Hsb_eq Hsb]]".
+    subst swsb0.
+    iAssert (sts_seals_std C ot_switcher {[(WSealable wsb0, WSealable wsb0)]})
+      as "#Hsb'".
+    { iApply sts_seals_std_weaken; last iFrame "Hsb"; set_solver+. }
+    iDestruct (world_interp_seal_pred_singleton_persistent with
+                "Hp_ot_switcher Hsb' Hworld_interp") as "($ & #HP)".
     iNext.
-    iSimpl in "Hagree".
-    iRewrite -"Hagree" in "HP".
+    iEval (cbn) in "HP".
     iPoseProof "HP" as "HP'".
     iDestruct "HP'" as (??????????? Heq1 Heq2) "_".
-    cbn in Heq1, Heq2; simplify_eq.
+    cbn in Heq1, Heq2.
+    destruct wsb0 as [p g b e a | sp g b e a]; cbn in Heq1; first last.
+    { discriminate. }
     iSplit.
     - iPureIntro; intros wsb Hwsb; simplify_eq; done.
     - iIntros (wsb Hwsb); simplify_eq.
-      iExact "HP".
+      destruct g; first done.
+      by iApply (ot_switcher_prop_borrow _ _
+                  (WCap RO Global b_tbl e_tbl a_tbl, WCap RO Global b_tbl e_tbl a_tbl)).
   Qed.
 
   (** The registers when entering the callee, in both runs. *)

@@ -28,10 +28,22 @@ Proof.
   rewrite {2}/load_word HDL' HDRO'; done.
 Qed.
 
+(** Resolve [Countable (Word * Word)] directly with [prod_countable]. Otherwise,
+    the search first tries [finite_countable], which can instantiate the type
+    of an unannotated binder with [Finite (Word * Word)]. *)
+#[global] Hint Extern 0 (Countable (Word * Word)) =>
+  exact (@prod_countable Word _ _ Word _ _) : typeclass_instances.
+
+(** The binary world records, for each otype, the set of pairs of words
+    (one word per run) sealed with that otype. *)
+Notation SEAL_STD := (leibnizO (seals_std OType (Word * Word))).
+Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
+Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels) * (seals_std OType (Word * Word))) : Type).
+
 Section world_standard_sts_mono_binary.
   Context {Σ:gFunctors}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType (Word * Word) Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
 
@@ -66,6 +78,17 @@ Section world_standard_sts_mono_binary.
     iIntros (W W' Hrelated) "Hφ".
     iApply "H"; eauto.
     iPureIntro; eauto using related_sts_pub_priv_world.
+  Qed.
+
+  Lemma related_sts_priv_world_fresh_Permanent W a :
+    related_sts_priv_world W (<s[a:=Permanent]s> W).
+  Proof.
+    apply related_sts_priv_world_fresh.
+    intros ρ'; destruct ρ'.
+    + eright;[right;constructor|left].
+    + left.
+    + eright;[left;constructor|].
+      eright;[right;constructor|left].
   Qed.
 
 End world_standard_sts_mono_binary.
