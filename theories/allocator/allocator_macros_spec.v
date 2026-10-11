@@ -25,14 +25,6 @@ Proof.
   by apply heap_authority_base_heap_cap.
 Qed.
 
-From griotte Require Import proofmode_instr_support.
-
-(* The side conditions of the instruction rules are solved automatically. *)
-Local Tactic Notation "iInstr" constr(H) :=
-  iInstr_success H; [try instr_auto_solve_success .. | idtac].
-Local Tactic Notation "iInstr" constr(H) "with" constr(Hlc) :=
-  iInstr_success H with Hlc; [try instr_auto_solve_success .. | idtac].
-
 Section AllocatorMacros.
   Context
     {Σ : gFunctors}
@@ -175,6 +167,7 @@ Section AllocatorMacros.
 
     (* Lea rptr 1 advances the heap cursor. *)
     iInstr "Hcode".
+    { transitivity (Some (b ^+ 1)%a); solve_addr. }
     (* GetA rtmp rptr reads the advanced cursor. *)
     iInstr "Hcode".
     (* Sub rtmp rend rtmp computes the remaining length. *)
@@ -207,7 +200,7 @@ Section AllocatorMacros.
 
   (** The shadow stores of the paint loop are justified either because they
       store the entry's current value, or by a shared resource [R] together
-      with a per-cell resource [P a] (§4.5). *)
+      with a per-cell resource [P a]. *)
   Definition allocator_paint_ok (R : iProp Σ) (P : Addr → iProp Σ) (b e : Addr) : Prop :=
     ∀ a Rs Cs, (b <= a < e)%a →
       reg_auth Rs -∗ addr_alloc_auth Cs -∗ R ∗ P a -∗ ⌜shadow_perm_ok Rs Cs a⌝.
@@ -315,6 +308,7 @@ Section AllocatorMacros.
 
     (* Lea rptr 1 advances the shadow cursor. *)
     iInstr "Hcode".
+    { transitivity (Some (sb ^+ 1)%a); solve_addr. }
     (* Sub rcount rcount 1 consumes one word of the count. *)
     iInstr "Hcode".
     destruct (decide ((b ^+ 1)%a = e)) as [Hlast | Hmore].
@@ -353,58 +347,172 @@ Section AllocatorMacros.
       iFrame.
   Qed.
 
-  (** Translate the header of a new allocation to its shadow interval, and
-      load the count of header words (malloc block 4). *)
+  (** The shadow-store permissions of the paint loop: over unclaimed cells,
+      and over the cells claimed by [ι] while [ι] is being painted. *)
 
-  Lemma allocator_translate_spec
-    (E : coPset)
-    (pc_b pc_e pc_a next h b : Addr) (w3 wa2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
-
-    let code := allocator_malloc_instrs_n 4 in
-    let sh := (shadow_b ^+ (h - heap_b))%a in
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
-    disjoint_from_shadow pc_b pc_e ->
-    (heap_b <= h /\ h < heap_e)%a ->
-    (h + allocator_header_words)%a = Some b ->
-
-    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-    ct1 ↦ᵣ WInt b ∗
-    ct3 ↦ᵣ w3 ∗
-    ctp ↦ᵣ WCap true RW Global shadow_b shadow_e shadow_b ∗
-    ca2 ↦ᵣ wa2 ∗
-    codefrag pc_a code ∗
-    ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length code)%a ∗
-         ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-         ct1 ↦ᵣ WInt b ∗
-         ct3 ↦ᵣ WInt (h - heap_b) ∗
-         ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sh ∗
-         ca2 ↦ᵣ WInt allocator_header_words ∗
-         codefrag pc_a code
-         -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
-
+  Lemma allocator_paint_ok_unclaimed b e :
+    allocator_paint_ok emp (λ a, addr_alloc a Unclaimed) b e.
   Proof.
-    intros code sh Hpc Hdisjoint Hheap Hb; subst code sh.
-    unfold allocator_header_words in *.
-    iIntros "(HPC & Hct0 & Hct1 & Hct3 & Hctp & Hca2 & Hcode & Hφ)".
-    codefrag_facts "Hcode".
-    (* GetB ct3 ct0. *)
-    iInstr "Hcode".
-    (* Sub ct3 ct1 ct3. *)
-    iInstr "Hcode".
-    (* Sub ct3 ct3 allocator_header_words. *)
-    iInstr "Hcode".
-    pose proof heap_shadow_same_size as Hsize.
-    assert (Hsh : (shadow_b <= (shadow_b ^+ (h - heap_b))%a /\
-                   (shadow_b ^+ (h - heap_b))%a < shadow_e)%a) by solve_addr.
-    replace (b - heap_b - 3)%Z with (h - heap_b)%Z by solve_addr.
-    (* Lea ctp ct3. *)
-    iInstr "Hcode".
-    (* Mov ca2 allocator_header_words. *)
-    iInstr "Hcode".
-    iApply "Hφ". iFrame.
+    intros a Rs Cs _. iIntros "_ HC [_ Hc]".
+    iDestruct (addr_alloc_lookup with "HC Hc") as %HCa.
+    iPureIntro. by left.
+  Qed.
+
+  Lemma allocator_paint_ok_painting ι b e :
+    allocator_paint_ok (ι ↦st{1} APainting) (λ a, addr_alloc a (Claimed ι)) b e.
+  Proof.
+    intros a Rs Cs _. iIntros "HR HC [Htok Hc]".
+    iDestruct (reg_lookup_own with "HR Htok") as %(b1 & e1 & γ & HRι).
+    iDestruct (addr_alloc_lookup with "HC Hc") as %HCa.
+    iPureIntro. right. by exists ι, (b1, e1, γ, APainting).
   Qed.
 
 End AllocatorMacros.
+
+(** Facts on the layout of the allocator, shared by the specifications of
+    [malloc] and [free]. *)
+Section AllocatorLayoutFacts.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
+    {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}.
+
+  Lemma allocator_pcc_disjoint_from_shadow :
+    disjoint_from_shadow allocator_pcc_b allocator_pcc_e.
+  Proof.
+    pose proof allocator_regions_disjoint as Hregions.
+    unfold disjoint_from_shadow.
+    rewrite !disjoint_list_cons in Hregions. cbn [union_list] in Hregions.
+    set_solver.
+  Qed.
+
+  Lemma allocator_cgp_size : (allocator_cgp_b + 1)%a = Some allocator_cgp_e.
+  Proof. pose proof allocator_size_data as Hsize. by cbn in Hsize. Qed.
+
+  (** The bump slot lies outside the code of the allocator and outside the
+      shadow table. *)
+  Lemma allocator_cgp_not_in_pcc :
+    allocator_cgp_b ∉ finz.seq_between allocator_pcc_b allocator_pcc_e.
+  Proof.
+    pose proof allocator_regions_disjoint as Hregions.
+    rewrite !disjoint_list_cons in Hregions. cbn [union_list] in Hregions.
+    pose proof allocator_cgp_size.
+    assert (allocator_cgp_b ∈ finz.seq_between allocator_cgp_b allocator_cgp_e)
+      by (apply elem_of_finz_seq_between; solve_addr).
+    set_solver.
+  Qed.
+
+  Lemma allocator_cgp_not_shadow : is_shadow_address allocator_cgp_b = false.
+  Proof.
+    pose proof allocator_cgp_size.
+    eapply (disjoint_from_shadow_not_in allocator_cgp_b allocator_cgp_e allocator_cgp_b).
+    { pose proof allocator_regions_disjoint as Hregions.
+      unfold disjoint_from_shadow. rewrite !disjoint_list_cons in Hregions.
+      cbn [union_list] in Hregions. set_solver. }
+    { apply withinBounds_true_iff. solve_addr. }
+  Qed.
+
+  (** The heap root is identifier-less and has authority. *)
+  Lemma allocator_heap_root_authority next :
+    has_authority (WCap true RW Global heap_b heap_e next).
+  Proof. pose proof heap_valid. apply has_authority_heap_cap; solve_addr. Qed.
+
+  (** The imported capabilities carry no heap authority. *)
+  Lemma allocator_shadow_import_not_heap :
+    is_heap_cap (WCap true RW Global shadow_b shadow_e shadow_b) = false.
+  Proof.
+    rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
+    destruct (is_heap_address shadow_b) eqn:Hheap; last reflexivity.
+    exfalso. unfold is_heap_address in Hheap.
+    apply withinBounds_true_iff in Hheap.
+    pose proof heap_shadow_disjoint as Hd.
+    rewrite /disjoint_from_shadow elem_of_disjoint in Hd.
+    apply (Hd shadow_b); apply elem_of_finz_seq_between; first exact Hheap.
+    pose proof shadow_valid; solve_addr.
+  Qed.
+
+  Lemma allocator_revoker_import_not_heap : is_heap_cap allocator_revoker_cap = false.
+  Proof.
+    rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
+    by rewrite revoker_not_heap_address.
+  Qed.
+
+  (** The heap translates affinely to the shadow table. *)
+  Lemma allocator_heap_to_shadow x :
+    (heap_b <= x /\ x < heap_e)%a ->
+    heap_to_shadow x = Some (shadow_b ^+ (x - heap_b))%a.
+  Proof.
+    intros Hx. pose proof heap_shadow_same_size. pose proof heap_valid.
+    rewrite allocator_translation_affine /translate_region.
+    assert (withinBounds heap_b heap_e x = true) as ->
+      by (apply withinBounds_true_iff; solve_addr).
+    solve_addr.
+  Qed.
+
+  (** The allocator's three imports, as separate words. *)
+  Lemma allocator_imports_split :
+    [[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ⊣⊢
+    (allocator_pcc_b ^+ allocator_shadow_import_off)%a ↦ₐ
+      WCap true RW Global shadow_b shadow_e shadow_b ∗
+    (allocator_pcc_b ^+ 1)%a ↦ₐ
+      WSealRange true (false, true) Global AllocOtype (AllocOtype ^+ 1)%ot AllocOtype ∗
+    (allocator_pcc_b ^+ allocator_revoker_import_off)%a ↦ₐ allocator_revoker_cap.
+  Proof.
+    pose proof allocator_size_imports as Hsize.
+    rewrite allocator_imports_length in Hsize.
+    rewrite /allocator_imports !fmap_cons fmap_nil.
+    rewrite (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1)%a);
+      [|solve_addr|solve_addr].
+    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 1)%a (allocator_pcc_b ^+ 2)%a);
+      [|solve_addr|solve_addr].
+    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 2)%a allocator_code_b);
+      [|solve_addr|solve_addr].
+    rewrite /region_pointsto finz_seq_between_empty; last solve_addr.
+    rewrite /allocator_shadow_import_off /allocator_revoker_import_off.
+    assert ((allocator_pcc_b ^+ 0)%a = allocator_pcc_b) as -> by solve_addr.
+    iSplit; [iIntros "($ & $ & $ & _)" | iIntros "($ & $ & $)"]; done.
+  Qed.
+
+  (** The code of the allocator: [malloc], then [free]. *)
+  Lemma allocator_code_b_malloc : allocator_code_b = allocator_malloc_pcc_addr.
+  Proof.
+    pose proof allocator_size_imports as Hsize.
+    rewrite allocator_imports_length in Hsize.
+    unfold allocator_malloc_pcc_addr, allocator_malloc_pcc_off in *.
+    solve_addr.
+  Qed.
+
+  Lemma allocator_code_free :
+    (allocator_code_b + length allocator_malloc_instrs)%a = Some allocator_free_pcc_addr.
+  Proof.
+    pose proof allocator_size_imports as Himports.
+    pose proof allocator_size_code as Hcode.
+    rewrite /allocator_code length_app in Hcode.
+    rewrite allocator_imports_length in Himports.
+    unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
+    solve_addr.
+  Qed.
+
+  Lemma allocator_malloc_pcc_bounds :
+    SubBounds allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr
+      (allocator_malloc_pcc_addr ^+ length allocator_malloc_instrs)%a.
+  Proof.
+    pose proof allocator_size_code as Hsize_code.
+    pose proof allocator_size_imports as Himports_size.
+    rewrite /allocator_code length_app in Hsize_code.
+    rewrite allocator_imports_length in Himports_size.
+    unfold allocator_malloc_pcc_addr, allocator_malloc_pcc_off in *.
+    solve_addr.
+  Qed.
+
+  Lemma allocator_free_pcc_bounds :
+    SubBounds allocator_pcc_b allocator_pcc_e allocator_free_pcc_addr
+      (allocator_free_pcc_addr ^+ length allocator_free_instrs)%a.
+  Proof.
+    pose proof allocator_size_code as Hsize_code.
+    pose proof allocator_size_imports as Himports_size.
+    rewrite /allocator_code length_app in Hsize_code.
+    rewrite allocator_imports_length in Himports_size.
+    unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
+    solve_addr.
+  Qed.
+
+End AllocatorLayoutFacts.

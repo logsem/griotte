@@ -13,14 +13,6 @@ From griotte Require Import hts_spec_states hts_spec_world.
     Check the free result (halting on failure), quarantine the buffer in the
     world, and call [adv(0)]: the saved alias of the buffer is dangling. *)
 
-From griotte Require Import proofmode_instr_support.
-
-(* The side conditions of the instruction rules are solved automatically. *)
-Local Tactic Notation "iInstr" constr(H) :=
-  iInstr_success H; [try instr_auto_solve_success .. | idtac].
-Local Tactic Notation "iInstr" constr(H) "with" constr(Hlc) :=
-  iInstr_success H with Hlc; [try instr_auto_solve_success .. | idtac].
-
 Section HTS_Spec_Dangling.
   Context
     {Σ:gFunctors}
@@ -73,6 +65,7 @@ Section HTS_Spec_Dangling.
         "Hblock" "Hcont" from Ha_ret.
       (* Jnz 2 ca0. *)
       iInstr "Hblock".
+      { intros [= ->]. done. }
       (* Halt. *)
       iInstr "Hblock".
       wp_end. by iIntros (?). }

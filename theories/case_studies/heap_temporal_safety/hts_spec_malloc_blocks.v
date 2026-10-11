@@ -14,14 +14,6 @@ From griotte Require Import hts_spec_states.
     Initialize [p], fetch the switcher and the malloc entry, revoke the
     stack, and call malloc. *)
 
-From griotte Require Import proofmode_instr_support.
-
-(* The side conditions of the instruction rules are solved automatically. *)
-Local Tactic Notation "iInstr" constr(H) :=
-  iInstr_success H; [try instr_auto_solve_success .. | idtac].
-Local Tactic Notation "iInstr" constr(H) "with" constr(Hlc) :=
-  iInstr_success H with Hlc; [try instr_auto_solve_success .. | idtac].
-
 Section HTS_Spec_Malloc.
   Context
     {Σ:gFunctors}
@@ -85,6 +77,8 @@ Section HTS_Spec_Malloc.
     focus_block_0 "Hcode" as "Hblock" "Hcont"; iHide "Hcont" as hcont.
     (* Store cgp 0 0. *)
     iInstr "Hblock".
+    { eapply disjoint_from_shadow_not_in; [exact Hcgp_shadow|rewrite /withinBounds; solve_addr]. }
+    { apply withinBounds_true_iff; solve_addr. }
     iExtractList "Hrmap" [ca0] as ["Hca0"].
     (* Mov ca0 1. *)
     iInstr "Hblock".
