@@ -14,7 +14,7 @@ Section SO_Check_Blocks_1.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -23,7 +23,7 @@ Section SO_Check_Blocks_1.
   Lemma so_check_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (csp_b csp_e : Addr)
-    (wca0 wca1 wct1 wcs0 wcs1 : Word) :
+    (wca0 wca1 wct1 wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 3)%a ∗
     ca0 ↦ᵣ wca0 ∗
@@ -33,12 +33,12 @@ Section SO_Check_Blocks_1.
     cs1 ↦ᵣ wcs1 ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     codefrag pc_a so_main_code ∗
-    ▷ (∀ t p g b e a,
+    ▷ (∀ t p g b e a π,
         ⌜readAllowed p = true⌝ ∗
-        ⌜wca0 = WCap t p g b e a⌝ ∗
+        ⌜wca0 = WCap t p g b e a @@? π⌝ ∗
         ⌜finz.seq_between b e ## finz.seq_between csp_b csp_e⌝ ∗
         PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
-        ca0 ↦ᵣ WCap t p g b e a ∗
+        ca0 ↦ᵣ WCap t p g b e a @@? π ∗
         ca1 ↦ᵣ wca1 ∗
         ct1 ↦ᵣ wca1 ∗
         cs0 ↦ᵣ WInt 0 ∗
@@ -49,7 +49,7 @@ Section SO_Check_Blocks_1.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous])
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
       "(HPC & Hca0 & Hca1 & Hct1 & Hcs0 & Hcs1 & Hcsp & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
@@ -67,7 +67,7 @@ Section SO_Check_Blocks_1.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iSplitL; last (iModIntro; iNext; iIntros (?); done).
     iNext; iIntros "H".
-    iDestruct "H" as (t p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
+    iDestruct "H" as (t p g b e a π) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: check that [in] does not overlap with the stack frame *)
@@ -78,7 +78,7 @@ Section SO_Check_Blocks_1.
     iNext; iIntros "(HPC & Hca0 & Hcsp & Hcs1 & Hcs0 & %Hno_overlap & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ so_block_offset 6)%a.
-    iApply ("Hpost" $! t p g b e a); iFrame "∗%"; done.
+    iApply ("Hpost" $! t p g b e a π); iFrame "∗%"; done.
   Qed.
 
 End SO_Check_Blocks_1.

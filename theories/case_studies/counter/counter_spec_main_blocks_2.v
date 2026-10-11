@@ -13,7 +13,7 @@ Section Counter_Main_Blocks_2.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -21,7 +21,7 @@ Section Counter_Main_Blocks_2.
 
   Lemma counter_main_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wret wcra wca0 wca1 wcs1 wcnull : Word) :
+    (wret wcra wca0 wca1 wcs1 wcnull : LWord) :
     counter_code_bounds pc_b pc_e pc_a C_f ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
     cra ↦ᵣ wcra ∗
@@ -31,7 +31,7 @@ Section Counter_Main_Blocks_2.
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wcnull ∗
     codefrag pc_a counter_main_code ∗
-    ▷ (PC ↦ᵣ updatePcPerm wret ∗
+    ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
         cra ↦ᵣ wret ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
@@ -42,7 +42,7 @@ Section Counter_Main_Blocks_2.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous])
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap))
       "(HPC & Hcra & Hcs0 & Hcs1 & Hca0 & Hca1 & Hcnull & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     counter_unfold_code.

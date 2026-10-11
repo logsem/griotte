@@ -15,7 +15,7 @@ Section Switcher_Call_Blocks_3.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -29,6 +29,8 @@ Section Switcher_Call_Blocks_3.
     let len_switcher_4 := length switcher_instrs_4 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_4)%a ->
     (isWithin a_stk e_stk b_stk e_stk = true) ->
+    (a_stk <= e_stk)%a ->
+    disjoint_from_heap b_stk e_stk ->
 
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -46,7 +48,7 @@ Section Switcher_Call_Blocks_3.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_4 len_switcher_4; subst switcher_instrs_4 len_switcher_4.
-    iIntros (Hsub_reg Hastk) "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode & Hpost)".
+    iIntros (Hsub_reg Hastk Hastk_le Hstk_heap) "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
     (* --- GetE cs0 csp --- *)
@@ -54,6 +56,11 @@ Section Switcher_Call_Blocks_3.
 
     (* --- GetA cs1 csp --- *)
     iInstr "Hcode".
+
+    assert ((None : option AId) = None → (a_stk < e_stk)%a → is_heap_address a_stk = false)
+      as Hnot_heap.
+    { intros _ Hlt. eapply disjoint_from_heap_not_in; first exact Hstk_heap.
+      apply withinBounds_true_iff. apply isWithin_implies in Hastk. solve_addr. }
 
     (* --- Subseg csp cs1 cs0 --- *)
     iInstr "Hcode".
@@ -66,6 +73,8 @@ Section Switcher_Call_Blocks_3.
     wcs0 wcs1 wpc_b :
     let switcher_instrs_6 := (switcher_instrs_n 6) in
     let len_switcher_6 := length switcher_instrs_6 in
+    is_shadow_address pc_b = false ->
+    is_heap_cap wpc_b = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_6)%a ->
 
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
@@ -84,7 +93,7 @@ Section Switcher_Call_Blocks_3.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_6 len_switcher_6; subst switcher_instrs_6 len_switcher_6.
-    iIntros (Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hpc_b & Hcode & Hpost)".
+    iIntros (Hpc_b_shadow Hwpc_b_nonheap Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hpc_b & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -130,12 +139,12 @@ Section Switcher_Call_Blocks_3.
     cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     ct1 ↦ᵣ wct1 ∗
     codefrag pc_a switcher_instrs_7 ∗
-    ▷ ( ∀ wsb,
-        ⌜ wct1 = WSealed ot_switcher wsb ⌝ ∗
+    ▷ ( ∀ wsb π,
+        ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ ∗
         ⌜ get_tag_sealable wsb = true ⌝ ∗
         PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 1)%a ∗
         cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-        ct1 ↦ᵣ WSealable wsb ∗
+        ct1 ↦ᵣ WSealable wsb @@? π ∗
         codefrag pc_a switcher_instrs_7 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
@@ -150,14 +159,13 @@ Section Switcher_Call_Blocks_3.
     (* --- UnSeal ct1 cs0 ct1 --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_unseal_unknown _ _ _ _ _ _ (pc_a ^+ 1)%a
-             with "[$HPC $Hi $Hcs0 $Hct1]"); try solve_pure.
+    iApply (wp_unseal_unknown_sealed _ _ _ _ _ _ (pc_a ^+ 1)%a
+             with "[$HPC $Hi $Hcs0 $Hct1]"); try done; try solve_pure.
+    { pose proof ot_switcher_size; solve_addr. }
     iIntros "!>" (ret)
       "[-> |
-       [(% & % & % & % & % & %o & %wsb & -> & HPC & Hi & Hcs0 & Hct1
-         & %Heq & %Hpermit & %Hwct1 & %Htag & %Hrange)
-       |(%tsr & %psr & %gsr & %bsr & %esr & %asr & %ot & %sb
-         & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Hwct1 & %Hinvalid)]]".
+       [(%o & %wsb & %π & -> & HPC & Hi & Hcs0 & Hct1 & %Hwct1 & %Htag & %Hrange)
+       |(%ot & %sb & %π & -> & HPC & Hi & Hcs0 & Hct1 & %Hwct1 & %Hinvalid)]]".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     2: {
       (* The unsealed entry point is invalid: the next Load fails. *)
@@ -180,8 +188,10 @@ Section Switcher_Call_Blocks_3.
       [[a ^+ 4, e)], clear it, load the unsealing capability, and unseal the
       entry point [wct1]. *)
   Lemma switcher_call_blocks_3_spec
-    (b e a : Addr) (stk_mem : list Word) (wcs0 wcs1 wct1 : Word) :
+    (b e a : Addr) (stk_mem : list LWord) (wcs0 wcs1 wct1 : LWord) :
     switcher_stk_bounds b e a ->
+    disjoint_from_mmio b e ->
+    disjoint_from_heap b e ->
 
     PC ↦ᵣ switcher_block_pc 4 ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -191,8 +201,8 @@ Section Switcher_Call_Blocks_3.
     b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     ct1 ↦ᵣ wct1 ∗
     switcher_code ∗
-    ▷ ( ∀ wsb,
-        ⌜ wct1 = WSealed ot_switcher wsb ⌝ ∗
+    ▷ ( ∀ wsb π,
+        ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ ∗
         ⌜ get_tag_sealable wsb = true ⌝ ∗
         PC ↦ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
         cs0 ↦ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
@@ -200,12 +210,12 @@ Section Switcher_Call_Blocks_3.
         csp ↦ᵣ WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
         [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
         b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-        ct1 ↦ᵣ WSealable wsb ∗
+        ct1 ↦ᵣ WSealable wsb @@? π ∗
         switcher_code -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((Hba & Hba3 & Ha4))
+    iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
       "(HPC & Hcs0 & Hcs1 & Hcsp & Hstk & Hb_switcher & Hct1 & Hcode & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
@@ -214,8 +224,9 @@ Section Switcher_Call_Blocks_3.
     (* Block 4: restrict the stack capability *)
     switcher_focus_block 4 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     iApply (switcher_call_block_4_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); [done| |iNext].
+      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); [done| | |done|iNext].
     { rewrite /isWithin; solve_addr+Hba Hba3 Ha4. }
+    { solve_addr+Hba Hba3 Ha4. }
     iIntros "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -225,13 +236,19 @@ Section Switcher_Call_Blocks_3.
       try solve_pure.
     { solve_addr+. }
     { solve_addr+Hba Hba3 Ha4. }
+    { pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
+      rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow |- *.
+      intros x Hx HR. eapply Hstk_shadow; last exact HR.
+      apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
+      solve_addr. }
     iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* Block 6: load the unsealing capability *)
     switcher_focus_block 6 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     iApply (switcher_call_block_6_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); first done.
+      "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]");
+      [apply switcher_base_not_shadow|done|done|].
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hb_switcher & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -239,7 +256,7 @@ Section Switcher_Call_Blocks_3.
     switcher_focus_block 7 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     iApply (switcher_call_block_7_unseal_spec with
       "[- $HPC $Hcs0 $Hct1 $Hcode]"); first done.
-    iNext; iIntros (wsb) "(-> & %Htag & HPC & Hcs0 & Hct1 & Hcode)".
+    iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & Hct1 & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     switcher_change_pc (switcher_block_offset 7 + 1)%Z.
     iApply "Hpost"; iFrame; done.

@@ -22,7 +22,7 @@ Section LSE_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -52,7 +52,9 @@ Section LSE_World.
     iExists stk_mem.
     iFrame "Hworld_interp_C Hstk".
     iSplit; first done.
-    iSplit; first (iApply interp_monotone_sd; eauto).
+    iSplit.
+    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_C_f"); first done.
+      by iPureIntro. }
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.
   Qed.
@@ -61,17 +63,17 @@ Section LSE_World.
     interp W0 C (WCap true RWL Local csp_b csp_e csp_b) -∗
     world_interp W0 C
     ={⊤}=∗
-    ∃ l stk_mem,
-      ⌜extract_temporaries_condition W0 (l ++ finz.seq_between csp_b csp_e)⌝ ∗
+    ∃ (l : list LAddr) stk_mem,
+      ⌜extract_temporaries_condition W0 (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e))⌝ ∗
       ⌜related_sts_pub_world W0
-         (close_list (l ++ finz.seq_between csp_b csp_e) (revoke W0))⌝ ∗
+         (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) (revoke W0))⌝ ∗
       world_interp (revoke W0) C ∗
       ▷ RevokedResources W0 C l ∗
       [[csp_b, csp_e]] ↦ₐ [[stk_mem]].
   Proof.
     iIntros "#Hinterp_csp Hworld_interp_C".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")
-      as (l) "(%Hextract & Hworld_interp_C & _ & _ & >[%stk_mem Hstk] & Hrevoked_l & _)".
+      as (l) "(%Hextract & Hworld_interp_C & _ & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
     iModIntro.
     iExists l, stk_mem.
     iFrame "Hworld_interp_C Hstk Hrevoked_l".

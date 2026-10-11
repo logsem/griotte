@@ -54,7 +54,10 @@ Section Counter_States.
       [counter_spec]. *)
   Definition counter_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length counter_main_code)%a ∧
-    (pc_b + length (counter_main_imports C_f))%a = Some pc_a.
+    (pc_b + length (counter_main_imports C_f))%a = Some pc_a ∧
+    disjoint_from_shadow pc_b pc_e ∧
+    is_heap_address pc_b = false ∧
+    is_heap_cap (WSealed ot_switcher C_f) = false.
 
   (** The capability of the entry point of the switcher. *)
   Definition counter_switcher_entry : Word :=

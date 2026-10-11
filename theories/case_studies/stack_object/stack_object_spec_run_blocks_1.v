@@ -14,7 +14,7 @@ Section SO_Run_Blocks_1.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,8 +22,9 @@ Section SO_Run_Blocks_1.
 
   Lemma so_run_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wct0 wct1 wcs0 wcs1 wcra : Word) :
+    (wct0 wct1 wcs0 wcs1 wcra : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -45,7 +46,7 @@ Section SO_Run_Blocks_1.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous])
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap)
       "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Himport_switcher & Himport_C_f
       & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -55,7 +56,9 @@ Section SO_Run_Blocks_1.
     (* Block 0: fetch the entry point of the switcher *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -66,7 +69,7 @@ Section SO_Run_Blocks_1.
     (* Block 1: fetch the entry point of [C.adv] *)
     focus_block 1 "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hcs0 $Hcs1 $Hcode $Himport_C_f]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hcs0 $Hcs1 $Hcode $Himport_C_f]"); eauto; try done.
     { apply withinBounds_true_iff; solve_addr. }
     iNext; iIntros "(HPC & Hct1 & Hcs0 & Hcs1 & Hcode & Himport_C_f)".
     iEval (cbn) in "Hct1".

@@ -237,6 +237,20 @@ Section Switcher_preamble.
   Qed.
 
 
+  Lemma ot_switcher_prop_borrow (W : WORLD) (C : CmptName) (w : LWord) :
+    ot_switcher_prop W C w -∗ ot_switcher_prop W C (lborrow w).
+  Proof.
+    iIntros "Hot_switcher".
+    iEval (cbn) in "Hot_switcher".
+    iEval (cbn).
+    iDestruct "Hot_switcher" as
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
+       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
+      "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+    iFrame "#∗%".
+    iExists Local; iPureIntro; done.
+  Qed.
+
   (** [cframe_interp] interprets a call-frame, i.e.,
       describes how the physical call-frame is linked to the logical call-frame [frm : cframe].
       We have 2 situations to take into account:
@@ -359,7 +373,7 @@ Section Switcher_Code.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -387,7 +401,7 @@ Section Switcher_Code.
   Qed.
 
   (** The callee-save area of the caller's stack frame. *)
-  Definition switcher_stk_cells (a : Addr) (w0 w1 w2 w3 : Word) : iProp Σ :=
+  Definition switcher_stk_cells (a : Addr) (w0 w1 w2 w3 : LWord) : iProp Σ :=
     a ↦ₐ w0 ∗
     (a ^+ 1)%a ↦ₐ w1 ∗
     (a ^+ 2)%a ↦ₐ w2 ∗

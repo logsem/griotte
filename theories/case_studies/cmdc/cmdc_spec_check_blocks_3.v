@@ -13,7 +13,7 @@ Section CMDC_Check_Blocks_3.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -33,7 +33,8 @@ Section CMDC_Check_Blocks_3.
     iHide "Hcont" as hcont;
     change_pc_to (a_call ^+ 1)%a;
     (* Load ct0 cgp 0 *)
-    iInstr "Hcode"; [split; [done | solve_addr] |];
+    iInstr "Hcode";
+    [by apply not_mmio_not_shadow | done | split; [done | solve_addr] |];
     (* Mov ct1 0%Z, resp. Mov ct1 42%Z *)
     iInstr "Hcode";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
@@ -54,10 +55,11 @@ Section CMDC_Check_Blocks_3.
   Lemma cmdc_check_blocks_3_spec (c : cmdc_call)
     (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable) (Nassert : namespace)
     (cgp_b cgp_e a_chk : Addr)
-    (wct0 wct1 wct2 wct3 wct4 wcnull wcra : Word) :
+    (wct0 wct1 wct2 wct3 wct4 wcnull wcra : LWord) :
     let n := cmdc_call_block c in
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
     (cgp_b <= a_chk < cgp_e)%a ->
+    is_mmio_address a_chk = false ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
     na_own cerise_nais ⊤ ∗
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
@@ -90,7 +92,8 @@ Section CMDC_Check_Blocks_3.
   Proof.
     intros n.
     destruct c; subst n; cbn [cmdc_call_block cmdc_call_expected].
-    all: iIntros ([HsubBounds Himports_contiguous] Ha_chk)
+    all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap
+                   & HC_g_nonheap) Ha_chk Ha_chk_mmio)
       "(#Hassert & Hna & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
       & Ha_chk & Himport_assert & Hcode_main & Hpost)".
     all: codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

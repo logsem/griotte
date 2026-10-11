@@ -13,7 +13,7 @@ Section LSE_F_Blocks_2.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,7 +22,7 @@ Section LSE_F_Blocks_2.
   Lemma lse_f_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (Nassert : namespace) (E : coPset)
-    (wcgp wcs0 wcs1 wcra wca0 wca1 wcnull : Word) :
+    (wcgp wcs0 wcs1 wcra wca0 wca1 wcnull : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     ↑Nassert ⊆ E ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
@@ -40,7 +40,7 @@ Section LSE_F_Blocks_2.
     (pc_b ^+ 1)%a ↦ₐ lse_assert_entry ∗
     codefrag pc_a lse_main_code ∗
     ▷ (na_own cerise_nais E ∗
-        PC ↦ᵣ updatePcPerm wcra ∗
+        PC ↦ᵣ lupdatePcPerm wcra ∗
         cgp ↦ᵣ WInt 0 ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
@@ -55,7 +55,7 @@ Section LSE_F_Blocks_2.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] HNassert)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) HNassert)
       "(#Hassert & Hna & HPC & Hcgp & Hcs0 & Hcs1 & Hct0 & Hct1 & Hcra
       & Hca0 & Hca1 & Hcnull & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

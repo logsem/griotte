@@ -15,7 +15,7 @@ Section CMDC_Call_Blocks_2.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -35,7 +35,10 @@ Section CMDC_Call_Blocks_2.
     (* Block n: fetch the entry point of the switcher *)
     focus_block n "Hcode_main" of cmdc_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont";
     iHide "Hcont" as hcont;
-    iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto; [solve_addr|];
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]");
+    eauto using switcher_call_sentry_not_heap; try done; [solve_addr|];
     replace (pc_b ^+ 0)%a with pc_b by solve_addr;
     iFrame "Himport_switcher";
     iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hcode & Himport_switcher)";
@@ -45,7 +48,8 @@ Section CMDC_Call_Blocks_2.
     (* Block n+1: fetch the entry point of the callee *)
     focus_block (S n) "Hcode_main" of cmdc_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont";
     iHide "Hcont" as hcont;
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_target]"); eauto; [solve_addr|];
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_target]");
+    eauto; try done; [solve_addr|];
     iNext; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_target)";
     iEval (cbn) in "Hct1";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
@@ -62,7 +66,7 @@ Section CMDC_Call_Blocks_2.
 
   Lemma cmdc_call_blocks_2_spec (c : cmdc_call)
     (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable)
-    (wctp wct0 wct1 wcs0 wcra : Word) :
+    (wctp wct0 wct1 wcs0 wcra : LWord) :
     let n := cmdc_call_block c in
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset n)%a ∗
@@ -88,7 +92,8 @@ Section CMDC_Call_Blocks_2.
   Proof.
     intros n.
     destruct c; subst n; cbn [cmdc_call_block cmdc_call_import cmdc_call_target].
-    all: iIntros ([HsubBounds Himports_contiguous])
+    all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap
+                   & HC_g_nonheap))
       "(HPC & Hctp & Hct0 & Hct1 & Hcs0 & Hcra & Himport_switcher & Himport_target
       & Hcode_main & Hpost)".
     all: codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

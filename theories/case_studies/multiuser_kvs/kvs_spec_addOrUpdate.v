@@ -598,7 +598,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       (* jnz (".addOrUpdate_empty_slot_found")%asm ctp; *)
       iInstr "Hcode".
-      { intro; simplify_eq; lia. }
+      { intros Hcontra; inversion Hcontra; lia. }
       (* mul ct1 ct1 ASM_SIZEOF_KVS_ENTRY *)
       iInstr "Hcode".
       (* lea cgp ct1; *)
@@ -606,6 +606,8 @@ Section KVS_spec_addOrUpdate.
       { transitivity (Some (KVS_cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx_empty)%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       (* store cgp ASM_SOME; *)
       iInstr "Hcode".
+      { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
+        solve_addr+Hcgp_bounds. }
       { solve_addr+Hcgp_bounds. }
       (* lea cgp 1; *)
       iInstr "Hcode".

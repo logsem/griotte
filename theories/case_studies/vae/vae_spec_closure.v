@@ -4,6 +4,7 @@ From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call
 From griotte Require Import vae vae_helper.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
+From griotte Require Import allocator_resources heap_region vae_spec_closure_repair.
 From griotte Require Import vae_spec_states vae_spec_world_call vae_spec_world_return
   vae_spec_awkward_blocks_1 vae_spec_awkward_blocks_2 vae_spec_awkward_blocks_3.
 
@@ -12,7 +13,7 @@ Section VAE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,7 +23,7 @@ Section VAE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma vae_awkward_spec
 
@@ -43,6 +44,11 @@ Section VAE.
 
     let imports := vae_main_imports C_f in
 
+    is_shadow_address cgp_b = false ->
+    disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
+    disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nvae ->
     Nassert ## Nvae ->
@@ -58,7 +64,7 @@ Section VAE.
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais Nvae
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
+        ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a vae_main_code)
     ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
@@ -68,7 +74,7 @@ Section VAE.
     ∗ seal_pred ot_switcher ot_switcher_propC
     (* invariant for d *)
     ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
-    ∗ sts_rel_loc (A:=Addr) C i awk_rel_pub awk_rel_priv
+    ∗ sts_rel_loc (A:=LAddr) C i awk_rel_pub awk_rel_priv
       -∗
     ot_switcher_prop W C (WCap true RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a).
   Proof.
@@ -80,6 +86,7 @@ Section VAE.
        - [vae_world_flag_false]: the flag can be set to [false];
        - [vae_awkward_blocks_1_spec]: blocks 4-6, set the flag to [0], and
          jump to the switcher;
+       - [vae_world_quarantine]: close the quarantined revoked keys;
        - [vae_world_stack], [vae_world_callback] and [vae_call_args]:
          prepare the first call to [g];
        - [switcher_cc_specification_alt]: first call to [g];
@@ -87,8 +94,10 @@ Section VAE.
          to [true];
        - [vae_awkward_blocks_2_spec]: blocks 7-9, set the flag to [1], and
          jump to the switcher;
-       - [vae_world_stack], [vae_world_callback] and [vae_call_args]:
-         prepare the second call to [g];
+       - [vae_world_quarantine]: close the quarantined keys revoked by the
+         first call;
+       - [vae_world_stack], [vae_world_callback_restored] and
+         [vae_call_args]: prepare the second call to [g];
        - [switcher_cc_specification_alt]: second call to [g];
        - [vae_world_pub_call] and [vae_world_return]: the flag is still
          [true], and the world can be repaired;
@@ -96,7 +105,8 @@ Section VAE.
          [1], and return;
        - [switcher_ret_specification]: return to the caller of [awkward]. *)
     intros imports.
-    iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae
+    iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
+               Hswitcher_assert HNswitcher_vae HNassert_vae
                Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hloc_i_W Hrel_i_W)
       "(#Hassert & #Hswitcher
       & #Hvae_code
@@ -115,15 +125,24 @@ Section VAE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
     iSplit; first done.
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first done.
+    iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
-    assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds by done.
+    assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
+      by (rewrite /vae_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).
     iDestruct (vae_args_zero with "Hzeroed_rmap") as %Hzero; first done.
-    pose proof (regmap_full_dom _ Hrmap_init) as Hrmap_dom.
+    pose proof (lregmap_full_dom _ Hrmap_init) as Hrmap_dom.
     iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
@@ -139,6 +158,8 @@ Section VAE.
 
     (* Revoke the world, to get the stack frame *)
     set (csp_b := (csp_b' ^+ 4)%a).
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
+      as %[Hstk_mmio Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
       as (l) "(%Hextract & Hworld_interp_C & #Hstack_revoked_W0 & >%Hstack_revoked_W0
                & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
@@ -155,20 +176,33 @@ Section VAE.
     change_pc_to (pc_a ^+ vae_block_offset 4)%a.
     iApply (vae_awkward_blocks_1_spec with
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hct0 $Hct1 $Hcs0 $Hcs1
-              $Himport_switcher $Hcode_main]"); [done|done|done|done|].
+              $Himport_switcher $Hcode_main]"); [done..|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hct0 & Hct1 & Hcs0 & Hcs1
                     & Himport_switcher & Hcode_main)".
     iMod ("Hvae_code_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
       as "Hna".
     { iNext. iRegionMerge. iFrame. }
 
+    (* Close the quarantined revoked keys *)
+    iMod (vae_world_quarantine W0 W2 C l with "Hworld_interp_C Hrevoked_l")
+      as (l0_live l0_quarantined) "(%Hl0_partition & %Hl0_live & %Hl0_quarantined
+                                    & Hworld_interp_C & Hl0_live)".
+    { reflexivity. }
+    set (W2q := close_list l0_quarantined W2).
+    assert (heap_std W0 = heap_std W2q) as Hheap_W0_W2q.
+    { reflexivity. }
+    assert (related_sts_priv_world W0 W2q) as Hpriv_W0_W2q.
+    { eapply related_sts_priv_pub_trans_world; [exact Hpriv_W0_W2|].
+      subst W2q. apply close_list_related_sts_pub. }
+
     (* Prepare the first call to [g] *)
-    iDestruct (vae_world_stack W0 C i false with "Hstack_revoked_W0")
-      as "[Hstack_revoked_W2 %Hstack_revoked_W2]"; [done|done|].
-    iDestruct (vae_world_callback W0 W2 C wca0 with "[]") as "#Hinterp_W2_wca0";
-      first done.
-    { by case_match. }
-    iDestruct (vae_call_args W2 C Nswitcher with "Hswitcher Hca0 Hca1 Hct0 Hrmap")
+    iDestruct (vae_world_stack W0 W2q C with "Hstack_revoked_W0")
+      as "[Hstack_revoked_W2q %Hstack_revoked_W2q]"; first done.
+    { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_W0.
+      by eapply vae_quarantined_disjoint_stack. }
+    iDestruct (vae_world_callback W0 W2q C wca0 with "[]") as "#Hinterp_W2q_wca0";
+      [done|done|by case_match|].
+    iDestruct (vae_call_args W2q C Nswitcher with "Hswitcher Hca0 Hca1 Hct0 Hrmap")
       as (rmap1) "(%Hrmap1_dom & Hrmap_arg & Hrmap)".
     { rewrite !dom_delete_L Hrmap_dom; set_solver+. }
     { intros r Hr.
@@ -178,28 +212,40 @@ Section VAE.
     iApply (switcher_cc_specification_alt with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hstack_revoked_W2 $Hcstk
-              $Hinterp_W2_wca0 $HK]"); [done|apply vae_call_adv_arg_rmap_is_arg|].
+              $Hstk $Hworld_interp_C $Hstack_revoked_W2q $Hcstk
+              $Hinterp_W2q_wca0 $HK]"); [done..|apply vae_call_adv_arg_rmap_is_arg|].
     iSplit; first done.
     iNext.
     clear dependent rmap1 stk_mem.
-    iIntros (W3 rmap3 stk_mem l3)
-      "(_ & _ & _ & %Hpub_ext_W3 & _ & %Hrmap3_dom & Hstack_revoked_W3 & %Hstack_revoked_W3
+    iIntros (W3 rmap3 stk_mem l1 rcgp rcra rcs0 callback1)
+      "(%Hl1_unk & Hrevoked_l1 & %Hl1_revoked_W4 & %Hpub_ext_W3 & _ & %Hrmap3_dom
+      & Hstack_revoked_W3 & %Hstack_revoked_W3
       & Hna & _
       & Hworld_interp_C
       & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
-    iEval (cbn [updatePcPerm]) in "HPC".
+      & Hrmap & Hstk & HK & %Hrestored)".
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hcallback1).
+    apply load_heap_in_world_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
+    apply load_heap_in_world_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=; reflexivity].
+    apply load_heap_in_world_nonheap in Hrcs0;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=;
+        reflexivity].
+    subst rcgp rcra rcs0.
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* The flag can be set to [true] *)
-    pose proof (vae_world_pub_call W2 W3 csp_b csp_e Hstack_revoked_W2 Hpub_ext_W3)
-      as Hpub_W2_W3.
+    pose proof (vae_world_pub_call W2q W3 csp_b csp_e Hstack_revoked_W2q Hpub_ext_W3)
+      as Hpub_W2q_W3.
+    assert (related_sts_pub_world W2 W3) as Hpub_W2_W3.
+    { eapply related_sts_pub_trans_world; [subst W2q; apply close_list_related_sts_pub|exact Hpub_W2q_W3]. }
     iDestruct (world_interp_rel_loc_valid with "Hworld_interp_C Hsts_rel") as %Hrel_i_W3.
     set (W5 := <l[i:=true]l>(revoke W3)).
     destruct (vae_world_flag_true W2 W3 i false Hloc_i_W2 Hrel_i_W2 Hrel_i_W3 Hpub_W2_W3)
-      as (Hrevoke_W4 & Hpriv_W4_W5 & Hpriv_W3_W5 & Hpriv_W2_W5 & Hloc_i_W5).
+      as (Hrevoke_W4 & Hpriv_W4_W5 & Hpriv_W3_W5 & Hpriv_W2_W5 & Hloc_i_W5 & Hpub_W4_W5).
 
     (* Blocks 7-9: set the flag to [1], and jump to the switcher *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hzero3]".
@@ -210,19 +256,35 @@ Section VAE.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iApply (vae_awkward_blocks_2_spec with
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1
-              $Himport_switcher $Hcode_main]"); [done|done|done|done|].
+              $Himport_switcher $Hcode_main]"); [done..|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hcs0
                     & Hcs1 & Himport_switcher & Hcode_main)".
     iMod ("Hvae_code_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
       as "Hna".
     { iNext. iRegionMerge. iFrame. }
 
+    (* Close the quarantined keys revoked by the first call *)
+    iMod (vae_world_quarantine W3 W5 C l1 with "Hworld_interp_C Hrevoked_l1")
+      as (l1_live l1_quarantined) "(%Hl1_partition & %Hl1_live & %Hl1_quarantined
+                                    & Hworld_interp_C & Hl1_live)".
+    { reflexivity. }
+    set (W5q := close_list l1_quarantined W5).
+    assert (heap_std W5q = heap_std W3) as Hheap_W5q_W3.
+    { reflexivity. }
+    assert (related_sts_priv_world W3 W5q) as Hpriv_W3_W5q.
+    { eapply related_sts_priv_pub_trans_world; [exact Hpriv_W3_W5|].
+      subst W5q. apply close_list_related_sts_pub. }
+    assert (related_sts_priv_world W2q W5q) as Hpriv_W2q_W5q.
+    { eapply related_sts_pub_priv_trans_world; [exact Hpub_W2q_W3|exact Hpriv_W3_W5q]. }
+
     (* Prepare the second call to [g] *)
-    iDestruct (vae_world_stack W3 C i true with "Hstack_revoked_W3")
-      as "[Hstack_revoked_W5 %Hstack_revoked_W5]"; [done|done|].
-    iDestruct (vae_world_callback W2 W5 C wca0 with "Hinterp_W2_wca0")
-      as "#Hinterp_W5_wca0"; first done.
-    iDestruct (vae_call_args W5 C Nswitcher with "Hswitcher Hca0 Hca1 Hct0 Hrmap")
+    iDestruct (vae_world_stack W3 W5q C with "Hstack_revoked_W3")
+      as "[Hstack_revoked_W5q %Hstack_revoked_W5q]"; first done.
+    { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_W3.
+      by eapply vae_quarantined_disjoint_stack. }
+    iDestruct (vae_world_callback_restored W2q W3 W5q C wca0 callback1 with "Hinterp_W2q_wca0")
+      as "#Hinterp_W5q_wca0"; [done..|].
+    iDestruct (vae_call_args W5q C Nswitcher with "Hswitcher Hca0 Hca1 Hct0 Hrmap")
       as (rmap5) "(%Hrmap5_dom & Hrmap_arg & Hrmap)".
     { rewrite !dom_delete_L Hrmap3_dom; set_solver+. }
     { by apply vae_rmap_zero. }
@@ -231,26 +293,39 @@ Section VAE.
     iApply (switcher_cc_specification_alt with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk
-              $Hinterp_W5_wca0 $HK]"); [done|apply vae_call_adv_arg_rmap_is_arg|].
+              $Hstk $Hworld_interp_C $Hstack_revoked_W5q $Hcstk
+              $Hinterp_W5q_wca0 $HK]"); [done..|apply vae_call_adv_arg_rmap_is_arg|].
     iSplit; first done.
     iNext.
-    iIntros (W6 rmap6 stk_mem6 l6)
-      "(_ & _ & _ & %Hpub_ext_W6 & _ & %Hrmap6_dom & _ & %Hstack_revoked_W6
-      & Hna & _
+    iIntros (W6 rmap6 stk_mem6 l2 rcgp rcra rcs0 rcs1)
+      "(%Hl2_unk & Hrevoked_l2 & %Hl2_revoked_W7 & %Hpub_ext_W6 & _ & %Hrmap6_dom & _
+      & %Hstack_revoked_W6
+      & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
-    iEval (cbn [updatePcPerm]) in "HPC".
+      & Hrmap & Hstk & HK & %Hrestored)".
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+    apply load_heap_in_world_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
+    apply load_heap_in_world_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=; reflexivity].
+    apply load_heap_in_world_nonheap in Hrcs0;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=;
+        reflexivity].
+    apply load_heap_in_world_nonheap in Hrcs1; [|done].
+    subst rcgp rcra rcs0 rcs1.
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* The flag is still [true], and the world can be repaired *)
-    pose proof (vae_world_pub_call W5 W6 csp_b csp_e Hstack_revoked_W5 Hpub_ext_W6)
-      as Hpub_W5_W6.
-    iMod (vae_world_return W0 W3 W6 C i b l csp_b csp_e
-           with "Hsts_rel Hworld_interp_C Hrevoked_l")
-      as "(Hworld_interp_C & Hrevoked_l & %Hloc_i_W7 & %Hpub_W0_Wfixed)";
+    pose proof (vae_world_pub_call W5q W6 csp_b csp_e Hstack_revoked_W5q Hpub_ext_W6)
+      as Hpub_W5q_W6.
+    iMod (vae_world_return W0 W3 W6 C i b l l0_live l0_quarantined l1 l1_live l1_quarantined l2
+           csp_b csp_e
+           with "Hsts_rel Hworld_interp_C Hl0_live Hl1_live Hrevoked_l2")
+      as (closing_revoked) "(Hworld_interp_C & Hrevoked_l & %Hloc_i_W7 & %Hpub_W0_Wfixed
+                             & %Hclosing_nodup & %Hclosing_covers_W0)";
       [done..|].
 
     (* Blocks 9-11: assert that the flag is [1], and return *)
@@ -263,10 +338,10 @@ Section VAE.
     iApply (vae_awkward_blocks_3_spec with
              "[- $HawkN $Hworld_interp_C $Hassert $Hna $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
               $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Himport_assert $Hcode_main]");
-      [done|done|exact Hloc_i_W7|solve_ndisj|].
+      [done|done|done|exact Hloc_i_W7|solve_ndisj|].
     iNext; iIntros "(Hworld_interp_C & Hna & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
                     & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Himport_assert & Hcode_main)".
-    iEval (cbn [updatePcPerm]) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iMod ("Hvae_code_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
       as "Hna".
     { iNext. iRegionMerge. iFrame. }
@@ -280,8 +355,6 @@ Section VAE.
     { subst csp_b.
       destruct Hsync_csp as [Hcsp_sync Hcsp_base].
       rewrite -Hcsp_base; auto. }
-    { destruct Hextract; auto. }
-    { intros a; destruct Hextract as [_ Htemp]; destruct (Htemp a); auto. }
     { iSplit; iApply interp_int. }
   Qed.
 

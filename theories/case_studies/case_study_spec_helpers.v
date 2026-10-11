@@ -22,7 +22,7 @@ Section Switcher_call_args.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -30,7 +30,7 @@ Section Switcher_call_args.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma switcher_call_args_0 W C (rmap : Reg) :
+  Lemma switcher_call_args_0 W C (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ->
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
     ∃ arg_rmap rmap',
@@ -59,7 +59,7 @@ Section Switcher_call_args.
     done.
   Qed.
 
-  Lemma switcher_call_args_1 W C (rmap : Reg) (wca0 : Word) :
+  Lemma switcher_call_args_1 W C (rmap : LReg) (wca0 : LWord) :
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ]} ->
     ca0 ↦ᵣ wca0 -∗
     interp W C wca0 -∗
@@ -90,7 +90,7 @@ Section Switcher_call_args.
     done.
   Qed.
 
-  Lemma switcher_call_args_2 W C (rmap : Reg) (wca0 wca1 : Word) :
+  Lemma switcher_call_args_2 W C (rmap : LReg) (wca0 wca1 : LWord) :
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
     ca0 ↦ᵣ wca0 -∗
     interp W C wca0 -∗
@@ -123,7 +123,7 @@ Section Switcher_call_args.
     done.
   Qed.
 
-  Lemma switcher_call_args_3 W C (rmap : Reg) (wca0 wca1 wca2 : Word) :
+  Lemma switcher_call_args_3 W C (rmap : LReg) (wca0 wca1 wca2 : LWord) :
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ca2 ]} ->
     ca0 ↦ᵣ wca0 -∗
     interp W C wca0 -∗
@@ -159,3 +159,12 @@ Section Switcher_call_args.
   Qed.
 
 End Switcher_call_args.
+
+(** An address within bounds of a region disjoint from the MMIO (resp. heap)
+    region is not a shadow (resp. heap) address. *)
+Ltac solve_not_shadow H :=
+  eapply disjoint_from_shadow_not_in;
+  [exact (disjoint_from_mmio_shadow _ _ H) | rewrite /withinBounds; solve_addr].
+
+Ltac solve_not_heap H :=
+  eapply disjoint_from_heap_not_in; [exact H | rewrite /withinBounds; solve_addr].

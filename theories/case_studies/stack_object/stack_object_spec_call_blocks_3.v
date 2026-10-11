@@ -15,7 +15,7 @@ Section SO_Call_Blocks_3.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -23,9 +23,11 @@ Section SO_Call_Blocks_3.
 
   Lemma so_call_blocks_3_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (csp_b csp_e : Addr) (stk_mem : list Word)
-    (wca1 wct0 wct1 wcs0 wcs1 wcra : Word) :
+    (csp_b csp_e : Addr) (stk_mem : list LWord)
+    (wca1 wct0 wct1 wcs0 wcs1 wcra : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
+    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_heap csp_b csp_e ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ca1 ↦ᵣ wca1 ∗
@@ -57,7 +59,7 @@ Section SO_Call_Blocks_3.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous])
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap)
       "(HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hstk & Himport_switcher
       & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -85,6 +87,7 @@ Section SO_Call_Blocks_3.
     { solve_addr+Hcsp_size Hastk1. }
     (* Store csp so_secret 0 *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|rewrite /withinBounds; solve_addr+Hcsp_size]. }
     { rewrite /withinBounds; solve_addr+Hcsp_size. }
     (* Lea csp 1 *)
     iInstr "Hcode".
@@ -100,6 +103,7 @@ Section SO_Call_Blocks_3.
       destruct (z_to_addr (a_stk1 + 1))%a as [a_stk2|] eqn:Hastk2.
       - (* Subseg ca1 cs0 cs1 *)
         iInstr_invalidate "Hcode".
+        { rewrite /isWithin; solve_addr. }
         (* Store ca1 0%Z 0 *)
         iInstr_fail "Hcode".
         wp_end; iIntros (?); done.
@@ -116,12 +120,18 @@ Section SO_Call_Blocks_3.
     assert (is_Some (a_stk1 + 1)%a) as [a_stk2 Hastk2]; [solve_addr+Hcsp_size'|].
     iDestruct (region_pointsto_cons with "Hstk") as "[Hastk1 Hstk]"; eauto.
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
+    assert (is_heap_address a_stk1 = false) as Hastk1_nonheap.
+    { eapply disjoint_from_heap_not_in; [exact Hstk_heap|].
+      rewrite /withinBounds; solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* Subseg ca1 cs0 cs1 *)
     iInstr "Hcode".
     { transitivity (Some a_stk2); auto. solve_addr+Hastk2. }
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
+    { solve_addr+Hastk2. }
     (* Store ca1 0%Z 0 *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|].
+      rewrite /withinBounds; solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* Lea csp 1%Z *)
     iInstr "Hcode".
@@ -131,7 +141,9 @@ Section SO_Call_Blocks_3.
     (* Block 8: fetch the entry point of the switcher *)
     focus_block 8 "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".

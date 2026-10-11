@@ -13,7 +13,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -21,11 +21,11 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
   Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
-  Implicit Types w : (leibnizO Word).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
   (** Informal proof of the interp of the return-to-switcher entry point.
@@ -152,7 +152,7 @@ Section fundamental.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "[>Ha_tstk (>%HWF & Hcframe_interp)]".
-    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
+    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap).
     simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hccrel_known_to_known & Hfreq).
     pose proof (switcher_stk_bounds_frame b_stk e_stk a_stk Hb_a4 He_a1 (ex_intro _ _ Ha_stk4))
       as Hstk_bounds.
@@ -164,10 +164,14 @@ Section fundamental.
     cbn.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
+    iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
+    assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
+    { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
+      rewrite /withinBounds; solve_addr. }
 
     (* Block 12: pop the trusted stack *)
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|].
+      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|done|].
     iNext; iIntros (a_tstk1)
       "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & Hcode & Hlc)".
 
@@ -178,25 +182,50 @@ Section fundamental.
           & Hclose_res & %Hwastks & Hworld_interp)";
     eauto.
     rewrite -/(interp_cont).
+    iDestruct (lc_fupd_elim_later with "[$Hlc] [$Hclose_res]") as ">Hclose_res".
+    iDestruct "Hclose_res" as "[#Hsave Hstates]".
+    iCombine "Hsave Hstates" as "Hclose_res".
+    iAssert (if is_untrusted_caller ccrel then
+        interp_in_mem RWL W C wastk3 ∗
+        interp_in_mem RWL W C wastk2 ∗
+        interp_in_mem RWL W C wastk1 ∗
+        interp_in_mem RWL W C wastk
+      else True)%I as "#Hnormal".
+    { destruct (is_untrusted_caller ccrel) eqn:Huntrusted; simpl; last done.
+      rewrite /StackWorldResources.
+      do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
+      rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
+      replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
+      replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
+      iDestruct (big_sepL2_cons with "Hsave") as "[Hsave0 Hsave_tail1]".
+      iDestruct (big_sepL2_cons with "Hsave_tail1") as "[Hsave1 Hsave_tail2]".
+      iDestruct (big_sepL2_cons with "Hsave_tail2") as "[Hsave2 Hsave_tail3]".
+      iDestruct (big_sepL2_cons with "Hsave_tail3") as "[Hsave3 _]".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave3") as "$".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave2") as "$".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave1") as "$".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave0") as "$". }
     iDestruct (switcher_stk_cells_region_4 with "Hstk'") as "Hcells"; first done.
     iDestruct (open_world_interp_callee_stack
                 with "[$Hinterp_callee_wstk $Hworld_interp]")
       as "(Hworld_interp & (%lv & Hstk & Hres))"; eauto.
 
     (* Blocks 12-15: restore, clear and return *)
-    iApply (switcher_return_blocks_2_spec with
-      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp $Hcells $Hstk $Hrmap $Hcode]");
-      first done.
+    iApply (switcher_return_blocks_2_world_spec W W C _ ccrel with
+      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp $Hcells $Hstk
+        $Hworld_interp $Hnormal $Hrmap $Hcode]");
+      [done|done|done| |].
     { subst rmap0.
       clear -Hfull_rmap.
       repeat (rewrite dom_delete_L).
-      apply regmap_full_dom in Hfull_rmap.
+      apply lregmap_full_dom in Hfull_rmap.
       rewrite Hfull_rmap.
       set_solver.
     }
-    iNext; iIntros (arg_rmap')
-      "(%Harg_rmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk_register_save & Hstk & Hrmap & Hcode & Hlc')".
-    iCombine "Hlc Hlc'" as "Hlc".
+    iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
+      "(%Hloaded & Hworld_interp & Hinterp_loaded & %Harg_rmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
+      & Hstk_register_save & Hstk & Hrmap & Hcode & Hlc)".
+    destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
     iPoseProof (lc_weaken 1 with "Hlc") as "Hlc"; first lia.
 
     iHide "Hcode" as hcode.
@@ -218,7 +247,7 @@ Section fundamental.
     }
 
     set (lv' := region_addrs_zeroes (a_stk ^+ 4)%a e_stk).
-    assert (Forall (λ y : Word, y = WInt 0) lv') as Hlv'.
+    assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
     { subst lv'.
       rewrite /region_addrs_zeroes.
       by apply Forall_replicate.
@@ -233,9 +262,12 @@ Section fundamental.
       iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
 
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
-      iApply ("Hexec_topmost_frm" with
-               "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]").
+      iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
+        in "Hexec_topmost_frm".
+      iApply ("Hexec_topmost_frm" with "[%] [%] [%] [%]
+               [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
+      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]");
+        [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we close the world and jump to the
@@ -251,27 +283,12 @@ Section fundamental.
       }
       { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
 
-      iAssert ((interp W C wastk)
-               ∗ (interp W C wastk1)
-               ∗ (interp W C wastk2)
-               ∗ (interp W C wastk3)
-              )%I with "[Hclose_res]" as "#(Hinterp_wstk0 & Hinterp_wstk1 & Hinterp_wstk2 & Hinterp_wstk3)".
-      {
-        do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-        rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
-        replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-        replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
-        iDestruct "Hclose_res" as "[ Hclose_res Hstates ]".
-        iDestruct "Hclose_res" as "(Hclose_wastk & Hclose_wastk1 & Hclose_wastk2 & Hclose_wastk3 & _)".
-        iDestruct (StackWorldResource_interp with "Hclose_wastk") as "$".
-        iDestruct (StackWorldResource_interp with "Hclose_wastk1") as "$".
-        iDestruct (StackWorldResource_interp with "Hclose_wastk2") as "$".
-        iDestruct (StackWorldResource_interp with "Hclose_wastk3") as "$".
-      }
+      iDestruct "Hinterp_loaded" as
+        "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
 
       clear Hlen_lv' Hlv' lv'.
       set (lv' := region_addrs_zeroes a_stk (a_stk ^+ 4)%a).
-      assert (Forall (λ y : Word, y = WInt 0) lv') as Hlv'.
+      assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
       { subst lv'; rewrite /region_addrs_zeroes; by apply Forall_replicate. }
 
       iDestruct (big_sepL2_length with "Hstk_register_save") as "%Hlen_lv'".
@@ -281,7 +298,7 @@ Section fundamental.
       { apply finz_seq_between_NoDup. }
       { set_solver. }
       { subst lv'; by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-      rewrite -open_world_interp_empty.
+      rewrite fmap_nil -open_world_interp_empty.
 
       rewrite /is_untrusted_caller_frm /= Hccrel in Hfreq.
       iApply (switcher_jump_to_caller_spec with
@@ -296,6 +313,7 @@ Section fundamental.
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
+    iSplit; first (iPureIntro; exact switcher_not_heap_range).
     iIntros "!> %regs %W' % %".
     destruct g'; first done.
     iNext ; iApply (interp_expr_switcher_return with "Hinv").

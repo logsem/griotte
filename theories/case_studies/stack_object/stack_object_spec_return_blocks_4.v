@@ -13,7 +13,7 @@ Section SO_Return_Blocks_4.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,8 +22,9 @@ Section SO_Return_Blocks_4.
   Lemma so_return_blocks_4_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable) (Nassert : namespace) (E : coPset)
     (csp_b csp_e a_stk2 : Addr)
-    (wct0 wct1 wct2 wct3 wct4 wcnull wcra wret wca0 wca1 : Word) :
+    (wct0 wct1 wct2 wct3 wct4 wcnull wcra wret wca0 wca1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
+    disjoint_from_shadow csp_b csp_e ->
     (csp_b + 2)%a = Some a_stk2 ->
     (csp_b < csp_e)%a ->
     ↑Nassert ⊆ E ->
@@ -45,7 +46,7 @@ Section SO_Return_Blocks_4.
     (pc_b ^+ 1)%a ↦ₐ so_assert_entry ∗
     codefrag pc_a so_main_code ∗
     ▷ (na_own cerise_nais E ∗
-        PC ↦ᵣ updatePcPerm wret ∗
+        PC ↦ᵣ lupdatePcPerm wret ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
@@ -63,7 +64,8 @@ Section SO_Return_Blocks_4.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] Hastk2 Hcsp_size HNassert)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow
+               Hastk2 Hcsp_size HNassert)
       "(#Hassert & Hna & HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
       & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -78,6 +80,8 @@ Section SO_Return_Blocks_4.
     { transitivity (Some csp_b); auto. solve_addr+Hastk2. }
     (* Load ct0 csp 0 *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|rewrite /withinBounds; solve_addr]. }
+    { done. }
     { split; auto. rewrite /withinBounds. solve_addr. }
     (* Mov ct1 so_secret *)
     iInstr "Hcode".

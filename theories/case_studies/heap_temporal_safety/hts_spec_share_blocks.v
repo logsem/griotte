@@ -14,6 +14,14 @@ From griotte Require Import hts_spec_states hts_spec_world.
     stack slot below the callee frames and initialize it (faulting on an
     empty stack), share the buffer in the world, and call [adv(buf)]. *)
 
+From griotte Require Import proofmode_instr_support.
+
+(* The side conditions of the instruction rules are solved automatically. *)
+Local Tactic Notation "iInstr" constr(H) :=
+  iInstr_success H; [try instr_auto_solve_success .. | idtac].
+Local Tactic Notation "iInstr" constr(H) "with" constr(Hlc) :=
+  iInstr_success H with Hlc; [try instr_auto_solve_success .. | idtac].
+
 Section HTS_Spec_Share.
   Context
     {Σ:gFunctors}

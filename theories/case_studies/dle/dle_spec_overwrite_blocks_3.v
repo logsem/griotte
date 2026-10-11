@@ -14,7 +14,7 @@ Section DLE_Overwrite_Blocks_3.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,9 +22,10 @@ Section DLE_Overwrite_Blocks_3.
 
   Lemma dle_overwrite_blocks_3_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
-    (wcgp_b wca0 wct0 wct1 wcra : Word) :
+    (wcgp_b wca0 wct0 wct1 wcra : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length dle_main_code)%a ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 3)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
@@ -48,7 +49,7 @@ Section DLE_Overwrite_Blocks_3.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HsubBounds Hcgp_contiguous)
+    iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio)
       "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b & Hcode_main & Hpost)".
     rewrite /dle_switcher_entry.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -60,6 +61,7 @@ Section DLE_Overwrite_Blocks_3.
     change_pc_to (a_callB ^+ 3)%a.
     (* Store cgp 42%Z 0 *)
     iInstr "Hcode".
+    { solve_not_shadow Hcgp_mmio. }
     { solve_addr+Hcgp_contiguous. }
     (* Mov ca0 0%Z *)
     iInstr "Hcode".

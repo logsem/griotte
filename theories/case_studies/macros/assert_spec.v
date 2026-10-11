@@ -41,7 +41,7 @@ Section Assert_subroutine.
   *)
 
   Definition assert_inv (b_assert e_assert a_flag : Addr) : iProp Σ :=
-    (∃ cap_addr,
+    (⌜is_heap_address b_assert = false⌝ ∗ ∃ cap_addr,
        codefrag b_assert assert_subroutine_instrs ∗
        ⌜(b_assert + length assert_subroutine_instrs)%a = Some cap_addr⌝ ∗
        ⌜(cap_addr + 1)%a = Some e_assert⌝ ∗
@@ -50,9 +50,12 @@ Section Assert_subroutine.
 
   Lemma assert_subroutine_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret wnull : Word)
+    ( n1 n2 flag : Z ) ( wret : Word) ( wnull : LWord)
     (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
     ↑N ⊆ E →
+    disjoint_from_shadow pc_b pc_e →
+    is_shadow_address a_flag = false →
+    is_heap_address a_flag = false →
     (  na_inv cerise_nais N (assert_inv pc_b pc_e a_flag)
      ∗ na_own cerise_nais E
      ∗ PC ↦ᵣ WCap true RX pc_g pc_b pc_e pc_b
@@ -71,8 +74,10 @@ Section Assert_subroutine.
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (HNE) "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hflag & Hφ)".
+    iIntros (HNE Hcode_shadow Hflag_not_shadow Hflag_not_heap)
+      "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hflag & Hφ)".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
+    iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hpc_e & %He_flag & Hcap)".
     destruct He_flag as [e_flag He_flag].
     rewrite /assert_subroutine_instrs.
@@ -86,25 +91,32 @@ Section Assert_subroutine.
       subst n2. rewrite (_: n1 - n1 = 0)%Z; last lia.
       iGo "Hprog".
       iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
-      { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
+      { iNext. iSplit; first done. iExists _. iFrame. iPureIntro. repeat split; solve_addr. }
       iApply "Hφ". iFrame. rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
-      iInstr "Hprog". { assert (n1 - n2 ≠ 0)%Z by lia. congruence. }
+      iInstr "Hprog". { intros Hcontra; inversion Hcontra; lia. }
       iInstr "Hprog".
       iInstr "Hprog".
       rewrite (_: (pc_b ^+ 12)%a = cap_addr); [|solve_addr].
+      assert (is_shadow_address cap_addr = false) as Hcap_not_shadow.
+      { eapply disjoint_from_shadow_not_in; first exact Hcode_shadow.
+        apply withinBounds_true_iff; solve_addr. }
+      assert (is_heap_cap (WCap true RW Global a_flag (a_flag ^+ 1)%a a_flag) = false)
+        as Hcap_not_heap.
+      { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hflag_not_heap /=.
+        reflexivity. }
       iInstr "Hprog"; first solve_addr.
       iInstr "Hprog"; first solve_addr.
       iGo "Hprog".
       iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
-      { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
+      { iNext. iSplit; first done. iExists _. iFrame. iPureIntro. repeat split; solve_addr. }
       iApply "Hφ". iFrame. rewrite (_: (n1 =? n2)%Z = false) //.
       by apply Z.eqb_neq. }
   Qed.
 
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret wnull : Word)
+    ( n1 n2 flag : Z ) ( wret : Word) ( wnull : LWord)
     (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
     ↑N ⊆ E →
     n1 = n2 →
@@ -126,6 +138,7 @@ Section Assert_subroutine.
   Proof.
     iIntros (HNE Heq) "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hφ)".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
+    iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
     assert (SubBounds pc_b pc_e
@@ -135,7 +148,7 @@ Section Assert_subroutine.
     rewrite (_: n1 - n2 = 0)%Z; last lia.
     iGo "Hprog".
     iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
-    { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
+    { iNext. iSplit; first done. iExists _. iFrame. iPureIntro. repeat split; solve_addr. }
     iApply "Hφ". iFrame.
   Qed.
 
@@ -152,7 +165,7 @@ Section Assert.
     (n : Z) (rdst rscratch1 rscratch2 : RegName)
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
-    (n1 n2 : Z) (wdst wcra w1 w2 wnull : Word)
+    (n1 n2 : Z) (wdst wcra w1 w2 wnull : LWord)
     (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
 
     let assert_macro := assert_instrs n rdst rscratch1 rscratch2 in
@@ -160,6 +173,7 @@ Section Assert.
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
+    disjoint_from_shadow pc_b pc_e →
 
     ↑N ⊆ E →
     n1 = n2 →
@@ -190,8 +204,12 @@ Section Assert.
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
     intros assert_macro a_last; subst assert_macro a_last.
-    iIntros (Hpc_exec HsubBounds Hinbounds HNE Heq)
+    iIntros (Hpc_exec HsubBounds Hinbounds Hcode_shadow HNE Heq)
       "(#Hinv & Hna & HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hcra & Hct0 & Hct1 & Hcnull & Hcode & Hpc_bn & Hφ)".
+    iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
+    iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
+    iMod ("Hinv_close" with "[Hassert $Hna]") as "Hna".
+    { iNext. iFrame. by iPureIntro. }
     codefrag_facts "Hcode".
     rewrite /assert_instrs /assembled_assert.
     repeat (iEval (cbn [concat]) in "Hcode").
@@ -201,6 +219,8 @@ Section Assert.
     iDestruct (regname_neq with "Hrscratch2 Hcnull") as "%".
     iDestruct (regname_neq with "Hrdst Hcnull") as "%".
     iApply (fetch_spec with "[-]"); last iFrame; eauto.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hassert_not_heap /=.
+      reflexivity. }
     iNext; iIntros "(HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hfetch & Hpc_bn)".
     unfocus_block "Hfetch" "Hcont" as "Hcode".
     focus_block 1 "Hcode" as a_assert Ha_assert "Hassert" "Hcont".

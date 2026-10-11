@@ -10,7 +10,7 @@ Section Counter.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -18,7 +18,7 @@ Section Counter.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Context {C : CmptName}.
 
@@ -27,8 +27,8 @@ Section Counter.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
-    (rmap : Reg)
-    (csp_content : list Word)
+    (rmap : LReg)
+    (csp_content : list LWord)
     (C_f : Sealable)
 
     (W0 : WORLD)
@@ -42,6 +42,10 @@ Section Counter.
 
     let imports := counter_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Ncounter ->
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp ; cra]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -50,6 +54,7 @@ Section Counter.
     (cgp_b + length counter_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
 
@@ -58,9 +63,9 @@ Section Counter.
       (* initial memory layout *)
       ∗ na_inv cerise_nais Ncounter
           ( ∃ (cnt : Z),
-            [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+            [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
             ∗ codefrag pc_a counter_main_code
-            ∗ [[ cgp_b, cgp_e ]] ↦ₐ [[ [WInt cnt] ]]
+            ∗ [[ cgp_b, cgp_e ]] ↦ₐ [[ [lword_of_word (WInt cnt)] ]]
             ∗ ⌜ (0 <= cnt)%Z ⌝
           )
       ∗ na_own cerise_nais ⊤
@@ -88,6 +93,7 @@ Section Counter.
        - [counter_world_call]: revoke the world, to get the stack frame;
        - [counter_main_blocks_1_spec]: blocks 0-3, increment the counter,
          fetch the imports and jump to the switcher;
+       - [counter_world_quarantine]: close the quarantined revoked keys;
        - [switcher_call_args_0] and [switcher_cc_specification]: call to
          [C_f];
        - [counter_world_return]: repair the world;
@@ -95,8 +101,9 @@ Section Counter.
          jump to the switcher;
        - [switcher_ret_specification]: return to the caller. *)
     intros imports; subst imports.
-    iIntros (HNswitcher_counter Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hframe_match Hcsp_sync
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_nonheap HNswitcher_counter Hrmap_dom
+               Hrmap_init HsubBounds Hcgp_contiguous Himports_contiguous Hsealed_nonheap
+               Hframe_match Hcsp_sync
             )
       "(#Hswitcher & #Hmem & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
@@ -106,24 +113,29 @@ Section Counter.
       & #Hinterp_W0_C_f & #Hentry_C_f
       & #Hinterp_W0_csp
       )".
-    assert (counter_code_bounds pc_b pc_e pc_a C_f) as Hbounds by done.
+    assert (counter_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /counter_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).
     iMod (na_inv_acc with "Hmem Hna")
       as "(( %cnt & >Himports_main & >Hcode_main & >Hcgp_main & >%Hcnt) & Hna & Hmem_close)"; auto.
+    iEval (cbn [fmap list_fmap counter_main_data counter_main_imports]) in "Hcgp_main Himports_main".
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_C_f)".
     iRegionSplit "Hcgp_main" as "Hcgp_b".
     iExtractList "Hrmap" [ct0;ct1;cs0;cs1] as ["Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
 
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
+      as %[Hstk_mmio Hstk_heap]; first done.
+
     (* Revoke the world, to get the stack frame *)
-    iMod (counter_world_call with "Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
-      as (l stk_mem) "(%Hextract & %Hrevoked_l & %Hrevoked_stk & Hworld_interp_C
-                      & #Hinterp_W1_C_f & Hstack_revoked & Hrevoked_l & Hstk)".
+    iMod (counter_world_call with "Hinterp_W0_csp Hworld_interp_C")
+      as (l l_live l_q stk_mem) "(%Hextract & %Hperm_l & %Hlive_l & %Hq_l & %Hrevoked_l
+                                 & %Hrevoked_stk & Hworld_interp_C
+                                 & Hstack_revoked & Hrevoked_live & Hrevoked_q & Hstk)".
 
     (* Blocks 0-3: increment the counter, fetch the imports and jump to the
        switcher *)
     iApply (counter_main_blocks_1_spec with
              "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hcgp_b
-              $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|].
+              $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|done|].
     iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hcgp_b
                     & Himport_switcher & Himport_C_f & Hcode_main)".
     iMod ("Hmem_close" with "[$Hna Himport_switcher Himport_C_f $Hcode_main Hcgp_b]")
@@ -133,8 +145,12 @@ Section Counter.
       iSplitL; first (iRegionMerge; iFrame).
       iPureIntro; lia. }
     clear dependent cnt.
+
+    (* Close the quarantined keys *)
+    iMod (counter_world_quarantine with "Hinterp_W0_C_f Hworld_interp_C Hstack_revoked Hrevoked_q")
+      as "(%Hrevoked_stk_W1q & Hworld_interp_C & #Hinterp_W1_C_f & Hstack_revoked)"; [done..|].
     iInsertRegs "Hrmap" ["Hct0"].
-    iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
+    iDestruct (switcher_call_args_0 (close_list l_q (revoke W0)) C with "Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
@@ -143,23 +159,33 @@ Section Counter.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hentry_C_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
-              $Hinterp_W1_C_f $HK]"); [done|done|].
+              $Hinterp_W1_C_f $HK]"); [done|done|done|done|].
     iSplit; first done.
     iNext.
     clear dependent arg_rmap rmap' stk_mem.
-    iIntros (W2 rmap' stk_mem l')
-      "(_ & _ & _ & %Hpub_ext_W2 & _ & %Hrmap'_dom & _ & _
-      & Hna & _
+    iIntros (W2 rmap' stk_mem l' rcgp rcra rcs0 rcs1)
+      "(%Hl_unk' & Hrevoked_l' & _ & %Hpub_ext_W2 & _ & %Hrmap'_dom & _ & _
+      & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
-    iEval (cbn [updatePcPerm]) in "HPC".
+      & Hrmap & Hstk & HK & %Hrestored)".
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcs0;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
+    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    subst rcgp rcra rcs0 rcs1.
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Repair the world *)
-    iMod (counter_world_return with "Hworld_interp_C Hrevoked_l Hstk")
-      as "(Hworld_interp_C & Hrevoked_l & Hstk & %Hpub_W0_Wfixed)"; [done..|].
+    iMod (counter_world_return with "Hworld_interp_C Hrevoked_live Hrevoked_l' Hstk")
+      as (closing_revoked) "(Hworld_interp_C & Hrevoked_l & Hstk & %Hpub_W0_Wfixed
+                             & %Hclosing_nodup & %Htemp0_cover)"; [done..|].
 
     (* Block 4: clear the registers and jump to the switcher *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
@@ -170,7 +196,7 @@ Section Counter.
              "[- $HPC $Hcra $Hcs0 $Hcs1 $Hca0 $Hca1 $Hcnull $Hcode_main]"); first done.
     iNext; iIntros "(HPC & Hcra & Hcs0 & Hcs1 & Hca0 & Hca1 & Hcnull & Hcode_main)".
     iMod ("Hmem_close" with "[$Hna $Himports_main $Hcode_main $Hcgp_main]") as "Hna"; first done.
-    iEval (cbn [updatePcPerm]) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iInsertRegs "Hrmap" ["Hcnull"; "Hcs0"; "Hcs1"; "Hcgp"; "Hcra"].
 
     (* Return to the caller *)
@@ -178,8 +204,6 @@ Section Counter.
              "[$Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap'_dom; set_solver+. }
-    { by destruct Hextract. }
-    { intros a; destruct Hextract as [_ Htemp]; destruct (Htemp a); auto. }
     { iSplit; iApply interp_int. }
   Qed.
 
@@ -192,25 +216,31 @@ Section Counter.
 
     (W0 : WORLD)
 
-    (csp_content : list Word)
+    (csp_content : list LWord)
 
     (Nswitcher Ncounter : namespace)
     :
 
     let imports := counter_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Ncounter ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length counter_main_code)%a ->
     (cgp_b + length counter_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
+
     na_inv cerise_nais Nswitcher switcher_inv
     (* initial memory layout *)
     ∗ na_inv cerise_nais Ncounter
         ( ∃ (cnt : Z),
-            [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+            [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
             ∗ codefrag pc_a counter_main_code
-            ∗ [[ cgp_b, cgp_e ]] ↦ₐ [[ [WInt cnt] ]]
+            ∗ [[ cgp_b, cgp_e ]] ↦ₐ [[ [lword_of_word (WInt cnt)] ]]
             ∗ ⌜ (0 <= cnt)%Z ⌝
         )
     ∗ interp W0 C (WSealed ot_switcher C_f)
@@ -219,8 +249,8 @@ Section Counter.
       (WCap true RX Global pc_b pc_e pc_a) (WCap true RW Global cgp_b cgp_e cgp_b) 0 W0 C.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_counter HsubBounds
-               Hcgp_contiguous Himports_contiguous)
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_nonheap HNswitcher_counter HsubBounds
+               Hcgp_contiguous Himports_contiguous Hsealed_nonheap)
       "(#Hswitcher & #Hmain & #Hinterp_C_f & #HentryC_f)
       % % % % % %
       (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
@@ -235,7 +265,7 @@ Section Counter.
 
     iApply counter_spec; last iFrame "∗#"; eauto.
     { repeat (rewrite dom_delete_L).
-      apply regmap_full_dom in Hfullrmap; rewrite Hfullrmap.
+      apply lregmap_full_dom in Hfullrmap; rewrite Hfullrmap.
       set_solver.
     }
     { intros r Hr.

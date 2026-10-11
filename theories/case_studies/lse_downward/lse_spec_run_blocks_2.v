@@ -12,7 +12,7 @@ Section LSE_Run_Blocks_2.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -26,7 +26,7 @@ Section LSE_Run_Blocks_2.
     ▷ (codefrag pc_a lse_main_code ={⊤}=∗ na_own cerise_nais ⊤)
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous]) "(HPC & Hcode_main & Hpost)".
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap)) "(HPC & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
 

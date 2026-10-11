@@ -13,7 +13,7 @@ Section Switcher_Call_Blocks_6.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -50,7 +50,7 @@ Section Switcher_Call_Blocks_6.
   Qed.
 
   (** Block 17: force the unwinding of the call. *)
-  Lemma switcher_call_block_17_spec (wca0 wca1 : Word) :
+  Lemma switcher_call_block_17_spec (wca0 wca1 : LWord) :
     PC ↦ᵣ switcher_block_pc 17 ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗

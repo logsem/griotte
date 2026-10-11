@@ -15,7 +15,7 @@ Section DROE_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -33,14 +33,16 @@ Section DROE_World.
     <s[(cgp_b ^+ 1)%a := Permanent ]s> (<s[cgp_b := Permanent ]s> (revoke W)).
 
   (** The safety predicate of [cgp_b]: it always contains [42]. *)
-  Definition droe_b_pred : WORLD * CmptName * Word → iProp Σ :=
-    safeC (interp_dro_eq (WInt 42)).
+  Definition droe_b_pred : WORLD * CmptName * LWord → iProp Σ :=
+    safeC (interp_in_mem_dro_eq (WInt 42)).
 
   Lemma droe_world_share W0 C (cgp_b cgp_e csp_b csp_e : Addr) (C_f : Sealable) :
     let W3 := droe_Wshare W0 cgp_b in
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
-    cgp_b ∉ dom (std W0) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W0) ->
+    disjoint_from_mmio cgp_b cgp_e ->
+    not_heap_range cgp_b cgp_e ->
+    LNonHeap cgp_b ∉ dom (std W0) ->
+    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W0) ->
     revoked_addresses (revoke W0) (finz.seq_between csp_b csp_e) ->
     world_interp (revoke W0) C -∗
     StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
@@ -49,39 +51,53 @@ Section DROE_World.
     (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b
     ={⊤}=∗
     world_interp W3 C ∗
-    rel C cgp_b RO_DRO droe_b_pred ∗
+    rel C (LNonHeap cgp_b) RO_DRO droe_b_pred ∗
     interp W3 C (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a) ∗
     interp W3 C (WSealed ot_switcher C_f) ∗
     StackRevokedResources W3 C (finz.seq_between csp_b csp_e) ∗
     ⌜ revoked_addresses W3 (finz.seq_between csp_b csp_e) ⌝.
   Proof.
-    intros W3.
-    iIntros (Hcgp_contiguous Hcgp_b Hcgp_a Hstack_revoked)
+    intros W3'; subst W3'; rewrite /droe_Wshare.
+    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_range Hcgp_b Hcgp_a Hstack_revoked)
       "Hworld_interp_C #Hstack_revoked_W0 #Hinterp_W0_C_f Hcgp_b Hcgp_a".
+    destruct Hcgp_range as [Hcgp_nonheap Hcgp_heap].
     set (W1 := revoke W0).
-
-    (* First, extend the world such that [cgp_b] is permanent, with value 42 *)
-    iDestruct (init_PermRes W1 C cgp_b RO_DRO droe_b_pred
-                with "[] [$Hcgp_b] []") as "PermRes_cgp_b"; auto.
+    iDestruct ( init_PermRes W1 C cgp_b RO_DRO (safeC (interp_in_mem_dro_eq (WInt 42)))
+                with "[] [$Hcgp_b] []" ) as "PermRes_cgp_b"; auto.
     { rewrite /future_priv_mono.
       iIntros "!>" (W W' Hrelated) "H"; cbn.
-      iSplitR; [done | by rewrite !fixpoint_interp1_eq].
+      iDestruct "H" as "[%Hval Hinterp]".
+      iSplitR; [done |].
+      iApply (interp_in_mem_monotone_nl W W' C RWL (WInt 42) with "Hinterp");
+        [exact Hrelated |].
+      cbn. done.
     }
     { cbn.
-      iSplitR; [done | by rewrite !fixpoint_interp1_eq].
+      iSplitR; [done |].
+      iEval (rewrite /interp_in_mem_pre /=).
+      iApply interp_int.
     }
-    iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_b")
+    iMod (world_interp_extend_perm_nonheap with "Hworld_interp_C PermRes_cgp_b")
       as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
     { by rewrite -revoke_dom_eq. }
-    set (W2 := <s[cgp_b:=Permanent]s> W1).
 
-    (* And prove that the RO_DRO capability pointing to it is safe *)
+    match goal with
+    | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
+    end.
+
     iAssert (interp W2 C (WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+      iSplit; last (iPureIntro;
+        pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b (cgp_b ^+ 1)%a
+          ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
+          as [Hsub_shadow Hsub_heap];
+        split; [exact Hsub_shadow|apply heap_cap_valid_disjoint; exact Hsub_heap]).
+      rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_dro_eq _).
+      rewrite addr_key_None.
+      iExists RO_DRO, (interp_in_mem_dro_eq _).
       iEval (cbn).
       iSplit; first done.
       iSplit.
@@ -89,9 +105,11 @@ Section DROE_World.
       iSplit; first iFrame "Hrel_cgp_b".
       iSplit.
       { iIntros "!>" (W1').
-        iIntros "!>" (W1'' z) "[-> H]".
-        rewrite /interp_dro_eq /=.
-        iSplitR; [done | by rewrite !fixpoint_interp1_eq].
+        iIntros "!>" (W1'' z π) "[%Heq H]"; simplify_eq.
+        rewrite /interp_in_mem_dro_eq /=.
+        iSplitR; [done |].
+        iEval (rewrite /interp_in_mem_pre /=).
+        iApply interp_int.
       }
       iSplit.
       { iIntros "!>" (W1').
@@ -99,49 +117,63 @@ Section DROE_World.
         done.
       }
       iSplit; first done.
+      subst W1.
       iSplit.
-      + rewrite /monoReq; subst W2 W1; cbn; rewrite lookup_insert_eq.
+      + rewrite /monoReq; cbn; rewrite lookup_insert_eq.
         iIntros (?) "%Hcontra"; rewrite /canStore in Hcontra.
-        destruct (isLocalWord w); done.
+        destruct (isLocalWord w.(lw)); done.
       + iPureIntro.
         by rewrite lookup_insert_eq.
     }
 
-    (* Second, extend the world such that [cgp_b+1] is permanent, with value
-       the RW capability pointing to [cgp_b] *)
-    iDestruct (init_PermRes W2 C (cgp_b ^+1)%a RO_DRO
-                 (safeC (interp_dro_eq (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
-                with "[] [$Hcgp_a] []") as "PermRes_cgp_a"; auto.
+    assert (is_heap_address (cgp_b ^+ 1)%a = false) as Hcgp1_nonheap.
+    { apply not_true_is_false; intros Hheap.
+      apply withinBounds_true_iff in Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hcgp_heap.
+      eapply (Hcgp_heap (cgp_b ^+ 1)%a); apply elem_of_finz_seq_between;
+        [solve_addr+Hcgp_contiguous|exact Hheap]. }
+
+    iDestruct ( init_PermRes W2 C (cgp_b ^+1)%a RO_DRO  (safeC (interp_in_mem_dro_eq (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+                with "[] [$Hcgp_a] []" ) as "PermRes_cgp_a"; auto.
     { rewrite /future_priv_mono.
-      iIntros "!>" (W W' Hrelated) "[% H]"; cbn.
+      iIntros "!>" (W W' Hrelared) "[%Hval H]"; cbn.
       iSplitR; [done |].
-      iApply interp_monotone_nl; eauto.
+      iApply (interp_in_mem_monotone_nl W W' C RWL with "H"); [exact Hrelared | done].
     }
-    { cbn; iSplit; done. }
-    iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_a")
+    { cbn. iSplit; [done |].
+      iApply interp_to_in_mem.
+      iExact "Hinterp_cgp_b". }
+    iMod (world_interp_extend_perm_nonheap with "Hworld_interp_C PermRes_cgp_a")
       as "(Hworld_interp_C & #Hrel_cgp_a)"; auto.
-    { subst W2 W1.
+    { subst W1.
       cbn; rewrite dom_insert_L not_elem_of_union; split.
-      + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
+      + rewrite not_elem_of_singleton; apply LNonHeap_ne; solve_addr+Hcgp_contiguous.
       + by rewrite -revoke_dom_eq.
     }
-    iFrame "Hworld_interp_C Hrel_cgp_b".
-    iModIntro.
 
-    assert (related_sts_priv_world W0 W3) as Hrelated_priv_W0_W3.
-    { eapply related_sts_priv_trans_world with (W' := W1) ; eauto
-      ; first eapply revoke_related_sts_priv_world.
-      eapply related_sts_priv_trans_world with (W' := W2) ; eauto
-      ; apply related_sts_priv_world_fresh_Permanent.
+    match goal with
+    | _ : _ |- context [ world_interp ?W' ] => set (W3 := W')
+    end.
+
+    assert (related_sts_priv_world W0 W3) as HWinit_privC_W3.
+    { subst W3.
+      eapply related_sts_priv_trans_world with (W' := W1) ; eauto; first eapply revoke_related_sts_priv_world.
+      eapply related_sts_priv_trans_world with (W' := W2) ; eauto; apply related_sts_priv_world_fresh_Permanent.
     }
 
-    (* The RO_DRO capability pointing to [cgp_b+1] is safe *)
-    iSplit.
+    iAssert (interp W3 C (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_C_a".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+      iSplit; last (iPureIntro;
+        pose proof (switcher_disjoint_subseg cgp_b cgp_e (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a
+          ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
+          as [Hsub_shadow Hsub_heap];
+        split; [exact Hsub_shadow|apply heap_cap_valid_disjoint; exact Hsub_heap]).
+      rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_dro_eq _).
+      rewrite addr_key_None.
+      iExists RO_DRO, (interp_in_mem_dro_eq _).
       iEval (cbn).
       iSplit; first done.
       iSplit.
@@ -149,7 +181,7 @@ Section DROE_World.
       iSplit; first iFrame "Hrel_cgp_a".
       iSplit.
       { iIntros "!>" (W1').
-        iIntros "!>" (W1'' z) "[% H]"; done.
+        iIntros "!>" (W1'' z π) "[% H]"; done.
       }
       iSplit.
       { iIntros "!>" (W1').
@@ -157,14 +189,20 @@ Section DROE_World.
         done.
       }
       iSplit; first done.
+      subst W1.
       iSplit.
-      + rewrite /monoReq /W3 /droe_Wshare; cbn; rewrite lookup_insert_eq.
+      + rewrite /monoReq; cbn; rewrite lookup_insert_eq.
         iIntros (?) "%Hcontra"; rewrite /canStore in Hcontra.
-        destruct (isLocalWord w); done.
+        destruct (isLocalWord w.(lw)); done.
       + iPureIntro.
-        by rewrite /W3 /droe_Wshare /= lookup_insert_eq.
+        by rewrite lookup_insert_eq.
     }
-    iSplit; first (iApply interp_monotone_sd; eauto).
+
+    iModIntro.
+    iFrame "Hworld_interp_C Hrel_cgp_b Hinterp_W3_C_a".
+    iSplit.
+    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_W0_C_f"); first reflexivity.
+      by iPureIntro. }
     iSplit; first (iApply (StackRevokedResources_mono_priv with "Hstack_revoked_W0"); auto).
 
     (* The stack is still revoked *)
@@ -173,11 +211,11 @@ Section DROE_World.
     intros x Hx.
     rewrite /revoked_addresses Forall_forall in Hstack_revoked.
     pose proof (Hstack_revoked x Hx) as Hx_revoked.
-    assert (x ≠ cgp_b).
-    { intros ->. apply Hcgp_b. rewrite revoke_dom_eq elem_of_dom; eauto. }
-    assert (x ≠ (cgp_b ^+ 1)%a).
-    { intros ->. apply Hcgp_a. rewrite revoke_dom_eq elem_of_dom; eauto. }
-    rewrite /W3 /droe_Wshare /=.
+    assert (LNonHeap x ≠ LNonHeap cgp_b).
+    { intros Heq. apply Hcgp_b. rewrite -Heq revoke_dom_eq elem_of_dom; eauto. }
+    assert (LNonHeap x ≠ LNonHeap (cgp_b ^+ 1)%a).
+    { intros Heq. apply Hcgp_a. rewrite -Heq revoke_dom_eq elem_of_dom; eauto. }
+    rewrite /droe_Wshare /=.
     rewrite !lookup_insert_ne //.
   Qed.
 
@@ -192,18 +230,19 @@ Section DROE_World.
     let stk' := finz.seq_between (csp_b ^+ 4)%a csp_e in
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     (csp_b <= csp_b ^+ 4)%a ->
+    is_heap_address cgp_b = false ->
     revoked_addresses W3 stk ->
     related_sts_pub_world (std_update_multiple W3 stk' Temporary) W4 ->
     world_interp (revoke W4) C -∗
-    rel C cgp_b RO_DRO droe_b_pred -∗
+    rel C (LNonHeap cgp_b) RO_DRO droe_b_pred -∗
     ◇ cgp_b ↦ₐ WInt 42.
   Proof.
     intros W3 stk stk'.
-    iIntros (Hcgp_contiguous Hcsp_bounds Hstack_revoked_W3 Hrelated_pub)
+    iIntros (Hcgp_contiguous Hcsp_bounds Hcgp_nonheap Hstack_revoked_W3 Hrelated_pub)
       "Hworld_interp #Hrel_cgp_b".
-    assert (std W3 !! cgp_b = Some Permanent) as HW3_cgp_b.
+    assert (std W3 !! LNonHeap cgp_b = Some Permanent) as HW3_cgp_b.
     { rewrite /W3 /droe_Wshare /=.
-      rewrite lookup_insert_ne; last solve_addr.
+      rewrite lookup_insert_ne; last (apply LNonHeap_ne; solve_addr).
       by rewrite lookup_insert_eq.
     }
     assert (cgp_b ∉ stk') as Hcgp_b_stk'.
@@ -214,7 +253,7 @@ Section DROE_World.
       apply Hstack_revoked_W3 in Hin'; congruence.
     }
     rewrite open_world_interp_empty.
-    iDestruct (open_world_interp_permanent with "Hworld_interp Hrel_cgp_b")
+    iDestruct (open_world_interp_permanent_nonheap with "Hworld_interp Hrel_cgp_b")
       as "(_ & _ & [%w (_ & >Hcgp_b & Hw & _)])"; auto.
     { set_solver+. }
     { eapply (region_state_priv_perm W4); eauto.

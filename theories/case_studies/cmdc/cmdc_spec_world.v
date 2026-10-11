@@ -15,7 +15,7 @@ Section CMDC_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -35,11 +35,13 @@ Section CMDC_World.
       [(RW, Global, a, a_e, a)] is safe to share. The stack frame stays
       revoked. *)
   Lemma cmdc_world_share W C (a a_e csp_b csp_e : Addr) (target : Sealable)
-    (stk_mem : list Word) :
+    (stk_mem : list LWord) :
     let W' := cmdc_Wshare W a in
     let stk := finz.seq_between csp_b csp_e in
     (a + 1)%a = Some a_e ->
-    a ∉ dom (std W) ->
+    is_mmio_address a = false ->
+    is_heap_address a = false ->
+    LNonHeap a ∉ dom (std W) ->
     revoked_addresses W stk ->
     world_interp W C -∗
     StackRevokedResources W C stk -∗
@@ -48,7 +50,7 @@ Section CMDC_World.
     [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
     ={⊤}=∗
     world_interp W' C ∗
-    rel C a RW interpC ∗
+    rel C (LNonHeap a) RW interp_in_memC ∗
     interp W' C (WCap true RW Global a a_e a) ∗
     interp W' C (WSealed ot_switcher target) ∗
     StackRevokedResources W' C stk ∗
@@ -57,16 +59,16 @@ Section CMDC_World.
     [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]].
   Proof.
     intros W' stk.
-    iIntros (Ha_e Ha_fresh Hrevoked_stk)
+    iIntros (Ha_e Ha_mmio Ha_heap Ha_fresh Hrevoked_stk)
       "Hworld Hstack_revoked #Htarget Ha Hstk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Ha]") as "%Ha_stk".
 
     (* Relinquish [a] into the world, as a permanent address *)
-    iDestruct (init_PermRes W C a RW interpC with "[] [$Ha] []") as "Ha".
+    iDestruct (init_PermRes W C a RW interp_in_memC with "[] [$Ha] []") as "Ha".
     { done. }
-    { iApply future_priv_mono_interp_z. }
+    { iApply future_priv_mono_interp_in_mem_z. }
     { iApply interp_int. }
-    iMod (world_interp_extend_perm with "Hworld Ha") as "(Hworld & #Hrel_a)"; auto.
+    iMod (world_interp_extend_perm_nonheap with "Hworld Ha") as "(Hworld & #Hrel_a)"; auto.
     iModIntro.
     assert (related_sts_priv_world W W') as HW_priv_W'.
     { subst W'. by eapply related_sts_priv_world_fresh_Permanent. }
@@ -75,26 +77,48 @@ Section CMDC_World.
     (* The capability pointing to [a] is safe to share *)
     iSplit.
     { iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+      iSplitL; last first.
+      { iPureIntro. split.
+        - split.
+          + pose proof (not_mmio_not_shadow _ Ha_mmio) as Ha_shadow.
+            rewrite /disjoint_from_shadow elem_of_disjoint.
+            intros a' Ha' Hr; apply elem_of_finz_seq_between in Ha', Hr.
+            assert (a' = a) as -> by solve_addr+Ha' Ha_e.
+            apply withinBounds_true_iff in Hr.
+            change (is_shadow_address a = true) in Hr; congruence.
+          + pose proof (not_mmio_not_revoker _ Ha_mmio) as Ha_rev.
+            intros Ha'; apply elem_of_finz_seq_between in Ha'.
+            assert (revoker_addr = a) as Heq by solve_addr+Ha' Ha_e.
+            rewrite -Heq /is_revoker_address bool_decide_eq_false in Ha_rev.
+            by apply Ha_rev.
+        - apply heap_cap_valid_disjoint.
+          rewrite /disjoint_from_heap elem_of_disjoint.
+          intros a' Ha' Hr; apply elem_of_finz_seq_between in Ha', Hr.
+          assert (a' = a) as -> by solve_addr+Ha' Ha_e.
+          apply withinBounds_true_iff in Hr.
+          change (is_heap_address a = true) in Hr; congruence. }
+      rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons a); last solve_addr.
       rewrite (finz_seq_between_empty (a ^+ 1)%a); last solve_addr+Ha_e.
       iApply big_sepL_singleton.
-      iExists RW, interp.
+      rewrite addr_key_None.
+      iExists RW, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
-      iSplit; first (iPureIntro; by apply persistent_cond_interp).
+      iSplit; first (iPureIntro; by apply persistent_cond_interp_in_mem).
       iSplit; first iFrame "Hrel_a".
-      iSplit; first (iNext; by iApply zcond_interp).
-      iSplit; first (iNext; by iApply rcond_interp).
-      iSplit; first (iNext; by iApply wcond_interp).
+      iSplit; first (iNext; by iApply zcond_interp_in_mem).
+      iSplit; first (iNext; by iApply rcond_interp_in_mem).
+      iSplit; first (iNext; by iApply wcond_interp_in_mem).
       subst W'.
       iSplit.
-      - iApply (monoReq_interp _ _ _ _ Permanent); last done.
+      - iApply (monoReq_interp_in_mem _ _ _ _ Permanent); last done.
         rewrite /std_update. by rewrite lookup_insert_eq.
       - iPureIntro. by rewrite lookup_insert_eq.
     }
 
     (* The entry point of the callee is still safe to share *)
-    iSplit; first (iApply interp_monotone_sd; eauto).
+    iSplit; first (iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto).
 
     (* The stack is still revoked *)
     iSplit; first (iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); auto).
@@ -102,7 +126,7 @@ Section CMDC_World.
     rewrite /revoked_addresses Forall_forall.
     rewrite /revoked_addresses Forall_forall in Hrevoked_stk.
     intros a' Ha'. subst W'; cbn.
-    rewrite lookup_insert_ne; last (intros ->; set_solver+Ha_stk Ha').
+    rewrite lookup_insert_ne; last (intros [= ->]; set_solver+Ha_stk Ha').
     by apply Hrevoked_stk.
   Qed.
 
@@ -113,34 +137,36 @@ Section CMDC_World.
       gives back a points-to of [a]. *)
   Lemma cmdc_world_return W Wret C (a csp_b csp_e : Addr) :
     let stk' := finz.seq_between (csp_b ^+ 4)%a csp_e in
+    is_heap_address a = false ->
     a ∉ finz.seq_between csp_b csp_e ->
     (csp_b <= csp_b ^+ 4)%a ->
     related_sts_pub_world (std_update_multiple (cmdc_Wshare W a) stk' Temporary) Wret ->
     world_interp (revoke Wret) C -∗
-    rel C a RW interpC -∗
+    rel C (LNonHeap a) RW interp_in_memC -∗
     ◇ ∃ v, a ↦ₐ v.
   Proof.
     intros stk'.
-    iIntros (Ha_stk Hcsp_bounds Hrelated_pub) "Hworld #Hrel_a".
+    iIntros (Ha_heap Ha_stk Hcsp_bounds Hrelated_pub) "Hworld #Hrel_a".
     assert (a ∉ stk') as Ha_stk'.
     { subst stk'.
       intro Ha_range. apply Ha_stk.
       rewrite !elem_of_finz_seq_between in Ha_range |- *.
       solve_addr+Hcsp_bounds Ha_range.
     }
-    assert (std (revoke Wret) !! a = Some Permanent) as Ha_perm.
+    assert (std (revoke Wret) !! LNonHeap a = Some Permanent) as Ha_perm.
     { apply revoke_lookup_Perm.
       eapply region_state_pub_perm; first exact Hrelated_pub.
       rewrite /cmdc_Wshare std_update_multiple_insert_commute; last exact Ha_stk'.
       by rewrite lookup_insert_eq.
     }
     rewrite (open_world_interp_empty _ C).
-    iDestruct (open_world_interp_permanent with "Hworld Hrel_a")
+    iDestruct (open_world_interp_permanent_nonheap with "Hworld Hrel_a")
       as "(_ & _ & Ha)"; auto.
     { set_solver+. }
     iAssert (▷ ∃ v, a ↦ₐ v)%I with "[Ha]" as ">Ha".
     { iNext. iDestruct "Ha" as (v) "Ha".
       iDestruct (PermRes_acc with "Ha") as "[(Ha & _) _]".
+      iEval (rewrite key_pointsto_nonheap) in "Ha".
       by iExists v. }
     by iModIntro.
   Qed.

@@ -132,6 +132,8 @@ Section KVS_spec_erase.
     { injection; intros; lia. }
     (* store cgp ASM_NONE; *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
+      solve_addr+Hcgp_idx. }
     { solve_addr+Hcgp_idx. }
     (* mov ca0 0; *)
     iInstr "Hcode".

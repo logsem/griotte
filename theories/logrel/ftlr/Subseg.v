@@ -4,7 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import memory_region map_simpl.
-From griotte Require Import rules_base rules_Subseg.
+From griotte Require Import rules_base rules_Subseg rules_registry.
 From griotte Require Import map_simpl register_tactics.
 
 Section fundamental.

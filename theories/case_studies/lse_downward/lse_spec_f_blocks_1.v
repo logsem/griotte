@@ -13,7 +13,7 @@ Section LSE_F_Blocks_1.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -21,10 +21,13 @@ Section LSE_F_Blocks_1.
 
   Lemma lse_f_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (cgp_b cgp_e : Addr) (csp_b csp_e : Addr) (stk_mem : list Word)
-    (wct0 wct1 wcs0 wcs1 : Word) :
+    (cgp_b cgp_e : Addr) (csp_b csp_e : Addr) (stk_mem : list LWord)
+    (wct0 wct1 wcs0 wcs1 : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
+    disjoint_from_mmio csp_b csp_e ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 4)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
@@ -49,7 +52,7 @@ Section LSE_F_Blocks_1.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] Hcgp_bounds)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hcgp_nonheap Hstk_mmio)
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1
       & Hcgp_b & Hstk & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -66,6 +69,7 @@ Section LSE_F_Blocks_1.
     (* Subseg cgp cs0 cs1 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1%nat)%a); [solve_addr+Hcgp_bounds|reflexivity]. }
+    { solve_addr+Hcgp_bounds. }
     { solve_addr+Hcgp_bounds. }
     destruct (decide (csp_b < csp_e)%a) as [Hcsp_size|Hcsp_size]; cycle 1.
     { (* The stack frame is empty: the push fails *)
@@ -85,9 +89,11 @@ Section LSE_F_Blocks_1.
     { solve_addr+Hcsp_size. }
     (* Store csp cgp 0 *)
     iInstr "Hcode".
+    { solve_not_shadow Hstk_mmio. }
     { rewrite /withinBounds; solve_addr+Hcsp_size. }
     (* Load ct0 cgp 0 *)
     iInstr "Hcode".
+    { done. }
     { split; [solve_pure|solve_addr+Hcgp_bounds]. }
     (* Mov ct1 2 *)
     iInstr "Hcode".

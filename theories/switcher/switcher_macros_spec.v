@@ -114,7 +114,7 @@ Section switcher_macros.
       destruct csp_p,rx,w;auto. done.
   Qed.
 
-  Lemma big_sepM_arg_rmap (Φ : RegName → Word → iProp Σ) w0 w1 w2 w3 w4 w5 w6 :
+  Lemma big_sepM_arg_rmap (Φ : RegName → LWord → iProp Σ) w0 w1 w2 w3 w4 w5 w6 :
     ([∗ map] r↦w ∈ <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
                      (<[ca5:=w5]> (<[ct0:=w6]> ∅)))))), Φ r w)
     ⊣⊢ Φ ca0 w0 ∗ Φ ca1 w1 ∗ Φ ca2 w2 ∗ Φ ca3 w3 ∗ Φ ca4 w4 ∗ Φ ca5 w5 ∗ Φ ct0 w6.
@@ -127,7 +127,7 @@ Section switcher_macros.
                   (<[ca5:=w5]> (<[ct0:=w6]> ∅))))))) 8.
   Proof. rewrite /is_arg_rmap /dom_arg_rmap !dom_insert_L dom_empty_L. set_solver. Qed.
 
-  Lemma is_arg_rmap_8_inv (arg_rmap : Reg) :
+  Lemma is_arg_rmap_8_inv (arg_rmap : LReg) :
     is_arg_rmap arg_rmap 8 →
     ∃ w0 w1 w2 w3 w4 w5 w6,
       arg_rmap = <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>

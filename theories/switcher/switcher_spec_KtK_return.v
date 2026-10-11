@@ -15,7 +15,7 @@ Section Switcher_KtK_Return.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -23,15 +23,15 @@ Section Switcher_KtK_Return.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
 
   Lemma switcher_cc_specification_return_known_to_known
     (Nswitcher : namespace)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : LWord)
     (b_stk e_stk a_stk : Addr)
-    (stk_mem : list Word)
-    (rmap : Reg)
+    (stk_mem : list LWord)
+    (rmap : LReg)
     (cstk : CSTK)
     (E : coPset)
     :
@@ -47,6 +47,9 @@ Section Switcher_KtK_Return.
               ccrel := Known_to_Known
            |}
     in
+
+    disjoint_from_heap b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
 
     (* NA mask *)
     ↑Nswitcher ⊆ E ->
@@ -81,14 +84,16 @@ Section Switcher_KtK_Return.
 
 
     (* POST-CONDITION *)
-    ∗ ▷ ( ∀ rmap',
+    ∗ ▷ ( ∀ rmap' rcgp rcra rcs0 rcs1,
             (
-              ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
+              ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
               (* NA token*)
               ∗ na_own cerise_nais E
               (* Registers *)
-              ∗ PC ↦ᵣ updatePcPerm wcra_caller
-              ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗ cs0 ↦ᵣ wcs0_caller ∗ cs1 ↦ᵣ wcs1_caller
+              ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+              ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
               (* Stack register *)
               ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
               (* Return values *)
@@ -118,7 +123,7 @@ Section Switcher_KtK_Return.
          caller;
        - pop the frame and close the switcher invariant. *)
     intros astk4 frame; subst astk4.
-    iIntros (HE Hdom)
+    iIntros (Hstk_heap Hstk_mmio HE Hdom)
       "(#Hswitcher & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
       & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
 
@@ -139,7 +144,7 @@ Section Switcher_KtK_Return.
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     rewrite /frame /cframe_interp; iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "(>Ha_tstk & >%HWF & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
-    destruct HWF as (Hb_a4 & He_a1 & Ha_stk4).
+    destruct HWF as (Hb_a4 & He_a1 & Ha_stk4 & _ & _).
     pose proof (switcher_stk_bounds_frame b_stk e_stk a_stk Hb_a4 He_a1 Ha_stk4) as Hstk_bounds.
     pose proof Hstk_bounds as (_ & _ & Ha4).
     iExtract "Hregs" ctp as "Hctp".
@@ -149,17 +154,21 @@ Section Switcher_KtK_Return.
 
     (* Block 12: pop the trusted stack *)
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|].
+      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done| |].
+    { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
+      rewrite /withinBounds; solve_addr. }
     iNext; iIntros (a_tstk1)
       "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & Hcode & _)".
 
     (* Blocks 12-15: restore, clear and return *)
+    iAssert (switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller)
+      with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
     iApply (switcher_return_blocks_2_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hstk $Hregs $Hcode]"); first done.
+        $Hcells $Hstk $Hregs $Hcode]"); [done|done| |].
     { repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }
-    iNext; iIntros (rmap')
-      "(%Hrmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hregs & Hcode & _)".
+    iNext; iIntros (rmap' rcgp rcra rcs1 rcs0)
+      "(%Hrestored & %Hrmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hregs & Hcode & _)".
     iDestruct (region_pointsto_split a_stk e_stk (a_stk ^+ 4)%a with "[$Hstk' $Hstk]") as "Hstk";
       [solve_addr | by rewrite /region_addrs_zeroes length_replicate |].
     assert (region_addrs_zeroes a_stk e_stk =
@@ -183,8 +192,8 @@ Section Switcher_KtK_Return.
       iPureIntro; solve_addr+Hbounds_tstk_b  Hlen_cstk Ha_tstk1.
     }
 
-    iApply "Hpost"; iFrame.
-    iPureIntro; rewrite Hrmap'; set_solver.
+    iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1); iFrame.
+    iPureIntro; split; first naive_solver. rewrite Hrmap'; set_solver.
   Qed.
 
 End Switcher_KtK_Return.

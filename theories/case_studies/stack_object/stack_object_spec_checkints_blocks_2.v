@@ -13,7 +13,7 @@ Section SO_Checkints_Blocks_2.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -21,21 +21,22 @@ Section SO_Checkints_Blocks_2.
 
   Lemma so_checkints_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (t : bool) (p : Perm) (g : Locality) (b e a : Addr)
-    (l : list Addr) (ws : list Word)
-    (wcs0 wcs1 : Word) :
+    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
+    (l : list Addr) (ws : list LWord)
+    (wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     readAllowed p = true ->
+    disjoint_from_shadow b e ->
     l ≡ₚ finz.seq_between b e ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
-    ca0 ↦ᵣ WCap t p g b e a ∗
+    ca0 ↦ᵣ WCap t p g b e a @@? π ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
     codefrag pc_a so_main_code ∗
-    ▷ (⌜Forall (λ w, ∃ z, w = WInt z) ws⌝ ∗
+    ▷ (⌜Forall (λ w, ∃ z, w.(lw) = WInt z) ws⌝ ∗
         PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
-        ca0 ↦ᵣ WCap t p g b e (finz.max b e) ∗
+        ca0 ↦ᵣ WCap t p g b e (finz.max b e) @@? π ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
         ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
@@ -44,7 +45,7 @@ Section SO_Checkints_Blocks_2.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] Hp Hl)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hp Hshadow Hl)
       "(HPC & Hca0 & Hcs0 & Hcs1 & Hobject & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
@@ -64,18 +65,18 @@ Section SO_Checkints_Blocks_2.
       stack object [in]. *)
   Lemma so_checkints_blocks_2_untagged_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (p : Perm) (g : Locality) (b e a : Addr)
-    (wcs0 wcs1 : Word) :
+    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
+    (wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     (b < e)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
-    ca0 ↦ᵣ WCap false p g b e a ∗
+    ca0 ↦ᵣ WCap false p g b e a @@? π ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     codefrag pc_a so_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] Hbe)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hbe)
       "(HPC & Hca0 & Hcs0 & Hcs1 & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.

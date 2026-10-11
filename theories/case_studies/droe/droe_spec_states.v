@@ -42,7 +42,7 @@ Section DROE_States.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -62,7 +62,10 @@ Section DROE_States.
   (** The bounds of the code and of the imports, as given to [droe_spec]. *)
   Definition droe_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ∧
-    (pc_b + length (droe_main_imports C_f))%a = Some pc_a.
+    (pc_b + length (droe_main_imports C_f))%a = Some pc_a ∧
+    disjoint_from_shadow pc_b pc_e ∧
+    is_heap_address pc_b = false ∧
+    is_heap_cap (WSealed ot_switcher C_f) = false.
 
   (** The capability of the entry point of the switcher. *)
   Definition droe_switcher_entry : Word :=

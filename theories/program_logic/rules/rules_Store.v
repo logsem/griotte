@@ -1093,6 +1093,77 @@ iApply "Hφ".
      Unshelve. all: done.
     Qed.
 
+   Lemma wp_store_fail_reg_not_cap_lword_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π w
+     dst src (wdst : LWord) wstore :
+      decodeInstrW w.(lw) = Store dst (inr src) imm →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     is_cap wdst.(lw) = false ->
+     src ≠ cnull ->
+
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ src ↦ᵣ wstore
+           ∗ ▷ dst ↦ᵣ wdst
+     }}}
+       Instr Executable @ E
+       {{{ RET FailedV; True}}}.
+    Proof.
+      iIntros (Hinstr Hvpc Hnot_cap ? φ)
+             "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
+    destruct wdst as [wdst πd]; cbn in Hnot_cap.
+    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
+    iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
+
+    iApply (wp_store_imm _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto;
+      try solve [intros p0 g0 b0 e0 a0 ea0 (Hdst0 & Hadd0 & Hwa0 & Hwb0);
+        try (destruct (decide (dst = cnull))); simplify_map_eq; try (cbn in Hnot_cap); congruence].
+    { by rewrite !dom_insert; set_solver+. }
+    { rewrite /allow_store_map_or_true_imm.
+      eexists true,_,_,_,_,_,_; eauto.
+      simplify_map_eq.
+      split; [|split]; eauto.
+      - rewrite /read_reg_inr; simplify_map_eq.
+        destruct wdst as [| [] | |]; cbn in Hnot_cap; done.
+      - rewrite /reg_allows_store_imm.
+        destruct (_ + imm)%a; simpl; last done. simplify_map_eq.
+        rewrite decide_False; auto.
+        intros [].
+        destruct (decide (dst = cnull)); first done.
+        destruct wdst as [| [] | |]; cbn in Hnot_cap; simplify_eq.
+    }
+    iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
+    iDestruct "Hspec" as %Hspec.
+
+    destruct Hspec; try (simplify_map_eq; congruence).
+     { (* Success (contradiction) *)
+       exfalso.
+       rewrite /reg_allows_store_imm in H4.
+       destruct H4 as (? & ? & ? & ?); simplify_map_eq.
+       destruct (decide (dst = cnull)); first done.
+       simplify_map_eq.
+     }
+     by iApply "Hφ".
+     Unshelve. all: done.
+    Qed.
+
+   Lemma wp_store_fail_reg_not_cap_lword E pc_p pc_g pc_b pc_e pc_a pc_π w
+     dst src (wdst : LWord) wstore :
+      decodeInstrW w.(lw) = Store dst (inr src) 0 →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     is_cap wdst.(lw) = false ->
+     src ≠ cnull ->
+
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ src ↦ᵣ wstore
+           ∗ ▷ dst ↦ᵣ wdst
+     }}}
+       Instr Executable @ E
+       {{{ RET FailedV; True}}}.
+  Proof.
+    intros. eapply wp_store_fail_reg_not_cap_lword_imm with (imm := 0); eauto; try by rewrite finz_add_0.
+  Qed.
+
     Lemma wp_store_fail_z_not_cap_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π w
      dst z wdst :
       decodeInstrW w.(lw) = Store dst (inl z) imm →

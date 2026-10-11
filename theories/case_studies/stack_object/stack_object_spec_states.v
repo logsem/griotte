@@ -84,23 +84,54 @@ Section SO_Object.
   Definition so_object_addresses (b e : Addr) :=
     finz.seq_between b e.
 
-  Definition so_object_temporaries (W : WORLD) (b e : Addr) :=
+  Definition so_object_temporaries (W : WORLD) (π : option AId) (b e : Addr) :=
     filter
-      (fun a => std W !! a = Some Temporary)
+      (fun a => std W !! addr_key π a = Some Temporary)
       (so_object_addresses b e).
 
-  Definition so_object_permanents (W : WORLD) (b e : Addr) :=
+  Definition so_object_permanents (W : WORLD) (π : option AId) (b e : Addr) :=
     filter
-      (fun a => std W !! a = Some Permanent)
+      (fun a => std W !! addr_key π a = Some Permanent)
       (so_object_addresses b e).
 
   (** The revoked addresses [l] that are not temporary addresses of the
       stack object. *)
   Definition so_revoked_without_object
-      (W : WORLD) (b e : Addr) (l : list Addr) :=
+      (W : WORLD) (π : option AId) (b e : Addr) (l : list LAddr) :=
     filter
-      (fun a => a ∉ so_object_temporaries W b e)
+      (fun a => a ∉ addr_key π <$> so_object_temporaries W π b e)
       l.
+
+  (** The object may be a heap object: its addresses are keyed by [addr_key π]. *)
+  Global Instance addr_key_inj π : Inj eq eq (addr_key π).
+  Proof.
+    intros a a' Heq.
+    rewrite -(addr_key_addr π a) -(addr_key_addr π a'). by rewrite Heq.
+  Qed.
+
+  Lemma NoDup_addr_key_fmap π (l : list Addr) : NoDup l -> NoDup (addr_key π <$> l).
+  Proof. intros Hl. apply NoDup_fmap_2; [apply _|done]. Qed.
+
+  Lemma elem_of_addr_key_fmap π a (l : list Addr) :
+    addr_key π a ∈ addr_key π <$> l <-> a ∈ l.
+  Proof. apply (list_elem_of_fmap_inj (addr_key π)). Qed.
+
+  Lemma addr_key_LNonHeap_eq π a b : addr_key π a = LNonHeap b -> a = b.
+  Proof. intros Heq. rewrite -(addr_key_addr π a). by rewrite Heq. Qed.
+
+  Lemma addr_key_elem_of_LNonHeap_fmap π a (l : list Addr) :
+    addr_key π a ∈ LNonHeap <$> l -> a ∈ l.
+  Proof.
+    intros (b & Heq & Hb)%list_elem_of_fmap.
+    by apply addr_key_LNonHeap_eq in Heq as ->.
+  Qed.
+
+  Lemma LNonHeap_elem_of_addr_key_fmap π b (l : list Addr) :
+    LNonHeap b ∈ addr_key π <$> l -> b ∈ l.
+  Proof.
+    intros (a & Heq & Ha)%list_elem_of_fmap. symmetry in Heq.
+    by apply addr_key_LNonHeap_eq in Heq as ->.
+  Qed.
 
   Lemma NoDup_subset_filter_membership
       {A} `{EqDecision0 : EqDecision A} (xs ys : list A) :
@@ -154,15 +185,15 @@ Section SO_Object.
         done.
   Qed.
 
-  Lemma so_object_addresses_partition W b e :
+  Lemma so_object_addresses_partition W π b e :
     Forall
       (fun a =>
-         std W !! a = Some Permanent \/
-         std W !! a = Some Temporary)
+         std W !! addr_key π a = Some Permanent \/
+         std W !! addr_key π a = Some Temporary)
       (so_object_addresses b e) ->
     so_object_addresses b e
-      ≡ₚ so_object_permanents W b e ++
-          so_object_temporaries W b e.
+      ≡ₚ so_object_permanents W π b e ++
+          so_object_temporaries W π b e.
   Proof.
     intros Hstates.
     rewrite /so_object_permanents /so_object_temporaries
@@ -173,26 +204,26 @@ Section SO_Object.
     apply Forall_cons in Hl as [Ha Hl].
     apply IHl in Hl.
     destruct Ha as [Ha | Ha].
-    - assert (std W !! a <> Some Temporary) as Ha'
+    - assert (std W !! addr_key π a <> Some Temporary) as Ha'
         by (intro; simplify_map_eq).
       rewrite (decide_True _ _ Ha); auto.
       rewrite (decide_False _ _ Ha'); auto.
       cbn. rewrite -Hl. done.
-    - assert (std W !! a <> Some Permanent) as Ha'
+    - assert (std W !! addr_key π a <> Some Permanent) as Ha'
         by (intro; simplify_map_eq).
       rewrite (decide_True _ _ Ha); auto.
       rewrite (decide_False _ _ Ha'); auto.
       cbn. rewrite -Permutation_middle -Hl. done.
   Qed.
 
-  Lemma so_object_temporaries_NoDup W b e :
-    NoDup (so_object_temporaries W b e).
+  Lemma so_object_temporaries_NoDup W π b e :
+    NoDup (so_object_temporaries W π b e).
   Proof.
     apply NoDup_filter, finz_seq_between_NoDup.
   Qed.
 
-  Lemma so_object_permanents_NoDup W b e :
-    NoDup (so_object_permanents W b e).
+  Lemma so_object_permanents_NoDup W π b e :
+    NoDup (so_object_permanents W π b e).
   Proof.
     apply NoDup_filter, finz_seq_between_NoDup.
   Qed.
@@ -204,7 +235,7 @@ Section SO_States.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -214,7 +245,9 @@ Section SO_States.
       and [stack_object_f_spec]. *)
   Definition so_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ∧
-    (pc_b + length (so_main_imports C_f))%a = Some pc_a.
+    (pc_b + length (so_main_imports C_f))%a = Some pc_a ∧
+    disjoint_from_shadow pc_b pc_e ∧
+    is_heap_address pc_b = false.
 
   (** The capability of the entry point of the switcher. *)
   Definition so_switcher_entry : Word :=

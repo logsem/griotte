@@ -12,7 +12,7 @@ Section DLE_Assert_Blocks_4.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -20,9 +20,10 @@ Section DLE_Assert_Blocks_4.
 
   Lemma dle_assert_blocks_4_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable) (Nassert : namespace)
-    (wct0 wct1 wct2 wct3 wct4 wcnull wcra : Word) :
+    (wct0 wct1 wct2 wct3 wct4 wcnull wcra : LWord) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
     na_own cerise_nais ⊤ ∗
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 8)%a ∗
@@ -39,7 +40,8 @@ Section DLE_Assert_Blocks_4.
     codefrag pc_a dle_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] Hcgp_contiguous)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
+             Hcgp_contiguous Hcgp_mmio)
       "(#Hassert & Hna & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
       & Hcgp_b & Himport_assert & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -51,6 +53,8 @@ Section DLE_Assert_Blocks_4.
     change_pc_to (a_callB ^+ 8)%a.
     (* Load ct0 cgp 0 *)
     iInstr "Hcode".
+    { solve_not_shadow Hcgp_mmio. }
+    { done. }
     { split; [done| solve_addr]. }
     (* Mov ct1 42%Z *)
     iInstr "Hcode".

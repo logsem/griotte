@@ -13,6 +13,14 @@ Definition allocator_malloc_block_addr {MP : MachineParameters}
   (pc_a : Addr) (n : nat) : Addr :=
   (pc_a ^+ length (concat (take n assembled_allocator_malloc)))%a.
 
+From griotte Require Import proofmode_instr_support.
+
+(* The side conditions of the instruction rules are solved automatically. *)
+Local Tactic Notation "iInstr" constr(H) :=
+  iInstr_success H; [try instr_auto_solve_success .. | idtac].
+Local Tactic Notation "iInstr" constr(H) "with" constr(Hlc) :=
+  iInstr_success H with Hlc; [try instr_auto_solve_success .. | idtac].
+
 Section AllocatorMallocBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.

@@ -12,7 +12,7 @@ Section VAE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,14 +22,14 @@ Section VAE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma vae_init_spec
 
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
-    (rmap : Reg)
+    (rmap : LReg)
 
     (b_vae_exp_tbl e_vae_exp_tbl : Addr)
 
@@ -48,6 +48,12 @@ Section VAE.
 
     let imports := vae_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
+    is_heap_address pc_b = false ->
+    is_heap_address cgp_b = false ->
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
+    is_shadow_address cgp_b = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nvae_code ->
     Nassert ## Nvae_code ->
@@ -67,7 +73,7 @@ Section VAE.
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
       ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_inv cerise_nais Nvae_code
-          ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
+          ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a vae_main_code)
       ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
       ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
       ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
@@ -107,7 +113,8 @@ Section VAE.
          [B.adv];
        - [vae_init_blocks_2_spec]: block 3, halt. *)
     intros imports; subst imports.
-    iIntros (HNswitcher_assert HNswitcher_vae HNassert_vae Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
+               HNswitcher_assert HNswitcher_vae HNassert_vae Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hloc_i_0 Hframe_match
             )
       "(#Hassert & #Hswitcher
@@ -127,11 +134,14 @@ Section VAE.
       & #Hentry_awkward & #Hentry_awkward'
       & #Hot_switcher
       )".
-    assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds by done.
+    assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
+      by (rewrite /vae_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).
     iMod (na_inv_acc with "Hvae Hna")
       as "((>Himports_main & >Hcode_main) & Hna & Hvae_close)"; auto.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
+      as %[Hstk_mmio Hstk_heap]; first done.
     iExtractList "Hrmap" [cra;ct0;ct1;cs0;cs1]
       as ["Hcra"; "Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
 
@@ -143,7 +153,7 @@ Section VAE.
        switcher *)
     iApply (vae_init_blocks_1_spec with
              "[- $Hawk_inv $Hworld_interp_C $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra
-              $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|exact Hloc_i_0|].
+              $Himport_switcher $Himport_C_f $Hcode_main]"); [done..|exact Hloc_i_0|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra
                     & Himport_switcher & Himport_C_f & Hcode_main)".
     iMod ("Hvae_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
@@ -159,12 +169,17 @@ Section VAE.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
-              $Hinterp_W1_C_f $HK]"); [done|done|].
+              $Hinterp_W1_C_f $HK]"); [done..|].
     iSplit; first done.
     iNext.
-    iIntros (W2 rmap'' stk_mem' l')
-      "(_ & _ & _ & _ & _ & _ & _ & _ & Hna & _ & _ & _ & HPC & _)".
-    iEval (cbn [updatePcPerm]) in "HPC".
+    iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1)
+      "(_ & _ & _ & _ & _ & _ & _ & _ & Hna & _ & _ & _ & HPC
+      & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & %Hrestored)".
+    destruct Hrestored as (_ & Hrcra & _ & _).
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
+    subst rcra.
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Block 3: halt *)
     iMod (na_inv_acc with "Hvae Hna")

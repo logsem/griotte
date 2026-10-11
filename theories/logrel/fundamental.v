@@ -12,24 +12,24 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
   Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
-  Implicit Types w : (leibnizO Word).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
   (** Weakening of the instruction premise of a case lemma. *)
-  Lemma ftlr_instr_base_mono (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+  Lemma ftlr_instr_base_mono (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (P : V) (Pinstr Q : Prop)
+    (w : LWord) (ρ : region_type) (P : V) (Pinstr Q : Prop)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     (Q → Pinstr) →
     ftlr_instr_base W C regs p p' g b e a w ρ P Pinstr cstk Ws Cs →
@@ -40,15 +40,15 @@ Section fundamental.
   Qed.
 
   (** The case lemmas of all the instructions give the FTLR step. *)
-  Lemma ftlr_instr_dispatch (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+  Lemma ftlr_instr_dispatch (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (P : V)
+    (w : LWord) (ρ : region_type) (P : V)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     (∀ i, ftlr_instr W C regs p p' g b e a w i ρ P cstk Ws Cs) →
     ftlr_instr_base W C regs p p' g b e a w ρ P True cstk Ws Cs.
   Proof.
     intros Hcases.
-    apply (ftlr_instr_base_mono _ _ _ _ _ _ _ _ _ _ _ _ (decodeInstrW w = decodeInstrW w));
+    apply (ftlr_instr_base_mono _ _ _ _ _ _ _ _ _ _ _ _ (decodeInstrW w.(lw) = decodeInstrW w.(lw)));
       [done | apply Hcases].
   Qed.
 
@@ -58,8 +58,8 @@ Section fundamental.
     eapply get_case; rewrite /is_Get; eauto 10.
 
   (** Execution fails when the PC is not a correct PC. *)
-  Lemma wp_notCorrectPC_halted (w : Word) (φ : iProp Σ) :
-    ¬ isCorrectPC w →
+  Lemma wp_notCorrectPC_halted (w : LWord) (φ : iProp Σ) :
+    ¬ isCorrectPC w.(lw) →
     PC ↦ᵣ w -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → φ }}.
   Proof.
@@ -92,28 +92,28 @@ Section fundamental.
     replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
     cbn.
     destruct rx; auto.
-    iDestruct "Hinv_interp" as "[_ Hcontra]"; done.
+    iDestruct "Hinv_interp" as "[_ %Hcontra]". naive_solver.
   Qed.
 
   (** The region resources of the address pointed to by a safe, correct PC. *)
-  Lemma interp_pc_in_registers W C (regs : leibnizO Reg) p g b e a :
+  Lemma interp_pc_in_registers W C (regs : leibnizO LReg) p g b e a :
     isCorrectPC (WCap true p g b e a) →
     validPCperm p g →
     interp W C (WCap true p g b e a) -∗
-    (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    (∀ (r : RegName) (v : LWord), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
     ∃ (p' : Perm) (P : V),
       ⌜PermFlowsTo p p'⌝ ∗
       ⌜persistent_cond P⌝ ∗
-      rel C a p' (safeC P) ∗
+      rel C (LNonHeap a) p' (safeC P) ∗
       ▷ zcond P C ∗
-      (if decide (readAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a)
+      (if decide (readAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a)
        then ▷ (rcond P C p' interp)
        else emp) ∗
-      (if decide (writeAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a)
+      (if decide (writeAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a)
        then ▷ wcond P C interp
        else emp) ∗
-      monoReq W C a p' P ∗
-      ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝.
+      monoReq W C (LNonHeap a) p' P ∗
+      ⌜if isWL p then region_state_pwl W (LNonHeap a) else region_state_nwl W (LNonHeap a) g⌝.
   Proof.
     iIntros (HcorrectPC Hp) "#Hinv #Hreg".
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
@@ -132,9 +132,9 @@ Section fundamental.
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)
-    (b e a : Addr) :
-    ⊢ interp W C (WCap true p g b e a) →
-      interp_expression W C (WCap true p g b e a).
+    (b e a : Addr) (π : option AId) :
+    ⊢ interp W C (WCap true p g b e a @@? π) →
+      interp_expression W C (WCap true p g b e a @@? π).
   Proof.
     iIntros "#Hinv_interp".
     iIntros (cstk Ws Cs regs) "[[Hfull Hreg] [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]".
@@ -148,10 +148,10 @@ Section fundamental.
     clear Hread_p.
 
     iRevert "Hinv_interp".
-    iLöb as "IH'" forall (W C regs p g b e a cstk Ws Cs Hframe).
+    iLöb as "IH'" forall (W C regs p g b e a π cstk Ws Cs Hframe).
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
-      iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih)
+      iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih π_ih)
         "%Hfull #Hregs Hmreg Hworld_interp Hcont %Hframe' Hown Htframe Hinterp".
       iApply ("IH'" with "[%] [] [] [Hmreg] [$] [$] [$] [$]");eauto.
       done.
@@ -165,20 +165,22 @@ Section fundamental.
     }
 
     (* Correct PC *)
+    (* A valid PC carries no identifier: its region key is [LNonHeap a]. *)
+    iDestruct (interp_pc_noid with "Hinv_interp") as %->; first exact HcorrectPC.
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
     iDestruct (interp_validPCperm with "Hinv_interp") as "%Hp"; first done.
     iDestruct (interp_pc_in_registers with "Hinv_interp Hreg")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
     ; eauto.
-    assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked)
+    assert (∃ (ρ : region_type), (std W) !! LNonHeap a = Some ρ ∧ ρ ≠ Revoked)
       as [ρ [Hρ Hne ] ].
     { destruct (isWL p),g; simplify_eq ; eauto.
       destruct Hstate_a as [Htemp | Hperm];eauto. }
 
-    iDestruct (open_world_interp with "[$Hrela] [$Hworld_interp]")
+    iDestruct (open_world_interp W C (LNonHeap a) p'' _ ρ with "[$Hrela] [$Hworld_interp]")
       as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [|eauto|]; [ destruct ρ;auto;done|].
+    ; [apply heap_key_live_nonheap | destruct ρ; auto; contradiction | exact Hρ |].
 
     iApply (wp_bind (fill [SeqCtx])).
     iApply (ftlr_instr_dispatch with
@@ -226,7 +228,7 @@ Section fundamental.
   Theorem fundamental W C w :
     ⊢ interp W C w -∗ interp_expression W C w.
   Proof.
-    iIntros "Hw"; destruct w as [| [ [] c | ] | | ].
+    iIntros "Hw"; destruct w as [ [| [ [] p g b e a | ] | | ] π].
     2: { iApply fundamental_cap; done. }
     all: iIntros (????) "(? & Hreg & ?)"; unfold interp_conf.
     all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
@@ -239,27 +241,36 @@ Section fundamental.
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
-  Lemma interp_exec_cond W C p g b e a:
+  Lemma interp_exec_cond W C p g b e a π :
     executeAllowed p = true ->
-    ⊢ interp W C (WCap true p g b e a) -∗ exec_cond W C p g b e interp.
+    ⊢ interp W C (WCap true p g b e a @@? π) -∗ exec_cond W C p g b e π interp.
   Proof.
     iIntros (Hp) "#Hw".
+    destruct (decide (b < e)%a) as [Hbe|Hbe]; cycle 1.
+    { iIntros (a0 W' Hin). exfalso. rewrite /in_range in Hin. solve_addr. }
+    iDestruct (interp_exec_noid with "Hw") as %->; [done|done|].
     iIntros (a0 W' Hin) "#Hfuture". iModIntro.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
+    iDestruct (interp_cap_disjoint with "Hw") as %[_ Hdisjoint]; first done.
     destruct g.
-    - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
+    - iDestruct "Hfuture" as %Hrelated.
+      iDestruct (interp_monotone_nl_cap_nonheap with "Hw") as "Hw'";
+        [exact Hdisjoint|exact Hrelated|done|].
       iApply (fundamental W');eauto.
-      iApply interp_weakening.interp_weakeningEO; eauto; try done.
-    - iDestruct (interp_monotone with "Hfuture Hw") as "Hw'".
+      iApply interp_lea; eauto.
+    - iDestruct "Hfuture" as %Hrelated.
+      iDestruct (interp_monotone_cap_nonheap with "Hw") as "Hw'";
+        [exact Hdisjoint|exact Hrelated|].
       iApply (fundamental W');eauto.
-      iApply interp_weakening.interp_weakeningEO; eauto; try done.
+      iApply interp_lea; eauto.
   Qed.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
-  Lemma exec_wp W C p g b e a :
+  Lemma exec_wp W C p g b e a π :
     isCorrectPC (WCap true p g b e a) ->
-    ⊢ exec_cond W C p g b e interp -∗
-    ∀ W', future_world g W W' → ▷ (interp_expr interp (interp_cont interp) W' C (WCap true p g b e a)).
+    ⊢ exec_cond W C p g b e π interp -∗
+    ∀ W', future_world g W W' →
+          ▷ (interp_expr interp (interp_cont interp) W' C (WCap true p g b e a @@? π)).
   Proof.
     iIntros (Hvpc) "Hexec".
     rewrite /exec_cond /enter_cond.
@@ -279,37 +290,39 @@ Section fundamental.
     ⊢ ftlr_IH.
   Proof.
     iModIntro; iNext.
-    iIntros (???????????) "????????#Hv".
+    iIntros (????????????) "????????#Hv".
     iDestruct (fundamental with "Hv") as "Hcont".
-    iApply "Hcont"; iFrame.
+    iApply "Hcont"; iFrame "∗#".
   Qed.
 
-  Lemma jmp_or_fail_spec W C w φ :
+  Lemma jmp_or_fail_spec W C (w : LWord) φ :
     ⊢
     (interp W C w
-     -∗ (if decide (isCorrectPC (updatePcPerm w))
+     -∗ (if decide (isCorrectPC (updatePcPerm w.(lw)))
          then
-           (∃ p g b e a,
-               (⌜w = WCap true p g b e a ∨ w = WSentry true p g b e a ⌝
+           (∃ p g b e a π,
+               (⌜w = WCap true p g b e a @@? π ∨ w = WSentry true p g b e a @@? π⌝
                 ∗ □ ∀ W', future_world g W W'
-                          → ▷ (interp_expr interp (interp_cont interp) W' C) (updatePcPerm w)))
-         else φ FailedV ∗ PC ↦ᵣ updatePcPerm w
+                          → ▷ (interp_expr interp (interp_cont interp) W' C) (lupdatePcPerm w)))
+         else φ FailedV ∗ PC ↦ᵣ lupdatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
     iIntros "#Hw".
-    destruct (decide (isCorrectPC (updatePcPerm w))).
+    destruct (decide (isCorrectPC (updatePcPerm w.(lw)))).
     - inversion i.
+      destruct w as [w π]; cbn in H.
       destruct w;inv H.
       + destruct p; cbn in * ; simplify_eq.
-        iExists _,_,_,_,_.
+        iExists _,_,_,_,_,_.
         iSplit;[eauto|]. iModIntro.
         iDestruct (interp_exec_cond with "[$Hw]") as "Hexec";[auto|].
         iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
-        iExists _,_,_,_,_.
+        iExists _,_,_,_,_,_.
         rewrite /= fixpoint_interp1_eq /=.
         iSplit;[eauto|]. iModIntro.
-        iDestruct "Hw" as "#Hw".
+        iDestruct "Hw" as "[%Hnonheap #Hw]".
+        rewrite /enter_cond.
         iIntros (W') "Hfuture".
         iSpecialize ("Hw" with "Hfuture").
         iSpecialize ("Hw" $! g0 (LocalityFlowsToReflexive g0)).

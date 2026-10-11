@@ -26,23 +26,23 @@ Section Switcher_Call_States.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
   (** The checks of blocks 0 and 1 on the stack pointer [wcsp]. *)
-  Definition switcher_csp_checked (wcsp : Word) : Prop :=
-    rules_Get.denote (GetP ct2 csp) wcsp = Some (encodePerm RWL) ∧
-    rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local).
+  Definition switcher_csp_checked (wcsp : LWord) : Prop :=
+    rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some (encodePerm RWL) ∧
+    rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some (encodeLoc Local).
 
   Lemma switcher_csp_checked_stk b e a :
     switcher_csp_checked (WCap true RWL Local b e a).
   Proof. done. Qed.
 
-  Lemma switcher_csp_checked_cap p g b e a :
-    switcher_csp_checked (WCap true p g b e a) -> p = RWL ∧ g = Local.
+  Lemma switcher_csp_checked_cap p g b e a π :
+    switcher_csp_checked (WCap true p g b e a @@? π) -> p = RWL ∧ g = Local.
   Proof.
     intros [Hp Hg]; cbn in Hp, Hg; simplify_eq.
     split; [by apply encodePerm_inj | by apply encodeLoc_inj].

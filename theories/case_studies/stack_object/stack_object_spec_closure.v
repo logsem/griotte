@@ -3,6 +3,7 @@ From griotte Require Import rules logrel monotone interp_weakening.
 From griotte Require Import switcher_spec_call switcher_spec_return.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
+From griotte Require Import allocator_resources heap_region.
 From griotte Require Import stack_object_spec_states
   stack_object_spec_world_object stack_object_spec_world_call
   stack_object_spec_world_return
@@ -15,7 +16,7 @@ Section SO.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -25,7 +26,7 @@ Section SO.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   (** Steps of the proofs:
       - 1) Revoke the world, obtain [l] the unknown addresses being revoked.
@@ -87,6 +88,10 @@ Section SO.
 
     let imports := so_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    disjoint_from_shadow b_so_exp_tbl e_so_exp_tbl ->
+    is_heap_address pc_b = false ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nso ->
     Nassert ## Nso ->
@@ -99,7 +104,7 @@ Section SO.
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais Nso
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
+        ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a so_main_code)
     ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
@@ -120,6 +125,7 @@ Section SO.
        - [so_checkints_blocks_2_spec]: block 6, [in] only contains integers;
        - close the region of [in], with the closing part of
          [so_world_open_object];
+       - [so_world_quarantine]: close the quarantined revoked keys;
        - [so_call_blocks_3_spec]: blocks 7-9, push the secret, allocate the
          stack object [z], and jump to the switcher;
        - [so_world_call]: reinstate [z] in the world of the call;
@@ -127,9 +133,10 @@ Section SO.
        - [so_return_blocks_4_spec]: blocks 10-12, assert that the secret is
          unchanged, and return;
        - [so_world_return]: repair the world;
-       - [switcher_ret_specification_gen]: return to the caller of [f]. *)
+       - [switcher_ret_specification]: return to the caller of [f]. *)
     intros imports; subst imports.
-    iIntros (Hswitcher_assert HNswitcher_so HNassert_so
+    iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap
+               Hswitcher_assert HNswitcher_so HNassert_so
                Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher
       & #Hso_code
@@ -147,14 +154,26 @@ Section SO.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
     iSplit; first done.
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first done.
+    iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
-    assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds by done.
+    assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds
+      by (rewrite /so_code_bounds; eauto 10).
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
+      as %[Hstk_mmio Hstk_heap]; first done.
+    pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
     iDestruct (so_args_zero with "Hzeroed_rmap") as %Hzero; first done.
-    pose proof (regmap_full_dom _ Hrmap_init) as Hrmap_dom.
+    pose proof (lregmap_full_dom _ Hrmap_init) as Hrmap_dom.
     iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
@@ -177,7 +196,7 @@ Section SO.
            [|offsets_compute; cbn in Hso_imports; solve_addr]) in "HPC".
     iApply (so_check_blocks_1_spec with
              "[- $HPC $Hca0 $Hca1 $Hct1 $Hcs0 $Hcs1 $Hcsp $Hcode_main]"); first done.
-    iNext; iIntros (t p g b e a)
+    iNext; iIntros (t p g b e a π)
       "(%Hp & -> & %Hno_overlap & HPC & Hca0 & Hca1 & Hct1 & Hcs0 & Hcs1 & Hcsp
       & Hcode_main & Hlc)".
     destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad]; cycle 1.
@@ -185,6 +204,15 @@ Section SO.
       destruct t; first (exfalso; apply Hbad; auto).
       iApply (so_checkints_blocks_2_untagged_spec with
                "[$HPC $Hca0 $Hcs0 $Hcs1 $Hcode_main]"); [done|solve_addr]. }
+
+    iAssert (⌜disjoint_from_shadow b e⌝)%I as "%Hobject_shadow".
+    { destruct Htag_or_empty as [-> | Hempty].
+      - iDestruct (interp_cap_regions with "Hinterp_wca0") as %[Hshadow _].
+        { eapply readAllowed_nonO; exact Hp. }
+        iPureIntro. by apply disjoint_from_mmio_shadow.
+      - iPureIntro. rewrite /disjoint_from_shadow finz_seq_between_empty;
+          [apply disjoint_nil_l | solve_addr].
+    }
 
     (* Revoke the world and open the region of [in] *)
     iMod (so_world_open_object with "Hinterp_W0_csp Hinterp_wca0 Hworld_interp_C Hlc")
@@ -194,17 +222,29 @@ Section SO.
 
     (* Block 6: [in] only contains integers *)
     iApply (so_checkints_blocks_2_spec with
-             "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hobject $Hcode_main]"); [done|done|done|].
+             "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hobject $Hcode_main]"); [done..|].
     iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & Hcode_main & [Hlc Hlc'])".
 
     (* Close the region of [in] *)
     iMod ("Hclose_object" with "[$Hobject $Hlc]")
       as "(Hworld_interp_C & Hrevoked_l_rest & Hstk & #Hinterp_wca0_W2)"; first done.
 
+    (* Close the quarantined revoked keys *)
+    iMod (so_world_quarantine W0 _ C with "Hworld_interp_C Hrevoked_l_rest")
+      as (l0_live l0_quarantined) "(%Hl0_partition & %Hl0_live & %Hl0_quarantined
+                                    & Hworld_interp_C & Hl0_live)".
+    { reflexivity. }
+    assert (l0_quarantined ## (LNonHeap <$> finz.seq_between (csp_b' ^+ 4)%a csp_e))
+      as Hq_stack.
+    { rewrite elem_of_disjoint. intros x Hx Hx_stack.
+      apply list_elem_of_fmap in Hx_stack as [x' [-> _] ].
+      rewrite Forall_forall in Hl0_quarantined.
+      specialize (Hl0_quarantined _ Hx). discriminate. }
+
     (* Blocks 7-9: push the secret, allocate [z], jump to the switcher *)
     iApply (so_call_blocks_3_spec with
              "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Himport_switcher
-              $Hcode_main]"); first done.
+              $Hcode_main]"); [done..|].
     iNext; iIntros (a_stk1 a_stk2 stk_tail)
       "(%Hastk1 & %Hastk2 & %Hastk2_csp_e & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
       & Hcra & Hsecret & Hastk1 & Hstk & Himport_switcher & Hcode_main)".
@@ -230,19 +270,27 @@ Section SO.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk
-              $Hinterp_wct1 $HK]"); [done|done|].
+              $Hinterp_wct1 $HK]"); [done..|].
     iSplit; first done.
     iNext.
     clear dependent arg_rmap rmap' stk_mem.
-    iIntros (W4 rmap'' stk_mem l4)
+    iIntros (W4 rmap'' stk_mem l4 rcgp rcra rcs0 callback)
       "(%Hextract4 & Hl4 & %Hl4_W5 & %Hpub_ext & _ & %Hrmap''_dom & _ & %Hstack_W5
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
-    iEval (cbn [updatePcPerm]) in "HPC".
+      & Hrmap & Hstk & HK & %Hrestored)".
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
+    apply load_heap_in_world_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_in_world_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
+    apply load_heap_in_world_nonheap in Hrcs0;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
+    subst rcgp rcra rcs0.
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull]
       as ["Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
@@ -254,25 +302,26 @@ Section SO.
     iApply (so_return_blocks_4_spec with
              "[- $Hassert $Hna $HPC $Hcsp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Hcra
               $Hcs0 $Hca0 $Hca1 $Hsecret $Himport_assert $Hcode_main]");
-      [done|solve_addr|solve_addr|solve_ndisj|].
+      [done|done|solve_addr|solve_addr|solve_ndisj|].
     iNext; iIntros "(Hna & HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
                     & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & Hcode_main)".
-    iEval (cbn [updatePcPerm]) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iMod ("Hso_code_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
       as "Hna".
     { iNext. iRegionMerge. iFrame. }
     iInsertRegs "Hrmap" ["Hcnull";"Hct4";"Hct3";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
     (* Repair the world *)
-    iMod (so_world_return W0 W4 C b e (csp_b' ^+ 4)%a csp_e a_stk1 a_stk2 l_revoked l4 with
-           "[$Hworld_interp_C $Hrevoked_l_rest $Hl4 $Hsecret $Hstk]")
+    iMod (so_world_return W0 W4 C b e (csp_b' ^+ 4)%a csp_e a_stk1 a_stk2 π
+           l_revoked l0_live l0_quarantined l4 with
+           "[$Hworld_interp_C $Hl0_live $Hl4 $Hsecret $Hstk]")
       as (w_stk1)
            "(Hworld_interp_C & %Hpub_W0_Wfixed & %Hclosing_nodup & %Hclosing_temps
             & Hclosing & Hstk)";
       [done..|].
 
     (* Return to the caller of [f] *)
-    iApply (switcher_ret_specification_gen _ W0 (revoke W4) with
+    iApply (switcher_ret_specification _ W0 (revoke W4) with
              "[$Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC
               $Hrmap $Hca0 $Hca1 $Hcsp $Hclosing]"); eauto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap''_dom; set_solver+. }

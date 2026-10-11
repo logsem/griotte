@@ -14,7 +14,7 @@ Section Switcher_Blocks_14_15.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -23,7 +23,7 @@ Section Switcher_Blocks_14_15.
   Lemma switcher_return_block_15_spec
     pc_b pc_e pc_a
     wret
-    (rmap : Reg) :
+    (rmap : LReg) :
     let switcher_instrs_15 := switcher_instrs_n 15 in
     let len_switcher_15 := length switcher_instrs_15 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_15)%a ->
@@ -33,7 +33,7 @@ Section Switcher_Blocks_14_15.
     cra ↦ᵣ wret ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
     codefrag pc_a switcher_instrs_15 ∗
-    ▷ ( PC ↦ᵣ updatePcPerm wret ∗
+    ▷ ( PC ↦ᵣ lupdatePcPerm wret ∗
         cra ↦ᵣ wret ∗
         ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
         codefrag pc_a switcher_instrs_15 ∗
@@ -49,7 +49,7 @@ Section Switcher_Blocks_14_15.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    iAssert (⌜map_Forall (λ (_ : RegName) (x : Word), x = WInt 0) rmap⌝)%I
+    iAssert (⌜map_Forall (λ (_ : RegName) (x : LWord), x = WInt 0) rmap⌝)%I
       as "%Hrmap_zeroes".
     { iDestruct (big_sepM_sep with "Hrmap") as "[_ %]"; auto. }
     destruct Hcnull_in as [wcnull Hcnull_in].
@@ -78,16 +78,16 @@ Section Switcher_Blocks_14_15.
   Qed.
 
   (** Blocks 14-15: clear the registers and jump to [wcra]. *)
-  Lemma switcher_blocks_14_15_spec (wcra : Word) (rmap : Reg) :
+  Lemma switcher_blocks_14_15_spec (wcra : LWord) (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
     PC ↦ᵣ switcher_block_pc 14 ∗
     cra ↦ᵣ wcra ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
-    ▷ ( ∀ (rmap' : Reg),
+    ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ᵣ updatePcPerm wcra ∗
+        PC ↦ᵣ lupdatePcPerm wcra ∗
         cra ↦ᵣ wcra ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code ∗

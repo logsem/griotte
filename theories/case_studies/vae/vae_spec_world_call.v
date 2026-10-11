@@ -3,7 +3,8 @@ From griotte Require Import memory_region proofmode register_tactics.
 From griotte Require Import region_invariants_revocation region_invariants_allocation.
 From griotte Require Import interp_weakening monotone.
 From griotte Require Import world_ghost_theory world_interp_stack interp_switcher_call.
-From griotte Require Import vae_spec_states.
+From griotte Require Import allocator_resources heap_region.
+From griotte Require Import vae_spec_states vae_spec_closure_repair.
 
 (** * Preparation of the calls to the switcher
 
@@ -13,10 +14,13 @@ From griotte Require Import vae_spec_states.
     - [vae_world_flag_false] and [vae_world_flag_true]: the updates of the
       custom location [i] of the flag, before the first and the second
       call to [g],
-    - [vae_world_stack]: the stack frame stays revoked in the world of the
-      call,
-    - [vae_world_callback]: the callback [g] stays safe in the world of
-      the call, when it is a sealed entry point,
+    - [vae_world_stack] and [vae_revoked_addresses_close_list]: the stack
+      frame stays revoked in the world of the call,
+    - [vae_world_quarantine]: the revoked keys are split at their heap
+      status, and the quarantined ones are closed,
+    - [vae_world_callback] and [vae_world_callback_restored]: the callback
+      [g] stays safe in the world of the call, when it is a sealed entry
+      point,
     - [vae_world_pub_call]: the world after a call is a public future
       world of the world of the call,
     - [vae_args_zero], [vae_rmap_zero] and [vae_call_args]: the argument
@@ -28,7 +32,7 @@ Section VAE_World_Call.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -78,7 +82,8 @@ Section VAE_World_Call.
     related_sts_priv_world (revoke W3) W5 ∧
     related_sts_priv_world W3 W5 ∧
     related_sts_priv_world W2 W5 ∧
-    loc W5 !! i = Some (encode true).
+    loc W5 !! i = Some (encode true) ∧
+    related_sts_pub_world (revoke W3) W5.
   Proof.
     intros W5 Hloc Hrel Hrel3 Hpub.
     assert (related_sts_priv_world W2 (revoke W3)) as Hpriv24.
@@ -95,35 +100,97 @@ Section VAE_World_Call.
     split; first by apply related_sts_pub_priv_world.
     split; first done.
     split; first (eapply related_sts_pub_priv_trans_world; eauto).
+    split; last done.
     subst W5; by simplify_map_eq.
   Qed.
 
-  (** The stack frame, revoked in [revoke Wm], stays revoked after an
-      update of the custom location of the flag. *)
-  Lemma vae_world_stack (Wm : WORLD) (C : CmptName) (i : positive) (x : bool)
-    (la : list Addr) :
-    let Wn := <l[i:=x]l>(revoke Wm) in
+  (** The stack frame, revoked in [revoke Wm], stays revoked in a private
+      future world [Wn] where it is revoked. *)
+  Lemma vae_world_stack (Wm Wn : WORLD) (C : CmptName) (la : list Addr) :
     related_sts_priv_world Wm Wn ->
-    revoked_addresses (revoke Wm) la ->
+    revoked_addresses Wn la ->
     StackRevokedResources Wm C la -∗
     StackRevokedResources Wn C la ∗ ⌜revoked_addresses Wn la⌝.
   Proof.
-    iIntros (Wn Hpriv Hrevoked) "Hstack".
+    iIntros (Hpriv Hrevoked) "Hstack".
     iSplit; last done.
     iApply (StackRevokedResources_mono_priv with "Hstack"); done.
   Qed.
 
-  (** The callback [g] is safe in a private future world, when it is a
-      sealed entry point. *)
-  Lemma vae_world_callback (W W' : WORLD) (C : CmptName) (wg : Word) :
-    related_sts_priv_world W W' ->
-    (if is_sealed_with_o wg ot_switcher then interp W C wg else True) -∗
-    (if is_sealed_with_o wg ot_switcher then interp W' C wg else True).
+  (** Closing keys disjoint from the stack frame keeps it revoked. *)
+  Lemma vae_revoked_addresses_close_list (W : WORLD) (l : list LAddr) (la : list Addr) :
+    l ## (LNonHeap <$> la) ->
+    revoked_addresses W la ->
+    revoked_addresses (close_list l W) la.
   Proof.
-    iIntros (Hpriv) "Hg".
-    destruct (is_sealed_with_o wg ot_switcher) eqn:Hsealed; last done.
-    destruct wg as [| [|] | |]; try discriminate.
-    iApply (interp_monotone_sd W W'); eauto.
+    rewrite /revoked_addresses !Forall_forall.
+    intros Hdisj Hrevoked a Ha.
+    rewrite close_list_lookup_not_in; first by apply Hrevoked.
+    intros Hq. apply (Hdisj (LNonHeap a)); first exact Hq.
+    by apply elem_of_LNonHeap_fmap.
+  Qed.
+
+  (** Split the revoked keys [l] at their heap status in [Wbase], and close
+      the quarantined ones in [Wcur]. The quarantined keys own no memory. *)
+  Lemma vae_world_quarantine (Wbase Wcur : WORLD) (C : CmptName) (l : list LAddr) :
+    heap_std Wbase = heap_std Wcur ->
+    world_interp Wcur C -∗
+    RevokedResources Wbase C l
+    ==∗
+    ∃ l_live l_q,
+      ⌜l ≡ₚ l_live ++ l_q⌝ ∗
+      ⌜Forall (λ a, heap_key_live (heap_std Wbase) a) l_live⌝ ∗
+      ⌜Forall (λ a, heap_key_status (heap_std Wbase) a = Some AllocObjectQuarantined) l_q⌝ ∗
+      world_interp (close_list l_q Wcur) C ∗
+      RevokedResources Wbase C l_live.
+  Proof.
+    iIntros (Hheap) "Hworld_interp_C Hrevoked_l".
+    iDestruct (revoked_status_some with "Hrevoked_l") as "[Hrevoked_l %Hstatuses]".
+    destruct (heap_status_partition (heap_std Wbase) l Hstatuses)
+      as (l_live & l_q & Hpartition & Hlive & Hq).
+    iEval (rewrite Hpartition RevokedResources_app) in "Hrevoked_l".
+    iDestruct "Hrevoked_l" as "[Hl_live Hl_q]".
+    iMod (vae_restore_quarantined Wbase Wcur C l_q with "[$Hworld_interp_C $Hl_q]")
+      as "Hworld_interp_C"; [done|done|].
+    iModIntro. iExists l_live, l_q. by iFrame.
+  Qed.
+
+  (** The callback [g] is safe in a private future world with the same
+      heap, when it is a sealed entry point. *)
+  Lemma vae_world_callback (W W' : WORLD) (C : CmptName) (wg : LWord) :
+    heap_std W = heap_std W' ->
+    related_sts_priv_world W W' ->
+    (if is_sealed_with_o wg.(lw) ot_switcher then interp W C wg else True) -∗
+    (if is_sealed_with_o wg.(lw) ot_switcher then interp W' C wg else True).
+  Proof.
+    iIntros (Hheap Hpriv) "Hg".
+    destruct (is_sealed_with_o wg.(lw) ot_switcher) eqn:Hsealed; last done.
+    destruct wg as [ [| [|] | |] π]; try discriminate.
+    iApply (interp_monotone_sd_same_heap W W'); eauto.
+  Qed.
+
+  (** The callback [g], restored by the switcher after a call in the world
+      [Wret], is safe in a private future world [W'] with the heap of
+      [Wret]. *)
+  Lemma vae_world_callback_restored (W Wret W' : WORLD) (C : CmptName) (wg wg' : LWord) :
+    load_heap_in_world Wret wg wg' ->
+    heap_std W' = heap_std Wret ->
+    related_sts_priv_world W W' ->
+    (if is_sealed_with_o wg.(lw) ot_switcher then interp W C wg else True) -∗
+    (if is_sealed_with_o wg'.(lw) ot_switcher then interp W' C wg' else True).
+  Proof.
+    iIntros ([Hcallback Hretained] Hheap Hpriv) "#Hg".
+    destruct Hcallback as [Hsame | Hcleared]; last first.
+    { destruct Hcleared as [_ ->].
+      destruct (is_sealed_with_o (lclear_tag wg).(lw) ot_switcher); last done.
+      iApply interp_clear_tag. }
+    rewrite Hsame.
+    destruct (is_sealed_with_o wg.(lw) ot_switcher) eqn:His_sealed; last done.
+    destruct (get_tag wg.(lw)) eqn:Htag; last by iApply interp_untagged.
+    destruct wg as [ [| [|] | |] π]; try discriminate.
+    iApply (interp_monotone_sd_retained W W' C); [exact Hpriv|exact Htag| |iExact "Hg"].
+    rewrite Hsame in Hretained.
+    rewrite /filter_heap Hheap. exact Hretained.
   Qed.
 
   (** The world [W'] after a call is a public future world of the world [W]
@@ -145,13 +212,14 @@ Section VAE_World_Call.
 
   (** The argument registers of [awkward] other than the callback [g] are
       cleared. *)
-  Lemma vae_args_zero (rmap : Reg) :
+  Lemma vae_args_zero (rmap : LReg) :
     (∀ r, is_Some (rmap !! r)) ->
-    (∀ (r : RegName) (v : Word),
+    (∀ (r : RegName) (v : LWord),
         ⌜r ∉ ({[PC; cra; cgp; csp]} ∪ dom_arg_rmap 1 : gset RegName)⌝ →
         ⌜rmap !! r = Some v⌝ →
         ⌜v = WInt 0⌝ : iProp Σ) -∗
-    ⌜∀ r, r ∈ ({[ ca1 ; ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) → rmap !! r = Some (WInt 0)⌝.
+    ⌜∀ r, r ∈ ({[ ca1 ; ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
+         rmap !! r = Some (lword_of_word (WInt 0))⌝.
   Proof.
     iIntros (Hfull) "#Hzero".
     iIntros (r Hr).
@@ -162,11 +230,11 @@ Section VAE_World_Call.
   Qed.
 
   (** The registers returned by a call to the switcher are cleared. *)
-  Lemma vae_rmap_zero (rmap : Reg) :
+  Lemma vae_rmap_zero (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ->
-    map_Forall (λ _ w, w = WInt 0) rmap ->
+    map_Forall (λ _ w, w = lword_of_word (WInt 0)) rmap ->
     ∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
-         delete ct1 (delete ct0 rmap) !! r = Some (WInt 0).
+         delete ct1 (delete ct0 rmap) !! r = Some (lword_of_word (WInt 0)).
   Proof.
     intros Hdom Hzero r Hr.
     rewrite !lookup_delete_ne; [|set_solver+Hr..].
@@ -180,9 +248,10 @@ Section VAE_World_Call.
   (** The argument registers of the calls to [g]: all the argument
       registers are cleared, and [ct0] is the entry point of the
       switcher. *)
-  Lemma vae_call_args W C (Nswitcher : namespace) (rmap : Reg) :
+  Lemma vae_call_args W C (Nswitcher : namespace) (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
-    (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) → rmap !! r = Some (WInt 0)) ->
+    (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
+          rmap !! r = Some (lword_of_word (WInt 0))) ->
     na_inv cerise_nais Nswitcher switcher_inv -∗
     ca0 ↦ᵣ WInt 0 -∗
     ca1 ↦ᵣ WInt 0 -∗
@@ -238,7 +307,9 @@ Section VAE_World_Call.
     iModIntro.
     iExists stk_mem.
     iFrame "Hworld_interp_C Hstk".
-    iSplit; first (iApply interp_monotone_sd; eauto).
+    iSplit.
+    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_C_f"); last by iPureIntro.
+      by rewrite revoke_heap. }
     iSplit; last done.
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.

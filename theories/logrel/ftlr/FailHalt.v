@@ -9,7 +9,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -17,14 +17,14 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Implicit Types w : (leibnizO Word).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
   (** The [Fail] and [Halt] cases of the FTLR. *)
-  Lemma fail_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+  Lemma fail_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    (w : LWord) (ρ : region_type) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w Fail ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
@@ -38,9 +38,9 @@ Section fundamental.
     iIntros (Hcontr); inversion Hcontr.
   Qed.
 
-  Lemma halt_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+  Lemma halt_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    (w : LWord) (ρ : region_type) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w Halt ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
@@ -49,7 +49,7 @@ Section fundamental.
     iDestruct (WorldRes_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
     iApply (wp_halt with "[HPC Ha]"); eauto; iFrame.
     iNext. iIntros "[HPC Ha] /=".
-    assert ( ∀ Wv : WORLD * CmptName * Word, Persistent (safeC P Wv) ) as Hperscond_safeP.
+    assert ( ∀ Wv : WORLD * CmptName * LWord, Persistent (safeC P Wv) ) as Hperscond_safeP.
     { rewrite /persistent_cond in Hpers; apply _. }
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
     iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.

@@ -58,7 +58,7 @@ Section VAE_States.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -68,7 +68,9 @@ Section VAE_States.
       [vae_init_spec] and [vae_awkward_spec]. *)
   Definition vae_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ∧
-    (pc_b + length (vae_main_imports C_f))%a = Some pc_a.
+    (pc_b + length (vae_main_imports C_f))%a = Some pc_a ∧
+    disjoint_from_shadow pc_b pc_e ∧
+    is_heap_address pc_b = false.
 
   (** The capability of the entry point of the switcher. *)
   Definition vae_switcher_entry : Word :=
@@ -80,14 +82,14 @@ Section VAE_States.
 
   (** The arguments of both calls to the adversary: all the argument
       registers are cleared, and [ct0] is the entry point of the switcher. *)
-  Definition vae_call_adv_arg_rmap : Reg :=
-    {[ ca0 := WInt 0;
-       ca1 := WInt 0;
-       ca2 := WInt 0;
-       ca3 := WInt 0;
-       ca4 := WInt 0;
-       ca5 := WInt 0;
-       ct0 := vae_switcher_entry ]}.
+  Definition vae_call_adv_arg_rmap : LReg :=
+    {[ ca0 := lword_of_word (WInt 0);
+       ca1 := lword_of_word (WInt 0);
+       ca2 := lword_of_word (WInt 0);
+       ca3 := lword_of_word (WInt 0);
+       ca4 := lword_of_word (WInt 0);
+       ca5 := lword_of_word (WInt 0);
+       ct0 := lword_of_word vae_switcher_entry ]}.
 
   Lemma vae_call_adv_arg_rmap_is_arg :
     is_arg_rmap vae_call_adv_arg_rmap 8.

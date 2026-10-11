@@ -14,7 +14,7 @@ Section DLE_Share_Blocks_2.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,7 +22,7 @@ Section DLE_Share_Blocks_2.
 
   Lemma dle_share_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wct0 wct1 wct2 wct3 wcs0 wcs1 wcra : Word) :
+    (wct0 wct1 wct2 wct3 wcs0 wcs1 wcra : LWord) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ dle_block_offset 1)%a ∗
     ct0 ↦ᵣ wct0 ∗
@@ -45,7 +45,7 @@ Section DLE_Share_Blocks_2.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous])
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap))
       "(HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hcs0 & Hcs1 & Hcra & Hmem & Hpost)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -54,7 +54,8 @@ Section DLE_Share_Blocks_2.
     (* Block 1: fetch the entry point of the switcher *)
     focus_block 1 "Hcode_main" of dle_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _ dle_switcher_entry
+              with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".

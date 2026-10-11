@@ -16,7 +16,7 @@ Section VAE_Awkward_Blocks_3.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -26,9 +26,10 @@ Section VAE_Awkward_Blocks_3.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive) (N : namespace)
     (Nassert : namespace) (E : coPset)
-    (wret wcra wca0 wca1 wct0 wct1 wct2 wct3 wct4 wcnull : Word) :
+    (wret wcra wca0 wca1 wct0 wct1 wct2 wct3 wct4 wcnull : LWord) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
+    is_shadow_address cgp_b = false ->
     loc W !! i = Some (encode true) ->
     ↑Nassert ⊆ E ->
     inv N (awk_inv C i cgp_b) ∗
@@ -51,7 +52,7 @@ Section VAE_Awkward_Blocks_3.
     codefrag pc_a vae_main_code ∗
     ▷ (world_interp W C ∗
         na_own cerise_nais E ∗
-        PC ↦ᵣ updatePcPerm wret ∗
+        PC ↦ᵣ lupdatePcPerm wret ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ wret ∗
         cs0 ↦ᵣ wret ∗
@@ -68,7 +69,8 @@ Section VAE_Awkward_Blocks_3.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] Hcgp_bounds Hloc HNassert)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
+               Hcgp_shadow Hloc HNassert)
       "(#Hawk & Hworld & #Hassert & Hna & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
       & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull
       & Himport_assert & Hcode_main & Hpost)".
@@ -86,7 +88,7 @@ Section VAE_Awkward_Blocks_3.
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.
     iDestruct (world_interp_loc_valid with "Hworld Hst") as %Hloc'.
     rewrite Hloc in Hloc'; simplify_eq.
-    iApply (wp_load_success_alt with "[$HPC $Hi $Hct0 $Hcgp $Hflag]"); try solve_pure.
+    iApply (wp_load_success_alt with "[$HPC $Hi $Hct0 $Hcgp $Hflag]"); try solve_pure; try done.
     { split; last apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
     iIntros "!> (HPC & Hct0 & Hi & Hcgp & Hflag)".
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".

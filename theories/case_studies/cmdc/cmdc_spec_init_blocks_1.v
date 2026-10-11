@@ -13,7 +13,7 @@ Section CMDC_Init_Blocks_1.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -21,9 +21,12 @@ Section CMDC_Init_Blocks_1.
 
   Lemma cmdc_init_blocks_1_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
-    (wca0 wct0 wct1 : Word) :
+    (wca0 wct0 wct1 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
+    is_mmio_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
+    is_mmio_address (cgp_b ^+ 1)%a = false ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
@@ -43,7 +46,7 @@ Section CMDC_Init_Blocks_1.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HsubBounds Hcgp_contiguous)
+    iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio Hcgp_heap Hcgp1_mmio)
       "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcgp_b & Hcgp_c & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
 
@@ -51,6 +54,7 @@ Section CMDC_Init_Blocks_1.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
+    { by apply not_mmio_not_shadow. }
     { solve_addr. }
     (* Mov ca0 cgp *)
     iInstr "Hcode".
@@ -59,6 +63,7 @@ Section CMDC_Init_Blocks_1.
     { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
     (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
+    { by apply not_mmio_not_shadow. }
     { solve_addr. }
     (* GetA ct0 ca0 *)
     iInstr "Hcode".
@@ -67,6 +72,7 @@ Section CMDC_Init_Blocks_1.
     (* Subseg ca0 ct0 ct1 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
+    { solve_addr. }
     { solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     iApply "Hpost"; iFrame.

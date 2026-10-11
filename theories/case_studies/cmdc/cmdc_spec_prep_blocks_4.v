@@ -14,7 +14,7 @@ Section CMDC_Prep_Blocks_4.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,9 +22,11 @@ Section CMDC_Prep_Blocks_4.
 
   Lemma cmdc_prep_blocks_4_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
-    (wcgp_b wca0 wca1 wct0 wct1 : Word) :
+    (wcgp_b wca0 wca1 wct0 wct1 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
+    is_mmio_address cgp_b = false ->
+    is_heap_address (cgp_b ^+ 1)%a = false ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 5)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e (cgp_b ^+ 1)%a ∗
     ca0 ↦ᵣ wca0 ∗
@@ -44,7 +46,7 @@ Section CMDC_Prep_Blocks_4.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HsubBounds Hcgp_contiguous)
+    iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio Hcgp1_heap)
       "(HPC & Hcgp & Hca0 & Hca1 & Hct0 & Hct1 & Hcgp_b & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code cmdc_main_code "Hcode_main".
@@ -61,6 +63,7 @@ Section CMDC_Prep_Blocks_4.
     { transitivity (Some cgp_b); auto; solve_addr. }
     (* Store cgp 42%Z 0 *)
     iInstr "Hcode".
+    { by apply not_mmio_not_shadow. }
     { solve_addr. }
     (* GetA ct0 ca0 *)
     iInstr "Hcode".
@@ -69,6 +72,7 @@ Section CMDC_Prep_Blocks_4.
     (* Subseg ca0 ct0 ct1 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
+    { solve_addr. }
     { solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ cmdc_block_offset 6)%a.

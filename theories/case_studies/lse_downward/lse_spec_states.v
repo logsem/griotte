@@ -60,7 +60,9 @@ Section LSE_States.
       [lse_run_spec] and [lse_f_spec]. *)
   Definition lse_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ∧
-    (pc_b + length (lse_main_imports C_f))%a = Some pc_a.
+    (pc_b + length (lse_main_imports C_f))%a = Some pc_a ∧
+    disjoint_from_shadow pc_b pc_e ∧
+    is_heap_address pc_b = false.
 
   (** The capability of the entry point of the switcher. *)
   Definition lse_switcher_entry : Word :=

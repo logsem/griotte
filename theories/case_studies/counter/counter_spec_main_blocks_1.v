@@ -15,7 +15,7 @@ Section Counter_Main_Blocks_1.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -24,9 +24,10 @@ Section Counter_Main_Blocks_1.
   Lemma counter_main_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (cnt : Z)
-    (wct0 wct1 wcs0 wcs1 wcra : Word) :
+    (wct0 wct1 wcs0 wcs1 wcra : LWord) :
     counter_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
+    is_shadow_address cgp_b = false ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ wct0 ∗
@@ -52,7 +53,7 @@ Section Counter_Main_Blocks_1.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] Hcgp_bounds)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap) Hcgp_bounds Hcgp_shadow)
       "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra
       & Hcgp_b & Himport_switcher & Himport_C_f & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -64,6 +65,7 @@ Section Counter_Main_Blocks_1.
     iHide "Hcont" as hcont.
     (* Load cs0 cgp 0 *)
     iInstr "Hcode".
+    { done. }
     { split; first done. apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
     (* Add cs0 cs0 1 *)
     iInstr "Hcode".
@@ -80,7 +82,8 @@ Section Counter_Main_Blocks_1.
     (* Block 1: fetch the entry point of the switcher *)
     focus_block 1 "Hcode_main" of counter_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _ counter_switcher_entry
+              with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".

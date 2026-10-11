@@ -15,7 +15,7 @@ Section VAE_Init_Blocks_1.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -24,9 +24,11 @@ Section VAE_Init_Blocks_1.
   Lemma vae_init_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive) (N : namespace)
-    (wct0 wct1 wcs0 wcs1 wcra : Word) :
+    (wct0 wct1 wcs0 wcs1 wcra : LWord) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
+    is_shadow_address cgp_b = false ->
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
     loc W !! i = Some (encode false) ->
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
@@ -54,7 +56,8 @@ Section VAE_Init_Blocks_1.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ([HsubBounds Himports_contiguous] Hcgp_bounds Hloc)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
+               Hcgp_shadow Hsealed_nonheap Hloc)
       "(#Hawk & Hworld & HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra
       & Himport_switcher & Himport_C_f & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -82,7 +85,9 @@ Section VAE_Init_Blocks_1.
     (* Block 1: fetch the entry point of the switcher *)
     focus_block 1 "Hcode_main" of vae_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -93,7 +98,7 @@ Section VAE_Init_Blocks_1.
     (* Block 2: fetch the entry point of [B.adv] *)
     focus_block 2 "Hcode_main" of vae_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hcs0 $Hcs1 $Hcode $Himport_C_f]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hcs0 $Hcs1 $Hcode $Himport_C_f]"); eauto; try done.
     { apply withinBounds_true_iff; solve_addr. }
     iNext; iIntros "(HPC & Hct1 & Hcs0 & Hcs1 & Hcode & Himport_C_f)".
     iEval (cbn) in "Hct1".

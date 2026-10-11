@@ -14,6 +14,14 @@ From griotte Require Import hts_spec_states.
     Initialize [p], fetch the switcher and the malloc entry, revoke the
     stack, and call malloc. *)
 
+From griotte Require Import proofmode_instr_support.
+
+(* The side conditions of the instruction rules are solved automatically. *)
+Local Tactic Notation "iInstr" constr(H) :=
+  iInstr_success H; [try instr_auto_solve_success .. | idtac].
+Local Tactic Notation "iInstr" constr(H) "with" constr(Hlc) :=
+  iInstr_success H with Hlc; [try instr_auto_solve_success .. | idtac].
+
 Section HTS_Spec_Malloc.
   Context
     {Σ:gFunctors}

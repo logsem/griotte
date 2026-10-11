@@ -14,13 +14,13 @@ Section Switcher_Call_Blocks_1.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  Lemma switcher_call_blocks_1_spec (wcsp wct2 wctp : Word) :
+  Lemma switcher_call_blocks_1_spec (wcsp wct2 wctp : LWord) :
     PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
     csp ↦ᵣ wcsp ∗
     ct2 ↦ᵣ wct2 ∗

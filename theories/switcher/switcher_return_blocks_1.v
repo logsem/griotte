@@ -14,7 +14,7 @@ Section Switcher_Return_Blocks_1.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -26,6 +26,8 @@ Section Switcher_Return_Blocks_1.
     wcsp wtstk :
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
+    disjoint_from_shadow b_trusted_stack e_trusted_stack ->
+    is_heap_cap wtstk.(lw) = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (b_trusted_stack <= a_tstk)%a ->
 
@@ -47,7 +49,7 @@ Section Switcher_Return_Blocks_1.
   Proof.
     intros switcher_instrs_12 len_switcher_12.
     subst switcher_instrs_12 len_switcher_12.
-    iIntros (Hsub_reg Hbounds_tstk_b)
+    iIntros (Htstk_shadow Hwtstk_nonheap Hsub_reg Hbounds_tstk_b)
       "(HPC & Hctp & Hcsp & Ha_tstk & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -60,7 +62,10 @@ Section Switcher_Return_Blocks_1.
     }
 
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Htstk_shadow.
+      rewrite /withinBounds; solve_addr. }
     { split; auto. rewrite /withinBounds. solve_addr. }
+    rewrite lload_word_RWL.
     iApply "Hpost"; iFrame. iPureIntro; exact Htstk_ae.
   Qed.
 
@@ -167,9 +172,10 @@ Section Switcher_Return_Blocks_1.
   (** Pop the topmost frame of the trusted stack, which contains the stack
       pointer [WCap true RWL Local b e (a ^+ 4)] of the caller. *)
   Lemma switcher_return_blocks_1_spec
-    (a_tstk b e a : Addr) (wctp wcsp : Word) :
+    (a_tstk b e a : Addr) (wctp wcsp : LWord) :
     (b_trusted_stack < a_tstk)%a ->
     (a + 4)%a = Some (a ^+ 4)%a ->
+    is_heap_address b = false ->
 
     PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ wctp ∗
@@ -190,7 +196,7 @@ Section Switcher_Return_Blocks_1.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hb_tstk Ha4) "(HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & Hcode & Hpost)".
+    iIntros (Hb_tstk Ha4 Hb_heap) "(HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & Hcode & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     rewrite switcher_return_block_12.
@@ -199,7 +205,10 @@ Section Switcher_Return_Blocks_1.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
     iApply (switcher_return_block_12_load_spec with
-      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); [done|solve_addr+Hb_tstk|].
+      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]");
+      [apply trusted_stack_disjoint_from_shadow
+      |rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_heap //
+      |done|solve_addr+Hb_tstk|].
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & Hcode)".
     iApply (switcher_return_block_12_pop_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [done|done|done|].
@@ -210,7 +219,7 @@ Section Switcher_Return_Blocks_1.
   Qed.
 
   (** When the trusted stack is empty, the execution fails. *)
-  Lemma switcher_return_blocks_1_empty_spec (wctp wcsp : Word) :
+  Lemma switcher_return_blocks_1_empty_spec (wctp wcsp : LWord) :
     PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ wctp ∗
     csp ↦ᵣ wcsp ∗
@@ -228,7 +237,8 @@ Section Switcher_Return_Blocks_1.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
     iApply (switcher_return_block_12_load_spec with
-      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); [done|solve_addr|].
+      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]");
+      [apply trusted_stack_disjoint_from_shadow|done|done|solve_addr|].
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & Hcode)".
     iApply (switcher_return_block_12_empty_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); done.

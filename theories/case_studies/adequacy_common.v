@@ -8,6 +8,7 @@ From griotte Require Import
 From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
 From griotte Require Import stack_world_resources.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers.
+From griotte Require Import allocator_resources heap_region.
 
 (** * Shared building blocks for the case-study adequacy proofs.
 
@@ -91,33 +92,35 @@ Section registers.
 
   Lemma initial_registers_split (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :
     is_initial_registers_of sw main reg →
-    ([∗ map] r↦w ∈ reg, r ↦ᵣ w) ⊢
-    ∃ rmap,
+    ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) ⊢
+    ∃ (rmap : LReg),
       PC ↦ᵣ cmpt_entry_pc main ∗
       cgp ↦ᵣ cmpt_cgp_cap main ∗
       csp ↦ᵣ stack_cap sw ∗
       ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
       ⌜dom rmap = all_registers_s ∖ {[ PC; cgp; csp ]}⌝ ∗
-      ⌜∀ r, r ∈ dom rmap → rmap !! r = Some (WInt 0)⌝.
+      ⌜∀ r, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))⌝.
   Proof.
     intros (HPC & Hcgp & Hcsp & Hzero).
     iIntros "Hreg".
-    iDestruct (big_sepM_delete _ _ PC with "Hreg") as "[HPC Hreg]"; first done.
-    iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[Hcgp Hreg]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ PC with "Hreg") as "[HPC Hreg]";
+      first by rewrite lookup_fmap HPC.
+    iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[Hcgp Hreg]";
+      first by rewrite lookup_delete_ne // lookup_fmap Hcgp.
+    iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]";
+      first by rewrite !lookup_delete_ne // lookup_fmap Hcsp.
     iExists _; iFrame.
     iPureIntro; split.
-    - rewrite !dom_delete_L regmap_full_dom; first done.
+    - rewrite !dom_delete_L lregmap_full_dom; first done.
       intros r.
       destruct (decide (r ∈ ({[ PC; cgp; csp ]} : gset RegName))) as [Hr|Hr].
       + rewrite !elem_of_union !elem_of_singleton in Hr.
-        destruct Hr as [ [ -> | -> ] | -> ]; eauto.
-      + eexists; eapply Hzero; done.
+        destruct Hr as [ [ -> | -> ] | -> ]; rewrite lookup_fmap ?HPC ?Hcgp ?Hcsp; eauto.
+      + rewrite lookup_fmap Hzero //.
     - intros r Hr.
       rewrite !dom_delete_L !elem_of_difference !elem_of_singleton in Hr.
       destruct Hr as [ [ [_ HrPC] Hrcgp] Hrcsp].
-      rewrite !lookup_delete_ne //.
-      apply Hzero; set_solver.
+      rewrite !lookup_delete_ne // lookup_fmap Hzero //; set_solver.
   Qed.
 
 End registers.
@@ -199,62 +202,85 @@ End entries.
 (** ** Iris adequacy for the assert flag
 
     The premise receives the program-logic resources of the initial state
-    (registers, system registers, memory, the non-atomic invariant token and
-    the entry-point resources of [entries], sealed with [ot]) and must produce
-    a WP for the machine together with the invariant of the assert flag. *)
+    (registers, system registers, memory, shadow table, address claims, the
+    non-atomic invariant token and the entry-point resources of [entries],
+    sealed with [ot]) and must produce a WP for the machine together with
+    the invariant of the assert flag. *)
 Lemma cerise_flag_adequacy (Σ : gFunctors)
   {inv_preg : invGpreS Σ}
-  {mem_preg : gen_heapGpreS Addr Word Σ}
-  {reg_preg : gen_heapGpreS RegName Word Σ}
-  {sreg_preg : gen_heapGpreS SRegName Word Σ}
+  {cerise_preg : ceriseGpreS Σ}
   {entry_preg : entryGpreS Σ}
-  {na_invg : na_invG Σ}
+  {na_invg : na_invariants.na_invG Σ}
   `{MP: MachineParameters}
   (ot : OType) (entries : list (Sealable * nat))
-  (flagN : namespace) (flag : Addr)
-  (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem)
+  (flagN : namespace) (flag : Addr) (H : gset Addr)
+  (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
   (es : list griotte_lang.expr) :
   NoDup entries.*1 →
   Forall (λ sb, isGlobalSealable sb = true) entries.*1 →
+  ghost_init_cond (reg, sreg, m, sh) H →
+  reg !! cnull = Some (WInt 0) →
   (∀ (ceriseg : ceriseG Σ),
-     ([∗ map] r↦w ∈ reg, r ↦ᵣ w) -∗
+     ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) -∗
      ([∗ map] r↦w ∈ sreg, r ↦ₛᵣ w) -∗
-     ([∗ map] a↦w ∈ m, a ↦ₐ w) -∗
+     ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
+     ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
+     ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
      (* the pool of [ceriseg], not the [na_invg] parameter *)
      @na_own Σ (@cerise_instance.na_invG Σ (@cerise_nainvG Σ ceriseg)) cerise_nais ⊤ -∗
      ([∗ list] e ∈ entries, WSealed ot e.1 ↦□ₑ e.2 ∗ WSealed ot (borrow_sb e.1) ↦□ₑ e.2)
      ={⊤}=∗
      WP Seq (Instr Executable) {{ _, True }} ∗
      inv flagN (flag ↦ₐ WInt 0)) →
-  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m)) (es, (reg', sreg', m')) →
+  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
   m' !! flag = Some (WInt 0).
 Proof.
-  intros Hnodup Hglobal Hinit Hstep.
-  eapply (@wp_invariance Σ griotte_lang _ NotStuck); last exact Hstep.
-  intros Hinv κs.
-  iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
-  iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
-  iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
+  intros Hnodup Hglobal Hinit Hnull Hwp Hstep.
+  pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
+  pose (fun (c: ExecConf) => mem c !! flag = Some (WInt 0%Z)) as state_is_good.
+  specialize (WPI (Seq (Instr Executable)) (reg, sreg, m, sh) es (reg', sreg', m', sh')
+                (state_is_good (reg', sreg', m', sh'))).
+  eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
+  iMod (cerise_ghost_init (reg, sreg, m, sh) H Hinit)
+    as (mem_heapg shadow_heapg reg_heapg sreg_heapg registryg addr_allocg)
+       "(Hσ & Hreg & Hsreg & Hmem & Hshadow & Hclaims)".
+  iEval (rewrite init_lmem_pointsto) in "Hmem".
+  rewrite (init_lregs_cnull reg Hnull).
   iMod (entry_init (exported_entries ot entries)) as (entry_g) "Hentries".
   iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
   pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
-  pose ceriseg := CeriseG Σ Hinv cerise_na_invs mem_heapg reg_heapg sreg_heapg entry_g.
+  pose ceriseg := {|
+    cerise_invG := Hinv;
+    cerise_nainvG := cerise_na_invs;
+    mem_gen_memG := mem_heapg;
+    shadowtbl_gen_regG := shadow_heapg;
+    reg_gen_regG := reg_heapg;
+    sreg_gen_regG := sreg_heapg;
+    entryG := entry_g;
+    cerise_registryG := registryg;
+    cerise_addr_allocG := addr_allocg |}.
   iDestruct (entries_split with "Hentries") as "Hentries"; [done..|].
-  iMod (Hinit ceriseg with "Hreg Hsreg Hmem Hna Hentries") as "[Hwp #Hflag]".
+  iMod (Hwp ceriseg with "Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries") as "[Hwp #Hflag]".
   iModIntro.
-  iExists (fun σ _ _ => ((gen_heap_interp σ.1.1 ∗ gen_heap_interp σ.1.2) ∗ gen_heap_interp σ.2))%I.
-  iExists (fun _ => True)%I. cbn. iFrame.
-  iIntros "[[Hreg' Hsreg'] Hmem']". iExists (⊤ ∖ ↑flagN).
+  iExists (fun σ _ _ => cerise_state_interp σ)%I.
+  iExists (fun _ => True)%I. cbn. iFrame "Hσ".
+  iSplitL "Hwp".
+  { iApply (wp_mono with "Hwp"); iIntros (?) "?"; done. }
+  iIntros "(%lreg & %lmem & %R & %Cl & _ & _ & Hmem' & _ & _ & _ & %Her)".
+  iExists (⊤ ∖ ↑flagN).
   iInv flagN as ">Hflag'" "Hclose".
   iDestruct (gen_heap_valid with "Hmem' Hflag'") as %Hm'_flag.
-  by iModIntro.
+  iModIntro. iPureIntro.
+  destruct (erasure_lookup_mem _ _ _ _ _ _ _ Her Hm'_flag)
+    as (pw & Hpw & _ & _ & Hnonheap & _).
+  rewrite /state_is_good Hpw (Hnonheap eq_refl) //.
 Qed.
 
 (** ** Initial world, seal store and call stack *)
 Section world_init.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {Cname : CmptNameG}
     {seal_store_preg : sealStorePreG Σ}
-    {sts_preg : STS_preG Addr region_type OType Word Σ} {relpreg : relGpreS Σ}
+    {sts_preg : STS_preG LAddr region_type OType LWord Σ} {relpreg : relGpreS Σ}
     {cstack_preg : CSTACK_preG Σ}
     `{MP: MachineParameters}.
 
@@ -262,15 +288,15 @@ Section world_init.
     CNames = list_to_set Cs →
     NoDup Cs →
     ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
-            (stsg : STSG Addr region_type OType Word Σ) (cstackg : CSTACKG Σ),
+            (stsg : STSG LAddr region_type OType LWord Σ) (cstackg : CSTACKG Σ),
       ([∗ set] o ∈ ots, can_alloc_pred o) ∗
       cstack_full [] ∗
       cstack_frag [] ∗
-      [∗ list] C ∈ Cs, world_interp (∅, (∅, ∅), ∅) C.
+      [∗ list] C ∈ Cs, world_interp (∅, (∅, ∅), ∅, ∅) C.
   Proof.
     intros HCNames HNoDup.
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
-    iMod (world_interp_init ots) as (relg stsg seal_storeg) "[Hworld_interp Hseal_store]".
+    iMod (world_interp_init ots) as (relg stsg seal_storeg) "(Hworld_interp & Hseal_store)".
     rewrite HCNames big_sepS_list_to_set //.
     iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.
   Qed.
@@ -283,7 +309,7 @@ Section adversary_world.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}.
@@ -294,11 +320,15 @@ Section adversary_world.
     : WORLD :=
     std_update_multiple (std_update_compartment W C_cmpt) (stack_addrs sw) ρ.
 
+  Lemma adv_world_with_heap ρ W sw C_cmpt :
+    heap_std (adv_world_with ρ W sw C_cmpt) = heap_std W.
+  Proof. by rewrite /adv_world_with std_update_multiple_heap std_update_compartment_heap. Qed.
+
   Lemma elem_of_dom_std_update_compartment (W : WORLD) (C_cmpt : cmpt) (a : Addr) :
-    a ∈ dom (std (std_update_compartment W C_cmpt)) →
+    LNonHeap a ∈ dom (std (std_update_compartment W C_cmpt)) →
     a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)
     ∨ a ∈ finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)
-    ∨ a ∈ dom (std W).
+    ∨ LNonHeap a ∈ dom (std W).
   Proof.
     intros Ha.
     pose proof (cmpt_import_size C_cmpt).
@@ -316,9 +346,9 @@ Section adversary_world.
     (sw : cmptSwitcher) (main C_cmpt : cmpt) (a : Addr) :
     main ## C_cmpt →
     switcher_cmpt_disjoint main sw →
-    a ∉ dom (std W) →
+    LNonHeap a ∉ dom (std W) →
     a ∈ finz.seq_between (cmpt_b_cgp main) (cmpt_e_cgp main) →
-    a ∉ dom (std (adv_world_with ρ W sw C_cmpt)).
+    LNonHeap a ∉ dom (std (adv_world_with ρ W sw C_cmpt)).
   Proof.
     intros HmainC Hsw HaW Ha Hcontra.
     rewrite /adv_world_with in Hcontra.
@@ -337,35 +367,42 @@ Section adversary_world.
     - done.
   Qed.
 
-  (** A stack whose addresses are temporary in the world, with [interp]
-      safety invariants, is safe to share. *)
+  (** A stack outside of the mmio and heap regions, whose addresses are
+      temporary in the world, with [interp_in_mem] safety invariants, is safe
+      to share. *)
   Lemma interp_stack_temporary (W : WORLD) (C : CmptName) (b e : Addr) :
-    Forall (λ a, std W !! a = Some Temporary) (finz.seq_between b e) →
-    ([∗ list] a ∈ finz.seq_between b e, rel C a RWL interpC) -∗
+    disjoint_from_mmio b e →
+    disjoint_from_heap b e →
+    Forall (λ a, std W !! LNonHeap a = Some Temporary) (finz.seq_between b e) →
+    ([∗ list] a ∈ finz.seq_between b e, rel C (LNonHeap a) RWL interp_in_memC) -∗
     interp W C (WCap true RWL Local b e b).
   Proof.
-    iIntros (Htemp) "#Hrel".
+    iIntros (Hmmio Hheap Htemp) "#Hrel".
     iEval (rewrite fixpoint_interp1_eq /=).
-    iApply big_sepL_intro; iModIntro.
-    iIntros (k a Ha).
-    iExists RWL, interp.
-    iEval (cbn).
-    iSplit; first done.
-    iSplit; first (iPureIntro ; by apply persistent_cond_interp).
-    iDestruct (big_sepL_lookup with "Hrel") as "$"; first done.
-    iSplit; first (iNext ; by iApply zcond_interp).
-    iSplit; first (iNext ; by iApply rcond_interp).
-    iSplit; first (iNext ; by iApply wcond_interp).
-    assert (std W !! a = Some Temporary) by (rewrite Forall_lookup in Htemp; eauto).
-    iSplit; last done.
-    iApply (monoReq_interp _ _ _ _ Temporary); done.
+    iSplit.
+    { iApply big_sepL_intro; iModIntro.
+      iIntros (k a Ha).
+      rewrite /addr_key.
+      iExists RWL, (interp_in_mem RWL).
+      iEval (cbn).
+      iSplit; first done.
+      iSplit; first (iPureIntro ; by apply persistent_cond_interp_in_mem).
+      iDestruct (big_sepL_lookup with "Hrel") as "$"; first done.
+      iSplit; first (iNext ; by iApply zcond_interp_in_mem).
+      iSplit; first (iNext ; by iApply rcond_interp_in_mem).
+      iSplit; first (iNext ; by iApply wcond_interp_in_mem).
+      assert (std W !! LNonHeap a = Some Temporary) by (rewrite Forall_lookup in Htemp; eauto).
+      iSplit; last done.
+      iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done. }
+    iPureIntro; split; first done.
+    by apply heap_cap_valid_disjoint.
   Qed.
 
   Lemma adv_world_free_cmpt (W : WORLD) (C_cmpt : cmpt) :
-    (∀ a, a ∈ cmpt_region C_cmpt → std W !! a = None) →
-    Forall (λ k, std W !! k = None) (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))
-    ∧ Forall (λ k, std W !! k = None) (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
-    ∧ Forall (λ k, std W !! k = None) (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)).
+    (∀ a, a ∈ cmpt_region C_cmpt → std W !! LNonHeap a = None) →
+    Forall (λ k, std W !! LNonHeap k = None) (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))
+    ∧ Forall (λ k, std W !! LNonHeap k = None) (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
+    ∧ Forall (λ k, std W !! LNonHeap k = None) (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)).
   Proof.
     intros Hfree.
     pose proof (cmpt_import_size C_cmpt).
@@ -382,19 +419,27 @@ Section adversary_world.
 
   Lemma adv_world_free_stack (W : WORLD) (sw : cmptSwitcher) (C_cmpt : cmpt) :
     switcher_cmpt_disjoint C_cmpt sw →
-    (∀ a, a ∈ stack_addrs sw → std W !! a = None) →
-    Forall (λ k, std (std_update_compartment W C_cmpt) !! k = None) (stack_addrs sw).
+    (∀ a, a ∈ stack_addrs sw → std W !! LNonHeap a = None) →
+    Forall (λ k, std (std_update_compartment W C_cmpt) !! LNonHeap k = None) (stack_addrs sw).
   Proof.
     intros Hsw Hfree.
     apply Forall_forall; intros a Ha.
     eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
   Qed.
 
+  Lemma stack_addrs_nonheap (sw : cmptSwitcher) :
+    Forall (λ a, is_heap_address a = false) (stack_addrs sw).
+  Proof.
+    apply Forall_forall; intros a Ha.
+    eapply disjoint_from_heap_not_in; first apply stack_disjoint_from_heap.
+    apply withinBounds_true_iff. by apply elem_of_finz_seq_between.
+  Qed.
+
   (** ** Sealed entries exported by an adversary *)
 
   Lemma exported_entries_words_normalise (C_cmpt : cmpt) :
     normalise_sealed_words (exported_entries_words C_cmpt) =
-    list_to_set ((λ a, WSealable (cmpt_export C_cmpt a)) <$> cmpt_exp_tbl_addrs C_cmpt).
+    list_to_set ((λ a, lword_of_word (WSealable (cmpt_export C_cmpt a))) <$> cmpt_exp_tbl_addrs C_cmpt).
   Proof.
     rewrite /normalise_sealed_words /exported_entries_words /exported_entries_sealable
       /cmpt_exp_tbl_addrs /cmpt_export.
@@ -415,20 +460,38 @@ Section adversary_world.
   Qed.
 
   Lemma cmpt_exp_tbl_addrs_exports_NoDup (C_cmpt : cmpt) :
-    NoDup ((λ a, WSealable (cmpt_export C_cmpt a)) <$> cmpt_exp_tbl_addrs C_cmpt).
+    NoDup ((λ a, lword_of_word (WSealable (cmpt_export C_cmpt a))) <$> cmpt_exp_tbl_addrs C_cmpt).
   Proof.
     apply NoDup_fmap_2_strong; last apply finz_seq_between_NoDup.
     intros a a' _ _ Heq; by simplify_eq.
   Qed.
 
-  Lemma exported_entries_sealed_words (C_cmpt : cmpt) (v : Word) :
+  Lemma exported_entries_sealed_words (C_cmpt : cmpt) (v : LWord) :
     v ∈ exported_entries_sealed C_cmpt →
-    ∃ sb, v = WSealed switcher.ot_switcher sb ∧
-          {[WSealable sb; borrow (WSealable sb)]} ⊆ exported_entries_words C_cmpt.
+    ∃ sb, v = lword_of_word (WSealed switcher.ot_switcher sb) ∧
+          heap_authority_base (WSealed switcher.ot_switcher sb) = None ∧
+          (∃ g a, sb = SCap true RO g (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) a) ∧
+          {[lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb))]}
+            ⊆ exported_entries_words C_cmpt.
   Proof.
     rewrite /exported_entries_sealed /exported_entries_words elem_of_list_to_set.
     intros (sb & -> & Hsb)%list_elem_of_fmap.
     exists sb; split; first done.
+    split.
+    { rewrite /exported_entries_sealable in Hsb.
+      destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
+      apply heap_authority_base_heap_cap_base in Hauth.
+      apply elem_of_app in Hsb as [Hsb|Hsb]; apply list_elem_of_fmap in Hsb as (a & -> & Ha);
+        match type of Hauth with
+        | heap_cap_base (WSealed ?o (SCap ?t ?p ?g ?b ?e ?a)) = _ =>
+            pose proof (sealed_cap_nonheap o t p g b e a (cmpt_exp_tbl_base_not_heap C_cmpt))
+              as Hnonheap
+        end;
+        unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
+    split.
+    { rewrite /exported_entries_sealable in Hsb.
+      apply elem_of_app in Hsb as [Hsb|Hsb]; apply list_elem_of_fmap in Hsb as (a & -> & Ha);
+        by eexists _, a. }
     apply union_subseteq; split; apply singleton_subseteq_l, elem_of_list_to_set,
       list_elem_of_fmap.
     - by exists sb.
@@ -445,10 +508,11 @@ Section adversary_world.
   Proof.
     iIntros "#Hseal".
     iApply big_sepS_intro; iIntros "!>" (v Hv).
-    destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & Hsub).
+    destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _ & (g & a & ->) & Hsub).
     iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
-    destruct (get_tag_sealable sb); last done.
-    iApply sts_seals_std_weaken; done.
+    iSplit; first (iApply sts_seals_std_weaken; done).
+    iPureIntro; cbn.
+    apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap.
   Qed.
 
   (** Allocate an adversary compartment [C_cmpt] in the world: its imports,
@@ -458,20 +522,21 @@ Section adversary_world.
       imports are safe ([Himports]). *)
   Lemma alloc_adversary_compartment {E : coPset} (W : WORLD) (C_cmpt : cmpt) (C : CmptName) :
     let W' := std_update_compartment W C_cmpt in
-    (∀ a, a ∈ cmpt_region C_cmpt → std W !! a = None) →
+    (∀ a, a ∈ cmpt_region C_cmpt → std W !! LNonHeap a = None) →
     Forall is_z (cmpt_code C_cmpt) →
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
     seal_pred switcher.ot_switcher ot_switcher_propC -∗
-    [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ cmpt_imports C_cmpt ]] -∗
-    [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ cmpt_code C_cmpt ]] -∗
-    [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ cmpt_data C_cmpt ]] -∗
+    [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] -∗
+    [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_code C_cmpt ]] -∗
+    [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W' C (cmpt_pcc_cap C_cmpt) -∗
         interp W' C (cmpt_cgp_cap C_cmpt) -∗
         ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
       [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
-     [∗ list] v ∈ cmpt_imports C_cmpt, interpC (W', C, v) ∗ future_priv_mono C interpC v) -∗
+     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt,
+       interp_in_memC (W', C, v) ∗ future_priv_mono C interp_in_memC v) -∗
     world_interp W C
     ={E}=∗
     world_interp W' C ∗
@@ -482,21 +547,32 @@ Section adversary_world.
     intros W' Hfree Hcode Hdata.
     iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports Hworld".
     destruct (adv_world_free_cmpt W C_cmpt Hfree) as (Hfree_imports & Hfree_code & Hfree_data).
+    iAssert (□ ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W' C v) -∗
+               [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v)%I as "Hto_interp".
+    { iIntros "#Hexp".
+      iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
+      destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & Hbase & _).
+      iApply (interp_in_mem_load_result with "Hv").
+      right; split; [reflexivity|].
+      apply filter_heap_nonheap; exact Hbase. }
     iMod (alloc_compartment_interp with "HC_imports HC_code HC_data [Himports] Hworld")
-      as "($ & $ & $ & _ & $)"; [done..| |done].
-    iIntros "(#Hpcc & #Hcgp & Hworld)".
-    iMod (world_interp_open_sealing_update' _ C _ ot_switcher_propC switcher.ot_switcher
-            (exported_entries_words C_cmpt) with "Hseal_pred [] [] Hworld")
-      as "(Hworld & #Hseal)".
-    { iIntros (w); iApply mono_priv_ot_switcher. }
-    { rewrite exported_entries_words_normalise big_sepS_list_to_set;
-        last apply cmpt_exp_tbl_addrs_exports_NoDup.
-      rewrite big_sepL_fmap.
-      iApply big_sepL_intro; iIntros "!>" (i a Ha); iNext.
-      iApply ("Hexports" with "[//] Hpcc Hcgp"). }
-    iDestruct (exported_entries_sealed_interp W' with "Hseal") as "#Hexp".
-    iModIntro; iFrame "Hworld Hexp".
-    iApply "Himports"; iFrame "#".
+      as "($ & $ & $ & _ & #Hexp)"; [done..| |].
+    { iIntros "(#Hpcc & #Hcgp & Hworld)".
+      iMod (world_interp_open_sealing_update' _ C _ ot_switcher_propC switcher.ot_switcher
+              (exported_entries_words C_cmpt) with "Hseal_pred [] [] Hworld")
+        as "(Hworld & #Hseal)".
+      { iIntros (w); iApply mono_priv_ot_switcher. }
+      { rewrite exported_entries_words_normalise big_sepS_list_to_set;
+          last apply cmpt_exp_tbl_addrs_exports_NoDup.
+        rewrite big_sepL_fmap.
+        iApply big_sepL_intro; iIntros "!>" (i a Ha); iNext.
+        iApply ("Hexports" with "[//] Hpcc Hcgp"). }
+      iDestruct (exported_entries_sealed_interp W' with "Hseal") as "#Hexp".
+      iModIntro; iFrame "Hworld".
+      iSplitL "Himports"; first (iApply "Himports"; iFrame "#").
+      iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
+      by iApply interp_to_in_mem. }
+    iModIntro. by iApply "Hto_interp".
   Qed.
 
   (** Initialise the world of an adversary compartment [C_cmpt]:
@@ -511,22 +587,23 @@ Section adversary_world.
     let W' := std_update_compartment W C_cmpt in
     let Wadv := adv_world_with Temporary W sw C_cmpt in
     switcher_cmpt_disjoint C_cmpt sw →
-    (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ stack_addrs sw → std W !! a = None) →
+    (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ stack_addrs sw → std W !! LNonHeap a = None) →
     Forall is_z (cmpt_code C_cmpt) →
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
     Forall is_z (stack_content sw) →
     seal_pred switcher.ot_switcher ot_switcher_propC -∗
-    [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ cmpt_imports C_cmpt ]] -∗
-    [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ cmpt_code C_cmpt ]] -∗
-    [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ cmpt_data C_cmpt ]] -∗
-    [[ b_stack sw, e_stack sw ]] ↦ₐ [[ stack_content sw ]] -∗
+    [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] -∗
+    [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_code C_cmpt ]] -∗
+    [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] -∗
+    [[ b_stack sw, e_stack sw ]] ↦ₐ [[ lword_of_word <$> stack_content sw ]] -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W' C (cmpt_pcc_cap C_cmpt) -∗
         interp W' C (cmpt_cgp_cap C_cmpt) -∗
         ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
       [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
-     [∗ list] v ∈ cmpt_imports C_cmpt, interpC (W', C, v) ∗ future_priv_mono C interpC v) -∗
+     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt,
+       interp_in_memC (W', C, v) ∗ future_priv_mono C interp_in_memC v) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
@@ -540,20 +617,26 @@ Section adversary_world.
     iMod (alloc_adversary_compartment with
            "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hworld")
       as "(Hworld & #Hpcc & #Hcgp & #Hexp)"; eauto.
-    iMod (world_interp_extend_temp_sepL2 _ _ (stack_addrs sw) (stack_content sw) RWL interpC
+    iMod (world_interp_extend_temp_sepL2_nonheap _ _ (stack_addrs sw)
+            (lword_of_word <$> stack_content sw) RWL interp_in_memC
            with "Hworld [Hstack]") as "(Hworld & #Hrel_stk)".
+    { apply stack_addrs_nonheap. }
     { done. }
     { apply adv_world_free_stack; first done.
       intros a Ha; apply Hfree; by right. }
-    { iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-                                 pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "Hstack").
-      intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
+    { rewrite big_sepL2_fmap_r.
+      iEval (rewrite /region_pointsto big_sepL2_fmap_r) in "Hstack".
+      iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
+        pointsto k (DfracOwn (pos_to_Qp 1)) (lword_of_word v))) with "Hstack").
+      intros k v1 v2 Hv1 Hv2. cbn. iIntros "Hv". rewrite /TmpRes key_pointsto_nonheap.
+      iFrame "Hv".
       pose proof (Forall_lookup_1 _ _ _ _ Hstack Hv2) as Hncap.
       destruct v2; [| by inversion Hncap..].
-      rewrite fixpoint_interp1_eq /=.
-      iSplit; eauto.
-      iSplit; eauto.
-      rewrite mono_temporary_eq; cbn; iApply future_pub_mono_interp_z.
+      iSplit; first done.
+      iSplit.
+      { iEval (rewrite /interp_in_mem_pre /=).
+        iApply interp_int. }
+      rewrite mono_temporary_eq; cbn; iApply future_pub_mono_interp_in_mem_z.
     }
     iModIntro; iFrame "Hworld".
     assert (related_sts_priv_world W' Wadv) as Hrelated.
@@ -562,15 +645,19 @@ Section adversary_world.
       - intros a Ha; apply Hfree; by right.
       - intros a Ha; cbn in *; by rewrite not_elem_of_dom.
     }
-    iSplit; first (iApply interp_monotone_nl; eauto).
-    iSplit; first (iApply interp_monotone_nl; eauto).
+    assert (heap_std W' = heap_std Wadv) as Hheap.
+    { by rewrite /Wadv adv_world_with_heap /W' std_update_compartment_heap. }
+    iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hpcc"); eauto).
+    iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hcgp"); eauto).
     iSplit.
     { iApply interp_stack_temporary; last done.
-      apply Forall_forall; intros a Ha.
-      by apply std_sta_update_multiple_lookup_in_i. }
+      - apply stack_disjoint_from_mmio.
+      - apply stack_disjoint_from_heap.
+      - apply Forall_forall; intros a Ha.
+        by apply std_sta_update_multiple_lookup_in_i. }
     iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
     destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _).
-    by iApply interp_monotone_sd.
+    by iApply (interp_monotone_sd_same_heap with "[] Hv").
   Qed.
 
   (** Same as [initialise_adversary_world], but the switcher stack is
@@ -580,20 +667,21 @@ Section adversary_world.
     let W' := std_update_compartment W C_cmpt in
     let Wadv := adv_world_with Revoked W sw C_cmpt in
     switcher_cmpt_disjoint C_cmpt sw →
-    (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ stack_addrs sw → std W !! a = None) →
+    (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ stack_addrs sw → std W !! LNonHeap a = None) →
     Forall is_z (cmpt_code C_cmpt) →
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
     seal_pred switcher.ot_switcher ot_switcher_propC -∗
-    [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ cmpt_imports C_cmpt ]] -∗
-    [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ cmpt_code C_cmpt ]] -∗
-    [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ cmpt_data C_cmpt ]] -∗
+    [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] -∗
+    [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_code C_cmpt ]] -∗
+    [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W' C (cmpt_pcc_cap C_cmpt) -∗
         interp W' C (cmpt_cgp_cap C_cmpt) -∗
         ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
       [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
-     [∗ list] v ∈ cmpt_imports C_cmpt, interpC (W', C, v) ∗ future_priv_mono C interpC v) -∗
+     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt,
+       interp_in_memC (W', C, v) ∗ future_priv_mono C interp_in_memC v) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
@@ -607,8 +695,10 @@ Section adversary_world.
     iMod (alloc_adversary_compartment with
            "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hworld")
       as "(Hworld & #Hpcc & #Hcgp & #Hexp)"; eauto.
-    iMod (world_interp_extend_revoked_sepL2 _ _ (stack_addrs sw) RWL interpC with "Hworld")
+    iMod (world_interp_extend_revoked_sepL2_nonheap _ _ (stack_addrs sw) RWL interp_in_memC
+           with "Hworld")
       as "(Hworld & Hrel_stk)".
+    { apply stack_addrs_nonheap. }
     { apply adv_world_free_stack; first done.
       intros a Ha; apply Hfree; by right. }
     iModIntro; iFrame "Hworld".
@@ -618,12 +708,14 @@ Section adversary_world.
       - intros a Ha; apply Hfree; by right.
       - intros a Ha; cbn in *; by rewrite not_elem_of_dom.
     }
-    iSplit; first (iApply interp_monotone_nl; eauto).
-    iSplit; first (iApply interp_monotone_nl; eauto).
+    assert (heap_std W' = heap_std Wadv) as Hheap.
+    { by rewrite /Wadv adv_world_with_heap /W' std_update_compartment_heap. }
+    iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hpcc"); eauto).
+    iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hcgp"); eauto).
     iSplitL "Hrel_stk"; first by iApply StackWorldResources_from_rel_stack.
     iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
     destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _).
-    by iApply interp_monotone_sd.
+    by iApply (interp_monotone_sd_same_heap with "[] Hv").
   Qed.
 
 End adversary_world.
@@ -637,7 +729,7 @@ Section adversary_exports.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
@@ -655,7 +747,7 @@ Section adversary_exports.
     inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ cmpt_pcc_cap C_cmpt) -∗
     inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ cmpt_cgp_cap C_cmpt) -∗
     ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
-       inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ v)) -∗
+       inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ lword_of_word v)) -∗
     interp W C (cmpt_pcc_cap C_cmpt) -∗
     interp W C (cmpt_cgp_cap C_cmpt) -∗
     WSealed switcher.ot_switcher (cmpt_export C_cmpt a) ↦□ₑ args -∗
@@ -709,7 +801,7 @@ Section adversary_exports.
     inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ cmpt_pcc_cap C_cmpt) -∗
     inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ cmpt_cgp_cap C_cmpt) -∗
     ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
-       inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ v)) -∗
+       inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ lword_of_word v)) -∗
     ([∗ list] i ↦ e ∈ exports,
        WSealed switcher.ot_switcher
          (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a) ↦□ₑ e.1 ∗
@@ -743,7 +835,7 @@ Section main_exports.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}.
@@ -752,8 +844,10 @@ Section main_exports.
       in the world [W], given that it satisfies the sealing predicate of the
       switcher in the updated world. *)
   Lemma seal_main_export (W : WORLD) (C : CmptName) (sb : Sealable) :
-    let W' := <o[ switcher.ot_switcher := {[ WSealable sb; borrow (WSealable sb) ]} ]o> W in
+    let W' := <o[ switcher.ot_switcher :=
+                 {[ lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb)) ]} ]o> W in
     isGlobalSealable sb = true →
+    (∀ p g b e a, sb = SCap true p g b e a → disjoint_from_heap b e) →
     switcher.ot_switcher ∉ dom (seal_std W) →
     seal_pred switcher.ot_switcher ot_switcher_propC -∗
     ot_switcher_prop W' C (WSealable sb) -∗
@@ -762,22 +856,25 @@ Section main_exports.
     world_interp W' C ∗
     interp W' C (WSealed switcher.ot_switcher sb).
   Proof.
-    intros W' Hglobal Hfresh.
+    intros W' Hglobal Hheap Hfresh.
     iIntros "#Hseal_pred #Hprop Hworld".
     iMod (world_interp_salloc W C ot_switcher_propC switcher.ot_switcher
-            {[ WSealable sb; borrow (WSealable sb) ]}
+            {[ lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb)) ]}
            with "Hseal_pred [] [] Hworld")
       as "($ & #Hseal)"; first done.
     { iIntros (w); iApply mono_priv_ot_switcher. }
-    { rewrite normalise_sealed_words_borrow big_sepS_singleton.
-      replace (force_global (WSealable sb)) with (WSealable sb)
+    { rewrite (normalise_sealed_words_borrow (lword_of_word (WSealable sb))) big_sepS_singleton.
+      replace (lforce_global (lword_of_word (WSealable sb))) with (lword_of_word (WSealable sb))
         by (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
       iFrame "Hprop". }
     iModIntro.
     iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
     replace (get_tag_sealable sb) with true
       by (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
-    done.
+    iSplit; first done.
+    iPureIntro.
+    destruct sb as [ [] p g b e a | [] ? ? ? ]; cbn; try done.
+    apply heap_cap_valid_disjoint; by eapply Hheap.
   Qed.
 
 End main_exports.
@@ -827,7 +924,7 @@ Section main_sizes.
 
   (** The main compartment's code region, as a [codefrag]. *)
   Lemma cmpt_code_codefrag `{Σ : gFunctors} {ceriseg : ceriseG Σ} (main : cmpt) :
-    [[ cmpt_a_code main, cmpt_e_pcc main ]] ↦ₐ [[ cmpt_code main ]] ⊣⊢
+    [[ cmpt_a_code main, cmpt_e_pcc main ]] ↦ₐ [[ lword_of_word <$> cmpt_code main ]] ⊣⊢
     codefrag (cmpt_a_code main) (cmpt_code main).
   Proof.
     rewrite /codefrag.

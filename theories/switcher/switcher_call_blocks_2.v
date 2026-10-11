@@ -15,11 +15,16 @@ Section Switcher_Call_Blocks_2.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
+
+  (** The stack is not a shadow-table address. *)
+  Local Ltac stk_not_shadow H :=
+    eapply disjoint_from_shadow_not_in;
+    [exact (disjoint_from_mmio_shadow _ _ H) | rewrite /withinBounds; solve_addr].
 
   Lemma switcher_call_block_2_spec
     b_stk e_stk a_stk
@@ -28,6 +33,7 @@ Section Switcher_Call_Blocks_2.
     stk_mem :
     let switcher_instrs_2 := (switcher_instrs_n 2) in
     let len_switcher_2 := length switcher_instrs_2 in
+    disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_2)%a ->
 
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
@@ -60,7 +66,7 @@ Section Switcher_Call_Blocks_2.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_2 len_switcher_2; subst switcher_instrs_2 len_switcher_2.
-    iIntros (Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk & Hcode & Hpost)".
+    iIntros (Hstk_shadow Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -82,6 +88,7 @@ Section Switcher_Call_Blocks_2.
     { solve_addr+Hastk_inbounds Hastk1. }
 
     iInstr "Hcode".
+    { stk_not_shadow Hstk_shadow. }
     { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
@@ -104,6 +111,7 @@ Section Switcher_Call_Blocks_2.
     { solve_addr+Hastk1_inbounds Hastk1 Hastk2. }
 
     iInstr "Hcode".
+    { stk_not_shadow Hstk_shadow. }
     { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
@@ -125,6 +133,7 @@ Section Switcher_Call_Blocks_2.
     { solve_addr+Hastk2_inbounds Hastk1 Hastk2 Hastk3. }
 
     iInstr "Hcode".
+    { stk_not_shadow Hstk_shadow. }
     { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
@@ -147,6 +156,7 @@ Section Switcher_Call_Blocks_2.
     assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr.
 
     iInstr "Hcode".
+    { stk_not_shadow Hstk_shadow. }
     { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
@@ -156,6 +166,7 @@ Section Switcher_Call_Blocks_2.
     replace (a_stk2) with (a_stk ^+2)%a by solve_addr.
     replace (a_stk3) with (a_stk ^+3)%a by solve_addr.
     replace (a_stk4) with (a_stk ^+4)%a by solve_addr.
+    repeat rewrite lstore_word_isWL; try reflexivity.
     iApply ("Hpost" $! stk_mem). iFrame.
     iPureIntro; repeat split; solve_addr.
   Qed.
@@ -168,6 +179,7 @@ Section Switcher_Call_Blocks_2.
     let len_switcher_3 := length switcher_instrs_3 in
     let a_tstk1 := (a_tstk ^+ 1)%a in
     let a_tstk2 := (a_tstk ^+ 2)%a in
+    disjoint_from_shadow b_trusted_stack e_trusted_stack ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_3)%a ->
     (b_trusted_stack <= a_tstk)%a ->
     (a_tstk <= e_trusted_stack)%a ->
@@ -215,7 +227,7 @@ Section Switcher_Call_Blocks_2.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_3 len_switcher_3 a_tstk1 a_tstk2; subst switcher_instrs_3 len_switcher_3.
-    iIntros (Hsub_reg Hbounds_tstk_b Hbounds_tstk_e Hpc_fail)
+    iIntros (Htstk_shadow Hsub_reg Hbounds_tstk_b Hbounds_tstk_e Hpc_fail)
       "(HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Htstk & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -269,10 +281,13 @@ Section Switcher_Call_Blocks_2.
     iDestruct (region_pointsto_cons _ f4 with "Htstk") as "[Hf3 Htstk]";[solve_addr|solve_addr|].
     replace (a_tstk ^+ 1)%a with f3 by solve_addr.
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Htstk_shadow.
+      rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
 
     (* --- WriteSR mtdc ct2 --- *)
     iInstr "Hcode".
+    repeat rewrite lstore_word_isWL; try reflexivity.
 
 
     replace (@finz.to_z MemNum f3)%Z with ((@finz.to_z MemNum a_tstk) + 1)%Z by solve_addr.
@@ -288,9 +303,10 @@ Section Switcher_Call_Blocks_2.
   (** Blocks 2-3: spill the callee-save registers on the caller's stack
       [[a, e)], and push the stack pointer on the trusted stack. *)
   Lemma switcher_call_blocks_2_spec
-    (b e a : Addr) (stk_mem : list Word)
-    (wcs0 wcs1 wcra wcgp wctp wct2 : Word)
-    (a_tstk : Addr) (tstk_next : list Word) :
+    (b e a : Addr) (stk_mem : list LWord)
+    (wcs0 wcs1 wcra wcgp wctp wct2 : LWord)
+    (a_tstk : Addr) (tstk_next : list LWord) :
+    disjoint_from_mmio b e ->
     (b_trusted_stack <= a_tstk)%a ->
     (a_tstk <= e_trusted_stack)%a ->
 
@@ -335,7 +351,7 @@ Section Switcher_Call_Blocks_2.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Htstk_b Htstk_e)
+    iIntros (Hstk_mmio Htstk_b Htstk_e)
       "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & Hstk
       & Hmtdc & Htstk & Hcode & Hpost)".
     pose proof switcher_SubBounds as Hsub.
@@ -345,7 +361,7 @@ Section Switcher_Call_Blocks_2.
     (* Block 2: spill the callee-save registers *)
     switcher_focus_block 2 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     iApply (switcher_call_block_2_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hcode]"); first done.
+      "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hcode]"); [done|done|].
     iNext; iIntros (stk_mem')
       "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp
       & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hstk & %Hbounds & -> & Hcode)".
@@ -356,7 +372,8 @@ Section Switcher_Call_Blocks_2.
     (* Block 3: push the stack pointer on the trusted stack *)
     switcher_focus_block 3 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     iApply (switcher_call_block_3_spec with
-      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); [done|done|done|offsets_compute; solve_addr|].
+      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]");
+      [apply trusted_stack_disjoint_from_shadow|done|done|done|offsets_compute; solve_addr|].
     iNext.
     iIntros "[
       (%tstk_next' & HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc
@@ -376,10 +393,10 @@ Section Switcher_Call_Blocks_2.
   Qed.
 
 
-  (** Block 2 fails when the stack pointer is not a valid stack capability. *)
-  Lemma switcher_call_blocks_2_fail_spec (wcsp wcs0 : Word) :
+  (** Block 2 fails when the stack pointer does not point within its bounds. *)
+  Lemma switcher_call_blocks_2_fail_spec (wcsp wcs0 : LWord) :
     switcher_csp_checked wcsp ->
-    (∀ b e a, wcsp = WCap true RWL Local b e a -> (a < b)%a) ->
+    (∀ b e a, wcsp.(lw) = WCap true RWL Local b e a -> (a < b)%a ∨ (e <= a)%a) ->
 
     PC ↦ᵣ switcher_block_pc 2 ∗
     csp ↦ᵣ wcsp ∗
@@ -393,12 +410,12 @@ Section Switcher_Call_Blocks_2.
     switcher_unfold_code "Hcode".
     switcher_focus_block 2 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
     (* Store csp cs0 *)
-    destruct (is_cap wcsp) eqn:Hcap; cycle 1.
+    destruct (is_cap wcsp.(lw)) eqn:Hcap; cycle 1.
     { iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (wp_store_fail_reg_not_cap with "[$HPC $Hi $Hcs0 $Hcsp]"); try solve_pure.
+      iApply (wp_store_fail_reg_not_cap_lword with "[$HPC $Hi $Hcs0 $Hcsp]"); try solve_pure.
       iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
-    destruct wcsp as [| [t p g b e a|] | | ]; cbn in Hcap; try discriminate.
+    destruct wcsp as [ [| [t p g b e a|] | | ] π]; cbn in Hcap; try discriminate.
     destruct t.
     2: {
       (* Store csp cs0 *)
@@ -406,10 +423,10 @@ Section Switcher_Call_Blocks_2.
       wp_end. iIntros "%Hcontr"; done. }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    destruct (switcher_csp_checked_cap _ _ _ _ _ Hchecked) as [-> ->].
+    destruct (switcher_csp_checked_cap _ _ _ _ _ _ Hchecked) as [-> ->].
     specialize (Hnot_stk b e a eq_refl).
     iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs0 $Hcsp]"); try solve_pure.
-    { rewrite /withinBounds; solve_addr. }
+    { destruct Hnot_stk; rewrite /withinBounds; solve_addr. }
     iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done.
   Qed.
 

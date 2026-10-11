@@ -12,7 +12,7 @@ Section LSE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -22,7 +22,7 @@ Section LSE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma lse_f_spec
 
@@ -42,6 +42,11 @@ Section LSE.
 
     let imports := lse_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
+    disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
+    is_heap_address pc_b = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nlse ->
     Nassert ## Nlse ->
@@ -54,7 +59,7 @@ Section LSE.
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais Nlse
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+        ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
          ∗ codefrag pc_a lse_main_code
          ∗ cgp_b ↦ₐ WInt 2
         )
@@ -78,7 +83,8 @@ Section LSE.
          and jump to the switcher;
        - [switcher_ret_specification]: return to the caller of [f]. *)
     intros imports; subst imports.
-    iIntros (Hswitcher_assert HNswitcher_lse HNassert_lse
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap
+               Hswitcher_assert HNswitcher_lse HNassert_lse
                Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher
       & #Hlse_code
@@ -96,14 +102,22 @@ Section LSE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
     iSplit; first done.
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first done.
+    iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & _ & _)".
     rewrite /interp_conf /registers_pointsto.
-    assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by done.
+    assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).
-    pose proof (regmap_full_dom _ Hrmap_init) as Hrmap_dom.
+    pose proof (lregmap_full_dom _ Hrmap_init) as Hrmap_dom.
     iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
@@ -115,16 +129,20 @@ Section LSE.
     set (csp_b := (csp_b' ^+ 4)%a).
     iMod (lse_world_f with "Hinterp_W0_csp Hworld_interp_C")
       as (l stk_mem) "(%Hextract & %Hpub_W0_Wfixed & Hworld_interp_C & Hrevoked_l & Hstk)".
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
+      as %[Hstk_mmio Hstk_heap]; first done.
 
     (* Block 4: push the capability of [a] on the stack, load [a] *)
     iMod (na_inv_acc with "Hlse_code Hna")
       as "(( >Himports_main & >Hcode_main & >Hcgp_b) & Hna & Hlse_code_close)"; auto.
+    iEval (cbn [fmap list_fmap lse_main_imports]) in "Himports_main".
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     rewrite /length_lse_main_imports.
     change_pc_to (pc_a ^+ lse_block_offset 4)%a.
     iApply (lse_f_blocks_1_spec with
              "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hcode_main]");
-      [done|done|].
+      [done|done|done|done| |].
+    { by eapply switcher_disjoint_subseg; [| |split; eassumption]; solve_addr. }
     iNext; iIntros (stk_mem' wcs0' wcs1')
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & Hcode_main)".
 
@@ -134,14 +152,15 @@ Section LSE.
               $Himport_assert $Hcode_main]"); [done|solve_ndisj|].
     iNext; iIntros "(Hna & HPC & Hcgp & Hcs0 & Hcs1 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
                     & Hcnull & Himport_assert & Hcode_main)".
-    iEval (cbn [updatePcPerm]) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iMod ("Hlse_code_close" with
            "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main $Hcgp_b]")
       as "Hna".
-    { iNext. iRegionMerge. iFrame. }
+    { iNext. iEval (cbn [fmap list_fmap lse_main_imports]). iRegionMerge. iFrame. }
     iInsertRegs "Hrmap" ["Hcnull";"Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].
 
     (* Return to the caller of [f] *)
+    iDestruct (RevokedResources_mono_pub W0 _ C l l Hpub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
     iApply (switcher_ret_specification _ W0 (revoke W0) with
              "[$Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
