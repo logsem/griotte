@@ -222,7 +222,7 @@ Section spec_rules.
       (⌜ retv = FailedV ⌝ ∨
        (∃ z,
           ⌜ denote get_i wsrc = Some z ⌝ ∗
-          ⌜ (is_cap wsrc || is_sealr wsrc || is_sentry wsrc) = true ⌝ ∗
+          ⌜ (is_cap wsrc || is_sealr wsrc || is_sentry wsrc || is_sealed wsrc) = true ⌝ ∗
           ⌜ retv = NextIV ⌝ ∗
           PC ↣ᵣ WCap pc_p pc_g pc_b pc_e pc_a' ∗
           pc_a ↣ₐ w ∗

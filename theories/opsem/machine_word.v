@@ -35,24 +35,76 @@ Ltac destruct_word w :=
 
 (***** Identifying parts of String.String.words *****)
 
-Definition get_b (w : Word) :=
-  match w with
-  | WCap _ _ b _ _ => Some b
-  | _ => None
+(** Projections of the fields of a word. As in cheriot-sail, the field reads
+    do not check the seal: on a sealed word, they project the fields of the
+    sealed payload. They fail on integers. *)
+
+Definition get_a_sealable (sb : Sealable) : Z :=
+  match sb with
+  | SCap _ _ _ _ a => a
+  | SSealRange _ _ _ _ a => a
+  end.
+Definition get_b_sealable (sb : Sealable) : Z :=
+  match sb with
+  | SCap _ _ b _ _ => b
+  | SSealRange _ _ b _ _ => b
+  end.
+Definition get_e_sealable (sb : Sealable) : Z :=
+  match sb with
+  | SCap _ _ _ e _ => e
+  | SSealRange _ _ _ e _ => e
+  end.
+Definition get_p_sealable (sb : Sealable) : Perm + SealPerms :=
+  match sb with
+  | SCap p _ _ _ _ => inl p
+  | SSealRange p _ _ _ _ => inr p
+  end.
+Definition get_l_sealable (sb : Sealable) : Locality :=
+  match sb with
+  | SCap _ g _ _ _ | SSealRange _ g _ _ _ => g
   end.
 
-Definition get_a (w : Word) :=
+Definition get_a (w : Word) : option Z :=
   match w with
-  | WCap _ _ _ _ a => Some a
-  | _ => None
+  | WInt _ => None
+  | WSealable sb | WSealed _ sb => Some (get_a_sealable sb)
+  | WSentry _ _ _ _ a => Some (a : Z)
+  end.
+Definition get_b (w : Word) : option Z :=
+  match w with
+  | WInt _ => None
+  | WSealable sb | WSealed _ sb => Some (get_b_sealable sb)
+  | WSentry _ _ b _ _ => Some (b : Z)
+  end.
+Definition get_e (w : Word) : option Z :=
+  match w with
+  | WInt _ => None
+  | WSealable sb | WSealed _ sb => Some (get_e_sealable sb)
+  | WSentry _ _ _ e _ => Some (e : Z)
+  end.
+Definition get_p (w : Word) : option (Perm + SealPerms) :=
+  match w with
+  | WInt _ => None
+  | WSealable sb | WSealed _ sb => Some (get_p_sealable sb)
+  | WSentry p _ _ _ _ => Some (inl p)
+  end.
+Definition get_l (w : Word) : option Locality :=
+  match w with
+  | WInt _ => None
+  | WSealable sb | WSealed _ sb => Some (get_l_sealable sb)
+  | WSentry _ g _ _ _ => Some g
   end.
 
-Definition get_e (w : Word) :=
-  match w with
-  | WCap _ _ _ e _ => Some e
-  | _ => None
-  end.
-
+Lemma get_a_sealed o sb : get_a (WSealed o sb) = get_a (WSealable sb).
+Proof. done. Qed.
+Lemma get_b_sealed o sb : get_b (WSealed o sb) = get_b (WSealable sb).
+Proof. done. Qed.
+Lemma get_e_sealed o sb : get_e (WSealed o sb) = get_e (WSealable sb).
+Proof. done. Qed.
+Lemma get_p_sealed o sb : get_p (WSealed o sb) = get_p (WSealable sb).
+Proof. done. Qed.
+Lemma get_l_sealed o sb : get_l (WSealed o sb) = get_l (WSealable sb).
+Proof. done. Qed.
 
 (* Z <-> Word *)
 Definition is_z (w : Word) : bool :=

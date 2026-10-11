@@ -281,26 +281,4 @@ Section Switcher_Call_Blocks_1.
     iFrame. done.
   Qed.
 
-  (** Block 0 fails when the stack pointer is sealed. *)
-  Lemma switcher_call_blocks_1_sealed_fail_spec (o : OType) (sb : Sealable) (wct2 : Word) :
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-    csp ↦ᵣ WSealed o sb ∗
-    ct2 ↦ᵣ wct2 ∗
-    switcher_code
-    ⊢ switcher_wp.
-  Proof.
-    iIntros "(HPC & Hcsp & Hct2 & Hcode)".
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size. pose proof switcher_call_entry_point.
-    switcher_unfold_code "Hcode".
-    focus_block_0 "Hcode" as "Hcode" "Hcls".
-    (* GetP ct2 csp *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
-    iIntros "!>" (v) "[-> | (%p0 & %Hp0 & %Hcap & -> & HPC & Hi & Hcsp & Hct2)] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
-    done.
-  Qed.
-
 End Switcher_Call_Blocks_1.

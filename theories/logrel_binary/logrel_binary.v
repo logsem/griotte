@@ -595,14 +595,14 @@ Section logrel.
   Solve All Obligations with solve_proper.
 
   (** Interp for a pair of sealed words with the same otype [o]:
-      the payloads are related by the predicate of [o], before and after
-      borrowing, and have the same locality. *)
+      the payloads are equal, and related by the predicate of [o], before
+      and after borrowing. *)
   Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (sb1 sb2 : Sealable) : iProp Σ :=
     (∃ (P : V) ,
         ⌜persistent_cond P⌝
         ∗ (∀ w, future_priv_mono C (safeC P) w)
         ∗ seal_pred o (safeC P)
-        ∗ ⌜isLocalSealable sb1 = isLocalSealable sb2⌝
+        ∗ ⌜sb1 = sb2⌝
         ∗ ▷ P W C (WSealable sb1, WSealable sb2)
         ∗ ▷ P W C (borrow (WSealable sb1), borrow (WSealable sb2))
     )%I.
@@ -844,6 +844,18 @@ Section logrel.
     ⌜ o1 = o2 ⌝ ∗ interp_sb W C o1 sb1 sb2.
   Proof. by rewrite /interp fixpoint_interp1_eq /= /interp1_pair. Qed.
 
+  (** Related words are equal: sealed words have equal payloads. *)
+  Lemma interp_eq (W : WORLD) (C : CmptName) (w1 w2 : Word) :
+    interp W C (w1, w2) -∗ ⌜ w1 = w2 ⌝.
+  Proof.
+    iIntros "Hinterp".
+    iDestruct (interp_eq_unless_sealed with "Hinterp") as %[->|(o & sb1 & sb2 & -> & ->)]
+    ; first done.
+    rewrite interp_sealed_inv.
+    iDestruct "Hinterp" as "[_ (%P & _ & _ & _ & %Hsb & _)]".
+    by subst.
+  Qed.
+
   (** Related words have the same locality *)
   Lemma interp_isLocalWord (W : WORLD) (C : CmptName) (w1 w2 : Word) :
     interp W C (w1, w2) -∗ ⌜ isLocalWord w1 = isLocalWord w2 ⌝.
@@ -853,7 +865,7 @@ Section logrel.
     ; first done.
     rewrite interp_sealed_inv.
     iDestruct "Hinterp" as "[_ (%P & _ & _ & _ & %Hloc & _)]".
-    done.
+    by subst.
   Qed.
 
   Lemma interp_canStore (W : WORLD) (C : CmptName) (p : Perm) (w1 w2 : Word) :

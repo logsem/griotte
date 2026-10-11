@@ -292,7 +292,6 @@ Section fundamental.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant of both runs;
-       - when the stack pointer is sealed, [switcher_call_blocks_1_sealed_fail_spec];
        - [switcher_call_blocks_1_spec]: checks on the stack pointer;
          when they fail, [interp_switcher_call_force_unwind];
        - [switcher_call_stk_open]: open the caller's stack frame in the world
@@ -345,9 +344,8 @@ Section fundamental.
     iExtractList "Hsmap" [csp;ct2;ctp] as ["Hscsp";"Hsct2";"Hsctp"].
     iDestruct ("Hreg" $! csp with "[//] [//] [//]") as "#Hspv".
 
-    (* The stack pointer is either sealed, or the same in both runs *)
-    iDestruct (interp_eq_unless_sealed with "Hspv") as %[<-|(o & sb1 & sb2 & -> & ->)]; cycle 1.
-    { iApply (switcher_call_blocks_1_sealed_fail_spec with "[$HPC $Hcsp $Hct2 $Hcode]"). }
+    (* The stack pointer is the same in both runs *)
+    iDestruct (interp_eq with "Hspv") as %<-.
 
     (* Blocks 0-1: checks on the stack pointer *)
     iApply (switcher_call_blocks_1_spec with

@@ -214,6 +214,8 @@ Qed.
     ; repeat destruct (z_of_argument (reg φ) _)
     ; cbn in *; try by exfalso.
     all: repeat destruct (reg _ !!ᵣ _); cbn in *; repeat case_match.
+    all: repeat destruct (get_a _); repeat destruct (get_b _); repeat destruct (get_e _);
+      repeat destruct (get_p _); repeat destruct (get_l _).
     all: repeat destruct (reg _ !! PC); cbn in *; repeat case_match.
     all: repeat destruct (sreg _ !! _); cbn in *; repeat case_match.
     all: repeat destruct (mem _ !! _); cbn in *; repeat case_match.

@@ -85,6 +85,13 @@ Global Instance encode_instrw_inj `{MachineParameters}: Inj (=) (=) encodeInstrW
 Proof. eapply cancel_inj. Qed.
 
 
+(** Integer encoding of the permission field of a word (see [get_p]). *)
+Definition encodePermSum `{MachineParameters} (p : Perm + SealPerms) : Z :=
+  match p with
+  | inl p => encodePerm p
+  | inr p => encodeSealPerms p
+  end.
+
 Section word_type_encoding.
   Definition wt_cap := WCap (O LG LM) Global 0%a 0%a 0%a.
   Definition wt_sentry := WSentry (O LG LM) Global 0%a 0%a 0%a.
