@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte.allocators.ownership Require Import allocator_malloc_spec_states.
+From griotte.allocators.common Require Import allocator_common_malloc_spec_exit_blocks.
 
 (** * Malloc, block 2: the capacity check, the payload and the header
 
@@ -8,8 +9,8 @@ From griotte.allocators.ownership Require Import allocator_malloc_spec_states.
     capacity. On success, it bounds the payload capability, which is rebased
     to the fresh identifier [ι] of the payload, and writes the header, with
     the owner identifier [o] held in [ctp]; the group ends at block 3. On an
-    exhausted heap, it continues at block 11, which sets [ALLOC_NO_MEMORY],
-    and returns through block 12. *)
+    exhausted heap, it continues at the exit segment (block 5), which sets
+    [ALLOC_NO_MEMORY] and returns. *)
 
 Section AllocatorMallocPrepareBlocks3.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
@@ -165,12 +166,12 @@ Section AllocatorMallocPrepareBlocks3.
     iApply "Hφ". iFrame. rewrite /allocator_header /=. iFrame. done.
   Qed.
 
-  (** Blocks 11 and 12: set [ALLOC_NO_MEMORY] and return. *)
+  (** Block 5, the exit segment: set [ALLOC_NO_MEMORY] and return. *)
   Lemma allocator_malloc_oom_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 wnull : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 11)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_no_memory_offset)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
@@ -186,30 +187,17 @@ Section AllocatorMallocPrepareBlocks3.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow & _).
+    intros Hbounds. pose proof Hbounds as (Hpc & _ & _).
     iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hφ)".
-    codefrag_facts "Hcode_main".
-    allocator_malloc_unfold_code "Hcode_main".
-
-    (* Block 11: set ALLOC_NO_MEMORY *)
-    focus_block 11 "Hcode_main" of allocator_malloc_blocks at pc_a as a_oom Ha_oom
-      "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    (* Mov ca0 ALLOC_NO_MEMORY. *)
-    iInstr "Hcode".
-    (* Mov ca1 0. *)
-    iInstr "Hcode".
-    destruct (decide (ca0 = cnull)) as [|_]; first done.
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* Block 12: return *)
-    focus_block 12 "Hcode_main" of allocator_malloc_blocks at pc_a as a_ret Ha_ret
-      "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]"); [solve_addr|done|].
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hcode & Hlc)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hφ". iFrame.
+    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "[Hcode Hcont]".
+    assert ((pc_a ^+ allocator_malloc_no_memory_offset)%a =
+      ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 1)%a)
+      as -> by (cbn in Hpc; offsets_compute; solve_addr).
+    iApply (allocator_malloc_exit_oom_spec with
+      "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode]");
+      first by apply allocator_malloc_exit_bounds.
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode & Hlc)".
+    iApply "Hφ". iFrame. iApply ("Hcont" with "Hcode").
   Qed.
 
   Lemma allocator_malloc_prepare_oom_spec
@@ -289,7 +277,7 @@ Section AllocatorMallocPrepareBlocks3.
     replace (heap_e - next - 3 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
     (* Jnz .malloc_no_memory ct3. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_malloc_block_offset 11)%a);
+    { transitivity (Some (pc_a ^+ allocator_malloc_no_memory_offset)%a);
         offsets_compute; solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     iApply (allocator_malloc_oom_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");

@@ -1,9 +1,11 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode memory_region region_keys.
-From griotte.allocators.ownership Require Import allocator_header_spec allocator_free_spec_states allocator_free_spec_world allocator_free_spec_owner_blocks_1 allocator_free_spec_check_blocks_2 allocator_free_spec_header_blocks_3 allocator_free_spec_quarantine_blocks_4 allocator_free_spec_revoke_blocks_5 allocator_free_spec_return_blocks_6.
+From griotte.allocators.ownership Require Import allocator_header_spec allocator_free_spec_states allocator_free_spec_world allocator_free_spec_owner_blocks_1 allocator_free_spec_check_blocks_2 allocator_free_spec_header_blocks_3 allocator_free_spec_return_blocks_4.
+From griotte.allocators.common Require Import allocator_common_free_spec_tail_blocks.
 
 (** The top-level specifications of [free]. They compose the block groups
-    of [allocator_free_spec_<segment>_blocks_<n>] and the logical steps of
+    of [allocator_free_spec_<segment>_blocks_<n>], those of the shared code in
+    [allocator_common_free_spec_tail_blocks], and the logical steps of
     [allocator_free_spec_world]. *)
 
 Section AllocatorFree.
@@ -117,10 +119,10 @@ Section AllocatorFree.
       "[- $HPC $Hctp $Hct3 $Hct4 $Hca0 $Hkey $Howner $Hfree_code]");
       [done|done|by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
     iNext. iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca0 & Hkey & Howner & Hfree_code)".
-    (* Blocks 11 and 12: set ALLOC_INVALID, return and close the service
+    (* The tail: set ALLOC_INVALID, return and close the service
        invariant. *)
     iAssert (PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
-               (allocator_free_pcc_addr ^+ allocator_free_block_offset 11)%a ∗
+               (allocator_free_pcc_addr ^+ allocator_free_invalid_offset)%a ∗
              cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
              ca0 ↦ᵣ WInt o ∗
              ca1 ↦ᵣ wreq ∗
@@ -542,7 +544,7 @@ Section AllocatorFree.
     (* Observe [ca1]: its bounds are those of the entry of [ι], which records
        the owner [id]; rebuild the whole status token of [ι]. *)
     iMod (allocator_free_observe with "Hca1 Hobj Hheld Hshares Hcells Htoks")
-      as ([o0 r0] Hentry Hlive) "(Hca1 & Hcells & Hfull & Htoks_close)"; [done|done|done|].
+      as ([o0 r0] Hentry Hlive) "(Hca1 & Hcells & Hfull & Htoks_close)"; [done|apply Hwf|done|].
     iDestruct (allocator_free_owner_entry with "Howners Hid") as %Ho0; [done|done|done|].
     cbn in Ho0. subst o0.
     pose proof (allocator_chain_member_bounds _ _ _ _ _ _ _ Hchain Hentry) as Hentry_bounds.
@@ -596,25 +598,28 @@ Section AllocatorFree.
     iDestruct (allocator_free_take_payload _ _ _ _ _ ws with "Hcells")
       as "[Hpayload Hcells_close]"; [done|done|done|].
     iMod (reg_painting E ι with "Hfull") as "Hpainting".
-    (* Blocks 5 and 6: paint the payload quarantined; set ALLOC_OK. *)
+    (* Block 5, the tail: paint the payload quarantined; set ALLOC_OK. *)
+    iDestruct (allocator_free_tail_acc with "Hfree_code") as "[Htail_code Hfree_cont]".
+    pose proof (allocator_free_tail_bounds _ _ _ Hcode_bounds) as Htail_bounds.
     iApply (allocator_free_quarantine_spec with
-      "[- $HPC $Hctp $Hca2 $Hca0 $Hca1 $Hpainting $Hpayload $Hfree_code]"); [done|solve_addr|].
-    iNext. iIntros "(HPC & Hctp & Hca2 & Hca0 & Hca1 & Hpainting & Hpayload & Hfree_code)".
+      "[- $HPC $Hctp $Hca2 $Hca0 $Hca1 $Hpainting $Hpayload $Htail_code]"); [done|solve_addr|].
+    iNext. iIntros "(HPC & Hctp & Hca2 & Hca0 & Hca1 & Hpainting & Hpayload & Htail_code)".
     (* Every cell is quarantined: the status token moves to [AQuar]. *)
     iDestruct (big_sepL_sep with "Hpayload") as "[Hshadows Hclaims]".
     iMod (reg_quarantine E ι b e with "Hobj Hpainting Hshadows")
       as "(Hquar & #Hq & Hshadows)".
     iCombine "Hshadows Hclaims" as "Hpayload".
     rewrite -big_sepL_sep.
-    (* Blocks 7-9: the revoker store kills [ι]; unpaint the payload. *)
+    (* The revoker store kills [ι]; unpaint the payload. *)
     iApply (allocator_free_revoke_spec with
       "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hrmap
-          $Hrevoker_import $Hobj $Hquar $Hpayload $Hfree_code]"); [done|done|done|done|done|].
+          $Hrevoker_import $Hobj $Hquar $Hpayload $Htail_code]"); [done|done|done|done|done|].
     iNext. iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 &
-      Hctp & Hcnull & Hrmap & Hrevoker_import & Hdead & Hcells_free & Hfree_code)".
-    (* Blocks 10 and 12: return. *)
-    iApply (allocator_free_return_spec with "[- $HPC $Hcra $Hcnull $Hfree_code]"); first done.
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hfree_code & Hlc)".
+      Hctp & Hcnull & Hrmap & Hrevoker_import & Hdead & Hcells_free & Htail_code)".
+    (* Return. *)
+    iApply (allocator_free_return_spec with "[- $HPC $Hcra $Hcnull $Htail_code]"); first done.
+    iNext. iIntros "(HPC & Hcra & Hcnull & Htail_code & Hlc)".
+    iDestruct ("Hfree_cont" with "Htail_code") as "Hfree_code".
     (* Release the entry of [ι] and close the service invariant. *)
     iDestruct ("Hcells_close" with "Hcells_free Hmem") as "Hcells".
     iDestruct (allocator_free_release with

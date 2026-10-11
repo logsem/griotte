@@ -1,9 +1,12 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode memory_region region_keys.
-From griotte.allocators.no_ownership Require Import allocator_header_spec allocator_malloc_spec_states allocator_malloc_spec_world allocator_malloc_spec_size_check_blocks_1 allocator_malloc_spec_prepare_blocks_2 allocator_malloc_spec_zero_blocks_3 allocator_malloc_spec_translate_paint_blocks_4 allocator_malloc_spec_publish_blocks_5.
+From griotte.allocators.no_ownership Require Import allocator_header_spec allocator_malloc_spec_states allocator_malloc_spec_world allocator_malloc_spec_size_check_blocks_1 allocator_malloc_spec_prepare_blocks_2 allocator_malloc_spec_publish_blocks_3.
+From griotte.allocators.common Require Import allocator_common_malloc_spec_shadow_blocks.
 
 (** The top-level specifications of [malloc]. They compose the block groups
-    of [allocator_malloc_spec_<segment>_blocks_<n>] and the logical steps of
+    of [allocator_malloc_spec_<segment>_blocks_<n>], those of the shared code in
+    [allocator_common_malloc_spec_shadow_blocks] and
+    [allocator_common_malloc_spec_exit_blocks], and the logical steps of
     [allocator_malloc_spec_world]. *)
 
 Section AllocatorMalloc.
@@ -74,7 +77,7 @@ Section AllocatorMalloc.
     iDestruct "Hca1" as (wca1) "Hca1".
     iDestruct "Hct3" as (w3) "Hct3".
     iDestruct "Hcnull" as (wnull) "Hcnull".
-    (* Blocks 0, 9 and 11: the size check rejects the request. *)
+    (* Blocks 0 and 4: the size check rejects the request. *)
     iApply (allocator_malloc_size_check_invalid_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hct3 $Hcnull $Hmalloc_code]");
       [apply allocator_malloc_entry_bounds|done|].
@@ -203,19 +206,25 @@ Section AllocatorMalloc.
             $Hmalloc_code]"); [done|done|solve_addr|done|done|solve_addr|].
       iNext. iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot &
         Hhead & Htok & Hmalloc_code)".
-      (* Block 2: zero the payload. *)
+      (* Block 2, the shadow segment: zero the payload. *)
+      iDestruct (allocator_malloc_shadow_acc with "Hmalloc_code")
+        as "[Hshadow_code Hmalloc_cont]".
       iApply (allocator_malloc_zero_spec with
-        "[- $HPC $Hca2 $Hct2 $Hct3 $Hpay_mem $Hmalloc_code]"); [done|solve_addr|].
-      iNext. iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hzeros & Hmalloc_code)".
-      (* Blocks 3-7: paint the header and store over the payload. *)
+        "[- $HPC $Hca2 $Hct2 $Hct3 $Hpay_mem $Hshadow_code]");
+        [by apply allocator_malloc_shadow_bounds|solve_addr|].
+      iNext. iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hzeros & Hshadow_code)".
+      (* Paint the header and store over the payload. *)
       iEval (rewrite allocator_imports_split) in "Himports".
       iDestruct "Himports" as "(Hshadow_import & Hseal_import & Hrevoker_import)".
       iApply (allocator_malloc_translate_paint_spec with
         "[- $HPC $Hctp $Hct3 $Hca2 $Hct0 $Hct1 $Hct2 $Hshadow_import $Hheader $Hpayload
-            $Hmalloc_code]"); [done|solve_addr|done|solve_addr|].
+            $Hshadow_code]");
+        [by apply allocator_malloc_shadow_bounds|solve_addr|done|solve_addr|].
       iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & Hshadow_import & Hheader &
-        Hpayload & Hmalloc_code)".
-      (* Blocks 8 and 11: publish the bump cursor and return. *)
+        Hpayload & Hshadow_code)".
+      iDestruct ("Hmalloc_cont" with "Hshadow_code") as "Hmalloc_code".
+      iEval (rewrite (allocator_malloc_shadow_end _ _ _ Hbounds)) in "HPC".
+      (* Blocks 3 and 4: publish the bump cursor and return. *)
       iApply (allocator_malloc_publish_spec with
         "[- $HPC $Hcgp $Hcra $Hct0 $Hct4 $Hca0 $Hca1 $Hcnull $Hslot $Hmalloc_code]");
         [done|done|done|solve_addr|].
@@ -237,7 +246,7 @@ Section AllocatorMalloc.
       iFrame "Hna HPC Hcgp Hcra Hcnull Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iRight. iExists ι, b, finish. iFrame "Hca0 Hca1 Hobj Hheld Hregion".
       iPureIntro. split; [solve_addr|done].
-    - (* Blocks 1, 10 and 11: the heap is exhausted. *)
+    - (* Blocks 1 and 4: the heap is exhausted. *)
       iApply (allocator_malloc_prepare_oom_spec with
         "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hcnull $Hslot
             $Hmalloc_code]"); [done|done|done|lia|].

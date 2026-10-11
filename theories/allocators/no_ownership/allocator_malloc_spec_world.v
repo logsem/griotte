@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode memory_region region_keys.
 From griotte.allocators.no_ownership Require Import allocator_header_spec allocator_malloc_spec_states.
+From griotte.allocators.common Require Export allocator_common_spec_world.
 
 (** * Logical steps of the proof of [malloc]
 
@@ -11,73 +12,6 @@ From griotte.allocators.no_ownership Require Import allocator_header_spec alloca
 Section AllocatorMallocWorld.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
-
-  (** Take the cells of a new chunk [next, finish) above the bump cursor: they
-      are unclaimed, unpainted and not headers. The header cells [next, b)
-      stay unclaimed; the payload cells [b, finish) are claimed by a fresh
-      identifier [ι ∉ S]. The cells are put back as header words and as cells
-      claimed by [ι]. *)
-  Lemma allocator_malloc_claim
-    (E : coPset) (S : gset AId) (next b finish : Addr)
-    (allocations : list allocator_header_entry) (live issued : gset AId)
-    (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) :
-    allocator_cells_wf next allocations live issued Cs ->
-    (next <= b /\ b < finish /\ finish <= heap_e)%a ->
-    allocator_cells Cs -∗
-    |~{E}~> ∃ ι : AId,
-      ⌜ι ∉ S⌝ ∗
-      alloc_obj ι b finish ∗
-      ι ↦st{1} ALive ∗
-      allocator_range_memory next b ∗
-      allocator_range_memory b finish ∗
-      ([∗ list] a ∈ finz.seq_between next b, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) ∗
-      ([∗ list] a ∈ finz.seq_between b finish, a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) ∗
-      (([∗ list] a ∈ finz.seq_between next b,
-          a ↦ₛ ShadowQuarantined ∗ addr_alloc a Unclaimed) -∗
-       ([∗ list] a ∈ finz.seq_between b finish,
-          a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) -∗
-       allocator_cells
-         (allocator_cells_update (finz.seq_between next finish) (allocator_malloc_cell b ι) Cs)).
-  Proof.
-    intros Hcwf Hrange. iIntros "Hcells".
-    iDestruct (allocator_cells_range_acc (finz.seq_between next finish)
-                 (λ _, (Unclaimed, ShadowLive, false)) with "Hcells")
-      as "[Hchunk Hcells_close]".
-    { apply finz_seq_between_NoDup. }
-    { intros a Ha. apply elem_of_finz_seq_between in Ha.
-      apply (acw_cursor _ _ _ _ _ Hcwf). solve_addr. }
-    assert (Hsplit : (next <= b /\ b <= finish)%a) by solve_addr.
-    iEval (rewrite (finz_seq_between_split next b finish Hsplit) big_sepL_app) in "Hchunk".
-    iDestruct "Hchunk" as "[Hhdr Hpay]".
-    iEval (rewrite /cell_res' /cell_res /=) in "Hhdr Hpay".
-    iDestruct (big_sepL_sep with "Hhdr") as "[Hhdr_claims Hhdr]".
-    iDestruct (big_sepL_sep with "Hhdr") as "[Hhdr_shadow Hhdr_mem]".
-    iDestruct (big_sepL_sep with "Hpay") as "[Hpay_claims Hpay]".
-    iDestruct (big_sepL_sep with "Hpay") as "[Hpay_shadow Hpay_mem]".
-    iCombine "Hpay_shadow Hpay_claims" as "Hpayload".
-    rewrite -big_sepL_sep.
-    iMod (rules_registry.reg_alloc _ b finish S with "Hpayload")
-      as (ι Hι) "(#Hobj & Htok & Hpayload)".
-    iModIntro. iExists ι. iFrame "Hobj Htok Hpayload". iSplit; first done.
-    iSplitL "Hhdr_mem".
-    { iApply (big_sepL_mono with "Hhdr_mem"). iIntros (k a _) "[_ $]". }
-    iSplitL "Hpay_mem".
-    { iApply (big_sepL_mono with "Hpay_mem"). iIntros (k a _) "[_ $]". }
-    iSplitL "Hhdr_shadow Hhdr_claims".
-    { iApply big_sepL_sep. iFrame. }
-    iIntros "Hheader Hpayload".
-    iApply "Hcells_close".
-    iEval (rewrite (finz_seq_between_split next b finish Hsplit) big_sepL_app).
-    iSplitL "Hheader".
-    - iApply (big_sepL_mono with "Hheader"). iIntros (k a Hk) "[Hs Hc]".
-      apply list_elem_of_lookup_2, elem_of_finz_seq_between in Hk.
-      rewrite /cell_res' /allocator_malloc_cell decide_True; last solve_addr.
-      rewrite /cell_res /=. iFrame.
-    - iApply (big_sepL_mono with "Hpayload"). iIntros (k a Hk) "[Hs Hc]".
-      apply list_elem_of_lookup_2, elem_of_finz_seq_between in Hk.
-      rewrite /cell_res' /allocator_malloc_cell decide_False; last solve_addr.
-      rewrite /cell_res /=. iFrame. done.
-  Qed.
 
   (** Publish the entry of [ι] in the service data, with the new bump cursor
       [finish]. The status token of [ι] is split between the allocator, the

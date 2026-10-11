@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode memory_region fetch.
 From griotte Require Export code_blocks.
 From griotte.allocators.ownership Require Export allocator_preamble allocator_macros_spec.
+From griotte.allocators.common Require Export allocator_common_spec_states.
 
 (** * Shared interfaces of the proof of [free]
 
@@ -15,36 +16,17 @@ From griotte.allocators.ownership Require Export allocator_preamble allocator_ma
       tag and of the bounds of the request against the allocated prefix,
     - [allocator_free_spec_header_blocks_3]: blocks 3 and 4, the shadow
       capability and the local check of the header and of its owner,
-    - [allocator_free_spec_quarantine_blocks_4]: blocks 5 and 6, the painting
-      of the payload and the result [ALLOC_OK],
-    - [allocator_free_spec_revoke_blocks_5]: blocks 7-9, the revoker
-      capability, the revoker store and the unpainting of the payload,
-    - [allocator_free_spec_return_blocks_6]: blocks 10-12, the return, and the
-      result [ALLOC_INVALID] of a rejected request.
+    - [allocator_free_spec_return_blocks_4]: the rejection of a request, in
+      the tail (block 5).
+    Block 5 is the shared tail of [free], specified in
+    [allocator_common_free_spec_tail_blocks]: the painting of the payload,
+    the result [ALLOC_OK], the revocation, the return and the rejection.
 
     The logical steps between the block groups, which do not execute code,
     are in [allocator_free_spec_world].
 
     The block-group lemmas start and end at addresses of the code
     [allocator_free_code], given by [allocator_free_block_offset]. *)
-
-Global Instance allocator_free_in_prefix_dec {MP : MachineParameters} next w :
-  Decision (allocator_free_in_prefix next w).
-Proof.
-  unfold allocator_free_in_prefix.
-  destruct w as [z|sb|tag p g b e a|ot sb].
-  - right. intros (? & ? & ? & ? & ? & Heq & _). discriminate.
-  - destruct sb as [tag p g b e a|tag p g b e a].
-    + destruct tag.
-      * destruct (decide (heap_b < b /\ b < e /\ e <= next)%a) as [Hbounds|Hbounds].
-        { left. exists p, g, b, e, a. auto. }
-        right. intros (p' & g' & b' & e' & a' & Heq & Hrange).
-        inversion Heq; subst. contradiction.
-      * right. intros (? & ? & ? & ? & ? & Heq & _). discriminate.
-    + right. intros (? & ? & ? & ? & ? & Heq & _). discriminate.
-  - right. intros (? & ? & ? & ? & ? & Heq & _). discriminate.
-  - right. intros (? & ? & ? & ? & ? & Heq & _). discriminate.
-Defined.
 
 Section AllocatorFreeCode.
   Context {MP : MachineParameters}.
@@ -56,14 +38,7 @@ Section AllocatorFreeCode.
     allocator_free_instrs_n 2 ++
     fetch_instrs allocator_shadow_import_off ctp ct3 ca2 ++
     allocator_free_instrs_n 4 ++
-    allocator_paint_instrs ctp ca2 ShadowQuarantined ++
-    allocator_free_instrs_n 6 ++
-    fetch_instrs allocator_revoker_import_off ct3 ct4 ca2 ++
-    allocator_free_instrs_n 8 ++
-    allocator_paint_instrs ctp ca2 ShadowLive ++
-    allocator_free_instrs_n 10 ++
-    allocator_free_instrs_n 11 ++
-    encodeInstrsW [Jalr cnull cra].
+    allocator_free_tail_code.
 
   Lemma allocator_free_instrs_code : allocator_free_instrs = allocator_free_code.
   Proof. reflexivity. Qed.
@@ -79,6 +54,10 @@ Notation allocator_free_block_offset := (code_block_offset allocator_free_blocks
 
 (** Offset of the [i]-th instruction of the block [n] in [allocator_free_code]. *)
 Notation allocator_free_instr_offset := (code_instr_offset allocator_free_blocks).
+
+(** Offset of the rejection of [free] in [allocator_free_code]. *)
+Notation allocator_free_invalid_offset :=
+  (allocator_free_block_offset 5 + allocator_free_tail_block_offset 6)%Z.
 
 (** Unfold [allocator_free_code] into the chain of its blocks. *)
 Ltac allocator_free_unfold_code h := unfold_code allocator_free_code h.
@@ -101,4 +80,35 @@ Section AllocatorFreeStates.
     - apply allocator_cgp_not_in_pcc.
   Qed.
 
+  (** The shared tail of [allocator_free_code]. *)
+
+  Lemma allocator_free_tail_bounds pc_b pc_e pc_a :
+    allocator_free_code_bounds pc_b pc_e pc_a ->
+    allocator_segment_bounds allocator_free_tail_code pc_b pc_e
+      (pc_a ^+ allocator_free_block_offset 5)%a.
+  Proof.
+    intros (Hpc & Hshadow & _). split; last done.
+    cbn in Hpc. offsets_compute. solve_addr.
+  Qed.
+
 End AllocatorFreeStates.
+
+Section AllocatorFreeSegments.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
+
+  Lemma allocator_free_tail_acc pc_a :
+    codefrag pc_a allocator_free_code -∗
+    codefrag (pc_a ^+ allocator_free_block_offset 5)%a allocator_free_tail_code ∗
+    (codefrag (pc_a ^+ allocator_free_block_offset 5)%a allocator_free_tail_code -∗
+     codefrag pc_a allocator_free_code).
+  Proof.
+    iIntros "Hcode_main".
+    codefrag_facts "Hcode_main".
+    allocator_free_unfold_code "Hcode_main".
+    focus_block_nochangePC 5 "Hcode_main" as a_tail Ha_tail "Hcode" "Hcont".
+    assert (a_tail = (pc_a ^+ allocator_free_block_offset 5)%a) as <-
+      by (cbn in Ha_tail; offsets_compute; solve_addr).
+    iFrame "Hcode". iIntros "Hcode". iApply ("Hcont" with "Hcode").
+  Qed.
+
+End AllocatorFreeSegments.

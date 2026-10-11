@@ -7,7 +7,8 @@ From griotte.allocators.no_ownership Require Import allocator_free_spec_states.
     Block 0 checks that [ca0] holds a capability, and block 1 that it is
     tagged and that its bounds lie in the allocated prefix of the heap,
     ignoring its cursor; block 1 reloads the heap root from the bump slot.
-    On success, the group ends at block 2; otherwise at block 10. *)
+    On success, the group ends at block 2; otherwise at the rejection in
+    the tail (block 4). *)
 
 Section AllocatorFreeCheckBlocks1.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
@@ -133,7 +134,7 @@ Section AllocatorFreeCheckBlocks1.
        cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        ca0 ↦ᵣ wreq ∗
        codefrag pc_a allocator_free_code ∗
-       PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 10)%a ∗
+       PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset)%a ∗
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
@@ -165,7 +166,7 @@ Section AllocatorFreeCheckBlocks1.
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_free_block_offset 10)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame. }
     destruct wreq; cbn in Hreq_cap; try done.
     destruct sb; cbn in Hreq_cap; try done.
@@ -187,10 +188,10 @@ Section AllocatorFreeCheckBlocks1.
     { cbn.
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 10)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_free_block_offset 10)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame. }
     rewrite /Z.b2z Z.sub_diag.
     (* Jnz .free_invalid ct3. *)
@@ -223,10 +224,10 @@ Section AllocatorFreeCheckBlocks1.
       iInstr "Hcode".
       (* Jmp .free_invalid. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 10)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_free_block_offset 10)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame. }
     replace (heap_b <? b)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jnz .free_base_ok ct3. *)
@@ -239,10 +240,10 @@ Section AllocatorFreeCheckBlocks1.
       iInstr "Hcode".
       (* Jmp .free_invalid. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 10)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_free_block_offset 10)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame. }
     replace (b <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jnz .free_nonempty ct3. *)
@@ -256,10 +257,10 @@ Section AllocatorFreeCheckBlocks1.
     replace (next <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jnz .free_invalid ct3. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_free_block_offset 10)%a);
+    { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
         offsets_compute; solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    change_pc_to (pc_a ^+ allocator_free_block_offset 10)%a.
+    change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
     iApply "Hφ". iFrame.
   Qed.
 

@@ -8,7 +8,8 @@ From griotte.allocators.ownership Require Import allocator_free_spec_states.
     [ca1] holds a capability, and block 2 that it is tagged and that its
     bounds lie in the allocated prefix of the heap, ignoring its cursor;
     block 2 reloads the heap root from the bump slot.
-    On success, the group ends at block 3; otherwise at block 11. *)
+    On success, the group ends at block 3; otherwise at the rejection in
+    the tail (block 5). *)
 
 Section AllocatorFreeCheckBlocks2.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
@@ -145,7 +146,7 @@ Section AllocatorFreeCheckBlocks2.
        ca1 ↦ᵣ wreq ∗
        ctp ↦ᵣ WInt o ∗
        codefrag pc_a allocator_free_code ∗
-       PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 11)%a ∗
+       PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset)%a ∗
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
@@ -179,10 +180,10 @@ Section AllocatorFreeCheckBlocks2.
         all: try (destruct sb; cbn in Hreq_cap, Hencode; try discriminate); contradiction. }
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 11)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_free_block_offset 11)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame. }
     destruct wreq; cbn in Hreq_cap; try done.
     destruct sb; cbn in Hreq_cap; try done.
@@ -204,10 +205,10 @@ Section AllocatorFreeCheckBlocks2.
     { cbn.
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 11)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_free_block_offset 11)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame. }
     rewrite /Z.b2z Z.sub_diag.
     (* Jnz .free_invalid ct3. *)
@@ -240,10 +241,10 @@ Section AllocatorFreeCheckBlocks2.
       iInstr "Hcode".
       (* Jmp .free_invalid. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 11)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_free_block_offset 11)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame. }
     replace (heap_b <? b)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jnz .free_base_ok ct3. *)
@@ -256,10 +257,10 @@ Section AllocatorFreeCheckBlocks2.
       iInstr "Hcode".
       (* Jmp .free_invalid. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 11)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_free_block_offset 11)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame. }
     replace (b <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jnz .free_nonempty ct3. *)
@@ -273,10 +274,10 @@ Section AllocatorFreeCheckBlocks2.
     replace (next <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jnz .free_invalid ct3. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_free_block_offset 11)%a);
+    { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
         offsets_compute; solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    change_pc_to (pc_a ^+ allocator_free_block_offset 11)%a.
+    change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
     iApply "Hφ". iFrame.
   Qed.
 

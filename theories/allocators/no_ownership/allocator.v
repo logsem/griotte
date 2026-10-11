@@ -1,4 +1,5 @@
 From griotte Require Import machine_parameters assembler switcher fetch.
+From griotte.allocators.common Require Export allocator_common_code.
 
 (** A compartment providing a bump allocator and range quarantine.
     The data capability retains authority over the whole heap; its cursor
@@ -30,77 +31,6 @@ Section Allocator.
   Import Asm_Griotte.
   Context `{MP : MachineParameters}.
   Local Coercion Z.of_nat : nat >-> Z.
-
-  Definition ALLOC_OK : Z := 0.
-
-  Definition ALLOC_INVALID : Z := -1.
-
-  Definition ALLOC_NO_MEMORY : Z := -2.
-
-  Definition allocator_shadow_import_off : Z := 0.
-
-  Definition allocator_unsealing_key_import_off : Z := 1.
-
-  Definition allocator_revoker_import_off : Z := 2.
-
-  Definition allocator_header_words : Z := 3.
-
-  (** These loops resolve their local labels before being embedded into a
-      larger block, so their assembled code is independent of its placement.
-      Both require a nonempty range. *)
-
-  Definition allocator_zero_asm_pre (rptr rend rtmp : RegName) : list asm_code :=
-    [ #".allocator_zero";
-      store rptr 0;
-      lea rptr 1;
-      geta rtmp rptr;
-      sub rtmp rend rtmp;
-      jnz (".allocator_zero")%asm rtmp
-    ].
-  (* VM reduction preserves the register parameters: these macros contain no
-     fixed register names that would need [revert_regs_code]. *)
-
-  Definition allocator_zero_asm_env (rptr rend rtmp : RegName) :=
-    Eval vm_compute in (compute_asm_code_env (allocator_zero_asm_pre rptr rend rtmp)).2.
-
-  Definition allocator_zero_asm (rptr rend rtmp : RegName) :=
-    Eval vm_compute in resolve_labels_macros (allocator_zero_asm_pre rptr rend rtmp)
-                      (allocator_zero_asm_env rptr rend rtmp).
-
-  Definition allocator_zero (rptr rend rtmp : RegName) :=
-    Eval vm_compute in assemble (allocator_zero_asm rptr rend rtmp).
-
-  Definition allocator_zero_instrs (rptr rend rtmp : RegName) : list Word :=
-    encodeInstrsW (allocator_zero rptr rend rtmp).
-
-  (** Paint a positive number of consecutive shadow entries, advancing the
-      pointer and consuming the count. *)
-
-  Definition allocator_paint_asm_pre (rptr rcount : RegName) (status : AllocStatus)
-    : list asm_code :=
-    [ #".allocator_paint";
-      store rptr (encodeAllocStatus status);
-      lea rptr 1;
-      sub rcount rcount 1;
-      jnz (".allocator_paint")%asm rcount
-    ].
-
-  Definition allocator_paint_asm_env (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in (compute_asm_code_env (allocator_paint_asm_pre rptr rcount status)).2.
-
-  Definition allocator_paint_asm (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in resolve_labels_macros (allocator_paint_asm_pre rptr rcount status)
-                      (allocator_paint_asm_env rptr rcount status).
-
-  Definition allocator_paint (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in assemble (allocator_paint_asm rptr rcount status).
-
-  Definition allocator_paint_instrs (rptr rcount : RegName) (status : AllocStatus)
-    : list Word := encodeInstrsW (allocator_paint rptr rcount status).
-
-  (** Register clearing belongs to the switcher return path. *)
-
-  Definition allocator_return_asm : list asm_code := [jalr cnull cra].
 
   (** [ct0] holds the full heap capability with its cursor at the new header,
       [ct1] the payload base, [ct2] its end, and [ct4] the result capability.
@@ -170,41 +100,17 @@ Section Allocator.
         store_imm ct0 0 1;
         store_imm ct0 0 2;
         mov ca2 ct4
-      ];
-      allocator_zero_asm ca2 ct2 ct3;
-      fetch_asm allocator_shadow_import_off ctp ct3 ca2;
-      [ (* Translate the header address by its offset within the heap. *)
-        getb ct3 ct0;
-        sub ct3 ct1 ct3;
-        sub ct3 ct3 allocator_header_words;
-        lea ctp ct3;
-        mov ca2 allocator_header_words
-      ];
-      (* Paint the three header words quarantined, as CHERIoT does: [free]
-         recognizes a payload base as the first unpainted word after a
-         painted one. *)
-      allocator_paint_asm ctp ca2 ShadowQuarantined;
-      [ sub ca2 ct2 ct1 ];
-      allocator_paint_asm ctp ca2 ShadowLive;
-      [ (* Skip the header and payload, publishing only after initialization. *)
+      ]
+    ] ++ allocator_malloc_shadow_asm ++
+    [ [ (* Skip the header and payload, publishing only after initialization. *)
         lea ct0 allocator_header_words;
         lea ct0 ca0;
         store cgp ct0;
         mov ca0 ct4;
         mov ca1 0;
         jmp (".malloc_return")%asm
-      ];
-      [ #".malloc_invalid";
-        mov ca0 ALLOC_INVALID;
-        mov ca1 0;
-        jmp (".malloc_return")%asm
-      ];
-      [ #".malloc_no_memory";
-        mov ca0 ALLOC_NO_MEMORY;
-        mov ca1 0
-      ];
-      ASM_Label ".malloc_return" :: allocator_return_asm
-    ].
+      ]
+    ] ++ allocator_malloc_exit_asm.
 
   Definition assembled_allocator_malloc' :=
     Eval vm_compute in assemble_block allocator_malloc_asm.
@@ -319,31 +225,8 @@ Section Allocator.
         jnz (".free_invalid")%asm ct3;
         (* Paint only the complete payload; its header remains accessible. *)
         sub ca2 ct2 ct1
-      ];
-      allocator_paint_asm ctp ca2 ShadowQuarantined;
-      [ #".free_success";
-        (* Clear the argument registers: no register then holds a capability
-           to the freed allocation. *)
-        mov ca0 ALLOC_OK;
-        mov ca1 0
-      ];
-      fetch_asm allocator_revoker_import_off ct3 ct4 ca2;
-      [ (* Sweep memory: every capability to the painted payload loses its tag. *)
-        store ct3 0;
-        (* Rewind the shadow cursor to the payload base and reset the count. *)
-        sub ct4 ct1 ct2;
-        lea ctp ct4;
-        sub ca2 ct2 ct1
-      ];
-      (* The revoked payload leaves quarantine: unpaint it. *)
-      allocator_paint_asm ctp ca2 ShadowLive;
-      [ jmp (".free_return")%asm ];
-      [ #".free_invalid";
-        mov ca0 ALLOC_INVALID;
-        mov ca1 0
-      ];
-      ASM_Label ".free_return" :: allocator_return_asm
-    ].
+      ]
+    ] ++ allocator_free_tail_asm.
 
   Definition assembled_allocator_free' :=
     Eval vm_compute in assemble_block allocator_free_asm.
@@ -363,44 +246,12 @@ Section Allocator.
   Definition allocator_code : list Word :=
     allocator_malloc_instrs ++ allocator_free_instrs.
 
-  Definition allocator_data : list Word :=
-    [WCap true RW Global heap_b heap_e (heap_b ^+ 1)%a].
-
-  Class allocatorLayout : Type := mkAllocatorLayout {
-    AllocOtype : OType;
-    allocator_pcc_b : Addr;
-    allocator_code_b : Addr;
-    allocator_pcc_e : Addr;
-    allocator_cgp_b : Addr;
-    allocator_cgp_e : Addr;
-    allocator_exp_tbl_b : Addr;
-    allocator_exp_tbl_e : Addr;
-  }.
-
-  Definition allocator_revoker_cap : Word :=
-    WCap true RW Global revoker_addr (revoker_addr ^+ 1)%a revoker_addr.
-
-  Definition allocator_imports `{allocatorLayout} : list Word :=
-    [WCap true RW Global shadow_b shadow_e shadow_b;
-     WSealRange true (false, true) Global AllocOtype
-       (AllocOtype ^+ 1)%ot AllocOtype;
-     allocator_revoker_cap].
-
-  Lemma allocator_imports_length `{allocatorLayout} : length allocator_imports = 3.
-  Proof. reflexivity. Qed.
-
   Definition allocator_malloc_nargs : nat := 1.
 
   Definition allocator_free_nargs : nat := 1.
 
-  Definition allocator_malloc_pcc_off : nat := 3.
-
   Definition allocator_free_pcc_off : nat :=
     allocator_malloc_pcc_off + length allocator_malloc_instrs.
-
-  Definition allocator_malloc_exp_tbl_off : nat := 2.
-
-  Definition allocator_free_exp_tbl_off : nat := 3.
 
   Definition allocator_export_table_entries : list Word :=
     [WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off);
@@ -433,6 +284,18 @@ Section Allocator.
           finz.seq_between shadow_b shadow_e];
   }.
 
+  #[global] Instance allocator_layout_common_wf `{allocatorLayout} `{!allocatorLayoutWf} :
+    allocatorCommonLayoutWf.
+  Proof.
+    constructor.
+    - exact allocator_otype_size.
+    - exact allocator_revoker_size.
+    - exact allocator_translation_affine.
+    - exact allocator_size_imports.
+    - exact allocator_size_data.
+    - exact allocator_regions_disjoint.
+  Qed.
+
   Definition allocator_export_table `{allocatorLayout} : list Word :=
     [WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_pcc_b;
      WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b]
@@ -450,21 +313,7 @@ Section Allocator.
     list_to_map (zip (finz.seq_between allocator_exp_tbl_b allocator_exp_tbl_e)
       allocator_export_table).
 
-  Definition allocator_malloc_pcc_addr `{allocatorLayout} : Addr :=
-    (allocator_pcc_b ^+ allocator_malloc_pcc_off)%a.
-
   Definition allocator_free_pcc_addr `{allocatorLayout} : Addr :=
     (allocator_pcc_b ^+ allocator_free_pcc_off)%a.
-
-  (** These export descriptors can be sealed with the switcher's ordinary
-      entry key. There is no allocator-specific seal or authorization token. *)
-
-  Definition allocator_malloc `{allocatorLayout} (g : Locality) : Sealable :=
-    SCap true RO g allocator_exp_tbl_b allocator_exp_tbl_e
-      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a.
-
-  Definition allocator_free `{allocatorLayout} (g : Locality) : Sealable :=
-    SCap true RO g allocator_exp_tbl_b allocator_exp_tbl_e
-      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a.
 
 End Allocator.

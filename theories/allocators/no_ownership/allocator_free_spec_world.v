@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode memory_region region_keys.
 From griotte.allocators.no_ownership Require Import allocator_header_spec allocator_free_spec_states.
+From griotte.allocators.common Require Export allocator_common_spec_world.
 
 (** * Logical steps of the proof of [free]
 
@@ -11,59 +12,6 @@ From griotte.allocators.no_ownership Require Import allocator_header_spec alloca
 Section AllocatorFreeWorld.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
-
-  (** Observe the capability in [ca0] at its base [b]: the cell is claimed by
-      [ι], so the claim/header clause names the header entry of [ι], whose
-      bounds are [b] and [e]. The allocator's piece of the status token of
-      [ι], the client half and the shares of the cells rebuild the whole
-      token. *)
-  Lemma allocator_free_observe
-    (E : coPset) (p : Perm) (g : Locality) (ι : AId) (b e a next : Addr)
-    (allocations : list allocator_header_entry) (live issued : gset AId)
-    (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) :
-    (heap_b < b /\ b < e /\ e <= heap_e)%a ->
-    allocator_entries_wf allocations ->
-    allocator_cells_wf next allocations live issued Cs ->
-    ca0 ↦ᵣ (WCap true p g b e a) @@ ι -∗
-    alloc_obj ι b e -∗
-    free_auth_held ι -∗
-    ([∗ list] _ ∈ finz.seq_between b e, ι ↦st{share (finz.dist b e)} ALive) -∗
-    allocator_cells Cs -∗
-    allocator_entries_res live allocations -∗
-    |~{E}~> ∃ r0,
-      ⌜(b, e, r0, ι) ∈ allocations⌝ ∗
-      ⌜ι ∈ live⌝ ∗
-      ca0 ↦ᵣ (WCap true p g b e a) @@ ι ∗
-      allocator_cells Cs ∗
-      ι ↦st{1} ALive ∗
-      (∀ live', ⌜∀ ι', ι' ≠ ι -> (ι' ∈ live <-> ι' ∈ live')⌝ -∗
-         allocator_tok live' ι b e -∗ allocator_entries_res live' allocations).
-  Proof.
-    intros Hbounds Hwf Hcwf.
-    iIntros "Hca0 #Hobj Hheld Hshares Hcells Htoks".
-    destruct (acw_dom _ _ _ _ _ Hcwf b) as [ [ [c s] hdr] Hc]; first solve_addr.
-    iDestruct (allocator_cells_acc _ _ _ Hc with "Hcells") as "[Hcell Hcells_close]".
-    iDestruct "Hcell" as "(Hclaim & Hcell)".
-    iMod (observe_claim E ca0 _ b c with "Hca0 Hclaim") as "(Hca0 & Hclaim & %Hclaim)".
-    { done. }
-    { cbn. rewrite decide_True; last solve_addr.
-      assert (is_heap_address b = true) as -> by (apply withinBounds_true_iff; solve_addr).
-      done. }
-    cbn in Hclaim. subst c.
-    iDestruct ("Hcells_close" $! (Claimed ι, s, hdr) with "[$Hclaim $Hcell]") as "Hcells".
-    rewrite insert_id; last exact Hc.
-    destruct (acw_claimed _ _ _ _ _ Hcwf _ _ _ _ Hc) as (b0 & e0 & r0 & Hentry & Hlive & _).
-    iDestruct (allocator_entries_res_acc _ _ _ _ _ _ (proj2 Hwf) Hentry with "Htoks")
-      as "(#Hobj0 & Htok & Htoks_close)".
-    iDestruct (alloc_obj_agree with "Hobj Hobj0") as %[<- <-].
-    rewrite /allocator_tok decide_True //.
-    iDestruct "Htok" as "[Hshare Hkept]".
-    iModIntro. iExists r0. iFrame "Hca0 Hcells Htoks_close". iSplit; first done.
-    iSplit; first done.
-    rewrite (st_own_split_alloc ι (finz.seq_between b e))
-      finz_seq_between_length -free_auth_split.
-    iFrame.
-  Qed.
 
   (** The shadow entries and the header read by the local check of [free]:
       the word below the requested base and the base, and the end recorded in
@@ -149,46 +97,6 @@ Section AllocatorFreeWorld.
       iIntros "Hs1 Hs2 _". iFrame "Hheaders". iApply ("Hcells_close" with "Hs1 Hs2").
   Qed.
 
-  (** Take the cells of the live entry of [ι]: they are claimed by [ι] and
-      unpainted. They are put back as unclaimed cells, with the memory of the
-      payload. *)
-  Lemma allocator_free_take_payload
-    (next b e : Addr) (r0 : Z * Z) (ι : AId) (ws : list LWord)
-    (allocations : list allocator_header_entry) (live issued : gset AId)
-    (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) :
-    allocator_cells_wf next allocations live issued Cs ->
-    (b, e, r0, ι) ∈ allocations ->
-    ι ∈ live ->
-    allocator_cells Cs -∗
-    ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) ∗
-    (([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) -∗
-     ([∗ list] a;w ∈ finz.seq_between b e; ws, a ↦ₐ w) -∗
-     allocator_cells
-       (allocator_cells_update (finz.seq_between b e) allocator_free_cell Cs)).
-  Proof.
-    intros Hcwf Hentry Hlive. iIntros "Hcells".
-    iDestruct (allocator_cells_range_acc (finz.seq_between b e)
-                 (λ _, (Claimed ι, ShadowLive, false)) with "Hcells")
-      as "[Hrange Hcells_close]".
-    { apply finz_seq_between_NoDup. }
-    { intros x Hx. apply elem_of_finz_seq_between in Hx.
-      by apply (acw_live _ _ _ _ _ Hcwf b e r0 ι). }
-    iEval (rewrite /cell_res' /cell_res /=) in "Hrange".
-    iDestruct (big_sepL_sep with "Hrange") as "[Hclaims Hrange]".
-    iDestruct (big_sepL_sep with "Hrange") as "[Hshadows _]".
-    iSplitL "Hclaims Hshadows"; first (iApply big_sepL_sep; iFrame).
-    iIntros "Hcells_free Hmem".
-    iApply "Hcells_close".
-    iDestruct (big_sepL2_mono _ (λ _ a _, a ↦ₐ -)%I with "Hmem") as "Hmem".
-    { iIntros (k a0 w Ha Hw) "H". by iExists _. }
-    iDestruct (big_sepL2_const_sepL_l with "Hmem") as "[_ Hmem]".
-    iCombine "Hcells_free Hmem" as "Hcells".
-    rewrite -big_sepL_sep.
-    iApply (big_sepL_mono with "Hcells").
-    iIntros (k x _) "[[Hs Hc] Hm]".
-    rewrite /cell_res' /allocator_free_cell /cell_res /=. iFrame. done.
-  Qed.
-
   (** Release the entry of [ι], which is dead: its cells are unclaimed and
       unpainted, and the allocator holds its whole status token. *)
   Lemma allocator_free_release
@@ -216,7 +124,7 @@ Section AllocatorFreeWorld.
     iSplit; first done.
     iSplit; first done.
     iSplit.
-    { iPureIntro. eapply allocator_cells_wf_free; eauto. }
+    { iPureIntro. eapply allocator_cells_wf_free; eauto. apply Hwf. }
     iApply ("Htoks_close" with "[] [Hdead]").
     { iPureIntro. intros ι' Hι'. clear -Hι'. set_solver. }
     rewrite /allocator_tok decide_False; last (clear; set_solver).

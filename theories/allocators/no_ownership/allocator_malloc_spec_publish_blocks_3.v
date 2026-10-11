@@ -1,14 +1,15 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte.allocators.no_ownership Require Import allocator_malloc_spec_states.
+From griotte.allocators.common Require Import allocator_common_malloc_spec_exit_blocks.
 
-(** * Malloc, blocks 8 and 11: publishing the bump cursor and returning
+(** * Malloc, blocks 3 and 4: publishing the bump cursor and returning
 
-    Block 8 advances the heap root past the new allocation, publishes it in
-    the bump slot, and moves the payload capability to [ca0]. Block 11
-    returns. *)
+    Block 3 advances the heap root past the new allocation, publishes it in
+    the bump slot, and moves the payload capability to [ca0]. The exit
+    segment (block 4) returns. *)
 
-Section AllocatorMallocPublishBlocks5.
+Section AllocatorMallocPublishBlocks3.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}.
 
@@ -20,7 +21,7 @@ Section AllocatorMallocPublishBlocks5.
     (next + allocator_header_words)%a = Some b ->
     (b + n)%a = Some finish ->
     (heap_b < next /\ b < finish /\ finish <= heap_e)%a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 8)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 3)%a ∗
     cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
     ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
@@ -44,15 +45,15 @@ Section AllocatorMallocPublishBlocks5.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow & Hcgp_pc) Hbase Hfinish Hrange.
+    intros Hbounds Hbase Hfinish Hrange. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
     iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hcnull & Hslot & Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     unfold allocator_header_words in Hbase.
     pose proof allocator_cgp_size.
 
-    (* Block 8: publish the bump cursor *)
-    focus_block 8 "Hcode_main" of allocator_malloc_blocks at pc_a as a_publish Ha_publish
+    (* Block 3: publish the bump cursor *)
+    focus_block 3 "Hcode_main" of allocator_malloc_blocks at pc_a as a_publish Ha_publish
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Lea ct0 allocator_header_words. *)
@@ -69,18 +70,18 @@ Section AllocatorMallocPublishBlocks5.
     iInstr "Hcode".
     (* Jmp .malloc_return. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_malloc_block_offset 11)%a);
+    { transitivity (Some (pc_a ^+ allocator_malloc_return_offset)%a);
         offsets_compute; solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 11: return *)
-    focus_block 11 "Hcode_main" of allocator_malloc_blocks at pc_a as a_ret Ha_ret
-      "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]"); [solve_addr|done|].
+    (* Block 4: return *)
+    change_pc_to
+      ((pc_a ^+ allocator_malloc_block_offset 4) ^+ allocator_malloc_exit_block_offset 2)%a.
+    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "[Hcode Hcont]".
+    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]");
+      first by apply allocator_malloc_exit_bounds.
     iNext. iIntros "(HPC & Hcra & Hcnull & Hcode & Hlc)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hφ". iFrame.
+    iApply "Hφ". iFrame. iApply ("Hcont" with "Hcode").
   Qed.
 
-End AllocatorMallocPublishBlocks5.
+End AllocatorMallocPublishBlocks3.

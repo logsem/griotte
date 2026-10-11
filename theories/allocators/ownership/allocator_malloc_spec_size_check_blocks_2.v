@@ -1,12 +1,13 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte.allocators.ownership Require Import allocator_malloc_spec_states.
+From griotte.allocators.common Require Import allocator_common_malloc_spec_exit_blocks.
 
 (** * Malloc, block 1: the check of the requested size
 
     Block 1 checks that [ca1] holds a positive integer. On success, the
-    group ends at block 2. On failure, it continues at block 10, which sets
-    [ALLOC_INVALID], and returns through block 12. *)
+    group ends at block 2. On failure, it continues at the exit segment
+    (block 5), which sets [ALLOC_INVALID] and returns. *)
 
 Section AllocatorMallocSizeCheckBlocks2.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
@@ -55,12 +56,12 @@ Section AllocatorMallocSizeCheckBlocks2.
     iApply "Hφ". iFrame.
   Qed.
 
-  (** Blocks 10 and 12: set [ALLOC_INVALID] and return. *)
+  (** Block 5, the exit segment: set [ALLOC_INVALID] and return. *)
   Lemma allocator_malloc_reject_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 wnull : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 10)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_invalid_offset)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
@@ -76,34 +77,14 @@ Section AllocatorMallocSizeCheckBlocks2.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow & _).
+    intros Hbounds.
     iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hφ)".
-    codefrag_facts "Hcode_main".
-    allocator_malloc_unfold_code "Hcode_main".
-
-    (* Block 10: set ALLOC_INVALID *)
-    focus_block 10 "Hcode_main" of allocator_malloc_blocks at pc_a as a_invalid Ha_invalid
-      "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    (* Mov ca0 ALLOC_INVALID. *)
-    iInstr "Hcode".
-    (* Mov ca1 0. *)
-    iInstr "Hcode".
-    (* Jmp .malloc_return. *)
-    iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_malloc_block_offset 12)%a);
-        offsets_compute; solve_addr. }
-    destruct (decide (ca0 = cnull)) as [|_]; first done.
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* Block 12: return *)
-    focus_block 12 "Hcode_main" of allocator_malloc_blocks at pc_a as a_ret Ha_ret
-      "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]"); [solve_addr|done|].
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hcode & Hlc)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hφ". iFrame.
+    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "[Hcode Hcont]".
+    iApply (allocator_malloc_exit_reject_spec with
+      "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode]");
+      first by apply allocator_malloc_exit_bounds.
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode & Hlc)".
+    iApply "Hφ". iFrame. iApply ("Hcont" with "Hcode").
   Qed.
 
   Lemma allocator_malloc_size_check_invalid_spec
@@ -157,10 +138,10 @@ Section AllocatorMallocSizeCheckBlocks2.
       iInstr "Hcode".
       (* Jmp .malloc_invalid. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_malloc_block_offset 10)%a);
+      { transitivity (Some (pc_a ^+ allocator_malloc_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_malloc_block_offset 10)%a.
+      change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
       iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
         first done.
       iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hlc)".
@@ -173,10 +154,10 @@ Section AllocatorMallocSizeCheckBlocks2.
         all: try (destruct sb; cbn in Hencode); contradiction. }
       (* Jnz .malloc_invalid ct3. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_malloc_block_offset 10)%a);
+      { transitivity (Some (pc_a ^+ allocator_malloc_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_malloc_block_offset 10)%a.
+      change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
       iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
         first done.
       iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hlc)".

@@ -10,8 +10,8 @@ From griotte.allocators.no_ownership Require Import allocator_free_spec_states.
     then the end recorded in the header three words below the base, which
     must match the requested end. The header is read only when both shadow
     checks pass. On success, the shadow cursor is at the base, the count of
-    addresses to paint is in [ca2], and the group ends at block 4; otherwise
-    at block 10. *)
+    addresses to paint is in [ca2], and the group ends at block 4, the tail;
+    otherwise at the rejection in the tail. *)
 
 Section AllocatorFreeHeaderBlocks2.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
@@ -58,7 +58,7 @@ Section AllocatorFreeHeaderBlocks2.
          ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (b - heap_b))%a)
         ∨
         (⌜¬ (s1 = ShadowQuarantined ∧ s2 = ShadowLive ∧ eh = e)⌝ ∗
-         PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 10)%a ∗
+         PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset)%a ∗
          ct3 ↦ᵣ - ∗
          ca2 ↦ᵣ - ∗
          ctp ↦ᵣ -))
@@ -127,7 +127,7 @@ Section AllocatorFreeHeaderBlocks2.
       { intros [=]. apply (Henc _ _ Hs1q). lia. }
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 10)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
       iApply "Hφ". iFrame. iRight. iSplit; first (iPureIntro; intros (? & _); done).
@@ -160,7 +160,7 @@ Section AllocatorFreeHeaderBlocks2.
       { intros [=]. apply (Henc _ _ Hs2l). lia. }
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 10)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
       iApply "Hφ". iFrame. iRight. iSplit; first (iPureIntro; intros (_ & ? & _); done).
@@ -212,7 +212,7 @@ Section AllocatorFreeHeaderBlocks2.
     - assert (Hneq : WInt (eh - e) ≠ WInt 0) by (intros [=]; apply Hne; solve_addr).
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_block_offset 10)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
       iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].

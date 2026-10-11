@@ -1,12 +1,13 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte.allocators.no_ownership Require Import allocator_malloc_spec_states.
+From griotte.allocators.common Require Import allocator_common_malloc_spec_exit_blocks.
 
 (** * Malloc, block 0: the check of the requested size
 
     Block 0 checks that [ca0] holds a positive integer. On success, the
-    group ends at block 1. On failure, it continues at block 9, which sets
-    [ALLOC_INVALID], and returns through block 11. *)
+    group ends at block 1. On failure, it continues at the exit segment
+    (block 4), which sets [ALLOC_INVALID] and returns. *)
 
 Section AllocatorMallocSizeCheckBlocks1.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
@@ -54,12 +55,12 @@ Section AllocatorMallocSizeCheckBlocks1.
     iApply "Hφ". iFrame.
   Qed.
 
-  (** Blocks 9 and 11: set [ALLOC_INVALID] and return. *)
+  (** Block 4, the exit segment: set [ALLOC_INVALID] and return. *)
   Lemma allocator_malloc_reject_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 wnull : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 9)%a ∗
+    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_invalid_offset)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
@@ -75,34 +76,14 @@ Section AllocatorMallocSizeCheckBlocks1.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow & _).
+    intros Hbounds.
     iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hφ)".
-    codefrag_facts "Hcode_main".
-    allocator_malloc_unfold_code "Hcode_main".
-
-    (* Block 9: set ALLOC_INVALID *)
-    focus_block 9 "Hcode_main" of allocator_malloc_blocks at pc_a as a_invalid Ha_invalid
-      "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    (* Mov ca0 ALLOC_INVALID. *)
-    iInstr "Hcode".
-    (* Mov ca1 0. *)
-    iInstr "Hcode".
-    (* Jmp .malloc_return. *)
-    iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_malloc_block_offset 11)%a);
-        offsets_compute; solve_addr. }
-    destruct (decide (ca0 = cnull)) as [|_]; first done.
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* Block 11: return *)
-    focus_block 11 "Hcode_main" of allocator_malloc_blocks at pc_a as a_ret Ha_ret
-      "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]"); [solve_addr|done|].
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hcode & Hlc)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hφ". iFrame.
+    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "[Hcode Hcont]".
+    iApply (allocator_malloc_exit_reject_spec with
+      "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode]");
+      first by apply allocator_malloc_exit_bounds.
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode & Hlc)".
+    iApply "Hφ". iFrame. iApply ("Hcont" with "Hcode").
   Qed.
 
   Lemma allocator_malloc_size_check_invalid_spec
@@ -156,7 +137,7 @@ Section AllocatorMallocSizeCheckBlocks1.
       (* Jmp .malloc_invalid. *)
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_malloc_block_offset 9)%a.
+      change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
       iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
         first done.
       iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hlc)".
@@ -170,7 +151,7 @@ Section AllocatorMallocSizeCheckBlocks1.
       (* Jnz .malloc_invalid ct3. *)
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      change_pc_to (pc_a ^+ allocator_malloc_block_offset 9)%a.
+      change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
       iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
         first done.
       iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hlc)".
