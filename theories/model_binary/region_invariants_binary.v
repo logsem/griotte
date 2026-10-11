@@ -19,6 +19,8 @@ From griotte Require Export sts world_std_sts_binary world_ghost_resources_binar
       every address of the world holds a pair of words [v], with the
       implementation points-to [a ↦ₐ v.1] and the specification points-to
       [a ↣ₐ v.2], and the safety predicates are predicates over pairs of words.
+      Regions are keyed by [LAddr], as in the unary world; the binary model only
+      uses non-heap keys [LNonHeap a], at address [laddr_addr (LNonHeap a) = a].
    *)
 
   (** * Disclaimer to the users of Griotte:
@@ -33,10 +35,11 @@ Section standard_world_interp.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ}
     {relg : relGS Σ} {specg : specG Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
+  Implicit Types v : Word * Word.
 
   (* ----------------------------------------------------------------------------------------------- *)
   (* ------------------------------------------- REGION_MAP ---------------------------------------- *)
@@ -45,8 +48,8 @@ Section standard_world_interp.
   Definition region_map_def
     (W : WORLD)
     (C : CmptName)
-    (MC : gmap Addr (gname * Perm))
-    (Mρ: gmap Addr region_type) :=
+    (MC : gmap LAddr (gname * Perm))
+    (Mρ: gmap LAddr region_type) :=
     ([∗ map] a↦γp ∈ MC,
        ∃ ρ, ⌜Mρ !! a = Some ρ⌝
             ∗ sts_state_std C a ρ
@@ -56,7 +59,7 @@ Section standard_world_interp.
                     ∗ match ρ with
                       | Temporary =>
                           ∃ (v : Word * Word), ⌜isO p = false⌝
-                                        ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+                                        ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
                                         ∗ (if isWL p
                                            then future_pub_mono C φ v
                                            else (if isDL p
@@ -66,14 +69,14 @@ Section standard_world_interp.
                                         ∗ ▷ φ (W,C,v)
                       | Permanent =>
                           ∃ (v : Word * Word), ⌜isO p = false⌝
-                                        ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+                                        ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
                                         ∗ future_priv_mono C φ v
                                         ∗ ▷ φ (W,C,v)
                        | Revoked => emp
      end)%I.
 
   Definition region_def (W : WORLD) (C : CmptName) : iProp Σ :=
-    (∃ (M : relT) (Mρ: gmap Addr region_type),
+    (∃ (M : relT) (Mρ: gmap LAddr region_type),
         RELS C M
         ∗ ⌜dom (std W) = dom M⌝
         ∗ ⌜dom Mρ = dom M⌝
@@ -82,7 +85,7 @@ Section standard_world_interp.
   Definition region := proj1_sig region_aux.
   Definition region_eq : @region = @region_def := proj2_sig region_aux.
 
-  Lemma region_rel_get (W : WORLD) (C : CmptName) (a : Addr) :
+  Lemma region_rel_get (W : WORLD) (C : CmptName) (a : LAddr) :
     (std W) !! a = Some Temporary ->
     region W C ∗ sts_full_world W C
     ==∗
@@ -154,8 +157,8 @@ Section standard_world_interp.
   (* ------------------------------------------- OPEN_REGION --------------------------------------- *)
   (* ----------------------------------------------------------------------------------------------- *)
 
-  Definition open_region_def (W : WORLD) (C : CmptName) (a : Addr) : iProp Σ :=
-    (∃ (M : relT) (Mρ: gmap Addr region_type),
+  Definition open_region_def (W : WORLD) (C : CmptName) (a : LAddr) : iProp Σ :=
+    (∃ (M : relT) (Mρ: gmap LAddr region_type),
         RELS C M
         ∗ ⌜dom (std W) = dom M⌝
         ∗ ⌜dom Mρ = dom M⌝
@@ -203,7 +206,7 @@ Section standard_world_interp.
     ∃ v : Word * Word, open_region W C l
          ∗ sts_full_world W C
          ∗ sts_state_std C l Temporary
-         ∗ l ↦ₐ v.1 ∗ l ↣ₐ v.2
+         ∗ laddr_addr l ↦ₐ v.1 ∗ laddr_addr l ↣ₐ v.2
          ∗ ⌜isO p = false⌝
          ∗ ▷ future_pub_mono C φ v
          ∗ ▷ φ (W,C,v).
@@ -244,7 +247,7 @@ Section standard_world_interp.
         ∃ v : Word * Word, open_region W C l
            ∗ sts_full_world W C
            ∗ sts_state_std C l Temporary
-           ∗ l ↦ₐ v.1 ∗ l ↣ₐ v.2
+           ∗ laddr_addr l ↦ₐ v.1 ∗ laddr_addr l ↣ₐ v.2
            ∗ ⌜isO p = false⌝
            ∗ ▷ (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
            ∗ ▷ φ (W,C,v).
@@ -284,7 +287,7 @@ Section standard_world_interp.
     ∃ v : Word * Word, open_region W C l
          ∗ sts_full_world W C
          ∗ sts_state_std C l Permanent
-         ∗ l ↦ₐ v.1 ∗ l ↣ₐ v.2
+         ∗ laddr_addr l ↦ₐ v.1 ∗ laddr_addr l ↣ₐ v.2
          ∗ ⌜isO p = false⌝
          ∗ ▷ future_priv_mono C φ v
          ∗ ▷ φ (W,C,v).
@@ -324,7 +327,7 @@ Section standard_world_interp.
     ∃ v : Word * Word, open_region W C a
          ∗ sts_full_world W C
          ∗ sts_state_std C a ρ
-         ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+         ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
          ∗ ⌜isO p = false⌝
          ∗ (▷ if (decide (ρ = Temporary))
               then ( if isWL p
@@ -375,7 +378,7 @@ Section standard_world_interp.
     isWL p = true →
     sts_state_std C a Temporary
     ∗ open_region W C a
-    ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+    ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
     ∗ ⌜isO p = false⌝
     ∗ future_pub_mono C φ v
     ∗ ▷ φ (W,C,v)
@@ -403,7 +406,7 @@ Section standard_world_interp.
     isWL p = false →
     sts_state_std C a Temporary
     ∗ open_region W C a
-    ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+    ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
     ∗ ⌜isO p = false⌝
     ∗ (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
     ∗ ▷ φ (W,C,v)
@@ -430,7 +433,7 @@ Section standard_world_interp.
   Lemma region_close_perm W C a p φ v `{forall Wv, Persistent (φ Wv)}:
     ⊢ sts_state_std C a Permanent
       ∗ open_region W C a
-      ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+      ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
       ∗ ⌜isO p = false⌝
       ∗ future_priv_mono C φ v
       ∗ ▷ φ (W,C,v)
@@ -457,7 +460,7 @@ Section standard_world_interp.
     ρ = Temporary ∨ ρ = Permanent →
     sts_state_std C a ρ
     ∗ open_region W C a
-    ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+    ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
     ∗ ⌜isO p = false⌝
     ∗ (if (decide (ρ = Temporary))
        then ( if isWL p
@@ -480,8 +483,8 @@ Section standard_world_interp.
   (* ----------------------- OPENING MULTIPLE LOCATIONS IN REGION --------------------------- *)
   (* ---------------------------------------------------------------------------------------- *)
 
-  Definition open_region_many_def  (W : WORLD) (C : CmptName) (l : list Addr) : iProp Σ :=
-    (∃ (M : relT) (Mρ: gmap Addr region_type),
+  Definition open_region_many_def  (W : WORLD) (C : CmptName) (l : list LAddr) : iProp Σ :=
+    (∃ (M : relT) (Mρ: gmap LAddr region_type),
         RELS C M
         ∗ ⌜dom (std W) = dom M⌝
         ∗ ⌜dom Mρ = dom M⌝
@@ -537,7 +540,7 @@ Section standard_world_interp.
     ∃ v : Word * Word, open_region_many W C (a :: als)
          ∗ sts_full_world W C
          ∗ sts_state_std C a Temporary
-         ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+         ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
          ∗ ⌜isO p = false⌝
          ∗ ▷ future_pub_mono C φ v
          ∗ ▷ φ (W,C,v).
@@ -579,7 +582,7 @@ Section standard_world_interp.
     ∃ v : Word * Word, open_region_many W C (a :: als)
          ∗ sts_full_world W C
          ∗ sts_state_std C a Temporary
-         ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+         ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
          ∗ ⌜isO p = false⌝
          ∗ ▷ (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
          ∗ ▷ φ (W,C,v).
@@ -624,7 +627,7 @@ Section standard_world_interp.
         sts_full_world W C
         ∗ sts_state_std C a Permanent
         ∗ open_region_many W C (a :: als)
-        ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+        ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
         ∗ ⌜isO p = false⌝
         ∗ ▷ (future_priv_mono C φ v)
         ∗ ▷ φ (W,C,v).
@@ -664,7 +667,7 @@ Section standard_world_interp.
     isWL p = true →
     sts_state_std C a Temporary
     ∗ open_region_many W C (a::als)
-    ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+    ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
     ∗ ⌜isO p = false⌝
     ∗ future_pub_mono C φ v
     ∗ ▷ φ (W,C,v)
@@ -699,7 +702,7 @@ Section standard_world_interp.
     isWL p = false →
     sts_state_std C a Temporary
     ∗ open_region_many W C (a::als)
-    ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+    ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
     ∗ ⌜isO p = false⌝
     ∗ (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
     ∗ ▷ φ (W,C,v)
@@ -733,7 +736,7 @@ Section standard_world_interp.
     a ∉ als ->
     ⊢ sts_state_std C a Permanent
     ∗ open_region_many W C (a::als)
-    ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+    ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
     ∗ ⌜isO p = false⌝
     ∗ future_priv_mono C φ v
     ∗ ▷ φ (W,C,v)
@@ -804,7 +807,7 @@ Section standard_world_interp.
   Lemma region_open_next
     (W : WORLD) (C : CmptName)
     (φ : WORLD * CmptName * (Word * Word) → iProp Σ)
-    (als : list Addr) (a : Addr) (p : Perm) (ρ : region_type)
+    (als : list LAddr) (a : LAddr) (p : Perm) (ρ : region_type)
     (Hρnotrevoked : ρ <> Revoked) :
     a ∉ als →
     std W !! a = Some ρ →
@@ -815,7 +818,7 @@ Section standard_world_interp.
         sts_full_world W C
         ∗ sts_state_std C a ρ
         ∗ open_region_many W C (a :: als)
-        ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+        ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
         ∗ ▷ monotonicity_guarantees_region C φ p v ρ
         ∗ ▷ φ (W, C, v)
         ∗ ⌜isO p = false⌝.
@@ -834,8 +837,8 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_open_list (W : WORLD) (C : CmptName)
-    (l : list (Addr * Perm * (WORLD * CmptName * (Word * Word) → iProp Σ) * region_type))
-    (l' : list Addr)
+    (l : list (LAddr * Perm * (WORLD * CmptName * (Word * Word) → iProp Σ) * region_type))
+    (l' : list LAddr)
     :
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
@@ -852,7 +855,7 @@ Section standard_world_interp.
       open_region_many W C (la++l')
       ∗ sts_full_world W C
       ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C a ρ)
-      ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v.1 ∗ a ↣ₐ v.2)
+      ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2)
       ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ)
       ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C,v))
       ∗ ⌜ length lv = length la ⌝
@@ -865,7 +868,7 @@ Section standard_world_interp.
       by iFrame.
     - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
       iDestruct "Hrel" as "[Hrel_a Hrel]".
-      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
       apply Forall_cons_1 in Ha_state; destruct Ha_state as [HWa Ha_state].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
@@ -880,7 +883,7 @@ Section standard_world_interp.
       }
       iDestruct "Ha" as (va) "(Hsts & Hsts_std_a & Hr & Hv_a & Hsv_a & Hmono_a & Hφ_a & %Hp_a)".
       iExists (va::lv); iFrame.
-      iDestruct (big_sepL2_cons (fun _ '(a, _, _, _) v => (a ↦ₐ v.1 ∗ a ↣ₐ v.2)%I) (a,p,φ,ρ) va with "[$]") as "Hlv".
+      iDestruct (big_sepL2_cons (fun _ '(a, _, _, _) v => (laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2)%I) (a,p,φ,ρ) va with "[$]") as "Hlv".
       iFrame.
       iSplitR "Hlφ Hφ_a"; [iNext|iSplit;[iNext|]].
       + iDestruct (big_sepL2_cons (fun _ '(a, p, φ, ρ) v => monotonicity_guarantees_region C φ p v ρ) (a,p,φ,ρ) va with "[$]") as "Hlφ".
@@ -894,12 +897,12 @@ Section standard_world_interp.
     (W : WORLD) (C : CmptName)
     (φ : WORLD * CmptName * (Word * Word) → iProp Σ)
     `{forall Wv, Persistent (φ Wv)}
-    (als : list Addr) (a : Addr) (p : Perm) (v : Word * Word) (ρ : region_type)
+    (als : list LAddr) (a : LAddr) (p : Perm) (v : Word * Word) (ρ : region_type)
     (Hρnotrevoked : ρ <> Revoked) :
     a ∉ als
     → sts_state_std C a ρ
     ∗ open_region_many W C (a :: als)
-    ∗ a ↦ₐ v.1 ∗ a ↣ₐ v.2
+    ∗ laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2
     ∗ ⌜isO p = false⌝
     ∗ monotonicity_guarantees_region C φ p v ρ
     ∗ ▷ φ (W, C, v)
@@ -917,8 +920,8 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_close_list (W : WORLD) (C : CmptName)
-    (l : list (Addr * Perm * (WORLD * CmptName * (Word * Word) → iProp Σ) * region_type))
-    (l' : list Addr)
+    (l : list (LAddr * Perm * (WORLD * CmptName * (Word * Word) → iProp Σ) * region_type))
+    (l' : list LAddr)
     (lv : list (Word * Word))
     :
 
@@ -931,7 +934,7 @@ Section standard_world_interp.
 
     open_region_many W C (la++l')
     ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C a ρ)
-    ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v.1 ∗ a ↣ₐ v.2)
+    ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, laddr_addr a ↦ₐ v.1 ∗ laddr_addr a ↣ₐ v.2)
     ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ)
     ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C,v))
     ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, rel C a p φ)
@@ -944,7 +947,7 @@ Section standard_world_interp.
     - by iFrame.
     - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
       iDestruct "Hrel" as "[Hrel_a Hrel]".
-      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
       apply Forall_cons_1 in Hpers; destruct Hpers as [Hpers_a Hpers].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.

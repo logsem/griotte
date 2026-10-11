@@ -10,7 +10,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -408,7 +408,7 @@ Section fundamental.
   Proof. iModIntro; iIntros (W1 w) "?"; by iApply interp_load_word. Qed.
 
   Lemma monoReq_interp (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
-    (std W) !! a = Some ρ
+    (std W) !! LNonHeap a = Some ρ
     -> (ρ = Permanent -> isWL p = false)
     -> ⊢ monoReq W C a p interp.
   Proof.

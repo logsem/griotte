@@ -197,7 +197,7 @@ Lemma exported_entries_keys_NoDup (ot : OType) (entries : list (Sealable * nat))
   NoDup (concat ((λ e, [(WSealed ot e.1, e.2); (WSealed ot (borrow_sb e.1), e.2)]) <$> entries)).*1.
 Proof.
   induction entries as [|[sb n] entries IH]; cbn; intros Hnodup Hglobal; first constructor.
-  apply NoDup_cons in Hnodup as [Hsb Hnodup].
+  apply list.NoDup_cons in Hnodup as [Hsb Hnodup].
   apply Forall_cons in Hglobal as [Hg Hglobal].
   assert (∀ w, w ∈ (concat ((λ e, [(WSealed ot e.1, e.2); (WSealed ot (borrow_sb e.1), e.2)])
                               <$> entries)).*1 →
@@ -260,7 +260,7 @@ Section world_init.
     CNames = list_to_set Cs →
     NoDup Cs →
     ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
-            (stsg : STSG Addr region_type OType (Word * Word) Σ)
+            (stsg : STSG LAddr region_type OType (Word * Word) Σ)
             (cstackg : CSTACKG Σ) (cstackg_spec : CSTACK_specG Σ),
       ([∗ set] o ∈ ots, can_alloc_pred o) ∗
       cstack_full [] ∗
@@ -285,7 +285,7 @@ Section adversary_world.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -351,10 +351,10 @@ Section adversary_world.
   Qed.
 
   Lemma adv_world_free_cmpt (W : WORLD) (C_cmpt : cmpt) :
-    (∀ a, a ∈ cmpt_region C_cmpt → std W !! a = None) →
-    Forall (λ k, std W !! k = None) (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))
-    ∧ Forall (λ k, std W !! k = None) (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
-    ∧ Forall (λ k, std W !! k = None) (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)).
+    (∀ a, a ∈ cmpt_region C_cmpt → std W !! LNonHeap a = None) →
+    Forall (λ k, std W !! LNonHeap k = None) (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))
+    ∧ Forall (λ k, std W !! LNonHeap k = None) (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
+    ∧ Forall (λ k, std W !! LNonHeap k = None) (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)).
   Proof.
     intros Hfree.
     pose proof (cmpt_import_size C_cmpt).
@@ -371,8 +371,8 @@ Section adversary_world.
 
   Lemma adv_world_free_stack (W : WORLD) (sw : cmptSwitcher) (C_cmpt : cmpt) :
     switcher_cmpt_disjoint C_cmpt sw →
-    (∀ a, a ∈ stack_addrs sw → std W !! a = None) →
-    Forall (λ k, std (std_update_compartment W C_cmpt) !! k = None) (stack_addrs sw).
+    (∀ a, a ∈ stack_addrs sw → std W !! LNonHeap a = None) →
+    Forall (λ k, std (std_update_compartment W C_cmpt) !! LNonHeap k = None) (stack_addrs sw).
   Proof.
     intros Hsw Hfree.
     apply Forall_forall; intros a Ha.
@@ -452,7 +452,7 @@ Section adversary_world.
       ([Hexports]) and that the imports are safe ([Himports]). *)
   Lemma alloc_adversary_compartment_binary {E : coPset} (W : WORLD) (C_cmpt : cmpt) (C : CmptName) :
     let W' := std_update_compartment W C_cmpt in
-    (∀ a, a ∈ cmpt_region C_cmpt → std W !! a = None) →
+    (∀ a, a ∈ cmpt_region C_cmpt → std W !! LNonHeap a = None) →
     Forall is_z (cmpt_code C_cmpt) →
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
     seal_pred switcher.ot_switcher ot_switcher_propC -∗
@@ -511,7 +511,7 @@ Section adversary_world.
     let W' := std_update_compartment W C_cmpt in
     let Wadv := adv_world_revoked W sw C_cmpt in
     switcher_cmpt_disjoint C_cmpt sw →
-    (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ stack_addrs sw → std W !! a = None) →
+    (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ stack_addrs sw → std W !! LNonHeap a = None) →
     Forall is_z (cmpt_code C_cmpt) →
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
     seal_pred switcher.ot_switcher ot_switcher_propC -∗
@@ -569,7 +569,7 @@ Section adversary_exports.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -683,7 +683,7 @@ Section main_exports.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}

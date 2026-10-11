@@ -15,11 +15,31 @@ Section spec_rules.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
+  (** Physical spec-side outcomes, for the spec run. *)
+
+  Inductive spec_Jalr_spec (regs: Reg) pc_p pc_g pc_b pc_e pc_a (rdst rsrc: RegName) : Reg → griotte_lang.val → Prop :=
+  | spec_Jalr_spec_success regs' pc_a' wsrc :
+    regs !!ᵣ rsrc = Some wsrc ->
+    (pc_a + 1)%a = Some pc_a' ->
+    regs' = (<[rdst := (WSentry true pc_p pc_g pc_b pc_e pc_a') ]ᵣ>
+              (<[PC :=  updatePcPerm wsrc ]ᵣ>
+               regs)) →
+    spec_Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' NextIV
+  | spec_Jalr_spec_failure :
+    (pc_a + 1)%a = None ->
+    spec_Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs FailedV.
+
   Lemma Jalr_spec_determ regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs1 regs2 v1 v2 :
-    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs1 v1 →
-    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs2 v2 →
+    spec_Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs1 v1 →
+    spec_Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs2 v2 →
     v1 = v2 ∧ (v1 = NextIV → regs1 = regs2).
-  Proof. solve_spec_determ Jalr_spec. Qed.
+  Proof. solve_spec_determ spec_Jalr_spec. Qed.
+
+  Lemma Jalr_spec_lift regs pc_p pc_g pc_b pc_e pc_a rdst rsrc lregs' v :
+    Jalr_spec (lift_regs regs) pc_p pc_g pc_b pc_e pc_a None rdst rsrc lregs' v →
+    ∃ regs', (v = NextIV → lregs' = lift_regs regs') ∧
+             spec_Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' v.
+  Proof. spec_lift Jalr_spec regs. Qed.
 
   Lemma step_Jalr Ep pc_p pc_g pc_b pc_e pc_a w rdst rsrc regs :
     ↑specN ⊆ Ep →
@@ -34,13 +54,13 @@ Section spec_rules.
     ={Ep}=∗
     ∃ retv regs',
       ⤇ Seq (of_val retv) ∗
-      ⌜ Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' retv ⌝ ∗
+      ⌜ spec_Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' retv ⌝ ∗
       pc_a ↣ₐ w ∗
       [∗ map] k↦y ∈ regs', k ↣ᵣ y.
   Proof.
     iIntros (HE Hinstr Hvpc HPC Dregs) "(#Hctx & Hj & Hpc_a & Hmap)".
     iApply (spec_step_exec_1 with "Hctx Hj"); first done.
-    iIntros (Φ) "Hφ". iIntros ([[r sr] m] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
+    iIntros (Φ) "Hφ". iIntros ([[[r sr] m] st] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
     iDestruct (spec_regs_valid_inclSepM with "Hr Hmap") as %Hregs.
     have HrPC := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (spec_mem_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -54,7 +74,7 @@ Section spec_rules.
     rewrite Hrsrc HrPC /= in Hstep.
 
     destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; simplify_pair_eq; cycle 1.
-    { iFailWP "Hφ" Jalr_spec_failure. }
+    { iFailWP "Hφ" spec_Jalr_spec_failure. }
     iMod ((spec_regs_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; simplify_map_eq; eauto.
     iMod ((spec_regs_update_inSepM _ _ rdst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     { destruct (decide (rdst = PC)); simplify_map_eq; auto.

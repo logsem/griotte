@@ -15,23 +15,350 @@ Section spec_rules.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
+  (** Physical spec-side outcomes, for the spec run. *)
+
+  Definition spec_reg_allows_store_imm (regs : Reg) (r : RegName) (imm : Z) p g b e a ea :=
+    regs !!ᵣ r = Some (WCap true p g b e a) ∧
+    (a + imm)%a = Some ea ∧ writeAllowed p = true ∧ withinBounds b e ea = true.
+
+  Inductive spec_Store_failure_imm (regs: Reg) (r1 : RegName)(r2 : Z + RegName) (imm : Z) (mem : gmap Addr Word):=
+  | spec_Store_fail_const_imm w:
+      regs !!ᵣ r1 = Some w ->
+      is_cap w = false →
+      spec_Store_failure_imm regs r1 r2 imm mem
+  | spec_Store_fail_tag_imm p g b e a:
+      regs !!ᵣ r1 = Some (WCap false p g b e a) →
+      spec_Store_failure_imm regs r1 r2 imm mem
+  | spec_Store_fail_addr_imm p g b e a:
+      regs !!ᵣ r1 = Some (WCap true p g b e a) →
+      (a + imm)%a = None →
+      spec_Store_failure_imm regs r1 r2 imm mem
+  | spec_Store_fail_bounds_imm p g b e a ea:
+      regs !!ᵣ r1 = Some(WCap true p g b e a) ->
+      (a + imm)%a = Some ea →
+      (writeAllowed p = false ∨ withinBounds b e ea = false) →
+      spec_Store_failure_imm regs r1 r2 imm mem
+  | spec_Store_fail_invalid_PC_imm:
+      spec_incrementPC (regs) = None ->
+      spec_Store_failure_imm regs r1 r2 imm mem
+  .
+
+  Inductive spec_Store_spec_imm
+    (regs: Reg) (r1 : RegName) (r2 : Z + RegName) (imm : Z)
+    (regs': Reg) (mem mem' : gmap Addr Word) : griotte_lang.val → Prop
+  :=
+  | spec_Store_spec_success_imm p g b e a ea storev oldv :
+      word_of_argument regs r2 = Some storev ->
+      spec_reg_allows_store_imm regs r1 imm p g b e a ea →
+      mem !! ea = Some oldv →
+      mem' = (<[ea := store_word p storev]> mem) →
+      spec_incrementPC(regs) = Some regs' ->
+      spec_Store_spec_imm regs r1 r2 imm regs' mem mem' NextIV
+  | spec_Store_spec_failure_store_imm :
+      mem' = mem →
+      spec_Store_failure_imm regs r1 r2 imm mem ->
+      spec_Store_spec_imm regs r1 r2 imm regs' mem mem' FailedV.
+
+  Definition spec_allow_store_map_or_true_imm
+    (r1 : RegName) (r2 : Z + RegName) (imm : Z) (regs : Reg) (mem : Mem):=
+    ∃ t p g b e a storev,
+      spec_read_reg_inr regs r1 t p g b e a ∧ word_of_argument regs r2 = Some storev ∧
+      match (a + imm)%a with
+      | None => True
+      | Some ea => if decide (spec_reg_allows_store_imm regs r1 imm p g b e a ea) then
+        ∃ w, mem !! ea = Some w
+      else True
+      end.
+
+  Lemma spec_allow_store_implies_storev_imm:
+    ∀ (r1 : RegName)(r2 : Z + RegName) (mem0 : gmap Addr Word) (r : Reg)
+      (p : Perm) (g : Locality) (b e a ea : Addr) (imm : Z) storev,
+      spec_allow_store_map_or_true_imm r1 r2 imm r mem0
+      → r !!ᵣ r1 = Some (WCap true p g b e a)
+      → word_of_argument r r2 = Some storev
+      → writeAllowed p = true
+      → (a + imm)%a = Some ea
+      → withinBounds b e ea = true
+      → ∃ (storev : Word),
+          mem0 !! ea = Some storev.
+  Proof.
+    intros r1 r2 mem0 r p g b e a ea imm storev HaStore Hr2v Hwoa Hwa Hadd Hwb.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (r !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
+    unfold spec_allow_store_map_or_true_imm, spec_read_reg_inr in HaStore.
+    destruct HaStore as (t&?&?&?&?&?&?&Hrinr&Hwo&Hmem).
+    rewrite Hr2v in Hrinr. inversion Hrinr; subst.
+    unfold spec_reg_allows_store_imm in Hmem. rewrite Hadd in Hmem.
+    case_decide as HAL.
+    - auto.
+    - unfold spec_reg_allows_store_imm in HAL.
+      destruct HAL. rewrite Hwo in Hwoa; inversion Hwoa. repeat split; auto.
+      by simplify_map_eq.
+  Qed.
+
+  Lemma spec_mem_eq_implies_allow_store_map_imm:
+    ∀ (regs : Reg)(mem : Mem)(r1 : RegName)(r2 : Z + RegName)(w storev : Word) p g b e a ea (imm : Z),
+      (a + imm)%a = Some ea
+      → mem = <[ea:=w]> ∅
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
+      → word_of_argument regs r2 = Some storev
+      → spec_allow_store_map_or_true_imm r1 r2 imm regs mem.
+  Proof.
+    intros regs mem r1 r2 w storev p g b e a ea imm Hadd Hmem Hrr2.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
+    exists true,p,g,b,e,a,storev; split.
+    - unfold spec_read_reg_inr. by rewrite Hrr2.
+    - unfold spec_reg_allows_store_imm. rewrite Hadd. case_decide; last done.
+      split; auto. exists w. simplify_map_eq. auto.
+  Qed.
+
+  Lemma spec_mem_neq_implies_allow_store_map_imm:
+    ∀ (regs : Reg)(mem : Mem)(r1 : RegName)(r2 : Z + RegName)(pc_a : Addr)
+      (w w' storev : Word) p g b e a ea (imm : Z),
+      (a + imm)%a = Some ea
+      → ea ≠ pc_a
+      → mem = <[pc_a:= w]> (<[ea:= w']> ∅)
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
+      → word_of_argument regs r2 = Some storev
+      → spec_allow_store_map_or_true_imm r1 r2 imm regs mem.
+  Proof.
+    intros regs mem r1 r2 pc_a w w' storev p g b e a ea imm Hadd H4 Hrr2 Hreg1 Hwoa.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
+    exists true,p,g,b,e,a,storev; split.
+    - unfold spec_read_reg_inr. by rewrite Hreg1.
+    - unfold spec_reg_allows_store_imm. rewrite Hadd. case_decide; last done.
+      split; auto. exists w'. simplify_map_eq. split; auto.
+  Qed.
+
+  Lemma spec_mem_implies_allow_store_map_imm:
+    ∀ (regs : Reg)(mem : Mem)(r1 : RegName)(r2 : Z + RegName)(pc_a : Addr)
+      (w w' storev : Word) p g b e a ea (imm : Z),
+      (a + imm)%a = Some ea
+      → (if (ea =? pc_a)%a
+       then mem = <[pc_a:= w]> ∅
+       else mem = <[pc_a:= w]> (<[ea:= w']> ∅))
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
+      → word_of_argument regs r2 = Some storev
+      → spec_allow_store_map_or_true_imm r1 r2 imm regs mem.
+  Proof.
+    intros regs mem r1 r2 pc_a w w' storev p g b e a ea imm Hadd H4 Hrr2 Hwoa.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
+    destruct (ea =? pc_a)%a eqn:Heq.
+      + apply Z.eqb_eq, finz_to_z_eq in Heq. subst ea. eapply spec_mem_eq_implies_allow_store_map_imm; eauto.
+        by simplify_map_eq.
+      + apply Z.eqb_neq in Heq. eapply spec_mem_neq_implies_allow_store_map_imm; eauto; first congruence.
+        by simplify_map_eq.
+  Qed.
+
+  Definition spec_reg_allows_store (regs : Reg) (r : RegName) p g b e a :=
+    regs !!ᵣ r = Some (WCap true p g b e a) ∧
+    writeAllowed p = true ∧ withinBounds b e a = true.
+
+  Inductive spec_Store_failure (regs: Reg) (r1 : RegName)(r2 : Z + RegName) (mem : gmap Addr Word):=
+  | spec_Store_fail_const w:
+      regs !!ᵣ r1 = Some w ->
+      is_cap w = false →
+      spec_Store_failure regs r1 r2 mem
+  | spec_Store_fail_tag p g b e a:
+      regs !!ᵣ r1 = Some (WCap false p g b e a) →
+      spec_Store_failure regs r1 r2 mem
+  | spec_Store_fail_bounds p g b e a:
+      regs !!ᵣ r1 = Some(WCap true p g b e a) ->
+      (writeAllowed p = false ∨ withinBounds b e a = false) →
+      spec_Store_failure regs r1 r2 mem
+  | spec_Store_fail_invalid_PC:
+      spec_incrementPC (regs) = None ->
+      spec_Store_failure regs r1 r2 mem
+  .
+
+  Inductive spec_Store_spec
+    (regs: Reg) (r1 : RegName) (r2 : Z + RegName)
+    (regs': Reg) (mem mem' : gmap Addr Word) : griotte_lang.val → Prop
+  :=
+  | spec_Store_spec_success p g b e a storev oldv :
+      word_of_argument regs r2 = Some storev ->
+      spec_reg_allows_store regs r1 p g b e a →
+      mem !! a = Some oldv →
+      mem' = (<[a := store_word p storev]> mem) →
+      spec_incrementPC(regs) = Some regs' ->
+      spec_Store_spec regs r1 r2 regs' mem mem' NextIV
+  | spec_Store_spec_failure_store :
+      mem' = mem →
+      spec_Store_failure regs r1 r2 mem ->
+      spec_Store_spec regs r1 r2 regs' mem mem' FailedV.
+
+  Definition spec_allow_store_map_or_true
+    (r1 : RegName) (r2 : Z + RegName) (regs : Reg) (mem : Mem):=
+    ∃ t p g b e a storev,
+      spec_read_reg_inr regs r1 t p g b e a ∧ word_of_argument regs r2 = Some storev ∧
+      if decide (spec_reg_allows_store regs r1 p g b e a) then
+        ∃ w, mem !! a = Some w
+      else True.
+
+  Lemma spec_allow_store_implies_storev:
+    ∀ (r1 : RegName)(r2 : Z + RegName) (mem0 : gmap Addr Word) (r : Reg)
+      (p : Perm) (g : Locality) (b e a : Addr) storev,
+      spec_allow_store_map_or_true r1 r2 r mem0
+      → r !!ᵣ r1 = Some (WCap true p g b e a)
+      → word_of_argument r r2 = Some storev
+      → writeAllowed p = true
+      → withinBounds b e a = true
+      → ∃ (storev : Word),
+          mem0 !! a = Some storev.
+  Proof.
+    intros r1 r2 mem0 r p g b e a storev HaStore Hr2v Hwoa Hwa Hwb.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (r !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
+    unfold spec_allow_store_map_or_true, spec_read_reg_inr in HaStore.
+    destruct HaStore as (t&?&?&?&?&?&?&Hrinr&Hwo&Hmem).
+    rewrite Hr2v in Hrinr. inversion Hrinr; subst.
+    case_decide as HAL.
+    - auto.
+    - unfold spec_reg_allows_store in HAL.
+      destruct HAL. rewrite Hwo in Hwoa; inversion Hwoa. split; auto.
+      by simplify_map_eq.
+  Qed.
+
+  Lemma spec_mem_eq_implies_allow_store_map:
+    ∀ (regs : Reg)(mem : Mem)(r1 : RegName)(r2 : Z + RegName)(w storev : Word) p g b e a,
+      mem = <[a:=w]> ∅
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
+      → word_of_argument regs r2 = Some storev
+      → spec_allow_store_map_or_true r1 r2 regs mem.
+  Proof.
+    intros regs mem r1 r2 w storev p g b e a Hmem Hrr2.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
+    exists true,p,g,b,e,a,storev; split.
+    - unfold spec_read_reg_inr. by rewrite Hrr2.
+    - case_decide; last done.
+      split; auto. exists w. simplify_map_eq. auto.
+  Qed.
+
+  Lemma spec_mem_neq_implies_allow_store_map:
+    ∀ (regs : Reg)(mem : Mem)(r1 : RegName)(r2 : Z + RegName)(pc_a : Addr)
+      (w w' storev : Word) p g b e a,
+      a ≠ pc_a
+      → mem = <[pc_a:= w]> (<[a:= w']> ∅)
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
+      → word_of_argument regs r2 = Some storev
+      → spec_allow_store_map_or_true r1 r2 regs mem.
+  Proof.
+    intros regs mem r1 r2 pc_a w w' storev p g b e a H4 Hrr2 Hreg1 Hwoa.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
+    exists true,p,g,b,e,a,storev; split.
+    - unfold spec_read_reg_inr. by rewrite Hreg1.
+    - case_decide; last done.
+      split; auto. exists w'. simplify_map_eq. split; auto.
+  Qed.
+
+  Lemma spec_mem_implies_allow_store_map:
+    ∀ (regs : Reg)(mem : Mem)(r1 : RegName)(r2 : Z + RegName)(pc_a : Addr)
+      (w w' storev : Word) p g b e a,
+      (if (a =? pc_a)%a
+       then mem = <[pc_a:= w]> ∅
+       else mem = <[pc_a:= w]> (<[a:= w']> ∅))
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
+      → word_of_argument regs r2 = Some storev
+      → spec_allow_store_map_or_true r1 r2 regs mem.
+  Proof.
+    intros regs mem r1 r2 pc_a w w' storev p g b e a H4 Hrr2 Hwoa.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
+    destruct (a =? pc_a)%a eqn:Heq.
+      + apply Z.eqb_eq, finz_to_z_eq in Heq. subst a. eapply spec_mem_eq_implies_allow_store_map; eauto.
+        by simplify_map_eq.
+      + apply Z.eqb_neq in Heq. eapply spec_mem_neq_implies_allow_store_map; eauto; first congruence.
+        by simplify_map_eq.
+  Qed.
+
+  (** The outcome of a store of the implementation run, on a lifted register
+      file and memory, is a physical outcome, when the stored address is not
+      the shadow table. *)
+  Lemma Store_spec_lift regs r1 r2 imm lregs' (mem : Mem) lmem' shadow' v :
+    (∀ p g b e a ea, regs !!ᵣ r1 = Some (WCap true p g b e a) → (a + imm)%a = Some ea →
+       writeAllowed p = true → withinBounds b e ea = true → is_shadow_address ea = false) →
+    Store_spec (lift_regs regs) r1 r2 imm lregs' (lword_of_word <$> mem) lmem' ∅ shadow' v →
+    ∃ regs' mem', (v = NextIV → lregs' = lift_regs regs' ∧ lmem' = lword_of_word <$> mem') ∧
+                  spec_Store_spec_imm regs r1 r2 imm regs' mem mem' v.
+  Proof.
+    intros Hok Hspec.
+    destruct Hspec as [p g b e a ea storev oldv Harg Hallow Hsh Hl -> -> Hinc
+                      | p g b e a ea heap_a z π old Harg Hallow Hsh Hsh2 Hlk -> -> Hinc
+                      | -> -> Hfail].
+    - destruct Hallow as (Hr & Hadd & Hwa & Hwb).
+      rewrite lift_regs_lw_llookup in Hr.
+      rewrite lookup_fmap in Hl. apply fmap_Some in Hl as (w & Hl & ->).
+      lift_regs_simpl.
+      eexists _, _; split.
+      { intros _; split; [reflexivity|]. rewrite lstore_word_lword_of_word -fmap_insert. reflexivity. }
+      eapply spec_Store_spec_success_imm; eauto. by repeat split.
+    - exfalso. destruct Hallow as (Hr & Hadd & Hwa & Hwb).
+      rewrite lift_regs_lw_llookup in Hr.
+      pose proof (Hok _ _ _ _ _ _ Hr Hadd Hwa Hwb). congruence.
+    - exists regs, mem; split; [intros ?; discriminate|].
+      destruct Hfail as [w Hr Hc | p g b e a Hr | p g b e a Hr Hadd | p g b e a ea Hr Hadd Hb
+                        | Hinc | p g b e a ea storev Hr Hadd Hsh Harg Hz].
+      all: try rewrite lift_regs_lw_llookup in Hr.
+      + rewrite lift_regs_llookup in Hr. apply fmap_Some in Hr as (w' & Hr & ->).
+        apply spec_Store_spec_failure_store_imm; first done. by eapply spec_Store_fail_const_imm.
+      + apply spec_Store_spec_failure_store_imm; first done. by eapply spec_Store_fail_tag_imm.
+      + apply spec_Store_spec_failure_store_imm; first done. by eapply spec_Store_fail_addr_imm.
+      + apply spec_Store_spec_failure_store_imm; first done. by eapply spec_Store_fail_bounds_imm.
+      + lift_regs_simpl. apply spec_Store_spec_failure_store_imm; first done.
+        by eapply spec_Store_fail_invalid_PC_imm.
+      + destruct (writeAllowed p && withinBounds b e ea) eqn:HWA.
+        2: { apply andb_false_iff in HWA. apply spec_Store_spec_failure_store_imm; first done.
+             by eapply spec_Store_fail_bounds_imm. }
+        apply andb_true_iff in HWA as [Hwa Hwb].
+        pose proof (Hok _ _ _ _ _ _ Hr Hadd Hwa Hwb). congruence.
+  Qed.
+
   Lemma Store_spec_determ regs r1 r2 mem regs1 regs2 mem1 mem2 v1 v2 :
-    Store_spec regs r1 r2 regs1 mem mem1 v1 →
-    Store_spec regs r1 r2 regs2 mem mem2 v2 →
+    spec_Store_spec regs r1 r2 regs1 mem mem1 v1 →
+    spec_Store_spec regs r1 r2 regs2 mem mem2 v2 →
     v1 = v2 ∧ (v1 = NextIV → regs1 = regs2 ∧ mem1 = mem2).
-  Proof. solve_spec_determ_gen Store_failure ltac:(unfold reg_allows_store in * ). Qed.
+  Proof. solve_spec_determ_gen spec_Store_failure ltac:(unfold spec_reg_allows_store in * ). Qed.
 
   Lemma Store_spec_determ_arg regs r1 (r2 : Z + RegName) mem regs1 regs2 mem1 mem2 v1 v2 :
-    Store_spec regs r1 r2 regs1 mem mem1 v1 →
-    Store_spec regs r1 r2 regs2 mem mem2 v2 →
+    spec_Store_spec regs r1 r2 regs1 mem mem1 v1 →
+    spec_Store_spec regs r1 r2 regs2 mem mem2 v2 →
     v1 = v2 ∧ (v1 = NextIV → regs1 = regs2 ∧ mem1 = mem2).
-  Proof. solve_spec_determ_gen Store_failure ltac:(unfold reg_allows_store in * ). Qed.
+  Proof. solve_spec_determ_gen spec_Store_failure ltac:(unfold spec_reg_allows_store in * ). Qed.
 
   Lemma Store_spec_imm_determ regs r1 (r2 : Z + RegName) imm mem regs1 regs2 mem1 mem2 v1 v2 :
-    Store_spec_imm regs r1 r2 imm regs1 mem mem1 v1 →
-    Store_spec_imm regs r1 r2 imm regs2 mem mem2 v2 →
+    spec_Store_spec_imm regs r1 r2 imm regs1 mem mem1 v1 →
+    spec_Store_spec_imm regs r1 r2 imm regs2 mem mem2 v2 →
     v1 = v2 ∧ (v1 = NextIV → regs1 = regs2 ∧ mem1 = mem2).
-  Proof. solve_spec_determ_gen Store_failure_imm ltac:(unfold reg_allows_store_imm in * ). Qed.
+  Proof. solve_spec_determ_gen spec_Store_failure_imm ltac:(unfold spec_reg_allows_store_imm in * ). Qed.
 
    Lemma step_store_imm Ep
      pc_p pc_g pc_b pc_e pc_a
@@ -42,7 +369,7 @@ Section spec_rules.
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs_of (Store r1 r2 imm) ⊆ dom regs →
    mem !! pc_a = Some w →
-   allow_store_map_or_true_imm r1 r2 imm regs mem →
+   spec_allow_store_map_or_true_imm r1 r2 imm regs mem →
 
    spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
@@ -51,13 +378,13 @@ Section spec_rules.
     ={Ep}=∗
     ∃ retv regs' mem',
       ⤇ Seq (of_val retv) ∗
-      ⌜ Store_spec_imm regs r1 r2 imm regs' mem mem' retv⌝ ∗
+      ⌜ spec_Store_spec_imm regs r1 r2 imm regs' mem mem' retv⌝ ∗
       ([∗ map] a↦w ∈ mem', a ↣ₐ w) ∗
       [∗ map] k↦y ∈ regs', k ↣ᵣ y.
    Proof.
      iIntros (HE Hinstr Hvpc HPC Dregs Hmem_pc HaStore) "(#Hctx & Hj & Hmem & Hmap)".
      iApply (spec_step_exec_2 with "Hctx Hj"); first done.
-     iIntros (Φ) "Hφ". iIntros ([[r sr] m] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
+     iIntros (Φ) "Hφ". iIntros ([[[r sr] m] st] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
      iDestruct (spec_regs_valid_inclSepM with "Hr Hmap") as %Hregs.
 
      (* Derive necessary register values in r *)
@@ -83,52 +410,55 @@ Section spec_rules.
 
      destruct (is_cap r1v) eqn:Hr1v.
      2: { (* Failure: r1 is not a capability *)
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        {
          unfold is_cap in Hr1v.
          destruct_word r1v; by simplify_pair_eq.
        }
-       iFailWP "Hφ" Store_fail_const_imm.
+       iFailWP "Hφ" spec_Store_fail_const_imm.
      }
      destruct r1v as [ | [t p g b e a | ] | | ]; try inversion Hr1v. clear Hr1v.
      destruct t.
      2: {
        inversion Hstep; subst c σ2.
-       iFailWP "Hφ" Store_fail_tag_imm.
+       iFailWP "Hφ" spec_Store_fail_tag_imm.
      }
 
      destruct (a + imm)%a as [ea|] eqn:Hadd.
-     2: { inversion Hstep; subst. iFailWP "Hφ" Store_fail_addr_imm. }
+     2: { inversion Hstep; subst. iFailWP "Hφ" spec_Store_fail_addr_imm. }
      cbn in Hstep.
      destruct (writeAllowed p && withinBounds b e ea) eqn:HWA.
      2 : { (* Failure: r2 is either not within bounds or doesnt allow reading *)
        inversion Hstep.
        apply andb_false_iff in HWA.
-       iFailWP "Hφ" Store_fail_bounds_imm.
+       iFailWP "Hφ" spec_Store_fail_bounds_imm.
      }
      apply andb_true_iff in HWA; destruct HWA as (Hwa & Hwb).
 
      (* Prove that a is in the memory map now, otherwise we cannot continue *)
-     pose proof (allow_store_implies_storev_imm r1 r2 mem regs p g b e a ea imm storev) as (oldv & Hmema); auto.
+     pose proof (spec_allow_store_implies_storev_imm r1 r2 mem regs p g b e a ea imm storev) as (oldv & Hmema); auto.
 
      (* Given this, prove that a is also present in the memory itself *)
      iDestruct (spec_mem_valid_inSepM mem m ea oldv with "Hm Hmem" ) as %Hma' ; auto.
+     iDestruct (spec_mem_avoids_mmio with "Hm") as %Hmmio.
+     rewrite (mem_avoids_mmio_not_shadow _ _ _ Hmmio Hma')
+       (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hma') /= in Hstep.
 
-     destruct (incrementPC regs ) as [ regs' |] eqn:Hregs'.
+     destruct (spec_incrementPC regs ) as [ regs' |] eqn:Hregs'.
      2: { (* Failure: the PC could not be incremented correctly *)
-       assert (incrementPC r = None).
-       { eapply incrementPC_overflow_mono; first eapply Hregs'; eauto. }
-       rewrite incrementPC_fail_updatePC /= in Hstep; auto.
+       assert (spec_incrementPC r = None).
+       { eapply spec_incrementPC_overflow_mono; first eapply Hregs'; eauto. }
+       rewrite spec_incrementPC_fail_updatePC /= in Hstep; auto.
        inversion Hstep.
        cbn; iFrame; iApply "Hφ"; iFrame.
-       iPureIntro. eapply Store_spec_failure_store_imm;eauto. by constructor.
+       iPureIntro. eapply spec_Store_spec_failure_store_imm;eauto. by constructor.
      }
 
      iMod ((spec_mem_update_inSepM _ _ ea) with "Hm Hmem") as "[Hm Hmem]"; eauto.
 
      (* Success *)
      rewrite /update_mem /= in Hstep.
-     eapply (incrementPC_success_updatePC _ sr (<[ea:=store_word p storev]> m)) in Hregs'
+     eapply (spec_incrementPC_success_updatePC _ sr (<[ea:=store_word p storev]> m) st) in Hregs'
          as (t1 & p1 & g1 & b1 & e1 & a1 & a'1 & a_pc1 & HPC'' & HuPC & ->).
      eapply (updatePC_success_incl _ (<[ea:=store_word p storev]> m)) in HuPC. 2: by eauto.
      rewrite HuPC in Hstep; clear HuPC; inversion Hstep; clear Hstep; subst c σ2; cbn in *.
@@ -136,9 +466,9 @@ Section spec_rules.
      iFrame.
      iMod ((spec_regs_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
      iFrame. iModIntro. iApply "Hφ". iFrame.
-     iPureIntro. eapply Store_spec_success_imm; eauto.
+     iPureIntro. eapply spec_Store_spec_success_imm; eauto.
      * split; first exact Hr'1. repeat split; assumption.
-     * rewrite /incrementPC /incrementPC_gen. rewrite a_pc1 HPC''.
+     * rewrite /spec_incrementPC /spec_incrementPC_gen. rewrite a_pc1 HPC''.
        Unshelve. all: auto.
    Qed.
 
@@ -151,7 +481,7 @@ Section spec_rules.
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs_of (Store r1 r2 0) ⊆ dom regs →
    mem !! pc_a = Some w →
-   allow_store_map_or_true r1 r2 regs mem →
+   spec_allow_store_map_or_true r1 r2 regs mem →
      spec_ctx ∗
      ⤇ Seq (Instr Executable) ∗
      ([∗ map] a↦w ∈ mem, a ↣ₐ w) ∗
@@ -159,30 +489,30 @@ Section spec_rules.
      ={Ep}=∗
      ∃ retv regs' mem',
        ⤇ Seq (of_val retv) ∗
-       ⌜ Store_spec regs r1 r2 regs' mem mem' retv⌝ ∗
+       ⌜ spec_Store_spec regs r1 r2 regs' mem mem' retv⌝ ∗
        ([∗ map] a↦w ∈ mem', a ↣ₐ w) ∗
        [∗ map] k↦y ∈ regs', k ↣ᵣ y.
    Proof.
      iIntros (HE Hinstr Hvpc HPC Dregs Hmem_pc HaStore) "(#Hctx & Hj & Hres)".
-     have HaStore0 : allow_store_map_or_true_imm r1 r2 0 regs mem.
+     have HaStore0 : spec_allow_store_map_or_true_imm r1 r2 0 regs mem.
      { destruct HaStore as (t & p & g & b & e & a & storev & Hr & Hv & Hmem).
        exists t, p, g, b, e, a, storev. split; first done. split; first done.
-       unfold reg_allows_store_imm. rewrite finz_add_0.
-       unfold reg_allows_store in Hmem.
+       unfold spec_reg_allows_store_imm. rewrite finz_add_0.
+       unfold spec_reg_allows_store in Hmem.
        case_decide; case_decide; naive_solver. }
      iMod (step_store_imm with "[$Hctx $Hj $Hres]") as (retv regs' mem') "(Hj & %Hspec & Hmem & Hregs)"; eauto.
      iModIntro. iExists retv, regs', mem'. iFrame. iPureIntro.
      destruct Hspec as [p g b e a ea storev oldv Hv Hr Hm Hm' Hpc | Hm Hfail].
      - destruct Hr as (Hr & Hadd & Hwa & Hwb).
        rewrite finz_add_0 in Hadd. simplify_eq.
-       eapply Store_spec_success; eauto. split; first exact Hr. split; assumption.
-     - eapply Store_spec_failure_store; eauto.
+       eapply spec_Store_spec_success; eauto. split; first exact Hr. split; assumption.
+     - eapply spec_Store_spec_failure_store; eauto.
        destruct Hfail as [wv Hr Hcap | p g b e a Hr | p g b e a Hr Hadd | p g b e a ea Hr Hadd Hbounds | Hpc].
-       + eapply Store_fail_const; eauto.
-       + eapply Store_fail_tag; eauto.
+       + eapply spec_Store_fail_const; eauto.
+       + eapply spec_Store_fail_tag; eauto.
        + rewrite finz_add_0 in Hadd. discriminate.
-       + rewrite finz_add_0 in Hadd. simplify_eq. eapply Store_fail_bounds; eauto.
-       + by apply Store_fail_invalid_PC.
+       + rewrite finz_add_0 in Hadd. simplify_eq. eapply spec_Store_fail_bounds; eauto.
+       + by apply spec_Store_fail_invalid_PC.
    Qed.
 
   Lemma step_store_success_z_PC E pc_p pc_g pc_b pc_e pc_a pc_a' w z :
@@ -206,7 +536,7 @@ Section spec_rules.
     iDestruct (spec_memMap_resource_1 with "Hi") as "Hmem".
 
     iMod (step_store with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
-    { eapply mem_eq_implies_allow_store_map; eauto. }
+    { eapply spec_mem_eq_implies_allow_store_map; eauto. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
 
@@ -215,14 +545,14 @@ Section spec_rules.
        iModIntro.
        destruct H0 as [Hrr2 _]. simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_1 with "[$Hmap]") as "HPC"; eauto.
        rewrite /store_word (writeAllowed_canStore_int _ _ Hwa).
        iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto.
        - apply isCorrectPC_ra_wb in Hvpc. apply andb_prop_elim in Hvpc as [_ Hwb].
          destruct o as [Hwa' | Hbounds]; first congruence.
          apply Is_true_false in Hbounds. done.
@@ -255,7 +585,7 @@ Section spec_rules.
 
     iMod (step_store with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_eq_implies_allow_store_map; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -266,14 +596,14 @@ Section spec_rules.
        destruct H2 as (Hrdst & Hwa' & Hbounds).
        simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
        all: iFrame.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto
        ; try congruence.
        apply isCorrectPC_ra_wb in Hvpc. apply andb_prop_elim in Hvpc as [_ Hwb].
        destruct o; last apply Is_true_false in H1; try congruence ; try done.
@@ -301,7 +631,7 @@ Section spec_rules.
      iDestruct (spec_memMap_resource_1 with "Hi") as "Hmem".
 
     iMod (step_store with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
-    { eapply mem_eq_implies_allow_store_map; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -311,13 +641,13 @@ Section spec_rules.
        iModIntro.
        destruct H0 as [Hrr2 _]. simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        do 2 rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_1 with "[$Hmap]") as "HPC"; eauto.
        all: iFrame. }
       { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence.
        apply isCorrectPC_ra_wb in Hvpc. apply andb_prop_elim in Hvpc as [_ Hwb].
        destruct o; last apply Is_true_false in H; [congruence| done].
      }
@@ -350,7 +680,7 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_eq_implies_allow_store_map; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & %Hspec & Hmem & Hmap)".
 
@@ -359,13 +689,13 @@ Section spec_rules.
        iModIntro.
        destruct H2 as [? _]; simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
        all: try rewrite Hstore_word; iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto.
        - destruct o; congruence.
        - congruence.
      }
@@ -396,7 +726,7 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_eq_implies_allow_store_map; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & %Hspec & Hmem & Hmap)".
 
@@ -405,13 +735,13 @@ Section spec_rules.
        iModIntro.
        destruct H2 as [? _]; simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence.
        destruct o; congruence.
      }
    Qed.
@@ -445,7 +775,7 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_eq_implies_allow_store_map; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -455,13 +785,13 @@ Section spec_rules.
        iModIntro.
        destruct H5 as [? _]; simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_3 with "[$Hmap]") as "[HPC [Hsrc Hdst] ]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence.
        destruct o; congruence.
      }
    Qed.
@@ -497,7 +827,7 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_neq_implies_allow_store_map with (a := a); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map with (a := a); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -508,13 +838,13 @@ Section spec_rules.
        destruct H6 as [? _]; simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_3 with "[$Hmap]") as "[HPC [Hsrc Hdst] ]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence.
        destruct o; congruence.
      }
     Qed.
@@ -547,7 +877,7 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_neq_implies_allow_store_map with (a := a); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map with (a := a); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -558,13 +888,13 @@ Section spec_rules.
        destruct H3 as [Hrr2 _]. simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hdst]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence.
        destruct o; congruence.
      }
     Qed.
@@ -598,7 +928,7 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_neq_implies_allow_store_map with (a := a); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map with (a := a); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & %Hspec & Hmem & Hmap)".
 
@@ -608,13 +938,13 @@ Section spec_rules.
        destruct H3 as [Hrr2 _]. simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hdst]"; eauto.
        all: try rewrite Hstore_word; iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; last congruence.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; last congruence.
        - destruct o; congruence.
      }
     Qed.
@@ -802,13 +1132,13 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true.
+    { rewrite /spec_allow_store_map_or_true.
       eexists true,_,_,_,_,_,_; eauto.
       simplify_map_eq.
       split; [|split]; eauto.
-      - rewrite /read_reg_inr; simplify_map_eq.
+      - rewrite /spec_read_reg_inr; simplify_map_eq.
         destruct wdst as [| [] | |]; cbn in Hnot_cap; done.
-      - rewrite /reg_allows_store; simplify_map_eq.
+      - rewrite /spec_reg_allows_store; simplify_map_eq.
         rewrite decide_False; auto.
         intros [].
         destruct (decide (dst = cnull)); first done.
@@ -820,7 +1150,7 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H4.
+       rewrite /spec_reg_allows_store in H4.
        destruct H4 as (? & ? & ?); simplify_map_eq.
        destruct (decide (dst = cnull)); first done.
        simplify_map_eq.
@@ -852,13 +1182,13 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true.
+    { rewrite /spec_allow_store_map_or_true.
       eexists true,_,_,_,_,_,_; eauto.
       simplify_map_eq.
       split; [|split]; eauto.
-      - rewrite /read_reg_inr; simplify_map_eq.
+      - rewrite /spec_read_reg_inr; simplify_map_eq.
         destruct wdst as [| [] | |]; cbn in Hnot_cap; done.
-      - rewrite /reg_allows_store; simplify_map_eq.
+      - rewrite /spec_reg_allows_store; simplify_map_eq.
         rewrite decide_False; auto.
         intros [].
         destruct (decide (dst = cnull)); first done.
@@ -870,7 +1200,7 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H2.
+       rewrite /spec_reg_allows_store in H2.
        simplify_map_eq.
        destruct H2 as (? & ? & ?); simplify_map_eq.
      }
@@ -903,17 +1233,17 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true.
+    { rewrite /spec_allow_store_map_or_true.
       eexists true,p,g,b,e,a,w''.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument.
         by simplify_map_eq.
       }
-      rewrite /reg_allows_store.
+      rewrite /spec_reg_allows_store.
       rewrite Hwa.
       rewrite decide_False; auto.
       intro; naive_solver.
@@ -924,12 +1254,12 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H5.
+       rewrite /spec_reg_allows_store in H5.
        destruct H5 as (? & Hwa' & ?); simplify_map_eq.
        congruence.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
      }
     Qed.
 
@@ -956,17 +1286,17 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true.
+    { rewrite /spec_allow_store_map_or_true.
       eexists true,p,g,b,e,a,_.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument.
         eauto.
       }
-      rewrite /reg_allows_store.
+      rewrite /spec_reg_allows_store.
       rewrite HcanStore.
       rewrite decide_False; auto.
       intro; naive_solver.
@@ -977,12 +1307,12 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H2.
+       rewrite /spec_reg_allows_store in H2.
        destruct H2 as (? & Hwa' & ?); simplify_map_eq.
        congruence.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
      }
     Qed.
 
@@ -1009,17 +1339,17 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true.
+    { rewrite /spec_allow_store_map_or_true.
       eexists true,p,g,b,e,a,w''.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument.
         by simplify_map_eq.
       }
-      rewrite /reg_allows_store.
+      rewrite /spec_reg_allows_store.
       rewrite Hwb.
       rewrite decide_False; auto.
       intro; naive_solver.
@@ -1029,12 +1359,12 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H5.
+       rewrite /spec_reg_allows_store in H5.
        destruct H5 as (? & ? & Hbounds); simplify_map_eq.
        by rewrite Hbounds in Hwb.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro.
      }
     Qed.
 
@@ -1060,16 +1390,16 @@ Section spec_rules.
 
     iMod (step_store _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true.
+    { rewrite /spec_allow_store_map_or_true.
       eexists true,p,g,b,e,a,_.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument. eauto.
       }
-      rewrite /reg_allows_store.
+      rewrite /spec_reg_allows_store.
       rewrite Hwb.
       rewrite decide_False; auto.
       intro; naive_solver.
@@ -1079,12 +1409,12 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H2.
+       rewrite /spec_reg_allows_store in H2.
        destruct H2 as (? & ? & Hbounds); simplify_map_eq.
        by rewrite Hbounds in Hwb.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro.
      }
     Qed.
 
@@ -1105,7 +1435,7 @@ Section spec_rules.
   Proof.
     iIntros (HE Hinstr Hvpc HPC Hsrc Htag) "(#Hctx & Hj & Hpc_a & Hmap)".
     iApply (step_instr_failed_map with "[$Hctx $Hj $Hpc_a $Hmap]"); [done..|].
-    intros r sr m Hregs.
+    intros r sr m st Hregs.
     have Hsrc' := lookup_reg_weaken _ _ _ _ Hsrc Hregs.
     rewrite /exec /= Hsrc' /=.
     destruct wa as [| [t p g b e a|] | |]; cbn in Htag; subst; cbn.
@@ -1144,7 +1474,7 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_neq_implies_allow_store_map_imm with (a := a) (ea := ea); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map_imm with (a := a) (ea := ea); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -1155,13 +1485,13 @@ Section spec_rules.
        destruct H6 as [? [Hadd2 _]]; simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_3 with "[$Hmap]") as "[HPC [Hsrc Hdst] ]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
 
      }
     Qed.
@@ -1195,7 +1525,7 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_neq_implies_allow_store_map_imm with (a := a) (ea := ea); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map_imm with (a := a) (ea := ea); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -1206,13 +1536,13 @@ Section spec_rules.
        destruct H3 as [Hrr2 [Hadd2 _]]. simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hdst]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
 
      }
     Qed.
@@ -1248,7 +1578,7 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_neq_implies_allow_store_map_imm with (a := a) (ea := ea); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map_imm with (a := a) (ea := ea); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -1259,13 +1589,13 @@ Section spec_rules.
        destruct H3 as [Hrr2 [Hadd2 _]]. simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hdst]"; eauto.
        all: try rewrite Hstore_word; iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; last congruence.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; last congruence.
        - destruct o; congruence.
      }
     Qed.
@@ -1330,7 +1660,7 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_eq_implies_allow_store_map_imm; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map_imm; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -1340,13 +1670,13 @@ Section spec_rules.
        iModIntro.
        destruct H2 as [? [Hadd2 _]]; simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
        all: try rewrite Hstore_word; iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto.
        - destruct o; congruence.
        - congruence.
      }
@@ -1378,7 +1708,7 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_eq_implies_allow_store_map_imm; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map_imm; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & %Hspec & Hmem & Hmap)".
 
@@ -1387,13 +1717,13 @@ Section spec_rules.
        iModIntro.
        destruct H2 as [? [Hadd2 _]]; simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
 
      }
    Qed.
@@ -1428,7 +1758,7 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_eq_implies_allow_store_map_imm; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map_imm; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -1438,13 +1768,13 @@ Section spec_rules.
        iModIntro.
        destruct H5 as [? [Hadd2 _]]; simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_3 with "[$Hmap]") as "[HPC [Hsrc Hdst] ]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
 
      }
    Qed.
@@ -1529,13 +1859,13 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true_imm.
+    { rewrite /spec_allow_store_map_or_true_imm.
       eexists true,_,_,_,_,_,_; eauto.
       simplify_map_eq.
       split; [|split]; eauto.
-      - rewrite /read_reg_inr; simplify_map_eq.
+      - rewrite /spec_read_reg_inr; simplify_map_eq.
         destruct wdst as [| [] | |]; cbn in Hnot_cap; done.
-      - rewrite /reg_allows_store_imm.
+      - rewrite /spec_reg_allows_store_imm.
         destruct (_ + imm)%a; simpl; last done. simplify_map_eq.
         rewrite decide_False; auto.
         intros [].
@@ -1548,7 +1878,7 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store_imm in H4.
+       rewrite /spec_reg_allows_store_imm in H4.
        destruct H4 as (? & ? & ? & ?); simplify_map_eq.
        destruct (decide (dst = cnull)); first done.
        simplify_map_eq.
@@ -1580,13 +1910,13 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true_imm.
+    { rewrite /spec_allow_store_map_or_true_imm.
       eexists true,_,_,_,_,_,_; eauto.
       simplify_map_eq.
       split; [|split]; eauto.
-      - rewrite /read_reg_inr; simplify_map_eq.
+      - rewrite /spec_read_reg_inr; simplify_map_eq.
         destruct wdst as [| [] | |]; cbn in Hnot_cap; done.
-      - rewrite /reg_allows_store_imm.
+      - rewrite /spec_reg_allows_store_imm.
         destruct (_ + imm)%a; simpl; last done. simplify_map_eq.
         rewrite decide_False; auto.
         intros [].
@@ -1599,7 +1929,7 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store_imm in H2.
+       rewrite /spec_reg_allows_store_imm in H2.
        simplify_map_eq.
        destruct H2 as (? & ? & ? & ?); simplify_map_eq.
      }
@@ -1632,17 +1962,17 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true_imm.
+    { rewrite /spec_allow_store_map_or_true_imm.
       eexists true,p,g,b,e,a,w''.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument.
         by simplify_map_eq.
       }
-      rewrite /reg_allows_store_imm.
+      rewrite /spec_reg_allows_store_imm.
       destruct (a + imm)%a eqn:Haddr; simpl; last done.
       rewrite Hwa.
       rewrite decide_False; auto.
@@ -1654,12 +1984,12 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store_imm in H5.
+       rewrite /spec_reg_allows_store_imm in H5.
        destruct H5 as (? & ? & Hwa' & ?); simplify_map_eq.
        congruence.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
      }
     Qed.
 
@@ -1686,17 +2016,17 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true_imm.
+    { rewrite /spec_allow_store_map_or_true_imm.
       eexists true,p,g,b,e,a,_.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument.
         eauto.
       }
-      rewrite /reg_allows_store_imm.
+      rewrite /spec_reg_allows_store_imm.
       destruct (a + imm)%a eqn:Haddr; simpl; last done.
       rewrite HcanStore.
       rewrite decide_False; auto.
@@ -1708,12 +2038,12 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store_imm in H2.
+       rewrite /spec_reg_allows_store_imm in H2.
        destruct H2 as (? & ? & Hwa' & ?); simplify_map_eq.
        congruence.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
      }
     Qed.
 
@@ -1743,17 +2073,17 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true_imm.
+    { rewrite /spec_allow_store_map_or_true_imm.
       eexists true,p,g,b,e,a,w''.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument.
         by simplify_map_eq.
       }
-      rewrite /reg_allows_store_imm.
+      rewrite /spec_reg_allows_store_imm.
       rewrite Hadd Hwb.
       rewrite decide_False; auto.
       intro; naive_solver.
@@ -1764,12 +2094,12 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store_imm in H5.
+       rewrite /spec_reg_allows_store_imm in H5.
        destruct H5 as (? & Haddr & ? & Hbounds); simplify_map_eq.
        by rewrite Hbounds in Hwb.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
      }
     Qed.
 
@@ -1797,16 +2127,16 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true_imm.
+    { rewrite /spec_allow_store_map_or_true_imm.
       eexists true,p,g,b,e,a,_.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument. eauto.
       }
-      rewrite /reg_allows_store_imm.
+      rewrite /spec_reg_allows_store_imm.
       rewrite Hadd Hwb.
       rewrite decide_False; auto.
       intro; naive_solver.
@@ -1817,12 +2147,12 @@ Section spec_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store_imm in H2.
+       rewrite /spec_reg_allows_store_imm in H2.
        destruct H2 as (? & Haddr & ? & Hbounds); simplify_map_eq.
        by rewrite Hbounds in Hwb.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
      }
     Qed.
 
@@ -1843,7 +2173,7 @@ Section spec_rules.
   Proof.
     iIntros (HE Hinstr Hvpc HPC Hsrc Htag) "(#Hctx & Hj & Hpc_a & Hmap)".
     iApply (step_instr_failed_map with "[$Hctx $Hj $Hpc_a $Hmap]"); [done..|].
-    intros r sr m Hregs.
+    intros r sr m st Hregs.
     have Hsrc' := lookup_reg_weaken _ _ _ _ Hsrc Hregs.
     rewrite /exec /= Hsrc' /=.
     destruct wa as [| [t p g b e a|] | |]; cbn in Htag; subst; cbn.
@@ -1879,7 +2209,7 @@ Section spec_rules.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_neq_implies_allow_store_map_imm with (a := pc_a) (ea := ea); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map_imm with (a := pc_a) (ea := ea); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -1890,13 +2220,13 @@ Section spec_rules.
        destruct Hallow as [Hrr2 [Hadd2 _]]; simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        try rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
 
      }
     Qed.
@@ -1926,7 +2256,7 @@ Section spec_rules.
     iDestruct (spec_memMap_resource_2ne_apply with "Hi Hsrca") as "[Hmem %]"; auto.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
-    { eapply mem_neq_implies_allow_store_map_imm with (a := pc_a) (ea := ea); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map_imm with (a := pc_a) (ea := ea); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -1937,13 +2267,13 @@ Section spec_rules.
        destruct Hallow as [Hrr2 [Hadd2 _]]. simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        try rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_1 with "[$Hmap]") as "HPC"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
 
      }
     Qed.
@@ -1975,7 +2305,7 @@ Section spec_rules.
     iDestruct (spec_memMap_resource_2ne_apply with "Hi Hsrca") as "[Hmem %]"; auto.
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
-    { eapply mem_neq_implies_allow_store_map_imm with (a := pc_a) (ea := ea); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map_imm with (a := pc_a) (ea := ea); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -1986,13 +2316,13 @@ Section spec_rules.
        destruct Hallow as [Hrr2 [Hadd2 _]]. simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        try rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_1 with "[$Hmap]") as "HPC"; eauto.
        all: try rewrite Hstore_word; iFrame. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; last congruence.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto; last congruence.
        - destruct o; congruence.
      }
     Qed.
@@ -2022,17 +2352,17 @@ Lemma step_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w ds
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true_imm.
+    { rewrite /spec_allow_store_map_or_true_imm.
       eexists true,p,g,b,e,a,w''.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument.
         by simplify_map_eq.
       }
-      rewrite /reg_allows_store_imm.
+      rewrite /spec_reg_allows_store_imm.
       by rewrite Hadd.
       }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
@@ -2041,11 +2371,11 @@ Lemma step_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w ds
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store_imm in H5.
+       rewrite /spec_reg_allows_store_imm in H5.
        destruct H5 as (? & Haddr & ? & Hbounds); simplify_map_eq.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
      }
     Qed.
 
@@ -2072,16 +2402,16 @@ Lemma step_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { rewrite /allow_store_map_or_true_imm.
+    { rewrite /spec_allow_store_map_or_true_imm.
       eexists true,p,g,b,e,a,_.
       split.
-      { rewrite /read_reg_inr.
+      { rewrite /spec_read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_eq.
       }
       split.
       { rewrite /word_of_argument. eauto.
       }
-      rewrite /reg_allows_store_imm.
+      rewrite /spec_reg_allows_store_imm.
       by rewrite Hadd.
       }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
@@ -2090,11 +2420,11 @@ Lemma step_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store_imm in H2.
+       rewrite /spec_reg_allows_store_imm in H2.
        destruct H2 as (? & Haddr & ? & Hbounds); simplify_map_eq.
      }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; by iModIntro; iFrame.
      }
     Qed.
 
@@ -2214,7 +2544,7 @@ Lemma step_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_neq_implies_allow_store_map_imm with (a := a) (ea := ea); eauto.
+    { eapply spec_mem_neq_implies_allow_store_map_imm with (a := a) (ea := ea); eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -2225,13 +2555,13 @@ Lemma step_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
        destruct H3 as [Hrr2 [Hadd2 _]]. simplify_map_eq.
        rewrite insert_insert_ne // insert_insert_eq.
        iDestruct (spec_memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hdst]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
 
      }
     Qed.
@@ -2263,7 +2593,7 @@ Lemma step_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
 
     iMod (step_store_imm _ pc_p pc_g with "[$Hctx $Hj $Hmap $Hmem]") as "H"; eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { eapply mem_eq_implies_allow_store_map_imm; eauto.
+    { eapply spec_mem_eq_implies_allow_store_map_imm; eauto.
       all: by simplify_map_eq. }
     iDestruct "H" as (retv regs' mem') "(Hj & #Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
@@ -2273,13 +2603,13 @@ Lemma step_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
        iModIntro.
        destruct H2 as [? [Hadd2 _]]; simplify_map_eq.
        rewrite spec_memMap_resource_1.
-       incrementPC_inv.
+       spec_incrementPC_inv.
        simplify_map_eq.
        rewrite !insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
        all: iFrame. }
      { (* Failure (contradiction) *)
-       destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
+       destruct X; try spec_incrementPC_inv; simplify_map_eq; eauto; try congruence; try (destruct o; congruence).
 
      }
    Qed.

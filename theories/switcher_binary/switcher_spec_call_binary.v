@@ -18,7 +18,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -49,7 +49,7 @@ Section Switcher.
               ∗ StackOpenWorldResources interp W2 C (finz.seq_between (a_stk ^+ 4)%a e_stk) stk_mem_h stk_mem_h_spec
               ∗ cstack_frag (map fst stk)
               ∗ cstack_frag_spec (map snd stk)
-              ∗ ([∗ list] a ∈ (finz.seq_between (a_stk ^+ 4)%a e_stk), ⌜ std W2 !! a = Some Temporary ⌝ )
+              ∗ ([∗ list] a ∈ (finz.seq_between (a_stk ^+ 4)%a e_stk), ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ᵣ updatePcPerm wcra_caller.1
               ∗ PC ↣ᵣ updatePcPerm wcra_caller.2
               (* cgp is restored, cra points to the next  *)
@@ -358,7 +358,7 @@ Section Switcher.
               ∗ StackOpenWorldResources interp W2 C callee_stk_region stk_mem_h stk_mem_h_spec
               ∗ cstack_frag (map fst stk)
               ∗ cstack_frag_spec (map snd stk)
-              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ᵣ updatePcPerm wcra_caller.1
               ∗ PC ↣ᵣ updatePcPerm wcra_caller.2
               (* cgp is restored, cra points to the next  *)
@@ -712,7 +712,7 @@ Section Switcher.
             ∗ RevokedResources W2 C l'
             ∗ ⌜ revoked_addresses (revoke W2) l' ⌝
             ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
@@ -874,7 +874,7 @@ Section Switcher.
             ∗ RevokedResources W2 C l'
             ∗ ⌜ revoked_addresses (revoke W2) l' ⌝
             ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
@@ -998,7 +998,7 @@ Section Switcher.
             ∗ RevokedResources W2 C l'
             ∗ ⌜ revoked_addresses (revoke W2) l' ⌝
             ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝

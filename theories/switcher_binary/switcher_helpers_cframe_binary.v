@@ -16,7 +16,7 @@ Section switcher_helpers_cframe.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -225,8 +225,8 @@ Section switcher_helpers_cframe.
     (b_stk <= csp_b ^+ -4)%a ->
     ((csp_b ^+ -4) ^+ 3 < csp_e)%a ->
     (csp_b ^+ -4 + 4)%a = Some a_stk4 ->
-    (∀ a : finz MemNum, std W0 !! a = Some Temporary → a ∈ l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : Addr, a ∈ finz.seq_between b_stk csp_e → std W0 !! a = Some Temporary) ->
+    (∀ a : finz MemNum, std W0 !! LNonHeap a = Some Temporary → a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : Addr, a ∈ finz.seq_between b_stk csp_e → std W0 !! LNonHeap a = Some Temporary) ->
     ∃ l', l ≡ₚ [(csp_b ^+ -4)%a; ((csp_b ^+ -4) ^+ 1)%a; ((csp_b ^+ -4) ^+ 2)%a; ((csp_b ^+ -4) ^+ 3)%a] ++ l'.
   Proof.
     intros Hb_a4 He_a1 Ha_stk4 Htemp_revoked Hstk_tmp.
@@ -318,7 +318,7 @@ Section switcher_helpers_cframe.
     ((csp_b ^+ -4) ^+ 3 < csp_e)%a ->
     (csp_b ^+ -4 + 4)%a = Some a_stk4 ->
 
-    (∀ a : finz MemNum, std W0 !! a = Some Temporary → a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, std W0 !! LNonHeap a = Some Temporary → a ∈ l ++ finz.seq_between csp_b csp_e) ->
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
     related_sts_pub_world W0 Wfixed ->
 
@@ -392,7 +392,7 @@ Section switcher_helpers_cframe.
       done.
     * cbn.
       iAssert
-        (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk csp_e) → (std W0 !! a) = Some Temporary ⌝)%I
+        (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk csp_e) → (std W0 !! LNonHeap a) = Some Temporary ⌝)%I
         as "%Hstk_tmp".
       {
         iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto.

@@ -13,11 +13,99 @@ Section spec_rules.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
+  (** Physical spec-side outcomes, for the spec run. *)
+
+  Inductive spec_Subseg_failure  (regs: Reg) (dst: RegName) (src1 src2: Z + RegName) : Reg → Prop :=
+  | spec_Subseg_fail_allowed w :
+      regs !!ᵣ dst = Some w →
+      is_mutable_range w = false →
+      spec_Subseg_failure regs dst src1 src2 regs
+  | spec_Subseg_fail_src1_nonz :
+      z_of_argument regs src1 = None →
+      spec_Subseg_failure regs dst src1 src2 regs
+  | spec_Subseg_fail_src2_nonz :
+      z_of_argument regs src2 = None →
+      spec_Subseg_failure regs dst src1 src2 regs
+  | spec_Subseg_fail_incrPC_cap (t : bool) p g b e a n1 n2 a1 a2 :
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      z_to_addr n1 = Some a1 →
+      z_to_addr n2 = Some a2 →
+      spec_incrementPC (<[ dst := WCap (t && isWithin a1 a2 b e && (a1 <=? a2)%a) p g a1 a2 a ]ᵣ> regs) = None →
+      spec_Subseg_failure regs dst src1 src2 regs
+  | spec_Subseg_fail_incrPC_unrepresentable_cap (t : bool) p g b e a n1 n2 :
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      (z_to_addr n1 = None ∨ z_to_addr n2 = None) →
+      spec_incrementPC (<[ dst := WCap false p g b e a ]ᵣ> regs) = None →
+      spec_Subseg_failure regs dst src1 src2 regs
+  | spec_Subseg_fail_incrPC_sr (t : bool) p g b e a n1 n2 a1 a2 :
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      z_to_otype n1 = Some a1 →
+      z_to_otype n2 = Some a2 →
+      spec_incrementPC (<[ dst := WSealRange (t && isWithin a1 a2 b e) p g a1 a2 a ]ᵣ> regs) = None →
+      spec_Subseg_failure regs dst src1 src2 regs
+  | spec_Subseg_fail_incrPC_unrepresentable_sr (t : bool) p g b e a n1 n2 :
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      (z_to_otype n1 = None ∨ z_to_otype n2 = None) →
+      spec_incrementPC (<[ dst := WSealRange false p g b e a ]ᵣ> regs) = None →
+      spec_Subseg_failure regs dst src1 src2 regs.
+
+  (* Both operands must be integers. If either endpoint cannot be represented,
+     the instruction clears the tag and preserves both original endpoints. *)
+
+  Inductive spec_Subseg_spec (regs : Reg) (dst : RegName)
+      (src1 src2 : Z + RegName) (regs' : Reg) : griotte_lang.val → Prop :=
+  | spec_Subseg_spec_success_cap (t : bool) p g b e a n1 n2 a1 a2 :
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      z_to_addr n1 = Some a1 →
+      z_to_addr n2 = Some a2 →
+      spec_incrementPC (<[ dst := WCap (t && isWithin a1 a2 b e && (a1 <=? a2)%a) p g a1 a2 a ]ᵣ> regs) = Some regs' →
+      spec_Subseg_spec regs dst src1 src2 regs' NextIV
+  | spec_Subseg_spec_unrepresentable_cap (t : bool) p g b e a n1 n2 :
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      (z_to_addr n1 = None ∨ z_to_addr n2 = None) →
+      spec_incrementPC (<[ dst := WCap false p g b e a ]ᵣ> regs) = Some regs' →
+      spec_Subseg_spec regs dst src1 src2 regs' NextIV
+  | spec_Subseg_spec_success_sr (t : bool) p g b e a n1 n2 a1 a2 :
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      z_to_otype n1 = Some a1 →
+      z_to_otype n2 = Some a2 →
+      spec_incrementPC (<[ dst := WSealRange (t && isWithin a1 a2 b e) p g a1 a2 a ]ᵣ> regs) = Some regs' →
+      spec_Subseg_spec regs dst src1 src2 regs' NextIV
+  | spec_Subseg_spec_unrepresentable_sr (t : bool) p g b e a n1 n2 :
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      (z_to_otype n1 = None ∨ z_to_otype n2 = None) →
+      spec_incrementPC (<[ dst := WSealRange false p g b e a ]ᵣ> regs) = Some regs' →
+      spec_Subseg_spec regs dst src1 src2 regs' NextIV
+  | spec_Subseg_spec_failure :
+      spec_Subseg_failure regs dst src1 src2 regs' →
+      spec_Subseg_spec regs dst src1 src2 regs' FailedV.
+
   Lemma Subseg_spec_determ regs dst src1 src2 regs1 regs2 v1 v2 :
-    Subseg_spec regs dst src1 src2 regs1 v1 →
-    Subseg_spec regs dst src1 src2 regs2 v2 →
+    spec_Subseg_spec regs dst src1 src2 regs1 v1 →
+    spec_Subseg_spec regs dst src1 src2 regs2 v2 →
     v1 = v2 ∧ (v1 = NextIV → regs1 = regs2).
-  Proof. solve_spec_determ Subseg_failure. Qed.
+  Proof. solve_spec_determ spec_Subseg_failure. Qed.
+
+  Lemma Subseg_spec_lift regs dst src1 src2 lregs' v :
+    Subseg_spec (lift_regs regs) dst src1 src2 lregs' v →
+    ∃ regs', (v = NextIV → lregs' = lift_regs regs') ∧ spec_Subseg_spec regs dst src1 src2 regs' v.
+  Proof. spec_lift Subseg_failure regs. Qed.
 
   Lemma step_Subseg Ep pc_p pc_g pc_b pc_e pc_a w dst src1 src2 regs :
     ↑specN ⊆ Ep →
@@ -32,13 +120,13 @@ Section spec_rules.
     ={Ep}=∗
     ∃ retv regs',
       ⤇ Seq (of_val retv) ∗
-      ⌜ Subseg_spec regs dst src1 src2 regs' retv ⌝ ∗
+      ⌜ spec_Subseg_spec regs dst src1 src2 regs' retv ⌝ ∗
       pc_a ↣ₐ w ∗
       [∗ map] k↦y ∈ regs', k ↣ᵣ y.
   Proof.
     iIntros (HE Hinstr Hvpc HPC Dregs) "(#Hctx & Hj & Hpc_a & Hmap)".
     iApply (spec_step_exec_1 with "Hctx Hj"); first done.
-    iIntros (Φ) "Hφ". iIntros ([[r sr] m] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
+    iIntros (Φ) "Hφ". iIntros ([[[r sr] m] st] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
     iDestruct (spec_regs_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (spec_mem_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -53,11 +141,11 @@ Section spec_rules.
     destruct (is_mutable_range wdst) eqn:Hwdst.
      2: { (* Failure: wdst is not of the right type *)
        unfold is_mutable_range in Hwdst.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct wdst as [ | [t p b e a | ] | | ]; try by inversion Hwdst.
          all: try by simplify_pair_eq.
          all: repeat destruct (addr_of_argument r _); cbn in *; simplify_pair_eq; auto. }
-       iFailWP "Hφ" Subseg_fail_allowed. }
+       iFailWP "Hφ" spec_Subseg_fail_allowed. }
 
     (* Both supported forms read the integer operands before conversion. *)
     assert (Hz1 : z_of_argument regs src1 = z_of_argument r src1).
@@ -69,52 +157,52 @@ Section spec_rules.
       destruct (Hri rn) as [wv [Hwv Hwv']]; first (unfold regs_of_argument; set_solver+).
       by rewrite /z_of_argument Hwv Hwv'. }
     destruct (z_of_argument regs src1) as [n1 |] eqn:Hn1.
-    2: { assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+    2: { assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
          { destruct_word wdst; cbn in Hwdst; try discriminate;
            rewrite -Hz1 /= in Hstep; by simplify_pair_eq. }
-         iFailWP "Hφ" Subseg_fail_src1_nonz. }
+         iFailWP "Hφ" spec_Subseg_fail_src1_nonz. }
     destruct (z_of_argument regs src2) as [n2 |] eqn:Hn2.
-    2: { assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+    2: { assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
          { destruct_word wdst; cbn in Hwdst; try discriminate;
            rewrite -Hz1 -Hz2 /= in Hstep; by simplify_pair_eq. }
-         iFailWP "Hφ" Subseg_fail_src2_nonz. }
+         iFailWP "Hφ" spec_Subseg_fail_src2_nonz. }
 
     assert (∃ w',
-        (∀ regs', incrementPC (<[dst := w']ᵣ> regs) = Some regs' →
-          Subseg_spec regs dst src1 src2 regs' NextIV) ∧
-        (incrementPC (<[dst := w']ᵣ> regs) = None →
-          Subseg_failure regs dst src1 src2 regs) ∧
-        (match updatePC (update_reg (r, sr, m) dst w') with
-         | Some conf => conf | None => (Failed, (r, sr, m)) end) = (c, σ2)) as (w' & Hsuccess & Hfailure & Hupdate).
+        (∀ regs', spec_incrementPC (<[dst := w']ᵣ> regs) = Some regs' →
+          spec_Subseg_spec regs dst src1 src2 regs' NextIV) ∧
+        (spec_incrementPC (<[dst := w']ᵣ> regs) = None →
+          spec_Subseg_failure regs dst src1 src2 regs) ∧
+        (match updatePC (update_reg (r, sr, m, st) dst w') with
+         | Some conf => conf | None => (Failed, (r, sr, m, st)) end) = (c, σ2)) as (w' & Hsuccess & Hfailure & Hupdate).
     { destruct wdst as [ | [t p g b e a | t p g b e a] | | ];
         try discriminate Hwdst.
       - rewrite -Hz1 -Hz2 /= in Hstep.
         destruct (z_to_addr n1) as [a1 |] eqn:Ha1;
           destruct (z_to_addr n2) as [a2 |] eqn:Ha2;
           eexists; (split; [|split; [|exact Hstep]]); intros.
-        all: first [solve [eapply Subseg_spec_success_cap; eauto]
-                    | solve [eapply Subseg_spec_unrepresentable_cap; eauto]
-                    | solve [eapply Subseg_fail_incrPC_cap; eauto]
-                    | solve [eapply Subseg_fail_incrPC_unrepresentable_cap; eauto]].
+        all: first [solve [eapply spec_Subseg_spec_success_cap; eauto]
+                    | solve [eapply spec_Subseg_spec_unrepresentable_cap; eauto]
+                    | solve [eapply spec_Subseg_fail_incrPC_cap; eauto]
+                    | solve [eapply spec_Subseg_fail_incrPC_unrepresentable_cap; eauto]].
       - rewrite -Hz1 -Hz2 /= in Hstep.
         destruct (z_to_otype n1) as [a1 |] eqn:Ha1;
           destruct (z_to_otype n2) as [a2 |] eqn:Ha2;
           eexists; (split; [|split; [|exact Hstep]]); intros.
-        all: first [solve [eapply Subseg_spec_success_sr; eauto]
-                    | solve [eapply Subseg_spec_unrepresentable_sr; eauto]
-                    | solve [eapply Subseg_fail_incrPC_sr; eauto]
-                    | solve [eapply Subseg_fail_incrPC_unrepresentable_sr; eauto]]. }
+        all: first [solve [eapply spec_Subseg_spec_success_sr; eauto]
+                    | solve [eapply spec_Subseg_spec_unrepresentable_sr; eauto]
+                    | solve [eapply spec_Subseg_fail_incrPC_sr; eauto]
+                    | solve [eapply spec_Subseg_fail_incrPC_unrepresentable_sr; eauto]]. }
     clear Hstep. rename Hupdate into Hstep.
     rewrite /update_reg /= in Hstep.
-    destruct (incrementPC (<[ dst := w' ]ᵣ> regs)) as [regs' |] eqn:Hregs'.
-    2: { assert (incrementPC (<[ dst := w' ]ᵣ> r) = None) as HH.
-         { eapply incrementPC_overflow_mono; first exact Hregs'.
+    destruct (spec_incrementPC (<[ dst := w' ]ᵣ> regs)) as [regs' |] eqn:Hregs'.
+    2: { assert (spec_incrementPC (<[ dst := w' ]ᵣ> r) = None) as HH.
+         { eapply spec_incrementPC_overflow_mono; first exact Hregs'.
            - by rewrite lookup_insert_is_Some'; eauto.
            - by apply insert_mono. }
-         apply (incrementPC_fail_updatePC _ sr m) in HH.
+         apply (spec_incrementPC_fail_updatePC _ sr m st) in HH.
          rewrite HH in Hstep. inversion Hstep; subst c σ2.
          iFailWP "Hφ" Hfailure. }
-    eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+    eapply (spec_incrementPC_success_updatePC _ sr m st) in Hregs'
       as (t' & p' & g' & b' & e' & a' & a_pc' & HPC' & Ha_pc' & HuPC & ->).
     eapply updatePC_success_incl in HuPC; last by eapply insert_mono.
     rewrite HuPC in Hstep. inversion Hstep; subst c σ2. cbn.
@@ -133,6 +221,7 @@ Section spec_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
@@ -152,7 +241,8 @@ Section spec_rules.
     r2 ↣ᵣ WInt n2 ∗
     dst ↣ᵣ WCap t p g a1 a2 a.
   Proof.
-    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' Hcnull Hcnull' Hcnull'') "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr1 & Hr2)".
+    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' Hcnull Hcnull' Hcnull'') "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr1 & Hr2)".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -167,16 +257,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
             (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
@@ -209,6 +299,7 @@ Section spec_rules.
     dst ↣ᵣ WCap t p g a1 a1 a.
   Proof.
     iIntros (HE Hinstr Hvpc Hn1 Hwb Hpc_a' ??) "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr1)".
+    assert (Hle' : (a1 <=? a1)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -223,16 +314,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
             (insert_insert_ne _ PC dst) // insert_insert_eq.
@@ -247,6 +338,7 @@ Section spec_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r2 ≠ cnull ->
@@ -264,7 +356,8 @@ Section spec_rules.
     r2 ↣ᵣ WInt n2 ∗
     dst ↣ᵣ WCap t p g a1 a2 a.
   Proof.
-    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ??) "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr2)".
+    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ??) "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr2)".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -279,16 +372,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
             (insert_insert_ne _ PC dst) // insert_insert_eq.
@@ -303,6 +396,7 @@ Section spec_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
@@ -320,7 +414,8 @@ Section spec_rules.
     r1 ↣ᵣ WInt n1 ∗
     dst ↣ᵣ WCap t p g a1 a2 a.
   Proof.
-    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ??) "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr1)".
+    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ??) "(#Hctx & Hj & HPC & Hpc_a & Hdst & Hr1)".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -335,16 +430,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
             (insert_insert_ne _ PC dst) // insert_insert_eq.
@@ -359,6 +454,7 @@ Section spec_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
 
@@ -373,7 +469,8 @@ Section spec_rules.
     pc_a ↣ₐ w ∗
     dst ↣ᵣ WCap t p g a1 a2 a.
   Proof.
-    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?) "(#Hctx & Hj & HPC & Hpc_a & Hdst)".
+    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ?) "(#Hctx & Hj & HPC & Hpc_a & Hdst)".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -388,16 +485,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq insert_insert_ne // insert_insert_eq.
     iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
@@ -411,6 +508,7 @@ Section spec_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
@@ -428,7 +526,8 @@ Section spec_rules.
     r1 ↣ᵣ WInt n1 ∗
     r2 ↣ᵣ WInt n2.
   Proof.
-    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ??) "(#Hctx & Hj & HPC & Hpc_a & Hr1 & Hr2)".
+    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ??) "(#Hctx & Hj & HPC & Hpc_a & Hr1 & Hr2)".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -443,16 +542,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite !insert_insert_eq.
     iDestruct (spec_regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame.
@@ -481,6 +580,7 @@ Section spec_rules.
     r1 ↣ᵣ WInt n1.
   Proof.
     iIntros (HE Hinstr Hvpc Hn1 Hwb Hpc_a' ?) "(#Hctx & Hj & HPC & Hpc_a & Hr1)".
+    assert (Hle' : (a1 <=? a1)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -495,16 +595,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
     iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
@@ -518,6 +618,7 @@ Section spec_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     r2 ≠ cnull ->
 
@@ -532,7 +633,8 @@ Section spec_rules.
     pc_a ↣ₐ w ∗
     r2 ↣ᵣ WInt n2.
   Proof.
-    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?) "(#Hctx & Hj & HPC & Hpc_a & Hr2)".
+    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ?) "(#Hctx & Hj & HPC & Hpc_a & Hr2)".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -547,16 +649,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC r2) // insert_insert_eq insert_insert_ne // insert_insert_eq.
     iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
@@ -570,6 +672,7 @@ Section spec_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
@@ -584,7 +687,8 @@ Section spec_rules.
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1.
   Proof.
-    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?) "(#Hctx & Hj & HPC & Hpc_a & Hr1)".
+    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ?) "(#Hctx & Hj & HPC & Hpc_a & Hr1)".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -599,16 +703,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
     iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
@@ -622,6 +726,7 @@ Section spec_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
 
     spec_ctx ∗
@@ -633,7 +738,8 @@ Section spec_rules.
     PC ↣ᵣ WCap true pc_p pc_g a1 a2 pc_a' ∗
     pc_a ↣ₐ w.
   Proof.
-    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a') "(#Hctx & Hj & HPC & Hpc_a)".
+    iIntros (HE Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a') "(#Hctx & Hj & HPC & Hpc_a)".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (spec_map_of_regs_1 with "HPC") as "Hmap".
     iMod (step_Subseg with "[$Hctx $Hj $Hmap $Hpc_a]") as "H"; eauto; simplify_map_eq; eauto.
     iDestruct "H" as (retv regs') "(Hj & %Hspec & Hpc_a & Hmap)".
@@ -647,16 +753,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite !insert_insert_eq.
     iDestruct (spec_regs_of_map_1 with "Hmap") as "?"; eauto; iFrame.
@@ -704,16 +810,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
         rewrite Hwb ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
     rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
             (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
@@ -760,16 +866,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
         rewrite Hwb ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
     rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
             (insert_insert_ne _ PC dst) // insert_insert_eq.
@@ -816,16 +922,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
         rewrite Hwb ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
     rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
             (insert_insert_ne _ PC dst) // insert_insert_eq.
@@ -872,16 +978,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
         rewrite Hwb ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
     rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
             (insert_insert_ne _ PC dst) // insert_insert_eq.
@@ -925,16 +1031,16 @@ Section spec_rules.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
       end.
-      match goal with Hincr : incrementPC _ = None |- _ =>
+      match goal with Hincr : spec_incrementPC _ = None |- _ =>
         rewrite Hwb ?andb_true_r in Hincr
       end.
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
     rewrite Hwb ?andb_true_r in Hincr.
-    iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+    iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
     unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq insert_insert_ne // insert_insert_eq.
     iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
@@ -954,8 +1060,8 @@ Section spec_rules.
     z_of_argument regs src2 = Some n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
-    incrementPC (<[ dst := WCap false p g a1 a2 a ]ᵣ> regs) = Some regs' →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
+    spec_incrementPC (<[ dst := WCap false p g a1 a2 a ]ᵣ> regs) = Some regs' →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     pc_a ↣ₐ w ∗ ([∗ map] k↦y ∈ regs, k ↣ᵣ y)
@@ -969,8 +1075,8 @@ Section spec_rules.
     destruct Hspec as [ | | | | Hfail]; simplify_eq.
     all: try (destruct Hfail; simplify_eq).
     all: repeat match goal with
-    | H : context [_ && isWithin _ _ _ _] |- _ =>
-      rewrite Hwithin andb_false_r in H
+    | H : context [_ && isWithin _ _ _ _ && _] |- _ =>
+      rewrite -andb_assoc Hwithin andb_false_r in H
     end.
     all: try match goal with H : _ ∨ _ |- _ => destruct H; congruence end.
     all: try (cbn in *; congruence).
@@ -988,7 +1094,7 @@ Section spec_rules.
     z_of_argument regs src1 = Some n1 →
     z_of_argument regs src2 = Some n2 →
     (z_to_addr n1 = None ∨ z_to_addr n2 = None) →
-    incrementPC (<[ dst := WCap false p g b e a ]ᵣ> regs) = Some regs' →
+    spec_incrementPC (<[ dst := WCap false p g b e a ]ᵣ> regs) = Some regs' →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     pc_a ↣ₐ w ∗ ([∗ map] k↦y ∈ regs, k ↣ᵣ y)
@@ -1020,7 +1126,7 @@ Section spec_rules.
     z_to_otype n1 = Some a1 →
     z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = false →
-    incrementPC (<[ dst := WSealRange false p g a1 a2 a ]ᵣ> regs) = Some regs' →
+    spec_incrementPC (<[ dst := WSealRange false p g a1 a2 a ]ᵣ> regs) = Some regs' →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     pc_a ↣ₐ w ∗ ([∗ map] k↦y ∈ regs, k ↣ᵣ y)
@@ -1053,7 +1159,7 @@ Section spec_rules.
     z_of_argument regs src1 = Some n1 →
     z_of_argument regs src2 = Some n2 →
     (z_to_otype n1 = None ∨ z_to_otype n2 = None) →
-    incrementPC (<[ dst := WSealRange false p g b e a ]ᵣ> regs) = Some regs' →
+    spec_incrementPC (<[ dst := WSealRange false p g b e a ]ᵣ> regs) = Some regs' →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     pc_a ↣ₐ w ∗ ([∗ map] k↦y ∈ regs, k ↣ᵣ y)
@@ -1080,7 +1186,7 @@ Section spec_rules.
     dst ≠ cnull →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -1099,7 +1205,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1132,7 +1238,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1150,7 +1256,7 @@ Section spec_rules.
     (if decide (r2 = cnull) then WInt 0 else w2) = WInt n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -1173,7 +1279,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1212,7 +1318,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1230,7 +1336,7 @@ Section spec_rules.
     (if decide (r1 = cnull) then WInt 0 else w1) = WInt n1 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -1253,7 +1359,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1292,7 +1398,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1311,7 +1417,7 @@ Section spec_rules.
     (if decide (r2 = cnull) then WInt 0 else w2) = WInt n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -1336,7 +1442,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1378,7 +1484,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1395,7 +1501,7 @@ Section spec_rules.
     dst ≠ cnull →
     (if decide (r1 = cnull) then WInt 0 else w1) = WInt n1 →
     z_to_addr n1 = Some a1 →
-    isWithin a1 a1 b e = false →
+    isWithin a1 a1 b e && (a1 <=? a1)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -1418,7 +1524,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1457,7 +1563,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1492,7 +1598,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1525,7 +1631,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1566,7 +1672,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1605,7 +1711,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1646,7 +1752,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1685,7 +1791,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1729,7 +1835,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1771,7 +1877,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1811,7 +1917,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1850,7 +1956,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1865,7 +1971,7 @@ Section spec_rules.
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 pc_b pc_e = false →
+    isWithin a1 a2 pc_b pc_e && (a1 <=? a2)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -1882,7 +1988,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1912,7 +2018,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1928,7 +2034,7 @@ Section spec_rules.
     (if decide (r2 = cnull) then WInt 0 else w2) = WInt n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 pc_b pc_e = false →
+    isWithin a1 a2 pc_b pc_e && (a1 <=? a2)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -1947,7 +2053,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1980,7 +2086,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -1996,7 +2102,7 @@ Section spec_rules.
     (if decide (r1 = cnull) then WInt 0 else w1) = WInt n1 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 pc_b pc_e = false →
+    isWithin a1 a2 pc_b pc_e && (a1 <=? a2)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -2015,7 +2121,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -2048,7 +2154,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -2066,7 +2172,7 @@ Section spec_rules.
     (if decide (r2 = cnull) then WInt 0 else w2) = WInt n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 pc_b pc_e = false →
+    isWithin a1 a2 pc_b pc_e && (a1 <=? a2)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -2089,7 +2195,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -2127,7 +2233,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -2142,7 +2248,7 @@ Section spec_rules.
     (pc_a + 1)%a = Some pc_a' →
     (if decide (r1 = cnull) then WInt 0 else w1) = WInt n1 →
     z_to_addr n1 = Some a1 →
-    isWithin a1 a1 pc_b pc_e = false →
+    isWithin a1 a1 pc_b pc_e && (a1 <=? a1)%a = false →
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -2161,7 +2267,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
@@ -2194,7 +2300,7 @@ Section spec_rules.
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+    - rewrite /spec_incrementPC /spec_incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
       rewrite !lookup_insert; repeat case_decide; simplify_eq; done.

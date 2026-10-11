@@ -87,7 +87,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -138,7 +138,7 @@ Section fundamental.
     → PermFlowsTo p p'
     → (persistent_cond P)
     → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
-    → std W !! a = Some ρ
+    → std W !! LNonHeap a = Some ρ
     → ρ ≠ Revoked
     → Pinstr
     -> ftlr_IH

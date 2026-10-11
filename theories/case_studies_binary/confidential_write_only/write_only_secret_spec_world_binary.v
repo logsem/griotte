@@ -25,7 +25,7 @@ Section Write_only_pred.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -59,7 +59,7 @@ Section Write_only_pred.
   Qed.
 
   Lemma monoReq_write_only_pred W C a :
-    std W !! a = Some Permanent →
+    std W !! LNonHeap a = Some Permanent →
     ⊢ monoReq W C a WO write_only_pred.
   Proof.
     intros Ha.
@@ -77,7 +77,7 @@ Section Write_only_pred.
       [write_only_pred] is safe to share. *)
   Lemma interp_write_only_cap W C (a a' : Addr) :
     (a + 1)%a = Some a' →
-    std W !! a = Some Permanent →
+    std W !! LNonHeap a = Some Permanent →
     rel C a WO (safeC write_only_pred) -∗
     interp W C (WCap true WO Global a a' a, WCap true WO Global a a' a).
   Proof.
@@ -104,7 +104,7 @@ Section Write_only_secret_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}

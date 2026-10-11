@@ -16,11 +16,43 @@ Section spec_rules.
   Implicit Types sreg : gmap SRegName Word.
   Implicit Types ms : gmap Addr Word.
 
+  (** Physical spec-side outcomes, for the spec run. *)
+
+  Inductive spec_ReadSR_failure (regs: Reg) (sregs : SReg) (dst: RegName) (src: SRegName) :=
+  | spec_ReadSR_fail_nonxrs p g b e a:
+      regs !! PC = Some (WCap true p g b e a) →
+      has_sreg_access p = false ->
+      spec_ReadSR_failure regs sregs dst src
+  | spec_ReadSR_fail_incrPC p g b e a w:
+      regs !! PC = Some (WCap true p g b e a) →
+      sregs !! src = Some w →
+      spec_incrementPC (<[ dst := w ]ᵣ> regs) = None →
+      spec_ReadSR_failure regs sregs dst src
+  .
+
+  Inductive spec_ReadSR_spec
+  (regs: Reg) (sregs: SReg) (dst: RegName) (src: SRegName) (regs': Reg)
+    : griotte_lang.val -> Prop :=
+  | spec_ReadSR_spec_success p g b e a w:
+      regs !! PC = Some (WCap true p g b e a) →
+      has_sreg_access p = true ->
+      sregs !! src = Some w →
+      spec_incrementPC (<[ dst := w ]ᵣ> regs) = Some regs' →
+      spec_ReadSR_spec regs sregs dst src regs' NextIV
+  | spec_ReadSR_spec_failure:
+      spec_ReadSR_failure regs sregs dst src →
+      spec_ReadSR_spec regs sregs dst src regs' FailedV.
+
   Lemma ReadSR_spec_determ regs sregs dst src regs1 regs2 v1 v2 :
-    ReadSR_spec regs sregs dst src regs1 v1 →
-    ReadSR_spec regs sregs dst src regs2 v2 →
+    spec_ReadSR_spec regs sregs dst src regs1 v1 →
+    spec_ReadSR_spec regs sregs dst src regs2 v2 →
     v1 = v2 ∧ (v1 = NextIV → regs1 = regs2).
-  Proof. solve_spec_determ ReadSR_failure. Qed.
+  Proof. solve_spec_determ spec_ReadSR_failure. Qed.
+
+  Lemma ReadSR_spec_lift regs sregs dst src lregs' v :
+    ReadSR_spec (lift_regs regs) sregs dst src lregs' v →
+    ∃ regs', (v = NextIV → lregs' = lift_regs regs') ∧ spec_ReadSR_spec regs sregs dst src regs' v.
+  Proof. spec_lift ReadSR_failure regs. Qed.
 
   Lemma step_ReadSR Ep pc_p pc_g pc_b pc_e pc_a w dst src regs sregs :
     ↑specN ⊆ Ep →
@@ -39,14 +71,14 @@ Section spec_rules.
     ={Ep}=∗
     ∃ retv regs',
       ⤇ Seq (of_val retv) ∗
-      ⌜ ReadSR_spec regs sregs dst src regs' retv ⌝ ∗
+      ⌜ spec_ReadSR_spec regs sregs dst src regs' retv ⌝ ∗
       pc_a ↣ₐ w ∗
       ([∗ map] k↦y ∈ regs', k ↣ᵣ y) ∗
       ([∗ map] k↦y ∈ sregs, k ↣ₛᵣ y).
   Proof.
     iIntros (HE Hinstr Hvpc HPC Dregs Dsregs) "(#Hctx & Hj & Hpc_a & Hmap & Hsmap)".
     iApply (spec_step_exec_1 with "Hctx Hj"); first done.
-    iIntros (Φ) "Hφ". iIntros ([[r sr] m] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
+    iIntros (Φ) "Hφ". iIntros ([[[r sr] m] st] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
     iDestruct (spec_regs_valid_inclSepM with "Hr Hmap") as %Hregs.
     iDestruct (spec_sregs_valid_inclSepM with "Hsr Hsmap") as %Hsregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
@@ -60,29 +92,29 @@ Section spec_rules.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep.
       simplify_eq.
-      iFailWP "Hφ" ReadSR_fail_nonxrs.
+      iFailWP "Hφ" spec_ReadSR_fail_nonxrs.
     }
 
     specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
     destruct (Hsri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
 
-    assert (exec_opt (ReadSR dst src) pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst wsrc)) as HH.
+    assert (exec_opt (ReadSR dst src) pc_p (r, sr, m, st) = updatePC (update_reg (r, sr, m, st) dst wsrc)) as HH.
     { by cbn; rewrite Hsrc Hxsr /=. }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
-    destruct (incrementPC (<[ dst := wsrc ]ᵣ> regs)) as [regs'|] eqn:Hregs'
+    destruct (spec_incrementPC (<[ dst := wsrc ]ᵣ> regs)) as [regs'|] eqn:Hregs'
     ; pose proof Hregs' as H'regs'; cycle 1.
-    { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in Hregs'.
-      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) in Hregs'.
+    { apply spec_incrementPC_fail_updatePC with (sregs:=sr) (m:=m) (shadow:=st) in Hregs'.
+      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) (shadow':=st) in Hregs'.
       2: by apply lookup_insert_is_Some'; eauto.
       2: by apply insert_mono; eauto.
       rewrite Hregs' in Hstep. simplify_pair_eq.
-      iFailWP "Hφ" ReadSR_fail_incrPC.
+      iFailWP "Hφ" spec_ReadSR_fail_incrPC.
     }
 
-    eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+    eapply (spec_incrementPC_success_updatePC _ sr m st) in Hregs'
       as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-    eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
+    eapply updatePC_success_incl with (sregs':=sr) (m':=m) (shadow':=st) in HuPC. 2: by eapply insert_mono; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((spec_regs_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     { apply is_Some_lookup_reg; done. }
@@ -120,7 +152,7 @@ Section spec_rules.
 
     destruct Hspec as [| Hfail].
     { (* Success *)
-      iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+      iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
       rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ PC dst) // insert_insert_eq.
       iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
       iDestruct (spec_sregs_of_map_1 with "Hsmap") as "?"; eauto; iFrame.
@@ -128,7 +160,7 @@ Section spec_rules.
     { (* Failure (contradiction) *)
       destruct Hfail.
       - simplify_map_eq; eauto; congruence.
-      - incrementPC_inv; simplify_map_eq; eauto.
+      - spec_incrementPC_inv; simplify_map_eq; eauto.
         congruence.
     }
   Qed.
@@ -159,7 +191,7 @@ Section spec_rules.
 
     destruct Hspec as [|Hfail].
     { (* Success *)
-      iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+      iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
       rewrite !insert_insert_eq.
       iDestruct (spec_regs_of_map_1 with "Hmap") as "?"; eauto; iFrame.
       iDestruct (spec_sregs_of_map_1 with "Hsmap") as "?"; eauto; iFrame.
@@ -167,7 +199,7 @@ Section spec_rules.
     { (* Failure (contradiction) *)
       destruct Hfail.
       - simplify_map_eq; eauto; congruence.
-      - incrementPC_inv; simplify_map_eq; eauto.
+      - spec_incrementPC_inv; simplify_map_eq; eauto.
         congruence.
     }
   Qed.

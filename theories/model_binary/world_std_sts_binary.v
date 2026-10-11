@@ -35,15 +35,17 @@ Qed.
   exact (@prod_countable Word _ _ Word _ _) : typeclass_instances.
 
 (** The binary world records, for each otype, the set of pairs of words
-    (one word per run) sealed with that otype. *)
+    (one word per run) sealed with that otype. Its regions are keyed by
+    [LAddr], as in the unary world, but the binary model only uses non-heap
+    keys [LNonHeap a]; its heap stays empty. *)
 Notation SEAL_STD := (leibnizO (seals_std OType (Word * Word))).
-Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
-Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels) * (seals_std OType (Word * Word))) : Type).
+Notation WORLD := (prodO (prodO (prodO STS_STD STS) SEAL_STD) (leibnizO Heap)).
+Notation WorldT := (((STS_std_states LAddr region_type) * (STS_states * STS_rels) * (seals_std OType (Word * Word)) * Heap) : Type).
 
 Section world_standard_sts_mono_binary.
   Context {Σ:gFunctors}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
 

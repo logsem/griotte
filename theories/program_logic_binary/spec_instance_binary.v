@@ -51,7 +51,7 @@ Class specG Σ := SpecG {
 (** ** Sealed spec points-to *)
 
 Section definitions.
-  Context `{specg : specG Σ}.
+  Context `{MP: MachineParameters} `{specg : specG Σ}.
 
   Local Definition spec_reg_pointsto_def (r : RegName) (dq : dfrac) (w : Word) : iProp Σ :=
     pointsto (hG := spec_reg_heapG) r dq w.
@@ -84,16 +84,24 @@ Section definitions.
   Definition spec_res := spec_res_aux.(stdpp.base.unseal).
   Definition spec_res_unseal : @spec_res = @spec_res_def := spec_res_aux.(seal_eq).
 
-  (** Interpretation of the spec machine state. Same nesting as the unary
-      [state_interp], so that unary rule proofs can be replayed. *)
+  (** Interpretation of the spec machine state: the registers, system
+      registers and memory. The memory never contains a memory-mapped
+      address, so that a spec points-to is never the shadow table or the
+      revoker. The shadow table has an entry for every heap address, so that
+      the Load filter never fails; its contents are not tracked otherwise:
+      the spec rules never write it, and only load words that the filter
+      keeps unchanged. *)
+  Definition spec_shadow_ok (st : ShadowTbl) : Prop :=
+    ∀ a, is_heap_address a = true → is_Some (st !! a).
+
   Definition spec_regs_interp (regs : Reg) : iProp Σ :=
     gen_heap_interp (hG := spec_reg_heapG) regs.
   Definition spec_sregs_interp (sregs : SReg) : iProp Σ :=
     gen_heap_interp (hG := spec_sreg_heapG) sregs.
-  Definition spec_mem_interp (m : Mem) : iProp Σ :=
-    gen_heap_interp (hG := spec_mem_heapG) m.
+  Definition spec_mem_interp (m : Mem) (st : ShadowTbl) : iProp Σ :=
+    gen_heap_interp (hG := spec_mem_heapG) m ∗ ⌜mem_avoids_mmio m⌝ ∗ ⌜spec_shadow_ok st⌝.
   Definition spec_state_interp (σ : ExecConf) : iProp Σ :=
-    ((spec_regs_interp (reg σ) ∗ spec_sregs_interp (sreg σ)) ∗ spec_mem_interp (mem σ))%I.
+    ((spec_regs_interp (reg σ) ∗ spec_sregs_interp (sreg σ)) ∗ spec_mem_interp (mem σ) (shadowtbl σ))%I.
 
 End definitions.
 
@@ -118,7 +126,7 @@ Notation "⤇ e" := (spec_res e) (at level 20) : bi_scope.
 (** ** Spec points-to lemmas *)
 
 Section pointsto.
-  Context `{specg : specG Σ}.
+  Context `{MP: MachineParameters} `{specg : specG Σ}.
   Implicit Types r : RegName.
   Implicit Types sr : SRegName.
   Implicit Types a : Addr.
@@ -285,40 +293,70 @@ Section pointsto.
     ==∗ spec_sregs_interp (<[sr:=w]> sregs) ∗ [∗ map] k↦y ∈ (<[sr:=w]> srmap), k ↣ₛᵣ y.
   Proof. unseal_pt. rewrite /spec_sregs_interp. apply gen_heap_update_inSepM. Qed.
 
-  Lemma spec_mem_valid m a dq w :
-    spec_mem_interp m -∗ a ↣ₐ{dq} w -∗ ⌜m !! a = Some w⌝.
-  Proof. unseal_pt. rewrite /spec_mem_interp. apply gen_heap_valid. Qed.
+  Lemma spec_mem_valid m {st} a dq w :
+    spec_mem_interp m st -∗ a ↣ₐ{dq} w -∗ ⌜m !! a = Some w⌝.
+  Proof.
+    unseal_pt. rewrite /spec_mem_interp. iIntros "[Hm _] Ha".
+    iApply (gen_heap_valid with "Hm Ha").
+  Qed.
 
-  Lemma spec_mem_update m a w w' :
-    spec_mem_interp m -∗ a ↣ₐ w ==∗ spec_mem_interp (<[a:=w']> m) ∗ a ↣ₐ w'.
-  Proof. unseal_pt. rewrite /spec_mem_interp. apply gen_heap_update. Qed.
+  Lemma spec_mem_avoids_mmio m {st} :
+    spec_mem_interp m st -∗ ⌜mem_avoids_mmio m⌝.
+  Proof. by iIntros "[_ [%Hm _]]". Qed.
 
-  Lemma spec_mem_valid_inclSepM m mmap :
-    spec_mem_interp m -∗ ([∗ map] k↦y ∈ mmap, k ↣ₐ y) -∗ ⌜mmap ⊆ m⌝.
-  Proof. unseal_pt. rewrite /spec_mem_interp. apply gen_heap_valid_inclSepM. Qed.
+  Lemma spec_mem_shadow_ok m {st} :
+    spec_mem_interp m st -∗ ⌜spec_shadow_ok st⌝.
+  Proof. by iIntros "[_ [_ %Hst]]". Qed.
 
-  Lemma spec_mem_valid_inSepM mmap m a w :
+  (** A spec memory points-to is never a memory-mapped address. *)
+  Lemma spec_mem_not_mmio m {st} a dq w :
+    spec_mem_interp m st -∗ a ↣ₐ{dq} w -∗ ⌜is_mmio_address a = false⌝.
+  Proof.
+    iIntros "Hm Ha".
+    iDestruct (spec_mem_valid with "Hm Ha") as %Ha.
+    iDestruct (spec_mem_avoids_mmio with "Hm") as %Hm.
+    iPureIntro. by eapply mem_avoids_mmio_lookup.
+  Qed.
+
+  Lemma spec_mem_update m {st} a w w' :
+    spec_mem_interp m st -∗ a ↣ₐ w ==∗ spec_mem_interp (<[a:=w']> m) st ∗ a ↣ₐ w'.
+  Proof.
+    iIntros "Hm Ha".
+    iDestruct (spec_mem_valid with "Hm Ha") as %Ha.
+    unseal_pt. rewrite /spec_mem_interp. iDestruct "Hm" as "[Hm [%Hmmio %Hst]]".
+    iMod (gen_heap_update with "Hm Ha") as "[$ $]".
+    iPureIntro. split; last done. by eapply mem_avoids_mmio_update.
+  Qed.
+
+  Lemma spec_mem_valid_inclSepM m {st} mmap :
+    spec_mem_interp m st -∗ ([∗ map] k↦y ∈ mmap, k ↣ₐ y) -∗ ⌜mmap ⊆ m⌝.
+  Proof.
+    unseal_pt. rewrite /spec_mem_interp. iIntros "[Hm _] Hmap".
+    iApply (gen_heap_valid_inclSepM with "Hm Hmap").
+  Qed.
+
+  Lemma spec_mem_valid_inSepM mmap m {st} a w :
     mmap !! a = Some w →
-    spec_mem_interp m -∗ ([∗ map] a↦w ∈ mmap, a ↣ₐ w) -∗ ⌜m !! a = Some w⌝.
+    spec_mem_interp m st -∗ ([∗ map] a↦w ∈ mmap, a ↣ₐ w) -∗ ⌜m !! a = Some w⌝.
   Proof.
     iIntros (Ha) "Hm Hmap".
     rewrite (big_sepM_delete _ _ a) //. iDestruct "Hmap" as "[Ha _]".
     iApply (spec_mem_valid with "Hm Ha").
   Qed.
 
-  Lemma spec_mem_valid_inSepM_general mmap m a w dq :
+  Lemma spec_mem_valid_inSepM_general mmap m {st} a w dq :
     mmap !! a = Some (dq, w) →
-    spec_mem_interp m -∗ ([∗ map] a↦dqw ∈ mmap, a ↣ₐ{dqw.1} dqw.2) -∗ ⌜m !! a = Some w⌝.
+    spec_mem_interp m st -∗ ([∗ map] a↦dqw ∈ mmap, a ↣ₐ{dqw.1} dqw.2) -∗ ⌜m !! a = Some w⌝.
   Proof.
     iIntros (Ha) "Hm Hmap".
     rewrite (big_sepM_delete _ _ a) //. iDestruct "Hmap" as "[Ha _]".
     iApply (spec_mem_valid with "Hm Ha").
   Qed.
 
-  Lemma spec_mem_update_inSepM m mmap a w' w :
+  Lemma spec_mem_update_inSepM m {st} mmap a w' w :
     mmap !! a = Some w' →
-    spec_mem_interp m -∗ ([∗ map] a↦w ∈ mmap, a ↣ₐ w)
-    ==∗ spec_mem_interp (<[a:=w]> m) ∗ ([∗ map] a↦w ∈ <[a:=w]> mmap, a ↣ₐ w).
+    spec_mem_interp m st -∗ ([∗ map] a↦w ∈ mmap, a ↣ₐ w)
+    ==∗ spec_mem_interp (<[a:=w]> m) st ∗ ([∗ map] a↦w ∈ <[a:=w]> mmap, a ↣ₐ w).
   Proof.
     iIntros (Ha) "Hm Hmap".
     rewrite (big_sepM_delete _ _ a) //. iDestruct "Hmap" as "[Ha Hmap]".
@@ -608,7 +646,7 @@ Section spec_inv.
   Proof.
     iIntros (HE HPC Hvpc) "#Hctx Hj Hmap Hpc_a Hcont".
     iApply (spec_step_exec_gen with "Hctx Hj"); first done.
-    iIntros ([[r sr] m] c σ' Hstep) "[[Hr Hsr] Hm]".
+    iIntros ([[[r sr] m] st] c σ' Hstep) "[[Hr Hsr] Hm]".
     iDestruct (spec_regs_valid_inclSepM with "Hr Hmap") as %Hregs.
     iDestruct (spec_mem_valid with "Hm Hpc_a") as %Hpc_a.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
@@ -712,6 +750,8 @@ End spec_inv.
 
 Lemma spec_init `{MP: MachineParameters} `{!invGS Σ} `{Hpre : !specGpreS Σ} E
   (e : griotte_lang.expr) (σ : ExecConf) :
+  mem_avoids_mmio (mem σ) →
+  spec_shadow_ok (shadowtbl σ) →
   ⊢ |={E}=> ∃ (specg : specG Σ),
       inv specN (spec_inv ([e], σ)) ∗
       spec_ctx ∗
@@ -720,6 +760,7 @@ Lemma spec_init `{MP: MachineParameters} `{!invGS Σ} `{Hpre : !specGpreS Σ} E
       ([∗ map] sr↦w ∈ sreg σ, sr ↣ₛᵣ w) ∗
       ([∗ map] a↦w ∈ mem σ, a ↣ₐ w).
 Proof.
+  intros Hmmio Hst.
   iMod (@gen_heap_init _ _ _ _ _ specGpreS_reg (reg σ)) as (reg_heapg) "(Hr_ctx & Hr & _)".
   iMod (@gen_heap_init _ _ _ _ _ specGpreS_sreg (sreg σ)) as (sreg_heapg) "(Hsr_ctx & Hsr & _)".
   iMod (@gen_heap_init _ _ _ _ _ specGpreS_mem (mem σ)) as (mem_heapg) "(Hm_ctx & Hm & _)".
@@ -729,7 +770,7 @@ Proof.
   set (specg := SpecG Σ reg_heapg sreg_heapg mem_heapg _ γ).
   iMod (inv_alloc specN E (spec_inv (specg := specg) ([e], σ)) with "[Hauth Hr_ctx Hsr_ctx Hm_ctx]")
     as "#Hinv".
-  { iNext. iExists e, σ. iFrame. done. }
+  { iNext. iExists e, σ. rewrite /spec_state_interp /spec_mem_interp. iFrame. done. }
   iModIntro. iExists specg.
   rewrite spec_res_unseal spec_reg_pointsto_unseal spec_sreg_pointsto_unseal spec_mem_pointsto_unseal.
   iFrame "∗ #".

@@ -11,7 +11,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -54,7 +54,7 @@ Section fundamental.
   (** Storing a pair of related words through [p0] preserves the monotonicity
       requirements of the target address. *)
   Lemma monoReq_mono_invariant W C a p0 p' (P : V) (w1 w2 : Word) ρ :
-    std W !! a = Some ρ →
+    std W !! LNonHeap a = Some ρ →
     ρ ≠ Revoked →
     PermFlowsTo p0 p' →
     canStore p0 w1 = true →

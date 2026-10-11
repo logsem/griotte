@@ -9,7 +9,7 @@ Section Stack_World_Resources.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -228,7 +228,7 @@ Section Stack_World_Resources.
 
   (** Interface for revoked addresses *)
   Definition revoked_addresses (W : WORLD) (la : list Addr) :=
-    Forall (λ a, std W !! a = Some Revoked) la.
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la.
 
   Lemma revoked_addresses_app (W : WORLD) (la la' : list Addr) :
     revoked_addresses W (la++la') <-> revoked_addresses W la ∧ revoked_addresses W la'.
@@ -236,8 +236,8 @@ Section Stack_World_Resources.
 
   Lemma revoked_addresses_weaken (W : WORLD) (la la' : list Addr) :
     la' ⊆ la ->
-    Forall (λ a, std W !! a = Some Revoked) la ->
-    Forall (λ a, std W !! a = Some Revoked) la'.
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la ->
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la'.
   Proof.
     intros Hl Hla.
     rewrite Forall_forall in Hla; apply Forall_forall.

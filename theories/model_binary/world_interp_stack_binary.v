@@ -10,7 +10,7 @@ Section WorldInterpStack.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -80,10 +80,10 @@ Section WorldInterpStack.
       ⌜ extract_temporaries_condition W (l_unk_temp ++ la) ⌝ ∗
       world_interp (revoke W) C ∗
       ▷ StackRevokedResources W C la ∗
-      ▷ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) la⌝ ∗
+      ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝ ∗
       ▷ (∃ stk_mem stk_mem_spec, [[ b , e ]] ↦ₐ [[ stk_mem ]] ∗ [[ b , e ]] ↣ₐ [[ stk_mem_spec ]]) ∗
       ▷ RevokedResources W C l_unk_temp ∗
-      ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
+      ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) l_unk_temp⌝.
   Proof.
      rewrite world_interp_eq /world_interp_def.
      iIntros "(Hinterp & [Hr [Hsts Hseals ] ])".
@@ -98,7 +98,7 @@ Section WorldInterpStack.
     NoDup la →
     Forall (eq (WInt 0)) lv1 ->
     Forall (eq (WInt 0)) lv2 ->
-    Forall (λ a, std W !! a = Some Revoked) la ->
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la ->
 
     world_interp W C -∗
     StackRevokedResources W C la -∗

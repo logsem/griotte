@@ -6,23 +6,24 @@ Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ}
     {relg : relGS Σ} {specg : specG Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.
+  Implicit Types v w : Word * Word.
   Implicit Types C : CmptName.
 
   (* Lemmas for extending the region map *)
-  Lemma extend_region_temp_pwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_temp_pwl E W C (a : LAddr) v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
      a ∉ dom (std W) →
      (isWL p) = true →
      future_pub_mono C φ v -∗
      sts_full_world W C -∗
      region W C -∗
-     a ↦ₐ v.1 -∗
-     a ↣ₐ v.2 -∗
+     laddr_addr a ↦ₐ v.1 -∗
+     laddr_addr a ↣ₐ v.2 -∗
      φ (W,C,v)
 
      ={E}=∗
@@ -73,15 +74,15 @@ Section region_alloc.
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
   Qed.
 
-  Lemma extend_region_temp_nwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_temp_nwl E W C (a : LAddr) v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
      a ∉ dom (std W) →
      (isWL p) = false →
      (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
      sts_full_world W C -∗
      region W C -∗
-     a ↦ₐ v.1 -∗
-     a ↣ₐ v.2 -∗
+     laddr_addr a ↦ₐ v.1 -∗
+     laddr_addr a ↣ₐ v.2 -∗
      φ (W,C,v)
 
      ={E}=∗
@@ -134,15 +135,15 @@ Section region_alloc.
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
   Qed.
 
-  Lemma extend_region_temp E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_temp E W C (a : LAddr) v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
     a ∉ dom (std W) →
     (if isWL p then future_pub_mono C φ v else
        (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)) -∗
     sts_full_world W C -∗
     region W C -∗
-    a ↦ₐ v.1 -∗
-     a ↣ₐ v.2 -∗
+    laddr_addr a ↦ₐ v.1 -∗
+     laddr_addr a ↣ₐ v.2 -∗
     φ (W,C,v)
 
     ={E}=∗
@@ -157,14 +158,14 @@ Section region_alloc.
     + iApply (extend_region_temp_nwl with "[$] [$] [$] [$] [$]"); eauto.
   Qed.
 
-  Lemma extend_region_perm E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_perm E W C (a : LAddr) v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
      a ∉ dom (std W) →
      future_priv_mono C φ v -∗
      sts_full_world W C -∗
      region W C -∗
-     a ↦ₐ v.1 -∗
-     a ↣ₐ v.2 -∗
+     laddr_addr a ↦ₐ v.1 -∗
+     laddr_addr a ↣ₐ v.2 -∗
      φ (W,C,v)
 
      ={E}=∗
@@ -219,7 +220,7 @@ Section region_alloc.
   (* The following allocates a Revoked region. This allocates the saved predicate and the region state, *)
   (* but since a revoked region is empty, there is no need to assume any resources for that region *)
 
-  Lemma extend_region_revoked E W C a p φ `{∀ Wv, Persistent (φ Wv)} :
+  Lemma extend_region_revoked E W C (a : LAddr) p φ `{∀ Wv, Persistent (φ Wv)} :
      a ∉ dom (std W) →
      sts_full_world W C
      -∗ region W C
@@ -271,14 +272,14 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
 
      ={E}=∗
 
      region (std_update_multiple W l1 Revoked) C
-     ∗ ([∗ list] k ∈ l1, rel C k p φ)
+     ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
      ∗ sts_full_world (std_update_multiple W l1 Revoked) C.
   Proof.
     induction l1.
@@ -292,16 +293,13 @@ Section region_alloc.
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
                 = std_update_multiple W l1 Revoked) as ->.
         { rewrite /std_update.
-          destruct (std_update_multiple W l1 Revoked) as [ [Wstd' Wsts'] Wseal'] eqn:Heq.
-          f_equiv; last done.
-          simpl. rewrite insert_id//.
-          assert (Wstd' = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].
-          apply std_sta_update_multiple_lookup_in_i;auto.
+          pose proof (std_sta_update_multiple_lookup_in_i W l1 Revoked a e') as Hin.
+          destruct (std_update_multiple W l1 Revoked) as [[[Wstd' Wsts'] Wseal'] Wheap'] eqn:Heq.
+          cbn in *. by rewrite insert_id.
         }
-        destruct (std_update_multiple W l1 Revoked) as [Wstd_sta Wloc] eqn:Heq.
         destruct l1; first by rewrite lookup_nil in Hk.
         by iFrame "#∗".
-      + iMod (extend_region_revoked _ _ _ a with "Hsts Hr") as "(Hr & Hrel & Hsts)"; auto.
+      + iMod (extend_region_revoked _ _ _ (LNonHeap a) with "Hsts Hr") as "(Hr & Hrel & Hsts)"; auto.
         { destruct l1.
           { rewrite not_elem_of_dom //. }
           rewrite -std_update_multiple_not_in_sta; auto.
@@ -312,7 +310,7 @@ Section region_alloc.
 
   Lemma extend_region_temp_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2,
@@ -324,7 +322,7 @@ Section region_alloc.
     ={E}=∗
 
     region (std_update_multiple W l1 Temporary) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ sts_full_world (std_update_multiple W l1 Temporary) C.
   Proof.
     revert l2. induction l1.
@@ -339,7 +337,7 @@ Section region_alloc.
       iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hsa & Hφ & #Hf) Hl]".
 
       iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
-      iDestruct (extend_region_temp with "Hf Hsts Hr Ha Hsa [Hφ]") as ">(? & ? & ?)"; eauto.
+      iDestruct (extend_region_temp _ _ _ (LNonHeap a) with "Hf Hsts Hr Ha Hsa [Hφ]") as ">(? & ? & ?)"; eauto.
       {
         intro Hcontra.
         apply elem_of_dom_std_multiple_update in Hcontra.
@@ -369,7 +367,7 @@ Section region_alloc.
 
   Lemma extend_region_perm_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2,
@@ -380,7 +378,7 @@ Section region_alloc.
     ={E}=∗
 
     region (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
   Proof.
     revert l2. induction l1.
@@ -393,7 +391,7 @@ Section region_alloc.
       destruct l2; [ by inversion Hlen |].
       iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hsa & Hφ & #Hf) Hl]".
       iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
-      iDestruct (extend_region_perm with "Hf Hsts Hr Ha Hsa [Hφ]") as ">(? & ? & ?)"; eauto.
+      iDestruct (extend_region_perm _ _ _ (LNonHeap a) with "Hf Hsts Hr Ha Hsa [Hφ]") as ">(? & ? & ?)"; eauto.
       { rewrite -std_update_multiple_not_in_sta; auto.
         rewrite not_elem_of_dom //. }
       { iApply ("Hf" with "[] Hφ"). iPureIntro.
@@ -404,36 +402,36 @@ Section region_alloc.
   Qed.
 
 
-  Lemma extend_region_perm_open E W C a w p la1 φ `{∀ Wv, Persistent (φ Wv)} :
-    a ∉ dom (std W) →
+  Lemma extend_region_perm_open E W C (a : Addr) w p la1 φ `{∀ Wv, Persistent (φ Wv)} :
+    LNonHeap a ∉ dom (std W) →
     a ∉ la1 ->
     sts_full_world (std_update_multiple W la1 Permanent) C -∗
-    open_region_many (std_update_multiple W la1 Permanent) C la1 -∗
+    open_region_many (std_update_multiple W la1 Permanent) C (LNonHeap <$> la1) -∗
     a ↦ₐ w.1 ∗ a ↣ₐ w.2
     ={E}=∗
-    open_region_many (std_update_multiple W (a::la1) Permanent) C (a::la1)
+    open_region_many (std_update_multiple W (a::la1) Permanent) C (LNonHeap <$> (a::la1))
     ∗ rel C a p φ
     ∗ a ↦ₐ w.1 ∗ a ↣ₐ w.2
-    ∗ sts_state_std C a Permanent
+    ∗ sts_state_std C (LNonHeap a) Permanent
     ∗ sts_full_world (std_update_multiple W (a::la1) Permanent) C.
   Proof.
     iIntros (Hnone ?) "Hfull Hreg [Ha Hsa]".
-    assert (a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
+    assert (LNonHeap a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
     {
       rewrite not_elem_of_dom.
       rewrite std_sta_update_multiple_lookup_same_i; eauto.
       by rewrite -not_elem_of_dom.
     }
-    rewrite open_region_many_eq /open_region_many_def.
+    rewrite open_region_many_eq /open_region_many_def ?fmap_cons.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
-      assert ((delete_list la1) M !! a = Some o) as HRl'.
+      assert ((delete_list (LNonHeap <$> la1)) M !! LNonHeap a = Some o) as HRl'.
       { rewrite lookup_delete_list_notin; auto. }
       iDestruct (big_sepM_delete _ _ _ _ HRl' with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      rewrite (not_elem_of_dom _ a) in Hnone'.
+      rewrite (not_elem_of_dom _ (LNonHeap a)) in Hnone'.
       by rewrite Hcontr in Hnone'.
     }
     rewrite /region_map_def.
@@ -443,21 +441,21 @@ Section region_alloc.
     iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR #Hγrel]"; auto.
     iAssert (rel C a p φ) as "Ha_rel".
     { rewrite rel_eq /rel_def; iFrame "#". }
-    iMod (sts_alloc_std_i _ C a Permanent
+    iMod (sts_alloc_std_i _ C (LNonHeap a) Permanent
            with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh (std_update_multiple W la1 Permanent) a Permanent)
       in Hnone' as Hrelated; auto.
     iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=Permanent]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=Permanent]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - cbn.
-      rewrite -(delete_list_delete _ (<[a:=(γpred, p)]> M)); last done.
+      rewrite -(delete_list_delete _ (<[LNonHeap a :=(γpred, p)]> M)); last done.
       rewrite delete_insert_id; last done.
-      rewrite -(delete_list_delete _ (<[a:=_]> Mρ)); last done.
+      rewrite -(delete_list_delete _ (<[LNonHeap a :=_]> Mρ)); last done.
       rewrite delete_insert_id; last (rewrite -not_elem_of_dom HMρ not_elem_of_dom; done).
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha) "Hρ".
@@ -469,21 +467,21 @@ Section region_alloc.
 
   Lemma extend_region_perm_sepL2_open_ind E W C la1 la2 lw2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-    Forall (λ k, std W !! k = None) la2 →
+    Forall (λ k, std W !! LNonHeap k = None) la2 →
     NoDup la1 ->
     NoDup la2 ->
     la2 ## la1 ->
     sts_full_world (std_update_multiple W la1 Permanent) C -∗
-    open_region_many (std_update_multiple W la1 Permanent) C la1 -∗
+    open_region_many (std_update_multiple W la1 Permanent) C (LNonHeap <$> la1) -∗
     ([∗ list] k;v ∈ la2;lw2, k ↦ₐ v.1 ∗ k ↣ₐ v.2)
 
     ={E}=∗
 
-    open_region_many (std_update_multiple W (la1++la2) Permanent) C (la1++la2)
+    open_region_many (std_update_multiple W (la1++la2) Permanent) C (LNonHeap <$> (la1++la2))
     ∗ ([∗ list] k;v ∈ la2;lw2,
           k ↦ₐ v.1 ∗ k ↣ₐ v.2
-          ∗ sts_state_std C k Permanent)
-    ∗ ([∗ list] k ∈ la2, rel C k p φ)
+          ∗ sts_state_std C (LNonHeap k) Permanent)
+    ∗ ([∗ list] k ∈ la2, rel C (LNonHeap k) p φ)
     ∗ sts_full_world (std_update_multiple W (la1++la2) Permanent) C.
   Proof.
     revert la1 lw2.
@@ -491,7 +489,7 @@ Section region_alloc.
     { cbn. intros. iIntros "? ? ?".
       rewrite app_nil_r. iFrame. iModIntro. done. }
     iIntros (la1 lw2 Hp HW Hnodup_l1 Hnodup_l2 Hdisj) "Hsts Hreg Hl2".
-    apply NoDup_cons in Hnodup_l2 as [Hna Hnodup_l2].
+    apply list.NoDup_cons in Hnodup_l2 as [Hna Hnodup_l2].
     apply disjoint_cons in Hdisj as Hni'.
     apply disjoint_swap in Hdisj;auto.
     apply Forall_cons in HW as [HWa HW].
@@ -507,8 +505,8 @@ Section region_alloc.
     { by rewrite not_elem_of_dom. }
     iMod (IHla2 (a::la1) lw2 with "[Hsts] [Hreg] [Hl2]") as "(Hreg&?&?&?)"; auto.
     { apply NoDup_cons;auto. }
-    iDestruct (open_region_many_permutation _ _ _ (la1 ++ a :: la2) with "Hreg") as "Hreg".
-    { apply Permutation_middle. }
+    iDestruct (open_region_many_permutation _ _ _ (LNonHeap <$> (la1 ++ a :: la2)) with "Hreg") as "Hreg".
+    { apply fmap_Permutation. apply Permutation_middle. }
     iFrame "∗#".
     done.
   Qed.
@@ -516,9 +514,9 @@ Section region_alloc.
   Lemma region_close_many E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} :
     NoDup l1 ->
     isO p = false ->
-    ([∗ list] k ∈ l1, rel C k p φ) -∗
-    open_region_many W C l1 -∗
-    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v.1 ∗ k ↣ₐ v.2 ∗ sts_state_std C k Permanent) -∗
+    ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ) -∗
+    open_region_many W C (LNonHeap <$> l1) -∗
+    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v.1 ∗ k ↣ₐ v.2 ∗ sts_state_std C (LNonHeap k) Permanent) -∗
     ([∗ list] v ∈ l2, φ (W, C, v)) -∗
     ([∗ list] v ∈ l2, future_priv_mono C φ v)
     ={E}=∗ region W C.
@@ -533,7 +531,7 @@ Section region_alloc.
     iDestruct "Hl" as "[(Ha & Hsa & Ha_std) Hl]".
     iDestruct "Hφ" as "[Ha_φ Hφ]".
     iDestruct "Hmono" as "[Ha_mono Hmono]".
-    apply NoDup_cons in HNoDup as [Ha_l1 HNoDup].
+    apply list.NoDup_cons in HNoDup as [Ha_l1 HNoDup].
     iDestruct (region_close_next_perm with "[$Ha_std $Hreg $Ha $Hsa $Ha_mono $Ha_φ $Ha_rel]")
       as "Hreg"; eauto.
     iMod (IHl1 with "Hrel Hreg Hl Hφ Hmono"); auto.
@@ -542,12 +540,12 @@ Section region_alloc.
   Lemma extend_region_perm_sepL2_open E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     NoDup l1 ->
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v.1 ∗ k ↣ₐ v.2)
     -∗ (
-         ([∗ list] k ∈ l1, rel C k p φ)
+         ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
          -∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v)
        )
@@ -556,7 +554,7 @@ Section region_alloc.
 
     region (std_update_multiple W l1 Permanent) C
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
@@ -580,20 +578,20 @@ Section region_alloc.
     let W' := (<o[ o := ws ]o> (std_update_multiple W l1 Permanent)) in
     NoDup l1 ->
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ sealing_map W C
     -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v.1 ∗ k ↣ₐ v.2)
     -∗ (
-         ([∗ list] k ∈ l1, rel C k p φ)
+         ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
          ∗ sts_full_world (std_update_multiple W l1 Permanent) C
          ∗ sealing_map (std_update_multiple W l1 Permanent) C
-         ∗ open_region_many (std_update_multiple W l1 Permanent) C l1
+         ∗ open_region_many (std_update_multiple W l1 Permanent) C (LNonHeap <$> l1)
          ==∗
          sts_full_world W' C ∗
          sealing_map W' C ∗
-         open_region_many W' C l1 ∗
+         open_region_many W' C (LNonHeap <$> l1) ∗
          ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
          ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
        )
@@ -603,7 +601,7 @@ Section region_alloc.
     region W' C
     ∗ sts_full_world W' C
     ∗ sealing_map W' C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v)
     ∗ ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
 .

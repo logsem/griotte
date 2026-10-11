@@ -14,7 +14,7 @@ Section region_alloc_cmpt.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -45,9 +45,9 @@ Section region_alloc_cmpt.
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
-    Forall (λ k, std W !! k = None) imports_addrs →
-    Forall (λ k, std W !! k = None) code_addrs →
-    Forall (λ k, std W !! k = None) data_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) imports_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) code_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) data_addrs →
     related_sts_pub_world W (std_update_compartment W C_cmpt).
   Proof.
     intros * Himports Hcode Hdata.
@@ -132,8 +132,8 @@ Section region_alloc_cmpt.
     (W : WORLD) (C_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) (a : Addr) :
     a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ->
     switcher_cmpt_disjoint C_cmpt switcher_cmpt ->
-    std W !! a = None ->
-    std (std_update_compartment W C_cmpt) !! a = None.
+    std W !! LNonHeap a = None ->
+    std (std_update_compartment W C_cmpt) !! LNonHeap a = None.
   Proof.
     intros Ha Hc Ha_W.
     pose proof (cmpt_import_size C_cmpt) as H.
@@ -187,9 +187,9 @@ Section region_alloc_cmpt.
     let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
     let Wfinal := std_update_compartment W C_cmpt in
 
-    Forall (λ k, std W !! k = None) imports_addrs →
-    Forall (λ k, std W !! k = None) code_addrs →
-    Forall (λ k, std W !! k = None) data_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) imports_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) code_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) data_addrs →
 
     Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
@@ -392,7 +392,7 @@ Section region_alloc_cmpt.
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first done.
-      assert ((std Wfinal) !! a = Some Permanent).
+      assert ((std Wfinal) !! LNonHeap a = Some Permanent).
       {
         subst Wfinal.
         apply list_elem_of_lookup_2 in Ha.
@@ -451,7 +451,7 @@ Section region_alloc_cmpt.
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first (iNext ; by iApply wcond_interp).
-      assert ((std Wfinal) !! a = Some Permanent).
+      assert ((std Wfinal) !! LNonHeap a = Some Permanent).
       { subst Wfinal.
         apply list_elem_of_lookup_2 in Ha.
         assert (a ∉ imports_addrs).
@@ -485,9 +485,9 @@ Section region_alloc_cmpt.
     let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
     let Wfinal := std_update_compartment W C_cmpt in
 
-    Forall (λ k, std W !! k = None) imports_addrs →
-    Forall (λ k, std W !! k = None) code_addrs →
-    Forall (λ k, std W !! k = None) data_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) imports_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) code_addrs →
+    Forall (λ k, std W !! LNonHeap k = None) data_addrs →
 
     Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
@@ -543,7 +543,7 @@ Section region_alloc_cmpt.
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first done.
-      assert ((std Wfinal) !! a = Some Permanent).
+      assert ((std Wfinal) !! LNonHeap a = Some Permanent).
       {
         subst Wfinal.
         apply list_elem_of_lookup_2 in Ha.
@@ -605,7 +605,7 @@ Section region_alloc_cmpt.
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first (iNext ; by iApply wcond_interp).
-      assert ((std Wfinal) !! a = Some Permanent).
+      assert ((std Wfinal) !! LNonHeap a = Some Permanent).
       { subst Wfinal.
         apply list_elem_of_lookup_2 in Ha.
         assert (a ∉ imports_addrs).

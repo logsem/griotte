@@ -15,11 +15,34 @@ Section spec_rules.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
+  (** Physical spec-side outcomes, for the spec run. *)
+
+  Inductive spec_Mov_spec (regs: Reg) (dst: RegName) (src: Z + RegName) (regs': Reg): griotte_lang.val -> Prop :=
+  | spec_GetTag_spec_success w:
+      word_of_argument regs src = Some w →
+      spec_incrementPC (<[ dst := w ]ᵣ> regs) = Some regs' →
+      spec_Mov_spec regs dst src regs' NextIV
+  | spec_Mov_spec_failure w:
+      word_of_argument regs src = Some w →
+      spec_incrementPC (<[ dst := w ]ᵣ> regs) = None →
+      spec_Mov_spec regs dst src regs' FailedV.
+
   Lemma Mov_spec_determ regs dst src regs1 regs2 v1 v2 :
-    Mov_spec regs dst src regs1 v1 →
-    Mov_spec regs dst src regs2 v2 →
+    spec_Mov_spec regs dst src regs1 v1 →
+    spec_Mov_spec regs dst src regs2 v2 →
     v1 = v2 ∧ (v1 = NextIV → regs1 = regs2).
-  Proof. solve_spec_determ Mov_spec. Qed.
+  Proof. solve_spec_determ spec_Mov_spec. Qed.
+
+  (** The outcome of the implementation run on a lifted register file is a
+      physical outcome. *)
+  Lemma Mov_spec_lift regs dst src lregs' v :
+    Mov_spec (lift_regs regs) dst src lregs' v →
+    ∃ regs', (v = NextIV → lregs' = lift_regs regs') ∧ spec_Mov_spec regs dst src regs' v.
+  Proof.
+    intros Hspec; destruct Hspec; lift_regs_simpl.
+    - eexists; split; first done. by econstructor.
+    - exists regs; split; first done. by eapply spec_Mov_spec_failure.
+  Qed.
 
   Lemma step_Mov Ep pc_p pc_g pc_b pc_e pc_a  w dst src regs :
     ↑specN ⊆ Ep →
@@ -34,13 +57,13 @@ Section spec_rules.
     ={Ep}=∗
     ∃ retv regs',
       ⤇ Seq (of_val retv) ∗
-      ⌜ Mov_spec regs dst src regs' retv ⌝ ∗
+      ⌜ spec_Mov_spec regs dst src regs' retv ⌝ ∗
       pc_a ↣ₐ w ∗
       [∗ map] k↦y ∈ regs', k ↣ᵣ y.
   Proof.
     iIntros (HE Hinstr Hvpc HPC Dregs) "(#Hctx & Hj & Hpc_a & Hmap)".
     iApply (spec_step_exec_1 with "Hctx Hj"); first done.
-    iIntros (Φ) "Hφ". iIntros ([[r sr] m] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
+    iIntros (Φ) "Hφ". iIntros ([[[r sr] m] st] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
     iDestruct (spec_regs_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (spec_mem_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -56,23 +79,23 @@ Section spec_rules.
 
     pose proof Hwsrc as Hwsrc'. eapply word_of_argument_Some_inv' in Hwsrc; eauto.
 
-    assert (exec_opt (Mov dst src) pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst wsrc)) as HH.
+    assert (exec_opt (Mov dst src) pc_p (r, sr, m, st) = updatePC (update_reg (r, sr, m, st) dst wsrc)) as HH.
     { destruct Hwsrc as [ [? [? ?] ] | [? (? & ? & Hr') ] ]; simplify_eq; eauto.
       cbn. by rewrite /= Hr'. }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
-    destruct (incrementPC (<[ dst := wsrc ]ᵣ> regs)) as [regs'|] eqn:Hregs';
+    destruct (spec_incrementPC (<[ dst := wsrc ]ᵣ> regs)) as [regs'|] eqn:Hregs';
       pose proof Hregs' as H'regs'; cycle 1.
-    { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in Hregs'.
-      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) in Hregs'.
+    { apply spec_incrementPC_fail_updatePC with (sregs:=sr) (m:=m) (shadow:=st) in Hregs'.
+      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) (shadow':=st) in Hregs'.
       2: by apply lookup_insert_is_Some'; eauto.
       2: by apply insert_mono; eauto.
       rewrite Hregs' in Hstep. simplify_pair_eq.
       iFrame. iApply "Hφ"; iFrame. iPureIntro. econstructor; eauto. }
 
-    eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+    eapply (spec_incrementPC_success_updatePC _ sr m st) in Hregs'
       as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-    eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
+    eapply updatePC_success_incl with (sregs':=sr) (m':=m) (shadow':=st) in HuPC. 2: by eapply insert_mono; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((spec_regs_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     { apply is_Some_lookup_reg; done. }
@@ -104,12 +127,12 @@ Section spec_rules.
 
     destruct Hspec as [|].
     { (* Success *)
-      iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+      iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
       destruct (decide (r1 = cnull)) ; simplify_map_eq.
       all: rewrite (insert_insert_ne _ PC _) // insert_insert_eq insert_insert_ne // insert_insert_eq.
       all: iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma step_move_success_z E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 z :
@@ -184,11 +207,11 @@ Section spec_rules.
 
     destruct Hspec as [|].
     { (* Success *)
-      iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+      iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
       rewrite (insert_insert_ne _ PC r1) // insert_insert_eq (insert_insert_ne _ PC r1) // insert_insert_eq.
       iDestruct (spec_regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma step_move_success_reg_same E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 :
@@ -216,11 +239,11 @@ Section spec_rules.
 
     destruct Hspec as [|].
     { (* Success *)
-      iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+      iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
       rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
       iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma step_move_success_reg_samePC E pc_p pc_g pc_b pc_e pc_a pc_a' w :
@@ -244,11 +267,11 @@ Section spec_rules.
 
     destruct Hspec as [|].
     { (* Success *)
-      iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+      iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
       rewrite !insert_insert_eq.
       iDestruct (spec_regs_of_map_1 with "Hmap") as "?"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma step_move_success_reg_toPC E pc_p pc_g pc_b pc_e pc_a w r1 (t : bool) p g b e a a':
@@ -276,11 +299,11 @@ Section spec_rules.
 
     destruct Hspec as [|].
     { (* Success *)
-      iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+      iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
       rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
       iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma step_move_success_reg_fromPC E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 :
@@ -308,11 +331,11 @@ Section spec_rules.
 
     destruct Hspec as [|].
     { (* Success *)
-      iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+      iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
       rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
       iDestruct (spec_regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+      spec_incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
 

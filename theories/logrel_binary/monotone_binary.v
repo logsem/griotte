@@ -9,7 +9,7 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -24,12 +24,12 @@ Section monotone.
 
   Lemma region_state_pub_perm W W' a :
     related_sts_pub_world W W'
-    → (std W) !! a = Some Permanent
-    -> (std W') !! a = Some Permanent.
+    → (std W) !! LNonHeap a = Some Permanent
+    -> (std W') !! LNonHeap a = Some Permanent.
   Proof.
     intros Hrelated Hstate.
     destruct Hrelated as [ [ Hdom_sta Hrelated] _]. simpl in *.
-    assert (is_Some ((std W') !! a)) as [y Hy].
+    assert (is_Some ((std W') !! LNonHeap a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated a Permanent y Hstate Hy).
     apply std_rel_pub_rtc_Permanent in Hrelated; subst; auto.
@@ -37,12 +37,12 @@ Section monotone.
 
   Lemma region_state_pub_temp W W' a :
     related_sts_pub_world W W'
-    → (std W) !! a = Some Temporary
-    -> (std W') !! a = Some Temporary.
+    → (std W) !! LNonHeap a = Some Temporary
+    -> (std W') !! LNonHeap a = Some Temporary.
   Proof.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some ((std W') !! a)) as [y Hy].
+    assert (is_Some ((std W') !! LNonHeap a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Temporary y Hstate Hy).
     apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
@@ -50,12 +50,12 @@ Section monotone.
 
   Lemma region_state_priv_perm W W' a :
     related_sts_priv_world W W'
-    → (std W) !! a = Some Permanent
-    -> (std W') !! a = Some Permanent.
+    → (std W) !! LNonHeap a = Some Permanent
+    -> (std W') !! LNonHeap a = Some Permanent.
   Proof.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some ((std W') !! a)) as [y Hy].
+    assert (is_Some ((std W') !! LNonHeap a)) as [y Hy].
 { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated a Permanent y Hstate Hy).
     eapply std_rel_rtc_Permanent in Hrelated;subst;auto.
@@ -135,15 +135,15 @@ Section monotone.
 
   Lemma region_state_Revoked_monotone (W W' : WORLD) (a : Addr) :
     related_sts_pub_world W W' →
-    (std W) !! a = Some Revoked ->
-    (std W') !! a = Some Revoked ∨
-    (std W') !! a = Some Temporary ∨
-    (std W') !! a = Some Permanent.
+    (std W) !! LNonHeap a = Some Revoked ->
+    (std W') !! LNonHeap a = Some Revoked ∨
+    (std W') !! LNonHeap a = Some Temporary ∨
+    (std W') !! LNonHeap a = Some Permanent.
   Proof.
     rewrite /region_state_pwl.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some (std W' !! a)) as [y Hy].
+    assert (is_Some (std W' !! LNonHeap a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. }
     specialize (Hrelated _ Revoked y Hstate Hy).
     apply std_rel_pub_rtc_Revoked in Hrelated; auto.
@@ -490,7 +490,7 @@ Section monotone.
      pointer (p0, l, a2, a1, a0) ; simply a bundling of all individual monotonicity statements *)
   Lemma interp_monotone_generalW (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
     (p p' p'' : Perm) (g g' : Locality) (b e a b' e' a' : Addr) :
-    std W !! a' = Some ρ →
+    std W !! LNonHeap a' = Some ρ →
     withinBounds b' e' a' = true →
     PermFlowsTo p' p'' →
     canStore p' (WCap t p g b e a) = true →
@@ -523,7 +523,7 @@ Section monotone.
 
   Lemma interp_monotone_generalSentry (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
     (p p' p'' : Perm) (g g' : Locality) (b e a b' e' a' : Addr) :
-    std W !! a' = Some ρ →
+    std W !! LNonHeap a' = Some ρ →
     withinBounds b' e' a' = true →
     PermFlowsTo p' p'' →
     canStore p' (WSentry t p g b e a) = true →
@@ -556,7 +556,7 @@ Section monotone.
   (* Analogous, but now we have the general monotonicity statement in case an integer z is written *)
   Lemma interp_monotone_generalZ (W : WORLD) (C : CmptName) (ρ : region_type)
     (p p' : Perm) (g : Locality) (b e a : Addr) z:
-    std W !! a = Some ρ →
+    std W !! LNonHeap a = Some ρ →
     withinBounds b e a = true →
     PermFlowsTo p p' →
     interp W C (WCap true p g b e a, WCap true p g b e a) -∗
@@ -578,7 +578,7 @@ Section monotone.
   Lemma interp_monotone_generalSr (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (sp : SealPerms) (sg : Locality) (sb se sa : OType) :
-    std W !! a = Some ρ →
+    std W !! LNonHeap a = Some ρ →
     withinBounds b e a = true →
     PermFlowsTo p p' →
     interp W C (WCap true p g b e a, WCap true p g b e a) -∗
@@ -599,7 +599,7 @@ Section monotone.
   Lemma interp_monotone_generalSd (W : WORLD) (C : CmptName) (ρ : region_type)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (ot1 ot2 : OType) (sb1 sb2 : Sealable) :
-    std W !! a = Some ρ →
+    std W !! LNonHeap a = Some ρ →
     withinBounds b e a = true →
     PermFlowsTo p p' →
     interp W C (WCap true p g b e a, WCap true p g b e a) -∗
@@ -623,7 +623,7 @@ Section monotone.
       be stored through a capability with permission [p']. *)
   Lemma interp_monotone_general (W : WORLD) (C : CmptName) (ρ : region_type)
     (p' p'' : Perm) (g' : Locality) (b' e' a' : Addr) (ww : Word * Word) :
-    std W !! a' = Some ρ →
+    std W !! LNonHeap a' = Some ρ →
     withinBounds b' e' a' = true →
     PermFlowsTo p' p'' →
     canStore p' ww.1 = true →

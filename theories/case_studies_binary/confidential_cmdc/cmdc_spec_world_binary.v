@@ -17,7 +17,7 @@ Section CMDC_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -132,7 +132,7 @@ Section CMDC_World.
       rewrite !elem_of_finz_seq_between in Ha_range |- *.
       solve_addr+Hcsp_bounds Ha_range.
     }
-    assert (std (revoke Wret) !! a = Some Permanent) as Ha_perm.
+    assert (std (revoke Wret) !! LNonHeap a = Some Permanent) as Ha_perm.
     { apply revoke_lookup_Perm.
       eapply region_state_pub_perm; first exact Hrelated_pub.
       rewrite /cmdc_Wshare std_update_multiple_insert_commute; last exact Ha_stk'.

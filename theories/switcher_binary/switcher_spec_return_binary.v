@@ -18,7 +18,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -50,7 +50,7 @@ Section Switcher.
     frame_match Ws Cs stk W0 C ->
     csp_sync stk (csp_b ^+ -4)%a csp_e ->
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, std W0 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, std W0 !! LNonHeap a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     na_inv cerise_nais Nswitcher switcher_inv_binary
     ∗ spec_ctx
@@ -302,7 +302,7 @@ Section Switcher.
     frame_match Ws Cs stk W0 C ->
     csp_sync stk (csp_b ^+ -4)%a csp_e ->
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, std W0 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, std W0 !! LNonHeap a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     na_inv cerise_nais Nswitcher switcher_inv_binary
     ∗ spec_ctx

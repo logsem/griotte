@@ -18,7 +18,7 @@ Section Switcher_Call_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType (Word * Word) Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType (Word * Word) Σ} {relg : relGS Σ}
     {specg : specG Σ}
     {cstackg : CSTACKG Σ} {cstackg_spec : CSTACK_specG Σ}
     `{MP: MachineParameters}
@@ -712,7 +712,7 @@ Section Switcher_Call_World.
       RevokedResources W2 C l' ∗
       ⌜ revoked_addresses (revoke W2) l' ⌝ ∗
       ⌜ related_sts_pub_world W2 W2 ⌝ ∗
-      ([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, ⌜ std W2 !! a = Some Temporary ⌝) ∗
+      ([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝) ∗
       StackRevokedResources W2 C (finz.seq_between a_stk e_stk) ∗
       ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝ ∗
       world_interp (revoke W2) C ∗

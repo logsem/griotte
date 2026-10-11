@@ -14,13 +14,90 @@ Section spec_rules.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
-  Lemma Lea_spec_determ regs r rv regs1 regs2 v1 v2 :
-    Lea_spec regs r rv regs1 v1 →
-    Lea_spec regs r rv regs2 v2 →
-    v1 = v2 ∧ (v1 = NextIV → regs1 = regs2).
-  Proof. solve_spec_determ Lea_failure. Qed.
+  (** Physical spec-side outcomes, for the spec run. *)
 
-   Lemma step_lea Ep pc_p pc_g pc_b pc_e pc_a r1 w arg (regs: Reg) :
+  Inductive spec_Lea_failure (regs: Reg) (r1: RegName) (rv: Z + RegName) :=
+  | spec_Lea_fail_rv_nonconst :
+     z_of_argument regs rv = None ->
+     spec_Lea_failure regs r1 rv
+  | spec_Lea_fail_allowed : forall w,
+     regs !!ᵣ r1 = Some w ->
+     is_mutable_range w = false →
+     spec_Lea_failure regs r1 rv
+  | spec_Lea_fail_overflow_cap : forall (t : bool) p g b e a z,
+     regs !!ᵣ r1 = Some (WCap t p g b e a) ->
+     z_of_argument regs rv = Some z ->
+     (a + z)%a = None ->
+     spec_incrementPC (<[ r1 := WCap false p g b e a ]ᵣ> regs) = None ->
+     spec_Lea_failure regs r1 rv
+  | spec_Lea_fail_overflow_PC_cap : forall (t : bool) p g b e a z a',
+     regs !!ᵣ r1 = Some (WCap t p g b e a) ->
+     z_of_argument regs rv = Some z ->
+     (a + z)%a = Some a' ->
+     spec_incrementPC (<[ r1 := WCap t p g b e a' ]ᵣ> regs) = None ->
+     spec_Lea_failure regs r1 rv
+  | spec_Lea_fail_overflow_sr : forall (t : bool) p g b e a z,
+     regs !!ᵣ r1 = Some (WSealRange t p g b e a) ->
+     z_of_argument regs rv = Some z ->
+     (a + z)%ot = None ->
+     spec_incrementPC (<[ r1 := WSealRange false p g b e a ]ᵣ> regs) = None ->
+     spec_Lea_failure regs r1 rv
+  | spec_Lea_fail_overflow_PC_sr : forall (t : bool) p g b e a z a',
+     regs !!ᵣ r1 = Some (WSealRange t p g b e a) ->
+     z_of_argument regs rv = Some z ->
+     (a + z)%ot = Some a' ->
+     spec_incrementPC (<[ r1 := WSealRange t p g b e a' ]ᵣ> regs) = None ->
+     spec_Lea_failure regs r1 rv
+  .
+
+  Inductive spec_Lea_spec
+    (regs: Reg) (r1: RegName) (rv: Z + RegName)
+    (regs': Reg) : griotte_lang.val → Prop
+  :=
+  | spec_Lea_spec_success_cap: forall (t : bool) p g b e a z a',
+    regs !!ᵣ r1 = Some (WCap t p g b e a) ->
+    z_of_argument regs rv = Some z ->
+    (a + z)%a = Some a' ->
+    spec_incrementPC
+      (<[ r1 := WCap t p g b e a' ]ᵣ> regs) = Some regs' ->
+    spec_Lea_spec regs r1 rv regs' NextIV
+  | spec_Lea_spec_success_sr: forall (t : bool) p g b e a z a',
+    regs !!ᵣ r1 = Some (WSealRange t p g b e a) ->
+    z_of_argument regs rv = Some z ->
+    (a + z)%ot = Some a' ->
+    spec_incrementPC
+      (<[ r1 := WSealRange t p g b e a' ]ᵣ> regs) = Some regs' ->
+    spec_Lea_spec regs r1 rv regs' NextIV
+  | spec_Lea_spec_invalidated_cap: forall (t : bool) p g b e a z,
+    regs !!ᵣ r1 = Some (WCap t p g b e a) ->
+    z_of_argument regs rv = Some z ->
+    (a + z)%a = None ->
+    spec_incrementPC
+      (<[ r1 := WCap false p g b e a ]ᵣ> regs) = Some regs' ->
+    spec_Lea_spec regs r1 rv regs' NextIV
+  | spec_Lea_spec_invalidated_sr: forall (t : bool) p g b e a z,
+    regs !!ᵣ r1 = Some (WSealRange t p g b e a) ->
+    z_of_argument regs rv = Some z ->
+    (a + z)%ot = None ->
+    spec_incrementPC
+      (<[ r1 := WSealRange false p g b e a ]ᵣ> regs) = Some regs' ->
+    spec_Lea_spec regs r1 rv regs' NextIV
+  | spec_Lea_spec_failure :
+    spec_Lea_failure regs r1 rv ->
+    spec_Lea_spec regs r1 rv regs' FailedV.
+
+  Lemma Lea_spec_determ regs r rv regs1 regs2 v1 v2 :
+    spec_Lea_spec regs r rv regs1 v1 →
+    spec_Lea_spec regs r rv regs2 v2 →
+    v1 = v2 ∧ (v1 = NextIV → regs1 = regs2).
+  Proof. solve_spec_determ spec_Lea_failure. Qed.
+
+   Lemma Lea_spec_lift regs r1 rv lregs' v :
+    Lea_spec (lift_regs regs) r1 rv lregs' v →
+    ∃ regs', (v = NextIV → lregs' = lift_regs regs') ∧ spec_Lea_spec regs r1 rv regs' v.
+  Proof. spec_lift Lea_failure regs. Qed.
+
+  Lemma step_lea Ep pc_p pc_g pc_b pc_e pc_a r1 w arg (regs: Reg) :
      ↑specN ⊆ Ep →
      decodeInstrW w = Lea r1 arg →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -33,13 +110,13 @@ Section spec_rules.
      ={Ep}=∗
      ∃ retv regs',
        ⤇ Seq (of_val retv) ∗
-       ⌜ Lea_spec regs r1 arg regs' retv ⌝ ∗
+       ⌜ spec_Lea_spec regs r1 arg regs' retv ⌝ ∗
        pc_a ↣ₐ w ∗
        [∗ map] k↦y ∈ regs', k ↣ᵣ y.
    Proof.
      iIntros (HE Hinstr Hvpc HPC Dregs) "(#Hctx & Hj & Hpc_a & Hmap)".
      iApply (spec_step_exec_1 with "Hctx Hj"); first done.
-    iIntros (Φ) "Hφ". iIntros ([[r sr] m] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
+    iIntros (Φ) "Hφ". iIntros ([[[r sr] m] st] c σ2 Hstep) "[[Hr Hsr] Hm] /=".
      iDestruct (spec_regs_valid_inclSepM with "Hr Hmap") as %Hregs.
      pose proof (lookup_weaken _ _ _ _ HPC Hregs).
      iDestruct (spec_mem_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -58,18 +135,18 @@ Section spec_rules.
        odestruct (Hri r0) as [r0v [Hr'0 Hr0]].
        { unfold regs_of_argument. set_solver+. }
        rewrite Hr0 Hr'0 in Harg Hstep.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct_word r0v; cbn in Hstep; try congruence; by simplify_pair_eq. }
-       iFailWP "Hφ" Lea_fail_rv_nonconst. }
+       iFailWP "Hφ" spec_Lea_fail_rv_nonconst. }
      apply (z_of_arg_mono _ r) in Harg; auto. rewrite Harg in Hstep; cbn in Hstep.
 
      destruct (is_mutable_range r1v) eqn:Hr1v.
      2: { (* Failure: r1v is not of the right type *)
        unfold is_mutable_range in Hr1v.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct r1v as [ | [t p b e a | ] | | ]; try by inversion Hr1v.
          all: by simplify_pair_eq. }
-       iFailWP "Hφ" Lea_fail_allowed. }
+       iFailWP "Hφ" spec_Lea_fail_allowed. }
 
      (* Now the proof splits depending on the type of value in r1v *)
      destruct r1v as [ | [t p g b e a | t p g b e a] | | ].
@@ -79,21 +156,21 @@ Section spec_rules.
      + destruct (a + argz)%a as [ a' |] eqn:Hoffset; cycle 1.
        { (* Current-address overflow invalidates; PC advancement may still roll back. *)
        rewrite /update_reg /= in Hstep.
-       destruct (incrementPC (<[ r1 := WCap false p g b e a ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
+       destruct (spec_incrementPC (<[ r1 := WCap false p g b e a ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
          pose proof Hregs' as Hregs'2; cycle 1.
        { (* Failure: incrementing PC overflows *)
-         assert (incrementPC (<[ r1 := WCap false p g b e a ]ᵣ> r) = None) as HH.
-         { eapply incrementPC_overflow_mono; first eapply Hregs'.
+         assert (spec_incrementPC (<[ r1 := WCap false p g b e a ]ᵣ> r) = None) as HH.
+         { eapply spec_incrementPC_overflow_mono; first eapply Hregs'.
            + simplify_map_eq. by rewrite lookup_insert_is_Some'; eauto.
            + by apply insert_mono; eauto.
          }
-         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+         apply (spec_incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+         assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
              by (destruct p; inversion Hstep; auto).
-         iFailWP "Hφ" Lea_fail_overflow_cap. }
+         iFailWP "Hφ" spec_Lea_fail_overflow_cap. }
 
        (* Success *)
-       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+       eapply (spec_incrementPC_success_updatePC _ sr m st) in Hregs'
          as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
        eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono; eauto.
        rewrite HuPC in Hstep; clear HuPC.
@@ -106,24 +183,24 @@ Section spec_rules.
        { apply is_Some_lookup_reg; done. }
        iMod ((spec_regs_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
        iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro.
-       eapply Lea_spec_invalidated_cap; eauto. }
+       eapply spec_Lea_spec_invalidated_cap; eauto. }
 
        rewrite /update_reg /= in Hstep.
-       destruct (incrementPC (<[ r1 := WCap t p g b e a' ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
+       destruct (spec_incrementPC (<[ r1 := WCap t p g b e a' ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
          pose proof Hregs' as Hregs'2; cycle 1.
        { (* Failure: incrementing PC overflows *)
-         assert (incrementPC (<[ r1 := WCap t p g b e a' ]ᵣ> r) = None) as HH.
-         { eapply incrementPC_overflow_mono; first eapply Hregs'.
+         assert (spec_incrementPC (<[ r1 := WCap t p g b e a' ]ᵣ> r) = None) as HH.
+         { eapply spec_incrementPC_overflow_mono; first eapply Hregs'.
            + simplify_map_eq. by rewrite lookup_insert_is_Some'; eauto.
            + by apply insert_mono; eauto.
          }
-         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+         apply (spec_incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+         assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
              by (destruct p; inversion Hstep; auto).
-         iFailWP "Hφ" Lea_fail_overflow_PC_cap. }
+         iFailWP "Hφ" spec_Lea_fail_overflow_PC_cap. }
 
        (* Success *)
-       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+       eapply (spec_incrementPC_success_updatePC _ sr m st) in Hregs'
          as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
        eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono; eauto.
        rewrite HuPC in Hstep; clear HuPC.
@@ -136,25 +213,25 @@ Section spec_rules.
        { apply is_Some_lookup_reg; done. }
        iMod ((spec_regs_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
        iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro.
-       eapply Lea_spec_success_cap; eauto.
+       eapply spec_Lea_spec_success_cap; eauto.
     (* Now, the case where r1v is a sealrange *)
      + destruct (a + argz)%ot as [ a' |] eqn:Hoffset; cycle 1.
        { (* Current-address overflow invalidates; PC advancement may still roll back. *)
        rewrite /update_reg /= in Hstep.
-       destruct (incrementPC (<[ r1 := WSealRange false p g b e a ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
+       destruct (spec_incrementPC (<[ r1 := WSealRange false p g b e a ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
          pose proof Hregs' as Hregs'2; cycle 1.
        { (* Failure: incrementing PC overflows *)
-         assert (incrementPC (<[ r1 := WSealRange false p g b e a ]ᵣ> r) = None) as HH.
-         { eapply incrementPC_overflow_mono; first eapply Hregs'.
+         assert (spec_incrementPC (<[ r1 := WSealRange false p g b e a ]ᵣ> r) = None) as HH.
+         { eapply spec_incrementPC_overflow_mono; first eapply Hregs'.
            + simplify_map_eq; by rewrite lookup_insert_is_Some'; eauto.
            + by apply insert_mono; eauto. }
-         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+         apply (spec_incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+         assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
              by (destruct p; inversion Hstep; auto).
-         iFailWP "Hφ" Lea_fail_overflow_sr. }
+         iFailWP "Hφ" spec_Lea_fail_overflow_sr. }
 
        (* Success *)
-       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+       eapply (spec_incrementPC_success_updatePC _ sr m st) in Hregs'
          as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
        eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono; eauto.
        rewrite HuPC in Hstep; clear HuPC.
@@ -167,23 +244,23 @@ Section spec_rules.
        { apply is_Some_lookup_reg; done. }
        iMod ((spec_regs_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
        iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro.
-       eapply Lea_spec_invalidated_sr; eauto. }
+       eapply spec_Lea_spec_invalidated_sr; eauto. }
 
        rewrite /update_reg /= in Hstep.
-       destruct (incrementPC (<[ r1 := WSealRange t p g b e a' ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
+       destruct (spec_incrementPC (<[ r1 := WSealRange t p g b e a' ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
          pose proof Hregs' as Hregs'2; cycle 1.
        { (* Failure: incrementing PC overflows *)
-         assert (incrementPC (<[ r1 := WSealRange t p g b e a' ]ᵣ> r) = None) as HH.
-         { eapply incrementPC_overflow_mono; first eapply Hregs'.
+         assert (spec_incrementPC (<[ r1 := WSealRange t p g b e a' ]ᵣ> r) = None) as HH.
+         { eapply spec_incrementPC_overflow_mono; first eapply Hregs'.
            + simplify_map_eq; by rewrite lookup_insert_is_Some'; eauto.
            + by apply insert_mono; eauto. }
-         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+         apply (spec_incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+         assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
              by (destruct p; inversion Hstep; auto).
-         iFailWP "Hφ" Lea_fail_overflow_PC_sr. }
+         iFailWP "Hφ" spec_Lea_fail_overflow_PC_sr. }
 
        (* Success *)
-       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+       eapply (spec_incrementPC_success_updatePC _ sr m st) in Hregs'
          as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
        eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono; eauto.
        rewrite HuPC in Hstep; clear HuPC.
@@ -196,7 +273,7 @@ Section spec_rules.
        { apply is_Some_lookup_reg; done. }
        iMod ((spec_regs_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
        iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro.
-       eapply Lea_spec_success_sr; eauto.
+       eapply spec_Lea_spec_success_sr; eauto.
    Unshelve. all: auto.
    Qed.
 
@@ -227,13 +304,13 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      3,4: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        rewrite !insert_insert_eq. (* TODO: add to simplify_map_eq via simpl_map? *)
        iApply (spec_regs_of_map_2 with "Hmap"); eauto. }
      { (* Success with WSealRange (contradiction) *)
        simplify_map_eq. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        all: try destruct pc_p; cbn in * ; congruence. }
     Unshelve. all: auto.
    Qed.
@@ -268,7 +345,7 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      3,4: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        (* FIXME: tedious *)
        rewrite (insert_insert_ne _ PC r1) // insert_insert_eq.
        rewrite (insert_insert_ne _ r1 PC) // (insert_insert_ne _ r1 rv) // insert_insert_eq.
@@ -276,7 +353,7 @@ Section spec_rules.
      { (* Success with WSealRange (contradiction) *)
        simplify_map_eq. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        all: try destruct p; cbn in * ; congruence. }
     Unshelve. all: auto.
    Qed.
@@ -304,12 +381,12 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      3,4: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        rewrite !insert_insert_eq. iApply (spec_regs_of_map_1 with "Hmap"); eauto. }
      { (* Success with WSealRange (contradiction) *)
        simplify_map_eq. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        all: try destruct pc_p; cbn in * ; congruence. }
      Unshelve. all: auto.
    Qed.
@@ -341,14 +418,14 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      3,4: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        (* FIXME: tedious *)
        rewrite insert_insert_ne // insert_insert_eq insert_insert_ne // insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "Hmap") as "[? ?]"; eauto. iFrame. }
      { (* Success with WSealRange (contradiction) *)
        simplify_map_eq. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        all: try destruct p; cbn in * ; congruence. }
      Unshelve. all:auto.
    Qed.
@@ -385,13 +462,13 @@ Section spec_rules.
      { (* Success with WSealCap (contradiction) *)
        simplify_map_eq. }
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        (* FIXME: tedious *)
        rewrite (insert_insert_ne _ PC r1) // insert_insert_eq.
        rewrite (insert_insert_ne _ r1 PC) // (insert_insert_ne _ r1 rv) // insert_insert_eq.
        iApply (spec_regs_of_map_3 with "Hmap"); eauto. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        congruence.
      }
     Unshelve. all: auto.
@@ -426,12 +503,12 @@ Section spec_rules.
      { (* Success with WSealRange (contradiction) *)
        simplify_map_eq. }
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        (* FIXME: tedious *)
        rewrite insert_insert_ne // insert_insert_eq insert_insert_ne // insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "Hmap") as "[? ?]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        congruence.
      }
      Unshelve. all:auto.
@@ -465,11 +542,11 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      1,2,4: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        rewrite !insert_insert_eq. (* TODO: add to simplify_map_eq via simpl_map? *)
        iApply (spec_regs_of_map_2 with "Hmap"); eauto. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        all: try destruct pc_p; cbn in * ; congruence. }
     Unshelve. all: auto.
    Qed.
@@ -505,13 +582,13 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      1,2,4: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        (* FIXME: tedious *)
        rewrite (insert_insert_ne _ PC r1) // insert_insert_eq.
        rewrite (insert_insert_ne _ r1 PC) // (insert_insert_ne _ r1 rv) // insert_insert_eq.
        iApply (spec_regs_of_map_3 with "Hmap"); eauto. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        all: try destruct p; cbn in * ; congruence. }
     Unshelve. all: auto.
    Qed.
@@ -540,10 +617,10 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      1,2,4: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        rewrite !insert_insert_eq. iApply (spec_regs_of_map_1 with "Hmap"); eauto. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        all: try destruct pc_p; cbn in * ; congruence. }
      Unshelve. all: auto.
    Qed.
@@ -576,12 +653,12 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      1,2,4: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        (* FIXME: tedious *)
        rewrite insert_insert_ne // insert_insert_eq insert_insert_ne // insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "Hmap") as "[? ?]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        all: try destruct p; cbn in * ; congruence. }
      Unshelve. all:auto.
    Qed.
@@ -617,13 +694,13 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      1,2,3: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        (* FIXME: tedious *)
        rewrite (insert_insert_ne _ PC r1) // insert_insert_eq.
        rewrite (insert_insert_ne _ r1 PC) // (insert_insert_ne _ r1 rv) // insert_insert_eq.
        iApply (spec_regs_of_map_3 with "Hmap"); eauto. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        congruence.
      }
     Unshelve. all: auto.
@@ -657,12 +734,12 @@ Section spec_rules.
      destruct Hspec as [ | | | | * Hfail ].
      1,2,3: by simplify_map_eq.
      { (* Success *)
-       iModIntro. iFrame. incrementPC_inv; simplify_map_eq.
+       iModIntro. iFrame. spec_incrementPC_inv; simplify_map_eq.
        (* FIXME: tedious *)
        rewrite insert_insert_ne // insert_insert_eq insert_insert_ne // insert_insert_eq.
        iDestruct (spec_regs_of_map_2 with "Hmap") as "[? ?]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct Hfail; try spec_incrementPC_inv; simplify_map_eq; eauto.
        congruence.
      }
      Unshelve. all:auto.
