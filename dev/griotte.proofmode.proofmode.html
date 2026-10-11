@@ -637,7 +637,10 @@
 <span class="comment">(*&nbsp;cleanup&nbsp;*)</span><br/>
 <span class="comment">(*&nbsp;TODO:&nbsp;make&nbsp;this&nbsp;extensible.&nbsp;Remove&nbsp;updatePcPerm?&nbsp;unfolding&nbsp;sometimes&nbsp;causes&nbsp;issues.&nbsp;*)</span><br/>
 <span class="id" title="keyword">Ltac2</span> <span class="id" title="var">iApplyCapAuto_cleanup</span> () :=<br/>
-&nbsp;&nbsp;<span class="id" title="var">cbn</span> [<span class="id" title="var">rules_Get.denote</span> <span class="id" title="var">rules_BinOp.denote</span> <span class="id" title="var">updatePcPerm</span>].<br/>
+&nbsp;&nbsp;<span class="id" title="var">cbn</span> [<span class="id" title="var">rules_Get.denote</span> <span class="id" title="var">rules_BinOp.denote</span> <span class="id" title="var">updatePcPerm</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">get_a</span> <span class="id" title="var">get_b</span> <span class="id" title="var">get_e</span> <span class="id" title="var">get_p</span> <span class="id" title="var">get_l</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">get_a_sealable</span> <span class="id" title="var">get_b_sealable</span> <span class="id" title="var">get_e_sealable</span> <span class="id" title="var">get_p_sealable</span> <span class="id" title="var">get_l_sealable</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">encodePermSum</span>].<br/>
 
 <br/>
 <span class="comment">(*&nbsp;iApplyCapAutoCore&nbsp;*)</span><br/>
