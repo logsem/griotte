@@ -184,8 +184,9 @@ Section Switcher_Call_World.
     assert (∃ swsb0, swct1 = WSealed ot_switcher swsb0) as [swsb0 ->].
     { destruct Heq as [<-|(o & sb1 & sb2 & Heq1 & ->)]; eauto.
       inversion Heq1; subst; eauto. }
-    iDestruct (interp_sealed_inv with "Htarget_v") as "[_ [%Hloc Hsb]]".
-    iAssert (sts_seals_std C ot_switcher {[(WSealable wsb0, WSealable swsb0)]})
+    iDestruct (interp_sealed_inv with "Htarget_v") as "[_ [%Hsb_eq Hsb]]".
+    subst swsb0.
+    iAssert (sts_seals_std C ot_switcher {[(WSealable wsb0, WSealable wsb0)]})
       as "#Hsb'".
     { iApply sts_seals_std_weaken; last iFrame "Hsb"; set_solver+. }
     iDestruct (world_interp_seal_pred_singleton_persistent with
@@ -197,11 +198,6 @@ Section Switcher_Call_World.
     cbn in Heq1, Heq2.
     destruct wsb0 as [p g b e a | sp g b e a]; cbn in Heq1; first last.
     { discriminate. }
-    destruct swsb0 as [p' g' b' e' a' | sp' g' b' e' a']; cbn in Heq2; first last.
-    { discriminate. }
-    cbn in Hloc; simplify_eq.
-    assert (g = g') as <-.
-    { destruct g, g'; cbn in Hloc; done. }
     iSplit.
     - iPureIntro; intros wsb Hwsb; simplify_eq; done.
     - iIntros (wsb Hwsb); simplify_eq.
