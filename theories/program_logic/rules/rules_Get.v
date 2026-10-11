@@ -20,52 +20,27 @@ Section griotte_lang_rules.
 
   (* Generalized denote function, since multiple cases result in similar success *)
   Definition denote (i: instr) (w : Word): option Z :=
-    match w with
-    | WCap p g b e a =>
-        match i with
-        | GetP _ _ => Some (encodePerm p)
-        | GetL _ _ => Some (encodeLoc g)
-        | GetB _ _ => Some (b:Z)
-        | GetE _ _ => Some (e:Z)
-        | GetA _ _ => Some (a:Z)
-        | GetOType _ _ => Some (-1)%Z
-        | GetWType _ _ => Some (encodeWordType w)
-        | _ => None
+    match i with
+    | GetP _ _ =>
+        match get_p w with
+        | Some p => Some (encodePermSum p)
+        | None => None
         end
-    | WSentry p g b e a =>
-        match i with
-        | GetP _ _ => Some (encodePerm p)
-        | GetL _ _ => Some (encodeLoc g)
-        | GetB _ _ => Some (b:Z)
-        | GetE _ _ => Some (e:Z)
-        | GetA _ _ => Some (a:Z)
-        | GetOType _ _ => Some (-1)%Z
-        | GetWType _ _ => Some (encodeWordType w)
-        | _ => None
+    | GetL _ _ =>
+        match get_l w with
+        | Some g => Some (encodeLoc g)
+        | None => None
         end
-    | WSealRange p g b e a =>
-        match i with
-        | GetP _ _ => Some (encodeSealPerms p)
-        | GetL _ _ => Some (encodeLoc g)
-        | GetB _ _ => Some (b:Z)
-        | GetE _ _ => Some (e:Z)
-        | GetA _ _ => Some (a:Z)
-        | GetOType _ _ => Some (-1)%Z
-        | GetWType _ _ => Some (encodeWordType w)
-        | _ => None
+    | GetB _ _ => get_b w
+    | GetE _ _ => get_e w
+    | GetA _ _ => get_a w
+    | GetOType _ _ =>
+        match w with
+        | WSealed o _ => Some (o:Z)
+        | _ => Some (-1)%Z
         end
-    | WSealed o _ =>
-        match i with
-        | GetOType _ _ => Some (o:Z)
-        | GetWType _ _ => Some (encodeWordType w)
-        | _ => None
-        end
-    | WInt _ =>
-        match i with
-        | GetOType _ _ => Some (-1)%Z
-        | GetWType _ _ => Some (encodeWordType w)
-        | _ => None
-        end
+    | GetWType _ _ => Some (encodeWordType w)
+    | _ => None
     end.
 
   Global Arguments denote : simpl nomatch.
@@ -103,7 +78,7 @@ Section griotte_lang_rules.
     is_Get i src dst → denote_cap i p g b e a = z → denote i (WCap p g b e a) = Some z.
   Proof.
     unfold denote_cap, denote, is_Get.
-    intros [-> | [-> | [-> | [-> | [-> | [-> | ->]]]]]] ->; done.
+    intros [-> | [-> | [-> | [-> | [-> | [-> | ->]]]]]] <-; done.
   Qed.
 
   Definition denote_seal (i: instr) (p : SealPerms) (g : Locality) (b e a : OType): Z :=
@@ -121,7 +96,7 @@ Section griotte_lang_rules.
     is_Get i src dst → denote_seal i p g b e a = z → denote i (WSealRange p g b e a) = Some z.
   Proof.
     unfold denote_seal, denote, is_Get.
-    intros [-> | [-> | [-> | [-> | [-> | [-> |  ->]]]]]] ->; done.
+    intros [-> | [-> | [-> | [-> | [-> | [-> |  ->]]]]]] <-; done.
   Qed.
 
 
@@ -368,7 +343,7 @@ Section griotte_lang_rules.
            ⌜ retv = FailedV ⌝
         ∨ (∃ z,
            ⌜ denote get_i wsrc = Some z ⌝
-           ∗ ⌜ (is_cap wsrc || is_sealr wsrc || is_sentry wsrc) = true ⌝
+           ∗ ⌜ (is_cap wsrc || is_sealr wsrc || is_sentry wsrc || is_sealed wsrc) = true ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ w

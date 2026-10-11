@@ -28,11 +28,7 @@ Section fundamental.
     interp W C (w1, w2) -∗ ⌜rules_Get.denote i w1 = rules_Get.denote i w2⌝.
   Proof.
     iIntros "Hw".
-    iDestruct (interp_eq_unless_sealed with "Hw") as %[->|(o & sb1 & sb2 & -> & ->)]; first done.
-    iPureIntro.
-    destruct i; cbn; try done.
-    f_equal.
-    by pose proof (encodeWordType_correct (WSealed o sb1) (WSealed o sb2)).
+    by iDestruct (interp_eq with "Hw") as %->.
   Qed.
 
   Lemma get_case (W : WORLD) (C : CmptName) (regs1 regs2 : Reg) (p p' : Perm)

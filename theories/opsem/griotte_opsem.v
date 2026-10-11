@@ -203,44 +203,24 @@ Section opsem.
     end
   | GetA dst r =>
     wr ← (reg φ) !!ᵣ r;
-    match wr with
-    | WCap _ _ _ _ a
-    | WSentry _ _ _ _ a
-    | WSealRange _ _ _ _ a => updatePC (update_reg φ dst (WInt a))
-    | _ => None
-    end
+    z ← get_a wr;
+    updatePC (update_reg φ dst (WInt z))
   | GetB dst r =>
     wr ← (reg φ) !!ᵣ r;
-    match wr with
-    | WCap _ _ b _ _
-    | WSentry _ _ b _ _
-    | WSealRange _ _ b _ _ => updatePC (update_reg φ dst (WInt b))
-    | _ => None
-    end
+    z ← get_b wr;
+    updatePC (update_reg φ dst (WInt z))
   | GetE dst r =>
     wr ← (reg φ) !!ᵣ r;
-    match wr with
-    | WCap _ _ _ e _
-    | WSentry _ _ _ e _
-    | WSealRange _ _ _ e _ => updatePC (update_reg φ dst (WInt e))
-    | _ => None
-    end
+    z ← get_e wr;
+    updatePC (update_reg φ dst (WInt z))
   | GetP dst r =>
     wr ← (reg φ) !!ᵣ r;
-    match wr with
-    | WCap p _ _ _ _
-    | WSentry p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodePerm p)))
-    | WSealRange p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodeSealPerms p)))
-    | _ => None
-    end
+    p ← get_p wr;
+    updatePC (update_reg φ dst (WInt (encodePermSum p)))
   | GetL dst r =>
     wr ← (reg φ) !!ᵣ r;
-    match wr with
-    | WCap _ l _ _ _
-    | WSentry _ l _ _ _
-    | WSealRange _ l _ _ _ => updatePC (update_reg φ dst (WInt (encodeLoc l)))
-    | _ => None
-    end
+    g ← get_l wr;
+    updatePC (update_reg φ dst (WInt (encodeLoc g)))
 
   | GetOType dst r =>
     wr ← (reg φ) !!ᵣ r;

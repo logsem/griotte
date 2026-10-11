@@ -540,7 +540,10 @@ Ltac2 reintro_cap_resources tbl :=
 (* cleanup *)
 (* TODO: make this extensible. Remove updatePcPerm? unfolding sometimes causes issues. *)
 Ltac2 iApplyCapAuto_cleanup () :=
-  cbn [rules_Get.denote rules_BinOp.denote updatePcPerm].
+  cbn [rules_Get.denote rules_BinOp.denote updatePcPerm
+       get_a get_b get_e get_p get_l
+       get_a_sealable get_b_sealable get_e_sealable get_p_sealable get_l_sealable
+       encodePermSum].
 
 (* iApplyCapAutoCore *)
 

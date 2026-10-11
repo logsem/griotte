@@ -284,7 +284,7 @@ Section fundamental.
     iExists P.
     iFrame "∗#%".
     iPureIntro.
-    by destruct sb1, sb2.
+    by subst.
   Qed.
 
   Lemma interp_deeplocal_word W C (ww : Word * Word) :
