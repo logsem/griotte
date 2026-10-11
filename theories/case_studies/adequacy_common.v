@@ -127,11 +127,12 @@ End registers.
 
 (** ** Rootedness of the initial configuration
 
-    Without an allocator, the initial configuration holds no heap root.
     The lemmas below discharge the [ghost_init_cond] side condition of
     [cerise_flag_adequacy] for a layout made of the switcher, the assert
-    compartment and a list of compartments: each case study only proves
-    that the memory of its compartments is rooted. *)
+    compartment and a list of compartments, with a set [R] of heap roots
+    held by the compartments (an allocator holds the root of the heap;
+    without an allocator, [R] is empty). Each case study only proves that
+    the memory of its compartments is rooted in [R]. *)
 Section initial_rootedness.
   Context `{MP: MachineParameters}.
 
@@ -175,13 +176,13 @@ Section initial_rootedness.
     rewrite -dom_union_L. apply dom_foldl_initial_cmpt.
   Qed.
 
-  (** The initial memory is rooted, provided that each compartment is. *)
-  Lemma mem_rooted_initial_memory
+  (** The initial memory is rooted in [R], provided that each compartment is. *)
+  Lemma mem_rooted_initial_memory_roots (R : gset Addr)
     (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
     initial_heap_memory ##ₘ initial_program_memory sw Cassert cmpts →
     Forall is_z (stack_content sw) →
-    Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
-    mem_rooted ∅ (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
+    Forall (λ C, mem_rooted R (mk_initial_cmpt C)) cmpts →
+    mem_rooted R (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
   Proof.
     intros Hheap Hstack Hcmpts.
     pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
@@ -194,11 +195,20 @@ Section initial_rootedness.
       apply (assert_flag_not_heap_of_disjoint_dom _ _ Hheap). set_solver.
   Qed.
 
+  Lemma mem_rooted_initial_memory
+    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
+    initial_heap_memory ##ₘ initial_program_memory sw Cassert cmpts →
+    Forall is_z (stack_content sw) →
+    Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
+    mem_rooted ∅ (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
+  Proof. apply mem_rooted_initial_memory_roots. Qed.
+
   (** The initial registers are rooted: PC, cgp and csp are capabilities
       outside the heap, and the other registers hold integers. *)
-  Lemma initial_registers_rooted (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :
+  Lemma initial_registers_rooted_roots (R : gset Addr)
+    (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :
     is_initial_registers_of sw main reg →
-    ∀ r w, reg !! r = Some w → word_rooted ∅ w.
+    ∀ r w, reg !! r = Some w → word_rooted R w.
   Proof.
     intros (HPC & Hcgp & Hcsp & Hr) r w Hw.
     destruct (decide (r = PC)) as [->|]; [rewrite HPC in Hw; injection Hw as <-;
@@ -208,6 +218,66 @@ Section initial_rootedness.
     destruct (decide (r = csp)) as [->|]; [rewrite Hcsp in Hw; injection Hw as <-;
       apply word_rooted_cap_disjoint, stack_disjoint_from_heap|].
     rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_rooted_int.
+  Qed.
+
+  Lemma initial_registers_rooted (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :
+    is_initial_registers_of sw main reg →
+    ∀ r w, reg !! r = Some w → word_rooted ∅ w.
+  Proof. apply initial_registers_rooted_roots. Qed.
+
+  (** The initial condition, with heap roots [R]. *)
+  Lemma ghost_init_cond_roots (R : gset Addr) (reg : Reg) (sreg : SReg) (m : Mem) :
+    (∀ a, a ∈ R → is_heap_address a = true) →
+    mem_rooted R m →
+    (∀ r w, reg !! r = Some w → word_rooted R w) →
+    (∀ sr w, sreg !! sr = Some w → word_rooted R w) →
+    mem_avoids_mmio m →
+    reg !! cnull = Some (WInt 0) →
+    ghost_init_cond (reg, sreg, m, initial_heap_shadow) R.
+  Proof.
+    intros HR Hm Hreg Hsreg Hmmio Hnull.
+    assert (∀ a, is_heap_address a = true →
+      initial_heap_shadow !! a = Some ShadowLive) as Hsh.
+    { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
+        lookup_gset_to_gmap option_guard_True //.
+      by apply elem_of_heap_addresses. }
+    constructor; cbn.
+    - exact HR.
+    - intros a Ha. by apply Hsh, HR.
+    - intros a Ha. eexists. by apply Hsh.
+    - intros a w b Ha. by eapply Hm.
+    - intros r w b _ Hw. by eapply Hreg.
+    - intros sr w b Hw. by eapply Hsreg.
+    - exact Hmmio.
+    - intros w Hw. rewrite Hnull in Hw. by injection Hw as <-.
+  Qed.
+
+  (** The initial condition of a layout with heap roots [R]. *)
+  Lemma ghost_init_cond_initial_layout_roots (R : gset Addr)
+    (sw : cmptSwitcher) (Cassert : cmptAssert) (main : cmpt) (cmpts : list cmpt)
+    (pm : Mem) (reg : Reg) (sreg : SReg) :
+    (∀ a, a ∈ R → is_heap_address a = true) →
+    pm = initial_program_memory sw Cassert cmpts →
+    initial_heap_memory ##ₘ pm →
+    is_initial_registers_of sw main reg →
+    is_initial_sregisters_of sw sreg →
+    Forall is_z (stack_content sw) →
+    Forall (λ C, mem_rooted R (mk_initial_cmpt C)) cmpts →
+    ghost_init_cond (reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) R.
+  Proof.
+    intros HR -> Hheap Hreg Hsreg Hstack Hcmpts.
+    pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
+    apply ghost_init_cond_roots; first done.
+    - by apply mem_rooted_initial_memory_roots.
+    - by eapply initial_registers_rooted_roots.
+    - (* The trusted stack is in the program memory, hence outside the heap. *)
+      intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      apply word_rooted_cap_disjoint.
+      apply (trusted_stack_disjoint_from_heap_of_disjoint_dom _ _ Hheap). set_solver.
+    - apply mem_avoids_mmio_union; first apply mem_avoids_mmio_initial_heap.
+      apply mem_avoids_mmio_foldl_initial_cmpt, mem_avoids_mmio_union;
+        [apply mem_avoids_mmio_initial_switcher|apply mem_avoids_mmio_initial_assert].
+    - destruct Hreg as (_&_&_&Hr). apply Hr. set_solver.
   Qed.
 
   (** The initial condition of a layout without heap roots. *)
@@ -221,21 +291,7 @@ Section initial_rootedness.
     Forall is_z (stack_content sw) →
     Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
     ghost_init_cond (reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) ∅.
-  Proof.
-    intros -> Hheap Hreg Hsreg Hstack Hcmpts.
-    pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
-    apply ghost_init_cond_no_roots.
-    - by apply mem_rooted_initial_memory.
-    - by eapply initial_registers_rooted.
-    - (* The trusted stack is in the program memory, hence outside the heap. *)
-      intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
-      apply word_rooted_cap_disjoint.
-      apply (trusted_stack_disjoint_from_heap_of_disjoint_dom _ _ Hheap). set_solver.
-    - apply mem_avoids_mmio_union; first apply mem_avoids_mmio_initial_heap.
-      apply mem_avoids_mmio_foldl_initial_cmpt, mem_avoids_mmio_union;
-        [apply mem_avoids_mmio_initial_switcher|apply mem_avoids_mmio_initial_assert].
-    - destruct Hreg as (_&_&_&Hr). apply Hr. set_solver.
-  Qed.
+  Proof. apply ghost_init_cond_initial_layout_roots. set_solver. Qed.
 
 End initial_rootedness.
 
@@ -942,6 +998,165 @@ Section adversary_exports.
   Qed.
 
 End adversary_exports.
+
+(** ** Imports of an adversary
+
+    The imports of an adversary are safe to store in its memory: the
+    switcher call sentry, and words sealed in the world (for instance, the
+    entries exported by a service compartment). *)
+Section adversary_imports.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
+
+  Lemma switcher_call_import_safe (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
+    let w := lword_of_word (WSentry true XSRW_ Local
+               switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
+    na_inv cerise_nais Nswitcher switcher_inv ⊢
+    interp_in_memC (W, C, w) ∗ future_priv_mono C interp_in_memC w.
+  Proof.
+    intros w; subst w.
+    iIntros "#Hswitcher".
+    assert (heap_authority_base
+              (WSentry true XSRW_ Local
+                 switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) = None)
+      as Hcall_nonheap.
+    { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
+      apply heap_authority_base_heap_cap_base in Hauth.
+      pose proof switcher_call_sentry_not_heap as Hnonheap.
+      unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
+    iEval (cbn); iSplit.
+    - iEval (rewrite /interp_in_mem_pre /=).
+      rewrite filter_heap_nonheap; last exact Hcall_nonheap.
+      by iApply interp_switcher_call.
+    - iIntros "!>" (W' W'' Hrel) "_".
+      iEval (rewrite /interp_in_mem_pre /=).
+      rewrite filter_heap_nonheap; last exact Hcall_nonheap.
+      by iApply interp_switcher_call.
+  Qed.
+
+  (** A word sealed with [o] is safe, in any world, once the sealable and
+      its borrowed version are in the sealing part of the world. *)
+  Lemma interp_sealed_of_seals (W : WORLD) (C : CmptName) (o : OType)
+    (ws : gset LWord) (sb : Sealable) :
+    {[ lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb)) ]} ⊆ ws →
+    (∀ p g b e a, sb = SCap true p g b e a → disjoint_from_heap b e) →
+    sts_seals_std C o ws -∗
+    interp W C (WSealed o sb).
+  Proof.
+    iIntros (Hsub Hheap) "#Hseal".
+    iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    destruct (get_tag_sealable sb); last done.
+    iSplit; first (iApply (sts_seals_std_weaken with "Hseal"); by destruct sb).
+    iPureIntro.
+    destruct sb as [ [] p g b e a | [] ? ? ? ]; cbn; try done.
+    apply heap_cap_valid_disjoint; by eapply Hheap.
+  Qed.
+
+  (** A global word sealed in the world is a safe import. *)
+  Lemma sealed_import_safe (W : WORLD) (C : CmptName) (o : OType)
+    (ws : gset LWord) (sb : Sealable) :
+    let w := lword_of_word (WSealed o sb) in
+    isGlobalSealable sb = true →
+    {[ lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb)) ]} ⊆ ws →
+    (∀ p g b e a, sb = SCap true p g b e a → disjoint_from_heap b e) →
+    sts_seals_std C o ws -∗
+    interp_in_memC (W, C, w) ∗ future_priv_mono C interp_in_memC w.
+  Proof.
+    intros w Hglobal Hsub Hheap; subst w.
+    iIntros "#Hseal".
+    iSplit.
+    - iApply interp_to_in_mem. by iApply interp_sealed_of_seals.
+    - iIntros (W' W'') "!> %Hrelated Hinterp".
+      iEval (cbn) in "Hinterp".
+      iApply (interp_in_mem_monotone_nl with "Hinterp"); first done.
+      by destruct sb as [ [] ? [] | [] ? [] ].
+  Qed.
+
+End adversary_imports.
+
+(** ** Entry points exported by a service compartment *)
+Section service_exports.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}.
+
+  (** The sealed words of a list of exported entries: each entry and its
+      borrowed version. *)
+  Definition exports_words (sbs : list Sealable) : gset LWord :=
+    ⋃ ((λ sb, {[ lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb)) ]}) <$> sbs).
+
+  Lemma exports_words_elem_of (sbs : list Sealable) (sb : Sealable) :
+    sb ∈ sbs →
+    {[ lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb)) ]} ⊆ exports_words sbs.
+  Proof.
+    intros Hsb w Hw. rewrite /exports_words elem_of_union_list.
+    eexists; split; last done.
+    apply list_elem_of_fmap. by exists sb.
+  Qed.
+
+  (** Seal the (global) exported entries [sbs] of a service compartment with
+      [ot_switcher] in the world [W] of a compartment [C], given that they
+      satisfy the sealing predicate of the switcher in the updated world. *)
+  Lemma seal_service_exports (W : WORLD) (C : CmptName) (sbs : list Sealable) :
+    let W' := <o[ switcher.ot_switcher := exports_words sbs ]o> W in
+    Forall (λ sb, isGlobalSealable sb = true) sbs →
+    switcher.ot_switcher ∉ dom (seal_std W) →
+    seal_pred switcher.ot_switcher ot_switcher_propC -∗
+    □ ([∗ list] sb ∈ sbs, ot_switcher_prop W' C (WSealable sb)) -∗
+    world_interp W C
+    ==∗
+    world_interp W' C ∗ sts_seals_std C switcher.ot_switcher (exports_words sbs).
+  Proof.
+    intros W' Hglobal Hfresh.
+    iIntros "#Hseal_pred #Hprops Hworld".
+    iMod (world_interp_salloc W C ot_switcher_propC switcher.ot_switcher (exports_words sbs)
+           with "Hseal_pred [] [] Hworld") as "($ & $)"; first done.
+    { iIntros (w); iApply mono_priv_ot_switcher. }
+    { iApply big_sepS_intro; iIntros "!>" (w Hw).
+      rewrite /normalise_sealed_words elem_of_map in Hw.
+      destruct Hw as (w' & -> & Hw').
+      rewrite /exports_words elem_of_union_list in Hw'.
+      destruct Hw' as (X & HX & Hw').
+      apply list_elem_of_fmap in HX as (sb & -> & Hsb).
+      assert (lforce_global w' = lword_of_word (WSealable sb)) as ->.
+      { rewrite Forall_forall in Hglobal. specialize (Hglobal _ Hsb).
+        apply elem_of_union in Hw' as [->%elem_of_singleton | ->%elem_of_singleton];
+          destruct sb as [ [] ? [] | [] ? [] ]; by cbn in *. }
+      iNext. iDestruct (big_sepL_elem_of with "Hprops") as "$"; done. }
+    done.
+  Qed.
+
+End service_exports.
+
+(** ** Initial heap *)
+Section initial_heap.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP: MachineParameters}.
+
+  (** The resources of the initial heap: its memory and its unpainted
+      shadow entries, in the form taken by an allocator initialisation. *)
+  Lemma initial_heap_resources :
+    ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) -∗
+    ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) -∗
+    [∗ map] a↦v ∈ lword_of_word <$> initial_heap_memory, a ↦ₐ v ∗ a ↦ₛ ShadowLive.
+  Proof.
+    iIntros "Hheap Hshadow".
+    iEval (rewrite /initial_heap_shadow big_sepM_fmap) in "Hshadow".
+    rewrite big_sepM_fmap.
+    iApply big_sepM_sep; iFrame.
+  Qed.
+
+End initial_heap.
 
 (** ** Exported entry points of the main compartment *)
 Section main_exports.
