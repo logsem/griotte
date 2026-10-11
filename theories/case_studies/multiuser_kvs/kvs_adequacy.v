@@ -251,7 +251,6 @@ Section Adequacy.
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
     intros Hreg Hsreg Hm Hshadow_initial Hheap_disjoint Hstep.
-    pose proof Hm as Hm'.
     destruct Hm as (Hm
                     & main_imports & main_code & main_data & main_static_sealed & main_exp_tbl
                     & kvs_imports & kvs_code & kvs_data & kvs_static_sealed & kvs_exp_tbl
@@ -296,84 +295,54 @@ Section Adequacy.
         intros Heq; simplify_eq; solve_addr+Heq H1 Hc Hc'. }
       cbn; repeat (apply NoDup_cons; split); try apply NoDup_nil; set_solver.
     }
-    { subst sh. apply ghost_init_cond_no_roots.
-      - pose proof Hm' as Hm_init.
-        destruct Hm_init as (Hm_eq
-          & Hmain_imports & Hmain_code & Hmain_data & Hmain_static & Hmain_exp
-          & Hkvs_imports & Hkvs_code & Hkvs_data & Hkvs_static & Hkvs_exp
-          & HB_imports & HB_code & HB_data & HB_static & HB_exp & Hstack_ints).
-        subst m.
-        rewrite /mk_initial_memory /mk_initial_program_memory.
-        repeat lazymatch goal with
-          | |- mem_rooted _ (_ ∪ _) => apply mem_rooted_union
-          end.
-        + apply mem_rooted_initial_heap.
-        + apply mem_rooted_initial_switcher. by apply word_rooted_ints.
-        + (* The assert flag is in the program memory, hence outside the heap. *)
-          apply mem_rooted_initial_assert.
-          apply (assert_flag_not_heap_of_disjoint_dom _ mk_initial_program_memory);
-            first exact Hheap_disjoint.
-          rewrite /mk_initial_program_memory !dom_union_L. set_solver.
-        + apply mem_rooted_initial_cmpt.
-          * rewrite Hmain_imports /kvs_main_imports.
-            repeat constructor; apply word_rooted_not_heap_cap.
-            -- exact switcher_call_sentry_not_heap.
-            -- rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
-               by rewrite (assert_code_nonheap assert_cmpt).
-            -- apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-            -- apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-            -- apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-            -- apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-            -- apply sealed_cap_nonheap, cmpt_static_sealed_base_not_heap.
-          * rewrite Hmain_code /kvs_main_code /fetch.fetch_instrs /assert_instrs !Forall_app.
-            repeat split; (apply word_rooted_instrs || apply Forall_nil_2).
-          * rewrite Hmain_data /kvs_main_data. apply Forall_nil_2.
-          * rewrite Hmain_static /kvs_main_static_sealed. repeat constructor; apply word_rooted_int.
-          * rewrite Hmain_exp. apply Forall_nil_2.
-        + apply mem_rooted_initial_cmpt.
-          * rewrite Hkvs_imports /kvs_imports /kvs.kvs_imports_pre.
-            repeat constructor; apply word_rooted_not_heap_cap.
-            -- exact switcher_call_sentry_not_heap.
-            -- done.
-          * rewrite Hkvs_code /kvs_service_instrs /kvs_addOrUpdate_instrs /kvs_read_instrs
-              /kvs_erase_instrs !Forall_app.
-            repeat split; first [apply word_rooted_instrs | apply Forall_nil_2
-              | (apply Forall_concat, Forall_fmap, Forall_true; intros; apply word_rooted_instrs)].
-          * rewrite Hkvs_data /kvs.kvs_data. apply word_rooted_ints.
-            generalize SIZE_MAP; intros n; induction n as [|n IHn]; cbn;
-              [apply Forall_nil_2 | repeat constructor; done].
-          * rewrite Hkvs_static. apply Forall_nil_2.
-          * rewrite Hkvs_exp /kvs_export_table_entries. repeat constructor; apply word_rooted_int.
-        + apply mem_rooted_initial_cmpt.
-          * rewrite HB_imports. repeat constructor; apply word_rooted_not_heap_cap.
-            -- exact switcher_call_sentry_not_heap.
-            -- apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-            -- apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-            -- apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-            -- apply sealed_cap_nonheap, cmpt_static_sealed_base_not_heap.
-          * by apply word_rooted_ints.
-          * eapply Forall_impl; first exact HB_data.
-            intros w Hw. by eapply word_rooted_initial_data.
-          * rewrite HB_static. repeat constructor; apply word_rooted_int.
-          * rewrite HB_exp. repeat constructor; apply word_rooted_int.
-      - destruct Hreg as (HPC & Hcgp & Hcsp & Hr). intros r w Hw.
-        destruct (decide (r = PC)) as [->|]; [rewrite HPC in Hw; injection Hw as <-;
-          apply word_rooted_cap_nonheap, cmpt_pcc_base_not_heap|].
-        destruct (decide (r = cgp)) as [->|]; [rewrite Hcgp in Hw; injection Hw as <-;
-          apply word_rooted_cap_nonheap, cmpt_cgp_base_not_heap|].
-        destruct (decide (r = csp)) as [->|]; [rewrite Hcsp in Hw; injection Hw as <-;
-          apply word_rooted_cap_disjoint, stack_disjoint_from_heap|].
-        rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_rooted_int.
-      - (* The trusted stack is in the program memory, hence outside the heap. *)
-        intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
-        apply word_rooted_cap_disjoint.
-        apply (trusted_stack_disjoint_from_heap_of_disjoint_dom _ mk_initial_program_memory);
-          first exact Hheap_disjoint.
-        rewrite /mk_initial_program_memory !dom_union_L. set_solver.
-      - subst m.
-        rewrite /mk_initial_memory /mk_initial_program_memory.
-        solve_mem_avoids_mmio_initial.
-      - destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
+    { (* No allocator: the initial configuration has no heap root. *)
+      subst sh m.
+      apply (ghost_init_cond_initial_layout switcher_cmpt assert_cmpt main_cmpt
+             [main_cmpt; kvs_cmpt; B_cmpt]);
+        [done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |].
+      repeat constructor.
+      - apply mem_rooted_initial_cmpt.
+        + rewrite main_imports /kvs_main_imports.
+          repeat constructor; apply word_rooted_not_heap_cap.
+          * exact switcher_call_sentry_not_heap.
+          * rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
+            by rewrite (assert_code_nonheap assert_cmpt).
+          * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
+          * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
+          * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
+          * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
+          * apply sealed_cap_nonheap, cmpt_static_sealed_base_not_heap.
+        + rewrite main_code /kvs_main_code /fetch.fetch_instrs /assert_instrs !Forall_app.
+          repeat split; (apply word_rooted_instrs || apply Forall_nil_2).
+        + rewrite main_data /kvs_main_data. apply Forall_nil_2.
+        + rewrite main_static_sealed /kvs_main_static_sealed. repeat constructor; apply word_rooted_int.
+        + rewrite main_exp_tbl. apply Forall_nil_2.
+      - apply mem_rooted_initial_cmpt.
+        + rewrite kvs_imports /kvs.kvs_imports /kvs.kvs_imports_pre.
+          repeat constructor; apply word_rooted_not_heap_cap.
+          * exact switcher_call_sentry_not_heap.
+          * done.
+        + rewrite kvs_code /kvs_service_instrs /kvs_addOrUpdate_instrs /kvs_read_instrs
+            /kvs_erase_instrs !Forall_app.
+          repeat split; first [apply word_rooted_instrs | apply Forall_nil_2
+            | (apply Forall_concat, Forall_fmap, Forall_true; intros; apply word_rooted_instrs)].
+        + rewrite kvs_data /kvs.kvs_data. apply word_rooted_ints.
+          generalize SIZE_MAP; intros n; induction n as [|n IHn]; cbn;
+            [apply Forall_nil_2 | repeat constructor; done].
+        + rewrite kvs_static_sealed. apply Forall_nil_2.
+        + rewrite kvs_exp_tbl /kvs_export_table_entries. repeat constructor; apply word_rooted_int.
+      - apply mem_rooted_initial_cmpt.
+        + rewrite B_imports. repeat constructor; apply word_rooted_not_heap_cap.
+          * exact switcher_call_sentry_not_heap.
+          * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
+          * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
+          * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
+          * apply sealed_cap_nonheap, cmpt_static_sealed_base_not_heap.
+        + by apply word_rooted_ints.
+        + eapply Forall_impl; first exact B_data.
+          intros w Hw. by eapply word_rooted_initial_data.
+        + rewrite B_static_sealed. repeat constructor; apply word_rooted_int.
+        + rewrite B_exp_tbl. repeat constructor; apply word_rooted_int. }
     { destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
     iIntros (ceriseg) "Hreg Hsreg Hmem _ _ Hna
                        ([#Hentry_Bf #Hentry_Bf'] & [#Hentry_kvs_addOrUpdate #Hentry_kvs_addOrUpdate']

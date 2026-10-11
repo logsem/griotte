@@ -125,6 +125,120 @@ Section registers.
 
 End registers.
 
+(** ** Rootedness of the initial configuration
+
+    Without an allocator, the initial configuration holds no heap root.
+    The lemmas below discharge the [ghost_init_cond] side condition of
+    [cerise_flag_adequacy] for a layout made of the switcher, the assert
+    compartment and a list of compartments: each case study only proves
+    that the memory of its compartments is rooted. *)
+Section initial_rootedness.
+  Context `{MP: MachineParameters}.
+
+  (** The program memory of a layout: the switcher, the assert compartment,
+      then the compartments, in this order. *)
+  Definition initial_program_memory
+    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) : Mem :=
+    foldl (λ m C, m ∪ mk_initial_cmpt C)
+      (mk_initial_switcher sw ∪ mk_initial_assert Cassert) cmpts.
+
+  Lemma dom_foldl_initial_cmpt (m : Mem) (cmpts : list cmpt) :
+    dom m ⊆ dom (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
+  Proof.
+    revert m; induction cmpts as [|C cmpts IH]; intros m; cbn; first done.
+    etrans; last apply IH. rewrite dom_union_L. set_solver.
+  Qed.
+
+  Lemma mem_rooted_foldl_initial_cmpt (H : gset Addr) (m : Mem) (cmpts : list cmpt) :
+    mem_rooted H m →
+    Forall (λ C, mem_rooted H (mk_initial_cmpt C)) cmpts →
+    mem_rooted H (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
+  Proof.
+    revert m; induction cmpts as [|C cmpts IH]; intros m Hm Hcmpts; cbn; first done.
+    apply Forall_cons in Hcmpts as [HC Hcmpts].
+    apply IH; last done. by apply mem_rooted_union.
+  Qed.
+
+  Lemma mem_avoids_mmio_foldl_initial_cmpt (m : Mem) (cmpts : list cmpt) :
+    mem_avoids_mmio m →
+    mem_avoids_mmio (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
+  Proof.
+    revert m; induction cmpts as [|C cmpts IH]; intros m Hm; cbn; first done.
+    apply IH, mem_avoids_mmio_union; [done|apply mem_avoids_mmio_initial_cmpt].
+  Qed.
+
+  Lemma dom_initial_program_memory_switcher_assert
+    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
+    dom (mk_initial_switcher sw) ∪ dom (mk_initial_assert Cassert)
+      ⊆ dom (initial_program_memory sw Cassert cmpts).
+  Proof.
+    rewrite -dom_union_L. apply dom_foldl_initial_cmpt.
+  Qed.
+
+  (** The initial memory is rooted, provided that each compartment is. *)
+  Lemma mem_rooted_initial_memory
+    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
+    initial_heap_memory ##ₘ initial_program_memory sw Cassert cmpts →
+    Forall is_z (stack_content sw) →
+    Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
+    mem_rooted ∅ (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
+  Proof.
+    intros Hheap Hstack Hcmpts.
+    pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
+    apply mem_rooted_union; first apply mem_rooted_initial_heap.
+    apply mem_rooted_foldl_initial_cmpt; last done.
+    apply mem_rooted_union.
+    - apply mem_rooted_initial_switcher. by apply word_rooted_ints.
+    - (* The assert flag is in the program memory, hence outside the heap. *)
+      apply mem_rooted_initial_assert.
+      apply (assert_flag_not_heap_of_disjoint_dom _ _ Hheap). set_solver.
+  Qed.
+
+  (** The initial registers are rooted: PC, cgp and csp are capabilities
+      outside the heap, and the other registers hold integers. *)
+  Lemma initial_registers_rooted (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :
+    is_initial_registers_of sw main reg →
+    ∀ r w, reg !! r = Some w → word_rooted ∅ w.
+  Proof.
+    intros (HPC & Hcgp & Hcsp & Hr) r w Hw.
+    destruct (decide (r = PC)) as [->|]; [rewrite HPC in Hw; injection Hw as <-;
+      apply word_rooted_cap_nonheap, cmpt_pcc_base_not_heap|].
+    destruct (decide (r = cgp)) as [->|]; [rewrite Hcgp in Hw; injection Hw as <-;
+      apply word_rooted_cap_nonheap, cmpt_cgp_base_not_heap|].
+    destruct (decide (r = csp)) as [->|]; [rewrite Hcsp in Hw; injection Hw as <-;
+      apply word_rooted_cap_disjoint, stack_disjoint_from_heap|].
+    rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_rooted_int.
+  Qed.
+
+  (** The initial condition of a layout without heap roots. *)
+  Lemma ghost_init_cond_initial_layout
+    (sw : cmptSwitcher) (Cassert : cmptAssert) (main : cmpt) (cmpts : list cmpt)
+    (pm : Mem) (reg : Reg) (sreg : SReg) :
+    pm = initial_program_memory sw Cassert cmpts →
+    initial_heap_memory ##ₘ pm →
+    is_initial_registers_of sw main reg →
+    is_initial_sregisters_of sw sreg →
+    Forall is_z (stack_content sw) →
+    Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
+    ghost_init_cond (reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) ∅.
+  Proof.
+    intros -> Hheap Hreg Hsreg Hstack Hcmpts.
+    pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
+    apply ghost_init_cond_no_roots.
+    - by apply mem_rooted_initial_memory.
+    - by eapply initial_registers_rooted.
+    - (* The trusted stack is in the program memory, hence outside the heap. *)
+      intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      apply word_rooted_cap_disjoint.
+      apply (trusted_stack_disjoint_from_heap_of_disjoint_dom _ _ Hheap). set_solver.
+    - apply mem_avoids_mmio_union; first apply mem_avoids_mmio_initial_heap.
+      apply mem_avoids_mmio_foldl_initial_cmpt, mem_avoids_mmio_union;
+        [apply mem_avoids_mmio_initial_switcher|apply mem_avoids_mmio_initial_assert].
+    - destruct Hreg as (_&_&_&Hr). apply Hr. set_solver.
+  Qed.
+
+End initial_rootedness.
+
 (** ** Entry-point resources *)
 
 (** The entry-point map for a list of exported (unsealed) entries and their
