@@ -40,7 +40,7 @@ Section VAE.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (Nassert Nswitcher Nvae_code VAEN : namespace)
+    (Nswitcher : namespace)
 
     (cstk : CSTK)
     (i : positive)
@@ -54,9 +54,6 @@ Section VAE.
     is_heap_address cgp_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     is_shadow_address cgp_b = false ->
-    Nswitcher ## Nassert ->
-    Nswitcher ## Nvae_code ->
-    Nassert ## Nvae_code ->
 
     (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
 
@@ -70,14 +67,14 @@ Section VAE.
     loc W0 !! i = Some (encode false) ->
     frame_match Ws Cs cstk W0 C ->
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
-      ∗ na_inv cerise_nais Nvae_code
-          ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a vae_main_code)
-      ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
-      ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
-      ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
-          ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
+      ∗ switcher_static
+      ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+      ∗ codefrag_pers pc_a vae_main_code
+      ∗ b_vae_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
+      ∗ (b_vae_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ (b_vae_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init)))
       ∗ inv awkN (awk_inv C i cgp_b)
       ∗ sts_rel_loc C i awk_rel_pub awk_rel_priv
       ∗ na_own cerise_nais ⊤
@@ -114,11 +111,11 @@ Section VAE.
        - [vae_init_blocks_2_spec]: block 3, halt. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
-               HNswitcher_assert HNswitcher_vae HNassert_vae Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
+               Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hloc_i_0 Hframe_match
             )
-      "(#Hassert & #Hswitcher
-      & #Hvae
+      "(#Hassert & #Hswitcher & #Hswitcher_static
+      & #Himports_main & #Hcode_main
       & #Hvae_exp_tbl_PCC
       & #Hvae_exp_tbl_CGP
       & #Hvae_exp_tbl_awkward
@@ -137,8 +134,6 @@ Section VAE.
     assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /vae_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).
-    iMod (na_inv_acc with "Hvae Hna")
-      as "((>Himports_main & >Hcode_main) & Hna & Hvae_close)"; auto.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_mmio Hstk_heap]; first done.
@@ -155,10 +150,7 @@ Section VAE.
              "[- $Hawk_inv $Hworld_interp_C $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra
               $Himport_switcher $Himport_C_f $Hcode_main]"); [done..|exact Hloc_i_0|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra
-                    & Himport_switcher & Himport_C_f & Hcode_main)".
-    iMod ("Hvae_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
-      as "Hna".
-    { iNext. iRegionMerge. iFrame. }
+                    & _ & _ & _)".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -166,7 +158,7 @@ Section VAE.
 
     (* Call to [B.adv] *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
               $Hinterp_W1_C_f $HK]"); [done..|].
@@ -182,12 +174,9 @@ Section VAE.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Block 3: halt *)
-    iMod (na_inv_acc with "Hvae Hna")
-      as "((>Himports_main & >Hcode_main) & Hna & Hvae_close)"; auto.
-    iApply (vae_init_blocks_2_spec with "[$HPC $Hcode_main Himports_main Hna Hvae_close]");
+    iApply (vae_init_blocks_2_spec with "[$HPC $Hcode_main Hna]");
       first done.
-    iNext; iIntros "(HPC & Hcode_main)".
-    iMod ("Hvae_close" with "[$Hna $Himports_main $Hcode_main]") as "Hna".
+    iNext; iIntros "(HPC & _)".
     wp_end; iIntros "_"; iFrame.
   Qed.
 

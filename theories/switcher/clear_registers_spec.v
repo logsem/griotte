@@ -41,17 +41,17 @@ Section ClearRegistersMacro.
 
     ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-      ∗ codefrag pc_a (rclear_instrs' l)
+      ∗ codefrag_pers pc_a (rclear_instrs' l)
       ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = list_to_set l ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ codefrag pc_a (rclear_instrs' l))
+              ∗ codefrag_pers pc_a (rclear_instrs' l))
                -∗ WP Seq (Instr Executable) {{ φ }})
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hne Hx Hbounds Hdom) "(HPC & Hregs & Hcode & Hcont)".
+    iIntros (Hne Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     iRevert (Hbounds Hdom).
     iInduction (l) as [|r l] "IH" forall (rmap pc_a); iIntros (Hbounds Hrdom); first congruence.
 
@@ -65,7 +65,7 @@ Section ClearRegistersMacro.
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ 1)%a); auto; solve_addr. }
     destruct (decide (l = [])).
-    { subst l. iApply "Hcont". iFrame.
+    { subst l. iApply "Hcont". iFrame "∗ #".
       replace (delete r rmap) with (∅ : LReg).
       2: { symmetry.
            rewrite -dom_empty_iff_L.
@@ -82,14 +82,8 @@ Section ClearRegistersMacro.
       + iPureIntro ; set_solver.
     }
 
-   iAssert (codefrag (pc_a ^+ 1)%a (rclear_instrs' l) ∗
-             (codefrag (pc_a ^+ 1)%a (rclear_instrs' l) -∗ codefrag pc_a (rclear_instrs' (r :: l))))%I
-    with "[Hcode]" as "[Hcode Hcls]".
-    { cbn. unfold codefrag. rewrite (region_pointsto_cons _ (pc_a ^+ 1)%a). 2,3: solve_addr.
-      iDestruct "Hcode" as "[? Hr]".
-      rewrite (_: ((pc_a ^+ 1) ^+ (length (rclear_instrs' l)))%a =
-                    (pc_a ^+ (S (length (rclear_instrs' l))))%a). 2: solve_addr.
-      iFrame. eauto. }
+    iAssert (codefrag_pers (pc_a ^+ 1)%a (rclear_instrs' l))%I as "#Hcode'".
+    { iDestruct (codefrag_app_pers _ [_] with "Hcode") as "[_ $]". }
 
     match goal with H : SubBounds _ _ _ _ |- _ =>
       rewrite (_: (pc_a ^+ (length (rclear_instrs' (r :: l))))%a =
@@ -101,23 +95,21 @@ Section ClearRegistersMacro.
     + iDestruct (big_sepM_insert _ _ r with "[Hr $Hregs]") as "Hregs".
       { by rewrite lookup_delete_eq//. }
       { by iFrame. }
-      iApply ("IH" with "[] HPC Hregs Hcode [Hcont Hcls]"); eauto.
+      iApply ("IH" with "[] Hcode' HPC Hregs [Hcont]"); eauto.
       { iNext.
-        iIntros "H"; iDestruct "H" as (rmap' Hdom_rmap')  "(HPC & Hregs & Hcode)".
-        iApply "Hcont"; iFrame.
-        iDestruct ("Hcls" with "Hcode") as "$".
+        iIntros "H"; iDestruct "H" as (rmap' Hdom_rmap')  "(HPC & Hregs & _)".
+        iApply "Hcont"; iFrame "∗ #".
         iPureIntro; set_solver.
       }
       { iPureIntro; solve_pure_addr. }
       {  iPureIntro. rewrite insert_delete_eq. set_solver. }
-    + iApply ("IH" with "[] HPC Hregs Hcode [Hcont Hcls Hr]"); eauto.
+    + iApply ("IH" with "[] Hcode' HPC Hregs [Hcont Hr]"); eauto.
       { iNext.
-        iIntros "H"; iDestruct "H" as (rmap' Hdom_rmap')  "(HPC & Hregs & Hcode)".
+        iIntros "H"; iDestruct "H" as (rmap' Hdom_rmap')  "(HPC & Hregs & _)".
         iDestruct (big_sepM_insert _ _ r with "[Hr $Hregs]") as "Hregs".
         { rewrite -not_elem_of_dom Hdom_rmap'; set_solver. }
         { iFrame. done. }
-        iApply "Hcont"; iFrame.
-        iDestruct ("Hcls" with "Hcode") as "$".
+        iApply "Hcont"; iFrame "∗ #".
         iPureIntro; set_solver.
       }
       { iPureIntro; solve_pure_addr. }
@@ -134,19 +126,19 @@ Section ClearRegistersMacro.
 
     ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-      ∗ codefrag pc_a clear_registers_post_call_instrs
+      ∗ codefrag_pers pc_a clear_registers_post_call_instrs
       ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ codefrag pc_a clear_registers_post_call_instrs)
+              ∗ codefrag_pers pc_a clear_registers_post_call_instrs)
                -∗ WP Seq (Instr Executable) {{ φ }})
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hx Hbounds Hdom) "(HPC & Hregs & Hcode & Hcont)".
+    iIntros (Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     iApply (rclear_spec _ _ _ _ _ registers_post_call); eauto.
-    iFrame.
+    iFrame "∗ #".
   Qed.
 
   Lemma clear_registers_pre_call_spec
@@ -159,19 +151,19 @@ Section ClearRegistersMacro.
 
     ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-      ∗ codefrag pc_a clear_registers_pre_call_instrs
+      ∗ codefrag_pers pc_a clear_registers_pre_call_instrs
       ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ codefrag pc_a clear_registers_pre_call_instrs)
+              ∗ codefrag_pers pc_a clear_registers_pre_call_instrs)
                -∗ WP Seq (Instr Executable) {{ φ }})
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hx Hbounds Hdom) "(HPC & Hregs & Hcode & Hcont)".
+    iIntros (Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     iApply (rclear_spec _ _ _ _ _ registers_pre_call); eauto.
-    iFrame.
+    iFrame "∗ #".
   Qed.
 
 
@@ -188,7 +180,7 @@ Section ClearRegistersMacro.
     ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
       ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg )
-      ∗ codefrag pc_a clear_registers_pre_call_skip_instrs
+      ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
       ∗ ▷ ( (∃ arg_rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
@@ -199,12 +191,12 @@ Section ClearRegistersMacro.
                        then ⌜ arg_rmap !! rarg = Some warg ⌝
                        else ⌜ warg = WInt 0 ⌝
                 )
-              ∗ codefrag pc_a clear_registers_pre_call_skip_instrs)
+              ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs)
                -∗ WP Seq (Instr Executable) {{ φ }})
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hexec Hbounds Hargmap Hz) "(HPC & Hct2 & Hargs & Hcode & Hcont)".
+    iIntros (Hexec Hbounds Hargmap Hz) "(HPC & Hct2 & Hargs & #Hcode & Hcont)".
     codefrag_facts "Hcode". clear H0.
 
     assert (∃ w0 w1 w2 w3 w4 w5 w, arg_rmap = <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
@@ -237,7 +229,7 @@ Section ClearRegistersMacro.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame. cbn.
+      iFrame "∗ #". cbn.
       destruct (decide (_ ∈ ∅)) as [Hcontra|]; first set_solver+Hcontra.
       rewrite /is_arg_rmap /dom_arg_rmap; cbn.
       repeat iSplit;[|done..|done].

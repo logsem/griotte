@@ -510,6 +510,30 @@ Section griotte_lang_rules.
       iApply big_sepM_insert;[|by iFrame]. auto.
   Qed.
 
+  Lemma memMap_resource_2ne_dq (a1 a2 : Addr) (dq1 dq2 : dfrac) (w1 w2 : LWord) :
+    a1 ≠ a2 →
+    ([∗ map] a↦dw ∈ prod_merge (<[a1:=dq1]> (<[a2:=dq2]> ∅)) (<[a1:=w1]> (<[a2:=w2]> ∅)),
+       a ↦ₐ{dw.1} dw.2)%I ⊣⊢ a1 ↦ₐ{dq1} w1 ∗ a2 ↦ₐ{dq2} w2.
+  Proof.
+    intros Hne.
+    rewrite /prod_merge -(insert_merge _ _ _ _ (dq1,w1)); auto.
+    rewrite -(insert_merge _ _ _ _ (dq2,w2)); auto.
+    rewrite merge_empty big_sepM_insert; last by rewrite lookup_insert_ne.
+    by rewrite big_sepM_insert // big_sepM_empty right_id.
+  Qed.
+
+  (* The fetched instruction word may be shared, the other cell is exclusive. *)
+  Lemma memMap_resource_2ne_apply_dq (a1 a2 : Addr) (dq : dfrac) (w1 w2 : LWord) :
+    a1 ↦ₐ{dq} w1 -∗ a2 ↦ₐ w2 -∗
+    ([∗ map] a↦dw ∈ prod_merge (<[a1:=dq]> (<[a2:=DfracOwn 1]> ∅)) (<[a1:=w1]> (<[a2:=w2]> ∅)),
+       a ↦ₐ{dw.1} dw.2) ∗ ⌜a1 ≠ a2⌝.
+  Proof.
+    iIntros "H1 H2".
+    iDestruct (pointsto_ne with "H2 H1") as %Hne.
+    rewrite memMap_resource_2ne_dq; last done.
+    iFrame. iPureIntro. done.
+  Qed.
+
   Lemma memMap_delete:
     ∀(a : Addr) (w : LWord) mem0,
       mem0 !! a = Some w →
@@ -719,13 +743,13 @@ Section griotte_lang_rules.
 
   (* ----------------------------------- ATOMIC RULES -------------------------------- *)
 
-  Lemma wp_halt E pc_p pc_g pc_b pc_e pc_a pc_π w :
+  Lemma wp_halt E pc_p pc_g pc_b pc_e pc_a pc_π w dq :
     decodeInstrW w.(lw) = Halt →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
 
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w }}}
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET HaltedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w }}}.
+    {{{ RET HaltedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
@@ -739,13 +763,13 @@ Section griotte_lang_rules.
     iExists lreg, lmem, R, C. by iFrame.
   Qed.
 
-  Lemma wp_fail E pc_p pc_g pc_b pc_e pc_a pc_π w :
+  Lemma wp_fail E pc_p pc_g pc_b pc_e pc_a pc_π w dq :
     decodeInstrW w.(lw) = Fail →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
 
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w }}}
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w }}}.
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
@@ -1266,15 +1290,15 @@ Section instruction_outcomes.
      about all physical register files that include the erased owned
      registers, so no absent register or memory address can be mistaken for
      evidence of runtime failure. *)
-  Local Lemma wp_instr_failed_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) :
+  Local Lemma wp_instr_failed_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     (∀ r sr m st, lregs_erase regs ⊆ r →
        exec i pc_p (r, sr, m, st) = (Failed, (r, sr, m, st))) →
-    {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET FailedV; pc_a ↦ₐ w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+    {{{ RET FailedV; pc_a ↦ₐ{dq} w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc HPC Hfailed φ) "(>Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "Hpc_a Hmap"); eauto.
@@ -1286,14 +1310,14 @@ Section instruction_outcomes.
   Qed.
 
   (* Failure with PC alone; all resources are returned unchanged. *)
-  Lemma wp_instr_failed_0 E pc_p pc_g pc_b pc_e pc_a pc_π w i :
+  Lemma wp_instr_failed_0 E pc_p pc_g pc_b pc_e pc_a pc_π w i dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
        exec i pc_p (r, sr, m, st) = (Failed, (r, sr, m, st))) →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w }}}.
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hmem) Hφ".
     iDestruct (map_of_regs_1 with "HPC") as "Hmap".
@@ -1313,15 +1337,15 @@ Section instruction_outcomes.
   Qed.
 
   (* Failure with PC and 1 explicit register; all resources are returned unchanged. *)
-  Lemma wp_instr_failed_1 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 :
+  Lemma wp_instr_failed_1 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
        r !! r1 = Some w1.(lw) →
        exec i pc_p (r, sr, m, st) = (Failed, (r, sr, m, st))) →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ pc_a ↦ₐ w }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ pc_a ↦ₐ w }}}.
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hmem) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %Hne]".
@@ -1341,16 +1365,16 @@ Section instruction_outcomes.
   Qed.
 
   (* Failure with PC and 2 explicit registers; all resources are returned unchanged. *)
-  Lemma wp_instr_failed_2 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 :
+  Lemma wp_instr_failed_2 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
        r !! r1 = Some w1.(lw) →
        r !! r2 = Some w2.(lw) →
        exec i pc_p (r, sr, m, st) = (Failed, (r, sr, m, st))) →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2 ∗ ▷ pc_a ↦ₐ w }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2 ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ pc_a ↦ₐ w }}}.
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hr2 & >Hmem) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
@@ -1371,7 +1395,7 @@ Section instruction_outcomes.
   Qed.
 
   (* Failure with PC and 3 explicit registers; all resources are returned unchanged. *)
-  Lemma wp_instr_failed_3 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 r3 w3 :
+  Lemma wp_instr_failed_3 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 r3 w3 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st, r !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1383,13 +1407,13 @@ Section instruction_outcomes.
           ▷ r1 ↦ᵣ w1 ∗
           ▷ r2 ↦ᵣ w2 ∗
           ▷ r3 ↦ᵣ w3 ∗
-          ▷ pc_a ↦ₐ w }}}
+          ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
           r1 ↦ᵣ w1 ∗
           r2 ↦ᵣ w2 ∗
           r3 ↦ᵣ w3 ∗
-          pc_a ↦ₐ w }}}.
+          pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hr2 & >Hr3 & >Hmem) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hr3") as "[Hmap %Hne]".

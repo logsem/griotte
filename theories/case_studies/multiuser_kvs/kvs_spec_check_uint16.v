@@ -28,14 +28,14 @@ Section KVS_check_uint16.
       PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ wrv ∗
       rdst ↦ᵣ - ∗
-      codefrag pc_a instrs ∗
+      codefrag_pers pc_a instrs ∗
 
       ▷ (
           ∀ nkey,
             ⌜ wrv.(lw) = WInt nkey ⌝ ∗
             PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             rv ↦ᵣ wrv ∗
-            codefrag pc_a instrs ∗
+            codefrag_pers pc_a instrs ∗
             (
               ( rdst ↦ᵣ WInt ASM_TRUE ∗ ⌜ is_uint16 nkey ⌝ )
               ∨
@@ -48,7 +48,7 @@ Section KVS_check_uint16.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hrv Hrdst)
-      "(HPC & Hrv & [%wdst Hrdst] & Hcode & Hpost)".
+      "(HPC & Hrv & [%wdst Hrdst] & #Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* lt rdst (UINT16_MIN-1)%Z rv; *)
@@ -68,7 +68,7 @@ Section KVS_check_uint16.
       rewrite decide_False //.
       (* jmp (".kvs_key_ret")%asm; *)
       iInstr "Hcode".
-      iApply "Hpost"; iFrame.
+      iApply "Hpost"; iFrame "∗ Hcode".
       iSplit; eauto.
       iRight; iFrame.
       iPureIntro; rewrite /is_uint16; lia.
@@ -90,7 +90,7 @@ Section KVS_check_uint16.
       rewrite decide_False //.
       (* jmp (".kvs_key_ret")%asm; *)
       iInstr "Hcode".
-      iApply "Hpost"; iFrame.
+      iApply "Hpost"; iFrame "∗ Hcode".
       iSplit; eauto.
       iRight; iFrame.
       iPureIntro; rewrite /is_uint16; lia.
@@ -102,7 +102,7 @@ Section KVS_check_uint16.
     (* mov rdst ASM_TRUE; *)
     iInstr "Hcode".
 
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode".
     iSplit; eauto.
   Qed.
 
@@ -121,12 +121,12 @@ Section KVS_check_uint16.
       PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ WInt nkey @@? πnkey ∗
       rdst ↦ᵣ - ∗
-      codefrag pc_a instrs ∗
+      codefrag_pers pc_a instrs ∗
 
       ▷ (
           PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rv ↦ᵣ WInt nkey @@? πnkey ∗
-          codefrag pc_a instrs ∗
+          codefrag_pers pc_a instrs ∗
           rdst ↦ᵣ WInt ASM_TRUE
           -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -134,10 +134,10 @@ Section KVS_check_uint16.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & Hcode & Hpost)".
+    iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & #Hcode & Hpost)".
     iApply (KVS_check_uint16_spec with "[- $HPC $Hrv $Hrdst $Hcode]"); eauto.
-    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & Hcode & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; cbn in Hnkey_eq; simplify_eq.
-    iApply "Hpost"; iFrame.
+    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & _ & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; cbn in Hnkey_eq; simplify_eq.
+    iApply "Hpost"; iFrame "∗ Hcode".
   Qed.
 
   Definition word_is_uint16 (w : Word) : Prop :=
@@ -164,12 +164,12 @@ Section KVS_check_uint16.
       PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ wrv ∗
       rdst ↦ᵣ - ∗
-      codefrag pc_a instrs ∗
+      codefrag_pers pc_a instrs ∗
 
       ▷ (
           PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rv ↦ᵣ wrv ∗
-          codefrag pc_a instrs ∗
+          codefrag_pers pc_a instrs ∗
           rdst ↦ᵣ WInt ASM_FALSE
           -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -177,10 +177,10 @@ Section KVS_check_uint16.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & Hcode & Hpost)".
+    iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & #Hcode & Hpost)".
     iApply (KVS_check_uint16_spec with "[- $HPC $Hrv $Hrdst $Hcode]"); eauto.
-    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & Hcode & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; rewrite Hnkey_eq in Hnkey; simplify_eq.
-    iApply "Hpost"; iFrame.
+    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & _ & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; rewrite Hnkey_eq in Hnkey; simplify_eq.
+    iApply "Hpost"; iFrame "∗ Hcode".
   Qed.
 
 End KVS_check_uint16.

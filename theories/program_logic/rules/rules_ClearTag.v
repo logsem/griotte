@@ -28,17 +28,17 @@ Section griotte_lang_rules.
       regs' = regs →
       ClearTag_spec regs dst src regs' FailedV.
 
-  Lemma wp_ClearTag Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs :
+  Lemma wp_ClearTag Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq :
     decodeInstrW w.(lw) = ClearTag dst src ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (ClearTag dst src) ⊆ dom regs →
-    {{{ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
         ⌜ ClearTag_spec regs dst src regs' retv ⌝ ∗
-        pc_a ↦ₐ w ∗
+        pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
@@ -63,19 +63,19 @@ Section griotte_lang_rules.
     iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
   Qed.
 
-  Lemma wp_ClearTag_same_success E r pc_p pc_g pc_b pc_e pc_a pc_π w wr pc_a':
+  Lemma wp_ClearTag_same_success E r pc_p pc_g pc_b pc_e pc_a pc_π w wr pc_a' dq:
     decodeInstrW w.(lw) = ClearTag r r →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
     r ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r ↦ᵣ wr }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r ↦ᵣ lclear_tag wr }}}.
   Proof.
     iIntros (Hdecode Hvpc Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hr) Hφ".
@@ -93,7 +93,7 @@ Section griotte_lang_rules.
       unfold lclear_tag, lift_word in *; incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_ClearTag_success E dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc wdst pc_a' :
+  Lemma wp_ClearTag_success E dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc wdst pc_a' dq :
     decodeInstrW w.(lw) = ClearTag dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
@@ -101,13 +101,13 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ src ↦ᵣ wsrc
         ∗ ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ src ↦ᵣ wsrc
           ∗ dst ↦ᵣ lclear_tag wsrc }}}.
   Proof.
@@ -130,16 +130,16 @@ Section griotte_lang_rules.
     ClearTag_spec regs dst src regs' FailedV → regs' = regs.
   Proof. by inversion 1. Qed.
 
-  Lemma wp_ClearTag_failure E pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs wsrc :
+  Lemma wp_ClearTag_failure E pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs wsrc dq :
     decodeInstrW w.(lw) = ClearTag dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (ClearTag dst src) ⊆ dom regs →
     regs !!ₗ src = Some wsrc →
     incrementPC (<[dst := lclear_tag wsrc]ₗ> regs) = None →
-    {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET FailedV; pc_a ↦ₐ w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+    {{{ RET FailedV; pc_a ↦ₐ{dq} w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hvpc HPC Hdom Hsrc Hinc φ) "Hpre Hφ".
     iApply (wp_ClearTag with "Hpre"); eauto.
@@ -148,14 +148,14 @@ Section griotte_lang_rules.
     iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_ClearTag_PC E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w :
+  Lemma wp_ClearTag_PC E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq :
     decodeInstrW w.(lw) = ClearTag PC PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ᵣ WCap false pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w }}}.
+        PC ↦ᵣ WCap false pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc φ) "(>HPC & >Hmem) Hφ".
     iDestruct (map_of_regs_1 with "HPC") as "Hmap".
@@ -168,15 +168,15 @@ Section griotte_lang_rules.
       iApply "Hφ". iFrame.
     - unfold lclear_tag, lift_word in *; incrementPC_inv; simplify_map_eq; eauto. congruence.
   Qed.
-  Lemma wp_ClearTag_fromPC E dst pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wdst :
+  Lemma wp_ClearTag_fromPC E dst pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wdst dq :
     decodeInstrW w.(lw) = ClearTag dst PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → dst ≠ cnull →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ E
     {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-        pc_a ↦ₐ w ∗ dst ↦ᵣ WCap false pc_p pc_g pc_b pc_e pc_a @@? pc_π }}}.
+        pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ WCap false pc_p pc_g pc_b pc_e pc_a @@? pc_π }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc Hcnull φ) "(>HPC & >Hmem & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
@@ -192,14 +192,14 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_ClearTag_toPC E src pc_p pc_g pc_b pc_e pc_a pc_π w
-      (t : bool) p g b e a a' π :
+      (t : bool) p g b e a a' π dq :
     decodeInstrW w.(lw) = ClearTag PC src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (a + 1)%a = Some a' → src ≠ cnull →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ WCap t p g b e a @@? π }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap false p g b e a' @@? π ∗ pc_a ↦ₐ w ∗
+    {{{ RET NextIV; PC ↦ᵣ WCap false p g b e a' @@? π ∗ pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ WCap t p g b e a @@? π }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc Hcnull φ) "(>HPC & >Hmem & >Hsrc) Hφ".
@@ -215,13 +215,13 @@ Section griotte_lang_rules.
     - unfold lclear_tag, lift_word in *; incrementPC_inv; simplify_map_eq; eauto. congruence.
   Qed.
 
-  Lemma wp_ClearTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn :
+  Lemma wp_ClearTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn dq :
     decodeInstrW w.(lw) = ClearTag cnull cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w ∗ cnull ↦ᵣ WInt 0%Z }}}.
+    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc φ) "(>HPC & >Hmem & >Hn) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hn") as "[Hmap %]".
@@ -236,13 +236,13 @@ Section griotte_lang_rules.
     - unfold lclear_tag, lift_word in *; incrementPC_inv; simplify_map_eq; eauto; congruence.
   Qed.
 
-  Lemma wp_ClearTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd wn :
+  Lemma wp_ClearTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd wn dq :
     decodeInstrW w.(lw) = ClearTag dst cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → dst ≠ cnull →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ dst ↦ᵣ wd }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ dst ↦ᵣ wd }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ WInt 0%Z ∗ cnull ↦ᵣ wn }}}.
+    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ WInt 0%Z ∗ cnull ↦ᵣ wn }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc Hne φ) "(>HPC & >Hmem & >Hs & >Hd) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hd Hs") as "[Hmap (%&%&%)]".
@@ -257,13 +257,13 @@ Section griotte_lang_rules.
     - unfold lclear_tag, lift_word in *; incrementPC_inv; simplify_map_eq; eauto; congruence.
   Qed.
 
-  Lemma wp_ClearTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src wn ws :
+  Lemma wp_ClearTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src wn ws dq :
     decodeInstrW w.(lw) = ClearTag cnull src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → src ≠ cnull →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ src ↦ᵣ ws }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ src ↦ᵣ ws }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w ∗ cnull ↦ᵣ WInt 0%Z ∗ src ↦ᵣ ws }}}.
+    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z ∗ src ↦ᵣ ws }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc Hne φ) "(>HPC & >Hmem & >Hd & >Hs) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hd Hs") as "[Hmap (%&%&%)]".
@@ -278,13 +278,13 @@ Section griotte_lang_rules.
     - unfold lclear_tag, lift_word in *; incrementPC_inv; simplify_map_eq; eauto; congruence.
   Qed.
 
-  Lemma wp_ClearTag_PC_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn :
+  Lemma wp_ClearTag_PC_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn dq :
     decodeInstrW w.(lw) = ClearTag cnull PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w ∗ cnull ↦ᵣ WInt 0%Z }}}.
+    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc φ) "(>HPC & >Hmem & >Hn) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hn") as "[Hmap %]".
@@ -298,13 +298,13 @@ Section griotte_lang_rules.
     - unfold lclear_tag, lift_word in *; incrementPC_inv; simplify_map_eq; eauto; congruence.
   Qed.
 
-  Lemma wp_ClearTag_cnull_toPC E pc_p pc_g pc_b pc_e pc_a pc_π w wn :
+  Lemma wp_ClearTag_cnull_toPC E pc_p pc_g pc_b pc_e pc_a pc_π w wn dq :
     decodeInstrW w.(lw) = ClearTag PC cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
 
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w ∗ cnull ↦ᵣ wn }}}.
+    {{{ RET FailedV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ wn }}}.
   Proof.
     iIntros (Hdecode Hvpc φ) "(>HPC & >Hmem & >Hn) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hn") as "[Hmap %]".
@@ -316,12 +316,12 @@ Section griotte_lang_rules.
       iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_ClearTag_toPC_failure E pc_p pc_g pc_b pc_e pc_a pc_π w src ws :
+  Lemma wp_ClearTag_toPC_failure E pc_p pc_g pc_b pc_e pc_a pc_π w src ws dq :
     decodeInstrW w.(lw) = ClearTag PC src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_cap ws.(lw) = false →
     src ≠ cnull →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ src ↦ᵣ ws }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ src ↦ᵣ ws }}}
       Instr Executable @ E
     {{{ RET FailedV; True }}}.
   Proof.

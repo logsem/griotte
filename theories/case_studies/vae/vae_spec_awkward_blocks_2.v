@@ -43,8 +43,8 @@ Section VAE_Awkward_Blocks_2.
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wret ∗
     cs1 ↦ᵣ wg ∗
-    pc_b ↦ₐ vae_switcher_entry ∗
-    codefrag pc_a vae_main_code ∗
+    pc_b ↦ₐ□ vae_switcher_entry ∗
+    codefrag_pers pc_a vae_main_code ∗
     ▷ (world_interp (<l[i:=true]l>W) C ∗
         PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
@@ -55,8 +55,8 @@ Section VAE_Awkward_Blocks_2.
         ct1 ↦ᵣ wg ∗
         cs0 ↦ᵣ wret ∗
         cs1 ↦ᵣ WInt 0 ∗
-        pc_b ↦ₐ vae_switcher_entry ∗
-        codefrag pc_a vae_main_code
+        pc_b ↦ₐ□ vae_switcher_entry ∗
+        codefrag_pers pc_a vae_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -85,7 +85,7 @@ Section VAE_Awkward_Blocks_2.
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
     iModIntro.
     wp_pure.
-    iSpecialize ("Hcode" with "[$]").
+    iClear "Hi".
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Mov ct1 cs1 *)
@@ -101,7 +101,7 @@ Section VAE_Awkward_Blocks_2.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
+    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -120,7 +120,7 @@ Section VAE_Awkward_Blocks_2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_call ^+ 4)%a = (pc_a ^+ vae_instr_offset 9 4)%a) as ->
       by (offsets_compute; solve_addr).
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End VAE_Awkward_Blocks_2.

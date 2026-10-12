@@ -11,7 +11,7 @@ Section Fetch.
   Lemma fetch_spec
     (n : Z) (rdst rscratch1 rscratch2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (wentry : Word) (wdst w1 w2 : LWord)
+    (wentry : Word) (wdst w1 w2 : LWord) (dq : dfrac)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let fetch_ := (fetch_instrs n rdst rscratch1 rscratch2) in
@@ -29,21 +29,20 @@ Section Fetch.
     ∗ ▷ rdst ↦ᵣ wdst
     ∗ ▷ rscratch1 ↦ᵣ w1
     ∗ ▷ rscratch2 ↦ᵣ w2
-    ∗ ▷ codefrag pc_a fetch_
-    ∗ ▷ (pc_b ^+ n)%a ↦ₐ wentry
+    ∗ ▷ codefrag_pers pc_a fetch_
+    ∗ ▷ (pc_b ^+ n)%a ↦ₐ{dq} wentry
     ∗ ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ rdst ↦ᵣ load_word pc_p wentry
          ∗ rscratch1 ↦ᵣ WInt 0%Z
          ∗ rscratch2 ↦ᵣ WInt 0%Z
-         ∗ codefrag pc_a fetch_
-         ∗ (pc_b ^+ n)%a ↦ₐ wentry
+         ∗ codefrag_pers pc_a fetch_
+         ∗ (pc_b ^+ n)%a ↦ₐ{dq} wentry
          -∗ WP Seq (Instr Executable) {{ φ }})
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros fetch a_last ; subst fetch a_last.
     iIntros (Hvpc Hcont Hpc_n Hdisjoint Hnonheap Hrdst Hr1 Hr2)
-      "(>HPC & >Hrdst & >Hrscratch1 & >Hrscratch2 & >Hprog & >Hpc_bn & Hφ)".
-    iDestruct (big_sepL2_length with "Hprog") as %Hlength.
+      "(>HPC & >Hrdst & >Hrscratch1 & >Hrscratch2 & >#Hprog & >Hpc_bn & Hφ)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
     assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
@@ -51,7 +50,7 @@ Section Fetch.
     assert (is_shadow_address (pc_b ^+ n)%a = false) as Hshadow.
     { eapply disjoint_from_shadow_not_in; eauto. }
     iGo "Hprog".
-    iApply "Hφ"; iFrame.
+    iApply "Hφ"; iFrame "∗ Hprog".
   Qed.
 
 End Fetch.

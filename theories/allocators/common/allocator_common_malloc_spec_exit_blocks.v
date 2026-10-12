@@ -19,28 +19,28 @@ Section AllocatorMallocExitBlocks.
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_exit_block_offset 2)%a ∗
     cra ↦ᵣ wret ∗
     cnull ↦ᵣ wnull ∗
-    codefrag pc_a allocator_malloc_exit_code ∗
+    codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        cnull ↦ᵣ WInt 0 ∗
-       codefrag pc_a allocator_malloc_exit_code ∗
+       codefrag_pers pc_a allocator_malloc_exit_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hcnull & Hcode_main & Hφ)".
+    iIntros "(HPC & Hcra & Hcnull & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
     (* Block 2: return *)
     focus_block 2 "Hcode_main" of allocator_malloc_exit_blocks at pc_a as a_ret Ha_ret
       "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     iApply (allocator_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]"); [solve_addr|done|].
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hcode & Hlc)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hφ". iFrame.
+    iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   (** Blocks 0 and 2: set [ALLOC_INVALID] and return. *)
@@ -53,25 +53,25 @@ Section AllocatorMallocExitBlocks.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wnull ∗
-    codefrag pc_a allocator_malloc_exit_code ∗
+    codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        cnull ↦ᵣ WInt 0 ∗
-       codefrag pc_a allocator_malloc_exit_code ∗
+       codefrag_pers pc_a allocator_malloc_exit_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds. pose proof Hbounds as (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hφ)".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
     (* Block 0: set ALLOC_INVALID *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     (* Mov ca0 ALLOC_INVALID. *)
     iInstr "Hcode".
     (* Mov ca1 0. *)
@@ -79,12 +79,12 @@ Section AllocatorMallocExitBlocks.
     (* Jmp .malloc_return. *)
     iInstr "Hcode".
     destruct (decide (ca0 = cnull)) as [|_]; first done.
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_exit_block_offset 2)%a.
     iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcnull $Hcode_main]");
       first done.
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hcode_main & Hlc)".
-    iApply "Hφ". iFrame.
+    iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   (** Blocks 1 and 2: set [ALLOC_NO_MEMORY] and return. *)
@@ -97,37 +97,37 @@ Section AllocatorMallocExitBlocks.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wnull ∗
-    codefrag pc_a allocator_malloc_exit_code ∗
+    codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
        ca1 ↦ᵣ WInt 0 ∗
        cnull ↦ᵣ WInt 0 ∗
-       codefrag pc_a allocator_malloc_exit_code ∗
+       codefrag_pers pc_a allocator_malloc_exit_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds. pose proof Hbounds as (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hφ)".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
     (* Block 1: set ALLOC_NO_MEMORY *)
     focus_block 1 "Hcode_main" of allocator_malloc_exit_blocks at pc_a as a_oom Ha_oom
       "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     (* Mov ca0 ALLOC_NO_MEMORY. *)
     iInstr "Hcode".
     (* Mov ca1 0. *)
     iInstr "Hcode".
     destruct (decide (ca0 = cnull)) as [|_]; first done.
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_exit_block_offset 2)%a.
     iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcnull $Hcode_main]");
       first done.
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hcode_main & Hlc)".
-    iApply "Hφ". iFrame.
+    iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
 End AllocatorMallocExitBlocks.

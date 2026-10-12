@@ -44,24 +44,23 @@ Section CMDC_Check_Blocks_3.
       as a_assert Ha_assert "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto; [solve_addr|];
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
-                    & Hcode & Himport_assert)";
+    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
+                    & _ & Himport_assert)";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
     change_pc_to (pc_a ^+ cmdc_block_offset (n + 4))%a;
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
 
   Lemma cmdc_check_blocks_3_spec (c : cmdc_call)
-    (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable) (Nassert : namespace)
+    (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable)
     (cgp_b cgp_e a_chk : Addr)
     (wct0 wct1 wct2 wct3 wct4 wcnull wcra : LWord) :
     let n := cmdc_call_block c in
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
     (cgp_b <= a_chk < cgp_e)%a ->
     is_mmio_address a_chk = false ->
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
-    na_own cerise_nais ⊤ ∗
+    assert_static b_assert e_assert a_flag ∗
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
     ct0 ↦ᵣ wct0 ∗
@@ -72,10 +71,9 @@ Section CMDC_Check_Blocks_3.
     cnull ↦ᵣ wcnull ∗
     cra ↦ᵣ wcra ∗
     a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
-    codefrag pc_a cmdc_main_code ∗
-    ▷ ( na_own cerise_nais ⊤ ∗
-        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset (n + 4))%a ∗
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    codefrag_pers pc_a cmdc_main_code ∗
+    ▷ ( PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset (n + 4))%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
@@ -85,8 +83,8 @@ Section CMDC_Check_Blocks_3.
         cnull ↦ᵣ WInt 0 ∗
         cra ↦ᵣ wcra ∗
         a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
-        (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
-        codefrag pc_a cmdc_main_code
+        (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+        codefrag_pers pc_a cmdc_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -94,7 +92,7 @@ Section CMDC_Check_Blocks_3.
     destruct c; subst n; cbn [cmdc_call_block cmdc_call_expected].
     all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap
                    & HC_g_nonheap) Ha_chk Ha_chk_mmio)
-      "(#Hassert & Hna & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
+      "(#Hassert & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
       & Ha_chk & Himport_assert & Hcode_main & Hpost)".
     all: codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     all: unfold_code cmdc_main_code "Hcode_main".

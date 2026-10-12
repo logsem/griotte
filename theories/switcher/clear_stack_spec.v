@@ -23,19 +23,19 @@ Section ClearStackMacro.
     ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ csp ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
-      ∗ codefrag pc_a (clear_stack_instrs r1 r2)
+      ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2)
       ∗ ([[ csp_a , csp_e ]] ↦ₐ [[ ws ]])
       ∗ ▷ ( (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
              ∗ csp ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a
              ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_e
-             ∗ codefrag pc_a (clear_stack_instrs r1 r2)
+             ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2)
              ∗ ([[ csp_a , csp_e ]] ↦ₐ [[region_addrs_zeroes csp_a csp_e]]))
         -∗ WP Seq (Instr Executable) {{ φ }})
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
     iIntros (Hpc_exec Hbounds Hbounds1 Hbounds2 Hdisjoint Hr1cnull Hr2cnull)
-      "(HPC & Hcsp & Hr1 & Hr2 & Hcode & Hstack & Hφ)".
+      "(HPC & Hcsp & Hr1 & Hr2 & #Hcode & Hstack & Hφ)".
     codefrag_facts "Hcode".
 
     (* --- Sub r1 r2 r1 --- *)
@@ -61,7 +61,7 @@ Section ClearStackMacro.
       iInstr "Hcode".
       (* --- Jmp 5 ---- *)
       iInstr "Hcode".
-      iApply "Hφ". subst. iFrame.
+      iApply "Hφ". subst. iFrame "∗ #".
       rewrite /region_pointsto finz_seq_between_empty; last solve_addr+.
       rewrite /region_addrs_zeroes finz_dist_0; last solve_addr+.
       done.
@@ -73,7 +73,7 @@ Section ClearStackMacro.
       { intros Hcontr; inversion Hcontr; solve_addr. }
       iIntros "!> (HPC & Hi & Hct2)".
       wp_pure.
-      iSpecialize ("Hcode" with "[$]").
+      iClear "Hi".
 
       (* --- Store r2 0%Z --- *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -88,7 +88,7 @@ Section ClearStackMacro.
       { apply withinBounds_true_iff; solve_addr. }
       iIntros "!> (HPC & Hi & Hr2 & Ha)".
       wp_pure.
-      iSpecialize ("Hcode" with "[$]").
+      iClear "Hi".
 
       (* --- Lea r2 1 --- *)
       destruct (csp_a + 1)%a eqn:Ha;cycle 1.
@@ -108,9 +108,9 @@ Section ClearStackMacro.
       replace (csp_a - csp_e + 1)%Z with (f - csp_e)%Z by solve_addr.
       replace f with (csp_a ^+1)%a by solve_addr.
       iApply ("IH" $! (csp_a ^+1)%a ws with
-               "[$Hstack] [Ha Hφ] [$Hct2] [$Hcode] [$HPC] [$Hr2] [$Hcsp] [] []").
-      { iIntros "(?&?&?&?&?&Hstk)".
-        iApply "Hφ"; iFrame.
+               "[$Hstack] [Ha Hφ] [$Hct2] [$HPC] [$Hr2] [$Hcsp] [] []").
+      { iIntros "(?&?&?&?&_&Hstk)".
+        iApply "Hφ"; iFrame "∗ #".
         iDestruct ( region_pointsto_cons with "[$Ha $Hstk]" ) as "Hstk"; [solve_addr|solve_addr|].
         rewrite /region_addrs_zeroes.
         rewrite (finz_dist_S csp_a); last solve_addr.

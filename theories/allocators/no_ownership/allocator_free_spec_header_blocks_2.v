@@ -33,14 +33,14 @@ Section AllocatorFreeHeaderBlocks2.
     ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt e ∗
-    (pc_b ^+ allocator_shadow_import_off)%a ↦ₐ
+    (pc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
       WCap true RW Global shadow_b shadow_e shadow_b ∗
     (b ^+ (-1))%a ↦ₛ s1 ∗
     b ↦ₛ s2 ∗
     (if decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)
      then (b ^+ (- allocator_header_words))%a ↦ₐ WInt eh else emp) ∗
-    codefrag pc_a allocator_free_code ∗
-    ▷ ((pc_b ^+ allocator_shadow_import_off)%a ↦ₐ
+    codefrag_pers pc_a allocator_free_code ∗
+    ▷ ((pc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
          WCap true RW Global shadow_b shadow_e shadow_b ∗
        (b ^+ (-1))%a ↦ₛ s1 ∗
        b ↦ₛ s2 ∗
@@ -50,7 +50,7 @@ Section AllocatorFreeHeaderBlocks2.
        ct1 ↦ᵣ WInt b ∗
        ct2 ↦ᵣ WInt e ∗
        ct4 ↦ᵣ - ∗
-       codefrag pc_a allocator_free_code ∗
+       codefrag_pers pc_a allocator_free_code ∗
        ((⌜s1 = ShadowQuarantined ∧ s2 = ShadowLive ∧ eh = e⌝ ∗
          PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 4)%a ∗
          ct3 ↦ᵣ WInt 0 ∗
@@ -66,8 +66,8 @@ Section AllocatorFreeHeaderBlocks2.
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow & _) Hbounds Hheader.
-    iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca2 & Hct0 & Hct1 & Hct2 & Himport & Hs1 & Hs2 & Hhdr &
-      Hcode_main & Hφ)".
+    iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca2 & Hct0 & Hct1 & Hct2 & #Himport & Hs1 & Hs2 & Hhdr &
+      #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_unfold_code "Hcode_main".
     pose proof heap_shadow_same_size as Hss.
@@ -84,18 +84,18 @@ Section AllocatorFreeHeaderBlocks2.
     (* Block 2: fetch the shadow capability *)
     focus_block 2 "Hcode_main" of allocator_free_blocks at pc_a as a_fetch Ha_fetch
       "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     iApply (allocator_fetch_spec with "[- $HPC $Hctp $Hct3 $Hca2 $Hcode $Himport]");
       [done|solve_addr| |done|apply allocator_shadow_import_not_heap|done|done|done|].
     { apply withinBounds_true_iff. rewrite /allocator_shadow_import_off. solve_addr. }
-    iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Himport & Hcode)".
+    iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & _ & _)".
     iEval (cbn) in "Hctp".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     (* Block 3: the local check of the header *)
     focus_block 3 "Hcode_main" of allocator_free_blocks at pc_a as a_check Ha_check
       "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     (* GetB ct3 ct0. *)
     iInstr "Hcode".
     (* Sub ct3 ct1 ct3. *)
@@ -117,7 +117,7 @@ Section AllocatorFreeHeaderBlocks2.
     { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htr1)). }
     iIntros "!> (HPC & Hct3 & Hi & Hctp & Hs1)".
     wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
     (* Sub ct3 ct3 (encodeAllocStatus ShadowQuarantined). *)
     iInstr "Hcode".
     change (match MP with {| encodeAllocStatus := f |} => f end ShadowQuarantined)
@@ -129,8 +129,8 @@ Section AllocatorFreeHeaderBlocks2.
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      iApply "Hφ". iFrame. iRight. iSplit; first (iPureIntro; intros (? & _); done).
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      iApply "Hφ". iFrame "∗ Hcode_main Himport". iRight. iSplit; first (iPureIntro; intros (? & _); done).
       iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. iSplitL "Hca2"; [by iExists _|].
       by iExists _. }
     rewrite Z.sub_diag.
@@ -150,7 +150,7 @@ Section AllocatorFreeHeaderBlocks2.
     { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htr2)). }
     iIntros "!> (HPC & Hct3 & Hi & Hctp & Hs2)".
     wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
     (* Sub ct3 ct3 (encodeAllocStatus ShadowLive). *)
     iInstr "Hcode".
     change (match MP with {| encodeAllocStatus := f |} => f end ShadowLive)
@@ -162,8 +162,8 @@ Section AllocatorFreeHeaderBlocks2.
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-      iApply "Hφ". iFrame. iRight. iSplit; first (iPureIntro; intros (_ & ? & _); done).
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      iApply "Hφ". iFrame "∗ Hcode_main Himport". iRight. iSplit; first (iPureIntro; intros (_ & ? & _); done).
       iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. by iExists _. }
     rewrite Z.sub_diag.
     (* Jnz .free_invalid ct3. *)
@@ -195,7 +195,7 @@ Section AllocatorFreeHeaderBlocks2.
     { split; first done. apply withinBounds_true_iff. solve_addr. }
     iIntros "!> (HPC & Hca2 & Hi & Hct4 & Hhdr)".
     wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
     iEval (rewrite /lload_word /lift_word /=) in "Hca2".
     (* Sub ct3 ca2 ct2. *)
     iInstr "Hcode".
@@ -205,18 +205,18 @@ Section AllocatorFreeHeaderBlocks2.
       iInstr "Hcode".
       (* Sub ca2 ct2 ct1. *)
       iInstr "Hcode".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       change_pc_to (pc_a ^+ allocator_free_block_offset 4)%a.
       iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].
-      iFrame. iLeft. iFrame. done.
+      iFrame "∗ Hcode_main Himport". iLeft. iFrame "∗". done.
     - assert (Hneq : WInt (eh - e) ≠ WInt 0) by (intros [=]; apply Hne; solve_addr).
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].
-      iFrame. iRight. iSplit; first (iPureIntro; intros (_ & _ & ?); done).
+      iFrame "∗ Hcode_main Himport". iRight. iSplit; first (iPureIntro; intros (_ & _ & ?); done).
       iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. by iExists _.
   Qed.
 

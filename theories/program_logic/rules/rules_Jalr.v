@@ -32,18 +32,18 @@ Section griotte_lang_rules.
     (pc_a + 1)%a = None ->
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc regs FailedV.
 
-  Lemma wp_Jalr Ep pc_p pc_g pc_b pc_e pc_a pc_π w rdst rsrc regs :
+  Lemma wp_Jalr Ep pc_p pc_g pc_b pc_e pc_a pc_π w rdst rsrc regs dq :
     decodeInstrW w.(lw) = Jalr rdst rsrc ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (Jalr rdst rsrc) ⊆ dom regs →
 
-    {{{ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
         ⌜ Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc regs' retv ⌝ ∗
-        pc_a ↦ₐ w ∗
+        pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
@@ -84,7 +84,7 @@ Section griotte_lang_rules.
     - iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
 
-  Lemma wp_jalr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rsrc wsrc rdst wdst :
+  Lemma wp_jalr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rsrc wsrc rdst wdst dq :
     decodeInstrW w.(lw) = Jalr rdst rsrc →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -92,14 +92,14 @@ Section griotte_lang_rules.
     rdst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ rsrc ↦ᵣ wsrc
         ∗ ▷ rdst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ lupdatePcPerm wsrc
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ rsrc ↦ᵣ wsrc
           ∗ rdst ↦ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
       }}}.
@@ -118,21 +118,21 @@ Section griotte_lang_rules.
    { congruence. }
   Qed.
 
-  Lemma wp_jalr_success_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rsrc wsrc wdst :
+  Lemma wp_jalr_success_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rsrc wsrc wdst dq :
     decodeInstrW w.(lw) = Jalr cnull rsrc →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ rsrc ↦ᵣ wsrc
         ∗ ▷ cnull ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ lupdatePcPerm wsrc
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ rsrc ↦ᵣ wsrc
           ∗ cnull ↦ᵣ WInt 0
       }}}.
@@ -152,20 +152,20 @@ Section griotte_lang_rules.
    { congruence. }
   Qed.
 
-  Lemma wp_jalr_successPC E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rdst wdst :
+  Lemma wp_jalr_successPC E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rdst wdst dq :
     decodeInstrW w.(lw) = Jalr rdst PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ rdst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ lupdatePcPerm (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ rdst ↦ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
       }}}.
   Proof.
@@ -183,20 +183,20 @@ Section griotte_lang_rules.
    { congruence. }
   Qed.
 
-  Lemma wp_jalr_success_rdst E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wdst rdst :
+  Lemma wp_jalr_success_rdst E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wdst rdst dq :
     decodeInstrW w.(lw) = Jalr rdst rdst →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ rdst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ lupdatePcPerm wdst
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ rdst ↦ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
       }}}.
   Proof.

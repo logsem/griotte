@@ -114,33 +114,29 @@ Section AllocatorMallocSegments.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
 
   Lemma allocator_malloc_shadow_acc pc_a :
-    codefrag pc_a allocator_malloc_code -∗
-    codefrag (pc_a ^+ allocator_malloc_block_offset 2)%a allocator_malloc_shadow_code ∗
-    (codefrag (pc_a ^+ allocator_malloc_block_offset 2)%a allocator_malloc_shadow_code -∗
-     codefrag pc_a allocator_malloc_code).
+    codefrag_pers pc_a allocator_malloc_code -∗
+    codefrag_pers (pc_a ^+ allocator_malloc_block_offset 2)%a allocator_malloc_shadow_code.
   Proof.
-    iIntros "Hcode_main".
+    iIntros "#Hcode_main".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     focus_block_nochangePC 2 "Hcode_main" as a_shadow Ha_shadow "Hcode" "Hcont".
     assert (a_shadow = (pc_a ^+ allocator_malloc_block_offset 2)%a) as <-
       by (cbn in Ha_shadow; offsets_compute; solve_addr).
-    iFrame "Hcode". iIntros "Hcode". iApply ("Hcont" with "Hcode").
+    iExact "Hcode".
   Qed.
 
   Lemma allocator_malloc_exit_acc pc_a :
-    codefrag pc_a allocator_malloc_code -∗
-    codefrag (pc_a ^+ allocator_malloc_block_offset 4)%a allocator_malloc_exit_code ∗
-    (codefrag (pc_a ^+ allocator_malloc_block_offset 4)%a allocator_malloc_exit_code -∗
-     codefrag pc_a allocator_malloc_code).
+    codefrag_pers pc_a allocator_malloc_code -∗
+    codefrag_pers (pc_a ^+ allocator_malloc_block_offset 4)%a allocator_malloc_exit_code.
   Proof.
-    iIntros "Hcode_main".
+    iIntros "#Hcode_main".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     focus_block_nochangePC 4 "Hcode_main" as a_exit Ha_exit "Hcode" "Hcont".
     assert (a_exit = (pc_a ^+ allocator_malloc_block_offset 4)%a) as <-
       by (cbn in Ha_exit; offsets_compute; solve_addr).
-    iFrame "Hcode". iIntros "Hcode". iApply ("Hcont" with "Hcode").
+    iExact "Hcode".
   Qed.
 
 End AllocatorMallocSegments.

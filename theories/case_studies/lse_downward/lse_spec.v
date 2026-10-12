@@ -40,7 +40,7 @@ Section LSE.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (Nassert Nswitcher Nlse_code LSEN : namespace)
+    (Nswitcher Nlse_code LSEN : namespace)
 
     (cstk : CSTK)
     :
@@ -52,9 +52,7 @@ Section LSE.
     is_heap_address cgp_b = false ->
     disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
     is_heap_address pc_b = false ->
-    Nswitcher ## Nassert ->
     Nswitcher ## Nlse_code ->
-    Nassert ## Nlse_code ->
 
     (b_lse_exp_tbl <= b_lse_exp_tbl ^+ 2 < e_lse_exp_tbl)%a ->
 
@@ -68,17 +66,15 @@ Section LSE.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W0 C ->
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
-      ∗ na_inv cerise_nais LSEN
-          ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
-           ∗ codefrag pc_a lse_main_code
-           ∗ cgp_b ↦ₐ WInt 2
-          )
-      ∗ inv (export_table_PCCN LSEN) (b_lse_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
-      ∗ inv (export_table_CGPN LSEN) ((b_lse_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
-      ∗ inv (export_table_entryN LSEN (b_lse_exp_tbl ^+ 2)%a)
-          ((b_lse_exp_tbl ^+ 2)%a ↦ₐ lse_exp_tbl_entry_f)
+      ∗ switcher_static
+      ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+      ∗ codefrag_pers pc_a lse_main_code
+      ∗ na_inv cerise_nais LSEN (cgp_b ↦ₐ WInt 2)
+      ∗ b_lse_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
+      ∗ (b_lse_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ (b_lse_exp_tbl ^+ 2)%a ↦ₐ□ lse_exp_tbl_entry_f
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -113,11 +109,12 @@ Section LSE.
        - [lse_run_blocks_2_spec]: block 3, halt. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexp_tbl_shadow Hpc_nonheap
-               HNswitcher_assert HNswitcher_lse HNassert_lse Hsize_lse_exp_tbl
+               HNswitcher_lse Hsize_lse_exp_tbl
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hsealed_nonheap Hframe_match
             )
-      "(#Hassert & #Hswitcher
+      "(#Hassert & #Hswitcher & #Hswitcher_static
+      & #Himports_main & #Hcode_main
       & #Hlse
       & #Hlse_exp_tbl_PCC
       & #Hlse_exp_tbl_CGP
@@ -136,7 +133,7 @@ Section LSE.
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).
     iMod (na_inv_acc with "Hlse Hna")
-      as "(( >Himports_main & >Hcode_main & >Hcgp_b) & Hna & Hlse_close)"; auto.
+      as "(>Hcgp_b & Hna & Hlse_close)"; auto.
     iEval (cbn [fmap list_fmap lse_main_imports]) in "Himports_main".
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -155,11 +152,8 @@ Section LSE.
              "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hcgp_b
               $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|done|done|].
     iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hcgp_b
-                    & Himport_switcher & Himport_C_f & Hcode_main)".
-    iMod ("Hlse_close" with
-           "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main $Hcgp_b]")
-      as "Hna".
-    { iNext. iEval (cbn [fmap list_fmap lse_main_imports]). iRegionMerge. iFrame. }
+                    & _ & _ & _)".
+    iMod ("Hlse_close" with "[$Hna $Hcgp_b]") as "Hna".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -167,7 +161,7 @@ Section LSE.
 
     (* Call to [C_f] *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
               $Hinterp_W1_C_f $HK]"); [done|done|done|done|].
@@ -188,11 +182,9 @@ Section LSE.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Block 3: halt *)
-    iMod (na_inv_acc with "Hlse Hna")
-      as "(( >Himports_main & >Hcode_main & >Hcgp_b) & Hna & Hlse_close)"; auto.
     iApply (lse_run_blocks_2_spec with "[- $HPC $Hcode_main]"); first done.
-    iNext; iIntros "Hcode_main".
-    iApply ("Hlse_close" with "[$Hna $Himports_main $Hcode_main $Hcgp_b]").
+    iNext; iIntros "_ !>".
+    iExact "Hna".
   Qed.
 
 End LSE.

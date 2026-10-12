@@ -48,6 +48,7 @@ Section Switcher.
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
+    ∗ switcher_static
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
@@ -77,7 +78,7 @@ Section Switcher.
        - when the caller is untrusted, [switcher_jump_to_caller_spec]. *)
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
+      "(#Hswitcher & #[Hcode _] & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
     & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
 
     (* Open the switcher invariant *)
@@ -86,7 +87,7 @@ Section Switcher.
     rewrite /switcher_inv.
     iDestruct "Hswitcher_inv"
       as (a_tstk cstk' tstk_next)
-           "(>Hmtdc & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
+           "(>Hmtdc & >%Hot_bounds & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
            & >Hcstk_full & >%Hlen_cstk & Hstk_interp & #Hp_ot_switcher)".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
@@ -145,7 +146,7 @@ Section Switcher.
     iApply (switcher_return_blocks_1_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|done|].
     iNext; iIntros (a_tstk1)
-      "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & Hcode & Hlc)".
+      "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & _ & Hlc)".
 
     (* Obtain the callee-save area *)
     iMod (
@@ -170,20 +171,19 @@ Section Switcher.
       iFrame "Hw3 Hw2 Hw1 Hw0". }
     iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
       "((%Hr3 & %Hr2 & %Hr1 & %Hr0) & Hworld_interp & Hinterp_loaded & %Harg_rmap'
-      & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & Hcode & Hlc)".
+      & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _ & Hlc)".
     iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
     iDestruct "Hlc" as "(Hlc & Hlc'' & _)".
     assert ((a_stk ^+ 4)%a = a_stk4) as Ha_stk4_eq by (subst a_stk; solve_addr+Ha_stk4).
     iEval (rewrite Ha_stk4_eq) in "Hstk' Hstk".
 
-    iHide "Hcode" as hcode.
     (* Update the call-stack: depop the topmost frame *)
     iDestruct (cstack_update _ _ cstk with "[$] [$]") as ">[Hcstk_full Hcstk_frag]".
 
     (* Close the switcher's invariant *)
     iDestruct (region_pointsto_cons with "[$Ha_tstk $Htstk]") as "Htstk"; [solve_addr| solve_addr| ].
     iMod ("Hclose_switcher_inv"
-           with "[Hstk_interp_next $Hna $Hmtdc $Hcode $Hb_switcher Htstk $Hcstk_full $Hp_ot_switcher]")
+           with "[Hstk_interp_next $Hna $Hmtdc Htstk $Hcstk_full $Hp_ot_switcher]")
       as "Hna".
     {
       replace (a_tstk1 ^+ 1)%a with a_tstk by solve_addr.

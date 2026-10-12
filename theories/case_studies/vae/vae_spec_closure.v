@@ -37,7 +37,7 @@ Section VAE.
 
     (W : WORLD)
 
-    (Nassert Nswitcher Nvae VAEN : namespace)
+    (Nswitcher : namespace)
     i
 
     :
@@ -49,9 +49,6 @@ Section VAE.
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
-    Nswitcher ## Nassert ->
-    Nswitcher ## Nvae ->
-    Nassert ## Nvae ->
     (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
     (pc_b + length imports)%a = Some pc_a ->
@@ -61,14 +58,14 @@ Section VAE.
     wrel W !! i =
     Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    assert_static b_assert e_assert a_flag
     ∗ na_inv cerise_nais Nswitcher switcher_inv
-    ∗ na_inv cerise_nais Nvae
-        ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a vae_main_code)
-    ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
-    ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
-        ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
+    ∗ switcher_static
+    ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+    ∗ codefrag_pers pc_a vae_main_code
+    ∗ b_vae_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
+    ∗ (b_vae_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ (b_vae_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init)))
     ∗ WSealed ot_switcher (SCap true RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
     ∗ WSealed ot_switcher (SCap true RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
     ∗ seal_pred ot_switcher ot_switcher_propC
@@ -106,10 +103,9 @@ Section VAE.
        - [switcher_ret_specification]: return to the caller of [awkward]. *)
     intros imports.
     iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
-               Hswitcher_assert HNswitcher_vae HNassert_vae
                Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hloc_i_W Hrel_i_W)
-      "(#Hassert & #Hswitcher
-      & #Hvae_code
+      "(#Hassert & #Hswitcher & #Hswitcher_static
+      & #Himports_main & #Hcode_main
       & #Hvae_exp_PCC
       & #Hvae_exp_CGP
       & #Hvae_exp_awkward
@@ -117,7 +113,7 @@ Section VAE.
       & #Hot_switcher
       & [%awkN #HawkN] & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl, (b_vae_exp_tbl ^+ 2)%a,
-    pc_b, pc_e, cgp_b, cgp_e, 1, _, VAEN.
+    pc_b, pc_e, cgp_b, cgp_e, 1, _.
     iFrame "#".
     iSplit; first done.
     iSplit; first solve_addr.
@@ -170,18 +166,13 @@ Section VAE.
       as ([b Hloc_i_W1] & Hrevoke_W1 & Hpriv_W1_W2 & Hpriv_W0_W2 & Hloc_i_W2 & Hrel_i_W2).
 
     (* Blocks 4-6: set the flag to [0], and jump to the switcher *)
-    iMod (na_inv_acc with "Hvae_code Hna")
-      as "((>Himports_main & >Hcode_main) & Hna & Hvae_code_close)"; auto.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     change_pc_to (pc_a ^+ vae_block_offset 4)%a.
     iApply (vae_awkward_blocks_1_spec with
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hct0 & Hct1 & Hcs0 & Hcs1
-                    & Himport_switcher & Hcode_main)".
-    iMod ("Hvae_code_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
-      as "Hna".
-    { iNext. iRegionMerge. iFrame. }
+                    & _ & _)".
 
     (* Close the quarantined revoked keys *)
     iMod (vae_world_quarantine W0 W2 C l with "Hworld_interp_C Hrevoked_l")
@@ -202,7 +193,7 @@ Section VAE.
       by eapply vae_quarantined_disjoint_stack. }
     iDestruct (vae_world_callback W0 W2q C wca0 with "[]") as "#Hinterp_W2q_wca0";
       [done|done|by case_match|].
-    iDestruct (vae_call_args W2q C Nswitcher with "Hswitcher Hca0 Hca1 Hct0 Hrmap")
+    iDestruct (vae_call_args W2q C Nswitcher with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap1) "(%Hrmap1_dom & Hrmap_arg & Hrmap)".
     { rewrite !dom_delete_L Hrmap_dom; set_solver+. }
     { intros r Hr.
@@ -210,7 +201,7 @@ Section VAE.
 
     (* First call to [g] *)
     iApply (switcher_cc_specification_alt with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2q $Hcstk
               $Hinterp_W2q_wca0 $HK]"); [done..|apply vae_call_adv_arg_rmap_is_arg|].
@@ -251,17 +242,11 @@ Section VAE.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hzero3]".
     iDestruct (big_sepM_pure with "Hzero3") as %Hzero3.
     iExtractList "Hrmap" [ct0;ct1] as ["Hct0";"Hct1"].
-    iMod (na_inv_acc with "Hvae_code Hna")
-      as "((>Himports_main & >Hcode_main) & Hna & Hvae_code_close)"; auto.
-    iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iApply (vae_awkward_blocks_2_spec with
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hcs0
-                    & Hcs1 & Himport_switcher & Hcode_main)".
-    iMod ("Hvae_code_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
-      as "Hna".
-    { iNext. iRegionMerge. iFrame. }
+                    & Hcs1 & _ & _)".
 
     (* Close the quarantined keys revoked by the first call *)
     iMod (vae_world_quarantine W3 W5 C l1 with "Hworld_interp_C Hrevoked_l1")
@@ -284,14 +269,14 @@ Section VAE.
       by eapply vae_quarantined_disjoint_stack. }
     iDestruct (vae_world_callback_restored W2q W3 W5q C wca0 callback1 with "Hinterp_W2q_wca0")
       as "#Hinterp_W5q_wca0"; [done..|].
-    iDestruct (vae_call_args W5q C Nswitcher with "Hswitcher Hca0 Hca1 Hct0 Hrmap")
+    iDestruct (vae_call_args W5q C Nswitcher with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap5) "(%Hrmap5_dom & Hrmap_arg & Hrmap)".
     { rewrite !dom_delete_L Hrmap3_dom; set_solver+. }
     { by apply vae_rmap_zero. }
 
     (* Second call to [g] *)
     iApply (switcher_cc_specification_alt with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5q $Hcstk
               $Hinterp_W5q_wca0 $HK]"); [done..|apply vae_call_adv_arg_rmap_is_arg|].
@@ -332,24 +317,18 @@ Section VAE.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull]
       as ["Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
-    iMod (na_inv_acc with "Hvae_code Hna")
-      as "((>Himports_main & >Hcode_main) & Hna & Hvae_code_close)"; auto.
-    iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iApply (vae_awkward_blocks_3_spec with
-             "[- $HawkN $Hworld_interp_C $Hassert $Hna $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
+             "[- $HawkN $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
               $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Himport_assert $Hcode_main]");
-      [done|done|done|exact Hloc_i_W7|solve_ndisj|].
-    iNext; iIntros "(Hworld_interp_C & Hna & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
-                    & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Himport_assert & Hcode_main)".
+      [done|done|done|exact Hloc_i_W7|].
+    iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
+                    & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
-    iMod ("Hvae_code_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
-      as "Hna".
-    { iNext. iRegionMerge. iFrame. }
     iInsertRegs "Hrmap" ["Hcnull";"Hct4";"Hct3";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
     (* Return to the caller of [awkward] *)
     iApply (switcher_ret_specification _ W0 (revoke W6) with
-             "[$Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+             "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap6_dom; set_solver+. }
     { subst csp_b.

@@ -27,6 +27,7 @@ Section AllocatorMalloc.
     ⊢ (
 
        allocator_service_ctx ∗
+       allocator_service_static ∗
        na_own cerise_nais E ∗
 
        (* Initial register file. *)
@@ -66,11 +67,12 @@ Section AllocatorMalloc.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
     intros HEservice Hinvalid.
-    iIntros "(#Hservice & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
+    iIntros "(#Hservice & #Hstatic & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
       Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
-    iDestruct "Hinv" as ">[[Himports Hcode] Hdata]".
+    iDestruct "Hinv" as ">Hdata".
+    iDestruct "Hstatic" as "[#Himports #Hcode]".
     iEval (rewrite /allocator_code allocator_code_b_malloc) in "Hcode".
     focus_block_0 "Hcode" as "Hmalloc_code" "Hcode_cont".
     iEval (rewrite allocator_malloc_instrs_code) in "Hmalloc_code".
@@ -81,13 +83,10 @@ Section AllocatorMalloc.
     iApply (allocator_malloc_size_check_invalid_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hct3 $Hcnull $Hmalloc_code]");
       [apply allocator_malloc_entry_bounds|done|].
-    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct3 & Hcnull & Hmalloc_code & _)".
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct3 & Hcnull & _ & _)".
     (* Close the service invariant. *)
-    iEval (rewrite -allocator_malloc_instrs_code) in "Hmalloc_code".
-    iDestruct ("Hcode_cont" with "Hmalloc_code") as "Hcode".
-    iEval (rewrite -allocator_code_b_malloc -/allocator_code) in "Hcode".
-    iMod ("Hclose" with "[$Hna $Himports $Hcode $Hdata]") as "Hna".
-    iApply "Hpost". iFrame.
+    iMod ("Hclose" with "[$Hna $Hdata]") as "Hna".
+    iApply "Hpost". iFrame "∗".
   Qed.
 
 
@@ -108,6 +107,7 @@ Section AllocatorMalloc.
     ⊢ (
 
        allocator_service_ctx ∗
+       allocator_service_static ∗
        na_own cerise_nais E ∗
 
        (* Initial register file. *)
@@ -157,11 +157,12 @@ Section AllocatorMalloc.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
     intros HEservice Hpositive.
-    iIntros "(#Hservice & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
+    iIntros "(#Hservice & #Hstatic & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
       Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
-    iDestruct "Hinv" as ">[[Himports Hcode] Hdata]".
+    iDestruct "Hinv" as ">Hdata".
+    iDestruct "Hstatic" as "[#Himports #Hcode]".
     iDestruct "Hdata" as (next allocations live issued Cs)
       "(%Hnext & Hslot & Hheaders & %Hwf & %Hcwf & Htoks & Hcells)".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
@@ -182,7 +183,7 @@ Section AllocatorMalloc.
     (* Block 0: the size check passes. *)
     iApply (allocator_malloc_size_check_valid_spec with "[- $HPC $Hca0 $Hct3 $Hmalloc_code]");
       [done|by exists n|].
-    iNext. iIntros "(HPC & Hca0 & Hct3 & Hmalloc_code)".
+    iNext. iIntros "(HPC & Hca0 & Hct3 & _)".
     iDestruct "Hct3" as (w3') "Hct3".
     destruct (decide (n + allocator_header_words <= heap_e - next)%Z) as [Hroom|Hoom].
     - unfold allocator_header_words in Hroom.
@@ -205,43 +206,37 @@ Section AllocatorMalloc.
         "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hslot $Hhdr_mem $Hobj $Htok
             $Hmalloc_code]"); [done|done|solve_addr|done|done|solve_addr|].
       iNext. iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot &
-        Hhead & Htok & Hmalloc_code)".
+        Hhead & Htok & _)".
       (* Block 2, the shadow segment: zero the payload. *)
       iDestruct (allocator_malloc_shadow_acc with "Hmalloc_code")
-        as "[Hshadow_code Hmalloc_cont]".
+        as "#Hshadow_code".
       iApply (allocator_malloc_zero_spec with
         "[- $HPC $Hca2 $Hct2 $Hct3 $Hpay_mem $Hshadow_code]");
         [by apply allocator_malloc_shadow_bounds|solve_addr|].
-      iNext. iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hzeros & Hshadow_code)".
+      iNext. iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hzeros & _)".
       (* Paint the header and store over the payload. *)
-      iEval (rewrite allocator_imports_split) in "Himports".
-      iDestruct "Himports" as "(Hshadow_import & Hseal_import & Hrevoker_import)".
+      iDestruct (allocator_imports_split_pers with "Himports")
+        as "(#Hshadow_import & #Hseal_import & #Hrevoker_import)".
       iApply (allocator_malloc_translate_paint_spec with
         "[- $HPC $Hctp $Hct3 $Hca2 $Hct0 $Hct1 $Hct2 $Hshadow_import $Hheader $Hpayload
             $Hshadow_code]");
         [by apply allocator_malloc_shadow_bounds|solve_addr|done|solve_addr|].
-      iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & Hshadow_import & Hheader &
-        Hpayload & Hshadow_code)".
-      iDestruct ("Hmalloc_cont" with "Hshadow_code") as "Hmalloc_code".
+      iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & _ & Hheader &
+        Hpayload & _)".
       iEval (rewrite (allocator_malloc_shadow_end _ _ _ Hbounds)) in "HPC".
       (* Blocks 3 and 4: publish the bump cursor and return. *)
       iApply (allocator_malloc_publish_spec with
         "[- $HPC $Hcgp $Hcra $Hct0 $Hct4 $Hca0 $Hca1 $Hcnull $Hslot $Hmalloc_code]");
         [done|done|done|solve_addr|].
       iNext. iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hcnull & Hslot &
-        Hmalloc_code & _)".
+        _ & _)".
       (* Publish the entry of [ι] and close the service invariant. *)
       iDestruct ("Hcells_close" with "Hheader Hpayload") as "Hcells".
       iDestruct (allocator_malloc_publish_entry with
         "Hcells Hslot Hheaders Hhead Htoks Hobj Htok Hzeros") as "(Hdata & Hheld & Hregion)";
         [solve_addr|done|done|done|done|solve_addr|done|].
-      iEval (rewrite -allocator_malloc_instrs_code) in "Hmalloc_code".
-      iDestruct ("Hcode_cont" with "Hmalloc_code") as "Hcode".
-      iEval (rewrite -allocator_code_b_malloc -/allocator_code) in "Hcode".
-      iMod ("Hclose" with "[$Hna Hshadow_import Hseal_import Hrevoker_import $Hcode Hdata]")
-        as "Hna".
-      { iNext. iSplitR "Hdata"; last (iExists finish; iFrame).
-        iApply allocator_imports_split. iFrame. }
+      iMod ("Hclose" with "[$Hna Hdata]") as "Hna".
+      { iNext. iExists finish. iFrame "Hdata". }
       iApply "Hpost".
       iFrame "Hna HPC Hcgp Hcra Hcnull Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iRight. iExists ι, b, finish. iFrame "Hca0 Hca1 Hobj Hheld Hregion".
@@ -251,14 +246,11 @@ Section AllocatorMalloc.
         "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hcnull $Hslot
             $Hmalloc_code]"); [done|done|done|lia|].
       iNext. iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 &
-        Hcnull & Hslot & Hmalloc_code)".
+        Hcnull & Hslot & _)".
       (* Close the service invariant. *)
-      iEval (rewrite -allocator_malloc_instrs_code) in "Hmalloc_code".
-      iDestruct ("Hcode_cont" with "Hmalloc_code") as "Hcode".
-      iEval (rewrite -allocator_code_b_malloc -/allocator_code) in "Hcode".
-      iMod ("Hclose" with "[$Hna $Himports $Hcode Hslot Hheaders Htoks Hcells]") as "Hna".
-      { iNext. iExists next, allocations, live, issued, Cs. iFrame. done. }
-      iApply "Hpost". iFrame.
+      iMod ("Hclose" with "[$Hna Hslot Hheaders Htoks Hcells]") as "Hna".
+      { iNext. iExists next, allocations, live, issued, Cs. iFrame "∗". done. }
+      iApply "Hpost". iFrame "∗".
   Qed.
 
 End AllocatorMalloc.

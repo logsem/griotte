@@ -202,7 +202,8 @@ Section hts_allocator_init.
     ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) -∗
     ([∗ map] a↦c ∈ init_claims {[heap_b]}, addr_alloc a c)
     ={E}=∗
-    allocator_service_ctx.
+    allocator_service_ctx ∗
+    allocator_service_static.
   Proof.
     intros Himports Hcode Hdata.
     iIntros "Himports Hcode Hdata Hheap Hshadow Hclaims".
@@ -222,16 +223,12 @@ Section hts_allocator_init.
     [[ cmpt_exp_tbl_entries_start hts_allocator_cmpt, cmpt_exp_tbl_entries_end hts_allocator_cmpt ]]
       ↦ₐ [[ lword_of_word <$> cmpt_exp_tbl_entries hts_allocator_cmpt ]]
     ={E}=∗
-    inv (export_table_PCCN allocator_exp_tblN)
-      (allocator_exp_tbl_b ↦ₐ WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_pcc_b) ∗
-    inv (export_table_CGPN allocator_exp_tblN)
-      ((allocator_exp_tbl_b ^+ 1)%a ↦ₐ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b) ∗
-    inv (export_table_entryN allocator_exp_tblN (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a)
-      ((allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ
-         WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off)) ∗
-    inv (export_table_entryN allocator_exp_tblN (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)
-      ((allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ
-         WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)).
+    allocator_exp_tbl_b ↦ₐ□ WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
+    (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
+      WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off) ∗
+    (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
+      WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off).
   Proof.
     intros Hexports.
     iIntros "Hpcc Hcgp Hentries".
@@ -246,10 +243,10 @@ Section hts_allocator_init.
     rewrite cmpt_exp_tbl_cgp_eq cmpt_exp_tbl_entries_start_eq.
     replace (cmpt_exp_tbl_pcc hts_allocator_cmpt ^+ 2 ^+ 1)%a
       with (cmpt_exp_tbl_pcc hts_allocator_cmpt ^+ 3)%a by solve_addr+Hsize.
-    iMod (inv_alloc (export_table_PCCN allocator_exp_tblN) E _ with "Hpcc") as "$".
-    iMod (inv_alloc (export_table_CGPN allocator_exp_tblN) E _ with "Hcgp") as "$".
-    iMod (inv_alloc (export_table_entryN allocator_exp_tblN _) E _ with "Hmalloc") as "$".
-    iMod (inv_alloc (export_table_entryN allocator_exp_tblN _) E _ with "Hfree") as "$".
+    iMod (pointsto_persist with "Hpcc") as "$".
+    iMod (pointsto_persist with "Hcgp") as "$".
+    iMod (pointsto_persist with "Hmalloc") as "$".
+    iMod (pointsto_persist with "Hfree") as "$".
     done.
   Qed.
 
@@ -386,7 +383,7 @@ Section Adequacy.
       first exact hts_initial_assert_switcher_disjoint.
 
     (* Assert *)
-    iMod (initialise_assert_compartment (Σ := Σ) _ hts_assertN (htsN .@ "flag")
+    iMod (initialise_assert_compartment (Σ := Σ) _ (htsN .@ "flag")
            with "Hcmpt_assert")
       as "[#Hassert_flag #Hassert]".
 
@@ -394,7 +391,7 @@ Section Adequacy.
     rewrite big_sepS_singleton.
     iMod (initialise_switcher_compartment (Σ := Σ) _ hts_switcherN
            with "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc")
-      as "(#Hsealed_pred_ot_switcher & #Hswitcher & Hstack)".
+      as "(#Hsealed_pred_ot_switcher & #Hswitcher & #Hswitcher_static & Hstack)".
 
     (* Allocator: its service invariant owns the heap *)
     iMod (initialise_compartment (Σ := Σ) with "Hcmpt_allocator")
@@ -402,20 +399,19 @@ Section Adequacy.
            & Halloc_etbl_pcc & Halloc_etbl_cgp & Halloc_etbl_entries)".
     iMod (hts_allocator_service_init with
            "Halloc_imports Halloc_code Halloc_data Hheap Hshadow Hclaims")
-      as "#Hservice"; [done..|].
+      as "[#Hservice #Hservice_static]"; [done..|].
     iMod (hts_allocator_exports_init with
            "Halloc_etbl_pcc Halloc_etbl_cgp Halloc_etbl_entries")
       as "#(Hexport_pcc & Hexport_cgp & Hexport_malloc & Hexport_free)"; first done.
 
     (* CMPT Adv *)
-    iMod (initialise_adversary_compartment (Σ := Σ) _ Adv with "Hcmpt_adv")
+    iMod (initialise_adversary_compartment (Σ := Σ) _ with "Hcmpt_adv")
       as "(Hadv_imports & Hadv_code & Hadv_data & _
            & #Hadv_etbl_pcc & #Hadv_etbl_cgp & #Hadv_etbl_entries)".
 
     (* CMPT MAIN *)
-    iMod (initialise_compartment (Σ := Σ) with "Hcmpt_main")
-      as "(Hmain_imports & Hmain_code & Hmain_data & _ & _ & _ & _)".
-    iEval (rewrite cmpt_code_codefrag) in "Hmain_code".
+    iMod (initialise_compartment_pers (Σ := Σ) with "Hcmpt_main")
+      as "(#Hmain_imports & #Hmain_code & Hmain_data & _ & _ & _ & _)".
     rewrite Hmain_imports Hmain_code Hmain_data.
 
     (* Seal the exported entries of the allocator in the world of Adv *)
@@ -436,14 +432,14 @@ Section Adequacy.
       [auto..| | |].
     { (* The exported entry Adv.f satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(1, hts_adv_entry_offset)]
-               with "Hswitcher Hadv_etbl_pcc Hadv_etbl_cgp Hadv_etbl_entries");
+               with "Hswitcher Hswitcher_static Hadv_etbl_pcc Hadv_etbl_cgp Hadv_etbl_entries");
         [by rewrite Hadv_exports | by repeat constructor |
          by apply Forall_singleton, hts_adv_entry_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_adv Hentry_adv'". }
     { (* The imports of Adv: the switcher, malloc and free *)
       rewrite Hadv_imports.
       iIntros "_".
-      iSplit; first by iApply switcher_call_import_safe.
+      iSplit; first by iApply (switcher_call_import_safe with "Hswitcher Hswitcher_static").
       iSplit.
       { iApply (sealed_import_safe with "Hseal_alloc"); [done | |].
         - apply exports_words_elem_of; set_solver.
@@ -467,8 +463,8 @@ Section Adequacy.
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
 
     iPoseProof (hts_main_spec _ _ _ _ _ _ _ _ adv_f (adv_world W1 hts_switcher_cmpt hts_adv_cmpt)
-                  [] [] hts_assertN hts_switcherN []
-                 with "[$Hassert $Hservice $Hswitcher
+                  [] [] hts_switcherN []
+                 with "[$Hassert $Hservice $Hservice_static $Hswitcher $Hswitcher_static
                         $Hexport_pcc $Hexport_cgp $Hexport_malloc $Hexport_free
                         $Hna $HPC $Hcgp $Hcsp $Hrmap
                         $Hmain_imports $Hmain_code $Hmain_data
@@ -480,8 +476,6 @@ Section Adequacy.
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { exact (cmpt_cgp_disjoint_from_shadow hts_main_cmpt). }
     { exact (cmpt_cgp_not_heap_range hts_main_cmpt). }
-    { solve_ndisj. }
-    { solve_ndisj. }
     { solve_ndisj. }
     { exact Hrmap_dom. }
     { intros r Hr. rewrite (Hrmap_zero r Hr). by eexists. }

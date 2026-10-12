@@ -27,17 +27,17 @@ Section Switcher_Call_Blocks_6.
     PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
-    codefrag pc_a (switcher_instrs_n 17) ∗
+    codefrag_pers pc_a (switcher_instrs_n 17) ∗
     ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
         ca1 ↦ᵣ WInt 0 ∗
-        codefrag pc_a (switcher_instrs_n 17) -∗
+        codefrag_pers pc_a (switcher_instrs_n 17) -∗
         WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hsub Hret) "(HPC & Hca0 & Hca1 & Hcode & Hpost)".
+    iIntros (Hsub Hret) "(HPC & Hca0 & Hca1 & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
     (* Mov ca0 (inl (-1)%Z) *)
@@ -46,7 +46,7 @@ Section Switcher_Call_Blocks_6.
     iInstr "Hcode".
     (* Jmp (".Lswitcher_after_compartment_call")%asm *)
     iInstr "Hcode".
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode".
   Qed.
 
   (** Block 17: force the unwinding of the call. *)
@@ -62,16 +62,16 @@ Section Switcher_Call_Blocks_6.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros "(HPC & Hca0 & Hca1 & Hcode & Hpost)".
+    iIntros "(HPC & Hca0 & Hca1 & #Hswitcher & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_return_offset.
-    switcher_unfold_code "Hcode".
-    switcher_focus_block 17 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
+    switcher_unfold_code "Hswitcher".
+    switcher_focus_block 17 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_17_spec_aux with "[- $HPC $Hca0 $Hca1 $Hcode]");
       [done|offsets_compute; solve_addr|].
-    iNext; iIntros "(HPC & Hca0 & Hca1 & Hcode)".
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-    iApply "Hpost"; iFrame.
+    iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
+    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+    iApply "Hpost"; iFrame "∗ Hswitcher".
   Qed.
 
 End Switcher_Call_Blocks_6.

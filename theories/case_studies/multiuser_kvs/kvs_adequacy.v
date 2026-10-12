@@ -418,7 +418,7 @@ Section Adequacy.
 
     iMod (user_kvs_init {[ kvs_user_key_K ; kvs_user_key_B ]}
            with "[$Hkvs_imports $Hkvs_code $Hkvs_data]")
-      as (γpkvs kvs_logical_heapg γf) "(#Hkvs & #Hkvs_logical & Hlukvs)".
+      as (γpkvs kvs_logical_heapg γf) "(#Hkvs_static & #Hkvs & #Hkvs_logical & Hlukvs)".
     pose kvsphysicalg := Build_KvsPhysicalG Σ kvs_physical_user_preg γpkvs.
     pose kvslogicalg := Build_KvsLogicalG Σ kvs_logical_heapg.
     pose kvsuserg := Build_KvsUserG Σ kvs_logical_user_preg γf.
@@ -437,15 +437,15 @@ Section Adequacy.
       ) as Spec.
 
     (* 5.2 Assert compartment *)
-    iMod ( initialise_assert_compartment (Σ := Σ) _ assertN flagN with "Hcmpt_assert" )
+    iMod ( initialise_assert_compartment (Σ := Σ) _ flagN with "Hcmpt_assert" )
       as "[#Hassert_flag #Hassert]".
 
     (* 5.3 Switcher compartment *)
     iMod ( initialise_switcher_compartment (Σ := Σ) _ switcherN with "Hcmpt_switcher Hseal_store_switcher Hcstk_full Hmtdc" )
-      as "(#Hsealed_pred_ot_switcher & #Hswitcher & Hstack)".
+      as "(#Hsealed_pred_ot_switcher & #Hswitcher & #Hswitcher_static & Hstack)".
 
     (* 5.4 CMPT B *)
-    iMod (initialise_adversary_compartment (Σ := Σ) _ B with "Hcmpt_B")
+    iMod (initialise_adversary_compartment (Σ := Σ) _ with "Hcmpt_B")
       as "(HB_imports & HB_code & HB_data & HB_static_sealed & #HB_etbl_pcc & #HB_etbl_cgp & #HB_etbl_entries)".
     iEval (rewrite B_static_sealed) in "HB_static_sealed".
     iDestruct ( region_pointsto_single with "HB_static_sealed" ) as "(%&Ha_user_key_B&%Hv_B)"; try (cbn in Hv_B); simplify_eq.
@@ -456,9 +456,8 @@ Section Adequacy.
     set ( user_key_addr_B := cmpt_b_static_sealed B_cmpt ).
 
     (* 5.5 CMPT MAIN *)
-    iMod (initialise_compartment (Σ := Σ) with "Hcmpt_main")
-      as "(Hmain_imports & Hmain_code & Hmain_data & Hmain_static_sealed & _ & _ & _)".
-    iEval (rewrite cmpt_code_codefrag) in "Hmain_code".
+    iMod (initialise_compartment_pers (Σ := Σ) with "Hcmpt_main")
+      as "(#Hmain_imports & #Hmain_code & Hmain_data & Hmain_static_sealed & _ & _ & _)".
     rewrite main_imports main_code main_data main_static_sealed.
 
     (* 5.6 Export table of the KVS *)
@@ -488,16 +487,11 @@ Section Adequacy.
 
     iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
 
-    iMod (inv_alloc (switcher_preamble.export_table_PCCN Nkvs_exp_tbl) ⊤ _
-           with "Hkvs_etbl_pcc")%I as "#Hkvs_etbl_pcc".
-    iMod (inv_alloc (switcher_preamble.export_table_CGPN Nkvs_exp_tbl) ⊤ _
-           with "Hkvs_etbl_cgp")%I as "#Hkvs_etbl_cgp".
-    iMod (inv_alloc (switcher_preamble.export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ⊤ _
-           with "Hkvs_etbl_entries_addOrUpdate")%I as "#Hkvs_etbl_entries_addOrUpdate".
-    iMod (inv_alloc (switcher_preamble.export_table_entryN Nkvs_exp_tbl kvs_read_exp_tbl_addr) ⊤ _
-           with "Hkvs_etbl_entries_read")%I as "#Hkvs_etbl_entries_read".
-    iMod (inv_alloc (switcher_preamble.export_table_entryN Nkvs_exp_tbl kvs_erase_exp_tbl_addr) ⊤ _
-           with "Hkvs_etbl_entries_erase")%I as "#Hkvs_etbl_entries_erase".
+    iMod (pointsto_persist with "Hkvs_etbl_pcc") as "#Hkvs_etbl_pcc".
+    iMod (pointsto_persist with "Hkvs_etbl_cgp") as "#Hkvs_etbl_cgp".
+    iMod (pointsto_persist with "Hkvs_etbl_entries_addOrUpdate") as "#Hkvs_etbl_entries_addOrUpdate".
+    iMod (pointsto_persist with "Hkvs_etbl_entries_read") as "#Hkvs_etbl_entries_read".
+    iMod (pointsto_persist with "Hkvs_etbl_entries_erase") as "#Hkvs_etbl_entries_erase".
 
     replace (cmpt_exp_tbl_entries_start kvs_cmpt ^+ 1)%a with kvs_read_exp_tbl_addr; cycle 1.
     {
@@ -556,7 +550,10 @@ Section Adequacy.
       pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H2.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
-      iApply kvs_addOrUpdate_entry_point_spec; try iFrame "#"; eauto.
+      iApply kvs_addOrUpdate_entry_point_spec.
+      iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
+        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_addOrUpdate
+        Hentry_kvs_addOrUpdate Hentry_kvs_addOrUpdate'".
     }
 
     iAssert (ot_switcher_prop W1 B (WSealable kvs_read)) as "#ot_switcher_kvs_read".
@@ -566,7 +563,10 @@ Section Adequacy.
       pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H2.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
-      iApply kvs_read_entry_point_spec; try iFrame "#"; eauto.
+      iApply kvs_read_entry_point_spec.
+      iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
+        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_read
+        Hentry_kvs_read Hentry_kvs_read'".
     }
 
     iAssert (ot_switcher_prop W1 B (WSealable kvs_erase)) as "#ot_switcher_kvs_erase".
@@ -576,7 +576,10 @@ Section Adequacy.
       pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H2.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
-      iApply kvs_erase_entry_point_spec; try iFrame "#"; eauto.
+      iApply kvs_erase_entry_point_spec.
+      iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
+        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_erase
+        Hentry_kvs_erase Hentry_kvs_erase'".
     }
 
 
@@ -677,7 +680,7 @@ Section Adequacy.
       [auto..| | |].
     { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f)]
-               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
+               with "Hswitcher Hswitcher_static HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
         [by rewrite B_exp_tbl | by repeat constructor |
          by apply Forall_singleton, offset_adv_f_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Bf Hentry_Bf'".
@@ -710,11 +713,11 @@ Section Adequacy.
         iEval (cbn); iSplit.
         { iEval (rewrite /interp_in_mem_pre /=).
           rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-          iApply interp_switcher_call; done. }
+          iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
         { iIntros "!>" (W2 W3 Hrel) "H".
           iEval (rewrite /interp_in_mem_pre /=).
           rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-          iApply interp_switcher_call; done. } }
+          iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". } }
 
       (* KVS.addOrUpdate *)
       iApply big_sepL_cons; iSplitL.
@@ -798,8 +801,9 @@ Section Adequacy.
     { unfold B_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap B_cmpt). }
     iPoseProof (Spec _ _ _ _ _ _ _ _ _ _
                   _ _ _ _ _ _
-                  [] [] [] assertN switcherN
-                 with "[ $Hassert $Hswitcher $Hkvs $Hkvs_logical_user_K
+                  [] [] [] switcherN
+                 with "[ $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
+                        $Hkvs_logical_user_K
                         $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
                         $Hna $HPC $Hcgp $Hcsp $Hrmap
                         $Hmain_imports $Hmain_code $Hmain_data $Hmain_static_sealed
@@ -816,7 +820,6 @@ Section Adequacy.
         pose proof (cmpt_static_sealed_size main_cmpt) as Hsize.
         rewrite main_static_sealed in Hsize; cbn in Hsize; solve_addr.
     }
-    { solve_ndisj. }
     { pose proof (cmpt_static_sealed_size main_cmpt) as Hmain_static_sealed.
       by rewrite main_static_sealed in Hmain_static_sealed.
     }

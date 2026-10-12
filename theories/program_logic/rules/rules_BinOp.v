@@ -75,18 +75,18 @@ Section griotte_lang_rules.
     cbn; iFrame; iApply Hcont; iFrame; iPureIntro;
     econstructor; eapply get_fail_case; eauto.
 
-  Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs :
+  Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
     is_BinOp i dst arg1 arg2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of i ⊆ dom regs →
-    {{{ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
         ⌜ BinOp_spec (decodeInstrW w.(lw)) regs dst arg1 arg2 regs' retv ⌝ ∗
-          pc_a ↦ₐ w ∗
+          pc_a ↦ₐ{dq} w ∗
           [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
@@ -152,7 +152,7 @@ Section griotte_lang_rules.
   Qed.
 
   (* Derived specifications *)
-  Lemma wp_binop_success_z_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' :
+  Lemma wp_binop_success_z_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inl n1) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
@@ -160,13 +160,13 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
@@ -185,7 +185,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_r_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 n2 pc_a' :
+  Lemma wp_binop_success_r_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr r1) (inl n2) →
     IsLInt w1 n1 →
@@ -195,14 +195,14 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ w1
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ w1
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
@@ -224,7 +224,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_z_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 r2 w2 n2 pc_a' :
+  Lemma wp_binop_success_z_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 r2 w2 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inl n1) (inr r2) →
     IsLInt w2 n2 →
@@ -234,14 +234,14 @@ Section griotte_lang_rules.
     r2 ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r2 ↦ᵣ w2
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
@@ -263,7 +263,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_r_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 r2 w2 n2 pc_a' :
+  Lemma wp_binop_success_r_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 r2 w2 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr r1) (inr r2) →
     IsLInt w1 n1 →
@@ -275,7 +275,7 @@ Section griotte_lang_rules.
     r2 ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ w1
         ∗ r2 ↦ᵣ w2
         ∗ dst ↦ᵣ wdst
@@ -283,7 +283,7 @@ Section griotte_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ w1
           ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
@@ -307,7 +307,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_r_r_same E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r wr n pc_a' :
+  Lemma wp_binop_success_r_r_same E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r wr n pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr r) (inr r) →
     IsLInt wr n →
@@ -317,14 +317,14 @@ Section griotte_lang_rules.
     r ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r ↦ᵣ wr
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r ↦ᵣ wr
           ∗ dst ↦ᵣ WInt (denote ins n n)
       }}}.
@@ -346,7 +346,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_dst_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' :
+  Lemma wp_binop_success_dst_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr dst) (inl n2) →
     IsLInt wdst n1 →
@@ -355,13 +355,13 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
@@ -381,7 +381,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_z_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' :
+  Lemma wp_binop_success_z_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inl n1) (inr dst) →
     IsLInt wdst n2 →
@@ -390,13 +390,13 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
@@ -416,7 +416,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_dst_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 r2 w2 n2 pc_a' :
+  Lemma wp_binop_success_dst_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 r2 w2 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr dst) (inr r2) →
     IsLInt wdst n1 →
@@ -427,14 +427,14 @@ Section griotte_lang_rules.
     r2 ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r2 ↦ᵣ w2
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
@@ -457,7 +457,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_r_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 n2 pc_a' :
+  Lemma wp_binop_success_r_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr r1) (inr dst) →
     IsLInt w1 n1 →
@@ -468,14 +468,14 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ w1
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ w1
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
@@ -498,7 +498,7 @@ Section griotte_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_binop_success_dst_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n pc_a' :
+  Lemma wp_binop_success_dst_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n pc_a' dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr dst) (inr dst) →
     IsLInt wdst n →
@@ -507,13 +507,13 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt (denote ins n n)
       }}}.
   Proof.
@@ -534,16 +534,16 @@ Section griotte_lang_rules.
   Qed.
 
   (* Slightly generalized: fails in all cases where r2 does not contain an integer. *)
-  Lemma wp_binop_fail_z_r E ins dst n1 r2 w w2 wdst pc_p pc_g pc_b pc_e pc_a pc_π :
+  Lemma wp_binop_fail_z_r E ins dst n1 r2 w w2 wdst pc_p pc_g pc_b pc_e pc_a pc_π dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inl n1) (inr r2) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_z w2.(lw) = false →
     r2 ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r2 ↦ᵣ w2 }}}
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ wdst ∗ r2 ↦ᵣ w2 }}}
       Instr Executable
             @ E
-    {{{ RET FailedV; pc_a ↦ₐ w }}}.
+    {{{ RET FailedV; pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Hisnz Hcnull φ) "(HPC & Hpc_a & Hdst & Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hdst Hr2") as "[Hmap (%&%&%)]".
@@ -555,16 +555,16 @@ Section griotte_lang_rules.
     { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
-  Lemma wp_binop_fail_r_r_1 E ins dst r1 r2 w wdst w1 w2 pc_p pc_g pc_b pc_e pc_a pc_π :
+  Lemma wp_binop_fail_r_r_1 E ins dst r1 r2 w wdst w1 w2 pc_p pc_g pc_b pc_e pc_a pc_π dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr r1) (inr r2) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_z w1.(lw) = false →
     r1 ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 }}}
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 }}}
       Instr Executable
       @ E
-      {{{ RET FailedV; pc_a ↦ₐ w }}}.
+      {{{ RET FailedV; pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Hzf Hcnull φ) "(HPC & Hpc_a & Hdst & Hr1 & Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hdst Hr1 Hr2") as "[Hmap (%&%&%&%&%&%)]".
@@ -576,16 +576,16 @@ Section griotte_lang_rules.
     { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
-  Lemma wp_binop_fail_r_r_2 E ins dst r1 r2 w wdst w2 w3 pc_p pc_g pc_b pc_e pc_a pc_π :
+  Lemma wp_binop_fail_r_r_2 E ins dst r1 r2 w wdst w2 w3 pc_p pc_g pc_b pc_e pc_a pc_π dq :
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inr r1) (inr r2) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_z w3.(lw) = false →
     r2 ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w2 ∗ r2 ↦ᵣ w3}}}
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w2 ∗ r2 ↦ᵣ w3}}}
       Instr Executable
       @ E
-      {{{ RET FailedV; pc_a ↦ₐ w }}}.
+      {{{ RET FailedV; pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Hzf Hcnull φ) "(HPC & Hpc_a & Hdst & Hr1 & Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hdst Hr1 Hr2") as "[Hmap (%&%&%&%&%&%)]".

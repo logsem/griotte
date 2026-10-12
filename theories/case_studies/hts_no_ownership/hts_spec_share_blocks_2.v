@@ -30,9 +30,9 @@ Section HTS_Spec_Share.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nassert Nswitcher : namespace) (cstk : CSTK).
+  Context (Nswitcher : namespace) (cstk : CSTK).
 
-  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nassert Nswitcher).
+  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   Local Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f W_init_C Ws Cs cstk).
   Local Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
@@ -55,7 +55,7 @@ Section HTS_Spec_Share.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap
       HsubBounds Hheap_empty) "(#Hctx & Hret & Hcontinue)".
-    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
+    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as "[Herr|Hok]".
@@ -157,7 +157,7 @@ Section HTS_Spec_Share.
     replace (pc_b ^+ hts_switcher_offset)%a with pc_b
       by (rewrite /hts_switcher_offset; solve_addr).
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hcode & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -178,7 +178,7 @@ Section HTS_Spec_Share.
     { done. }
     replace (pc_b ^+ hts_adv_offset)%a with (pc_b ^+ 2)%a by reflexivity.
     iFrame "Himport_adv".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hcode & Himport_adv)".
+    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & _ & Himport_adv)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -239,7 +239,7 @@ Section HTS_Spec_Share.
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
       (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
       adv_arg adv_other cstk Ws Cs 1
-      with "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp
+      with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
         $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share]").
     { exact Hstk_shadow. }

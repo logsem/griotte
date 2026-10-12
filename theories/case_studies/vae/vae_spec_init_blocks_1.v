@@ -39,9 +39,9 @@ Section VAE_Init_Blocks_1.
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
-    pc_b ↦ₐ vae_switcher_entry ∗
-    (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
-    codefrag pc_a vae_main_code ∗
+    pc_b ↦ₐ□ vae_switcher_entry ∗
+    (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
+    codefrag_pers pc_a vae_main_code ∗
     ▷ (world_interp W C ∗
         PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
@@ -50,9 +50,9 @@ Section VAE_Init_Blocks_1.
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
         cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 3 1)%a ∗
-        pc_b ↦ₐ vae_switcher_entry ∗
-        (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
-        codefrag pc_a vae_main_code
+        pc_b ↦ₐ□ vae_switcher_entry ∗
+        (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
+        codefrag_pers pc_a vae_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -79,7 +79,7 @@ Section VAE_Init_Blocks_1.
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
     iModIntro.
     wp_pure.
-    iSpecialize ("Hcode" with "[$]").
+    iClear "Hi".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 1: fetch the entry point of the switcher *)
@@ -91,7 +91,7 @@ Section VAE_Init_Blocks_1.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
+    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -100,7 +100,7 @@ Section VAE_Init_Blocks_1.
     iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hcs0 $Hcs1 $Hcode $Himport_C_f]"); eauto; try done.
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(HPC & Hct1 & Hcs0 & Hcs1 & Hcode & Himport_C_f)".
+    iNext; iIntros "(HPC & Hct1 & Hcs0 & Hcs1 & _ & Himport_C_f)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -112,7 +112,7 @@ Section VAE_Init_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_call ^+ 1)%a = (pc_a ^+ vae_instr_offset 3 1)%a) as ->
       by (offsets_compute; solve_addr).
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End VAE_Init_Blocks_1.

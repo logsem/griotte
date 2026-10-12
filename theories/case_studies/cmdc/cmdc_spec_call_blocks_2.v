@@ -41,7 +41,7 @@ Section CMDC_Call_Blocks_2.
     eauto using switcher_call_sentry_not_heap; try done; [solve_addr|];
     replace (pc_b ^+ 0)%a with pc_b by solve_addr;
     iFrame "Himport_switcher";
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hcode & Himport_switcher)";
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & _ & Himport_switcher)";
     iEval (cbn) in "Hctp";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
 
@@ -50,7 +50,7 @@ Section CMDC_Call_Blocks_2.
     iHide "Hcont" as hcont;
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_target]");
     eauto; try done; [solve_addr|];
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_target)";
+    iNext; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & _ & Himport_target)";
     iEval (cbn) in "Hct1";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
 
@@ -62,7 +62,7 @@ Section CMDC_Call_Blocks_2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
     assert ((a_call ^+ 1)%a = (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a) as ->
       by (offsets_compute; solve_addr);
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
 
   Lemma cmdc_call_blocks_2_spec (c : cmdc_call)
     (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable)
@@ -75,18 +75,18 @@ Section CMDC_Call_Blocks_2.
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
-    pc_b ↦ₐ cmdc_switcher_entry ∗
-    (pc_b ^+ cmdc_call_import c)%a ↦ₐ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
-    codefrag pc_a cmdc_main_code ∗
+    pc_b ↦ₐ□ cmdc_switcher_entry ∗
+    (pc_b ^+ cmdc_call_import c)%a ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
+    codefrag_pers pc_a cmdc_main_code ∗
     ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ctp ↦ᵣ cmdc_switcher_entry ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
         cs0 ↦ᵣ WInt 0 ∗
         cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
-        pc_b ↦ₐ cmdc_switcher_entry ∗
-        (pc_b ^+ cmdc_call_import c)%a ↦ₐ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
-        codefrag pc_a cmdc_main_code
+        pc_b ↦ₐ□ cmdc_switcher_entry ∗
+        (pc_b ^+ cmdc_call_import c)%a ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
+        codefrag_pers pc_a cmdc_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.

@@ -30,9 +30,9 @@ Section HTS_Spec_Malloc.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nassert Nswitcher : namespace) (cstk : CSTK).
+  Context (Nswitcher : namespace) (cstk : CSTK).
 
-  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nassert Nswitcher).
+  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   Local Notation hts_static := (hts_static_mem pc_b pc_a cgp_b C_f).
   Local Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f W_init_C Ws Cs cstk).
@@ -65,7 +65,7 @@ Section HTS_Spec_Malloc.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hrmap_dom HsubBounds)
       "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hrmap & Hstatic & Hworld
        & #Hinterp_csp & HK & Hcstk & Hcontinue)".
-    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
+    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hstatic" as "(Himports & Hcode_main & Hp)".
@@ -105,7 +105,7 @@ Section HTS_Spec_Malloc.
     replace (pc_b ^+ hts_switcher_offset)%a with pc_b
       by (rewrite /hts_switcher_offset; solve_addr).
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hcode & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -128,7 +128,7 @@ Section HTS_Spec_Malloc.
     { done. }
     replace (pc_b ^+ hts_malloc_offset)%a with (pc_b ^+ 3)%a by reflexivity.
     iFrame "Himport_malloc".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hcode & Himport_malloc)".
+    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & _ & Himport_malloc)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -175,7 +175,7 @@ Section HTS_Spec_Malloc.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 4)%a)
       wcs0 wcs1 csp_b csp_e csp_b rmap_arg cstk
-      with "Hservice") as "Hmalloc_fun".
+      with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
     { subst rmap_arg. reflexivity. }
     pose proof allocator_size_exports as Hsize.
     rewrite /allocator_export_table_entries in Hsize.
@@ -184,12 +184,12 @@ Section HTS_Spec_Malloc.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 4)%a)
       wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other cstk
-      allocator_malloc_nargs ⊤ allocator_exp_tblN
+      allocator_malloc_nargs ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
       allocator_cgp_b allocator_cgp_e allocator_malloc_pcc_off
-      with "[- $Hswitcher $Hexport_pcc $Hexport_cgp $Hexport_malloc
+      with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_malloc
          $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
          $Hstk $Hcstk $Hmalloc_fun]").
     { exact Hstk_heap. }

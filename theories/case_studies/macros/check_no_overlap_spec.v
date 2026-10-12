@@ -31,14 +31,14 @@ Section Check_No_Overlap_spec.
     ∗ ▷ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
-    ∗ ▷ codefrag pc_a check_no_overlap
+    ∗ ▷ codefrag_pers pc_a check_no_overlap
     ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
           ∗ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
           ∗ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
           ∗ r1 ↦ᵣ WInt 0%Z
           ∗ r2 ↦ᵣ WInt 0%Z
           ∗ ⌜ (finz.seq_between b1 e1) ## (finz.seq_between b2 e2) ⌝
-          ∗ codefrag pc_a check_no_overlap
+          ∗ codefrag_pers pc_a check_no_overlap
             -∗ WP Seq (Instr Executable) {{ φ }}
         )
     ∗ ▷ φ FailedV
@@ -46,8 +46,7 @@ Section Check_No_Overlap_spec.
   Proof.
     intros check_no_overlap a_last ; subst check_no_overlap a_last.
     iIntros (Hvpc Hcont Hrsrc1_cnull Hrsrc2_cnull Hr1_cnull Hr2_cnull)
-      "(>HPC & >Hrsrc1 & >Hrsrc2 & >Hr1 & >Hr2 & >Hprog & Hφ & Hfailed)".
-    iDestruct (big_sepL2_length with "Hprog") as %Hlength.
+      "(>HPC & >Hrsrc1 & >Hrsrc2 & >Hr1 & >Hr2 & >#Hprog & Hφ & Hfailed)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
     cbn.
@@ -67,7 +66,7 @@ Section Check_No_Overlap_spec.
         iInstr "Hprog".
         iInstr "Hprog".
         iInstr "Hprog".
-        iApply "Hφ"; iFrame.
+        iApply "Hφ"; iFrame "∗ Hprog".
         iPureIntro.
         intros a Ha Ha'.
         rewrite !elem_of_finz_seq_between in Ha, Ha'.
@@ -86,7 +85,7 @@ Section Check_No_Overlap_spec.
         iInstr "Hprog".
         iInstr "Hprog".
         iInstr "Hprog".
-        iApply "Hφ"; iFrame.
+        iApply "Hφ"; iFrame "∗ Hprog".
         iPureIntro.
         intros a Ha Ha'.
         rewrite !elem_of_finz_seq_between in Ha, Ha'.

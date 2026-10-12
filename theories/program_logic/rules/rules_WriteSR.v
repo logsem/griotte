@@ -52,7 +52,7 @@ Section griotte_lang_rules.
     v.(lprov) = None → reg_word_ok R C v → reg_word_ok R C (lword_of_word v.(lw)).
   Proof. destruct v as [w' π]; cbn. by intros ->. Qed.
 
-  Lemma wp_WriteSR Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs sregs :
+  Lemma wp_WriteSR Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs sregs dq :
     decodeInstrW w.(lw) = WriteSR dst src ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
@@ -61,14 +61,14 @@ Section griotte_lang_rules.
     then sregs_of (WriteSR dst src) ⊆ dom sregs
     else True) →
     (has_sreg_access pc_p = true → ∀ (v : LWord), regs !!ₗ src = Some v → v.(lprov) = None) →
-    {{{ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         ▷ ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
     }}}
       Instr Executable @ Ep
     {{{ regs' sregs' retv, RET retv;
         ⌜ WriteSR_spec regs regs' sregs sregs' dst src retv ⌝ ∗
-        pc_a ↦ₐ w ∗
+        pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ regs', k ↦ᵣ y) ∗
         ([∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)
     }}}.
@@ -116,7 +116,7 @@ Section griotte_lang_rules.
       econstructor; first done. by eapply WriteSR_fail_incrPC.
   Qed.
 
-  Lemma wp_writesr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) :
+  Lemma wp_writesr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) dq :
     decodeInstrW w.(lw) = WriteSR dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
@@ -124,13 +124,13 @@ Section griotte_lang_rules.
     src ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ₛᵣ wdst
         ∗ ▷ src ↦ᵣ lword_of_word wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ₛᵣ wsrc
           ∗ src ↦ᵣ lword_of_word wsrc }}}.
   Proof.
@@ -158,19 +158,19 @@ Section griotte_lang_rules.
     }
   Qed.
 
-  Lemma wp_writesr_success_fromPC E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst :
+  Lemma wp_writesr_success_fromPC E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst dq :
     decodeInstrW w.(lw) = WriteSR dst PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? None
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ₛᵣ wdst }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? None
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ₛᵣ WCap true pc_p pc_g pc_b pc_e pc_a }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".

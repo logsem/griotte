@@ -125,19 +125,19 @@ Section griotte_lang_rules.
         Get_failure i regs dst src →
         Get_spec i regs dst src regs' FailedV.
 
-  Lemma wp_Get Ep pc_p pc_g pc_b pc_e pc_a pc_π w get_i dst src regs :
+  Lemma wp_Get Ep pc_p pc_g pc_b pc_e pc_a pc_π w get_i dst src regs dq :
     decodeInstrW w.(lw) = get_i →
     is_Get get_i dst src →
 
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of get_i ⊆ dom regs →
-    {{{ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
         ⌜ Get_spec (decodeInstrW w.(lw)) regs dst src regs' retv ⌝ ∗
-        pc_a ↦ₐ w ∗
+        pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
@@ -179,7 +179,7 @@ Section griotte_lang_rules.
   Qed.
 
   (* Note that other cases than WCap in the PC are irrelevant, as that will result in having an incorrect PC *)
-  Lemma wp_Get_PC_success E get_i dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst pc_a' z :
+  Lemma wp_Get_PC_success E get_i dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst pc_a' z dq :
     decodeInstrW w.(lw) = get_i →
     is_Get get_i dst PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -188,12 +188,12 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt z }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote Hcnull φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
@@ -211,7 +211,7 @@ Section griotte_lang_rules.
       destruct Hfail; pose proof PC_not_cnull; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_Get_same_success E get_i r pc_p pc_g pc_b pc_e pc_a pc_π w wr pc_a' z:
+  Lemma wp_Get_same_success E get_i r pc_p pc_g pc_b pc_e pc_a pc_π w wr pc_a' z dq:
     decodeInstrW w.(lw) = get_i →
     is_Get get_i r r →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -220,12 +220,12 @@ Section griotte_lang_rules.
     r ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r ↦ᵣ wr }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r ↦ᵣ WInt z }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote Hcnull φ) "(>HPC & >Hpc_a & >Hr) Hφ".
@@ -243,7 +243,7 @@ Section griotte_lang_rules.
       destruct Hfail; pose proof PC_not_cnull; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_Get_success E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc wdst pc_a' z :
+  Lemma wp_Get_success E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc wdst pc_a' z dq :
     decodeInstrW w.(lw) = get_i →
     is_Get get_i dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -253,13 +253,13 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ src ↦ᵣ wsrc
         ∗ ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ src ↦ᵣ wsrc
           ∗ dst ↦ᵣ WInt z }}}.
   Proof.
@@ -278,7 +278,7 @@ Section griotte_lang_rules.
       destruct Hfail; pose proof PC_not_cnull; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_Get_fail E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc zsrc wdst :
+  Lemma wp_Get_fail E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc zsrc wdst dq :
     decodeInstrW w.(lw) = get_i →
     is_Get get_i dst src →
     IsLInt wsrc zsrc →
@@ -289,7 +289,7 @@ Section griotte_lang_rules.
     src ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-      ∗ ▷ pc_a ↦ₐ w
+      ∗ ▷ pc_a ↦ₐ{dq} w
       ∗ ▷ dst ↦ᵣ wdst
       ∗ ▷ src ↦ᵣ wsrc }}}
       Instr Executable @ E
@@ -308,7 +308,7 @@ Section griotte_lang_rules.
     { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
-  Lemma wp_Get_unknown E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wsrc wdst :
+  Lemma wp_Get_unknown E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wsrc wdst dq :
     decodeInstrW w.(lw) = get_i →
     is_Get get_i dst src →
     (forall dst' src', get_i <> GetOType dst' src') ->
@@ -320,7 +320,7 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-      ∗ ▷ pc_a ↦ₐ w
+      ∗ ▷ pc_a ↦ₐ{dq} w
       ∗ ▷ dst ↦ᵣ wdst
       ∗ ▷ src ↦ᵣ wsrc }}}
       Instr Executable @ E
@@ -331,7 +331,7 @@ Section griotte_lang_rules.
            ∗ ⌜ (is_cap wsrc.(lw) || is_sealr wsrc.(lw) || is_sentry wsrc.(lw) || is_sealed wsrc.(lw)) = true ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-           ∗ pc_a ↦ₐ w
+           ∗ pc_a ↦ₐ{dq} w
            ∗ src ↦ᵣ wsrc
            ∗ dst ↦ᵣ WInt z
           )
@@ -359,13 +359,13 @@ Section griotte_lang_rules.
     { (* Failure, done *) by iApply "Hφ"; iLeft. }
   Qed.
 
-  Lemma wp_GetTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn :
+  Lemma wp_GetTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn dq :
     decodeInstrW w.(lw) = GetTag cnull cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w ∗ cnull ↦ᵣ WInt 0%Z }}}.
+    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc φ) "(>HPC & >Hmem & >Hn) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hn") as "[Hmap %]".
@@ -382,13 +382,13 @@ Section griotte_lang_rules.
     - destruct Hfail; pose proof PC_not_cnull; try incrementPC_inv; simplify_map_eq; eauto; congruence.
   Qed.
 
-  Lemma wp_GetTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd wn :
+  Lemma wp_GetTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd wn dq :
     decodeInstrW w.(lw) = GetTag dst cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → dst ≠ cnull →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ dst ↦ᵣ wd }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ dst ↦ᵣ wd }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ WInt 0%Z ∗ cnull ↦ᵣ wn }}}.
+    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ WInt 0%Z ∗ cnull ↦ᵣ wn }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc Hne φ) "(>HPC & >Hmem & >Hs & >Hd) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hd Hs") as "[Hmap (%&%&%)]".
@@ -405,13 +405,13 @@ Section griotte_lang_rules.
     - destruct Hfail; pose proof PC_not_cnull; try incrementPC_inv; simplify_map_eq; eauto; congruence.
   Qed.
 
-  Lemma wp_GetTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src wn ws :
+  Lemma wp_GetTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src wn ws dq :
     decodeInstrW w.(lw) = GetTag cnull src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → src ≠ cnull →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ src ↦ᵣ ws }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ src ↦ᵣ ws }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w ∗ cnull ↦ᵣ WInt 0%Z ∗ src ↦ᵣ ws }}}.
+    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z ∗ src ↦ᵣ ws }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc Hne φ) "(>HPC & >Hmem & >Hd & >Hs) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hd Hs") as "[Hmap (%&%&%)]".
@@ -430,13 +430,13 @@ Section griotte_lang_rules.
         destruct_word v; discriminate end.
   Qed.
 
-  Lemma wp_GetTag_PC_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn :
+  Lemma wp_GetTag_PC_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn dq :
     decodeInstrW w.(lw) = GetTag cnull PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ w ∗ cnull ↦ᵣ WInt 0%Z }}}.
+    {{{ RET NextIV; PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z }}}.
   Proof.
     iIntros (Hdecode Hvpc Hinc φ) "(>HPC & >Hmem & >Hn) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hn") as "[Hmap %]".
@@ -452,11 +452,11 @@ Section griotte_lang_rules.
     - destruct Hfail; pose proof PC_not_cnull; try incrementPC_inv; simplify_map_eq; eauto; congruence.
   Qed.
 
-  Lemma wp_GetTag_cnull_toPC E pc_p pc_g pc_b pc_e pc_a pc_π w wn :
+  Lemma wp_GetTag_cnull_toPC E pc_p pc_g pc_b pc_e pc_a pc_π w wn dq :
     decodeInstrW w.(lw) = GetTag PC cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
 
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ cnull ↦ᵣ wn }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn }}}
       Instr Executable @ E
     {{{ RET FailedV; True }}}.
   Proof.
@@ -471,11 +471,11 @@ Section griotte_lang_rules.
     - by iApply "Hφ".
   Qed.
 
-  Lemma wp_GetTag_toPC_failure E pc_p pc_g pc_b pc_e pc_a pc_π w src ws :
+  Lemma wp_GetTag_toPC_failure E pc_p pc_g pc_b pc_e pc_a pc_π w src ws dq :
     decodeInstrW w.(lw) = GetTag PC src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     src ≠ cnull →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w ∗ ▷ src ↦ᵣ ws }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ src ↦ᵣ ws }}}
       Instr Executable @ E
     {{{ RET FailedV; True }}}.
   Proof.
@@ -491,10 +491,10 @@ Section griotte_lang_rules.
     - by iApply "Hφ".
   Qed.
 
-  Lemma wp_GetTag_PC_failure E pc_p pc_g pc_b pc_e pc_a pc_π w  :
+  Lemma wp_GetTag_PC_failure E pc_p pc_g pc_b pc_e pc_a pc_π w dq :
     decodeInstrW w.(lw) = GetTag PC PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ w }}}
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET FailedV; True }}}.
   Proof.

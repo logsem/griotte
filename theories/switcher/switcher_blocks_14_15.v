@@ -32,11 +32,11 @@ Section Switcher_Blocks_14_15.
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
-    codefrag pc_a switcher_instrs_15 ∗
+    codefrag_pers pc_a switcher_instrs_15 ∗
     ▷ ( PC ↦ᵣ lupdatePcPerm wret ∗
         cra ↦ᵣ wret ∗
         ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
-        codefrag pc_a switcher_instrs_15 ∗
+        codefrag_pers pc_a switcher_instrs_15 ∗
         £ 1 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
@@ -45,7 +45,7 @@ Section Switcher_Blocks_14_15.
   Proof.
     intros switcher_instrs_15 len_switcher_15.
     subst switcher_instrs_15 len_switcher_15.
-    iIntros (Hsub_reg Hcnull_in) "(HPC & Hcra & Hrmap & Hcode & Hpost)".
+    iIntros (Hsub_reg Hcnull_in) "(HPC & Hcra & Hrmap & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -74,7 +74,7 @@ Section Switcher_Blocks_14_15.
     }
     rewrite Hrmap_id.
     clear dependent Hrmap_id Hrmap_zeroes wcnull wnull.
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode".
   Qed.
 
   (** Blocks 14-15: clear the registers and jump to [wcra]. *)
@@ -95,26 +95,26 @@ Section Switcher_Blocks_14_15.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hdom) "(HPC & Hcra & Hrmap & Hcode & Hpost)".
+    iIntros (Hdom) "(HPC & Hcra & Hrmap & #Hswitcher & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
-    switcher_unfold_code "Hcode".
+    switcher_unfold_code "Hswitcher".
 
     (* Block 14: clear the registers *)
-    switcher_focus_block 14 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
+    switcher_focus_block 14 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]");
       try solve_pure.
-    iNext; iIntros "(%rmap' & %Hrmap' & HPC & Hrmap & Hcode)".
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    iNext; iIntros "(%rmap' & %Hrmap' & HPC & Hrmap & _)".
+    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 15: jump to the caller *)
-    switcher_focus_block 15 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
+    switcher_focus_block 15 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_return_block_15_spec with "[- $HPC $Hcra $Hrmap $Hcode]").
     { done. }
     { apply elem_of_dom; rewrite Hrmap'; set_solver. }
-    iNext; iIntros "(HPC & Hcra & Hrmap & Hcode & Hlc)".
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-    iApply ("Hpost" $! rmap'); iFrame; done.
+    iNext; iIntros "(HPC & Hcra & Hrmap & _ & Hlc)".
+    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+    iApply ("Hpost" $! rmap'); iFrame "∗ Hswitcher"; done.
   Qed.
 
 End Switcher_Blocks_14_15.

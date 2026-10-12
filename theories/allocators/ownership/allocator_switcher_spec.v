@@ -56,7 +56,8 @@ Section AllocatorSwitcherSpec.
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
     arg_rmap !! ca1 = Some (lword_of_word (WInt n)) ->
-    allocator_service_ctx ⊢
+    allocator_service_ctx ∗
+    allocator_service_static ⊢
     switcher_cc_specification_known_to_known_function
       (allocator_owner_id id Ω ∗
        a_owner ↦ₐ WInt id)
@@ -65,7 +66,7 @@ Section AllocatorSwitcherSpec.
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_malloc_pcc_off.
   Proof.
-    iIntros (Hn Hshadow_owner Hbounds_owner Hcap Harg) "#Hservice".
+    iIntros (Hn Hshadow_owner Hbounds_owner Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
@@ -87,7 +88,7 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
     iApply (allocator_malloc_valid_correct S ⊤ g_owner a_owner id Ω n None _ with
-      "[- $Hservice $Hna $Hid $Ha_owner $HPC $Hcgp $Hcra
+      "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull]");
       eauto.
     iNext.
@@ -155,7 +156,8 @@ Section AllocatorSwitcherSpec.
     length ws = length (finz.seq_between b e) ->
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
     arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
-    allocator_service_ctx ⊢
+    allocator_service_ctx ∗
+    allocator_service_static ⊢
     switcher_cc_specification_known_to_known_function
       (allocator_owner_id id Ω ∗
        ⌜ι ∈ Ω⌝ ∗
@@ -168,7 +170,7 @@ Section AllocatorSwitcherSpec.
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_free_pcc_off%I.
   Proof.
-    iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg) "#Hservice".
+    iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
@@ -210,7 +212,7 @@ Section AllocatorSwitcherSpec.
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca3").
       iExact "Hrmap". }
     iApply (allocator_free_valid_correct ⊤ g_owner a_owner id Ω p g ι b e a ws _ rframe with
-      "[- $Hservice $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
+      "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hframe $Hmem]");
       eauto.
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom

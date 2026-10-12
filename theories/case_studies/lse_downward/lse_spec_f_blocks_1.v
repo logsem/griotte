@@ -37,7 +37,7 @@ Section LSE_F_Blocks_1.
     cs1 ↦ᵣ wcs1 ∗
     cgp_b ↦ₐ WInt 2 ∗
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
-    codefrag pc_a lse_main_code ∗
+    codefrag_pers pc_a lse_main_code ∗
     ▷ (∀ stk_mem' wcs0' wcs1',
         PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
         cgp ↦ᵣ lse_a_cap cgp_b ∗
@@ -48,7 +48,7 @@ Section LSE_F_Blocks_1.
         cs1 ↦ᵣ wcs1' ∗
         cgp_b ↦ₐ WInt 2 ∗
         [[csp_b, csp_e]] ↦ₐ [[stk_mem']] ∗
-        codefrag pc_a lse_main_code
+        codefrag_pers pc_a lse_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -103,7 +103,7 @@ Section LSE_F_Blocks_1.
     { solve_addr+Hcsp_size. }
     assert ((a_f ^+ 6)%a = (pc_a ^+ lse_block_offset 5)%a) as ->
       by (offsets_compute; solve_addr).
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End LSE_F_Blocks_1.

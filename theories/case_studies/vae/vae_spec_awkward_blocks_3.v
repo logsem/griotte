@@ -25,17 +25,14 @@ Section VAE_Awkward_Blocks_3.
   Lemma vae_awkward_blocks_3_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive) (N : namespace)
-    (Nassert : namespace) (E : coPset)
     (wret wcra wca0 wca1 wct0 wct1 wct2 wct3 wct4 wcnull : LWord) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     loc W !! i = Some (encode true) ->
-    ↑Nassert ⊆ E ->
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
-    na_own cerise_nais E ∗
+    assert_static b_assert e_assert a_flag ∗
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 9 4)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ wcra ∗
@@ -48,10 +45,9 @@ Section VAE_Awkward_Blocks_3.
     ct3 ↦ᵣ wct3 ∗
     ct4 ↦ᵣ wct4 ∗
     cnull ↦ᵣ wcnull ∗
-    (pc_b ^+ 1)%a ↦ₐ vae_assert_entry ∗
-    codefrag pc_a vae_main_code ∗
+    (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
+    codefrag_pers pc_a vae_main_code ∗
     ▷ (world_interp W C ∗
-        na_own cerise_nais E ∗
         PC ↦ᵣ lupdatePcPerm wret ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ wret ∗
@@ -64,14 +60,14 @@ Section VAE_Awkward_Blocks_3.
         ct3 ↦ᵣ WInt 0 ∗
         ct4 ↦ᵣ WInt 0 ∗
         cnull ↦ᵣ WInt 0 ∗
-        (pc_b ^+ 1)%a ↦ₐ vae_assert_entry ∗
-        codefrag pc_a vae_main_code
+        (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
+        codefrag_pers pc_a vae_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hloc HNassert)
-      "(#Hawk & Hworld & #Hassert & Hna & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
+               Hcgp_shadow Hloc)
+      "(#Hawk & Hworld & #Hassert & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
       & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull
       & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -94,7 +90,7 @@ Section VAE_Awkward_Blocks_3.
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
     iModIntro.
     wp_pure.
-    iSpecialize ("Hcode" with "[$]").
+    iClear "Hi".
     iEval (cbn) in "Hct0".
     (* Mov ct1 1 *)
     iInstr "Hcode".
@@ -104,11 +100,11 @@ Section VAE_Awkward_Blocks_3.
     focus_block 10 "Hcode_main" of vae_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
-                    & Hcode & Himport_assert)".
+    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
+                    & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 11: restore the return address, clear the return values, and
@@ -124,7 +120,7 @@ Section VAE_Awkward_Blocks_3.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End VAE_Awkward_Blocks_3.

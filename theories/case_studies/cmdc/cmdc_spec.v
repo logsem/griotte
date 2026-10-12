@@ -41,7 +41,7 @@ Section CMDC.
     (csp_content : list LWord)
 
     (φ : language.val griotte_lang -> iProp Σ)
-    (Nassert Nswitcher : namespace)
+    (Nswitcher : namespace)
 
     (cstk : CSTK)
     :
@@ -56,7 +56,6 @@ Section CMDC.
     is_heap_address (cgp_b ^+ 1)%a = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (lword_of_word (WInt 0)) ) ->
@@ -79,8 +78,9 @@ Section CMDC.
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
 
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ switcher_static
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -90,8 +90,8 @@ Section CMDC.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
-      ∗ codefrag pc_a cmdc_main_code
+      ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+      ∗ codefrag_pers pc_a cmdc_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> cmdc_main_data ]]
       ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
@@ -137,11 +137,11 @@ Section CMDC.
        - [cmdc_halt_blocks_5_spec]: block 10, halt. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
-               Hstk_shadow Hstk_heap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & Hworld_interp_B
@@ -190,7 +190,7 @@ Section CMDC.
 
     (* Call to B.f *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B $Hcstk_frag
               $Hinterp_B_f $HentryB_f $HK]"); [done..|].
@@ -224,9 +224,9 @@ Section CMDC.
 
     (* Blocks 3-4: assert that c is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_B with
-             "[- $Hassert $Hna $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Hcra
               $Hcgp_c $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
-    iNext; iIntros "(Hna & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
+    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
                     & Hcgp_c & Himport_assert & Hcode_main)".
 
     (* Block 5: overwrite b and prepare the argument c *)
@@ -256,7 +256,7 @@ Section CMDC.
 
     (* Call to C.g *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $Hworld_interp_C $Hstack_revoked_C $Hcstk_frag
               $Hinterp_C_g $HentryC_g $HK]"); [done..|].
@@ -281,9 +281,9 @@ Section CMDC.
 
     (* Blocks 8-9: assert that b is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_C with
-             "[- $Hassert $Hna $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Hcra
               $Hcgp_b $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
-    iNext; iIntros "(Hna & HPC & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & Hcode_main)".
+    iNext; iIntros "(HPC & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & Hcode_main)".
 
     (* Block 10: halt *)
     iApply (cmdc_halt_blocks_5_spec with "[$HPC $Hcode_main Hφ Hna]"); first done.
@@ -308,7 +308,7 @@ Section CMDC.
     (csp_content : list LWord)
 
     (φ : language.val griotte_lang -> iProp Σ)
-    (Nassert Nswitcher : namespace)
+    (Nswitcher : namespace)
 
     (cstk : CSTK)
     :
@@ -323,7 +323,6 @@ Section CMDC.
     is_heap_address (cgp_b ^+ 1)%a = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (lword_of_word (WInt 0)) ) ->
@@ -342,8 +341,9 @@ Section CMDC.
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
 
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ switcher_static
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -353,8 +353,8 @@ Section CMDC.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
-      ∗ codefrag pc_a cmdc_main_code
+      ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+      ∗ codefrag_pers pc_a cmdc_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> cmdc_main_data ]]
       ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
@@ -381,11 +381,11 @@ Section CMDC.
   Proof.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
-               Hstk_shadow Hstk_heap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & Hworld_interp_B
@@ -400,7 +400,7 @@ Section CMDC.
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
                 B_f C_g W_init_B W_init_C
-               Ws Cs csp_content φ Nassert Nswitcher cstk); eauto; iFrame "#∗".
+               Ws Cs csp_content φ Nswitcher cstk); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

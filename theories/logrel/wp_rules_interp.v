@@ -32,7 +32,7 @@ Section wp_interp.
   (** Accesses retain the original current address and report their checked
       effective address. *)
 
-  Lemma wp_store_interp_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
+  Lemma wp_store_interp_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
     :
@@ -45,7 +45,7 @@ Section wp_interp.
      {{{ interp W C wsrc
            ∗ interp W C wdst
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
            ∗ world_interp W C
@@ -57,7 +57,7 @@ Section wp_interp.
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
@@ -151,7 +151,7 @@ Section wp_interp.
     iPureIntro. split; first done. solve_addr.
   Qed.
 
-  Lemma wp_store_interp (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
+  Lemma wp_store_interp {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
     :
@@ -164,7 +164,7 @@ Section wp_interp.
      {{{ interp W C wsrc
            ∗ interp W C wdst
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
            ∗ world_interp W C
@@ -176,7 +176,7 @@ Section wp_interp.
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
@@ -194,7 +194,7 @@ Section wp_interp.
     iExists p, g, b, e, a, π. by iFrame.
   Qed.
 
-  Lemma wp_store_interp_cap_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
+  Lemma wp_store_interp_cap_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi wsrc : LWord)
@@ -208,7 +208,7 @@ Section wp_interp.
      {{{ interp W C wsrc
            ∗ interp W C (WCap true p g b e a @@? π)
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
            ∗ world_interp W C
@@ -218,7 +218,7 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (∃ ea, ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
@@ -236,7 +236,7 @@ Section wp_interp.
     simplify_eq. iRight. iExists ea. iExact "Hrest".
   Qed.
 
-  Lemma wp_store_interp_cap (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
+  Lemma wp_store_interp_cap {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi wsrc : LWord)
@@ -250,7 +250,7 @@ Section wp_interp.
      {{{ interp W C wsrc
            ∗ interp W C (WCap true p g b e a @@? π)
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
            ∗ world_interp W C
@@ -260,7 +260,7 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
@@ -277,7 +277,7 @@ Section wp_interp.
     rewrite addr_add_0 in Hea. injection Hea as <-. by iFrame.
   Qed.
 
-  Lemma wp_store_interp_z_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rdst : RegName)
+  Lemma wp_store_interp_z_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wdst : LWord) (z : Z)
     :
@@ -288,7 +288,7 @@ Section wp_interp.
 
      {{{ interp W C wdst
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ wdst
            ∗ world_interp W C
      }}}
@@ -299,7 +299,7 @@ Section wp_interp.
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
@@ -390,7 +390,7 @@ Section wp_interp.
     iPureIntro. split; first done. solve_addr.
   Qed.
 
-  Lemma wp_store_interp_z (E : coPset) (W : WORLD) (C : CmptName) (rdst : RegName)
+  Lemma wp_store_interp_z {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wdst : LWord) (z : Z)
     :
@@ -401,7 +401,7 @@ Section wp_interp.
 
      {{{ interp W C wdst
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ wdst
            ∗ world_interp W C
      }}}
@@ -412,7 +412,7 @@ Section wp_interp.
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
@@ -429,7 +429,7 @@ Section wp_interp.
     iExists p, g, b, e, a, π. by iFrame.
   Qed.
 
-  Lemma wp_store_interp_z_cap_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rdst : RegName)
+  Lemma wp_store_interp_z_cap_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi : LWord) (z : Z)
@@ -441,7 +441,7 @@ Section wp_interp.
 
      {{{  interp W C (WCap true p g b e a @@? π)
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
            ∗ world_interp W C
      }}}
@@ -450,7 +450,7 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (∃ ea, ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
@@ -467,7 +467,7 @@ Section wp_interp.
     simplify_eq. iRight. iExists ea. iExact "Hrest".
   Qed.
 
-  Lemma wp_store_interp_z_cap (E : coPset) (W : WORLD) (C : CmptName) (rdst : RegName)
+  Lemma wp_store_interp_z_cap {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi : LWord) (z : Z)
@@ -479,7 +479,7 @@ Section wp_interp.
 
      {{{  interp W C (WCap true p g b e a @@? π)
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
            ∗ world_interp W C
      }}}
@@ -488,7 +488,7 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
+           ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
@@ -504,7 +504,7 @@ Section wp_interp.
     rewrite addr_add_0 in Hea. injection Hea as <-. by iFrame.
   Qed.
 
-  Lemma wp_unseal_unknown E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
+  Lemma wp_unseal_unknown {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
     decodeInstrW wi.(lw) = UnSeal r2 r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -512,7 +512,7 @@ Section wp_interp.
     r2 ≠ cnull ->
 
     {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-          ∗ pc_a ↦ₐ wi
+          ∗ pc_a ↦ₐ{dq} wi
           ∗ r1 ↦ᵣ wsealr
           ∗ r2 ↦ᵣ wsealed
     }}}
@@ -522,7 +522,7 @@ Section wp_interp.
           ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ wi
+              ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ wsealr
               ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
               ∗ ⌜ wsealr = WSealRange true psr gsr bsr esr asr @@? πsr ⌝
@@ -533,7 +533,7 @@ Section wp_interp.
           ∨ ∃ tsr psr gsr bsr esr asr πsr ot sb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ wi
+              ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ wsealr
               ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
               ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr @@? πsr ⌝
@@ -586,7 +586,7 @@ Section wp_interp.
     { iApply "Hφ". by iLeft. }
   Qed.
 
-  Lemma wp_unseal_unknown' E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
+  Lemma wp_unseal_unknown' {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
     decodeInstrW wi.(lw) = UnSeal r1 r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -594,7 +594,7 @@ Section wp_interp.
     r2 ≠ cnull ->
 
     {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-          ∗ pc_a ↦ₐ wi
+          ∗ pc_a ↦ₐ{dq} wi
           ∗ r1 ↦ᵣ wsealr
           ∗ r2 ↦ᵣ wsealed
     }}}
@@ -604,7 +604,7 @@ Section wp_interp.
           ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ wi
+              ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
               ∗ r2 ↦ᵣ wsealed
               ∗ ⌜ wsealr = WSealRange true psr gsr bsr esr asr @@? πsr ⌝
@@ -615,7 +615,7 @@ Section wp_interp.
           ∨ ∃ tsr psr gsr bsr esr asr πsr ot sb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ wi
+              ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
               ∗ r2 ↦ᵣ wsealed
               ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr @@? πsr ⌝
@@ -666,7 +666,7 @@ Section wp_interp.
     { iApply "Hφ". by iLeft. }
   Qed.
 
-  Lemma wp_unseal_unknown_sealed E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 psr gsr bsr esr asr wsealed  :
+  Lemma wp_unseal_unknown_sealed {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 psr gsr bsr esr asr wsealed  :
     decodeInstrW wi.(lw) = UnSeal r2 r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -676,7 +676,7 @@ Section wp_interp.
     r2 ≠ cnull ->
 
     {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-          ∗ pc_a ↦ₐ wi
+          ∗ pc_a ↦ₐ{dq} wi
           ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
           ∗ r2 ↦ᵣ wsealed
     }}}
@@ -686,7 +686,7 @@ Section wp_interp.
           ∨ (∃ ot wsb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ wi
+              ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
               ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
               ∗ ⌜ wsealed = WSealed ot wsb @@? π ⌝
@@ -695,7 +695,7 @@ Section wp_interp.
           ∨ ∃ ot sb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ wi
+              ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
               ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
               ∗ ⌜ wsealed = WSealed ot sb @@? π ⌝
@@ -1155,7 +1155,7 @@ Section wp_interp.
     iApply ("Hpost" $! loadv' with "[//]"). iFrame.
   Qed.
 
-  Lemma load_read_retained E W C
+  Lemma load_read_retained {dq : dfrac} E W C
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (raw : LWord) :
     is_shadow_address a = false →
     decodeInstrW wi.(lw) = CLoad dst src 0 →
@@ -1163,13 +1163,13 @@ Section wp_interp.
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull → src ≠ cnull →
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RW Global b e a ∗ a ↦ₐ raw ∗
         region W C }}}
       Instr Executable @ E
     {{{ actual, RET NextIV;
         ⌜load_heap raw actual ∧ filter_heap W actual = actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RW Global b e a ∗
         a ↦ₐ raw ∗ region W C }}}.
   Proof.
@@ -1178,8 +1178,11 @@ Section wp_interp.
     iDestruct (region_heap_provenance with "Hregion") as "[Hregion #Hprov]".
     iDestruct (heap_provenance_load_witness W raw with "Hprov") as "Hwit".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
-    iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
-    iApply (wp_load_witness_imm with "[$Hmem $Hwit $Hmap]"); eauto.
+    iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
+    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
+      as "Hshadow".
+    { by rewrite big_sepM_empty. }
+    iApply (wp_load_general_shadow_imm with "[$Hmem $Hshadow $Hwit $Hmap]"); eauto.
     { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
@@ -1191,7 +1194,8 @@ Section wp_interp.
       rewrite Hshadow.
       destruct (is_revoker_address a); first done.
       eexists. by simplify_map_eq. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & Hmap)".
+    { by rewrite !dom_insert_L. }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
@@ -1209,7 +1213,7 @@ Section wp_interp.
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
     rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite addr_add_0 in Haddr. injection Haddr as <-.
+    rewrite addr_add_0 in Haddr. injection Haddr as <-.
     rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
     pose proof (load_post_world_load_heap_in_world W RW raw loadv' Hpost) as Hloaded.
     rewrite lload_word_RW in Hloaded.
@@ -1222,7 +1226,7 @@ Section wp_interp.
     rewrite (insert_insert_ne _ dst PC) // insert_insert_eq.
     rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
     iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
-    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+    iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; first done.
     iApply "HΦ". by iFrame.
   Qed.
 

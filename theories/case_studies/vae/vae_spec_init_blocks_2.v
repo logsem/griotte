@@ -23,9 +23,9 @@ Section VAE_Init_Blocks_2.
     (φ : language.val griotte_lang -> iProp Σ) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 3 1)%a ∗
-    codefrag pc_a vae_main_code ∗
+    codefrag_pers pc_a vae_main_code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 3 1)%a ∗
-        codefrag pc_a vae_main_code
+        codefrag_pers pc_a vae_main_code
         -∗ WP Instr Halted {{ φ }})
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
@@ -41,7 +41,7 @@ Section VAE_Init_Blocks_2.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ vae_instr_offset 3 1)%a.
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End VAE_Init_Blocks_2.

@@ -386,6 +386,7 @@ Section SO_World_Call.
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
     na_inv cerise_nais Nswitcher switcher_inv -∗
+    switcher_static -∗
     ca0 ↦ᵣ wca0 -∗
     interp W C wca0 -∗
     ca1 ↦ᵣ wca1 -∗
@@ -398,7 +399,7 @@ Section SO_World_Call.
       ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg) ∗
       ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
   Proof.
-    iIntros (Hrmap_dom Hzero) "#Hswitcher Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hct0 Hrmap".
+    iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".
     { apply Hzero; set_solver+. }
     iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]".
@@ -419,7 +420,7 @@ Section SO_World_Call.
     iSplit; first by rewrite /is_arg_rmap.
     iAssert (interp W C (WInt 0)) as "#Hinterp_0"; first iApply interp_int.
     iAssert (interp W C so_switcher_entry) as "#Hinterp_switcher".
-    { iApply interp_switcher_call; done. }
+    { iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
     repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
     done.
   Qed.

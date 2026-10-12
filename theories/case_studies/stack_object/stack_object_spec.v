@@ -40,7 +40,7 @@ Section SO.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (Nassert Nswitcher Nso_code SON : namespace)
+    (Nswitcher : namespace)
 
     (cstk : CSTK)
     :
@@ -52,9 +52,6 @@ Section SO.
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
-    Nswitcher ## Nassert ->
-    Nswitcher ## Nso_code ->
-    Nassert ## Nso_code ->
 
     (b_so_exp_tbl <= b_so_exp_tbl ^+ 2 < e_so_exp_tbl)%a ->
 
@@ -67,14 +64,14 @@ Section SO.
 
     frame_match Ws Cs cstk W0 C ->
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
-      ∗ na_inv cerise_nais Nso_code
-          ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a so_main_code)
-    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
-    ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
-        ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
+      ∗ switcher_static
+      ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+      ∗ codefrag_pers pc_a so_main_code
+      ∗ b_so_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
+      ∗ (b_so_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ (b_so_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run)))
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -109,10 +106,10 @@ Section SO.
        - [so_run_blocks_2_spec]: block 2, halt. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap
-               HNswitcher_assert HNswitcher_so HNassert_so Hsize_so_exp_tbl Hrmap_dom Hrmap_init HsubBounds
+               Hsize_so_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match)
-      "(#Hassert & #Hswitcher
-      & #Hso_code
+      "(#Hassert & #Hswitcher & #Hswitcher_static
+      & #Himports_main & #Hcode_main
       & #Hso_exp_tbl_PCC
       & #Hso_exp_tbl_CGP
       & #Hso_exp_tbl_f
@@ -131,8 +128,6 @@ Section SO.
       by (rewrite /so_code_bounds; eauto 10).
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_mmio Hstk_heap]; first done.
-    iMod (na_inv_acc with "Hso_code Hna")
-      as "((>Himports_main & >Hcode_main) & Hna & Hso_code_close)"; auto.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iExtractList "Hrmap" [cra;ct0;ct1;cs0;cs1]
       as ["Hcra"; "Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
@@ -145,11 +140,8 @@ Section SO.
     iApply (so_run_blocks_1_spec with
              "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Himport_switcher $Himport_C_f
               $Hcode_main]"); [done|done|].
-    iNext; iIntros "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Himport_switcher & Himport_C_f
-                    & Hcode_main)".
-    iMod ("Hso_code_close" with "[$Hna Himport_switcher Himport_assert Himport_C_f $Hcode_main]")
-      as "Hna".
-    { iNext. iRegionMerge. iFrame. }
+    iNext; iIntros "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & _ & _
+                    & _)".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -157,7 +149,7 @@ Section SO.
 
     (* Call to [C.adv] *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
               $Hinterp_W1_C_f $HK]"); [done..|].
@@ -173,12 +165,9 @@ Section SO.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Block 2: halt *)
-    iMod (na_inv_acc with "Hso_code Hna")
-      as "((>Himports_main & >Hcode_main) & Hna & Hso_code_close)"; auto.
-    iApply (so_run_blocks_2_spec with "[$HPC $Hcode_main Himports_main Hna Hso_code_close]");
+    iApply (so_run_blocks_2_spec with "[$HPC $Hcode_main Hna]");
       first done.
-    iNext; iIntros "(HPC & Hcode_main)".
-    iMod ("Hso_code_close" with "[$Hna $Himports_main $Hcode_main]") as "Hna".
+    iNext; iIntros "(HPC & _)".
     wp_end; iIntros "_"; iFrame.
   Qed.
 

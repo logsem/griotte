@@ -30,7 +30,8 @@ Section Heap_Temporal_Safety_Allocator.
     (wcgp wcra wcs0 wcs1 : LWord)
     (b_stk e_stk a_stk : Addr) (arg_rmap : LReg) (cstk : CSTK) :
     arg_rmap !! ca0 = Some (lword_of_word (WInt 1)) ->
-    allocator_service_ctx ⊢
+    allocator_service_ctx ∗
+    allocator_service_static ⊢
     switcher_cc_specification_known_to_known_function
       emp hts_malloc_result wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs ⊤
@@ -51,7 +52,8 @@ Section Heap_Temporal_Safety_Allocator.
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     length ws = length (finz.seq_between b e) ->
     arg_rmap !! ca0 = Some (WCap true p g b e a @@ ι) ->
-    allocator_service_ctx ⊢
+    allocator_service_ctx ∗
+    allocator_service_static ⊢
     switcher_cc_specification_known_to_known_function
       (alloc_obj ι b e ∗
        free_auth_held ι ∗

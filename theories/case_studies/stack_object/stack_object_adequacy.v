@@ -269,16 +269,16 @@ Section Adequacy.
     { pose proof assert_switcher_disjoints; symmetry; eapply disjoint_assert_switcher_mkinitial ; eauto. }
 
     (* Assert *)
-    iMod ( initialise_assert_compartment (Σ := Σ) _ assertN flagN with "Hcmpt_assert" )
+    iMod ( initialise_assert_compartment (Σ := Σ) _ flagN with "Hcmpt_assert" )
       as "[#Hassert_flag #Hassert]".
 
     (* Switcher *)
     rewrite big_sepS_singleton.
     iMod ( initialise_switcher_compartment (Σ := Σ) _ switcherN with "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc" )
-      as "(#Hsealed_pred_ot_switcher & #Hswitcher & Hstack)".
+      as "(#Hsealed_pred_ot_switcher & #Hswitcher & #Hswitcher_static & Hstack)".
 
     (* CMPT C *)
-    iMod (initialise_adversary_compartment (Σ := Σ) _ C with "Hcmpt_C")
+    iMod (initialise_adversary_compartment (Σ := Σ) _ with "Hcmpt_C")
       as "(HC_imports & HC_code & HC_data & _ & #HC_etbl_pcc & #HC_etbl_cgp & #HC_etbl_entries)".
 
     (* CMPT MAIN *)
@@ -299,12 +299,11 @@ Section Adequacy.
       by rewrite big_sepL2_singleton.
     }
     rewrite main_imports (cmpt_exp_tbl_entries_start_eq main_cmpt) (cmpt_exp_tbl_cgp_eq main_cmpt).
-    iCombine "Hmain_imports Hmain_code" as "Hmain_code".
-    iMod (na_inv_alloc cerise_nais _ soN _ with "Hmain_code") as "#Hmain_code".
-    iMod (inv_alloc (export_table_PCCN soN) ⊤ _ with "Hmain_etbl_pcc") as "#Hinv_etbl_PCC".
-    iMod (inv_alloc (export_table_CGPN soN) ⊤ _ with "Hmain_etbl_cgp") as "#Hinv_etbl_CGP".
-    iMod (inv_alloc (export_table_entryN soN (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a) ⊤ _
-           with "Hmain_etbl_entries") as "#Hinv_etbl_entry_awkward".
+    iMod (region_pointsto_persist with "Hmain_imports") as "#Hmain_imports".
+    iMod (codefrag_persist with "Hmain_code") as "#Hmain_code".
+    iMod (pointsto_persist with "Hmain_etbl_pcc") as "#Hinv_etbl_PCC".
+    iMod (pointsto_persist with "Hmain_etbl_cgp") as "#Hinv_etbl_CGP".
+    iMod (pointsto_persist with "Hmain_etbl_entries") as "#Hinv_etbl_entry_awkward".
     assert (cmpt_exp_tbl_pcc main_cmpt <= cmpt_exp_tbl_pcc main_cmpt ^+ 2
             < cmpt_exp_tbl_entries_end main_cmpt)%a as Hmain_exp_tbl_bounds.
     { pose proof (cmpt_exp_tbl_entries_start_eq main_cmpt).
@@ -328,13 +327,12 @@ Section Adequacy.
         rewrite main_code /so_main_code length_app in Hcode_size.
         rewrite length_app.
         solve_addr+Hmain_imports_size Hcode_size. }
-      iApply (stack_object_f_spec _ _ _ _ _ _ _ _ _ W0' assertN switcherN soN soN);
+      iApply (stack_object_f_spec _ _ _ _ _ _ _ _ _ W0' switcherN);
         last iFrame "#"; auto.
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
-      { exact (cmpt_cgp_base_not_heap main_cmpt). }
-      all: rewrite /switcherN /assertN /soN; solve_ndisj. }
+      { exact (cmpt_cgp_base_not_heap main_cmpt). } }
     iMod (seal_main_export W0 C SO_f
            with "Hsealed_pred_ot_switcher Hot_switcher_SO_f Hworld_interp_C")
       as "(Hworld_interp_C & #Hinterp_SO)"; [done| |done|].
@@ -349,7 +347,7 @@ Section Adequacy.
       [auto..| | |].
     { (* The exported entries C.f and C.g satisfy the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f); (2, offset_adv_g)]
-               with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
+               with "Hswitcher Hswitcher_static HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
         [by rewrite C_exp_tbl | by repeat constructor |
          by apply Forall_cons; split;
            [apply offset_adv_f_valid | apply Forall_singleton, offset_adv_g_valid] |].
@@ -370,11 +368,11 @@ Section Adequacy.
         iEval (cbn); iSplit.
         { iEval (rewrite /interp_in_mem_pre /=).
           rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-          iApply interp_switcher_call; done. }
+          iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
         { iIntros "!>" (W2 W3 Hrel) "H".
           iEval (rewrite /interp_in_mem_pre /=).
           rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-          iApply interp_switcher_call; done. } }
+          iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". } }
       (* SO.f *)
       iSplit.
       { iSplit.
@@ -416,8 +414,8 @@ Section Adequacy.
     iPoseProof (@so_init_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ C
                   _ _ _ _ _ _ _ _
                   _ (cmpt_exp_tbl_entries_end main_cmpt)
-                  _ _ [] [] assertN switcherN soN
-                 with "[ $Hassert $Hswitcher $Hmain_code
+                  _ _ [] [] switcherN
+                 with "[ $Hassert $Hswitcher $Hswitcher_static $Hmain_imports $Hmain_code
                          $Hinv_etbl_PCC $Hinv_etbl_CGP $Hinv_etbl_entry_awkward
                          $Hna
                          $Hworld_interp_C
@@ -431,9 +429,6 @@ Section Adequacy.
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
-    { solve_ndisj. }
-    { solve_ndisj. }
-    { solve_ndisj. }
     { done. }
 
     iModIntro; iFrame "Hassert_flag".

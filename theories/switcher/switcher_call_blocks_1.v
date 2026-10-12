@@ -44,13 +44,13 @@ Section Switcher_Call_Blocks_1.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros "(HPC & Hcsp & Hct2 & Hctp & Hcode & Hpost)".
+    iIntros "(HPC & Hcsp & Hct2 & Hctp & #Hswitcher & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
-    switcher_unfold_code "Hcode".
+    switcher_unfold_code "Hswitcher".
 
     (* Block 0: check the permission of csp *)
-    focus_block_0 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
+    focus_block_0 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* GetP ct2 csp *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -58,7 +58,7 @@ Section Switcher_Call_Blocks_1.
     iIntros "!>" (v) "[-> | (%p0 & %Hp0 & _ & -> & HPC & Hi & Hcsp & Hct2)] /=".
     { wp_pure. wp_end. iIntros "%Hcontr"; done. }
     wp_pure.
-    iSpecialize ("Hcode" with "[$]").
+    iClear "Hi".
     (* Mov ctp (encodePerm RWL) *)
     iInstr "Hcode".
     (* Sub ct2 ct2 ctp *)
@@ -74,21 +74,21 @@ Section Switcher_Call_Blocks_1.
         offsets_compute; solve_addr. }
       iIntros "!> (HPC & Hi & Hct2)".
       wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      iClear "Hi".
+      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
       iApply "Hpost"; iRight.
       iSplit.
       { iPureIntro; intros [Hcontra _]; rewrite Hp0 in Hcontra; simplify_eq; lia. }
-      iExists _,_. iFrame.
+      iExists _,_. iFrame "∗ Hswitcher".
     }
     rewrite Hp0'.
     (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
     iInstr "Hcode".
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 1: check the locality of csp *)
-    focus_block 1 "Hcode" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls";
-      iHide "Hcls" as hcont.
+    focus_block 1 "Hswitcher" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls";
+      iHide "Hswitcher" as hswitcher.
     (* GetL ct2 csp *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -96,7 +96,7 @@ Section Switcher_Call_Blocks_1.
     iIntros "!>" (v) "[-> | (%g0 & %Hg0 & _ & -> & HPC & Hi & Hcsp & Hct2)] /=".
     { wp_pure. wp_end. iIntros "%Hcontr"; done. }
     wp_pure.
-    iSpecialize ("Hcode" with "[$]").
+    iClear "Hi".
     (* Mov ctp (encodeLoc Local) *)
     iInstr "Hcode".
     (* Sub ct2 ct2 ctp *)
@@ -113,21 +113,21 @@ Section Switcher_Call_Blocks_1.
       iIntros "!> (HPC & Hi & Hct2)".
       iEval (simplify_map_eq) in "HPC".
       wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      iClear "Hi".
+      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
       iApply "Hpost"; iRight.
       iSplit.
       { iPureIntro; intros [_ Hcontra]; rewrite Hg0 in Hcontra; simplify_eq; lia. }
-      iExists _,_. iFrame.
+      iExists _,_. iFrame "∗ Hswitcher".
     }
     rewrite Hg0'.
     (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
     iInstr "Hcode".
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     assert (p0 = encodePerm RWL)%Z by lia; subst p0.
     assert (g0 = encodeLoc Local)%Z by lia; subst g0.
     iApply "Hpost"; iLeft.
-    iFrame "∗".
+    iFrame "∗ Hswitcher".
     switcher_change_pc (switcher_block_offset 2).
     iFrame. iPureIntro; split; done.
   Qed.

@@ -35,18 +35,18 @@ Section griotte_lang_rules.
       Jmp_failure regs rimm →
       Jmp_spec regs rimm regs FailedV.
 
-  Lemma wp_Jmp Ep pc_p pc_g pc_b pc_e pc_a pc_π w rimm regs :
+  Lemma wp_Jmp Ep pc_p pc_g pc_b pc_e pc_a pc_π w rimm regs dq :
     decodeInstrW w.(lw) = Jmp rimm ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (Jmp rimm) ⊆ dom regs →
 
-    {{{ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
         ⌜ Jmp_spec regs rimm regs' retv ⌝ ∗
-        pc_a ↦ₐ w ∗
+        pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
@@ -76,17 +76,17 @@ Section griotte_lang_rules.
     - iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
 
-   Lemma wp_jmp_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm :
+   Lemma wp_jmp_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm dq :
      decodeInstrW w.(lw) = Jmp (inl imm) →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-         ∗ ▷ pc_a ↦ₐ w
+         ∗ ▷ pc_a ↦ₐ{dq} w
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-         ∗ pc_a ↦ₐ w
+         ∗ pc_a ↦ₐ{dq} w
      }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a) Hφ".
@@ -108,20 +108,20 @@ Section griotte_lang_rules.
      }
    Qed.
 
-   Lemma wp_jmp_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rimm wimm imm:
+   Lemma wp_jmp_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rimm wimm imm dq:
      decodeInstrW w.(lw) = Jmp (inr rimm) →
      IsLInt wimm imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
      rimm ≠ cnull ->
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-         ∗ ▷ pc_a ↦ₐ w
+         ∗ ▷ pc_a ↦ₐ{dq} w
          ∗ ▷ rimm ↦ᵣ wimm
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-         ∗ pc_a ↦ₐ w
+         ∗ pc_a ↦ₐ{dq} w
          ∗ rimm ↦ᵣ wimm
      }}}.
    Proof.

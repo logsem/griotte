@@ -29,9 +29,15 @@ Section AllocatorService.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {FA : FreeAuth Σ} {MP : MachineParameters} {layout : allocatorLayout}.
 
+  (** The read-only memory of the service, its imports and its code, is
+      persistent: it is not in the invariant. *)
   Definition allocator_service_static : iProp Σ :=
-    ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ∗
-     codefrag allocator_code_b allocator_code)%I.
+    ([[allocator_pcc_b, allocator_code_b]] ↦ₐ□ [[lword_of_word <$> allocator_imports]] ∗
+     codefrag_pers allocator_code_b allocator_code)%I.
+
+  Global Instance allocator_service_static_persistent :
+    Persistent allocator_service_static.
+  Proof. apply _. Qed.
 
   (** The bump slot holds the identifier-less heap root, whose cursor is the
       first unused address; [next = heap_e] represents an exhausted heap. *)
@@ -48,7 +54,7 @@ Section AllocatorService.
      allocator_cells Cs)%I. (* Claims, shadow entries and memory of the heap cells. *)
 
   Definition allocator_service_inv : iProp Σ :=
-    allocator_service_static ∗ ∃ next : Addr, allocator_service_data next.
+    ∃ next : Addr, allocator_service_data next.
 
   Definition allocator_service_ctx : iProp Σ :=
     na_inv cerise_nais Nallocator_service allocator_service_inv.
@@ -64,7 +70,8 @@ Section AllocatorServiceInitialization.
       the switcher's ordinary PCC, CGP, and entry invariants separately. *)
 
   Definition allocator_service_initial_resources : iProp Σ :=
-    (allocator_service_static ∗
+    ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ∗
+     codefrag allocator_code_b allocator_code ∗
      [[allocator_cgp_b, allocator_cgp_e]] ↦ₐ [[lword_of_word <$> allocator_data]])%I.
 
 End AllocatorServiceInitialization.

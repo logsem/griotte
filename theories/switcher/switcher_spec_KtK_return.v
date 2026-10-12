@@ -59,6 +59,7 @@ Section Switcher_KtK_Return.
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
+    ∗ switcher_static
 
     (* PRE-CONDITION *)
     (* NA token*)
@@ -124,7 +125,7 @@ Section Switcher_KtK_Return.
        - pop the frame and close the switcher invariant. *)
     intros astk4 frame; subst astk4.
     iIntros (Hstk_heap Hstk_mmio HE Hdom)
-      "(#Hswitcher & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
+      "(#Hswitcher & #[Hcode _] & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
       & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
 
     (* Open the switcher invariant *)
@@ -133,7 +134,7 @@ Section Switcher_KtK_Return.
     rewrite /switcher_inv.
     iDestruct "Hswitcher_inv"
       as (a_tstk cstk' tstk_next)
-           "(>Hmtdc & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
+           "(>Hmtdc & >%Hot_bounds & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
            & Hcstk_full & >%Hlen_cstk & Hstk_interp & #Hp_ot_switcher)".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
@@ -158,7 +159,7 @@ Section Switcher_KtK_Return.
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       rewrite /withinBounds; solve_addr. }
     iNext; iIntros (a_tstk1)
-      "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & Hcode & _)".
+      "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & _ & _)".
 
     (* Blocks 12-15: restore, clear and return *)
     iAssert (switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller)
@@ -168,7 +169,7 @@ Section Switcher_KtK_Return.
         $Hcells $Hstk $Hregs $Hcode]"); [done|done| |].
     { repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }
     iNext; iIntros (rmap' rcgp rcra rcs1 rcs0)
-      "(%Hrestored & %Hrmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hregs & Hcode & _)".
+      "(%Hrestored & %Hrmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hregs & _ & _)".
     iDestruct (region_pointsto_split a_stk e_stk (a_stk ^+ 4)%a with "[$Hstk' $Hstk]") as "Hstk";
       [solve_addr | by rewrite /region_addrs_zeroes length_replicate |].
     assert (region_addrs_zeroes a_stk e_stk =
@@ -180,7 +181,7 @@ Section Switcher_KtK_Return.
     iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
     iDestruct (region_pointsto_cons with "[$Ha_tstk $Htstk]") as "Htstk"; [solve_addr| solve_addr| ].
     iMod ("Hclose_switcher_inv"
-           with "[Hstk_interp_next $Hna $Hmtdc $Hcode $Hb_switcher Htstk $Hcstk_full $Hp_ot_switcher]")
+           with "[Hstk_interp_next $Hna $Hmtdc Htstk $Hcstk_full $Hp_ot_switcher]")
       as "Hna".
     {
       replace (a_tstk1 ^+ 1)%a with a_tstk by solve_addr.

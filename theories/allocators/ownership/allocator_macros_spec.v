@@ -79,23 +79,23 @@ Section AllocatorOwnerMacro.
     ct3 ↦ᵣ w3 ∗
     ct4 ↦ᵣ w4 ∗
     ca0 ↦ᵣ allocator_capability g a ∗
-    (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ allocator_unsealing_key ∗
+    (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ□ allocator_unsealing_key ∗
     a ↦ₐ WInt o ∗
-    codefrag pc_a code ∗
+    codefrag_pers pc_a code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length code)%a ∗
          ctp ↦ᵣ WInt o ∗
          ct3 ↦ᵣ WInt 0 ∗
          ct4 ↦ᵣ WInt 0 ∗
          ca0 ↦ᵣ allocator_capability g a ∗
-         (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ allocator_unsealing_key ∗
+         (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ□ allocator_unsealing_key ∗
          a ↦ₐ WInt o ∗
-         codefrag pc_a code
+         codefrag_pers pc_a code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros code; subst code.
     iIntros (Hpc Hdisjoint Hkey Hshadow_a Ha)
-      "(HPC & Hctp & Hct3 & Hct4 & Hca0 & Hkey & Ha & Hcode & Hφ)".
+      "(HPC & Hctp & Hct3 & Hct4 & Hca0 & #Hkey & Ha & #Hcode & Hφ)".
     codefrag_facts "Hcode".
     pose proof allocator_otype_size as Hotype.
     assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea by solve_addr.
@@ -134,7 +134,7 @@ Section AllocatorOwnerMacro.
     { done. }
     { apply withinBounds_true_iff; solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
-    iApply "Hφ". iFrame.
+    iApply "Hφ". iFrame "∗ Hkey Hcode".
   Qed.
 
   (** A malformed allocator capability traps: either [unseal] fails, or it
@@ -155,13 +155,13 @@ Section AllocatorOwnerMacro.
     ct3 ↦ᵣ w3 ∗
     ct4 ↦ᵣ w4 ∗
     ca0 ↦ᵣ wsealed ∗
-    (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ allocator_unsealing_key ∗
-    codefrag pc_a code
+    (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ□ allocator_unsealing_key ∗
+    codefrag_pers pc_a code
     ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
     intros code; subst code.
     iIntros (Hpc Hdisjoint Hkey Hwsealed)
-      "(HPC & Hctp & Hct3 & Hct4 & Hca0 & Hkey & Hcode)".
+      "(HPC & Hctp & Hct3 & Hct4 & Hca0 & #Hkey & #Hcode)".
     codefrag_facts "Hcode".
     pose proof allocator_otype_size as Hotype.
     assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea by solve_addr.
@@ -220,7 +220,7 @@ Section AllocatorOwnerMacro.
       iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hctp & Hca0)"; [done..|].
       assert (a10 = (pc_a ^+ 10)%a) as -> by solve_addr.
       wp_pure.
-      iSpecialize ("Hcode" with "Hi").
+      iClear "Hi".
       (* CLoad ctp ctp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.

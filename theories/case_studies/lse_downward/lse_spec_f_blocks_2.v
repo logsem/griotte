@@ -21,12 +21,9 @@ Section LSE_F_Blocks_2.
 
   Lemma lse_f_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (Nassert : namespace) (E : coPset)
     (wcgp wcs0 wcs1 wcra wca0 wca1 wcnull : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
-    ↑Nassert ⊆ E ->
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
-    na_own cerise_nais E ∗
+    assert_static b_assert e_assert a_flag ∗
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
     cgp ↦ᵣ wcgp ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -37,10 +34,9 @@ Section LSE_F_Blocks_2.
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wcnull ∗
-    (pc_b ^+ 1)%a ↦ₐ lse_assert_entry ∗
-    codefrag pc_a lse_main_code ∗
-    ▷ (na_own cerise_nais E ∗
-        PC ↦ᵣ lupdatePcPerm wcra ∗
+    (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
+    codefrag_pers pc_a lse_main_code ∗
+    ▷ (PC ↦ᵣ lupdatePcPerm wcra ∗
         cgp ↦ᵣ WInt 0 ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
@@ -50,13 +46,13 @@ Section LSE_F_Blocks_2.
         ca0 ↦ᵣ WInt 0 ∗
         ca1 ↦ᵣ WInt 0 ∗
         cnull ↦ᵣ WInt 0 ∗
-        (pc_b ^+ 1)%a ↦ₐ lse_assert_entry ∗
-        codefrag pc_a lse_main_code
+        (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
+        codefrag_pers pc_a lse_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) HNassert)
-      "(#Hassert & Hna & HPC & Hcgp & Hcs0 & Hcs1 & Hct0 & Hct1 & Hcra
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
+      "(#Hassert & HPC & Hcgp & Hcs0 & Hcs1 & Hct0 & Hct1 & Hcra
       & Hca0 & Hca1 & Hcnull & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
@@ -66,11 +62,11 @@ Section LSE_F_Blocks_2.
     focus_block 5 "Hcode_main" of lse_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra $Hcnull
+             "[- $Hassert $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra $Hcnull
               $Hcode $Himport_assert]"); auto.
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcs0 & Hcs1 & Hcra & Hct0 & Hct1 & Hcnull
-                    & Hcode & Himport_assert)".
+    iNext; iIntros "(HPC & Hcgp & Hcs0 & Hcs1 & Hcra & Hct0 & Hct1 & Hcnull
+                    & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 6: clear the return values, and return *)
@@ -83,7 +79,7 @@ Section LSE_F_Blocks_2.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End LSE_F_Blocks_2.

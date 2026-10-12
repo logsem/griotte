@@ -22,8 +22,8 @@ Section LSE_Run_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_instr_offset 3 1)%a ∗
-    codefrag pc_a lse_main_code ∗
-    ▷ (codefrag pc_a lse_main_code ={⊤}=∗ na_own cerise_nais ⊤)
+    codefrag_pers pc_a lse_main_code ∗
+    ▷ (codefrag_pers pc_a lse_main_code ={⊤}=∗ na_own cerise_nais ⊤)
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap)) "(HPC & Hcode_main & Hpost)".
