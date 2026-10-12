@@ -241,7 +241,7 @@ Section SO.
               $Hcode_main]"); [done..|].
     iNext; iIntros (a_stk1 a_stk2 stk_tail)
       "(%Hastk1 & %Hastk2 & %Hastk2_csp_e & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
-      & Hcra & Hsecret & Hastk1 & Hstk & Himport_switcher & _)".
+      & Hcra & Hsecret & Hastk1 & Hstk & _ & _)".
 
     (* Reinstate [z] in the world of the call *)
     iMod (so_world_call with
@@ -285,7 +285,6 @@ Section SO.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull]
       as ["Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
-    iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
 
     (* Blocks 10-12: assert that the secret is unchanged, return *)
     iApply (so_return_blocks_4_spec with
@@ -293,7 +292,7 @@ Section SO.
               $Hcs0 $Hca0 $Hca1 $Hsecret $Himport_assert $Hcode_main]");
       [done|done|solve_addr|solve_addr|].
     iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
-                    & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & _)".
+                    & Hcs0 & Hca0 & Hca1 & Hsecret & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iInsertRegs "Hrmap" ["Hcnull";"Hct4";"Hct3";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 

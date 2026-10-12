@@ -148,7 +148,7 @@ Section LSE.
              "[- $Hassert $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra $Hca0 $Hca1 $Hcnull
               $Himport_assert $Hcode_main]"); [done|].
     iNext; iIntros "(HPC & Hcgp & Hcs0 & Hcs1 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
-                    & Hcnull & Himport_assert & _)".
+                    & Hcnull & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iMod ("Hlse_code_close" with "[$Hna $Hcgp_b]") as "Hna".
     iInsertRegs "Hrmap" ["Hcnull";"Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].

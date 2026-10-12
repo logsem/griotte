@@ -140,7 +140,7 @@ Section SO.
     iApply (so_run_blocks_1_spec with
              "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Himport_switcher $Himport_C_f
               $Hcode_main]"); [done|done|].
-    iNext; iIntros "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Himport_switcher & Himport_C_f
+    iNext; iIntros "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & _ & _
                     & _)".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")

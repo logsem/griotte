@@ -172,7 +172,7 @@ Section VAE.
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hct0 & Hct1 & Hcs0 & Hcs1
-                    & Himport_switcher & _)".
+                    & _ & _)".
 
     (* Close the quarantined revoked keys *)
     iMod (vae_world_quarantine W0 W2 C l with "Hworld_interp_C Hrevoked_l")
@@ -242,12 +242,11 @@ Section VAE.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hzero3]".
     iDestruct (big_sepM_pure with "Hzero3") as %Hzero3.
     iExtractList "Hrmap" [ct0;ct1] as ["Hct0";"Hct1"].
-    iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iApply (vae_awkward_blocks_2_spec with
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hcs0
-                    & Hcs1 & Himport_switcher & _)".
+                    & Hcs1 & _ & _)".
 
     (* Close the quarantined keys revoked by the first call *)
     iMod (vae_world_quarantine W3 W5 C l1 with "Hworld_interp_C Hrevoked_l1")
@@ -318,13 +317,12 @@ Section VAE.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull]
       as ["Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
-    iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iApply (vae_awkward_blocks_3_spec with
              "[- $HawkN $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
               $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Himport_assert $Hcode_main]");
       [done|done|done|exact Hloc_i_W7|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
-                    & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Himport_assert & _)".
+                    & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iInsertRegs "Hrmap" ["Hcnull";"Hct4";"Hct3";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 

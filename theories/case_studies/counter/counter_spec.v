@@ -138,7 +138,7 @@ Section Counter.
              "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hcgp_b
               $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|done|].
     iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hcgp_b
-                    & Himport_switcher & Himport_C_f & _)".
+                    & _ & _ & _)".
     iMod ("Hmem_close" with "[$Hna Hcgp_b]")
       as "Hna".
     { iNext; iExists (cnt + 1)%Z.

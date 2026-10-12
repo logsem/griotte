@@ -342,7 +342,8 @@ Section Adequacy.
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
-      { exact (cmpt_cgp_base_not_heap main_cmpt). } }
+      { exact (cmpt_cgp_base_not_heap main_cmpt). }
+      { exists false. subst W1' W1. by simplify_map_eq. } }
     iMod (seal_main_export W1 C awk_f
            with "Hsealed_pred_ot_switcher Hot_switcher_awk_f Hworld_interp_C")
       as "(Hworld_interp_C & #Hinterp_VAE)"; [done| |done|].
