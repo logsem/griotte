@@ -46,10 +46,10 @@ Section KVS_getFullKey.
       rscratch1 ↦ᵣ - ∗
       rscratch2 ↦ᵣ - ∗
 
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
-      codefrag pc_a instrs ∗
+      codefrag_pers pc_a instrs ∗
       ▷ (
           PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
@@ -58,9 +58,9 @@ Section KVS_getFullKey.
           rscratch1 ↦ᵣ WInt (pc_b - pc_a) ∗
           rscratch2 ↦ᵣ WInt pc_a ∗
 
-          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key ∗
-          codefrag pc_a instrs -∗
+          codefrag_pers pc_a instrs -∗
 
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -69,7 +69,7 @@ Section KVS_getFullKey.
     intros instrs ; subst instrs.
     iIntros (Hunsealing_shadow Huser_key_shadow HsubBounds Hbounds_user_key_addr Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
       "(HPC & [%wdst Hrdst] & Hrsealkey & Hrkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
-      & Ha_unsealing & Ha_user_key & Hcode & Hpost)".
+      & #Ha_unsealing & Ha_user_key & #Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -105,7 +105,7 @@ Section KVS_getFullKey.
     (* lor rdst rdst rkey *)
     iInstr "Hcode".
 
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode Ha_unsealing".
   Qed.
 
   (*** Specification for unknown code *)
@@ -132,15 +132,15 @@ Section KVS_getFullKey.
       rscratch1 ↦ᵣ - ∗
       rscratch2 ↦ᵣ - ∗
 
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
 
-      codefrag pc_a instrs
+      codefrag_pers pc_a instrs
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (Hunsealing_shadow HsubBounds Hnot_sealed_with_kvs_otype Hrscratch1 Hrscratch2 Hrsealkey Hdst)
       "(HPC & [%wdst Hrdst] & Hrsealkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
-      & Ha_unsealing & Hcode)".
+      & #Ha_unsealing & #Hcode)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -185,7 +185,7 @@ Section KVS_getFullKey.
     by rewrite Z.eqb_neq in Hnot_sealed_with_kvs_otype.
     }
     wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
     iInstr_fail "Hcode".
     wp_end; iIntros "%Hcontr"; done.
   Qed.

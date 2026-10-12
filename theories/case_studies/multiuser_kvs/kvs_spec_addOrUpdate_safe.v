@@ -35,6 +35,7 @@ Section KVS_spec_addOrUpdate_safe.
     related_sts_priv_world Wca W ->
 
     ( seal_pred KVS_OTYPE kvs_otype_propC ∗
+      kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
       na_own cerise_nais E ∗
@@ -72,7 +73,7 @@ Section KVS_spec_addOrUpdate_safe.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W)
-      "(#Hspred & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
+      "(#Hspred & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
       & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld & Hpost)".
 
     (* Destruct validity map key *)
@@ -207,20 +208,21 @@ Section KVS_spec_addOrUpdate_safe.
     :
 
     seal_pred KVS_OTYPE kvs_otype_propC ∗
+    kvs_static ∗
     na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
     na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
-    inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
-    inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr)
-        (kvs_addOrUpdate_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_addOrUpdate) ∗
+    switcher_static ∗
+    b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
+    (b_kvs_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+    kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate ∗
     WSealed ot_switcher (SCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ↦□ₑ kvs_addOrUpdate_nargs ∗
     WSealed ot_switcher (SCap true RO Local b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ↦□ₑ kvs_addOrUpdate_nargs
     -∗
     ot_switcher_prop W C (WCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.
     iIntros
-      "(#Hspred & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher
+      "(#Hspred & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
       & #Hkvs_exp_PCC
       & #Hkvs_exp_CGP
       & #Hkvs_exp_addOrRead
@@ -228,7 +230,7 @@ Section KVS_spec_addOrUpdate_safe.
       )".
 
     iExists g_kvs_exp_tbl, b_kvs_exp_tbl, e_kvs_exp_tbl, kvs_addOrUpdate_exp_tbl_addr,
-    KVS_pcc_b, KVS_pcc_e, KVS_cgp_b, KVS_cgp_e, kvs_addOrUpdate_nargs, _, Nkvs_exp_tbl.
+    KVS_pcc_b, KVS_pcc_e, KVS_cgp_b, KVS_cgp_e, kvs_addOrUpdate_nargs, _.
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iFrame "#".

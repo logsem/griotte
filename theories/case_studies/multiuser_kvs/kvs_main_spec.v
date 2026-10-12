@@ -10,6 +10,7 @@ From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main
   kvs_main_spec_blocks.
 From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Import allocator_common_preamble.
 
 Section KVS_main_spec.
   Context
@@ -46,7 +47,7 @@ Section KVS_main_spec.
     (Cs : list CmptName)
     (cstk : CSTK)
 
-    (Nassert Nswitcher : namespace)
+    (Nswitcher : namespace)
     :
 
     let imports :=
@@ -58,7 +59,6 @@ Section KVS_main_spec.
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
-    Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -71,15 +71,17 @@ Section KVS_main_spec.
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     frame_match Ws Cs cstk W0 B ->
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
+      assert_static b_assert e_assert a_flag ∗
       na_inv cerise_nais Nswitcher switcher_inv ∗
+      switcher_static ∗
+      kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
 
-      inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
-      inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
-      inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) (kvs_addOrUpdate_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_addOrUpdate) ∗
-      inv (export_table_entryN Nkvs_exp_tbl kvs_read_exp_tbl_addr) (kvs_read_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_read) ∗
+      b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
+      (b_kvs_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate ∗
+      kvs_read_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_read ∗
 
       na_own cerise_nais ⊤ ∗
 
@@ -90,8 +92,8 @@ Section KVS_main_spec.
       ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
 
       (* initial memory layout *)
-      [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗
-      codefrag pc_a kvs_main_code ∗
+      [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
+      codefrag_pers pc_a kvs_main_code ∗
       [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> kvs_main_data ]] ∗
       [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ lword_of_word <$> kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
 
@@ -109,15 +111,15 @@ Section KVS_main_spec.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous HB_f_nonheap Hframe_match
             )
-      "(#Hassert & #Hswitcher
-      & #Hkvs & #Hkvs_logical
+      "(#Hassert & #Hswitcher & #Hswitcher_static
+      & #Hkvs_static & #Hkvs & #Hkvs_logical
       & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
       & Hna
       & HPC & Hcgp & Hcsp & Hrmap
-      & Himports_main & Hcode_main & Hcgp_main & Hstatic_sealed_main
+      & #Himports_main & #Hcode_main & Hcgp_main & Hstatic_sealed_main
       & HLUKVS & Hkvs_1
       & Hworld_B
       & HK & Hcstk_frag
@@ -128,11 +130,11 @@ Section KVS_main_spec.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
     assert (withinBounds static_sealed_b (static_sealed_b ^+ 1)%a static_sealed_b = true)
       as Hstatic_sealed_b by solve_addr.
-    iDestruct (kvs_main_imports_pointsto pc_b pc_a static_sealed_b
+    iDestruct (kvs_main_imports_pointsto_pers pc_b pc_a static_sealed_b
       b_assert e_assert B_f Himports_contiguous with "Himports_main") as
-      "(Himport_switcher & Himport_assert & Himport_B_f
-       & Himport_kvs_addOrUpdate & Himport_kvs_read & Himport_kvs_erase
-       & Himport_sealed_user_key & Himports_main)".
+      "(#Himport_switcher & #Himport_assert & #Himport_B_f
+       & #Himport_kvs_addOrUpdate & #Himport_kvs_read & _
+       & #Himport_sealed_user_key)".
     (* Extract the static sealed user key address  *)
     iDestruct (region_pointsto_single with "Hstatic_sealed_main") as "(% & Hstatic_sealed_b & %Heq')" ; last (rewrite /kvs_main_static_sealed /= in Heq' ; simplify_eq).
     { rewrite /kvs_main_static_sealed //= in Hstatic_sealed_contiguous. }
@@ -155,7 +157,7 @@ Section KVS_main_spec.
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap KVS_USER_KEY_MAIN b_assert e_assert B_f Nswitcher stk_mem cstk
       with
-      "[- $Hswitcher $Hkvs $Hkvs_logical
+      "[- $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
        $Hna $HPC $Hcgp $Hcsp $Hrmap
        $Himport_switcher $Himport_kvs_addOrUpdate
@@ -167,8 +169,7 @@ Section KVS_main_spec.
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & [%wcra Hcra]
        & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap
        & Hstk & Hcstk & Hstatic_sealed_b & HLUKVS & Hkvs_1
-       & Himport_switcher & Himport_kvs_addOrUpdate
-       & Himport_sealed_user_key & Hcode_main)".
+       & _ & _ & _ & _)".
     iEval (cbn [kvs_main_add_phase_instrs]) in "HPC".
     iEval (rewrite /kvs_main_code) in "Hcode_main".
 
@@ -178,7 +179,7 @@ Section KVS_main_spec.
     (* -------------- BLOCK 6 and 7 : FETCH -------------- *)
     (* --------------------------------------------------- *)
     focus_block_nochangePC 6 "Hcode_main" as a_fetch1 Ha_fetch1
-      "Hcode" "Hcont"; iHide "Hcont" as hcont.
+      "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     changePCto a_fetch1.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
@@ -186,25 +187,25 @@ Section KVS_main_spec.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
     replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
-    iNext ; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hcode & Himport_switcher)".
+    iNext ; iIntros "(HPC & Hctp & Hct0 & Hct1 & _ & _)".
     iEval (cbn) in "Hctp".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    focus_block 7 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 7 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_fetch1.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_B_f]"); eauto.
     { rewrite /ADV_F_OFFSET; solve_addr. }
-    iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_B_f)".
+    iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & _ & _)".
     iEval (cbn) in "Hct1".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     (* --------------------------------------------------- *)
     (* ----------------- BLOCK 8: CALL B ----------------- *)
     (* --------------------------------------------------- *)
-    focus_block 8 "Hcode_main" as a_call Ha_call "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 8 "Hcode_main" as a_call Ha_call "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_fetch2.
     iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     (* -- Prepare registers  -- *)
     (* -- separate argument registers -- *)
@@ -244,7 +245,7 @@ Section KVS_main_spec.
     { subst rmap_B.
       repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L).
       rewrite Hdom_rmap_ret; set_solver. }
-    iFrame "Hswitcher Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
+    iFrame "Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
       Hstack_revoked_W1 Hinterp_W1_B_f HentryB_f HK".
     iFrame "%".
@@ -287,9 +288,9 @@ Section KVS_main_spec.
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap warg0 warg1
       (WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a) (WInt 0)
-      KVS_USER_KEY_MAIN b_assert e_assert a_flag Nassert Nswitcher
+      KVS_USER_KEY_MAIN b_assert e_assert a_flag Nswitcher
       stk_mem cstk with
-      "[- $Hassert $Hswitcher $Hkvs $Hkvs_logical
+      "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
        $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1
        $Hrmap $Hstk $Hcstk_frag $Hstatic_sealed_b $HLUKVS $Hkvs_1

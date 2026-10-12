@@ -29,7 +29,7 @@ Section KVS_search.
      is_physical_kvs_open cgp_b pkvs idx ∗
      ⌜withinBounds cgp_b cgp_e
         (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a = true⌝ ∗
-     codefrag pc_a instrs)%I.
+     codefrag_pers pc_a instrs)%I.
 
   Definition kvs_search_missing_resources `{KVS : kvsLayout}
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
@@ -48,12 +48,12 @@ Section KVS_search.
        ⌜withinBounds cgp_b cgp_e
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty_slot + 2))%a = true⌝ ∗
        ⌜0 <= idx_empty_slot⌝ ∗
-       ⌜pkvs !! idx_empty_slot = Some None⌝ ∗ codefrag pc_a instrs) ∨
+       ⌜pkvs !! idx_empty_slot = Some None⌝ ∗ codefrag_pers pc_a instrs) ∨
      (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ WInt (-1)%Z ∗
       ridx_empty ↦ᵣ WInt (-1)%Z ∗ rscratch ↦ᵣ - ∗
-      is_physical_kvs cgp_b pkvs ∗ codefrag pc_a instrs))%I.
+      is_physical_kvs cgp_b pkvs ∗ codefrag_pers pc_a instrs))%I.
 
   Lemma kvs_physical_map_open_any
     (a : Addr) (pkvs : kvs_physical_map) (idx : nat) :
@@ -96,7 +96,7 @@ Section KVS_search.
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_NONE ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ w1 ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ w2 ∗
-     codefrag pc_a instrs ∗
+     codefrag_pers pc_a instrs ∗
 
      ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
@@ -108,12 +108,12 @@ Section KVS_search.
         (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_NONE ∗
         (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ w1 ∗
         (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ w2 ∗
-        codefrag pc_a instrs -∗
+        codefrag_pers pc_a instrs -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs Hcgp_shadow HsubBounds Hcgp_bound Hn Hrscratch Hridx Hridx_empty Hkey.
-    iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & Hn0 & Hn1 & Hn2 & Hcode & Hpost)".
+    iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & Hn0 & Hn1 & Hn2 & #Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous; clear H0.
     (* sub rscratch SIZE_MAP ridx; *)
     iInstr "Hcode".
@@ -136,7 +136,7 @@ Section KVS_search.
     iInstr "Hcode".
     (* jmp (".loop_start")%asm; *)
     iInstr "Hcode". { transitivity (Some (pc_a ^+ 2)%a); solve_addr. }
-    iApply "Hpost". iFrame.
+    iApply "Hpost". iFrame "∗ Hcode".
   Qed.
 
   Lemma kvs_search_found_iteration_spec `{KVS : kvsLayout}
@@ -163,7 +163,7 @@ Section KVS_search.
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_SOME ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ WInt kidx ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ widx ∗
-     codefrag pc_a instrs ∗
+     codefrag_pers pc_a instrs ∗
 
      ▷ (((⌜fkey = kidx⌝ ∗
            PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
@@ -176,7 +176,7 @@ Section KVS_search.
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_SOME ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ WInt kidx ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ widx ∗
-           codefrag pc_a instrs) ∨
+           codefrag_pers pc_a instrs) ∨
           (⌜fkey ≠ kidx⌝ ∗
            PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
            cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
@@ -188,12 +188,12 @@ Section KVS_search.
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_SOME ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ WInt kidx ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ widx ∗
-           codefrag pc_a instrs)) -∗
+           codefrag_pers pc_a instrs)) -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs Hcgp_shadow HsubBounds Hcgp_bound Hn Hrscratch Hridx Hridx_empty Hkey.
-    iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & Hn0 & Hn1 & Hn2 & Hcode & Hpost)".
+    iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & Hn0 & Hn1 & Hn2 & #Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous; clear H0.
     (* sub rscratch SIZE_MAP ridx; *)
     iInstr "Hcode".
@@ -225,7 +225,7 @@ Section KVS_search.
       iInstr "Hcode"; first (transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a); solve_addr).
       (* jmp (".loop_end_found")%asm; *)
       iInstr "Hcode".
-      iApply "Hpost". iLeft. iFrame. done.
+      iApply "Hpost". iLeft. iFrame "∗ Hcode". done.
     - assert (WInt (fkey - kidx)%Z ≠ WInt 0) by (injection; intro; simplify_eq; apply Hneq; lia).
       (* jnz (".not_same_key")%asm rscratch; *)
       iInstr "Hcode".
@@ -235,7 +235,7 @@ Section KVS_search.
       iInstr "Hcode".
       (* jmp (".loop_start")%asm; *)
       iInstr "Hcode"; first (transitivity (Some (pc_a ^+ 2)%a); solve_addr).
-      iApply "Hpost". iRight. iFrame. done.
+      iApply "Hpost". iRight. iFrame "∗ Hcode". done.
   Qed.
 
   Definition kvs_search_outcome_resources `{KVS : kvsLayout}
@@ -269,7 +269,7 @@ Section KVS_search.
      ridx ↦ᵣ WInt SIZE_MAP ∗
      ridx_empty ↦ᵣ wempty ∗
      rscratch ↦ᵣ wscratch ∗
-     codefrag pc_a instrs ∗
+     codefrag_pers pc_a instrs ∗
 
      ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
@@ -277,12 +277,12 @@ Section KVS_search.
         ridx ↦ᵣ WInt (-1)%Z ∗
         ridx_empty ↦ᵣ wempty ∗
         rscratch ↦ᵣ WInt 0 ∗
-        codefrag pc_a instrs -∗
+        codefrag_pers pc_a instrs -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hridx_empty Hkey.
-    iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & Hcode & Hpost)".
+    iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & #Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous; clear H0.
     (* sub rscratch SIZE_MAP ridx; *)
     iInstr "Hcode".
@@ -297,7 +297,7 @@ Section KVS_search.
     (* mov ridx (-1)%Z; *)
     iInstr "Hcode".
     rewrite (decide_False (Z.of_nat 0)); last done.
-    iApply "Hpost". iFrame.
+    iApply "Hpost". iFrame "∗ Hcode".
   Qed.
 
   Lemma KVS_search_unified_spec `{KVS : kvsLayout}
@@ -313,7 +313,7 @@ Section KVS_search.
     (PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
      rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ - ∗ ridx_empty ↦ᵣ - ∗ rscratch ↦ᵣ - ∗
-     is_physical_kvs cgp_b pkvs ∗ codefrag pc_a instrs ∗
+     is_physical_kvs cgp_b pkvs ∗ codefrag_pers pc_a instrs ∗
      ▷ (kvs_search_outcome_resources pc_b pc_e pc_a cgp_b cgp_e
           rkey ridx ridx_empty rscratch pkvs fkey -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -322,7 +322,7 @@ Section KVS_search.
     intros instrs.
     iIntros (Hcgp_shadow HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hridx_empty Hkey)
       "(HPC & Hcgp & Hrkey & [%wridx Hridx] & [%wridx_empty Hridx_empty] & Hrscratch
-        & HKVS & Hcode & Hpost)".
+        & HKVS & #Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous; clear H0.
     iDestruct (is_physical_kvs_wf with "HKVS") as %Hwf_pkvs.
 
@@ -380,10 +380,10 @@ Section KVS_search.
           rkey ridx ridx_empty rscratch fkey (WInt (-1)) wrscratch
           HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hridx_empty Hkey
           with "[$HPC $Hcgp $Hrkey $Hridx $Hridx_empty $Hrscratch $Hcode HKVS Hpost]").
-        iNext. iIntros "(HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hcode)".
+        iNext. iIntros "(HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & _)".
         iApply "Hpost".
         rewrite /kvs_search_outcome_resources /kvs_search_missing_resources.
-        iRight. iSplit; first done. iRight. iFrame.
+        iRight. iSplit; first done. iRight. iFrame "∗ Hcode".
 
       - iDestruct "Hloop_inv" as
           "(%idx_empty_found & %Hidx_empty_found & HKVS & Hn0 & Hn1 & Hn2 & Hridx_empty & %Hpkvs_idx_empty)".
@@ -391,10 +391,10 @@ Section KVS_search.
           rkey ridx ridx_empty rscratch fkey (WInt idx_empty_found) wrscratch
           HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hridx_empty Hkey
           with "[$HPC $Hcgp $Hrkey $Hridx $Hridx_empty $Hrscratch $Hcode HKVS Hn0 Hn1 Hn2 Hpost]").
-        iNext. iIntros "(HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hcode)".
+        iNext. iIntros "(HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & _)".
         iApply "Hpost".
         rewrite /kvs_search_outcome_resources /kvs_search_missing_resources.
-        iRight. iSplit; first done. iLeft. iFrame.
+        iRight. iSplit; first done. iLeft. iFrame "∗ Hcode".
         iPureIntro; split.
         * solve_addr.
         * split; [lia | exact Hpkvs_idx_empty].
@@ -419,15 +419,15 @@ Section KVS_search.
           Hcgp_shadow HsubBounds Hcgp_bound Hn' Hrscratch Hridx Hridx_empty Hkey
           with "[$HPC $Hcgp $Hrkey $Hridx $Hridx_empty $Hrscratch $Hn0 $Hn1 $Hn2 $Hcode HKVS Hpost]").
         iNext. iIntros "Hresult".
-        iDestruct "Hresult" as "[(%Hsame & HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & Hcode) |
-          (%Hdifferent & HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & Hcode)]".
+        iDestruct "Hresult" as "[(%Hsame & HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & _) |
+          (%Hdifferent & HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & _)]".
         { subst kidx.
           iApply "Hpost".
           rewrite /kvs_search_outcome_resources /kvs_search_found_resources.
           iLeft. iExists (Z.to_nat n), widx. iSplit; first done.
           assert (Hnat : Z.of_nat (Z.to_nat n) = n) by lia.
           rewrite Hnat.
-          iFrame. iPureIntro; solve_addr+Hn Hn' Hcgp_bound. }
+          iFrame "∗ Hcode". iPureIntro; solve_addr+Hn Hn' Hcgp_bound. }
 
         iDestruct (kvs_physical_map_close with "[$HKVS] [Hn0 Hn1 Hn2]") as "HKVS";eauto.
         {
@@ -438,7 +438,7 @@ Section KVS_search.
           iFrame.
         }
         iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch]
-         [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty]").
+         [$Hpost] [$Hridx] [$HPC] [HKVS Hridx_empty]").
         * iPureIntro; lia.
         * iPureIntro.
           intros idx0 Hidx0_bound k0 w0 Hidx0.
@@ -466,14 +466,14 @@ Section KVS_search.
           Hcgp_shadow HsubBounds Hcgp_bound Hn' Hrscratch Hridx Hridx_empty Hkey
           with "[$HPC $Hcgp $Hrkey $Hridx $Hridx_empty $Hrscratch $Hn0 $Hn1 $Hn2 $Hcode HKVS Hpost]").
         iNext. iIntros "Hresult".
-        iDestruct "Hresult" as "(HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & Hcode)".
+        iDestruct "Hresult" as "(HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & _)".
 
         replace n with (Z.of_nat (Z.to_nat n)) in Hridx_empty by lia.
         replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a with (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a by solve_addr+Hn.
         replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a by solve_addr+Hn.
         replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a by solve_addr+Hn.
         iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch]
-         [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty Hn0 Hn1 Hn2]").
+         [$Hpost] [$Hridx] [$HPC] [HKVS Hridx_empty Hn0 Hn1 Hn2]").
         * iPureIntro; lia.
         * iPureIntro.
           intros idx0 Hidx0_bound k0 w0 Hidx0.
@@ -520,15 +520,15 @@ Section KVS_search.
           Hcgp_shadow HsubBounds Hcgp_bound Hn' Hrscratch Hridx Hridx_empty Hkey
           with "[$HPC $Hcgp $Hrkey $Hridx $Hridx_empty $Hrscratch $Hn0 $Hn1 $Hn2 $Hcode HKVS Hpost]").
         iNext. iIntros "Hresult".
-        iDestruct "Hresult" as "[(%Hsame & HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & Hcode) |
-          (%Hdifferent & HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & Hcode)]".
+        iDestruct "Hresult" as "[(%Hsame & HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & _) |
+          (%Hdifferent & HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & _)]".
         { subst kidx.
           iApply "Hpost".
           rewrite /kvs_search_outcome_resources /kvs_search_found_resources.
           iLeft. iExists (Z.to_nat n), widx. iSplit; first done.
           assert (Hnat : Z.of_nat (Z.to_nat n) = n) by lia.
           rewrite Hnat.
-          iFrame. iPureIntro; solve_addr+Hn Hn' Hcgp_bound. }
+          iFrame "∗ Hcode". iPureIntro; solve_addr+Hn Hn' Hcgp_bound. }
 
         iDestruct (kvs_physical_map_close with "[$HKVS] [Hn0 Hn1 Hn2]") as "HKVS";eauto.
         {
@@ -544,7 +544,7 @@ Section KVS_search.
         iDestruct (destruct_physical_kvs_entry with "Hfkey") as "(Hn0 & Hn1 & Hn2)"; first solve_addr.
 
         iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch]
-         [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hn0 Hn1 Hn2 Hridx_empty]").
+         [$Hpost] [$Hridx] [$HPC] [HKVS Hn0 Hn1 Hn2 Hridx_empty]").
         * iPureIntro; lia.
         * iPureIntro.
           intros idx0 Hidx0_bound k0 w0 Hidx0.
@@ -568,13 +568,13 @@ Section KVS_search.
           Hcgp_shadow HsubBounds Hcgp_bound Hn' Hrscratch Hridx Hridx_empty Hkey
           with "[$HPC $Hcgp $Hrkey $Hridx $Hridx_empty $Hrscratch $Hn0 $Hn1 $Hn2 $Hcode HKVS Hpost]").
         iNext. iIntros "Hresult".
-        iDestruct "Hresult" as "(HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & Hcode)".
+        iDestruct "Hresult" as "(HPC & Hcgp & Hrkey & Hridx & Hridx_empty & Hrscratch & Hn0 & Hn1 & Hn2 & _)".
         replace n with (Z.of_nat (Z.to_nat n)) in Hridx_empty by lia.
         replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a with (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a by solve_addr+Hn.
         replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a by solve_addr+Hn.
         replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a by solve_addr+Hn.
         iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch]
-         [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty Hn0 Hn1 Hn2]").
+         [$Hpost] [$Hridx] [$HPC] [HKVS Hridx_empty Hn0 Hn1 Hn2]").
         * iPureIntro; lia.
         * iPureIntro.
           intros idx0 Hidx0_bound k0 w0 Hidx0.
@@ -629,7 +629,7 @@ Section KVS_search.
 
       is_physical_kvs cgp_b pkvs ∗
 
-      codefrag pc_a instrs ∗
+      codefrag_pers pc_a instrs ∗
       ▷ (
           PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           cgp ↦ᵣ WCap true RW Global cgp_b cgp_e (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx) )%a ∗
@@ -647,14 +647,14 @@ Section KVS_search.
 
           ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a = true ⌝ ∗
 
-          codefrag pc_a instrs -∗
+          codefrag_pers pc_a instrs -∗
 
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs Hcgp_shadow HsubBounds Hbounds_cgp Hcgp_bound Hlookup Hrscratch Hridx_ne Hridx_empty_ne Hrkey_ne.
-    iIntros "(HPC & HcgpReg & Hrkey & Hridx & Hridx_empty & HscratchReg & HKVS & Hcode & Hpost)".
+    iIntros "(HPC & HcgpReg & Hrkey & Hridx & Hridx_empty & HscratchReg & HKVS & #Hcode & Hpost)".
     iDestruct (is_physical_kvs_wf with "HKVS") as %Hwf.
     iApply (KVS_search_unified_spec pc_b pc_e pc_a cgp_b cgp_e
       rkey ridx ridx_empty rscratch pkvs fkey
@@ -705,7 +705,7 @@ Section KVS_search.
 
       is_physical_kvs cgp_b pkvs ∗
 
-      codefrag pc_a instrs ∗
+      codefrag_pers pc_a instrs ∗
       ▷ ( (* An empty slot was found*)
           ( ∃ idx_empty_slot : nat,
             (
@@ -725,7 +725,7 @@ Section KVS_search.
             ⌜ 0 <= idx_empty_slot ⌝ ∗
             ⌜ pkvs !! idx_empty_slot = Some None ⌝ ∗
 
-            codefrag pc_a instrs
+            codefrag_pers pc_a instrs
             )
           )
           ∨ (* No empty slot found*)
@@ -739,7 +739,7 @@ Section KVS_search.
 
               is_physical_kvs cgp_b pkvs ∗
 
-              codefrag pc_a instrs
+              codefrag_pers pc_a instrs
             ) -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -747,7 +747,7 @@ Section KVS_search.
   Proof.
     intros instrs fkey Hcgp_shadow HsubBounds Hbounds_cgp Hcgp_bound Hnotin Huint16
       Hrscratch Hridx_ne Hridx_empty_ne Hrkey_ne.
-    iIntros "(HPC & HcgpReg & Hrkey & Hridx & Hridx_empty & HscratchReg & HKVS & Hcode & Hpost)".
+    iIntros "(HPC & HcgpReg & Hrkey & Hridx & Hridx_empty & HscratchReg & HKVS & #Hcode & Hpost)".
     iApply (KVS_search_unified_spec pc_b pc_e pc_a cgp_b cgp_e
       rkey ridx ridx_empty rscratch pkvs fkey
       Hcgp_shadow HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx_ne Hridx_empty_ne Hrkey_ne

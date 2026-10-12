@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import switcher kvs.
+From griotte Require Import allocator_common_preamble.
 
 
 Definition user_key_t := Z.
@@ -1421,14 +1422,38 @@ Section KVS_preamble.
     {swlayout : switcherLayout}
   .
 
-  Definition kvs_inv
-    {swlayout : switcherLayout}
+  (** The read-only memory of the KVS service, its imports and its code, is
+      persistent: it is not in the invariant. *)
+  Definition kvs_static
     {KVS : kvsLayout} : iProp Σ :=
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in
-      [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗
-      codefrag KVS_pcc_b' kvs_service_instrs ∗
+      [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
+      codefrag_pers KVS_pcc_b' kvs_service_instrs.
+
+  Global Instance kvs_static_persistent {KVS : kvsLayout} :
+    Persistent kvs_static.
+  Proof. apply _. Qed.
+
+  (** The unsealing key of the user keys, loaded by the service from its
+      import table. *)
+  Lemma kvs_static_unsealing_key {KVS : kvsLayout} {KVS_wf : kvsLayoutWf} :
+    kvs_static ⊢
+    (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key.
+  Proof.
+    pose proof KVS_size_imports as Hsize.
+    rewrite /length_kvs_imports /= in Hsize.
+    rewrite /kvs_static /region_pointsto_pers /kvs_imports /kvs.kvs_imports_pre.
+    rewrite !fmap_cons fmap_nil.
+    rewrite (finz_seq_between_cons KVS_pcc_b); last solve_addr.
+    rewrite (finz_seq_between_cons (KVS_pcc_b ^+ 1)%a); last solve_addr.
+    rewrite /UNSEALING_USER_KEY_OFFSET.
+    iIntros "[(_ & $ & _) _]".
+  Qed.
+
+  Definition kvs_inv
+    {KVS : kvsLayout} : iProp Σ :=
       physical_kvs_inv.
 
   Definition safe_kvs_pointsto (W : WORLD) (C : CmptName) (uk : user_key_t) (mk : map_key_t) : iProp Σ :=
@@ -1518,6 +1543,7 @@ Section UserKvsInit.
         let kvslogicalg := Build_KvsLogicalG Σ kvs_logical_heapg in
         let kvsuserg := Build_KvsUserG Σ kvs_logical_user_preg γf in
         let kvsg := KvsG Σ kvsphysicalg kvslogicalg kvsuserg in
+        kvs_static ∗
         na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
         na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
         ([∗ set] uk ∈ UK,
@@ -1540,10 +1566,12 @@ Section UserKvsInit.
     iExists γpkvs, kvs_logical_heapg, γf.
 
     (* Allocate the KVS invariants *)
+    iMod (region_pointsto_persist with "Hkvs_imports") as "#Hkvs_imports".
+    iMod (codefrag_persist with "Hkvs_code") as "#Hkvs_code".
     iMod (na_inv_alloc cerise_nais _ (Nkvs.@"physical") kvs_inv
-           with "[Hkvs_imports Hkvs_data Hkvs_code Hpkvs']") as "#Hkvs".
+           with "[Hkvs_data Hpkvs']") as "#Hkvs".
     { iNext.
-      iFrame "∗#".
+      iFrame "∗".
       rewrite /is_physical_kvs.
       iSplit.
       { iPureIntro; apply wf_kvs_physical_map_kvs_physical_map_init. }
@@ -1564,8 +1592,8 @@ Section UserKvsInit.
       + intros uk uk' Huk Huk' Heq; cbn in Heq; done.
     }
 
-    iFrame "#".
-    iClear "Hkvs Hkvs_logical".
+    iFrame "Hkvs Hkvs_logical Hkvs_imports Hkvs_code".
+    iClear "Hkvs Hkvs_logical Hkvs_imports Hkvs_code".
     iModIntro.
     subst lkvs_init.
     iStopProof.
