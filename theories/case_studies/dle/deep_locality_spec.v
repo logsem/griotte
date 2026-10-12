@@ -38,7 +38,7 @@ Section DLE.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (Nassert Nswitcher : namespace)
+    (Nswitcher : namespace)
 
     (cstk : CSTK)
     :
@@ -49,7 +49,6 @@ Section DLE.
     is_heap_address pc_b = false ->
     disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -64,8 +63,9 @@ Section DLE.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W0 C ->
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ switcher_static
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -75,8 +75,8 @@ Section DLE.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
-      ∗ codefrag pc_a dle_main_code
+      ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+      ∗ codefrag_pers pc_a dle_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> dle_main_data ]]
 
       ∗ world_interp W0 C
@@ -104,11 +104,11 @@ Section DLE.
        - [dle_assert_blocks_4_spec]: blocks 3-5, assert that [b] is unchanged
          and halt. *)
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range HNswitcher_assert Hrmap_dom Hrmap_init
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hrmap_dom Hrmap_init
                HsubBounds Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap
                Hframe_match
             )
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
@@ -157,7 +157,7 @@ Section DLE.
 
     (* First call to the adversary *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]"); [done|done|done|done|].
@@ -203,7 +203,7 @@ Section DLE.
 
     (* Second call to the adversary *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK]"); [done|done|done|done|].

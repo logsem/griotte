@@ -324,26 +324,25 @@ Section Adequacy.
     { pose proof assert_switcher_disjoints; symmetry; eapply disjoint_assert_switcher_mkinitial ; eauto. }
 
     (* 5.1 Assert compartment *)
-    iMod ( initialise_assert_compartment (Σ := Σ) _ assertN flagN with "Hcmpt_assert" )
+    iMod ( initialise_assert_compartment (Σ := Σ) _ flagN with "Hcmpt_assert" )
       as "[#Hassert_flag #Hassert]".
 
     (* 5.2 Switcher compartment *)
     rewrite big_sepS_singleton.
     iMod ( initialise_switcher_compartment (Σ := Σ) _ switcherN with "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc" )
-      as "(#Hsealed_pred_ot_switcher & #Hswitcher & Hstack)".
+      as "(#Hsealed_pred_ot_switcher & #Hswitcher & #Hswitcher_static & Hstack)".
 
     (* 5.3 CMPT B *)
-    iMod (initialise_adversary_compartment (Σ := Σ) _ B with "Hcmpt_B")
+    iMod (initialise_adversary_compartment (Σ := Σ) _ with "Hcmpt_B")
       as "(HB_imports & HB_code & HB_data & _ & #HB_etbl_pcc & #HB_etbl_cgp & #HB_etbl_entries)".
 
     (* 5.4 CMPT C *)
-    iMod (initialise_adversary_compartment (Σ := Σ) _ C with "Hcmpt_C")
+    iMod (initialise_adversary_compartment (Σ := Σ) _ with "Hcmpt_C")
       as "(HC_imports & HC_code & HC_data & _ & #HC_etbl_pcc & #HC_etbl_cgp & #HC_etbl_entries)".
 
     (* 5.5 CMPT MAIN *)
-    iMod (initialise_compartment (Σ := Σ) with "Hcmpt_main")
-      as "(Hmain_imports & Hmain_code & Hmain_data & _ & _ & _ & _)".
-    iEval (rewrite cmpt_code_codefrag) in "Hmain_code".
+    iMod (initialise_compartment_pers (Σ := Σ) with "Hcmpt_main")
+      as "(#Hmain_imports & #Hmain_code & Hmain_data & _ & _ & _ & _)".
     rewrite main_imports main_code main_data.
 
     (* 6 - Initialise the worlds of B and C: their compartments become
@@ -356,7 +355,7 @@ Section Adequacy.
       [auto..| | |].
     { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(cmdc_B_f_args, offset_B_f)]
-               with "Hswitcher HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
+               with "Hswitcher Hswitcher_static HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
         [by rewrite B_exp_tbl | by repeat constructor |
          by apply Forall_singleton, offset_B_f_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Bf Hentry_Bf'".
@@ -374,11 +373,11 @@ Section Adequacy.
       iEval (cbn); iSplit.
       { iEval (rewrite /interp_in_mem_pre /=).
         rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-        iApply interp_switcher_call; done. }
+        iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
       { iIntros "!>" (W W' Hrel) "H".
         iEval (rewrite /interp_in_mem_pre /=).
         rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-        iApply interp_switcher_call; done. }
+        iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
     }
     iMod (initialise_adversary_world_revoked _ switcher_cmpt _ C
            with "Hsealed_pred_ot_switcher HC_imports HC_code HC_data [] [] Hworld_interp_C")
@@ -386,7 +385,7 @@ Section Adequacy.
       [auto..| | |].
     { (* The exported entry C.g satisfies the sealing predicate of the switcher *)
       iApply (adversary_exports_prop _ _ _ _ [(cmdc_C_g_args, offset_C_g)]
-               with "Hswitcher HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
+               with "Hswitcher Hswitcher_static HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
         [by rewrite C_exp_tbl | by repeat constructor |
          by apply Forall_singleton, offset_C_g_valid |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Cg Hentry_Cg'".
@@ -404,11 +403,11 @@ Section Adequacy.
       iEval (cbn); iSplit.
       { iEval (rewrite /interp_in_mem_pre /=).
         rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-        iApply interp_switcher_call; done. }
+        iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
       { iIntros "!>" (W W' Hrel) "H".
         iEval (rewrite /interp_in_mem_pre /=).
         rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-        iApply interp_switcher_call; done. }
+        iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
     }
 
     (* 7 - The exported entry points of B and C are safe to share *)
@@ -454,21 +453,20 @@ Section Adequacy.
     iApply (@cmdc_spec_full Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ B C
               _ _ _ _ _ _ _
               _ _ _ _ _
-              [] [] _ (fun _ => True)%I assertN switcherN []
+              [] [] _ (fun _ => True)%I switcherN []
               (cmpt_pcc_disjoint_from_shadow main_cmpt)
               (cmpt_pcc_base_not_heap main_cmpt)
               Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)
               Hmain1_shadow Hmain1_heap
               (stack_disjoint_from_mmio switcher_cmpt)
               (stack_disjoint_from_heap switcher_cmpt)
-             with "[ $Hassert $Hswitcher $Hna
+             with "[ $Hassert $Hswitcher $Hswitcher_static $Hna
                     $Hworld_interp_B $Hworld_interp_C
                     $HPC $Hcgp $Hcsp $Hrmap
                     $Hmain_imports $Hmain_code $Hmain_data $Hstack
                     $Hinterp_B $Hinterp_C $Hcstk_frag $Hrevoked_stack_B $Hrevoked_stack_C
                     $Hentry_Bf $Hentry_Cg
                     ]"); eauto.
-    { solve_ndisj. }
     { apply (main_cgp_not_in_adv_world _ _ _ main_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.

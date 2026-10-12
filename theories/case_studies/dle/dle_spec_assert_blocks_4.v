@@ -19,12 +19,12 @@ Section DLE_Assert_Blocks_4.
   .
 
   Lemma dle_assert_blocks_4_spec
-    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable) (Nassert : namespace)
+    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
     (wct0 wct1 wct2 wct3 wct4 wcnull wcra : LWord) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
+    assert_static b_assert e_assert a_flag ∗
     na_own cerise_nais ⊤ ∗
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 8)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
@@ -36,8 +36,8 @@ Section DLE_Assert_Blocks_4.
     cnull ↦ᵣ wcnull ∗
     cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 42 ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
-    codefrag pc_a dle_main_code
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    codefrag_pers pc_a dle_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
@@ -63,11 +63,11 @@ Section DLE_Assert_Blocks_4.
     (* Block 4: assert that b = 42 *)
     focus_block 4 "Hcode_main" as a_assert Ha_assert "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
     { solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
-                    & Hcode & Himport_assert)".
+    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
+                    & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: halt *)

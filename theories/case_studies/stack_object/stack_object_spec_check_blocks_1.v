@@ -32,7 +32,7 @@ Section SO_Check_Blocks_1.
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
-    codefrag pc_a so_main_code ∗
+    codefrag_pers pc_a so_main_code ∗
     ▷ (∀ t p g b e a π,
         ⌜readAllowed p = true⌝ ∗
         ⌜wca0 = WCap t p g b e a @@? π⌝ ∗
@@ -44,7 +44,7 @@ Section SO_Check_Blocks_1.
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
-        codefrag pc_a so_main_code ∗
+        codefrag_pers pc_a so_main_code ∗
         £ 1
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -67,7 +67,7 @@ Section SO_Check_Blocks_1.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iSplitL; last (iModIntro; iNext; iIntros (?); done).
     iNext; iIntros "H".
-    iDestruct "H" as (t p g b e a π) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
+    iDestruct "H" as (t p g b e a π) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: check that [in] does not overlap with the stack frame *)
@@ -75,10 +75,10 @@ Section SO_Check_Blocks_1.
     iHide "Hcont" as hcont.
     iApply (check_no_overlap_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto.
     iSplitL; last (iNext; iIntros (?); done).
-    iNext; iIntros "(HPC & Hca0 & Hcsp & Hcs1 & Hcs0 & %Hno_overlap & Hcode)".
+    iNext; iIntros "(HPC & Hca0 & Hcsp & Hcs1 & Hcs0 & %Hno_overlap & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ so_block_offset 6)%a.
-    iApply ("Hpost" $! t p g b e a π); iFrame "∗%"; done.
+    iApply ("Hpost" $! t p g b e a π); iFrame "∗% Hcode_main"; done.
   Qed.
 
 End SO_Check_Blocks_1.

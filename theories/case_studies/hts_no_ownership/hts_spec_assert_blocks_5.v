@@ -24,9 +24,9 @@ Section HTS_Spec_Assert.
   Context (C : CmptName).
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (W_init_C : WORLD).
-  Context (Nassert Nswitcher : namespace) (cstk : CSTK).
+  Context (Nswitcher : namespace) (cstk : CSTK).
 
-  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nassert Nswitcher).
+  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   Local Notation adv2_ret := (hts_adv2_ret pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f cstk).
 
@@ -70,11 +70,11 @@ Section HTS_Spec_Assert.
     iExtractList "Hrmap" [ct2;ct3;ct4;cnull] as
       ["[Hct2 _]";"[Hct3 _]";"[Hct4 _]";"[Hcnull _]"].
     iApply (assert_success_spec with
-      "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1
+      "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1
         $Hcnull $Hcra $Hcode $Himport_assert]"); auto.
     { solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0
-      & Hct1 & Hcnull & Hcode & Himport_assert)".
+    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0
+      & Hct1 & Hcnull & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 22: halt with the assertion service token restored. *)

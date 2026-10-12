@@ -42,7 +42,7 @@ Section Heap_Temporal_Safety_Main.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (Nassert Nswitcher : namespace)
+    (Nswitcher : namespace)
 
     (cstk : CSTK)
     :
@@ -57,9 +57,7 @@ Section Heap_Temporal_Safety_Main.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     disjoint_from_shadow cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    Nswitcher ## Nassert ->
     Nswitcher ## Nallocator_service ->
-    Nassert ## Nallocator_service ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -73,22 +71,17 @@ Section Heap_Temporal_Safety_Main.
 
     frame_match Ws Cs cstk W_init_C C ->
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ allocator_service_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
-      ∗ inv (export_table_PCCN allocator_exp_tblN)
-          (allocator_exp_tbl_b ↦ₐ WCap true RX Global
-            allocator_pcc_b allocator_pcc_e allocator_pcc_b)
-      ∗ inv (export_table_CGPN allocator_exp_tblN)
-          ((allocator_exp_tbl_b ^+ 1)%a ↦ₐ WCap true RW Global
-            allocator_cgp_b allocator_cgp_e allocator_cgp_b)
-      ∗ inv (export_table_entryN allocator_exp_tblN
-          (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a)
-          ((allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ
-            WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off))
-      ∗ inv (export_table_entryN allocator_exp_tblN
-          (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)
-          ((allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ
-            WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off))
+      assert_static b_assert e_assert a_flag
+      ∗ allocator_service_ctx ∗ allocator_service_static
+      ∗ na_inv cerise_nais Nswitcher switcher_inv ∗ switcher_static
+      ∗ allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
+          allocator_pcc_b allocator_pcc_e allocator_pcc_b
+      ∗ (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
+          allocator_cgp_b allocator_cgp_e allocator_cgp_b
+      ∗ (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
+          WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off)
+      ∗ (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
+          WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -97,8 +90,8 @@ Section Heap_Temporal_Safety_Main.
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
-      ∗ codefrag pc_a hts_main_code
+      ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+      ∗ codefrag_pers pc_a hts_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> hts_main_data ]]
       (* owner of the imported allocator capability *)
       ∗ allocator_owner_id hts_main_owner_id ∅
@@ -130,10 +123,9 @@ Section Heap_Temporal_Safety_Main.
     intros imports; subst imports.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
-      HNswitcher_assert HNswitcher_service
-      HNassert_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
+      HNswitcher_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
       Himports_contiguous Hp_fresh Hheap_empty Hframe_match)
-      "(#Hassert & #Hservice & #Hswitcher
+      "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hrmap & Himports & Hcode & Hdata
        & Howner & Howner_word & Hworld & HK & Hcstk & #Hadv & #Hentry
@@ -146,11 +138,11 @@ Section Heap_Temporal_Safety_Main.
        & Himport_free & Himport_alloc_cap & _)".
     iDestruct (hts_private_data_initial cgp_b cgp_e Hcgp_contiguous
       with "Hdata") as "Hp".
-    iAssert (hts_main_ctx C C_f W_init_C Nassert Nswitcher) as "#Hctx".
+    iAssert (hts_main_ctx C C_f W_init_C Nswitcher) as "#Hctx".
     { iFrame "#". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nassert Nswitcher cstk rmap
+      C_f owner_a W_init_C Ws Cs Nswitcher cstk rmap
       with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hrmap $Howner $Hworld
         $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
         $Himport_adv $Himport_malloc $Himport_free $Himport_alloc_cap
@@ -158,22 +150,22 @@ Section Heap_Temporal_Safety_Main.
     iIntros "Hmalloc_ret".
     (* (b) *)
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nassert Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher cstk
       with "[$Hctx $Hmalloc_ret]"); try done.
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nassert Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher cstk
       with "[$Hctx $Hadv1_ret]"); try done.
     iIntros "Hfree_ret".
     (* (d) *)
     iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nassert Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher cstk
       with "[$Hctx $Hfree_ret]"); try done.
     iIntros "Hadv2_ret".
     (* (e) *)
     iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Nassert Nswitcher cstk
+      C_f owner_a W_init_C Nswitcher cstk
       with "[$Hctx $Hadv2_ret]"); done.
   Qed.
 End Heap_Temporal_Safety_Main.

@@ -35,7 +35,7 @@ Section DLE_Overwrite_Blocks_3.
     cs0 ↦ᵣ dle_switcher_entry ∗
     cs1 ↦ᵣ WSealed ot_switcher C_f ∗
     cgp_b ↦ₐ wcgp_b ∗
-    codefrag pc_a dle_main_code ∗
+    codefrag_pers pc_a dle_main_code ∗
     ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WInt 0 ∗
@@ -45,7 +45,7 @@ Section DLE_Overwrite_Blocks_3.
         cs0 ↦ᵣ dle_switcher_entry ∗
         cs1 ↦ᵣ WSealed ot_switcher C_f ∗
         cgp_b ↦ₐ WInt 42 ∗
-        codefrag pc_a dle_main_code
+        codefrag_pers pc_a dle_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -74,7 +74,7 @@ Section DLE_Overwrite_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_callB ^+ 8)%a = (pc_a ^+ dle_instr_offset 3 8)%a) as ->
       by (offsets_compute; solve_addr).
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End DLE_Overwrite_Blocks_3.

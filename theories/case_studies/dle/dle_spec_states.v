@@ -52,14 +52,14 @@ Section DLE_States.
 
   (** The imported words, in the order of [dle_main_imports]. *)
   Definition dle_imports (pc_b : Addr) (C_f : Sealable) : iProp Σ :=
-    pc_b ↦ₐ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
-    (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f.
+    pc_b ↦ₐ□ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f.
 
   (** The imports and the code, that the block groups return unchanged. *)
   Definition dle_static_mem (pc_b pc_a : Addr) (C_f : Sealable) : iProp Σ :=
     dle_imports pc_b C_f ∗
-    codefrag pc_a dle_main_code.
+    codefrag_pers pc_a dle_main_code.
 
   (** The bounds of the code and of the imports, as given to [dle_spec]. *)
   Definition dle_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=

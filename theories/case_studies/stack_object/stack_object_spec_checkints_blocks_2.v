@@ -33,14 +33,14 @@ Section SO_Checkints_Blocks_2.
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
-    codefrag pc_a so_main_code ∗
+    codefrag_pers pc_a so_main_code ∗
     ▷ (⌜Forall (λ w, ∃ z, w.(lw) = WInt z) ws⌝ ∗
         PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
         ca0 ↦ᵣ WCap t p g b e (finz.max b e) @@? π ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
         ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
-        codefrag pc_a so_main_code ∗
+        codefrag_pers pc_a so_main_code ∗
         £ 2
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -55,10 +55,10 @@ Section SO_Checkints_Blocks_2.
     iHide "Hcont" as hcont.
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hobject $Hcode]"); eauto.
     iSplitL; last (iModIntro; iNext; iIntros (?); done).
-    iNext; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hobject & %Hints & Hcode & Hlc)".
+    iNext; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hobject & %Hints & _ & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ so_block_offset 7)%a.
-    iApply "Hpost"; iFrame "∗%".
+    iApply "Hpost"; iFrame "∗% Hcode_main".
   Qed.
 
   (** Failure path of block 6: [checkints] fails on an untagged, non-empty
@@ -73,7 +73,7 @@ Section SO_Checkints_Blocks_2.
     ca0 ↦ᵣ WCap false p g b e a @@? π ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    codefrag pc_a so_main_code
+    codefrag_pers pc_a so_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hbe)

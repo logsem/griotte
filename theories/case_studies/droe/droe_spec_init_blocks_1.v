@@ -33,7 +33,7 @@ Section DROE_Init_Blocks_1.
     ct2 ↦ᵣ wct2 ∗
     cgp_b ↦ₐ WInt 0 ∗
     (cgp_b ^+ 1)%a ↦ₐ WInt 0 ∗
-    codefrag pc_a droe_main_code ∗
+    codefrag_pers pc_a droe_main_code ∗
     ▷ ( PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ droe_block_offset 1)%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
@@ -42,7 +42,7 @@ Section DROE_Init_Blocks_1.
         (∃ w, ct2 ↦ᵣ w) ∗
         cgp_b ↦ₐ WInt 42 ∗
         (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
-        codefrag pc_a droe_main_code
+        codefrag_pers pc_a droe_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -79,7 +79,7 @@ Section DROE_Init_Blocks_1.
     { rewrite /withinBounds; solve_addr. }
     { done. }
     iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hcgp_a)".
-    iDestruct ("Hcode" with "Hi") as "Hcode".
+    iClear "Hi".
     wp_pure.
     (* Mov ca0 cgp *)
     iInstr "Hcode".
@@ -103,7 +103,7 @@ Section DROE_Init_Blocks_1.
     { solve_pure. }
     { solve_pure. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End DROE_Init_Blocks_1.

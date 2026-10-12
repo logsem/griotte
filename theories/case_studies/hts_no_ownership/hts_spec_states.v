@@ -157,27 +157,23 @@ Section HTS_States.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nassert Nswitcher : namespace) (cstk : CSTK).
+  Context (Nswitcher : namespace) (cstk : CSTK).
 
   (** The persistent invariants and facts used by every segment. *)
   Definition hts_main_ctx : iProp Σ :=
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
+    assert_static b_assert e_assert a_flag ∗
     allocator_service_ctx ∗
+    allocator_service_static ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    inv (export_table_PCCN allocator_exp_tblN)
-      (allocator_exp_tbl_b ↦ₐ WCap true RX Global
-        allocator_pcc_b allocator_pcc_e allocator_pcc_b) ∗
-    inv (export_table_CGPN allocator_exp_tblN)
-      ((allocator_exp_tbl_b ^+ 1)%a ↦ₐ WCap true RW Global
-        allocator_cgp_b allocator_cgp_e allocator_cgp_b) ∗
-    inv (export_table_entryN allocator_exp_tblN
-      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a)
-      ((allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ
-        WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off)) ∗
-    inv (export_table_entryN allocator_exp_tblN
-      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)
-      ((allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ
-        WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)) ∗
+    switcher_static ∗
+    allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
+      allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
+    (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
+      allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
+      WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off) ∗
+    (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
+      WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off) ∗
     interp W_init_C C (WSealed ot_switcher C_f) ∗
     (WSealed ot_switcher C_f) ↦□ₑ 1.
 
@@ -186,17 +182,17 @@ Section HTS_States.
 
   (** The imported words, in the order of [hts_main_imports]. *)
   Definition hts_imports : iProp Σ :=
-    pc_b ↦ₐ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
-    (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f ∗
-    (pc_b ^+ 3)%a ↦ₐ WSealed ot_switcher (allocator_malloc Global) ∗
-    (pc_b ^+ 4)%a ↦ₐ WSealed ot_switcher (allocator_free Global).
+    pc_b ↦ₐ□ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
+    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (allocator_malloc Global) ∗
+    (pc_b ^+ 4)%a ↦ₐ□ WSealed ot_switcher (allocator_free Global).
 
   (** The memory that every segment returns unchanged: the imports, the
       code and [p]. *)
   Definition hts_static_mem : iProp Σ :=
     hts_imports ∗
-    codefrag pc_a hts_main_code ∗
+    codefrag_pers pc_a hts_main_code ∗
     cgp_b ↦ₐ WInt 0.
 
   Definition hts_buffer_bounds (b : Addr) : Prop :=
@@ -228,7 +224,7 @@ Section HTS_States.
     PC ↦ᵣ WCap true RX Global pc_b pc_e a ∗
     ca0 ↦ᵣ WInt z ∗
     (∃ w, ct0 ↦ᵣ w) ∗
-    codefrag pc_a hts_main_code.
+    codefrag_pers pc_a hts_main_code.
 
   (** The world shared with the first adversary call: the stack is revoked
       and the buffer [b] of [ι] is allocated and [Permanent]. *)

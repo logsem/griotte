@@ -30,7 +30,7 @@ Section Counter_Main_Blocks_2.
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wcnull ∗
-    codefrag pc_a counter_main_code ∗
+    codefrag_pers pc_a counter_main_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
         cra ↦ᵣ wret ∗
         cs0 ↦ᵣ WInt 0 ∗
@@ -38,7 +38,7 @@ Section Counter_Main_Blocks_2.
         ca0 ↦ᵣ WInt 0 ∗
         ca1 ↦ᵣ WInt 0 ∗
         cnull ↦ᵣ WInt 0 ∗
-        codefrag pc_a counter_main_code
+        codefrag_pers pc_a counter_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -64,7 +64,7 @@ Section Counter_Main_Blocks_2.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End Counter_Main_Blocks_2.

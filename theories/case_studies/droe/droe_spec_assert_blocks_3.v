@@ -20,12 +20,12 @@ Section DROE_Assert_Blocks_3.
   .
 
   Lemma droe_assert_blocks_3_spec
-    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable) (Nassert : namespace)
+    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
     (wca0 wca1 wct0 wct1 wct2 wct3 wct4 wcnull wcs0 wcra : LWord) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
+    assert_static b_assert e_assert a_flag ∗
     na_own cerise_nais ⊤ ∗
     PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
@@ -40,8 +40,8 @@ Section DROE_Assert_Blocks_3.
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 42 ∗
-    (pc_b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert ∗
-    codefrag pc_a droe_main_code
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    codefrag_pers pc_a droe_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
@@ -69,11 +69,11 @@ Section DROE_Assert_Blocks_3.
     (* Block 4: assert that b = 42 *)
     focus_block 4 "Hcode_main" as a_assert Ha_assert "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
     { solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
-                    & Hcode & Himport_assert)".
+    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
+                    & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: clear the return values and halt *)

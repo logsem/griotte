@@ -34,7 +34,7 @@ Section CMDC_Prep_Blocks_4.
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cgp_b ↦ₐ wcgp_b ∗
-    codefrag pc_a cmdc_main_code ∗
+    codefrag_pers pc_a cmdc_main_code ∗
     ▷ ( PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 6)%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WCap true RW Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
@@ -42,7 +42,7 @@ Section CMDC_Prep_Blocks_4.
         (∃ w, ct0 ↦ᵣ w) ∗
         (∃ w, ct1 ↦ᵣ w) ∗
         cgp_b ↦ₐ WInt 42 ∗
-        codefrag pc_a cmdc_main_code
+        codefrag_pers pc_a cmdc_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -76,7 +76,7 @@ Section CMDC_Prep_Blocks_4.
     { solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ cmdc_block_offset 6)%a.
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
 End CMDC_Prep_Blocks_4.

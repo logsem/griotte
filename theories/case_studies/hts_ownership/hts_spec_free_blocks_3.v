@@ -39,7 +39,7 @@ Section HTS_Reload.
      csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
      ca0 ↦ᵣ w0 ∗
      s ↦ₐ raw ∗
-     codefrag pc_a hts_reload_buffer_instrs ∗
+     codefrag_pers pc_a hts_reload_buffer_instrs ∗
      load_witness_res wit ∗
      ▷ (∀ actual,
        ⌜load_post wit RWL raw actual⌝ -∗
@@ -48,7 +48,7 @@ Section HTS_Reload.
        csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
        ca0 ↦ᵣ actual ∗
        s ↦ₐ raw ∗
-       codefrag pc_a hts_reload_buffer_instrs ∗
+       codefrag_pers pc_a hts_reload_buffer_instrs ∗
        load_witness_res wit -∗
        WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -109,8 +109,8 @@ Section HTS_Reload.
       iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hcsp & Hca0)"; eauto.
       iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
       wp_pure.
-      iSpecialize ("Hcode" with "Hi").
-      iApply ("Hpost" $! actual with "[//]"). iFrame.
+      iClear "Hi".
+      iApply ("Hpost" $! actual with "[//]"). iFrame "∗ Hcode".
     - exfalso. by rewrite lookup_empty in Hlookup.
     - exfalso. destruct Hallow as (a0 & Hsrc0 & Haddr & _ & _).
       simpl_map_regs by eauto. simplify_map_eq.
@@ -140,9 +140,9 @@ Section HTS_Spec_Free.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nassert Nswitcher : namespace) (cstk : CSTK).
+  Context (Nswitcher : namespace) (cstk : CSTK).
 
-  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nassert Nswitcher).
+  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   Local Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
   Local Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
@@ -166,7 +166,7 @@ Section HTS_Spec_Free.
   Proof.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap HsubBounds)
       "(#Hctx & Hret & Hcontinue)".
-    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
+    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
@@ -206,7 +206,7 @@ Section HTS_Spec_Free.
     { exact Hstk_nonempty. }
     { solve_addr. }
     iNext. iIntros (actual (_ & _ & _ & Hlivepost))
-      "(HPC & Hcsp & Hca0 & Hslot & Hcode & Hright)".
+      "(HPC & Hcsp & Hca0 & Hslot & _ & Hright)".
     rewrite (Hlivepost eq_refl); last first.
     { intros _. left. cbn. split; first done. exists b.
       rewrite /heap_authority_base decide_True; last solve_addr.
@@ -243,7 +243,7 @@ Section HTS_Spec_Free.
     { done. }
     replace (pc_b ^+ hts_alloc_cap_offset)%a with (pc_b ^+ 5)%a by reflexivity.
     iFrame "Himport_alloc_cap".
-    iNext; iIntros "(HPC & Hca0 & Hct0 & Hct2 & Hcode & Himport_alloc_cap)".
+    iNext; iIntros "(HPC & Hca0 & Hct0 & Hct2 & _ & Himport_alloc_cap)".
     iEval (cbn) in "Hca0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -266,7 +266,7 @@ Section HTS_Spec_Free.
     replace (pc_b ^+ hts_switcher_offset)%a with pc_b
       by (rewrite /hts_switcher_offset; solve_addr).
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & Hcode & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -288,7 +288,7 @@ Section HTS_Spec_Free.
     { done. }
     replace (pc_b ^+ hts_free_offset)%a with (pc_b ^+ 4)%a by reflexivity.
     iFrame "Himport_free".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & Hcode & Himport_free)".
+    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & _ & Himport_free)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -335,7 +335,7 @@ Section HTS_Spec_Free.
       free_arg cstk RW Global ι
       [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
       Global owner_a hts_main_owner_id {[ι]}
-      with "Hservice") as "Hfree_fun".
+      with "[$Hservice $Hservice_static]") as "Hfree_fun".
     { exact Howner_shadow. }
     { exact Howner_bounds. }
     { exact Hbounds. }
@@ -350,12 +350,12 @@ Section HTS_Spec_Free.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 16)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other cstk
-      allocator_free_nargs ⊤ allocator_exp_tblN
+      allocator_free_nargs ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
       allocator_cgp_b allocator_cgp_e allocator_free_pcc_off
-      with "[- $Hswitcher $Hexport_pcc $Hexport_cgp $Hexport_free
+      with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_free
         $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
         $Hfree_arg $Hrmap $Hstk $Hcstk $Hfree_fun]").
     { exact Hstk_heap. }

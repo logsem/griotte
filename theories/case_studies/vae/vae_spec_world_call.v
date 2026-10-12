@@ -253,6 +253,7 @@ Section VAE_World_Call.
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
     na_inv cerise_nais Nswitcher switcher_inv -∗
+    switcher_static -∗
     ca0 ↦ᵣ WInt 0 -∗
     ca1 ↦ᵣ WInt 0 -∗
     ct0 ↦ᵣ vae_switcher_entry -∗
@@ -262,7 +263,7 @@ Section VAE_World_Call.
       ([∗ map] rarg↦warg ∈ vae_call_adv_arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg) ∗
       ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
   Proof.
-    iIntros (Hrmap_dom Hzero) "#Hswitcher Hca0 Hca1 Hct0 Hrmap".
+    iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 Hca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".
     { apply Hzero; set_solver+. }
     iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]".
@@ -278,7 +279,7 @@ Section VAE_World_Call.
       set_solver+. }
     iAssert (interp W C (WInt 0)) as "#Hint"; first iApply interp_int.
     iAssert (interp W C vae_switcher_entry) as "#Hentry".
-    { iApply (interp_switcher_call with "Hswitcher"). }
+    { iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]"). }
     rewrite /vae_call_adv_arg_rmap.
     repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
     done.

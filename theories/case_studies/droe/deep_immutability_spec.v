@@ -36,7 +36,7 @@ Section DROE.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (Nassert Nswitcher : namespace)
+    (Nswitcher : namespace)
 
     (cstk : CSTK)
     :
@@ -52,7 +52,6 @@ Section DROE.
        the adequacy setup initializes both registers to integer zero. *)
     is_heap_cap (default (lword_of_word (WInt 0)) (rmap !! cra)).(lw) = false ->
     is_heap_cap (default (lword_of_word (WInt 0)) (rmap !! cs1)).(lw) = false ->
-    Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -67,8 +66,9 @@ Section DROE.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W_init_C C ->
     (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ switcher_static
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -77,8 +77,8 @@ Section DROE.
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
-      ∗ codefrag pc_a droe_main_code
+      ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
+      ∗ codefrag_pers pc_a droe_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> droe_main_data ]]
 
       ∗ world_interp W_init_C C
@@ -106,10 +106,10 @@ Section DROE.
          unchanged and halt. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcra_nonheap Hcs1_nonheap
-               HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
@@ -158,7 +158,7 @@ Section DROE.
 
     (* Call to the adversary *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+             "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]"); [done|done|done|done|].

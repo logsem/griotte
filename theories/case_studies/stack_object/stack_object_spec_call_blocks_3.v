@@ -37,8 +37,8 @@ Section SO_Call_Blocks_3.
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
-    pc_b ↦ₐ so_switcher_entry ∗
-    codefrag pc_a so_main_code ∗
+    pc_b ↦ₐ□ so_switcher_entry ∗
+    codefrag_pers pc_a so_main_code ∗
     ▷ (∀ a_stk1 a_stk2 stk_mem',
         ⌜(csp_b + 1)%a = Some a_stk1⌝ ∗
         ⌜(a_stk1 + 1)%a = Some a_stk2⌝ ∗
@@ -54,8 +54,8 @@ Section SO_Call_Blocks_3.
         csp_b ↦ₐ WInt so_secret ∗
         a_stk1 ↦ₐ WInt 0 ∗
         [[a_stk2, csp_e]] ↦ₐ [[stk_mem']] ∗
-        pc_b ↦ₐ so_switcher_entry ∗
-        codefrag pc_a so_main_code
+        pc_b ↦ₐ□ so_switcher_entry ∗
+        codefrag_pers pc_a so_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -147,7 +147,7 @@ Section SO_Call_Blocks_3.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
+    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -163,7 +163,7 @@ Section SO_Call_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_call ^+ 3)%a = (pc_a ^+ so_block_offset 10)%a) as ->
       by (offsets_compute; solve_addr).
-    iApply ("Hpost" $! a_stk1 a_stk2 stk_mem); iFrame.
+    iApply ("Hpost" $! a_stk1 a_stk2 stk_mem); iFrame "∗ Hcode_main".
     iPureIntro; repeat split; solve_addr.
   Qed.
 

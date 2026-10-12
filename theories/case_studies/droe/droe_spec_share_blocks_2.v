@@ -57,7 +57,7 @@ Section DROE_Share_Blocks_2.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hct0 & Hct1 & Hct2 & Hcode & Himport_switcher)".
+    iNext; iIntros "(HPC & Hct0 & Hct1 & Hct2 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -65,7 +65,7 @@ Section DROE_Share_Blocks_2.
     focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct2 $Hct3 $Hcode $Himport_C_f]"); eauto.
     { solve_addr. }
-    iNext; iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hcode & Himport_C_f)".
+    iNext; iIntros "(HPC & Hct1 & Hct2 & Hct3 & _ & Himport_C_f)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -79,7 +79,7 @@ Section DROE_Share_Blocks_2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_callB ^+ 2)%a = (pc_a ^+ droe_instr_offset 3 2)%a) as ->
       by (offsets_compute; solve_addr).
-    iApply "Hpost"; rewrite /droe_static_mem /droe_switcher_entry; iFrame.
+    iApply "Hpost"; rewrite /droe_static_mem /droe_switcher_entry; iFrame "∗ Hcode_main".
   Qed.
 
 End DROE_Share_Blocks_2.

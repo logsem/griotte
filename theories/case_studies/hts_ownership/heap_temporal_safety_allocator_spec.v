@@ -38,7 +38,8 @@ Section Heap_Temporal_Safety_Allocator.
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
     arg_rmap !! ca1 = Some (lword_of_word (WInt 1)) ->
-    allocator_service_ctx ⊢
+    allocator_service_ctx ∗
+    allocator_service_static ⊢
     switcher_cc_specification_known_to_known_function
       (allocator_owner_id id Ω ∗
        a_owner ↦ₐ WInt id)
@@ -66,7 +67,8 @@ Section Heap_Temporal_Safety_Allocator.
     length ws = length (finz.seq_between b e) ->
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
     arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
-    allocator_service_ctx ⊢
+    allocator_service_ctx ∗
+    allocator_service_static ⊢
     switcher_cc_specification_known_to_known_function
       (allocator_owner_id id Ω ∗
        ⌜ι ∈ Ω⌝ ∗
