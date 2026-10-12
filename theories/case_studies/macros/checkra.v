@@ -122,21 +122,21 @@ Section Checkra_spec.
     ∗ ▷ rsrc ↦ᵣ wsrc
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
-    ∗ ▷ codefrag pc_a checkra_
+    ∗ ▷ codefrag_pers pc_a checkra_
     ∗ ▷ ( (∃ t p g b e a π,
           ⌜ readAllowed p = true ∧ wsrc = WCap t p g b e a @@? π⌝
           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
           ∗ rsrc ↦ᵣ WCap t p g b e a @@? π
           ∗ r1 ↦ᵣ WInt 0%Z
           ∗ r2 ↦ᵣ WInt 0%Z
-          ∗ codefrag pc_a checkra_ )
+          ∗ codefrag_pers pc_a checkra_ )
             -∗ WP Seq (Instr Executable) {{ φ }}
         )
     ∗ □ (▷ φ FailedV)
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkra a_last ; subst checkra a_last.
-    iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >Hcode & Hpost & #Hfailed)".
+    iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >#Hcode & Hpost & #Hfailed)".
     codefrag_facts "Hcode".
     rename H into HcontRegion; clear H0.
     destruct wsrc as [wsrc πsrc].
@@ -166,7 +166,7 @@ Section Checkra_spec.
     iInstr "Hcode".
     do 12 check_ra.
     iInstr "Hcode".
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame "∗ Hcode".
     iPureIntro; split; last done.
     destruct_perm c; auto.
   Qed.

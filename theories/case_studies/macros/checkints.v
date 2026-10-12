@@ -82,7 +82,7 @@ Section Checkints_spec.
     ∗ ▷ r ↦ᵣ (WCap true p g b e a @@? π)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
-    ∗ ▷ codefrag pc_a checkints_loop
+    ∗ ▷ codefrag_pers pc_a checkints_loop
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
     ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ r ↦ᵣ WCap true p g b e (finz.max b e) @@? π
@@ -90,7 +90,7 @@ Section Checkints_spec.
          ∗ r2 ↦ᵣ WInt e%Z
          ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
          ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
-         ∗ codefrag pc_a checkints_loop
+         ∗ codefrag_pers pc_a checkints_loop
          -∗ WP Seq (Instr Executable) {{ φ }}
         )
     ∗ □ (▷ (φ FailedV))
@@ -98,14 +98,13 @@ Section Checkints_spec.
   Proof.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hae Hra Hdisjoint Hall Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hφ & #Hfailed)".
     iLöb as "IH" forall ( a Hae Hall w1 w2).
-    iDestruct (big_sepL2_length with "Hcode") as %Hlength.
     iDestruct (big_sepL2_length with "Hmem") as %Hlength_mem.
-    codefrag_facts "Hcode".
+    codefrag_facts "Hcode_main".
     iEval (cbn) in "HPC".
 
-    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     assert (a ∈ l) as Ha.
     { setoid_rewrite Hl; by rewrite elem_of_finz_seq_between. }
     rewrite list_elem_of_lookup in Ha; destruct Ha as [ka Ha].
@@ -155,28 +154,26 @@ Section Checkints_spec.
     iIntros "!>" (ret)
       "[-> | (%actualv & -> & %Hactual & HPC & Hi & Hr1 & Hr & Ha)]".
     { wp_pure; wp_end; iExact "Hfailed". }
-    wp_pure. iSpecialize ("Hcode" with "Hi").
+    wp_pure. iClear "Hi".
     iDestruct ( big_sepL2_cons (λ _ a v, a ↦ₐ v)%I with "[$Ha $Hmem2]") as "Hmem"; auto.
     iDestruct ( big_sepL2_app (λ _ a v, a ↦ₐ v)%I with "[$Hmem1] [$Hmem]") as "Hmem"; auto.
     rewrite -Ha' -Hlw.
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    iAssert (codefrag pc_a (checkints_loop_instrs r r1 r2))
-      with "[Hcode]" as "Hcode"; first iExact "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     rewrite /checkints_loop_instrs.
 
-    focus_block 1 "Hcode" as a_checkint Ha_checkint "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 1 "Hcode_main" as a_checkint Ha_checkint "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iApply (is_int_spec _ _ _ _ _ _ _ _ _ (WInt 0) with "[- $HPC $Hr1 $Hr2 $Hcode]"); eauto.
     iSplitR "Hfailed"; last (iNext; iApply "Hfailed").
-    iNext; iIntros "(HPC & Hr1 & %Hz & Hr2 & Hcode)".
+    iNext; iIntros "(HPC & Hr1 & %Hz & Hr2 & _)".
     assert (∃ z, w.(lw) = WInt z) as Hraw_int.
     { destruct Hactual as [-> | Hcleared].
       - destruct w as [w' πw]; destruct w'; destruct_perm p; cbn in *; naive_solver.
       - destruct Hcleared as [_ ->].
         destruct w as [w' πw]; destruct w'; destruct_perm p; cbn in *; naive_solver.
     }
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    focus_block 2 "Hcode" as a_cond Ha_cond "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear Ha_checkint a_checkint.
+    focus_block 2 "Hcode_main" as a_cond Ha_cond "Hcode" "Hcont"; iHide "Hcode_main" as hcode ; clear Ha_checkint a_checkint.
     iInstr "Hcode".
     { transitivity (Some (a^+1)%a); auto; solve_addr. }
     iInstr "Hcode".
@@ -186,10 +183,10 @@ Section Checkints_spec.
     - replace (a ^+ 1)%a with e by solve_addr.
       replace (e <? e)%Z with false by solve_addr.
       iInstr "Hcode".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       replace (finz.max b e) with e by solve_addr.
       replace (a_cond ^+ 5)%a with (pc_a ^+ length (checkints_loop_instrs r r1 r2))%a by solve_addr.
-      iApply "Hφ"; iFrame; eauto.
+      iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
       iPureIntro.
       apply Forall_forall.
       intros v Hv.
@@ -226,8 +223,8 @@ Section Checkints_spec.
     - replace ((a ^+ 1)%a <? e)%Z with true by solve_addr.
       iInstr "Hcode".
       { transitivity (Some pc_a); auto; solve_addr. }
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-      iApply ("IH" with "[] [] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      iApply ("IH" with "[] [] [$] [$] [$] [$] [$] [$]"); eauto.
       { iPureIntro; solve_addr. }
       { iPureIntro.
         apply Forall_forall.
@@ -267,22 +264,22 @@ Section Checkints_spec.
     ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ WCap false p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
-    ∗ ▷ codefrag pc_a (checkints_instrs r r1 r2)
+    ∗ ▷ codefrag_pers pc_a (checkints_instrs r r1 r2)
     ∗ □ (▷ φ FailedV)
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     iIntros (Hvpc Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & #Hfailed)".
-    codefrag_facts "Hcode".
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & #Hfailed)".
+    codefrag_facts "Hcode_main".
     rename H into HcontRegion; clear H0.
     rewrite /checkints_instrs.
 
-    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iApply (lea_to_base_spec with "[- $HPC $Hr $Hr1 $Hr2 $Hcode]"); eauto.
-    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & Hcode)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & _)".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    focus_block 1 "Hcode" as a_init Ha_init "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 1 "Hcode_main" as a_init Ha_init "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iInstr "Hcode".
     iInstr "Hcode".
     iInstr "Hcode".
@@ -290,11 +287,11 @@ Section Checkints_spec.
     apply Z.ltb_lt in Hbe; rewrite Hbe; cbn.
     replace (1 - 1%nat)%Z with 0%Z by lia.
     iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    focus_block 2 "Hcode" as a_loop Ha_loop "Hcode" "Hcont".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+    focus_block 2 "Hcode_main" as a_loop Ha_loop "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     rewrite /checkints_loop_instrs.
-    focus_block_0 "Hcode" as "Hcode" "Hcont_loop".
-    iInstr_fail "Hcode".
+    focus_block_0 "Hcode" as "Hcode_loop" "Hcont_loop".
+    iInstr_fail "Hcode_loop".
     wp_end. iApply "Hfailed".
   Qed.
 
@@ -320,7 +317,7 @@ Section Checkints_spec.
     ∗ ▷ r ↦ᵣ (WCap t p g b e a @@? π)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
-    ∗ ▷ codefrag pc_a checkints
+    ∗ ▷ codefrag_pers pc_a checkints
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
     ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ r ↦ᵣ WCap t p g b e (finz.max b e) @@? π
@@ -328,7 +325,7 @@ Section Checkints_spec.
          ∗ r2 ↦ᵣ WInt 0%Z
          ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
          ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
-         ∗ codefrag pc_a checkints
+         ∗ codefrag_pers pc_a checkints
          ∗ £ 2
          -∗ WP Seq (Instr Executable) {{ φ }}
         )
@@ -337,24 +334,23 @@ Section Checkints_spec.
   Proof.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hra Hdisjoint Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hφ & #Hfailed)".
     destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad].
     2: { destruct t; first (exfalso; apply Hbad; auto).
-         iApply (checkints_fail_untagged with "[$HPC $Hr $Hr1 $Hr2 $Hcode $Hfailed]"); eauto.
+         iApply (checkints_fail_untagged with "[$HPC $Hr $Hr1 $Hr2 $Hcode_main $Hfailed]"); eauto.
          solve_addr. }
-    iDestruct (big_sepL2_length with "Hcode") as %Hlength.
     iDestruct (big_sepL2_length with "Hmem") as %Hlength_mem
     ; setoid_rewrite Hl in Hlength_mem.
-    codefrag_facts "Hcode".
+    codefrag_facts "Hcode_main".
     rename H into HcontRegion; clear H0.
     rewrite /checkints_instrs.
 
-    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iApply (lea_to_base_spec with "[- $HPC $Hr $Hr1 $Hr2 $Hcode]"); eauto.
-    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & Hcode)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & _)".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    focus_block 1 "Hcode" as a_init Ha_init "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 1 "Hcode_main" as a_init Ha_init "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iInstr "Hcode" with "Hlc".
     iInstr "Hcode" with "Hlc".
     iInstr "Hcode".
@@ -365,14 +361,14 @@ Section Checkints_spec.
       replace (0 - 1%nat)%Z with (-1)%Z by lia.
       iInstr "Hcode".
       { transitivity (Some (a_init ^+ 16)%a); auto; solve_addr. }
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-      focus_block 3 "Hcode" as a_end Ha_end "Hcode" "Hcont"; iHide "Hcont" as hcont; clear Ha_init a_init.
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      focus_block 3 "Hcode_main" as a_end Ha_end "Hcode" "Hcont"; iHide "Hcode_main" as hcode; clear Ha_init a_init.
       iInstr "Hcode".
       iInstr "Hcode".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       replace (a_end ^+ 2)%a with (pc_a ^+ 24%nat)%a by solve_addr.
       replace (finz.max b e) with b by solve_addr.
-      iApply "Hφ"; iFrame; eauto.
+      iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
       rewrite finz_seq_between_length finz_dist_0 in Hlength_mem; last solve_addr.
       symmetry in Hlength_mem. apply nil_length_inv in Hlength_mem; simplify_eq.
       done.
@@ -382,8 +378,8 @@ Section Checkints_spec.
     apply Z.ltb_lt in Hbe; rewrite Hbe; cbn.
     replace (1 - 1%nat)%Z with 0%Z by lia.
     iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    focus_block 2 "Hcode" as a_loop Ha_loop "Hcode" "Hcont"; iHide "Hcont" as hcont
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+    focus_block 2 "Hcode_main" as a_loop Ha_loop "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear Ha_init a_init.
     iApply (checkints_loop_spec with "[- $HPC $Hr $Hr1 $Hr2 $Hcode $Hmem]"); eauto.
     { solve_addr. }
@@ -392,15 +388,15 @@ Section Checkints_spec.
       solve_addr.
     }
     iSplitR "Hfailed"; last (iModIntro ; iNext ; iApply "Hfailed").
-    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & Hmem & % & Hcode)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & Hmem & % & _)".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    focus_block 3 "Hcode" as a_end Ha_end "Hcode" "Hcont"; iHide "Hcont" as hcont; clear Ha_loop a_loop.
+    focus_block 3 "Hcode_main" as a_end Ha_end "Hcode" "Hcont"; iHide "Hcode_main" as hcode; clear Ha_loop a_loop.
     iInstr "Hcode".
     iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     replace (a_end ^+ 2)%a with (pc_a ^+ 24%nat)%a by solve_addr.
-    iApply "Hφ"; iFrame; eauto.
+    iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
   Qed.
 
 End Checkints_spec.

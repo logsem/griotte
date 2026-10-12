@@ -4,7 +4,7 @@ From griotte Require Import switcher_preamble assert_spec.
 From griotte Require Import rules call_stack.
 From griotte Require Import mkregion_helpers memory_region disjoint_regions_tactics.
 From griotte Require Import switcher_adequacy compartment_layout.
-From griotte Require Import allocator_resources.
+From griotte Require Import allocator_resources allocator_common_preamble.
 
 
 Section adequacy_helpers.
@@ -17,12 +17,11 @@ Section adequacy_helpers.
     `{MP: MachineParameters} .
 
     Lemma initialise_assert_compartment
-      {E : coPset} (assert_cmpt : cmptAssert) (assertN flagN : namespace) :
+      {E : coPset} (assert_cmpt : cmptAssert) (flagN : namespace) :
       ([∗ map] a↦v ∈ mk_initial_assert assert_cmpt, a ↦ₐ lword_of_word v)
       ={E}=∗
       inv flagN (flag_assert assert_cmpt ↦ₐ WInt 0) ∗
-      na_inv cerise_nais assertN
-        (assert_inv (b_assert assert_cmpt) (e_assert assert_cmpt) (flag_assert assert_cmpt)).
+      assert_static (b_assert assert_cmpt) (e_assert assert_cmpt) (flag_assert assert_cmpt).
     Proof.
       iIntros "Hcmpt_assert".
       rewrite /mk_initial_assert.
@@ -48,26 +47,25 @@ Section adequacy_helpers.
       rewrite /cmpt_assert_code_mregion.
       iDestruct (mkregion_prepare with "[Hassert]") as ">Hassert"; auto.
       { apply (assert_code_size assert_cmpt). }
-      iAssert (assert_inv
-                 (b_assert assert_cmpt)
-                 (e_assert assert_cmpt)
-                 (flag_assert assert_cmpt))
-        with "[Hassert Hassert_cap]" as "Hassert".
-      { rewrite /assert_inv. iSplit.
-        { iPureIntro. apply (assert_code_nonheap assert_cmpt). }
-        iExists (cap_assert assert_cmpt).
-        rewrite /codefrag /region_pointsto big_sepL2_fmap_r.
+      iAssert (codefrag (b_assert assert_cmpt) assert_subroutine_instrs)
+        with "[Hassert]" as "Hassert".
+      { rewrite /codefrag /region_pointsto big_sepL2_fmap_r.
         replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)%a
           with (cap_assert assert_cmpt).
         2: { pose proof (assert_code_size assert_cmpt); solve_addr+H. }
         iFrame.
-        iSplit; first (iPureIntro ; apply (assert_code_size assert_cmpt)).
-        iSplit; iPureIntro.
-        + apply (assert_cap_size assert_cmpt).
-        + by rewrite (assert_flag_size assert_cmpt).
       }
-      iMod (na_inv_alloc cerise_nais _ assertN _ with "Hassert") as "#Hassert".
-      iModIntro; iFrame "#".
+      iMod (codefrag_persist with "Hassert") as "#Hassert".
+      iMod (pointsto_persist with "Hassert_cap") as "#Hassert_cap".
+      iModIntro. iFrame "Hinv_assert_flag".
+      rewrite /assert_static.
+      iSplit; first (iPureIntro; apply (assert_code_nonheap assert_cmpt)).
+      iExists (cap_assert assert_cmpt).
+      iFrame "Hassert Hassert_cap".
+      iSplit; first (iPureIntro ; apply (assert_code_size assert_cmpt)).
+      iSplit; iPureIntro.
+      + apply (assert_cap_size assert_cmpt).
+      + by rewrite (assert_flag_size assert_cmpt).
     Qed.
 
     Lemma initialise_switcher_compartment
@@ -80,6 +78,7 @@ Section adequacy_helpers.
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
       na_inv cerise_nais switcherN switcher_inv ∗
+      switcher_static ∗
       [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ [[ lword_of_word <$> stack_content switcher_cmpt ]].
     Proof.
       intros.
@@ -104,16 +103,22 @@ Section adequacy_helpers.
       iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
       { apply (trusted_stack_size switcher_cmpt). }
       iMod (seal_store_update_alloc _ ( ot_switcher_propC ) with "Hseal_store") as "#Hsealed_pred_ot_switcher".
-      iAssert ( switcher_preamble.switcher_inv )
-        with "[Hswitcher Hswitcher_sealing Htrusted_stack Hcstk_full Hmtdc]" as "Hswitcher".
+      iAssert (codefrag (a_switcher_call switcher_cmpt) switcher_instrs)
+        with "[Hswitcher]" as "Hswitcher_code".
       {
-        rewrite /switcher_inv /codefrag /region_pointsto.
+        rewrite /codefrag /region_pointsto.
         setoid_rewrite big_sepL2_fmap_r.
         replace ((a_switcher_call switcher_cmpt) ^+ length switcher_instrs)%a
           with (e_switcher switcher_cmpt).
         2: { pose proof (switcher_size switcher_cmpt) as H.
              solve_addr+H.
         }
+        iFrame.
+      }
+      iAssert ( switcher_preamble.switcher_inv )
+        with "[Htrusted_stack Hcstk_full Hmtdc]" as "Hswitcher".
+      {
+        rewrite /switcher_inv /region_pointsto.
         iFrame "∗#".
         iExists (lword_of_word <$> tl (trusted_stack_content switcher_cmpt)).
         iSplitR; first (iPureIntro; apply (ot_switcher_size switcher_cmpt)).
@@ -128,11 +133,16 @@ Section adequacy_helpers.
         iPureIntro; subst swlayout; cbn; solve_addr.
       }
       iMod (na_inv_alloc cerise_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
+      iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
+      iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
+      iAssert switcher_static as "#Hswitcher_static".
+      { rewrite /switcher_static. iFrame "Hswitcher_code Hswitcher_sealing". }
+      iClear "Hswitcher_code Hswitcher_sealing".
 
       iDestruct (mkregion_prepare with "[Hstack]") as ">Hstack"; auto.
       { apply (stack_size switcher_cmpt). }
       rewrite /region_pointsto big_sepL2_fmap_r.
-      iFrame "∗#".
+      iFrame "∗ Hsealed_pred_ot_switcher Hswitcher Hswitcher_static".
       done.
     Qed.
 
@@ -194,43 +204,60 @@ Section adequacy_helpers.
       done.
     Qed.
 
-    Lemma initialise_adversary_compartment {E : coPset} ( C_cmpt : cmpt ) ( C : CmptName ) :
+    (** The memory of a compartment, with its read-only parts persistent:
+        its import table, its code and its export table. *)
+    Lemma initialise_compartment_pers ( C_cmpt : cmpt ) :
+      let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
+      let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+      ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
+      ==∗
+      [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ□ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗
+      codefrag_pers (cmpt_a_code C_cmpt) (cmpt_code C_cmpt) ∗
+      [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] ∗
+      [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_static_sealed C_cmpt ]] ∗
+      cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ PCC ∗
+      cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ CGP ∗
+      [[ (cmpt_exp_tbl_entries_start C_cmpt), (cmpt_exp_tbl_entries_end C_cmpt) ]] ↦ₐ□ [[ lword_of_word <$> cmpt_exp_tbl_entries C_cmpt ]].
+    Proof.
+      intros PCC CGP.
+      iIntros "Hcmpt_C".
+      iMod (initialise_compartment with "Hcmpt_C")
+        as "(HC_imports & HC_code & $ & $ & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
+      iMod (region_pointsto_persist with "HC_imports") as "$".
+      iMod (pointsto_persist with "HC_etbl_pcc") as "$".
+      iMod (pointsto_persist with "HC_etbl_cgp") as "$".
+      iMod (region_pointsto_persist with "HC_etbl_entries") as "$".
+      iApply codefrag_persist.
+      rewrite /codefrag.
+      replace (cmpt_a_code C_cmpt ^+ length (cmpt_code C_cmpt))%a with (cmpt_e_pcc C_cmpt).
+      { iExact "HC_code". }
+      pose proof (cmpt_code_size C_cmpt); solve_addr.
+    Qed.
+
+    Lemma initialise_adversary_compartment ( C_cmpt : cmpt ) :
       let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
       let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
       let exp_tbl_addrs := (finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)) in
       ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
-      ={E}=∗
+      ==∗
       [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗
       [[ (cmpt_a_code C_cmpt), (cmpt_e_pcc C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_code C_cmpt ]] ∗
       [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] ∗
       [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_static_sealed C_cmpt ]] ∗
-      inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ PCC) ∗
-      inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ CGP) ∗
-      ([∗ list] a;v ∈ exp_tbl_addrs ; cmpt_exp_tbl_entries C_cmpt,
-         inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ lword_of_word v)).
+      cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ PCC ∗
+      cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ CGP ∗
+      ([∗ list] a;v ∈ exp_tbl_addrs ; cmpt_exp_tbl_entries C_cmpt, a ↦ₐ□ lword_of_word v).
     Proof.
       intros PCC CGP exp_tbl_addrs.
       iIntros "Hcmpt_C".
       iMod (initialise_compartment with "Hcmpt_C")
-        as "(HC_imports & HC_code & HC_data & Hstatic_sealed & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
-      iFrame.
-
-      iMod (inv_alloc (export_table_PCCN (nroot .@ C)) E _ with "HC_etbl_pcc")%I as "$".
-      iMod (inv_alloc (export_table_CGPN (nroot .@ C)) E _ with "HC_etbl_cgp")%I as "$".
-
-      iStopProof.
+        as "($ & $ & $ & $ & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
+      iMod (pointsto_persist with "HC_etbl_pcc") as "$".
+      iMod (pointsto_persist with "HC_etbl_cgp") as "$".
+      iMod (region_pointsto_persist with "HC_etbl_entries") as "HC_etbl_entries".
       subst exp_tbl_addrs.
-      rewrite /region_pointsto big_sepL2_fmap_r.
-      generalize (cmpt_exp_tbl_entries C_cmpt) as lv.
-      generalize (finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)) as la.
-      clear PCC CGP.
-      induction la; iIntros (lv) "H"; first done.
-      iDestruct (big_sepL2_length with "H") as "%Hlen".
-      destruct lv as [|v lv]; simplify_eq.
-      iDestruct "H" as "[H IH]".
-      iMod (IHla with "IH") as "$".
-      iMod (inv_alloc (export_table_entryN (nroot .@ C) a) E _ with "H")%I as "$".
-      done.
+      rewrite /region_pointsto_pers big_sepL2_fmap_r.
+      by iFrame "HC_etbl_entries".
     Qed.
 
 End adequacy_helpers.

@@ -51,11 +51,11 @@ Section Is_WordType_spec.
     ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
-    ∗ ▷ codefrag pc_a is_int
+    ∗ ▷ codefrag_pers pc_a is_int
     ∗ ▷ ( ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
             ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w.(lw) = WInt z ⌝
             ∗ r1 ↦ᵣ WInt 0%Z
-            ∗ codefrag pc_a is_int)
+            ∗ codefrag_pers pc_a is_int)
               -∗ WP Seq (Instr Executable) {{ φ }}
         )
     ∗ ▷ φ FailedV
@@ -63,8 +63,7 @@ Section Is_WordType_spec.
   Proof.
     intros is_int a_last ; subst is_int a_last.
     iIntros (Hvpc Hcont Hrcnull Hr1cnull)
-      "(>HPC & >Hr & >Hr1 & >Hprog & Hφ & Hfailed)".
-    iDestruct (big_sepL2_length with "Hprog") as %Hlength.
+      "(>HPC & >Hr & >Hr1 & >#Hprog & Hφ & Hfailed)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
     destruct w as [w π].
@@ -75,7 +74,7 @@ Section Is_WordType_spec.
       replace (encodeWordType (WInt z) - encodeWordType wt_int)%Z with 0%Z.
       2: { rewrite (encodeWordType_correct_int z 0) /wt_int; lia. }
       iGo "Hprog".
-      iApply "Hφ"; iFrame.
+      iApply "Hφ"; iFrame "∗ Hprog".
       iPureIntro; eexists; done.
     - iGo "Hprog".
       { pose proof (encodeWordType_correct w wt_int) as Hencode ; cbn in Hencode.
@@ -102,12 +101,12 @@ Section Is_WordType_spec.
     ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
-    ∗ ▷ codefrag pc_a is_memory_cap
+    ∗ ▷ codefrag_pers pc_a is_memory_cap
     ∗ ▷ ( (∃ p g b e a,
             PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
             ∗ r ↦ᵣ WCap true p g b e a
             ∗ r1 ↦ᵣ WInt 0%Z
-            ∗ codefrag pc_a is_memory_cap)
+            ∗ codefrag_pers pc_a is_memory_cap)
               -∗ WP Seq (Instr Executable) {{ φ }}
         )
     ∗ ▷ φ FailedV
@@ -115,8 +114,7 @@ Section Is_WordType_spec.
   Proof.
     intros is_int a_last ; subst is_int a_last.
     iIntros (Hvpc Hcont Hrcnull Hr1cnull)
-      "(>HPC & >Hr & >Hr1 & >Hprog & Hφ & Hfailed)".
-    iDestruct (big_sepL2_length with "Hprog") as %Hlength.
+      "(>HPC & >Hr & >Hr1 & >#Hprog & Hφ & Hfailed)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
     destruct (is_cap w) eqn:Hw_cap.
@@ -126,7 +124,7 @@ Section Is_WordType_spec.
       replace (encodeWordType (WCap t c g b e a) - encodeWordType wt_cap)%Z with 0%Z.
       2: { rewrite (encodeWordType_correct_cap t c g b e a true (O LG LM) Global 0%a 0%a 0%a) /wt_cap; lia. }
       destruct t; cbn.
-      + iGo "Hprog". iApply "Hφ"; iFrame.
+      + iGo "Hprog". iApply "Hφ"; iFrame "∗ Hprog".
       + iGo "Hprog". wp_end; iApply "Hfailed".
     - iGo "Hprog".
       { pose proof (encodeWordType_correct w wt_cap) as Hencode ; cbn in Hencode.

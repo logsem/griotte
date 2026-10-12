@@ -914,10 +914,11 @@ Section adversary_exports.
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
-    inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ cmpt_pcc_cap C_cmpt) -∗
-    inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ cmpt_cgp_cap C_cmpt) -∗
+    switcher_static -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
+    cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
     ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
-       inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ lword_of_word v)) -∗
+       a ↦ₐ□ lword_of_word v) -∗
     interp W C (cmpt_pcc_cap C_cmpt) -∗
     interp W C (cmpt_cgp_cap C_cmpt) -∗
     WSealed switcher.ot_switcher (cmpt_export C_cmpt a) ↦□ₑ args -∗
@@ -925,7 +926,7 @@ Section adversary_exports.
     ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a)).
   Proof.
     intros Hi Ha Hargs Hentry_some.
-    iIntros "#Hswitcher #Hpcc #Hcgp #Hentries #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry'".
+    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Hentries #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry'".
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
     assert (i < length (cmpt_exp_tbl_entries C_cmpt)) as Hi_lt
         by (by apply lookup_lt_Some in Hi).
@@ -935,7 +936,7 @@ Section adversary_exports.
       f_equal; solve_addr. }
     iDestruct (big_sepL2_lookup with "Hentries") as "Hentry_inv"; [done..|].
     iApply (ot_switcher_interp _ _ _ Global _ args off with
-              "Hswitcher Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp Hentry Hentry'");
+              "Hswitcher Hswitcher_static Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp Hentry Hentry'");
       [solve_addr|lia|done].
   Qed.
 
@@ -968,10 +969,11 @@ Section adversary_exports.
     Forall (λ e, e.1 < 7) exports →
     Forall (λ e : nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
-    inv (export_table_PCCN (nroot.@C)) (cmpt_exp_tbl_pcc C_cmpt ↦ₐ cmpt_pcc_cap C_cmpt) -∗
-    inv (export_table_CGPN (nroot.@C)) (cmpt_exp_tbl_cgp C_cmpt ↦ₐ cmpt_cgp_cap C_cmpt) -∗
+    switcher_static -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
+    cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
     ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
-       inv (export_table_entryN (nroot .@ C) a) (a ↦ₐ lword_of_word v)) -∗
+       a ↦ₐ□ lword_of_word v) -∗
     ([∗ list] i ↦ e ∈ exports,
        WSealed switcher.ot_switcher
          (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a) ↦□ₑ e.1 ∗
@@ -983,14 +985,14 @@ Section adversary_exports.
         ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a))).
   Proof.
     intros Htbl Hargs Hentries_some.
-    iIntros "#Hswitcher #Hpcc #Hcgp #Hentries #Hexports !>"
+    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Hentries #Hexports !>"
       (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
     rewrite Htbl length_fmap in Hi.
     destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [args offset] He].
     iDestruct (big_sepL_lookup with "Hexports") as "[Hentry Hentry']"; first exact He.
     iApply (adversary_export_prop _ _ _ _ i args offset
-             with "Hswitcher Hpcc Hcgp Hentries Hinterp_pcc Hinterp_cgp Hentry Hentry'").
+             with "Hswitcher Hswitcher_static Hpcc Hcgp Hentries Hinterp_pcc Hinterp_cgp Hentry Hentry'").
     - by rewrite Htbl list_lookup_fmap He.
     - done.
     - by apply (Forall_lookup_1 _ _ _ _ Hargs He).
@@ -1018,10 +1020,11 @@ Section adversary_imports.
     let w := lword_of_word (WSentry true XSRW_ Local
                switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
     na_inv cerise_nais Nswitcher switcher_inv ⊢
+    switcher_static -∗
     interp_in_memC (W, C, w) ∗ future_priv_mono C interp_in_memC w.
   Proof.
     intros w; subst w.
-    iIntros "#Hswitcher".
+    iIntros "#Hswitcher #Hswitcher_static".
     assert (heap_authority_base
               (WSentry true XSRW_ Local
                  switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) = None)
@@ -1033,11 +1036,11 @@ Section adversary_imports.
     iEval (cbn); iSplit.
     - iEval (rewrite /interp_in_mem_pre /=).
       rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-      by iApply interp_switcher_call.
+      by iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]").
     - iIntros "!>" (W' W'' Hrel) "_".
       iEval (rewrite /interp_in_mem_pre /=).
       rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-      by iApply interp_switcher_call.
+      by iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]").
   Qed.
 
   (** A word sealed with [o] is safe, in any world, once the sealable and

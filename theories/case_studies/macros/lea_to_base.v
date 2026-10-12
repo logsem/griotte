@@ -44,25 +44,24 @@ Section Lea_To_Base_spec.
     ∗ ▷ r ↦ᵣ WCap t p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
-    ∗ ▷ codefrag pc_a lea_to_base
+    ∗ ▷ codefrag_pers pc_a lea_to_base
     ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ r ↦ᵣ WCap t p g b e b @@? π
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt 0%Z
-         ∗ codefrag pc_a lea_to_base
+         ∗ codefrag_pers pc_a lea_to_base
          -∗ WP Seq (Instr Executable) {{ φ }}
         )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros lea_to_base a_last ; subst lea_to_base a_last.
     iIntros (Hvpc Hcont Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >Hprog & Hφ)".
-    iDestruct (big_sepL2_length with "Hprog") as %Hlength.
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hprog & Hφ)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
     assert ((a + (b - a))%a = Some b) as Hlea;[solve_addr|].
     iGo "Hprog".
-    iApply "Hφ"; iFrame.
+    iApply "Hφ"; iFrame "∗ Hprog".
   Qed.
 
 End Lea_To_Base_spec.

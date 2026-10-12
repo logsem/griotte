@@ -20,7 +20,8 @@ Section helpers_switcher_adequacy.
     (args off : nat) (Nswitcher : namespace) :
     disjoint_from_heap b_cgp e_cgp ->
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
+    ⊢ switcher_static -∗
+    interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
     interp W C (WCap true RW Global b_cgp e_cgp b_cgp) -∗
     □ ∀ (W' : WORLD),
     ⌜related_sts_priv_world W W'⌝
@@ -28,7 +29,7 @@ Section helpers_switcher_adequacy.
         args W' C.
   Proof.
     intros Hcgp_heap.
-    iIntros "#Hinv_switcher #Hinterp_pcc #Hinterp_cgp".
+    iIntros "#Hinv_switcher #Hswitcher_static #Hinterp_pcc #Hinterp_cgp".
     iIntros (W' Hrelated).
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     iDestruct (interp_monotone_nl_cap_nonheap W W' C true RX Global
@@ -58,7 +59,7 @@ Section helpers_switcher_adequacy.
     }
     destruct (decide (r = cra)) as [-> | Hrcra].
     { rewrite Hregs_cra in Hr ; simplify_eq.
-      iApply (interp_switcher_return with "Hinv_switcher").
+      iApply (interp_switcher_return with "[$Hinv_switcher $Hswitcher_static]").
     }
     destruct (decide (r = csp)) as [-> | Hrcsp].
     { by rewrite Hregs_csp in Hr ; simplify_eq. }
@@ -74,7 +75,7 @@ Section helpers_switcher_adequacy.
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (g_etbl : Locality) (a_etbl: Addr)
-    (args off : nat) (Nswitcher CNAME : namespace) :
+    (args off : nat) (Nswitcher : namespace) :
     let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
     let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
     let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
@@ -87,9 +88,10 @@ Section helpers_switcher_adequacy.
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
     → na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ inv (export_table_PCCN CNAME) (b_etbl ↦ₐ WCap true RX Global b_pcc e_pcc b_pcc)
-    -∗ inv (export_table_CGPN CNAME) (b_etbl1 ↦ₐ WCap true RW Global b_cgp e_cgp b_cgp)
-    -∗ inv (export_table_entryN CNAME a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
+    ⊢ switcher_static
+    -∗ b_etbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc
+    -∗ b_etbl1 ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp
+    -∗ a_etbl ↦ₐ□ WInt (encode_entry_point args off)
     -∗ interp W C (WCap true RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap true RW Global b_cgp e_cgp b_cgp)
     -∗ WSealed ot_switcher (SCap true RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
@@ -98,7 +100,7 @@ Section helpers_switcher_adequacy.
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
-    iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry_borrow".
+    iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_entry #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry_borrow".
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off.
     iFrame "#".
     iSplit ; first (by iPureIntro).
@@ -145,8 +147,9 @@ Section helpers_switcher_adequacy.
       pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
       solve_addr.
     }
-    iApply fundamental_execute_entry_point;
-      first exact (cmpt_cgp_disjoint_from_heap C_cmpt); eauto.
+    iApply (fundamental_execute_entry_point
+              with "Hinv_switcher Hswitcher_static Hinterp_pcc Hinterp_cgp").
+    exact (cmpt_cgp_disjoint_from_heap C_cmpt).
   Qed.
 
 End helpers_switcher_adequacy.
