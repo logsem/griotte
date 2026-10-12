@@ -88,7 +88,7 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0 0;
+    CLoad ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -96,7 +96,7 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1 0;
+    CLoad ct1 ct1 0;
     Mov cs0 0%Z;
     Mov ca0 PC;
     GetB cs0 ca0;
@@ -104,15 +104,15 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ca0 cs0;
     Lea ca0 2%Z;
-    Load ca0 ca0 0;
+    CLoad ca0 ca0 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
     Lea csp (-1)%Z;
-    Load cra csp 0;
+    CLoad cra csp 0;
     Mov ca0 0%Z;
     Jalr cnull cra;
 
-    Load ct0 cgp 0;
+    CLoad ct0 cgp 0;
     Jnz 31%Z ct0;
     Store cgp 1%Z 0;
     Store csp cra 0;
@@ -123,7 +123,7 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0 0;
+    CLoad ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -131,7 +131,7 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1 0;
+    CLoad ct1 ct1 0;
     Mov cs0 0%Z;
     Mov ca0 PC;
     GetB cs0 ca0;
@@ -139,11 +139,11 @@ Definition vae_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ca0 cs0;
     Lea ca0 2%Z;
-    Load ca0 ca0 0;
+    CLoad ca0 ca0 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
     Lea csp (-1)%Z;
-    Load cra csp 0;
+    CLoad cra csp 0;
     Mov ca0 0%Z;
     Jalr cnull cra
   ].

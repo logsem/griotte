@@ -57,7 +57,7 @@ Section DROE_Assert_Blocks_3.
     change_pc_to (a_callB ^+ 2)%a.
     (* Mov cra cs0 *)
     iInstr "Hcode".
-    (* Load ct0 cgp 0 *)
+    (* CLoad ct0 cgp 0 *)
     iInstr "Hcode".
     { solve_not_shadow Hcgp_mmio. }
     { done. }

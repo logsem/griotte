@@ -79,7 +79,7 @@ Section Stack_secret_Init_Blocks_1.
     focus_block_0_lockstep "Hscode_main" "Hcode_main" as "Hscode" "Hscont" "Hcode" "Hcont".
     iHide "Hcont" as hcont. iHide "Hscont" as hscont.
 
-    (* Load ct0 cgp 0 *)
+    (* CLoad ct0 cgp 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [done| solve_addr].
 

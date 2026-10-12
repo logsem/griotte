@@ -88,7 +88,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0 0;
+    CLoad ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -96,7 +96,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1 0;
+    CLoad ct1 ct1 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
 
@@ -106,7 +106,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0 0;
+    CLoad ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -114,12 +114,12 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1 0;
+    CLoad ct1 ct1 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
 
     Lea csp (-1)%Z;
-    Load cra csp 0;
+    CLoad cra csp 0;
     Mov ca0 0%Z;
     Mov ca1 0%Z;
     Jalr cnull cra

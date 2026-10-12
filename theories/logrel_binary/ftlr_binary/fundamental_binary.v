@@ -234,7 +234,7 @@ Section fundamental.
     - (* Jnz *) apply jnz_case.
     - (* Jalr *) apply jalr_case.
     - (* Mov *) apply mov_case.
-    - (* Load *) apply load_case.
+    - (* CLoad *) apply load_case.
     - (* Store *) apply store_case.
     - (* Lt *) by_binop_case.
     - (* Add *) by_binop_case.

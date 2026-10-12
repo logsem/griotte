@@ -45,7 +45,7 @@ Section fundamental.
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (dst src : RegName) (imm : Z) (P:V)
     (stk : cstack_pair) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr W C regs1 regs2 p p' g b e a w (Load dst src imm) ρ P stk Ws Cs.
+    ftlr_instr W C regs1 regs2 p p' g b e a w (CLoad dst src imm) ρ P stk Ws Cs.
   Proof.
     intros Hp HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi; rewrite /ftlr_post.
     iIntros "#IH #Hspec #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe

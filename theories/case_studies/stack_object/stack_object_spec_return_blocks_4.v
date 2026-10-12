@@ -78,7 +78,7 @@ Section SO_Return_Blocks_4.
     (* Lea csp (-2)%Z *)
     iInstr "Hcode".
     { transitivity (Some csp_b); auto. solve_addr+Hastk2. }
-    (* Load ct0 csp 0 *)
+    (* CLoad ct0 csp 0 *)
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|rewrite /withinBounds; solve_addr]. }
     { done. }

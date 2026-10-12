@@ -68,7 +68,7 @@ Section AllocatorMallocPrepareBlocks2.
     focus_block 1 "Hcode_main" of allocator_malloc_blocks at pc_a as a_prep Ha_prep
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Load ct0 cgp. *)
+    (* CLoad ct0 cgp. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_success_exact with "[$HPC $Hi $Hct0 $Hcgp $Hslot]"); try solve_pure.
@@ -248,7 +248,7 @@ Section AllocatorMallocPrepareBlocks2.
     focus_block 1 "Hcode_main" of allocator_malloc_blocks at pc_a as a_prep Ha_prep
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Load ct0 cgp. *)
+    (* CLoad ct0 cgp. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_success_exact with "[$HPC $Hi $Hct0 $Hcgp $Hslot]"); try solve_pure.

@@ -59,7 +59,7 @@ Section HTS_Reload.
       "(HPC & Hcsp & Hca0 & Ha & Hcode & Hwit & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_reload_buffer_instrs.
-    (* Load ca0 csp (-1). *)
+    (* CLoad ca0 csp (-1). *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iDestruct (map_of_regs_3 with "HPC Hcsp Hca0")
@@ -197,7 +197,7 @@ Section HTS_Spec_Free.
        of ι is a live witness. *)
     focus_block 10 "Hcode_main" of hts_main_blocks at pc_a as a_reload Ha_reload "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Load ca0 csp (-1). *)
+    (* CLoad ca0 csp (-1). *)
     iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
       csp_b csp_e (hts_buffer b @@ ι) _ (LoadLive ι (1/2)%Qp)
       with "[- $HPC $Hcsp $Hca0 $Hslot $Hcode $Hright]").

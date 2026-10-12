@@ -81,7 +81,7 @@ Section AllocatorFreeCheckBlocks2.
     rewrite /Z.b2z Z.sub_diag.
     (* Jnz .free_invalid ct3. *)
     iInstr "Hcode".
-    (* Load ct0 cgp. *)
+    (* CLoad ct0 cgp. *)
     unfold lword_of_word.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -213,7 +213,7 @@ Section AllocatorFreeCheckBlocks2.
     rewrite /Z.b2z Z.sub_diag.
     (* Jnz .free_invalid ct3. *)
     iInstr "Hcode".
-    (* Load ct0 cgp. *)
+    (* CLoad ct0 cgp. *)
     unfold lword_of_word.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.

@@ -67,9 +67,9 @@ Definition scs_B_code : list Word :=
     Jalr cra ctp;
     (* the stack frame of T.f starts 4 words above the stack pointer *)
     Lea csp 4%Z;
-    Load ca0 csp 0;
+    CLoad ca0 csp 0;
     Lea csp (-5)%Z;
-    Load cra csp 0;
+    CLoad cra csp 0;
     Jalr cnull cra
   ].
 Definition scs_B_data : list Word := [WInt 0].

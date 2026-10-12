@@ -9,7 +9,7 @@ Section Checkints.
 
 
   Definition checkints_loop_instrs (r r1 r2 : RegName) : list Word :=
-    encodeInstrsW [Load r1 r 0]
+    encodeInstrsW [CLoad r1 r 0]
       ++ is_int_instrs r1 r2
       ++ encodeInstrsW
       [ (* is an integer *)
@@ -253,7 +253,7 @@ Section Checkints_spec.
       }
   Qed.
 
-  (* A nonempty untagged range fails at the first Load; no ownership of
+  (* A nonempty untagged range fails at the first CLoad; no ownership of
      the claimed object addresses is needed. *)
   Lemma checkints_fail_untagged
     (r r1 r2 : RegName)

@@ -229,10 +229,10 @@ Section griotte_lang_rules.
   Lemma wp_load_general_shadow_imm Ep
      pc_p pc_g pc_b pc_e pc_a pc_π
      r1 r2 (imm : Z) w mem (dfracs : gmap Addr dfrac) regs shadow sdq wit :
-   decodeInstrW w.(lw) = Load r1 r2 imm →
+   decodeInstrW w.(lw) = CLoad r1 r2 imm →
    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-   regs_of (Load r1 r2 imm) ⊆ dom regs →
+   regs_of (CLoad r1 r2 imm) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_mem_or_shadow_offset r2 imm regs mem shadow →
    dom mem = dom dfracs →
@@ -373,10 +373,10 @@ Section griotte_lang_rules.
   Lemma wp_load_general Ep
      pc_p pc_g pc_b pc_e pc_a pc_π
      r1 r2 w mem (dfracs : gmap Addr dfrac) regs shadow sdq wit :
-   decodeInstrW w.(lw) = Load r1 r2 0 →
+   decodeInstrW w.(lw) = CLoad r1 r2 0 →
    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-   regs_of (Load r1 r2 0) ⊆ dom regs →
+   regs_of (CLoad r1 r2 0) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_mem_or_shadow r2 regs mem shadow →
    dom mem = dom dfracs →
@@ -554,11 +554,11 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma decode_load_not_heap_cap_imm (w : LWord) dst src imm :
-    decodeInstrW w.(lw) = Load dst src imm → is_heap_cap w.(lw) = false.
+    decodeInstrW w.(lw) = CLoad dst src imm → is_heap_cap w.(lw) = false.
   Proof. destruct w as [[] ?]; cbn; try discriminate; done. Qed.
 
   Lemma decode_load_not_heap_cap (w : LWord) dst src :
-    decodeInstrW w.(lw) = Load dst src 0 → is_heap_cap w.(lw) = false.
+    decodeInstrW w.(lw) = CLoad dst src 0 → is_heap_cap w.(lw) = false.
   Proof. exact (decode_load_not_heap_cap_imm w dst src 0). Qed.
 
   (** A non-heap word loads exactly, without witness. *)
@@ -573,10 +573,10 @@ Section griotte_lang_rules.
   Lemma wp_load_general_imm Ep
      pc_p pc_g pc_b pc_e pc_a pc_π
      r1 r2 (imm : Z) w mem (dfracs : gmap Addr dfrac) regs :
-   decodeInstrW w.(lw) = Load r1 r2 imm →
+   decodeInstrW w.(lw) = CLoad r1 r2 imm →
    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-   regs_of (Load r1 r2 imm) ⊆ dom regs →
+   regs_of (CLoad r1 r2 imm) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true_imm r2 imm regs mem →
    (∀ p g b e a ea loadv,
@@ -628,10 +628,10 @@ Section griotte_lang_rules.
   Lemma wp_load_imm Ep
      pc_p pc_g pc_b pc_e pc_a pc_π
      r1 r2 (imm : Z) w mem regs dq :
-   decodeInstrW w.(lw) = Load r1 r2 imm →
+   decodeInstrW w.(lw) = CLoad r1 r2 imm →
    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-   regs_of (Load r1 r2 imm) ⊆ dom regs →
+   regs_of (CLoad r1 r2 imm) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true_imm r2 imm regs mem →
    (∀ p g b e a ea loadv,
@@ -662,10 +662,10 @@ Section griotte_lang_rules.
      the plain post (variant 1). *)
   Lemma wp_load Ep pc_p pc_g pc_b pc_e pc_a pc_π
     dst src w mem regs dq :
-    decodeInstrW w.(lw) = Load dst src 0 →
+    decodeInstrW w.(lw) = CLoad dst src 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-    regs_of (Load dst src 0) ⊆ dom regs →
+    regs_of (CLoad dst src 0) ⊆ dom regs →
     mem !! pc_a = Some w →
     allow_load_map_or_true src regs mem →
     (∀ p g b e a, reg_allows_load regs src p g b e a →
@@ -744,7 +744,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a ea πs (imm : Z) pc_a' dq dq' :
     is_shadow_address ea = false →
     is_heap_cap (if (ea =? pc_a)%a then w else w').(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r2 imm →
+    decodeInstrW w.(lw) = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -803,7 +803,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_same_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' p g b e a ea πs (imm : Z) pc_a' dq dq' :
     is_shadow_address ea = false →
     is_heap_cap (if (ea =? pc_a)%a then w else w').(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r1 imm →
+    decodeInstrW w.(lw) = CLoad r1 r1 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e ea = true →
@@ -859,7 +859,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_notinstr_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a ea πs (imm : Z) pc_a' dq dq' :
     is_shadow_address ea = false →
     is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r2 imm →
+    decodeInstrW w.(lw) = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -905,7 +905,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_frominstr_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w'' p g b e a πs (imm : Z) pc_a' dq :
     is_shadow_address pc_a = false →
     is_heap_cap w.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r2 imm →
+    decodeInstrW w.(lw) = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e pc_a = true →
     (a + imm)%a = Some pc_a →
@@ -935,7 +935,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_same_notinstr_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' p g b e a ea πs (imm : Z) pc_a' dq dq' :
     is_shadow_address ea = false →
     is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r1 imm →
+    decodeInstrW w.(lw) = CLoad r1 r1 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e ea = true →
@@ -979,7 +979,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_same_frominstr_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π w p g b e a πs (imm : Z) pc_a' dq :
     is_shadow_address pc_a = false →
     is_heap_cap w.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r1 imm →
+    decodeInstrW w.(lw) = CLoad r1 r1 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e pc_a = true →
@@ -1007,7 +1007,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_alt_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a ea πs (imm : Z) pc_a' :
     is_shadow_address ea = false →
     is_heap_cap (if (ea =? pc_a)%a then w else w').(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r2 imm →
+    decodeInstrW w.(lw) = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -1037,7 +1037,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_same_alt_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' p g b e a ea πs (imm : Z) pc_a' :
     is_shadow_address ea = false →
     is_heap_cap (if (ea =? pc_a)%a then w else w').(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r1 imm →
+    decodeInstrW w.(lw) = CLoad r1 r1 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -1063,7 +1063,7 @@ Section griotte_lang_rules.
 
   Lemma wp_load_fail_tag_imm E pc_p pc_g pc_b pc_e pc_a pc_π
       w dst src (imm : Z) regs wa :
-    decodeInstrW w.(lw) = Load dst src imm →
+    decodeInstrW w.(lw) = CLoad dst src imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs !!ₗ src = Some wa →
@@ -1087,7 +1087,7 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_load_fail_not_ra_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a πs (imm : Z) :
-    decodeInstrW w.(lw) = Load r1 r2 imm →
+    decodeInstrW w.(lw) = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = false ->
     r2 ≠ cnull ->
@@ -1128,7 +1128,7 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_load_fail_not_withinbounds_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a ea πs (imm : Z) :
-    decodeInstrW w.(lw) = Load r1 r2 imm →
+    decodeInstrW w.(lw) = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e ea = false →
     (a + imm)%a = Some ea →
@@ -1173,7 +1173,7 @@ Section griotte_lang_rules.
         p g b e a ea (imm : Z) (t : bool) p' g' b' e' a' a'' :
     is_shadow_address ea = false →
     is_heap_cap (WCap t p' g' b' e' a') = false →
-    decodeInstrW w.(lw) = Load PC r2 imm →
+    decodeInstrW w.(lw) = CLoad PC r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -1222,7 +1222,7 @@ Section griotte_lang_rules.
 
   Lemma wp_load_fail_addr_imm E pc_p pc_g pc_b pc_e pc_a pc_π
       w dst src (imm : Z) regs wa p g b e a :
-    decodeInstrW w.(lw) = Load dst src imm →
+    decodeInstrW w.(lw) = CLoad dst src imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs !!ₗ src = Some wa →
@@ -1247,7 +1247,7 @@ Section griotte_lang_rules.
 
   Lemma wp_load_fail_const_imm E pc_p pc_g pc_b pc_e pc_a pc_π
       w dst src (imm : Z) regs wa :
-    decodeInstrW w.(lw) = Load dst src imm →
+    decodeInstrW w.(lw) = CLoad dst src imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs !!ₗ src = Some wa →
@@ -1271,7 +1271,7 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_load_fail_not_cap_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' (wsrc : LWord) (imm : Z) :
-    decodeInstrW w.(lw) = Load r1 r2 imm →
+    decodeInstrW w.(lw) = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_cap wsrc.(lw) = false ->
 
@@ -1293,7 +1293,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_fromPC_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' ea (imm : Z) pc_a' dq dq' :
     is_shadow_address ea = false →
     is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 PC imm →
+    decodeInstrW w.(lw) = CLoad r1 PC imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds pc_b pc_e ea = true →
     (pc_a + imm)%a = Some ea →
@@ -1353,7 +1353,7 @@ Section griotte_lang_rules.
         ea (imm : Z) (t : bool) p' g' b' e' a' a'' :
     is_shadow_address ea = false →
     is_heap_cap (WCap t p' g' b' e' a') = false →
-    decodeInstrW w.(lw) = Load PC PC imm →
+    decodeInstrW w.(lw) = CLoad PC PC imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds pc_b pc_e ea = true →
     (pc_a + imm)%a = Some ea →
@@ -1401,7 +1401,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_fromPC_notinstr_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' ea (imm : Z) pc_a' dq dq' :
     is_shadow_address ea = false →
     is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 PC imm →
+    decodeInstrW w.(lw) = CLoad r1 PC imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds pc_b pc_e ea = true →
     (pc_a + imm)%a = Some ea →
@@ -1437,7 +1437,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_fromPC_frominstr_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w w'' dq (imm : Z) :
     is_shadow_address pc_a = false →
     is_heap_cap w.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 PC imm →
+    decodeInstrW w.(lw) = CLoad r1 PC imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + imm)%a = Some pc_a →
     (pc_a + 1)%a = Some pc_a' →
@@ -1466,7 +1466,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a pc_a' dq dq' πs :
     is_shadow_address a = false →
     is_heap_cap (if (a =? pc_a)%a then w else w').(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -1494,7 +1494,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_notinstr E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a pc_a' dq dq' πs :
     is_shadow_address a = false →
     is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -1526,7 +1526,7 @@ Section griotte_lang_rules.
     dst src (wi wd : LWord) p g b e a (raw : LWord) :
     readAllowed p = true ->
     is_shadow_address a = false ->
-    decodeInstrW wi.(lw) = Load dst src 0 ->
+    decodeInstrW wi.(lw) = CLoad dst src 0 ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
@@ -1566,7 +1566,7 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_frominstr E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w'' p g b e pc_a' dq πs :
     is_shadow_address pc_a = false →
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e pc_a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -1592,7 +1592,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_same E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a pc_a' dq dq' πs :
     is_shadow_address a = false →
     is_heap_cap (if (a =? pc_a)%a then w else w').(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r1 0 →
+    decodeInstrW w.(lw) = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e a = true →
@@ -1618,7 +1618,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_same_notinstr E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a pc_a' dq dq' πs :
     is_shadow_address a = false →
     is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r1 0 →
+    decodeInstrW w.(lw) = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e a = true →
@@ -1643,7 +1643,7 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_same_frominstr E r1 pc_p pc_g pc_b pc_e pc_a pc_π w p g b e pc_a' dq πs :
     is_shadow_address pc_a = false →
-    decodeInstrW w.(lw) = Load r1 r1 0 →
+    decodeInstrW w.(lw) = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e pc_a = true →
@@ -1669,7 +1669,7 @@ Section griotte_lang_rules.
         p g b e a (t' : bool) p' g' b' e' a' a'' :
     is_shadow_address a = false →
     is_heap_address b' = false →
-    decodeInstrW w.(lw) = Load PC r2 0 →
+    decodeInstrW w.(lw) = CLoad PC r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (a' + 1)%a = Some a'' →
@@ -1696,7 +1696,7 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_fromPC E r1 pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w w'' dq :
     is_shadow_address pc_a = false →
-    decodeInstrW w.(lw) = Load r1 PC 0 →
+    decodeInstrW w.(lw) = CLoad r1 PC 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
@@ -1727,7 +1727,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_alt E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a pc_a' πs :
     is_shadow_address a = false →
     is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -1757,7 +1757,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_same_alt E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' p g b e a pc_a' πs :
     is_shadow_address a = false →
     is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = Load r1 r1 0 →
+    decodeInstrW w.(lw) = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -1782,7 +1782,7 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_load_fail_not_cap E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' (wsrc : LWord) :
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_cap wsrc.(lw) = false ->
 
@@ -1800,7 +1800,7 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_load_fail_not_ra E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a πs :
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = false ->
     r2 ≠ cnull ->
@@ -1819,7 +1819,7 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_load_fail_not_withinbounds E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a πs :
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e a = false →
     r2 ≠ cnull ->
@@ -1840,10 +1840,10 @@ Section griotte_lang_rules.
   (* Reading a shadow-table entry returns its Boolean value as an integer. *)
   Lemma wp_load_success_shadow E pc_p pc_g pc_b pc_e pc_a pc_π
     dst src w regs regs' mem dq shadow sdq p g b e a heap_a revoked :
-    decodeInstrW w.(lw) = Load dst src 0 →
+    decodeInstrW w.(lw) = CLoad dst src 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-    regs_of (Load dst src 0) ⊆ dom regs →
+    regs_of (CLoad dst src 0) ⊆ dom regs →
     mem !! pc_a = Some w →
     reg_allows_load regs src p g b e a →
     is_shadow_address a = true →
@@ -1888,7 +1888,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_from_shadow E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' p g b e a pc_a' heap_a revoked dq sdq πs :
     is_shadow_address a = true →
     shadow_to_heap a = Some heap_a →
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -1928,7 +1928,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_from_shadow_same E r1 pc_p pc_g pc_b pc_e pc_a pc_π w p g b e a pc_a' heap_a revoked dq sdq πs :
     is_shadow_address a = true →
     shadow_to_heap a = Some heap_a →
-    decodeInstrW w.(lw) = Load r1 r1 0 →
+    decodeInstrW w.(lw) = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -1969,7 +1969,7 @@ Section griotte_lang_rules.
   Lemma wp_load_success_from_shadow_fromPC E r1 pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w w'' heap_a revoked dq sdq :
     is_shadow_address pc_a = true →
     shadow_to_heap pc_a = Some heap_a →
-    decodeInstrW w.(lw) = Load r1 PC 0 →
+    decodeInstrW w.(lw) = CLoad r1 PC 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
@@ -2009,7 +2009,7 @@ Section griotte_lang_rules.
   (* Revocation clears the validity tag after the ordinary load transformation. *)
   Lemma wp_load_fail_tag E pc_p pc_g pc_b pc_e pc_a pc_π
       w dst src regs wa :
-    decodeInstrW w.(lw) = Load dst src 0 →
+    decodeInstrW w.(lw) = CLoad dst src 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs !!ₗ src = Some wa →
@@ -2036,7 +2036,7 @@ Section load_exact.
     is_shadow_address a = false →
     w'.(lprov) = None →
     load_exact_cond w' →
-    decodeInstrW w.(lw) = Load r1 r2 0 →
+    decodeInstrW w.(lw) = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e a = true →
@@ -2109,10 +2109,10 @@ Section load_exact.
   (** The general load rule with a status witness, over owned memory. *)
   Lemma wp_load_witness_imm Ep pc_p pc_g pc_b pc_e pc_a pc_π r1 r2 (imm : Z) w
       (mem : LMem) (regs : LReg) wit :
-    decodeInstrW w.(lw) = Load r1 r2 imm →
+    decodeInstrW w.(lw) = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
-    regs_of (Load r1 r2 imm) ⊆ dom regs →
+    regs_of (CLoad r1 r2 imm) ⊆ dom regs →
     mem !! pc_a = Some w →
     allow_load_mem_or_shadow_offset r2 imm regs mem ∅ →
     {{{ (▷ [∗ map] a↦w ∈ mem, a ↦ₐ w) ∗

@@ -93,25 +93,25 @@ Section Switcher_Return_Blocks_2.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    (* Load cgp csp *)
+    (* CLoad cgp csp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [solve_pure|rewrite le_addr_withinBounds; solve_addr+Ha_stk4 Hb_a4 He_a1].
     (* Lea csp (-1)%Z *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4.
-    (* Load cra csp *)
+    (* CLoad cra csp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [solve_pure|rewrite le_addr_withinBounds; solve_addr+Ha_stk4 Hb_a4 He_a1].
     (* Lea csp (-1)%Z *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4.
-    (* Load cs1 csp *)
+    (* CLoad cs1 csp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [solve_pure|rewrite le_addr_withinBounds; solve_addr+Ha_stk4 Hb_a4 He_a1].
     (* Lea csp (-1)%Z *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some a_stk); solve_addr.
-    (* Load cs0 csp *)
+    (* CLoad cs0 csp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [solve_pure|rewrite le_addr_withinBounds; solve_addr+Ha_stk4 Hb_a4 He_a1].
     (* GetE ct0 csp *)

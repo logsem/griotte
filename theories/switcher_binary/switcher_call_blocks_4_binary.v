@@ -76,7 +76,7 @@ Section Switcher_Call_Blocks_4.
 
     wp_instr.
     iInv "Hinv_exp_tbl_entry" as ">[Ha_tbl Hsa_tbl]" "Hcls_tbl".
-    (* Load cs0 ct1 *)
+    (* CLoad cs0 ct1 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; auto; rewrite /withinBounds; solve_addr.
     iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
@@ -169,7 +169,7 @@ Section Switcher_Call_Blocks_4.
 
     wp_instr.
     iInv "Hinv_exp_tbl_pcc" as ">[Hb_tbl Hsb_tbl]" "Hcls_tbl".
-    (* Load cra ct1 *)
+    (* CLoad cra ct1 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; auto; rewrite /withinBounds; solve_addr.
     iMod ("Hcls_tbl" with "[$]") as "_"; iModIntro.
@@ -181,7 +181,7 @@ Section Switcher_Call_Blocks_4.
 
     wp_instr.
     iInv "Hinv_exp_tbl_cgp" as ">[Hb_tbl Hsb_tbl]" "Hcls_tbl".
-    (* Load cgp ct1 *)
+    (* CLoad cgp ct1 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; auto; rewrite /withinBounds; solve_addr.
     iMod ("Hcls_tbl" with "[$]") as "_"; iModIntro.

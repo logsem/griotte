@@ -114,7 +114,7 @@ Section AllocatorFreeHeaderBlocks3.
     iInstr "Hcode".
     { transitivity (Some (sb ^+ -1)%a); subst sb; solve_addr. }
     unfold lword_of_word.
-    (* Load ct3 ctp: the shadow entry of the word below the base. *)
+    (* CLoad ct3 ctp: the shadow entry of the word below the base. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_success_from_shadow _ ct3 ctp with "[$HPC $Hi $Hct3 $Hctp $Hs1]");
@@ -147,7 +147,7 @@ Section AllocatorFreeHeaderBlocks3.
     iInstr "Hcode".
     { transitivity (Some (sb ^+ 0)%a); subst sb; solve_addr. }
     replace ((sb ^+ -1) ^+ 1)%a with sb by (subst sb; solve_addr).
-    (* Load ct3 ctp: the shadow entry of the base. *)
+    (* CLoad ct3 ctp: the shadow entry of the base. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_success_from_shadow _ ct3 ctp with "[$HPC $Hi $Hct3 $Hctp $Hs2]");
@@ -191,7 +191,7 @@ Section AllocatorFreeHeaderBlocks3.
     (* Lea ct4 ct3. *)
     iInstr "Hcode".
     { transitivity (Some (b ^+ -3)%a); solve_addr. }
-    (* Load ca2 ct4: the recorded end. *)
+    (* CLoad ca2 ct4: the recorded end. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_success_notinstr _ ca2 ct4 with "[$HPC $Hi $Hca2 $Hct4 $Hhdr]");
@@ -211,7 +211,7 @@ Section AllocatorFreeHeaderBlocks3.
     - rewrite Z.sub_diag.
       (* Jnz .free_invalid ct3. *)
       iInstr "Hcode".
-      (* Load ct3 ct4 1: the recorded owner. *)
+      (* CLoad ct3 ct4 1: the recorded owner. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (wp_load_success_notinstr_imm _ ct3 ct4 with "[$HPC $Hi $Hct3 $Hct4 $Hown]");

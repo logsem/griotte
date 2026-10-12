@@ -51,7 +51,7 @@ Section DLE_Assert_Blocks_4.
     focus_block 3 "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_callB ^+ 8)%a.
-    (* Load ct0 cgp 0 *)
+    (* CLoad ct0 cgp 0 *)
     iInstr "Hcode".
     { solve_not_shadow Hcgp_mmio. }
     { done. }

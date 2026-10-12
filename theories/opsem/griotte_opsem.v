@@ -73,7 +73,7 @@ Section opsem.
   Definition get_shadow_address (a : Addr) : Addr := a.
 
   (** The revoker's atomic sweep clears the tag of exactly the words that the
-      Load filter strips: those whose heap base is quarantined. *)
+      CLoad filter strips: those whose heap base is quarantined. *)
   Definition sweep_word (shadow : ShadowTbl) (w : Word) : Word :=
     match heap_cap_base w with
     | Some base =>
@@ -118,7 +118,7 @@ Section opsem.
             end
         | _ => None
         end
-    | Load dst src imm =>
+    | CLoad dst src imm =>
       wsrc ← (reg φ) !!ᵣ src;
       match wsrc with
       | WCap true p g b e a =>

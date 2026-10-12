@@ -103,7 +103,7 @@ Ltac instr_failure_registers instr :=
       instr_argument_registers s1 rest
     | Seal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
     | UnSeal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
-    | Load ?dst ?src _ => constr:([PC; dst; src])
+    | CLoad ?dst ?src _ => constr:([PC; dst; src])
     | Store ?dst ?src _ => instr_argument_registers src constr:([PC; dst])
     | _ => eval vm_compute in (elements ({[PC]} ∪ regs_of instr))
     end in

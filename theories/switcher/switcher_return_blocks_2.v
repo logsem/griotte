@@ -76,7 +76,7 @@ Section Switcher_Return_Blocks_2.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    (* --- Load cgp csp --- *)
+    (* --- CLoad cgp csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
@@ -91,7 +91,7 @@ Section Switcher_Return_Blocks_2.
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
-    (* --- Load cra csp --- *)
+    (* --- CLoad cra csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 8)%a cra csp
@@ -106,7 +106,7 @@ Section Switcher_Return_Blocks_2.
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
-    (* --- Load cs1 csp --- *)
+    (* --- CLoad cs1 csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
@@ -121,7 +121,7 @@ Section Switcher_Return_Blocks_2.
     iInstr "Hcode".
     { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 
-    (* --- Load cs0 csp --- *)
+    (* --- CLoad cs0 csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
@@ -212,7 +212,7 @@ Section Switcher_Return_Blocks_2.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    (* --- Load cgp csp --- *)
+    (* --- CLoad cgp csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
@@ -227,7 +227,7 @@ Section Switcher_Return_Blocks_2.
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
-    (* --- Load cra csp --- *)
+    (* --- CLoad cra csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 8)%a cra csp
@@ -242,7 +242,7 @@ Section Switcher_Return_Blocks_2.
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
-    (* --- Load cs1 csp --- *)
+    (* --- CLoad cs1 csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
@@ -257,7 +257,7 @@ Section Switcher_Return_Blocks_2.
     iInstr "Hcode".
     { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 
-    (* --- Load cs0 csp --- *)
+    (* --- CLoad cs0 csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
@@ -367,7 +367,7 @@ Section Switcher_Return_Blocks_2.
       codefrag_facts "Hcode". clear H0.
       rewrite /switcher_instrs_n /assembled_switcher_n.
 
-      (* Load cgp csp. *)
+      (* CLoad cgp csp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
@@ -383,7 +383,7 @@ Section Switcher_Return_Blocks_2.
       iInstr "Hcode".
       { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
-      (* Load cra csp. *)
+      (* CLoad cra csp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
@@ -399,7 +399,7 @@ Section Switcher_Return_Blocks_2.
       iInstr "Hcode".
       { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
-      (* Load cs1 csp. *)
+      (* CLoad cs1 csp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
@@ -415,7 +415,7 @@ Section Switcher_Return_Blocks_2.
       iInstr "Hcode".
       { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 
-      (* Load cs0 csp. *)
+      (* CLoad cs0 csp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (switcher_load_stack_restore_world _ Wworld Wval C opened

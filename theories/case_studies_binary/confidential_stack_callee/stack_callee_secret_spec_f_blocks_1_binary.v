@@ -93,7 +93,7 @@ Section Stack_callee_secret_F_Blocks_1.
       as a_f Ha_f "Hscode" "Hscont" "Hcode" "Hcont".
     iHide "Hcont" as hcont. iHide "Hscont" as hscont.
 
-    (* Load ct0 cgp 0 *)
+    (* CLoad ct0 cgp 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [done| solve_addr].
 

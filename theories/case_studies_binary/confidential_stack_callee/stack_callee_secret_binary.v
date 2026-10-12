@@ -50,7 +50,7 @@ Section Stack_callee_secret.
   Definition stack_callee_secret_code_f : list Word :=
     encodeInstrsW [
       (* write the secret at the base of the stack frame of T.f *)
-      Load ct0 cgp 0;
+      CLoad ct0 cgp 0;
       Store csp ct0 0;
       (* return 0 *)
       Mov ca0 0%Z;

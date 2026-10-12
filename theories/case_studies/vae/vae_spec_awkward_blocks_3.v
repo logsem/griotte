@@ -82,7 +82,7 @@ Section VAE_Awkward_Blocks_3.
     focus_block 9 "Hcode_main" of vae_main_blocks at pc_a as a_load Ha_load "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_load ^+ 4)%a.
-    (* Load ct0 cgp 0 *)
+    (* CLoad ct0 cgp 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.

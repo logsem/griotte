@@ -139,7 +139,7 @@ Section Switcher_Call_Blocks_3.
     (* Lea cs0 (-2)%Z *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: instantiate (1:= b_switcher); solve_addr.
-    (* Load cs0 cs0 *)
+    (* CLoad cs0 cs0 *)
     iInstr_lockstep "Hscode" "Hcode".
     iApply "Hpost"; iFrame.
   Qed.
@@ -191,7 +191,7 @@ Section Switcher_Call_Blocks_3.
     { (* UnSeal ct1 cs0 ct1 *)
       iInstr_invalidate "Hcode".
       { cbn; rewrite andb_true_r; exact Hvalid. }
-      (* Load cs0 ct1 *)
+      (* CLoad cs0 ct1 *)
       iInstr_fail "Hcode".
       wp_end; iIntros "%Hcontr"; done. }
     apply andb_true_iff in Hvalid as [Htag Hwb].

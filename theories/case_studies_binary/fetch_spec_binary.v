@@ -100,7 +100,7 @@ Section Fetch_binary.
     (* Lea rdst n *)
     iInstr_lockstep "Hsprog" "Hprog".
 
-    (* Load rdst rdst 0 *)
+    (* CLoad rdst rdst 0 *)
     iInstr_lockstep "Hsprog" "Hprog".
 
     (* Mov rscratch1 0 *)

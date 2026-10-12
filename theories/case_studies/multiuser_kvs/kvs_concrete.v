@@ -119,7 +119,7 @@ Definition kvs_B_code : list Word :=
     Sub ct0 ct0 ct1;
     Lea cs1 ct0;
     Lea cs1 4%Z;
-    Load cs1 cs1 0;
+    CLoad cs1 cs1 0;
     Mov ct0 0%Z;
     Mov ct1 0%Z;
 
@@ -137,7 +137,7 @@ Definition kvs_B_code : list Word :=
     Sub ct0 ct0 ct1;
     Lea ctp ct0;
     Lea ctp 0%Z;
-    Load ctp ctp 0;
+    CLoad ctp ctp 0;
     Mov ct0 0%Z;
     Mov ct1 0%Z;
 
@@ -148,7 +148,7 @@ Definition kvs_B_code : list Word :=
     Sub ct0 ct0 ct2;
     Lea ct1 ct0;
     Lea ct1 1%Z;
-    Load ct1 ct1 0;
+    CLoad ct1 ct1 0;
     Mov ct0 0%Z;
     Mov ct2 0%Z;
 
@@ -166,7 +166,7 @@ Definition kvs_B_code : list Word :=
     Sub ct0 ct0 ct1;
     Lea ctp ct0;
     Lea ctp 0%Z;
-    Load ctp ctp 0;
+    CLoad ctp ctp 0;
     Mov ct0 0%Z;
     Mov ct1 0%Z;
 
@@ -177,7 +177,7 @@ Definition kvs_B_code : list Word :=
     Sub ct0 ct0 ct2;
     Lea ct1 ct0;
     Lea ct1 3%Z;
-    Load ct1 ct1 0;
+    CLoad ct1 ct1 0;
     Mov ct0 0%Z;
     Mov ct2 0%Z;
 

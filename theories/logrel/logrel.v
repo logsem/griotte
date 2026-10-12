@@ -177,7 +177,7 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
-  (** The Load filter as the world sees it. A word with heap authority and an
+  (** The CLoad filter as the world sees it. A word with heap authority and an
       identifier [ι] loads untagged once the world has [ι] Quarantined;
       every other word loads unchanged. The lookup is by the word's
       identifier, not by address. *)
@@ -253,7 +253,7 @@ Section logrel.
     filter_heap W (lclear_tag w) = lclear_tag w.
   Proof. apply filter_heap_untagged. rewrite lw_lclear_tag. apply get_tag_clear_tag. Qed.
 
-  (** A saved register has the result of a Load in the current world.
+  (** A saved register has the result of a CLoad in the current world.
       The load outcome depends on the shadow, while the second conjunct
       records the world fact needed when its tag is retained. *)
   Definition load_heap_in_world (W : WORLD) (saved actual : LWord) : Prop :=
@@ -1797,7 +1797,7 @@ Section logrel.
 
   (** ** Loads in the current world
 
-      The world supplies a status witness for the Load rule: the
+      The world supplies a status witness for the CLoad rule: the
       quarantine witness [ι ⊒ AQuar] when it has the loaded word's
       identifier [ι] Quarantined, and the plain witness otherwise. *)
   Definition load_witness_of (W : WORLD) (v : LWord) : load_witness :=
@@ -1833,7 +1833,7 @@ Section logrel.
     by iApply heap_provenance_load_witness.
   Qed.
 
-  (** The Load post under the world's witness: the loaded word is either
+  (** The CLoad post under the world's witness: the loaded word is either
       untagged, or kept and kept by the world's filter. *)
   Lemma load_post_world W p v actual :
     load_post (load_witness_of W v) p v actual ->

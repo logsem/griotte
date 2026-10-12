@@ -96,13 +96,13 @@ Definition so_C_code : list Word :=
     Lea ctp cs0;
     Mov ct0 ctp;
     Lea ct0 0%Z;
-    Load ct0 ct0 0;
+    CLoad ct0 ct0 0;
     Mov ct1 ctp;
     Lea ct1 1%Z;
-    Load ct1 ct1 0;
+    CLoad ct1 ct1 0;
     Mov ca1 ctp;
     Lea ca1 2%Z;
-    Load ca1 ca1 0;
+    CLoad ca1 ca1 0;
     Mov cs0 0%Z;
     Mov cs1 0%Z;
     Mov cs0 cra;
@@ -110,7 +110,7 @@ Definition so_C_code : list Word :=
     Jalr cra ct0;
     Lea csp (-1)%Z;
     Lea csp (-1)%Z;
-    Load cra csp 0;
+    CLoad cra csp 0;
     Mov ca0 0%Z;
     Mov ca1 0%Z;
     Mov ct0 0%Z;

@@ -122,7 +122,7 @@ Section Switcher_Call_Blocks_3.
     iInstr "Hcode".
     { instantiate (1:= pc_b); solve_addr. }
 
-    (* --- Load cs0 cs0 --- *)
+    (* --- CLoad cs0 cs0 --- *)
     iInstr "Hcode".
 
     iApply "Hpost"; iFrame.
@@ -168,11 +168,11 @@ Section Switcher_Call_Blocks_3.
        |(%ot & %sb & %π & -> & HPC & Hi & Hcs0 & Hct1 & %Hwct1 & %Hinvalid)]]".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     2: {
-      (* The unsealed entry point is invalid: the next Load fails. *)
+      (* The unsealed entry point is invalid: the next CLoad fails. *)
       simplify_eq.
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
-      (* --- Load cs0 ct1 --- *)
+      (* --- CLoad cs0 ct1 --- *)
       iInstr_fail "Hcode".
       wp_end; iIntros "%Hcontr"; done. }
     simplify_eq.

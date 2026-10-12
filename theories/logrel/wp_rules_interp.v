@@ -755,7 +755,7 @@ Section wp_interp.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
     :
-    decodeInstrW wi.(lw) = Load rdst rsrc imm →
+    decodeInstrW wi.(lw) = CLoad rdst rsrc imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -849,7 +849,7 @@ Section wp_interp.
     iDestruct (heap_provenance_load_witness W w with "Hprov") as "Hwit".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
-    (* Load rdst rsrc imm. *)
+    (* CLoad rdst rsrc imm. *)
     iApply (wp_load_witness_imm with "[$Hmem $Hwit $Hmap]"); eauto.
     { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
@@ -911,7 +911,7 @@ Section wp_interp.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
     :
-    decodeInstrW wi.(lw) = Load rdst rsrc 0 →
+    decodeInstrW wi.(lw) = CLoad rdst rsrc 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -955,7 +955,7 @@ Section wp_interp.
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi wdst : LWord)
     :
-    decodeInstrW wi.(lw) = Load rdst rsrc imm →
+    decodeInstrW wi.(lw) = CLoad rdst rsrc imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -997,7 +997,7 @@ Section wp_interp.
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi wdst : LWord)
     :
-    decodeInstrW wi.(lw) = Load rdst rsrc 0 →
+    decodeInstrW wi.(lw) = CLoad rdst rsrc 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -1078,13 +1078,13 @@ Section wp_interp.
     SubBounds pc_b pc_e pc_a (pc_a ^+ 1)%a ->
     (PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
      cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ w0 ∗
-     a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (Load ca0 cgp imm)] ∗
+     a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (CLoad ca0 cgp imm)] ∗
      region W C ∗
      ▷ (∀ actual,
        ⌜load_heap_in_world W raw actual⌝ -∗
        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a ∗
        cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ actual ∗
-       a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (Load ca0 cgp imm)] ∗
+       a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (CLoad ca0 cgp imm)] ∗
        region W C -∗
        WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -1094,7 +1094,7 @@ Section wp_interp.
     iIntros (Hshadow Hheap_raw Hea Hbounds Hsub)
       "(HPC & Hcgp & Hca0 & Ha & Hcode & Hregion & Hpost)".
     codefrag_facts "Hcode". clear H0.
-    (* Load ca0 cgp imm. *)
+    (* CLoad ca0 cgp imm. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iDestruct (region_heap_provenance with "Hregion") as "[Hregion #Hprov]".
@@ -1106,7 +1106,7 @@ Section wp_interp.
     assert (is_shadow_address a = false) as Hnot_shadow
       by (eapply disjoint_from_shadow_not_in; [exact Hshadow|exact Hbounds]).
     iApply (wp_load_witness_imm _ RX Global pc_b pc_e pc_a None ca0 cgp imm
-              (encodeInstrW (Load ca0 cgp imm) @@? None) with "[$Hmem $Hwit $Hmap]").
+              (encodeInstrW (CLoad ca0 cgp imm) @@? None) with "[$Hmem $Hwit $Hmap]").
     { apply decode_encode_instrW_inv. }
     { solve_pure. }
     { by simplify_map_eq. }
@@ -1158,7 +1158,7 @@ Section wp_interp.
   Lemma load_read_retained E W C
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (raw : LWord) :
     is_shadow_address a = false →
-    decodeInstrW wi.(lw) = Load dst src 0 →
+    decodeInstrW wi.(lw) = CLoad dst src 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →

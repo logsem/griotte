@@ -11,7 +11,7 @@ Section Switcher_Restore.
   Lemma switcher_load_stack_restore_witness E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src (wi wd : LWord) b e a (raw : LWord) wit :
     is_shadow_address a = false ->
-    decodeInstrW wi.(lw) = Load dst src 0 ->
+    decodeInstrW wi.(lw) = CLoad dst src 0 ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
@@ -80,7 +80,7 @@ Section Switcher_Restore.
   Lemma switcher_load_stack_restore E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src (wi wd : LWord) b e a (raw : LWord) :
     is_shadow_address a = false ->
-    decodeInstrW wi.(lw) = Load dst src 0 ->
+    decodeInstrW wi.(lw) = CLoad dst src 0 ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
@@ -125,7 +125,7 @@ Section Switcher_Restore_Interp.
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (raw : LWord) :
     heap_std Wworld = heap_std Wval ->
     is_shadow_address a = false ->
-    decodeInstrW wi.(lw) = Load dst src 0 ->
+    decodeInstrW wi.(lw) = CLoad dst src 0 ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
@@ -155,7 +155,7 @@ Section Switcher_Restore_Interp.
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (raw : LWord) :
     heap_std Wworld = heap_std Wval ->
     is_shadow_address a = false ->
-    decodeInstrW wi.(lw) = Load dst src 0 ->
+    decodeInstrW wi.(lw) = CLoad dst src 0 ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->

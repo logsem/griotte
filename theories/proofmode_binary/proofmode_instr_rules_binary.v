@@ -80,7 +80,7 @@ Ltac instr_failure_registers_spec instr :=
       instr_argument_registers s1 rest
     | Seal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
     | UnSeal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
-    | Load ?dst ?src _ => constr:([PC; dst; src])
+    | CLoad ?dst ?src _ => constr:([PC; dst; src])
     | Store ?dst ?src _ => instr_argument_registers src constr:([PC; dst])
     | _ => eval vm_compute in (elements ({[PC]} ∪ regs_of instr))
     end in
@@ -163,15 +163,15 @@ Ltac dispatch_spec_instr_rule instr cont :=
   | Lea PC (inl _) => cont (@step_lea_success_z_PC)
   | Lea _ (inr _) => (cont (@step_lea_success_reg) || cont (@step_lea_success_reg_sr))
   | Lea _ (inl _) => (cont (@step_lea_success_z) || cont (@step_lea_success_z_sr))
-  (* Load *)
-  | Load PC PC _ => cont (@step_load_success_PC_PC_imm)
-  | Load PC _ 0 => cont (@step_load_success_PC)
-  | Load _ PC 0 => cont (@step_load_success_fromPC)
-  | Load ?r ?r 0 =>
+  (* CLoad *)
+  | CLoad PC PC _ => cont (@step_load_success_PC_PC_imm)
+  | CLoad PC _ 0 => cont (@step_load_success_PC)
+  | CLoad _ PC 0 => cont (@step_load_success_fromPC)
+  | CLoad ?r ?r 0 =>
     (cont (fun MP Σ invG specg E r1 pc_p pc_g pc_b pc_e pc_a w w' =>
        @step_load_success_same_notinstr MP Σ invG specg E r1 pc_p pc_g pc_b pc_e pc_a w w' (WInt 0)) ||
      cont (@step_load_success_same_frominstr))
-  | Load _ _ 0 =>
+  | CLoad _ _ 0 =>
     (cont (@step_load_success_notinstr) ||
      cont (@step_load_success_frominstr))
   (* Store *)
@@ -194,14 +194,14 @@ Ltac dispatch_spec_instr_rule instr cont :=
     (cont (@step_store_success_reg_same_a_store_word) ||
      cont (@step_store_success_reg_store_word))
   (* Immediate accesses use the effective address in their memory resources. *)
-  | Load PC _ _ => cont (@step_load_success_PC_imm)
-  | Load _ PC _ =>
+  | CLoad PC _ _ => cont (@step_load_success_PC_imm)
+  | CLoad _ PC _ =>
     (cont (@step_load_success_fromPC_notinstr_imm) ||
      cont (@step_load_success_fromPC_frominstr_imm))
-  | Load ?r ?r _ =>
+  | CLoad ?r ?r _ =>
     (cont (@step_load_success_same_notinstr_imm) ||
      cont (@step_load_success_same_frominstr_imm))
-  | Load _ _ _ =>
+  | CLoad _ _ _ =>
     (cont (@step_load_success_notinstr_imm) ||
      cont (@step_load_success_frominstr_imm))
   | Store PC (inl _) _ =>

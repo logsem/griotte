@@ -117,7 +117,7 @@ Section AllocatorOwnerMacro.
     iInstr "Hcode".
     (* Lea ctp allocator_unsealing_key_import_off. *)
     iInstr "Hcode".
-    (* Load ctp ctp. *)
+    (* CLoad ctp ctp. *)
     iInstr "Hcode".
     { done. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
@@ -129,7 +129,7 @@ Section AllocatorOwnerMacro.
     iInstr "Hcode".
     { done. }
     { apply withinBounds_true_iff; solve_addr. }
-    (* Load ctp ctp. *)
+    (* CLoad ctp ctp. *)
     iInstr "Hcode".
     { done. }
     { apply withinBounds_true_iff; solve_addr. }
@@ -183,7 +183,7 @@ Section AllocatorOwnerMacro.
     iInstr "Hcode".
     (* Lea ctp allocator_unsealing_key_import_off. *)
     iInstr "Hcode".
-    (* Load ctp ctp. *)
+    (* CLoad ctp ctp. *)
     iInstr "Hcode".
     { done. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
@@ -221,7 +221,7 @@ Section AllocatorOwnerMacro.
       assert (a10 = (pc_a ^+ 10)%a) as -> by solve_addr.
       wp_pure.
       iSpecialize ("Hcode" with "Hi").
-      (* Load ctp ctp. *)
+      (* CLoad ctp ctp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iDestruct (map_of_regs_2 with "HPC Hctp") as "[Hmap %Hne']".

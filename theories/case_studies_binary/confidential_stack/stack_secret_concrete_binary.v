@@ -55,7 +55,7 @@ Ltac unfold_ss_addresses_in H :=
     to [main]. *)
 Definition ss_B_code : list Word :=
   encodeInstrsW [
-    Load ca0 csp 0;
+    CLoad ca0 csp 0;
     Jalr cnull cra
   ].
 Definition ss_B_data : list Word := [WInt 0].

@@ -67,11 +67,11 @@ Section Switcher_Return_Blocks_1.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
-    { (* Load csp ctp *)
+    { (* CLoad csp ctp *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?).
     }
-    (* Load csp ctp *)
+    (* CLoad csp ctp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; auto; rewrite /withinBounds; solve_addr.
     iApply "Hpost"; iFrame. iPureIntro; exact Htstk_ae.
@@ -231,11 +231,11 @@ Section Switcher_Return_Blocks_1.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
     destruct (decide (b_trusted_stack < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
-    { (* Load csp ctp *)
+    { (* CLoad csp ctp *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?).
     }
-    (* Load csp ctp *)
+    (* CLoad csp ctp *)
     iInstr "Hcode".
     { split; auto. rewrite /withinBounds. solve_addr. }
     destruct (decide (b_trusted_stack <= (b_trusted_stack ^+ -1))%a)

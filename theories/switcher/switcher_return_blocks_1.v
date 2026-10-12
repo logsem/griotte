@@ -54,7 +54,7 @@ Section Switcher_Return_Blocks_1.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    (* --- Load csp ctp --- *)
+    (* --- CLoad csp ctp --- *)
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
     {
       iInstr_fail "Hcode".

@@ -3,7 +3,7 @@ From iris.program_logic Require Import weakestpre lifting.
 From griotte Require Export logrel interp_weakening monotone.
 From griotte Require Export
   ftlr_base
-  Jmp Jnz Jalr Mov Load Store BinOp Restrict
+  Jmp Jnz Jalr Mov CLoad Store BinOp Restrict
   Subseg Get ClearTag Lea Seal UnSeal ReadSR WriteSR FailHalt.
 From griotte Require Import register_tactics.
 
@@ -195,7 +195,7 @@ Section fundamental.
     - (* Jnz *) apply jnz_case.
     - (* Jalr *) apply jalr_case.
     - (* Mov *) apply mov_case.
-    - (* Load *) apply load_case.
+    - (* CLoad *) apply load_case.
     - (* Store *) apply store_case.
     - (* Lt *) by_binop_case.
     - (* Add *) by_binop_case.

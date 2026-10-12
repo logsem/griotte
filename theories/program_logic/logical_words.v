@@ -163,8 +163,8 @@ Global Hint Rewrite lw_lclear_tag lprov_lclear_tag lw_lload_word lprov_lload_wor
   lw_lborrow lprov_lborrow lw_lforce_global lprov_lforce_global
   lw_lseal_capability lprov_lseal_capability lprov_lunseal : lword.
 
-(** The plain Load post: the loaded word, or its untagged copy when it is a
-    heap capability (the Load filter may have stripped it). The identifier is
+(** The plain CLoad post: the loaded word, or its untagged copy when it is a
+    heap capability (the CLoad filter may have stripped it). The identifier is
     kept in both cases. *)
 Definition lload_heap `{HeapRegion} (s v : LWord) : Prop :=
   v = s ∨ (is_heap_cap s.(lw) = true ∧ v = lclear_tag s).

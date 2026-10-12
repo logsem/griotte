@@ -61,7 +61,7 @@ Section Switcher_Call_Blocks_4.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    (* --- Load cs0 ct1 --- *)
+    (* --- CLoad cs0 ct1 --- *)
     wp_instr.
     iInv "Hinv_exp_tbl_entry" as ">Ha_tbl" "Hcls_tbl".
     iInstr "Hcode".
@@ -142,7 +142,7 @@ Section Switcher_Call_Blocks_4.
     iInstr "Hcode".
     { instantiate (1:=btbl_tgt); solve_addr. }
 
-    (* --- Load cra ct1 --- *)
+    (* --- CLoad cra ct1 --- *)
     wp_instr.
     iInv "Hinv_exp_tbl_pcc" as ">Hb_tbl" "Hcls_tbl".
     assert (is_heap_cap (WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt) = false)
@@ -158,7 +158,7 @@ Section Switcher_Call_Blocks_4.
     iInstr "Hcode".
     { instantiate (1:=(btbl_tgt ^+ 1)%a); solve_addr. }
 
-    (* --- Load cgp ct1 --- *)
+    (* --- CLoad cgp ct1 --- *)
     wp_instr.
     iInv "Hinv_exp_tbl_cgp" as ">Hb_tbl" "Hcls_tbl".
     iInstr "Hcode".

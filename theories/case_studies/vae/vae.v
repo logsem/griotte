@@ -65,7 +65,7 @@ Section VAE_Main.
       Jalr cra ct0; (* jmp to arg_1 *)
 
       (* assert (a == 1) *)
-      Load ct0 cgp 0; (* ct0 -> a *)
+      CLoad ct0 cgp 0; (* ct0 -> a *)
       Mov ct1 1%Z  (* ct1 -> 1 *)
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)

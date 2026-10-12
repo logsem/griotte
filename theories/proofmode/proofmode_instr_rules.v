@@ -83,15 +83,15 @@ Ltac dispatch_instr_rule instr cont :=
   | Lea PC (inl _) => cont (@wp_lea_success_z_PC)
   | Lea _ (inr _) => (cont (@wp_lea_success_reg) || cont (@wp_lea_success_reg_sr))
   | Lea _ (inl _) => (cont (@wp_lea_success_z) || cont (@wp_lea_success_z_sr))
-  (* Load *)
-  | Load PC PC _ => cont (@wp_load_success_PC_PC_imm)
-  | Load PC _ 0 => cont (@wp_load_success_PC)
-  | Load _ PC 0 => cont (@wp_load_success_fromPC)
-  | Load ?r ?r 0 =>
+  (* CLoad *)
+  | CLoad PC PC _ => cont (@wp_load_success_PC_PC_imm)
+  | CLoad PC _ 0 => cont (@wp_load_success_PC)
+  | CLoad _ PC 0 => cont (@wp_load_success_fromPC)
+  | CLoad ?r ?r 0 =>
     (cont (fun MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' =>
        @wp_load_success_same_notinstr MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' (WInt 0 @@? None)) ||
      cont (@wp_load_success_same_frominstr))
-  | Load _ _ 0 =>
+  | CLoad _ _ 0 =>
     (cont (@wp_load_success_notinstr) ||
      cont (@wp_load_success_frominstr))
   (* Store *)
@@ -114,14 +114,14 @@ Ltac dispatch_instr_rule instr cont :=
     (cont (@wp_store_success_reg_same_a_store_word) ||
      cont (@wp_store_success_reg_store_word))
   (* Immediate accesses use the effective address in their memory resources. *)
-  | Load PC _ _ => cont (@wp_load_success_PC_imm)
-  | Load _ PC _ =>
+  | CLoad PC _ _ => cont (@wp_load_success_PC_imm)
+  | CLoad _ PC _ =>
     (cont (@wp_load_success_fromPC_notinstr_imm) ||
      cont (@wp_load_success_fromPC_frominstr_imm))
-  | Load ?r ?r _ =>
+  | CLoad ?r ?r _ =>
     (cont (@wp_load_success_same_notinstr_imm) ||
      cont (@wp_load_success_same_frominstr_imm))
-  | Load _ _ _ =>
+  | CLoad _ _ _ =>
     (cont (@wp_load_success_notinstr_imm) ||
      cont (@wp_load_success_frominstr_imm))
   (* Store *)

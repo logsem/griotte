@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Export rules_base_binary.
 From griotte Require Import rules_Load.
 
-(** * Spec rules for [Load] (spec copies of [rules_Load.v]) *)
+(** * Spec rules for [CLoad] (spec copies of [rules_Load.v]) *)
 
 Section spec_rules.
   Context `{MP: MachineParameters} `{!invGS Σ} `{specg : specG Σ}.
@@ -31,10 +31,10 @@ Section spec_rules.
      pc_p pc_g pc_b pc_e pc_a
      r1 r2 (imm : Z) w mem (dfracs : gmap Addr dfrac) regs :
     ↑specN ⊆ Ep →
-   decodeInstrW w = Load r1 r2 imm →
+   decodeInstrW w = CLoad r1 r2 imm →
    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
-   regs_of (Load r1 r2 imm) ⊆ dom regs →
+   regs_of (CLoad r1 r2 imm) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true_imm r2 imm regs mem →
    dom mem = dom dfracs →
@@ -72,7 +72,7 @@ Section spec_rules.
 
     rewrite /exec /= Hr2 /= in Hstep.
 
-     (* Now we start splitting on the different cases in the Load spec, and prove them one at a time *)
+     (* Now we start splitting on the different cases in the CLoad spec, and prove them one at a time *)
      destruct (is_cap r2v) eqn:Hr2v.
      2:{ (* Failure: r2 is not a capability *)
        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
@@ -146,10 +146,10 @@ Section spec_rules.
      pc_p pc_g pc_b pc_e pc_a
      r1 r2 (imm : Z) w mem regs dq :
     ↑specN ⊆ Ep →
-   decodeInstrW w = Load r1 r2 imm →
+   decodeInstrW w = CLoad r1 r2 imm →
    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
-   regs_of (Load r1 r2 imm) ⊆ dom regs →
+   regs_of (CLoad r1 r2 imm) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true_imm r2 imm regs mem →
    spec_ctx ∗
@@ -176,10 +176,10 @@ Section spec_rules.
      pc_p pc_g pc_b pc_e pc_a
      r1 r2 w mem (dfracs : gmap Addr dfrac) regs :
     ↑specN ⊆ Ep →
-   decodeInstrW w = Load r1 r2 0 →
+   decodeInstrW w = CLoad r1 r2 0 →
    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
-   regs_of (Load r1 r2 0) ⊆ dom regs →
+   regs_of (CLoad r1 r2 0) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true r2 regs mem →
    dom mem = dom dfracs →
@@ -205,10 +205,10 @@ Section spec_rules.
      pc_p pc_g pc_b pc_e pc_a
      r1 r2 w mem regs dq :
     ↑specN ⊆ Ep →
-   decodeInstrW w = Load r1 r2 0 →
+   decodeInstrW w = CLoad r1 r2 0 →
    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
-   regs_of (Load r1 r2 0) ⊆ dom regs →
+   regs_of (CLoad r1 r2 0) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true r2 regs mem →
    spec_ctx ∗
@@ -233,7 +233,7 @@ Section spec_rules.
 
   Lemma step_load_success E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 0 →
+    decodeInstrW w = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -288,7 +288,7 @@ Section spec_rules.
 
   Lemma step_load_success_notinstr E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 0 →
+    decodeInstrW w = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -329,7 +329,7 @@ Section spec_rules.
 
   Lemma step_load_success_frominstr E r1 r2 pc_p pc_g pc_b pc_e pc_a w w'' p g b e pc_a' dq :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 0 →
+    decodeInstrW w = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e pc_a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -358,7 +358,7 @@ Section spec_rules.
 
   Lemma step_load_success_same E r1 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r1 0 →
+    decodeInstrW w = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e a = true →
@@ -409,7 +409,7 @@ Section spec_rules.
 
   Lemma step_load_success_same_notinstr E r1 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r1 0 →
+    decodeInstrW w = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e a = true →
@@ -446,7 +446,7 @@ Section spec_rules.
 
   Lemma step_load_success_same_frominstr E r1 pc_p pc_g pc_b pc_e pc_a w p g b e pc_a' dq :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r1 0 →
+    decodeInstrW w = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e pc_a = true →
@@ -474,7 +474,7 @@ Section spec_rules.
   Lemma step_load_success_PC E r2 pc_p pc_g pc_b pc_e pc_a w
         p g b e a (t : bool) p' g' b' e' a' a'' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load PC r2 0 →
+    decodeInstrW w = CLoad PC r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (a' + 1)%a = Some a'' →
@@ -530,7 +530,7 @@ Section spec_rules.
 
   Lemma step_load_success_fromPC E r1 pc_p pc_g pc_b pc_e pc_a pc_a' w w'' dq :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 PC 0 →
+    decodeInstrW w = CLoad r1 PC 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
@@ -573,7 +573,7 @@ Section spec_rules.
 
   Lemma step_load_success_alt E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 0 →
+    decodeInstrW w = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -606,7 +606,7 @@ Section spec_rules.
 
   Lemma step_load_success_same_alt E r1 pc_p pc_g pc_b pc_e pc_a w w' p g b e a pc_a' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r1 0 →
+    decodeInstrW w = CLoad r1 r1 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -636,7 +636,7 @@ Section spec_rules.
 
   Lemma step_load_fail_not_cap E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' wsrc :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 0 →
+    decodeInstrW w = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_cap wsrc = false ->
 
@@ -677,7 +677,7 @@ Section spec_rules.
 
   Lemma step_load_fail_not_ra E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 0 →
+    decodeInstrW w = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = false ->
     r2 ≠ cnull ->
@@ -718,7 +718,7 @@ Section spec_rules.
 
   Lemma step_load_fail_not_withinbounds E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 0 →
+    decodeInstrW w = CLoad r1 r2 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e a = false →
     r2 ≠ cnull ->
@@ -758,7 +758,7 @@ Section spec_rules.
   Lemma step_load_fail_tag E pc_p pc_g pc_b pc_e pc_a
       w dst src regs wa :
     ↑specN ⊆ E →
-    decodeInstrW w = Load dst src 0 →
+    decodeInstrW w = CLoad dst src 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !!ᵣ src = Some wa →
@@ -781,7 +781,7 @@ Section spec_rules.
 
   Lemma step_load_success_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a ea (imm : Z) pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 imm →
+    decodeInstrW w = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -840,7 +840,7 @@ Section spec_rules.
 
   Lemma step_load_success_same_imm E r1 pc_p pc_g pc_b pc_e pc_a w w' p g b e a ea (imm : Z) pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r1 imm →
+    decodeInstrW w = CLoad r1 r1 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e ea = true →
@@ -897,7 +897,7 @@ Section spec_rules.
 
   Lemma step_load_success_notinstr_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a ea (imm : Z) pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 imm →
+    decodeInstrW w = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -938,7 +938,7 @@ Section spec_rules.
 
   Lemma step_load_success_frominstr_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a w w'' p g b e a (imm : Z) pc_a' dq :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 imm →
+    decodeInstrW w = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e pc_a = true →
     (a + imm)%a = Some pc_a →
@@ -969,7 +969,7 @@ Section spec_rules.
 
   Lemma step_load_success_same_notinstr_imm E r1 pc_p pc_g pc_b pc_e pc_a w w' p g b e a ea (imm : Z) pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r1 imm →
+    decodeInstrW w = CLoad r1 r1 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e ea = true →
@@ -1008,7 +1008,7 @@ Section spec_rules.
 
   Lemma step_load_success_same_frominstr_imm E r1 pc_p pc_g pc_b pc_e pc_a w p g b e a (imm : Z) pc_a' dq :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r1 imm →
+    decodeInstrW w = CLoad r1 r1 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e pc_a = true →
@@ -1037,7 +1037,7 @@ Section spec_rules.
 
   Lemma step_load_success_alt_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a ea (imm : Z) pc_a' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 imm →
+    decodeInstrW w = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -1071,7 +1071,7 @@ Section spec_rules.
 
   Lemma step_load_success_same_alt_imm E r1 pc_p pc_g pc_b pc_e pc_a w w' p g b e a ea (imm : Z) pc_a' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r1 imm →
+    decodeInstrW w = CLoad r1 r1 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -1103,7 +1103,7 @@ Section spec_rules.
   Lemma step_load_fail_tag_imm E pc_p pc_g pc_b pc_e pc_a
       w dst src (imm : Z) regs wa :
     ↑specN ⊆ E →
-    decodeInstrW w = Load dst src imm →
+    decodeInstrW w = CLoad dst src imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !!ᵣ src = Some wa →
@@ -1126,7 +1126,7 @@ Section spec_rules.
 
   Lemma step_load_fail_not_ra_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a (imm : Z) :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 imm →
+    decodeInstrW w = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = false ->
     r2 ≠ cnull ->
@@ -1167,7 +1167,7 @@ Section spec_rules.
 
   Lemma step_load_fail_not_withinbounds_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a ea (imm : Z) :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 imm →
+    decodeInstrW w = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e ea = false →
     (a + imm)%a = Some ea →
@@ -1210,7 +1210,7 @@ Section spec_rules.
   Lemma step_load_success_PC_imm E r2 pc_p pc_g pc_b pc_e pc_a w
         p g b e a ea (imm : Z) (t : bool) p' g' b' e' a' a'' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load PC r2 imm →
+    decodeInstrW w = CLoad PC r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e ea = true →
     (a + imm)%a = Some ea →
@@ -1264,7 +1264,7 @@ Section spec_rules.
   Lemma step_load_fail_addr_imm E pc_p pc_g pc_b pc_e pc_a
       w dst src (imm : Z) regs p g b e a :
     ↑specN ⊆ E →
-    decodeInstrW w = Load dst src imm →
+    decodeInstrW w = CLoad dst src imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !!ᵣ src = Some (WCap true p g b e a) →
@@ -1287,7 +1287,7 @@ Section spec_rules.
   Lemma step_load_fail_const_imm E pc_p pc_g pc_b pc_e pc_a
       w dst src (imm : Z) regs wa :
     ↑specN ⊆ E →
-    decodeInstrW w = Load dst src imm →
+    decodeInstrW w = CLoad dst src imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !!ᵣ src = Some wa →
@@ -1310,7 +1310,7 @@ Section spec_rules.
 
   Lemma step_load_fail_not_cap_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' wsrc (imm : Z) :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 r2 imm →
+    decodeInstrW w = CLoad r1 r2 imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_cap wsrc = false ->
 
@@ -1333,7 +1333,7 @@ Section spec_rules.
 
   Lemma step_load_success_fromPC_imm E r1 pc_p pc_g pc_b pc_e pc_a w w' w'' ea (imm : Z) pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 PC imm →
+    decodeInstrW w = CLoad r1 PC imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds pc_b pc_e ea = true →
     (pc_a + imm)%a = Some ea →
@@ -1392,7 +1392,7 @@ Section spec_rules.
   Lemma step_load_success_PC_PC_imm E pc_p pc_g pc_b pc_e pc_a w
         ea (imm : Z) (t : bool) p' g' b' e' a' a'' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load PC PC imm →
+    decodeInstrW w = CLoad PC PC imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds pc_b pc_e ea = true →
     (pc_a + imm)%a = Some ea →
@@ -1443,7 +1443,7 @@ Section spec_rules.
 
   Lemma step_load_success_fromPC_notinstr_imm E r1 pc_p pc_g pc_b pc_e pc_a w w' w'' ea (imm : Z) pc_a' dq dq' :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 PC imm →
+    decodeInstrW w = CLoad r1 PC imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds pc_b pc_e ea = true →
     (pc_a + imm)%a = Some ea →
@@ -1481,7 +1481,7 @@ Section spec_rules.
 
   Lemma step_load_success_fromPC_frominstr_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_a' w w'' dq (imm : Z) :
     ↑specN ⊆ E →
-    decodeInstrW w = Load r1 PC imm →
+    decodeInstrW w = CLoad r1 PC imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + imm)%a = Some pc_a →
     (pc_a + 1)%a = Some pc_a' →

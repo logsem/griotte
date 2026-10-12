@@ -86,25 +86,25 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (-1)%Z *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (a_stk ^+ 3)%a); solve_addr.
-    (* Load cgp csp *)
+    (* CLoad cgp csp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; solve_addr.
     (* Lea csp (-1)%Z *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (a_stk ^+ 2)%a); solve_addr.
-    (* Load cra csp *)
+    (* CLoad cra csp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; solve_addr.
     (* Lea csp (-1)%Z *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (a_stk ^+ 1)%a); solve_addr.
-    (* Load cs1 csp *)
+    (* CLoad cs1 csp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; solve_addr.
     (* Lea csp (-1)%Z *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some a_stk); solve_addr.
-    (* Load cs0 csp *)
+    (* CLoad cs0 csp *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; solve_addr.
     (* Mov ca0 ENOTENOUGHTRUSTEDSTACK *)

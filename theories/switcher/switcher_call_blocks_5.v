@@ -82,7 +82,7 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 3)%a ) ; solve_addr. }
-    (* Load cgp csp; *)
+    (* CLoad cgp csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 2)%a cgp csp
@@ -96,7 +96,7 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 2)%a ) ; solve_addr. }
-    (* Load cra csp; *)
+    (* CLoad cra csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 4)%a cra csp
@@ -110,7 +110,7 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 1)%a ) ; solve_addr. }
-    (* Load cs1 csp; *)
+    (* CLoad cs1 csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 6)%a cs1 csp
@@ -124,7 +124,7 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some a_stk ) ; solve_addr. }
-    (* Load cs0 csp; *)
+    (* CLoad cs0 csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 8)%a cs0 csp
@@ -213,7 +213,7 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 3)%a ) ; solve_addr. }
-    (* Load cgp csp; *)
+    (* CLoad cgp csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iEval (rewrite open_world_interp_empty) in "Hworld".
@@ -228,7 +228,7 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 2)%a ) ; solve_addr. }
-    (* Load cra csp; *)
+    (* CLoad cra csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 4)%a cra csp
@@ -242,7 +242,7 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 1)%a ) ; solve_addr. }
-    (* Load cs1 csp; *)
+    (* CLoad cs1 csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 6)%a cs1 csp
@@ -256,7 +256,7 @@ Section Switcher_Call_Blocks_5.
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some a_stk ) ; solve_addr. }
-    (* Load cs0 csp; *)
+    (* CLoad cs0 csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 8)%a cs0 csp

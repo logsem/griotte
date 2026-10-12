@@ -229,7 +229,7 @@ Qed.
 
   (*--- The revoker's sweep ---*)
 
-  (* The sweep untags a word iff the Load filter strips it. *)
+  (* The sweep untags a word iff the CLoad filter strips it. *)
   Lemma sweep_word_quarantined shadow w base :
     heap_cap_base w = Some base →
     shadow !! base = Some ShadowQuarantined →

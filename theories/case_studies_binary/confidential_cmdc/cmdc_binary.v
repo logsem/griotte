@@ -43,7 +43,7 @@ Section CMDC_Main.
 
       (* set c <- secret_c *)
       Lea cgp 3%Z;
-      Load ct0 cgp 0;
+      CLoad ct0 cgp 0;
       Lea cgp (-2)%Z;
       Store cgp ct0 0;
 
@@ -72,7 +72,7 @@ Section CMDC_Main.
 
       (* set b <- secret_b *)
       Lea cgp 1%Z;
-      Load ct0 cgp 0;
+      CLoad ct0 cgp 0;
       Lea cgp (-2)%Z;
       Store cgp ct0 0;
 
@@ -95,7 +95,7 @@ Section CMDC_Main.
   Definition cmdc_conf_pre_B_code : list Word :=
     encodeInstrsW [
       Lea cgp 3%Z;
-      Load ct0 cgp 0;
+      CLoad ct0 cgp 0;
       Lea cgp (-2)%Z;
       Store cgp ct0 0;
       Lea cgp (-1)%Z;

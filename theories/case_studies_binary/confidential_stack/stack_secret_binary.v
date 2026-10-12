@@ -37,7 +37,7 @@ Section Stack_secret_main.
   Definition stack_secret_main_code : list Word :=
     encodeInstrsW [
       (* keep the secret in main's stack frame, at a_stk *)
-      Load ct0 cgp 0;
+      CLoad ct0 cgp 0;
       Store csp ct0 0;
       Lea csp 1%Z;
       (* leave a stale copy at a_stk + 5, above the 4 words spilled by the switcher *)

@@ -77,7 +77,7 @@ int __cheri_compartment("known") run()
         (* csp = (RWL, Local, bstk, estk, bstk)  *)
         Store csp cgp 0; (* bstk -> (RW, Global, a, a+1, a) *)
         (* -- assert (a == 2) -- *)
-        Load ct0 cgp 0;
+        CLoad ct0 cgp 0;
         Mov ct1 2
       ]
       ++ assert_instrs 1 cgp cs0 cs1 (* asserts that ( *ct0 = *ct1 ) *)

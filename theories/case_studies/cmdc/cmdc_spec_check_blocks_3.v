@@ -32,7 +32,7 @@ Section CMDC_Check_Blocks_3.
     focus_block (S (S n)) "Hcode_main" of cmdc_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     change_pc_to (a_call ^+ 1)%a;
-    (* Load ct0 cgp 0 *)
+    (* CLoad ct0 cgp 0 *)
     iInstr "Hcode";
     [by apply not_mmio_not_shadow | done | split; [done | solve_addr] |];
     (* Mov ct1 0%Z, resp. Mov ct1 42%Z *)

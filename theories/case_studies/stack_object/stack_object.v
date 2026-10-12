@@ -94,7 +94,7 @@ int __cheri_compartment("known") run()
   Definition so_f_assert_prep_instrs : list Word :=
     encodeInstrsW [
       Lea csp (-2)%Z;
-      Load ct0 csp 0;
+      CLoad ct0 csp 0;
       Mov ct1 so_secret
     ].
 

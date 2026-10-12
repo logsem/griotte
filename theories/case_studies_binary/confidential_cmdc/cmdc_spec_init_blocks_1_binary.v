@@ -80,7 +80,7 @@ Section CMDC_Init_Blocks_1.
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (cgp_b ^+ 3)%a); auto; solve_addr.
 
-    (* Load ct0 cgp 0 *)
+    (* CLoad ct0 cgp 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [done| solve_addr].
 

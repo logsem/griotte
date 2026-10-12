@@ -63,7 +63,7 @@ Section HTS_Reload.
       "(HPC & Hcsp & Hca0 & Ha & Hcode & Hwit & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_reload_buffer_instrs.
-    (* Load ca0 csp (-1). *)
+    (* CLoad ca0 csp (-1). *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iDestruct (map_of_regs_3 with "HPC Hcsp Hca0")
@@ -239,7 +239,7 @@ Section HTS_Spec_Free.
          check halts. *)
       iDestruct (hts_world_quarantined_witness C ι b Wret Hι_ret with "Hworld")
         as "[Hworld #Hquar]".
-      (* Load ca0 csp (-1). *)
+      (* CLoad ca0 csp (-1). *)
       iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
         csp_b csp_e (hts_buffer b @@ ι) _ (LoadQuar ι)
         with "[- $HPC $Hcsp $Hca0 $Hslot $Hcode $Hquar]").
@@ -260,7 +260,7 @@ Section HTS_Spec_Free.
       solve_addr. }
     (* Live: the plain reload (variant 1) returns the saved buffer or its
        untagged copy. *)
-    (* Load ca0 csp (-1). *)
+    (* CLoad ca0 csp (-1). *)
     iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
       csp_b csp_e (hts_buffer b @@ ι) _ LoadPlain
       with "[- $HPC $Hcsp $Hca0 $Hslot $Hcode]").

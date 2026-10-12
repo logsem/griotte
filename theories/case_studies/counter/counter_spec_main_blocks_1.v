@@ -63,7 +63,7 @@ Section Counter_Main_Blocks_1.
     (* Block 0: increment the counter *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Load cs0 cgp 0 *)
+    (* CLoad cs0 cgp 0 *)
     iInstr "Hcode".
     { done. }
     { split; first done. apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }

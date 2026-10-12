@@ -81,7 +81,7 @@ Section Switcher.
         lea cs0 (-2)%Z;
         load cs0 cs0
       ]
-      ; (* Load and decode entry point nargs and offset *)
+      ; (* CLoad and decode entry point nargs and offset *)
       [
         unseal ct1 cs0 ct1;
         load cs0 ct1;

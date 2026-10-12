@@ -15,7 +15,7 @@ From griotte Require Export logical_words alloc_registry griotte_opsem griotte_o
     copy. *)
 
 (** Memory never covers a memory-mapped address (shadow region or revoker):
-    Load and Store reach those devices only through their dedicated branches. *)
+    CLoad and Store reach those devices only through their dedicated branches. *)
 Definition mem_avoids_mmio `{MachineParameters} (m : Mem) : Prop :=
   ∀ a, a ∈ dom m → is_mmio_address a = false.
 
@@ -66,7 +66,7 @@ Section mem_avoids_mmio.
     updatePC_gen φ imm = Some c → mem c.2 = mem φ.
   Proof. rewrite /updatePC_gen. repeat case_match; intros; simplify_eq; done. Qed.
 
-  (* Every instruction preserves the clause: Load and Store reach the shadow
+  (* Every instruction preserves the clause: CLoad and Store reach the shadow
      region and the revoker through their own branches, an ordinary store
      writes a non-MMIO address, and the sweep keeps the memory's domain. *)
   Lemma exec_mem_avoids_mmio i p φ :
@@ -353,7 +353,7 @@ Section erasure.
     - apply get_tag_store_word.
   Qed.
 
-  (** A Load: the physical result of the Load filter on the physical copy
+  (** A CLoad: the physical result of the CLoad filter on the physical copy
       [pw] of a memory word [v]. *)
   Definition load_filter (shadow : ShadowTbl) (p : Perm) (pw : Word) : option Word :=
     match heap_cap_base pw with

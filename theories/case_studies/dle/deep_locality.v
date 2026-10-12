@@ -70,7 +70,7 @@ Section DLE_Main.
       (* switcher_call to B.f *)
       Jalr cra ct0;
       (* assert (b==42) *)
-      Load ct0 cgp 0; (* ct0 -> b *)
+      CLoad ct0 cgp 0; (* ct0 -> b *)
       Mov ct1 42%Z  (* ct1 -> 42 *)
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)

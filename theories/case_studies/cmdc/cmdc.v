@@ -38,7 +38,7 @@ Section CMDC_Main.
     encodeInstrsW [
       Jalr cra ctp;
       (* assert c == 0 *)
-      Load ct0 cgp 0; (* ct0 -> c *)
+      CLoad ct0 cgp 0; (* ct0 -> c *)
       Mov ct1 0%Z
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
@@ -63,7 +63,7 @@ Section CMDC_Main.
     encodeInstrsW [
       Jalr cra ctp;
       (* assert b == 42 *)
-      Load ct0 cgp 0; (* ct0 -> c *)
+      CLoad ct0 cgp 0; (* ct0 -> c *)
       Mov ct1 42%Z
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)

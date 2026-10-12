@@ -625,7 +625,7 @@ Section wp_interp.
     (wi wsrc wsrc' wdst wdst' : Word)
     :
     ↑specN ⊆ E →
-    decodeInstrW wi = Load rdst rsrc 0 →
+    decodeInstrW wi = CLoad rdst rsrc 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
@@ -769,7 +769,7 @@ Section wp_interp.
     (wi wdst wdst' : Word)
     :
     ↑specN ⊆ E →
-    decodeInstrW wi = Load rdst rsrc 0 →
+    decodeInstrW wi = CLoad rdst rsrc 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->

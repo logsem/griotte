@@ -95,7 +95,7 @@ Section CMDC_Prep_Blocks_3.
     iInstr_lockstep "Hscode" "Hcode".
     1,2: transitivity (Some (cgp_b ^+ 2)%a); auto; subst cgp_c; solve_addr.
 
-    (* Load ct0 cgp 0 *)
+    (* CLoad ct0 cgp 0 *)
     iInstr_lockstep "Hscode" "Hcode".
     1,2: split; [done| solve_addr].
 

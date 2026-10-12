@@ -55,7 +55,7 @@ Section HTS_Spec_Assert.
     focus_block 20 "Hcode_main" of hts_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct0;ct1] as ["[Hct0 _]";"[Hct1 _]"].
-    (* Load ct0 cgp 0. *)
+    (* CLoad ct0 cgp 0. *)
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; [exact Hcgp_shadow|rewrite /withinBounds; solve_addr]. }
     { done. }

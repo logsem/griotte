@@ -138,7 +138,7 @@ Section KVS_spec_read.
     (* Lea cgp 1 *)
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx. }
-    (* Load ca1 cgp 0: the heap shadow can clear the returned tag. *)
+    (* CLoad ca1 cgp 0: the heap shadow can clear the returned tag. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_preserve_or_clear _ _ _ _ _ _ _ (a_read ^+ 7)%a with "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val]");
@@ -564,7 +564,7 @@ Section KVS_spec_read.
     iInstr "Hcode".
     { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a); [|done].
       apply withinBounds_true_iff in Hcgp_idx; solve_addr. }
-    (* Load ca1 cgp 0: the heap shadow can clear the returned tag. *)
+    (* CLoad ca1 cgp 0: the heap shadow can clear the returned tag. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (load_read_retained _ W C with
