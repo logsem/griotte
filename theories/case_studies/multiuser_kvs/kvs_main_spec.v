@@ -10,7 +10,6 @@ From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main
   kvs_main_spec_blocks.
 From griotte Require Import map_simpl register_tactics proofmode.
-From griotte Require Import allocator_common_preamble.
 
 Section KVS_main_spec.
   Context

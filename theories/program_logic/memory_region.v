@@ -339,6 +339,9 @@ Section codefrag.
   Global Instance codefrag_pers_persistent a0 cs : Persistent (codefrag_pers a0 cs).
   Proof. apply _. Qed.
 
+  Global Instance codefrag_pers_timeless a0 cs : Timeless (codefrag_pers a0 cs).
+  Proof. apply _. Qed.
+
   Lemma codefrag_contiguous_region_pers a0 cs :
     codefrag_pers a0 cs -∗
       ⌜ContiguousRegion a0 (length cs)⌝.
@@ -384,7 +387,36 @@ Section codefrag.
       destruct Hcr as [e He]. solve_addr.
   Qed.
 
+  (* Persistent regions: every cell is a discarded points-to. *)
+  Definition region_pointsto_pers (b e : Addr) (ws : list LWord) : iProp Σ :=
+    ([∗ list] k↦y1;y2 ∈ (finz.seq_between b e);ws, y1 ↦ₐ□ y2)%I.
+
+  Global Instance region_pointsto_pers_persistent b e ws :
+    Persistent (region_pointsto_pers b e ws).
+  Proof. apply _. Qed.
+
+  Global Instance region_pointsto_pers_timeless b e ws :
+    Timeless (region_pointsto_pers b e ws).
+  Proof. apply _. Qed.
+
+  Lemma region_pointsto_persist b e ws :
+    region_pointsto b e ws ==∗ region_pointsto_pers b e ws.
+  Proof.
+    iIntros "Hws". rewrite /region_pointsto /region_pointsto_pers.
+    rewrite !big_sepL2_alt. iDestruct "Hws" as "[$ Hws]".
+    iApply big_sepL_bupd. iApply (big_sepL_mono with "Hws").
+    iIntros (k [a w] _) "Ha". iApply (pointsto_persist with "Ha").
+  Qed.
+
 End codefrag.
+
+Global Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
+  (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
+
+(* Persistent code fragments are not unfolded by the typeclass search, so
+   that framing one over a concrete list of instructions does not unfold its
+   [[∗ list]]. *)
+#[global] Typeclasses Opaque codefrag_pers.
 
 Section region_addrs_zeroes.
 

@@ -332,12 +332,6 @@ Section Switcher_preamble.
 
 End Switcher_preamble.
 
-(* TODO: move to memory_region.v *)
-(** Persistent code fragments are not unfolded by the typeclass search, so
-    that framing a persistent code fragment over a concrete list of
-    instructions does not unfold its [[∗ list]]. *)
-#[global] Typeclasses Opaque codefrag_pers.
-
 (** * Code of the switcher
 
     Shared definitions about the code of the switcher, used by the

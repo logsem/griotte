@@ -6,19 +6,6 @@ From griotte Require Export call_stack.
 Section Switcher_Restore.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
 
-  (* TODO: move to rules_base.v *)
-  Lemma memMap_resource_2ne_dq (a1 a2 : Addr) dq1 dq2 (w1 w2 : LWord) :
-    a1 ≠ a2 →
-    ([∗ map] a↦dw ∈ prod_merge (<[a1:=dq1]> (<[a2:=dq2]> ∅)) (<[a1:=w1]> (<[a2:=w2]> ∅)),
-       a ↦ₐ{dw.1} dw.2)%I
-    ⊣⊢ a1 ↦ₐ{dq1} w1 ∗ a2 ↦ₐ{dq2} w2.
-  Proof.
-    intros Hne. rewrite /prod_merge -(insert_merge _ _ _ _ (dq1,w1)); auto.
-    rewrite -(insert_merge _ _ _ _ (dq2,w2)); auto. rewrite merge_empty.
-    rewrite big_sepM_insert; last by rewrite lookup_insert_ne.
-    rewrite big_sepM_insert; last done. rewrite big_sepM_empty right_id. done.
-  Qed.
-
   (** Restore one saved register under a load witness. The load does not
       fail, and its result satisfies [load_post] for that witness. *)
   Lemma switcher_load_stack_restore_witness {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'

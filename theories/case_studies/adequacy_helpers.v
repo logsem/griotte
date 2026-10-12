@@ -4,7 +4,7 @@ From griotte Require Import switcher_preamble assert_spec.
 From griotte Require Import rules call_stack.
 From griotte Require Import mkregion_helpers memory_region disjoint_regions_tactics.
 From griotte Require Import switcher_adequacy compartment_layout.
-From griotte Require Import allocator_resources allocator_common_preamble.
+From griotte Require Import allocator_resources.
 
 
 Section adequacy_helpers.
