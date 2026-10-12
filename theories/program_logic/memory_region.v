@@ -246,10 +246,96 @@ Section region.
 
    (*--------------------------------------------------------------------------*)
 
+  (** Persistent regions: every cell is a discarded points-to. *)
+  Definition region_pointsto_pers (b e : Addr) (ws : list LWord) : iProp Σ :=
+    ([∗ list] k↦y1;y2 ∈ (finz.seq_between b e);ws, y1 ↦ₐ□ y2)%I.
+
+  Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
+            (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
+
+  Global Instance region_pointsto_pers_persistent b e ws :
+    Persistent ([[ b , e ]] ↦ₐ□ [[ ws ]]).
+  Proof. apply _. Qed.
+
+  Global Instance region_pointsto_pers_timeless b e ws :
+    Timeless ([[ b , e ]] ↦ₐ□ [[ ws ]]).
+  Proof. apply _. Qed.
+
+  Lemma region_pointsto_persist b e ws :
+    [[ b , e ]] ↦ₐ [[ ws ]] ==∗ [[ b , e ]] ↦ₐ□ [[ ws ]].
+  Proof.
+    iIntros "Hws". rewrite /region_pointsto /region_pointsto_pers.
+    rewrite !big_sepL2_alt. iDestruct "Hws" as "[$ Hws]".
+    iApply big_sepL_bupd. iApply (big_sepL_mono with "Hws").
+    iIntros (k [a w] _) "Ha". iApply (pointsto_persist with "Ha").
+  Qed.
+
+  Lemma region_pointsto_pers_cons
+      (b b' e : Addr) (w : LWord) (ws : list LWord) :
+    (b + 1)%a = Some b' → (b' <= e)%a →
+    [[b, e]] ↦ₐ□ [[ w :: ws ]] ⊣⊢ b ↦ₐ□ w ∗ [[b', e]] ↦ₐ□ [[ ws ]].
+  Proof.
+    intros Hb' Hb'e.
+    rewrite /region_pointsto_pers.
+    rewrite (finz_seq_between_decomposition b b e).
+    2: revert Hb' Hb'e; clear; intros; split; solve_addr.
+    rewrite finz_seq_between_empty /=.
+    2: clear; solve_addr.
+    rewrite (_: (b ^+ 1) = b')%a.
+    2: revert Hb' Hb'e; clear; intros; solve_addr.
+    eauto.
+  Qed.
+
+  (** A persistent region is the separated conjunction of its cells. *)
+  Lemma region_pointsto_pers_cells (b e : Addr) (ws : list LWord) :
+    (b + length ws)%a = Some e →
+    [[ b , e ]] ↦ₐ□ [[ ws ]] ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ□ w.
+  Proof.
+    revert b. induction ws as [|w ws IH]; intros b Hb; cbn in Hb |- *.
+    - rewrite /region_pointsto_pers finz_seq_between_empty; [done|solve_addr].
+    - rewrite (region_pointsto_pers_cons b (b ^+ 1)%a); [|solve_addr|solve_addr].
+      rewrite IH; [|solve_addr].
+      rewrite (_ : (b ^+ 0%nat)%a = b); [|solve_addr].
+      f_equiv. apply big_sepL_proper. intros k y Hk%lookup_lt_Some.
+      rewrite (_ : ((b ^+ 1) ^+ k)%a = (b ^+ S k)%a); [done|solve_addr].
+  Qed.
+
+  (** [region_cells_pers] is [region_cells] with discarded points-to. *)
+  Fixpoint region_cells_from_pers (b : Addr) (i : nat) (w : LWord) (ws : list LWord) : iProp Σ :=
+    match ws with
+    | [] => cell_addr b i ↦ₐ□ w
+    | w' :: ws' => cell_addr b i ↦ₐ□ w ∗ region_cells_from_pers b (S i) w' ws'
+    end.
+
+  Definition region_cells_pers (b : Addr) (ws : list LWord) : iProp Σ :=
+    match ws with [] => emp | w :: ws' => region_cells_from_pers b 0 w ws' end.
+
+  Lemma region_cells_from_pers_big_sepL b i w ws :
+    region_cells_from_pers b i w ws ⊣⊢ [∗ list] k ↦ y ∈ w :: ws, (b ^+ (i + k)%nat)%a ↦ₐ□ y.
+  Proof.
+    revert i w. induction ws as [|w' ws IH]; intros i w; cbn [region_cells_from_pers].
+    - by rewrite big_sepL_singleton Nat.add_0_r cell_addr_eq.
+    - rewrite big_sepL_cons IH Nat.add_0_r cell_addr_eq.
+      f_equiv. apply big_sepL_proper. intros k y _. by rewrite Nat.add_succ_r.
+  Qed.
+
+  Lemma region_cells_pers_big_sepL b ws :
+    region_cells_pers b ws ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ□ w.
+  Proof. destruct ws as [|w ws]; first done. apply region_cells_from_pers_big_sepL. Qed.
+
+  Lemma region_pointsto_pers_region_cells (b e : Addr) (ws : list LWord) :
+    (b + length ws)%a = Some e →
+    [[ b , e ]] ↦ₐ□ [[ ws ]] ⊣⊢ region_cells_pers b ws.
+  Proof. intros. by rewrite region_cells_pers_big_sepL region_pointsto_pers_cells. Qed.
+
+   (*--------------------------------------------------------------------------*)
+
 End region.
 
 Global Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
             (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
+Global Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
+            (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
 Global Notation "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]" := (heap_region_pointsto ι b e ws)
             (at level 50, format "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]") : bi_scope.
 
@@ -272,18 +358,19 @@ Ltac list_spine l :=
 (** Unfold [region_cells b [w0; ...; wn]] into
     [b ↦ₐ w0 ∗ (b ^+ 1) ↦ₐ w1 ∗ ... ∗ (b ^+ n) ↦ₐ wn], in [h]. *)
 Ltac region_cells_simpl_in h :=
-  iEval (cbn [region_cells region_cells_from cell_addr];
+  iEval (cbn [region_cells region_cells_from region_cells_pers region_cells_from_pers cell_addr];
          cbv [Z.of_nat Pos.of_succ_nat Pos.succ]) in h.
 
 (** Same as [region_cells_simpl_in], in the goal. *)
 Ltac region_cells_simpl :=
-  iEval (cbn [region_cells region_cells_from cell_addr];
+  iEval (cbn [region_cells region_cells_from region_cells_pers region_cells_from_pers cell_addr];
          cbv [Z.of_nat Pos.of_succ_nat Pos.succ]).
 
 (** Split [h : [[b, e]] ↦ₐ [[ws]]], for a concrete list [ws = [w0; ...; wn]]
     (possibly behind definitions), into
     [b ↦ₐ w0 ∗ (b ^+ 1) ↦ₐ w1 ∗ ... ∗ (b ^+ n) ↦ₐ wn], destructed with
-    [pat]. The side condition [(b + length ws)%a = Some e] is solved by
+    [pat]; a persistent region [[b, e]] ↦ₐ□ [[ws]] is split into persistent
+    cells. The side condition [(b + length ws)%a = Some e] is solved by
     [done] or [solve_addr]. *)
 Tactic Notation "iRegionSplit" constr(h) "as" constr(pat) :=
   lazymatch goal with |- environments.envs_entails ?Δ _ =>
@@ -293,7 +380,12 @@ Tactic Notation "iRegionSplit" constr(h) "as" constr(pat) :=
       let x := iFresh in
       iDestruct (region_pointsto_region_cells b e ws with h) as x;
       [first [done | solve_addr] | region_cells_simpl_in x; iDestruct x as pat]
-  | _ => fail "iRegionSplit:" h "is not of the form [[_, _]] ↦ₐ [[_]]"
+  | Some (_, region_pointsto_pers ?b ?e ?ws) =>
+      let ws := list_spine ws in
+      let x := iFresh in
+      iDestruct (region_pointsto_pers_region_cells b e ws with h) as x;
+      [first [done | solve_addr] | region_cells_simpl_in x; iDestruct x as pat]
+  | _ => fail "iRegionSplit:" h "is not of the form [[_, _]] ↦ₐ [[_]] or [[_, _]] ↦ₐ□ [[_]]"
   end end.
 
 (** Turn the goal [[[b, e]] ↦ₐ [[ws]]], for a concrete list
@@ -331,21 +423,27 @@ Section codefrag.
     solve_addr.
   Qed.
 
-  (* Persistent code: every cell is a discarded points-to. *)
-  Definition codefrag_pers (a0: Addr) (cs: list Word) : iProp Σ :=
+  (* Persistent code: every cell is a discarded points-to. The definition is
+     sealed, so that unifying a persistent code fragment over a concrete list
+     of instructions (e.g. when framing) never unfolds its [[∗ list]]. *)
+  Local Definition codefrag_pers_def (a0: Addr) (cs: list Word) : iProp Σ :=
     (⌜ContiguousRegion a0 (length cs)⌝ ∗
      [∗ list] i ↦ w ∈ cs, (a0 ^+ i)%a ↦ₐ□ lword_of_word w)%I.
+  Local Definition codefrag_pers_aux : seal (@codefrag_pers_def). Proof. by eexists. Qed.
+  Definition codefrag_pers := codefrag_pers_aux.(stdpp.base.unseal).
+  Local Definition codefrag_pers_unseal :
+    @codefrag_pers = @codefrag_pers_def := codefrag_pers_aux.(seal_eq).
 
   Global Instance codefrag_pers_persistent a0 cs : Persistent (codefrag_pers a0 cs).
-  Proof. apply _. Qed.
+  Proof. rewrite codefrag_pers_unseal. apply _. Qed.
 
   Global Instance codefrag_pers_timeless a0 cs : Timeless (codefrag_pers a0 cs).
-  Proof. apply _. Qed.
+  Proof. rewrite codefrag_pers_unseal. apply _. Qed.
 
   Lemma codefrag_contiguous_region_pers a0 cs :
     codefrag_pers a0 cs -∗
       ⌜ContiguousRegion a0 (length cs)⌝.
-  Proof using. iIntros "[$ _]". Qed.
+  Proof using. rewrite codefrag_pers_unseal. iIntros "[$ _]". Qed.
 
   Lemma codefrag_persist a0 cs :
     codefrag a0 cs ==∗ codefrag_pers a0 cs.
@@ -353,7 +451,7 @@ Section codefrag.
     iIntros "Hcs".
     iDestruct (codefrag_contiguous_region with "Hcs") as %Hcr.
     destruct Hcr as [e He].
-    rewrite /codefrag /codefrag_pers region_pointsto_cells; last first.
+    rewrite /codefrag codefrag_pers_unseal /codefrag_pers_def region_pointsto_cells; last first.
     { rewrite length_fmap. solve_addr. }
     iSplitR; first (iPureIntro; eexists; eauto).
     rewrite big_sepL_fmap.
@@ -365,6 +463,7 @@ Section codefrag.
     cs !! i = Some w →
     codefrag_pers a0 cs -∗ (a0 ^+ i)%a ↦ₐ□ lword_of_word w.
   Proof.
+    rewrite codefrag_pers_unseal.
     iIntros (Hi) "[_ Hcs]".
     iApply (big_sepL_lookup with "Hcs"); eauto.
   Qed.
@@ -373,6 +472,7 @@ Section codefrag.
     codefrag_pers a0 (l1 ++ l2) -∗
     codefrag_pers a0 l1 ∗ codefrag_pers (a0 ^+ length l1)%a l2.
   Proof.
+    rewrite codefrag_pers_unseal.
     iIntros "[%Hcr Hcs]".
     rewrite length_app in Hcr.
     rewrite big_sepL_app. iDestruct "Hcs" as "[H1 H2]".
@@ -387,36 +487,7 @@ Section codefrag.
       destruct Hcr as [e He]. solve_addr.
   Qed.
 
-  (* Persistent regions: every cell is a discarded points-to. *)
-  Definition region_pointsto_pers (b e : Addr) (ws : list LWord) : iProp Σ :=
-    ([∗ list] k↦y1;y2 ∈ (finz.seq_between b e);ws, y1 ↦ₐ□ y2)%I.
-
-  Global Instance region_pointsto_pers_persistent b e ws :
-    Persistent (region_pointsto_pers b e ws).
-  Proof. apply _. Qed.
-
-  Global Instance region_pointsto_pers_timeless b e ws :
-    Timeless (region_pointsto_pers b e ws).
-  Proof. apply _. Qed.
-
-  Lemma region_pointsto_persist b e ws :
-    region_pointsto b e ws ==∗ region_pointsto_pers b e ws.
-  Proof.
-    iIntros "Hws". rewrite /region_pointsto /region_pointsto_pers.
-    rewrite !big_sepL2_alt. iDestruct "Hws" as "[$ Hws]".
-    iApply big_sepL_bupd. iApply (big_sepL_mono with "Hws").
-    iIntros (k [a w] _) "Ha". iApply (pointsto_persist with "Ha").
-  Qed.
-
 End codefrag.
-
-Global Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
-  (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
-
-(* Persistent code fragments are not unfolded by the typeclass search, so
-   that framing one over a concrete list of instructions does not unfold its
-   [[∗ list]]. *)
-#[global] Typeclasses Opaque codefrag_pers.
 
 Section region_addrs_zeroes.
 
