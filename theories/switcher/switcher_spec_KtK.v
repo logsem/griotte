@@ -104,7 +104,6 @@ Section Switcher_KtK.
     (cstk : CSTK)
     (nargs : nat)
     (E : coPset)
-    (Nexp_tbl : namespace)
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
@@ -133,12 +132,10 @@ Section Switcher_KtK.
     is_arg_rmap arg_rmap 8 ->
 
     na_inv cerise_nais Nswitcher switcher_inv
-    ∗ inv (export_table_PCCN Nexp_tbl)
-        (btbl_tgt ↦ₐ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt)
-    ∗ inv (export_table_CGPN Nexp_tbl)
-        ((btbl_tgt ^+ 1)%a ↦ₐ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt)
-    ∗ inv (export_table_entryN Nexp_tbl atbl_tgt)
-        (atbl_tgt ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off_tgt))
+    ∗ switcher_static
+    ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
+    ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off_tgt)
     ∗ na_own cerise_nais E
     ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -205,17 +202,17 @@ Section Switcher_KtK.
     intros a_stk4 wct1_caller.
     iIntros (Hstk_heap Hstk_shadow Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
              HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap)
-      "(#Hswitcher & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
+      "(#Hswitcher & #Hstatic & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".
 
     iApply (switcher_cc_specification_known_to_known
               Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
               b_stk e_stk a_stk stk_mem arg_rmap rmap cstk nargs E
-              Nexp_tbl btbl_tgt atbl_tgt etbl_tgt
+              btbl_tgt atbl_tgt etbl_tgt
               bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt);
       try assumption.
-    iFrame "Hswitcher Hinv_pcc Hinv_cgp Hinv_entry
+    iFrame "Hswitcher Hstatic Hinv_pcc Hinv_cgp Hinv_entry
             Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1
             Hargs Hregs Hstk Hcstk".
     iNext.
@@ -296,7 +293,7 @@ Section Switcher_KtK.
                   Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
                   wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk E
                   with
-                  "[$Hswitcher $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
+                  "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                     $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hretpost]").
         { exact Hstk_heap. }
         { exact Hstk_shadow. }

@@ -39,12 +39,12 @@ Section switcher_macros.
       ∗ csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
       ∗ interp W C (WCap true csp_p csp_g csp_b csp_e csp_a)
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
-      ∗ codefrag pc_a (clear_stack_instrs r1 r2)
+      ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2)
       ∗ world_interp W C
       ∗ ▷ ( (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
              ∗ csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
              ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_e
-             ∗ codefrag pc_a (clear_stack_instrs r1 r2))
+             ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2))
             ∗ world_interp W C
             -∗ WP Seq (Instr Executable) {{ φ }})
       ∗ ▷ φ FailedV
@@ -52,7 +52,7 @@ Section switcher_macros.
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
     iIntros (Hpc_exec Hbounds Hr1cnull Hr2cnull)
-      "(HPC & Hcsp & Hinterp & Hr1 & Hr2 & Hcode & Hworld_interp & Hφ & Hfailed)".
+      "(HPC & Hcsp & Hinterp & Hr1 & Hr2 & #Hcode & Hworld_interp & Hφ & Hfailed)".
     codefrag_facts "Hcode". clear H0.
 
     (* --- Sub r1 r2 r1 --- *)
@@ -73,7 +73,7 @@ Section switcher_macros.
       iInstr "Hcode".
       (* --- Jmp 5 ---- *)
       iInstr "Hcode".
-      iApply "Hφ". subst. iFrame.
+      iApply "Hφ". subst. iFrame "∗ #".
     - (* csp_a ≠ csp_2 ==> another iteration (or failure) *)
       (* --- Jnz 2 r1 --- *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -82,7 +82,7 @@ Section switcher_macros.
       { intros Hcontr; inversion Hcontr; solve_addr. }
       iIntros "!> (HPC & Hi & Hct2)".
       wp_pure.
-      iSpecialize ("Hcode" with "[$]").
+      iClear "Hi".
 
       (* --- Store r2 0%Z --- *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -93,7 +93,7 @@ Section switcher_macros.
       & Hworld_interp & %Hwa & %Hstorebounds)] /=".
       { wp_pure. wp_end. iFrame. }
       wp_pure.
-      iSpecialize ("Hcode" with "[$]").
+      iClear "Hi".
 
       (* --- Lea r2 1 --- *)
       assert (is_Some (csp_a + 1)%a) as [f Ha].
@@ -109,7 +109,7 @@ Section switcher_macros.
 
       (* IH *)
       replace (csp_a - csp_e + 1)%Z with (f - csp_e)%Z by solve_addr.
-      iApply ("IH" $! f with "[] Hworld_interp Hφ Hfailed Hct2 Hcode HPC Hr2 Hcsp").
+      iApply ("IH" $! f with "[] Hworld_interp Hφ Hfailed Hct2 HPC Hr2 Hcsp").
       iApply interp_lea;eauto.
       destruct csp_p,rx,w;auto. done.
   Qed.
@@ -186,7 +186,7 @@ Section switcher_macros.
                                           then interp W C warg
                                           else True
         )
-      ∗ codefrag pc_a clear_registers_pre_call_skip_instrs
+      ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
       ∗ ▷ ( (∃ arg_rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
@@ -197,12 +197,12 @@ Section switcher_macros.
                        then interp W C warg
                        else ⌜ warg = WInt 0⌝
                 )
-              ∗ codefrag pc_a clear_registers_pre_call_skip_instrs)
+              ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs)
                -∗ WP Seq (Instr Executable) {{ φ }})
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hexec Hbounds Hargmap Hz) "(HPC & Hct2 & Hargs & Hcode & Hcont)".
+    iIntros (Hexec Hbounds Hargmap Hz) "(HPC & Hct2 & Hargs & #Hcode & Hcont)".
     codefrag_facts "Hcode". clear H0.
     destruct (is_arg_rmap_8_inv _ Hargmap) as (w0 & w1 & w2 & w3 & w4 & w5 & w & ->).
     clear Hargmap.

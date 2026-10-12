@@ -55,8 +55,7 @@ Section fundamental.
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
-    switcher_code ∗
-    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    switcher_static ∗
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
@@ -74,22 +73,23 @@ Section fundamental.
        then close the switcher invariant and use the validity of the return
        routine ([interp_expr_switcher_return]). *)
     iIntros (Hfull_rmap Hstk Hframe Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Hot_bounds)
-      "(#Hinv_switcher & #Hreg & Hclose_switcher_inv & Hna & Hmtdc & Htstk & Hcode & Hb_switcher
+      "(#Hinv_switcher & #Hreg & Hclose_switcher_inv & Hna & Hmtdc & Htstk & #Hstatic
       & Hcstk_full & Hstk_interp & #Hp_ot_switcher & HPC & Hcsp & Hct2 & Hctp & Hrmap
       & Hworld_interp & Hcont & Hcstk)".
+    iPoseProof "Hstatic" as "[#Hcode _]".
     specialize (Hfull_rmap ca0) as HH; destruct HH as [? ?].
     specialize (Hfull_rmap ca1) as HH; destruct HH as [? ?].
     iExtract "Hrmap" ca0 as "Hca0".
     iExtract "Hrmap" ca1 as "Hca1".
     iApply (switcher_call_block_17_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
-    iNext; iIntros "(HPC & Hca0 & Hca1 & Hcode)".
+    iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
     iMod ("Hclose_switcher_inv" with
-      "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
+      "[$Hna $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
     { iNext. iExists _,_. iFrame "∗ # %".
       iPureIntro; split; auto. }
 
     iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1;PC].
-    iApply interp_expr_switcher_return; iFrame "∗%#".
+    iApply (interp_expr_switcher_return with "[$Hinv_switcher $Hstatic]"); iFrame "∗%#".
     rewrite /interp_reg /=.
     iSplit.
     + rewrite /full_map.
@@ -135,8 +135,7 @@ Section fundamental.
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
-    switcher_code ∗
-    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    switcher_static ∗
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
@@ -162,8 +161,9 @@ Section fundamental.
        then close the switcher invariant and [switcher_jump_to_caller_spec]. *)
     iIntros (Hdom Hframe Hstk_bounds Hstk_mmio Hlen_lv Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Hot_bounds)
       "(#Hcs0v & #Hcs1v & #Hcrav & #Hcgpv & #Hspv & Hclose_switcher_inv & Hna & Hmtdc & Htstk
-      & Hcode & Hb_switcher & Hcstk_full & Hstk_interp & #Hp_ot_switcher & HPC & Hcs0 & Hcs1 & Hcgp
+      & #Hstatic & Hcstk_full & Hstk_interp & #Hp_ot_switcher & HPC & Hcs0 & Hcs1 & Hcgp
       & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk & Hstk_opened & Hrmap & Hcont & Hcstk)".
+    iPoseProof "Hstatic" as "[#Hcode _]".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
     assert (4 <= length lv) as Hlen_lv4.
     { rewrite -Hlen_lv finz_seq_between_length /finz.dist. solve_addr. }
@@ -177,7 +177,7 @@ Section fundamental.
     { repeat (rewrite dom_insert_L). repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
       "((%Hrcgp & %Hrcra & %Hrcs0 & %Hrcs1) & %Hrmap' & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
-      & Hcells & Hrmap & Hcode & Hlc)".
+      & Hcells & Hrmap & _ & Hlc)".
     iDestruct (interp_load_heap with "Hcs0v") as "#Hrcs0v"; first done.
     iDestruct (interp_load_heap with "Hcs1v") as "#Hrcs1v"; first done.
     iDestruct (interp_load_heap with "Hcrav") as "#Hrcrav"; first done.
@@ -196,7 +196,7 @@ Section fundamental.
       rewrite lookup_drop in Hk. exact Hk. }
 
     (* Close the switcher invariant *)
-    iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
+    iMod ("Hclose_switcher_inv" with "[$Hna $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
     { iNext. iExists _,_. iFrame "∗ # %".
       iPureIntro; split; auto.
     }
@@ -207,7 +207,8 @@ Section fundamental.
   Qed.
 
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static
     ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     (* Outline of the proof:
@@ -229,9 +230,10 @@ Section fundamental.
        - [switcher_call_blocks_4_spec]: load the callee and jump to it;
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
+    iPoseProof "Hstatic" as "[#Hcode #Hb_switcher]".
 
     (* Open the switcher invariant *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
@@ -239,7 +241,7 @@ Section fundamental.
     rewrite /switcher_inv.
     iDestruct "Hswitcher_inv"
       as (a_tstk cstk' tstk_next)
-           "(>Hmtdc & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
+           "(>Hmtdc & >%Hot_bounds & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
            & Hcstk_full & >%Hlen_cstk & Hstk_interp & #Hp_ot_switcher)".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hinv_switcher" as hinv_switcher.
@@ -255,12 +257,12 @@ Section fundamental.
 
     (* Blocks 0-1: checks on the stack pointer *)
     iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
-    iNext; iIntros "[(%Hchecked & HPC & Hcsp & Hct2 & Hctp & Hcode)
-                    | (_ & %zct2 & %zctp & HPC & Hcsp & Hct2 & Hctp & Hcode)]";
+    iNext; iIntros "[(%Hchecked & HPC & Hcsp & Hct2 & Hctp & _)
+                    | (_ & %zct2 & %zctp & HPC & Hcsp & Hct2 & Hctp & _)]";
       cycle 1.
     { (* The checks fail: force the unwinding of the call *)
       iApply (interp_switcher_call_force_unwind with
-        "[$Hinv_switcher $Hreg $Hclose_switcher_inv $Hna $Hmtdc $Htstk $Hcode $Hb_switcher
+        "[$Hinv_switcher $Hreg $Hclose_switcher_inv $Hna $Hmtdc $Htstk $Hstatic
           $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hcsp $Hct2 $Hctp $Hrmap
           $Hworld_interp $Hcont $Hcstk]"); done.
     }
@@ -311,7 +313,7 @@ Section fundamental.
     iApply (switcher_call_blocks_2_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Htstk $Hcode]");
       [done|done|done|].
-    iNext; iIntros "(%Hstk_bounds & Hcs1 & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hcode & Hbranch)".
+    iNext; iIntros "(%Hstk_bounds & Hcs1 & Hcra & Hcgp & Hcsp & Hcells & Hstk & _ & Hbranch)".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
     assert (4 <= length lv) as Hlen_lv4.
     { rewrite -Hlen_lv finz_seq_between_length /finz.dist. solve_addr. }
@@ -321,8 +323,8 @@ Section fundamental.
     { (* The trusted stack is exhausted *)
       iApply (interp_switcher_call_tstack_exhausted W C Nswitcher cstk _ Ws Cs _ b e a lv
                 wcs0 wcs1 wcra wcgp with
-        "[$Hcs0v $Hcs1v $Hcrav $Hcgpv $Hspv $Hclose_switcher_inv $Hna $Hmtdc $Htstk $Hcode
-          $Hb_switcher $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hcs0 $Hcs1 $Hcgp $Hcra
+        "[$Hcs0v $Hcs1v $Hcrav $Hcgpv $Hspv $Hclose_switcher_inv $Hna $Hmtdc $Htstk $Hstatic
+          $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hcs0 $Hcs1 $Hcgp $Hcra
           $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk $Hstk_opened $Hrmap $Hcont $Hcstk]"); try done.
       repeat (rewrite dom_delete_L). clear -Hfull_rmap.
       apply lregmap_full_dom in Hfull_rmap. rewrite Hfull_rmap. set_solver.
@@ -331,7 +333,7 @@ Section fundamental.
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
-    iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & Hb_switcher & Hct1 & Hcode)".
+    iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
 
     (* Close the caller's stack frame *)
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; [done|solve_addr|].
@@ -347,9 +349,9 @@ Section fundamental.
       apply lookup_replicate in Hk as [-> _]. iApply interp_int. }
 
     iDestruct ("Hentry_prop" with "[//] [//]")
-      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Nexp_tbl Heq Htbl Hbtbl Hbtbl1 Hnargs
+      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Heq Htbl Hbtbl Hbtbl1 Hnargs
           Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-           "(Htbl1 & Htbl2 & Htbl3 & #Hentry & _ & #Hexec)".
+           "(#Htbl1 & #Htbl2 & #Htbl3 & #Hentry & _ & #Hexec)".
     rewrite /lword_of_word in Heq; simplify_eq.
     iSpecialize ("Hexec" $! W with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }
@@ -396,7 +398,7 @@ Section fundamental.
       - intros [? [? ?] ]. apply elem_of_difference.
         split;auto. apply all_registers_s_correct. }
     iNext; iIntros (arg_rmap' rmap'')
-      "(%Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hargs & Hregs & Hcode)".
+      "(%Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)
     set (frame :=
@@ -410,7 +412,7 @@ Section fundamental.
               ccrel := Unknown_to_Unknown
            |}).
     iMod (switcher_inv_push_frame frame cstk with
-           "Hcstk_full Hcstk Hmtdc Ha_tstk1 Htstk Hstk_interp [] Hcode Hb_switcher Hp_ot_switcher")
+           "Hcstk_full Hcstk Hmtdc Ha_tstk1 Htstk Hstk_interp [] Hp_ot_switcher")
       as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|done| |].
     { by rewrite /cframe_stk_own /=. }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
@@ -435,15 +437,16 @@ Section fundamental.
   Qed.
 
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static
     ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
-    iIntros "#Hinv".
+    iIntros "[#Hinv #Hstatic]".
     rewrite fixpoint_interp1_eq /=.
     iSplit; first (iPureIntro; exact switcher_not_heap_range).
     iIntros "!> %regs %W' % %".
     destruct g'; first done.
-    iNext ; iApply (interp_expr_switcher_call with "Hinv").
+    iNext ; iApply (interp_expr_switcher_call with "[$Hinv $Hstatic]").
   Qed.
 
 End fundamental.

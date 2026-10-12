@@ -6,9 +6,22 @@ From griotte Require Export call_stack.
 Section Switcher_Restore.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
 
+  (* TODO: move to rules_base.v *)
+  Lemma memMap_resource_2ne_dq (a1 a2 : Addr) dq1 dq2 (w1 w2 : LWord) :
+    a1 ≠ a2 →
+    ([∗ map] a↦dw ∈ prod_merge (<[a1:=dq1]> (<[a2:=dq2]> ∅)) (<[a1:=w1]> (<[a2:=w2]> ∅)),
+       a ↦ₐ{dw.1} dw.2)%I
+    ⊣⊢ a1 ↦ₐ{dq1} w1 ∗ a2 ↦ₐ{dq2} w2.
+  Proof.
+    intros Hne. rewrite /prod_merge -(insert_merge _ _ _ _ (dq1,w1)); auto.
+    rewrite -(insert_merge _ _ _ _ (dq2,w2)); auto. rewrite merge_empty.
+    rewrite big_sepM_insert; last by rewrite lookup_insert_ne.
+    rewrite big_sepM_insert; last done. rewrite big_sepM_empty right_id. done.
+  Qed.
+
   (** Restore one saved register under a load witness. The load does not
       fail, and its result satisfies [load_post] for that witness. *)
-  Lemma switcher_load_stack_restore_witness E pc_p pc_g pc_b pc_e pc_a pc_a'
+  Lemma switcher_load_stack_restore_witness {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src (wi wd : LWord) b e a (raw : LWord) wit :
     is_shadow_address a = false ->
     decodeInstrW wi.(lw) = CLoad dst src 0 ->
@@ -16,20 +29,25 @@ Section Switcher_Restore.
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_post wit RWL raw actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ load_witness_res wit }}}.
   Proof.
     iIntros (Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hwit) HΦ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
-    iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
-    iApply (wp_load_witness_imm with "[$Hmem $Hwit $Hmap]"); eauto.
+    iDestruct (pointsto_ne with "Ha Hi") as %Hpc_a.
+    iDestruct (memMap_resource_2ne_dq pc_a a dq (DfracOwn 1) wi raw with "[$Hi $Ha]")
+      as "Hmem"; first done.
+    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
+      as "Hshadow".
+    { by rewrite big_sepM_empty. }
+    iApply (wp_load_general_shadow_imm with "[$Hmem $Hshadow $Hwit $Hmap]"); eauto.
     { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
@@ -41,7 +59,8 @@ Section Switcher_Restore.
       rewrite Hshadow.
       destruct (is_revoker_address a); first done.
       eexists. by simplify_map_eq. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hwit & Hmap)".
+    { by rewrite !dom_insert_L. }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & Hwit & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
@@ -70,14 +89,14 @@ Section Switcher_Restore.
     rewrite (insert_insert_ne _ dst PC) // insert_insert_eq.
     rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
     iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
-    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+    iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; first done.
     iApply "HΦ". by iFrame.
   Qed.
 
   (** Restore one saved register without a witness. Success exposes
       [load_heap], so subsequent loads need not observe the same tag, even
       for an aliased base. *)
-  Lemma switcher_load_stack_restore E pc_p pc_g pc_b pc_e pc_a pc_a'
+  Lemma switcher_load_stack_restore {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src (wi wd : LWord) b e a (raw : LWord) :
     is_shadow_address a = false ->
     decodeInstrW wi.(lw) = CLoad dst src 0 ->
@@ -85,11 +104,11 @@ Section Switcher_Restore.
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw }}}.
   Proof.
@@ -121,7 +140,7 @@ Section Switcher_Restore_Interp.
     rewrite Hheap_eq. by iApply heap_provenance_load_witness.
   Qed.
 
-  Lemma switcher_load_stack_restore_world E Wworld Wval C opened
+  Lemma switcher_load_stack_restore_world {dq : dfrac} E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (raw : LWord) :
     heap_std Wworld = heap_std Wval ->
     is_shadow_address a = false ->
@@ -130,13 +149,13 @@ Section Switcher_Restore_Interp.
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
         world_interp_open Wworld C opened }}}
       Instr Executable @ E
     {{{ actual, RET NextIV;
         ⌜load_heap_in_world Wval raw actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
   Proof.
@@ -151,7 +170,7 @@ Section Switcher_Restore_Interp.
     iApply "HΦ". by iFrame.
   Qed.
 
-  Lemma switcher_load_stack_restore_interp E Wworld Wval C opened
+  Lemma switcher_load_stack_restore_interp {dq : dfrac} E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (raw : LWord) :
     heap_std Wworld = heap_std Wval ->
     is_shadow_address a = false ->
@@ -160,12 +179,12 @@ Section Switcher_Restore_Interp.
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_heap_in_world Wval raw actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.

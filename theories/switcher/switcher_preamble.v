@@ -182,7 +182,6 @@ Section Switcher_preamble.
           (bpcc epcc : Addr)
           (bcgp ecgp : Addr)
           (nargs : nat) (off : Z)
-          (Cname : namespace)
          ,
            ⌜ w = WCap true RO g_tbl b_tbl e_tbl a_tbl ⌝
            ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
@@ -195,9 +194,9 @@ Section Switcher_preamble.
            ∗ ⌜ is_shadow_address (b_tbl ^+ 1)%a = false ⌝
            ∗ ⌜ is_heap_address bpcc = false ⌝
            ∗ ⌜ is_heap_address bcgp = false ⌝
-           ∗ inv (export_table_PCCN Cname) ( b_tbl ↦ₐ WCap true RX Global bpcc epcc bpcc)
-           ∗ inv (export_table_CGPN Cname) ( (b_tbl ^+ 1)%a ↦ₐ WCap true RW Global bcgp ecgp bcgp)
-           ∗ inv (export_table_entryN Cname a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
+           ∗ b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc
+           ∗ (b_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp ecgp bcgp
+           ∗ a_tbl ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off)
            ∗ (seal_capability w.(lw) ot_switcher) ↦□ₑ nargs
            ∗ (seal_capability (borrow w.(lw)) ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
@@ -222,7 +221,7 @@ Section Switcher_preamble.
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
        Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
@@ -244,7 +243,7 @@ Section Switcher_preamble.
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
        Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
     iFrame "#∗%".
@@ -303,10 +302,11 @@ Section Switcher_preamble.
       As a reminder, the fragmental view [cstack_frag] is given by the expression relation
       (or any of its variants).
 
-      The invariant also contains the code of the switcher,
-      as well as the unsealing capability of the switcher's otype.
+      The code of the switcher and the unsealing capability of the switcher's
+      otype are read-only: they are not in the invariant, but in the persistent
+      resource [switcher_static].
 
-      Finally, it holds the points-to predicates of the trusted stack.
+      Finally, the invariant holds the points-to predicates of the trusted stack.
       The unused part `[a_tstk+1, e_trusted_stack)` contains some unknown values.
       The used part is contained in the definition of [stack_interp].
    *)
@@ -314,8 +314,6 @@ Section Switcher_preamble.
     ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list LWord),
      mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk
      ∗ ⌜ (ot_switcher < (ot_switcher ^+1) )%ot ⌝
-     ∗ codefrag a_switcher_call switcher_instrs
-     ∗ b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
      ∗ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
      ∗ ⌜ (b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a ⌝
      ∗ cstack_full cstk
@@ -323,7 +321,22 @@ Section Switcher_preamble.
      ∗ cstack_interp cstk a_tstk (* link the topmost frame of cstk to the state *)
      ∗ seal_pred ot_switcher ot_switcher_propC.
 
+  (** [switcher_static] holds the read-only memory of the switcher: its code,
+      and the unsealing capability of the switcher's otype. *)
+  Definition switcher_static : iProp Σ :=
+    codefrag_pers a_switcher_call switcher_instrs ∗
+    b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher.
+
+  Global Instance switcher_static_persistent : Persistent switcher_static.
+  Proof. apply _. Qed.
+
 End Switcher_preamble.
+
+(* TODO: move to memory_region.v *)
+(** Persistent code fragments are not unfolded by the typeclass search, so
+    that framing a persistent code fragment over a concrete list of
+    instructions does not unfold its [[∗ list]]. *)
+#[global] Typeclasses Opaque codefrag_pers.
 
 (** * Code of the switcher
 
@@ -342,7 +355,7 @@ Notation switcher_pc off :=
 Notation switcher_block_pc n := (switcher_pc (switcher_block_offset n)) (only parsing).
 
 (** The code of the switcher. *)
-Notation switcher_code := (codefrag a_switcher_call switcher_instrs) (only parsing).
+Notation switcher_code := (codefrag_pers a_switcher_call switcher_instrs) (only parsing).
 
 (** Unfold the code of the switcher in [h], in order to focus on its blocks. *)
 Ltac switcher_unfold_code h :=

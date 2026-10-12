@@ -312,19 +312,17 @@ Section Switcher_Call_World.
     [[ (a_tstk ^+ 2)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     cstack_interp cstk' a_tstk -∗
     cframe_stk_own frm -∗
-    switcher_code -∗
-    b_switcher ↦ₐ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher -∗
     seal_pred ot_switcher ot_switcher_propC
     ==∗
     switcher_inv ∗ cstack_frag (frm :: cstk).
   Proof.
     iIntros (Htstk_b Ha_tstk2 Ha_tstk1 Hlen_cstk Hot (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
-      "Hcstk_full Hcstk Hmtdc Ha_tstk1 Htstk Hstk_interp Hframe Hcode Hb_switcher #Hp_ot_switcher".
+      "Hcstk_full Hcstk Hmtdc Ha_tstk1 Htstk Hstk_interp Hframe #Hp_ot_switcher".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     iMod (cstack_update _ _ (frm :: cstk) with "Hcstk_full Hcstk") as "[Hcstk_full $]".
     iModIntro.
     iExists (a_tstk ^+ 1)%a, (frm :: cstk), tstk_next.
-    iFrame "Hmtdc Hcode Hb_switcher Hcstk_full Hp_ot_switcher".
+    iFrame "Hmtdc Hcstk_full Hp_ot_switcher".
     rewrite (finz_incr_eq Ha_tstk2).
     iFrame "Htstk".
     cbn.
