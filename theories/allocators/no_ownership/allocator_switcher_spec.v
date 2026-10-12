@@ -41,14 +41,15 @@ Section AllocatorSwitcherSpec.
     (b_stk e_stk a_stk : Addr) (arg_rmap : LReg) (cstk : CSTK) :
     (0 < n)%Z ->
     arg_rmap !! ca0 = Some (lword_of_word (WInt n)) ->
-    allocator_service_ctx ⊢
+    allocator_service_ctx ∗
+    allocator_service_static ⊢
     switcher_cc_specification_known_to_known_function
       emp (allocator_malloc_result S n) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_malloc_pcc_off.
   Proof.
-    iIntros (Hn Harg) "#Hservice".
+    iIntros (Hn Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
@@ -70,7 +71,7 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
     iApply (allocator_malloc_valid_correct S ⊤ n None _ with
-      "[- $Hservice $Hna $HPC $Hcgp $Hcra
+      "[- $Hservice $Hstatic $Hna $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull]");
       eauto.
     iNext.
@@ -129,7 +130,8 @@ Section AllocatorSwitcherSpec.
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     length ws = length (finz.seq_between b e) ->
     arg_rmap !! ca0 = Some (WCap true p g b e a @@ ι) ->
-    allocator_service_ctx ⊢
+    allocator_service_ctx ∗
+    allocator_service_static ⊢
     switcher_cc_specification_known_to_known_function
       (alloc_obj ι b e ∗
        free_auth_held ι ∗
@@ -139,7 +141,7 @@ Section AllocatorSwitcherSpec.
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_free_pcc_off%I.
   Proof.
-    iIntros (Hbounds Hlen Harg) "#Hservice".
+    iIntros (Hbounds Hlen Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
@@ -180,7 +182,7 @@ Section AllocatorSwitcherSpec.
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca3").
       iExact "Hrmap". }
     iApply (allocator_free_valid_correct ⊤ p g ι b e a ws _ rframe with
-      "[- $Hservice $Hna $Hobj $Hheld $HPC $Hcgp $Hcra
+      "[- $Hservice $Hstatic $Hna $Hobj $Hheld $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hframe $Hmem]");
       eauto.
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom

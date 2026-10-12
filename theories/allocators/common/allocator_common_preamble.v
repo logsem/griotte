@@ -9,6 +9,42 @@ From griotte Require Import memory_region region_keys.
     shadow entries and address claims, their header chains and their pieces
     of the status tokens are all in their non-atomic service invariants. *)
 
+(* TODO: move to memory_region.v *)
+(** Persistent regions: every cell is a discarded points-to. *)
+Section region_pers.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
+
+  (* TODO: move to memory_region.v *)
+  Definition region_pointsto_pers (b e : Addr) (ws : list LWord) : iProp Σ :=
+    ([∗ list] k↦y1;y2 ∈ (finz.seq_between b e);ws, y1 ↦ₐ□ y2)%I.
+
+  (* TODO: move to memory_region.v *)
+  Global Instance region_pointsto_pers_persistent b e ws :
+    Persistent (region_pointsto_pers b e ws).
+  Proof. apply _. Qed.
+
+  (* TODO: move to memory_region.v *)
+  Lemma region_pointsto_persist b e ws :
+    region_pointsto b e ws ==∗ region_pointsto_pers b e ws.
+  Proof.
+    iIntros "Hws". rewrite /region_pointsto /region_pointsto_pers.
+    rewrite !big_sepL2_alt. iDestruct "Hws" as "[$ Hws]".
+    iApply big_sepL_bupd. iApply (big_sepL_mono with "Hws").
+    iIntros (k [a w] _) "Ha". iApply (pointsto_persist with "Ha").
+  Qed.
+
+End region_pers.
+
+(* TODO: move to memory_region.v *)
+Global Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
+            (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
+
+(* TODO: move to memory_region.v *)
+(** Persistent code fragments are not unfolded by the typeclass search, so
+    that framing a persistent code fragment over a concrete list of
+    instructions does not unfold its [[∗ list]]. *)
+#[global] Typeclasses Opaque codefrag_pers.
+
 Section AllocatorRanges.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
 

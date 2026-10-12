@@ -56,27 +56,27 @@ Section AllocatorMacros.
     rdst ↦ᵣ wdst ∗
     rscratch1 ↦ᵣ w1 ∗
     rscratch2 ↦ᵣ w2 ∗
-    (pc_b ^+ n)%a ↦ₐ wentry ∗
-    codefrag pc_a code ∗
+    (pc_b ^+ n)%a ↦ₐ□ wentry ∗
+    codefrag_pers pc_a code ∗
     ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_end ∗
          rdst ↦ᵣ lload_word pc_p wentry ∗
          rscratch1 ↦ᵣ WInt 0 ∗
          rscratch2 ↦ᵣ WInt 0 ∗
-         (pc_b ^+ n)%a ↦ₐ wentry ∗
-         codefrag pc_a code
+         (pc_b ^+ n)%a ↦ₐ□ wentry ∗
+         codefrag_pers pc_a code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros code pc_end Hvpc Hcont Hpc_n Hdisjoint Hnonheap Hrdst Hr1 Hr2;
       subst code pc_end.
-    iIntros "(HPC & Hrdst & Hscratch1 & Hscratch2 & Hentry & Hcode & Hφ)".
+    iIntros "(HPC & Hrdst & Hscratch1 & Hscratch2 & #Hentry & #Hcode & Hφ)".
     codefrag_facts "Hcode".
     assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea by solve_addr.
     assert ((pc_b + n)%a = Some (pc_b ^+ n)%a) as Hpc_bn by solve_addr.
     assert (is_shadow_address (pc_b ^+ n)%a = false) as Hshadow.
     { eapply disjoint_from_shadow_not_in; eauto. }
     iGo "Hcode".
-    iApply "Hφ"; iFrame.
+    iApply "Hφ"; iFrame "∗ Hentry Hcode".
   Qed.
 
   Lemma allocator_return_spec
@@ -90,21 +90,21 @@ Section AllocatorMacros.
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     cnull ↦ᵣ wnull ∗
-    codefrag pc_a code ∗
+    codefrag_pers pc_a code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          cnull ↦ᵣ WInt 0 ∗
-         codefrag pc_a code ∗
+         codefrag_pers pc_a code ∗
          £ 1
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros code Hpc Hdisjoint; subst code.
-    iIntros "(HPC & Hcra & Hcnull & Hcode & Hφ)".
+    iIntros "(HPC & Hcra & Hcnull & #Hcode & Hφ)".
     codefrag_facts "Hcode".
     (* Jalr cnull cra. *)
     iInstr "Hcode" with "Hlc".
-    iApply "Hφ". iFrame.
+    iApply "Hφ". iFrame "∗ Hcode".
   Qed.
 
   Lemma allocator_zero_spec
@@ -127,20 +127,20 @@ Section AllocatorMacros.
     rend ↦ᵣ WInt (finz.to_z e) ∗
     rtmp ↦ᵣ wtmp ∗
     allocator_range_memory b e ∗
-    codefrag pc_a code ∗
+    codefrag_pers pc_a code ∗
     ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_end ∗
          rptr ↦ᵣ WCap true p g b e e @@? π ∗
          rend ↦ᵣ WInt (finz.to_z e) ∗
          rtmp ↦ᵣ WInt 0 ∗
          ([∗ list] a ∈ finz.seq_between b e, a ↦ₐ WInt 0) ∗
-         codefrag pc_a code
+         codefrag_pers pc_a code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
 
   Proof.
     intros code pc_end; subst code pc_end.
     iIntros (Hexec Hpc Hpc_shadow Hwrite Hheap Hregs)
-      "(HPC & Hptr & Hend & Htmp & Hmem & Hcode & Hφ)".
+      "(HPC & Hptr & Hend & Htmp & Hmem & #Hcode & Hφ)".
     assert (Hrptr : rptr ≠ cnull) by (repeat rewrite NoDup_cons in Hregs; set_solver).
     assert (Hrend : rend ≠ cnull) by (repeat rewrite NoDup_cons in Hregs; set_solver).
     assert (Hrtmp : rtmp ≠ cnull) by (repeat rewrite NoDup_cons in Hregs; set_solver).
@@ -176,10 +176,10 @@ Section AllocatorMacros.
     - rewrite Hlast Z.sub_diag.
       (* Jnz .allocator_zero rtmp falls through after the last address. *)
       iInstr "Hcode".
-      iApply "Hφ"; iFrame.
+      iApply "Hφ"; iFrame "∗ Hcode".
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap)))
         Hlast finz_seq_between_empty; last solve_addr.
-      rewrite big_sepL_cons big_sepL_nil. iFrame.
+      rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jnz .allocator_zero rtmp repeats the loop. *) iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Htmp]"); try solve_pure.
@@ -187,15 +187,15 @@ Section AllocatorMacros.
       { instantiate (1 := pc_a). solve_addr. }
       iIntros "!> (HPC & Hi & Htmp)".
       wp_pure.
-      iSpecialize ("Hcode" with "Hi").
+      iClear "Hi".
       iApply ("IH" $! (b ^+ 1)%a with
-        "[] [] HPC Hptr Hend Htmp Hmem Hcode [Ha Hφ]").
+        "[] [] HPC Hptr Hend Htmp Hmem [Ha Hφ]").
       { iPureIntro; solve_addr. }
       { iPureIntro; solve_addr. }
-      iNext. iIntros "(HPC & Hptr & Hend & Htmp & Hzero & Hcode)".
-      iApply "Hφ"; iFrame.
+      iNext. iIntros "(HPC & Hptr & Hend & Htmp & Hzero & _)".
+      iApply "Hφ"; iFrame "∗ Hcode".
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons.
-      iFrame.
+      iFrame "∗".
   Qed.
 
   (** The shadow stores of the paint loop are justified either because they
@@ -240,19 +240,19 @@ Section AllocatorMacros.
     rcount ↦ᵣ WInt (finz.to_z e - finz.to_z b) ∗
     R ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ s_old ∗ P a) ∗
-    codefrag pc_a code ∗
+    codefrag_pers pc_a code ∗
     ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_end ∗
          rptr ↦ᵣ WCap true RW Global shadow_b shadow_e se ∗
          rcount ↦ᵣ WInt 0 ∗
          R ∗
          ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ s_new ∗ P a) ∗
-         codefrag pc_a code
+         codefrag_pers pc_a code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros code pc_end; subst code pc_end.
     iIntros (Hexec Hpc Hpc_shadow Hheap Hshadow Hlen Htranslate Hregs Hok)
-      "(HPC & Hptr & Hcount & HR & Hcells & Hcode & Hφ)".
+      "(HPC & Hptr & Hcount & HR & Hcells & #Hcode & Hφ)".
     assert (Hrptr : rptr ≠ cnull) by
       (clear -Hregs; repeat rewrite NoDup_cons in Hregs; set_solver).
     assert (Hrcount : rcount ≠ cnull) by
@@ -283,7 +283,7 @@ Section AllocatorMacros.
     iAssert (WP Instr Executable @ E {{ v,
       ⌜v = NextIV⌝ ∗
       PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a ∗
-      pc_a ↦ₐ encodeInstrW (Store rptr (inl (encodeAllocStatus s_new)) 0) ∗
+      pc_a ↦ₐ□ encodeInstrW (Store rptr (inl (encodeAllocStatus s_new)) 0) ∗
       rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
       b ↦ₛ s_new ∗ R ∗ P b }})%I
       with "[HPC Hi Hptr Hs HR HP]" as "Hstore".
@@ -292,7 +292,7 @@ Section AllocatorMacros.
         { unfold is_shadow_address. apply withinBounds_true_iff; solve_addr. }
         { by apply heap_shadow_inverse. }
         { apply withinBounds_true_iff; solve_addr. }
-        iIntros "!> (HPC & Hi & Hptr & Hs)". iFrame. done.
+        iIntros "!> (HPC & Hi & Hptr & Hs)". iFrame "∗". done.
       - iApply (wp_store_success_shadow_z_res _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ s_new s_old b
           (R ∗ P b) with "[$HPC $Hi $Hptr $Hs $HR $HP]"); try solve_pure.
         { intros Rs Cs. iIntros "HRs HCs HRP".
@@ -300,11 +300,11 @@ Section AllocatorMacros.
         { unfold is_shadow_address. apply withinBounds_true_iff; solve_addr. }
         { by apply heap_shadow_inverse. }
         { apply withinBounds_true_iff; solve_addr. }
-        iIntros "!> (HPC & Hi & Hptr & Hs & HR & HP)". iFrame. done. }
+        iIntros "!> (HPC & Hi & Hptr & Hs & HR & HP)". iFrame "∗". done. }
     iApply (wp_wand with "Hstore").
     iIntros (v) "(-> & HPC & Hi & Hptr & Hs & HR & HP)".
     wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
 
     (* Lea rptr 1 advances the shadow cursor. *)
     iInstr "Hcode".
@@ -317,10 +317,10 @@ Section AllocatorMacros.
       iInstr "Hcode".
       assert (Hslast : (sb ^+ 1)%a = se) by solve_addr.
       rewrite Hslast.
-      iApply "Hφ"; iFrame.
+      iApply "Hφ"; iFrame "∗ Hcode".
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap)))
         Hlast finz_seq_between_empty; last solve_addr.
-      rewrite big_sepL_cons big_sepL_nil. iFrame.
+      rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jnz .allocator_paint rcount repeats the loop. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
@@ -329,10 +329,10 @@ Section AllocatorMacros.
       { instantiate (1 := pc_a). solve_addr. }
       iIntros "!> (HPC & Hi & Hcount)".
       wp_pure.
-      iSpecialize ("Hcode" with "Hi").
+      iClear "Hi".
       replace (e - b - 1)%Z with (e - (b ^+ 1)%a)%Z by solve_addr.
       iApply ("IH" $! (b ^+ 1)%a (sb ^+ 1)%a with
-        "[] [] [] [] [] HPC Hptr Hcount HR Hcells Hcode [Hs HP Hφ]").
+        "[] [] [] [] [] HPC Hptr Hcount HR Hcells [Hs HP Hφ]").
       { iPureIntro; solve_addr. }
       { iPureIntro; solve_addr. }
       { iPureIntro; solve_addr. }
@@ -341,10 +341,10 @@ Section AllocatorMacros.
         f_equal. clear -Hheap Hshadow Hlen Hbnext Ha_bounds. solve_addr. }
       { iPureIntro. destruct Hok as [-> | Hok]; [by left|right].
         intros a Rs Cs Ha. apply Hok. solve_addr. }
-      iNext. iIntros "(HPC & Hptr & Hcount & HR & Hpainted & Hcode)".
-      iApply "Hφ"; iFrame.
+      iNext. iIntros "(HPC & Hptr & Hcount & HR & Hpainted & _)".
+      iApply "Hφ"; iFrame "∗ Hcode".
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons.
-      iFrame.
+      iFrame "∗".
   Qed.
 
   (** The shadow-store permissions of the paint loop: over unclaimed cells,
@@ -469,6 +469,27 @@ Section AllocatorLayoutFacts.
     rewrite /allocator_shadow_import_off /allocator_revoker_import_off.
     assert ((allocator_pcc_b ^+ 0)%a = allocator_pcc_b) as -> by solve_addr.
     iSplit; [iIntros "($ & $ & $ & _)" | iIntros "($ & $ & $)"]; done.
+  Qed.
+
+  (** The allocator's three imports, as separate persistent words. *)
+  Lemma allocator_imports_split_pers :
+    [[allocator_pcc_b, allocator_code_b]] ↦ₐ□ [[lword_of_word <$> allocator_imports]] ⊢
+    (allocator_pcc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
+      WCap true RW Global shadow_b shadow_e shadow_b ∗
+    (allocator_pcc_b ^+ 1)%a ↦ₐ□
+      WSealRange true (false, true) Global AllocOtype (AllocOtype ^+ 1)%ot AllocOtype ∗
+    (allocator_pcc_b ^+ allocator_revoker_import_off)%a ↦ₐ□ allocator_revoker_cap.
+  Proof.
+    pose proof allocator_common_size_imports as Hsize.
+    rewrite allocator_imports_length in Hsize.
+    rewrite /region_pointsto_pers /allocator_imports !fmap_cons fmap_nil.
+    rewrite (finz_seq_between_cons allocator_pcc_b); last solve_addr.
+    rewrite (finz_seq_between_cons (allocator_pcc_b ^+ 1)%a); last solve_addr.
+    rewrite (finz_seq_between_cons (allocator_pcc_b ^+ 1 ^+ 1)%a); last solve_addr.
+    rewrite /allocator_shadow_import_off /allocator_revoker_import_off.
+    assert ((allocator_pcc_b ^+ 0)%a = allocator_pcc_b) as -> by solve_addr.
+    assert ((allocator_pcc_b ^+ 1 ^+ 1)%a = (allocator_pcc_b ^+ 2)%a) as -> by solve_addr.
+    iIntros "($ & $ & $ & _)".
   Qed.
 
   (** The code of the allocator: [malloc], then [free]. *)

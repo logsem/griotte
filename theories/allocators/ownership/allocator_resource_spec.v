@@ -20,10 +20,11 @@ Section AllocatorServiceInitializationProofs.
     ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) -∗
     ([∗ map] a ↦ c ∈ init_claims {[heap_b]}, addr_alloc a c)
     ={E}=∗
-    allocator_service_ctx.
+    allocator_service_ctx ∗
+    allocator_service_static.
   Proof.
     intros Hwf Hdom.
-    iIntros "[Hstatic Hdata] Howners Hheap Hclaims".
+    iIntros "(Himports & Hcode & Hdata) Howners Hheap Hclaims".
     pose proof heap_valid as Hvalid.
     iDestruct (region_pointsto_single with "Hdata") as (w) "[Hdata %Hword]".
     { exact (@allocator_size_data MP layout Hwf). }
@@ -45,15 +46,17 @@ Section AllocatorServiceInitializationProofs.
       case_decide; simplify_eq; by iFrame. }
     iAssert (allocator_service_owners []) with "[Howners]" as "Howners".
     { iExists _. iFrame "Howners". iPureIntro. apply allocator_owners_wf_empty. }
+    iMod (region_pointsto_persist with "Himports") as "#Himports".
+    iMod (codefrag_persist with "Hcode") as "#Hcode".
     iMod (na_inv_alloc cerise_nais E Nallocator_service allocator_service_inv
-      with "[Hstatic Hdata Hcells Howners]") as "#Hservice".
-    { iNext. iFrame "Hstatic". iExists (heap_b ^+ 1)%a, [], ∅, ∅, allocator_initial_cells.
+      with "[Hdata Hcells Howners]") as "#Hservice".
+    { iNext. iExists (heap_b ^+ 1)%a, [], ∅, ∅, allocator_initial_cells.
       iFrame "Hdata Hcells Howners".
       rewrite /allocator_entries_res /=.
       iPureIntro.
       split_and!; [solve_addr|solve_addr|done|split; constructor
                   |exact allocator_initial_cells_wf|done]. }
-    iModIntro. iExact "Hservice".
+    iModIntro. iFrame "Hservice Himports Hcode".
   Qed.
 
 End AllocatorServiceInitializationProofs.

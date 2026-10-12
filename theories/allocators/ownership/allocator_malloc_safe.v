@@ -28,15 +28,17 @@ Section Heap_Temporal_Safety_Interp.
   Lemma malloc_exec_entry_point (W : WORLD) (C : CmptName)
     (Nswitcher : namespace) :
     allocator_service_ctx ∗
+    allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
-    na_inv cerise_nais Nswitcher switcher_inv ⊢
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ⊢
     execute_entry_point
       (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
       (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
       allocator_malloc_nargs W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
-    iIntros "(#Hservice & #Hspred & #Hswitcher)".
+    iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
       "(Hcont & %Hframe & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
     rewrite /interp_conf.
@@ -55,7 +57,7 @@ Section Heap_Temporal_Safety_Interp.
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
     { iApply (allocator_malloc_invalid_capability_spec ⊤ wca0
-        with "[$Hservice $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]"); first solve_ndisj.
+        with "[$Hservice $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]"); first solve_ndisj.
       apply andb_false_iff in Hcap_valid as [?|?]; auto. }
     apply andb_true_iff in Hcap_valid as [Hwca0_tag Hwca0_sealed].
     iDestruct ("Hargs" $! ca0 wca0 with "[] []") as "#Hinterp_ca0".
@@ -88,7 +90,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (allocator_malloc_invalid_correct ⊤ g_owner a_owner id wca1
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try exact Hinvalid; try assumption.
-      iFrame "Hservice Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
+      iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
@@ -118,7 +120,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
         e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+        with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_insert_L.
@@ -135,7 +137,7 @@ Section Heap_Temporal_Safety_Interp.
         (dom (heap_std (revoke W))) ⊤ g_owner a_owner id Ω n π1
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try exact Hpositive; try assumption.
-      iFrame "Hservice Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0".
+      iFrame "Hservice Hstatic Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0".
       iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hresult)".
@@ -168,7 +170,7 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification Nswitcher W (revoke W) C _
           e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
           (WInt ALLOC_NO_MEMORY) (WInt 0)
-          with "[$Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+          with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
         { apply lregmap_full_dom in Hfull_rmap.
           repeat rewrite dom_insert_L.
@@ -311,7 +313,7 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification Nswitcher W Wshare C _
           e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
           (WCap true RW Global b e b @@ ι) (WInt 0)
-          with "[$Hswitcher $Hinterp_fixed $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+          with "[$Hswitcher $Hswitcher_static $Hinterp_fixed $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
         { apply lregmap_full_dom in Hfull_rmap.
           repeat rewrite dom_insert_L.
@@ -329,18 +331,16 @@ Section Heap_Temporal_Safety_Interp.
     (C : CmptName)
     (Nswitcher : namespace) :
     allocator_service_ctx ∗
+    allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    inv (export_table_PCCN allocator_exp_tblN)
-      (allocator_exp_tbl_b ↦ₐ WCap true RX Global
-        allocator_pcc_b allocator_pcc_e allocator_pcc_b) ∗
-    inv (export_table_CGPN allocator_exp_tblN)
-      ((allocator_exp_tbl_b ^+ 1)%a ↦ₐ WCap true RW Global
-        allocator_cgp_b allocator_cgp_e allocator_cgp_b) ∗
-    inv (export_table_entryN allocator_exp_tblN
-      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a)
-      ((allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ
-        WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off)) ∗
+    switcher_static ∗
+    allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
+      allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
+    (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
+      allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
+      WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off) ∗
     WSealed ot_switcher (allocator_malloc g_allocator_exp_tbl)
       ↦□ₑ allocator_malloc_nargs ∗
     WSealed ot_switcher (allocator_malloc Local)
@@ -349,11 +349,12 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a).
   Proof.
-    iIntros "(#Hservice & #Hspred & #Hswitcher & #HPCC & #HCGP & #Hentry & #Hsealed & #Hsealed_local)".
+    iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
+      #Hentry & #Hsealed & #Hsealed_local)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a,
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
-      allocator_malloc_nargs, allocator_malloc_pcc_off, allocator_exp_tblN.
+      allocator_malloc_nargs, allocator_malloc_pcc_off.
     iFrame "#".
     iSplit; first done.
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;

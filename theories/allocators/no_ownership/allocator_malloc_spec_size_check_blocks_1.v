@@ -21,23 +21,23 @@ Section AllocatorMallocSizeCheckBlocks1.
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
     ca0 ↦ᵣ wreq ∗
     ct3 ↦ᵣ wtmp ∗
-    codefrag pc_a allocator_malloc_code ∗
+    codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1)%a ∗
        ca0 ↦ᵣ wreq ∗
        ct3 ↦ᵣ - ∗
-       codefrag pc_a allocator_malloc_code
+       codefrag_pers pc_a allocator_malloc_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & _ & _) (n & Hreq & Hpositive).
     destruct wreq as [wreq π]; cbn in Hreq; subst wreq.
-    iIntros "(HPC & Hca0 & Hct3 & Hcode_main & Hφ)".
+    iIntros "(HPC & Hca0 & Hct3 & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
 
     (* Block 0: the size check *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     (* GetWType ct3 ca0. *)
     iInstr "Hcode".
     (* Sub ct3 ct3 (encodeWordType wt_int). *)
@@ -50,9 +50,9 @@ Section AllocatorMallocSizeCheckBlocks1.
     replace (0 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
     (* Jnz .malloc_size_ok ct3. *)
     iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_block_offset 1)%a.
-    iApply "Hφ". iFrame.
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   (** Block 4, the exit segment: set [ALLOC_INVALID] and return. *)
@@ -65,25 +65,25 @@ Section AllocatorMallocSizeCheckBlocks1.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wnull ∗
-    codefrag pc_a allocator_malloc_code ∗
+    codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        cnull ↦ᵣ WInt 0 ∗
-       codefrag pc_a allocator_malloc_code ∗
+       codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds.
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hφ)".
-    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "[Hcode Hcont]".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hφ)".
+    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     iApply (allocator_malloc_exit_reject_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode]");
       first by apply allocator_malloc_exit_bounds.
-    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode & Hlc)".
-    iApply "Hφ". iFrame. iApply ("Hcont" with "Hcode").
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   Lemma allocator_malloc_size_check_invalid_spec
@@ -97,27 +97,27 @@ Section AllocatorMallocSizeCheckBlocks1.
     ca1 ↦ᵣ wca1 ∗
     ct3 ↦ᵣ wtmp ∗
     cnull ↦ᵣ wnull ∗
-    codefrag pc_a allocator_malloc_code ∗
+    codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        ct3 ↦ᵣ - ∗
        cnull ↦ᵣ WInt 0 ∗
-       codefrag pc_a allocator_malloc_code ∗
+       codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds Hinvalid. pose proof Hbounds as (Hpc & _ & _).
     destruct wreq as [wreq π]; cbn in Hinvalid.
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct3 & Hcnull & Hcode_main & Hφ)".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct3 & Hcnull & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
 
     (* Block 0: the size check fails *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     (* GetWType ct3 ca0. *)
     iInstr "Hcode".
     (* Sub ct3 ct3 (encodeWordType wt_int). *)
@@ -136,12 +136,12 @@ Section AllocatorMallocSizeCheckBlocks1.
       iInstr "Hcode".
       (* Jmp .malloc_invalid. *)
       iInstr "Hcode".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
       iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
         first done.
-      iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hlc)".
-      iApply "Hφ". iFrame.
+      iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
+      iApply "Hφ". iFrame "∗ Hcode_main".
     - assert (Hnonzero : WInt (encodeWordType wreq - encodeWordType (WInt 0)) ≠ WInt 0).
       { pose proof (encodeWordType_correct wreq (WInt 0)) as Hencode.
         intro Hzero. injection Hzero as Hzero.
@@ -150,12 +150,12 @@ Section AllocatorMallocSizeCheckBlocks1.
         all: try (destruct sb; cbn in Hencode); contradiction. }
       (* Jnz .malloc_invalid ct3. *)
       iInstr "Hcode".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
       iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
         first done.
-      iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hlc)".
-      iApply "Hφ". iFrame.
+      iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
+      iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
 End AllocatorMallocSizeCheckBlocks1.

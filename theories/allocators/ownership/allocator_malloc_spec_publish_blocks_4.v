@@ -30,7 +30,7 @@ Section AllocatorMallocPublishBlocks4.
     ca1 ↦ᵣ WInt n @@? πn ∗
     cnull ↦ᵣ wnull ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-    codefrag pc_a allocator_malloc_code ∗
+    codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
        cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
@@ -40,13 +40,13 @@ Section AllocatorMallocPublishBlocks4.
        ca1 ↦ᵣ WInt 0 ∗
        cnull ↦ᵣ WInt 0 ∗
        allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e finish ∗
-       codefrag pc_a allocator_malloc_code ∗
+       codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds Hbase Hfinish Hrange. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
-    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hcnull & Hslot & Hcode_main & Hφ)".
+    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hcnull & Hslot & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     unfold allocator_header_words in Hbase.
@@ -55,7 +55,7 @@ Section AllocatorMallocPublishBlocks4.
     (* Block 4: publish the bump cursor *)
     focus_block 4 "Hcode_main" of allocator_malloc_blocks at pc_a as a_publish Ha_publish
       "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     (* Lea ct0 allocator_header_words. *)
     iInstr "Hcode".
     (* Lea ct0 ca1. *)
@@ -72,16 +72,16 @@ Section AllocatorMallocPublishBlocks4.
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ allocator_malloc_return_offset)%a);
         offsets_compute; solve_addr. }
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     (* Block 5: return *)
     change_pc_to
       ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 2)%a.
-    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "[Hcode Hcont]".
+    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]");
       first by apply allocator_malloc_exit_bounds.
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hcode & Hlc)".
-    iApply "Hφ". iFrame. iApply ("Hcont" with "Hcode").
+    iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
 End AllocatorMallocPublishBlocks4.

@@ -38,7 +38,7 @@ Section AllocatorMallocPrepareBlocks2.
     allocator_range_memory next b ∗
     alloc_obj ι b finish ∗
     ι ↦st{1} ALive ∗
-    codefrag pc_a allocator_malloc_code ∗
+    codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2)%a ∗
        cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        ca0 ↦ᵣ WInt n @@? πn ∗
@@ -51,13 +51,13 @@ Section AllocatorMallocPrepareBlocks2.
        allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
        allocator_header next b finish (0%Z, 0%Z) ∗
        ι ↦st{1} ALive ∗
-       codefrag pc_a allocator_malloc_code
+       codefrag_pers pc_a allocator_malloc_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow & Hcgp_pc) Hpositive Hnext Hbase Hfinish Hroom.
     iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot & Hheader &
-      #Hobj & Htok & Hcode_main & Hφ)".
+      #Hobj & Htok & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     unfold allocator_header_words in Hbase.
@@ -67,7 +67,7 @@ Section AllocatorMallocPrepareBlocks2.
     (* Block 1: the capacity check, the payload and the header *)
     focus_block 1 "Hcode_main" of allocator_malloc_blocks at pc_a as a_prep Ha_prep
       "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     (* CLoad ct0 cgp. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -78,7 +78,7 @@ Section AllocatorMallocPrepareBlocks2.
     { apply withinBounds_true_iff. solve_addr. }
     { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
     iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot)". wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
     iEval (cbn [load_word]) in "Hct0".
     (* GetA ct1 ct0. *)
@@ -114,7 +114,7 @@ Section AllocatorMallocPrepareBlocks2.
     { rewrite /isWithin. solve_addr. }
     { solve_addr. }
     iIntros "!> (HPC & Hi & Hct1 & Hct2 & Hct4 & _ & Htok)". wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
 
     (* Write the header from the header cells. *)
     assert (Hnextb : (next < b)%a) by solve_addr.
@@ -144,7 +144,7 @@ Section AllocatorMallocPrepareBlocks2.
     { apply withinBounds_true_iff. solve_addr. }
     { solve_addr. }
     iIntros "!> (HPC & Hi & Hct0 & Hr1)". wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
     (* Store ct0 0 2. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -155,12 +155,12 @@ Section AllocatorMallocPrepareBlocks2.
     { apply withinBounds_true_iff. solve_addr. }
     { solve_addr. }
     iIntros "!> (HPC & Hi & Hct0 & Hr2)". wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
     (* Mov ca2 ct4. *)
     iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_block_offset 2)%a.
-    iApply "Hφ". iFrame. rewrite /allocator_header /=. iFrame. done.
+    iApply "Hφ". iFrame "∗ Hcode_main". rewrite /allocator_header /=. iFrame "∗". done.
   Qed.
 
   (** Block 4, the exit segment: set [ALLOC_NO_MEMORY] and return. *)
@@ -173,28 +173,28 @@ Section AllocatorMallocPrepareBlocks2.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wnull ∗
-    codefrag pc_a allocator_malloc_code ∗
+    codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
        ca1 ↦ᵣ WInt 0 ∗
        cnull ↦ᵣ WInt 0 ∗
-       codefrag pc_a allocator_malloc_code ∗
+       codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds. pose proof Hbounds as (Hpc & _ & _).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & Hφ)".
-    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "[Hcode Hcont]".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hφ)".
+    iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     assert ((pc_a ^+ allocator_malloc_no_memory_offset)%a =
       ((pc_a ^+ allocator_malloc_block_offset 4) ^+ allocator_malloc_exit_block_offset 1)%a)
       as -> by (cbn in Hpc; offsets_compute; solve_addr).
     iApply (allocator_malloc_exit_oom_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode]");
       first by apply allocator_malloc_exit_bounds.
-    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode & Hlc)".
-    iApply "Hφ". iFrame. iApply ("Hcont" with "Hcode").
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   Lemma allocator_malloc_prepare_oom_spec
@@ -218,7 +218,7 @@ Section AllocatorMallocPrepareBlocks2.
     ca2 ↦ᵣ wa2 ∗
     cnull ↦ᵣ wnull ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-    codefrag pc_a allocator_malloc_code ∗
+    codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
        cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
@@ -232,13 +232,13 @@ Section AllocatorMallocPrepareBlocks2.
        ca2 ↦ᵣ - ∗
        cnull ↦ᵣ WInt 0 ∗
        allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-       codefrag pc_a allocator_malloc_code
+       codefrag_pers pc_a allocator_malloc_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds Hpositive Hnext Hoom. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
     iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcnull &
-      Hslot & Hcode_main & Hφ)".
+      Hslot & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     unfold allocator_header_words in Hoom.
@@ -247,7 +247,7 @@ Section AllocatorMallocPrepareBlocks2.
     (* Block 1: the capacity check fails *)
     focus_block 1 "Hcode_main" of allocator_malloc_blocks at pc_a as a_prep Ha_prep
       "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
+    iHide "Hcode_main" as hcode.
     (* CLoad ct0 cgp. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -258,7 +258,7 @@ Section AllocatorMallocPrepareBlocks2.
     { apply withinBounds_true_iff. solve_addr. }
     { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
     iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot)". wp_pure.
-    iSpecialize ("Hcode" with "Hi").
+    iClear "Hi".
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
     iEval (cbn [load_word]) in "Hct0".
     (* GetA ct1 ct0. *)
@@ -276,11 +276,11 @@ Section AllocatorMallocPrepareBlocks2.
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ allocator_malloc_no_memory_offset)%a);
         offsets_compute; solve_addr. }
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply (allocator_malloc_oom_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
       first done.
-    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & Hcode_main & _)".
-    iApply "Hφ". iFrame.
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & _)".
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
 End AllocatorMallocPrepareBlocks2.

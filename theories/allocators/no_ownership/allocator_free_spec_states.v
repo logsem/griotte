@@ -93,18 +93,16 @@ Section AllocatorFreeSegments.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
 
   Lemma allocator_free_tail_acc pc_a :
-    codefrag pc_a allocator_free_code -∗
-    codefrag (pc_a ^+ allocator_free_block_offset 4)%a allocator_free_tail_code ∗
-    (codefrag (pc_a ^+ allocator_free_block_offset 4)%a allocator_free_tail_code -∗
-     codefrag pc_a allocator_free_code).
+    codefrag_pers pc_a allocator_free_code -∗
+    codefrag_pers (pc_a ^+ allocator_free_block_offset 4)%a allocator_free_tail_code.
   Proof.
-    iIntros "Hcode_main".
+    iIntros "#Hcode_main".
     codefrag_facts "Hcode_main".
     allocator_free_unfold_code "Hcode_main".
     focus_block_nochangePC 4 "Hcode_main" as a_tail Ha_tail "Hcode" "Hcont".
     assert (a_tail = (pc_a ^+ allocator_free_block_offset 4)%a) as <-
       by (cbn in Ha_tail; offsets_compute; solve_addr).
-    iFrame "Hcode". iIntros "Hcode". iApply ("Hcont" with "Hcode").
+    iExact "Hcode".
   Qed.
 
 End AllocatorFreeSegments.

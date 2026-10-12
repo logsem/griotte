@@ -68,15 +68,17 @@ Section Heap_Temporal_Safety_Interp.
   (** Execute free for an arbitrary caller and update the shared heap world. *)
   Lemma free_exec_entry_point W C (Nswitcher : namespace) :
     allocator_service_ctx ∗
+    allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
-    na_inv cerise_nais Nswitcher switcher_inv ⊢
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ⊢
     execute_entry_point
       (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_free_pcc_addr)
       (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
       allocator_free_nargs W C.
   Proof.
     (* Unpack the entry register map and classify the requested capability. *)
-    iIntros "(#Hservice & #Hspred & #Hswitcher)".
+    iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
       "(Hcont & %Hframe & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
     rewrite /interp_conf.
@@ -97,7 +99,7 @@ Section Heap_Temporal_Safety_Interp.
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
     { iApply (allocator_free_invalid_capability_spec ⊤ wca0
-        with "[$Hservice $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]"); first solve_ndisj.
+        with "[$Hservice $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]"); first solve_ndisj.
       apply andb_false_iff in Hcap_valid as [?|?]; auto. }
     apply andb_true_iff in Hcap_valid as [Hwca0_tag Hwca0_sealed].
     iDestruct ("Hargs" $! ca0 wca0 with "[] []") as "#Hinterp_ca0".
@@ -151,7 +153,7 @@ Section Heap_Temporal_Safety_Interp.
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try assumption;
         try (intros next allocations Hnext Hchain; exact (Hinvalid next allocations id Hnext Hchain)).
-      iFrame "Hservice Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
+      iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
@@ -181,7 +183,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
         e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+        with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_insert_L.
@@ -232,7 +234,7 @@ Section Heap_Temporal_Safety_Interp.
         iApply (allocator_free_wrong_owner_spec ⊤ g_owner a_owner id Ω p g ι b e a
           (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
           with "[-]"); try solve_ndisj; try assumption.
-        iFrame "Hservice Hna Hid Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
+        iFrame "Hservice Hstatic Hna Hid Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
         iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
         iNext.
         iIntros "(Hna & Hid & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
@@ -267,7 +269,7 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification Nswitcher W (revoke W) C _
           e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
           (WInt ALLOC_INVALID) (WInt 0)
-          with "[$Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+          with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
         { apply lregmap_full_dom in Hfull_rmap.
           repeat rewrite dom_insert_L.
@@ -313,7 +315,7 @@ Section Heap_Temporal_Safety_Interp.
         apply (Hidfree r w); last exact Hr.
         clear -Hca1 Hca0 Hcra Hcgp HPC.
         rewrite /allocator_free_nargs /dom_arg_rmap /=. set_solver. }
-      iFrame "Hservice Hna Hid Ha_owner Hobj Hheld HPCr Hcgpr Hcrar Hca0 Hca1 Hca2
+      iFrame "Hservice Hstatic Hna Hid Ha_owner Hobj Hheld HPCr Hcgpr Hcrar Hca0 Hca1 Hca2
         Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hrmap Hcells".
       iNext.
       iIntros "(Hna_post & Hid & Ha_owner & HPCr_post & Hcgpr_post &
@@ -405,7 +407,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification Nswitcher W (revoke Wq) C _
         e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
         (WInt ALLOC_OK) (WInt 0)
-        with "[$Hswitcher $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr]").
+        with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_insert_L.
@@ -429,7 +431,7 @@ Section Heap_Temporal_Safety_Interp.
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try exact Hnarrow; try assumption.
       { destruct Hbounds as (_ & Hbe & _). solve_addr. }
-      iFrame "Hservice Hna Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
+      iFrame "Hservice Hstatic Hna Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
@@ -459,7 +461,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
         e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+        with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_insert_L.
@@ -478,18 +480,16 @@ Section Heap_Temporal_Safety_Interp.
     (C : CmptName)
     (Nswitcher : namespace) :
     allocator_service_ctx ∗
+    allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    inv (export_table_PCCN allocator_exp_tblN)
-      (allocator_exp_tbl_b ↦ₐ WCap true RX Global
-        allocator_pcc_b allocator_pcc_e allocator_pcc_b) ∗
-    inv (export_table_CGPN allocator_exp_tblN)
-      ((allocator_exp_tbl_b ^+ 1)%a ↦ₐ WCap true RW Global
-        allocator_cgp_b allocator_cgp_e allocator_cgp_b) ∗
-    inv (export_table_entryN allocator_exp_tblN
-      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)
-      ((allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ
-        WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)) ∗
+    switcher_static ∗
+    allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
+      allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
+    (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
+      allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
+      WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off) ∗
     WSealed ot_switcher (allocator_free g_allocator_exp_tbl)
       ↦□ₑ allocator_free_nargs ∗
     WSealed ot_switcher (allocator_free Local)
@@ -498,11 +498,12 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a).
   Proof.
-    iIntros "(#Hservice & #Hspred & #Hswitcher & #HPCC & #HCGP & #Hentry & #Hsealed & #Hsealed_local)".
+    iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
+      #Hentry & #Hsealed & #Hsealed_local)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a,
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
-      allocator_free_nargs, allocator_free_pcc_off, allocator_exp_tblN.
+      allocator_free_nargs, allocator_free_pcc_off.
     iFrame "#".
     iSplit; first done.
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
