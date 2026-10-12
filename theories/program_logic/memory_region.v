@@ -331,6 +331,59 @@ Section codefrag.
     solve_addr.
   Qed.
 
+  (* Persistent code: every cell is a discarded points-to. *)
+  Definition codefrag_pers (a0: Addr) (cs: list Word) : iProp Σ :=
+    (⌜ContiguousRegion a0 (length cs)⌝ ∗
+     [∗ list] i ↦ w ∈ cs, (a0 ^+ i)%a ↦ₐ□ lword_of_word w)%I.
+
+  Global Instance codefrag_pers_persistent a0 cs : Persistent (codefrag_pers a0 cs).
+  Proof. apply _. Qed.
+
+  Lemma codefrag_contiguous_region_pers a0 cs :
+    codefrag_pers a0 cs -∗
+      ⌜ContiguousRegion a0 (length cs)⌝.
+  Proof using. iIntros "[$ _]". Qed.
+
+  Lemma codefrag_persist a0 cs :
+    codefrag a0 cs ==∗ codefrag_pers a0 cs.
+  Proof.
+    iIntros "Hcs".
+    iDestruct (codefrag_contiguous_region with "Hcs") as %Hcr.
+    destruct Hcr as [e He].
+    rewrite /codefrag /codefrag_pers region_pointsto_cells; last first.
+    { rewrite length_fmap. solve_addr. }
+    iSplitR; first (iPureIntro; eexists; eauto).
+    rewrite big_sepL_fmap.
+    iApply big_sepL_bupd. iApply (big_sepL_mono with "Hcs").
+    iIntros (k w _) "Hw". iApply (pointsto_persist with "Hw").
+  Qed.
+
+  Lemma codefrag_lookup_pers a0 cs (i: nat) w :
+    cs !! i = Some w →
+    codefrag_pers a0 cs -∗ (a0 ^+ i)%a ↦ₐ□ lword_of_word w.
+  Proof.
+    iIntros (Hi) "[_ Hcs]".
+    iApply (big_sepL_lookup with "Hcs"); eauto.
+  Qed.
+
+  Lemma codefrag_app_pers a0 l1 l2 :
+    codefrag_pers a0 (l1 ++ l2) -∗
+    codefrag_pers a0 l1 ∗ codefrag_pers (a0 ^+ length l1)%a l2.
+  Proof.
+    iIntros "[%Hcr Hcs]".
+    rewrite length_app in Hcr.
+    rewrite big_sepL_app. iDestruct "Hcs" as "[H1 H2]".
+    iSplitL "H1".
+    - iFrame. iPureIntro. destruct Hcr as [e He].
+      exists (a0 ^+ length l1)%a. solve_addr.
+    - iSplitR.
+      { iPureIntro. destruct Hcr as [e He]. exists e. solve_addr. }
+      iApply (big_sepL_mono with "H2").
+      iIntros (k w _) "Hw".
+      rewrite (_: (a0 ^+ (length l1 + k)%nat)%a = ((a0 ^+ length l1) ^+ k)%a); first done.
+      destruct Hcr as [e He]. solve_addr.
+  Qed.
+
 End codefrag.
 
 Section region_addrs_zeroes.

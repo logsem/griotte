@@ -36,6 +36,14 @@ Section codefrag.
     { rewrite list_lookup_fmap. by rewrite Hi. }
   Qed.
 
+  (* Persistent code needs no accessor: the cell is persistent too. *)
+  Lemma codefrag_lookup_acc_pers a0 (cs: list Word) (i: nat) w:
+    SimplTC (cs !! i) (Some w) →
+    codefrag_pers a0 cs -∗ (a0 ^+ i)%a ↦ₐ□ w @@? None.
+  Proof.
+    iIntros (Hi) "Hcs". by iApply (codefrag_lookup_pers with "Hcs").
+  Qed.
+
 End codefrag.
 
 (* Administrative reduction steps *)
@@ -87,12 +95,30 @@ Ltac changePCto0 new_a :=
   end.
 Tactic Notation "changePCto" constr(a) := changePCto0 a.
 
+(* The contiguity of the code [h], exclusive or persistent. *)
+Ltac codefrag_contiguous h HH :=
+  lazymatch goal with
+  | |- context [ Esnoc _ h (codefrag_pers _ _) ] =>
+    iDestruct (codefrag_contiguous_region_pers with h) as %HH
+  | _ => iDestruct (codefrag_contiguous_region with h) as %HH
+  end.
+
+(* The base address and the code of a code fragment, exclusive or
+   persistent. *)
+Ltac codefrag_base_code P :=
+  lazymatch P with
+  | codefrag ?a_base ?code => constr:((a_base, code))
+  | codefrag_pers ?a_base ?code => constr:((a_base, code))
+  end.
+
 Ltac codefrag_facts h :=
   let h := constr:(h:ident) in
-  match goal with |- context [ Esnoc _ h (codefrag ?a_base ?code) ] =>
+  match goal with |- context [ Esnoc _ h ?P ] =>
+  let ac := codefrag_base_code P in
+  lazymatch ac with (?a_base, ?code) =>
     (match goal with H : ContiguousRegion a_base _ |- _ => idtac end ||
      let HH := fresh in
-     iDestruct (codefrag_contiguous_region with h) as %HH;
+     codefrag_contiguous h HH;
      cbn [length map encodeInstrsW] in HH
     );
     (match goal with H : SubBounds _ _ a_base (a_base ^+ _)%a |- _ => idtac end ||
@@ -101,14 +127,16 @@ Ltac codefrag_facts h :=
             assert (HH: SubBounds b e a_base (a_base ^+ length code)%a) by solve_addr;
             cbn [length map encodeInstrsW] in HH
           end))
-  end.
+  end end.
 
 Ltac clear_codefrag_facts h :=
   let h := constr:(h:ident) in
-  match goal with |- context [ Esnoc _ h (codefrag ?a_base ?code) ] =>
+  match goal with |- context [ Esnoc _ h ?P ] =>
+  let ac := codefrag_base_code P in
+  lazymatch ac with (?a_base, ?code) =>
     try match goal with H : ContiguousRegion a_base _ |- _ => clear H end;
     try match goal with H : SubBounds _ _ a_base (a_base ^+ _)%a |- _ => clear H end
-  end.
+  end end.
 
 (* Classes for the code sub-block focusing tactic *)
 
@@ -203,6 +231,20 @@ Section codefrag_subblock.
     { rewrite ?length_fmap /finz.dist; solve_addr. }
   Qed.
 
+  Lemma codefrag_block_acc_pers (n: nat) a0 (cs: list Word) l1 l l2:
+    NthSubBlock cs n l1 l l2 →
+    codefrag_pers a0 cs -∗
+    ∃ (ai: Addr), ⌜(a0 + length l1)%a = Some ai⌝ ∗
+    codefrag_pers ai l.
+  Proof.
+    unfold NthSubBlock. intros ->. iIntros "H".
+    iDestruct (codefrag_contiguous_region_pers with "H") as %[a1 Ha1].
+    rewrite !length_app in Ha1.
+    iDestruct (codefrag_app_pers with "H") as "[_ H]".
+    iDestruct (codefrag_app_pers with "H") as "[H _]".
+    iExists (a0 ^+ length l1)%a. iFrame. iPureIntro. solve_addr.
+  Qed.
+
 End codefrag_subblock.
 
 Lemma focus_block_0_SubBounds (b e b' : Addr) k m :
@@ -217,7 +259,7 @@ Proof. solve_addr. Qed.
    because we have slightly more information when doing focus_block_0 *)
 Ltac focus_block_0_codefrag_facts hi a0 :=
   let HCR := fresh in
-  iDestruct (codefrag_contiguous_region with hi) as %HCR;
+  codefrag_contiguous hi HCR;
   cbn [length map encodeInstrsW] in HCR;
   try lazymatch goal with HSB : SubBounds ?b ?e a0 (a0 ^+ _)%a |- _ =>
     let HSB' := fresh in
@@ -246,8 +288,29 @@ Ltac focus_block_0 h hi hcont :=
     focus_block_0_codefrag_facts hi a0
   end.
 
+(* On persistent code, the block is a persistent fragment [hi] of [h]; there
+   is no continuation, and [h] is kept. *)
+Ltac focus_block_0_pers h hi :=
+  let h := constr:(h:ident) in
+  let hi := constr:(hi:ident) in
+  let x := iFresh in
+  let y := iFresh in
+  match goal with |- context [ Esnoc _ h (codefrag_pers ?a0 _) ] =>
+    iPoseProof (codefrag_app_pers with h) as x;
+    eapply tac_and_destruct with x _ hi y _ _ _;
+    [pm_reflexivity|pm_reduce;tc_solve|pm_reduce];
+    iClear y;
+    let pat := constr:(intro_patterns.IIntuitionistic (intro_patterns.IIdent hi)) in
+    iDestructHyp hi as pat;
+    focus_block_0_codefrag_facts hi a0
+  end.
+
 Tactic Notation "focus_block_0" constr(h) "as" constr(hi) constr(hcont) :=
-  focus_block_0 h hi hcont.
+  let h' := constr:(h:ident) in
+  lazymatch goal with
+  | |- context [ Esnoc _ h' (codefrag_pers _ _) ] => focus_block_0_pers h hi
+  | _ => focus_block_0 h hi hcont
+  end.
 
 Lemma focus_block_SubBounds (b e b' b'': Addr) k m n :
   SubBounds b e b' (b' ^+ k)%a →
@@ -263,7 +326,7 @@ Proof. solve_addr. Qed.
    because we have slightly more information when doing focus_block *)
 Ltac focus_block_codefrag_facts hi a0 Ha_base :=
   let HCR := fresh in
-  iDestruct (codefrag_contiguous_region with hi) as %HCR;
+  codefrag_contiguous hi HCR;
   cbn [length map encodeInstrsW] in HCR;
   try lazymatch goal with HSB : SubBounds ?b ?e a0 (a0 ^+ _)%a |- _ =>
     let HSB' := fresh in
@@ -272,8 +335,31 @@ Ltac focus_block_codefrag_facts hi a0 Ha_base :=
     cbn [length map encodeInstrsW] in HSB'
   end.
 
+(* On persistent code, the block is a persistent fragment [hi] of [h]; there
+   is no continuation, and [h] is kept. *)
+Ltac focus_block_nochangePC_pers n h a_base Ha_base hi :=
+  let h := constr:(h:ident) in
+  let hi := constr:(hi:ident) in
+  let x := iFresh in
+  match goal with |- context [ Esnoc _ h (codefrag_pers ?a0 _) ] =>
+    iPoseProof ((codefrag_block_acc_pers n) with h) as (a_base) x;
+      [ once (typeclasses eauto with proofmode_focus) | ];
+    let xbase := iFresh in
+    eapply tac_and_destruct with x _ xbase hi _ _ _;
+      [pm_reflexivity|pm_reduce;tc_solve|pm_reduce];
+    iPure xbase as Ha_base;
+    let pat := constr:(intro_patterns.IIntuitionistic (intro_patterns.IIdent hi)) in
+    iDestructHyp hi as pat;
+    focus_block_codefrag_facts hi a0 Ha_base
+  end.
+
 Ltac focus_block n h a_base Ha_base hi hcont :=
   let h := constr:(h:ident) in
+  lazymatch goal with
+  | |- context [ Esnoc _ h (codefrag_pers _ _) ] =>
+    focus_block_nochangePC_pers n h a_base Ha_base hi;
+    changePC_next_block a_base
+  | _ =>
   let hi := constr:(hi:ident) in
   let hcont := constr:(hcont:ident) in
   let x := iFresh in
@@ -289,7 +375,7 @@ Ltac focus_block n h a_base Ha_base hi hcont :=
       [pm_reflexivity|pm_reduce;tc_solve|pm_reduce];
     focus_block_codefrag_facts hi a0 Ha_base;
     changePC_next_block a_base
-  end.
+  end end.
 
 Tactic Notation "focus_block" constr(n) constr(h) "as"
        ident(a_base) simple_intropattern(Ha_base) constr(hi) constr(hcont) :=
@@ -297,6 +383,10 @@ Tactic Notation "focus_block" constr(n) constr(h) "as"
 
 Ltac focus_block_nochangePC n h a_base Ha_base hi hcont :=
   let h := constr:(h:ident) in
+  lazymatch goal with
+  | |- context [ environments.Esnoc _ h (codefrag_pers _ _) ] =>
+    focus_block_nochangePC_pers n h a_base Ha_base hi
+  | _ =>
   let hi := constr:(hi:ident) in
   let hcont := constr:(hcont:ident) in
   let x := iFresh in
@@ -311,7 +401,7 @@ Ltac focus_block_nochangePC n h a_base Ha_base hi hcont :=
                     eapply coq_tactics.tac_and_destruct with y _ hi hcont _ _ _;
                     [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
                     focus_block_codefrag_facts hi a0 Ha_base
-  end.
+  end end.
 Tactic Notation "focus_block_nochangePC" constr(n) constr(h) "as"
   ident(a_base) simple_intropattern(Ha_base) constr(hi) constr(hcont) :=
   focus_block_nochangePC n h a_base Ha_base hi hcont.
@@ -322,7 +412,10 @@ Ltac unfocus_block hi hcont h :=
   let hcont := constr:(hcont:ident) in
   let h := constr:(h:ident) in
   clear_codefrag_facts hi;
-  iDestruct (hcont with hi) as h.
+  lazymatch goal with
+  | |- context [ Esnoc _ hi (codefrag_pers _ _) ] => iClear hi
+  | _ => iDestruct (hcont with hi) as h
+  end.
 
 Tactic Notation "unfocus_block" constr(hi) constr(hcont) "as" constr(h) :=
   unfocus_block hi hcont h.
@@ -413,27 +506,68 @@ Instance FramableMachineResource_codefrag `{ceriseG Σ} a l :
   FramableMachineResource (codefrag a l).
 Qed.
 
+Instance FramableMachineResource_codefrag_pers `{ceriseG Σ} a l :
+  FramableCodefrag a l →
+  FramableMachineResource (codefrag_pers a l).
+Qed.
+
 (* Address claims, for the Subseg rule on heap roots (case 3). *)
 Instance FramableMachineResource_addr_alloc `{ceriseG Σ} a c :
   FramableMachineResource (addr_alloc a c).
 Qed.
 
 
+(* Auto-framing from the intuitionistic context, beside the spatial lookup
+   of [FramableMachineHyp_default]: a persistent resource (e.g. a persistent
+   points-to) is framed and kept. The spatial context is tried first. *)
+Class EnvsLookupIntuitionistic {PROP: bi} (Δ: envs PROP) (P: PROP) (i: ident) := {}.
+#[export] Hint Mode EnvsLookupIntuitionistic + ! ! - : typeclass_instances.
+
+#[export] Instance EnvsLookupIntuitionistic_here (PROP: bi) (Γp Γs: env PROP) P c i :
+  EnvsLookupIntuitionistic (Envs (Esnoc Γp i P) Γs c) P i.
+Qed.
+
+#[export] Instance EnvsLookupIntuitionistic_next (PROP: bi) (Γp Γs: env PROP) P Q c i j :
+  EnvsLookupIntuitionistic (Envs Γp Γs c) Q j →
+  EnvsLookupIntuitionistic (Envs (Esnoc Γp i P) Γs c) Q j.
+Qed.
+
+#[export] Instance FramableMachineHyp_intuitionistic Σ (Δ: envs (uPredI (iResUR Σ))) G P i:
+  LookupFramableMachineResource G P →
+  EnvsLookupIntuitionistic Δ P i →
+  FramableMachineHyp Δ G i
+| 50.
+Qed.
+
 (* remembering names after auto-framing done by iFrameAuto *)
 
-Ltac2 Type hyp_table_kind := [ Reg | SReg | Mem | Codefrag | Claim ].
+Ltac2 Type hyp_table_kind := [ Reg | SReg | Mem | Codefrag | CodefragPers | Claim ].
 
+(* Whether the hypothesis named [hname] is in the intuitionistic context. *)
+Ltac2 is_intuitionistic_hyp (hname: constr) :=
+  lazy_match! goal with
+  | [ |- envs_entails (Envs ?γp _ _) _ ] =>
+    match! γp with
+    | context [ Esnoc _ (INamed ?n) _ ] => assert_constr_eq n hname; true
+    | _ => false
+    end
+  end.
+
+(* A resource framed from the intuitionistic context is still there: its
+   copy given back by the rule is dropped (named "_"). *)
 Ltac2 record_framed
       (table: (constr * constr * hyp_table_kind) list ref)
       (framed: constr * constr)
   :=
   let (hname, hh) := framed in
+  let hname := if is_intuitionistic_hyp hname then '("_") else hname in
   let (lhs, kind) :=
     lazy_match! hh with
     | (?r ↦ᵣ _)%I => (r, Reg)
     | (?sr ↦ₛᵣ _)%I => (sr, SReg)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
+    | (codefrag_pers ?a _) => (a, CodefragPers)
     | (addr_alloc ?a _) => (a, Claim)
     end in
   table.(contents) := (hname, lhs, kind) :: table.(contents).
@@ -539,6 +673,13 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
       let is_lhs := eval unfold check_addr_eq in (@check_addr_eq $a $lhs _ _) in
       assert_constr_eq is_lhs 'true;
       ltac1:(l a name |- change (codefrag a l) with (name ∷ (codefrag a l)))
+        (Ltac1.of_constr l) (Ltac1.of_constr a) (Ltac1.of_constr name)
+    end
+  | CodefragPers =>
+    match! goal with [ |- context [ codefrag_pers ?a ?l ] ] =>
+      let is_lhs := eval unfold check_addr_eq in (@check_addr_eq $a $lhs _ _) in
+      assert_constr_eq is_lhs 'true;
+      ltac1:(l a name |- change (codefrag_pers a l) with (name ∷ (codefrag_pers a l)))
         (Ltac1.of_constr l) (Ltac1.of_constr a) (Ltac1.of_constr name)
     end
   | Claim =>
@@ -699,16 +840,42 @@ Proof. solve_addr. Qed.
 Lemma addr_incr_zero_nat (a: Addr) : (a ^+ 0%nat)%a = a.
 Proof. solve_addr. Qed.
 
+(* The current PC address, stated as a logical word or through the
+   [lword_of_word] coercion. *)
+Ltac instr_pc_addr :=
+  lazymatch goal with
+  | |- context [ Esnoc _ _ (PC ↦ᵣ ((WCap _ _ _ _ _ ?pc_a) @@? _))%I ] => pc_a
+  | |- context [ Esnoc _ _ (PC ↦ᵣ lword_of_word (WCap _ _ _ _ _ ?pc_a))%I ] => pc_a
+  end.
+
+(* On persistent code, the instruction [hi] is a persistent points-to, and
+   there is no continuation [hcont]. [hi] is put in the spatial context, so
+   that it is framed only into the fetch premise of the rule (a hypothesis
+   of the intuitionistic context is framed into every premise it unifies
+   with). *)
+Ltac instr_lookup0_pers hprog hi :=
+  let hprog := constr:(hprog:ident) in
+  let hi := constr:(hi:ident) in
+  lazymatch goal with |- context [ Esnoc _ hprog (codefrag_pers ?a_base _) ] =>
+    let pc_a := instr_pc_addr in
+    let base_off := eval unfold as_weak_addr_incr in
+      (@as_weak_addr_incr pc_a a_base _ _) in
+    lazymatch base_off with
+    | (?base, ?off) =>
+      iPoseProofCore (codefrag_lookup_acc_pers _ _ off with hprog) as false (fun H =>
+        let pat := constr:(intro_patterns.ISpatial (intro_patterns.IIdent hi)) in
+        iDestructHyp H as pat;
+        rewrite ?addr_incr_zero ?addr_incr_zero_nat
+      )
+    end
+  end.
+
 Ltac instr_lookup0 hprog hi hcont :=
   let hprog := constr:(hprog:ident) in
-  lazymatch goal with |- context [ Esnoc _ hprog (codefrag ?a_base _) ] =>
-  (* The PC may be stated as a logical word or through the [lword_of_word]
-     coercion. *)
-  let pc_a :=
-    lazymatch goal with
-    | |- context [ Esnoc _ _ (PC ↦ᵣ ((WCap _ _ _ _ _ ?pc_a) @@? _))%I ] => pc_a
-    | |- context [ Esnoc _ _ (PC ↦ᵣ lword_of_word (WCap _ _ _ _ _ ?pc_a))%I ] => pc_a
-    end in
+  lazymatch goal with
+  | |- context [ Esnoc _ hprog (codefrag_pers _ _) ] => instr_lookup0_pers hprog hi
+  | |- context [ Esnoc _ hprog (codefrag ?a_base _) ] =>
+    let pc_a := instr_pc_addr in
     let base_off := eval unfold as_weak_addr_incr in
       (@as_weak_addr_incr pc_a a_base _ _) in
     lazymatch base_off with
@@ -729,12 +896,12 @@ Tactic Notation "iInstr_lookup" constr(hprog) "as" constr(hi) constr(hcont) :=
 Ltac instr_get_rule_using dispatch hi cont :=
   let hi := constr:(hi:ident) in
   once (
-    (lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ (encodeInstrW ?instr) @@? _)%I ] => idtac end
-     + (lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ ?instr)%I ] =>
+    (lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ{_} (encodeInstrW ?instr) @@? _)%I ] => idtac end
+     + (lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ{_} ?instr)%I ] =>
            fail 1 "Next instruction is not of the form (encodeInstrW _):" instr
          end + fail "" hi "not found"))
   );
-  lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ (encodeInstrW ?instr) @@? _)%I ] =>
+  lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ{_} (encodeInstrW ?instr) @@? _)%I ] =>
     dispatch instr cont
   end.
 
@@ -743,7 +910,20 @@ Ltac instr_get_rule0 hi cont :=
 
 Tactic Notation "iInstr_get_rule" constr(hi) tactic(cont) := instr_get_rule0 hi cont.
 
+(* On persistent code, the instruction looked up (an anonymous persistent
+   points-to) is dropped. *)
+Ltac instr_close_pers :=
+  lazymatch goal with
+  | |- context [ Esnoc _ (IAnon ?n) (_ ↦ₐ□ encodeInstrW _ @@? _)%I ] =>
+    let hi := constr:(IAnon n) in
+    iClear hi
+  end.
+
 Ltac instr_close hprog :=
+  let hprog' := constr:(hprog:ident) in
+  lazymatch goal with
+  | |- context [ Esnoc _ hprog' (codefrag_pers _ _) ] => instr_close_pers
+  | _ =>
   (* [hi] goes through the instruction rule and is re-introduced from its
      post-condition, so its name may have changed: recover [hi] and
      [hcont] by shape. *)
@@ -756,7 +936,8 @@ Ltac instr_close hprog :=
     |tc_solve
     |pm_reduce];
     iRename hcont into hprog
-  end end.
+  end end
+  end.
 
 Tactic Notation "iInstr_close" constr(H) := instr_close H.
 

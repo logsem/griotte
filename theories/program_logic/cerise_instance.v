@@ -74,6 +74,8 @@ Notation "a ↦ₐ{ q } w" := (pointsto (L:=Addr) (V:=LWord) a q w)
   (at level 20, q at level 50, format "a  ↦ₐ{ q }  w") : bi_scope.
 Notation "a ↦ₐ w" := (pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) w) (at level 20) : bi_scope.
 Notation "a ↦ₐ -" := (∃ w, pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) w)%I (at level 20) : bi_scope.
+Notation "a ↦ₐ□ w" := (pointsto (L:=Addr) (V:=LWord) a DfracDiscarded w)
+  (at level 20, format "a  ↦ₐ□  w") : bi_scope.
 
 (* Points to predicates for shadow table *)
 Notation "a ↦ₛ{ q } b" := (pointsto (L:=Addr) (V:=AllocStatus) a q b)
