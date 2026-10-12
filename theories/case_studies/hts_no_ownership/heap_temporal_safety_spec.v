@@ -121,7 +121,7 @@ Section Heap_Temporal_Safety_Main.
        & #Hinterp_csp)".
     iDestruct (interp_cap_disjoint_wl with "Hinterp_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
-    iDestruct (hts_main_imports_pointsto pc_b pc_a C_f Himports_contiguous
+    iDestruct (hts_main_imports_pointsto_pers pc_b pc_a C_f Himports_contiguous
       with "Himports") as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
        & Himport_free & _)".

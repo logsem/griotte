@@ -68,9 +68,8 @@ Section HTS_Reload.
     wp_instr.
     iDestruct (map_of_regs_3 with "HPC Hcsp Hca0")
       as "[Hmap (%Hpc_csp & %Hpc_ca0 & %Hcsp_ca0)]".
-    iDestruct (memMap_resource_2ne_apply with "Hi Ha")
+    iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha")
       as "[Hmem %Hpc_a]".
-    iDestruct (mem_remove_dq with "Hmem") as "Hmem".
     iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
       as "Hshadow".
     { by rewrite big_sepM_empty. }
@@ -92,9 +91,8 @@ Section HTS_Reload.
         last (apply withinBounds_true_iff; solve_addr).
       case_match; first done.
       eexists. by simplify_map_eq. }
-    { by rewrite create_gmap_default_dom list_to_set_elements_L. }
+    { by rewrite !dom_insert_L. }
     iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & Hwit & Hmap)".
-    iDestruct (mem_remove_dq with "Hmem") as "Hmem".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
@@ -111,7 +109,7 @@ Section HTS_Reload.
       rewrite (insert_insert_ne _ ca0 PC) // insert_insert_eq.
       rewrite (insert_insert_ne _ ca0 csp) // insert_insert_eq.
       iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hcsp & Hca0)"; eauto.
-      iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+      iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
       wp_pure.
       iClear "Hi".
       iApply ("Hpost" $! actual with "[//]"). iFrame "∗ Hcode".

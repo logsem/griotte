@@ -33,22 +33,22 @@ Section Heap_Temporal_Safety_Imports.
   Lemma hts_main_imports_length adv_f : length (hts_main_imports adv_f) = 5.
   Proof. reflexivity. Qed.
 
-  Lemma hts_main_imports_pointsto b e adv_f :
+  Lemma hts_main_imports_pointsto_pers b e adv_f :
     (b + 5)%a = Some e ->
-    [[b, e]] ↦ₐ [[lword_of_word <$> hts_main_imports adv_f]] ⊣⊢
-      b ↦ₐ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
-      ∗ (b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert
-      ∗ (b ^+ 2)%a ↦ₐ WSealed ot_switcher adv_f
-      ∗ (b ^+ 3)%a ↦ₐ WSealed ot_switcher (allocator_malloc Global)
-      ∗ (b ^+ 4)%a ↦ₐ WSealed ot_switcher (allocator_free Global)
-      ∗ region_pointsto (b ^+ 5)%a e [].
+    [[b, e]] ↦ₐ□ [[lword_of_word <$> hts_main_imports adv_f]] ⊣⊢
+      b ↦ₐ□ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
+      ∗ (b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert
+      ∗ (b ^+ 2)%a ↦ₐ□ WSealed ot_switcher adv_f
+      ∗ (b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (allocator_malloc Global)
+      ∗ (b ^+ 4)%a ↦ₐ□ WSealed ot_switcher (allocator_free Global)
+      ∗ region_pointsto_pers (b ^+ 5)%a e [].
   Proof.
     intros Hsize. rewrite /hts_main_imports.
-    rewrite (region_pointsto_cons b (b ^+ 1)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (b ^+ 1)%a (b ^+ 2)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (b ^+ 2)%a (b ^+ 3)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (b ^+ 3)%a (b ^+ 4)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (b ^+ 4)%a (b ^+ 5)%a e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons b (b ^+ 1)%a e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 1)%a (b ^+ 2)%a e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 2)%a (b ^+ 3)%a e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 3)%a (b ^+ 4)%a e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 4)%a (b ^+ 5)%a e); [|solve_addr|solve_addr].
     done.
   Qed.
 End Heap_Temporal_Safety_Imports.
