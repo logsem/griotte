@@ -69,18 +69,18 @@ Section griotte_lang_rules.
     intros Hb Ht. apply (reg_word_ok_derive _ _ (WSealed o sb @@? π)); cbn; auto.
   Qed.
 
-  Lemma wp_UnSeal Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src1 src2 regs :
+  Lemma wp_UnSeal Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src1 src2 regs dq :
     decodeInstrW w.(lw) = UnSeal dst src1 src2 ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (UnSeal dst src1 src2) ⊆ dom regs →
 
-    {{{ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
         ⌜ UnSeal_spec regs dst src1 src2 regs' retv ⌝ ∗
-        pc_a ↦ₐ w ∗
+        pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
@@ -144,7 +144,7 @@ Section griotte_lang_rules.
       iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
   Qed.
 
-  Lemma wp_unseal_success E pc_p pc_g pc_b pc_e pc_a pc_π w w' dst r1 r2 p g b e a o sb pc_a' πs π :
+  Lemma wp_unseal_success E pc_p pc_g pc_b pc_e pc_a pc_π w w' dst r1 r2 p g b e a o sb pc_a' πs π dq :
     decodeInstrW w.(lw) = UnSeal dst r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     get_tag_sealable sb = true →
@@ -156,14 +156,14 @@ Section griotte_lang_rules.
     r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ w'
         ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealed o sb @@? π }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WSealable (machine_word.unseal g sb) @@? π
           ∗ r1 ↦ᵣ WSealRange true p g b e a @@? πs
           ∗ r2 ↦ᵣ WSealed o sb @@? π
@@ -191,7 +191,7 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_unseal_r1 E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 p g b e a o sb pc_a' πs π :
+  Lemma wp_unseal_r1 E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 p g b e a o sb pc_a' πs π dq :
     decodeInstrW w.(lw) = UnSeal r1 r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     get_tag_sealable sb = true →
@@ -202,13 +202,13 @@ Section griotte_lang_rules.
     r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealed o sb @@? π }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ WSealable (machine_word.unseal g sb) @@? π
           ∗ r2 ↦ᵣ WSealed o sb @@? π
       }}}.
@@ -234,7 +234,7 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_unseal_r2 E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 p g b e a o sb pc_a' πs π :
+  Lemma wp_unseal_r2 E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 p g b e a o sb pc_a' πs π dq :
     decodeInstrW w.(lw) = UnSeal r2 r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     get_tag_sealable sb = true →
@@ -245,13 +245,13 @@ Section griotte_lang_rules.
     r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealed o sb @@? π }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ WSealRange true p g b e a @@? πs
           ∗ r2 ↦ᵣ WSealable (machine_word.unseal g sb) @@? π
       }}}.
@@ -278,7 +278,7 @@ Section griotte_lang_rules.
   Qed.
 
   (* The below case could be useful, if what we unseal is a PC capability *)
-  Lemma wp_unseal_PC E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 p g b e a o p' g' b' e' a' a'' πs π :
+  Lemma wp_unseal_PC E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 p g b e a o p' g' b' e' a' a'' πs π dq :
     decodeInstrW w.(lw) = UnSeal PC r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     permit_unseal p = true →
@@ -288,13 +288,13 @@ Section griotte_lang_rules.
     r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealed o (SCap true p' g' b' e' a') @@? π }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true p' (unseal_locality g g') b' e' a'' @@? π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ WSealRange true p g b e a @@? πs
           ∗ r2 ↦ᵣ WSealed o (SCap true p' g' b' e' a') @@? π
       }}}.
@@ -326,7 +326,7 @@ Section instruction_outcomes.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
   Local Lemma unseal_invalidated_map E pc_p pc_g pc_b pc_e pc_a pc_π
-      w dst src1 src2 regs regs' (t : bool) p g b e a πs a' sb π :
+      w dst src1 src2 regs regs' (t : bool) p g b e a πs a' sb π dq :
     decodeInstrW w.(lw) = UnSeal dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
@@ -335,9 +335,9 @@ Section instruction_outcomes.
     regs !!ₗ src2 = Some (WSealed a' sb @@? π) →
     t && get_tag_sealable sb && permit_unseal p && withinBounds b e a' = false →
     incrementPC (<[ dst := WSealable (clear_tag_sealable (machine_word.unseal g sb)) @@? π ]ₗ> regs) = Some regs' →
-    {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET NextIV; pc_a ↦ₐ w ∗ [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
+    {{{ RET NextIV; pc_a ↦ₐ{dq} w ∗ [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs Hr1 Hr2 Hvalid Hincr φ) "(Hpc_a & Hmap) Hφ".
     iApply (wp_UnSeal with "[$Hpc_a $Hmap]"); eauto.
@@ -356,7 +356,7 @@ Section instruction_outcomes.
 
   (* UnSeal: the PC-destination case advances the unsealed payload current address. *)
   Lemma wp_unseal_invalidated E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 r2 (t : bool) p g b e a πs π (o :
-      OType) sb dst (wd : LWord) :
+      OType) sb dst (wd : LWord) dq :
     decodeInstrW w.(lw) = UnSeal dst r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -364,14 +364,14 @@ Section instruction_outcomes.
     r2 ≠ cnull →
     t && get_tag_sealable (sb) && permit_unseal p && withinBounds b e o = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealed o (sb) @@? π
         ∗ ▷ dst ↦ᵣ wd }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ r2 ↦ᵣ WSealed o (sb) @@? π
         ∗ dst ↦ᵣ (if decide (dst = cnull) then lnull else WSealable (clear_tag_sealable (machine_word.unseal g sb)) @@? π) }}}.
@@ -393,7 +393,7 @@ Section instruction_outcomes.
   Qed.
 
   Lemma wp_unseal_invalidated_r1 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 r2 (t : bool) p g b e a πs π (o :
-      OType) sb :
+      OType) sb dq :
     decodeInstrW w.(lw) = UnSeal r1 r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -401,13 +401,13 @@ Section instruction_outcomes.
     r2 ≠ cnull →
     t && get_tag_sealable (sb) && permit_unseal p && withinBounds b e o = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealed o (sb) @@? π }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal g sb)) @@? π
         ∗ r2 ↦ᵣ WSealed o (sb) @@? π }}}.
   Proof.
@@ -427,7 +427,7 @@ Section instruction_outcomes.
   Qed.
 
   Lemma wp_unseal_invalidated_r2 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 r2 (t : bool) p g b e a πs π (o :
-      OType) sb :
+      OType) sb dq :
     decodeInstrW w.(lw) = UnSeal r2 r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -435,13 +435,13 @@ Section instruction_outcomes.
     r2 ≠ cnull →
     t && get_tag_sealable (sb) && permit_unseal p && withinBounds b e o = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealed o (sb) @@? π }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal g sb)) @@? π }}}.
   Proof.
@@ -461,7 +461,7 @@ Section instruction_outcomes.
   Qed.
 
   Lemma wp_unseal_invalidated_PC E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 r2 (t : bool) p g b e a πs π (o :
-      OType) (t' : bool) p' g' b' e' a' :
+      OType) (t' : bool) p' g' b' e' a' dq :
     decodeInstrW w.(lw) = UnSeal PC r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (a' + 1)%a = Some pc_a' →
@@ -469,13 +469,13 @@ Section instruction_outcomes.
     r2 ≠ cnull →
     t && get_tag_sealable (SCap t' p' g' b' e' a') && permit_unseal p && withinBounds b e o = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealed o (SCap t' p' g' b' e' a') @@? π }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap false p' (unseal_locality g g') b' e' pc_a' @@? π
-        ∗ pc_a ↦ₐ w
+        ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ r2 ↦ᵣ WSealed o (SCap t' p' g' b' e' a') @@? π }}}.
   Proof.

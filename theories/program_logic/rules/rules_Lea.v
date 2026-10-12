@@ -86,17 +86,17 @@ Section griotte_lang_rules.
     Lea_failure regs r1 rv ->
     Lea_spec regs r1 rv regs' FailedV.
 
-   Lemma wp_lea Ep pc_p pc_g pc_b pc_e pc_a pc_π r1 w arg (regs : LReg) :
+   Lemma wp_lea Ep pc_p pc_g pc_b pc_e pc_a pc_π r1 w arg (regs : LReg) dq :
      decodeInstrW w.(lw) = Lea r1 arg →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
      regs_of (Lea r1 arg) ⊆ dom regs →
-     {{{ ▷ pc_a ↦ₐ w ∗
+     {{{ ▷ pc_a ↦ₐ{dq} w ∗
          ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
        Instr Executable @ Ep
      {{{ regs' retv, RET retv;
          ⌜ Lea_spec regs r1 arg regs' retv ⌝ ∗
-         pc_a ↦ₐ w ∗
+         pc_a ↦ₐ{dq} w ∗
          [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
    Proof.
      iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
@@ -161,7 +161,7 @@ Section griotte_lang_rules.
          iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
    Qed.
 
-   Lemma wp_lea_success_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv wz z a' :
+   Lemma wp_lea_success_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv wz z a' dq :
      decodeInstrW w.(lw) = Lea PC (inr rv) →
      IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -170,12 +170,12 @@ Section griotte_lang_rules.
      rv ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-              ∗ pc_a ↦ₐ w
+              ∗ pc_a ↦ₐ{dq} w
               ∗ rv ↦ᵣ wz }}}.
    Proof.
      iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hrv) Hφ".
@@ -200,7 +200,7 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z a' π :
+   Lemma wp_lea_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z a' π dq :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
      IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -210,13 +210,13 @@ Section griotte_lang_rules.
      r1 ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π
            ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-              ∗ pc_a ↦ₐ w
+              ∗ pc_a ↦ₐ{dq} w
               ∗ rv ↦ᵣ wz
               ∗ r1 ↦ᵣ WCap t p g b e a' @@? π }}}.
    Proof.
@@ -244,18 +244,18 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_success_z_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w z a' :
+   Lemma wp_lea_success_z_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w z a' dq :
      decodeInstrW w.(lw) = Lea PC (inl z) →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (a' + 1)%a = Some pc_a' →
      (pc_a + z)%a = Some a' →
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w }}}
+           ∗ ▷ pc_a ↦ₐ{dq} w }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-            ∗ pc_a ↦ₐ w }}}.
+            ∗ pc_a ↦ₐ{dq} w }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' ϕ) "(>HPC & >Hpc_a) Hφ".
      iDestruct (map_of_regs_1 with "HPC") as "Hmap".
@@ -276,7 +276,7 @@ Section griotte_lang_rules.
      Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z a' π :
+   Lemma wp_lea_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z a' π dq :
      decodeInstrW w.(lw) = Lea r1 (inl z) →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
@@ -284,12 +284,12 @@ Section griotte_lang_rules.
      r1 ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-            ∗ pc_a ↦ₐ w
+            ∗ pc_a ↦ₐ{dq} w
             ∗ r1 ↦ᵣ WCap t p g b e a' @@? π }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
@@ -316,7 +316,7 @@ Section griotte_lang_rules.
 
    (* Similar rules in case we have a SealRange instead of a capability, where some cases are impossible, because a SealRange is not a valid PC *)
 
-   Lemma wp_lea_success_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z a' π :
+   Lemma wp_lea_success_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z a' π dq :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
      IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -326,13 +326,13 @@ Section griotte_lang_rules.
      r1 ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π
            ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-              ∗ pc_a ↦ₐ w
+              ∗ pc_a ↦ₐ{dq} w
               ∗ rv ↦ᵣ wz
               ∗ r1 ↦ᵣ WSealRange t p g b e a' @@? π }}}.
    Proof.
@@ -361,7 +361,7 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
    Qed.
 
-  Lemma wp_lea_success_z_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z a' π :
+  Lemma wp_lea_success_z_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z a' π dq :
      decodeInstrW w.(lw) = Lea r1 (inl z) →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
@@ -369,12 +369,12 @@ Section griotte_lang_rules.
      r1 ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-            ∗ pc_a ↦ₐ w
+            ∗ pc_a ↦ₐ{dq} w
             ∗ r1 ↦ᵣ WSealRange t p g b e a' @@? π }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
@@ -400,7 +400,7 @@ Section griotte_lang_rules.
      Unshelve. all:auto.
    Qed.
 
-   Lemma wp_lea_overflow_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv wz z :
+   Lemma wp_lea_overflow_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rv wz z dq :
      decodeInstrW w.(lw) = Lea PC (inr rv) →
      IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -409,12 +409,12 @@ Section griotte_lang_rules.
      rv ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap false pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-              ∗ pc_a ↦ₐ w
+              ∗ pc_a ↦ₐ{dq} w
               ∗ rv ↦ᵣ wz }}}.
    Proof.
      iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hrv) Hφ".
@@ -437,7 +437,7 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_overflow_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π :
+   Lemma wp_lea_overflow_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π dq :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
      IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -447,13 +447,13 @@ Section griotte_lang_rules.
      r1 ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π
            ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-              ∗ pc_a ↦ₐ w
+              ∗ pc_a ↦ₐ{dq} w
               ∗ rv ↦ᵣ wz
               ∗ r1 ↦ᵣ WCap false p g b e a @@? π }}}.
    Proof.
@@ -479,18 +479,18 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_overflow_z_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w z :
+   Lemma wp_lea_overflow_z_PC Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w z dq :
      decodeInstrW w.(lw) = Lea PC (inl z) →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (pc_a + z)%a = None →
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w }}}
+           ∗ ▷ pc_a ↦ₐ{dq} w }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap false pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-            ∗ pc_a ↦ₐ w }}}.
+            ∗ pc_a ↦ₐ{dq} w }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' ϕ) "(>HPC & >Hpc_a) Hφ".
      iDestruct (map_of_regs_1 with "HPC") as "Hmap".
@@ -509,7 +509,7 @@ Section griotte_lang_rules.
      Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_overflow_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z π :
+   Lemma wp_lea_overflow_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z π dq :
      decodeInstrW w.(lw) = Lea r1 (inl z) →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
@@ -517,12 +517,12 @@ Section griotte_lang_rules.
      r1 ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-            ∗ pc_a ↦ₐ w
+            ∗ pc_a ↦ₐ{dq} w
             ∗ r1 ↦ᵣ WCap false p g b e a @@? π }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
@@ -545,7 +545,7 @@ Section griotte_lang_rules.
      Unshelve. all:auto.
    Qed.
 
-   Lemma wp_lea_overflow_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π :
+   Lemma wp_lea_overflow_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π dq :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
      IsLInt wz z →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -555,13 +555,13 @@ Section griotte_lang_rules.
      r1 ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π
            ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-              ∗ pc_a ↦ₐ w
+              ∗ pc_a ↦ₐ{dq} w
               ∗ rv ↦ᵣ wz
               ∗ r1 ↦ᵣ WSealRange false p g b e a @@? π }}}.
    Proof.
@@ -588,7 +588,7 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
    Qed.
 
-   Lemma wp_lea_overflow_z_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z π :
+   Lemma wp_lea_overflow_z_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z π dq :
      decodeInstrW w.(lw) = Lea r1 (inl z) →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
@@ -596,12 +596,12 @@ Section griotte_lang_rules.
      r1 ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-            ∗ pc_a ↦ₐ w
+            ∗ pc_a ↦ₐ{dq} w
             ∗ r1 ↦ᵣ WSealRange false p g b e a @@? π }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
@@ -625,13 +625,13 @@ Section griotte_lang_rules.
      Unshelve. all:auto.
    Qed.
 
-   Lemma wp_Lea_fail_integer Ep pc_p pc_g pc_b pc_e pc_a pc_π w r1 w1 z z' :
+   Lemma wp_Lea_fail_integer Ep pc_p pc_g pc_b pc_e pc_a pc_π w r1 w1 z z' dq :
      decodeInstrW w.(lw) = Lea r1 (inl z) →
      IsLInt w1 z' →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
 
      {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-         ∗ ▷ pc_a ↦ₐ w
+         ∗ ▷ pc_a ↦ₐ{dq} w
          ∗ ▷ r1 ↦ᵣ w1
      }}}
        Instr Executable @ Ep

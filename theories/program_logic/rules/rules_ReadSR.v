@@ -44,7 +44,7 @@ Section griotte_lang_rules.
       ReadSR_failure regs sregs dst src →
       ReadSR_spec regs sregs dst src regs' FailedV.
 
-  Lemma wp_ReadSR Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs sregs :
+  Lemma wp_ReadSR Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs sregs dq :
     decodeInstrW w.(lw) = ReadSR dst src ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
@@ -52,14 +52,14 @@ Section griotte_lang_rules.
     (if (has_sreg_access pc_p)
     then sregs_of (ReadSR dst src) ⊆ dom sregs
     else True) →
-    {{{ ▷ pc_a ↦ₐ w ∗
+    {{{ ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         ▷ ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
     }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
         ⌜ ReadSR_spec regs sregs dst src regs' retv ⌝ ∗
-        pc_a ↦ₐ w ∗
+        pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ regs', k ↦ᵣ y) ∗
         ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
     }}}.
@@ -92,7 +92,7 @@ Section griotte_lang_rules.
     iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
   Qed.
 
-  Lemma wp_readsr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) :
+  Lemma wp_readsr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) dq :
     decodeInstrW w.(lw) = ReadSR dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
@@ -100,13 +100,13 @@ Section griotte_lang_rules.
     dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ wdst
         ∗ ▷ src ↦ₛᵣ wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ lword_of_word wsrc
           ∗ src ↦ₛᵣ wsrc }}}.
   Proof.
@@ -133,19 +133,19 @@ Section griotte_lang_rules.
     }
   Qed.
 
-  Lemma wp_readsr_success_toPC E pc_p pc_g pc_b pc_e pc_a pc_π w src (t : bool) p g b e a a':
+  Lemma wp_readsr_success_toPC E pc_p pc_g pc_b pc_e pc_a pc_π w src (t : bool) p g b e a a' dq:
     decodeInstrW w.(lw) = ReadSR PC src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (a + 1)%a = Some a' →
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ src ↦ₛᵣ WCap t p g b e a }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap t p g b e a' @@? None
-          ∗ pc_a ↦ₐ w
+          ∗ pc_a ↦ₐ{dq} w
           ∗ src ↦ₛᵣ WCap t p g b e a }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' ϕ) "(>HPC & >Hpc_a & >Hsrc) Hφ".
