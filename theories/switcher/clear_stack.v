@@ -20,6 +20,8 @@ Section ClearStackMacro.
       jmp ("loop_start")%asm;
       #"loop_end"
     ].
+  Lemma clear_stack_assembles (r1 r2 : RegName) : asm_ok (assemble_check (clear_stack_asm_pre r1 r2)).
+  Proof. asm_check. Qed.
 
   Definition clear_stack_asm_env :=
     Eval vm_compute in (compute_asm_code_env (clear_stack_asm_pre cnull cnull)).2.

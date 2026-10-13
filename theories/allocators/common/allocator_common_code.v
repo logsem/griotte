@@ -60,7 +60,7 @@ Section AllocatorCommonCode.
       jnz (".allocator_zero")%asm rtmp
     ].
   (* VM reduction preserves the register parameters: these macros contain no
-     fixed register names that would need [revert_regs_code]. *)
+     fixed register name, which VM reduction would unfold. *)
 
   Definition allocator_zero_asm_env (rptr rend rtmp : RegName) :=
     Eval vm_compute in (compute_asm_code_env (allocator_zero_asm_pre rptr rend rtmp)).2.
@@ -70,7 +70,9 @@ Section AllocatorCommonCode.
                       (allocator_zero_asm_env rptr rend rtmp).
 
   Definition allocator_zero (rptr rend rtmp : RegName) :=
-    Eval vm_compute in assemble (allocator_zero_asm rptr rend rtmp).
+    Eval compute in assemble (allocator_zero_asm rptr rend rtmp).
+  Lemma allocator_zero_assembles (rptr rend rtmp : RegName) : asm_ok (assemble_check (allocator_zero_asm_pre rptr rend rtmp)).
+  Proof. asm_check. Qed.
 
   Definition allocator_zero_instrs (rptr rend rtmp : RegName) : list Word :=
     encodeInstrsW (allocator_zero rptr rend rtmp).
@@ -95,7 +97,9 @@ Section AllocatorCommonCode.
                       (allocator_paint_asm_env rptr rcount status).
 
   Definition allocator_paint (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in assemble (allocator_paint_asm rptr rcount status).
+    Eval compute in assemble (allocator_paint_asm rptr rcount status).
+  Lemma allocator_paint_assembles (rptr rcount : RegName) (status : AllocStatus) : asm_ok (assemble_check (allocator_paint_asm_pre rptr rcount status)).
+  Proof. asm_check. Qed.
 
   Definition allocator_paint_instrs (rptr rcount : RegName) (status : AllocStatus)
     : list Word := encodeInstrsW (allocator_paint rptr rcount status).
@@ -128,11 +132,10 @@ Section AllocatorCommonCode.
       allocator_paint_asm ctp ca2 ShadowLive
     ].
 
-  Definition assembled_allocator_malloc_shadow' :=
-    Eval vm_compute in assemble_block allocator_malloc_shadow_asm.
-
   Definition assembled_allocator_malloc_shadow :=
-    Eval cbv in revert_regs_code_block assembled_allocator_malloc_shadow'.
+    Eval compute in assemble_block allocator_malloc_shadow_asm.
+  Lemma allocator_malloc_shadow_assembles : asm_ok (assemble_block_check allocator_malloc_shadow_asm).
+  Proof. asm_check. Qed.
 
   Definition allocator_malloc_shadow_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (assembled_allocator_malloc_shadow !! n)).
@@ -153,11 +156,10 @@ Section AllocatorCommonCode.
       ASM_Label ".malloc_return" :: allocator_return_asm
     ].
 
-  Definition assembled_allocator_malloc_exit' :=
-    Eval vm_compute in assemble_block allocator_malloc_exit_asm.
-
   Definition assembled_allocator_malloc_exit :=
-    Eval cbv in revert_regs_code_block assembled_allocator_malloc_exit'.
+    Eval compute in assemble_block allocator_malloc_exit_asm.
+  Lemma allocator_malloc_exit_assembles : asm_ok (assemble_block_check allocator_malloc_exit_asm).
+  Proof. asm_check. Qed.
 
   Definition allocator_malloc_exit_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (assembled_allocator_malloc_exit !! n)).
@@ -197,11 +199,10 @@ Section AllocatorCommonCode.
       ASM_Label ".free_return" :: allocator_return_asm
     ].
 
-  Definition assembled_allocator_free_tail' :=
-    Eval vm_compute in assemble_block allocator_free_tail_asm.
-
   Definition assembled_allocator_free_tail :=
-    Eval cbv in revert_regs_code_block assembled_allocator_free_tail'.
+    Eval compute in assemble_block allocator_free_tail_asm.
+  Lemma allocator_free_tail_assembles : asm_ok (assemble_block_check allocator_free_tail_asm).
+  Proof. asm_check. Qed.
 
   Definition allocator_free_tail_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (assembled_allocator_free_tail !! n)).

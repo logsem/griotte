@@ -66,10 +66,10 @@ Section CMDC_Main.
       [ halt ]
     ].
 
-  Definition cmdc_main_assembled' :=
-    Eval vm_compute in assemble_block cmdc_main_asm.
   Definition cmdc_main_assembled :=
-    Eval cbv in revert_regs_code_block cmdc_main_assembled'.
+    Eval compute in assemble_block cmdc_main_asm.
+  Lemma cmdc_main_assembles : asm_ok (assemble_block_check cmdc_main_asm).
+  Proof. asm_check. Qed.
   Definition cmdc_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (cmdc_main_assembled !! n)).
 

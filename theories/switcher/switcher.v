@@ -168,14 +168,10 @@ Section Switcher.
     switcher_callback_asm ++
     switcher_failure_asm.
 
-  Definition switcher_asm_env :=
-    Eval vm_compute in (compute_asm_code_env (concat switcher_asm_pre)).2.
-  Definition switcher_labels :=
-    Eval cbn in (compute_asm_code_env (concat switcher_asm_pre)).2.
-  Definition switcher_asm :=
-    Eval compute in resolve_labels_block switcher_asm_pre switcher_asm_env.
   Definition assembled_switcher :=
-    Eval compute in assemble_block switcher_asm.
+    Eval compute in assemble_block switcher_asm_pre.
+  Lemma switcher_assembles : asm_ok (assemble_block_check switcher_asm_pre).
+  Proof. asm_check. Qed.
   Definition assembled_switcher_n (n : nat) :=
     Eval compute in
       (match assembled_switcher !! n with | Some l => l | None => [] end).

@@ -5,31 +5,45 @@ Module Asm_Griotte.
 
   (** To use the assembler, import `Asm_Griotte`.
       Define the assembly code: `xxx_asm : list asm_code`,
-      and assemble it with
+      assemble it and check it with
       ```
-      Definition assembled_xxx' := Eval vm_compute in (assemble xxx_asm).
-      Definition assembled_xxx  := Eval cbv in (revert_regs_code assembled_xxx').
+      Definition assembled_xxx := Eval compute in (assemble xxx_asm).
+      Lemma xxx_assembles : asm_ok (assemble_check xxx_asm).
+      Proof. asm_check. Qed.
       ```
+      The check fails with the assembler's message on an undefined label, a
+      label or symbol defined twice, or a symbol between two instructions
+      ([assemble] returns [[]] on such an error).
+      Label expressions resolve at the position of their instruction.
 
       If your code is supposed to be defined by blocks,
       ie, `xxx_asm := xxx1_asm ++ xxx2_asm`,
       define instead `xxx_asm := [xxx1_asm; xxx2_asm]`
       and assemble it by blocks:
       ```
-      Definition assembled_xxx' := Eval vm_compute in (assemble_block xxx_asm).
-      Definition assembled_xxx  := Eval cbv in (revert_regs_code_block assembled_xxx').
+      Definition assembled_xxx := Eval compute in (assemble_block xxx_asm).
+      Lemma xxx_assembles : asm_ok (assemble_block_check xxx_asm).
+      Proof. asm_check. Qed.
       Definition xxx_instrs : list Word := concat (encodeInstrsW <$> assembled_xxx).
       ```
 
+      Assemble with [compute], not [vm_compute]: [compute] respects the
+      opacity of the register names (`csp`, `cs0`, ...), so they stay folded
+      in the assembled code and register parameters are preserved, while
+      [vm_compute] unfolds them (https://github.com/rocq-prover/rocq/issues/4476).
+
       If you use labels in a macro that is supposed to be re-used,
-      use [resolve_labels] to avoid label conflict.
+      resolve them in the macro to avoid label conflicts.
       So, first define your asm macro with labels:
-      `xxx_asm_pre`, then resolve the labels with
+      `xxx_asm_pre r`, then compute its label environment (with
+      [vm_compute]: it contains no register) and resolve the labels with
       ```
-      Definition xxx_asm := Eval vcompute in (resolve_labels xxx_asm_pre).
+      Definition xxx_asm_env :=
+        Eval vm_compute in (compute_asm_code_env (xxx_asm_pre cnull)).2.
+      Definition xxx_asm r :=
+        Eval compute in (resolve_labels_macros (xxx_asm_pre r) xxx_asm_env).
       ```
-      Finally, [vm_compute] defies Opaque, so if your code is parameterised with
-      register name, use [compute] instead.
+      and check `xxx_asm_pre r` with [assemble_check].
    *)
 
   (*** Assembly Language with Labels *)
@@ -39,24 +53,29 @@ Module Asm_Griotte.
   | Asm_plus (e1 e2 : asm_expr)
   | Asm_minus (e1 e2 : asm_expr).
 
+  (** The operand of an instruction that takes an immediate or a register.
+      It is a definition of its own so that the asm coercions into it do not
+      clash with the coercions into [Z + RegName] of [register_file]. *)
+  Definition asm_arg : Type := (asm_expr + RegName)%type.
+
   Inductive asm_instr: Type :=
-  | Jmp (rimm: asm_expr + RegName)
-  | Jnz (rimm : asm_expr + RegName) (rcond: RegName)
+  | Jmp (rimm: asm_arg)
+  | Jnz (rimm : asm_arg) (rcond: RegName)
   | Jalr (rdst: RegName) (rsrc: RegName)
-  | Mov (dst: RegName) (src: asm_expr + RegName)
+  | Mov (dst: RegName) (src: asm_arg)
   | CLoad (dst src: RegName) (imm: asm_expr)
-  | Store (dst: RegName) (src: asm_expr + RegName) (imm: asm_expr)
-  | Lt (dst: RegName) (r1 r2: asm_expr + RegName)
-  | Add (dst: RegName) (r1 r2: asm_expr + RegName)
-  | Sub (dst: RegName) (r1 r2: asm_expr + RegName)
-  | Mul (dst: RegName) (r1 r2: asm_expr + RegName)
-  | LAnd (dst: RegName) (r1 r2: asm_expr + RegName)
-  | LOr (dst: RegName) (r1 r2: asm_expr + RegName)
-  | LShiftL (dst: RegName) (r1 r2: asm_expr + RegName)
-  | LShiftR (dst: RegName) (r1 r2: asm_expr + RegName)
-  | Lea (dst: RegName) (r: asm_expr + RegName)
-  | Restrict (dst: RegName) (r: asm_expr + RegName)
-  | Subseg (dst: RegName) (r1 r2: asm_expr + RegName)
+  | Store (dst: RegName) (src: asm_arg) (imm: asm_expr)
+  | Lt (dst: RegName) (r1 r2: asm_arg)
+  | Add (dst: RegName) (r1 r2: asm_arg)
+  | Sub (dst: RegName) (r1 r2: asm_arg)
+  | Mul (dst: RegName) (r1 r2: asm_arg)
+  | LAnd (dst: RegName) (r1 r2: asm_arg)
+  | LOr (dst: RegName) (r1 r2: asm_arg)
+  | LShiftL (dst: RegName) (r1 r2: asm_arg)
+  | LShiftR (dst: RegName) (r1 r2: asm_arg)
+  | Lea (dst: RegName) (r: asm_arg)
+  | Restrict (dst: RegName) (r: asm_arg)
+  | Subseg (dst: RegName) (r1 r2: asm_arg)
   | GetB (dst r: RegName)
   | GetE (dst r: RegName)
   | GetA (dst r: RegName)
@@ -77,7 +96,7 @@ Module Asm_Griotte.
   (** [ASM_Symbol s] names a data word reserved by the loader at the current
       address: it occupies one word but emits no instruction. Symbols may only
       form a data prefix before the code or a data suffix after it (see
-      [asm_symbols_around]), so that the assembled instructions stay
+      [asm_symbols_check]), so that the assembled instructions stay
       contiguous. *)
   Inductive asm_code : Type :=
   | ASM_Label (s : string)
@@ -105,28 +124,6 @@ Module Asm_Griotte.
       (0, 0, ∅)
       l
   .
-
-  (** Symbols form a data prefix before the code and a data suffix after it,
-      never between two instructions. [phase] is 0 in the prefix, 1 in the
-      code and 2 in the suffix. *)
-  Fixpoint asm_symbols_around_aux (phase : nat) (l : list asm_code) : bool :=
-    match l with
-    | [] => true
-    | ASM_Label _ :: l => asm_symbols_around_aux phase l
-    | ASM_Symbol _ :: l =>
-        match phase with
-        | 0 => asm_symbols_around_aux 0 l
-        | _ => asm_symbols_around_aux 2 l
-        end
-    | ASM_Instr _ :: l =>
-        match phase with
-        | 2 => false
-        | _ => asm_symbols_around_aux 1 l
-        end
-    end.
-
-  Definition asm_symbols_around (l : list asm_code) : bool :=
-    asm_symbols_around_aux 0 l.
 
   (** Computes the ASM expression with the current environment.
       Because jumps are relative, we keep track of the current line with [current_n].
@@ -311,334 +308,305 @@ Module Asm_Griotte.
     | None => []
     end.
 
-  (*** Code assembler. *)
-  Definition assemble_arg (arg : asm_expr + RegName) (env : gmap string nat)
-    : option (Z+RegName) :=
-    match arg with
-    | inr r => Some (inr r)
-    | inl expr => z ← eval_asm_expr expr env 0 ; Some (inl z)
+  (*** Assembler results. *)
+  (** The result of assembling: the value, or an error message naming the
+      offending label, symbol or instruction. *)
+  Inductive asm_result (A : Type) : Type :=
+  | Ok (a : A)
+  | Err (msg : string).
+  Arguments Ok {A} a.
+  Arguments Err {A} msg.
+
+  Global Instance asm_result_ret : MRet asm_result := λ A a, Ok a.
+  Global Instance asm_result_bind : MBind asm_result :=
+    λ A B f r, match r with Ok a => f a | Err msg => Err msg end.
+
+  (** The value of a result, or [d] on an error. *)
+  Definition asm_get {A} (d : A) (r : asm_result A) : A :=
+    match r with Ok a => a | Err _ => d end.
+
+  (*** Checked environment. *)
+  (** The environment maps each label and symbol to its word offset. It is
+      an association list rather than a [gmap]: [compute] reduces lookups in
+      it quickly, while reducing [gmap] operations on [string] keys is slow. *)
+  Definition asm_env_map : Type := list (string * nat).
+
+  Fixpoint asm_lookup (s : string) (env : asm_env_map) : option nat :=
+    match env with
+    | [] => None
+    | (s', n) :: env => if String.eqb s s' then Some n else asm_lookup s env
     end.
 
-  Definition assemble_instr (i: asm_instr) (env : gmap string nat) : option instr :=
-    match i with
-    | Jmp rimm =>
-        rimm' ← assemble_arg rimm env;
-        Some (machine_instructions.Jmp rimm')
-    | Jnz rimm rcond =>
-        rimm' ← assemble_arg rimm env;
-        Some (machine_instructions.Jnz rimm' rcond)
-    | Jalr rdst rsrc =>
-        Some (machine_instructions.Jalr rdst rsrc)
-    | Mov dst src  =>
-        src ← assemble_arg src env;
-        Some (machine_instructions.Mov dst src)
-    | CLoad dst src imm =>
-        off ← eval_asm_expr imm env 0;
-        Some (machine_instructions.CLoad dst src off)
-    | Store dst src imm =>
-        src ← assemble_arg src env;
-        off ← eval_asm_expr imm env 0;
-        Some (machine_instructions.Store dst src off)
-    | Lt dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.Lt dst w1 w2)
-    | Add dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.Add dst w1 w2)
-    | Sub dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.Sub dst w1 w2)
-    | Mul dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.Mul dst w1 w2)
-    | LAnd dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.LAnd dst w1 w2)
-    | LOr dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.LOr dst w1 w2)
-    | LShiftL dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.LShiftL dst w1 w2)
-    | LShiftR dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.LShiftR dst w1 w2)
-    | Lea dst r =>
-        w ← assemble_arg r env;
-        Some (machine_instructions.Lea dst w)
-    | Restrict dst r =>
-        w ← assemble_arg r env;
-        Some (machine_instructions.Restrict dst w)
-    | Subseg dst r1 r2 =>
-        w1 ← assemble_arg r1 env;
-        w2 ← assemble_arg r2 env;
-        Some (machine_instructions.Subseg dst w1 w2)
-    | GetB dst src =>
-        Some (machine_instructions.GetB dst src)
-    | GetE dst src =>
-        Some (machine_instructions.GetE dst src)
-    | GetA dst src =>
-        Some (machine_instructions.GetA dst src)
-    | GetP dst src =>
-        Some (machine_instructions.GetP dst src)
-    | GetL dst src =>
-        Some (machine_instructions.GetL dst src)
-    | GetTag dst src =>
-        Some (machine_instructions.GetTag dst src)
-    | ClearTag dst src =>
-        Some (machine_instructions.ClearTag dst src)
-    | GetWType dst src =>
-        Some (machine_instructions.GetWType dst src)
-    | GetOType dst src =>
-        Some (machine_instructions.GetOType dst src)
-    | Seal dst r1 r2 =>
-        Some (machine_instructions.Seal dst r1 r2)
-    | UnSeal dst r1 r2 =>
-        Some (machine_instructions.UnSeal dst r1 r2)
-    | ReadSR dst src =>
-        Some (machine_instructions.ReadSR dst src)
-    | WriteSR dst src =>
-        Some (machine_instructions.WriteSR dst src)
-    | Fail=>
-        Some (machine_instructions.Fail)
-    | Halt=>
-        Some (machine_instructions.Halt)
-    | Auipcc dst imm =>
-        off ← eval_asm_expr imm env 0;
-        Some (machine_instructions.Auipcc dst off)
+  (** The offset of each label and symbol in the code without labels.
+      A name defined twice is an error. *)
+  Fixpoint asm_env_aux (l : list asm_code) (n : nat) (env : asm_env_map)
+    : asm_result (asm_env_map) :=
+    match l with
+    | [] => Ok env
+    | ASM_Label s :: l =>
+        match asm_lookup s env with
+        | Some _ => Err ("duplicate label: " ++ s)%string
+        | None => asm_env_aux l n ((s, n) :: env)
+        end
+    | ASM_Symbol s :: l =>
+        match asm_lookup s env with
+        | Some _ => Err ("duplicate symbol: " ++ s)%string
+        | None => asm_env_aux l (S n) ((s, n) :: env)
+        end
+    | ASM_Instr _ :: l => asm_env_aux l (S n) env
     end.
 
-  Definition assemble_aux (l: list asm_code) (env : gmap string nat) : option (list instr) :=
-    foldr
-      (fun (a : asm_code) (acc : option (list instr)) =>
-         match a with
-         | ASM_Label string => acc
-         | ASM_Symbol string => acc
-         | ASM_Instr i =>
-             i' ← assemble_instr i env ;
-             acc' ← acc;
-             Some (i'::acc')
-         end
-      )
-      (Some [])
-      l
-  .
+  Definition asm_env (l : list asm_code) : asm_result (asm_env_map) :=
+    asm_env_aux l 0 [].
 
-  (** Assembler for plain code. *)
-  Definition assemble (l : list asm_code) : list instr :=
-    if asm_symbols_around l
-    then default [] (assemble_aux l (compute_asm_code_env l).2)
-    else [].
-
-  (** Assembler for a list of code.
-      Used to avoid the original code written with blocks (ie. including macros)
-      to be concatenated and forget the blocks (which forbids modularity).
-   *)
-  Definition assemble_block (l : list (list asm_code)) : list (list instr) :=
-    let full_code := concat l in
-    let env := (compute_asm_code_env full_code).2 in
-    let no_labels_l := resolve_labels_block l env in
-    if asm_symbols_around full_code
-    then (fun prog => default [] (assemble_aux prog env) ) <$> no_labels_l
-    else [].
-
-  (*** Revert registers. *)
-  (** It is recommended to assemble the code with [compute] when possible,
-      and with [vm_compute] if [compute] is too slow.
-      (See in the explanation)
-      The problem is that [vm_compute] defies Rocq Opaque
-      (https://github.com/rocq-prover/rocq/issues/4476).
-      So, when the code is assembled with [vm_compute],
-      the registers names (`csp`, `cs0`, ... ) are converted back
-      into their initial definitions (`R 3 eq_refl`, ...),
-      which breaks some of the automation.
-
-      [revert_regs_code] (and [revert_regs_code_block])
-      simply reverts the unfolded registers into their name.
-
-      The downside is that it does not work well with parameters.
-   *)
-  Definition revert_regs (r : RegName) : RegName :=
-    match r with
-    | registers.R n H =>
-        match n with
-        | 0 => cnull
-        | 1 => cra
-        | 2 => csp
-        | 3 => cgp
-        | 4 => ctp
-        | 5 => ct0
-        | 6 => ct1
-        | 7 => ct2
-        | 8 => cs0
-        | 9 => cs1
-        | 10 => ca0
-        | 11 => ca1
-        | 12 => ca2
-        | 13 => ca3
-        | 14 => ca4
-        | 15 => ca5
-        | _ => registers.R n H
+  (** Symbols form a data prefix before the code and a data suffix after it,
+      never between two instructions. [sym] is [None] before the first
+      instruction or while no symbol follows the code, and the last symbol
+      after the code otherwise. *)
+  Fixpoint asm_symbols_check_aux (in_code : bool) (sym : option string) (l : list asm_code)
+    : asm_result unit :=
+    match l with
+    | [] => Ok tt
+    | ASM_Label _ :: l => asm_symbols_check_aux in_code sym l
+    | ASM_Symbol s :: l =>
+        if in_code
+        then asm_symbols_check_aux true (Some s) l
+        else asm_symbols_check_aux false None l
+    | ASM_Instr _ :: l =>
+        match sym with
+        | Some s => Err ("symbol between instructions: " ++ s)%string
+        | None => asm_symbols_check_aux true None l
         end
     end.
 
-  Definition revert_regs_arg (arg : Z+RegName) : (Z+RegName) :=
+  Definition asm_symbols_check (l : list asm_code) : asm_result unit :=
+    asm_symbols_check_aux false None l.
+
+  (** Evaluates an expression at the word offset [n] of the code: a label
+      denotes its offset relative to [n]. *)
+  Fixpoint asm_eval (expr : asm_expr) (env : asm_env_map) (n : nat) : asm_result Z :=
+    match expr with
+    | Asm_lbl lbl =>
+        match asm_lookup lbl env with
+        | Some z => Ok (Z.of_nat z - Z.of_nat n)%Z
+        | None => Err ("undefined label: " ++ lbl)%string
+        end
+    | Asm_z z => Ok z
+    | Asm_plus e1 e2 =>
+        z1 ← asm_eval e1 env n;
+        z2 ← asm_eval e2 env n;
+        Ok (z1 + z2)%Z
+    | Asm_minus e1 e2 =>
+        z1 ← asm_eval e1 env n;
+        z2 ← asm_eval e2 env n;
+        Ok (z1 - z2)%Z
+    end.
+
+  (*** Code assembler. *)
+  Definition assemble_arg (arg : asm_expr + RegName) (env : asm_env_map) (n : nat)
+    : asm_result (Z + RegName) :=
     match arg with
-    | inl z => inl z
-    | inr r => inr (revert_regs r)
+    | inr r => Ok (inr r)
+    | inl expr => z ← asm_eval expr env n; Ok (inl z)
     end.
 
-  Definition revert_regs_instr (i : instr) : instr :=
+  Definition assemble_instr (i : asm_instr) (env : asm_env_map) (n : nat)
+    : asm_result instr :=
     match i with
-    | machine_instructions.Jmp rimm =>
-        let rimm := revert_regs_arg rimm in
-        (machine_instructions.Jmp rimm)
-    | machine_instructions.Jnz rimm rcond =>
-        let rimm := revert_regs_arg rimm in
-        let rcond := revert_regs rcond in
-        (machine_instructions.Jnz rimm rcond)
-    | machine_instructions.Jalr rdst rsrc =>
-        let rdst := revert_regs rdst in
-        let rsrc := revert_regs rsrc in
-        (machine_instructions.Jalr rdst rsrc)
-    | machine_instructions.Mov dst src  =>
-        let dst := revert_regs dst in
-        let src := revert_regs_arg src in
-        (machine_instructions.Mov dst src)
-    | machine_instructions.CLoad dst src imm =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.CLoad dst src imm)
-    | machine_instructions.Store dst src imm =>
-        let dst := revert_regs dst in
-        let src := revert_regs_arg src in
-        (machine_instructions.Store dst src imm)
-    | machine_instructions.Lt dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.Lt dst r1 r2)
-    | machine_instructions.Add dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.Add dst r1 r2)
-    | machine_instructions.Sub dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.Sub dst r1 r2)
-    | machine_instructions.Mul dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.Mul dst r1 r2)
-    | machine_instructions.LAnd dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.LAnd dst r1 r2)
-    | machine_instructions.LOr dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.LOr dst r1 r2)
-    | machine_instructions.LShiftL dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.LShiftL dst r1 r2)
-    | machine_instructions.LShiftR dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.LShiftR dst r1 r2)
-    | machine_instructions.Lea dst r =>
-        let dst := revert_regs dst in
-        let r := revert_regs_arg r in
-        (machine_instructions.Lea dst r)
-    | machine_instructions.Restrict dst r =>
-        let dst := revert_regs dst in
-        let r := revert_regs_arg r in
-        (machine_instructions.Restrict dst r)
-    | machine_instructions.Subseg dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs_arg r1 in
-        let r2 := revert_regs_arg r2 in
-        (machine_instructions.Subseg dst r1 r2)
-    | machine_instructions.GetB dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.GetB dst src)
-    | machine_instructions.GetE dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.GetE dst src)
-    | machine_instructions.GetA dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.GetA dst src)
-    | machine_instructions.GetP dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.GetP dst src)
-    | machine_instructions.GetL dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.GetL dst src)
-    | machine_instructions.GetTag dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.GetTag dst src)
-    | machine_instructions.ClearTag dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.ClearTag dst src)
-    | machine_instructions.GetWType dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.GetWType dst src)
-    | machine_instructions.GetOType dst src =>
-        let dst := revert_regs dst in
-        let src := revert_regs src in
-        (machine_instructions.GetOType dst src)
-    | machine_instructions.Seal dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs r1 in
-        let r2 := revert_regs r2 in
-        (machine_instructions.Seal dst r1 r2)
-    | machine_instructions.UnSeal dst r1 r2 =>
-        let dst := revert_regs dst in
-        let r1 := revert_regs r1 in
-        let r2 := revert_regs r2 in
-        (machine_instructions.UnSeal dst r1 r2)
-    | machine_instructions.ReadSR dst src =>
-        let dst := revert_regs dst in
-        (machine_instructions.ReadSR dst src)
-    | machine_instructions.WriteSR dst src =>
-        let src := revert_regs src in
-        (machine_instructions.WriteSR dst src)
-    | machine_instructions.Fail=>
-        (machine_instructions.Fail)
-    | machine_instructions.Halt=>
-        (machine_instructions.Halt)
-    | machine_instructions.Auipcc dst imm =>
-        let dst := revert_regs dst in
-        (machine_instructions.Auipcc dst imm)
+    | Jmp rimm =>
+        rimm' ← assemble_arg rimm env n;
+        Ok (machine_instructions.Jmp rimm')
+    | Jnz rimm rcond =>
+        rimm' ← assemble_arg rimm env n;
+        Ok (machine_instructions.Jnz rimm' rcond)
+    | Jalr rdst rsrc =>
+        Ok (machine_instructions.Jalr rdst rsrc)
+    | Mov dst src  =>
+        src ← assemble_arg src env n;
+        Ok (machine_instructions.Mov dst src)
+    | CLoad dst src imm =>
+        off ← asm_eval imm env n;
+        Ok (machine_instructions.CLoad dst src off)
+    | Store dst src imm =>
+        src ← assemble_arg src env n;
+        off ← asm_eval imm env n;
+        Ok (machine_instructions.Store dst src off)
+    | Lt dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Lt dst w1 w2)
+    | Add dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Add dst w1 w2)
+    | Sub dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Sub dst w1 w2)
+    | Mul dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Mul dst w1 w2)
+    | LAnd dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.LAnd dst w1 w2)
+    | LOr dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.LOr dst w1 w2)
+    | LShiftL dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.LShiftL dst w1 w2)
+    | LShiftR dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.LShiftR dst w1 w2)
+    | Lea dst r =>
+        w ← assemble_arg r env n;
+        Ok (machine_instructions.Lea dst w)
+    | Restrict dst r =>
+        w ← assemble_arg r env n;
+        Ok (machine_instructions.Restrict dst w)
+    | Subseg dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Subseg dst w1 w2)
+    | GetB dst src =>
+        Ok (machine_instructions.GetB dst src)
+    | GetE dst src =>
+        Ok (machine_instructions.GetE dst src)
+    | GetA dst src =>
+        Ok (machine_instructions.GetA dst src)
+    | GetP dst src =>
+        Ok (machine_instructions.GetP dst src)
+    | GetL dst src =>
+        Ok (machine_instructions.GetL dst src)
+    | GetTag dst src =>
+        Ok (machine_instructions.GetTag dst src)
+    | ClearTag dst src =>
+        Ok (machine_instructions.ClearTag dst src)
+    | GetWType dst src =>
+        Ok (machine_instructions.GetWType dst src)
+    | GetOType dst src =>
+        Ok (machine_instructions.GetOType dst src)
+    | Seal dst r1 r2 =>
+        Ok (machine_instructions.Seal dst r1 r2)
+    | UnSeal dst r1 r2 =>
+        Ok (machine_instructions.UnSeal dst r1 r2)
+    | ReadSR dst src =>
+        Ok (machine_instructions.ReadSR dst src)
+    | WriteSR dst src =>
+        Ok (machine_instructions.WriteSR dst src)
+    | Fail=>
+        Ok (machine_instructions.Fail)
+    | Halt=>
+        Ok (machine_instructions.Halt)
+    | Auipcc dst imm =>
+        off ← asm_eval imm env n;
+        Ok (machine_instructions.Auipcc dst off)
     end.
 
-  Definition revert_regs_code (assembled_code : list instr) : list instr :=
-    fmap revert_regs_instr assembled_code.
-  Definition revert_regs_code_block (assembled_code : list (list instr) ) : list (list instr) :=
-    fmap revert_regs_code assembled_code.
+  (** Assembles [l], whose first word is at offset [n]. *)
+  Fixpoint assemble_code (l : list asm_code) (env : asm_env_map) (n : nat)
+    : asm_result (list instr) :=
+    match l with
+    | [] => Ok []
+    | ASM_Label _ :: l => assemble_code l env n
+    | ASM_Symbol _ :: l => assemble_code l env (S n)
+    | ASM_Instr i :: l =>
+        i' ← assemble_instr i env n;
+        l' ← assemble_code l env (S n);
+        Ok (i' :: l')
+    end.
+
+  (** The number of words of [l]: its instructions and symbols. *)
+  Fixpoint asm_words (l : list asm_code) : nat :=
+    match l with
+    | [] => 0
+    | ASM_Label _ :: l => asm_words l
+    | _ :: l => S (asm_words l)
+    end.
+
+  Fixpoint assemble_blocks (l : list (list asm_code)) (env : asm_env_map) (n : nat)
+    : asm_result (list (list instr)) :=
+    match l with
+    | [] => Ok []
+    | b :: l =>
+        b' ← assemble_code b env n;
+        l' ← assemble_blocks l env (n + asm_words b);
+        Ok (b' :: l')
+    end.
+
+  (** Checked assembler for plain code, given its environment [env] (as
+      computed by [asm_env]). *)
+  Definition assemble_env_check (env : asm_result (asm_env_map)) (l : list asm_code)
+    : asm_result (list instr) :=
+    asm_symbols_check l;;
+    env ← env;
+    assemble_code l env 0.
+
+  (** Checked assembler for a list of blocks, given the environment [env] of
+      their concatenation. Each block keeps its own list of instructions, so
+      that the blocks can be specified separately. *)
+  Definition assemble_block_env_check
+    (env : asm_result (asm_env_map)) (l : list (list asm_code))
+    : asm_result (list (list instr)) :=
+    asm_symbols_check (concat l);;
+    env ← env;
+    assemble_blocks l env 0.
+
+  Definition assemble_check (l : list asm_code) : asm_result (list instr) :=
+    assemble_env_check (asm_env l) l.
+
+  Definition assemble_block_check (l : list (list asm_code)) : asm_result (list (list instr)) :=
+    assemble_block_env_check (asm_env (concat l)) l.
+
+  (** Assemblers returning the code, [[]] on an error. Each assembled
+      definition comes with a check (see [asm_check]) that fails on an
+      error. *)
+  Definition assemble (l : list asm_code) : list instr :=
+    asm_get [] (assemble_check l).
+
+  Definition assemble_block (l : list (list asm_code)) : list (list instr) :=
+    asm_get [] (assemble_block_check l).
+
+  Definition assemble_env (env : asm_result (asm_env_map)) (l : list asm_code)
+    : list instr :=
+    asm_get [] (assemble_env_check env l).
+
+  Definition assemble_block_env (env : asm_result (asm_env_map)) (l : list (list asm_code))
+    : list (list instr) :=
+    asm_get [] (assemble_block_env_check env l).
+
+  (*** Assembly checks. *)
+  (** [asm_ok r] holds when [r] is not an error; on an error it reduces to
+      the uninhabited [asm_error msg], so that [asm_check] reports [msg]. *)
+  Inductive asm_error (msg : string) : Prop := .
+
+  Definition asm_ok {A} (r : asm_result A) : Prop :=
+    match r with
+    | Ok _ => True
+    | Err msg => asm_error msg
+    end.
+
+  (** Proves [asm_ok r] for a closed [r], or fails with the assembler's
+      error message. Usage, for each assembled program:
+      ```
+      Lemma xxx_assembles : asm_ok (assemble_block_check xxx_asm).
+      Proof. asm_check. Qed.
+      ```
+      Parameters of the code (registers, offsets) can be universally
+      quantified: they do not affect labels. *)
+  Ltac asm_check :=
+    intros;
+    vm_compute;
+    lazymatch goal with
+    | |- True => exact I
+    | |- asm_error ?msg => fail 0 "assembler error:" msg
+    | |- ?g => fail 0 "asm_check: unexpected goal" g
+    end.
 
   (*** Notations for ASM language *)
   Declare Scope Asm_scope.
@@ -651,16 +619,16 @@ Module Asm_Griotte.
   Coercion asmexprz : Z >-> asm_expr.
   Definition asmexprlbl : string → asm_expr%type := (fun s => Asm_lbl s).
   Coercion asmexprlbl : string >-> asm_expr.
-  Definition asmz : Z → (asm_expr+RegName)%type := (fun z => inl (Asm_z z)).
-  Coercion asmz : Z >-> sum.
-  Definition asms : string → (asm_expr+RegName)%type := (fun s => inl (Asm_lbl s)).
-  Coercion asms : string >-> sum.
+  Definition asmz : Z → asm_arg := (fun z => inl (Asm_z z)).
+  Coercion asmz : Z >-> asm_arg.
+  Definition asms : string → asm_arg := (fun s => inl (Asm_lbl s)).
+  Coercion asms : string >-> asm_arg.
   Definition asmi : asm_instr → asm_code%type := ASM_Instr.
   Coercion asmi : asm_instr >-> asm_code.
-  Definition asmr : RegName → (asm_expr+RegName)%type := inr.
-  Coercion asmr : RegName >-> sum.
-  Definition asme : asm_expr → (asm_expr+RegName)%type := inl.
-  Coercion asme : asm_expr >-> sum.
+  Definition asmr : RegName → asm_arg := inr.
+  Coercion asmr : RegName >-> asm_arg.
+  Definition asme : asm_expr → asm_arg := inl.
+  Coercion asme : asm_expr >-> asm_arg.
 
   Definition jmp r := (ASM_Instr (Jmp r)).
   Definition jnz rimm rcond := (ASM_Instr (Jnz rimm rcond)).

@@ -77,10 +77,10 @@ Section VAE_Main.
       ]
     ].
 
-  Definition vae_main_assembled' :=
-    Eval vm_compute in assemble_block vae_main_asm.
   Definition vae_main_assembled :=
-    Eval cbv in revert_regs_code_block vae_main_assembled'.
+    Eval compute in assemble_block vae_main_asm.
+  Lemma vae_main_assembles : asm_ok (assemble_block_check vae_main_asm).
+  Proof. asm_check. Qed.
   Definition vae_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (vae_main_assembled !! n)).
 
@@ -173,7 +173,9 @@ Section vae_C_code.
       ret ].
 
   Definition vae_C_instrs : list instr :=
-    Eval vm_compute in concat (assemble_block [vae_C_asm]).
+    Eval compute in assemble vae_C_asm.
+  Lemma vae_C_assembles : asm_ok (assemble_check vae_C_asm).
+  Proof. asm_check. Qed.
 
   (** The offsets of the two entry points from the start of the PCC. *)
   Definition vae_C_adv_entry : nat :=

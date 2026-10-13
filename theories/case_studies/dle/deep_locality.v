@@ -79,10 +79,10 @@ Section DLE_Main.
       ]
     ].
 
-  Definition dle_main_assembled' :=
-    Eval vm_compute in (λ rw_dl, assemble_block (dle_main_asm rw_dl)).
   Definition dle_main_assembled :=
-    Eval cbv in (λ rw_dl, revert_regs_code_block (dle_main_assembled' rw_dl)).
+    Eval compute in (λ rw_dl, assemble_block (dle_main_asm rw_dl)).
+  Lemma dle_main_assembles rw_dl : asm_ok (assemble_block_check (dle_main_asm rw_dl)).
+  Proof. asm_check. Qed.
   Definition dle_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (dle_main_assembled (encodePermPair (RW_DL, Local)) !! n)).
 

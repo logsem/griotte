@@ -163,6 +163,8 @@ pair<int, int> search(FKeyT fk) {
                       (kvs_search_asm_env rkey ridx ridx_empty  rscratch).
   Definition kvs_search (rkey ridx ridx_empty  rscratch : RegName) :=
     Eval compute in assemble (kvs_search_asm rkey ridx ridx_empty  rscratch).
+  Lemma kvs_search_assembles (rkey ridx ridx_empty rscratch : RegName) : asm_ok (assemble_check (kvs_search_asm_pre rkey ridx ridx_empty rscratch)).
+  Proof. asm_check. Qed.
   Definition kvs_search_instrs (rkey ridx ridx_empty  rscratch : RegName) : list Word :=
     encodeInstrsW (kvs_search rkey ridx ridx_empty  rscratch).
 
@@ -212,6 +214,8 @@ bool dyn_check_uint16(MKeyT mk) {
                       (kvs_check_uint16_asm_env rv rdst).
   Definition kvs_check_uint16 (rv rdst : RegName) :=
     Eval compute in assemble (kvs_check_uint16_asm rv rdst).
+  Lemma kvs_check_uint16_assembles (rv rdst : RegName) : asm_ok (assemble_check (kvs_check_uint16_asm_pre rv rdst)).
+  Proof. asm_check. Qed.
   Definition kvs_check_uint16_instrs (rv rdst : RegName) : list Word :=
     encodeInstrsW (kvs_check_uint16 rv rdst).
 
@@ -456,29 +460,25 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     | b :: l => (kvs_import_symbols_asm ++ b) :: l
     end.
 
-  Definition assembled_kvs_service' :=
-    Eval vm_compute in assemble_block kvs_service_asm.
+  Definition assembled_kvs_service :=
+    Eval compute in assemble_block kvs_service_asm.
+  Lemma kvs_service_assembles : asm_ok (assemble_block_check kvs_service_asm).
+  Proof. asm_check. Qed.
 
-  Definition assembled_kvs_addOrUpdate' :=
-    Eval vm_compute in take (length kvs_addOrUpdate_asm) assembled_kvs_service'.
   Definition assembled_kvs_addOrUpdate :=
-    Eval cbv in (revert_regs_code_block assembled_kvs_addOrUpdate').
+    Eval compute in take (length kvs_addOrUpdate_asm) assembled_kvs_service.
   Definition kvs_addOrUpdate_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_kvs_addOrUpdate).
 
-  Definition assembled_kvs_read' :=
-    Eval vm_compute in
-      take (length kvs_read_asm) (drop (length kvs_addOrUpdate_asm) assembled_kvs_service').
   Definition assembled_kvs_read :=
-    Eval cbv in (revert_regs_code_block assembled_kvs_read').
+    Eval compute in
+      take (length kvs_read_asm) (drop (length kvs_addOrUpdate_asm) assembled_kvs_service).
   Definition kvs_read_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_kvs_read).
 
-  Definition assembled_kvs_erase' :=
-    Eval vm_compute in
-      drop (length kvs_addOrUpdate_asm + length kvs_read_asm) assembled_kvs_service'.
   Definition assembled_kvs_erase :=
-    Eval cbv in (revert_regs_code_block assembled_kvs_erase').
+    Eval compute in
+      drop (length kvs_addOrUpdate_asm + length kvs_read_asm) assembled_kvs_service.
   Definition kvs_erase_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_kvs_erase).
 

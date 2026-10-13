@@ -93,10 +93,10 @@ Section KVS_Main.
       [ halt ]
     ].
 
-  Definition kvs_main_assembled' :=
-    Eval vm_compute in assemble_block kvs_main_asm.
   Definition kvs_main_assembled :=
-    Eval cbv in revert_regs_code_block kvs_main_assembled'.
+    Eval compute in assemble_block kvs_main_asm.
+  Lemma kvs_main_assembles : asm_ok (assemble_block_check kvs_main_asm).
+  Proof. asm_check. Qed.
   Definition kvs_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (kvs_main_assembled !! n)).
 
@@ -220,7 +220,9 @@ Section kvs_B_code.
       ret ].
 
   Definition kvs_B_instrs : list instr :=
-    Eval vm_compute in concat (assemble_block [kvs_B_asm]).
+    Eval compute in assemble kvs_B_asm.
+  Lemma kvs_B_assembles : asm_ok (assemble_check kvs_B_asm).
+  Proof. asm_check. Qed.
 
   (** The offset of the entry point from the start of the PCC. *)
   Definition kvs_B_adv_entry : nat :=

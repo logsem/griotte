@@ -88,10 +88,10 @@ int __cheri_compartment("known") run()
       ]
     ].
 
-  Definition lse_main_assembled' :=
-    Eval vm_compute in assemble_block lse_main_asm.
   Definition lse_main_assembled :=
-    Eval cbv in revert_regs_code_block lse_main_assembled'.
+    Eval compute in assemble_block lse_main_asm.
+  Lemma lse_main_assembles : asm_ok (assemble_block_check lse_main_asm).
+  Proof. asm_check. Qed.
   Definition lse_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (lse_main_assembled !! n)).
 
@@ -165,5 +165,7 @@ Section lse_C_code.
       ret ].
 
   Definition lse_C_instrs : list instr :=
-    Eval vm_compute in concat (assemble_block [lse_C_asm]).
+    Eval compute in assemble lse_C_asm.
+  Lemma lse_C_assembles : asm_ok (assemble_check lse_C_asm).
+  Proof. asm_check. Qed.
 End lse_C_code.

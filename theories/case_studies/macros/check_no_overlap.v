@@ -45,6 +45,8 @@ Section Check_No_Overlap.
     Eval compute in resolve_labels_macros (check_no_overlap_asm_pre rsrc1 rsrc2 r1 r2) check_no_overlap_asm_env.
   Definition check_no_overlap (rsrc1 rsrc2 r1 r2 : RegName) : list instr :=
     Eval compute in assemble (check_no_overlap_asm rsrc1 rsrc2 r1 r2).
+  Lemma check_no_overlap_assembles (rsrc1 rsrc2 r1 r2 : RegName) : asm_ok (assemble_check (check_no_overlap_asm_pre rsrc1 rsrc2 r1 r2)).
+  Proof. asm_check. Qed.
   Definition check_no_overlap_instrs (rsrc1 rsrc2 r1 r2 : RegName) : list Word :=
     encodeInstrsW (check_no_overlap rsrc1 rsrc2 r1 r2).
 

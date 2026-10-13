@@ -138,10 +138,10 @@ Section Heap_Temporal_Safety.
       ]
     ].
 
-  Definition assembled_hts_main' :=
-    Eval vm_compute in assemble_block hts_main_asm.
   Definition assembled_hts_main :=
-    Eval cbv in revert_regs_code_block assembled_hts_main'.
+    Eval compute in assemble_block hts_main_asm.
+  Lemma hts_main_assembles : asm_ok (assemble_block_check hts_main_asm).
+  Proof. asm_check. Qed.
   Definition assembled_hts_main_n (n : nat) : list instr :=
     default [] (assembled_hts_main !! n).
   Definition hts_main_instrs_n (n : nat) : list Word :=

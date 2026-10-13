@@ -43,10 +43,10 @@ Section Assert_Code.
     Eval vm_compute in (compute_asm_code_env (assert_subroutine_asm_pre)).2.
   Definition assert_subroutine_asm :=
     Eval compute in resolve_labels_macros assert_subroutine_asm_pre assert_subroutine_asm_env.
-  Definition assert_subroutine' : list instr :=
-    Eval vm_compute in assemble assert_subroutine_asm.
   Definition assert_subroutine : list instr :=
-    Eval cbv in revert_regs_code assert_subroutine'.
+    Eval compute in assemble assert_subroutine_asm.
+  Lemma assert_subroutine_assembles : asm_ok (assemble_check assert_subroutine_asm_pre).
+  Proof. asm_check. Qed.
   Definition assert_subroutine_instrs : list Word :=
     encodeInstrsW assert_subroutine.
 

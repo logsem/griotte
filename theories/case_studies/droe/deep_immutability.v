@@ -82,10 +82,10 @@ Section DROE_Main.
       ]
     ].
 
-  Definition droe_main_assembled' :=
-    Eval vm_compute in (λ ro_dro, assemble_block (droe_main_asm ro_dro)).
   Definition droe_main_assembled :=
-    Eval cbv in (λ ro_dro, revert_regs_code_block (droe_main_assembled' ro_dro)).
+    Eval compute in (λ ro_dro, assemble_block (droe_main_asm ro_dro)).
+  Lemma droe_main_assembles ro_dro : asm_ok (assemble_block_check (droe_main_asm ro_dro)).
+  Proof. asm_check. Qed.
   Definition droe_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (droe_main_assembled (encodePermPair (RO_DRO, Global)) !! n)).
 

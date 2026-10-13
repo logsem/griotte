@@ -58,10 +58,10 @@ Section Counter_Main.
       ]
     ].
 
-  Definition counter_main_assembled' :=
-    Eval vm_compute in assemble_block counter_main_asm.
   Definition counter_main_assembled :=
-    Eval cbv in revert_regs_code_block counter_main_assembled'.
+    Eval compute in assemble_block counter_main_asm.
+  Lemma counter_main_assembles : asm_ok (assemble_block_check counter_main_asm).
+  Proof. asm_check. Qed.
   Definition counter_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (counter_main_assembled !! n)).
 

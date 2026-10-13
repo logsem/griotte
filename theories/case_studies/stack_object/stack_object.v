@@ -125,7 +125,9 @@ Section SO_Asm.
     ].
 
   Definition so_main_assembled :=
-    Eval vm_compute in assemble_block so_main_asm.
+    Eval compute in assemble_block so_main_asm.
+  Lemma so_main_assembles : asm_ok (assemble_block_check so_main_asm).
+  Proof. asm_check. Qed.
 
   (** The offset of the fetch (or of the assert) of the block [n]. *)
   Definition so_fetch_offsets : list Z :=
@@ -176,7 +178,9 @@ Section SO_C_code.
       ret ].
 
   Definition so_C_instrs : list instr :=
-    Eval vm_compute in concat (assemble_block [so_C_asm]).
+    Eval compute in assemble so_C_asm.
+  Lemma so_C_assembles : asm_ok (assemble_check so_C_asm).
+  Proof. asm_check. Qed.
 
   (** The offsets of the two entry points from the start of the PCC. *)
   Definition so_C_adv_entry : nat :=
