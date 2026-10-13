@@ -75,14 +75,14 @@ Definition hts_initial_program_memory `{hts_memory_layout} : Mem :=
 Definition hts_initial_memory `{hts_memory_layout} : Mem :=
   initial_heap_memory ∪ hts_initial_program_memory.
 
-Definition hts_is_initial_registers `{hts_memory_layout} (reg : Reg) :=
-  reg !! PC = Some (WCap true RX Global
+Definition hts_is_initial_registers `{hts_memory_layout} (pc : Word) (reg : Reg) :=
+  pc = (WCap true RX Global
     (cmpt_b_pcc hts_main_cmpt) (cmpt_e_pcc hts_main_cmpt) (cmpt_a_code hts_main_cmpt)) ∧
   reg !! cgp = Some (WCap true RW Global
     (cmpt_b_cgp hts_main_cmpt) (cmpt_e_cgp hts_main_cmpt) (cmpt_b_cgp hts_main_cmpt)) ∧
   reg !! csp = Some (WCap true RWL Local
     (b_stack hts_switcher_cmpt) (e_stack hts_switcher_cmpt) (b_stack hts_switcher_cmpt)) ∧
-  (∀ r, r ∉ ({[PC; cgp; csp]} : gset RegName) -> reg !! r = Some (WInt 0)).
+  (∀ r, r ∉ ({[ cgp; csp]} : gset RegName) -> reg !! r = Some (WInt 0)).
 
 Definition hts_is_initial_sregisters `{hts_memory_layout} (sreg : SReg) :=
   sreg !! MTDC = Some (WCap true RWL Local
@@ -266,16 +266,16 @@ Section Adequacy.
   Context `{MP : MachineParameters} {Layout : hts_memory_layout}.
 
   Lemma hts_adequacy'
-      (reg reg' : Reg) (sreg sreg' : SReg) (mem mem' : Mem)
+      (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (mem mem' : Mem)
       (sh sh' : ShadowTbl) (es : list griotte_lang.expr) :
     CNames = list_to_set [Adv] ->
-    hts_is_initial_registers reg ->
+    hts_is_initial_registers pc reg ->
     hts_is_initial_sregisters sreg ->
     hts_is_initial_memory mem ->
     sh = initial_heap_shadow ->
     initial_heap_memory ##ₘ hts_initial_program_memory ->
-    rtc erased_step ([Seq (Instr Executable)], (reg, sreg, mem, sh))
-      (es, (reg', sreg', mem', sh')) ->
+    rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, mem, sh))
+      (es, (pc', reg', sreg', mem', sh')) ->
     mem' !! flag_assert hts_assert_cmpt = Some (WInt 0).
   Proof.
     intros HCNames Hreg Hsreg Hmem Hshadow Hheap_disjoint Hstep.
@@ -356,7 +356,7 @@ Section Adequacy.
         + rewrite Hadv_exports. repeat constructor. apply word_rooted_int. }
     { destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
     subst sh.
-    iIntros (ceriseg) "Hreg Hsreg Hmem Hshadow Hclaims Hna
+    iIntros (ceriseg) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna
       ([#Hentry_adv #Hentry_adv'] & [#Hentry_malloc #Hentry_malloc']
        & [#Hentry_free #Hentry_free'] & _)".
     pose FA := @free_auth_core Σ _.
@@ -457,7 +457,7 @@ Section Adequacy.
       - rewrite Hadv_exports /=; lia. }
 
     (* Extract registers *)
-    iDestruct (initial_registers_split with "Hreg")
+    iDestruct (initial_registers_split with "[$HPC $Hreg]")
       as (rmap) "(HPC & Hcgp & Hcsp & Hrmap & %Hrmap_dom & %Hrmap_zero)"; first exact Hreg.
     pose proof (main_spec_size_obligations _ _ _ _ Hmain_imports Hmain_code Hmain_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
@@ -510,15 +510,15 @@ Local Program Instance CmptNames_hts_CmptNameG : CmptNameG :=
 
 (** END-TO-END THEOREM *)
 Theorem hts_adequacy `{hts_memory_layout}
-    (reg reg' : Reg) (sreg sreg' : SReg) (mem mem' : Mem)
+    (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (mem mem' : Mem)
     (sh sh' : ShadowTbl) (es : list griotte_lang.expr) :
-  hts_is_initial_registers reg ->
+  hts_is_initial_registers pc reg ->
   hts_is_initial_sregisters sreg ->
   hts_is_initial_memory mem ->
   sh = initial_heap_shadow ->
   initial_heap_memory ##ₘ hts_initial_program_memory ->
-  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, mem, sh))
-    (es, (reg', sreg', mem', sh')) ->
+  rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, mem, sh))
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! flag_assert hts_assert_cmpt = Some (WInt 0).
 Proof.
   intros ? ? ? ? ? ?.

@@ -25,7 +25,7 @@ Section KVS_check_uint16.
     rdst ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ wrv ∗
       rdst ↦ᵣ - ∗
       codefrag_pers pc_a instrs ∗
@@ -33,7 +33,7 @@ Section KVS_check_uint16.
       ▷ (
           ∀ nkey,
             ⌜ wrv.(lw) = WInt nkey ⌝ ∗
-            PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+            PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             rv ↦ᵣ wrv ∗
             codefrag_pers pc_a instrs ∗
             (
@@ -118,13 +118,13 @@ Section KVS_check_uint16.
     rdst ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ WInt nkey @@? πnkey ∗
       rdst ↦ᵣ - ∗
       codefrag_pers pc_a instrs ∗
 
       ▷ (
-          PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rv ↦ᵣ WInt nkey @@? πnkey ∗
           codefrag_pers pc_a instrs ∗
           rdst ↦ᵣ WInt ASM_TRUE
@@ -161,13 +161,13 @@ Section KVS_check_uint16.
     rdst ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ wrv ∗
       rdst ↦ᵣ - ∗
       codefrag_pers pc_a instrs ∗
 
       ▷ (
-          PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rv ↦ᵣ wrv ∗
           codefrag_pers pc_a instrs ∗
           rdst ↦ᵣ WInt ASM_FALSE

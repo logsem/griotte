@@ -277,15 +277,16 @@ Section adequacy_ghost_init.
 
   (** The initial condition without heap roots, for a system without an
       allocator: no initial word carries heap authority. *)
-  Lemma ghost_init_cond_no_roots (reg : Reg) (sreg : SReg) (m : Mem) :
+  Lemma ghost_init_cond_no_roots (pc : Word) (reg : Reg) (sreg : SReg) (m : Mem) :
     mem_rooted ∅ m →
+    word_rooted ∅ pc →
     (∀ r w, reg !! r = Some w → word_rooted ∅ w) →
     (∀ sr w, sreg !! sr = Some w → word_rooted ∅ w) →
     mem_avoids_mmio m →
     reg !! cnull = Some (WInt 0) →
-    ghost_init_cond (reg, sreg, m, initial_heap_shadow) ∅.
+    ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) ∅.
   Proof.
-    intros Hm Hreg Hsreg Hmmio Hnull.
+    intros Hm Hpc Hreg Hsreg Hmmio Hnull.
     constructor; cbn.
     - set_solver.
     - set_solver.
@@ -294,6 +295,7 @@ Section adequacy_ghost_init.
         lookup_gset_to_gmap option_guard_True //.
       by apply elem_of_heap_addresses.
     - intros a w b Ha. by eapply Hm.
+    - intros b. by eapply Hpc.
     - intros r w b _ Hw. by eapply Hreg.
     - intros sr w b Hw. by eapply Hsreg.
     - exact Hmmio.

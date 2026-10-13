@@ -24,11 +24,7 @@ Section ClearStackMacro.
     encodeInstrsW clear_registers_pre_call_skip.
 
   Definition registers_pre_call : list RegName :=
-    [cnull;
-     ctp; ct1; ct2; cs0; cs1; ca6; ca7;
-     cs2; cs3; cs4; cs5; cs6; cs7; cs8; cs9; cs10; cs11;
-     ct3; ct4; ct5; ct6
-    ].
+    [cnull; ctp; ct1; ct2; cs0; cs1].
   Definition clear_registers_pre_call_asm : list asm_code :=
     rclear_asm registers_pre_call.
   Definition clear_registers_pre_call : list instr :=
@@ -37,11 +33,7 @@ Section ClearStackMacro.
     encodeInstrsW clear_registers_pre_call.
 
   Definition registers_post_call : list RegName :=
-    [ct0; cnull;
-     ctp; ct1; ct2; ct3; ct4; ct5; ct6;
-     ca2; ca3; ca4; ca5; ca6; ca7;
-     cs2; cs3; cs4; cs5; cs6; cs7; cs8; cs9; cs10; cs11
-    ].
+    [ct0; cnull; ctp; ct1; ct2; ca2; ca3; ca4; ca5].
   Definition clear_registers_post_call_asm : list asm_code :=
     rclear_asm registers_post_call.
   Definition clear_registers_post_call : list instr :=

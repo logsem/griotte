@@ -159,9 +159,9 @@ Section SO.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
+      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
     assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /so_code_bounds; eauto 10).
@@ -170,7 +170,6 @@ Section SO.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
     iDestruct (so_args_zero with "Hzeroed_rmap") as %Hzero; first done.
     pose proof (lregmap_full_dom _ Hrmap_init) as Hrmap_dom.
-    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
@@ -186,8 +185,9 @@ Section SO.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
 
     (* Blocks 3-5: save the callback, check [in] *)
-    iEval (rewrite (_ : (pc_b ^+ 23%nat)%a = (pc_a ^+ so_block_offset 3)%a);
-           [|offsets_compute; cbn in Hso_imports; solve_addr]) in "HPC".
+    iEval (rewrite (_ : (pc_b ^+ length (so_main_imports C_f ++ SO_main_code_run))%a =
+                        (pc_a ^+ so_block_offset 3)%a);
+           [|rewrite length_app; offsets_compute; cbn in Hso_imports |- *; solve_addr]) in "HPC".
     iApply (so_check_blocks_1_spec with
              "[- $HPC $Hca0 $Hca1 $Hct1 $Hcs0 $Hcs1 $Hcsp $Hcode_main]"); first done.
     iNext; iIntros (t p g b e a π)
@@ -283,18 +283,18 @@ Section SO.
     subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull]
-      as ["Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull]
+      as ["Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
 
     (* Blocks 10-12: assert that the secret is unchanged, return *)
     iApply (so_return_blocks_4_spec with
-             "[- $Hassert $HPC $Hcsp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hcsp $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Hcra
               $Hcs0 $Hca0 $Hca1 $Hsecret $Himport_assert $Hcode_main]");
       [done|done|solve_addr|solve_addr|].
-    iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
+    iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull & Hcra
                     & Hcs0 & Hca0 & Hca1 & Hsecret & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
-    iInsertRegs "Hrmap" ["Hcnull";"Hct4";"Hct3";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
+    iInsertRegs "Hrmap" ["Hcnull";"Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
     (* Repair the world *)
     iMod (so_world_return W0 W4 C b e (csp_b' ^+ 4)%a csp_e a_stk1 a_stk2 π

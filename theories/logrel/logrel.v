@@ -85,7 +85,7 @@ Section logrel.
   Program Definition interp_reg (interp : V) : R :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg ∧
-       ∀ (r : RegName) (v : LWord), (⌜r ≠ PC⌝ → ⌜reg !! r = Some v⌝ → interp W C v))%I.
+       ∀ (r : RegName) (v : LWord), (⌜reg !! r = Some v⌝ → interp W C v))%I.
   Solve All Obligations with solve_proper.
 
   Definition interp_conf (W : WORLD) (C : CmptName) : iProp Σ :=
@@ -159,7 +159,8 @@ Section logrel.
     (λne (W : WORLD) (C : CmptName) (wpc : LWord),
        ∀ cstk Ws Cs regs,
        ( interp_reg interp W C regs
-        ∗ registers_pointsto (<[PC:=wpc]> regs)
+        ∗ PC ↦ₚ wpc
+        ∗ registers_pointsto regs
         ∗ world_interp W C
         ∗ interp_cont cstk Ws Cs
         ∗ na_own cerise_nais ⊤
@@ -452,7 +453,7 @@ Section logrel.
        ⌜load_heap_in_world W frm.(wret) rcra⌝ -∗
        ⌜load_heap_in_world W frm.(wcs0) rcs0⌝ -∗
        ⌜load_heap_in_world W frm.(wcs1) rcs1⌝ -∗
-       ( PC ↦ᵣ lupdatePcPerm rcra
+       ( PC ↦ₚ lupdatePcPerm rcra
          ∗ cra ↦ᵣ rcra
          ∗ csp ↦ᵣ (WCap true RWL Local b_stk e_stk a_stk)
          (* cgp, cs0 and cs1 are callee-saved registers *)
@@ -463,7 +464,7 @@ Section logrel.
          ∗ ca0 ↦ᵣ wca0 ∗ interp W C wca0
          ∗ ca1 ↦ᵣ wca1 ∗ interp W C wca1
          (* all other register contain 0 *)
-         ∗ ⌜dom regs = all_registers_s ∖ {[PC; cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
+         ∗ ⌜dom regs = all_registers_s ∖ {[cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
          (* points-to predicate of the stack region *)
          ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
@@ -1681,7 +1682,7 @@ Section logrel.
   Lemma interp_in_registers
     (W : WORLD) (C : CmptName)
     (regs : leibnizO LReg) (p : Perm) (g : Locality) (b e a : Addr):
-      (∀ (r : RegName) (v : LWord), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)%I
+      (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v)%I
     -∗ (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
@@ -1697,10 +1698,10 @@ Section logrel.
         ∗ ⌜persistent_cond P⌝
         ∗ rel C (LNonHeap a) p' (safeC P)
         ∗ ▷ zcond P C
-        ∗ (if decide (readAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a)
+        ∗ (if decide (readAllowed_a_in_lregs regs a)
             then ▷ (rcond P C p' interp)
             else emp)
-        ∗ (if decide (writeAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a)
+        ∗ (if decide (writeAllowed_a_in_lregs regs a)
             then ▷ wcond P C interp
             else emp)
         ∗ monoReq W C (LNonHeap a) p' P
@@ -1713,17 +1714,11 @@ Section logrel.
     iFrame "%#".
     iSplit.
     - (* rcond *)
-      destruct (decide (readAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a))
+      destruct (decide (readAllowed_a_in_lregs regs a))
         as [Hra'|Hra']; auto.
       destruct (readAllowed p0) eqn:Hra; auto.
       destruct Hra' as (r & [w π] & Hsome & Hπ & Hrar & Hvw); cbn in Hπ; subst π.
-      destruct (decide (r = PC)); subst.
-      { rewrite lookup_insert_eq in Hsome; simplify_eq.
-        eapply readAllowed_flowsto in Hrar; eauto.
-        cbn in *; congruence.
-      }
-      rewrite lookup_insert_ne in Hsome; auto.
-      iDestruct ("Hreg" $! r _ n Hsome) as "Hinterp_w".
+      iDestruct ("Hreg" $! r _ Hsome) as "Hinterp_w".
       destruct_word w; try destruct t; cbn in * ; try done.
       apply withinBounds_le_addr in Hvw.
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
@@ -1738,17 +1733,11 @@ Section logrel.
       iDestruct (rel_agree C (LNonHeap a) _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
     - (* wcond *)
-      destruct (decide (writeAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a))
+      destruct (decide (writeAllowed_a_in_lregs regs a))
         as [Hwa'|Hwa']; auto.
       destruct (writeAllowed p0) eqn:Hwa; auto.
       destruct Hwa' as (r & [w π] & Hsome & Hπ & Hwaw & Hvw); cbn in Hπ; subst π.
-      destruct (decide (r = PC)); subst.
-      { rewrite lookup_insert_eq in Hsome; simplify_eq.
-        eapply writeAllowed_flowsto in Hwaw; eauto.
-        cbn in *; congruence.
-      }
-      rewrite lookup_insert_ne in Hsome; auto.
-      iDestruct ("Hreg" $! r _ n Hsome) as "Hinterp_w".
+      iDestruct ("Hreg" $! r _ Hsome) as "Hinterp_w".
       destruct_word w; try destruct t; cbn in * ; try done.
       apply withinBounds_le_addr in Hvw.
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".

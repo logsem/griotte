@@ -45,6 +45,7 @@ Section HTS_Spec_Dangling.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    (pc_b + length (hts_main_imports owner_a C_f))%a = Some pc_a ->
     hts_ctx ∗
     free_ret ∗
     (adv2_ret -∗
@@ -52,7 +53,7 @@ Section HTS_Spec_Dangling.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap
-      HsubBounds) "(#Hctx & Hret & Hcontinue)".
+      HsubBounds Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
@@ -115,24 +116,23 @@ Section HTS_Spec_Dangling.
     (* Block 18: fetch the switcher entry. *)
     focus_block 18 "Hcode_main" of hts_main_blocks at pc_a as a_fetch18 Ha_fetch18 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iExtractList "Hrmap" [ctp;ct2] as ["[Hctp _]";"[Hct2 _]"].
-    iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
-    iApply (fetch_spec hts_switcher_offset ctp ct0 ct2 RX Global
+    iExtractList "Hrmap" [ctp] as ["[Hctp _]"].
+    iExtractList "Hrmap" [ct0] as ["[Hct0 %Hwct0]"].
+    subst wct0.
+    iApply (fetch_spec 0 _ ctp RX Global
       pc_b pc_e a_fetch18
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hcode]").
+      _ _ _ with "[- $HPC $Hctp $Hcode]").
     { reflexivity. }
     { solve_addr. }
-    { rewrite /hts_switcher_offset. apply withinBounds_true_iff. solve_addr. }
+    { offsets_compute; solve_addr. }
+    { apply withinBounds_true_iff. solve_addr. }
     { exact Hpc_shadow. }
     { apply switcher_call_sentry_not_heap. }
     { done. }
-    { done. }
-    { done. }
-    replace (pc_b ^+ hts_switcher_offset)%a with pc_b
-      by (rewrite /hts_switcher_offset; solve_addr).
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & _ & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -140,20 +140,18 @@ Section HTS_Spec_Dangling.
     focus_block 19 "Hcode_main" of hts_main_blocks at pc_a as a_fetch19 Ha_fetch19 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
-    iApply (fetch_spec hts_adv_offset ct1 ct0 ct2 RX Global
+    iApply (fetch_spec 2 _ ct1 RX Global
       pc_b pc_e a_fetch19 (WSealed ot_switcher C_f)
-      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hcode]").
+      _ _ _ with "[- $HPC $Hct1 $Hcode]").
     { reflexivity. }
     { solve_addr. }
-    { rewrite /hts_adv_offset. apply withinBounds_true_iff. solve_addr. }
+    { offsets_compute; solve_addr. }
+    { apply withinBounds_true_iff. solve_addr. }
     { exact Hpc_shadow. }
     { exact Hadv_nonheap. }
     { done. }
-    { done. }
-    { done. }
-    replace (pc_b ^+ hts_adv_offset)%a with (pc_b ^+ 2)%a by reflexivity.
     iFrame "Himport_adv".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & _ & Himport_adv)".
+    iNext; iIntros "(HPC & Hct1 & _ & Himport_adv)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -186,11 +184,11 @@ Section HTS_Spec_Dangling.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done. }
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iInsertList "Hrmap" [ctp;ct2].
-    set (adv_other := <[ct2:=lword_of_word (WInt 0)]>
-      (<[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+    iInsertList "Hrmap" [ctp].
+    set (adv_other :=
+      <[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
-         (delete ct1 (delete ct0 rmap)))))))).
+         (delete ct1 (delete ct0 rmap))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wfree Wret ι) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 21)%a)

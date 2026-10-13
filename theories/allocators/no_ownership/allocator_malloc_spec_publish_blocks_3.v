@@ -21,21 +21,21 @@ Section AllocatorMallocPublishBlocks3.
     (next + allocator_header_words)%a = Some b ->
     (b + n)%a = Some finish ->
     (heap_b < next /\ b < finish /\ finish <= heap_e)%a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 3)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 3)%a ∗
     cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
     ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-    ct4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
+    ca4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
     ca0 ↦ᵣ WInt n @@? πn ∗
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wnull ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
        ct0 ↦ᵣ WCap true RW Global heap_b heap_e finish ∗
-       ct4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
+       ca4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
        ca0 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
        ca1 ↦ᵣ WInt 0 ∗
        cnull ↦ᵣ WInt 0 ∗
@@ -64,7 +64,7 @@ Section AllocatorMallocPublishBlocks3.
     iInstr "Hcode".
     { apply allocator_cgp_not_shadow. }
     { apply withinBounds_true_iff. solve_addr. }
-    (* Mov ca0 ct4. *)
+    (* Mov ca0 ca4. *)
     iInstr "Hcode".
     (* Mov ca1 0. *)
     iInstr "Hcode".

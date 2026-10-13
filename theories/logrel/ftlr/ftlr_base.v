@@ -28,8 +28,9 @@ Section fundamental.
     (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (r_ih : leibnizO LReg)
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr) (π_ih : option AId),
             full_map r_ih
-            -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
-            -∗ registers_pointsto (<[PC:= WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih]> r_ih)
+            -∗ (∀ (r : RegName) v, ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
+            -∗ PC ↦ₚ WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih
+            -∗ registers_pointsto r_ih
             -∗ world_interp W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
@@ -54,12 +55,12 @@ Section fundamental.
     → Pinstr
     -> ftlr_IH
     -∗ fixpoint interp1 W C (WCap true p g b e a)
-    -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
+    -∗ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v)
     -∗ rel C (LNonHeap a) p' (safeC P)
-    -∗ □ (if decide (readAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a)
+    -∗ □ (if decide (readAllowed_a_in_lregs regs a)
             then ▷ (rcond P C p' interp)
             else emp)
-    -∗ □ (if decide (writeAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a)
+    -∗ □ (if decide (writeAllowed_a_in_lregs regs a)
           then ▷ wcond P C interp
           else emp)
     -∗ monoReq W C a p' P
@@ -70,8 +71,8 @@ Section fundamental.
     -∗ na_own cerise_nais ⊤
     -∗ cstack_frag cstk
     -∗ sts_state_std C (LNonHeap a) ρ
-    -∗ PC ↦ᵣ (WCap true p g b e a)
-    -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
+    -∗ PC ↦ₚ (WCap true p g b e a)
+    -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y)
     -∗ WP Instr Executable
         {{ v, WP Seq (griotte_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝

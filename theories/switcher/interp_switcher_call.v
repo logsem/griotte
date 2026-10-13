@@ -50,7 +50,7 @@ Section fundamental.
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    (∀ (r : RegName) (v : LWord), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) ∗
+    (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) ∗
     (▷ switcher_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
@@ -59,11 +59,11 @@ Section fundamental.
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
-    PC ↦ᵣ switcher_block_pc 17 ∗
+    PC ↦ₚ switcher_block_pc 17 ∗
     csp ↦ᵣ wcsp ∗
     ct2 ↦ᵣ WInt zct2 ∗
     ctp ↦ᵣ WInt zctp ∗
-    ( [∗ map] k↦y ∈ delete ctp (delete ct2 (delete csp (delete PC regs))), k ↦ᵣ y ) ∗
+    ( [∗ map] k↦y ∈ delete ctp (delete ct2 (delete csp regs)), k ↦ᵣ y ) ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     cstack_frag cstk
@@ -88,7 +88,7 @@ Section fundamental.
     { iNext. iExists _,_. iFrame "∗ # %".
       iPureIntro; split; auto. }
 
-    iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1;PC].
+    iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1].
     iApply (interp_expr_switcher_return with "[$Hinv_switcher $Hstatic]"); iFrame "∗%#".
     rewrite /interp_reg /=.
     iSplit.
@@ -100,7 +100,7 @@ Section fundamental.
       destruct (decide (r = ctp)); first by simplify_map_eq.
       destruct (decide (r = csp)); first by simplify_map_eq.
       simplify_map_eq. apply Hfull_rmap.
-    + iIntros (r w HrPC Hr).
+    + iIntros (r w Hr).
       destruct (decide (r = ca1)); first (simplify_map_eq; iApply interp_int).
       destruct (decide (r = ca0)); first (simplify_map_eq; iApply interp_int).
       destruct (decide (r = ct2)); first (simplify_map_eq; iApply interp_int).
@@ -116,7 +116,7 @@ Section fundamental.
     (rmap : LReg) (b e a : Addr) (lv : list LWord)
     (wcs0 wcs1 wcra wcgp wct1 wct2 wctp : LWord)
     (a_tstk : Addr) (tstk_next : list LWord) :
-    dom rmap = all_registers_s ∖ {[ PC ; csp ; ct2 ; ctp ; cs0 ; cs1 ; cra ; cgp ; ct1 ]} ->
+    dom rmap = all_registers_s ∖ {[ csp ; ct2 ; ctp ; cs0 ; cs1 ; cra ; cgp ; ct1 ]} ->
     frame_match Ws Cs cstk W C ->
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
@@ -139,7 +139,7 @@ Section fundamental.
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
-    PC ↦ᵣ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_block_pc 16 ∗
     (∃ w, cs0 ↦ᵣ w) ∗
     cs1 ↦ᵣ wcs1 ∗
     cgp ↦ᵣ wcgp ∗
@@ -230,7 +230,7 @@ Section fundamental.
        - [switcher_call_blocks_4_spec]: load the callee and jump to it;
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
     iPoseProof "Hstatic" as "[#Hcode #Hb_switcher]".
@@ -246,14 +246,13 @@ Section fundamental.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hinv_switcher" as hinv_switcher.
 
-    iExtract "Hrmap" PC as "HPC".
     specialize (Hfull_rmap csp) as HH;destruct HH as [wcsp Hstk].
     specialize (Hfull_rmap ct2) as HH;destruct HH as [? wct2].
     specialize (Hfull_rmap ctp) as HH;destruct HH as [? wctp].
     iExtract "Hrmap" csp as "Hcsp".
     iExtract "Hrmap" ct2 as "Hct2".
     iExtract "Hrmap" ctp as "Hctp".
-    iDestruct ("Hreg" $! csp with "[//] [//]") as "#Hspv".
+    iDestruct ("Hreg" $! csp with "[//]") as "#Hspv".
 
     (* Blocks 0-1: checks on the stack pointer *)
     iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
@@ -333,7 +332,8 @@ Section fundamental.
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
-    iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
+    iNext; iIntros (wsb π)
+      "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
 
     (* Close the caller's stack frame *)
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; [done|solve_addr|].
@@ -372,7 +372,7 @@ Section fundamental.
       }
       iIntros (k v [Hin Hspec]%map_lookup_filter_Some).
       destruct ( decide (k ∈ dom_arg_rmap nargs) ); last done.
-      iApply ("Hreg" $! k);iPureIntro; first set_solver+Hspec.
+      iApply ("Hreg" $! k); iPureIntro.
       repeat (apply lookup_delete_Some in Hin as [_ Hin]); auto.
     }
     iApply (switcher_call_blocks_4_spec W C with
@@ -421,7 +421,7 @@ Section fundamental.
     iAssert (interp W C (WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a)) as "#Hstk4v".
     { iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
     iDestruct (switcher_call_entry_registers W W C nargs arg_rmap' rmap'' with
-                "[$HPC $Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
+                "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs') "[Hregs Hregs_interp]"; [apply related_sts_pub_refl_world|done|done|done|].
     iApply ("Hexec" $! (frame :: cstk) (W :: Ws) (C :: Cs) regs' a e).
     iSplitL "Hcont".
@@ -432,7 +432,7 @@ Section fundamental.
       - done. }
     iSplit.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
-    iFrame "Hregs Hregs_interp Hworld_interp Hcstk Hna".
+    iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
     iPureIntro; split; [split; reflexivity | solve_addr].
   Qed.
 

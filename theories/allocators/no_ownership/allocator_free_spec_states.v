@@ -12,7 +12,7 @@ From griotte.allocators.common Require Export allocator_common_spec_states.
     - [allocator_free_spec_check_blocks_1]: blocks 0 and 1, the checks of the
       tag and of the bounds of the request against the allocated prefix,
     - [allocator_free_spec_header_blocks_2]: blocks 2 and 3, the shadow
-      capability and the local check of the header,
+      capability, the local check of the header and the revoker capability,
     - [allocator_free_spec_return_blocks_3]: the rejection of a request, in
       the tail (block 4).
     Block 4 is the shared tail of [free], specified in
@@ -32,7 +32,7 @@ Section AllocatorFreeCode.
   Definition allocator_free_code : list Word :=
     allocator_free_instrs_n 0 ++
     allocator_free_instrs_n 1 ++
-    fetch_instrs allocator_shadow_import_off ctp ct3 ca2 ++
+    allocator_free_instrs_n 2 ++
     allocator_free_instrs_n 3 ++
     allocator_free_tail_code.
 
@@ -53,7 +53,7 @@ Notation allocator_free_instr_offset := (code_instr_offset allocator_free_blocks
 
 (** Offset of the rejection of [free] in [allocator_free_code]. *)
 Notation allocator_free_invalid_offset :=
-  (allocator_free_block_offset 4 + allocator_free_tail_block_offset 6)%Z.
+  (allocator_free_block_offset 4 + allocator_free_tail_block_offset 5)%Z.
 
 (** Unfold [allocator_free_code] into the chain of its blocks. *)
 Ltac allocator_free_unfold_code h := unfold_code allocator_free_code h.

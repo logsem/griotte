@@ -70,9 +70,9 @@ Section AllocatorCommonSafe.
   Lemma free_entry_regs_idfree (regs : LReg) (wcsp : Word) (nargs : nat) :
     regs !! csp = Some (lword_of_word wcsp) ->
     (∀ (r : RegName) (v : LWord),
-      r ∉ ({[PC; cra; cgp; csp]} ∪ dom_arg_rmap nargs : gset RegName) ->
+      r ∉ ({[cra; cgp; csp]} ∪ dom_arg_rmap nargs : gset RegName) ->
       regs !! r = Some v -> v = WInt 0) ->
-    ∀ r w, (r ∉ ({[PC; cra; cgp]} ∪ dom_arg_rmap nargs : gset RegName)) ->
+    ∀ r w, (r ∉ ({[cra; cgp]} ∪ dom_arg_rmap nargs : gset RegName)) ->
       regs !! r = Some w -> has_authority w.(lw) -> w.(lprov) = None.
   Proof.
     intros Hcsp Hzeros r w Hr Hw _.

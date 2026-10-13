@@ -9,47 +9,42 @@ Section Fetch.
       {MP: MachineParameters}
   .
   Lemma fetch_spec
-    (n : Z) (rdst rscratch1 rscratch2 : RegName)
+    (n off : Z) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (wentry : Word) (wdst w1 w2 : LWord) (dq : dfrac)
+    (wentry : Word) (wdst : LWord) (dq : dfrac)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let fetch_ := (fetch_instrs n rdst rscratch1 rscratch2) in
+    let fetch_ := (fetch_instrs off rdst) in
     let a_last := (pc_a ^+ length fetch_)%a in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
+    (pc_a + off)%a = Some (pc_b ^+ n)%a ->
     withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
     disjoint_from_shadow pc_b pc_e →
     is_heap_cap wentry = false →
     rdst ≠ cnull ->
-    rscratch1 ≠ cnull ->
-    rscratch2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rdst ↦ᵣ wdst
-    ∗ ▷ rscratch1 ↦ᵣ w1
-    ∗ ▷ rscratch2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a fetch_
     ∗ ▷ (pc_b ^+ n)%a ↦ₐ{dq} wentry
-    ∗ ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ rdst ↦ᵣ load_word pc_p wentry
-         ∗ rscratch1 ↦ᵣ WInt 0%Z
-         ∗ rscratch2 ↦ᵣ WInt 0%Z
          ∗ codefrag_pers pc_a fetch_
          ∗ (pc_b ^+ n)%a ↦ₐ{dq} wentry
          -∗ WP Seq (Instr Executable) {{ φ }})
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros fetch a_last ; subst fetch a_last.
-    iIntros (Hvpc Hcont Hpc_n Hdisjoint Hnonheap Hrdst Hr1 Hr2)
-      "(>HPC & >Hrdst & >Hrscratch1 & >Hrscratch2 & >#Hprog & >Hpc_bn & Hφ)".
+    iIntros (Hvpc Hcont Hoff Hpc_n Hdisjoint Hnonheap Hrdst)
+      "(>HPC & >Hrdst & >#Hprog & >Hpc_bn & Hφ)".
     codefrag_facts "Hprog".
-    rename H into HcontRegion; clear H0.
-    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
-    assert ((pc_b + n)%a = Some (pc_b ^+ n)%a) as Hpc_bn;[solve_addr|].
     assert (is_shadow_address (pc_b ^+ n)%a = false) as Hshadow.
     { eapply disjoint_from_shadow_not_in; eauto. }
-    iGo "Hprog".
+    (* Auipcc rdst off. *)
+    iInstr "Hprog".
+    (* CLoad rdst rdst 0. *)
+    iInstr "Hprog".
     iApply "Hφ"; iFrame "∗ Hprog".
   Qed.
 

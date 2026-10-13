@@ -40,7 +40,7 @@ Section Switcher_KtK_Call.
     (cstk cstk' : CSTK)
     (a_tstk : Addr) (tstk_next : list LWord) :
     disjoint_from_mmio b_stk e_stk ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     switcher_stk_bounds b_stk e_stk a_stk ->
     (b_trusted_stack <= a_tstk)%a ->
@@ -56,7 +56,7 @@ Section Switcher_KtK_Call.
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
-    PC ↦ᵣ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_block_pc 16 ∗
     (∃ wcs0, cs0 ↦ᵣ wcs0) ∗
     cs1 ↦ᵣ wcs1_caller ∗
     cgp ↦ᵣ wcgp_caller ∗
@@ -71,9 +71,9 @@ Section Switcher_KtK_Call.
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ w ) ∗
     cstack_frag cstk ∗
     ▷ ( ( ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
-            ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+            ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
             na_own cerise_nais E ∗
-            PC ↦ᵣ lupdatePcPerm rcra ∗
+            PC ↦ₚ lupdatePcPerm rcra ∗
             cgp ↦ᵣ rcgp ∗
             cra ↦ᵣ rcra ∗
             csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
@@ -164,7 +164,7 @@ Section Switcher_KtK_Call.
     is_Some (bpcc_tgt + off_tgt)%a →
 
     (* Well formed register map *)
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
@@ -180,7 +180,7 @@ Section Switcher_KtK_Call.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais E
     (* Registers *)
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
@@ -205,7 +205,7 @@ Section Switcher_KtK_Call.
               ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais E
               (* Registers *)
-              ∗ PC ↦ᵣ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
+              ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
               ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
               ∗ cra ↦ᵣ (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
               (* Stack register *)
@@ -228,10 +228,10 @@ Section Switcher_KtK_Call.
           ∨
             (
               ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
-                ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
+                ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
                 ∗ na_own cerise_nais E
                 (* Registers *)
-                ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+                ∗ PC ↦ₚ lupdatePcPerm (rcra)
                 ∗ cgp ↦ᵣ rcgp
                 ∗ cra ↦ᵣ rcra
                 ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -323,7 +323,8 @@ Section Switcher_KtK_Call.
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
-    iNext; iIntros (wsb π) "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
+    iNext; iIntros (wsb π)
+      "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
 
     (* Blocks 7-11: load the callee and jump to it *)

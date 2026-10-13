@@ -16,46 +16,45 @@ Section Switcher_Restore.
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_post wit RWL raw actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ load_witness_res wit }}}.
   Proof.
     iIntros (Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hwit) HΦ".
-    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
+    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
     iDestruct (pointsto_ne with "Ha Hi") as %Hpc_a.
     iDestruct (memMap_resource_2ne_dq pc_a a dq (DfracOwn 1) wi raw with "[$Hi $Ha]")
       as "Hmem"; first done.
     iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
       as "Hshadow".
     { by rewrite big_sepM_empty. }
-    iApply (wp_load_general_shadow_imm with "[$Hmem $Hshadow $Hwit $Hmap]"); eauto.
-    { by simplify_map_eq. }
+    iApply (wp_load_general_shadow_imm with "[$HPC $Hmem $Hshadow $Hwit $Hmap]"); eauto.
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
       rewrite addr_add_0 in Haddr. injection Haddr as <-.
       rewrite Hshadow.
       destruct (is_revoker_address a); first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & Hwit & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
                       |Hfail].
     2,3: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
-      rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
+      rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
       rewrite addr_add_0 in Haddr; injection Haddr as <-;
       simplify_map_eq; congruence.
     2: { exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ RWL Local b e a a);
@@ -64,18 +63,16 @@ Section Switcher_Restore.
          all: rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-    rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+    rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
     rewrite addr_add_0 in Haddr. injection Haddr as <-.
     rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
-    rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
+    rewrite linsert_reg_not_cnull //.
     apply incrementPC_Some_inv in Hinc
       as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
-    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     injection HPC as <- <- <- <- <- <- <-.
     rewrite Hpc in Hapc. injection Hapc as <-.
-    rewrite (insert_insert_ne _ dst PC) // insert_insert_eq.
     rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
-    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
+    iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
     iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; first done.
     iApply "HΦ". by iFrame.
   Qed.
@@ -91,11 +88,11 @@ Section Switcher_Restore.
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw }}}.
   Proof.
@@ -136,13 +133,13 @@ Section Switcher_Restore_Interp.
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
         world_interp_open Wworld C opened }}}
       Instr Executable @ E
     {{{ actual, RET NextIV;
         ⌜load_heap_in_world Wval raw actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
   Proof.
@@ -166,12 +163,12 @@ Section Switcher_Restore_Interp.
     withinBounds b e a = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_heap_in_world Wval raw actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.

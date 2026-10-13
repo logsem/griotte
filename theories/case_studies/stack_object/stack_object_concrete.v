@@ -15,10 +15,10 @@ Local Notation "'OT' z" :=
 
 Definition so_main_pcc_b : Addr := A 9.
 Definition so_main_code_start : Addr := A 12.
-Definition so_main_pcc_e : Addr := A 160.
+Definition so_main_pcc_e : Addr := A 132.
 Definition so_C_pcc_b : Addr := A 160.
 Definition so_C_code_start : Addr := A 163.
-Definition so_C_pcc_e : Addr := A 204.
+Definition so_C_pcc_e : Addr := A 194.
 Definition so_main_data_b : Addr := A 204.
 Definition so_main_data_e : Addr := A 204.
 Definition so_C_data_b : Addr := A 204.
@@ -32,13 +32,13 @@ Definition so_C_exports_cgp : Addr := A 209.
 Definition so_C_exports_entries_b : Addr := A 210.
 Definition so_C_exports_entries_e : Addr := A 212.
 Definition so_assert_b : Addr := A 212.
-Definition so_assert_cap : Addr := A 224.
-Definition so_assert_e : Addr := A 225.
-Definition so_assert_flag : Addr := A 225.
+Definition so_assert_cap : Addr := A 223.
+Definition so_assert_e : Addr := A 224.
+Definition so_assert_flag : Addr := A 224.
 Definition so_switcher_b : Addr := A 226.
 Definition so_switcher_call : Addr := A 227.
-Definition so_switcher_return : Addr := A 315.
-Definition so_switcher_e : Addr := A 377.
+Definition so_switcher_return : Addr := A 294.
+Definition so_switcher_e : Addr := A 340.
 Definition so_switcher_sealing_type : OType := OT 9.
 Definition so_trusted_stack_b : Addr := A 4096.
 Definition so_trusted_stack_e : Addr := A 4196.
@@ -79,50 +79,7 @@ Ltac unfold_so_addresses_in H :=
     both capabilities to [g], which attempts to overwrite them with [7] and
     [9]. After the call, the adversary restores its stack and return capability
     before returning to the main program. *)
-Definition so_C_code : list Word :=
-  encodeInstrsW [
-    Store csp cra 0;
-    Lea csp 1%Z;
-    Mov ca0 csp;
-    GetA cs0 ca0;
-    machine_instructions.Add cs1 cs0 1%Z;
-    Subseg ca0 cs0 cs1;
-    Store ca0 0%Z 0;
-    Lea csp 1%Z;
-    Mov ctp PC;
-    GetB cs0 ctp;
-    GetA cs1 ctp;
-    Sub cs0 cs0 cs1;
-    Lea ctp cs0;
-    Mov ct0 ctp;
-    Lea ct0 0%Z;
-    CLoad ct0 ct0 0;
-    Mov ct1 ctp;
-    Lea ct1 1%Z;
-    CLoad ct1 ct1 0;
-    Mov ca1 ctp;
-    Lea ca1 2%Z;
-    CLoad ca1 ca1 0;
-    Mov cs0 0%Z;
-    Mov cs1 0%Z;
-    Mov cs0 cra;
-    Mov cs1 ct1;
-    Jalr cra ct0;
-    Lea csp (-1)%Z;
-    Lea csp (-1)%Z;
-    CLoad cra csp 0;
-    Mov ca0 0%Z;
-    Mov ca1 0%Z;
-    Mov ct0 0%Z;
-    Mov ct1 0%Z;
-    Mov cs0 0%Z;
-    Mov cs1 0%Z;
-    Jalr cnull cra;
-    Lea ca0 (-1)%Z;
-    Store ca0 7%Z 0;
-    Store ca1 9%Z 0;
-    Jalr cnull cra
-  ].
+Definition so_C_code : list Word := encodeInstrsW so_C_instrs.
 
 Definition so_C_data : list Word := [WInt 0].
 
@@ -191,7 +148,7 @@ Definition so_C_imports : list Word :=
   ; WSealed so_switcher_sealing_type so_C_g
   ].
 Definition so_C_exports : list Word :=
-  [WInt (encode_entry_point 0 3); WInt (encode_entry_point 2 40)].
+  [WInt (encode_entry_point 0 so_C_adv_entry); WInt (encode_entry_point 2 so_C_g_entry)].
 
 Program Definition so_concrete_main_cmpt : cmpt.
 Proof.
@@ -403,7 +360,7 @@ Proof.
   refine
     (@Build_memory_layout machine_parameters_instance
        so_concrete_cmptSwitcher so_concrete_cmptAssert
-       so_concrete_main_cmpt so_concrete_C_cmpt 3 40
+       so_concrete_main_cmpt so_concrete_C_cmpt so_C_adv_entry so_C_g_entry
        _ _
        so_concrete_cmpts_disjoints
        so_concrete_switcher_cmpt_disjoints
@@ -412,8 +369,10 @@ Proof.
   all: vm_compute; eauto.
 Defined.
 
+Definition so_initial_pc : Word :=
+  WCap true RX Global so_main_pcc_b so_main_pcc_e so_main_code_start.
+
 Definition so_initial_registers : Reg :=
-  <[PC := WCap true RX Global so_main_pcc_b so_main_pcc_e so_main_code_start]>
   (<[cgp := WCap true RW Global so_main_data_b so_main_data_e so_main_data_b]>
   (<[csp := WCap true RWL Local so_stack_b so_stack_e so_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
@@ -422,9 +381,9 @@ Definition so_initial_sregisters : SReg :=
       so_trusted_stack_b]> ∅.
 Definition so_initial_memory : Mem := mk_initial_memory.
 
-Lemma so_initial_registers_correct : is_initial_registers so_initial_registers.
+Lemma so_initial_registers_correct : is_initial_registers so_initial_pc so_initial_registers.
 Proof.
-  rewrite /is_initial_registers /so_initial_registers.
+  rewrite /is_initial_registers /so_initial_pc /so_initial_registers.
   cbn [so_concrete_layout so_concrete_main_cmpt].
   split; [|split; [|split]].
   - vm_compute; reflexivity.
@@ -458,16 +417,16 @@ Lemma so_initial_heap_disjoint :
   initial_heap_memory ##ₘ mk_initial_program_memory.
 Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
 
-Lemma so_concrete_adequacy reg' sreg' mem' sh' es :
+Lemma so_concrete_adequacy pc' reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow))
-    (es, (reg', sreg', mem', sh')) ->
+      (so_initial_pc, so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow))
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! so_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof (@so_adequacy machine_parameters_instance so_concrete_layout
-    so_initial_registers reg' so_initial_sregisters sreg'
+    so_initial_pc pc' so_initial_registers reg' so_initial_sregisters sreg'
     so_initial_memory mem' initial_heap_shadow sh' es so_initial_registers_correct
     so_initial_sregisters_correct so_initial_memory_correct eq_refl so_initial_heap_disjoint Hrun) as Hadequacy.
   cbn [so_concrete_layout so_concrete_cmptAssert] in Hadequacy.
@@ -481,19 +440,19 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem so_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem' sh',
+  ∃ pc' reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow))
-      ([Instr Halted], (reg', sreg', mem', sh'))
+        (so_initial_pc, so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! so_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_correct (N.to_nat (7000%N)) Executable
-    (so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow)
+    (so_initial_pc, so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow)
     Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
-  exists reg', sreg', mem', sh'. split.
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply so_concrete_adequacy; exact Hrun.
 Qed.

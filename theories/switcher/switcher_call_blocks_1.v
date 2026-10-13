@@ -21,13 +21,13 @@ Section Switcher_Call_Blocks_1.
   .
 
   Lemma switcher_call_blocks_1_spec (wcsp wct2 wctp : LWord) :
-    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
     csp ↦ᵣ wcsp ∗
     ct2 ↦ᵣ wct2 ∗
     ctp ↦ᵣ wctp ∗
     switcher_code ∗
     ▷ ( ( ⌜ switcher_csp_checked wcsp ⌝ ∗
-          PC ↦ᵣ switcher_block_pc 2 ∗
+          PC ↦ₚ switcher_block_pc 2 ∗
           csp ↦ᵣ wcsp ∗
           ct2 ↦ᵣ WInt 0 ∗
           ctp ↦ᵣ WInt (encodeLoc Local) ∗
@@ -35,7 +35,7 @@ Section Switcher_Call_Blocks_1.
         ∨
         ( ⌜ ¬ switcher_csp_checked wcsp ⌝ ∗
           ∃ zct2 zctp,
-          PC ↦ᵣ switcher_block_pc 17 ∗
+          PC ↦ₚ switcher_block_pc 17 ∗
           csp ↦ᵣ wcsp ∗
           ct2 ↦ᵣ WInt zct2 ∗
           ctp ↦ᵣ WInt zctp ∗

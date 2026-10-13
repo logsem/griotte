@@ -130,16 +130,15 @@ Section VAE.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
+      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
     assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /vae_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).
     iDestruct (vae_args_zero with "Hzeroed_rmap") as %Hzero; first done.
     pose proof (lregmap_full_dom _ Hrmap_init) as Hrmap_dom.
-    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
@@ -299,8 +298,7 @@ Section VAE.
     apply load_heap_in_world_nonheap in Hrcs0;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=;
         reflexivity].
-    apply load_heap_in_world_nonheap in Hrcs1; [|done].
-    subst rcgp rcra rcs0 rcs1.
+    subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* The flag is still [true], and the world can be repaired *)
@@ -315,16 +313,16 @@ Section VAE.
 
     (* Blocks 9-11: assert that the flag is [1], and return *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull]
-      as ["Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull]
+      as ["Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
     iApply (vae_awkward_blocks_3_spec with
              "[- $HawkN $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
-              $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Himport_assert $Hcode_main]");
+              $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Himport_assert $Hcode_main]");
       [done|done|done|exact Hloc_i_W7|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
-                    & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & _ & _)".
+                    & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
-    iInsertRegs "Hrmap" ["Hcnull";"Hct4";"Hct3";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
+    iInsertRegs "Hrmap" ["Hcnull";"Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
     (* Return to the caller of [awkward] *)
     iApply (switcher_ret_specification _ W0 (revoke W6) with

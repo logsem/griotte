@@ -45,11 +45,12 @@ Section HTS_Spec_Malloc.
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    (pc_b + length (hts_main_imports C_f))%a = Some pc_a ->
     hts_ctx ∗
     na_own cerise_nais ⊤ ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
@@ -62,7 +63,8 @@ Section HTS_Spec_Malloc.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hrmap_dom HsubBounds)
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hrmap_dom HsubBounds
+      Himports_contiguous)
       "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hrmap & Hstatic & Hworld
        & #Hinterp_csp & HK & Hcstk & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
@@ -89,23 +91,21 @@ Section HTS_Spec_Malloc.
     (* Block 1: fetch the switcher for malloc. *)
     focus_block 1 "Hcode_main" of hts_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iExtractList "Hrmap" [ctp;ct0;ct2] as ["Hctp";"Hct0";"Hct2"].
-    iApply (fetch_spec hts_switcher_offset ctp ct0 ct2 RX Global
+    iExtractList "Hrmap" [ctp] as ["Hctp"].
+    iApply (fetch_spec 0 _ ctp RX Global
       pc_b pc_e a_fetch1
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hcode]").
+      _ _ _ with "[- $HPC $Hctp $Hcode]").
     { reflexivity. }
     { solve_addr. }
-    { rewrite /hts_switcher_offset. apply withinBounds_true_iff. solve_addr. }
+    { offsets_compute; solve_addr. }
+    { apply withinBounds_true_iff. solve_addr. }
     { exact Hpc_shadow. }
     { apply switcher_call_sentry_not_heap. }
     { done. }
-    { done. }
-    { done. }
-    replace (pc_b ^+ hts_switcher_offset)%a with pc_b
-      by (rewrite /hts_switcher_offset; solve_addr).
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & _ & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -113,22 +113,20 @@ Section HTS_Spec_Malloc.
     focus_block 2 "Hcode_main" of hts_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["Hct1"].
-    iApply (fetch_spec hts_malloc_offset ct1 ct0 ct2 RX Global
+    iApply (fetch_spec 3 _ ct1 RX Global
       pc_b pc_e a_fetch2
       (WSealed ot_switcher (allocator_malloc Global))
-      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hcode]").
+      _ _ _ with "[- $HPC $Hct1 $Hcode]").
     { reflexivity. }
     { solve_addr. }
-    { rewrite /hts_malloc_offset. apply withinBounds_true_iff. solve_addr. }
+    { offsets_compute; solve_addr. }
+    { apply withinBounds_true_iff. solve_addr. }
     { exact Hpc_shadow. }
     { unfold allocator_malloc. apply sealed_cap_nonheap.
       exact hts_export_tbl_not_heap. }
     { done. }
-    { done. }
-    { done. }
-    replace (pc_b ^+ hts_malloc_offset)%a with (pc_b ^+ 3)%a by reflexivity.
     iFrame "Himport_malloc".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & _ & Himport_malloc)".
+    iNext; iIntros "(HPC & Hct1 & _ & Himport_malloc)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -154,23 +152,23 @@ Section HTS_Spec_Malloc.
     { apply elem_of_dom. rewrite Hrmap_dom. set_solver. }
     assert (is_Some (rmap !! cs1)) as [wcs1 Hwcs1].
     { apply elem_of_dom. rewrite Hrmap_dom. set_solver. }
-    iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5] as
-      ["Hca1";"Hca2";"Hca3";"Hca4";"Hca5"].
+    iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5;ct0] as
+      ["Hca1";"Hca2";"Hca3";"Hca4";"Hca5";"Hct0"].
     iExtractList "Hrmap" [cs0] as ["Hcs0"].
     iExtractList "Hrmap" [cs1] as ["Hcs1"].
-    iInsertList "Hrmap" [ctp;ct2].
+    iInsertList "Hrmap" [ctp].
     set (rmap_arg := ({[ ca0 := lword_of_word (WInt 1); ca1 := wca1; ca2 := wca2;
-      ca3 := wca3; ca4 := wca4; ca5 := wca5; ct0 := lword_of_word (WInt 0) ]} : LReg)).
+      ca3 := wca3; ca4 := wca4; ca5 := wca5; ct0 := wct0 ]} : LReg)).
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
     { subst rmap_arg.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done. }
-    set (rmap_other := <[ct2:=lword_of_word (WInt 0)]>
-      (<[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
-       (delete cs1 (delete cs0 (delete ca5 (delete ca4 (delete ca3
+    set (rmap_other :=
+      <[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+       (delete cs1 (delete cs0 (delete ct0 (delete ca5 (delete ca4 (delete ca3
          (delete ca2 (delete ca1 (delete cra (delete ct1
-           (delete ct0 (delete ca0 rmap))))))))))))).
+           (delete ca0 rmap)))))))))))).
     iPoseProof (hts_malloc_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 4)%a)

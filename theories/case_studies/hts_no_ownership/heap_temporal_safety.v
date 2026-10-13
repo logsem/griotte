@@ -32,23 +32,26 @@ Section Heap_Temporal_Safety.
       already in registers. The switcher clears the adversary's registers
       when it returns, so a retained alias must later be loaded again. *)
 
-  Definition hts_switcher_offset : Z := 0.
-  Definition hts_assert_offset : Z := 1.
-  Definition hts_adv_offset : Z := 2.
-  Definition hts_malloc_offset : Z := 3.
-  Definition hts_free_offset : Z := 4.
-
   (** Each assembler block is also available to the local instruction proofs.
-      Labels identify branch destinations and do not occupy machine memory. *)
+      Labels identify branch destinations and do not occupy machine memory.
+      The data symbols [#@] name the entries of the import table, which
+      precedes the code. *)
   Definition hts_main_asm : list (list asm_code) :=
     [
       [
+        (* the imports *)
+        #@".Limport_switcher";
+        #@".Limport_assert";
+        #@".Limport_adv";
+        #@".Limport_malloc";
+        #@".Limport_free";
+
         (* p = 0; buf = malloc(1); *)
         store_imm cgp (0)%asm 0;
         mov ca0 (1)%asm
       ];
-      fetch_asm hts_switcher_offset ctp ct0 ct2;
-      fetch_asm hts_malloc_offset ct1 ct0 ct2;
+      fetch_asm ".Limport_switcher" ctp;
+      fetch_asm ".Limport_malloc" ct1;
       [
         jalr cra ctp
       ];
@@ -66,8 +69,8 @@ Section Heap_Temporal_Safety.
         lea csp 1;
         store_imm ca0 (0)%asm 0
       ];
-      fetch_asm hts_switcher_offset ctp ct0 ct2;
-      fetch_asm hts_adv_offset ct1 ct0 ct2;
+      fetch_asm ".Limport_switcher" ctp;
+      fetch_asm ".Limport_adv" ct1;
       [
         (* adv(buf); *)
         jalr cra ctp
@@ -87,8 +90,8 @@ Section Heap_Temporal_Safety.
         (* buf[0] = &p; cgp covers exactly p. *)
         store_imm ca0 cgp 0
       ];
-      fetch_asm hts_switcher_offset ctp ct0 ct2;
-      fetch_asm hts_free_offset ct1 ct0 ct2;
+      fetch_asm ".Limport_switcher" ctp;
+      fetch_asm ".Limport_free" ct1;
       [
         (* free(buf); halt if free or the switcher fails. *)
         jalr cra ctp
@@ -107,8 +110,8 @@ Section Heap_Temporal_Safety.
         (* adv(0); the dangling buffer is no longer passed. *)
         mov ca0 (0)%asm
       ];
-      fetch_asm hts_switcher_offset ctp ct0 ct2;
-      fetch_asm hts_adv_offset ct1 ct0 ct2;
+      fetch_asm ".Limport_switcher" ctp;
+      fetch_asm ".Limport_adv" ct1;
       [
         jalr cra ctp
       ];
@@ -117,7 +120,7 @@ Section Heap_Temporal_Safety.
         load_imm ct0 cgp 0;
         mov ct1 (0)%asm
       ];
-      concat (assert_asm hts_assert_offset ct2 ct3 ct4);
+      assert_asm ".Limport_assert" ct2 ca2;
       [
         (* halt; *)
         halt

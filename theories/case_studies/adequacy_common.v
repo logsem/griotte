@@ -77,11 +77,11 @@ End initial_capabilities.
 
 (** ** Initial register files *)
 Definition is_initial_registers_of `{MP: MachineParameters}
-  (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :=
-  reg !! PC = Some (cmpt_entry_pc main) ∧
+  (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :=
+  pc = cmpt_entry_pc main ∧
   reg !! cgp = Some (cmpt_cgp_cap main) ∧
   reg !! csp = Some (stack_cap sw) ∧
-  (∀ (r : RegName), r ∉ ({[ PC; cgp; csp ]} : gset RegName) → reg !! r = Some (WInt 0)).
+  (∀ (r : RegName), r ∉ ({[ cgp; csp ]} : gset RegName) → reg !! r = Some (WInt 0)).
 
 Definition is_initial_sregisters_of `{MP: MachineParameters}
   (sw : cmptSwitcher) (sreg : SReg) :=
@@ -90,36 +90,35 @@ Definition is_initial_sregisters_of `{MP: MachineParameters}
 Section registers.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP: MachineParameters}.
 
-  Lemma initial_registers_split (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :
-    is_initial_registers_of sw main reg →
+  Lemma initial_registers_split (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
+    is_initial_registers_of sw main pc reg →
+    PC ↦ₚ lword_of_word pc ∗
     ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) ⊢
     ∃ (rmap : LReg),
-      PC ↦ᵣ cmpt_entry_pc main ∗
+      PC ↦ₚ cmpt_entry_pc main ∗
       cgp ↦ᵣ cmpt_cgp_cap main ∗
       csp ↦ᵣ stack_cap sw ∗
       ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-      ⌜dom rmap = all_registers_s ∖ {[ PC; cgp; csp ]}⌝ ∗
+      ⌜dom rmap = all_registers_s ∖ {[ cgp; csp ]}⌝ ∗
       ⌜∀ r, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))⌝.
   Proof.
-    intros (HPC & Hcgp & Hcsp & Hzero).
-    iIntros "Hreg".
-    iDestruct (big_sepM_delete _ _ PC with "Hreg") as "[HPC Hreg]";
-      first by rewrite lookup_fmap HPC.
+    intros (-> & Hcgp & Hcsp & Hzero).
+    iIntros "[HPC Hreg]".
     iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[Hcgp Hreg]";
-      first by rewrite lookup_delete_ne // lookup_fmap Hcgp.
+      first by rewrite lookup_fmap Hcgp.
     iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]";
       first by rewrite !lookup_delete_ne // lookup_fmap Hcsp.
     iExists _; iFrame.
     iPureIntro; split.
     - rewrite !dom_delete_L lregmap_full_dom; first done.
       intros r.
-      destruct (decide (r ∈ ({[ PC; cgp; csp ]} : gset RegName))) as [Hr|Hr].
+      destruct (decide (r ∈ ({[ cgp; csp ]} : gset RegName))) as [Hr|Hr].
       + rewrite !elem_of_union !elem_of_singleton in Hr.
-        destruct Hr as [ [ -> | -> ] | -> ]; rewrite lookup_fmap ?HPC ?Hcgp ?Hcsp; eauto.
+        destruct Hr as [ -> | -> ]; rewrite lookup_fmap ?Hcgp ?Hcsp; eauto.
       + rewrite lookup_fmap Hzero //.
     - intros r Hr.
       rewrite !dom_delete_L !elem_of_difference !elem_of_singleton in Hr.
-      destruct Hr as [ [ [_ HrPC] Hrcgp] Hrcsp].
+      destruct Hr as [ [_ Hrcgp] Hrcsp].
       rewrite !lookup_delete_ne // lookup_fmap Hzero //; set_solver.
   Qed.
 
@@ -203,16 +202,23 @@ Section initial_rootedness.
     mem_rooted ∅ (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
   Proof. apply mem_rooted_initial_memory_roots. Qed.
 
-  (** The initial registers are rooted: PC, cgp and csp are capabilities
+  (** The initial registers are rooted: cgp and csp are capabilities
       outside the heap, and the other registers hold integers. *)
+  Lemma initial_pc_rooted_roots (R : gset Addr)
+    (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
+    is_initial_registers_of sw main pc reg →
+    word_rooted R pc.
+  Proof.
+    intros (-> & _).
+    apply word_rooted_cap_nonheap, cmpt_pcc_base_not_heap.
+  Qed.
+
   Lemma initial_registers_rooted_roots (R : gset Addr)
-    (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :
-    is_initial_registers_of sw main reg →
+    (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
+    is_initial_registers_of sw main pc reg →
     ∀ r w, reg !! r = Some w → word_rooted R w.
   Proof.
-    intros (HPC & Hcgp & Hcsp & Hr) r w Hw.
-    destruct (decide (r = PC)) as [->|]; [rewrite HPC in Hw; injection Hw as <-;
-      apply word_rooted_cap_nonheap, cmpt_pcc_base_not_heap|].
+    intros (_ & Hcgp & Hcsp & Hr) r w Hw.
     destruct (decide (r = cgp)) as [->|]; [rewrite Hcgp in Hw; injection Hw as <-;
       apply word_rooted_cap_nonheap, cmpt_cgp_base_not_heap|].
     destruct (decide (r = csp)) as [->|]; [rewrite Hcsp in Hw; injection Hw as <-;
@@ -220,22 +226,23 @@ Section initial_rootedness.
     rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_rooted_int.
   Qed.
 
-  Lemma initial_registers_rooted (sw : cmptSwitcher) (main : cmpt) (reg : Reg) :
-    is_initial_registers_of sw main reg →
+  Lemma initial_registers_rooted (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
+    is_initial_registers_of sw main pc reg →
     ∀ r w, reg !! r = Some w → word_rooted ∅ w.
   Proof. apply initial_registers_rooted_roots. Qed.
 
   (** The initial condition, with heap roots [R]. *)
-  Lemma ghost_init_cond_roots (R : gset Addr) (reg : Reg) (sreg : SReg) (m : Mem) :
+  Lemma ghost_init_cond_roots (R : gset Addr) (pc : Word) (reg : Reg) (sreg : SReg) (m : Mem) :
     (∀ a, a ∈ R → is_heap_address a = true) →
     mem_rooted R m →
+    word_rooted R pc →
     (∀ r w, reg !! r = Some w → word_rooted R w) →
     (∀ sr w, sreg !! sr = Some w → word_rooted R w) →
     mem_avoids_mmio m →
     reg !! cnull = Some (WInt 0) →
-    ghost_init_cond (reg, sreg, m, initial_heap_shadow) R.
+    ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
-    intros HR Hm Hreg Hsreg Hmmio Hnull.
+    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -246,6 +253,7 @@ Section initial_rootedness.
     - intros a Ha. by apply Hsh, HR.
     - intros a Ha. eexists. by apply Hsh.
     - intros a w b Ha. by eapply Hm.
+    - intros b. by eapply Hpc.
     - intros r w b _ Hw. by eapply Hreg.
     - intros sr w b Hw. by eapply Hsreg.
     - exact Hmmio.
@@ -255,20 +263,21 @@ Section initial_rootedness.
   (** The initial condition of a layout with heap roots [R]. *)
   Lemma ghost_init_cond_initial_layout_roots (R : gset Addr)
     (sw : cmptSwitcher) (Cassert : cmptAssert) (main : cmpt) (cmpts : list cmpt)
-    (pm : Mem) (reg : Reg) (sreg : SReg) :
+    (pm : Mem) (pc : Word) (reg : Reg) (sreg : SReg) :
     (∀ a, a ∈ R → is_heap_address a = true) →
     pm = initial_program_memory sw Cassert cmpts →
     initial_heap_memory ##ₘ pm →
-    is_initial_registers_of sw main reg →
+    is_initial_registers_of sw main pc reg →
     is_initial_sregisters_of sw sreg →
     Forall is_z (stack_content sw) →
     Forall (λ C, mem_rooted R (mk_initial_cmpt C)) cmpts →
-    ghost_init_cond (reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) R.
+    ghost_init_cond (pc, reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) R.
   Proof.
     intros HR -> Hheap Hreg Hsreg Hstack Hcmpts.
     pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
     apply ghost_init_cond_roots; first done.
     - by apply mem_rooted_initial_memory_roots.
+    - by eapply initial_pc_rooted_roots.
     - by eapply initial_registers_rooted_roots.
     - (* The trusted stack is in the program memory, hence outside the heap. *)
       intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
@@ -283,14 +292,14 @@ Section initial_rootedness.
   (** The initial condition of a layout without heap roots. *)
   Lemma ghost_init_cond_initial_layout
     (sw : cmptSwitcher) (Cassert : cmptAssert) (main : cmpt) (cmpts : list cmpt)
-    (pm : Mem) (reg : Reg) (sreg : SReg) :
+    (pm : Mem) (pc : Word) (reg : Reg) (sreg : SReg) :
     pm = initial_program_memory sw Cassert cmpts →
     initial_heap_memory ##ₘ pm →
-    is_initial_registers_of sw main reg →
+    is_initial_registers_of sw main pc reg →
     is_initial_sregisters_of sw sreg →
     Forall is_z (stack_content sw) →
     Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
-    ghost_init_cond (reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) ∅.
+    ghost_init_cond (pc, reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) ∅.
   Proof. apply ghost_init_cond_initial_layout_roots. set_solver. Qed.
 
 End initial_rootedness.
@@ -384,13 +393,14 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   `{MP: MachineParameters}
   (ot : OType) (entries : list (Sealable * nat))
   (flagN : namespace) (flag : Addr) (H : gset Addr)
-  (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
+  (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
   (es : list griotte_lang.expr) :
   NoDup entries.*1 →
   Forall (λ sb, isGlobalSealable sb = true) entries.*1 →
-  ghost_init_cond (reg, sreg, m, sh) H →
+  ghost_init_cond (pc, reg, sreg, m, sh) H →
   reg !! cnull = Some (WInt 0) →
   (∀ (ceriseg : ceriseG Σ),
+     PC ↦ₚ lword_of_word pc -∗
      ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) -∗
      ([∗ map] r↦w ∈ sreg, r ↦ₛᵣ w) -∗
      ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
@@ -402,18 +412,18 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
      ={⊤}=∗
      WP Seq (Instr Executable) {{ _, True }} ∗
      inv flagN (flag ↦ₐ WInt 0)) →
-  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
+  rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
   m' !! flag = Some (WInt 0).
 Proof.
   intros Hnodup Hglobal Hinit Hnull Hwp Hstep.
   pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
   pose (fun (c: ExecConf) => mem c !! flag = Some (WInt 0%Z)) as state_is_good.
-  specialize (WPI (Seq (Instr Executable)) (reg, sreg, m, sh) es (reg', sreg', m', sh')
-                (state_is_good (reg', sreg', m', sh'))).
+  specialize (WPI (Seq (Instr Executable)) (pc, reg, sreg, m, sh) es (pc', reg', sreg', m', sh')
+                (state_is_good (pc', reg', sreg', m', sh'))).
   eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
-  iMod (cerise_ghost_init (reg, sreg, m, sh) H Hinit)
-    as (mem_heapg shadow_heapg reg_heapg sreg_heapg registryg addr_allocg)
-       "(Hσ & Hreg & Hsreg & Hmem & Hshadow & Hclaims)".
+  iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H Hinit)
+    as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg)
+       "(Hσ & HPC & Hreg & Hsreg & Hmem & Hshadow & Hclaims)".
   iEval (rewrite init_lmem_pointsto) in "Hmem".
   rewrite (init_lregs_cnull reg Hnull).
   iMod (entry_init (exported_entries ot entries)) as (entry_g) "Hentries".
@@ -424,24 +434,25 @@ Proof.
     cerise_nainvG := cerise_na_invs;
     mem_gen_memG := mem_heapg;
     shadowtbl_gen_regG := shadow_heapg;
+    cerise_pcG := pc_g;
     reg_gen_regG := reg_heapg;
     sreg_gen_regG := sreg_heapg;
     entryG := entry_g;
     cerise_registryG := registryg;
     cerise_addr_allocG := addr_allocg |}.
   iDestruct (entries_split with "Hentries") as "Hentries"; [done..|].
-  iMod (Hwp ceriseg with "Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries") as "[Hwp #Hflag]".
+  iMod (Hwp ceriseg with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries") as "[Hwp #Hflag]".
   iModIntro.
   iExists (fun σ _ _ => cerise_state_interp σ)%I.
   iExists (fun _ => True)%I. cbn. iFrame "Hσ".
   iSplitL "Hwp".
   { iApply (wp_mono with "Hwp"); iIntros (?) "?"; done. }
-  iIntros "(%lreg & %lmem & %R & %Cl & _ & _ & Hmem' & _ & _ & _ & %Her)".
+  iIntros "(%lpc & %lreg & %lmem & %R & %Cl & _ & _ & _ & Hmem' & _ & _ & _ & %Her)".
   iExists (⊤ ∖ ↑flagN).
   iInv flagN as ">Hflag'" "Hclose".
   iDestruct (gen_heap_valid with "Hmem' Hflag'") as %Hm'_flag.
   iModIntro. iPureIntro.
-  destruct (erasure_lookup_mem _ _ _ _ _ _ _ Her Hm'_flag)
+  destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her Hm'_flag)
     as (pw & Hpw & _ & _ & Hnonheap & _).
   rewrite /state_is_good Hpw (Hnonheap eq_refl) //.
 Qed.

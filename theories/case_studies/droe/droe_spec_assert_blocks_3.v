@@ -21,21 +21,20 @@ Section DROE_Assert_Blocks_3.
 
   Lemma droe_assert_blocks_3_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
-    (wca0 wca1 wct0 wct1 wct2 wct3 wct4 wcnull wcs0 wcra : LWord) :
+    (wca0 wca1 wct0 wct1 wct2 wca2 wcnull wcs0 wcra : LWord) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
     assert_static b_assert e_assert a_flag ∗
     na_own cerise_nais ⊤ ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
-    ct3 ↦ᵣ wct3 ∗
-    ct4 ↦ᵣ wct4 ∗
+    ca2 ↦ᵣ wca2 ∗
     cnull ↦ᵣ wcnull ∗
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
@@ -46,7 +45,7 @@ Section DROE_Assert_Blocks_3.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
              Hcgp_contiguous Hcgp_mmio)
-      "(#Hassert & Hna & HPC & Hcgp & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4
+      "(#Hassert & Hna & HPC & Hcgp & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hca2
       & Hcnull & Hcs0 & Hcra & Hcgp_b & Himport_assert & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code droe_main_code "Hcode_main".
@@ -67,12 +66,14 @@ Section DROE_Assert_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 4: assert that b = 42 *)
-    focus_block 4 "Hcode_main" as a_assert Ha_assert "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (assert_success_spec with
-             "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
+    focus_block 4 "Hcode_main" of droe_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
+    iApply (assert_success_spec 1 with
+             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
+    { offsets_compute; solve_addr. }
     { solve_addr. }
-    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

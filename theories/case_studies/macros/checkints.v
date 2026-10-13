@@ -37,14 +37,14 @@ Section Checkints.
 
   Definition checkints_loop_offset : Z :=
     Eval vm_compute in
-      length ( lea_to_base_instrs PC PC PC)
+      length ( lea_to_base_instrs cnull cnull cnull)
       + length (
             encodeInstrsW [
-                GetB PC PC;
-                GetE PC PC;
-                Lt PC PC PC;
-                Sub PC PC 1; (* invert result for the jump *)
-                Jnz (length (checkints_loop_instrs PC PC PC) + 1) PC])
+                GetB cnull cnull;
+                GetE cnull cnull;
+                Lt cnull cnull cnull;
+                Sub cnull cnull 1; (* invert result for the jump *)
+                Jnz (length (checkints_loop_instrs cnull cnull cnull) + 1) cnull])
   .
 End Checkints.
 
@@ -78,13 +78,13 @@ Section Checkints_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ (WCap true p g b e a @@? π)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a checkints_loop
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-    ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ r ↦ᵣ WCap true p g b e (finz.max b e) @@? π
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt e%Z
@@ -261,7 +261,7 @@ Section Checkints_spec.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (checkints_instrs r r1 r2))%a →
     (b < e)%a →
     r ≠ cnull → r1 ≠ cnull → r2 ≠ cnull →
-    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ WCap false p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a (checkints_instrs r r1 r2)
@@ -313,13 +313,13 @@ Section Checkints_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ (WCap t p g b e a @@? π)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a checkints
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-    ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ r ↦ᵣ WCap t p g b e (finz.max b e) @@? π
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt 0%Z

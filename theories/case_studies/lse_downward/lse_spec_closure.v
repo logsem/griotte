@@ -108,14 +108,13 @@ Section LSE.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & _ & _)".
+      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & _ & _)".
     rewrite /interp_conf /registers_pointsto.
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).
     pose proof (lregmap_full_dom _ Hrmap_init) as Hrmap_dom.
-    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
@@ -145,9 +144,9 @@ Section LSE.
 
     (* Blocks 5-6: assert that [a] contains [2], and return *)
     iApply (lse_f_blocks_2_spec with
-             "[- $Hassert $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra $Hca0 $Hca1 $Hcnull
+             "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hca0 $Hca1 $Hcnull
               $Himport_assert $Hcode_main]"); [done|].
-    iNext; iIntros "(HPC & Hcgp & Hcs0 & Hcs1 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
+    iNext; iIntros "(HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
                     & Hcnull & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iMod ("Hlse_code_close" with "[$Hna $Hcgp_b]") as "Hna".

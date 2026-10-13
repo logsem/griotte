@@ -48,11 +48,11 @@ Section Is_WordType_spec.
     r ≠ cnull ->
     r1 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag_pers pc_a is_int
-    ∗ ▷ ( ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ ( ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
             ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w.(lw) = WInt z ⌝
             ∗ r1 ↦ᵣ WInt 0%Z
             ∗ codefrag_pers pc_a is_int)
@@ -98,12 +98,12 @@ Section Is_WordType_spec.
     r ≠ cnull ->
     r1 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag_pers pc_a is_memory_cap
     ∗ ▷ ( (∃ p g b e a,
-            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
             ∗ r ↦ᵣ WCap true p g b e a
             ∗ r1 ↦ᵣ WInt 0%Z
             ∗ codefrag_pers pc_a is_memory_cap)

@@ -23,7 +23,7 @@ Section Counter_Main_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wret wcra wca0 wca1 wcs1 wcnull : LWord) :
     counter_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wret ∗
     cs1 ↦ᵣ wcs1 ∗
@@ -31,7 +31,7 @@ Section Counter_Main_Blocks_2.
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wcnull ∗
     codefrag_pers pc_a counter_main_code ∗
-    ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
         cra ↦ᵣ wret ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗

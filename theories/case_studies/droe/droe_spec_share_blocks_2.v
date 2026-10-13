@@ -22,29 +22,25 @@ Section DROE_Share_Blocks_2.
 
   Lemma droe_share_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wct0 wct1 wct2 wct3 wcs0 wcra : LWord) :
+    (wct0 wct1 wcs0 wcra : LWord) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ droe_block_offset 1)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_block_offset 1)%a ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ct3 ↦ᵣ wct3 ∗
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     droe_static_mem pc_b pc_a C_f ∗
-    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
         ct0 ↦ᵣ droe_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        ct2 ↦ᵣ WInt 0 ∗
-        ct3 ↦ᵣ WInt 0 ∗
         cs0 ↦ᵣ wcra ∗
         droe_static_mem pc_b pc_a C_f
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap))
-      "(HPC & Hct0 & Hct1 & Hct2 & Hct3 & Hcs0 & Hcra & Hmem & Hpost)".
+      "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & Hmem & Hpost)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code droe_main_code "Hcode_main".
@@ -52,20 +48,23 @@ Section DROE_Share_Blocks_2.
     (* Block 1: fetch the entry point of the switcher *)
     focus_block 1 "Hcode_main" of droe_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec _ _ _ _ _ _ _ _ _ droe_switcher_entry
-              with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto using switcher_call_sentry_not_heap.
+    iApply (fetch_spec 0 _ _ _ _ _ _ _ droe_switcher_entry
+              with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap.
+    { offsets_compute; solve_addr. }
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hct0 & Hct1 & Hct2 & _ & Himport_switcher)".
+    iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 2: fetch the entry point of the adversary *)
-    focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hct2 $Hct3 $Hcode $Himport_C_f]"); eauto.
+    focus_block 2 "Hcode_main" of droe_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
+    iApply (fetch_spec 2 with "[- $HPC $Hct1 $Hcode $Himport_C_f]"); eauto.
+    { offsets_compute; solve_addr. }
     { solve_addr. }
-    iNext; iIntros "(HPC & Hct1 & Hct2 & Hct3 & _ & Himport_C_f)".
+    iNext; iIntros "(HPC & Hct1 & _ & Himport_C_f)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

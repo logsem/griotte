@@ -33,12 +33,11 @@ Section fundamental.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
-    iInsert "Hmap" PC.
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
     destruct (has_sreg_access p) eqn:HpXRS.
-    { iClear "IH Hreg Hinva Hrcond Hwcond Hmono Hworld_interp Htframe Hown Hstate Ha Hmap".
+    { iClear "IH Hreg Hinva Hrcond Hwcond Hmono Hworld_interp Htframe Hown Hstate HPC Ha Hmap".
       iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv_interp".
       destruct (isO p) eqn: HnO.
       { destruct Hp as [Hexec _]
@@ -49,14 +48,13 @@ Section fundamental.
       congruence.
     }
 
-    iApply (wp_WriteSR with "[$Ha $Hmap]"); eauto.
-    { simplify_map_eq; auto. }
+    iApply (wp_WriteSR with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
-      apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
+      apply elem_of_dom. apply Hsome. }
     { by rewrite HpXRS. }
     { by rewrite HpXRS. }
 
-    iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
+    iIntros "!>" (lpc' sregs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.

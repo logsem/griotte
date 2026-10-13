@@ -24,28 +24,24 @@ Section LSE_Run_Blocks_1.
   Lemma lse_run_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr)
-    (wct0 wct1 wcs0 wcs1 wcra : LWord) :
+    (wct0 wct1 wcra : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 2 ∗
     pc_b ↦ₐ□ lse_switcher_entry ∗
     (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
     codefrag_pers pc_a lse_main_code ∗
-    ▷ (PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    ▷ (PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ lse_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cs0 ↦ᵣ WInt 0 ∗
-        cs1 ↦ᵣ WInt 0 ∗
         cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ lse_instr_offset 3 1)%a ∗
         cgp_b ↦ₐ WInt 2 ∗
         pc_b ↦ₐ□ lse_switcher_entry ∗
@@ -55,7 +51,7 @@ Section LSE_Run_Blocks_1.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hsealed_nonheap)
-      "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra
+      "(HPC & Hcgp & Hct0 & Hct1 & Hcra
       & Hcgp_b & Himport_switcher & Himport_C_f & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
@@ -72,21 +68,23 @@ Section LSE_Run_Blocks_1.
     (* Block 1: fetch the entry point of the switcher *)
     focus_block 1 "Hcode_main" of lse_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec _ _ _ _ _ _ _ _ _ lse_switcher_entry
-              with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap.
+    iApply (fetch_spec 0 _ _ _ _ _ _ _ lse_switcher_entry
+              with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap.
+    { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & _ & Himport_switcher)".
+    iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 2: fetch the entry point of [C_f] *)
     focus_block 2 "Hcode_main" of lse_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hcs0 $Hcs1 $Hcode $Himport_C_f]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hcode $Himport_C_f]"); eauto.
+    { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(HPC & Hct1 & Hcs0 & Hcs1 & _ & Himport_C_f)".
+    iNext; iIntros "(HPC & Hct1 & _ & Himport_C_f)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

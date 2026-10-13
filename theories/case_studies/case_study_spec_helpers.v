@@ -31,10 +31,10 @@ Section Switcher_call_args.
   Implicit Types C : CmptName.
 
   Lemma switcher_call_args_0 W C (rmap : LReg) :
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ->
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
     ∃ arg_rmap rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
+      ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
       ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
                                      (if decide (rarg ∈ dom_arg_rmap 0)
@@ -60,12 +60,12 @@ Section Switcher_call_args.
   Qed.
 
   Lemma switcher_call_args_1 W C (rmap : LReg) (wca0 : LWord) :
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ]} ->
     ca0 ↦ᵣ wca0 -∗
     interp W C wca0 -∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
     ∃ arg_rmap rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
+      ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
       ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
                                      (if decide (rarg ∈ dom_arg_rmap 1)
@@ -91,14 +91,14 @@ Section Switcher_call_args.
   Qed.
 
   Lemma switcher_call_args_2 W C (rmap : LReg) (wca0 wca1 : LWord) :
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
     ca0 ↦ᵣ wca0 -∗
     interp W C wca0 -∗
     ca1 ↦ᵣ wca1 -∗
     interp W C wca1 -∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
     ∃ arg_rmap rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
+      ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
       ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
                                      (if decide (rarg ∈ dom_arg_rmap 2)
@@ -124,7 +124,7 @@ Section Switcher_call_args.
   Qed.
 
   Lemma switcher_call_args_3 W C (rmap : LReg) (wca0 wca1 wca2 : LWord) :
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ca2 ]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ca2 ]} ->
     ca0 ↦ᵣ wca0 -∗
     interp W C wca0 -∗
     ca1 ↦ᵣ wca1 -∗
@@ -133,7 +133,7 @@ Section Switcher_call_args.
     interp W C wca2 -∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
     ∃ arg_rmap rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
+      ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
       ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
                                      (if decide (rarg ∈ dom_arg_rmap 3)

@@ -35,13 +35,13 @@ Section switcher_macros.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
-    ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
       ∗ interp W C (WCap true csp_p csp_g csp_b csp_e csp_a)
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
       ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2)
       ∗ world_interp W C
-      ∗ ▷ ( (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
+      ∗ ▷ ( (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
              ∗ csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
              ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_e
              ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2))
@@ -179,7 +179,7 @@ Section switcher_macros.
     is_arg_rmap arg_rmap 8 ->
     (1 <= nargs <= 8)%nat ->
 
-    ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
       ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
                                         ∗ if decide (rarg ∈ dom_arg_rmap (nargs-1))
@@ -189,7 +189,7 @@ Section switcher_macros.
       ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
       ∗ ▷ ( (∃ arg_rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
-              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
               ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
               ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
                      rarg ↦ᵣ warg

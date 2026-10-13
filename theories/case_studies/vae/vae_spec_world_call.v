@@ -215,7 +215,7 @@ Section VAE_World_Call.
   Lemma vae_args_zero (rmap : LReg) :
     (∀ r, is_Some (rmap !! r)) ->
     (∀ (r : RegName) (v : LWord),
-        ⌜r ∉ ({[PC; cra; cgp; csp]} ∪ dom_arg_rmap 1 : gset RegName)⌝ →
+        ⌜r ∉ ({[cra; cgp; csp]} ∪ dom_arg_rmap 1 : gset RegName)⌝ →
         ⌜rmap !! r = Some v⌝ →
         ⌜v = WInt 0⌝ : iProp Σ) -∗
     ⌜∀ r, r ∈ ({[ ca1 ; ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
@@ -231,7 +231,7 @@ Section VAE_World_Call.
 
   (** The registers returned by a call to the switcher are cleared. *)
   Lemma vae_rmap_zero (rmap : LReg) :
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ->
     map_Forall (λ _ w, w = lword_of_word (WInt 0)) rmap ->
     ∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
          delete ct1 (delete ct0 rmap) !! r = Some (lword_of_word (WInt 0)).
@@ -249,7 +249,7 @@ Section VAE_World_Call.
       registers are cleared, and [ct0] is the entry point of the
       switcher. *)
   Lemma vae_call_args W C (Nswitcher : namespace) (rmap : LReg) :
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
     na_inv cerise_nais Nswitcher switcher_inv -∗
@@ -259,7 +259,7 @@ Section VAE_World_Call.
     ct0 ↦ᵣ vae_switcher_entry -∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
     ∃ rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
+      ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ([∗ map] rarg↦warg ∈ vae_call_adv_arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg) ∗
       ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
   Proof.

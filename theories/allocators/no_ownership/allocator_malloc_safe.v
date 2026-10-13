@@ -33,20 +33,19 @@ Section Heap_Temporal_Safety_Interp.
     (* Unpack the entry register map and the caller's continuation. *)
     iIntros "(#Hservice & #Hstatic & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
-      "(Hcont & %Hframe & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
+      "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
     rewrite /interp_conf.
     iDestruct "Hregister" as
-      "(%Hfull_rmap & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hregs)".
+      "(%Hfull_rmap & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs #Hzeros]".
     rewrite /registers_pointsto.
     cbn in Hfull_rmap.
-    getRegValList [PC;cgp;cra;csp;ca0;ca1;ca2;ct0;ct1;ct2;ct3;ct4;ctp;cnull].
+    getRegValList [cgp;cra;csp;ca0;ca1;ca2;ct0;ct1;ct2;ca3;ca4;ctp;cnull].
     iExtractList "Hrmap"
-      [PC;cgp;cra;csp;ca0;ca1;ca2;ct0;ct1;ct2;ct3;ct4;ctp;cnull]
-      as ["HPCr";"Hcgpr";"Hcrar";"Hcspr";"Hca0";"Hca1";"Hca2";
+      [cgp;cra;csp;ca0;ca1;ca2;ct0;ct1;ct2;ca3;ca4;ctp;cnull]
+      as ["Hcgpr";"Hcrar";"Hcspr";"Hca0";"Hca1";"Hca2";
           "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
     (* Prepare the caller stack and the switcher return state. *)
-    rewrite HwPC in HPC. injection HPC as HeqPC. subst wPC.
     rewrite Hwcgp in Hcgp. injection Hcgp as Heqcgp. subst wcgp.
     rewrite Hwcra in Hcra. injection Hcra as Heqcra. subst wcra.
     rewrite Hwcsp in Hcsp. injection Hcsp as Heqcsp. subst wcsp.
@@ -80,7 +79,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hct3" as (wct3') "Hct3".
       iDestruct "Hct4" as (wct4') "Hct4".
       iDestruct "Hctp" as (wctp') "Hctp".
-      iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+      iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
         (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].
@@ -128,7 +127,7 @@ Section Heap_Temporal_Safety_Interp.
         iDestruct "Hct3" as (wct3') "Hct3".
         iDestruct "Hct4" as (wct4') "Hct4".
         iDestruct "Hctp" as (wctp') "Hctp".
-        iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+        iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
         set (Wfixed := close_list
           (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
         destruct Htemps as [Hnodup Htemps].
@@ -272,7 +271,7 @@ Section Heap_Temporal_Safety_Interp.
         iDestruct "Hct3" as (wct3') "Hct3".
         iDestruct "Hct4" as (wct4') "Hct4".
         iDestruct "Hctp" as (wctp') "Hctp".
-        iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+        iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
         iDestruct (RevokedResources_mono_pub W Wfixed C l l
           Hrelated_pub with "Hrevoked") as "Hrevoked".
         iAssert (interp Wfixed C (WInt 0))

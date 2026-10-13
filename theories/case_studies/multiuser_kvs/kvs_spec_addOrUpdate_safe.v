@@ -41,7 +41,7 @@ Section KVS_spec_addOrUpdate_safe.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ interp Wca C wca0 ∗ (* Sealed User Key *)
@@ -55,7 +55,7 @@ Section KVS_spec_addOrUpdate_safe.
       world_interp W C ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ lupdatePcPerm wret ∗
+         PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          (ca0 ↦ᵣ WInt ASM_TRUE ∨ ca0 ↦ᵣ WInt ASM_FALSE) ∗
@@ -256,9 +256,9 @@ Section KVS_spec_addOrUpdate_safe.
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
+      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.
 
@@ -270,7 +270,7 @@ Section KVS_spec_addOrUpdate_safe.
     assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
     assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
     assert ( is_Some (rmap !! cnull) ) as [wcnull Hwcnull] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
-    iExtractList "Hrmap" [PC; cgp; cra ; csp ] as ["HPC"; "Hcgp"; "Hcra"; "Hcsp"].
+    iExtractList "Hrmap" [cgp; cra ; csp ] as ["Hcgp"; "Hcra"; "Hcsp"].
     iExtractList "Hrmap" [ct1; ct2; ctp; cnull; ca0; ca1; ca2] as ["Hct1"; "Hct2"; "Hctp"; "Hcnull"; "Hca0"; "Hca1"; "Hca2"].
 
     iAssert (interp W0 C wca0) as "#Hinterp_wca0".

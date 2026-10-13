@@ -364,7 +364,7 @@ Section SO_World_Call.
   Lemma so_args_zero (rmap : LReg) :
     (∀ r, is_Some (rmap !! r)) ->
     (∀ (r : RegName) (v : LWord),
-        ⌜r ∉ ({[PC; cra; cgp; csp]} ∪ dom_arg_rmap 2 : gset RegName)⌝ →
+        ⌜r ∉ ({[cra; cgp; csp]} ∪ dom_arg_rmap 2 : gset RegName)⌝ →
         ⌜rmap !! r = Some v⌝ →
         ⌜v = WInt 0⌝ : iProp Σ) -∗
     ⌜∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
@@ -382,7 +382,7 @@ Section SO_World_Call.
       (in [ca0]) and [z] (in [ca1]), the entry point of the switcher (in
       [ct0]), and the cleared argument registers. *)
   Lemma so_call_args W C (Nswitcher : namespace) (rmap : LReg) (wca0 wca1 : LWord) :
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
     na_inv cerise_nais Nswitcher switcher_inv -∗
@@ -394,7 +394,7 @@ Section SO_World_Call.
     ct0 ↦ᵣ so_switcher_entry -∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
     ∃ arg_rmap rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
+      ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
       ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg) ∗
       ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).

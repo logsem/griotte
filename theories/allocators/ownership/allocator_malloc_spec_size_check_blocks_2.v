@@ -18,13 +18,13 @@ Section AllocatorMallocSizeCheckBlocks2.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     allocator_positive_size wreq.(lw) ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1)%a ∗
     ca1 ↦ᵣ wreq ∗
-    ct3 ↦ᵣ wtmp ∗
+    ca3 ↦ᵣ wtmp ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2)%a ∗
+    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2)%a ∗
        ca1 ↦ᵣ wreq ∗
-       ct3 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
        codefrag_pers pc_a allocator_malloc_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
@@ -39,17 +39,17 @@ Section AllocatorMallocSizeCheckBlocks2.
     focus_block 1 "Hcode_main" of allocator_malloc_blocks at pc_a as a_size Ha_size
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    (* GetWType ct3 ca1. *)
+    (* GetWType ca3 ca1. *)
     iInstr "Hcode".
-    (* Sub ct3 ct3 (encodeWordType wt_int). *)
+    (* Sub ca3 ca3 (encodeWordType wt_int). *)
     iInstr "Hcode".
     rewrite (encodeWordType_correct_int n 0) /wt_int Z.sub_diag.
-    (* Jnz .malloc_invalid ct3. *)
+    (* Jnz .malloc_invalid ca3. *)
     iInstr "Hcode".
-    (* Lt ct3 0 ca1. *)
+    (* Lt ca3 0 ca1. *)
     iInstr "Hcode".
     replace (0 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
-    (* Jnz .malloc_size_ok ct3. *)
+    (* Jnz .malloc_size_ok ca3. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_block_offset 2)%a.
@@ -61,13 +61,13 @@ Section AllocatorMallocSizeCheckBlocks2.
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 wnull : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_invalid_offset)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_invalid_offset)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
@@ -92,18 +92,18 @@ Section AllocatorMallocSizeCheckBlocks2.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     ¬ allocator_positive_size wreq.(lw) ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wreq ∗
-    ct3 ↦ᵣ wtmp ∗
+    ca3 ↦ᵣ wtmp ∗
     cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
-       ct3 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
        cnull ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
@@ -120,21 +120,21 @@ Section AllocatorMallocSizeCheckBlocks2.
     focus_block 1 "Hcode_main" of allocator_malloc_blocks at pc_a as a_size Ha_size
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    (* GetWType ct3 ca1. *)
+    (* GetWType ca3 ca1. *)
     iInstr "Hcode".
-    (* Sub ct3 ct3 (encodeWordType wt_int). *)
+    (* Sub ca3 ca3 (encodeWordType wt_int). *)
     iInstr "Hcode".
     destruct (is_z wreq) eqn:Hreq_z.
     - destruct wreq; cbn in *; try done.
       rewrite (encodeWordType_correct_int z 0) /wt_int Z.sub_diag.
-      (* Jnz .malloc_invalid ct3. *)
+      (* Jnz .malloc_invalid ca3. *)
       iInstr "Hcode".
-      (* Lt ct3 0 ca1. *)
+      (* Lt ca3 0 ca1. *)
       iInstr "Hcode".
       destruct (decide (0 < z)%Z) as [Hzpos|Hznonpos].
       { exfalso. apply Hinvalid. exists z. split; [reflexivity|exact Hzpos]. }
       replace (0 <? z)%Z with false by (symmetry; apply Z.ltb_ge; lia).
-      (* Jnz .malloc_size_ok ct3. *)
+      (* Jnz .malloc_size_ok ca3. *)
       iInstr "Hcode".
       (* Jmp .malloc_invalid. *)
       iInstr "Hcode".
@@ -152,7 +152,7 @@ Section AllocatorMallocSizeCheckBlocks2.
         assert (Heq : encodeWordType wreq = encodeWordType (WInt 0)) by lia.
         destruct wreq; cbn in Hreq_z, Hencode; try discriminate.
         all: try (destruct sb; cbn in Hencode); contradiction. }
-      (* Jnz .malloc_invalid ct3. *)
+      (* Jnz .malloc_invalid ca3. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_malloc_invalid_offset)%a);
           offsets_compute; solve_addr. }

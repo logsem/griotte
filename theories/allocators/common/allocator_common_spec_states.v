@@ -41,11 +41,10 @@ Section AllocatorCommonSegments.
 
   (** The shadow segment of [malloc], as the chain of its blocks. *)
   Definition allocator_malloc_shadow_code : list Word :=
-    allocator_zero_instrs ca2 ct2 ct3 ++
-    fetch_instrs allocator_shadow_import_off ctp ct3 ca2 ++
-    allocator_malloc_shadow_instrs_n 2 ++
+    allocator_zero_instrs ca2 ct2 ca3 ++
+    allocator_malloc_shadow_instrs_n 1 ++
     allocator_paint_instrs ctp ca2 ShadowQuarantined ++
-    allocator_malloc_shadow_instrs_n 4 ++
+    allocator_malloc_shadow_instrs_n 3 ++
     allocator_paint_instrs ctp ca2 ShadowLive.
 
   Definition allocator_malloc_shadow_blocks : list (list Word) :=
@@ -64,11 +63,10 @@ Section AllocatorCommonSegments.
   Definition allocator_free_tail_code : list Word :=
     allocator_paint_instrs ctp ca2 ShadowQuarantined ++
     allocator_free_tail_instrs_n 1 ++
-    fetch_instrs allocator_revoker_import_off ct3 ct4 ca2 ++
-    allocator_free_tail_instrs_n 3 ++
+    allocator_free_tail_instrs_n 2 ++
     allocator_paint_instrs ctp ca2 ShadowLive ++
+    allocator_free_tail_instrs_n 4 ++
     allocator_free_tail_instrs_n 5 ++
-    allocator_free_tail_instrs_n 6 ++
     encodeInstrsW [Jalr cnull cra].
 
   Definition allocator_free_tail_blocks : list (list Word) :=

@@ -40,12 +40,12 @@ Section Lea_To_Base_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ WCap t p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a lea_to_base
-    ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
          ∗ r ↦ᵣ WCap t p g b e b @@? π
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt 0%Z

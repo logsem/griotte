@@ -34,7 +34,7 @@ Section Switcher_Return_Blocks_2.
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
@@ -49,7 +49,7 @@ Section Switcher_Return_Blocks_2.
     codefrag_pers pc_a switcher_instrs_12 ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
         ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧ load_heap wcs1 rcs1 ∧ load_heap wcs0 rcs0⌝ -∗
-        PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
+        PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
@@ -157,7 +157,7 @@ Section Switcher_Return_Blocks_2.
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
@@ -185,7 +185,7 @@ Section Switcher_Return_Blocks_2.
          interp Wval C rcra ∗
          interp Wval C rcs1 ∗
          interp Wval C rcs0) ∗
-        PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
+        PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
@@ -295,7 +295,7 @@ Section Switcher_Return_Blocks_2.
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
@@ -327,7 +327,7 @@ Section Switcher_Return_Blocks_2.
            interp Wval C rcs1 ∗
            interp Wval C rcs0
          else True) ∗
-        PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
+        PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
@@ -448,9 +448,9 @@ Section Switcher_Return_Blocks_2.
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖
-                 {[ PC ; csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
+                 {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
 
-    PC ↦ᵣ switcher_block_pc 13 ∗
+    PC ↦ₚ switcher_block_pc 13 ∗
     cgp ↦ᵣ wcgp' ∗
     cra ↦ᵣ wcra' ∗
     cs1 ↦ᵣ wcs1' ∗
@@ -465,8 +465,8 @@ Section Switcher_Return_Blocks_2.
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
-        ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ᵣ lupdatePcPerm wcra' ∗
+        ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+        PC ↦ₚ lupdatePcPerm wcra' ∗
         cra ↦ᵣ wcra' ∗
         cgp ↦ᵣ wcgp' ∗
         cs0 ↦ᵣ wcs0' ∗
@@ -525,9 +525,9 @@ Section Switcher_Return_Blocks_2.
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖
-                 {[ PC ; csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
+                 {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
 
-    PC ↦ᵣ switcher_pc (switcher_block_offset 12 + 5) ∗
+    PC ↦ₚ switcher_pc (switcher_block_offset 12 + 5) ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
@@ -544,8 +544,8 @@ Section Switcher_Return_Blocks_2.
     ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0,
         ⌜ load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
           load_heap wcs1 rcs1 ∧ load_heap wcs0 rcs0 ⌝ ∗
-        ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ᵣ lupdatePcPerm rcra ∗
+        ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+        PC ↦ₚ lupdatePcPerm rcra ∗
         cra ↦ᵣ rcra ∗
         cgp ↦ᵣ rcgp ∗
         cs0 ↦ᵣ rcs0 ∗
@@ -603,9 +603,9 @@ Section Switcher_Return_Blocks_2.
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖
-                 {[ PC ; csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
+                 {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
 
-    PC ↦ᵣ switcher_pc (switcher_block_offset 12 + 5) ∗
+    PC ↦ₚ switcher_pc (switcher_block_offset 12 + 5) ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
@@ -636,8 +636,8 @@ Section Switcher_Return_Blocks_2.
            interp Wval C rcs1 ∗
            interp Wval C rcs0
          else True) ∗
-        ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ᵣ lupdatePcPerm rcra ∗
+        ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+        PC ↦ₚ lupdatePcPerm rcra ∗
         cra ↦ᵣ rcra ∗
         cgp ↦ᵣ rcgp ∗
         cs0 ↦ᵣ rcs0 ∗

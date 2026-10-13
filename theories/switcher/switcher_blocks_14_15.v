@@ -29,11 +29,11 @@ Section Switcher_Blocks_14_15.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_15)%a ->
     is_Some (rmap !! cnull) ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
     codefrag_pers pc_a switcher_instrs_15 ∗
-    ▷ ( PC ↦ᵣ lupdatePcPerm wret ∗
+    ▷ ( PC ↦ₚ lupdatePcPerm wret ∗
         cra ↦ᵣ wret ∗
         ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
         codefrag_pers pc_a switcher_instrs_15 ∗
@@ -79,15 +79,15 @@ Section Switcher_Blocks_14_15.
 
   (** Blocks 14-15: clear the registers and jump to [wcra]. *)
   Lemma switcher_blocks_14_15_spec (wcra : LWord) (rmap : LReg) :
-    dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ᵣ switcher_block_pc 14 ∗
+    PC ↦ₚ switcher_block_pc 14 ∗
     cra ↦ᵣ wcra ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
-        ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ᵣ lupdatePcPerm wcra ∗
+        ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+        PC ↦ₚ lupdatePcPerm wcra ∗
         cra ↦ᵣ wcra ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code ∗

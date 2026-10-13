@@ -240,14 +240,14 @@ Section Adequacy.
 
   Local Notation ot_switcher := (ot_switcher switcher_cmpt).
   Lemma kvs_adequacy'
-    (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
+    (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
     (es: list griotte_lang.expr):
-    is_initial_registers reg →
+    is_initial_registers pc reg →
     is_initial_sregisters sreg →
     is_initial_memory m →
     sh = initial_heap_shadow →
     initial_heap_memory ##ₘ mk_initial_program_memory →
-    rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
+    rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
     intros Hreg Hsreg Hm Hshadow_initial Hheap_disjoint Hstep.
@@ -312,7 +312,7 @@ Section Adequacy.
           * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
           * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
           * apply sealed_cap_nonheap, cmpt_static_sealed_base_not_heap.
-        + rewrite main_code /kvs_main_code /fetch.fetch_instrs /assert_instrs !Forall_app.
+        + rewrite main_code /kvs_main_code !Forall_app.
           repeat split; (apply word_rooted_instrs || apply Forall_nil_2).
         + rewrite main_data /kvs_main_data. apply Forall_nil_2.
         + rewrite main_static_sealed /kvs_main_static_sealed. repeat constructor; apply word_rooted_int.
@@ -344,7 +344,7 @@ Section Adequacy.
         + rewrite B_static_sealed. repeat constructor; apply word_rooted_int.
         + rewrite B_exp_tbl. repeat constructor; apply word_rooted_int. }
     { destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
-    iIntros (ceriseg) "Hreg Hsreg Hmem _ _ Hna
+    iIntros (ceriseg) "HPC Hreg Hsreg Hmem _ _ Hna
                        ([#Hentry_Bf #Hentry_Bf'] & [#Hentry_kvs_addOrUpdate #Hentry_kvs_addOrUpdate']
                        & [#Hentry_kvs_read #Hentry_kvs_read'] & [#Hentry_kvs_erase #Hentry_kvs_erase'] & _)".
     (* Use the non-atomic invariant pool of [ceriseg] *)
@@ -787,7 +787,7 @@ Section Adequacy.
     { eapply is_uint16_in_kvs_all_map_keys; split; rewrite /UINT16_MIN /UINT16_MAX; lia. }
 
     (* 10 - Extract registers *)
-    iDestruct (initial_registers_split with "Hreg")
+    iDestruct (initial_registers_split with "[$HPC $Hreg]")
       as (rmap) "(HPC & Hcgp & Hcsp & Hrmap & %Hrmap_dom & %Hrmap_zero)"; first exact Hreg.
     pose proof (main_spec_size_obligations _ _ _ _ main_imports main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
@@ -846,15 +846,15 @@ Local Program Instance CmptNames_kvs_CmptNameG : CmptNameG :=
 
 (** END-TO-END THEOREM *)
 Theorem kvs_adequacy `{Layout: memory_layout}
-  (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
+  (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
   (es: list griotte_lang.expr)
   :
-  is_initial_registers reg →
+  is_initial_registers pc reg →
   is_initial_sregisters sreg →
   is_initial_memory m →
     sh = initial_heap_shadow →
     initial_heap_memory ##ₘ mk_initial_program_memory →
-  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
+  rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
   m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
 Proof.
   intros ? ? ? ? ? ?.

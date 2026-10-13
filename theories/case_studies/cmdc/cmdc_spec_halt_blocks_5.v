@@ -18,7 +18,7 @@ Section CMDC_Halt_Blocks_5.
   Lemma cmdc_halt_blocks_5_spec
     (pc_b pc_e pc_a : Addr) (φ : language.val griotte_lang -> iProp Σ) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 10)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 10)%a ∗
     codefrag_pers pc_a cmdc_main_code ∗
     ▷ WP Instr Halted {{ φ }}
     ⊢ WP Seq (Instr Executable) {{ φ }}.

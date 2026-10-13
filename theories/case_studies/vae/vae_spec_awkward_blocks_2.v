@@ -34,7 +34,7 @@ Section VAE_Awkward_Blocks_2.
     related_sts_priv_world W (<l[i:=true]l>W) ->
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ vae_block_offset 7)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_block_offset 7)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ wcra ∗
     ca0 ↦ᵣ wca0 ∗
@@ -46,7 +46,7 @@ Section VAE_Awkward_Blocks_2.
     pc_b ↦ₐ□ vae_switcher_entry ∗
     codefrag_pers pc_a vae_main_code ∗
     ▷ (world_interp (<l[i:=true]l>W) C ∗
-        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 9 4)%a ∗
         ca0 ↦ᵣ WInt 0 ∗
@@ -54,7 +54,7 @@ Section VAE_Awkward_Blocks_2.
         ct0 ↦ᵣ vae_switcher_entry ∗
         ct1 ↦ᵣ wg ∗
         cs0 ↦ᵣ wret ∗
-        cs1 ↦ᵣ WInt 0 ∗
+        cs1 ↦ᵣ wg ∗
         pc_b ↦ₐ□ vae_switcher_entry ∗
         codefrag_pers pc_a vae_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -95,13 +95,14 @@ Section VAE_Awkward_Blocks_2.
     (* Block 8: fetch the entry point of the switcher *)
     focus_block 8 "Hcode_main" of vae_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+    iApply (fetch_spec 0 _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
+      with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
+    { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & _ & Himport_switcher)".
+    iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

@@ -55,7 +55,7 @@ Section SO.
 
     (b_so_exp_tbl <= b_so_exp_tbl ^+ 2 < e_so_exp_tbl)%a ->
 
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
 
@@ -75,7 +75,7 @@ Section SO.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
@@ -138,9 +138,9 @@ Section SO.
 
     (* Blocks 0-2: fetch the imports and jump to the switcher *)
     iApply (so_run_blocks_1_spec with
-             "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Himport_switcher $Himport_C_f
+             "[- $HPC $Hct0 $Hct1 $Hcra $Himport_switcher $Himport_C_f
               $Hcode_main]"); [done|done|].
-    iNext; iIntros "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & _ & _
+    iNext; iIntros "(HPC & Hct0 & Hct1 & Hcra & _ & _
                     & _)".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")

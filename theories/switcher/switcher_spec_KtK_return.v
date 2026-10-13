@@ -55,7 +55,7 @@ Section Switcher_KtK_Return.
     ↑Nswitcher ⊆ E ->
 
     (* Well formed register map *)
-    dom rmap = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
+    dom rmap = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
@@ -65,7 +65,7 @@ Section Switcher_KtK_Return.
     (* NA token*)
     ∗ na_own cerise_nais E
     (* Registers *)
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
     ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
     (* Stack register *)
@@ -89,11 +89,11 @@ Section Switcher_KtK_Return.
             (
               ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-              ∗ ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
               (* NA token*)
               ∗ na_own cerise_nais E
               (* Registers *)
-              ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+              ∗ PC ↦ₚ lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
               (* Stack register *)
               ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk

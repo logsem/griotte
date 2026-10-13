@@ -17,7 +17,7 @@ Local Notation "'OT' z" :=
 
 Definition dle_main_pcc_b : Addr := A 9.
 Definition dle_main_code_start : Addr := A 12.
-Definition dle_main_pcc_e : Addr := A 67.
+Definition dle_main_pcc_e : Addr := A 46.
 Definition dle_main_data_b : Addr := A 74.
 Definition dle_main_data_e : Addr := A 76.
 Definition dle_main_exports_pcc : Addr := A 77.
@@ -36,14 +36,14 @@ Definition dle_C_exports_entries_b : Addr := A 81.
 Definition dle_C_exports_entries_e : Addr := A 82.
 
 Definition dle_assert_b : Addr := A 82.
-Definition dle_assert_cap : Addr := A 94.
-Definition dle_assert_e : Addr := A 95.
-Definition dle_assert_flag : Addr := A 95.
+Definition dle_assert_cap : Addr := A 93.
+Definition dle_assert_e : Addr := A 94.
+Definition dle_assert_flag : Addr := A 94.
 
 Definition dle_switcher_b : Addr := A 96.
 Definition dle_switcher_call : Addr := A 97.
-Definition dle_switcher_return : Addr := A 185.
-Definition dle_switcher_e : Addr := A 247.
+Definition dle_switcher_return : Addr := A 164.
+Definition dle_switcher_e : Addr := A 210.
 Definition dle_switcher_sealing_type : OType := OT 9.
 
 Definition dle_trusted_stack_b : Addr := A 4096.
@@ -397,8 +397,10 @@ Proof.
        dle_concrete_assert_switcher_disjoints).
 Defined.
 
+Definition dle_initial_pc : Word :=
+  WCap true RX Global dle_main_pcc_b dle_main_pcc_e dle_main_code_start.
+
 Definition dle_initial_registers : Reg :=
-  <[PC := WCap true RX Global dle_main_pcc_b dle_main_pcc_e dle_main_code_start]>
   (<[cgp := WCap true RW Global dle_main_data_b dle_main_data_e
       dle_main_data_b]>
   (<[csp := WCap true RWL Local dle_stack_b dle_stack_e dle_stack_b]>
@@ -411,9 +413,9 @@ Definition dle_initial_sregisters : SReg :=
 Definition dle_initial_memory : Mem := mk_initial_memory.
 
 Lemma dle_initial_registers_correct :
-  is_initial_registers dle_initial_registers.
+  is_initial_registers dle_initial_pc dle_initial_registers.
 Proof.
-  rewrite /is_initial_registers /dle_initial_registers.
+  rewrite /is_initial_registers /dle_initial_pc /dle_initial_registers.
   cbn [dle_concrete_layout dle_concrete_main_cmpt].
   split; [|split; [|split]].
   - vm_compute; reflexivity.
@@ -449,17 +451,17 @@ Lemma dle_initial_heap_disjoint :
   initial_heap_memory ##ₘ mk_initial_program_memory.
 Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
 
-Lemma dle_concrete_adequacy reg' sreg' mem' sh' es :
+Lemma dle_concrete_adequacy pc' reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
-    (es, (reg', sreg', mem', sh')) ->
+      (dle_initial_pc, dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! dle_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@dle_adequacy machine_parameters_instance dle_concrete_layout
-      dle_initial_registers reg'
+      dle_initial_pc pc' dle_initial_registers reg'
       dle_initial_sregisters sreg'
       dle_initial_memory mem' initial_heap_shadow sh' es
       dle_initial_registers_correct
@@ -477,20 +479,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem dle_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem' sh',
+  ∃ pc' reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
-      ([Instr Halted], (reg', sreg', mem', sh'))
+        (dle_initial_pc, dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! dle_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct 5000 Executable
-      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow)
+      (dle_initial_pc, dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
-  exists reg', sreg', mem', sh'. split.
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply dle_concrete_adequacy; exact Hrun.
 Qed.

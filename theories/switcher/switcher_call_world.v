@@ -204,13 +204,12 @@ Section Switcher_Call_World.
 
   (** The registers when entering the callee. *)
   Lemma switcher_call_entry_registers W W' C (nargs : nat)
-    (arg_rmap' rmap' : LReg) (wpcc wcgp wstk : LWord) :
+    (arg_rmap' rmap' : LReg) (wcgp wstk : LWord) :
     related_sts_pub_world W W' ->
     heap_std W = heap_std W' ->
     is_arg_rmap arg_rmap' 8 ->
-    dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ->
+    dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ->
 
-    PC ↦ᵣ wpcc ∗
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     csp ↦ᵣ wstk ∗
@@ -221,10 +220,10 @@ Section Switcher_Call_World.
     -∗
     ∃ regs,
       registers_pointsto regs ∗
-      execute_entry_point_register wpcc wcgp wstk nargs W' C regs.
+      execute_entry_point_register wcgp wstk nargs W' C regs.
   Proof.
     iIntros (Hrelated Hheap Harg_rmap' Hrmap')
-      "(HPC & Hcgp & Hcra & Hcsp & #Hstk & Hargs & Hregs)".
+      "(Hcgp & Hcra & Hcsp & #Hstk & Hargs & Hregs)".
     iDestruct (big_sepM_sep with "Hregs") as "[Hregs #Hnil]".
     iDestruct (big_sepM_sep with "Hargs") as "[Hargs #Hval]".
     iDestruct (big_sepM_union with "[$Hargs $Hregs]") as "Hregs".
@@ -233,12 +232,10 @@ Section Switcher_Call_World.
     iDestruct (big_sepM_insert_2 with "[Hcsp] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hcra] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hcgp] Hregs") as "Hregs";[iFrame|].
-    iDestruct (big_sepM_insert_2 with "[HPC] Hregs") as "Hregs";[iFrame|].
     iExists _; iFrame "Hregs".
     cbn.
     iSplit.
     { iPureIntro. intros rr. clear -Harg_rmap' Hrmap'.
-      destruct (decide (rr = PC));simplify_map_eq;[eauto|].
       destruct (decide (rr = cgp));simplify_map_eq;[eauto|].
       destruct (decide (rr = cra));simplify_map_eq;[eauto|].
       destruct (decide (rr = csp));simplify_map_eq;[eauto|].
@@ -249,13 +246,12 @@ Section Switcher_Call_World.
       apply elem_of_union. right.
       apply elem_of_difference. split;[apply all_registers_s_correct|set_solver]. }
     repeat iSplit.
-    - iPureIntro. simplify_map_eq. reflexivity.
     - iPureIntro. clear. simplify_map_eq. auto.
     - iPureIntro. clear. simplify_map_eq. auto.
     - iPureIntro. clear. simplify_map_eq. done.
     - done.
     - iIntros (r v Hr Hv).
-      assert (r ∉ ({[ PC ; cgp ; cra ; csp ]} : gset RegName)) as Hr'.
+      assert (r ∉ ({[ cgp ; cra ; csp ]} : gset RegName)) as Hr'.
       {
         clear -Hr.
         do 8 (destruct nargs; first set_solver).
@@ -401,7 +397,7 @@ Section Switcher_Call_World.
       functional specification. *)
   Lemma switcher_cc_exhausted_regs (arg_rmap rmap : LReg) (wct1 wct2 wctp : LWord) :
     is_arg_rmap arg_rmap 8 ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ w ) -∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ w ) -∗
     ct1 ↦ᵣ wct1 -∗
@@ -410,7 +406,7 @@ Section Switcher_Call_World.
     ∃ (wca0 wca1 : LWord) (rmap0 : LReg),
       ca0 ↦ᵣ wca0 ∗
       ca1 ↦ᵣ wca1 ∗
-      ⌜ dom rmap0 = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+      ⌜ dom rmap0 = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
       ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ w ).
   Proof.
     iIntros (Hrdom Hdom) "Hargs Hregs Hct1 Hct2 Hctp".

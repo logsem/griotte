@@ -15,10 +15,10 @@ Local Notation "'OT' z" :=
 
 Definition lse_main_pcc_b : Addr := A 9.
 Definition lse_main_code_start : Addr := A 12.
-Definition lse_main_pcc_e : Addr := A 56.
+Definition lse_main_pcc_e : Addr := A 35.
 Definition lse_C_pcc_b : Addr := A 56.
 Definition lse_C_code_start : Addr := A 58.
-Definition lse_C_pcc_e : Addr := A 99.
+Definition lse_C_pcc_e : Addr := A 75.
 Definition lse_main_data_b : Addr := A 99.
 Definition lse_main_data_e : Addr := A 100.
 Definition lse_C_data_b : Addr := A 100.
@@ -32,13 +32,13 @@ Definition lse_C_exports_cgp : Addr := A 105.
 Definition lse_C_exports_entries_b : Addr := A 106.
 Definition lse_C_exports_entries_e : Addr := A 107.
 Definition lse_assert_b : Addr := A 107.
-Definition lse_assert_cap : Addr := A 119.
-Definition lse_assert_e : Addr := A 120.
-Definition lse_assert_flag : Addr := A 120.
+Definition lse_assert_cap : Addr := A 118.
+Definition lse_assert_e : Addr := A 119.
+Definition lse_assert_flag : Addr := A 119.
 Definition lse_switcher_b : Addr := A 121.
 Definition lse_switcher_call : Addr := A 122.
-Definition lse_switcher_return : Addr := A 210.
-Definition lse_switcher_e : Addr := A 272.
+Definition lse_switcher_return : Addr := A 189.
+Definition lse_switcher_e : Addr := A 235.
 Definition lse_switcher_sealing_type : OType := OT 9.
 Definition lse_trusted_stack_b : Addr := A 4096.
 Definition lse_trusted_stack_e : Addr := A 4196.
@@ -77,53 +77,7 @@ Ltac unfold_lse_addresses_in H :=
     switcher and the exported main function, and calls the function twice. It
     deliberately fetches both imports again before the second call, then
     restores its return capability and returns to the caller. *)
-Definition lse_C_code : list Word :=
-  encodeInstrsW [
-    Store csp cra 0;
-    Lea csp 1%Z;
-
-    Mov ct0 PC;
-    GetB cs0 ct0;
-    GetA cs1 ct0;
-    Sub cs0 cs0 cs1;
-    Lea ct0 cs0;
-    Lea ct0 0%Z;
-    CLoad ct0 ct0 0;
-    Mov cs0 0%Z;
-    Mov ct1 PC;
-    GetB cs0 ct1;
-    GetA cs1 ct1;
-    Sub cs0 cs0 cs1;
-    Lea ct1 cs0;
-    Lea ct1 1%Z;
-    CLoad ct1 ct1 0;
-    Mov cs0 0%Z;
-    Jalr cra ct0;
-
-    Mov ct0 PC;
-    GetB cs0 ct0;
-    GetA cs1 ct0;
-    Sub cs0 cs0 cs1;
-    Lea ct0 cs0;
-    Lea ct0 0%Z;
-    CLoad ct0 ct0 0;
-    Mov cs0 0%Z;
-    Mov ct1 PC;
-    GetB cs0 ct1;
-    GetA cs1 ct1;
-    Sub cs0 cs0 cs1;
-    Lea ct1 cs0;
-    Lea ct1 1%Z;
-    CLoad ct1 ct1 0;
-    Mov cs0 0%Z;
-    Jalr cra ct0;
-
-    Lea csp (-1)%Z;
-    CLoad cra csp 0;
-    Mov ca0 0%Z;
-    Mov ca1 0%Z;
-    Jalr cnull cra
-  ].
+Definition lse_C_code : list Word := encodeInstrsW lse_C_instrs.
 
 Definition lse_C_data : list Word := [WInt 0].
 
@@ -435,8 +389,10 @@ Proof.
   vm_compute; eauto.
 Defined.
 
+Definition lse_initial_pc : Word :=
+  WCap true RX Global lse_main_pcc_b lse_main_pcc_e lse_main_code_start.
+
 Definition lse_initial_registers : Reg :=
-  <[PC := WCap true RX Global lse_main_pcc_b lse_main_pcc_e lse_main_code_start]>
   (<[cgp := WCap true RW Global lse_main_data_b lse_main_data_e
       lse_main_data_b]>
   (<[csp := WCap true RWL Local lse_stack_b lse_stack_e lse_stack_b]>
@@ -449,9 +405,9 @@ Definition lse_initial_sregisters : SReg :=
 Definition lse_initial_memory : Mem := mk_initial_memory.
 
 Lemma lse_initial_registers_correct :
-  is_initial_registers lse_initial_registers.
+  is_initial_registers lse_initial_pc lse_initial_registers.
 Proof.
-  rewrite /is_initial_registers /lse_initial_registers.
+  rewrite /is_initial_registers /lse_initial_pc /lse_initial_registers.
   cbn [lse_concrete_layout lse_concrete_main_cmpt].
   split; [|split; [|split]].
   - vm_compute; reflexivity.
@@ -485,17 +441,17 @@ Lemma lse_initial_heap_disjoint :
   initial_heap_memory ##ₘ mk_initial_program_memory.
 Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
 
-Lemma lse_concrete_adequacy reg' sreg' mem' sh' es :
+Lemma lse_concrete_adequacy pc' reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow))
-    (es, (reg', sreg', mem', sh')) ->
+      (lse_initial_pc, lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow))
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! lse_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@lse_adequacy machine_parameters_instance lse_concrete_layout
-      lse_initial_registers reg' lse_initial_sregisters sreg'
+      lse_initial_pc pc' lse_initial_registers reg' lse_initial_sregisters sreg'
       lse_initial_memory mem' initial_heap_shadow sh' es
       lse_initial_registers_correct lse_initial_sregisters_correct
       lse_initial_memory_correct eq_refl lse_initial_heap_disjoint Hrun) as Hadequacy.
@@ -510,20 +466,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem lse_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem' sh',
+  ∃ pc' reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow))
-      ([Instr Halted], (reg', sreg', mem', sh'))
+        (lse_initial_pc, lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! lse_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct (N.to_nat (7500%N)) Executable
-      (lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow)
+      (lse_initial_pc, lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
-  exists reg', sreg', mem', sh'. split.
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply lse_concrete_adequacy; exact Hrun.
 Qed.

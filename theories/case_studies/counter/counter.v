@@ -1,9 +1,8 @@
-From iris.algebra Require Import frac.
-From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
-From griotte Require Import fetch switcher.
+From griotte Require Import machine_parameters assembler fetch switcher.
 
 Section Counter_Main.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
 
@@ -31,37 +30,47 @@ Section Counter_Main.
 
 
    *)
-  Definition counter_main_code : list Word :=
-    encodeInstrsW [
-      (* #"main_b_code"; *)
+  Definition counter_main_asm : list (list asm_code) :=
+    [ [ (* the imports *)
+        #@".Limport_switcher";
+        #@".Limport_C_f";
 
-      (* get a *)
-      CLoad cs0 cgp 0;
-      (* set a := a + 1 *)
-      Add cs0 cs0 1%Z;
-      Store cgp cs0 0
-      (* call C_f*)
-    ]
-    ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
-    ++ fetch_instrs 1 ct1 cs0 cs1 (* ct1 -> {B.f}_(ot_switcher)  *)
-    ++
-    encodeInstrsW [
-      Mov cs0 cra; (* stores the return-to-switcher *)
-      Jalr cra ct0 (* jmp to entry point *)
-    ]
-    ++
-    encodeInstrsW [
-      Mov cra cs0; (* restores the return-to-switcher *)
+        (* get a *)
+        load cs0 cgp;
+        (* set a := a + 1 *)
+        add cs0 cs0 1;
+        store cgp cs0
+        (* call C_f*)
+      ];
+      fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      fetch_asm ".Limport_C_f" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
+      [ mov cs0 cra; (* stores the return-to-switcher *)
+        jalr cra ct0 (* jmp to entry point *)
+      ];
+      [ mov cra cs0; (* restores the return-to-switcher *)
 
-      (* return a *)
-      Mov ca0 0%Z;
-      Mov ca1 0%Z;
-      Mov cs0 0%Z;
-      Mov cs1 0%Z;
-      Jalr cnull cra
-
-      (* #"main_e" *)
+        (* return a *)
+        mov ca0 0;
+        mov ca1 0;
+        mov cs0 0;
+        mov cs1 0;
+        ret
+      ]
     ].
+
+  Definition counter_main_assembled' :=
+    Eval vm_compute in assemble_block counter_main_asm.
+  Definition counter_main_assembled :=
+    Eval cbv in revert_regs_code_block counter_main_assembled'.
+  Definition counter_main_instrs_n (n : nat) : list Word :=
+    encodeInstrsW (default [] (counter_main_assembled !! n)).
+
+  Definition counter_main_code : list Word :=
+    counter_main_instrs_n 0 ++
+    counter_main_instrs_n 1 ++
+    counter_main_instrs_n 2 ++
+    counter_main_instrs_n 3 ++
+    counter_main_instrs_n 4.
 
   Definition counter_main_data : list Word := [WInt 0].
 

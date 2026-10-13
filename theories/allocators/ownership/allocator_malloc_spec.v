@@ -36,7 +36,7 @@ Section AllocatorMalloc.
        a_owner ↦ₐ WInt o ∗
 
        (* Initial register file. *)
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_malloc_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -47,14 +47,14 @@ Section AllocatorMalloc.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
 
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -64,8 +64,8 @@ Section AllocatorMalloc.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0
 
@@ -90,9 +90,10 @@ Section AllocatorMalloc.
     iDestruct "Hcnull" as (wnull) "Hcnull".
     (* Block 0: the owner identifier of the allocator capability. *)
     iApply (allocator_malloc_owner_spec with
-      "[- $HPC $Hctp $Hct3 $Hct4 $Hca0 $Hkey $Howner $Hmalloc_code]");
-      [apply allocator_malloc_entry_bounds|done|by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
-    iNext. iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca0 & _ & Howner & _)".
+      "[- $HPC $Hctp $Hca0 $Hkey $Howner $Hmalloc_code]");
+      [apply allocator_malloc_entry_bounds|apply allocator_malloc_pcc_addr_off|done
+      |by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
+    iNext. iIntros "(HPC & Hctp & Hca0 & _ & Howner & _)".
     (* Blocks 1 and 5: the size check rejects the request. *)
     iApply (allocator_malloc_size_check_invalid_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hct3 $Hcnull $Hmalloc_code]");
@@ -130,7 +131,7 @@ Section AllocatorMalloc.
        a_owner ↦ₐ WInt id ∗
 
        (* Initial register file. *)
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_malloc_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -141,14 +142,14 @@ Section AllocatorMalloc.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
 
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt id ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -156,8 +157,8 @@ Section AllocatorMalloc.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0 ∗
 
@@ -206,9 +207,10 @@ Section AllocatorMalloc.
 
     (* Block 0: the owner identifier of the allocator capability. *)
     iApply (allocator_malloc_owner_spec with
-      "[- $HPC $Hctp $Hct3 $Hct4 $Hca0 $Hkey $Howner $Hmalloc_code]");
-      [done|done|by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
-    iNext. iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca0 & _ & Howner & _)".
+      "[- $HPC $Hctp $Hca0 $Hkey $Howner $Hmalloc_code]");
+      [done|apply allocator_malloc_pcc_addr_off|done
+      |by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
+    iNext. iIntros "(HPC & Hctp & Hca0 & _ & Howner & _)".
     (* Block 1: the size check passes. *)
     iApply (allocator_malloc_size_check_valid_spec with "[- $HPC $Hca1 $Hct3 $Hmalloc_code]");
       [done|by exists n|].
@@ -233,10 +235,11 @@ Section AllocatorMalloc.
       (* Block 2: the capacity check, the payload capability and the header,
          with the owner identifier. *)
       iApply (allocator_malloc_prepare_success_spec with
-        "[- $HPC $Hcgp $Hca1 $Hctp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hslot $Hhdr_mem $Hobj
-            $Htok $Hmalloc_code]"); [done|done|solve_addr|done|done|solve_addr|].
+        "[- $HPC $Hcgp $Hca1 $Hctp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hslot $Hshadow_import
+            $Hhdr_mem $Hobj $Htok $Hmalloc_code]");
+        [done|apply allocator_malloc_pcc_addr_off|done|solve_addr|done|done|solve_addr|].
       iNext. iIntros "(HPC & Hcgp & Hca1 & Hctp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 &
-        Hslot & Hhead & Htok & _)".
+        Hslot & _ & Hhead & Htok & _)".
       (* Block 3, the shadow segment: zero the payload. *)
       iDestruct (allocator_malloc_shadow_acc with "Hmalloc_code")
         as "#Hshadow_code".
@@ -246,10 +249,10 @@ Section AllocatorMalloc.
       iNext. iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hzeros & _)".
       (* Paint the header and store over the payload. *)
       iApply (allocator_malloc_translate_paint_spec with
-        "[- $HPC $Hctp $Hct3 $Hca2 $Hct0 $Hct1 $Hct2 $Hshadow_import $Hheader $Hpayload
+        "[- $HPC $Hctp $Hct3 $Hca2 $Hct0 $Hct1 $Hct2 $Hheader $Hpayload
             $Hshadow_code]");
         [by apply allocator_malloc_shadow_bounds|solve_addr|done|solve_addr|].
-      iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & _ & Hheader &
+      iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & Hheader &
         Hpayload & _)".
       iEval (rewrite (allocator_malloc_shadow_end _ _ _ Hbounds)) in "HPC".
       (* Blocks 4 and 5: publish the bump cursor and return. *)
@@ -295,12 +298,12 @@ Section AllocatorMalloc.
     allocator_service_ctx ∗
     allocator_service_static ∗
     na_own cerise_nais E ∗
-    PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+    PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
       allocator_malloc_pcc_addr ∗
     ca0 ↦ᵣ wsealed ∗
     ctp ↦ᵣ - ∗
-    ct3 ↦ᵣ - ∗
-    ct4 ↦ᵣ -
+    ca3 ↦ᵣ - ∗
+    ca4 ↦ᵣ -
     ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
     iIntros (HEservice Hwsealed)
@@ -316,8 +319,8 @@ Section AllocatorMalloc.
       as "(_ & #Hkey & _)".
     (* Block 0: the owner block traps. *)
     iApply (allocator_malloc_owner_invalid_spec with
-      "[$HPC $Hctp $Hct3 $Hct4 $Hca0 $Hkey $Hmalloc_code]");
-      [apply allocator_malloc_entry_bounds|done].
+      "[$HPC $Hctp $Hca0 $Hkey $Hmalloc_code]");
+      [apply allocator_malloc_entry_bounds|apply allocator_malloc_pcc_addr_off|done].
   Qed.
 
 End AllocatorMalloc.

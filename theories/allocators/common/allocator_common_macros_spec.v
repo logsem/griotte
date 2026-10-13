@@ -36,46 +36,42 @@ Section AllocatorMacros.
       allocator calls can keep the non-atomic service invariant open. *)
 
   Lemma allocator_fetch_spec
-    (n : Z) (rdst rscratch1 rscratch2 : RegName) (E : coPset)
+    (n off : Z) (rdst : RegName) (E : coPset)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (wentry wdst w1 w2 : LWord)
+    (wentry wdst : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let code := fetch_instrs n rdst rscratch1 rscratch2 in
+    let code := fetch_instrs off rdst in
     let pc_end := (pc_a ^+ length code)%a in
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a pc_end ->
+    (pc_a + off)%a = Some (pc_b ^+ n)%a ->
     withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_cap wentry.(lw) = false ->
     rdst ≠ cnull ->
-    rscratch1 ≠ cnull ->
-    rscratch2 ≠ cnull ->
 
-    PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     rdst ↦ᵣ wdst ∗
-    rscratch1 ↦ᵣ w1 ∗
-    rscratch2 ↦ᵣ w2 ∗
     (pc_b ^+ n)%a ↦ₐ□ wentry ∗
     codefrag_pers pc_a code ∗
-    ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_end ∗
+    ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_end ∗
          rdst ↦ᵣ lload_word pc_p wentry ∗
-         rscratch1 ↦ᵣ WInt 0 ∗
-         rscratch2 ↦ᵣ WInt 0 ∗
          (pc_b ^+ n)%a ↦ₐ□ wentry ∗
          codefrag_pers pc_a code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros code pc_end Hvpc Hcont Hpc_n Hdisjoint Hnonheap Hrdst Hr1 Hr2;
+    intros code pc_end Hvpc Hcont Hoff Hpc_n Hdisjoint Hnonheap Hrdst;
       subst code pc_end.
-    iIntros "(HPC & Hrdst & Hscratch1 & Hscratch2 & #Hentry & #Hcode & Hφ)".
+    iIntros "(HPC & Hrdst & #Hentry & #Hcode & Hφ)".
     codefrag_facts "Hcode".
-    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea by solve_addr.
-    assert ((pc_b + n)%a = Some (pc_b ^+ n)%a) as Hpc_bn by solve_addr.
     assert (is_shadow_address (pc_b ^+ n)%a = false) as Hshadow.
     { eapply disjoint_from_shadow_not_in; eauto. }
-    iGo "Hcode".
+    (* Auipcc rdst off. *)
+    iInstr "Hcode".
+    (* CLoad rdst rdst 0. *)
+    iInstr "Hcode".
     iApply "Hφ"; iFrame "∗ Hentry Hcode".
   Qed.
 
@@ -87,11 +83,11 @@ Section AllocatorMacros.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
     disjoint_from_shadow pc_b pc_e ->
 
-    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a code ∗
-    ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          cnull ↦ᵣ WInt 0 ∗
          codefrag_pers pc_a code ∗
@@ -120,15 +116,15 @@ Section AllocatorMacros.
     disjoint_from_shadow pc_b pc_e ->
     writeAllowed p = true ->
     (heap_b <= b /\ b < e /\ e <= heap_e)%a ->
-    NoDup [PC; cnull; rptr; rend; rtmp] ->
+    NoDup [cnull; rptr; rend; rtmp] ->
 
-    PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     rptr ↦ᵣ WCap true p g b e b @@? π ∗
     rend ↦ᵣ WInt (finz.to_z e) ∗
     rtmp ↦ᵣ wtmp ∗
     allocator_range_memory b e ∗
     codefrag_pers pc_a code ∗
-    ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_end ∗
+    ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_end ∗
          rptr ↦ᵣ WCap true p g b e e @@? π ∗
          rend ↦ᵣ WInt (finz.to_z e) ∗
          rtmp ↦ᵣ WInt 0 ∗
@@ -232,16 +228,16 @@ Section AllocatorMacros.
     (finz.to_z se - finz.to_z sb = finz.to_z e - finz.to_z b)%Z ->
     (∀ a, (b <= a /\ a < e)%a ->
        heap_to_shadow a = Some (sb ^+ (finz.to_z a - finz.to_z b))%a) ->
-    NoDup [PC; cnull; rptr; rcount] ->
+    NoDup [cnull; rptr; rcount] ->
     s_old = s_new ∨ allocator_paint_ok R P b e ->
 
-    PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
     rcount ↦ᵣ WInt (finz.to_z e - finz.to_z b) ∗
     R ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ s_old ∗ P a) ∗
     codefrag_pers pc_a code ∗
-    ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_end ∗
+    ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_end ∗
          rptr ↦ᵣ WCap true RW Global shadow_b shadow_e se ∗
          rcount ↦ᵣ WInt 0 ∗
          R ∗
@@ -282,7 +278,7 @@ Section AllocatorMacros.
     wp_instr.
     iAssert (WP Instr Executable @ E {{ v,
       ⌜v = NextIV⌝ ∗
-      PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a ∗
+      PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a ∗
       pc_a ↦ₐ□ encodeInstrW (Store rptr (inl (encodeAllocStatus s_new)) 0) ∗
       rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
       b ↦ₛ s_new ∗ R ∗ P b }})%I

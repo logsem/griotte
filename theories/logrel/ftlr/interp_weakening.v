@@ -734,10 +734,10 @@ Section fundamental.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (W') "#Hfuture %g'' %Hflows !>".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hworld_interp & Hcont & Hown & Hcstk & Hframe)]".
+    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (HPC & Hreg & Hworld_interp & Hcont & Hown & Hcstk & Hframe)]".
     rewrite /interp_conf.
     iApply ("IH" $! W' C cstk Ws Cs regs p g'' b' e' a' None
-      with "Hfull Hmap Hreg Hworld_interp Hcont Hframe Hown Hcstk").
+      with "Hfull Hmap HPC Hreg Hworld_interp Hcont Hframe Hown Hcstk").
     iModIntro. iEval (rewrite fixpoint_interp1_eq interp1_eq HpnotO HpXSR).
     iSplitR; cycle 1.
     {

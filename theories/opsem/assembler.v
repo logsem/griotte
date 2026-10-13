@@ -74,8 +74,14 @@ Module Asm_Griotte.
   | ClearTag (dst src: RegName)
   | Auipcc (dst: RegName) (imm: asm_expr).
 
+  (** [ASM_Symbol s] names a data word reserved by the loader at the current
+      address: it occupies one word but emits no instruction. Symbols may only
+      form a data prefix before the code or a data suffix after it (see
+      [asm_symbols_around]), so that the assembled instructions stay
+      contiguous. *)
   Inductive asm_code : Type :=
   | ASM_Label (s : string)
+  | ASM_Symbol (s : string)
   | ASM_Instr (w : asm_instr).
 
   (*** ASM environment *)
@@ -92,12 +98,35 @@ Module Asm_Griotte.
          let '(n,nlbl,env) := acc in
          match a with
          | ASM_Label string => (n+1,nlbl+1, <[string := n-nlbl]> env)
+         | ASM_Symbol string => (n+1,nlbl, <[string := n-nlbl]> env)
          | ASM_Instr _ => (n+1,nlbl,env)
          end
       )
       (0, 0, ∅)
       l
   .
+
+  (** Symbols form a data prefix before the code and a data suffix after it,
+      never between two instructions. [phase] is 0 in the prefix, 1 in the
+      code and 2 in the suffix. *)
+  Fixpoint asm_symbols_around_aux (phase : nat) (l : list asm_code) : bool :=
+    match l with
+    | [] => true
+    | ASM_Label _ :: l => asm_symbols_around_aux phase l
+    | ASM_Symbol _ :: l =>
+        match phase with
+        | 0 => asm_symbols_around_aux 0 l
+        | _ => asm_symbols_around_aux 2 l
+        end
+    | ASM_Instr _ :: l =>
+        match phase with
+        | 2 => false
+        | _ => asm_symbols_around_aux 1 l
+        end
+    end.
+
+  Definition asm_symbols_around (l : list asm_code) : bool :=
+    asm_symbols_around_aux 0 l.
 
   (** Computes the ASM expression with the current environment.
       Because jumps are relative, we keep track of the current line with [current_n].
@@ -235,6 +264,9 @@ Module Asm_Griotte.
       (fun (acc : option ( (list asm_code) * nat)) (a : asm_code)  =>
          match a with
          | ASM_Label string => acc
+         | ASM_Symbol string =>
+             '(generated_code,current_n) ← acc;
+             Some (generated_code, current_n + 1)
          | ASM_Instr i =>
              '(generated_code,current_n) ← acc;
              i' ← resolve_labels_instr i env current_n;
@@ -265,8 +297,7 @@ Module Asm_Griotte.
     foldl
       ( fun (acc : option ((list (list asm_code)) * nat)) (prog : list asm_code) =>
           '(generated_code,current_n) ← acc;
-          '(prog',_) ← resolve_labels_aux prog env current_n;
-          let next_current : nat := current_n + (length prog') in
+          '(prog',next_current) ← resolve_labels_aux prog env current_n;
           Some ( (reverse prog')::generated_code, next_current)
       )
       (Some ([], 0))
@@ -390,6 +421,7 @@ Module Asm_Griotte.
       (fun (a : asm_code) (acc : option (list instr)) =>
          match a with
          | ASM_Label string => acc
+         | ASM_Symbol string => acc
          | ASM_Instr i =>
              i' ← assemble_instr i env ;
              acc' ← acc;
@@ -402,7 +434,9 @@ Module Asm_Griotte.
 
   (** Assembler for plain code. *)
   Definition assemble (l : list asm_code) : list instr :=
-    default [] (assemble_aux l (compute_asm_code_env l).2).
+    if asm_symbols_around l
+    then default [] (assemble_aux l (compute_asm_code_env l).2)
+    else [].
 
   (** Assembler for a list of code.
       Used to avoid the original code written with blocks (ie. including macros)
@@ -412,7 +446,9 @@ Module Asm_Griotte.
     let full_code := concat l in
     let env := (compute_asm_code_env full_code).2 in
     let no_labels_l := resolve_labels_block l env in
-    (fun prog => default [] (assemble_aux prog env) ) <$> no_labels_l.
+    if asm_symbols_around full_code
+    then (fun prog => default [] (assemble_aux prog env) ) <$> no_labels_l
+    else [].
 
   (*** Revert registers. *)
   (** It is recommended to assemble the code with [compute] when possible,
@@ -670,5 +706,6 @@ Module Asm_Griotte.
   Definition ret:= (ASM_Instr (Jalr cnull cra)).
 
   Notation "# s" := (ASM_Label s) (at level 50).
+  Notation "#@ s" := (ASM_Symbol s) (at level 50).
 
 End Asm_Griotte.

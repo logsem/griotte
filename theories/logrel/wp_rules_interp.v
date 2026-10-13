@@ -44,7 +44,7 @@ Section wp_interp.
 
      {{{ interp W C wsrc
            ∗ interp W C wdst
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
@@ -56,7 +56,7 @@ Section wp_interp.
           ( ∃ p g b e a π ea,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
@@ -73,17 +73,15 @@ Section wp_interp.
     destruct wdst as [wdst π].
     destruct (is_cap wdst) eqn:Hcap;cycle 1.
     {
-      iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
-      iApply (wp_store_fail_not_cap_imm _ _ _ _ _ _ _ _ _ _ _ _ (wdst @@? π) with "[$Hi $Hmap]"); eauto.
-      { by simplify_map_eq. }
+      iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %]".
+      iApply (wp_store_fail_not_cap_imm _ _ _ _ _ _ _ _ _ _ _ _ (wdst @@? π) with "[$HPC $Hi $Hmap]"); eauto.
       { rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
       iNext; iIntros "_". iApply "Hφ"; by iLeft. }
     destruct wdst as [|[tag p g b e a|] | |]; try done.
     destruct tag; cycle 1.
     {
-      iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
-      iApply (wp_store_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a @@? π) with "[$Hi $Hmap]"); eauto.
-      { by simplify_map_eq. }
+      iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %]".
+      iApply (wp_store_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a @@? π) with "[$HPC $Hi $Hmap]"); eauto.
       { rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
       iNext; iIntros "_". iApply "Hφ"; by iLeft.
     }
@@ -163,7 +161,7 @@ Section wp_interp.
 
      {{{ interp W C wsrc
            ∗ interp W C wdst
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
@@ -175,7 +173,7 @@ Section wp_interp.
           ( ∃ p g b e a π,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
@@ -207,7 +205,7 @@ Section wp_interp.
 
      {{{ interp W C wsrc
            ∗ interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
@@ -217,7 +215,7 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           (∃ ea, ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
@@ -249,7 +247,7 @@ Section wp_interp.
 
      {{{ interp W C wsrc
            ∗ interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
@@ -259,7 +257,7 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           (⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
@@ -287,7 +285,7 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C wdst
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ wdst
            ∗ world_interp W C
@@ -298,7 +296,7 @@ Section wp_interp.
           ( ∃ p g b e a π ea,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
@@ -314,17 +312,15 @@ Section wp_interp.
     destruct wdst as [wdst π].
     destruct (is_cap wdst) eqn:Hcap;cycle 1.
     {
-      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
-      iApply (wp_store_fail_not_cap_imm _ _ _ _ _ _ _ _ _ _ _ _ (wdst @@? π) with "[$Hi $Hmap]"); eauto.
-      { by simplify_map_eq. }
+      iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
+      iApply (wp_store_fail_not_cap_imm _ _ _ _ _ _ _ _ _ _ _ _ (wdst @@? π) with "[$HPC $Hi $Hmap]"); eauto.
       { rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
       iNext; iIntros "_". iApply "Hφ"; by iLeft. }
     destruct wdst as [|[tag p g b e a|] | |]; try done.
     destruct tag; cycle 1.
     {
-      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
-      iApply (wp_store_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a @@? π) with "[$Hi $Hmap]"); eauto.
-      { by simplify_map_eq. }
+      iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
+      iApply (wp_store_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a @@? π) with "[$HPC $Hi $Hmap]"); eauto.
       { rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
       iNext; iIntros "_". iApply "Hφ"; by iLeft.
     }
@@ -400,7 +396,7 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C wdst
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ wdst
            ∗ world_interp W C
@@ -411,7 +407,7 @@ Section wp_interp.
           ( ∃ p g b e a π,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
@@ -440,7 +436,7 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{  interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
            ∗ world_interp W C
@@ -449,7 +445,7 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           (∃ ea, ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
@@ -478,7 +474,7 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{  interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
            ∗ world_interp W C
@@ -487,7 +483,7 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           (⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ WCap true p g b e a @@? π
            ∗ world_interp W C
@@ -511,7 +507,7 @@ Section wp_interp.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ{dq} wi
           ∗ r1 ↦ᵣ wsealr
           ∗ r2 ↦ᵣ wsealed
@@ -521,7 +517,7 @@ Section wp_interp.
           ⌜ retv = FailedV ⌝
           ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ wsealr
               ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
@@ -532,7 +528,7 @@ Section wp_interp.
               ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ tsr psr gsr bsr esr asr πsr ot sb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ wsealr
               ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
@@ -544,43 +540,27 @@ Section wp_interp.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hr1_null Hr2_null ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
 
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
+    iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
-    destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc
-                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc|].
+    destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc ->
+                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc ->|].
     { iApply "Hφ". iRight. iLeft.
       rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
-      rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
-      apply incrementPC_Some_inv in Hinc
-        as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
-      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-      simplify_eq.
       iExists p, g, b, e, a, πs, o, sb, π.
-      rewrite (insert_insert_ne _ _ PC) //.
       rewrite (insert_insert_ne _ _ r1) //.
       rewrite !insert_insert_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iRegsMap "Hmap".
       iFrame; done.
     }
     { iApply "Hφ". iRight. iRight.
       rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
-      rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
-      apply incrementPC_Some_inv in Hinc
-        as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
-      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-      simplify_eq.
       iExists t, p, g, b, e, a, πs, o, sb, π.
-      rewrite (insert_insert_ne _ _ PC) //.
       rewrite (insert_insert_ne _ _ r1) //.
       rewrite !insert_insert_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iRegsMap "Hmap".
       iFrame; done.
     }
     { iApply "Hφ". by iLeft. }
@@ -593,7 +573,7 @@ Section wp_interp.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ{dq} wi
           ∗ r1 ↦ᵣ wsealr
           ∗ r2 ↦ᵣ wsealed
@@ -603,7 +583,7 @@ Section wp_interp.
           ⌜ retv = FailedV ⌝
           ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
               ∗ r2 ↦ᵣ wsealed
@@ -614,7 +594,7 @@ Section wp_interp.
               ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ tsr psr gsr bsr esr asr πsr ot sb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
               ∗ r2 ↦ᵣ wsealed
@@ -626,41 +606,25 @@ Section wp_interp.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hr1_null Hr2_null ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
 
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
+    iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
-    destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc
-                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc|].
+    destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc ->
+                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc ->|].
     { iApply "Hφ". iRight. iLeft.
       rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
-      rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
-      apply incrementPC_Some_inv in Hinc
-        as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
-      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-      simplify_eq.
       iExists p, g, b, e, a, πs, o, sb, π.
-      rewrite (insert_insert_ne _ _ PC) //.
       rewrite !insert_insert_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iRegsMap "Hmap".
       iFrame; done.
     }
     { iApply "Hφ". iRight. iRight.
       rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
-      rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
-      apply incrementPC_Some_inv in Hinc
-        as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
-      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-      simplify_eq.
       iExists t, p, g, b, e, a, πs, o, sb, π.
-      rewrite (insert_insert_ne _ _ PC) //.
       rewrite !insert_insert_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iRegsMap "Hmap".
       iFrame; done.
     }
     { iApply "Hφ". by iLeft. }
@@ -675,7 +639,7 @@ Section wp_interp.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ{dq} wi
           ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
           ∗ r2 ↦ᵣ wsealed
@@ -685,7 +649,7 @@ Section wp_interp.
           ⌜ retv = FailedV ⌝
           ∨ (∃ ot wsb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
               ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
@@ -694,7 +658,7 @@ Section wp_interp.
               ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ ot sb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
               ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
@@ -704,43 +668,27 @@ Section wp_interp.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr Hr1_null Hr2_null ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
 
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
+    iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
-    destruct Hspec as [p g b e a πs o sb π Hsr' Hsd Htag Hperm Hwb Hinc
-                      |t p g b e a πs o sb π Hsr' Hsd Hinvalid Hinc|].
+    destruct Hspec as [p g b e a πs o sb π Hsr' Hsd Htag Hperm Hwb Hinc ->
+                      |t p g b e a πs o sb π Hsr' Hsd Hinvalid Hinc ->|].
     { iApply "Hφ". iRight. iLeft.
       rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
-      rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
-      apply incrementPC_Some_inv in Hinc
-        as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
-      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-      simplify_eq.
       iExists o, sb, π.
-      rewrite (insert_insert_ne _ _ PC) //.
       rewrite (insert_insert_ne _ _ r1) //.
       rewrite !insert_insert_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iRegsMap "Hmap".
       iFrame; done.
     }
     { iApply "Hφ". iRight. iRight.
       rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
-      rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
-      apply incrementPC_Some_inv in Hinc
-        as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
-      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-      simplify_eq.
       iExists o, sb, π.
-      rewrite (insert_insert_ne _ _ PC) //.
       rewrite (insert_insert_ne _ _ r1) //.
       rewrite !insert_insert_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iRegsMap "Hmap".
       match goal with Hinvalid : _ && withinBounds _ _ _ = false |- _ =>
         rewrite Hpsr !andb_true_r /= in Hinvalid
       end.
@@ -762,7 +710,7 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C wsrc
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
@@ -774,7 +722,7 @@ Section wp_interp.
           ( ∃ p g b e a π ea wload,
            ⌜ wsrc = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ WCap true p g b e a @@? π
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
@@ -798,18 +746,16 @@ Section wp_interp.
     destruct wsrc as [|[tag p g b e a|] | |]; try done.
     destruct tag; cycle 1.
     {
-      iDestruct (map_of_regs_3 with "HPC Hdst Hsrc") as "[Hmap (%&%&%)]".
-      iApply (wp_load_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a @@? π) with "[$Hi $Hmap]"); eauto.
-      { by simplify_map_eq. }
+      iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %]".
+      iApply (wp_load_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a @@? π) with "[$HPC $Hi $Hmap]"); eauto.
       { rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
       iNext; iIntros "_". iApply "Hφ"; by iLeft.
     }
 
     destruct (a + imm)%a as [ea|] eqn:Hea; cycle 1.
     {
-      iDestruct (map_of_regs_3 with "HPC Hdst Hsrc") as "[Hmap (%&%&%)]".
-      iApply (wp_load_fail_addr_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap true p g b e a @@? π) with "[$Hi $Hmap]"); eauto.
-      { by simplify_map_eq. }
+      iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %]".
+      iApply (wp_load_fail_addr_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap true p g b e a @@? π) with "[$HPC $Hi $Hmap]"); eauto.
       { rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
       iNext; iIntros "_". iApply "Hφ"; by iLeft.
     }
@@ -847,36 +793,35 @@ Section wp_interp.
     (* The world's heap provenance supplies the status witness. *)
     iDestruct (world_interp_open_heap_provenance with "Hworld_interp") as "[Hworld_interp #Hprov]".
     iDestruct (heap_provenance_load_witness W w with "Hprov") as "Hwit".
-    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
+    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
     (* CLoad rdst rsrc imm. *)
-    iApply (wp_load_witness_imm with "[$Hmem $Hwit $Hmap]"); eauto.
-    { by simplify_map_eq. }
+    iApply (wp_load_witness_imm with "[$HPC $Hmem $Hwit $Hmap]"); eauto.
     { by rewrite !dom_insert; set_solver+. }
     { by rewrite lookup_insert_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       destruct (is_revoker_address ea); first done.
       eexists. by simplify_map_eq. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
                       |Hfail].
     2,3: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
-      rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
+      rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
       rewrite Hea in Haddr; injection Haddr as <-;
       simplify_map_eq; congruence.
     2: { iApply "Hφ". by iLeft. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-    rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+    rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
       rewrite Hea in Haddr. injection Haddr as <-.
     rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
     pose proof (Hpers (W, C, w)).
@@ -888,15 +833,13 @@ Section wp_interp.
       iEval (rewrite /interp_in_mem_pre filter_heap_load_word) in "Hnormal_p'".
       iExact "Hnormal_p'". }
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hload_interp"; first exact Hpost.
-    rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
+    rewrite linsert_reg_not_cnull //.
     apply incrementPC_Some_inv in Hinc
       as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
-    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     injection HPC as <- <- <- <- <- <- <-.
     rewrite Hpca' in Hapc. injection Hapc as <-.
-    rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
     rewrite (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
-    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
+    iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
     iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
     iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
     iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
@@ -918,7 +861,7 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C wsrc
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
@@ -930,7 +873,7 @@ Section wp_interp.
           ( ∃ p g b e a π wload,
            ⌜ wsrc = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ WCap true p g b e a @@? π
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
@@ -962,7 +905,7 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap true p g b e a @@? π)
            ∗ rdst ↦ᵣ wdst
@@ -973,7 +916,7 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (∃ ea wload,
               ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap true p g b e a @@? π)
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
@@ -1004,7 +947,7 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap true p g b e a @@? π)
            ∗ rdst ↦ᵣ wdst
@@ -1015,7 +958,7 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (∃ wload,
               ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap true p g b e a @@? π)
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
@@ -1054,19 +997,17 @@ Section wp_interp.
     readAllowed p = true → withinBounds b e ea = true →
     is_shadow_address ea = false →
     is_Some (mem !! ea) →
-    r1 ≠ PC →
-    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     (pc_a + 1)%a = Some pc_a' →
-    Load_failure_spec regs r1 r2 imm mem ∅ wit → False.
+    Load_failure_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ wit →
+    False.
   Proof.
-    intros Hr2 Hea Hra Hwb Hsh [v Hv] Hr1 HPC Hpca' Hfail.
+    intros Hr2 Hea Hra Hwb Hsh [v Hv] Hpca' Hfail.
     destruct Hfail as [w0 Hw0 Hcap|? ? ? ? ? H|? ? ? ? ? H H0|? ? ? ? ? ? H H0 H1
                       |? ? ? ? ? ? ? ? H H0 H1 H2 H3 Hinc|? ? ? ? ? ? ? ? H H0 H1|? ? ? ? ? ? H H0 H1 H2 Hinc].
     all: try (rewrite Hr2 in H; simplify_eq).
     - rewrite Hw0 /= in Hr2. injection Hr2 as Hw. rewrite Hw in Hcap. discriminate.
     - destruct H1; congruence.
-    - rewrite /incrementPC /incrementPC_gen /linsert_reg in Hinc.
-      destruct (decide (r1 = cnull)); rewrite lookup_insert_ne // HPC /= Hpca' in Hinc; discriminate.
+    - rewrite /incrementPC /incrementPC_gen /= Hpca' in Hinc; discriminate.
   Qed.
 
   Lemma load_read_retained_imm W C
@@ -1076,13 +1017,13 @@ Section wp_interp.
     (p + imm)%a = Some a ->
     withinBounds p e a = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ 1)%a ->
-    (PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    (PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
      cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ w0 ∗
      a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (CLoad ca0 cgp imm)] ∗
      region W C ∗
      ▷ (∀ actual,
        ⌜load_heap_in_world W raw actual⌝ -∗
-       PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a ∗
+       PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a ∗
        cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ actual ∗
        a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (CLoad ca0 cgp imm)] ∗
        region W C -∗
@@ -1099,56 +1040,53 @@ Section wp_interp.
     wp_instr.
     iDestruct (region_heap_provenance with "Hregion") as "[Hregion #Hprov]".
     iDestruct (heap_provenance_load_witness W raw with "Hprov") as "Hwit".
-    iDestruct (map_of_regs_3 with "HPC Hcgp Hca0")
-      as "[Hmap (%Hpc_cgp & %Hpc_ca0 & %Hcgp_ca0)]".
+    iDestruct (map_of_regs_2 with "Hcgp Hca0")
+      as "[Hmap %Hcgp_ca0]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha")
       as "[Hmem %Hpc_a]".
     assert (is_shadow_address a = false) as Hnot_shadow
       by (eapply disjoint_from_shadow_not_in; [exact Hshadow|exact Hbounds]).
     iApply (wp_load_witness_imm _ RX Global pc_b pc_e pc_a None ca0 cgp imm
-              (encodeInstrW (CLoad ca0 cgp imm) @@? None) with "[$Hmem $Hwit $Hmap]").
+              (encodeInstrW (CLoad ca0 cgp imm) @@? None) with "[$HPC $Hmem $Hwit $Hmap]").
     { apply decode_encode_instrW_inv. }
     { solve_pure. }
-    { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       destruct (is_revoker_address a); first done.
       eexists. by simplify_map_eq. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
                       |Hfail].
     2,3: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
-      rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
+      rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
       rewrite Hea in Haddr; injection Haddr as <-;
       simplify_map_eq; congruence.
     2: { wp_pure. wp_end. by iIntros (?). }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-    rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+    rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
       rewrite Hea in Haddr. injection Haddr as <-.
     rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
     pose proof (load_post_world_load_heap_in_world W RW raw loadv' Hpost) as Hloaded.
     rewrite lload_word_RW in Hloaded.
-    rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
+    rewrite linsert_reg_not_cnull //.
     apply incrementPC_Some_inv in Hinc
       as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
-    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     injection HPC as <- <- <- <- <- <- <-.
     assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc by solve_addr.
     rewrite Hpc in Hapc. injection Hapc as <-.
-    rewrite (insert_insert_ne _ ca0 PC) // insert_insert_eq.
     rewrite (insert_insert_ne _ ca0 cgp) // insert_insert_eq.
-    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hcgp & Hca0)"; eauto.
+    iDestruct (regs_of_map_2 with "Hmap") as "(Hcgp & Hca0)"; eauto.
     iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
     wp_pure.
     iSpecialize ("Hcode" with "Hi").
@@ -1163,13 +1101,13 @@ Section wp_interp.
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull → src ≠ cnull →
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RW Global b e a ∗ a ↦ₐ raw ∗
         region W C }}}
       Instr Executable @ E
     {{{ actual, RET NextIV;
         ⌜load_heap raw actual ∧ filter_heap W actual = actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RW Global b e a ∗
         a ↦ₐ raw ∗ region W C }}}.
   Proof.
@@ -1177,33 +1115,32 @@ Section wp_interp.
       "(HPC & Hi & Hdst & Hsrc & Ha & Hregion) HΦ".
     iDestruct (region_heap_provenance with "Hregion") as "[Hregion #Hprov]".
     iDestruct (heap_provenance_load_witness W raw with "Hprov") as "Hwit".
-    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
+    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
     iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
     iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
       as "Hshadow".
     { by rewrite big_sepM_empty. }
-    iApply (wp_load_general_shadow_imm with "[$Hmem $Hshadow $Hwit $Hmap]"); eauto.
-    { by simplify_map_eq. }
+    iApply (wp_load_general_shadow_imm with "[$HPC $Hmem $Hshadow $Hwit $Hmap]"); eauto.
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
       rewrite addr_add_0 in Haddr. injection Haddr as <-.
       rewrite Hshadow.
       destruct (is_revoker_address a); first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & _ & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
                       |Hfail].
     2,3: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
-      rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
+      rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
       rewrite addr_add_0 in Haddr; injection Haddr as <-;
       simplify_map_eq; congruence.
     2: { exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ RW Global b e a a);
@@ -1212,20 +1149,18 @@ Section wp_interp.
          all: rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-    rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+    rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
     rewrite addr_add_0 in Haddr. injection Haddr as <-.
     rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
     pose proof (load_post_world_load_heap_in_world W RW raw loadv' Hpost) as Hloaded.
     rewrite lload_word_RW in Hloaded.
-    rewrite /linsert_reg in Hinc; try rewrite decide_False // in Hinc.
+    rewrite linsert_reg_not_cnull //.
     apply incrementPC_Some_inv in Hinc
       as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
-    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     injection HPC as <- <- <- <- <- <- <-.
     rewrite Hpc in Hapc. injection Hapc as <-.
-    rewrite (insert_insert_ne _ dst PC) // insert_insert_eq.
     rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
-    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
+    iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
     iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; first done.
     iApply "HΦ". by iFrame.
   Qed.

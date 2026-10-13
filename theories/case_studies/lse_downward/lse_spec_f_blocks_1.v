@@ -28,7 +28,7 @@ Section LSE_F_Blocks_1.
     is_shadow_address cgp_b = false ->
     is_heap_address cgp_b = false ->
     disjoint_from_mmio csp_b csp_e ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 4)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 4)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ct0 ↦ᵣ wct0 ∗
@@ -39,7 +39,7 @@ Section LSE_F_Blocks_1.
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     codefrag_pers pc_a lse_main_code ∗
     ▷ (∀ stk_mem' wcs0' wcs1',
-        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
+        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
         cgp ↦ᵣ lse_a_cap cgp_b ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ WInt 2 ∗

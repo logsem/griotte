@@ -15,13 +15,13 @@ Local Notation "'OT' z" :=
 
 Definition kvs_main_pcc_b : Addr := A 9.
 Definition kvs_main_code_start : Addr := A 16.
-Definition kvs_main_pcc_e : Addr := A 112.
+Definition kvs_main_pcc_e : Addr := A 56.
 Definition kvs_B_pcc_b : Addr := A 115.
 Definition kvs_B_code_start : Addr := A 120.
-Definition kvs_B_pcc_e : Addr := A 178.
+Definition kvs_B_pcc_e : Addr := A 143.
 Definition kvs_KVS_pcc_b : Addr := A 183.
 Definition kvs_KVS_code_start : Addr := A 185.
-Definition kvs_KVS_pcc_e : Addr := A 367.
+Definition kvs_KVS_pcc_e : Addr := A 352.
 Definition kvs_main_static_sealed_b : Addr := A 112.
 Definition kvs_main_static_sealed_e : Addr := A 113.
 Definition kvs_main_data_b : Addr := A 113.
@@ -45,13 +45,13 @@ Definition kvs_KVS_exports_cgp : Addr := A 416.
 Definition kvs_KVS_exports_entries_b : Addr := A 417.
 Definition kvs_KVS_exports_entries_e : Addr := A 420.
 Definition kvs_assert_b : Addr := A 420.
-Definition kvs_assert_cap : Addr := A 432.
-Definition kvs_assert_e : Addr := A 433.
-Definition kvs_assert_flag : Addr := A 433.
+Definition kvs_assert_cap : Addr := A 431.
+Definition kvs_assert_e : Addr := A 432.
+Definition kvs_assert_flag : Addr := A 432.
 Definition kvs_switcher_b : Addr := A 434.
 Definition kvs_switcher_call : Addr := A 435.
-Definition kvs_switcher_return : Addr := A 523.
-Definition kvs_switcher_e : Addr := A 585.
+Definition kvs_switcher_return : Addr := A 502.
+Definition kvs_switcher_e : Addr := A 548.
 Definition kvs_switcher_sealing_type : OType := OT 9.
 Definition kvs_service_sealing_type : OType := OT 10.
 Definition kvs_trusted_stack_b : Addr := A 4096.
@@ -107,91 +107,8 @@ Local Instance kvs_concrete_kvsLayout : kvsLayout :=
     kvs_KVS_data_b kvs_KVS_data_e
     kvs_KVS_exports_pcc kvs_KVS_exports_entries_e.
 
-(** The concrete adversary inserts key [1] with value [42] in its own KVS
-    namespace, then erases that key. It restores its return capability and
-    clears its argument registers before returning to the main program. *)
-Definition kvs_B_code : list Word :=
-  encodeInstrsW [
-    (* Fetch the adversary's sealed KVS user key. *)
-    Mov cs1 PC;
-    GetB ct0 cs1;
-    GetA ct1 cs1;
-    Sub ct0 ct0 ct1;
-    Lea cs1 ct0;
-    Lea cs1 4%Z;
-    CLoad cs1 cs1 0;
-    Mov ct0 0%Z;
-    Mov ct1 0%Z;
-
-    (* Preserve the return capability and prepare
-       addOrUpdate(sealed key, 1, 42). *)
-    Mov cs0 cra;
-    Mov ca0 cs1;
-    Mov ca1 1%Z;
-    Mov ca2 42%Z;
-
-    (* Fetch the switcher entry point. *)
-    Mov ctp PC;
-    GetB ct0 ctp;
-    GetA ct1 ctp;
-    Sub ct0 ct0 ct1;
-    Lea ctp ct0;
-    Lea ctp 0%Z;
-    CLoad ctp ctp 0;
-    Mov ct0 0%Z;
-    Mov ct1 0%Z;
-
-    (* Fetch the sealed KVS.addOrUpdate entry point. *)
-    Mov ct1 PC;
-    GetB ct0 ct1;
-    GetA ct2 ct1;
-    Sub ct0 ct0 ct2;
-    Lea ct1 ct0;
-    Lea ct1 1%Z;
-    CLoad ct1 ct1 0;
-    Mov ct0 0%Z;
-    Mov ct2 0%Z;
-
-    (* Invoke KVS.addOrUpdate through the switcher. *)
-    Jalr cra ctp;
-
-    (* Prepare erase(sealed key, 1). *)
-    Mov ca0 cs1;
-    Mov ca1 1%Z;
-
-    (* Fetch the switcher entry point. *)
-    Mov ctp PC;
-    GetB ct0 ctp;
-    GetA ct1 ctp;
-    Sub ct0 ct0 ct1;
-    Lea ctp ct0;
-    Lea ctp 0%Z;
-    CLoad ctp ctp 0;
-    Mov ct0 0%Z;
-    Mov ct1 0%Z;
-
-    (* Fetch the sealed KVS.erase entry point. *)
-    Mov ct1 PC;
-    GetB ct0 ct1;
-    GetA ct2 ct1;
-    Sub ct0 ct0 ct2;
-    Lea ct1 ct0;
-    Lea ct1 3%Z;
-    CLoad ct1 ct1 0;
-    Mov ct0 0%Z;
-    Mov ct2 0%Z;
-
-    (* Invoke KVS.erase through the switcher. *)
-    Jalr cra ctp;
-
-    (* Restore the return capability, clear arguments, and return via the
-       switcher. *)
-    Mov cra cs0;
-    Mov ca0 0%Z;
-    Mov ca1 0%Z;
-    Mov ca2 0%Z;
-    Jalr cnull cra
-  ].
+(** The concrete adversary, [kvs_B_asm] in [kvs_main]. *)
+Definition kvs_B_code : list Word := encodeInstrsW kvs_B_instrs.
 
 Definition kvs_B_data : list Word := [WInt 0].
 Definition kvs_main_static_sealed_concrete : list Word := [WInt 1].
@@ -272,7 +189,7 @@ Definition kvs_B_imports : list Word :=
   ; kvs_user_seal_key Global kvs_B_static_sealed_b
   ].
 Definition kvs_B_exports : list Word :=
-  [WInt (encode_entry_point 0 5)].
+  [WInt (encode_entry_point 0 kvs_B_adv_entry)].
 Definition kvs_KVS_imports : list Word :=
   kvs_imports kvs_switcher_b kvs_switcher_e kvs_switcher_call
     kvs_switcher_sealing_type.
@@ -552,9 +469,10 @@ Proof.
   - solve_kvs_assert_switcher_disjoint.
 Defined.
 
+Definition kvs_initial_pc : Word :=
+  WCap true RX Global kvs_main_pcc_b kvs_main_pcc_e kvs_main_code_start.
+
 Definition kvs_initial_registers : Reg :=
-  <[PC := WCap true RX Global kvs_main_pcc_b kvs_main_pcc_e
-      kvs_main_code_start]>
   (<[cgp := WCap true RW Global kvs_main_data_b kvs_main_data_e
       kvs_main_data_b]>
   (<[csp := WCap true RWL Local kvs_stack_b kvs_stack_e kvs_stack_b]>
@@ -567,9 +485,9 @@ Definition kvs_initial_sregisters : SReg :=
 Definition kvs_initial_memory : Mem := mk_initial_memory.
 
 Lemma kvs_initial_registers_correct :
-  is_initial_registers kvs_initial_registers.
+  is_initial_registers kvs_initial_pc kvs_initial_registers.
 Proof.
-  rewrite /is_initial_registers /kvs_initial_registers.
+  rewrite /is_initial_registers /kvs_initial_pc /kvs_initial_registers.
   cbn [kvs_concrete_layout kvs_concrete_main_cmpt].
   split; [|split; [|split]].
   - vm_compute; reflexivity.
@@ -608,17 +526,17 @@ Lemma kvs_initial_heap_disjoint :
   initial_heap_memory ##ₘ mk_initial_program_memory.
 Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
 
-Lemma kvs_concrete_adequacy reg' sreg' mem' sh' es :
+Lemma kvs_concrete_adequacy pc' reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow))
-    (es, (reg', sreg', mem', sh')) ->
+      (kvs_initial_pc, kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow))
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! kvs_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@kvs_adequacy machine_parameters_instance kvs_concrete_layout
-      kvs_initial_registers reg' kvs_initial_sregisters sreg'
+      kvs_initial_pc pc' kvs_initial_registers reg' kvs_initial_sregisters sreg'
       kvs_initial_memory mem' initial_heap_shadow sh' es kvs_initial_registers_correct
       kvs_initial_sregisters_correct kvs_initial_memory_correct eq_refl kvs_initial_heap_disjoint Hrun)
     as Hadequacy.
@@ -633,21 +551,21 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem kvs_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem' sh',
+  ∃ pc' reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (kvs_initial_registers, kvs_initial_sregisters,
+        (kvs_initial_pc, kvs_initial_registers, kvs_initial_sregisters,
          kvs_initial_memory, initial_heap_shadow))
-      ([Instr Halted], (reg', sreg', mem', sh'))
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! kvs_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct (N.to_nat (15000%N)) Executable
-      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow)
+      (kvs_initial_pc, kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
-  exists reg', sreg', mem', sh'. split.
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply kvs_concrete_adequacy; exact Hrun.
 Qed.

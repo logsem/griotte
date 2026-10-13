@@ -69,7 +69,8 @@ Section Switcher_preamble.
 
   (** [execute_entry_point_register] describes the register state of the machine
       after jumping to the callee, at the end of the switcher-call.
-      [PC] and [cgp] contain the callee compartment's code and data capabilities.
+      [cgp] contains the callee compartment's data capability
+      (the PC, which holds its code capability, is not a register).
       They don't have to be [interp], and are _not_ [interp]
       when the compartment is one of the trusted ones.
 
@@ -81,17 +82,16 @@ Section Switcher_preamble.
       (1) Although we know that they contain zeroes due to the caller's clearing,
           it makes the proofs more annoying, and we never rely on this information anyway.
    *)
-  Program Definition execute_entry_point_register (wpcc wcgp wstk : LWord) (nargs : nat) :
+  Program Definition execute_entry_point_register (wcgp wstk : LWord) (nargs : nat) :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ) :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg
-       ∧ ⌜ reg !! PC = Some wpcc ⌝
        ∧ ⌜ reg !! cgp = Some wcgp ⌝
        ∧ ⌜ reg !! cra = Some (lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)) ⌝
        ∧ ⌜ reg !! csp = Some wstk ⌝
        ∗ interp W C wstk
        ∗ (∀ (r : RegName) (v : LWord), (⌜r ∈ (dom_arg_rmap nargs)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
-       ∗ (∀ (r : RegName) (v : LWord), (⌜r ∉ ({[PC; cra; cgp; csp]} ∪ (dom_arg_rmap nargs) : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → ⌜ v = WInt 0 ⌝))
+       ∗ (∀ (r : RegName) (v : LWord), (⌜r ∉ ({[cra; cgp; csp]} ∪ (dom_arg_rmap nargs) : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → ⌜ v = WInt 0 ⌝))
       )%I.
   Solve All Obligations with solve_proper.
 
@@ -141,7 +141,8 @@ Section Switcher_preamble.
        let a_stk4 := (a_stk ^+4)%a in
        ( interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
-         ∗ (execute_entry_point_register wpcc wcgp (WCap true RWL Local a_stk4 e_stk a_stk4) nargs W C regs)
+         ∗ PC ↦ₚ wpcc
+         ∗ (execute_entry_point_register wcgp (WCap true RWL Local a_stk4 e_stk a_stk4) nargs W C regs)
          ∗ registers_pointsto regs
          ∗ world_interp W C
          (* The 2nd condition [a_stk = (a_stk4 ^+ -4)%a] is necessary,

@@ -53,7 +53,7 @@ Section DROE.
     is_heap_cap (default (lword_of_word (WInt 0)) (rmap !! cra)).(lw) = false ->
     is_heap_cap (default (lword_of_word (WInt 0)) (rmap !! cs1)).(lw) = false ->
 
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
 
@@ -72,7 +72,7 @@ Section DROE.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
@@ -119,8 +119,8 @@ Section DROE.
       & #HentryC_f
       & #Hinterp_W0_csp
       )".
-    iExtractList "Hrmap" [cra;ca0;ca1;ct0;ct1;ct2;ct3;cs0;cs1]
-      as ["Hcra"; "Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hcs0"; "Hcs1"].
+    iExtractList "Hrmap" [cra;ca0;ca1;ct0;ct1;ct2;cs0;cs1]
+      as ["Hcra"; "Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hcs0"; "Hcs1"].
     iEval (cbn [fmap list_fmap droe_main_data droe_main_imports]) in "Hcgp_main Himports_main".
     iRegionSplit "Hcgp_main" as "[Hcgp_b Hcgp_a]".
     iRegionSplit "Himports_main" as "Himports".
@@ -142,16 +142,16 @@ Section DROE.
     (* Blocks 1-3: fetch the imports and jump to the switcher *)
     iAssert (droe_static_mem pc_b pc_a C_f) with "[$Himports $Hcode_main]" as "Hmem".
     iApply (droe_share_blocks_2_spec with
-             "[- $HPC $Hct0 $Hct1 $Hct2 $Hct3 $Hcs0 $Hcra $Hmem]");
+             "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcra $Hmem]");
       first (rewrite /droe_code_bounds; eauto 10).
-    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hct2 & Hct3 & Hcs0 & Hmem)".
+    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hmem)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
 
     (* Share the data in the world *)
     iMod (droe_world_share with "Hworld_interp_C Hstack_revoked_W0 Hinterp_W0_C_f Hcgp_b Hcgp_a")
       as "(Hworld_interp_C & #Hrel_cgp_b & #Hinterp_ca0 & #Hinterp_W3_C_f
            & #Hstack_revoked_W3 & %Hstack_revoked_W3)"; [done..|].
-    iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"; "Hct3"].
+    iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"].
     iDestruct (switcher_call_args_1 with "Hca0 Hinterp_ca0 Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
@@ -186,12 +186,12 @@ Section DROE.
     iMod (droe_world_return with "Hworld_interp_C Hrel_cgp_b") as "Hcgp_b"; eauto.
     { exact (proj1 Hcgp_range). }
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull]
-      as ["Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hct4"; "Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull]
+      as ["Hct0"; "Hct1"; "Hct2"; "Hca2"; "Hcnull"].
 
     (* Blocks 3-5: assert that b is unchanged and halt *)
     iApply (droe_assert_blocks_3_spec _ _ _ _ _ C_f with
-             "[$Hassert $Hna $HPC $Hcgp $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull
+             "[$Hassert $Hna $HPC $Hcgp $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull
               $Hcs0 $Hcra $Hcgp_b $Himport_assert $Hcode_main]");
       [rewrite /droe_code_bounds; eauto 10|done..].
   Qed.

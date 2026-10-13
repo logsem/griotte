@@ -1,6 +1,6 @@
 From griotte Require Import machine_parameters assembler.
 From griotte Require Import bitblast.
-From griotte Require Import switcher.
+From griotte Require Import switcher fetch.
 
 Section KVS_Service.
   Import Asm_Griotte.
@@ -60,26 +60,26 @@ return (uk << 16 | mk);
 }
 >>
    *)
-  Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch1 rscratch2 : RegName) : list asm_code :=
-    [(* fetch sealing key from imports *)
-      mov rdst PC;
-      getb rscratch1 rdst;
-      geta rscratch2 rdst;
-      sub rscratch1 rscratch1 rscratch2;
-      lea rdst rscratch1;
-      lea rdst UNSEALING_USER_KEY_OFFSET;
-      load rdst rdst;
-      (* get full key *)
+  Definition kvs_getFullKey_asm (rdst rsealkey rkey : RegName) : list asm_code :=
+    (* fetch the unsealing key from the imports *)
+    fetch_asm ".Limport_unsealing_key" rdst ++
+    [ (* get full key *)
       unseal rdst rdst rsealkey;
       load rdst rdst;
       lshiftl rdst rdst 16;
       lor rdst rdst rkey
     ].
 
-  Definition kvs_getFullKey (rdst rsealkey rkey rscratch1 rscratch2 : RegName) :=
-    Eval compute in assemble (kvs_getFullKey_asm rdst rsealkey rkey rscratch1 rscratch2).
-  Definition kvs_getFullKey_instrs (rdst rsealkey rkey rscratch1 rscratch2 : RegName) : list Word :=
-    encodeInstrsW (kvs_getFullKey rdst rsealkey rkey rscratch1 rscratch2).
+  (** The assembled macro, where [off] is the resolved offset of the
+      unsealing key from the address of the fetch. *)
+  Definition kvs_getFullKey (off : Z) (rdst rsealkey rkey : RegName) : list instr :=
+    fetch off rdst ++
+    [ machine_instructions.UnSeal rdst rdst rsealkey;
+      machine_instructions.CLoad rdst rdst 0;
+      machine_instructions.LShiftL rdst (inr rdst) (inl 16%Z);
+      machine_instructions.LOr rdst (inr rdst) (inr rkey) ].
+  Definition kvs_getFullKey_instrs (off : Z) (rdst rsealkey rkey : RegName) : list Word :=
+    encodeInstrsW (kvs_getFullKey off rdst rsealkey rkey).
 
   (** The functions had been refactored to use a (common) search macros.
       It is slightly less faithful to the original code,
@@ -261,7 +261,7 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
         #".addOrUpdate_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ctp ca0 ca1 ct1 ct2)
+      (kvs_getFullKey_asm ctp ca0 ca1)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
@@ -315,9 +315,6 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
 
       ]
     ].
-  Definition assembled_kvs_addOrUpdate' := Eval vm_compute in (assemble_block kvs_addOrUpdate_asm).
-  Definition assembled_kvs_addOrUpdate  := Eval cbv in (revert_regs_code_block assembled_kvs_addOrUpdate').
-  Definition kvs_addOrUpdate_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_addOrUpdate).
 
 
   (** CHERIoT-C++ code of `read`:
@@ -360,7 +357,7 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
         #".read_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ctp ca0 ca1 ct1 ct2)
+      (kvs_getFullKey_asm ctp ca0 ca1)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
@@ -384,9 +381,6 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
         jalr cnull cra
       ]
     ].
-  Definition assembled_kvs_read' := Eval vm_compute in (assemble_block kvs_read_asm).
-  Definition assembled_kvs_read  := Eval cbv in (revert_regs_code_block assembled_kvs_read').
-  Definition kvs_read_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_read).
 
   (** CHERIoT-C++ code of `erase`:
 <<
@@ -425,7 +419,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
         #".erase_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ctp ca0 ca1 ct1 ct2)
+      (kvs_getFullKey_asm ctp ca0 ca1)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
@@ -447,9 +441,55 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
         jalr cnull cra
       ]
     ].
-  Definition assembled_kvs_erase' := Eval vm_compute in (assemble_block kvs_erase_asm).
-  Definition assembled_kvs_erase  := Eval cbv in (revert_regs_code_block assembled_kvs_erase').
-  Definition kvs_erase_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_erase).
+
+  (** The imports of the service are named by data symbols, before the code
+      of [addOrUpdate]; the three entries are assembled as one program, so
+      that their fetches resolve the symbols. *)
+  Definition kvs_import_symbols_asm : list asm_code :=
+    [ #@".Limport_switcher";
+      #@".Limport_unsealing_key"
+    ].
+
+  Definition kvs_service_asm : list (list asm_code) :=
+    match kvs_addOrUpdate_asm ++ kvs_read_asm ++ kvs_erase_asm with
+    | [] => []
+    | b :: l => (kvs_import_symbols_asm ++ b) :: l
+    end.
+
+  Definition assembled_kvs_service' :=
+    Eval vm_compute in assemble_block kvs_service_asm.
+
+  Definition assembled_kvs_addOrUpdate' :=
+    Eval vm_compute in take (length kvs_addOrUpdate_asm) assembled_kvs_service'.
+  Definition assembled_kvs_addOrUpdate :=
+    Eval cbv in (revert_regs_code_block assembled_kvs_addOrUpdate').
+  Definition kvs_addOrUpdate_instrs : list Word :=
+    concat (encodeInstrsW <$> assembled_kvs_addOrUpdate).
+
+  Definition assembled_kvs_read' :=
+    Eval vm_compute in
+      take (length kvs_read_asm) (drop (length kvs_addOrUpdate_asm) assembled_kvs_service').
+  Definition assembled_kvs_read :=
+    Eval cbv in (revert_regs_code_block assembled_kvs_read').
+  Definition kvs_read_instrs : list Word :=
+    concat (encodeInstrsW <$> assembled_kvs_read).
+
+  Definition assembled_kvs_erase' :=
+    Eval vm_compute in
+      drop (length kvs_addOrUpdate_asm + length kvs_read_asm) assembled_kvs_service'.
+  Definition assembled_kvs_erase :=
+    Eval cbv in (revert_regs_code_block assembled_kvs_erase').
+  Definition kvs_erase_instrs : list Word :=
+    concat (encodeInstrsW <$> assembled_kvs_erase).
+
+  (** The offsets of the fetches of the unsealing key, block 2 of each
+      entry. *)
+  Definition kvs_addOrUpdate_getFullKey_off : Z :=
+    Eval vm_compute in fetch_offset (default [] (assembled_kvs_addOrUpdate !! 2%nat)).
+  Definition kvs_read_getFullKey_off : Z :=
+    Eval vm_compute in fetch_offset (default [] (assembled_kvs_read !! 2%nat)).
+  Definition kvs_erase_getFullKey_off : Z :=
+    Eval vm_compute in fetch_offset (default [] (assembled_kvs_erase !! 2%nat)).
 
 
   Definition kvs_service_instrs : list Word :=

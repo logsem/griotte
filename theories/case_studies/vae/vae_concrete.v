@@ -15,10 +15,10 @@ Local Notation "'OT' z" :=
 
 Definition vae_main_pcc_b : Addr := A 9.
 Definition vae_main_code_start : Addr := A 12.
-Definition vae_main_pcc_e : Addr := A 84.
+Definition vae_main_pcc_e : Addr := A 49.
 Definition vae_C_pcc_b : Addr := A 84.
 Definition vae_C_code_start : Addr := A 87.
-Definition vae_C_pcc_e : Addr := A 152.
+Definition vae_C_pcc_e : Addr := A 116.
 Definition vae_main_data_b : Addr := A 152.
 Definition vae_main_data_e : Addr := A 153.
 Definition vae_C_data_b : Addr := A 153.
@@ -32,13 +32,13 @@ Definition vae_C_exports_cgp : Addr := A 158.
 Definition vae_C_exports_entries_b : Addr := A 159.
 Definition vae_C_exports_entries_e : Addr := A 161.
 Definition vae_assert_b : Addr := A 161.
-Definition vae_assert_cap : Addr := A 173.
-Definition vae_assert_e : Addr := A 174.
-Definition vae_assert_flag : Addr := A 174.
+Definition vae_assert_cap : Addr := A 172.
+Definition vae_assert_e : Addr := A 173.
+Definition vae_assert_flag : Addr := A 173.
 Definition vae_switcher_b : Addr := A 175.
 Definition vae_switcher_call : Addr := A 176.
-Definition vae_switcher_return : Addr := A 264.
-Definition vae_switcher_e : Addr := A 326.
+Definition vae_switcher_return : Addr := A 243.
+Definition vae_switcher_e : Addr := A 289.
 Definition vae_switcher_sealing_type : OType := OT 9.
 Definition vae_trusted_stack_b : Addr := A 4096.
 Definition vae_trusted_stack_e : Addr := A 4196.
@@ -78,75 +78,7 @@ Ltac unfold_vae_addresses_in H :=
     its first invocation it sets the flag and makes one nested call to
     [awkward], while later invocations return immediately. Both entries save
     and restore their outer return capabilities around nested calls. *)
-Definition vae_C_code : list Word :=
-  encodeInstrsW [
-    Store csp cra 0;
-    Lea csp 1%Z;
-    Mov ct0 PC;
-    GetB cs0 ct0;
-    GetA cs1 ct0;
-    Sub cs0 cs0 cs1;
-    Lea ct0 cs0;
-    Lea ct0 0%Z;
-    CLoad ct0 ct0 0;
-    Mov cs0 0%Z;
-    Mov ct1 PC;
-    GetB cs0 ct1;
-    GetA cs1 ct1;
-    Sub cs0 cs0 cs1;
-    Lea ct1 cs0;
-    Lea ct1 1%Z;
-    CLoad ct1 ct1 0;
-    Mov cs0 0%Z;
-    Mov ca0 PC;
-    GetB cs0 ca0;
-    GetA cs1 ca0;
-    Sub cs0 cs0 cs1;
-    Lea ca0 cs0;
-    Lea ca0 2%Z;
-    CLoad ca0 ca0 0;
-    Mov cs0 0%Z;
-    Jalr cra ct0;
-    Lea csp (-1)%Z;
-    CLoad cra csp 0;
-    Mov ca0 0%Z;
-    Jalr cnull cra;
-
-    CLoad ct0 cgp 0;
-    Jnz 31%Z ct0;
-    Store cgp 1%Z 0;
-    Store csp cra 0;
-    Lea csp 1%Z;
-    Mov ct0 PC;
-    GetB cs0 ct0;
-    GetA cs1 ct0;
-    Sub cs0 cs0 cs1;
-    Lea ct0 cs0;
-    Lea ct0 0%Z;
-    CLoad ct0 ct0 0;
-    Mov cs0 0%Z;
-    Mov ct1 PC;
-    GetB cs0 ct1;
-    GetA cs1 ct1;
-    Sub cs0 cs0 cs1;
-    Lea ct1 cs0;
-    Lea ct1 1%Z;
-    CLoad ct1 ct1 0;
-    Mov cs0 0%Z;
-    Mov ca0 PC;
-    GetB cs0 ca0;
-    GetA cs1 ca0;
-    Sub cs0 cs0 cs1;
-    Lea ca0 cs0;
-    Lea ca0 2%Z;
-    CLoad ca0 ca0 0;
-    Mov cs0 0%Z;
-    Jalr cra ct0;
-    Lea csp (-1)%Z;
-    CLoad cra csp 0;
-    Mov ca0 0%Z;
-    Jalr cnull cra
-  ].
+Definition vae_C_code : list Word := encodeInstrsW vae_C_instrs.
 
 Definition vae_C_data : list Word := [WInt 0].
 
@@ -229,7 +161,7 @@ Definition vae_C_imports : list Word :=
   ].
 
 Definition vae_C_exports : list Word :=
-  [WInt (encode_entry_point 0 3); WInt (encode_entry_point 0 34)].
+  [WInt (encode_entry_point 0 vae_C_adv_entry); WInt (encode_entry_point 0 vae_C_g_entry)].
 
 Program Definition vae_concrete_main_cmpt : cmpt.
 Proof.
@@ -441,7 +373,7 @@ Proof.
   refine
     (@Build_memory_layout machine_parameters_instance
        vae_concrete_cmptSwitcher vae_concrete_cmptAssert
-       vae_concrete_main_cmpt vae_concrete_C_cmpt 3 34
+       vae_concrete_main_cmpt vae_concrete_C_cmpt vae_C_adv_entry vae_C_g_entry
        _ _
        vae_concrete_cmpts_disjoints
        vae_concrete_switcher_cmpt_disjoints
@@ -450,8 +382,10 @@ Proof.
   all: vm_compute; eauto.
 Defined.
 
+Definition vae_initial_pc : Word :=
+  WCap true RX Global vae_main_pcc_b vae_main_pcc_e vae_main_code_start.
+
 Definition vae_initial_registers : Reg :=
-  <[PC := WCap true RX Global vae_main_pcc_b vae_main_pcc_e vae_main_code_start]>
   (<[cgp := WCap true RW Global vae_main_data_b vae_main_data_e
       vae_main_data_b]>
   (<[csp := WCap true RWL Local vae_stack_b vae_stack_e vae_stack_b]>
@@ -464,9 +398,9 @@ Definition vae_initial_sregisters : SReg :=
 Definition vae_initial_memory : Mem := mk_initial_memory.
 
 Lemma vae_initial_registers_correct :
-  is_initial_registers vae_initial_registers.
+  is_initial_registers vae_initial_pc vae_initial_registers.
 Proof.
-  rewrite /is_initial_registers /vae_initial_registers.
+  rewrite /is_initial_registers /vae_initial_pc /vae_initial_registers.
   cbn [vae_concrete_layout vae_concrete_main_cmpt].
   split; [|split; [|split]].
   - vm_compute; reflexivity.
@@ -500,17 +434,17 @@ Lemma vae_initial_heap_disjoint :
   initial_heap_memory ##ₘ mk_initial_program_memory.
 Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
 
-Lemma vae_concrete_adequacy reg' sreg' mem' sh' es :
+Lemma vae_concrete_adequacy pc' reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow))
-    (es, (reg', sreg', mem', sh')) ->
+      (vae_initial_pc, vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow))
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! vae_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@vae_adequacy machine_parameters_instance vae_concrete_layout
-      vae_initial_registers reg' vae_initial_sregisters sreg'
+      vae_initial_pc pc' vae_initial_registers reg' vae_initial_sregisters sreg'
       vae_initial_memory mem' initial_heap_shadow sh' es
       vae_initial_registers_correct vae_initial_sregisters_correct
       vae_initial_memory_correct eq_refl vae_initial_heap_disjoint Hrun) as Hadequacy.
@@ -525,20 +459,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem vae_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem' sh',
+  ∃ pc' reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow))
-      ([Instr Halted], (reg', sreg', mem', sh'))
+        (vae_initial_pc, vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! vae_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct (N.to_nat (15000%N)) Executable
-      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow)
+      (vae_initial_pc, vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
-  exists reg', sreg', mem', sh'. split.
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply vae_concrete_adequacy; exact Hrun.
 Qed.

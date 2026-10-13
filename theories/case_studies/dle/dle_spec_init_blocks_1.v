@@ -25,7 +25,7 @@ Section DLE_Init_Blocks_1.
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ct0 ↦ᵣ wct0 ∗
@@ -34,7 +34,7 @@ Section DLE_Init_Blocks_1.
     cgp_b ↦ₐ WInt 0 ∗
     (cgp_b ^+ 1)%a ↦ₐ WInt 0 ∗
     codefrag_pers pc_a dle_main_code ∗
-    ▷ ( PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ dle_block_offset 1)%a ∗
+    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_block_offset 1)%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WCap true RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
         (∃ w, ct0 ↦ᵣ w) ∗

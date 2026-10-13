@@ -6,10 +6,10 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 
     The shadow segment [allocator_malloc_shadow_code] of [malloc] is shared
     by the allocators. Block 0 is the zeroing loop over the payload
-    [b, finish), through the payload capability in [ca2]. Block 1 fetches the
-    shadow capability from the imports. Block 2 translates the header
-    address [next] to its shadow entry. Block 3 paints the three header words
-    quarantined. Block 4 loads the payload size, and block 5 stores
+    [b, finish), through the payload capability in [ca2]. Block 1
+    translates the header address [next] to its shadow entry, through the
+    shadow capability in [ctp]. Block 2 paints the three header words
+    quarantined. Block 3 loads the payload size, and block 4 stores
     [ShadowLive] over the payload, whose cells are claimed by [ι]. *)
 
 Section AllocatorMallocShadowBlocks.
@@ -21,16 +21,16 @@ Section AllocatorMallocShadowBlocks.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_shadow_code pc_b pc_e pc_a ->
     (heap_b <= b /\ b < finish /\ finish <= heap_e)%a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     ca2 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
     ct2 ↦ᵣ WInt finish ∗
-    ct3 ↦ᵣ w3 ∗
+    ca3 ↦ᵣ w3 ∗
     allocator_range_memory b finish ∗
     codefrag_pers pc_a allocator_malloc_shadow_code ∗
-    ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a ∗
+    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a ∗
        ca2 ↦ᵣ (WCap true RW Global b finish finish) @@ ι ∗
        ct2 ↦ᵣ WInt finish ∗
-       ct3 ↦ᵣ WInt 0 ∗
+       ca3 ↦ᵣ WInt 0 ∗
        ([∗ list] a ∈ finz.seq_between b finish, a ↦ₐ WInt 0) ∗
        codefrag_pers pc_a allocator_malloc_shadow_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
@@ -45,7 +45,7 @@ Section AllocatorMallocShadowBlocks.
     focus_block 0 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_zero Ha_zero
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iApply (allocator_zero_spec ca2 ct2 ct3 E RX Global pc_b pc_e a_zero
+    iApply (allocator_zero_spec ca2 ct2 ca3 E RX Global pc_b pc_e a_zero
       RW Global b finish (Some ι) w3 with "[- $HPC $Hca2 $Hct2 $Hct3 $Hmem $Hcode]");
       [done|solve_addr|done|done|solve_addr| |].
     { repeat constructor; set_solver. }
@@ -56,33 +56,29 @@ Section AllocatorMallocShadowBlocks.
   Qed.
 
   Lemma allocator_malloc_translate_paint_spec
-    (E : coPset) (pc_b pc_e pc_a next b finish : Addr) (ι : AId) (wctp w3 wa2 : LWord)
+    (E : coPset) (pc_b pc_e pc_a next b finish : Addr) (ι : AId) (w3 wa2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_shadow_code pc_b pc_e pc_a ->
     (heap_b < next)%a ->
     (next + allocator_header_words)%a = Some b ->
     (b < finish /\ finish <= heap_e)%a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a ∗
-    ctp ↦ᵣ wctp ∗
-    ct3 ↦ᵣ w3 ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a ∗
+    ctp ↦ᵣ WCap true RW Global shadow_b shadow_e shadow_b ∗
+    ca3 ↦ᵣ w3 ∗
     ca2 ↦ᵣ wa2 ∗
     ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt finish ∗
-    (pc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
-      WCap true RW Global shadow_b shadow_e shadow_b ∗
     ([∗ list] a ∈ finz.seq_between next b, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) ∗
     ([∗ list] a ∈ finz.seq_between b finish, a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) ∗
     codefrag_pers pc_a allocator_malloc_shadow_code ∗
-    ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 6)%a ∗
+    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 5)%a ∗
        ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (finish - heap_b))%a ∗
-       ct3 ↦ᵣ WInt (next - heap_b) ∗
+       ca3 ↦ᵣ WInt (next - heap_b) ∗
        ca2 ↦ᵣ WInt 0 ∗
        ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
        ct1 ↦ᵣ WInt b ∗
        ct2 ↦ᵣ WInt finish ∗
-       (pc_b ^+ allocator_shadow_import_off)%a
-         ↦ₐ□ WCap true RW Global shadow_b shadow_e shadow_b ∗
        ([∗ list] a ∈ finz.seq_between next b,
           a ↦ₛ ShadowQuarantined ∗ addr_alloc a Unclaimed) ∗
        ([∗ list] a ∈ finz.seq_between b finish, a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) ∗
@@ -91,7 +87,7 @@ Section AllocatorMallocShadowBlocks.
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Hnext Hbase Hrange.
-    iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & #Himport & Hheader & Hpayload &
+    iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & Hheader & Hpayload &
       #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_shadow_unfold_code "Hcode_main".
@@ -104,37 +100,26 @@ Section AllocatorMallocShadowBlocks.
     assert (Hshadow : (shadow_b <= sh /\ sh < sb /\ sb < se /\ se <= shadow_e)%a).
     { subst sh sb se. solve_addr. }
 
-    (* Block 1: fetch the shadow capability *)
-    focus_block 1 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_fetch Ha_fetch
+    (* Block 1: translate the header address to its shadow entry *)
+    focus_block 1 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_translate Ha_translate
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iApply (allocator_fetch_spec with "[- $HPC $Hctp $Hct3 $Hca2 $Hcode $Himport]");
-      [done|solve_addr| |done|apply allocator_shadow_import_not_heap|done|done|done|].
-    { apply withinBounds_true_iff. rewrite /allocator_shadow_import_off. solve_addr. }
-    iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & _ & _)".
-    iEval (cbn) in "Hctp".
-    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-
-    (* Block 2: translate the header address to its shadow entry *)
-    focus_block 2 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_translate Ha_translate
-      "Hcode" "Hcont".
-    iHide "Hcode_main" as hcode.
-    (* GetB ct3 ct0. *)
+    (* GetB ca3 ct0. *)
     iInstr "Hcode".
-    (* Sub ct3 ct1 ct3. *)
+    (* Sub ca3 ct1 ca3. *)
     iInstr "Hcode".
-    (* Sub ct3 ct3 allocator_header_words. *)
+    (* Sub ca3 ca3 allocator_header_words. *)
     iInstr "Hcode".
     replace (b - heap_b - 3)%Z with (next - heap_b)%Z by solve_addr.
-    (* Lea ctp ct3. *)
+    (* Lea ctp ca3. *)
     iInstr "Hcode".
     { transitivity (Some sh); subst sh; solve_addr. }
     (* Mov ca2 allocator_header_words. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    (* Block 3: paint the header words quarantined *)
-    focus_block 3 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_hpaint Ha_hpaint
+    (* Block 2: paint the header words quarantined *)
+    focus_block 2 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_hpaint Ha_hpaint
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
     replace 3%Z with (b - next)%Z by solve_addr.
@@ -149,16 +134,16 @@ Section AllocatorMallocShadowBlocks.
     iNext. iIntros "(HPC & Hctp & Hca2 & _ & Hheader & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    (* Block 4: the payload size *)
-    focus_block 4 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_count Ha_count
+    (* Block 3: the payload size *)
+    focus_block 3 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_count Ha_count
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
     (* Sub ca2 ct2 ct1. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    (* Block 5: store [ShadowLive] over the payload *)
-    focus_block 5 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_paint Ha_paint
+    (* Block 4: store [ShadowLive] over the payload *)
+    focus_block 4 "Hcode_main" of allocator_malloc_shadow_blocks at pc_a as a_paint Ha_paint
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
     iApply (allocator_paint_spec ShadowLive ShadowLive ctp ca2 E RX Global
@@ -170,8 +155,8 @@ Section AllocatorMallocShadowBlocks.
     { repeat constructor; set_solver. }
     iNext. iIntros "(HPC & Hctp & Hca2 & _ & Hpayload & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_malloc_shadow_block_offset 6)%a.
-    iApply "Hφ". iFrame "∗ Hcode_main Himport".
+    change_pc_to (pc_a ^+ allocator_malloc_shadow_block_offset 5)%a.
+    iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
 End AllocatorMallocShadowBlocks.

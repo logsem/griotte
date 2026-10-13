@@ -47,7 +47,7 @@ Section Counter.
     is_shadow_address cgp_b = false ->
     is_heap_address cgp_b = false ->
     Nswitcher ## Ncounter ->
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp ; cra]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; csp ; cra]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length counter_main_code)%a ->
 
@@ -72,7 +72,7 @@ Section Counter.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return
@@ -135,9 +135,9 @@ Section Counter.
     (* Blocks 0-3: increment the counter, fetch the imports and jump to the
        switcher *)
     iApply (counter_main_blocks_1_spec with
-             "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hcgp_b
+             "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcra $Hcgp_b
               $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|done|].
-    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hcgp_b
+    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b
                     & _ & _ & _)".
     iMod ("Hmem_close" with "[$Hna Hcgp_b]")
       as "Hna".
@@ -178,8 +178,7 @@ Section Counter.
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
     apply load_heap_nonheap in Hrcs0;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
-    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
-    subst rcgp rcra rcs0 rcs1.
+    subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Repair the world *)
@@ -252,12 +251,11 @@ Section Counter.
       "(#Hswitcher & #Hswitcher_static & #Himports_main & #Hcode_main & #Hmain
         & #Hinterp_C_f & #HentryC_f)
       % % % % % %
-      (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
-    iDestruct "Hregister_state" as "(%Hfullrmap & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
+      (HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iDestruct "Hregister_state" as "(%Hfullrmap & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.
 
-    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
