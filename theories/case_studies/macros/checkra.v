@@ -1,57 +1,71 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
+From griotte Require Import rules proofmode assembler.
 From griotte Require Import is_word_type lea_to_base.
 
 Section Checkra.
+  Import Asm_Griotte.
   Context
       {MP: MachineParameters}
   .
 
+  Definition checkra_asm (r r1 r2 : RegName) : list asm_code :=
+    [
+      getwtype r1 r;
+      sub r2 r1 (encodeWordType wt_cap);
+      jnz 4 r2;
+      getp r1 r;
+      sub r2 r1 (encodePerm (O LG LM));
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm (O DL LM));
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm (O LG DRO));
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm (O DL DRO));
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WO_DL);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WO_DRO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WO_DL_DRO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WLO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WLO_DL);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WLO_DRO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WLO_DL_DRO);
+      jnz 2 r2;
+      fail;
+      mov r1 0;
+      mov r2 0
+    ].
+
+  (** [encodeWordType], [wt_cap] and [encodePerm] stay folded in the
+      assembled code. *)
+  Definition checkra (r r1 r2 : RegName) : list instr :=
+    Eval cbv -[encodeWordType word_encoding_mixin wt_cap
+               encodePerm permission_encoding_mixin] in
+      assemble (checkra_asm r r1 r2).
+  Lemma checkra_assembles (r r1 r2 : RegName) :
+    asm_ok (assemble_check (checkra_asm r r1 r2)).
+  Proof. asm_check. Qed.
 
   Definition checkra_instrs (r r1 r2 : RegName) : list Word :=
-    encodeInstrsW [
-        GetWType r1 r;
-        Sub r2 r1 (encodeWordType wt_cap);
-        Jnz 4 r2;
-        GetP r1 r;
-        Sub r2 r1 (encodePerm (O LG LM));
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm (O DL LM));
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm (O LG DRO));
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm (O DL DRO));
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm WO);
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm WO_DL);
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm WO_DRO);
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm WO_DL_DRO);
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm WLO);
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm WLO_DL);
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm WLO_DRO);
-        Jnz 2 r2;
-        Fail;
-        Sub r2 r1 (encodePerm WLO_DL_DRO);
-        Jnz 2 r2;
-        Fail;
-        Mov r1 0%Z;
-        Mov r2 0%Z ].
+    encodeInstrsW (checkra r r1 r2).
   (* TODO: it's actually quite annoying to check...
      In CHERIoT, I would do something like:
      ```

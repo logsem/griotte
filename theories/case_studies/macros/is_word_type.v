@@ -1,5 +1,41 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
+From griotte Require Import rules proofmode assembler.
+
+Section Is_WordType_Asm.
+  Import Asm_Griotte.
+  Context
+      {MP: MachineParameters}
+  .
+
+  Definition is_word_type_asm (r r1 : RegName) (wtype : Word) : list asm_code :=
+    [
+      getwtype r1 r;
+      sub r1 r1 (encodeWordType wtype);
+      (* if getwtype(r) == wtype
+         then r1 = 0
+         then r1 != 0
+       *)
+      jnz 2 r1; (* r2 is zero, then continue, else jump to fail *)
+      (* getwtype(r) == wtype *)
+      jmp 2;
+      (* getwtype(r) != wtype *)
+      fail
+    ].
+
+  (** [encodeWordType] stays folded in the assembled code. *)
+  Definition is_word_type (r r1 : RegName) (wtype : Word) : list instr :=
+    Eval cbv -[encodeWordType word_encoding_mixin] in assemble (is_word_type_asm r r1 wtype).
+  Lemma is_word_type_assembles (r r1 : RegName) (wtype : Word) :
+    asm_ok (assemble_check (is_word_type_asm r r1 wtype)).
+  Proof. asm_check. Qed.
+
+  Definition is_int_asm (r r1 : RegName) : list asm_code :=
+    is_word_type_asm r r1 wt_int.
+
+  Definition is_memory_cap_asm (r r1 : RegName) : list asm_code :=
+    is_word_type_asm r r1 wt_cap ++
+    [gettag r1 r; sub r1 r1 1; jnz 2 r1; jmp 2; fail].
+End Is_WordType_Asm.
 
 Section Is_WordType.
   Context
@@ -7,25 +43,20 @@ Section Is_WordType.
   .
 
   Definition is_word_type_instrs (r r1 : RegName) (wtype : Word) : list Word :=
-    encodeInstrsW [
-        GetWType r1 r;
-        Sub r1 r1 (encodeWordType wtype);
-        (* if getwtype(r) == wtype
-           then r1 = 0
-           then r1 != 0
-         *)
-        Jnz 2 r1; (* r2 is zero, then continue, else jump to fail *)
-        (* getwtype(r) == wtype *)
-        Jmp 2;
-        (* getwtype(r) != wtype *)
-        Fail
-      ].
+    encodeInstrsW (is_word_type r r1 wtype).
 
   Definition is_int_instrs (r r1 : RegName) : list Word :=
    is_word_type_instrs r r1 wt_int.
   Definition is_memory_cap_instrs (r r1 : RegName) : list Word :=
    is_word_type_instrs r r1 wt_cap ++
    encodeInstrsW [GetTag r1 r; Sub r1 r1 1; Jnz 2 r1; Jmp 2; Fail].
+
+  (** The code of [is_memory_cap_instrs], split for its proof, is its
+      assembly. *)
+  Lemma is_memory_cap_instrs_asm (r r1 : RegName) :
+    is_memory_cap_instrs r r1 =
+      encodeInstrsW (Asm_Griotte.assemble (is_memory_cap_asm r r1)).
+  Proof. reflexivity. Qed.
 End Is_WordType.
 
 Section Is_WordType_spec.

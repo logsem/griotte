@@ -32,18 +32,21 @@ Module Asm_Griotte.
       in the assembled code and register parameters are preserved, while
       [vm_compute] unfolds them (https://github.com/rocq-prover/rocq/issues/4476).
 
-      If you use labels in a macro that is supposed to be re-used,
-      resolve them in the macro to avoid label conflicts.
-      So, first define your asm macro with labels:
-      `xxx_asm_pre r`, then compute its label environment (with
-      [vm_compute]: it contains no register) and resolve the labels with
+      A macro is a function returning asm code, inlined in the programs that
+      use it. If it defines labels, make it a local block, so that its labels
+      are resolved inside it and do not clash with other instances:
       ```
-      Definition xxx_asm_env :=
-        Eval vm_compute in (compute_asm_code_env (xxx_asm_pre cnull)).2.
-      Definition xxx_asm r :=
-        Eval compute in (resolve_labels_macros (xxx_asm_pre r) xxx_asm_env).
+      Definition xxx_asm (r : RegName) : list asm_code :=
+        macro: [ ... ; #"loop"; ... ; jnz "loop" r; ... ].
+      Definition xxx (r : RegName) : list instr :=
+        Eval compute in assemble (xxx_asm r).
+      Lemma xxx_assembles r : asm_ok (assemble_check (xxx_asm r)).
+      Proof. asm_check. Qed.
       ```
-      and check `xxx_asm_pre r` with [assemble_check].
+      A macro without local labels can refer to the labels and symbols of
+      the enclosing program (e.g. the import symbols named by [fetch_asm]).
+
+      [label_offset l s] is the offset of the label or symbol [s] of [l].
    *)
 
   (*** Assembly Language with Labels *)
@@ -97,215 +100,54 @@ Module Asm_Griotte.
       address: it occupies one word but emits no instruction. Symbols may only
       form a data prefix before the code or a data suffix after it (see
       [asm_symbols_check]), so that the assembled instructions stay
-      contiguous. *)
+      contiguous.
+
+      [ASM_Local l] is the code [l] with its own scope: the labels and
+      symbols defined in [l] are visible only in [l], where they shadow
+      those of the enclosing code, while [l] sees the names of the enclosing
+      code. A macro with labels is a local block, so that it can be
+      instantiated several times in a program. *)
   Inductive asm_code : Type :=
   | ASM_Label (s : string)
   | ASM_Symbol (s : string)
-  | ASM_Instr (w : asm_instr).
+  | ASM_Instr (w : asm_instr)
+  | ASM_Local (l : list asm_code).
 
-  (*** ASM environment *)
-
-  (** Computes the environment of the program.
-      The environment consists on:
-      - the current line in the assembly code (includes the labels);
-      - the current line of the labels in the assembly code (excludes the labels);
-      - a map which, for each labels, associates its offset in the code without labels (so after assembling).
-   *)
-  Definition compute_asm_code_env (l: list asm_code) : (nat * nat * gmap string nat) :=
-    foldl
-      (fun (acc : (nat * nat * gmap string nat)) (a : asm_code)  =>
-         let '(n,nlbl,env) := acc in
-         match a with
-         | ASM_Label string => (n+1,nlbl+1, <[string := n-nlbl]> env)
-         | ASM_Symbol string => (n+1,nlbl, <[string := n-nlbl]> env)
-         | ASM_Instr _ => (n+1,nlbl,env)
-         end
-      )
-      (0, 0, ∅)
-      l
-  .
-
-  (** Computes the ASM expression with the current environment.
-      Because jumps are relative, we keep track of the current line with [current_n].
-   *)
-  Fixpoint eval_asm_expr (expr : asm_expr) (env : gmap string nat) (current_n : nat) : option Z :=
-    match expr with
-    | Asm_lbl lbl => z ← env !! lbl; Some ( (Z.of_nat z) - (Z.of_nat current_n) )%Z
-    | Asm_z z => Some z
-    | Asm_plus e1 e2 =>
-        z1 ← (eval_asm_expr e1 env current_n);
-        z2 ← (eval_asm_expr e2 env current_n);
-        Some (z1 + z2)%Z
-    | Asm_minus e1 e2 =>
-        z1 ← (eval_asm_expr e1 env current_n);
-        z2 ← (eval_asm_expr e2 env current_n);
-        Some (z1 - z2)%Z
+  (** The number of words of a piece of code: its instructions and symbols. *)
+  Fixpoint asm_code_words (c : asm_code) : nat :=
+    match c with
+    | ASM_Label _ => 0
+    | ASM_Symbol _ | ASM_Instr _ => 1
+    | ASM_Local l =>
+        (fix words (l : list asm_code) : nat :=
+           match l with
+           | [] => 0
+           | c :: l => asm_code_words c + words l
+           end) l
     end.
 
-  (*** Label solver. *)
-  (** The label solver simply resolves and eliminate the labels.
-      It can be used to pre-assemble a block with labels,
-      and avoid label conflict when used outside.
-   *)
-
-  Definition resolve_labels_arg
-    (arg : asm_expr + RegName)
-    (env : gmap string nat)
-    (current_n : nat)
-    : option (asm_expr+RegName) :=
-    match arg with
-    | inr r => Some (inr r)
-    | inl expr => z ← eval_asm_expr expr env current_n ; Some (inl (Asm_z z))
+  Fixpoint asm_words (l : list asm_code) : nat :=
+    match l with
+    | [] => 0
+    | c :: l => asm_code_words c + asm_words l
     end.
 
-  Definition resolve_labels_instr (i: asm_instr) (env : gmap string nat) (current_n : nat) : option asm_instr :=
-    match i with
-    | Jmp rimm =>
-        rimm' ← resolve_labels_arg rimm env current_n;
-        Some (Jmp rimm')
-    | Jnz rimm rcond =>
-        rimm' ← resolve_labels_arg rimm env current_n;
-        Some (Jnz rimm' rcond)
-    | Jalr rdst rsrc =>
-        Some (Jalr rdst rsrc)
-    | Mov dst src  =>
-        src ← resolve_labels_arg src env current_n;
-        Some (Mov dst src)
-    | CLoad dst src imm =>
-        off ← eval_asm_expr imm env current_n;
-        Some (CLoad dst src (Asm_z off))
-    | Store dst src imm =>
-        src ← resolve_labels_arg src env current_n;
-        off ← eval_asm_expr imm env current_n;
-        Some (Store dst src (Asm_z off))
-    | Lt dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (Lt dst w1 w2)
-    | Add dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (Add dst w1 w2)
-    | Sub dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (Sub dst w1 w2)
-    | Mul dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (Mul dst w1 w2)
-    | LAnd dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (LAnd dst w1 w2)
-    | LOr dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (LOr dst w1 w2)
-    | LShiftL dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (LShiftL dst w1 w2)
-    | LShiftR dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (LShiftR dst w1 w2)
-    | Lea dst r =>
-        w ← resolve_labels_arg r env current_n;
-        Some (Lea dst w)
-    | Restrict dst r =>
-        w ← resolve_labels_arg r env current_n;
-        Some (Restrict dst w)
-    | Subseg dst r1 r2 =>
-        w1 ← resolve_labels_arg r1 env current_n;
-        w2 ← resolve_labels_arg r2 env current_n;
-        Some (Subseg dst w1 w2)
-    | GetB dst src =>
-        Some (GetB dst src)
-    | GetE dst src =>
-        Some (GetE dst src)
-    | GetA dst src =>
-        Some (GetA dst src)
-    | GetP dst src =>
-        Some (GetP dst src)
-    | GetL dst src =>
-        Some (GetL dst src)
-    | GetTag dst src =>
-        Some (GetTag dst src)
-    | ClearTag dst src =>
-        Some (ClearTag dst src)
-    | GetWType dst src =>
-        Some (GetWType dst src)
-    | GetOType dst src =>
-        Some (GetOType dst src)
-    | Seal dst r1 r2 =>
-        Some (Seal dst r1 r2)
-    | UnSeal dst r1 r2 =>
-        Some (UnSeal dst r1 r2)
-    | ReadSR dst src =>
-        Some (ReadSR dst src)
-    | WriteSR dst src =>
-        Some (WriteSR dst src)
-    | Fail=>
-        Some (Fail)
-    | Halt=>
-        Some (Halt)
-    | Auipcc dst imm =>
-        off ← eval_asm_expr imm env current_n;
-        Some (Auipcc dst (Asm_z off))
+  (** The code with its local blocks inlined. *)
+  Fixpoint asm_code_flatten (c : asm_code) : list asm_code :=
+    match c with
+    | ASM_Local l =>
+        (fix flatten (l : list asm_code) : list asm_code :=
+           match l with
+           | [] => []
+           | c :: l => asm_code_flatten c ++ flatten l
+           end) l
+    | c => [c]
     end.
 
-  Definition resolve_labels_aux
-    (l: list asm_code) (env : gmap string nat) (init_n : nat) : option ( (list asm_code) * nat) :=
-    foldl
-      (fun (acc : option ( (list asm_code) * nat)) (a : asm_code)  =>
-         match a with
-         | ASM_Label string => acc
-         | ASM_Symbol string =>
-             '(generated_code,current_n) ← acc;
-             Some (generated_code, current_n + 1)
-         | ASM_Instr i =>
-             '(generated_code,current_n) ← acc;
-             i' ← resolve_labels_instr i env current_n;
-             let next_current := current_n + 1 in
-             Some ((ASM_Instr i')::generated_code, next_current )
-         end
-      )
-      (Some ([], init_n))
-      l
-  .
-
-  (** Label solver for a macros, providing the environment.
-      Useful if computing the label with [compute] is too expensive. *)
-  Definition resolve_labels_macros (l : list asm_code) (env : gmap string nat) : list asm_code :=
-    let resolved_labels := resolve_labels_aux l env 0 in
-    match resolved_labels with
-    | Some (asm_code, _) => reverse asm_code
-    | None => []
-    end.
-
-  (** Label solver of a plain code. *)
-  Definition resolve_labels (l : list asm_code) : list asm_code :=
-    let env := (compute_asm_code_env l).2 in
-    resolve_labels_macros l env.
-
-  Definition resolve_labels_block_aux
-    (l : list (list asm_code) ) (env : gmap string nat) : option ((list (list asm_code)) * nat) :=
-    foldl
-      ( fun (acc : option ((list (list asm_code)) * nat)) (prog : list asm_code) =>
-          '(generated_code,current_n) ← acc;
-          '(prog',next_current) ← resolve_labels_aux prog env current_n;
-          Some ( (reverse prog')::generated_code, next_current)
-      )
-      (Some ([], 0))
-      l.
-
-  (** Label solver of a list of code. *)
-  Definition resolve_labels_block
-    (l : list (list asm_code) ) (env : gmap string nat) : (list (list asm_code)) :=
-    match resolve_labels_block_aux l env with
-    | Some (asm_codes, _) => reverse asm_codes
-    | None => []
+  Fixpoint asm_flatten (l : list asm_code) : list asm_code :=
+    match l with
+    | [] => []
+    | c :: l => asm_code_flatten c ++ asm_flatten l
     end.
 
   (*** Assembler results. *)
@@ -337,8 +179,9 @@ Module Asm_Griotte.
     | (s', n) :: env => if String.eqb s s' then Some n else asm_lookup s env
     end.
 
-  (** The offset of each label and symbol in the code without labels.
-      A name defined twice is an error. *)
+  (** The offset of each label and symbol of [l] (outside its local blocks)
+      in the code without labels, where the first word of [l] is at offset
+      [n]. A name defined twice is an error. *)
   Fixpoint asm_env_aux (l : list asm_code) (n : nat) (env : asm_env_map)
     : asm_result (asm_env_map) :=
     match l with
@@ -354,6 +197,7 @@ Module Asm_Griotte.
         | None => asm_env_aux l (S n) ((s, n) :: env)
         end
     | ASM_Instr _ :: l => asm_env_aux l (S n) env
+    | ASM_Local l' :: l => asm_env_aux l (n + asm_code_words (ASM_Local l')) env
     end.
 
   Definition asm_env (l : list asm_code) : asm_result (asm_env_map) :=
@@ -377,10 +221,12 @@ Module Asm_Griotte.
         | Some s => Err ("symbol between instructions: " ++ s)%string
         | None => asm_symbols_check_aux true None l
         end
+    | ASM_Local _ :: l => asm_symbols_check_aux in_code sym l
     end.
 
+  (** The check applies to the code with its local blocks inlined. *)
   Definition asm_symbols_check (l : list asm_code) : asm_result unit :=
-    asm_symbols_check_aux false None l.
+    asm_symbols_check_aux false None (asm_flatten l).
 
   (** Evaluates an expression at the word offset [n] of the code: a label
       denotes its offset relative to [n]. *)
@@ -508,25 +354,34 @@ Module Asm_Griotte.
         Ok (machine_instructions.Auipcc dst off)
     end.
 
+  (** Assembles a piece of code, whose first word is at offset [n]. A local
+      block is assembled with its own names in front of [env]. *)
+  Fixpoint assemble_code_item (c : asm_code) (env : asm_env_map) (n : nat)
+    : asm_result (list instr) :=
+    match c with
+    | ASM_Label _ | ASM_Symbol _ => Ok []
+    | ASM_Instr i => i' ← assemble_instr i env n; Ok [i']
+    | ASM_Local l =>
+        env' ← asm_env_aux l n [];
+        (fix assemble_local (l : list asm_code) (n : nat) : asm_result (list instr) :=
+           match l with
+           | [] => Ok []
+           | c :: l =>
+               c' ← assemble_code_item c (env' ++ env) n;
+               l' ← assemble_local l (n + asm_code_words c);
+               Ok (c' ++ l')
+           end) l n
+    end.
+
   (** Assembles [l], whose first word is at offset [n]. *)
   Fixpoint assemble_code (l : list asm_code) (env : asm_env_map) (n : nat)
     : asm_result (list instr) :=
     match l with
     | [] => Ok []
-    | ASM_Label _ :: l => assemble_code l env n
-    | ASM_Symbol _ :: l => assemble_code l env (S n)
-    | ASM_Instr i :: l =>
-        i' ← assemble_instr i env n;
-        l' ← assemble_code l env (S n);
-        Ok (i' :: l')
-    end.
-
-  (** The number of words of [l]: its instructions and symbols. *)
-  Fixpoint asm_words (l : list asm_code) : nat :=
-    match l with
-    | [] => 0
-    | ASM_Label _ :: l => asm_words l
-    | _ :: l => S (asm_words l)
+    | c :: l =>
+        c' ← assemble_code_item c env n;
+        l' ← assemble_code l env (n + asm_code_words c);
+        Ok (c' ++ l')
     end.
 
   Fixpoint assemble_blocks (l : list (list asm_code)) (env : asm_env_map) (n : nat)
@@ -539,29 +394,20 @@ Module Asm_Griotte.
         Ok (b' :: l')
     end.
 
-  (** Checked assembler for plain code, given its environment [env] (as
-      computed by [asm_env]). *)
-  Definition assemble_env_check (env : asm_result (asm_env_map)) (l : list asm_code)
-    : asm_result (list instr) :=
+  (** Checked assembler for plain code. *)
+  Definition assemble_check (l : list asm_code) : asm_result (list instr) :=
     asm_symbols_check l;;
-    env ← env;
+    env ← asm_env l;
     assemble_code l env 0.
 
-  (** Checked assembler for a list of blocks, given the environment [env] of
-      their concatenation. Each block keeps its own list of instructions, so
-      that the blocks can be specified separately. *)
-  Definition assemble_block_env_check
-    (env : asm_result (asm_env_map)) (l : list (list asm_code))
+  (** Checked assembler for a list of blocks, with the environment of their
+      concatenation. Each block keeps its own list of instructions, so that
+      the blocks can be specified separately. *)
+  Definition assemble_block_check (l : list (list asm_code))
     : asm_result (list (list instr)) :=
     asm_symbols_check (concat l);;
-    env ← env;
+    env ← asm_env (concat l);
     assemble_blocks l env 0.
-
-  Definition assemble_check (l : list asm_code) : asm_result (list instr) :=
-    assemble_env_check (asm_env l) l.
-
-  Definition assemble_block_check (l : list (list asm_code)) : asm_result (list (list instr)) :=
-    assemble_block_env_check (asm_env (concat l)) l.
 
   (** Assemblers returning the code, [[]] on an error. Each assembled
       definition comes with a check (see [asm_check]) that fails on an
@@ -572,13 +418,13 @@ Module Asm_Griotte.
   Definition assemble_block (l : list (list asm_code)) : list (list instr) :=
     asm_get [] (assemble_block_check l).
 
-  Definition assemble_env (env : asm_result (asm_env_map)) (l : list asm_code)
-    : list instr :=
-    asm_get [] (assemble_env_check env l).
-
-  Definition assemble_block_env (env : asm_result (asm_env_map)) (l : list (list asm_code))
-    : list (list instr) :=
-    asm_get [] (assemble_block_env_check env l).
+  (** The offset of the label or symbol [s] of [l] (outside its local
+      blocks) in the code without labels, [0] if it is undefined. *)
+  Definition label_offset (l : list asm_code) (s : string) : nat :=
+    match asm_env l with
+    | Ok env => default 0 (asm_lookup s env)
+    | Err _ => 0
+    end.
 
   (*** Assembly checks. *)
   (** [asm_ok r] holds when [r] is not an error; on an error it reduces to
@@ -675,5 +521,10 @@ Module Asm_Griotte.
 
   Notation "# s" := (ASM_Label s) (at level 50).
   Notation "#@ s" := (ASM_Symbol s) (at level 50).
+  (** [macro: [ c1; …; cn ]] is a local block: the labels defined in it are
+      visible only inside it. [macro: ( l )] takes any list expression. *)
+  Notation "'macro:' [ x ; .. ; y ]" := ([ASM_Local (cons x .. (cons y nil) ..)])
+    (at level 0, x at level 200, y at level 200).
+  Notation "'macro:' ( l )" := ([ASM_Local l]) (at level 0, l at level 200).
 
 End Asm_Griotte.

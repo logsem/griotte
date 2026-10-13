@@ -112,7 +112,7 @@ Section Allocator.
   *)
 
   Definition allocator_malloc_asm : list (list asm_code) :=
-    [ allocator_owner_asm ctp ca0;
+    [ #".Lmalloc_owner" :: allocator_owner_asm ctp ca0;
       [ (* Reject noninteger and nonpositive sizes before touching the heap. *)
         getwtype ca3 ca1;
         sub ca3 ca3 (encodeWordType wt_int);
@@ -208,7 +208,7 @@ Section Allocator.
   *)
 
   Definition allocator_free_asm : list (list asm_code) :=
-    [ allocator_owner_asm ctp ca0;
+    [ #".Lfree_owner" :: allocator_owner_asm ctp ca0;
       [ (* Keep the owner in [ca0]: [ctp] receives the shadow capability. *)
         mov ca0 ctp;
         (* Reject every non-capability word, including null. *)
@@ -307,10 +307,16 @@ Section Allocator.
     concat (encodeInstrsW <$> assembled_allocator_free).
 
   (** The offsets of the fetches of the unsealing key by [allocator_owner_asm]
-      in the first block of each entry, from the assembled program. *)
-  Definition allocator_malloc_owner_off : Z := fetch_offset (assembled_allocator_malloc_n 0).
+      at the start of each entry (the labels [.L<entry>_owner]), from the
+      address of the fetch. *)
+  Local Definition allocator_offset_from (from s : string) : Z :=
+    (Z.of_nat (label_offset (concat allocator_asm) s)
+     - Z.of_nat (label_offset (concat allocator_asm) from))%Z.
+  Definition allocator_malloc_owner_off : Z :=
+    Eval vm_compute in allocator_offset_from ".Lmalloc_owner" ".Limport_unsealing_key".
 
-  Definition allocator_free_owner_off : Z := fetch_offset (assembled_allocator_free_n 0).
+  Definition allocator_free_owner_off : Z :=
+    Eval vm_compute in allocator_offset_from ".Lfree_owner" ".Limport_unsealing_key".
 
   Definition allocator_code : list Word :=
     allocator_malloc_instrs ++ allocator_free_instrs.

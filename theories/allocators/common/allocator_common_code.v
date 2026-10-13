@@ -47,31 +47,23 @@ Section AllocatorCommonCode.
 
   Definition allocator_header_words : Z := 3.
 
-  (** These loops resolve their local labels before being embedded into a
-      larger block, so their assembled code is independent of its placement.
-      Both require a nonempty range. *)
+  (** These loops are local blocks: their labels are resolved inside them, so
+      their assembled code is independent of its placement. Both require a
+      nonempty range. *)
 
-  Definition allocator_zero_asm_pre (rptr rend rtmp : RegName) : list asm_code :=
-    [ #".allocator_zero";
-      store rptr 0;
-      lea rptr 1;
-      geta rtmp rptr;
-      sub rtmp rend rtmp;
-      jnz (".allocator_zero")%asm rtmp
-    ].
-  (* VM reduction preserves the register parameters: these macros contain no
-     fixed register name, which VM reduction would unfold. *)
-
-  Definition allocator_zero_asm_env (rptr rend rtmp : RegName) :=
-    Eval vm_compute in (compute_asm_code_env (allocator_zero_asm_pre rptr rend rtmp)).2.
-
-  Definition allocator_zero_asm (rptr rend rtmp : RegName) :=
-    Eval vm_compute in resolve_labels_macros (allocator_zero_asm_pre rptr rend rtmp)
-                      (allocator_zero_asm_env rptr rend rtmp).
+  Definition allocator_zero_asm (rptr rend rtmp : RegName) : list asm_code :=
+    macro: [ #".allocator_zero";
+         store rptr 0;
+         lea rptr 1;
+         geta rtmp rptr;
+         sub rtmp rend rtmp;
+         jnz (".allocator_zero")%asm rtmp
+       ].
 
   Definition allocator_zero (rptr rend rtmp : RegName) :=
     Eval compute in assemble (allocator_zero_asm rptr rend rtmp).
-  Lemma allocator_zero_assembles (rptr rend rtmp : RegName) : asm_ok (assemble_check (allocator_zero_asm_pre rptr rend rtmp)).
+  Lemma allocator_zero_assembles (rptr rend rtmp : RegName) :
+    asm_ok (assemble_check (allocator_zero_asm rptr rend rtmp)).
   Proof. asm_check. Qed.
 
   Definition allocator_zero_instrs (rptr rend rtmp : RegName) : list Word :=
@@ -80,25 +72,19 @@ Section AllocatorCommonCode.
   (** Paint a positive number of consecutive shadow entries, advancing the
       pointer and consuming the count. *)
 
-  Definition allocator_paint_asm_pre (rptr rcount : RegName) (status : AllocStatus)
+  Definition allocator_paint_asm (rptr rcount : RegName) (status : AllocStatus)
     : list asm_code :=
-    [ #".allocator_paint";
-      store rptr (encodeAllocStatus status);
-      lea rptr 1;
-      sub rcount rcount 1;
-      jnz (".allocator_paint")%asm rcount
-    ].
-
-  Definition allocator_paint_asm_env (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in (compute_asm_code_env (allocator_paint_asm_pre rptr rcount status)).2.
-
-  Definition allocator_paint_asm (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in resolve_labels_macros (allocator_paint_asm_pre rptr rcount status)
-                      (allocator_paint_asm_env rptr rcount status).
+    macro: [ #".allocator_paint";
+         store rptr (encodeAllocStatus status);
+         lea rptr 1;
+         sub rcount rcount 1;
+         jnz (".allocator_paint")%asm rcount
+       ].
 
   Definition allocator_paint (rptr rcount : RegName) (status : AllocStatus) :=
     Eval compute in assemble (allocator_paint_asm rptr rcount status).
-  Lemma allocator_paint_assembles (rptr rcount : RegName) (status : AllocStatus) : asm_ok (assemble_check (allocator_paint_asm_pre rptr rcount status)).
+  Lemma allocator_paint_assembles (rptr rcount : RegName) (status : AllocStatus) :
+    asm_ok (assemble_check (allocator_paint_asm rptr rcount status)).
   Proof. asm_check. Qed.
 
   Definition allocator_paint_instrs (rptr rcount : RegName) (status : AllocStatus)
@@ -134,7 +120,8 @@ Section AllocatorCommonCode.
 
   Definition assembled_allocator_malloc_shadow :=
     Eval compute in assemble_block allocator_malloc_shadow_asm.
-  Lemma allocator_malloc_shadow_assembles : asm_ok (assemble_block_check allocator_malloc_shadow_asm).
+  Lemma allocator_malloc_shadow_assembles :
+    asm_ok (assemble_block_check allocator_malloc_shadow_asm).
   Proof. asm_check. Qed.
 
   Definition allocator_malloc_shadow_instrs_n (n : nat) : list Word :=
@@ -158,7 +145,8 @@ Section AllocatorCommonCode.
 
   Definition assembled_allocator_malloc_exit :=
     Eval compute in assemble_block allocator_malloc_exit_asm.
-  Lemma allocator_malloc_exit_assembles : asm_ok (assemble_block_check allocator_malloc_exit_asm).
+  Lemma allocator_malloc_exit_assembles :
+    asm_ok (assemble_block_check allocator_malloc_exit_asm).
   Proof. asm_check. Qed.
 
   Definition allocator_malloc_exit_instrs_n (n : nat) : list Word :=
@@ -201,7 +189,8 @@ Section AllocatorCommonCode.
 
   Definition assembled_allocator_free_tail :=
     Eval compute in assemble_block allocator_free_tail_asm.
-  Lemma allocator_free_tail_assembles : asm_ok (assemble_block_check allocator_free_tail_asm).
+  Lemma allocator_free_tail_assembles :
+    asm_ok (assemble_block_check allocator_free_tail_asm).
   Proof. asm_check. Qed.
 
   Definition allocator_free_tail_instrs_n (n : nat) : list Word :=

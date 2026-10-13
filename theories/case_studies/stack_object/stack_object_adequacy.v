@@ -223,13 +223,7 @@ Section Adequacy.
           * rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
             by rewrite (assert_code_nonheap assert_cmpt).
           * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-        + rewrite main_code /so_main_code /SO_main_code_run /SO_main_code_f
-            /fetch.fetch_instrs /assert_instrs /checkra.checkra_instrs
-            /check_no_overlap.check_no_overlap_instrs /checkints.checkints_instrs
-            /checkints.checkints_loop_instrs /lea_to_base.lea_to_base_instrs
-            /is_word_type.is_int_instrs /is_word_type.is_word_type_instrs
-            /so_f_alloc_instrs /so_f_call_instrs
-            /so_f_assert_prep_instrs /so_f_return_instrs !Forall_app.
+        + rewrite main_code /so_main_code /SO_main_code_run /SO_main_code_f !Forall_app.
           repeat split; (apply word_rooted_instrs || apply Forall_nil_2).
         + rewrite main_data /so_main_data. apply Forall_nil_2.
         + by apply word_rooted_not_heap_caps.

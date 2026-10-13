@@ -163,14 +163,14 @@ Section Switcher.
       ]
     ].
 
-  Definition switcher_asm_pre : list (list asm_code) :=
+  Definition switcher_asm : list (list asm_code) :=
     switcher_call_asm ++
     switcher_callback_asm ++
     switcher_failure_asm.
 
   Definition assembled_switcher :=
-    Eval compute in assemble_block switcher_asm_pre.
-  Lemma switcher_assembles : asm_ok (assemble_block_check switcher_asm_pre).
+    Eval compute in assemble_block switcher_asm.
+  Lemma switcher_assembles : asm_ok (assemble_block_check switcher_asm).
   Proof. asm_check. Qed.
   Definition assembled_switcher_n (n : nat) :=
     Eval compute in

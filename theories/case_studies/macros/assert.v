@@ -18,7 +18,7 @@ Section Assert_Code.
   (* Asserts (ct0 == ct1). Jumps back to cra.
      Clobbers cra, ct0, ct1.
    *)
-  Definition assert_subroutine_asm_pre :=
+  Definition assert_subroutine_asm : list asm_code :=
     [
       sub ct0 ct0 ct1;
       jnz ("assert_fail")%asm ct0;
@@ -39,13 +39,9 @@ Section Assert_Code.
        (* end*)
     ].
 
-  Definition assert_subroutine_asm_env :=
-    Eval vm_compute in (compute_asm_code_env (assert_subroutine_asm_pre)).2.
-  Definition assert_subroutine_asm :=
-    Eval compute in resolve_labels_macros assert_subroutine_asm_pre assert_subroutine_asm_env.
   Definition assert_subroutine : list instr :=
     Eval compute in assemble assert_subroutine_asm.
-  Lemma assert_subroutine_assembles : asm_ok (assemble_check assert_subroutine_asm_pre).
+  Lemma assert_subroutine_assembles : asm_ok (assemble_check assert_subroutine_asm).
   Proof. asm_check. Qed.
   Definition assert_subroutine_instrs : list Word :=
     encodeInstrsW assert_subroutine.

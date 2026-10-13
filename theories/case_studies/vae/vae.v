@@ -179,7 +179,7 @@ Section vae_C_code.
 
   (** The offsets of the two entry points from the start of the PCC. *)
   Definition vae_C_adv_entry : nat :=
-    Eval vm_compute in default 0%nat ((compute_asm_code_env vae_C_asm).2 !! "adv_entry").
+    Eval vm_compute in label_offset vae_C_asm "adv_entry".
   Definition vae_C_g_entry : nat :=
-    Eval vm_compute in default 0%nat ((compute_asm_code_env vae_C_asm).2 !! "g_entry").
+    Eval vm_compute in label_offset vae_C_asm "g_entry".
 End vae_C_code.

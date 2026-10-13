@@ -226,5 +226,5 @@ Section kvs_B_code.
 
   (** The offset of the entry point from the start of the PCC. *)
   Definition kvs_B_adv_entry : nat :=
-    Eval vm_compute in default 0%nat ((compute_asm_code_env kvs_B_asm).2 !! "adv_entry").
+    Eval vm_compute in label_offset kvs_B_asm "adv_entry".
 End kvs_B_code.

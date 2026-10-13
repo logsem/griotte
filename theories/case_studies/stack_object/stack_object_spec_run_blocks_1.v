@@ -55,7 +55,7 @@ Section SO_Run_Blocks_1.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
-    { so_fetch_offsets_compute; offsets_compute; solve_addr. }
+    { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -67,7 +67,7 @@ Section SO_Run_Blocks_1.
     focus_block 1 "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hcode $Himport_C_f]"); eauto; try done.
-    { so_fetch_offsets_compute; offsets_compute; solve_addr. }
+    { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     iNext; iIntros "(HPC & Hct1 & _ & Himport_C_f)".
     iEval (cbn) in "Hct1".

@@ -20,7 +20,8 @@ Section ClearStackMacro.
     [ jmp ct2 ] ++ rclear_asm registers_pre_call_skip.
   Definition clear_registers_pre_call_skip : list instr :=
     Eval compute in assemble clear_registers_pre_call_skip_asm.
-  Lemma clear_registers_pre_call_skip_assembles : asm_ok (assemble_check clear_registers_pre_call_skip_asm).
+  Lemma clear_registers_pre_call_skip_assembles :
+    asm_ok (assemble_check clear_registers_pre_call_skip_asm).
   Proof. asm_check. Qed.
   Definition clear_registers_pre_call_skip_instrs : list Word :=
     encodeInstrsW clear_registers_pre_call_skip.
@@ -31,7 +32,8 @@ Section ClearStackMacro.
     rclear_asm registers_pre_call.
   Definition clear_registers_pre_call : list instr :=
     Eval compute in assemble clear_registers_pre_call_asm.
-  Lemma clear_registers_pre_call_assembles : asm_ok (assemble_check clear_registers_pre_call_asm).
+  Lemma clear_registers_pre_call_assembles :
+    asm_ok (assemble_check clear_registers_pre_call_asm).
   Proof. asm_check. Qed.
   Definition clear_registers_pre_call_instrs : list Word :=
     encodeInstrsW clear_registers_pre_call.
@@ -42,7 +44,8 @@ Section ClearStackMacro.
     rclear_asm registers_post_call.
   Definition clear_registers_post_call : list instr :=
     Eval compute in assemble clear_registers_post_call_asm.
-  Lemma clear_registers_post_call_assembles : asm_ok (assemble_check clear_registers_post_call_asm).
+  Lemma clear_registers_post_call_assembles :
+    asm_ok (assemble_check clear_registers_post_call_asm).
   Proof. asm_check. Qed.
   Definition clear_registers_post_call_instrs : list Word :=
     encodeInstrsW clear_registers_post_call.

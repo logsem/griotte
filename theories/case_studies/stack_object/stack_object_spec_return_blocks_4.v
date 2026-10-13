@@ -88,7 +88,7 @@ Section SO_Return_Blocks_4.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra $Hcnull
               $Hcode $Himport_assert]"); auto.
-    { so_fetch_offsets_compute; offsets_compute; solve_addr. }
+    { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
                     & _ & Himport_assert)".

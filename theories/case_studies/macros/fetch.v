@@ -21,12 +21,4 @@ Section Fetch.
     [machine_instructions.Auipcc rdst off; machine_instructions.CLoad rdst rdst 0].
   Definition fetch_instrs (off : Z) (rdst : RegName) : list Word :=
     encodeInstrsW (fetch off rdst).
-
-  (** The offset of the fetch that starts the assembled code [l], to derive
-      the offset of an inlined fetch from the assembled program. *)
-  Definition fetch_offset (l : list instr) : Z :=
-    match l with
-    | machine_instructions.Auipcc _ off :: _ => off
-    | _ => 0
-    end.
 End Fetch.
