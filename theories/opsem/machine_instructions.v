@@ -33,7 +33,9 @@ Inductive instr: Type :=
 | Fail
 | Halt
 | GetTag (dst src: RegName)
-| ClearTag (dst src: RegName).
+| ClearTag (dst src: RegName)
+(* The PC capability with its address offset by [imm]. *)
+| Auipcc (dst: RegName) (imm: Z).
 
 Global Instance instr_eq_dec : EqDecision instr.
 Proof. solve_decision. Defined.
@@ -77,6 +79,7 @@ Proof.
       | Jalr dst src => GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))]
       | GetTag dst src => GenNode 30 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))]
       | ClearTag dst src => GenNode 31 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))]
+      | Auipcc dst imm => GenNode 32 [GenLeaf (inl (inl dst)); GenLeaf (inr (inl imm))]
       end).
   set (dec := fun e =>
       match e with
@@ -114,6 +117,7 @@ Proof.
       | GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))] => Jalr dst src
       | GenNode 30 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))] => GetTag dst src
       | GenNode 31 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))] => ClearTag dst src
+      | GenNode 32 [GenLeaf (inl (inl dst)); GenLeaf (inr (inl imm))] => Auipcc dst imm
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).

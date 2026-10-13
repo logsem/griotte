@@ -71,7 +71,8 @@ Module Asm_Griotte.
   | Fail
   | Halt
   | GetTag (dst src: RegName)
-  | ClearTag (dst src: RegName).
+  | ClearTag (dst src: RegName)
+  | Auipcc (dst: RegName) (imm: asm_expr).
 
   Inductive asm_code : Type :=
   | ASM_Label (s : string)
@@ -223,6 +224,9 @@ Module Asm_Griotte.
         Some (Fail)
     | Halt=>
         Some (Halt)
+    | Auipcc dst imm =>
+        off ← eval_asm_expr imm env current_n;
+        Some (Auipcc dst (Asm_z off))
     end.
 
   Definition resolve_labels_aux
@@ -376,6 +380,9 @@ Module Asm_Griotte.
         Some (machine_instructions.Fail)
     | Halt=>
         Some (machine_instructions.Halt)
+    | Auipcc dst imm =>
+        off ← eval_asm_expr imm env 0;
+        Some (machine_instructions.Auipcc dst off)
     end.
 
   Definition assemble_aux (l: list asm_code) (env : gmap string nat) : option (list instr) :=
@@ -425,7 +432,6 @@ Module Asm_Griotte.
    *)
   Definition revert_regs (r : RegName) : RegName :=
     match r with
-    | PC => PC
     | registers.R n H =>
         match n with
         | 0 => cnull
@@ -444,22 +450,6 @@ Module Asm_Griotte.
         | 13 => ca3
         | 14 => ca4
         | 15 => ca5
-        | 16 => ca6
-        | 17 => ca7
-        | 18 => cs2
-        | 19 => cs3
-        | 20 => cs4
-        | 21 => cs5
-        | 22 => cs6
-        | 23 => cs7
-        | 24 => cs8
-        | 25 => cs9
-        | 26 => cs10
-        | 27 => cs11
-        | 28 => ct3
-        | 29 => ct4
-        | 30 => ct5
-        | 31 => ct6
         | _ => registers.R n H
         end
     end.
@@ -604,6 +594,9 @@ Module Asm_Griotte.
         (machine_instructions.Fail)
     | machine_instructions.Halt=>
         (machine_instructions.Halt)
+    | machine_instructions.Auipcc dst imm =>
+        let dst := revert_regs dst in
+        (machine_instructions.Auipcc dst imm)
     end.
 
   Definition revert_regs_code (assembled_code : list instr) : list instr :=
@@ -662,6 +655,9 @@ Module Asm_Griotte.
   Definition getl dst src := (ASM_Instr (GetL dst src)).
   Definition gettag dst src := (ASM_Instr (GetTag dst src)).
   Definition cleartag dst src := (ASM_Instr (ClearTag dst src)).
+  (** [auipcc dst imm]: [dst] receives the PC with its address offset by
+      [imm]. Label expressions resolve as the other immediates. *)
+  Definition auipcc dst imm := (ASM_Instr (Auipcc dst imm)).
   Definition getwtype dst src := (ASM_Instr (GetWType dst src)).
   Definition getotype dst src := (ASM_Instr (GetOType dst src)).
   Definition seal dst r1 r2 := (ASM_Instr (Seal dst r1 r2)).

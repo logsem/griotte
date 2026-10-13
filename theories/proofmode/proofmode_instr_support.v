@@ -6,7 +6,7 @@ From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
 (* Normalize proved register aliases before choosing an explicit-resource rule.
-   Prefer PC/cnull as representatives and never decide an unknown equality. *)
+   Prefer cnull as a representative and never decide an unknown equality. *)
 Ltac instr_normalize_register_aliases :=
   repeat match goal with
   | H : @eq RegName ?r1 ?r2 |- _ =>
@@ -23,7 +23,7 @@ Ltac instr_normalize_register_aliases :=
         end)
   end.
 
-(* Operand aliases share one owned entry, including PC and cnull. Reading
+(* Operand aliases share one owned entry, including cnull. Reading
    cnull still requires its physical register resource. *)
 (* Distinct full-ownership hypotheses already imply distinct registers. The
    explicit-resource rule proves this fact internally when consuming them. *)
@@ -69,11 +69,7 @@ Ltac instr_register_words rs :=
   | nil => constr:(@nil (RegName * LWord))
   | ?r :: ?rs =>
     let tail := instr_register_words rs in
-    let ispc := instr_same_register PC r in
-    let found := lazymatch ispc with
-      | true => constr:(true)
-      | false => instr_registers_contain tail r
-      end in
+    let found := instr_registers_contain tail r in
     lazymatch found with
     | true => tail
     | false => match goal with
@@ -96,16 +92,16 @@ Ltac instr_argument_registers arg rest :=
 Ltac instr_failure_registers instr :=
   let instr := eval cbv [regn cst] in instr in
   let rs := lazymatch instr with
-    | Lea ?dst ?src => instr_argument_registers src constr:([PC; dst])
-    | Restrict ?dst ?src => instr_argument_registers src constr:([PC; dst])
+    | Lea ?dst ?src => instr_argument_registers src constr:([dst])
+    | Restrict ?dst ?src => instr_argument_registers src constr:([dst])
     | Subseg ?dst ?s1 ?s2 =>
-      let rest := instr_argument_registers s2 constr:([PC; dst]) in
+      let rest := instr_argument_registers s2 constr:([dst]) in
       instr_argument_registers s1 rest
-    | Seal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
-    | UnSeal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
-    | CLoad ?dst ?src _ => constr:([PC; dst; src])
-    | Store ?dst ?src _ => instr_argument_registers src constr:([PC; dst])
-    | _ => eval vm_compute in (elements ({[PC]} ∪ regs_of instr))
+    | Seal ?dst ?s1 ?s2 => constr:([dst; s1; s2])
+    | UnSeal ?dst ?s1 ?s2 => constr:([dst; s1; s2])
+    | CLoad ?dst ?src _ => constr:([dst; src])
+    | Store ?dst ?src _ => instr_argument_registers src constr:([dst])
+    | _ => eval vm_compute in (elements (regs_of instr))
     end in
   instr_register_words rs.
 

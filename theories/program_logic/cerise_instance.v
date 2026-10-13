@@ -1,6 +1,7 @@
 From iris.base_logic Require Export invariants na_invariants gen_heap ghost_map ghost_var.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
+From iris.algebra Require Import excl_auth.
 From griotte Require Import griotte_lang entry.
 From griotte Require Export logical_words alloc_registry erasure.
 
@@ -13,14 +14,67 @@ Class cerise_na_invs Σ :=
     cerise_nais : na_inv_pool_name;
   }.
 
-(* CMRA for Cerise. Registers and memory hold logical words; system registers
-   hold identifier-less words. *)
+(** The logical PC: a single exclusive value, whose authoritative part is in
+    the state interpretation. The PC is not a general register. *)
+Definition pcUR := excl_authUR (leibnizO LWord).
+
+Class pcG Σ := PcG {
+  pc_inG :: inG Σ pcUR;
+  pc_name : gname;
+}.
+
+Class pcGpreS Σ := { pc_preG_inG :: inG Σ pcUR }.
+Definition pcΣ : gFunctors := #[GFunctor pcUR].
+Global Instance subG_pcGpreS {Σ} : subG pcΣ Σ → pcGpreS Σ.
+Proof. solve_inG. Qed.
+
+Section pc_resource.
+  Context `{!pcG Σ}.
+
+  Definition PC_auth (lpc : LWord) : iProp Σ := own pc_name (●E (lpc : leibnizO LWord)).
+  Definition PC_frag (lpc : LWord) : iProp Σ := own pc_name (◯E (lpc : leibnizO LWord)).
+
+  Global Instance PC_auth_timeless lpc : Timeless (PC_auth lpc).
+  Proof. apply _. Qed.
+  Global Instance PC_frag_timeless lpc : Timeless (PC_frag lpc).
+  Proof. apply _. Qed.
+
+  Lemma PC_agree lpc lpc' : PC_auth lpc -∗ PC_frag lpc' -∗ ⌜lpc = lpc'⌝.
+  Proof.
+    iIntros "Ha Hf". iCombine "Ha Hf" gives %Hv.
+    by apply excl_auth_agree_L in Hv.
+  Qed.
+
+  Lemma PC_update lpc lpc' lpc'' : PC_auth lpc -∗ PC_frag lpc' ==∗ PC_auth lpc'' ∗ PC_frag lpc''.
+  Proof.
+    iIntros "Ha Hf". iMod (own_update_2 with "Ha Hf") as "[$ $]"; last done.
+    apply excl_auth_update.
+  Qed.
+
+  Lemma PC_frag_excl lpc lpc' : PC_frag lpc -∗ PC_frag lpc' -∗ False.
+  Proof.
+    iIntros "H1 H2". iCombine "H1 H2" gives %Hv.
+    by apply excl_auth_frag_op_valid in Hv.
+  Qed.
+End pc_resource.
+
+Lemma PC_init `{!pcGpreS Σ} (lpc : LWord) :
+  ⊢ |==> ∃ (pg : pcG Σ), PC_auth lpc ∗ PC_frag lpc.
+Proof.
+  iMod (own_alloc (●E (lpc : leibnizO LWord) ⋅ ◯E (lpc : leibnizO LWord))) as (γ) "[Ha Hf]".
+  { apply excl_auth_valid. }
+  iModIntro. iExists (PcG _ _ γ). iFrame.
+Qed.
+
+(* CMRA for Cerise. The PC, registers and memory hold logical words; system
+   registers hold identifier-less words. *)
 Class ceriseG Σ :=
   CeriseG {
       cerise_invG : invGS Σ;
       cerise_nainvG :: cerise_na_invs Σ;
       mem_gen_memG :: gen_heapGS Addr LWord Σ; (* memory *)
       shadowtbl_gen_regG :: gen_heapGS Addr AllocStatus Σ; (* shadow table *)
+      cerise_pcG :: pcG Σ; (* PC *)
       reg_gen_regG :: gen_heapGS RegName LWord Σ; (* register *)
       sreg_gen_regG :: gen_heapGS SRegName Word Σ; (* system register *)
       entryG :: entryGS Σ; (* entry point *)
@@ -28,21 +82,23 @@ Class ceriseG Σ :=
       cerise_addr_allocG :: addrAllocG Σ (* address claims *)
     }.
 
-(** The state interpretation: the logical registers and memory, the physical
-    system registers and shadow table, the registry and the address claims,
-    related to the machine state by erasure. *)
+(** The state interpretation: the logical PC, registers and memory, the
+    physical system registers and shadow table, the registry and the address
+    claims, related to the machine state by erasure. *)
 Section state_interp.
   Context `{MP : MachineParameters}.
-  Context `{!gen_heapGS RegName LWord Σ, !gen_heapGS SRegName Word Σ,
+  Context `{!pcG Σ,
+            !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName Word Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ}.
 
   Definition cerise_state_interp (σ : ExecConf) : iProp Σ :=
-    ∃ (lreg : LReg) (lmem : LMem) (R : RegState) (C : gmap Addr AddrClaim),
+    ∃ (lpc : LWord) (lreg : LReg) (lmem : LMem) (R : RegState) (C : gmap Addr AddrClaim),
+      PC_auth lpc ∗
       gen_heap_interp lreg ∗ gen_heap_interp (sreg σ) ∗
       gen_heap_interp lmem ∗ gen_heap_interp (shadowtbl σ) ∗
       reg_auth R ∗ addr_alloc_auth C ∗
-      ⌜erasure R C σ lreg lmem⌝.
+      ⌜erasure R C σ lpc lreg lmem⌝.
 
   Global Instance cerise_state_interp_timeless σ : Timeless (cerise_state_interp σ).
   Proof. apply _. Qed.
@@ -56,6 +112,9 @@ Global Instance memG_irisG `{MachineParameters} `{!ceriseG Σ} : irisGS griotte_
   num_laters_per_step _ := 0;
   state_interp_mono _ _ _ _ := fupd_intro _ _
 }.
+
+(* Points to predicate for the PC *)
+Notation "'PC' ↦ₚ w" := (PC_frag w) (at level 20, format "'PC'  ↦ₚ  w") : bi_scope.
 
 (* Points to predicates for registers *)
 Notation "r ↦ᵣ{ q } w" := (pointsto (L:=RegName) (V:=LWord) r q w)
@@ -93,6 +152,7 @@ Notation "a ↦ₛ -" := (∃ b, pointsto (L:=Addr) (V:=AllocStatus) a (DfracOwn
 Class ceriseGpreS Σ := {
   cerise_preG_mem :: gen_heapGpreS Addr LWord Σ;
   cerise_preG_shadow :: gen_heapGpreS Addr AllocStatus Σ;
+  cerise_preG_pc :: pcGpreS Σ;
   cerise_preG_reg :: gen_heapGpreS RegName LWord Σ;
   cerise_preG_sreg :: gen_heapGpreS SRegName Word Σ;
   cerise_preG_registry :: allocRegistryPreG Σ;
@@ -100,7 +160,7 @@ Class ceriseGpreS Σ := {
 }.
 
 Definition ceriseGpreΣ : gFunctors :=
-  #[gen_heapΣ Addr LWord; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName LWord;
+  #[gen_heapΣ Addr LWord; gen_heapΣ Addr AllocStatus; pcΣ; gen_heapΣ RegName LWord;
     gen_heapΣ SRegName Word; allocRegistryΣ; addrAllocΣ].
 
 Global Instance subG_ceriseGpreS {Σ} : subG ceriseGpreΣ Σ → ceriseGpreS Σ.
@@ -131,6 +191,7 @@ Section ghost_init.
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
     gi_shadow a : is_heap_address a = true → is_Some (shadowtbl σ !! a);
     gi_mem a w b : mem σ !! a = Some w → get_tag w = true → heap_authority_base w = Some b → b ∈ H;
+    gi_pc b : get_tag (pcc σ) = true → heap_authority_base (pcc σ) = Some b → b ∈ H;
     gi_regs r w b : r ≠ cnull → reg σ !! r = Some w → get_tag w = true →
                     heap_authority_base w = Some b → b ∈ H;
     gi_sregs sr w b : sreg σ !! sr = Some w → get_tag w = true →
@@ -162,7 +223,7 @@ Section ghost_init.
 
   Lemma init_erasure σ H :
     ghost_init_cond σ H →
-    erasure ∅ (init_claims H) σ (init_lregs (reg σ)) (init_lmem (mem σ)).
+    erasure ∅ (init_claims H) σ (lword_of_word (pcc σ)) (init_lregs (reg σ)) (init_lmem (mem σ)).
   Proof.
     intros Hinit.
     assert (∀ w, (∀ b, get_tag w = true → heap_authority_base w = Some b → b ∈ H) →
@@ -201,19 +262,23 @@ Section ghost_init.
       injection Hv as <-.
       apply (reg_word_ok_mem _ _ (lword_of_word pw)), Hok. intros b. eapply gi_mem; eauto.
     - apply Hinit.
+    - done.
+    - apply Hok. intros b. by apply gi_pc.
   Qed.
 
   Context `{!ceriseGpreS Σ}.
 
   (** The generic ghost initialisation of every adequacy theorem. It returns
-      the state interpretation, the logical register, system register, memory
-      and shadow points-to, and the address claims. *)
+      the state interpretation, the logical PC, register, system register,
+      memory and shadow points-to, and the address claims. *)
   Lemma cerise_ghost_init σ H :
     ghost_init_cond σ H →
     ⊢ |==> ∃ (mg : gen_heapGS Addr LWord Σ) (sg : gen_heapGS Addr AllocStatus Σ)
+             (pg : pcG Σ)
              (rg : gen_heapGS RegName LWord Σ) (srg : gen_heapGS SRegName Word Σ)
              (regg : allocRegistryG Σ) (ag : addrAllocG Σ),
       cerise_state_interp σ ∗
+      PC ↦ₚ lword_of_word (pcc σ) ∗
       ([∗ map] r ↦ w ∈ init_lregs (reg σ), r ↦ᵣ w) ∗
       ([∗ map] sr ↦ w ∈ sreg σ, sr ↦ₛᵣ w) ∗
       ([∗ map] a ↦ w ∈ init_lmem (mem σ), a ↦ₐ w) ∗
@@ -221,13 +286,14 @@ Section ghost_init.
       ([∗ map] a ↦ c ∈ init_claims H, addr_alloc a c).
   Proof.
     iIntros (Hinit).
+    iMod (PC_init (lword_of_word (pcc σ))) as (pg) "[Hpc Hpcs]".
     iMod (gen_heap_init (init_lregs (reg σ))) as (rg) "(Hr & Hrs & _)".
     iMod (gen_heap_init (sreg σ)) as (srg) "(Hsr & Hsrs & _)".
     iMod (gen_heap_init (init_lmem (mem σ))) as (mg) "(Hm & Hms & _)".
     iMod (gen_heap_init (shadowtbl σ)) as (sg) "(Hst & Hsts & _)".
     iMod registry_init as (regg) "HR".
     iMod (addr_alloc_init (init_claims H)) as (ag) "[HC HCs]".
-    iModIntro. iExists mg, sg, rg, srg, regg, ag. iFrame.
+    iModIntro. iExists mg, sg, pg, rg, srg, regg, ag. iFrame.
     iPureIntro. by apply init_erasure.
   Qed.
 

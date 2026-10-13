@@ -40,10 +40,7 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
     | (Failed, _) => Some Failed
     | (Halted, _) => Some Halted
     | (NextI, φ) => machine_run fuel (Executable, φ)
-    | (Executable, (r, sr, m, st)) =>
-      match r !! PC with
-      | None => Some Failed
-      | Some pc =>
+    | (Executable, (pc, r, sr, m, st)) =>
         if isCorrectPCb pc
         then (
             let a := match pc with
@@ -60,13 +57,12 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
             | None => Some Failed
             | Some wa =>
                 let i := decodeInstrW wa in
-                let c' := exec i p (r, sr, m, st) in
+                let c' := exec i p (pc, r, sr, m, st) in
                 machine_run fuel (c'.1,  c'.2)
             end
           ) else (
           Some Failed
         )
-      end
     end
   end.
 
@@ -77,19 +73,9 @@ Lemma machine_run_correct `{MachineParameters} fuel cf (φ: ExecConf) cf':
             ([Instr cf'], φ').
 Proof.
   revert cf cf' φ. induction fuel; first (cbn; done).
-  cbn. intros ? ? [[[r sr] m] st] Hc.
+  cbn. intros ? ? [[[[wpc r] sr] m] st] Hc.
   destruct cf; simplify_eq.
-  - destruct (r !! PC) as [wpc | ] eqn:HePC; cycle 1.
-    + eexists. eapply rtc_l.
-      * unfold erased_step. exists [].
-        eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-        eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-        constructor. constructor; auto.
-      * eapply rtc_once. exists []. simplify_eq.
-        eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-        eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-        constructor.
-    + destruct (isCorrectPCb wpc) eqn:HPC.
+  - destruct (isCorrectPCb wpc) eqn:HPC.
       * apply isCorrectPCb_isCorrectPC in HPC.
         destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC]. destruct sb as [t p g b e a | ]; last by inversion HPC.
         destruct t; last by inversion HPC.

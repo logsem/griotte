@@ -92,9 +92,10 @@ Section griotte_lang.
     prim_step e1 σ1 κ' e2' σ2' efs' →
     κ = κ' ∧ e2 = e2' ∧ σ2 = σ2' ∧ efs = efs'.
   Proof.
-    intros Hs1 Hs2. inv Hs1; inv Hs2.
-    all: repeat match goal with HH : step _ _ |- _ => inv HH end; try congruence.
-    all: auto.
+    intros Hs1 Hs2. inv Hs1; inv Hs2; auto.
+    match goal with H1 : step _ _, H2 : step _ _ |- _ =>
+      destruct (step_deterministic _ _ _ _ _ _ H1 H2) as [-> ->] end.
+    auto.
   Qed.
 
   Lemma fill_item_val Ki e :

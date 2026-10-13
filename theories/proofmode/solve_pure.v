@@ -218,9 +218,9 @@ Ltac2 solve_pure_iinstr () :=
 
 (* Tests *)
 
-Goal forall (r_t1 PC: RegName) `{MachineParameters}, exists r1 r2,
-  decodeInstrW (encodeInstrW (Mov r_t1 PC)) = Mov r1 r2 ∧
-  r1 = r_t1 ∧ r2 = inr PC.
+Goal forall (r_t1 r_t2: RegName) `{MachineParameters}, exists r1 r2,
+  decodeInstrW (encodeInstrW (Mov r_t1 r_t2)) = Mov r1 r2 ∧
+  r1 = r_t1 ∧ r2 = inr r_t2.
 Proof. do 2 eexists. repeat apply conj; first solve_pure. all: reflexivity. Qed.
 
 Goal forall p g b e a,

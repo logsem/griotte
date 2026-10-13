@@ -85,12 +85,12 @@ Ltac instr_normalize_lwords := try (unfold lword_of_word).
 (* Ltac specifically meant for switching to the next block. Use `changePCto` to perform more arbitrary moves *)
 Ltac changePC_next_block new_a :=
   instr_normalize_lwords;
-  match goal with |- context [ Esnoc _ _ (PC ↦ᵣ (WCap _ _ _ _ _ ?prev_a) @@? _)%I ] =>
+  match goal with |- context [ Esnoc _ _ (PC ↦ₚ (WCap _ _ _ _ _ ?prev_a) @@? _)%I ] =>
                     rewrite (_: prev_a = new_a) ; [ | solve_block_move  ] end.
 (* More powerful ltac to change the address of the pc. Might take longer to solve than the more specific alternative above.*)
 Ltac changePCto0 new_a :=
   instr_normalize_lwords;
-  match goal with |- context [ Esnoc _ _ (PC ↦ᵣ (WCap _ _ _ _ _ ?a) @@? _)%I ] =>
+  match goal with |- context [ Esnoc _ _ (PC ↦ₚ (WCap _ _ _ _ _ ?a) @@? _)%I ] =>
     rewrite (_: a = new_a); [| solve_addr]
   end.
 Tactic Notation "changePCto" constr(a) := changePCto0 a.
@@ -525,6 +525,10 @@ Instance FramableMachineResource_sreg `{ceriseG Σ} sr w :
   FramableMachineResource (sr ↦ₛᵣ w).
 Qed.
 
+Instance FramableMachineResource_pc `{ceriseG Σ} w :
+  FramableMachineResource (PC ↦ₚ w).
+Qed.
+
 Instance FramableMachineResource_reg `{ceriseG Σ} r w :
   FramableRegisterPointsto r w →
   FramableMachineResource (r ↦ᵣ w).
@@ -575,7 +579,7 @@ Qed.
 
 (* remembering names after auto-framing done by iFrameAuto *)
 
-Ltac2 Type hyp_table_kind := [ Reg | SReg | Mem | Codefrag | CodefragPers | Claim ].
+Ltac2 Type hyp_table_kind := [ PCReg | Reg | SReg | Mem | Codefrag | CodefragPers | Claim ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -597,6 +601,7 @@ Ltac2 record_framed
   let hname := if is_intuitionistic_hyp hname then '("_") else hname in
   let (lhs, kind) :=
     lazy_match! hh with
+    | (PC ↦ₚ _)%I => ('tt, PCReg)
     | (?r ↦ᵣ _)%I => (r, Reg)
     | (?sr ↦ₛᵣ _)%I => (sr, SReg)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
@@ -688,6 +693,11 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
       assert_constr_eq sr lhs;
       ltac1:(x sr name |- change (sr ↦ₛᵣ x)%I with (name ∷ (sr ↦ₛᵣ x))%I)
         (Ltac1.of_constr x) (Ltac1.of_constr sr) (Ltac1.of_constr name)
+    end
+  | PCReg =>
+    match! goal with [ |- context [ (PC ↦ₚ ?x)%I ] ] =>
+      ltac1:(x name |- change (PC ↦ₚ x)%I with (name ∷ (PC ↦ₚ x))%I)
+        (Ltac1.of_constr x) (Ltac1.of_constr name)
     end
   | Reg =>
     match! goal with [ |- context [ (?r ↦ᵣ ?x)%I ] ] =>
@@ -878,8 +888,8 @@ Proof. solve_addr. Qed.
    [lword_of_word] coercion. *)
 Ltac instr_pc_addr :=
   lazymatch goal with
-  | |- context [ Esnoc _ _ (PC ↦ᵣ ((WCap _ _ _ _ _ ?pc_a) @@? _))%I ] => pc_a
-  | |- context [ Esnoc _ _ (PC ↦ᵣ lword_of_word (WCap _ _ _ _ _ ?pc_a))%I ] => pc_a
+  | |- context [ Esnoc _ _ (PC ↦ₚ ((WCap _ _ _ _ _ ?pc_a) @@? _))%I ] => pc_a
+  | |- context [ Esnoc _ _ (PC ↦ₚ lword_of_word (WCap _ _ _ _ _ ?pc_a))%I ] => pc_a
   end.
 
 (* On persistent code, the instruction [hi] is a persistent points-to. [hi] is

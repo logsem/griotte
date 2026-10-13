@@ -7,20 +7,21 @@ From griotte Require Export stdpp_extra.
 (* No longer a coercion in Coq >= 8.14*)
 Local Coercion Z.of_nat : nat >-> Z.
 
-(* We assume a fixed set of registers *)
-Definition RegNum: nat := 31.
+(* We assume a fixed set of registers: the RV32E register file x0-x15 *)
+Definition RegNum: nat := 15.
 
 (* ---------------------------------- Registers ----------------------------------------*)
 
+(* The general registers. The PC is not one of them: it is a separate field
+   of the machine configuration, which no instruction operand can name. *)
 Inductive RegName: Type :=
-| PC
 | R (n: nat) (fin: n <=? RegNum = true).
 
 Inductive SRegName : Type :=
 | MTDC.
 
 Global Instance reg_eq_dec : EqDecision RegName.
-Proof. intros r1 r2.  destruct r1 as [| n fin ],r2 as [|n0 fin0]; [by left | by right | by right |].
+Proof. intros r1 r2.  destruct r1 as [n fin],r2 as [n0 fin0].
        destruct (Nat.eq_dec n n0).
        + subst n0. left.
          assert (forall (b: bool) (n m: nat) (P1 P2: n <=? m = b), P1 = P2) as H.
@@ -41,16 +42,14 @@ Defined.
 Global Instance reg_countable : Countable RegName.
 Proof.
   refine {| encode r := encode match r with
-                               | PC => inl ()
-                               | R n fin => inr n
+                               | R n fin => n
                                end ;
             decode n := match (decode n) with
-                        | Some (inl ()) => Some PC
-                        | Some (inr n) => n_to_regname n
+                        | Some n => n_to_regname n
                         | None => None
                         end ;
             decode_encode := _ |}.
-  intro r. destruct r as [|n fin]; auto.
+  intro r. destruct r as [n fin].
   rewrite decode_encode.
   unfold n_to_regname.
   destruct (Nat.le_dec n RegNum).
@@ -77,18 +76,17 @@ Defined.
 
 Global Instance reg_finite : finite.Finite RegName.
 Proof. apply (finite.enc_finite (λ r : RegName, match r with
-                                                | PC => S RegNum
                                                 | R n fin => n
                                                 end)
-                (λ n : nat, match n_to_regname n with | Some r => r | None => PC end)
-                (S (S RegNum))).
-       - intros x. destruct x as [| n fin];auto.
+                (λ n : nat, match n_to_regname n with | Some r => r | None => R 0 eq_refl end)
+                (S RegNum)).
+       - intros x. destruct x as [n fin].
          unfold n_to_regname.
          destruct (Nat.le_dec n RegNum).
          + do 2 f_equal. apply eq_proofs_unicity. decide equality.
          + exfalso. by apply (Nat.leb_le n RegNum) in fin.
        - intros x.
-         + destruct x as [|n fin];[lia|]. apply Nat.leb_le in fin. lia.
+         + destruct x as [n fin]. apply Nat.leb_le in fin. lia.
        - intros i Hlt. unfold n_to_regname.
          destruct (Nat.le_dec i RegNum);auto.
          lia.
@@ -108,14 +106,13 @@ Defined.
 (* TODO: separate the proof parts into lemmas *)
 
 Definition Z_of_regname (r: RegName): Z.
-  destruct r as [|n fin].
-  + exact 0%Z.
-  + exact (S n).
+  destruct r as [n fin].
+  exact (S n).
 Defined.
 
 Instance RegName_InjTyp : InjTyp RegName Z.
-  refine (mkinj _ _ Z_of_regname (fun n => n <= RegNum + 1)%Z _).
-  intros [|n fin]; cbn;first lia.
+  refine (mkinj _ _ Z_of_regname (fun n => 1 <= n <= RegNum + 1)%Z _).
+  intros [n fin]; cbn.
   apply Nat.leb_le in fin; lia.
 Defined.
 Add Zify InjTyp RegName_InjTyp.
@@ -124,7 +121,7 @@ Instance Op_RegName_eq : BinRel (@eq RegName).
   refine ({| TR := @eq Z; TRInj := _ |}).
   cbn. intros r1 r2. split.
   - intros ->; eauto.
-  - destruct r1; destruct r2; eauto; cbn; try apply Nat.leb_le in fin; try lia.
+  - destruct r1; destruct r2; cbn.
     intros ->%Nat2Z.inj%eq_add_S.
     f_equal. apply eq_proofs_unicity. intros [|] [|]; eauto.
 Defined.
@@ -142,24 +139,10 @@ Definition ctp : RegName := R 4 eq_refl.
 Definition ct0 : RegName := R 5 eq_refl.
 Definition ct1 : RegName := R 6 eq_refl.
 Definition ct2 : RegName := R 7 eq_refl.
-Definition ct3 : RegName := R 28 eq_refl.
-Definition ct4 : RegName := R 29 eq_refl.
-Definition ct5 : RegName := R 30 eq_refl.
-Definition ct6 : RegName := R 31 eq_refl.
 
 (* other temporary registers *)
 Definition cs0  : RegName := R 8 eq_refl.  (* also aliased cfp *)
 Definition cs1  : RegName := R 9 eq_refl.
-Definition cs2  : RegName := R 18 eq_refl.
-Definition cs3  : RegName := R 19 eq_refl.
-Definition cs4  : RegName := R 20 eq_refl.
-Definition cs5  : RegName := R 21 eq_refl.
-Definition cs6  : RegName := R 22 eq_refl.
-Definition cs7  : RegName := R 23 eq_refl.
-Definition cs8  : RegName := R 24 eq_refl.
-Definition cs9  : RegName := R 25 eq_refl.
-Definition cs10 : RegName := R 26 eq_refl.
-Definition cs11 : RegName := R 27 eq_refl.
 
 (* argument registers *)
 Definition ca0 : RegName := R 10 eq_refl.
@@ -168,8 +151,6 @@ Definition ca2 : RegName := R 12 eq_refl.
 Definition ca3 : RegName := R 13 eq_refl.
 Definition ca4 : RegName := R 14 eq_refl.
 Definition ca5 : RegName := R 15 eq_refl.
-Definition ca6 : RegName := R 16 eq_refl.
-Definition ca7 : RegName := R 17 eq_refl.
 
 Notation mtdc  := MTDC.
 
@@ -185,33 +166,16 @@ Definition all_registers : list RegName :=
     ct0 ;
     ct1 ;
     ct2 ;
-    ct3 ;
-    ct4 ;
-    ct5 ;
-    ct6 ;
     (* other temporary registers *)
     cs0  ;  (* also aliased cfp *)
     cs1  ;
-    cs2  ;
-    cs3  ;
-    cs4  ;
-    cs5  ;
-    cs6  ;
-    cs7  ;
-    cs8  ;
-    cs9  ;
-    cs10 ;
-    cs11 ;
     (* argument registers *)
     ca0 ;
     ca1 ;
     ca2 ;
     ca3 ;
     ca4 ;
-    ca5 ;
-    ca6 ;
-    ca7 ;
-    PC
+    ca5
   ].
 
 (* Set of all registers *)
@@ -233,8 +197,7 @@ Qed.
 Lemma all_registers_correct r1 :
   r1 ∈ all_registers.
 Proof.
-  set ( all_registers' := [cnull; cra; csp; cgp; ctp; ct0; ct1; ct2; cs0; cs1; ca0; ca1; ca2; ca3; ca4; ca5; ca6; ca7;
-        cs2; cs3; cs4; cs5; cs6; cs7; cs8; cs9; cs10; cs11; ct3; ct4; ct5; ct6; PC]).
+  set ( all_registers' := [cnull; cra; csp; cgp; ctp; ct0; ct1; ct2; cs0; cs1; ca0; ca1; ca2; ca3; ca4; ca5]).
   assert (elements ((list_to_set all_registers) : gset RegName) ≡ₚ elements ((list_to_set all_registers') : gset RegName)).
   { set_solver. }
   setoid_rewrite elements_list_to_set in H; cycle 1.
@@ -247,17 +210,15 @@ Proof.
     by apply NoDup_nil.
   }
   setoid_rewrite H.
-  destruct r1 as [|n fin].
-  - do 32 (apply elem_of_cons; right).
-      by apply list_elem_of_singleton.
-  - induction n as [|n IHn].
-    + apply elem_of_cons; left.
-      apply f_equal. apply eq_proofs_unicity. decide equality.
-    + apply list_elem_of_lookup_2 with (S n).
-      repeat (destruct n as [|n];
-                first (simpl;do 2 f_equal;apply eq_proofs_unicity;decide equality)).
-      cbn.
-      simpl in *. inversion fin.
+  destruct r1 as [n fin].
+  induction n as [|n IHn].
+  + apply elem_of_cons; left.
+    apply f_equal. apply eq_proofs_unicity. decide equality.
+  + apply list_elem_of_lookup_2 with (S n).
+    repeat (destruct n as [|n];
+              first (simpl;do 2 f_equal;apply eq_proofs_unicity;decide equality)).
+    cbn.
+    simpl in *. inversion fin.
 Qed.
 
 Lemma all_registers_s_correct r:
@@ -299,5 +260,4 @@ Proof.
   rewrite elem_of_subseteq. intros ? _. apply all_registers_s_correct.
 Qed.
 
-Global Opaque cnull cra csp cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5 ca6 ca7
-        cs2 cs3 cs4 cs5 cs6 cs7 cs8 cs9 cs10 cs11 ct3 ct4 ct5 ct6.
+Global Opaque cnull cra csp cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5.
