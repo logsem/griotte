@@ -5,8 +5,8 @@ Section Check_No_Overlap.
   Local Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
-  Definition check_no_overlap_asm_pre (rsrc1 rsrc2 r1 r2 : RegName) : list asm_code :=
-      [
+  Definition check_no_overlap_asm (rsrc1 rsrc2 r1 r2 : RegName) : list asm_code :=
+      macro: [
         getb r1 rsrc1; (* r1 := b1 *)
         getb r2 rsrc2; (* r2 := b2 *)
         lt r1 r1 r2;   (* r2 := (if b1 < b2 then 1 else 0) *)
@@ -38,13 +38,11 @@ Section Check_No_Overlap.
         mov r1 0;
         mov r2 0
         ].
-
-  Definition check_no_overlap_asm_env :=
-    Eval vm_compute in (compute_asm_code_env (check_no_overlap_asm_pre cnull cnull cnull cnull)).2.
-  Definition check_no_overlap_asm ( rsrc1 rsrc2 r1 r2 : RegName) :=
-    Eval compute in resolve_labels_macros (check_no_overlap_asm_pre rsrc1 rsrc2 r1 r2) check_no_overlap_asm_env.
   Definition check_no_overlap (rsrc1 rsrc2 r1 r2 : RegName) : list instr :=
     Eval compute in assemble (check_no_overlap_asm rsrc1 rsrc2 r1 r2).
+  Lemma check_no_overlap_assembles (rsrc1 rsrc2 r1 r2 : RegName) :
+    asm_ok (assemble_check (check_no_overlap_asm rsrc1 rsrc2 r1 r2)).
+  Proof. asm_check. Qed.
   Definition check_no_overlap_instrs (rsrc1 rsrc2 r1 r2 : RegName) : list Word :=
     encodeInstrsW (check_no_overlap rsrc1 rsrc2 r1 r2).
 

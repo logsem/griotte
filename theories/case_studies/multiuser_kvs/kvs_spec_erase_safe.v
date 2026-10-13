@@ -193,7 +193,7 @@ Section KVS_spec_erase.
       pose proof KVS_size_imports as Himports.
       pose proof KVS_size_code as Hcode.
       rewrite /kvs_service_instrs !length_app in Hcode.
-      rewrite /kvs_erase_pcc_off; solve_addr.
+      rewrite kvs_erase_pcc_off_eq; solve_addr.
     }
     iSplit.
     { iPureIntro. eapply disjoint_from_shadow_not_in.

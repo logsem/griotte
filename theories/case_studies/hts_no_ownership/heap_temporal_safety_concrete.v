@@ -40,7 +40,7 @@ Definition hts_shadow_region : ShadowRegion :=
 (** The concrete adversary counts calls. Its imports remain exactly those
     allowed by general adequacy; it does not need an assert entry point. *)
 (* The explicit assembly injectors below avoid ambiguous sum coercions. *)
-#[warning="-ambiguous-paths"] Import Asm_Griotte.
+Import Asm_Griotte.
 Definition hts_adv_asm : list (list Asm_Griotte.asm_code) :=
   let first := ".hts_first" in
   let second := ".hts_second" in
@@ -63,6 +63,9 @@ Import machine_instructions.
 
 Definition hts_adv_code : list Word :=
   concat (encodeInstrsW <$> Asm_Griotte.assemble_block hts_adv_asm).
+Lemma hts_adv_assembles :
+  Asm_Griotte.asm_ok (Asm_Griotte.assemble_block_check hts_adv_asm).
+Proof. asm_check. Qed.
 Definition hts_adv_data : list Word := [WInt 0; WInt 0; WInt (-1)].
 
 (** Regions are adjacent, with boundaries derived from the actual code.

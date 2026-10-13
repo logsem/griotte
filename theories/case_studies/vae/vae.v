@@ -31,44 +31,58 @@ Section VAE_Main.
         #@".Limport_B_adv";
 
         (* set a := 0 *)
+        #".Lvae_init";
         store cgp 0
       ];
       (* call B.adv VAE.awkward *)
+      #".Lvae_init_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      #".Lvae_init_fetch_adv" ::
       fetch_asm ".Limport_B_adv" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
-      [ jalr cra ct0; (* jmp to entry point *)
+      [ #".Lvae_init_call";
+        jalr cra ct0; (* jmp to entry point *)
+        #".Lvae_init_halt";
         halt
       ];
       (* awkward *)
       (* set a := 0 *)
-      [ store cgp 0 ];
+      [ #".Lvae_awkward";
+        store cgp 0 ];
       (* call g () *)
+      #".Lvae_awkward_fetch_switcher_1" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
-      [ mov cs0 cra; (* cs0 -> return-to-switcher *)
+      [ #".Lvae_awkward_call_1";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         mov cs1 ca0; (* cs1 -> fun_g *)
         mov ct1 ca0; (* ct1 -> fun_g *)
         mov ca0 0;
         jalr cra ct0 (* jmp to g *)
       ];
       (* set a := 1 *)
-      [ store cgp 1;
+      [ #".Lvae_awkward_set_one";
+        store cgp 1;
         mov cra cs0; (* cra -> return_to-switcher *)
         mov ct1 cs1  (* ct1 -> fun_g *)
       ];
       (* call g () *)
+      #".Lvae_awkward_fetch_switcher_2" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
-      [ mov cs0 cra; (* cs0 -> return-to-switcher *)
+      [ #".Lvae_awkward_call_2";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         mov ca0 0;
         mov ca1 0;
         jalr cra ct0; (* jmp to arg_1 *)
 
         (* assert (a == 1) *)
+        #".Lvae_awkward_check";
         load ct0 cgp; (* ct0 -> a *)
         mov ct1 1  (* ct1 -> 1 *)
       ];
+      #".Lvae_awkward_assert" ::
       assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
       (* return cra *)
-      [ mov cra cs0; (* cra -> return_to-switcher *)
+      [ #".Lvae_awkward_return";
+        mov cra cs0; (* cra -> return_to-switcher *)
 
         (* return a *)
         mov ca0 0;
@@ -77,10 +91,10 @@ Section VAE_Main.
       ]
     ].
 
-  Definition vae_main_assembled' :=
-    Eval vm_compute in assemble_block vae_main_asm.
   Definition vae_main_assembled :=
-    Eval cbv in revert_regs_code_block vae_main_assembled'.
+    Eval compute in assemble_block vae_main_asm.
+  Lemma vae_main_assembles : asm_ok (assemble_block_check vae_main_asm).
+  Proof. asm_check. Qed.
   Definition vae_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (vae_main_assembled !! n)).
 
@@ -173,11 +187,13 @@ Section vae_C_code.
       ret ].
 
   Definition vae_C_instrs : list instr :=
-    Eval vm_compute in concat (assemble_block [vae_C_asm]).
+    Eval compute in assemble vae_C_asm.
+  Lemma vae_C_assembles : asm_ok (assemble_check vae_C_asm).
+  Proof. asm_check. Qed.
 
   (** The offsets of the two entry points from the start of the PCC. *)
   Definition vae_C_adv_entry : nat :=
-    Eval vm_compute in default 0%nat ((compute_asm_code_env vae_C_asm).2 !! "adv_entry").
+    Eval vm_compute in label_offset vae_C_asm "adv_entry".
   Definition vae_C_g_entry : nat :=
-    Eval vm_compute in default 0%nat ((compute_asm_code_env vae_C_asm).2 !! "g_entry").
+    Eval vm_compute in label_offset vae_C_asm "g_entry".
 End vae_C_code.

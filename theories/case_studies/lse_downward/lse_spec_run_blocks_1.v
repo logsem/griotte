@@ -42,7 +42,7 @@ Section LSE_Run_Blocks_1.
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ lse_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ lse_instr_offset 3 1)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_run_halt")%a ∗
         cgp_b ↦ₐ WInt 2 ∗
         pc_b ↦ₐ□ lse_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
@@ -66,7 +66,7 @@ Section LSE_Run_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 1: fetch the entry point of the switcher *)
-    focus_block 1 "Hcode_main" of lse_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
+    focus_block (lse_block ".Llse_run_fetch_switcher") "Hcode_main" of lse_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _ lse_switcher_entry
               with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap.
@@ -79,7 +79,7 @@ Section LSE_Run_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 2: fetch the entry point of [C_f] *)
-    focus_block 2 "Hcode_main" of lse_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
+    focus_block (lse_block ".Llse_run_fetch_adv") "Hcode_main" of lse_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hcode $Himport_C_f]"); eauto.
     { offsets_compute; solve_addr. }
@@ -89,12 +89,12 @@ Section LSE_Run_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 3: jump to the switcher *)
-    focus_block 3 "Hcode_main" of lse_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
+    focus_block (lse_block ".Llse_run_call") "Hcode_main" of lse_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 1)%a = (pc_a ^+ lse_instr_offset 3 1)%a) as ->
+    assert ((a_call ^+ 1)%a = (pc_a ^+ lse_label_offset ".Llse_run_halt")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

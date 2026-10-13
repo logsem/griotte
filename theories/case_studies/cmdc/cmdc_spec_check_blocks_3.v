@@ -19,17 +19,18 @@ Section CMDC_Check_Blocks_3.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
-  (** The proof of [cmdc_check_blocks_3_spec], for the call starting at
-      block [n]: the code of the two calls only differs by the asserted
-      value. *)
-  Local Ltac cmdc_check_blocks_proof n pc_a :=
+  (** The proof of [cmdc_check_blocks_3_spec], for the call that returns
+      at the label [l_ret], followed by the assertion at [l_assert] and by
+      the code at [l_next]: the code of the two calls only differs by the
+      asserted value. *)
+  Local Ltac cmdc_check_blocks_proof l_ret l_assert l_next pc_a :=
     let hcont := fresh "hcont" in
     let a_call := fresh "a_call" in
     let a_assert := fresh "a_assert" in
     let Ha_call := fresh "Ha_call" in
     let Ha_assert := fresh "Ha_assert" in
-    (* Block n+2: return from the call *)
-    focus_block (S (S n)) "Hcode_main" of cmdc_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont";
+    (* Return from the call *)
+    focus_block (cmdc_block l_ret) "Hcode_main" of cmdc_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     change_pc_to (a_call ^+ 1)%a;
     (* CLoad ct0 cgp 0 *)
@@ -39,8 +40,8 @@ Section CMDC_Check_Blocks_3.
     iInstr "Hcode";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
 
-    (* Block n+3: assert that the data is unchanged *)
-    focus_block (S (S (S n))) "Hcode_main" of cmdc_main_blocks at pc_a
+    (* Assert that the data is unchanged *)
+    focus_block (cmdc_block l_assert) "Hcode_main" of cmdc_main_blocks at pc_a
       as a_assert Ha_assert "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     iApply (assert_success_spec 1 with
@@ -50,19 +51,18 @@ Section CMDC_Check_Blocks_3.
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
                     & _ & Himport_assert)";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
-    change_pc_to (pc_a ^+ cmdc_block_offset (n + 4))%a;
+    change_pc_to (pc_a ^+ cmdc_label_offset l_next)%a;
     iApply "Hpost"; iFrame "∗ Hcode_main".
 
   Lemma cmdc_check_blocks_3_spec (c : cmdc_call)
     (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable)
     (cgp_b cgp_e a_chk : Addr)
     (wct0 wct1 wct2 wca2 wcnull wcra : LWord) :
-    let n := cmdc_call_block c in
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
     (cgp_b <= a_chk < cgp_e)%a ->
     is_mmio_address a_chk = false ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_instr_offset (n + 2) 1)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_return_label c))%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -73,7 +73,7 @@ Section CMDC_Check_Blocks_3.
     a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
     (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset (n + 4))%a ∗
+    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_next_label c))%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
@@ -87,8 +87,7 @@ Section CMDC_Check_Blocks_3.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros n.
-    destruct c; subst n; cbn [cmdc_call_block cmdc_call_expected].
+    destruct c; cbn [cmdc_return_label cmdc_next_label cmdc_call_expected].
     all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap
                    & HC_g_nonheap) Ha_chk Ha_chk_mmio)
       "(#Hassert & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull & Hcra
@@ -96,9 +95,13 @@ Section CMDC_Check_Blocks_3.
     all: codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     all: unfold_code cmdc_main_code "Hcode_main".
     - (* Return from [B.f], blocks 3-4 *)
-      cmdc_check_blocks_proof 1 pc_a.
+      cmdc_check_blocks_proof
+        ".Lcmdc_return_B"%string ".Lcmdc_assert_B"%string
+        ".Lcmdc_prep_C"%string pc_a.
     - (* Return from [C.g], blocks 8-9 *)
-      cmdc_check_blocks_proof 6 pc_a.
+      cmdc_check_blocks_proof
+        ".Lcmdc_return_C"%string ".Lcmdc_assert_C"%string
+        ".Lcmdc_halt"%string pc_a.
   Qed.
 
 End CMDC_Check_Blocks_3.

@@ -50,7 +50,7 @@ Section LSE.
     Nswitcher ## Nlse ->
     (b_lse_exp_tbl <= b_lse_exp_tbl ^+ 2 < e_lse_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
     is_Some (pc_b + (length_lse_main_imports + length LSE_main_code_run))%a ->
 
@@ -134,7 +134,7 @@ Section LSE.
     iEval (cbn [fmap list_fmap lse_main_imports]) in "Himports_main".
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     rewrite /length_lse_main_imports.
-    change_pc_to (pc_a ^+ lse_block_offset 4)%a.
+    change_pc_to (pc_a ^+ lse_label_offset ".Llse_f")%a.
     iApply (lse_f_blocks_1_spec with
              "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hcode_main]");
       [done|done|done|done| |].

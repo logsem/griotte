@@ -186,7 +186,7 @@ Section Switcher_Return_Blocks_1.
     ▷ ( ∀ a_tstk1,
         ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
         ⌜ (a_tstk < e_trusted_stack)%a ⌝ ∗
-        PC ↦ₚ switcher_pc (switcher_block_offset 12 + 5) ∗
+        PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_restore_cgp") ∗
         ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
         csp ↦ᵣ WCap true RWL Local b e (a ^+ 3)%a ∗
         mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
@@ -201,7 +201,7 @@ Section Switcher_Return_Blocks_1.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     rewrite switcher_return_block_12.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block 12 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
     iApply (switcher_return_block_12_load_spec with
@@ -214,7 +214,7 @@ Section Switcher_Return_Blocks_1.
       "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [done|done|done|].
     iNext; iIntros "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    switcher_change_pc (switcher_block_offset 12 + 5)%Z.
+    switcher_change_pc (switcher_label_offset ".Lswitcher_restore_cgp").
     iApply "Hpost"; iFrame "∗ Hswitcher"; done.
   Qed.
 
@@ -233,7 +233,7 @@ Section Switcher_Return_Blocks_1.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     rewrite switcher_return_block_12.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block 12 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
     iApply (switcher_return_block_12_load_spec with

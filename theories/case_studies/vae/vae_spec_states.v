@@ -27,7 +27,8 @@ From griotte Require Export case_study_spec_helpers.
     of the world before the return of [awkward]).
 
     The block-group lemmas start and end at addresses of the code
-    [vae_main_code], given by [vae_block_offset] and [vae_instr_offset]. *)
+    [vae_main_code], given by the labels of [vae_main_asm]
+    ([vae_label_offset]). *)
 
 Section VAE_Code.
   Context `{MP: MachineParameters} {swlayout : switcherLayout}.
@@ -47,6 +48,17 @@ Notation vae_block_offset := (code_block_offset vae_main_blocks).
 
 (** Offset of the [i]-th instruction of the block [n] in [vae_main_code]. *)
 Notation vae_instr_offset := (code_instr_offset vae_main_blocks).
+
+(** Offset of the label [s] of [vae_main_asm] from the start of the PCC,
+    the imports. *)
+Notation vae_label s := (asm_label vae_main_asm s).
+
+(** Offset of the label [s] in [vae_main_code], which starts at the label
+    [.Lvae_init]. *)
+Notation vae_label_offset s := (asm_label_offset vae_main_asm ".Lvae_init" s).
+
+(** Index of the block of [vae_main_code] that defines the label [s]. *)
+Notation vae_block s := (asm_block vae_main_asm s).
 
 (** Unfold [vae_main_code] into the chain of its blocks, in the goal (both in
     the code and in the continuation). *)
@@ -68,7 +80,7 @@ Section VAE_States.
       [vae_init_spec] and [vae_awkward_spec]. *)
   Definition vae_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ∧
-    (pc_b + length (vae_main_imports C_f))%a = Some pc_a ∧
+    (pc_b + vae_label ".Lvae_init")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false.
 

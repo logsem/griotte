@@ -1,21 +1,30 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
+From griotte Require Import rules proofmode assembler.
 
 Section Lea_To_Base.
+  Import Asm_Griotte.
   Context
       {MP: MachineParameters}
   .
 
-  Definition lea_to_base_instrs (r r1 r2 : RegName) : list Word :=
-    encodeInstrsW [
-        GetB r1 r;
-        GetA r2 r;
-        Sub r1 r1 r2;
-        Lea r r1;
-        Mov r1 0;
-        Mov r2 0
-      ].
+  Definition lea_to_base_asm (r r1 r2 : RegName) : list asm_code :=
+    [
+      getb r1 r;
+      geta r2 r;
+      sub r1 r1 r2;
+      lea r r1;
+      mov r1 0;
+      mov r2 0
+    ].
 
+  Definition lea_to_base (r r1 r2 : RegName) : list instr :=
+    Eval compute in assemble (lea_to_base_asm r r1 r2).
+  Lemma lea_to_base_assembles (r r1 r2 : RegName) :
+    asm_ok (assemble_check (lea_to_base_asm r r1 r2)).
+  Proof. asm_check. Qed.
+
+  Definition lea_to_base_instrs (r r1 r2 : RegName) : list Word :=
+    encodeInstrsW (lea_to_base r r1 r2).
 End Lea_To_Base.
 
 Section Lea_To_Base_spec.

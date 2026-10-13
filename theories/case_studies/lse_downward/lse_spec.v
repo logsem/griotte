@@ -61,7 +61,7 @@ Section LSE.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
 
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W0 C ->

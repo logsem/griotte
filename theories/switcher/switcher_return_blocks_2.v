@@ -450,7 +450,7 @@ Section Switcher_Return_Blocks_2.
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
 
-    PC ↦ₚ switcher_block_pc 13 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitcher_zero_callee_frame" ∗
     cgp ↦ᵣ wcgp' ∗
     cra ↦ᵣ wcra' ∗
     cs1 ↦ᵣ wcs1' ∗
@@ -488,7 +488,7 @@ Section Switcher_Return_Blocks_2.
     switcher_unfold_code "Hswitcher".
 
     (* Block 13: clear the stack frame *)
-    switcher_focus_block 13 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_zero_callee_frame") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iDestruct (switcher_stk_cells_region with "Hcells Hstk")
       as "Hstk"; [done|solve_addr|].
     iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]");
@@ -502,7 +502,7 @@ Section Switcher_Return_Blocks_2.
     iDestruct (big_sepM_insert_2 with "[Hct0] Hrmap") as "Hrmap";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hca2] Hrmap") as "Hrmap";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hctp] Hrmap") as "Hrmap";[iFrame|].
-    switcher_change_pc (switcher_block_offset 14).
+    switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros").
     iApply (switcher_blocks_14_15_spec with "[- $HPC $Hcra $Hrmap]").
     { rewrite !dom_insert_L Hdom. set_solver. }
     iSplitR; first iFrame "Hswitcher".
@@ -527,7 +527,7 @@ Section Switcher_Return_Blocks_2.
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
 
-    PC ↦ₚ switcher_pc (switcher_block_offset 12 + 5) ∗
+    PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_restore_cgp") ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
@@ -567,8 +567,8 @@ Section Switcher_Return_Blocks_2.
     switcher_unfold_code "Hswitcher".
 
     (* Block 12: restore the callee-save registers *)
-    switcher_focus_block 12 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    change_pc_to ((a_switcher_call ^+ switcher_block_offset 12) ^+ 5)%a.
+    switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call") ^+ 5)%a.
     iApply (switcher_return_block_12_restore_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); [done|done|done|done|solve_addr|].
@@ -576,7 +576,7 @@ Section Switcher_Return_Blocks_2.
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    switcher_change_pc (switcher_block_offset 13).
+    switcher_change_pc (switcher_label_offset ".Lswitcher_zero_callee_frame").
 
     (* Blocks 13-15 *)
     iAssert (switcher_stk_cells a wcs0 wcs1 wcra wcgp)
@@ -605,7 +605,7 @@ Section Switcher_Return_Blocks_2.
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ]} ->
 
-    PC ↦ₚ switcher_pc (switcher_block_offset 12 + 5) ∗
+    PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_restore_cgp") ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
@@ -659,8 +659,8 @@ Section Switcher_Return_Blocks_2.
     switcher_unfold_code "Hswitcher".
 
     (* Block 12: restore the callee-save registers *)
-    switcher_focus_block 12 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    change_pc_to ((a_switcher_call ^+ switcher_block_offset 12) ^+ 5)%a.
+    switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call") ^+ 5)%a.
     iApply (switcher_return_block_12_restore_open_cases_spec Wworld Wval C opened ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld $Hmem $Hcode]");
@@ -669,7 +669,7 @@ Section Switcher_Return_Blocks_2.
       "(Hworld & Hinterps & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    switcher_change_pc (switcher_block_offset 13).
+    switcher_change_pc (switcher_label_offset ".Lswitcher_zero_callee_frame").
 
     (* Blocks 13-15 *)
     iAssert (switcher_stk_cells a wcs0 wcs1 wcra wcgp)

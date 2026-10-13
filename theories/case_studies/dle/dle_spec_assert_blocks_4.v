@@ -26,7 +26,7 @@ Section DLE_Assert_Blocks_4.
     disjoint_from_mmio cgp_b cgp_e ->
     assert_static b_assert e_assert a_flag ∗
     na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 8)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -47,7 +47,7 @@ Section DLE_Assert_Blocks_4.
     unfold_code dle_main_code "Hcode_main".
 
     (* Block 3: return from the second call *)
-    focus_block 3 "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    focus_block (dle_block ".Ldle_call_B") "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_callB ^+ 8)%a.
     (* CLoad ct0 cgp 0 *)
@@ -60,7 +60,7 @@ Section DLE_Assert_Blocks_4.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 4: assert that b = 42 *)
-    focus_block 4 "Hcode_main" of dle_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
+    focus_block (dle_block ".Ldle_assert") "Hcode_main" of dle_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra

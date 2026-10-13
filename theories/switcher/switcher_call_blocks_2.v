@@ -180,13 +180,17 @@ Section Switcher_Call_Blocks_2.
     let a_tstk1 := (a_tstk ^+ 1)%a in
     let a_tstk2 := (a_tstk ^+ 2)%a in
     (* The distance from this block to the block of the exhausted trusted stack. *)
-    let off_exhausted := (switcher_block_offset 16 - switcher_block_offset 3)%Z in
+    let off_exhausted :=
+      asm_label_offset switcher_asm ".Lswitcher_trusted_stack_push" ".Lswitch_trusted_stack_exhausted" in
     disjoint_from_shadow b_trusted_stack e_trusted_stack ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_3)%a ->
     (b_trusted_stack <= a_tstk)%a ->
     (a_tstk <= e_trusted_stack)%a ->
 
-    (pc_a ^+ 6 + (off_exhausted - 6))%a = Some (pc_a ^+ off_exhausted)%a ->
+    (pc_a ^+ 6 +
+       asm_label_offset switcher_asm ".Lswitcher_trusted_stack_full"
+         ".Lswitch_trusted_stack_exhausted")%a =
+      Some (pc_a ^+ off_exhausted)%a ->
 
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -234,7 +238,6 @@ Section Switcher_Call_Blocks_2.
       "(HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Htstk & #Hcode & Hpost)".
     (* Compute the distance to the block of the exhausted trusted stack. *)
     offsets_compute.
-    offsets_sub_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -316,7 +319,7 @@ Section Switcher_Call_Blocks_2.
     (b_trusted_stack <= a_tstk)%a ->
     (a_tstk <= e_trusted_stack)%a ->
 
-    PC ↦ₚ switcher_block_pc 2 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitcher_entry_first_spill" ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
@@ -338,7 +341,7 @@ Section Switcher_Call_Blocks_2.
         switcher_code ∗
         ( ( ⌜ ((a_tstk ^+ 1) + 1)%a = Some (a_tstk ^+ 2)%a ⌝ ∗
             ⌜ (a_tstk ^+ 1 < e_trusted_stack)%a ⌝ ∗
-            PC ↦ₚ switcher_block_pc 4 ∗
+            PC ↦ₚ switcher_label_pc ".Lswitcher_chop_stack" ∗
             cs0 ↦ᵣ WInt (a_tstk ^+ 1)%a ∗
             ctp ↦ᵣ WInt 1 ∗
             ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
@@ -347,7 +350,7 @@ Section Switcher_Call_Blocks_2.
             [[ (a_tstk ^+ 2)%a , e_trusted_stack ]] ↦ₐ [[ drop 1 tstk_next ]] ∗
             £ 2 )
           ∨
-          ( PC ↦ₚ switcher_block_pc 16 ∗
+          ( PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
             cs0 ↦ᵣ WInt (a_tstk + 1)%Z ∗
             ctp ↦ᵣ WInt 0 ∗
             ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
@@ -365,7 +368,7 @@ Section Switcher_Call_Blocks_2.
     switcher_unfold_code "Hswitcher".
 
     (* Block 2: spill the callee-save registers *)
-    switcher_focus_block 2 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_2_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hcode]"); [done|done|].
     iNext; iIntros (stk_mem')
@@ -376,7 +379,7 @@ Section Switcher_Call_Blocks_2.
     assert ((a + 4)%a = Some (a ^+ 4)%a) as Ha4' by solve_addr.
 
     (* Block 3: push the stack pointer on the trusted stack *)
-    switcher_focus_block 3 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_trusted_stack_push") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_3_spec with
       "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]");
       [apply trusted_stack_disjoint_from_shadow|done|done|done|offsets_compute; solve_addr|].
@@ -388,11 +391,11 @@ Section Switcher_Call_Blocks_2.
       (%Htstk_full & HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Htstk & _)
     ]"; unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     - destruct Ha_tstk1_facts as [Ha_tstk2 Ha_tstk1_bound].
-      switcher_change_pc (switcher_block_offset 4).
+      switcher_change_pc (switcher_label_offset ".Lswitcher_chop_stack").
       iApply "Hpost"; iFrame "∗ Hswitcher".
       iSplit; first (iPureIntro; split; [solve_addr|split; [solve_addr|done] ]).
       iLeft; iFrame "∗ %".
-    - switcher_change_pc (switcher_block_offset 16).
+    - switcher_change_pc (switcher_label_offset ".Lswitch_trusted_stack_exhausted").
       iApply "Hpost"; iFrame "∗ Hswitcher".
       iSplit; first (iPureIntro; split; [solve_addr|split; [solve_addr|done] ]).
       iRight; iFrame.
@@ -404,7 +407,7 @@ Section Switcher_Call_Blocks_2.
     switcher_csp_checked wcsp ->
     (∀ b e a, wcsp.(lw) = WCap true RWL Local b e a -> (a < b)%a ∨ (e <= a)%a) ->
 
-    PC ↦ₚ switcher_block_pc 2 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitcher_entry_first_spill" ∗
     csp ↦ᵣ wcsp ∗
     cs0 ↦ᵣ wcs0 ∗
     switcher_code
@@ -414,7 +417,7 @@ Section Switcher_Call_Blocks_2.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block 2 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* Store csp cs0 *)
     destruct (is_cap wcsp.(lw)) eqn:Hcap; cycle 1.
     { iInstr_lookup "Hcode" as "Hi" "Hcode".

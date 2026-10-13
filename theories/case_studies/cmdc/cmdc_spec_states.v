@@ -26,7 +26,8 @@ From griotte Require Export case_study_spec_helpers.
     are in [cmdc_spec_world].
 
     The block-group lemmas start and end at addresses of the code
-    [cmdc_main_code], given by [cmdc_block_offset] and [cmdc_instr_offset]. *)
+    [cmdc_main_code], given by the labels of [cmdc_main_asm]
+    ([cmdc_label_offset]). *)
 
 Section CMDC_Code.
   Context `{MP: MachineParameters}.
@@ -45,6 +46,17 @@ Notation cmdc_block_offset := (code_block_offset cmdc_main_blocks).
 (** Offset of the [i]-th instruction of the block [n] in [cmdc_main_code]. *)
 Notation cmdc_instr_offset := (code_instr_offset cmdc_main_blocks).
 
+(** Offset of the label [s] of [cmdc_main_asm] from the start of the PCC,
+    the imports. *)
+Notation cmdc_label s := (asm_label cmdc_main_asm s).
+
+(** Offset of the label [s] in [cmdc_main_code], which starts at the label
+    [.Lcmdc_init]. *)
+Notation cmdc_label_offset s := (asm_label_offset cmdc_main_asm ".Lcmdc_init" s).
+
+(** Index of the block of [cmdc_main_code] that defines the label [s]. *)
+Notation cmdc_block s := (asm_block cmdc_main_asm s).
+
 (** ** The two calls of [cmdc_main_code]
 
     The call to [B.f] (blocks 1-4) and the call to [C.g] (blocks 6-9) have
@@ -52,9 +64,17 @@ Notation cmdc_instr_offset := (code_instr_offset cmdc_main_blocks).
     after the return. *)
 Inductive cmdc_call := cmdc_call_B | cmdc_call_C.
 
-(** The first block of the call: fetch the entry point of the switcher. *)
-Definition cmdc_call_block (c : cmdc_call) : nat :=
-  match c with cmdc_call_B => 1 | cmdc_call_C => 6 end.
+(** The start of the call: fetch the entry point of the switcher. *)
+Definition cmdc_call_label (c : cmdc_call) : string :=
+  match c with cmdc_call_B => ".Lcmdc_call_B"%string | cmdc_call_C => ".Lcmdc_call_C"%string end.
+
+(** The return point of the call. *)
+Definition cmdc_return_label (c : cmdc_call) : string :=
+  match c with cmdc_call_B => ".Lcmdc_return_B"%string | cmdc_call_C => ".Lcmdc_return_C"%string end.
+
+(** The code after the assertion that follows the call. *)
+Definition cmdc_next_label (c : cmdc_call) : string :=
+  match c with cmdc_call_B => ".Lcmdc_prep_C"%string | cmdc_call_C => ".Lcmdc_halt"%string end.
 
 (** The index of the import of the callee. *)
 Definition cmdc_call_import (c : cmdc_call) : Z :=
@@ -82,7 +102,7 @@ Section CMDC_States.
   (** The bounds of the code and of the imports, as given to [cmdc_spec]. *)
   Definition cmdc_code_bounds (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ∧
-    (pc_b + length (cmdc_main_imports B_f C_g))%a = Some pc_a ∧
+    (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false ∧
     is_heap_cap (WSealed ot_switcher B_f) = false ∧

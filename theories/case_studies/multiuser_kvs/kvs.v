@@ -117,8 +117,8 @@ pair<int, int> search(FKeyT fk) {
         - [ridx] = -1
         - [ridx_empty] = _index_ of an empty slot if available, -1 otherwise
    *)
-  Definition kvs_search_asm_pre (rkey ridx ridx_empty rscratch : RegName) : (list asm_code) :=
-    [
+  Definition kvs_search_asm (rkey ridx ridx_empty rscratch : RegName) : (list asm_code) :=
+    macro: [
       (* initialise ridx *)
       mov ridx 0%Z;
       mov ridx_empty (-1)%Z;
@@ -156,13 +156,11 @@ pair<int, int> search(FKeyT fk) {
       mov ridx (-1)%Z;
       #".loop_end_found"
     ].
-  Definition kvs_search_asm_env (rkey ridx ridx_empty rscratch : RegName) :=
-    Eval vm_compute in (compute_asm_code_env (kvs_search_asm_pre rkey ridx ridx_empty  rscratch)).2.
-  Definition kvs_search_asm (rkey ridx ridx_empty  rscratch : RegName) :=
-    Eval compute in resolve_labels_macros (kvs_search_asm_pre rkey ridx ridx_empty  rscratch)
-                      (kvs_search_asm_env rkey ridx ridx_empty  rscratch).
   Definition kvs_search (rkey ridx ridx_empty  rscratch : RegName) :=
     Eval compute in assemble (kvs_search_asm rkey ridx ridx_empty  rscratch).
+  Lemma kvs_search_assembles (rkey ridx ridx_empty rscratch : RegName) :
+    asm_ok (assemble_check (kvs_search_asm rkey ridx ridx_empty rscratch)).
+  Proof. asm_check. Qed.
   Definition kvs_search_instrs (rkey ridx ridx_empty  rscratch : RegName) : list Word :=
     encodeInstrsW (kvs_search rkey ridx ridx_empty  rscratch).
 
@@ -188,8 +186,8 @@ bool dyn_check_uint16(MKeyT mk) {
        - [rv]: not changed
        - [rdst]: if is_uint16(rv) then ASM_TRUE else ASM_FALSE
    *)
-  Definition kvs_check_uint16_asm_pre (rv rdst : RegName) : (list asm_code) :=
-    [
+  Definition kvs_check_uint16_asm (rv rdst : RegName) : (list asm_code) :=
+    macro: [
       lt rdst (UINT16_MIN-1)%Z rv; (* rdst := if (UINT16_MIN <= rv) then 0 else 1 *)
       jnz (".kvs_key_check_uint16_min")%asm rdst;
       #".kvs_key_check_uint16_too_low";
@@ -205,13 +203,11 @@ bool dyn_check_uint16(MKeyT mk) {
       mov rdst ASM_TRUE;
       #".kvs_key_ret"
     ].
-  Definition kvs_check_uint16_asm_env (rv rdst : RegName) :=
-    Eval vm_compute in (compute_asm_code_env (kvs_check_uint16_asm_pre rv rdst)).2.
-  Definition kvs_check_uint16_asm (rv rdst : RegName) :=
-    Eval compute in resolve_labels_macros (kvs_check_uint16_asm_pre rv rdst)
-                      (kvs_check_uint16_asm_env rv rdst).
   Definition kvs_check_uint16 (rv rdst : RegName) :=
     Eval compute in assemble (kvs_check_uint16_asm rv rdst).
+  Lemma kvs_check_uint16_assembles (rv rdst : RegName) :
+    asm_ok (assemble_check (kvs_check_uint16_asm rv rdst)).
+  Proof. asm_check. Qed.
   Definition kvs_check_uint16_instrs (rv rdst : RegName) : list Word :=
     encodeInstrsW (kvs_check_uint16 rv rdst).
 
@@ -249,7 +245,7 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
  *)
   Definition kvs_addOrUpdate_asm : list (list asm_code) :=
     [
-      (kvs_check_uint16_asm ca1 ct1) ;
+      (#".LaddOrUpdate" :: kvs_check_uint16_asm ca1 ct1) ;
       [
         jnz (".addOrUpdate_not_uint16")%asm ct1;
         #".addOrUpdate_uint16";
@@ -261,7 +257,7 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
         #".addOrUpdate_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ctp ca0 ca1)
+      (#".LaddOrUpdate_getFullKey" :: kvs_getFullKey_asm ctp ca0 ca1)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
@@ -345,7 +341,7 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
    *)
   Definition kvs_read_asm : list (list asm_code) :=
     [
-      (kvs_check_uint16_asm ca1 ct1) ;
+      (#".Lread" :: kvs_check_uint16_asm ca1 ct1) ;
       [
         jnz (".read_not_uint16")%asm ct1;
         #".read_uint16";
@@ -357,7 +353,7 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
         #".read_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ctp ca0 ca1)
+      (#".Lread_getFullKey" :: kvs_getFullKey_asm ctp ca0 ca1)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
@@ -407,7 +403,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
    *)
   Definition kvs_erase_asm : list (list asm_code) :=
     [
-      (kvs_check_uint16_asm ca1 ct1) ;
+      (#".Lerase" :: kvs_check_uint16_asm ca1 ct1) ;
       [
         jnz (".erase_not_uint16")%asm ct1;
         #".erase_uint16";
@@ -419,7 +415,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
         #".erase_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ctp ca0 ca1)
+      (#".Lerase_getFullKey" :: kvs_getFullKey_asm ctp ca0 ca1)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
@@ -456,41 +452,40 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     | b :: l => (kvs_import_symbols_asm ++ b) :: l
     end.
 
-  Definition assembled_kvs_service' :=
-    Eval vm_compute in assemble_block kvs_service_asm.
+  Definition assembled_kvs_service :=
+    Eval compute in assemble_block kvs_service_asm.
+  Lemma kvs_service_assembles : asm_ok (assemble_block_check kvs_service_asm).
+  Proof. asm_check. Qed.
 
-  Definition assembled_kvs_addOrUpdate' :=
-    Eval vm_compute in take (length kvs_addOrUpdate_asm) assembled_kvs_service'.
   Definition assembled_kvs_addOrUpdate :=
-    Eval cbv in (revert_regs_code_block assembled_kvs_addOrUpdate').
+    Eval compute in take (length kvs_addOrUpdate_asm) assembled_kvs_service.
   Definition kvs_addOrUpdate_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_kvs_addOrUpdate).
 
-  Definition assembled_kvs_read' :=
-    Eval vm_compute in
-      take (length kvs_read_asm) (drop (length kvs_addOrUpdate_asm) assembled_kvs_service').
   Definition assembled_kvs_read :=
-    Eval cbv in (revert_regs_code_block assembled_kvs_read').
+    Eval compute in
+      take (length kvs_read_asm) (drop (length kvs_addOrUpdate_asm) assembled_kvs_service).
   Definition kvs_read_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_kvs_read).
 
-  Definition assembled_kvs_erase' :=
-    Eval vm_compute in
-      drop (length kvs_addOrUpdate_asm + length kvs_read_asm) assembled_kvs_service'.
   Definition assembled_kvs_erase :=
-    Eval cbv in (revert_regs_code_block assembled_kvs_erase').
+    Eval compute in
+      drop (length kvs_addOrUpdate_asm + length kvs_read_asm) assembled_kvs_service.
   Definition kvs_erase_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_kvs_erase).
 
-  (** The offsets of the fetches of the unsealing key, block 2 of each
-      entry. *)
+  (** The offsets of the fetches of the unsealing key, at the labels
+      [.L<entry>_getFullKey] (block 2 of each entry), from the address of
+      the fetch. *)
   Definition kvs_addOrUpdate_getFullKey_off : Z :=
-    Eval vm_compute in fetch_offset (default [] (assembled_kvs_addOrUpdate !! 2%nat)).
+    Eval vm_compute in
+      label_offset_from (concat kvs_service_asm) ".LaddOrUpdate_getFullKey" ".Limport_unsealing_key".
   Definition kvs_read_getFullKey_off : Z :=
-    Eval vm_compute in fetch_offset (default [] (assembled_kvs_read !! 2%nat)).
+    Eval vm_compute in
+      label_offset_from (concat kvs_service_asm) ".Lread_getFullKey" ".Limport_unsealing_key".
   Definition kvs_erase_getFullKey_off : Z :=
-    Eval vm_compute in fetch_offset (default [] (assembled_kvs_erase !! 2%nat)).
-
+    Eval vm_compute in
+      label_offset_from (concat kvs_service_asm) ".Lerase_getFullKey" ".Limport_unsealing_key".
 
   Definition kvs_service_instrs : list Word :=
     kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
@@ -561,7 +556,11 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about addOrUpdate entry point *)
   Definition kvs_addOrUpdate_nargs : nat := 3.
-  Definition kvs_addOrUpdate_pcc_off := (length_kvs_imports).
+  (** The offset of the entry [.LaddOrUpdate] from the start of the PCC. *)
+  Definition kvs_addOrUpdate_pcc_off : nat :=
+    Eval vm_compute in label_offset (concat kvs_service_asm) ".LaddOrUpdate".
+  Lemma kvs_addOrUpdate_pcc_off_eq : kvs_addOrUpdate_pcc_off = length_kvs_imports.
+  Proof. reflexivity. Qed.
   Definition kvs_addOrUpdate_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_addOrUpdate_pcc_off)%a.
   Definition kvs_exp_tbl_entry_addOrUpdate :=
     WInt (encode_entry_point kvs_addOrUpdate_nargs kvs_addOrUpdate_pcc_off).
@@ -572,7 +571,11 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about read entry point *)
   Definition kvs_read_nargs : nat := 2.
-  Definition kvs_read_pcc_off := (length_kvs_imports + length kvs_addOrUpdate_instrs).
+  (** The offset of the entry [.Lread] from the start of the PCC. *)
+  Definition kvs_read_pcc_off : nat :=
+    Eval vm_compute in label_offset (concat kvs_service_asm) ".Lread".
+  Lemma kvs_read_pcc_off_eq : kvs_read_pcc_off = length_kvs_imports + length kvs_addOrUpdate_instrs.
+  Proof. reflexivity. Qed.
   Definition kvs_read_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_read_pcc_off)%a.
   Definition kvs_exp_tbl_entry_read :=
     WInt (encode_entry_point kvs_read_nargs kvs_read_pcc_off).
@@ -583,7 +586,11 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about erase entry point *)
   Definition kvs_erase_nargs : nat := 2.
-  Definition kvs_erase_pcc_off := (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_read_instrs).
+  (** The offset of the entry [.Lerase] from the start of the PCC. *)
+  Definition kvs_erase_pcc_off : nat :=
+    Eval vm_compute in label_offset (concat kvs_service_asm) ".Lerase".
+  Lemma kvs_erase_pcc_off_eq : kvs_erase_pcc_off = length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_read_instrs.
+  Proof. reflexivity. Qed.
   Definition kvs_erase_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_erase_pcc_off)%a.
   Definition kvs_exp_tbl_entry_erase :=
     WInt (encode_entry_point kvs_erase_nargs kvs_erase_pcc_off).

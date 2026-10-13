@@ -18,7 +18,7 @@ Section CMDC_Halt_Blocks_5.
   Lemma cmdc_halt_blocks_5_spec
     (pc_b pc_e pc_a : Addr) (φ : language.val griotte_lang -> iProp Σ) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 10)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_halt")%a ∗
     codefrag_pers pc_a cmdc_main_code ∗
     ▷ WP Instr Halted {{ φ }}
     ⊢ WP Seq (Instr Executable) {{ φ }}.
@@ -28,7 +28,7 @@ Section CMDC_Halt_Blocks_5.
     unfold_code cmdc_main_code "Hcode_main".
 
     (* Block 10: halt *)
-    focus_block 10 "Hcode_main" of cmdc_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
+    focus_block (cmdc_block ".Lcmdc_halt") "Hcode_main" of cmdc_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
     (* Halt *)
     iInstr "Hcode".
     iApply "Hpost".

@@ -52,7 +52,7 @@ Section Counter.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length counter_main_code)%a ->
 
     (cgp_b + length counter_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + counter_label ".Lcounter_main")%a = Some pc_a ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W0 C ->
@@ -226,7 +226,7 @@ Section Counter.
     Nswitcher ## Ncounter ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length counter_main_code)%a ->
     (cgp_b + length counter_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + counter_label ".Lcounter_main")%a = Some pc_a ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
 

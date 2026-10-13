@@ -59,7 +59,7 @@ Section fundamental.
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
-    PC ↦ₚ switcher_block_pc 17 ∗
+    PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
     csp ↦ᵣ wcsp ∗
     ct2 ↦ᵣ WInt zct2 ∗
     ctp ↦ᵣ WInt zctp ∗
@@ -139,7 +139,7 @@ Section fundamental.
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
-    PC ↦ₚ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ w, cs0 ↦ᵣ w) ∗
     cs1 ↦ᵣ wcs1 ∗
     cgp ↦ᵣ wcgp ∗

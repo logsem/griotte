@@ -1,6 +1,42 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
+From griotte Require Import rules proofmode assembler.
 From griotte Require Import is_word_type lea_to_base map_simpl register_tactics.
+
+Section Checkints_Asm.
+  Import Asm_Griotte.
+  Context
+      {MP: MachineParameters}
+  .
+
+  Definition checkints_loop_asm (r r1 r2 : RegName) : list asm_code :=
+    macro: ([ #"checkints_loop";
+          load r1 r ] ++
+        is_int_asm r1 r2 ++
+        [ (* is an integer *)
+          lea r 1;
+          geta r1 r;
+          gete r2 r;
+          lt r1 r1 r2;
+          (* if r1 -> 0 then a + 1 >= e, and we continue,
+             otherwise we jump back to the beginning of the loop *)
+          jnz "checkints_loop" r1
+        ]).
+
+  Definition checkints_asm (r r1 r2 : RegName) : list asm_code :=
+    lea_to_base_asm r r1 r2 ++
+    macro: ([ getb r1 r;
+          gete r2 r;
+          lt r1 r1 r2;
+          sub r1 r1 1; (* invert result for the jump *)
+          jnz "checkints_end" r1 ] ++
+        checkints_loop_asm r r1 r2 ++
+        [ #"checkints_end";
+          mov r1 0;
+          mov r2 0 ]).
+  Lemma checkints_assembles (r r1 r2 : RegName) :
+    asm_ok (assemble_check (checkints_asm r r1 r2)).
+  Proof. asm_check. Qed.
+End Checkints_Asm.
 
 Section Checkints.
   Context
@@ -34,6 +70,18 @@ Section Checkints.
       ++ encodeInstrsW [
         Mov r1 0;
         Mov r2 0].
+
+  (** The code of [checkints_loop_instrs] and [checkints_instrs], split for
+      their proofs, is their assembly. *)
+  Lemma checkints_loop_instrs_asm (r r1 r2 : RegName) :
+    checkints_loop_instrs r r1 r2 =
+      encodeInstrsW (Asm_Griotte.assemble (checkints_loop_asm r r1 r2)).
+  Proof. reflexivity. Qed.
+
+  Lemma checkints_instrs_asm (r r1 r2 : RegName) :
+    checkints_instrs r r1 r2 =
+      encodeInstrsW (Asm_Griotte.assemble (checkints_asm r r1 r2)).
+  Proof. reflexivity. Qed.
 
   Definition checkints_loop_offset : Z :=
     Eval vm_compute in

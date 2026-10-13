@@ -46,7 +46,7 @@ Section HTS_Spec_Share.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
-    (pc_b + length (hts_main_imports C_f))%a = Some pc_a ->
+    (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     heap_std W_init_C = ∅ ->
     hts_ctx ∗
     malloc_ret ∗
@@ -64,7 +64,7 @@ Section HTS_Spec_Share.
       iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcode_main)".
       codefrag_facts "Hcode_main". clear H0.
       unfold_code hts_main_code "Hcode_main".
-      focus_block 4 "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
+      focus_block (hts_block ".Lhts_malloc_result") "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
       (* GetTag ct0 ca0. *)
       iInstr "Hcode".
       (* Jnz 2 ct0. *)
@@ -88,7 +88,7 @@ Section HTS_Spec_Share.
     iEval (rewrite /hts_buffer) in "Hca0".
 
     (* Block 4: the malloc result is tagged. *)
-    focus_block 4 "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_malloc_result") "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
     (* GetTag ct0 ca0. *)
@@ -99,7 +99,7 @@ Section HTS_Spec_Share.
 
     (* Block 5: save the buffer in the stack slot below the callee frames,
        and initialize it. *)
-    focus_block 5 "Hcode_main" of hts_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_share") "Hcode_main" of hts_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     destruct (decide (csp_b < csp_e)%a) as [Hstk_nonempty|Hstk_empty]; cycle 1.
     { (* Empty stack: the store to the stack slot faults. *)
@@ -140,7 +140,7 @@ Section HTS_Spec_Share.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 6: fetch the switcher for the first adversary call. *)
-    focus_block 6 "Hcode_main" of hts_main_blocks at pc_a as a_fetch6 Ha_fetch6 "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_fetch_switcher_adv_1") "Hcode_main" of hts_main_blocks at pc_a as a_fetch6 Ha_fetch6 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp] as ["[Hctp _]"].
     iApply (fetch_spec 0 _ ctp RX Global
@@ -161,7 +161,7 @@ Section HTS_Spec_Share.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 7: fetch the adversary entry. *)
-    focus_block 7 "Hcode_main" of hts_main_blocks at pc_a as a_fetch7 Ha_fetch7 "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_fetch_adv_1") "Hcode_main" of hts_main_blocks at pc_a as a_fetch7 Ha_fetch7 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
     iApply (fetch_spec 2 _ ct1 RX Global
@@ -180,12 +180,12 @@ Section HTS_Spec_Share.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 8: call the adversary with the buffer. *)
-    focus_block 8 "Hcode_main" of hts_main_blocks at pc_a as a_advcall Ha_advcall "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_call_adv_1") "Hcode_main" of hts_main_blocks at pc_a as a_advcall Ha_advcall "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
     iInstr_success "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_advcall ^+ 1)%a = (pc_a ^+ hts_block_offset 9)%a) as Ha_next
+    assert ((a_advcall ^+ 1)%a = (pc_a ^+ hts_label_offset ".Lhts_reload")%a) as Ha_next
       by (offsets_compute; solve_addr).
     rewrite Ha_next.
     clear Ha_result Ha_store Ha_fetch6 Ha_fetch7.
@@ -232,7 +232,7 @@ Section HTS_Spec_Share.
          (delete ct1 (delete ct0 rmap))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C ι b) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 9)%a)
+      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
       (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
       adv_arg adv_other cstk Ws Cs 1

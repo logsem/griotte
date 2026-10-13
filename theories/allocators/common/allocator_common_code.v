@@ -30,11 +30,13 @@ Section AllocatorCommonCode.
   (** The imports are a data prefix of the code, named by symbols in the order
       of [allocator_imports]: an allocator program starts with
       [allocator_import_symbols_asm], and the fetches load the imports
-      relative to the PC. *)
+      relative to the PC. The code starts after them, at the entry [.Lmalloc]
+      of [malloc]. *)
   Definition allocator_import_symbols_asm : list asm_code :=
     [ #@".Limport_shadow";
       #@".Limport_unsealing_key";
-      #@".Limport_revoker"
+      #@".Limport_revoker";
+      #".Lmalloc"
     ].
 
   (** Prefix the first block of an allocator program [l] with the import
@@ -47,30 +49,24 @@ Section AllocatorCommonCode.
 
   Definition allocator_header_words : Z := 3.
 
-  (** These loops resolve their local labels before being embedded into a
-      larger block, so their assembled code is independent of its placement.
-      Both require a nonempty range. *)
+  (** These loops are local blocks: their labels are resolved inside them, so
+      their assembled code is independent of its placement. Both require a
+      nonempty range. *)
 
-  Definition allocator_zero_asm_pre (rptr rend rtmp : RegName) : list asm_code :=
-    [ #".allocator_zero";
-      store rptr 0;
-      lea rptr 1;
-      geta rtmp rptr;
-      sub rtmp rend rtmp;
-      jnz (".allocator_zero")%asm rtmp
-    ].
-  (* VM reduction preserves the register parameters: these macros contain no
-     fixed register names that would need [revert_regs_code]. *)
-
-  Definition allocator_zero_asm_env (rptr rend rtmp : RegName) :=
-    Eval vm_compute in (compute_asm_code_env (allocator_zero_asm_pre rptr rend rtmp)).2.
-
-  Definition allocator_zero_asm (rptr rend rtmp : RegName) :=
-    Eval vm_compute in resolve_labels_macros (allocator_zero_asm_pre rptr rend rtmp)
-                      (allocator_zero_asm_env rptr rend rtmp).
+  Definition allocator_zero_asm (rptr rend rtmp : RegName) : list asm_code :=
+    macro: [ #".allocator_zero";
+         store rptr 0;
+         lea rptr 1;
+         geta rtmp rptr;
+         sub rtmp rend rtmp;
+         jnz (".allocator_zero")%asm rtmp
+       ].
 
   Definition allocator_zero (rptr rend rtmp : RegName) :=
-    Eval vm_compute in assemble (allocator_zero_asm rptr rend rtmp).
+    Eval compute in assemble (allocator_zero_asm rptr rend rtmp).
+  Lemma allocator_zero_assembles (rptr rend rtmp : RegName) :
+    asm_ok (assemble_check (allocator_zero_asm rptr rend rtmp)).
+  Proof. asm_check. Qed.
 
   Definition allocator_zero_instrs (rptr rend rtmp : RegName) : list Word :=
     encodeInstrsW (allocator_zero rptr rend rtmp).
@@ -78,24 +74,20 @@ Section AllocatorCommonCode.
   (** Paint a positive number of consecutive shadow entries, advancing the
       pointer and consuming the count. *)
 
-  Definition allocator_paint_asm_pre (rptr rcount : RegName) (status : AllocStatus)
+  Definition allocator_paint_asm (rptr rcount : RegName) (status : AllocStatus)
     : list asm_code :=
-    [ #".allocator_paint";
-      store rptr (encodeAllocStatus status);
-      lea rptr 1;
-      sub rcount rcount 1;
-      jnz (".allocator_paint")%asm rcount
-    ].
-
-  Definition allocator_paint_asm_env (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in (compute_asm_code_env (allocator_paint_asm_pre rptr rcount status)).2.
-
-  Definition allocator_paint_asm (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in resolve_labels_macros (allocator_paint_asm_pre rptr rcount status)
-                      (allocator_paint_asm_env rptr rcount status).
+    macro: [ #".allocator_paint";
+         store rptr (encodeAllocStatus status);
+         lea rptr 1;
+         sub rcount rcount 1;
+         jnz (".allocator_paint")%asm rcount
+       ].
 
   Definition allocator_paint (rptr rcount : RegName) (status : AllocStatus) :=
-    Eval vm_compute in assemble (allocator_paint_asm rptr rcount status).
+    Eval compute in assemble (allocator_paint_asm rptr rcount status).
+  Lemma allocator_paint_assembles (rptr rcount : RegName) (status : AllocStatus) :
+    asm_ok (assemble_check (allocator_paint_asm rptr rcount status)).
+  Proof. asm_check. Qed.
 
   Definition allocator_paint_instrs (rptr rcount : RegName) (status : AllocStatus)
     : list Word := encodeInstrsW (allocator_paint rptr rcount status).
@@ -128,11 +120,11 @@ Section AllocatorCommonCode.
       allocator_paint_asm ctp ca2 ShadowLive
     ].
 
-  Definition assembled_allocator_malloc_shadow' :=
-    Eval vm_compute in assemble_block allocator_malloc_shadow_asm.
-
   Definition assembled_allocator_malloc_shadow :=
-    Eval cbv in revert_regs_code_block assembled_allocator_malloc_shadow'.
+    Eval compute in assemble_block allocator_malloc_shadow_asm.
+  Lemma allocator_malloc_shadow_assembles :
+    asm_ok (assemble_block_check allocator_malloc_shadow_asm).
+  Proof. asm_check. Qed.
 
   Definition allocator_malloc_shadow_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (assembled_allocator_malloc_shadow !! n)).
@@ -153,11 +145,11 @@ Section AllocatorCommonCode.
       ASM_Label ".malloc_return" :: allocator_return_asm
     ].
 
-  Definition assembled_allocator_malloc_exit' :=
-    Eval vm_compute in assemble_block allocator_malloc_exit_asm.
-
   Definition assembled_allocator_malloc_exit :=
-    Eval cbv in revert_regs_code_block assembled_allocator_malloc_exit'.
+    Eval compute in assemble_block allocator_malloc_exit_asm.
+  Lemma allocator_malloc_exit_assembles :
+    asm_ok (assemble_block_check allocator_malloc_exit_asm).
+  Proof. asm_check. Qed.
 
   Definition allocator_malloc_exit_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (assembled_allocator_malloc_exit !! n)).
@@ -197,11 +189,11 @@ Section AllocatorCommonCode.
       ASM_Label ".free_return" :: allocator_return_asm
     ].
 
-  Definition assembled_allocator_free_tail' :=
-    Eval vm_compute in assemble_block allocator_free_tail_asm.
-
   Definition assembled_allocator_free_tail :=
-    Eval cbv in revert_regs_code_block assembled_allocator_free_tail'.
+    Eval compute in assemble_block allocator_free_tail_asm.
+  Lemma allocator_free_tail_assembles :
+    asm_ok (assemble_block_check allocator_free_tail_asm).
+  Proof. asm_check. Qed.
 
   Definition allocator_free_tail_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (assembled_allocator_free_tail !! n)).
@@ -232,7 +224,9 @@ Section AllocatorCommonCode.
   Lemma allocator_imports_length `{allocatorLayout} : length allocator_imports = 3.
   Proof. reflexivity. Qed.
 
-  Definition allocator_malloc_pcc_off : nat := 3.
+  (** The offset of the entry of [malloc] from the start of the PCC. *)
+  Definition allocator_malloc_pcc_off : nat :=
+    Eval vm_compute in label_offset allocator_import_symbols_asm ".Lmalloc".
 
   Definition allocator_malloc_exp_tbl_off : nat := 2.
 

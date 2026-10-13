@@ -27,7 +27,7 @@ Section DROE_Assert_Blocks_3.
     disjoint_from_mmio cgp_b cgp_e ->
     assert_static b_assert e_assert a_flag ∗
     na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_return")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
@@ -51,7 +51,7 @@ Section DROE_Assert_Blocks_3.
     unfold_code droe_main_code "Hcode_main".
 
     (* Block 3: return from the call *)
-    focus_block 3 "Hcode_main" of droe_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    focus_block (droe_block ".Ldroe_call_B") "Hcode_main" of droe_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_callB ^+ 2)%a.
     (* Mov cra cs0 *)
@@ -66,7 +66,7 @@ Section DROE_Assert_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 4: assert that b = 42 *)
-    focus_block 4 "Hcode_main" of droe_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
+    focus_block (droe_block ".Ldroe_assert") "Hcode_main" of droe_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra

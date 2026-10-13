@@ -51,7 +51,7 @@ Section VAE.
     is_heap_address cgp_b = false ->
     (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + vae_label ".Lvae_init")%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ VAE_main_code_init))%a ->
     (exists b : bool, loc W !! i = Some (encode b)) ->
@@ -166,7 +166,7 @@ Section VAE.
 
     (* Blocks 4-6: set the flag to [0], and jump to the switcher *)
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
-    change_pc_to (pc_a ^+ vae_block_offset 4)%a.
+    change_pc_to (pc_a ^+ vae_label_offset ".Lvae_awkward")%a.
     iApply (vae_awkward_blocks_1_spec with
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].

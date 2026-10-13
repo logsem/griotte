@@ -42,7 +42,8 @@ Section KVS_Main.
         #@".Limport_addOrUpdate";
         #@".Limport_read";
         #@".Limport_erase";
-        #@".Limport_user_key" ] ++
+        #@".Limport_user_key";
+        #".Lkvs_main" ] ++
       fetch_asm ".Limport_user_key" cs1;
       (* 1: addOrUpdate(sealedUserKey, 1, 12) *)
       [ mov ca0 cs1;
@@ -93,10 +94,10 @@ Section KVS_Main.
       [ halt ]
     ].
 
-  Definition kvs_main_assembled' :=
-    Eval vm_compute in assemble_block kvs_main_asm.
   Definition kvs_main_assembled :=
-    Eval cbv in revert_regs_code_block kvs_main_assembled'.
+    Eval compute in assemble_block kvs_main_asm.
+  Lemma kvs_main_assembles : asm_ok (assemble_block_check kvs_main_asm).
+  Proof. asm_check. Qed.
   Definition kvs_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (kvs_main_assembled !! n)).
 
@@ -161,17 +162,6 @@ Section KVS_Main.
       (kvs_user_seal_key Global kvs_main_static_sealed_addr)
     ].
 
-  (** The size of the import table, which precedes the code. *)
-  Definition kvs_main_imports_size : nat := 7.
-
-  Lemma kvs_main_imports_length {KVS : kvsLayout}
-    (kvs_main_static_sealed_addr : Addr)
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
-    (b_assert e_assert : Addr) (B_f : Sealable) :
-    length (kvs_main_imports kvs_main_static_sealed_addr b_switcher e_switcher
-      a_cc_switcher ot_switcher b_assert e_assert B_f) = kvs_main_imports_size.
-  Proof. reflexivity. Qed.
-
 End KVS_Main.
 
 (** The code of the concrete adversary of [kvs_concrete], assembled here,
@@ -220,9 +210,11 @@ Section kvs_B_code.
       ret ].
 
   Definition kvs_B_instrs : list instr :=
-    Eval vm_compute in concat (assemble_block [kvs_B_asm]).
+    Eval compute in assemble kvs_B_asm.
+  Lemma kvs_B_assembles : asm_ok (assemble_check kvs_B_asm).
+  Proof. asm_check. Qed.
 
   (** The offset of the entry point from the start of the PCC. *)
   Definition kvs_B_adv_entry : nat :=
-    Eval vm_compute in default 0%nat ((compute_asm_code_env kvs_B_asm).2 !! "adv_entry").
+    Eval vm_compute in label_offset kvs_B_asm "adv_entry".
 End kvs_B_code.

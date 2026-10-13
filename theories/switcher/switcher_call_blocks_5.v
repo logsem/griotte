@@ -29,11 +29,15 @@ Section Switcher_Call_Blocks_5.
     let switcher_instrs_16 := (switcher_instrs_n 16) in
     let len_switcher_16 := length switcher_instrs_16 in
     (* The distance from this block to the block that clears the registers. *)
-    let off_dead_zeros := (switcher_block_offset 14 - switcher_block_offset 16)%Z in
+    let off_dead_zeros :=
+      asm_label_offset switcher_asm ".Lswitch_trusted_stack_exhausted" ".Lswitch_callee_dead_zeros" in
     disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
 
-    (pc_a ^+ 10 + (off_dead_zeros - 10))%a = Some (pc_a ^+ off_dead_zeros)%a ->
+    (pc_a ^+ 10 +
+       asm_label_offset switcher_asm ".Lswitch_trusted_stack_exhausted_return"
+         ".Lswitch_callee_dead_zeros")%a =
+      Some (pc_a ^+ off_dead_zeros)%a ->
 
     (b_stk <= a_stk)%a ->
     (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ->
@@ -81,7 +85,6 @@ Section Switcher_Call_Blocks_5.
       & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & #Hcode & Hpost)".
     (* Compute the distance to the block that clears the registers. *)
     offsets_compute.
-    offsets_sub_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -162,11 +165,15 @@ Section Switcher_Call_Blocks_5.
     let switcher_instrs_16 := (switcher_instrs_n 16) in
     let len_switcher_16 := length switcher_instrs_16 in
     (* The distance from this block to the block that clears the registers. *)
-    let off_dead_zeros := (switcher_block_offset 14 - switcher_block_offset 16)%Z in
+    let off_dead_zeros :=
+      asm_label_offset switcher_asm ".Lswitch_trusted_stack_exhausted" ".Lswitch_callee_dead_zeros" in
     disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
 
-    (pc_a ^+ 10 + (off_dead_zeros - 10))%a = Some (pc_a ^+ off_dead_zeros)%a ->
+    (pc_a ^+ 10 +
+       asm_label_offset switcher_asm ".Lswitch_trusted_stack_exhausted_return"
+         ".Lswitch_callee_dead_zeros")%a =
+      Some (pc_a ^+ off_dead_zeros)%a ->
 
     (b_stk <= a_stk)%a ->
     (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ->
@@ -218,7 +225,6 @@ Section Switcher_Call_Blocks_5.
       & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & Hworld & #Hcode & Hpost)".
     (* Compute the distance to the block that clears the registers. *)
     offsets_compute.
-    offsets_sub_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -303,7 +309,7 @@ Section Switcher_Call_Blocks_5.
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ₚ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
     (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
     (∃ wcgp', cgp ↦ᵣ wcgp') ∗
@@ -341,7 +347,7 @@ Section Switcher_Call_Blocks_5.
     switcher_unfold_code "Hswitcher".
 
     (* Block 16: restore the callee-save registers *)
-    switcher_focus_block 16 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_trusted_stack_exhausted") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_16_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]");
@@ -353,7 +359,7 @@ Section Switcher_Call_Blocks_5.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Blocks 14-15: clear the registers and jump to the caller *)
-    switcher_change_pc (switcher_block_offset 14).
+    switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros").
     iApply (switcher_blocks_14_15_spec with "[- $HPC $Hcra $Hrmap]"); first done.
     iSplitR; first iFrame "Hswitcher".
     iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hrmap & _ & Hlc')".
@@ -370,7 +376,7 @@ Section Switcher_Call_Blocks_5.
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ₚ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
     (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
     (∃ wcgp', cgp ↦ᵣ wcgp') ∗
@@ -410,7 +416,7 @@ Section Switcher_Call_Blocks_5.
     switcher_unfold_code "Hswitcher".
 
     (* Block 16: restore the callee-save registers *)
-    switcher_focus_block 16 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_trusted_stack_exhausted") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_16_world_spec W C with
       "[- $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld $Hcode]");
@@ -422,7 +428,7 @@ Section Switcher_Call_Blocks_5.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Blocks 14-15: clear the registers and jump to the caller *)
-    switcher_change_pc (switcher_block_offset 14).
+    switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros").
     iApply (switcher_blocks_14_15_spec with "[- $HPC $Hcra $Hrmap]"); first done.
     iSplitR; first iFrame "Hswitcher".
     iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hrmap & _ & Hlc')".

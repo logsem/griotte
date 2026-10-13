@@ -23,7 +23,7 @@ Section Counter_Main_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wret wcra wca0 wca1 wcs1 wcnull : LWord) :
     counter_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ counter_label_offset ".Lcounter_return")%a ∗
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wret ∗
     cs1 ↦ᵣ wcs1 ∗
@@ -49,7 +49,7 @@ Section Counter_Main_Blocks_2.
 
     (* Block 4: restore the return address, clear the registers, and
        return *)
-    focus_block 4 "Hcode_main" of counter_main_blocks at pc_a as a_ret Ha_ret "Hcode" "Hcont".
+    focus_block (counter_block ".Lcounter_return") "Hcode_main" of counter_main_blocks at pc_a as a_ret Ha_ret "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov cra cs0 *)
     iInstr "Hcode".

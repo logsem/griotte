@@ -17,8 +17,8 @@ From griotte Require Export switcher switcher_preamble switcher_macros_spec.
       load the unsealing capability and unseal the entry point,
     - [switcher_call_blocks_4]: blocks 7-11, load the callee and jump to it.
 
-    The block-group lemmas start and end at the first address of blocks of
-    the code [switcher_instrs], given by [switcher_block_offset] (see
+    The block-group lemmas start and end at labels of the code
+    [switcher_instrs], whose offsets are given by [switcher_label_offset] (see
     [switcher_preamble]). *)
 
 Section Switcher_Call_States.

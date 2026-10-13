@@ -36,18 +36,23 @@ Section Counter_Main.
         #@".Limport_C_f";
 
         (* get a *)
+        #".Lcounter_main";
         load cs0 cgp;
         (* set a := a + 1 *)
         add cs0 cs0 1;
         store cgp cs0
         (* call C_f*)
       ];
+      #".Lcounter_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      #".Lcounter_fetch_C_f" ::
       fetch_asm ".Limport_C_f" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
-      [ mov cs0 cra; (* stores the return-to-switcher *)
+      [ #".Lcounter_call";
+        mov cs0 cra; (* stores the return-to-switcher *)
         jalr cra ct0 (* jmp to entry point *)
       ];
-      [ mov cra cs0; (* restores the return-to-switcher *)
+      [ #".Lcounter_return";
+        mov cra cs0; (* restores the return-to-switcher *)
 
         (* return a *)
         mov ca0 0;
@@ -58,10 +63,10 @@ Section Counter_Main.
       ]
     ].
 
-  Definition counter_main_assembled' :=
-    Eval vm_compute in assemble_block counter_main_asm.
   Definition counter_main_assembled :=
-    Eval cbv in revert_regs_code_block counter_main_assembled'.
+    Eval compute in assemble_block counter_main_asm.
+  Lemma counter_main_assembles : asm_ok (assemble_block_check counter_main_asm).
+  Proof. asm_check. Qed.
   Definition counter_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (counter_main_assembled !! n)).
 

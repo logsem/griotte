@@ -62,7 +62,7 @@ Section VAE.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
 
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + vae_label ".Lvae_init")%a = Some pc_a ->
 
     loc W0 !! i = Some (encode false) ->
     frame_match Ws Cs cstk W0 C ->

@@ -53,40 +53,42 @@ Section Switcher.
         lea csp 1
       ]
       ; (* Check that the trusted stack has enough space and push the csp *)
-      [
+      [ #".Lswitcher_trusted_stack_push";
         readsr ct2 mtdc;
         geta cs0 ct2;
         add cs0 cs0 1;
         gete ctp ct2;
         lt ctp cs0 ctp; (* if (atstk+1 < etstk) then (ctp := 1) else (ctp := 0)*)
         jnz 2 ctp;
+        #".Lswitcher_trusted_stack_full";
         jmp (".Lswitch_trusted_stack_exhausted")%asm;
         lea ct2 1;
         store ct2 csp;
         writesr mtdc ct2
       ]
       ; (* Chop off the stack *)
-      [
+      [ #".Lswitcher_chop_stack";
         gete cs0 csp;
         geta cs1 csp;
         subseg csp cs1 cs0
       ]
       ; (* Zero out the callee's stack frame *)
-      clear_stack_asm cs0 cs1
+      (#".Lswitcher_zero_callee_stack" :: clear_stack_asm cs0 cs1)
       ; (* Fetch (unsealing capability and unseal entry point *)
-      [
+      [ #".Lswitcher_fetch_unseal_key";
         auipcc cs0 (".Lswitcher_unseal_key")%asm;
         load cs0 cs0
       ]
       ; (* CLoad and decode entry point nargs and offset *)
-      [
+      [ #".Lswitcher_unseal_entry";
         unseal ct1 cs0 ct1;
+        #".Lswitcher_decode_entry";
         load cs0 ct1;
         land ct2 cs0 7;
         lshiftr cs0 cs0 3
       ]
       ; (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
-      [
+      [ #".Lswitcher_prepare_callee";
         getb cgp ct1;
         geta cs1 ct1;
         sub cs1 cgp cs1;
@@ -98,11 +100,12 @@ Section Switcher.
         add ct2 ct2 1
       ]
       ; (* Clear ununsed arguments registers *)
-      clear_registers_pre_call_skip_asm
+      (#".Lswitcher_clear_unused_args" :: clear_registers_pre_call_skip_asm)
       ; (* Clear non-arguments registers  *)
-      clear_registers_pre_call_asm
+      (#".Lswitcher_clear_registers" :: clear_registers_pre_call_asm)
       ; (* Jump to callee *)
-      [ jalr cra cra ]
+      [ #".Lswitcher_call_callee";
+        jalr cra cra ]
     ].
 
   Definition switcher_callback_asm : list (list asm_code) :=
@@ -119,6 +122,7 @@ Section Switcher.
 
         (* Restores the caller's saved registers *)
         lea csp (-1)%Z;
+        #".Lswitcher_restore_cgp";
         load cgp csp;
         lea csp (-1)%Z;
         load cra csp;
@@ -132,11 +136,12 @@ Section Switcher.
         geta ct1 csp
       ]
       ; (* Clear the callee's stack frame  *)
-      clear_stack_asm ct0 ct1
+      (#".Lswitcher_zero_callee_frame" :: clear_stack_asm ct0 ct1)
       ; (* Clear the register file *)
       (#".Lswitch_callee_dead_zeros"::clear_registers_post_call_asm)
       ; (* Return to caller  *)
-      [ ret ]
+      [ #".Lswitcher_return_to_caller";
+        ret ]
     ].
 
   Definition switcher_failure_asm : list (list asm_code) :=
@@ -153,29 +158,27 @@ Section Switcher.
         load cs0 csp;
         mov ca0 ENOTENOUGHTRUSTEDSTACK;
         mov ca1 0;
+        #".Lswitch_trusted_stack_exhausted_return";
         jmp (".Lswitch_callee_dead_zeros")%asm
       ]
       ; (* Force unwind: return to caller's caller *)
       [ #".Lcommon_force_unwind";
         mov ca0 ECOMPARTMENTFAIL;
         mov ca1 0;
+        #".Lcommon_force_unwind_return";
         jmp (".Lswitcher_after_compartment_call")%asm
       ]
     ].
 
-  Definition switcher_asm_pre : list (list asm_code) :=
+  Definition switcher_asm : list (list asm_code) :=
     switcher_call_asm ++
     switcher_callback_asm ++
     switcher_failure_asm.
 
-  Definition switcher_asm_env :=
-    Eval vm_compute in (compute_asm_code_env (concat switcher_asm_pre)).2.
-  Definition switcher_labels :=
-    Eval cbn in (compute_asm_code_env (concat switcher_asm_pre)).2.
-  Definition switcher_asm :=
-    Eval compute in resolve_labels_block switcher_asm_pre switcher_asm_env.
   Definition assembled_switcher :=
     Eval compute in assemble_block switcher_asm.
+  Lemma switcher_assembles : asm_ok (assemble_block_check switcher_asm).
+  Proof. asm_check. Qed.
   Definition assembled_switcher_n (n : nat) :=
     Eval compute in
       (match assembled_switcher !! n with | Some l => l | None => [] end).

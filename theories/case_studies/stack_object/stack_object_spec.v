@@ -60,7 +60,7 @@ Section SO.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
 
     (cgp_b + length so_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + so_label ".Lso_run")%a = Some pc_a ->
 
     frame_match Ws Cs cstk W0 C ->
     (

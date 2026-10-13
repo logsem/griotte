@@ -6,8 +6,8 @@ Section ClearStackMacro.
   Context `{MP: MachineParameters}.
 
   (* Expects r1 := e_stk ; r2 := a_stk *)
-  Definition clear_stack_asm_pre (r1 r2 : RegName) : list asm_code :=
-    [
+  Definition clear_stack_asm (r1 r2 : RegName) : list asm_code :=
+    macro: [
       sub r1 r2 r1;
       mov r2 csp;
       #"loop_start";
@@ -20,11 +20,10 @@ Section ClearStackMacro.
       jmp ("loop_start")%asm;
       #"loop_end"
     ].
+  Lemma clear_stack_assembles (r1 r2 : RegName) :
+    asm_ok (assemble_check (clear_stack_asm r1 r2)).
+  Proof. asm_check. Qed.
 
-  Definition clear_stack_asm_env :=
-    Eval vm_compute in (compute_asm_code_env (clear_stack_asm_pre cnull cnull)).2.
-  Definition clear_stack_asm (r1 r2 : RegName) :=
-    Eval compute in resolve_labels_macros (clear_stack_asm_pre r1 r2) clear_stack_asm_env.
   Definition clear_stack (r1 r2 : RegName) : list instr :=
     Eval compute in assemble (clear_stack_asm r1 r2).
   Definition clear_stack_instrs (r1 r2 : RegName) : list Word :=

@@ -65,7 +65,7 @@ Section KVS_main_spec.
 
     (static_sealed_b + length (kvs_main_static_sealed KVS_USER_KEY_MAIN))%a = Some static_sealed_e ->
     (cgp_b + length (kvs_main_data))%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     frame_match Ws Cs cstk W0 B ->
@@ -152,8 +152,6 @@ Section KVS_main_spec.
 
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
-    pose proof Himports_contiguous as Himports_size.
-    rewrite kvs_main_imports_length in Himports_size.
     iApply (kvs_main_add_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap KVS_USER_KEY_MAIN b_assert e_assert B_f Nswitcher stk_mem cstk

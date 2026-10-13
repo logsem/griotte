@@ -112,7 +112,7 @@ Section Allocator.
   *)
 
   Definition allocator_malloc_asm : list (list asm_code) :=
-    [ allocator_owner_asm ctp ca0;
+    [ #".Lmalloc_owner" :: allocator_owner_asm ctp ca0;
       [ (* Reject noninteger and nonpositive sizes before touching the heap. *)
         getwtype ca3 ca1;
         sub ca3 ca3 (encodeWordType wt_int);
@@ -208,7 +208,7 @@ Section Allocator.
   *)
 
   Definition allocator_free_asm : list (list asm_code) :=
-    [ allocator_owner_asm ctp ca0;
+    [ #".Lfree_owner" :: allocator_owner_asm ctp ca0;
       [ (* Keep the owner in [ca0]: [ctp] receives the shadow capability. *)
         mov ca0 ctp;
         (* Reject every non-capability word, including null. *)
@@ -277,14 +277,13 @@ Section Allocator.
   Definition allocator_asm : list (list asm_code) :=
     allocator_with_imports (allocator_malloc_asm ++ allocator_free_asm).
 
-  Definition assembled_allocator' :=
-    Eval vm_compute in assemble_block allocator_asm.
-
-  Definition assembled_allocator_malloc' :=
-    Eval vm_compute in take (length allocator_malloc_asm) assembled_allocator'.
+  Definition assembled_allocator :=
+    Eval compute in assemble_block allocator_asm.
+  Lemma allocator_assembles : asm_ok (assemble_block_check allocator_asm).
+  Proof. asm_check. Qed.
 
   Definition assembled_allocator_malloc :=
-    Eval cbv in revert_regs_code_block assembled_allocator_malloc'.
+    Eval compute in take (length allocator_malloc_asm) assembled_allocator.
 
   Definition assembled_allocator_malloc_n (n : nat) : list instr :=
     default [] (assembled_allocator_malloc !! n).
@@ -295,11 +294,8 @@ Section Allocator.
   Definition allocator_malloc_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_allocator_malloc).
 
-  Definition assembled_allocator_free' :=
-    Eval vm_compute in drop (length allocator_malloc_asm) assembled_allocator'.
-
   Definition assembled_allocator_free :=
-    Eval cbv in revert_regs_code_block assembled_allocator_free'.
+    Eval compute in drop (length allocator_malloc_asm) assembled_allocator.
 
   Definition assembled_allocator_free_n (n : nat) : list instr :=
     default [] (assembled_allocator_free !! n).
@@ -311,10 +307,15 @@ Section Allocator.
     concat (encodeInstrsW <$> assembled_allocator_free).
 
   (** The offsets of the fetches of the unsealing key by [allocator_owner_asm]
-      in the first block of each entry, from the assembled program. *)
-  Definition allocator_malloc_owner_off : Z := fetch_offset (assembled_allocator_malloc_n 0).
+      at the start of each entry (the labels [.L<entry>_owner]), from the
+      address of the fetch. *)
+  Definition allocator_malloc_owner_off : Z :=
+    Eval vm_compute in
+      label_offset_from (concat allocator_asm) ".Lmalloc_owner" ".Limport_unsealing_key".
 
-  Definition allocator_free_owner_off : Z := fetch_offset (assembled_allocator_free_n 0).
+  Definition allocator_free_owner_off : Z :=
+    Eval vm_compute in
+      label_offset_from (concat allocator_asm) ".Lfree_owner" ".Limport_unsealing_key".
 
   Definition allocator_code : list Word :=
     allocator_malloc_instrs ++ allocator_free_instrs.
@@ -323,8 +324,13 @@ Section Allocator.
 
   Definition allocator_free_nargs : nat := 2.
 
+  (** The offset of the entry of [free] from the start of the PCC. *)
   Definition allocator_free_pcc_off : nat :=
-    allocator_malloc_pcc_off + length allocator_malloc_instrs.
+    Eval vm_compute in label_offset (concat allocator_asm) ".Lfree_owner".
+
+  Lemma allocator_free_pcc_off_eq :
+    allocator_free_pcc_off = allocator_malloc_pcc_off + length allocator_malloc_instrs.
+  Proof. reflexivity. Qed.
 
   Definition allocator_export_table_entries : list Word :=
     [WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off);

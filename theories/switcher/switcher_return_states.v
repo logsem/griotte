@@ -14,8 +14,8 @@ From griotte Require Export logrel switcher switcher_preamble.
       restore the callee-save registers, clear the stack frame and the
       registers, and jump back to the caller.
 
-    The block-group lemmas start and end at the first address of blocks of
-    the code [switcher_instrs], given by [switcher_block_offset] (see
+    The block-group lemmas start and end at labels of the code
+    [switcher_instrs], whose offsets are given by [switcher_label_offset] (see
     [switcher_preamble]). *)
 
 Section Switcher_Return_States.
@@ -31,7 +31,7 @@ Section Switcher_Return_States.
 
   (** The return entry point is the first address of block 12. *)
   Lemma switcher_return_block_12 :
-    a_switcher_return = (a_switcher_call ^+ switcher_block_offset 12)%a.
+    a_switcher_return = (a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call")%a.
   Proof. rewrite switcher_return_offset. by offsets_compute. Qed.
 
   (** The bounds of the caller's stack frame, as stored in the call frame. *)

@@ -64,7 +64,7 @@ Section Heap_Temporal_Safety_Main.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
 
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     heap_std W_init_C = ∅ ->

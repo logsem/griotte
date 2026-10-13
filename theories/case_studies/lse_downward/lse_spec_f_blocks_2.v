@@ -24,7 +24,7 @@ Section LSE_F_Blocks_2.
     (wcgp wcs0 wcra wca0 wca1 wcnull : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
     cgp ↦ᵣ wcgp ∗
     cs0 ↦ᵣ wcs0 ∗
     ct0 ↦ᵣ WInt 2 ∗
@@ -57,7 +57,7 @@ Section LSE_F_Blocks_2.
     rewrite /lse_assert_entry.
 
     (* Block 5: assert that [a] contains [2] *)
-    focus_block 5 "Hcode_main" of lse_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
+    focus_block (lse_block ".Llse_f_assert") "Hcode_main" of lse_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hcnull
@@ -69,7 +69,7 @@ Section LSE_F_Blocks_2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 6: clear the return values, and return *)
-    focus_block 6 "Hcode_main" of lse_main_blocks at pc_a as a_ret Ha_ret "Hcode" "Hcont".
+    focus_block (lse_block ".Llse_f_return") "Hcode_main" of lse_main_blocks at pc_a as a_ret Ha_ret "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov ca0 0 *)
     iInstr "Hcode".

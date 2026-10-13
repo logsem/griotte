@@ -35,7 +35,7 @@ Section HTS_Spec_Assert.
     disjoint_from_shadow cgp_b cgp_e ->
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
-    (pc_b + length (hts_main_imports owner_a C_f))%a = Some pc_a ->
+    (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
     adv2_ret
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -54,7 +54,7 @@ Section HTS_Spec_Assert.
     unfold_code hts_main_code "Hcode_main".
 
     (* Block 21: load p and prepare zero for the assertion. *)
-    focus_block 21 "Hcode_main" of hts_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_prep_assert") "Hcode_main" of hts_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct0;ct1] as ["[Hct0 _]";"[Hct1 _]"].
     (* CLoad ct0 cgp 0. *)
@@ -67,7 +67,7 @@ Section HTS_Spec_Assert.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 22: fetch and call the assertion service. *)
-    focus_block 22 "Hcode_main" of hts_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_assert") "Hcode_main" of hts_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct2;ca2;cnull] as
       ["[Hct2 _]";"[Hca2 _]";"[Hcnull _]"].
@@ -81,7 +81,7 @@ Section HTS_Spec_Assert.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 23: halt with the assertion service token restored. *)
-    focus_block 23 "Hcode_main" of hts_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_halt") "Hcode_main" of hts_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Halt. *)
     iInstr "Hcode".

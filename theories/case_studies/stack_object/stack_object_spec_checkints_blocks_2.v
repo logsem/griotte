@@ -28,14 +28,14 @@ Section SO_Checkints_Blocks_2.
     readAllowed p = true ->
     disjoint_from_shadow b e ->
     l ≡ₚ finz.seq_between b e ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
     ca0 ↦ᵣ WCap t p g b e a @@? π ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
     codefrag_pers pc_a so_main_code ∗
     ▷ (⌜Forall (λ w, ∃ z, w.(lw) = WInt z) ws⌝ ∗
-        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
+        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
         ca0 ↦ᵣ WCap t p g b e (finz.max b e) @@? π ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
@@ -51,13 +51,13 @@ Section SO_Checkints_Blocks_2.
     so_unfold_code.
 
     (* Block 6: check that [in] only contains integers *)
-    focus_block 6 "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_checkints") "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hobject $Hcode]"); eauto.
     iSplitL; last (iModIntro; iNext; iIntros (?); done).
     iNext; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hobject & %Hints & _ & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    change_pc_to (pc_a ^+ so_block_offset 7)%a.
+    change_pc_to (pc_a ^+ so_label_offset ".Lso_f_alloc")%a.
     iApply "Hpost"; iFrame "∗% Hcode_main".
   Qed.
 
@@ -69,7 +69,7 @@ Section SO_Checkints_Blocks_2.
     (wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     (b < e)%a ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
     ca0 ↦ᵣ WCap false p g b e a @@? π ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
@@ -82,7 +82,7 @@ Section SO_Checkints_Blocks_2.
     so_unfold_code.
 
     (* Block 6: [checkints] fails on the untagged object *)
-    focus_block 6 "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_checkints") "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
     iApply (checkints_fail_untagged with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iModIntro; iNext; iIntros (?); done.
   Qed.

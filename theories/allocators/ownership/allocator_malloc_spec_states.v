@@ -58,12 +58,15 @@ Notation allocator_malloc_block_offset := (code_block_offset allocator_malloc_bl
 (** Offset of the [i]-th instruction of the block [n] in [allocator_malloc_code]. *)
 Notation allocator_malloc_instr_offset := (code_instr_offset allocator_malloc_blocks).
 
+(** Offset of the label [s] of [malloc] in [allocator_malloc_code], whose
+    entry is the label [.Lmalloc_owner]. *)
+Notation allocator_malloc_label_offset s :=
+  (asm_label_offset allocator_asm ".Lmalloc_owner" s).
+
 (** Offsets of the exits of [malloc] in [allocator_malloc_code]. *)
-Notation allocator_malloc_invalid_offset := (allocator_malloc_block_offset 5).
-Notation allocator_malloc_no_memory_offset :=
-  (allocator_malloc_block_offset 5 + allocator_malloc_exit_block_offset 1)%Z.
-Notation allocator_malloc_return_offset :=
-  (allocator_malloc_block_offset 5 + allocator_malloc_exit_block_offset 2)%Z.
+Notation allocator_malloc_invalid_offset := (allocator_malloc_label_offset ".malloc_invalid").
+Notation allocator_malloc_no_memory_offset := (allocator_malloc_label_offset ".malloc_no_memory").
+Notation allocator_malloc_return_offset := (allocator_malloc_label_offset ".malloc_return").
 
 (** Unfold [allocator_malloc_code] into the chain of its blocks. *)
 Ltac allocator_malloc_unfold_code h := unfold_code allocator_malloc_code h.

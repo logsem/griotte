@@ -255,7 +255,7 @@ Section KVS_spec_read.
 
     rewrite /kvs_service_instrs.
     focus_block_nochangePC 1 "Hcode_main" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
+    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr kvs_read_pcc_off_eq ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
 
     iDestruct ( kvs_physical_kvs_valid with "Hpkvs_frag Hpkvs_frag'") as "<-".
 
@@ -684,7 +684,7 @@ Section KVS_spec_read.
 
     rewrite /kvs_service_instrs.
     focus_block_nochangePC 1 "Hcode_main" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
+    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr kvs_read_pcc_off_eq ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
 
     iDestruct ( kvs_physical_kvs_valid with "Hpkvs_frag Hpkvs_frag'") as "<-".
 
@@ -1116,7 +1116,7 @@ Section KVS_spec_read.
 
     rewrite /kvs_service_instrs.
     focus_block_nochangePC 1 "Hcode_main" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
+    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr kvs_read_pcc_off_eq ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
 
     iDestruct ( kvs_physical_kvs_valid with "Hpkvs_frag Hpkvs_frag'") as "<-".
 
@@ -1410,7 +1410,7 @@ Section KVS_spec_read.
 
     rewrite /kvs_service_instrs.
     focus_block_nochangePC 1 "Hcode_main" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
+    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr kvs_read_pcc_off_eq ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
     iApply ( KVS_read_spec_not_uint16_map_key_pre ); eauto; iFrame "∗ Hcode".
     iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & _)".
 
@@ -1540,9 +1540,9 @@ Section KVS_spec_read.
 
     rewrite /kvs_service_instrs.
     focus_block_nochangePC 1 "Hcode_main" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
+    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr kvs_read_pcc_off_eq ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
     assert ((KVS_pcc_b + kvs_read_pcc_off)%a = Some kvs_read_pcc_addr) as Hread_off
-      by (rewrite /kvs_read_pcc_addr /kvs_read_pcc_off; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b').
+      by (rewrite /kvs_read_pcc_addr kvs_read_pcc_off_eq; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b').
     iApply ( KVS_read_spec_invalid_sealed_user_key_pre ); eauto; iFrame "∗ Hcode Ha_unsealing".
   Qed.
 

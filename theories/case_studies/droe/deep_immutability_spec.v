@@ -58,7 +58,7 @@ Section DROE.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
 
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + droe_label ".Ldroe_init")%a = Some pc_a ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     LNonHeap (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->

@@ -98,7 +98,7 @@ Section AllocatorFreeHeaderBlocks3.
     focus_block 3 "Hcode_main" of allocator_free_blocks at pc_a as a_fetch Ha_fetch
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    rewrite /allocator_free_pcc_off /allocator_malloc_pcc_off in Hpcc.
+    rewrite allocator_free_pcc_off_eq /allocator_malloc_pcc_off in Hpcc.
     let v := eval vm_compute in (length allocator_malloc_instrs) in
     change (length allocator_malloc_instrs) with v in Hpcc.
     pose proof allocator_shadow_import_not_heap.

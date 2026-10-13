@@ -34,7 +34,7 @@ Section DROE_Init_Blocks_1.
     cgp_b ↦ₐ WInt 0 ∗
     (cgp_b ^+ 1)%a ↦ₐ WInt 0 ∗
     codefrag_pers pc_a droe_main_code ∗
-    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_block_offset 1)%a ∗
+    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
         (∃ w, ct0 ↦ᵣ w) ∗

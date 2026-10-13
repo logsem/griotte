@@ -27,7 +27,7 @@ Section CMDC_Prep_Blocks_4.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     is_mmio_address cgp_b = false ->
     is_heap_address (cgp_b ^+ 1)%a = false ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 5)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_prep_C")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e (cgp_b ^+ 1)%a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
@@ -35,7 +35,7 @@ Section CMDC_Prep_Blocks_4.
     ct1 ↦ᵣ wct1 ∗
     cgp_b ↦ₐ wcgp_b ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 6)%a ∗
+    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_call_C")%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WCap true RW Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
         ca1 ↦ᵣ WInt 0 ∗
@@ -52,7 +52,7 @@ Section CMDC_Prep_Blocks_4.
     unfold_code cmdc_main_code "Hcode_main".
 
     (* Block 5: overwrite b and prepare the argument of the call to C.g *)
-    focus_block 5 "Hcode_main" of cmdc_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
+    focus_block (cmdc_block ".Lcmdc_prep_C") "Hcode_main" of cmdc_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov ca0 cgp *)
     iInstr "Hcode".
@@ -75,7 +75,7 @@ Section CMDC_Prep_Blocks_4.
     { solve_addr. }
     { solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    change_pc_to (pc_a ^+ cmdc_block_offset 6)%a.
+    change_pc_to (pc_a ^+ cmdc_label_offset ".Lcmdc_call_C")%a.
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

@@ -22,9 +22,9 @@ Section SO_Run_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (φ : language.val griotte_lang -> iProp Σ) :
     so_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_run_halt")%a ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
+    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_run_halt")%a ∗
         codefrag_pers pc_a so_main_code
         -∗ WP Instr Halted {{ φ }})
     ⊢ WP Seq (Instr Executable) {{ φ }}.
@@ -34,13 +34,13 @@ Section SO_Run_Blocks_2.
     so_unfold_code.
 
     (* Block 2: halt *)
-    focus_block 2 "Hcode_main" of so_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
+    focus_block (so_block ".Lso_run_call") "Hcode_main" of so_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_call ^+ 1)%a.
     (* Halt *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    change_pc_to (pc_a ^+ so_instr_offset 2 1)%a.
+    change_pc_to (pc_a ^+ so_label_offset ".Lso_run_halt")%a.
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

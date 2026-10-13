@@ -20,7 +20,8 @@ From griotte Require Export case_study_spec_helpers.
     are in [dle_spec_world].
 
     The block-group lemmas start and end at addresses of the code
-    [dle_main_code], given by [dle_block_offset] and [dle_instr_offset]. *)
+    [dle_main_code], given by the labels of [dle_main_asm]
+    ([dle_label_offset]). *)
 
 Section DLE_Code.
   Context `{MP: MachineParameters}.
@@ -38,6 +39,18 @@ Notation dle_block_offset := (code_block_offset dle_main_blocks).
 
 (** Offset of the [i]-th instruction of the block [n] in [dle_main_code]. *)
 Notation dle_instr_offset := (code_instr_offset dle_main_blocks).
+
+(** Offset of the label [s] of [dle_main_asm] from the start of the PCC,
+    the imports. The labels do not depend on the argument of
+    [dle_main_asm]. *)
+Notation dle_label s := (asm_label (dle_main_asm 0) s).
+
+(** Offset of the label [s] in [dle_main_code], which starts at the label
+    [.Ldle_init]. *)
+Notation dle_label_offset s := (asm_label_offset (dle_main_asm 0) ".Ldle_init" s).
+
+(** Index of the block of [dle_main_code] that defines the label [s]. *)
+Notation dle_block s := (asm_block (dle_main_asm 0) s).
 
 Section DLE_States.
   Context
@@ -64,7 +77,7 @@ Section DLE_States.
   (** The bounds of the code and of the imports, as given to [dle_spec]. *)
   Definition dle_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length dle_main_code)%a ∧
-    (pc_b + length (dle_main_imports C_f))%a = Some pc_a ∧
+    (pc_b + dle_label ".Ldle_init")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false ∧
     is_heap_cap (WSealed ot_switcher C_f) = false.

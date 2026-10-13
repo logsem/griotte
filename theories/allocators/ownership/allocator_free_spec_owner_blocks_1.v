@@ -46,7 +46,7 @@ Section AllocatorFreeOwnerBlocks1.
     iApply (allocator_owner_spec with
       "[- $HPC $Hctp $Hca0 $Hkey $Howner $Hcode]"); try done.
     { rewrite /allocator_unsealing_key_import_off.
-      rewrite /allocator_free_pcc_off /allocator_malloc_pcc_off in Hpcc.
+      rewrite allocator_free_pcc_off_eq /allocator_malloc_pcc_off in Hpcc.
       let n := eval vm_compute in (length allocator_malloc_instrs) in
       change (length allocator_malloc_instrs) with n in Hpcc.
       let v := eval vm_compute in allocator_free_owner_off in
@@ -83,7 +83,7 @@ Section AllocatorFreeOwnerBlocks1.
     iApply (allocator_owner_invalid_spec with
       "[$HPC $Hctp $Hca0 $Hkey $Hcode]"); try done.
     { rewrite /allocator_unsealing_key_import_off.
-      rewrite /allocator_free_pcc_off /allocator_malloc_pcc_off in Hpcc.
+      rewrite allocator_free_pcc_off_eq /allocator_malloc_pcc_off in Hpcc.
       let n := eval vm_compute in (length allocator_malloc_instrs) in
       change (length allocator_malloc_instrs) with n in Hpcc.
       let v := eval vm_compute in allocator_free_owner_off in

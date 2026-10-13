@@ -28,7 +28,7 @@ Section LSE_F_Blocks_1.
     is_shadow_address cgp_b = false ->
     is_heap_address cgp_b = false ->
     disjoint_from_mmio csp_b csp_e ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 4)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ct0 ↦ᵣ wct0 ∗
@@ -39,7 +39,7 @@ Section LSE_F_Blocks_1.
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     codefrag_pers pc_a lse_main_code ∗
     ▷ (∀ stk_mem' wcs0' wcs1',
-        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
+        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
         cgp ↦ᵣ lse_a_cap cgp_b ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ WInt 2 ∗
@@ -60,7 +60,7 @@ Section LSE_F_Blocks_1.
     rewrite /lse_a_cap.
 
     (* Block 4: push the capability of [a], load [a] *)
-    focus_block 4 "Hcode_main" of lse_main_blocks at pc_a as a_f Ha_f "Hcode" "Hcont".
+    focus_block (lse_block ".Llse_f") "Hcode_main" of lse_main_blocks at pc_a as a_f Ha_f "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* GetB cs0 cgp *)
     iInstr "Hcode".
@@ -101,7 +101,7 @@ Section LSE_F_Blocks_1.
     iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk".
     { transitivity (Some (csp_b ^+ 1)%a); [solve_addr+Hcsp_size|reflexivity]. }
     { solve_addr+Hcsp_size. }
-    assert ((a_f ^+ 6)%a = (pc_a ^+ lse_block_offset 5)%a) as ->
+    assert ((a_f ^+ 6)%a = (pc_a ^+ lse_label_offset ".Llse_f_assert")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

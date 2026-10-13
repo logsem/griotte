@@ -55,9 +55,13 @@ Notation allocator_free_block_offset := (code_block_offset allocator_free_blocks
 (** Offset of the [i]-th instruction of the block [n] in [allocator_free_code]. *)
 Notation allocator_free_instr_offset := (code_instr_offset allocator_free_blocks).
 
+(** Offset of the label [s] of [free] in [allocator_free_code], whose
+    entry is the label [.Lfree_owner]. *)
+Notation allocator_free_label_offset s :=
+  (asm_label_offset allocator_asm ".Lfree_owner" s).
+
 (** Offset of the rejection of [free] in [allocator_free_code]. *)
-Notation allocator_free_invalid_offset :=
-  (allocator_free_block_offset 5 + allocator_free_tail_block_offset 5)%Z.
+Notation allocator_free_invalid_offset := (allocator_free_label_offset ".free_invalid").
 
 (** Unfold [allocator_free_code] into the chain of its blocks. *)
 Ltac allocator_free_unfold_code h := unfold_code allocator_free_code h.

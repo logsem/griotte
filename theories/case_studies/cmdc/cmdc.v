@@ -22,6 +22,7 @@ Section CMDC_Main.
         #@".Limport_C_g";
 
         (* set b <- 0 *)
+        #".Lcmdc_init";
         store cgp 0;
         mov ca0 cgp;
 
@@ -34,15 +35,21 @@ Section CMDC_Main.
         add ct1 ct0 1;
         subseg ca0 ct0 ct1 (* ca0 -> b *)
       ];
+      #".Lcmdc_call_B" ::
       fetch_asm ".Limport_switcher" ctp; (* ctp -> switcher entry point *)
+      #".Lcmdc_fetch_B_f" ::
       fetch_asm ".Limport_B_f" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
-      [ jalr cra ctp;
+      [ #".Lcmdc_jump_B";
+        jalr cra ctp;
         (* assert c == 0 *)
+        #".Lcmdc_return_B";
         load ct0 cgp; (* ct0 -> c *)
         mov ct1 0
       ];
+      #".Lcmdc_assert_B" ::
       assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
       [ (* prepare for later *)
+        #".Lcmdc_prep_C";
         mov ca0 cgp;
         mov ca1 0; (* erase returned values from the call *)
 
@@ -55,21 +62,26 @@ Section CMDC_Main.
         add ct1 ct0 1;
         subseg ca0 ct0 ct1 (* ca0 -> c *)
       ];
+      #".Lcmdc_call_C" ::
       fetch_asm ".Limport_switcher" ctp; (* ctp -> switcher entry point *)
+      #".Lcmdc_fetch_C_g" ::
       fetch_asm ".Limport_C_g" ct1; (* ct1 -> {C.g}_(ot_switcher)  *)
-      [ jalr cra ctp;
+      [ #".Lcmdc_jump_C";
+        jalr cra ctp;
         (* assert b == 42 *)
+        #".Lcmdc_return_C";
         load ct0 cgp; (* ct0 -> c *)
         mov ct1 42
       ];
+      #".Lcmdc_assert_C" ::
       assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
-      [ halt ]
+      [ #".Lcmdc_halt"; halt ]
     ].
 
-  Definition cmdc_main_assembled' :=
-    Eval vm_compute in assemble_block cmdc_main_asm.
   Definition cmdc_main_assembled :=
-    Eval cbv in revert_regs_code_block cmdc_main_assembled'.
+    Eval compute in assemble_block cmdc_main_asm.
+  Lemma cmdc_main_assembles : asm_ok (assemble_block_check cmdc_main_asm).
+  Proof. asm_check. Qed.
   Definition cmdc_main_instrs_n (n : nat) : list Word :=
     encodeInstrsW (default [] (cmdc_main_assembled !! n)).
 

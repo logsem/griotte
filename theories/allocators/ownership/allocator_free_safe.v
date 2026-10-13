@@ -517,7 +517,7 @@ Section Heap_Temporal_Safety_Interp.
     iSplit; first (iPureIntro; pose proof allocator_size_imports as Himports;
       pose proof allocator_size_code as Hcode;
       rewrite /allocator_code length_app in Hcode;
-      rewrite /allocator_free_pcc_off /allocator_malloc_pcc_off in Hcode |- *;
+      rewrite allocator_free_pcc_off_eq /allocator_malloc_pcc_off in Hcode |- *;
       solve_addr).
 
     assert (forall a, (allocator_exp_tbl_b <= a < allocator_exp_tbl_e)%a ->

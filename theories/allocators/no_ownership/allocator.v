@@ -159,7 +159,8 @@ Section Allocator.
   *)
 
   Definition allocator_free_asm : list (list asm_code) :=
-    [ [ (* Reject every non-capability word, including null. *)
+    [ [ #".Lfree";
+        (* Reject every non-capability word, including null. *)
         getwtype ca3 ca0;
         sub ca3 ca3 (encodeWordType wt_cap);
         jnz (".free_invalid")%asm ca3
@@ -221,14 +222,13 @@ Section Allocator.
   Definition allocator_asm : list (list asm_code) :=
     allocator_with_imports (allocator_malloc_asm ++ allocator_free_asm).
 
-  Definition assembled_allocator' :=
-    Eval vm_compute in assemble_block allocator_asm.
-
-  Definition assembled_allocator_malloc' :=
-    Eval vm_compute in take (length allocator_malloc_asm) assembled_allocator'.
+  Definition assembled_allocator :=
+    Eval compute in assemble_block allocator_asm.
+  Lemma allocator_assembles : asm_ok (assemble_block_check allocator_asm).
+  Proof. asm_check. Qed.
 
   Definition assembled_allocator_malloc :=
-    Eval cbv in revert_regs_code_block assembled_allocator_malloc'.
+    Eval compute in take (length allocator_malloc_asm) assembled_allocator.
 
   Definition assembled_allocator_malloc_n (n : nat) : list instr :=
     default [] (assembled_allocator_malloc !! n).
@@ -239,11 +239,8 @@ Section Allocator.
   Definition allocator_malloc_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_allocator_malloc).
 
-  Definition assembled_allocator_free' :=
-    Eval vm_compute in drop (length allocator_malloc_asm) assembled_allocator'.
-
   Definition assembled_allocator_free :=
-    Eval cbv in revert_regs_code_block assembled_allocator_free'.
+    Eval compute in drop (length allocator_malloc_asm) assembled_allocator.
 
   Definition assembled_allocator_free_n (n : nat) : list instr :=
     default [] (assembled_allocator_free !! n).
@@ -261,8 +258,13 @@ Section Allocator.
 
   Definition allocator_free_nargs : nat := 1.
 
+  (** The offset of the entry of [free] from the start of the PCC. *)
   Definition allocator_free_pcc_off : nat :=
-    allocator_malloc_pcc_off + length allocator_malloc_instrs.
+    Eval vm_compute in label_offset (concat allocator_asm) ".Lfree".
+
+  Lemma allocator_free_pcc_off_eq :
+    allocator_free_pcc_off = allocator_malloc_pcc_off + length allocator_malloc_instrs.
+  Proof. reflexivity. Qed.
 
   Definition allocator_export_table_entries : list Word :=
     [WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off);
