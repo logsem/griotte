@@ -21,7 +21,7 @@ Section LSE_Run_Blocks_2.
   Lemma lse_run_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_instr_offset 3 1)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_run_halt")%a ∗
     codefrag_pers pc_a lse_main_code ∗
     ▷ (codefrag_pers pc_a lse_main_code ={⊤}=∗ na_own cerise_nais ⊤)
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -31,7 +31,7 @@ Section LSE_Run_Blocks_2.
     lse_unfold_code.
 
     (* Block 3: halt *)
-    focus_block 3 "Hcode_main" of lse_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
+    focus_block (lse_block ".Llse_run_call") "Hcode_main" of lse_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_halt ^+ 1)%a.
     (* Halt *)

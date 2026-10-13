@@ -18,7 +18,8 @@ From griotte Require Export case_study_spec_helpers.
     are in [droe_spec_world].
 
     The block-group lemmas start and end at addresses of the code
-    [droe_main_code], given by [droe_block_offset] and [droe_instr_offset]. *)
+    [droe_main_code], given by the labels of [droe_main_asm]
+    ([droe_label_offset]). *)
 
 Section DROE_Code.
   Context `{MP: MachineParameters}.
@@ -36,6 +37,18 @@ Notation droe_block_offset := (code_block_offset droe_main_blocks).
 
 (** Offset of the [i]-th instruction of the block [n] in [droe_main_code]. *)
 Notation droe_instr_offset := (code_instr_offset droe_main_blocks).
+
+(** Offset of the label [s] of [droe_main_asm] from the start of the PCC,
+    the imports. The labels do not depend on the argument of
+    [droe_main_asm]. *)
+Notation droe_label s := (asm_label (droe_main_asm 0) s).
+
+(** Offset of the label [s] in [droe_main_code], which starts at the label
+    [.Ldroe_init]. *)
+Notation droe_label_offset s := (asm_label_offset (droe_main_asm 0) ".Ldroe_init" s).
+
+(** Index of the block of [droe_main_code] that defines the label [s]. *)
+Notation droe_block s := (asm_block (droe_main_asm 0) s).
 
 Section DROE_States.
   Context
@@ -62,7 +75,7 @@ Section DROE_States.
   (** The bounds of the code and of the imports, as given to [droe_spec]. *)
   Definition droe_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ∧
-    (pc_b + length (droe_main_imports C_f))%a = Some pc_a ∧
+    (pc_b + droe_label ".Ldroe_init")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false ∧
     is_heap_cap (WSealed ot_switcher C_f) = false.

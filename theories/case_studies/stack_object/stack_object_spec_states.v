@@ -32,7 +32,8 @@ From griotte Require Export case_study_spec_helpers.
     the world before the return of [f]).
 
     The block-group lemmas start and end at addresses of the code
-    [so_main_code], given by [so_block_offset] and [so_instr_offset]. *)
+    [so_main_code], given by the labels of [so_main_asm]
+    ([so_label_offset]). *)
 
 Section SO_Code.
   Context `{MP: MachineParameters}.
@@ -61,6 +62,17 @@ Notation so_block_offset := (code_block_offset so_main_blocks).
 
 (** Offset of the [i]-th instruction of the block [n] in [so_main_code]. *)
 Notation so_instr_offset := (code_instr_offset so_main_blocks).
+
+(** Offset of the label [s] of [so_main_asm] from the start of the PCC,
+    the imports. *)
+Notation so_label s := (asm_label so_main_asm s).
+
+(** Offset of the label [s] in [so_main_code], which starts at the label
+    [.Lso_run]. *)
+Notation so_label_offset s := (asm_label_offset so_main_asm ".Lso_run" s).
+
+(** Index of the block of [so_main_code] that defines the label [s]. *)
+Notation so_block s := (asm_block so_main_asm s).
 
 (** Unfold [so_main_code] into the chain of its blocks, in the goal (both in
     the code and in the continuation). *)
@@ -237,7 +249,7 @@ Section SO_States.
       and [stack_object_f_spec]. *)
   Definition so_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ∧
-    (pc_b + length (so_main_imports C_f))%a = Some pc_a ∧
+    (pc_b + so_label ".Lso_run")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false.
 

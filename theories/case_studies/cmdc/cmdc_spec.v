@@ -62,7 +62,7 @@ Section CMDC.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
 
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
     LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
@@ -331,7 +331,7 @@ Section CMDC.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
 
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
     LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->

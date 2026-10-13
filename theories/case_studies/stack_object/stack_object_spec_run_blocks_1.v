@@ -35,7 +35,7 @@ Section SO_Run_Blocks_1.
     ▷ (PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ct0 ↦ᵣ so_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_instr_offset 2 1)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_run_halt")%a ∗
         pc_b ↦ₐ□ so_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
         codefrag_pers pc_a so_main_code
@@ -64,7 +64,7 @@ Section SO_Run_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 1: fetch the entry point of [C.adv] *)
-    focus_block 1 "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
+    focus_block (so_block ".Lso_run_fetch_adv") "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hcode $Himport_C_f]"); eauto; try done.
     { offsets_compute; solve_addr. }
@@ -74,12 +74,12 @@ Section SO_Run_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 2: jump to the switcher *)
-    focus_block 2 "Hcode_main" of so_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
+    focus_block (so_block ".Lso_run_call") "Hcode_main" of so_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 1)%a = (pc_a ^+ so_instr_offset 2 1)%a) as ->
+    assert ((a_call ^+ 1)%a = (pc_a ^+ so_label_offset ".Lso_run_halt")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

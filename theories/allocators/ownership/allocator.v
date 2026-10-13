@@ -309,14 +309,13 @@ Section Allocator.
   (** The offsets of the fetches of the unsealing key by [allocator_owner_asm]
       at the start of each entry (the labels [.L<entry>_owner]), from the
       address of the fetch. *)
-  Local Definition allocator_offset_from (from s : string) : Z :=
-    (Z.of_nat (label_offset (concat allocator_asm) s)
-     - Z.of_nat (label_offset (concat allocator_asm) from))%Z.
   Definition allocator_malloc_owner_off : Z :=
-    Eval vm_compute in allocator_offset_from ".Lmalloc_owner" ".Limport_unsealing_key".
+    Eval vm_compute in
+      label_offset_from (concat allocator_asm) ".Lmalloc_owner" ".Limport_unsealing_key".
 
   Definition allocator_free_owner_off : Z :=
-    Eval vm_compute in allocator_offset_from ".Lfree_owner" ".Limport_unsealing_key".
+    Eval vm_compute in
+      label_offset_from (concat allocator_asm) ".Lfree_owner" ".Limport_unsealing_key".
 
   Definition allocator_code : list Word :=
     allocator_malloc_instrs ++ allocator_free_instrs.
@@ -325,8 +324,13 @@ Section Allocator.
 
   Definition allocator_free_nargs : nat := 2.
 
+  (** The offset of the entry of [free] from the start of the PCC. *)
   Definition allocator_free_pcc_off : nat :=
-    allocator_malloc_pcc_off + length allocator_malloc_instrs.
+    Eval vm_compute in label_offset (concat allocator_asm) ".Lfree_owner".
+
+  Lemma allocator_free_pcc_off_eq :
+    allocator_free_pcc_off = allocator_malloc_pcc_off + length allocator_malloc_instrs.
+  Proof. reflexivity. Qed.
 
   Definition allocator_export_table_entries : list Word :=
     [WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off);

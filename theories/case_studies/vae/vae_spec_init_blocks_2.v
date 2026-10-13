@@ -22,9 +22,9 @@ Section VAE_Init_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (φ : language.val griotte_lang -> iProp Σ) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 3 1)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_init_halt")%a ∗
     codefrag_pers pc_a vae_main_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 3 1)%a ∗
+    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_init_halt")%a ∗
         codefrag_pers pc_a vae_main_code
         -∗ WP Instr Halted {{ φ }})
     ⊢ WP Seq (Instr Executable) {{ φ }}.
@@ -34,13 +34,13 @@ Section VAE_Init_Blocks_2.
     vae_unfold_code.
 
     (* Block 3: halt *)
-    focus_block 3 "Hcode_main" of vae_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
+    focus_block (vae_block ".Lvae_init_call") "Hcode_main" of vae_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_call ^+ 1)%a.
     (* Halt *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    change_pc_to (pc_a ^+ vae_instr_offset 3 1)%a.
+    change_pc_to (pc_a ^+ vae_label_offset ".Lvae_init_halt")%a.
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

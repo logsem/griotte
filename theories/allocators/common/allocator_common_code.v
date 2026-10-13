@@ -30,11 +30,13 @@ Section AllocatorCommonCode.
   (** The imports are a data prefix of the code, named by symbols in the order
       of [allocator_imports]: an allocator program starts with
       [allocator_import_symbols_asm], and the fetches load the imports
-      relative to the PC. *)
+      relative to the PC. The code starts after them, at the entry [.Lmalloc]
+      of [malloc]. *)
   Definition allocator_import_symbols_asm : list asm_code :=
     [ #@".Limport_shadow";
       #@".Limport_unsealing_key";
-      #@".Limport_revoker"
+      #@".Limport_revoker";
+      #".Lmalloc"
     ].
 
   (** Prefix the first block of an allocator program [l] with the import
@@ -222,7 +224,9 @@ Section AllocatorCommonCode.
   Lemma allocator_imports_length `{allocatorLayout} : length allocator_imports = 3.
   Proof. reflexivity. Qed.
 
-  Definition allocator_malloc_pcc_off : nat := 3.
+  (** The offset of the entry of [malloc] from the start of the PCC. *)
+  Definition allocator_malloc_pcc_off : nat :=
+    Eval vm_compute in label_offset allocator_import_symbols_asm ".Lmalloc".
 
   Definition allocator_malloc_exp_tbl_off : nat := 2.
 

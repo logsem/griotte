@@ -56,7 +56,7 @@ Section Switcher_KtK_Call.
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
-    PC ↦ₚ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0, cs0 ↦ᵣ wcs0) ∗
     cs1 ↦ᵣ wcs1_caller ∗
     cgp ↦ᵣ wcgp_caller ∗

@@ -81,7 +81,7 @@ Section Switcher_Blocks_14_15.
   Lemma switcher_blocks_14_15_spec (wcra : LWord) (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ₚ switcher_block_pc 14 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
     cra ↦ᵣ wcra ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
@@ -101,14 +101,14 @@ Section Switcher_Blocks_14_15.
     switcher_unfold_code "Hswitcher".
 
     (* Block 14: clear the registers *)
-    switcher_focus_block 14 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_callee_dead_zeros") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]");
       try solve_pure.
     iNext; iIntros "(%rmap' & %Hrmap' & HPC & Hrmap & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 15: jump to the caller *)
-    switcher_focus_block 15 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_return_to_caller") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_return_block_15_spec with "[- $HPC $Hcra $Hrmap $Hcode]").
     { done. }
     { apply elem_of_dom; rewrite Hrmap'; set_solver. }

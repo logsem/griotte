@@ -18,7 +18,8 @@ Section AllocatorLayoutFacts.
     pose proof allocator_size_code as Hcode.
     rewrite /allocator_code length_app in Hcode.
     rewrite allocator_imports_length in Himports.
-    unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
+    unfold allocator_free_pcc_addr in *; rewrite allocator_free_pcc_off_eq;
+    unfold allocator_malloc_pcc_off in *.
     solve_addr.
   Qed.
 
@@ -42,7 +43,8 @@ Section AllocatorLayoutFacts.
     pose proof allocator_size_imports as Himports_size.
     rewrite /allocator_code length_app in Hsize_code.
     rewrite allocator_imports_length in Himports_size.
-    unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
+    unfold allocator_free_pcc_addr in *; rewrite allocator_free_pcc_off_eq;
+    unfold allocator_malloc_pcc_off in *.
     solve_addr.
   Qed.
 
@@ -66,7 +68,8 @@ Section AllocatorLayoutFacts.
     pose proof allocator_size_imports as Himports_size.
     rewrite /allocator_code length_app in Hsize_code.
     rewrite allocator_imports_length in Himports_size.
-    unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
+    unfold allocator_free_pcc_addr in *; rewrite allocator_free_pcc_off_eq;
+    unfold allocator_malloc_pcc_off in *.
     solve_addr.
   Qed.
 

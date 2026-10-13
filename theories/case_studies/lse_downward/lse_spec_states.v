@@ -24,7 +24,8 @@ From griotte Require Export case_study_spec_helpers.
     return of [f]).
 
     The block-group lemmas start and end at addresses of the code
-    [lse_main_code], given by [lse_block_offset] and [lse_instr_offset]. *)
+    [lse_main_code], given by the labels of [lse_main_asm]
+    ([lse_label_offset]). *)
 
 Section LSE_Code.
   Context `{MP: MachineParameters}.
@@ -45,6 +46,17 @@ Notation lse_block_offset := (code_block_offset lse_main_blocks).
 (** Offset of the [i]-th instruction of the block [n] in [lse_main_code]. *)
 Notation lse_instr_offset := (code_instr_offset lse_main_blocks).
 
+(** Offset of the label [s] of [lse_main_asm] from the start of the PCC,
+    the imports. *)
+Notation lse_label s := (asm_label lse_main_asm s).
+
+(** Offset of the label [s] in [lse_main_code], which starts at the label
+    [.Llse_run]. *)
+Notation lse_label_offset s := (asm_label_offset lse_main_asm ".Llse_run" s).
+
+(** Index of the block of [lse_main_code] that defines the label [s]. *)
+Notation lse_block s := (asm_block lse_main_asm s).
+
 (** Unfold [lse_main_code] into the chain of its blocks, in the goal (both in
     the code and in the continuation). *)
 Ltac lse_unfold_code :=
@@ -60,7 +72,7 @@ Section LSE_States.
       [lse_run_spec] and [lse_f_spec]. *)
   Definition lse_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ∧
-    (pc_b + length (lse_main_imports C_f))%a = Some pc_a ∧
+    (pc_b + lse_label ".Llse_run")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false.
 

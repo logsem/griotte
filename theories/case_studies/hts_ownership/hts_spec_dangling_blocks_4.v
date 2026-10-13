@@ -45,7 +45,7 @@ Section HTS_Spec_Dangling.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
-    (pc_b + length (hts_main_imports owner_a C_f))%a = Some pc_a ->
+    (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
     free_ret ∗
     (adv2_ret -∗
@@ -62,7 +62,7 @@ Section HTS_Spec_Dangling.
       iDestruct "Herr" as (z) "(%Hz & Hna & HPC & Hca0 & _ & Hcode_main)".
       codefrag_facts "Hcode_main". clear H0.
       unfold_code hts_main_code "Hcode_main".
-      focus_block 16 "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
+      focus_block (hts_block ".Lhts_free_result") "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
         "Hcode" "Hcont".
       (* Jnz 2 ca0. *)
       iInstr "Hcode".
@@ -84,7 +84,7 @@ Section HTS_Spec_Dangling.
     unfold_code hts_main_code "Hcode_main".
 
     (* Block 16: the free result is ALLOC_OK. *)
-    focus_block 16 "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
+    focus_block (hts_block ".Lhts_free_result") "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jnz 2 ca0. *)
@@ -107,14 +107,14 @@ Section HTS_Spec_Dangling.
       Hadv_nonheap with "Hadv") as "#Hinterp_adv_free".
 
     (* Block 17: clear the second adversary argument. *)
-    focus_block 17 "Hcode_main" of hts_main_blocks at pc_a as a_zero Ha_zero "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_zero_arg") "Hcode_main" of hts_main_blocks at pc_a as a_zero Ha_zero "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov ca0 0. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 18: fetch the switcher entry. *)
-    focus_block 18 "Hcode_main" of hts_main_blocks at pc_a as a_fetch18 Ha_fetch18 "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_fetch_switcher_adv_2") "Hcode_main" of hts_main_blocks at pc_a as a_fetch18 Ha_fetch18 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp] as ["[Hctp _]"].
     iExtractList "Hrmap" [ct0] as ["[Hct0 %Hwct0]"].
@@ -137,7 +137,7 @@ Section HTS_Spec_Dangling.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 19: fetch the adversary entry. *)
-    focus_block 19 "Hcode_main" of hts_main_blocks at pc_a as a_fetch19 Ha_fetch19 "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_fetch_adv_2") "Hcode_main" of hts_main_blocks at pc_a as a_fetch19 Ha_fetch19 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
     iApply (fetch_spec 2 _ ct1 RX Global
@@ -156,13 +156,13 @@ Section HTS_Spec_Dangling.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 20: call the adversary with zero. *)
-    focus_block 20 "Hcode_main" of hts_main_blocks at pc_a as a_advcall2 Ha_advcall2
+    focus_block (hts_block ".Lhts_call_adv_2") "Hcode_main" of hts_main_blocks at pc_a as a_advcall2 Ha_advcall2
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
     iInstr_success "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_advcall2 ^+ 1)%a = (pc_a ^+ hts_block_offset 21)%a) as Ha_next
+    assert ((a_advcall2 ^+ 1)%a = (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a) as Ha_next
       by (offsets_compute; solve_addr).
     rewrite Ha_next.
     clear Ha_free_result Ha_zero Ha_fetch18 Ha_fetch19.
@@ -191,7 +191,7 @@ Section HTS_Spec_Dangling.
          (delete ct1 (delete ct0 rmap))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wfree Wret ι) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 21)%a)
+      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f stk
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp

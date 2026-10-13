@@ -184,7 +184,7 @@ Section Switcher_Call_Blocks_4.
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off) ∗
-    PC ↦ₚ switcher_pc (switcher_block_offset 7 + 1) ∗
+    PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_decode_entry") ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
@@ -192,7 +192,7 @@ Section Switcher_Call_Blocks_4.
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_block_pc 9 ∗
+    ▷ ( PC ↦ₚ switcher_label_pc ".Lswitcher_clear_unused_args" ∗
         cs0 ↦ᵣ WInt off ∗
         cs1 ↦ᵣ WInt (b_tbl - a_tbl) ∗
         ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl (b_tbl ^+ 1)%a ∗
@@ -211,21 +211,21 @@ Section Switcher_Call_Blocks_4.
     switcher_unfold_code "Hswitcher".
 
     (* Block 7: read the entry of the export table *)
-    switcher_focus_block 7 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    change_pc_to ((a_switcher_call ^+ switcher_block_offset 7) ^+ 1)%a.
+    switcher_focus_block (switcher_block ".Lswitcher_unseal_entry") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_unseal_entry") ^+ 1)%a.
     iApply (switcher_call_block_7_after_unseal_spec with
       "[- $Htbl_entry $HPC $Hcs0 $Hct1 $Hct2 $Hcode]"); [done|done|done|lia|].
     iNext; iIntros "(HPC & Hcs0 & Hct1 & Hct2 & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 8: load the PCC and CGP of the callee *)
-    switcher_focus_block 8 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_prepare_callee") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_8_spec with
       "[- $Htbl_pcc $Htbl_cgp $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]");
       [done..|].
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    switcher_change_pc (switcher_block_offset 9).
+    switcher_change_pc (switcher_label_offset ".Lswitcher_clear_unused_args").
     iApply "Hpost"; iFrame "∗ Hswitcher".
   Qed.
 
@@ -235,7 +235,7 @@ Section Switcher_Call_Blocks_4.
     (wcs0 wcs1 wct1 wct2 wctp : LWord) (bpcc epcc a_tgt : Addr) (rmap : LReg) :
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    PC ↦ₚ switcher_block_pc 10 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitcher_clear_registers" ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -260,7 +260,7 @@ Section Switcher_Call_Blocks_4.
     switcher_unfold_code "Hswitcher".
 
     (* Block 10: clear the other registers *)
-    switcher_focus_block 10 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_clear_registers") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hct2] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hcs1] Hregs") as "Hregs";[iFrame|].
@@ -272,11 +272,11 @@ Section Switcher_Call_Blocks_4.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 11: jump to the callee *)
-    switcher_focus_block 11 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_call_callee") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* Jalr cra cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    rewrite (_ : ((a_switcher_call ^+ switcher_block_offset 11) ^+ 1)%a = a_switcher_return);
+    rewrite (_ : ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_call_callee") ^+ 1)%a = a_switcher_return);
       last (rewrite switcher_return_offset; offsets_compute; solve_addr).
     iApply ("Hpost" $! rmap'); iFrame "∗ Hswitcher"; done.
   Qed.
@@ -304,7 +304,7 @@ Section Switcher_Call_Blocks_4.
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off) ∗
-    PC ↦ₚ switcher_pc (switcher_block_offset 7 + 1) ∗
+    PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_decode_entry") ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
@@ -343,7 +343,7 @@ Section Switcher_Call_Blocks_4.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block 9 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_clear_unused_args") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (clear_registers_pre_call_skip_spec _ _ _ _ _ arg_rmap (nargs+1)
              with "[- $HPC $Hcode]"); try solve_pure.
     { lia. }
@@ -354,7 +354,7 @@ Section Switcher_Call_Blocks_4.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Blocks 10-11: clear the other registers and jump to the callee *)
-    switcher_change_pc (switcher_block_offset 10).
+    switcher_change_pc (switcher_label_offset ".Lswitcher_clear_registers").
     iApply (switcher_call_blocks_10_11_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs]"); first done.
     iSplitR; first iFrame "Hswitcher".
@@ -385,7 +385,7 @@ Section Switcher_Call_Blocks_4.
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off) ∗
-    PC ↦ₚ switcher_pc (switcher_block_offset 7 + 1) ∗
+    PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_decode_entry") ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
@@ -425,7 +425,7 @@ Section Switcher_Call_Blocks_4.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block 9 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_clear_unused_args") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (clear_registers_pre_call_skip_spec_known _ _ _ _ _ arg_rmap (nargs+1)
              with "[- $HPC $Hcode]"); try solve_pure.
     { lia. }
@@ -436,7 +436,7 @@ Section Switcher_Call_Blocks_4.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Blocks 10-11: clear the other registers and jump to the callee *)
-    switcher_change_pc (switcher_block_offset 10).
+    switcher_change_pc (switcher_label_offset ".Lswitcher_clear_registers").
     iApply (switcher_call_blocks_10_11_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs]"); first done.
     iSplitR; first iFrame "Hswitcher".

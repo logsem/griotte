@@ -43,7 +43,7 @@ Section Counter_Main_Blocks_1.
         ct0 ↦ᵣ counter_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ wcra ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ counter_block_offset 4)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ counter_label_offset ".Lcounter_return")%a ∗
         cgp_b ↦ₐ WInt (cnt + 1) ∗
         pc_b ↦ₐ□ counter_switcher_entry ∗
         (pc_b ^+ 1)%a ↦ₐ□ WSealed ot_switcher C_f ∗
@@ -78,7 +78,7 @@ Section Counter_Main_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 1: fetch the entry point of the switcher *)
-    focus_block 1 "Hcode_main" of counter_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
+    focus_block (counter_block ".Lcounter_fetch_switcher") "Hcode_main" of counter_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _ counter_switcher_entry
               with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap.
@@ -91,7 +91,7 @@ Section Counter_Main_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 2: fetch the entry point of [C_f] *)
-    focus_block 2 "Hcode_main" of counter_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
+    focus_block (counter_block ".Lcounter_fetch_C_f") "Hcode_main" of counter_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 1 with "[- $HPC $Hct1 $Hcode $Himport_C_f]"); eauto.
     { offsets_compute; solve_addr. }
@@ -101,14 +101,14 @@ Section Counter_Main_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 3: save the return address and jump to the switcher *)
-    focus_block 3 "Hcode_main" of counter_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
+    focus_block (counter_block ".Lcounter_call") "Hcode_main" of counter_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 2)%a = (pc_a ^+ counter_block_offset 4)%a) as ->
+    assert ((a_call ^+ 2)%a = (pc_a ^+ counter_label_offset ".Lcounter_return")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

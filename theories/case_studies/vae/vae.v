@@ -31,44 +31,58 @@ Section VAE_Main.
         #@".Limport_B_adv";
 
         (* set a := 0 *)
+        #".Lvae_init";
         store cgp 0
       ];
       (* call B.adv VAE.awkward *)
+      #".Lvae_init_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      #".Lvae_init_fetch_adv" ::
       fetch_asm ".Limport_B_adv" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
-      [ jalr cra ct0; (* jmp to entry point *)
+      [ #".Lvae_init_call";
+        jalr cra ct0; (* jmp to entry point *)
+        #".Lvae_init_halt";
         halt
       ];
       (* awkward *)
       (* set a := 0 *)
-      [ store cgp 0 ];
+      [ #".Lvae_awkward";
+        store cgp 0 ];
       (* call g () *)
+      #".Lvae_awkward_fetch_switcher_1" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
-      [ mov cs0 cra; (* cs0 -> return-to-switcher *)
+      [ #".Lvae_awkward_call_1";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         mov cs1 ca0; (* cs1 -> fun_g *)
         mov ct1 ca0; (* ct1 -> fun_g *)
         mov ca0 0;
         jalr cra ct0 (* jmp to g *)
       ];
       (* set a := 1 *)
-      [ store cgp 1;
+      [ #".Lvae_awkward_set_one";
+        store cgp 1;
         mov cra cs0; (* cra -> return_to-switcher *)
         mov ct1 cs1  (* ct1 -> fun_g *)
       ];
       (* call g () *)
+      #".Lvae_awkward_fetch_switcher_2" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
-      [ mov cs0 cra; (* cs0 -> return-to-switcher *)
+      [ #".Lvae_awkward_call_2";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         mov ca0 0;
         mov ca1 0;
         jalr cra ct0; (* jmp to arg_1 *)
 
         (* assert (a == 1) *)
+        #".Lvae_awkward_check";
         load ct0 cgp; (* ct0 -> a *)
         mov ct1 1  (* ct1 -> 1 *)
       ];
+      #".Lvae_awkward_assert" ::
       assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
       (* return cra *)
-      [ mov cra cs0; (* cra -> return_to-switcher *)
+      [ #".Lvae_awkward_return";
+        mov cra cs0; (* cra -> return_to-switcher *)
 
         (* return a *)
         mov ca0 0;

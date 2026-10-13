@@ -23,7 +23,9 @@ Section Switcher_Call_Blocks_6.
     pc_a wca0 wca1 :
     SubBounds b_switcher e_switcher pc_a
       (pc_a ^+ length (switcher_instrs_n 17))%a ->
-    (pc_a ^+ 2 + (switcher_block_offset 12 - switcher_block_offset 17 - 2))%a =
+    (pc_a ^+ 2 +
+       asm_label_offset switcher_asm ".Lcommon_force_unwind_return"
+         ".Lswitcher_after_compartment_call")%a =
       Some a_switcher_return ->
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
@@ -41,7 +43,6 @@ Section Switcher_Call_Blocks_6.
     iIntros (Hsub Hret) "(HPC & Hca0 & Hca1 & #Hcode & Hpost)".
     (* Compute the distance to the return block. *)
     offsets_compute.
-    offsets_sub_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
     (* Mov ca0 (inl (-1)%Z) *)
@@ -55,7 +56,7 @@ Section Switcher_Call_Blocks_6.
 
   (** Block 17: force the unwinding of the call. *)
   Lemma switcher_call_block_17_spec (wca0 wca1 : LWord) :
-    PC ↦ₚ switcher_block_pc 17 ∗
+    PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     switcher_code ∗
@@ -70,7 +71,7 @@ Section Switcher_Call_Blocks_6.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_return_offset.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block 17 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lcommon_force_unwind") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_17_spec_aux with "[- $HPC $Hca0 $Hca1 $Hcode]");
       [done|offsets_compute; solve_addr|].
     iNext; iIntros "(HPC & Hca0 & Hca1 & _)".

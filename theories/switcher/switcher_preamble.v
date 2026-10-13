@@ -342,12 +342,20 @@ End Switcher_preamble.
     [a_switcher_call]. *)
 Notation switcher_block_offset := (code_block_offset assembled_switcher).
 
+(** The offset of the label [s] of the switcher from [a_switcher_call], its
+    first instruction (the label [.Lswitcher_csp_check_perm]). *)
+Notation switcher_label_offset s :=
+  (asm_label_offset switcher_asm ".Lswitcher_csp_check_perm" s).
+
+(** The index of the block of the switcher that defines the label [s]. *)
+Notation switcher_block s := (asm_block switcher_asm s).
+
 (** The PC capability of the switcher at offset [off] of the code. *)
 Notation switcher_pc off :=
   (WCap true XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ off)%a) (only parsing).
 
-(** The PC capability of the switcher at the beginning of block [n]. *)
-Notation switcher_block_pc n := (switcher_pc (switcher_block_offset n)) (only parsing).
+(** The PC capability of the switcher at its label [s]. *)
+Notation switcher_label_pc s := (switcher_pc (switcher_label_offset s)) (only parsing).
 
 (** The code of the switcher. *)
 Notation switcher_code := (codefrag_pers a_switcher_call switcher_instrs) (only parsing).
@@ -366,6 +374,7 @@ Ltac switcher_change_pc off := change_pc_to (a_switcher_call ^+ off)%a.
     address, when possible. *)
 Tactic Notation "switcher_focus_block" constr(n) constr(h)
     "as" constr(hi) constr(hcont) :=
+  let n := eval vm_compute in n in
   let a := fresh "a_block" in
   let Ha := fresh "Ha_block" in
   focus_block_nochangePC n h as a Ha hi hcont;
@@ -398,7 +407,7 @@ Section Switcher_Code.
 
   Lemma switcher_return_offset :
     a_switcher_return =
-      (a_switcher_call ^+ switcher_block_offset (length switcher_call_asm))%a.
+      (a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call")%a.
   Proof.
     pose proof switcher_return_entry_point as Hret.
     pose proof switcher_call_entry_point as Hcall.

@@ -94,7 +94,7 @@ Section SO.
     is_heap_address cgp_b = false ->
     (b_so_exp_tbl <= b_so_exp_tbl ^+ 2 < e_so_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + so_label ".Lso_run")%a = Some pc_a ->
     (cgp_b + length so_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ SO_main_code_run))%a ->
 
@@ -186,7 +186,7 @@ Section SO.
 
     (* Blocks 3-5: save the callback, check [in] *)
     iEval (rewrite (_ : (pc_b ^+ length (so_main_imports C_f ++ SO_main_code_run))%a =
-                        (pc_a ^+ so_block_offset 3)%a);
+                        (pc_a ^+ so_label_offset ".Lso_f")%a);
            [|rewrite length_app; offsets_compute; cbn in Hso_imports |- *; solve_addr]) in "HPC".
     iApply (so_check_blocks_1_spec with
              "[- $HPC $Hca0 $Hca1 $Hct1 $Hcs0 $Hcs1 $Hcsp $Hcode_main]"); first done.

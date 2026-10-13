@@ -27,7 +27,7 @@ Section Switcher_Call_Blocks_1.
     ctp ↦ᵣ wctp ∗
     switcher_code ∗
     ▷ ( ( ⌜ switcher_csp_checked wcsp ⌝ ∗
-          PC ↦ₚ switcher_block_pc 2 ∗
+          PC ↦ₚ switcher_label_pc ".Lswitcher_entry_first_spill" ∗
           csp ↦ᵣ wcsp ∗
           ct2 ↦ᵣ WInt 0 ∗
           ctp ↦ᵣ WInt (encodeLoc Local) ∗
@@ -35,7 +35,7 @@ Section Switcher_Call_Blocks_1.
         ∨
         ( ⌜ ¬ switcher_csp_checked wcsp ⌝ ∗
           ∃ zct2 zctp,
-          PC ↦ₚ switcher_block_pc 17 ∗
+          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
           csp ↦ᵣ wcsp ∗
           ct2 ↦ᵣ WInt zct2 ∗
           ctp ↦ᵣ WInt zctp ∗
@@ -70,7 +70,7 @@ Section Switcher_Call_Blocks_1.
       wp_instr.
       iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
       { intros Hcontr; inversion Hcontr; done. }
-      { transitivity (Some (a_switcher_call ^+ switcher_block_offset 17)%a); auto.
+      { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
         offsets_compute; solve_addr. }
       iIntros "!> (HPC & Hi & Hct2)".
       wp_pure.
@@ -108,7 +108,7 @@ Section Switcher_Call_Blocks_1.
       wp_instr.
       iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
       { intros Hcontr; inversion Hcontr; done. }
-      { transitivity (Some (a_switcher_call ^+ switcher_block_offset 17)%a); auto.
+      { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
         offsets_compute; solve_addr. }
       iIntros "!> (HPC & Hi & Hct2)".
       iEval (simplify_map_eq) in "HPC".
@@ -128,7 +128,7 @@ Section Switcher_Call_Blocks_1.
     assert (g0 = encodeLoc Local)%Z by lia; subst g0.
     iApply "Hpost"; iLeft.
     iFrame "∗ Hswitcher".
-    switcher_change_pc (switcher_block_offset 2).
+    switcher_change_pc (switcher_label_offset ".Lswitcher_entry_first_spill").
     iFrame. iPureIntro; split; done.
   Qed.
 

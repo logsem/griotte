@@ -34,7 +34,7 @@ Section VAE_Awkward_Blocks_2.
     related_sts_priv_world W (<l[i:=true]l>W) ->
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_block_offset 7)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ wcra ∗
     ca0 ↦ᵣ wca0 ∗
@@ -48,7 +48,7 @@ Section VAE_Awkward_Blocks_2.
     ▷ (world_interp (<l[i:=true]l>W) C ∗
         PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 9 4)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
         ca0 ↦ᵣ WInt 0 ∗
         ca1 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ vae_switcher_entry ∗
@@ -69,7 +69,7 @@ Section VAE_Awkward_Blocks_2.
     rewrite /vae_switcher_entry.
 
     (* Block 7: set the flag to [1], restore [cra] and [ct1] *)
-    focus_block 7 "Hcode_main" of vae_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
+    focus_block (vae_block ".Lvae_awkward_set_one") "Hcode_main" of vae_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Store cgp 1 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -93,7 +93,7 @@ Section VAE_Awkward_Blocks_2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 8: fetch the entry point of the switcher *)
-    focus_block 8 "Hcode_main" of vae_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
+    focus_block (vae_block ".Lvae_awkward_fetch_switcher_2") "Hcode_main" of vae_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
@@ -108,7 +108,7 @@ Section VAE_Awkward_Blocks_2.
 
     (* Block 9: save the return address, clear the arguments, jump to the
        switcher *)
-    focus_block 9 "Hcode_main" of vae_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
+    focus_block (vae_block ".Lvae_awkward_call_2") "Hcode_main" of vae_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov cs0 cra *)
     iInstr "Hcode".
@@ -119,7 +119,7 @@ Section VAE_Awkward_Blocks_2.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 4)%a = (pc_a ^+ vae_instr_offset 9 4)%a) as ->
+    assert ((a_call ^+ 4)%a = (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

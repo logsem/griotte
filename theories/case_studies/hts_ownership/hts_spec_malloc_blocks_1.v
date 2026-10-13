@@ -53,7 +53,7 @@ Section HTS_Spec_Malloc.
     disjoint_from_heap csp_b csp_e ->
     dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
-    (pc_b + length (hts_main_imports owner_a C_f))%a = Some pc_a ->
+    (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
     na_own cerise_nais ⊤ ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
@@ -97,7 +97,7 @@ Section HTS_Spec_Malloc.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 1: fetch the allocator capability for malloc. *)
-    focus_block 1 "Hcode_main" of hts_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_fetch_alloc_cap_malloc") "Hcode_main" of hts_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ca0] as ["Hca0"].
     iApply (fetch_spec 5 _ ca0 RX Global
@@ -116,7 +116,7 @@ Section HTS_Spec_Malloc.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 2: fetch the switcher for malloc. *)
-    focus_block 2 "Hcode_main" of hts_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_fetch_switcher_malloc") "Hcode_main" of hts_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp] as ["Hctp"].
     iApply (fetch_spec 0 _ ctp RX Global
@@ -137,7 +137,7 @@ Section HTS_Spec_Malloc.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 3: fetch the malloc entry. *)
-    focus_block 3 "Hcode_main" of hts_main_blocks at pc_a as a_fetch3 Ha_fetch3 "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_fetch_malloc") "Hcode_main" of hts_main_blocks at pc_a as a_fetch3 Ha_fetch3 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["Hct1"].
     iApply (fetch_spec 3 _ ct1 RX Global
@@ -158,13 +158,13 @@ Section HTS_Spec_Malloc.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 4: call malloc. *)
-    focus_block 4 "Hcode_main" of hts_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
+    focus_block (hts_block ".Lhts_call_malloc") "Hcode_main" of hts_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [cra] as ["Hcra"].
     (* Jalr cra ctp. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 1)%a = (pc_a ^+ hts_block_offset 5)%a) as Ha_ret
+    assert ((a_call ^+ 1)%a = (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a) as Ha_ret
       by (offsets_compute; solve_addr).
     rewrite Ha_ret.
     clear Ha_fetch1 Ha_fetch2 Ha_fetch3.
@@ -198,7 +198,7 @@ Section HTS_Spec_Malloc.
            (delete ca0 (delete ca1 rmap)))))))))))).
     iPoseProof (hts_malloc_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 5)%a)
+      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       wcs0 wcs1 csp_b csp_e csp_b rmap_arg cstk
       Global owner_a hts_main_owner_id ∅
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
@@ -211,7 +211,7 @@ Section HTS_Spec_Malloc.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 5)%a)
+      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other cstk
       allocator_malloc_nargs ⊤
       allocator_exp_tbl_b

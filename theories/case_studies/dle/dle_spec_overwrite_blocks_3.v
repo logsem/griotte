@@ -26,7 +26,7 @@ Section DLE_Overwrite_Blocks_3.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length dle_main_code)%a ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 3)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ct0 ↦ᵣ wct0 ∗
@@ -41,7 +41,7 @@ Section DLE_Overwrite_Blocks_3.
         ca0 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ dle_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 8)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
         cs0 ↦ᵣ dle_switcher_entry ∗
         cs1 ↦ᵣ WSealed ot_switcher C_f ∗
         cgp_b ↦ₐ WInt 42 ∗
@@ -56,7 +56,7 @@ Section DLE_Overwrite_Blocks_3.
     unfold_code dle_main_code "Hcode_main".
 
     (* Block 3: return from the first call *)
-    focus_block 3 "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    focus_block (dle_block ".Ldle_call_B") "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_callB ^+ 3)%a.
     (* Store cgp 42%Z 0 *)
@@ -72,7 +72,7 @@ Section DLE_Overwrite_Blocks_3.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_callB ^+ 8)%a = (pc_a ^+ dle_instr_offset 3 8)%a) as ->
+    assert ((a_callB ^+ 8)%a = (pc_a ^+ dle_label_offset ".Ldle_check")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

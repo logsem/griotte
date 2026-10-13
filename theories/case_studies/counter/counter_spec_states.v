@@ -19,8 +19,8 @@ From griotte Require Export case_study_spec_helpers.
     and repair of the world before the return).
 
     The block-group lemmas start and end at addresses of the code
-    [counter_main_code], given by [counter_block_offset] and
-    [counter_instr_offset]. *)
+    [counter_main_code], given by the labels of [counter_main_asm]
+    ([counter_label_offset]). *)
 
 Section Counter_Code.
   Context `{MP: MachineParameters}.
@@ -40,6 +40,17 @@ Notation counter_block_offset := (code_block_offset counter_main_blocks).
 (** Offset of the [i]-th instruction of the block [n] in [counter_main_code]. *)
 Notation counter_instr_offset := (code_instr_offset counter_main_blocks).
 
+(** Offset of the label [s] of [counter_main_asm] from the start of the PCC,
+    the imports. *)
+Notation counter_label s := (asm_label counter_main_asm s).
+
+(** Offset of the label [s] in [counter_main_code], which starts at the label
+    [.Lcounter_main]. *)
+Notation counter_label_offset s := (asm_label_offset counter_main_asm ".Lcounter_main" s).
+
+(** Index of the block of [counter_main_code] that defines the label [s]. *)
+Notation counter_block s := (asm_block counter_main_asm s).
+
 (** Unfold [counter_main_code] into the chain of its blocks, in the goal
     (both in the code and in the continuation). *)
 Ltac counter_unfold_code := rewrite /counter_main_code.
@@ -54,7 +65,7 @@ Section Counter_States.
       [counter_spec]. *)
   Definition counter_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
     SubBounds pc_b pc_e pc_a (pc_a ^+ length counter_main_code)%a ∧
-    (pc_b + length (counter_main_imports C_f))%a = Some pc_a ∧
+    (pc_b + counter_label ".Lcounter_main")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false ∧
     is_heap_cap (WSealed ot_switcher C_f) = false.

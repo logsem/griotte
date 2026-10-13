@@ -42,7 +42,8 @@ Section KVS_Main.
         #@".Limport_addOrUpdate";
         #@".Limport_read";
         #@".Limport_erase";
-        #@".Limport_user_key" ] ++
+        #@".Limport_user_key";
+        #".Lkvs_main" ] ++
       fetch_asm ".Limport_user_key" cs1;
       (* 1: addOrUpdate(sealedUserKey, 1, 12) *)
       [ mov ca0 cs1;
@@ -160,17 +161,6 @@ Section KVS_Main.
       WSealed ot_switcher (KVS_erase Global);
       (kvs_user_seal_key Global kvs_main_static_sealed_addr)
     ].
-
-  (** The size of the import table, which precedes the code. *)
-  Definition kvs_main_imports_size : nat := 7.
-
-  Lemma kvs_main_imports_length {KVS : kvsLayout}
-    (kvs_main_static_sealed_addr : Addr)
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
-    (b_assert e_assert : Addr) (B_f : Sealable) :
-    length (kvs_main_imports kvs_main_static_sealed_addr b_switcher e_switcher
-      a_cc_switcher ot_switcher b_assert e_assert B_f) = kvs_main_imports_size.
-  Proof. reflexivity. Qed.
 
 End KVS_Main.
 

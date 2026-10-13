@@ -25,7 +25,7 @@ Section SO_Check_Blocks_1.
     (csp_b csp_e : Addr)
     (wca0 wca1 wct1 wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 3)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f")%a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -37,7 +37,7 @@ Section SO_Check_Blocks_1.
         ⌜readAllowed p = true⌝ ∗
         ⌜wca0 = WCap t p g b e a @@? π⌝ ∗
         ⌜finz.seq_between b e ## finz.seq_between csp_b csp_e⌝ ∗
-        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
+        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
         ca0 ↦ᵣ WCap t p g b e a @@? π ∗
         ca1 ↦ᵣ wca1 ∗
         ct1 ↦ᵣ wca1 ∗
@@ -55,14 +55,14 @@ Section SO_Check_Blocks_1.
     so_unfold_code.
 
     (* Block 3: save the callback *)
-    focus_block 3 "Hcode_main" of so_main_blocks at pc_a as a_mov Ha_mov "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f") "Hcode_main" of so_main_blocks at pc_a as a_mov Ha_mov "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov ct1 ca1 *)
     iInstr "Hcode" with "Hlc".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 4: check that [in] is readable *)
-    focus_block 4 "Hcode_main" of so_main_blocks at pc_a as a_checkra Ha_checkra "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_checkra") "Hcode_main" of so_main_blocks at pc_a as a_checkra Ha_checkra "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iSplitL; last (iModIntro; iNext; iIntros (?); done).
@@ -71,13 +71,13 @@ Section SO_Check_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: check that [in] does not overlap with the stack frame *)
-    focus_block 5 "Hcode_main" of so_main_blocks at pc_a as a_overlap Ha_overlap "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_check_no_overlap") "Hcode_main" of so_main_blocks at pc_a as a_overlap Ha_overlap "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (check_no_overlap_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto.
     iSplitL; last (iNext; iIntros (?); done).
     iNext; iIntros "(HPC & Hca0 & Hcsp & Hcs1 & Hcs0 & %Hno_overlap & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    change_pc_to (pc_a ^+ so_block_offset 6)%a.
+    change_pc_to (pc_a ^+ so_label_offset ".Lso_f_checkints")%a.
     iApply ("Hpost" $! t p g b e a π); iFrame "∗% Hcode_main"; done.
   Qed.
 

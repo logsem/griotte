@@ -159,7 +159,8 @@ Section Allocator.
   *)
 
   Definition allocator_free_asm : list (list asm_code) :=
-    [ [ (* Reject every non-capability word, including null. *)
+    [ [ #".Lfree";
+        (* Reject every non-capability word, including null. *)
         getwtype ca3 ca0;
         sub ca3 ca3 (encodeWordType wt_cap);
         jnz (".free_invalid")%asm ca3
@@ -257,8 +258,13 @@ Section Allocator.
 
   Definition allocator_free_nargs : nat := 1.
 
+  (** The offset of the entry of [free] from the start of the PCC. *)
   Definition allocator_free_pcc_off : nat :=
-    allocator_malloc_pcc_off + length allocator_malloc_instrs.
+    Eval vm_compute in label_offset (concat allocator_asm) ".Lfree".
+
+  Lemma allocator_free_pcc_off_eq :
+    allocator_free_pcc_off = allocator_malloc_pcc_off + length allocator_malloc_instrs.
+  Proof. reflexivity. Qed.
 
   Definition allocator_export_table_entries : list Word :=
     [WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off);

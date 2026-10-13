@@ -55,7 +55,7 @@ Section DLE.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length dle_main_code)%a ->
 
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
+    (pc_b + dle_label ".Ldle_init")%a = Some pc_a ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W0) ->
     LNonHeap (cgp_b ^+1 )%a ∉ dom (std W0) ->

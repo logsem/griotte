@@ -1,12 +1,15 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
+From griotte Require assembler.
 
 (** * Offsets of the blocks of a code
 
     A code [l1 ++ l2 ++ ... ++ ln] is split into the list of its blocks
     [[l1; l2; ...; ln]], as focused by [focus_block]. The offsets of the
     blocks and of their instructions are given by [code_block_offset] and
-    [code_instr_offset], and computed by [offsets_compute]. *)
+    [code_instr_offset], and computed by [offsets_compute]. The offsets of
+    the labels of an assembled program are related to them by
+    [label_offset_code_block] and [label_offset_code_instr]. *)
 
 (** The list of the sub-blocks of a code [l1 ++ l2 ++ ... ++ ln]. *)
 Ltac app_chain_to_list c :=
@@ -32,9 +35,69 @@ Definition code_block_offset {A} (blocks : list (list A)) (n : nat) : Z :=
 Definition code_instr_offset {A} (blocks : list (list A)) (n i : nat) : Z :=
   (code_block_offset blocks n + Z.of_nat i)%Z.
 
-(** Compute the offsets of the blocks in the goal and the hypotheses. *)
+(** The offset of a label of a program by blocks [P] counts the words of
+    the code, its instructions and its symbols, while the offsets of the
+    blocks of the assembled code count its instructions only. *)
+Lemma label_offset_code_instr P n b1 s b2 :
+  assembler.Asm_Griotte.asm_ok (assembler.Asm_Griotte.assemble_block_check P) →
+  P !! n = Some (b1 ++ assembler.Asm_Griotte.ASM_Label s :: b2) →
+  Z.of_nat (assembler.Asm_Griotte.label_offset (concat P) s) =
+    (Z.of_nat (assembler.Asm_Griotte.asm_symbols (concat (take n P) ++ b1)) +
+     code_instr_offset (assembler.Asm_Griotte.assemble_block P) n (assembler.Asm_Griotte.asm_instrs b1))%Z.
+Proof.
+  intros Hok HP.
+  destruct (assembler.Asm_Griotte.assemble_block_check_ok P Hok) as (Henv & benv & Hbs).
+  assert (concat P =
+            (concat (take n P) ++ b1) ++ assembler.Asm_Griotte.ASM_Label s :: b2 ++ concat (drop (S n) P))
+    as Hconcat.
+  { rewrite -{1}(take_drop_middle P n _ HP) concat_app /=. by rewrite -!app_assoc. }
+  rewrite Hconcat in Henv |- *. rewrite assembler.Asm_Griotte.label_offset_app //.
+  rewrite /code_instr_offset /code_block_offset fmap_take
+    (assembler.Asm_Griotte.assemble_blocks_length _ _ _ _ Hbs) -fmap_take.
+  assert (∀ L, sum_list (assembler.Asm_Griotte.asm_instrs <$> L) = assembler.Asm_Griotte.asm_instrs (concat L))
+    as Hsum.
+  { induction L as [|b L IH]; [done|]. by rewrite /= assembler.Asm_Griotte.asm_instrs_app IH. }
+  rewrite Hsum !assembler.Asm_Griotte.asm_words_split !assembler.Asm_Griotte.asm_symbols_app
+    !assembler.Asm_Griotte.asm_instrs_app.
+  lia.
+Qed.
+
+(** A label at the start of the block [n] is at the offset of the block,
+    after the symbols of the previous blocks. *)
+Lemma label_offset_code_block P n s b :
+  assembler.Asm_Griotte.asm_ok (assembler.Asm_Griotte.assemble_block_check P) →
+  P !! n = Some (assembler.Asm_Griotte.ASM_Label s :: b) →
+  Z.of_nat (assembler.Asm_Griotte.label_offset (concat P) s) =
+    (Z.of_nat (assembler.Asm_Griotte.asm_symbols (concat (take n P))) +
+     code_block_offset (assembler.Asm_Griotte.assemble_block P) n)%Z.
+Proof.
+  intros Hok HP. rewrite (label_offset_code_instr P n [] s b) //.
+  rewrite /code_instr_offset app_nil_r /=. lia.
+Qed.
+
+(** Compute the offsets of the blocks and the offsets of the labels
+    ([label_offset], [label_offset_from]) in the goal and the hypotheses.
+    The code must be closed. *)
 Ltac offsets_compute :=
   repeat match goal with
+    | |- context [assembler.Asm_Griotte.label_offset_from ?l ?f ?s] =>
+        let v := eval vm_compute in (assembler.Asm_Griotte.label_offset_from l f s) in
+        change (assembler.Asm_Griotte.label_offset_from l f s) with v
+    | H : context [assembler.Asm_Griotte.label_offset_from ?l ?f ?s] |- _ =>
+        let v := eval vm_compute in (assembler.Asm_Griotte.label_offset_from l f s) in
+        change (assembler.Asm_Griotte.label_offset_from l f s) with v in H
+    | |- context [Z.of_nat (assembler.Asm_Griotte.label_offset ?l ?s)] =>
+        let v := eval vm_compute in (Z.of_nat (assembler.Asm_Griotte.label_offset l s)) in
+        change (Z.of_nat (assembler.Asm_Griotte.label_offset l s)) with v
+    | H : context [Z.of_nat (assembler.Asm_Griotte.label_offset ?l ?s)] |- _ =>
+        let v := eval vm_compute in (Z.of_nat (assembler.Asm_Griotte.label_offset l s)) in
+        change (Z.of_nat (assembler.Asm_Griotte.label_offset l s)) with v in H
+    | |- context [assembler.Asm_Griotte.label_offset ?l ?s] =>
+        let v := eval vm_compute in (assembler.Asm_Griotte.label_offset l s) in
+        change (assembler.Asm_Griotte.label_offset l s) with v
+    | H : context [assembler.Asm_Griotte.label_offset ?l ?s] |- _ =>
+        let v := eval vm_compute in (assembler.Asm_Griotte.label_offset l s) in
+        change (assembler.Asm_Griotte.label_offset l s) with v in H
     | |- context [code_instr_offset ?bs ?n ?i] =>
         let v := eval vm_compute in (code_instr_offset bs n i) in
         change (code_instr_offset bs n i) with v
@@ -47,35 +110,6 @@ Ltac offsets_compute :=
     | H : context [code_block_offset ?bs ?n] |- _ =>
         let v := eval vm_compute in (code_block_offset bs n) in
         change (code_block_offset bs n) with v in H
-    end.
-
-(** Succeed when [z] is a closed integer literal. *)
-Ltac Z_literal z :=
-  let rec pos p :=
-    lazymatch p with
-    | xH => idtac
-    | xO ?q => pos q
-    | xI ?q => pos q
-    end in
-  lazymatch z with
-  | Z0 => idtac
-  | Zpos ?p => pos p
-  | Zneg ?p => pos p
-  end.
-
-(** Compute the differences of integer literals, such as the differences of
-    block offsets left by [offsets_compute], in the goal and the hypotheses.
-    Differences with an open operand are left untouched. *)
-Ltac offsets_sub_compute :=
-  repeat match goal with
-    | |- context [(?x - ?y)%Z] =>
-        Z_literal x; Z_literal y;
-        let v := eval vm_compute in (x - y)%Z in
-        progress change (x - y)%Z with v
-    | H : context [(?x - ?y)%Z] |- _ =>
-        Z_literal x; Z_literal y;
-        let v := eval vm_compute in (x - y)%Z in
-        progress change (x - y)%Z with v in H
     end.
 
 (** Change the address of the PC to [a']. *)
@@ -91,11 +125,22 @@ Ltac change_pc_to a' :=
 Tactic Notation "unfold_code" reference(c) constr(h) :=
   iEval (cbv beta delta [c] zeta) in h.
 
+(** Positions by label in an assembled program by blocks [P]: the offset
+    of the label [s] from the start of the program, the offset of [s] from
+    the label [from], and the index of the block that defines [s]. *)
+Notation asm_label P s :=
+  (Z.of_nat (assembler.Asm_Griotte.label_offset (concat P) s%string)).
+Notation asm_label_offset P from s :=
+  (assembler.Asm_Griotte.label_offset_from (concat P) from%string s%string).
+Notation asm_block P s := (assembler.Asm_Griotte.label_block P s%string).
+
 (** Focus on block [n] of the code [concat blocks] (at address [pc_a]),
     whose first address [a] is [pc_a + code_block_offset blocks n]. The PC
-    is moved to [a], when possible. *)
+    is moved to [a], when possible. The index [n] can be given by a label,
+    as [asm_block P s]: it is computed first. *)
 Tactic Notation "focus_block" constr(n) constr(h) "of" constr(blocks) "at" constr(pc_a)
     "as" ident(a) ident(Ha) constr(hi) constr(hcont) :=
+  let n := eval vm_compute in n in
   focus_block_nochangePC n h as a Ha hi hcont;
   let Ha' := fresh in
   assert ((pc_a + code_block_offset blocks n)%a = Some a) as Ha'

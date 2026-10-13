@@ -36,18 +36,23 @@ Section Counter_Main.
         #@".Limport_C_f";
 
         (* get a *)
+        #".Lcounter_main";
         load cs0 cgp;
         (* set a := a + 1 *)
         add cs0 cs0 1;
         store cgp cs0
         (* call C_f*)
       ];
+      #".Lcounter_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      #".Lcounter_fetch_C_f" ::
       fetch_asm ".Limport_C_f" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
-      [ mov cs0 cra; (* stores the return-to-switcher *)
+      [ #".Lcounter_call";
+        mov cs0 cra; (* stores the return-to-switcher *)
         jalr cra ct0 (* jmp to entry point *)
       ];
-      [ mov cra cs0; (* restores the return-to-switcher *)
+      [ #".Lcounter_return";
+        mov cra cs0; (* restores the return-to-switcher *)
 
         (* return a *)
         mov ca0 0;

@@ -23,7 +23,8 @@ From griotte Require Export code_blocks.
     - [hts_adv2_ret]: after [adv(0)] (block 20).
 
     The return addresses of the calls are addresses of the code
-    [hts_main_code], given by [hts_block_offset]. *)
+    [hts_main_code], given by the labels of [hts_main_asm]
+    ([hts_label_offset]). *)
 
 Section HTS_Code.
   Context `{MP: MachineParameters}.
@@ -41,6 +42,17 @@ Notation hts_block_offset := (code_block_offset hts_main_blocks).
 
 (** Offset of the [i]-th instruction of the block [n] in [hts_main_code]. *)
 Notation hts_instr_offset := (code_instr_offset hts_main_blocks).
+
+(** Offset of the label [s] of [hts_main_asm] from the start of the PCC,
+    the imports. *)
+Notation hts_label s := (asm_label hts_main_asm s).
+
+(** Offset of the label [s] in [hts_main_code], which starts at the label
+    [.Lhts_main]. *)
+Notation hts_label_offset s := (asm_label_offset hts_main_asm ".Lhts_main" s).
+
+(** Index of the block of [hts_main_code] that defines the label [s]. *)
+Notation hts_block s := (asm_block hts_main_asm s).
 
 (** Pure facts about the allocator layout, shared by the known calls. *)
 Section HTS_Layout.
@@ -256,8 +268,8 @@ Section HTS_States.
   (** Return from the call to malloc. Allocator failure and trusted-stack
       exhaustion both return an integer in [ca0]. *)
   Definition hts_malloc_ret : iProp Σ :=
-    (∃ z, hts_halt_ready (pc_a ^+ hts_block_offset 4)%a z) ∨
-    hts_malloc_ok (pc_a ^+ hts_block_offset 4)%a.
+    (∃ z, hts_halt_ready (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a z) ∨
+    hts_malloc_ok (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a.
 
   (** Return from the first adversary call: [b] was shared in [hts_Wshare b],
       and the switcher returns a public future [Wret] of it. [p] and the
@@ -272,7 +284,7 @@ Section HTS_States.
         (std_update_multiple (hts_Wshare ι b)
           (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
-      hts_frame (pc_a ^+ hts_block_offset 9)%a (csp_b ^+ 1)%a ∗
+      hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (csp_b ^+ 1)%a ∗
       (∃ w, ca0 ↦ᵣ w) ∗
       (∃ w, ca1 ↦ᵣ w) ∗
       hts_zero_regs ∗
@@ -308,13 +320,13 @@ Section HTS_States.
   (** Return from the call to free. The allocator cannot fail: only
       trusted-stack exhaustion returns a nonzero code. *)
   Definition hts_free_ret : iProp Σ :=
-    (∃ z, ⌜z ≠ 0%Z⌝ ∗ hts_halt_ready (pc_a ^+ hts_block_offset 15)%a z) ∨
-    hts_free_ok (pc_a ^+ hts_block_offset 15)%a.
+    (∃ z, ⌜z ≠ 0%Z⌝ ∗ hts_halt_ready (pc_a ^+ hts_label_offset ".Lhts_free_result")%a z) ∨
+    hts_free_ok (pc_a ^+ hts_label_offset ".Lhts_free_result")%a.
 
   (** Return from the second adversary call: only [p] and the code are
       needed for the assertion. *)
   Definition hts_adv2_ret : iProp Σ :=
-    hts_frame (pc_a ^+ hts_block_offset 20)%a (csp_b ^+ 1)%a ∗
+    hts_frame (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a (csp_b ^+ 1)%a ∗
     hts_zero_regs.
 
 End HTS_States.

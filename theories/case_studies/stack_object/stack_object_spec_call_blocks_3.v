@@ -28,7 +28,7 @@ Section SO_Call_Blocks_3.
     so_code_bounds pc_b pc_e pc_a C_f ->
     disjoint_from_shadow csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ca1 ↦ᵣ wca1 ∗
     ct0 ↦ᵣ wct0 ∗
@@ -50,7 +50,7 @@ Section SO_Call_Blocks_3.
         ct1 ↦ᵣ wct1 ∗
         cs0 ↦ᵣ wcra ∗
         cs1 ↦ᵣ wct1 ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_block_offset 10)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
         csp_b ↦ₐ WInt so_secret ∗
         a_stk1 ↦ₐ WInt 0 ∗
         [[a_stk2, csp_e]] ↦ₐ [[stk_mem']] ∗
@@ -67,7 +67,7 @@ Section SO_Call_Blocks_3.
     rewrite /so_switcher_entry.
 
     (* Block 7: push the secret and allocate the stack object [z] *)
-    focus_block 7 "Hcode_main" of so_main_blocks at pc_a as a_alloc Ha_alloc "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_alloc") "Hcode_main" of so_main_blocks at pc_a as a_alloc Ha_alloc "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     destruct (decide ((csp_b < csp_e)%a)) as [Hcsp_size|Hcsp_size]; cycle 1.
     { (* The stack frame is empty: the first store fails *)
@@ -139,7 +139,7 @@ Section SO_Call_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 8: fetch the entry point of the switcher *)
-    focus_block 8 "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_fetch_switcher") "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
@@ -153,7 +153,7 @@ Section SO_Call_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 9: jump to the switcher *)
-    focus_block 9 "Hcode_main" of so_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_call") "Hcode_main" of so_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov cs0 cra *)
     iInstr "Hcode".
@@ -162,7 +162,7 @@ Section SO_Call_Blocks_3.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 3)%a = (pc_a ^+ so_block_offset 10)%a) as ->
+    assert ((a_call ^+ 3)%a = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
       by (offsets_compute; solve_addr).
     iApply ("Hpost" $! a_stk1 a_stk2 stk_mem); iFrame "∗ Hcode_main".
     iPureIntro; repeat split; solve_addr.

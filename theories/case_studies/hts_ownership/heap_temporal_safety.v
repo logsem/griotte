@@ -59,18 +59,24 @@ Section Heap_Temporal_Safety.
         #@".Limport_malloc";
         #@".Limport_free";
         #@".Limport_alloc_cap";
+        #".Lhts_main";
 
         (* p = 0; buf = malloc(sealed_alloc, 1); *)
         store_imm cgp (0)%asm 0;
         mov ca1 (1)%asm
       ];
+      #".Lhts_fetch_alloc_cap_malloc" ::
       fetch_asm ".Limport_alloc_cap" ca0;
+      #".Lhts_fetch_switcher_malloc" ::
       fetch_asm ".Limport_switcher" ctp;
+      #".Lhts_fetch_malloc" ::
       fetch_asm ".Limport_malloc" ct1;
       [
+        #".Lhts_call_malloc";
         jalr cra ctp
       ];
       [
+        #".Lhts_malloc_result";
         (* if (malloc failed) halt; the result is tagged only on success:
            allocator errors and switcher failures return an integer in ca0. *)
         gettag ct0 ca0;
@@ -79,35 +85,46 @@ Section Heap_Temporal_Safety.
         #".hts_malloc_result_end"
       ];
       [
+        #".Lhts_share";
         (* saved_buf = buf (stack slot below the callee frame); buf[0] = 0; *)
         store_imm csp ca0 0;
         lea csp 1;
         store_imm ca0 (0)%asm 0
       ];
+      #".Lhts_fetch_switcher_adv_1" ::
       fetch_asm ".Limport_switcher" ctp;
+      #".Lhts_fetch_adv_1" ::
       fetch_asm ".Limport_adv" ct1;
       [
+        #".Lhts_call_adv_1";
         (* adv(buf); *)
         jalr cra ctp
       ];
       [
+        #".Lhts_reload";
         (* buf = saved_buf; the load consults the shadow table. *)
         load_imm ca0 csp (-1)%Z
       ];
       [
+        #".Lhts_store_private";
         (* buf[0] = &p; cgp covers exactly p. *)
         store_imm ca0 cgp 0;
         (* The buffer to free is the second argument. *)
         mov ca1 ca0
       ];
+      #".Lhts_fetch_alloc_cap_free" ::
       fetch_asm ".Limport_alloc_cap" ca0;
+      #".Lhts_fetch_switcher_free" ::
       fetch_asm ".Limport_switcher" ctp;
+      #".Lhts_fetch_free" ::
       fetch_asm ".Limport_free" ct1;
       [
+        #".Lhts_call_free";
         (* free(sealed_alloc, buf); halt if free or the switcher fails. *)
         jalr cra ctp
       ];
       [
+        #".Lhts_free_result";
         (* ca0 is ALLOC_OK = 0 only after a successful free. A nonzero value
            is a switcher failure: buf is then still live and holds &p, so we
            must halt. *)
@@ -118,21 +135,28 @@ Section Heap_Temporal_Safety.
         #".hts_free_result_end"
       ];
       [
+        #".Lhts_zero_arg";
         (* adv(0); the dangling buffer is no longer passed. *)
         mov ca0 (0)%asm
       ];
+      #".Lhts_fetch_switcher_adv_2" ::
       fetch_asm ".Limport_switcher" ctp;
+      #".Lhts_fetch_adv_2" ::
       fetch_asm ".Limport_adv" ct1;
       [
+        #".Lhts_call_adv_2";
         jalr cra ctp
       ];
       [
+        #".Lhts_prep_assert";
         (* assert(p == 0); *)
         load_imm ct0 cgp 0;
         mov ct1 (0)%asm
       ];
+      #".Lhts_assert" ::
       assert_asm ".Limport_assert" ct2 ca2;
       [
+        #".Lhts_halt";
         (* halt; *)
         halt
       ]

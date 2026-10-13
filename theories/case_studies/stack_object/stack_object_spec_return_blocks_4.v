@@ -28,7 +28,7 @@ Section SO_Return_Blocks_4.
     (csp_b + 2)%a = Some a_stk2 ->
     (csp_b < csp_e)%a ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 10)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -68,7 +68,7 @@ Section SO_Return_Blocks_4.
     rewrite /so_assert_entry.
 
     (* Block 10: read back the secret *)
-    focus_block 10 "Hcode_main" of so_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_after_call") "Hcode_main" of so_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Lea csp (-2)%Z *)
     iInstr "Hcode".
@@ -83,7 +83,7 @@ Section SO_Return_Blocks_4.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 11: assert that the secret is unchanged *)
-    focus_block 11 "Hcode_main" of so_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_assert") "Hcode_main" of so_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra $Hcnull
@@ -95,7 +95,7 @@ Section SO_Return_Blocks_4.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 12: return *)
-    focus_block 12 "Hcode_main" of so_main_blocks at pc_a as a_return Ha_return "Hcode" "Hcont".
+    focus_block (so_block ".Lso_f_return") "Hcode_main" of so_main_blocks at pc_a as a_return Ha_return "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov cra cs0 *)
     iInstr "Hcode".

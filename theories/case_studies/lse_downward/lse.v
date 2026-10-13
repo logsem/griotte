@@ -61,17 +61,23 @@ int __cheri_compartment("known") run()
         #@".Limport_B_adv";
 
         (* set a := 2 *)
+        #".Llse_run";
         store cgp 2
       ];
       (* call B.adv LSE.awkward *)
+      #".Llse_run_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      #".Llse_run_fetch_adv" ::
       fetch_asm ".Limport_B_adv" ct1; (* ct1 -> {B.adv}_(ot_switcher)  *)
-      [ jalr cra ct0; (* jmp to entry point *)
+      [ #".Llse_run_call";
+        jalr cra ct0; (* jmp to entry point *)
+        #".Llse_run_halt";
         halt
       ];
       (* f *)
       (* push a := (RW, Global, a, a+1, a) *)
-      [ getb cs0 cgp;
+      [ #".Llse_f";
+        getb cs0 cgp;
         add cs1 cs0 1;
         subseg cgp cs0 cs1; (* cgp := (RW, Global, a, a+1, a) *)
         (* csp = (RWL, Local, bstk, estk, bstk)  *)
@@ -80,8 +86,10 @@ int __cheri_compartment("known") run()
         load ct0 cgp;
         mov ct1 2
       ];
+      #".Llse_f_assert" ::
       assert_asm ".Limport_assert" cgp cs0; (* asserts that ( *ct0 = *ct1 ) *)
       [ (* return 0 *)
+        #".Llse_f_return";
         mov ca0 0;
         mov ca1 0;
         ret

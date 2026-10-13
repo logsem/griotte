@@ -24,14 +24,14 @@ Section DROE_Share_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wct0 wct1 wcs0 wcra : LWord) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_block_offset 1)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     droe_static_mem pc_b pc_a C_f ∗
     ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ droe_instr_offset 3 2)%a ∗
+        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_return")%a ∗
         ct0 ↦ᵣ droe_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ wcra ∗
@@ -46,7 +46,7 @@ Section DROE_Share_Blocks_2.
     unfold_code droe_main_code "Hcode_main".
 
     (* Block 1: fetch the entry point of the switcher *)
-    focus_block 1 "Hcode_main" of droe_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
+    focus_block (droe_block ".Ldroe_fetch_switcher") "Hcode_main" of droe_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _ droe_switcher_entry
               with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap.
@@ -59,7 +59,7 @@ Section DROE_Share_Blocks_2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 2: fetch the entry point of the adversary *)
-    focus_block 2 "Hcode_main" of droe_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
+    focus_block (droe_block ".Ldroe_fetch_B_f") "Hcode_main" of droe_main_blocks at pc_a as a_fetch2 Ha_fetch2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 2 with "[- $HPC $Hct1 $Hcode $Himport_C_f]"); eauto.
     { offsets_compute; solve_addr. }
@@ -69,14 +69,14 @@ Section DROE_Share_Blocks_2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 3: save the return address and call the adversary *)
-    focus_block 3 "Hcode_main" of droe_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    focus_block (droe_block ".Ldroe_call_B") "Hcode_main" of droe_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_callB ^+ 2)%a = (pc_a ^+ droe_instr_offset 3 2)%a) as ->
+    assert ((a_callB ^+ 2)%a = (pc_a ^+ droe_label_offset ".Ldroe_return")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; rewrite /droe_static_mem /droe_switcher_entry; iFrame "∗ Hcode_main".
   Qed.

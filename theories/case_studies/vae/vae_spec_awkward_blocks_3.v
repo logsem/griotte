@@ -33,7 +33,7 @@ Section VAE_Awkward_Blocks_3.
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 9 4)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wret ∗
@@ -73,7 +73,7 @@ Section VAE_Awkward_Blocks_3.
     rewrite /vae_assert_entry.
 
     (* Block 9: load the flag, which is [1] *)
-    focus_block 9 "Hcode_main" of vae_main_blocks at pc_a as a_load Ha_load "Hcode" "Hcont".
+    focus_block (vae_block ".Lvae_awkward_call_2") "Hcode_main" of vae_main_blocks at pc_a as a_load Ha_load "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     change_pc_to (a_load ^+ 4)%a.
     (* CLoad ct0 cgp 0 *)
@@ -95,7 +95,7 @@ Section VAE_Awkward_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 10: assert that the flag is [1] *)
-    focus_block 10 "Hcode_main" of vae_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
+    focus_block (vae_block ".Lvae_awkward_assert") "Hcode_main" of vae_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra
@@ -108,7 +108,7 @@ Section VAE_Awkward_Blocks_3.
 
     (* Block 11: restore the return address, clear the return values, and
        return *)
-    focus_block 11 "Hcode_main" of vae_main_blocks at pc_a as a_ret Ha_ret "Hcode" "Hcont".
+    focus_block (vae_block ".Lvae_awkward_return") "Hcode_main" of vae_main_blocks at pc_a as a_ret Ha_ret "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Mov cra cs0 *)
     iInstr "Hcode".

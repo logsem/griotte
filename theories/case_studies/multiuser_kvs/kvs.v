@@ -245,7 +245,7 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
  *)
   Definition kvs_addOrUpdate_asm : list (list asm_code) :=
     [
-      (kvs_check_uint16_asm ca1 ct1) ;
+      (#".LaddOrUpdate" :: kvs_check_uint16_asm ca1 ct1) ;
       [
         jnz (".addOrUpdate_not_uint16")%asm ct1;
         #".addOrUpdate_uint16";
@@ -341,7 +341,7 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
    *)
   Definition kvs_read_asm : list (list asm_code) :=
     [
-      (kvs_check_uint16_asm ca1 ct1) ;
+      (#".Lread" :: kvs_check_uint16_asm ca1 ct1) ;
       [
         jnz (".read_not_uint16")%asm ct1;
         #".read_uint16";
@@ -403,7 +403,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
    *)
   Definition kvs_erase_asm : list (list asm_code) :=
     [
-      (kvs_check_uint16_asm ca1 ct1) ;
+      (#".Lerase" :: kvs_check_uint16_asm ca1 ct1) ;
       [
         jnz (".erase_not_uint16")%asm ct1;
         #".erase_uint16";
@@ -477,18 +477,15 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   (** The offsets of the fetches of the unsealing key, at the labels
       [.L<entry>_getFullKey] (block 2 of each entry), from the address of
       the fetch. *)
-  Local Definition kvs_service_offset_from (from s : string) : Z :=
-    (Z.of_nat (label_offset (concat kvs_service_asm) s)
-     - Z.of_nat (label_offset (concat kvs_service_asm) from))%Z.
   Definition kvs_addOrUpdate_getFullKey_off : Z :=
     Eval vm_compute in
-      kvs_service_offset_from ".LaddOrUpdate_getFullKey" ".Limport_unsealing_key".
+      label_offset_from (concat kvs_service_asm) ".LaddOrUpdate_getFullKey" ".Limport_unsealing_key".
   Definition kvs_read_getFullKey_off : Z :=
     Eval vm_compute in
-      kvs_service_offset_from ".Lread_getFullKey" ".Limport_unsealing_key".
+      label_offset_from (concat kvs_service_asm) ".Lread_getFullKey" ".Limport_unsealing_key".
   Definition kvs_erase_getFullKey_off : Z :=
     Eval vm_compute in
-      kvs_service_offset_from ".Lerase_getFullKey" ".Limport_unsealing_key".
+      label_offset_from (concat kvs_service_asm) ".Lerase_getFullKey" ".Limport_unsealing_key".
 
   Definition kvs_service_instrs : list Word :=
     kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
@@ -559,7 +556,11 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about addOrUpdate entry point *)
   Definition kvs_addOrUpdate_nargs : nat := 3.
-  Definition kvs_addOrUpdate_pcc_off := (length_kvs_imports).
+  (** The offset of the entry [.LaddOrUpdate] from the start of the PCC. *)
+  Definition kvs_addOrUpdate_pcc_off : nat :=
+    Eval vm_compute in label_offset (concat kvs_service_asm) ".LaddOrUpdate".
+  Lemma kvs_addOrUpdate_pcc_off_eq : kvs_addOrUpdate_pcc_off = length_kvs_imports.
+  Proof. reflexivity. Qed.
   Definition kvs_addOrUpdate_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_addOrUpdate_pcc_off)%a.
   Definition kvs_exp_tbl_entry_addOrUpdate :=
     WInt (encode_entry_point kvs_addOrUpdate_nargs kvs_addOrUpdate_pcc_off).
@@ -570,7 +571,11 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about read entry point *)
   Definition kvs_read_nargs : nat := 2.
-  Definition kvs_read_pcc_off := (length_kvs_imports + length kvs_addOrUpdate_instrs).
+  (** The offset of the entry [.Lread] from the start of the PCC. *)
+  Definition kvs_read_pcc_off : nat :=
+    Eval vm_compute in label_offset (concat kvs_service_asm) ".Lread".
+  Lemma kvs_read_pcc_off_eq : kvs_read_pcc_off = length_kvs_imports + length kvs_addOrUpdate_instrs.
+  Proof. reflexivity. Qed.
   Definition kvs_read_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_read_pcc_off)%a.
   Definition kvs_exp_tbl_entry_read :=
     WInt (encode_entry_point kvs_read_nargs kvs_read_pcc_off).
@@ -581,7 +586,11 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about erase entry point *)
   Definition kvs_erase_nargs : nat := 2.
-  Definition kvs_erase_pcc_off := (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_read_instrs).
+  (** The offset of the entry [.Lerase] from the start of the PCC. *)
+  Definition kvs_erase_pcc_off : nat :=
+    Eval vm_compute in label_offset (concat kvs_service_asm) ".Lerase".
+  Lemma kvs_erase_pcc_off_eq : kvs_erase_pcc_off = length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_read_instrs.
+  Proof. reflexivity. Qed.
   Definition kvs_erase_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_erase_pcc_off)%a.
   Definition kvs_exp_tbl_entry_erase :=
     WInt (encode_entry_point kvs_erase_nargs kvs_erase_pcc_off).

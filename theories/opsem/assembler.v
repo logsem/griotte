@@ -46,7 +46,14 @@ Module Asm_Griotte.
       A macro without local labels can refer to the labels and symbols of
       the enclosing program (e.g. the import symbols named by [fetch_asm]).
 
-      [label_offset l s] is the offset of the label or symbol [s] of [l].
+      [label_offset l s] is the offset of the label or symbol [s] of [l],
+      and [label_offset_from l from s] the offset of [s] from [from]. For a
+      program by blocks [P], they apply to [concat P], and the lemmas
+      [label_offset_code_block] and [label_offset_code_instr] (in
+      [code_blocks]) relate the offset of a label to the offsets of the
+      blocks of the assembled code. A specification can state its PC as
+      `(pc_b + label_offset (concat xxx_asm) ".Lname")%a = Some pc_a`; on
+      closed arguments, [offsets_compute] computes the offsets.
    *)
 
   (*** Assembly Language with Labels *)
@@ -426,7 +433,14 @@ Module Asm_Griotte.
     | Err _ => 0
     end.
 
-  (*** Assembly checks. *)
+  (** The offset of the label or symbol [s] of [l] from the label or symbol
+      [from] of [l]. For a program by blocks [P], the labels are those of
+      [concat P]. On closed arguments, it computes by [vm_compute] (see
+      [offsets_compute]). *)
+  Definition label_offset_from (l : list asm_code) (from s : string) : Z :=
+    (Z.of_nat (label_offset l s) - Z.of_nat (label_offset l from))%Z.
+
+  (*** Successful results. *)
   (** [asm_ok r] holds when [r] is not an error; on an error it reduces to
       the uninhabited [asm_error msg], so that [asm_check] reports [msg]. *)
   Inductive asm_error (msg : string) : Prop := .
@@ -437,6 +451,210 @@ Module Asm_Griotte.
     | Err msg => asm_error msg
     end.
 
+  (** Whether [l] defines the label or symbol [s] (outside its local
+      blocks). *)
+  Definition asm_defines (s : string) (l : list asm_code) : bool :=
+    existsb (λ c, match c with
+                  | ASM_Label s' | ASM_Symbol s' => String.eqb s s'
+                  | _ => false
+                  end) l.
+
+  (** The index of the block of [P] that defines the label or symbol [s]
+      ([length P] if none does). On closed arguments, it computes by
+      [vm_compute] (see [focus_block]). *)
+  Fixpoint label_block (P : list (list asm_code)) (s : string) : nat :=
+    match P with
+    | [] => 0
+    | b :: P => if asm_defines s b then 0 else S (label_block P s)
+    end.
+
+  (*** Offsets of the labels. *)
+  (** The number of instructions and the number of symbols of a piece of
+      code: its words are its instructions and its symbols. *)
+  Fixpoint asm_code_instrs (c : asm_code) : nat :=
+    match c with
+    | ASM_Instr _ => 1
+    | ASM_Label _ | ASM_Symbol _ => 0
+    | ASM_Local l =>
+        (fix instrs (l : list asm_code) : nat :=
+           match l with
+           | [] => 0
+           | c :: l => asm_code_instrs c + instrs l
+           end) l
+    end.
+
+  Fixpoint asm_instrs (l : list asm_code) : nat :=
+    match l with
+    | [] => 0
+    | c :: l => asm_code_instrs c + asm_instrs l
+    end.
+
+  Fixpoint asm_code_symbols (c : asm_code) : nat :=
+    match c with
+    | ASM_Symbol _ => 1
+    | ASM_Label _ | ASM_Instr _ => 0
+    | ASM_Local l =>
+        (fix symbols (l : list asm_code) : nat :=
+           match l with
+           | [] => 0
+           | c :: l => asm_code_symbols c + symbols l
+           end) l
+    end.
+
+  Fixpoint asm_symbols (l : list asm_code) : nat :=
+    match l with
+    | [] => 0
+    | c :: l => asm_code_symbols c + asm_symbols l
+    end.
+
+  (** Induction on [asm_code], through the local blocks. *)
+  Section asm_code_induction.
+    Context (P : asm_code → Prop).
+    Context (Hlabel : ∀ s, P (ASM_Label s)) (Hsymbol : ∀ s, P (ASM_Symbol s))
+      (Hinstr : ∀ i, P (ASM_Instr i)) (Hlocal : ∀ l, Forall P l → P (ASM_Local l)).
+
+    Fixpoint asm_code_ind' (c : asm_code) : P c :=
+      match c with
+      | ASM_Label s => Hlabel s
+      | ASM_Symbol s => Hsymbol s
+      | ASM_Instr i => Hinstr i
+      | ASM_Local l =>
+          Hlocal l
+            ((fix go (l : list asm_code) : Forall P l :=
+                match l with
+                | [] => @List.Forall_nil _ P
+                | c :: l => @List.Forall_cons _ P c l (asm_code_ind' c) (go l)
+                end) l)
+      end.
+  End asm_code_induction.
+
+  Lemma asm_code_words_local l : asm_code_words (ASM_Local l) = asm_words l.
+  Proof. induction l as [|c l IH]; [done|]. cbn in *. by rewrite IH. Qed.
+  Lemma asm_code_instrs_local l : asm_code_instrs (ASM_Local l) = asm_instrs l.
+  Proof. induction l as [|c l IH]; [done|]. cbn in *. by rewrite IH. Qed.
+  Lemma asm_code_symbols_local l : asm_code_symbols (ASM_Local l) = asm_symbols l.
+  Proof. induction l as [|c l IH]; [done|]. cbn in *. by rewrite IH. Qed.
+
+  Lemma asm_words_app l1 l2 : asm_words (l1 ++ l2) = asm_words l1 + asm_words l2.
+  Proof. induction l1; cbn; lia. Qed.
+  Lemma asm_instrs_app l1 l2 : asm_instrs (l1 ++ l2) = asm_instrs l1 + asm_instrs l2.
+  Proof. induction l1; cbn; lia. Qed.
+  Lemma asm_symbols_app l1 l2 : asm_symbols (l1 ++ l2) = asm_symbols l1 + asm_symbols l2.
+  Proof. induction l1; cbn; lia. Qed.
+
+  Lemma asm_code_words_split c :
+    asm_code_words c = asm_code_instrs c + asm_code_symbols c.
+  Proof.
+    induction c as [| | |l Hl] using asm_code_ind'; try done.
+    rewrite asm_code_words_local asm_code_instrs_local asm_code_symbols_local.
+    induction Hl as [|c l Hc _ IH]; cbn; lia.
+  Qed.
+
+  Lemma asm_words_split l : asm_words l = asm_instrs l + asm_symbols l.
+  Proof. induction l as [|c l IH]; cbn; [done|]. rewrite asm_code_words_split. lia. Qed.
+
+  Lemma assemble_code_item_local l env n :
+    assemble_code_item (ASM_Local l) env n =
+      (env' ← asm_env_aux l n []; assemble_code l (env' ++ env) n).
+  Proof.
+    cbn [assemble_code_item]. destruct (asm_env_aux l n []) as [env'|msg]; [|done].
+    cbn. generalize n. induction l as [|c l IH]; intros m; [done|]. cbn.
+    destruct (assemble_code_item c (env' ++ env) m); cbn; [|done].
+    by rewrite IH.
+  Qed.
+
+  (** The assembled code has one instruction per instruction of the code. *)
+  Lemma assemble_code_item_length c env n ins :
+    assemble_code_item c env n = Ok ins → length ins = asm_code_instrs c.
+  Proof.
+    revert env n ins.
+    induction c as [s|s|i|l Hl] using asm_code_ind'; intros env n ins.
+    - by intros [= <-].
+    - by intros [= <-].
+    - cbn. destruct (assemble_instr i env n); cbn; [by intros [= <-]|done].
+    - rewrite assemble_code_item_local asm_code_instrs_local.
+      destruct (asm_env_aux l n []) as [env'|]; cbn; [|done].
+      generalize (env' ++ env). clear env. revert n ins.
+      induction Hl as [|c l Hc _ IH]; intros n ins env; cbn; [by intros [= <-]|].
+      destruct (assemble_code_item c env n) as [c'|] eqn:Hc'; cbn; [|done].
+      destruct (assemble_code l env (n + asm_code_words c)) as [l'|] eqn:Hl'; cbn; [|done].
+      intros [= <-]. rewrite length_app (Hc _ _ _ Hc') (IH _ _ _ Hl'). done.
+  Qed.
+
+  Lemma assemble_code_length l env n ins :
+    assemble_code l env n = Ok ins → length ins = asm_instrs l.
+  Proof.
+    revert n ins. induction l as [|c l IH]; intros n ins; cbn; [by intros [= <-]|].
+    destruct (assemble_code_item c env n) as [c'|] eqn:Hc'; cbn; [|done].
+    destruct (assemble_code l env (n + asm_code_words c)) as [l'|] eqn:Hl'; cbn; [|done].
+    intros [= <-]. rewrite length_app (assemble_code_item_length _ _ _ _ Hc') (IH _ _ Hl'). done.
+  Qed.
+
+  Lemma assemble_blocks_length P env n bs :
+    assemble_blocks P env n = Ok bs → length <$> bs = asm_instrs <$> P.
+  Proof.
+    revert n bs. induction P as [|b P IH]; intros n bs; cbn; [by intros [= <-]|].
+    destruct (assemble_code b env n) as [b'|] eqn:Hb; cbn; [|done].
+    destruct (assemble_blocks P env (n + asm_words b)) as [P'|] eqn:HP; cbn; [|done].
+    intros [= <-]. cbn. by rewrite (assemble_code_length _ _ _ _ Hb) (IH _ _ HP).
+  Qed.
+
+  Lemma asm_env_aux_app l1 l2 n env :
+    asm_env_aux (l1 ++ l2) n env =
+      (env1 ← asm_env_aux l1 n env; asm_env_aux l2 (n + asm_words l1) env1).
+  Proof.
+    revert n env. induction l1 as [|c l1 IH]; intros n env; cbn.
+    { by rewrite Nat.add_0_r. }
+    destruct c as [s|s|i|l]; cbn.
+    - destruct (asm_lookup s env); [done|]. by rewrite IH.
+    - destruct (asm_lookup s env); [done|]. rewrite IH.
+      destruct (asm_env_aux l1 (S n) _); cbn; [|done]. f_equal. lia.
+    - rewrite IH. destruct (asm_env_aux l1 (S n) env); cbn; [|done]. f_equal. lia.
+    - rewrite IH. destruct (asm_env_aux l1 _ env); cbn; [|done]. f_equal. lia.
+  Qed.
+
+  Lemma asm_env_aux_lookup l n env env' s k :
+    asm_env_aux l n env = Ok env' →
+    asm_lookup s env = Some k →
+    asm_lookup s env' = Some k.
+  Proof.
+    revert n env. induction l as [|c l IH]; intros n env; cbn.
+    { by intros [= <-]. }
+    destruct c as [s'|s'|i|l']; intros Henv Hs.
+    - destruct (asm_lookup s' env) eqn:Hs'; [done|]. eapply IH; [done|]. cbn.
+      destruct (String.eqb_spec s s'); [subst; congruence|done].
+    - destruct (asm_lookup s' env) eqn:Hs'; [done|]. eapply IH; [done|]. cbn.
+      destruct (String.eqb_spec s s'); [subst; congruence|done].
+    - by eapply IH.
+    - by eapply IH.
+  Qed.
+
+  (** A label of the top level of the code is at the number of words that
+      precede it. *)
+  Lemma label_offset_app l1 s l2 :
+    asm_ok (asm_env (l1 ++ ASM_Label s :: l2)) →
+    label_offset (l1 ++ ASM_Label s :: l2) s = asm_words l1.
+  Proof.
+    rewrite /label_offset /asm_env asm_env_aux_app.
+    destruct (asm_env_aux l1 0 []) as [env1|msg]; cbn; [|by intros []].
+    destruct (asm_lookup s env1); [by intros []|].
+    destruct (asm_env_aux l2 _ _) as [env'|msg] eqn:Henv; [|by intros []]. intros _.
+    erewrite asm_env_aux_lookup; [done|done|]. cbn. by rewrite String.eqb_refl.
+  Qed.
+
+  Lemma assemble_block_check_ok P :
+    asm_ok (assemble_block_check P) →
+    asm_ok (asm_env (concat P)) ∧
+    ∃ env, assemble_blocks P env 0 = Ok (assemble_block P).
+  Proof.
+    rewrite /assemble_block /assemble_block_check.
+    destruct (asm_symbols_check (concat P)); cbn; [|by intros []].
+    destruct (asm_env (concat P)) as [env|]; cbn; [|by intros []].
+    destruct (assemble_blocks P env 0) eqn:HP; cbn; [|by intros []].
+    intros _. split; [done|]. by exists env.
+  Qed.
+
+  (*** Assembly checks. *)
   (** Proves [asm_ok r] for a closed [r], or fails with the assembler's
       error message. Usage, for each assembled program:
       ```

@@ -15,16 +15,22 @@ Section SO_Asm.
       (* the imports *)
       [ #@".Limport_switcher";
         #@".Limport_assert";
-        #@".Limport_B_adv" ] ++
+        #@".Limport_B_adv";
+        #".Lso_run" ] ++
       fetch_asm ".Limport_switcher" ct0;
+      #".Lso_run_fetch_adv" ::
       fetch_asm ".Limport_B_adv" ct1;
-      [ jalr cra ct0; halt ];
+      [ #".Lso_run_call"; jalr cra ct0; #".Lso_run_halt"; halt ];
       (* f *)
-      [ mov ct1 ca1 ];
+      [ #".Lso_f"; mov ct1 ca1 ];
+      #".Lso_f_checkra" ::
       checkra_asm ca0 cs0 cs1;
+      #".Lso_f_check_no_overlap" ::
       check_no_overlap_asm ca0 csp cs0 cs1;
+      #".Lso_f_checkints" ::
       checkints_asm ca0 cs0 cs1;
-      [ store csp so_secret;
+      [ #".Lso_f_alloc";
+        store csp so_secret;
         lea csp 1;
         mov ca1 csp;
         geta cs0 ca1;
@@ -32,15 +38,20 @@ Section SO_Asm.
         subseg ca1 cs0 cs1;
         store ca1 0;
         lea csp 1 ];
+      #".Lso_f_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0;
-      [ mov cs0 cra;
+      [ #".Lso_f_call";
+        mov cs0 cra;
         mov cs1 ct1;
         jalr cra ct0 ];
-      [ lea csp (-2);
+      [ #".Lso_f_after_call";
+        lea csp (-2);
         load ct0 csp;
         mov ct1 so_secret ];
+      #".Lso_f_assert" ::
       assert_asm ".Limport_assert" ct2 ca2;
-      [ mov cra cs0;
+      [ #".Lso_f_return";
+        mov cra cs0;
         mov ca0 0;
         mov ca1 0;
         ret ]

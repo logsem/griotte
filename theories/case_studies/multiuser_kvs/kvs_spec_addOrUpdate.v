@@ -259,7 +259,7 @@ Section KVS_spec_addOrUpdate.
 
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b') as Heq_addr
-       by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
+       by (rewrite /kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_pcc_off_eq; solve_addr+HKVS_pcc_b').
     rewrite -Heq_addr in H3; rewrite -Heq_addr.
 
     iDestruct ( kvs_physical_kvs_valid with "Hpkvs_frag Hpkvs_frag'") as "<-".
@@ -787,7 +787,7 @@ Section KVS_spec_addOrUpdate.
 
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b') as Heq_addr
-       by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
+       by (rewrite /kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_pcc_off_eq; solve_addr+HKVS_pcc_b').
     rewrite -Heq_addr in H3; rewrite -Heq_addr.
 
 
@@ -1135,7 +1135,7 @@ Section KVS_spec_addOrUpdate.
     rewrite /kvs_service_instrs.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
-      as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
+      as -> by (rewrite /kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_pcc_off_eq; solve_addr+HKVS_pcc_b').
     iApply ( KVS_addOrUpdate_spec_not_uint16_map_key_pre ); eauto; iFrame "∗ Hcode".
     iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & _)".
 
@@ -1264,7 +1264,7 @@ Section KVS_spec_addOrUpdate.
     rewrite /kvs_service_instrs.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
-      as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
+      as -> by (rewrite /kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_pcc_off_eq; solve_addr+HKVS_pcc_b').
     iApply ( KVS_addOrUpdate_spec_invalid_sealed_user_key_pre ); eauto; iFrame "∗ Hcode Ha_unsealing".
   Qed.
 

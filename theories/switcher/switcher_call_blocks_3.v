@@ -76,7 +76,7 @@ Section Switcher_Call_Blocks_3.
     is_shadow_address pc_b = false ->
     is_heap_cap wpc_b = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_6)%a ->
-    (pc_b + (1 + switcher_block_offset 6))%a = Some pc_a ->
+    (pc_b + asm_label switcher_asm ".Lswitcher_fetch_unseal_key")%a = Some pc_a ->
 
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -173,7 +173,7 @@ Section Switcher_Call_Blocks_3.
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
 
-    PC ↦ₚ switcher_block_pc 4 ∗
+    PC ↦ₚ switcher_label_pc ".Lswitcher_chop_stack" ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
@@ -184,7 +184,7 @@ Section Switcher_Call_Blocks_3.
     ▷ ( ∀ wsb π,
         ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ ∗
         ⌜ get_tag_sealable wsb = true ⌝ ∗
-        PC ↦ₚ switcher_pc (switcher_block_offset 7 + 1) ∗
+        PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_decode_entry") ∗
         cs0 ↦ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
         (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
         csp ↦ᵣ WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
@@ -202,7 +202,7 @@ Section Switcher_Call_Blocks_3.
     switcher_unfold_code "Hswitcher".
 
     (* Block 4: restrict the stack capability *)
-    switcher_focus_block 4 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_chop_stack") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_4_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); [done| | |done|iNext].
     { rewrite /isWithin; solve_addr+Hba Hba3 Ha4. }
@@ -211,7 +211,7 @@ Section Switcher_Call_Blocks_3.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 5: clear the callee's stack frame *)
-    switcher_focus_block 5 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_zero_callee_stack") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]");
       try solve_pure.
     { solve_addr+. }
@@ -225,21 +225,21 @@ Section Switcher_Call_Blocks_3.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 6: load the unsealing capability *)
-    switcher_focus_block 6 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_fetch_unseal_key") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_6_spec with
       "[- $HPC $Hcs0 $Hb_switcher $Hcode]");
       [apply switcher_base_not_shadow|done|done| |].
-    { solve_addr. }
+    { offsets_compute; solve_addr. }
     iNext; iIntros "(HPC & Hcs0 & _ & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 7: unseal the entry point *)
-    switcher_focus_block 7 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitcher_unseal_entry") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_7_unseal_spec with
       "[- $HPC $Hcs0 $Hct1 $Hcode]"); first done.
     iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & Hct1 & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    switcher_change_pc (switcher_block_offset 7 + 1)%Z.
+    switcher_change_pc (switcher_label_offset ".Lswitcher_decode_entry").
     iApply "Hpost"; iFrame "∗ Hswitcher Hb_switcher"; done.
   Qed.
 

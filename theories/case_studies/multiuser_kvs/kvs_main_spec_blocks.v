@@ -9,6 +9,10 @@ From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
 From griotte Require Import map_simpl register_tactics proofmode.
 
+(** Offset of the label [s] of [kvs_main_asm] from the start of the PCC,
+    the imports. *)
+Notation kvs_main_label s := (asm_label kvs_main_asm s).
+
 (** The premise of [fetch_spec] (and [assert_success_spec]) on the offset of
     the import, at a fetch of [kvs_main_code]: the address of the fetch is
     given by a hypothesis on the offset of the block, whose closed code
@@ -23,7 +27,7 @@ Ltac kvs_main_fetch_offset :=
         let v := eval vm_compute in (length l) in change (length l) with v in H
       end
   end;
-  unfold kvs_main_imports_size in *;
+  offsets_compute;
   solve_addr.
 
 (** The premise of [fetch_spec] that the import is within the PC bounds. *)
@@ -31,7 +35,7 @@ Ltac kvs_main_fetch_bounds :=
   apply withinBounds_true_iff;
   unfold SWITCHER_CALL_OFFSET, ASSERT_OFFSET, ADV_F_OFFSET, KVS_INSERT_OFFSET,
     KVS_READ_OFFSET, KVS_ERASE_OFFSET, SEALED_USER_KEY_OFFSET;
-  unfold kvs_main_imports_size in *;
+  offsets_compute;
   solve_addr.
 
 Section KVS_Main_Blocks.
@@ -333,7 +337,7 @@ Section KVS_Main_Blocks.
     dom rmap = all_registers_s ∖ {[ cgp; csp]} ->
     (forall r, r ∈ dom rmap -> is_Some (rmap !! r)) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
-    (pc_b + kvs_main_imports_size)%a = Some pc_a ->
+    (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
     na_inv cerise_nais Nswitcher switcher_inv
@@ -639,7 +643,7 @@ Section KVS_Main_Blocks.
     dom rmap =
       all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1]} ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
-    (pc_b + kvs_main_imports_size)%a = Some pc_a ->
+    (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
     assert_static b_assert e_assert a_flag
@@ -810,7 +814,7 @@ Section KVS_Main_Blocks.
     { pose proof KVS_size_imports as Himports.
       pose proof KVS_size_code as Hcode.
       rewrite /kvs_service_instrs !length_app in Hcode.
-      rewrite /kvs_read_pcc_off; solve_addr.
+      rewrite kvs_read_pcc_off_eq; solve_addr.
     }
     {  subst rmap_read_call.
        rewrite dom_insert_L.
