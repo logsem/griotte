@@ -16,7 +16,7 @@ Local Notation "'OT' z" :=
 
 Definition cmdc_main_pcc_b : Addr := A 9.
 Definition cmdc_main_code_start : Addr := A 13.
-Definition cmdc_main_pcc_e : Addr := A 98.
+Definition cmdc_main_pcc_e : Addr := A 56.
 Definition cmdc_B_pcc_b : Addr := A 98.
 Definition cmdc_B_code_start : Addr := A 99.
 Definition cmdc_B_pcc_e : Addr := A 102.
@@ -42,13 +42,13 @@ Definition cmdc_C_exports_cgp : Addr := A 115.
 Definition cmdc_C_exports_entries_b : Addr := A 116.
 Definition cmdc_C_exports_entries_e : Addr := A 117.
 Definition cmdc_assert_b : Addr := A 117.
-Definition cmdc_assert_cap : Addr := A 129.
-Definition cmdc_assert_e : Addr := A 130.
-Definition cmdc_assert_flag : Addr := A 130.
+Definition cmdc_assert_cap : Addr := A 128.
+Definition cmdc_assert_e : Addr := A 129.
+Definition cmdc_assert_flag : Addr := A 129.
 Definition cmdc_switcher_b : Addr := A 131.
 Definition cmdc_switcher_call : Addr := A 132.
-Definition cmdc_switcher_return : Addr := A 220.
-Definition cmdc_switcher_e : Addr := A 282.
+Definition cmdc_switcher_return : Addr := A 199.
+Definition cmdc_switcher_e : Addr := A 245.
 Definition cmdc_switcher_sealing_type : OType := OT 9.
 Definition cmdc_trusted_stack_b : Addr := A 4096.
 Definition cmdc_trusted_stack_e : Addr := A 4196.
@@ -519,9 +519,11 @@ Proof.
   all: vm_compute; eauto; reflexivity.
 Defined.
 
+Definition cmdc_initial_pc : Word :=
+  WCap true RX Global cmdc_main_pcc_b cmdc_main_pcc_e
+      cmdc_main_code_start.
+
 Definition cmdc_initial_registers : Reg :=
-  <[PC := WCap true RX Global cmdc_main_pcc_b cmdc_main_pcc_e
-      cmdc_main_code_start]>
   (<[cgp := WCap true RW Global cmdc_main_data_b cmdc_main_data_e
       cmdc_main_data_b]>
   (<[csp := WCap true RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
@@ -534,9 +536,9 @@ Definition cmdc_initial_sregisters : SReg :=
 Definition cmdc_initial_memory : Mem := mk_initial_memory.
 
 Lemma cmdc_initial_registers_correct :
-  is_initial_registers cmdc_initial_registers.
+  is_initial_registers cmdc_initial_pc cmdc_initial_registers.
 Proof.
-  rewrite /is_initial_registers /cmdc_initial_registers.
+  rewrite /is_initial_registers /cmdc_initial_pc /cmdc_initial_registers.
   cbn [cmdc_concrete_layout cmdc_concrete_main_cmpt].
   split; [|split; [|split]].
   - vm_compute; reflexivity.
@@ -573,17 +575,17 @@ Lemma cmdc_initial_heap_disjoint :
   initial_heap_memory ##ₘ mk_initial_program_memory.
 Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
 
-Lemma cmdc_concrete_adequacy reg' sreg' mem' sh' es :
+Lemma cmdc_concrete_adequacy pc' reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (cmdc_initial_registers, cmdc_initial_sregisters, cmdc_initial_memory, initial_heap_shadow))
-    (es, (reg', sreg', mem', sh')) ->
+      (cmdc_initial_pc, cmdc_initial_registers, cmdc_initial_sregisters, cmdc_initial_memory, initial_heap_shadow))
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! cmdc_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@cmdc_adequacy machine_parameters_instance cmdc_concrete_layout
-      cmdc_initial_registers reg' cmdc_initial_sregisters sreg'
+      cmdc_initial_pc pc' cmdc_initial_registers reg' cmdc_initial_sregisters sreg'
       cmdc_initial_memory mem' initial_heap_shadow sh' es cmdc_initial_registers_correct
       cmdc_initial_sregisters_correct cmdc_initial_memory_correct eq_refl cmdc_initial_heap_disjoint Hrun)
     as Hadequacy.
@@ -598,22 +600,22 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem cmdc_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem' sh',
+  ∃ pc' reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (cmdc_initial_registers, cmdc_initial_sregisters,
+        (cmdc_initial_pc, cmdc_initial_registers, cmdc_initial_sregisters,
          cmdc_initial_memory, initial_heap_shadow))
-      ([Instr Halted], (reg', sreg', mem', sh'))
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! cmdc_assert_flag = Some (WInt 0%Z).
 Proof.
   edestruct (
     machine_run_correct (N.to_nat (10000%N)) Executable
-      (cmdc_initial_registers, cmdc_initial_sregisters,
+      (cmdc_initial_pc, cmdc_initial_registers, cmdc_initial_sregisters,
        cmdc_initial_memory, initial_heap_shadow)
       Halted
-  ) as [[[[reg' sreg'] mem'] sh'] Hsteps].
+  ) as [[[[[pc' reg'] sreg'] mem'] sh'] Hsteps].
   { vm_compute; reflexivity. }
-  exists reg', sreg', mem', sh'. split.
+  exists pc', reg', sreg', mem', sh'. split.
   - exact Hsteps.
   - eapply cmdc_concrete_adequacy. exact Hsteps.
 Qed.

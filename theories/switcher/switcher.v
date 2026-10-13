@@ -26,7 +26,9 @@ Section Switcher.
     (* Call *)
     [
       (* Check permissions of the stack *)
-      [ #".Lswitcher_csp_check_perm";
+      [ (* The sealing key, one word before the first instruction. *)
+        #@".Lswitcher_unseal_key";
+        #".Lswitcher_csp_check_perm";
         getp ct2 csp;
         mov ctp (encodePerm RWL);
         sub ct2 ct2 ctp;
@@ -73,12 +75,7 @@ Section Switcher.
       clear_stack_asm cs0 cs1
       ; (* Fetch (unsealing capability and unseal entry point *)
       [
-        getb cs1 PC;
-        geta cs0 PC;
-        sub cs1 cs1 cs0;
-        mov cs0 PC;
-        lea cs0 cs1;
-        lea cs0 (-2)%Z;
+        auipcc cs0 (".Lswitcher_unseal_key")%asm;
         load cs0 cs0
       ]
       ; (* CLoad and decode entry point nargs and offset *)

@@ -179,14 +179,14 @@ Section Adequacy.
   Definition vaeN : namespace := nroot .@ "vae" .@ "code".
 
   Lemma vae_adequacy' `{Layout: !memory_layout}
-    (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
+    (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
     (es: list griotte_lang.expr):
-    is_initial_registers reg →
+    is_initial_registers pc reg →
     is_initial_sregisters sreg →
     is_initial_memory m →
     sh = initial_heap_shadow →
     initial_heap_memory ##ₘ mk_initial_program_memory →
-    rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
+    rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
     intros Hreg Hsreg Hm Hshadow_initial Hheap_disjoint Hstep.
@@ -223,7 +223,7 @@ Section Adequacy.
             by rewrite (assert_code_nonheap assert_cmpt).
           * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
         + rewrite main_code /vae_main_code /VAE_main_code_init /VAE_main_code_f
-            /fetch.fetch_instrs /assert_instrs !Forall_app.
+            !Forall_app.
           repeat split; (apply word_rooted_instrs || apply Forall_nil_2).
         + rewrite main_data /vae_main_data. apply Forall_singleton, word_rooted_int.
         + by apply word_rooted_not_heap_caps.
@@ -240,7 +240,7 @@ Section Adequacy.
         + by apply word_rooted_not_heap_caps.
         + rewrite C_exp_tbl. repeat constructor; apply word_rooted_int. }
     { destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
-    iIntros (ceriseg) "Hreg Hsreg Hmem _ _ Hna
+    iIntros (ceriseg) "HPC Hreg Hsreg Hmem _ _ Hna
                        ([#Hentry_Cf #Hentry_Cf'] & [#Hentry_Cg #Hentry_Cg'] & [#Hentry_awkf #Hentry_awkf'] & _)".
     (* Use the non-atomic invariant pool of [ceriseg] *)
     clear na_invg.
@@ -419,7 +419,7 @@ Section Adequacy.
     }
 
     (* Extract registers *)
-    iDestruct (initial_registers_split with "Hreg")
+    iDestruct (initial_registers_split with "[$HPC $Hreg]")
       as (rmap) "(HPC & Hcgp & Hcsp & Hrmap & %Hrmap_dom & %Hrmap_zero)"; first exact Hreg.
 
     iPoseProof (@vae_init_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ C
@@ -469,15 +469,15 @@ Local Program Instance CmptNames_vae_CmptNameG : CmptNameG :=
 
 (** END-TO-END THEOREM *)
 Theorem vae_adequacy `{Layout: memory_layout}
-  (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
+  (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
   (es: list griotte_lang.expr)
   :
-  is_initial_registers reg →
+  is_initial_registers pc reg →
   is_initial_sregisters sreg →
   is_initial_memory m →
     sh = initial_heap_shadow →
     initial_heap_memory ##ₘ mk_initial_program_memory →
-  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
+  rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
   m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
 Proof.
   intros ? ? ? ? ? ?.

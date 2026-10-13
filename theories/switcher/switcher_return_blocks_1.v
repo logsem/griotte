@@ -31,12 +31,12 @@ Section Switcher_Return_Blocks_1.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (b_trusted_stack <= a_tstk)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
     ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     csp ↦ᵣ wcsp ∗
     a_tstk ↦ₐ wtstk ∗
     codefrag_pers pc_a switcher_instrs_12 ∗
-    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
         ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
         csp ↦ᵣ wtstk ∗
         a_tstk ↦ₐ wtstk ∗
@@ -76,7 +76,7 @@ Section Switcher_Return_Blocks_1.
     let len_switcher_12 := length switcher_instrs_12 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
     ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
     csp ↦ᵣ WInt 0 ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
@@ -127,14 +127,14 @@ Section Switcher_Return_Blocks_1.
     (b_trusted_stack < a_tstk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
     ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk4 ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     codefrag_pers pc_a switcher_instrs_12 ∗
     ▷ ( (∃ a_tstk1,
             ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
-            PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
+            PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
             ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
             csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
             mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
@@ -177,7 +177,7 @@ Section Switcher_Return_Blocks_1.
     (a + 4)%a = Some (a ^+ 4)%a ->
     is_heap_address b = false ->
 
-    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ wctp ∗
     csp ↦ᵣ wcsp ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
@@ -186,7 +186,7 @@ Section Switcher_Return_Blocks_1.
     ▷ ( ∀ a_tstk1,
         ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
         ⌜ (a_tstk < e_trusted_stack)%a ⌝ ∗
-        PC ↦ᵣ switcher_pc (switcher_block_offset 12 + 5) ∗
+        PC ↦ₚ switcher_pc (switcher_block_offset 12 + 5) ∗
         ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
         csp ↦ᵣ WCap true RWL Local b e (a ^+ 3)%a ∗
         mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
@@ -220,7 +220,7 @@ Section Switcher_Return_Blocks_1.
 
   (** When the trusted stack is empty, the execution fails. *)
   Lemma switcher_return_blocks_1_empty_spec (wctp wcsp : LWord) :
-    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ wctp ∗
     csp ↦ᵣ wcsp ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗

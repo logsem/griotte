@@ -1,7 +1,9 @@
 From griotte Require Export stdpp_extra machine_utils_extra.
 From griotte Require Export machine_base machine_parameters machine_instructions.
 
-Definition ExecConf := (Reg * SReg * Mem * ShadowTbl)%type.
+(* The machine configuration: the PC, the general registers, the system
+   registers, the memory and the shadow table. *)
+Definition ExecConf := (Word * Reg * SReg * Mem * ShadowTbl)%type.
 
 Inductive ConfFlag : Type :=
 | Executable
@@ -11,26 +13,29 @@ Inductive ConfFlag : Type :=
 
 Definition Conf: Type := ConfFlag * ExecConf.
 
-Definition reg (ϕ: ExecConf) := (fst (fst (fst ϕ))).
+Definition pcc (ϕ: ExecConf) := (fst (fst (fst (fst ϕ)))).
+Definition reg (ϕ: ExecConf) := (snd (fst (fst (fst ϕ)))).
 Definition sreg (ϕ: ExecConf) := (snd (fst (fst ϕ))).
 Definition mem (ϕ: ExecConf) := (snd (fst ϕ)).
 Definition shadowtbl (ϕ: ExecConf) := snd ϕ.
 
+Definition update_pcc (φ: ExecConf) (w: Word): ExecConf :=
+  (w, reg φ, sreg φ, mem φ, shadowtbl φ).
 Definition update_reg (φ: ExecConf) (r: RegName) (w: Word): ExecConf :=
-  (<[r:=w]ᵣ>(reg φ), sreg φ, mem φ, shadowtbl φ).
+  (pcc φ, <[r:=w]ᵣ>(reg φ), sreg φ, mem φ, shadowtbl φ).
 Definition update_sreg (φ: ExecConf) (sr: SRegName) (w: Word): ExecConf :=
-  (reg φ, <[sr:=w]>(sreg φ), mem φ, shadowtbl φ).
+  (pcc φ, reg φ, <[sr:=w]>(sreg φ), mem φ, shadowtbl φ).
 Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
-  (reg φ, sreg φ, <[a:=w]>(mem φ), shadowtbl φ).
+  (pcc φ, reg φ, sreg φ, <[a:=w]>(mem φ), shadowtbl φ).
 Definition update_shadowtbl (φ: ExecConf) (a: Addr) (s: AllocStatus): ExecConf :=
-  (reg φ, sreg φ, mem φ, <[a:=s]> (shadowtbl φ)).
+  (pcc φ, reg φ, sreg φ, mem φ, <[a:=s]> (shadowtbl φ)).
 
 (* Note that the `None` values here also undo any previous changes that were tentatively made in the same step. This is more consistent across the board. *)
 Definition updatePC_gen (φ: ExecConf) (imm : Z): option Conf :=
-  match (reg φ) !! PC with
-  | Some (WCap t p g b e a) =>
+  match pcc φ with
+  | WCap t p g b e a =>
     match (a + imm)%a with
-    | Some a' => let φ' := (update_reg φ PC (WCap t p g b e a')) in
+    | Some a' => let φ' := (update_pcc φ (WCap t p g b e a')) in
                 Some (NextI, φ')
     | None => None
     end
@@ -88,7 +93,7 @@ Section opsem.
     sweep_word shadow <$> m.
 
   Definition revoker_sweep (φ : ExecConf) : ExecConf :=
-    (reg φ, sreg φ, sweep_mem (shadowtbl φ) (mem φ), shadowtbl φ).
+    (pcc φ, reg φ, sreg φ, sweep_mem (shadowtbl φ) (mem φ), shadowtbl φ).
 
   Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with
@@ -106,12 +111,11 @@ Section opsem.
     | Jalr rdst rsrc =>
         (* Note: allow jumping to integers, sealing ranges etc; machine will crash later *)
         wrsrc ← (reg φ) !!ᵣ rsrc;
-        wpc ← (reg φ) !! PC;
-        match wpc with
+        match pcc φ with
         | (WCap t p g b e a) =>
             match (a + 1)%a with
             | Some a' =>
-                let φ_next := (update_reg φ PC (updatePcPerm wrsrc)) in
+                let φ_next := (update_pcc φ (updatePcPerm wrsrc)) in
                 let φ_dst := (update_reg φ_next rdst (WSentry t p g b e a')) in
                 Some (NextI, φ_dst)
             | None => None
@@ -330,6 +334,16 @@ Section opsem.
       if has_sreg_access plevel
       then tomov ← (reg φ) !!ᵣ src; updatePC (update_sreg φ dst tomov)
       else None
+  | Auipcc dst imm =>
+      (* As Lea on the PC: the tag is cleared on an address overflow. *)
+      match pcc φ with
+      | WCap t p g b e a =>
+          match (a + imm)%a with
+          | Some a' => updatePC (update_reg φ dst (WCap t p g b e a'))
+          | None => updatePC (update_reg φ dst (WCap false p g b e a))
+          end
+      | _ => None
+      end
   end.
 
   Definition exec (i: instr) (plevel : Perm) (φ: ExecConf) : Conf :=
@@ -351,23 +365,18 @@ Section opsem.
    is in the heap memory or not, at least it's not the case
    in cheriot-sail *)
   Inductive step: Conf → Conf → Prop :=
-  | step_exec_regfail:
-      forall φ,
-        (reg φ) !! PC = None →
-        step (Executable, φ) (Failed, φ)
   | step_exec_corrfail:
-      forall φ wreg,
-        (reg φ) !! PC = Some wreg →
-        not (isCorrectPC wreg) →
+      forall φ,
+        not (isCorrectPC (pcc φ)) →
         step (Executable, φ) (Failed, φ)
   | step_exec_memfail:
       forall φ p g b e a,
-        (reg φ) !! PC = Some (WCap true p g b e a) →
+        pcc φ = WCap true p g b e a →
         (mem φ) !! a = None →
         step (Executable, φ) (Failed, φ)
   | step_exec_instr:
       forall φ p g b e a i c wa,
-        (reg φ) !! PC = Some (WCap true p g b e a) → (* only works for caps *)
+        pcc φ = WCap true p g b e a → (* only works for caps *)
         (mem φ) !! a = Some wa →
         isCorrectPC (WCap true p g b e a) →
         decodeInstrW wa = i →

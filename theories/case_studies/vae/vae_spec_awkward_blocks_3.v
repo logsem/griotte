@@ -25,7 +25,7 @@ Section VAE_Awkward_Blocks_3.
   Lemma vae_awkward_blocks_3_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive) (N : namespace)
-    (wret wcra wca0 wca1 wct0 wct1 wct2 wct3 wct4 wcnull : LWord) :
+    (wret wcra wca0 wca1 wct0 wct1 wct2 wca2 wcnull : LWord) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
@@ -33,7 +33,7 @@ Section VAE_Awkward_Blocks_3.
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 9 4)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_instr_offset 9 4)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wret ∗
@@ -42,13 +42,12 @@ Section VAE_Awkward_Blocks_3.
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
-    ct3 ↦ᵣ wct3 ∗
-    ct4 ↦ᵣ wct4 ∗
+    ca2 ↦ᵣ wca2 ∗
     cnull ↦ᵣ wcnull ∗
     (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
     codefrag_pers pc_a vae_main_code ∗
     ▷ (world_interp W C ∗
-        PC ↦ᵣ lupdatePcPerm wret ∗
+        PC ↦ₚ lupdatePcPerm wret ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ wret ∗
         cs0 ↦ᵣ wret ∗
@@ -57,8 +56,7 @@ Section VAE_Awkward_Blocks_3.
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
         ct2 ↦ᵣ WInt 0 ∗
-        ct3 ↦ᵣ WInt 0 ∗
-        ct4 ↦ᵣ WInt 0 ∗
+        ca2 ↦ᵣ WInt 0 ∗
         cnull ↦ᵣ WInt 0 ∗
         (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
         codefrag_pers pc_a vae_main_code
@@ -68,7 +66,7 @@ Section VAE_Awkward_Blocks_3.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
                Hcgp_shadow Hloc)
       "(#Hawk & Hworld & #Hassert & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
-      & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull
+      & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull
       & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     vae_unfold_code.
@@ -99,11 +97,12 @@ Section VAE_Awkward_Blocks_3.
     (* Block 10: assert that the flag is [1] *)
     focus_block 10 "Hcode_main" of vae_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (assert_success_spec with
-             "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
+    iApply (assert_success_spec 1 with
+             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
+    { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

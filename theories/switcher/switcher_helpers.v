@@ -208,7 +208,7 @@ Section switcher_helper.
     Lemma switcher_jump_to_caller_spec
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
       (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 : LWord) :
-      dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+      dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
       frame_match Ws Cs cstk W C ->
 
       interp W C wret -∗
@@ -218,7 +218,7 @@ Section switcher_helper.
       interp W C wcsp -∗
       interp W C wca0 -∗
       interp W C wca1 -∗
-      PC ↦ᵣ lupdatePcPerm wret -∗
+      PC ↦ₚ lupdatePcPerm wret -∗
       cra ↦ᵣ wret -∗
       cgp ↦ᵣ wcgp -∗
       cs0 ↦ᵣ wcs0 -∗
@@ -256,7 +256,6 @@ Section switcher_helper.
       iDestruct (big_sepM_insert with "[$Hrmap $Hcsp]") as "Hrmap".
       { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Hdom; set_solver+. }
       set (regs := <[csp := _]> _ ).
-      set (regs' := <[PC := lword_of_word (WInt 0)]> regs).
 
       iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
       iDestruct "Hcont" as "(%Hwret & #Hcont)".
@@ -267,19 +266,18 @@ Section switcher_helper.
       iSpecialize ("Hcont" $! W with "Hfuture").
       iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
 
-      iApply ("Hcont'" $! cstk Ws Cs regs'); iFrame.
+      iApply ("Hcont'" $! cstk Ws Cs regs); iFrame.
       iSplit.
       { iSplit.
         + iIntros (r); iPureIntro.
           rewrite -elem_of_dom.
-          subst regs regs'.
+          subst regs.
           repeat (rewrite dom_insert_L).
           rewrite Hdom.
           set_solver+.
-        + iIntros (r v) "%HrPC %Hr".
-          subst regs' regs.
-          clear -Hr HrPC Hrmap_zeroes.
-          rewrite lookup_insert_ne in Hr; last done.
+        + iIntros (r v) "%Hr".
+          subst regs.
+          clear -Hr Hrmap_zeroes.
           destruct (decide (r = csp)); simplify_map_eq; first done.
           destruct (decide (r = cra)); simplify_map_eq; first done.
           destruct (decide (r = cgp)); simplify_map_eq; first done.
@@ -290,15 +288,7 @@ Section switcher_helper.
           eapply map_Forall_lookup_1 in Hr; eauto; cbn in Hr; simplify_eq.
           iApply interp_int.
       }
-      iSplit; last done.
-      rewrite /registers_pointsto.
-      subst regs'.
-      rewrite insert_insert_eq.
-      iApply big_sepM_insert; last iFrame.
-      subst regs.
-      simplify_map_eq.
-      rewrite -not_elem_of_dom Hdom.
-      set_solver+.
+      done.
     Qed.
 
 End switcher_helper.

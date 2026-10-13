@@ -1,9 +1,8 @@
-From iris.algebra Require Import frac.
-From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
-From griotte Require Import fetch assert switcher.
+From griotte Require Import machine_parameters assembler fetch assert switcher.
 
 Section DROE_Main.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
 
@@ -37,52 +36,66 @@ Section DROE_Main.
 
 
    *)
-  Definition droe_main_code : list Word :=
-    let ro_dro := (encodePermPair (RO_DRO, Global)) in
-    encodeInstrsW [
-      (* #"main_b_code"; *)
+  (** [ro_dro] is the encoding of the permission and locality of the
+      shared capability, kept abstract during the assembly. *)
+  Definition droe_main_asm (ro_dro : Z) : list (list asm_code) :=
+    [ [ (* the imports *)
+        #@".Limport_switcher";
+        #@".Limport_assert";
+        #@".Limport_B_f";
 
-      (* set b <- 42 *)
-      Store cgp 42%Z 0;     (* b <- 42 *)
-      Mov ct0 cgp;        (* ct0 := (RW, Global, b, e, b) *)
+        (* set b <- 42 *)
+        store cgp 42;       (* b <- 42 *)
+        mov ct0 cgp;        (* ct0 := (RW, Global, b, e, b) *)
 
-      (* set a <- (RW, Global, b, b+1, b) *)
-      GetB ct1 cgp;       (* ct1 := b *)
-      Add ct2 ct1 1%Z;    (* ct2 := b+1 = a *)
-      Subseg ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
+        (* set a <- (RW, Global, b, b+1, b) *)
+        getb ct1 cgp;       (* ct1 := b *)
+        add ct2 ct1 1;      (* ct2 := b+1 = a *)
+        subseg ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
 
-      Lea cgp 1%Z;        (* cgp := (RW, Global, b, e, b+1) *)
-      Store cgp ct0 0;      (* a <- (RW, Global, b, b+1, b) *)
+        lea cgp 1;          (* cgp := (RW, Global, b, e, b+1) *)
+        store cgp ct0;      (* a <- (RW, Global, b, b+1, b) *)
 
-      (* call B.f (RO_DRO, Global, a, a+1,a) *)
-      Mov ca0 cgp;         (* ca0 := (RW, Global, b, e, b+1) = (RW, Global, b, e, a) *)
-      Lea cgp (-1)%Z;       (* cgp := (RW, Global, b, e, b) *)
-      Add ct1 ct2 1%Z;     (* ct1 := a+1 *)
-      Subseg ca0 ct2 ct1;  (* ca0 := (RW, Global, a, a+1, a) *)
-      Restrict ca0 ro_dro  (* ca0 := (RO_DRO, Global, a, a+1, a) *)
-    ]
-    ++ fetch_instrs 0 ct0 ct1 ct2 (* ct0 -> switcher entry point *)
-    ++ fetch_instrs 2 ct1 ct2 ct3 (* ct1 -> {B.f}_(ot_switcher)  *)
-    ++
-    encodeInstrsW [
-      Mov cs0 cra; (* stores the return-to-switcher *)
-      (* clear the arguments *)
-      Jalr cra ct0;
-      Mov cra cs0; (* restores the return-to-switcher *)
-      (* -- return from the call -- *)
-      (* assert b == 42 *)
-      CLoad ct0 cgp 0; (* ct0 -> c *)
-      Mov ct1 42%Z
-    ]
-    ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
-    ++
-    encodeInstrsW [
-      (* erase returned values from the call *)
-      Mov ca0 0;
-      Mov ca1 0;
-      Halt
-      (* #"main_e" *)
+        (* call B.f (RO_DRO, Global, a, a+1,a) *)
+        mov ca0 cgp;        (* ca0 := (RW, Global, b, e, b+1) = (RW, Global, b, e, a) *)
+        lea cgp (-1);       (* cgp := (RW, Global, b, e, b) *)
+        add ct1 ct2 1;      (* ct1 := a+1 *)
+        subseg ca0 ct2 ct1; (* ca0 := (RW, Global, a, a+1, a) *)
+        restrict ca0 ro_dro (* ca0 := (RO_DRO, Global, a, a+1, a) *)
+      ];
+      fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      fetch_asm ".Limport_B_f" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
+      [ mov cs0 cra; (* stores the return-to-switcher *)
+        (* clear the arguments *)
+        jalr cra ct0;
+        mov cra cs0; (* restores the return-to-switcher *)
+        (* -- return from the call -- *)
+        (* assert b == 42 *)
+        load ct0 cgp; (* ct0 -> c *)
+        mov ct1 42
+      ];
+      assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
+      [ (* erase returned values from the call *)
+        mov ca0 0;
+        mov ca1 0;
+        halt
+      ]
     ].
+
+  Definition droe_main_assembled' :=
+    Eval vm_compute in (λ ro_dro, assemble_block (droe_main_asm ro_dro)).
+  Definition droe_main_assembled :=
+    Eval cbv in (λ ro_dro, revert_regs_code_block (droe_main_assembled' ro_dro)).
+  Definition droe_main_instrs_n (n : nat) : list Word :=
+    encodeInstrsW (default [] (droe_main_assembled (encodePermPair (RO_DRO, Global)) !! n)).
+
+  Definition droe_main_code : list Word :=
+    droe_main_instrs_n 0 ++
+    droe_main_instrs_n 1 ++
+    droe_main_instrs_n 2 ++
+    droe_main_instrs_n 3 ++
+    droe_main_instrs_n 4 ++
+    droe_main_instrs_n 5.
 
   Definition droe_main_data : list Word := [WInt 0; WInt 0].
 

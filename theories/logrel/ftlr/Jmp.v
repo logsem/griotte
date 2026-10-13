@@ -32,31 +32,28 @@ Section fundamental.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
-    iInsert "Hmap" PC.
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_Jmp with "[$Ha $Hmap]"); eauto.
-    { simplify_map_eq; auto. }
+    iApply (wp_Jmp with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
-      apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
+      apply elem_of_dom. apply Hsome. }
 
-    iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ regs' imm Himm Hincr| ]; cycle 1.
+    iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
+    destruct HSpec as [ lpc' imm Himm Hincr| ]; cycle 1.
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
     }
 
     incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&π0&?&Ha0'&?); simplify_map_eq.
-    rewrite insert_insert_eq.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
     iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
     { destruct ρ;auto;contradiction. }
 
-    iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]") ; eauto.
+    iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]") ; eauto.
     iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
   Qed.
 

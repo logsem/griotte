@@ -38,7 +38,7 @@ Section Switcher.
         ( ( (* POST-CONDITION --- the call went through *)
               (* We receive a public future world of the world pre switcher call *)
               ⌜ related_sts_pub_world (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) W2 ⌝
-              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais ⊤
               ∗ interp W2 C (WCap true RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)
               ∗ ⌜ (b_stk <= (a_stk ^+ 4)%a ∧ (a_stk ^+ 4)%a <= e_stk ∧ (a_stk + 4) = Some (a_stk ^+ 4)%a)%a ⌝
@@ -48,7 +48,7 @@ Section Switcher.
               ∗ StackOpenWorldResources interp W2 C (finz.seq_between (a_stk ^+ 4)%a e_stk) stk_mem_h
               ∗ cstack_frag cstk
               ∗ ([∗ list] a ∈ (finz.seq_between (a_stk ^+ 4)%a e_stk), ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
-              ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+              ∗ PC ↦ₚ lupdatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
               ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -66,11 +66,11 @@ Section Switcher.
           )
           ∨
             ( (* POST-CONDITION --- the call didn't went through, trusted stack exhausted *)
-              ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+              ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ ⌜ (b_stk <= (a_stk ^+ 4)%a ∧ (a_stk ^+ 4)%a <= e_stk ∧ (a_stk + 4) = Some (a_stk ^+ 4)%a)%a ⌝
               ∗ na_own cerise_nais ⊤
               (* Registers are preserved *)
-              ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+              ∗ PC ↦ₚ lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ rcgp
               ∗ cra ↦ᵣ rcra
               ∗ cs0 ↦ᵣ rcs0
@@ -111,7 +111,7 @@ Section Switcher.
     (is_entry_point_known : bool)
     (a_tstk : Addr) (tstk_next : list LWord) :
     disjoint_from_mmio b_stk e_stk ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     switcher_stk_bounds b_stk e_stk a_stk ->
     (b_trusted_stack <= a_tstk)%a ->
@@ -127,7 +127,7 @@ Section Switcher.
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
-    PC ↦ᵣ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_block_pc 16 ∗
     (∃ wcs0, cs0 ↦ᵣ wcs0) ∗
     cs1 ↦ᵣ wcs1_caller ∗
     cgp ↦ᵣ wcgp_caller ∗
@@ -209,7 +209,7 @@ Section Switcher.
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
@@ -219,7 +219,7 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
     (* Registers *)
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
@@ -257,7 +257,7 @@ Section Switcher.
         ( ( (* POST-CONDITION --- the call went through *)
               (* We receive a public future world of the world pre switcher call *)
               ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais ⊤
               ∗ interp W2 C (WCap true RWL Local a_stk4 e_stk a_stk4)
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
@@ -267,7 +267,7 @@ Section Switcher.
               ∗ StackOpenWorldResources interp W2 C callee_stk_region stk_mem_h
               ∗ cstack_frag cstk
               ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
-              ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+              ∗ PC ↦ₚ lupdatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
               ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -285,11 +285,11 @@ Section Switcher.
           )
           ∨
             ( (* POST-CONDITION --- the call didn't went through, trusted stack exhausted *)
-              ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+              ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               ∗ na_own cerise_nais ⊤
               (* Registers are preserved *)
-              ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+              ∗ PC ↦ₚ lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ rcgp
               ∗ cra ↦ᵣ rcra
               ∗ cs0 ↦ᵣ rcs0
@@ -390,7 +390,8 @@ Section Switcher.
       as "[Hworld_interp Hentry_prop]".
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
-    iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
+    iNext; iIntros (wsb π)
+      "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
     iDestruct ("Hentry_prop" with "[//] [//]")
       as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Heq Htbl Hbtbl Hbtbl1 Hnargs
           Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
@@ -447,7 +448,7 @@ Section Switcher.
 
     (* Execute the entry point of the callee *)
     iDestruct (switcher_call_entry_registers W W' C nargs arg_rmap' rmap' with
-                "[$HPC $Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
+                "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs) "[Hregs Hregs_interp]"; [done| |done|done|].
     { symmetry. apply std_update_multiple_heap. }
     iApply ("Hexec" $! (frame :: cstk) (W' :: Ws) (C :: Cs) regs a_stk e_stk).
@@ -490,7 +491,7 @@ Section Switcher.
     { iPureIntro; simpl; split; [|split]; auto.
       apply related_sts_pub_refl_world.
     }
-    iFrame "Hregs Hregs_interp Hworld_interp Hcstk Hna".
+    iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
     iPureIntro; split; [split; reflexivity | solve_addr].
   Qed.
 
@@ -512,7 +513,7 @@ Section Switcher.
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
@@ -522,7 +523,7 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
     (* Registers *)
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
@@ -564,7 +565,7 @@ Section Switcher.
             ∗ ⌜ revoked_keys (revoke W2) l' ⌝
             ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
             ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
-            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
             ∗ na_own cerise_nais ⊤
@@ -572,7 +573,7 @@ Section Switcher.
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
-            ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+            ∗ PC ↦ₚ lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ rcgp
             ∗ cra ↦ᵣ rcra
@@ -655,7 +656,7 @@ Section Switcher.
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
@@ -665,7 +666,7 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
     (* Registers *)
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
@@ -700,7 +701,7 @@ Section Switcher.
             ∗ ⌜ revoked_keys (revoke W2) l' ⌝
             ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
             ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
-            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
             ∗ na_own cerise_nais ⊤
@@ -708,7 +709,7 @@ Section Switcher.
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
-            ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+            ∗ PC ↦ₚ lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ rcgp
             ∗ cra ↦ᵣ rcra
@@ -771,7 +772,7 @@ Section Switcher.
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
@@ -781,7 +782,7 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
     (* Registers *)
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
@@ -813,7 +814,7 @@ Section Switcher.
             ∗ ⌜ revoked_keys (revoke W2) l' ⌝
             ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
             ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
-            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
             ∗ na_own cerise_nais ⊤
@@ -821,7 +822,7 @@ Section Switcher.
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
-            ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+            ∗ PC ↦ₚ lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ rcgp
             ∗ cra ↦ᵣ rcra

@@ -80,21 +80,20 @@ Section Heap_Temporal_Safety_Interp.
     (* Unpack the entry register map and classify the requested capability. *)
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
-      "(Hcont & %Hframe & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
+      "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
     rewrite /interp_conf.
     iDestruct "Hregister" as
-      "(%Hfull_rmap & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hregs)".
+      "(%Hfull_rmap & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs %Hzeros]".
     pose proof (free_entry_regs_idfree regs _ allocator_free_nargs Hcsp Hzeros)
       as Hidfree.
     rewrite /registers_pointsto.
     cbn in Hfull_rmap.
-    getRegValList [PC;cgp;cra;csp;ca0;ca1;ca2;ct0;ct1;ct2;ct3;ct4;ctp;cnull].
-    iExtractList "Hrmap" [PC;cgp;cra;ca0;ca1;ca2]
-      as ["HPCr";"Hcgpr";"Hcrar";"Hca0";"Hca1";"Hca2"].
-    iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;ctp;cnull]
+    getRegValList [cgp;cra;csp;ca0;ca1;ca2;ct0;ct1;ct2;ca3;ca4;ctp;cnull].
+    iExtractList "Hrmap" [cgp;cra;ca0;ca1;ca2]
+      as ["Hcgpr";"Hcrar";"Hca0";"Hca1";"Hca2"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca3;ca4;ctp;cnull]
       as ["Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
-    rewrite HwPC in HPC. injection HPC as HeqPC. subst wPC.
     (* A malformed allocator capability traps in the owner block. *)
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
@@ -167,7 +166,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hct3" as (wct3') "Hct3".
       iDestruct "Hct4" as (wct4') "Hct4".
       iDestruct "Hctp" as (wctp') "Hctp".
-      iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+      iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
         (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].
@@ -253,7 +252,7 @@ Section Heap_Temporal_Safety_Interp.
         iDestruct "Hct3" as (wct3') "Hct3".
         iDestruct "Hct4" as (wct4') "Hct4".
         iDestruct "Hctp" as (wctp') "Hctp".
-        iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+        iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
         set (Wfixed := close_list
           (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
         destruct Htemps as [Hnodup Htemps].
@@ -299,9 +298,9 @@ Section Heap_Temporal_Safety_Interp.
         iApply (heap_pointsto_quar_false with "Hc Hq_old"). }
       iAssert (free_auth_held ι)%I with "[Hright]" as "Hheld".
       { rewrite /free_auth_held /free_auth_owner_inst /free_auth_owner /=. done. }
-      set (rmap := delete cnull (delete ctp (delete ct4 (delete ct3 (delete ct2
+      set (rmap := delete cnull (delete ctp (delete ca4 (delete ca3 (delete ct2
         (delete ct1 (delete ct0 (delete ca2 (delete ca1 (delete ca0
-        (delete cra (delete cgp (delete PC regs))))))))))))).
+        (delete cra (delete cgp regs)))))))))))).
       iApply (allocator_free_valid_correct ⊤ g_owner a_owner id Ω p g ι b e a ws
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
         rmap (λ v, (⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) with "[-]");
@@ -311,9 +310,9 @@ Section Heap_Temporal_Safety_Interp.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }
       { intros r w Hr. subst rmap. rewrite !lookup_delete_Some in Hr.
-        destruct Hr as (_&_&_&_&_&_&_&_&Hca1&Hca0&Hcra&Hcgp&HPC&Hr).
+        destruct Hr as (_&_&_&_&_&_&_&_&Hca1&Hca0&Hcra&Hcgp&Hr).
         apply (Hidfree r w); last exact Hr.
-        clear -Hca1 Hca0 Hcra Hcgp HPC.
+        clear -Hca1 Hca0 Hcra Hcgp.
         rewrite /allocator_free_nargs /dom_arg_rmap /=. set_solver. }
       iFrame "Hservice Hstatic Hna Hid Ha_owner Hobj Hheld HPCr Hcgpr Hcrar Hca0 Hca1 Hca2
         Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hrmap Hcells".
@@ -391,7 +390,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hct3_post" as (wct3') "Hct3_post".
       iDestruct "Hct4_post" as (wct4') "Hct4_post".
       iDestruct "Hctp_post" as (wctp') "Hctp_post".
-      iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+      iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wq := heap_std_update W h').
       set (Wfixed := close_list
         (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke Wq)).
@@ -445,7 +444,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hct3" as (wct3') "Hct3".
       iDestruct "Hct4" as (wct4') "Hct4".
       iDestruct "Hctp" as (wctp') "Hctp".
-      iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+      iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
         (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].

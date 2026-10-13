@@ -59,7 +59,7 @@ Section Heap_Temporal_Safety_Main.
     not_heap_range cgp_b cgp_e ->
     Nswitcher ## Nallocator_service ->
 
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
 
@@ -85,7 +85,7 @@ Section Heap_Temporal_Safety_Main.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )

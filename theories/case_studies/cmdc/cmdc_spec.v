@@ -57,7 +57,7 @@ Section CMDC.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
 
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (lword_of_word (WInt 0)) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
 
@@ -84,7 +84,7 @@ Section CMDC.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
@@ -152,6 +152,8 @@ Section CMDC.
       & #HentryB_f & #HentryC_g
       & Hstack_revoked_B & Hstack_revoked_C
       & Hφ)".
+    assert (rmap !! cs0 = Some (lword_of_word (WInt 0))) as Hcs0_init.
+    { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
     assert (rmap !! cs1 = Some (lword_of_word (WInt 0))) as Hcs1_init.
     { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
     iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1;cra]
@@ -172,9 +174,9 @@ Section CMDC.
 
     (* Blocks 1-3: fetch the imports and jump to the switcher *)
     iApply (cmdc_call_blocks_2_spec cmdc_call_B with
-             "[- $HPC $Hctp $Hct0 $Hct1 $Hcs0 $Hcra
+             "[- $HPC $Hctp $Hct1 $Hcra
               $Himport_switcher $Himport_B_f $Hcode_main]"); first done.
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hcs0 & Hcra
+    iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_B_f & Hcode_main)".
 
     (* Share b in the world of B *)
@@ -219,14 +221,14 @@ Section CMDC.
     iMod (cmdc_world_return with "Hworld_interp_B Hrel_cgp_b") as "[%wcgp_b Hcgp_b]";
       [done|done|solve_addr|done|].
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ct3;ct4;cnull]
-      as ["Hctp";"Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
+    iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ca2;cnull]
+      as ["Hctp";"Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
 
     (* Blocks 3-4: assert that c is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_B with
-             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Hcra
               $Hcgp_c $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
-    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
+    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull & Hcra
                     & Hcgp_c & Himport_assert & Hcode_main)".
 
     (* Block 5: overwrite b and prepare the argument c *)
@@ -238,9 +240,9 @@ Section CMDC.
 
     (* Blocks 6-8: fetch the imports and jump to the switcher *)
     iApply (cmdc_call_blocks_2_spec cmdc_call_C with
-             "[- $HPC $Hctp $Hct0 $Hct1 $Hcs0 $Hcra
+             "[- $HPC $Hctp $Hct1 $Hcra
               $Himport_switcher $Himport_C_g $Hcode_main]"); first done.
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hcs0 & Hcra
+    iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_C_g & Hcode_main)".
 
     (* Share c in the world of C *)
@@ -249,7 +251,7 @@ Section CMDC.
       as "(Hworld_interp_C & _ & #Hinterp_ca0_C & #Hinterp_C_g
            & Hstack_revoked_C & %Hrevoked_C & _ & Hcsp_stk)";
       [solve_addr|done..|].
-    iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"; "Hct2"; "Hct3"; "Hct4"; "Hcnull"].
+    iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"; "Hct2"; "Hca2"; "Hcnull"].
     iDestruct (switcher_call_args_1 with "Hca0 Hinterp_ca0_C Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
@@ -276,14 +278,14 @@ Section CMDC.
     subst rcgp rcra.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull]
-      as ["Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull]
+      as ["Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
 
     (* Blocks 8-9: assert that b is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_C with
-             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Hcra
               $Hcgp_b $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
-    iNext; iIntros "(HPC & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & Hcode_main)".
+    iNext; iIntros "(HPC & _ & _ & _ & _ & _ & _ & _ & _ & _ & Hcode_main)".
 
     (* Block 10: halt *)
     iApply (cmdc_halt_blocks_5_spec with "[$HPC $Hcode_main Hφ Hna]"); first done.
@@ -324,7 +326,7 @@ Section CMDC.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
 
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (lword_of_word (WInt 0)) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
 
@@ -347,7 +349,7 @@ Section CMDC.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )

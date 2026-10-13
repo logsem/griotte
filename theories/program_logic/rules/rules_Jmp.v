@@ -17,62 +17,65 @@ Section griotte_lang_rules.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
 
-  Inductive Jmp_failure (regs : LReg) (rimm: Z + RegName) :=
+  Inductive Jmp_failure (lpc : LWord) (regs : LReg) (rimm: Z + RegName) :=
   | Jmp_fail_no_imm:
       lz_of_argument regs rimm = None →
-      Jmp_failure regs rimm
+      Jmp_failure lpc regs rimm
   | Jmp_fail_PC_overflow imm:
       lz_of_argument regs rimm = Some imm →
-      incrementPC_gen regs imm = None →
-      Jmp_failure regs rimm.
+      incrementPC_gen lpc imm = None →
+      Jmp_failure lpc regs rimm.
 
-  Inductive Jmp_spec (regs : LReg) (rimm: Z + RegName) : LReg → griotte_lang.val → Prop :=
-  | Jmp_spec_success regs' imm :
+  Inductive Jmp_spec (lpc : LWord) (regs : LReg) (rimm: Z + RegName) : LWord → griotte_lang.val → Prop :=
+  | Jmp_spec_success lpc' imm :
       lz_of_argument regs rimm = Some imm →
-      incrementPC_gen regs imm = Some regs' →
-      Jmp_spec regs rimm regs' NextIV
+      incrementPC_gen lpc imm = Some lpc' →
+      Jmp_spec lpc regs rimm lpc' NextIV
   | Jmp_spec_failure:
-      Jmp_failure regs rimm →
-      Jmp_spec regs rimm regs FailedV.
+      Jmp_failure lpc regs rimm →
+      Jmp_spec lpc regs rimm lpc FailedV.
 
   Lemma wp_Jmp Ep pc_p pc_g pc_b pc_e pc_a pc_π w rimm regs dq :
     decodeInstrW w.(lw) = Jmp rimm ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (Jmp rimm) ⊆ dom regs →
 
-    {{{ ▷ pc_a ↦ₐ{dq} w ∗
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ regs' retv, RET retv;
-        ⌜ Jmp_spec regs rimm regs' retv ⌝ ∗
+    {{{ lpc' retv, RET retv;
+        ⌜ Jmp_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs rimm lpc' retv ⌝ ∗
+        PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
-        [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
+        [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "Hpc_a Hmap"); eauto.
+    iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
+    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "Hr Hsr Hm Hst HR HC Hpc_a Hmap".
-    rewrite Hinstr /exec /= in Hstep.
+      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
+    rewrite Hinstr /exec in Hstep.
     unfold regs_of in Dregs.
     assert (∀ x, rimm = inr x → x ∈ dom regs) as Hdomr.
     { intros x ->. apply Dregs. set_solver+. }
-    rewrite (lz_of_argument_phys regs r rimm Hregs Hdomr) in Hstep.
+    assert (exec_opt (Jmp rimm) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
+              (imm ← lz_of_argument regs rimm;
+               updatePC_gen (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
+    { rewrite -(lz_of_argument_phys regs r rimm Hregs Hdomr). done. }
+    rewrite HH in Hstep. clear HH.
     destruct (lz_of_argument regs rimm) as [imm|] eqn:Himm.
-    2: { cbn in Hstep. simplify_eq. iApply (instr_close_fail with "Hr Hsr Hm Hst HR HC Hmap"); first exact Her.
-         iIntros "Hmap". iApply "Hφ". iFrame. iPureIntro. by constructor; constructor. }
-    cbn in Hstep.
-    destruct (incrementPC_gen regs imm) as [regs'|] eqn:Hregs'.
-    2: { rewrite (incrementPC_gen_fail_updatePC_gen regs r sr m st imm) in Hstep; auto.
-         simplify_eq. iApply (instr_close_fail with "Hr Hsr Hm Hst HR HC Hmap"); first exact Her.
-         iIntros "Hmap". iApply "Hφ". iFrame. iPureIntro. constructor. by eapply Jmp_fail_PC_overflow. }
-    destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ Her Hlregs Hregs')
-      as (t & p & g & b & e & a & a' & π & HPC1 & Ha' & -> & Hu & Her2).
+    2: { cbn in Hstep. simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
+         iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. by constructor; constructor. }
+    cbn [mbind option_bind] in Hstep.
+    destruct (incrementPC_gen (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm) as [lpc'|] eqn:Hpc'.
+    2: { rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her Hpc') in Hstep.
+         simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
+         iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. constructor. by eapply Jmp_fail_PC_overflow. }
+    destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ Her Hpc') as [Hu Her2].
     rewrite Hu in Hstep. simplify_eq.
-    iMod (gen_heap_update_inSepM _ _ PC (WCap true pc_p pc_g pc_b pc_e a' @@? pc_π)
-      with "Hr Hmap") as "[Hr Hmap]"; first eauto.
-    iModIntro. iSplitR "Hφ Hmap Hpc_a".
-    - iExists _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+    iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
+    iModIntro. iSplitR "Hφ HPC Hmap Hpc_a".
+    - iExists _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
     - iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
 
@@ -80,31 +83,28 @@ Section griotte_lang_rules.
      decodeInstrW w.(lw) = Jmp (inl imm) →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
-     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ{dq} w
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
-         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
          ∗ pc_a ↦ₐ{dq} w
      }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a) Hφ".
-     iDestruct (map_of_regs_1 with "HPC") as "Hmap".
-     iApply (wp_Jmp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-     { set_solver+. }
-     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
+     iPoseProof map_of_regs_0 as "-#Hmap".
+     iApply (wp_Jmp with "[$HPC $Hmap $Hpc_a]"); eauto; simplify_map_eq; eauto.
+     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
      iDestruct "Hspec" as %Hspec.
 
-     destruct Hspec as [| * Hfail].
+     destruct Hspec as [| Hfail].
      { (* Success *)
        iApply "Hφ". iFrame.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
-       rewrite insert_insert_eq //.
-       iDestruct (regs_of_map_1 with "Hmap") as "(?&?)"; eauto; iFrame. }
+       try incrementPC_inv as (?&?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
+       iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail; try (unfold llookup_reg in * ); simplify_map_eq; eauto; try congruence.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
      }
    Qed.
 
@@ -114,39 +114,37 @@ Section griotte_lang_rules.
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
      rimm ≠ cnull ->
-     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ{dq} w
          ∗ ▷ rimm ↦ᵣ wimm
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
-         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
          ∗ pc_a ↦ₐ{dq} w
          ∗ rimm ↦ᵣ wimm
      }}}.
    Proof.
      iIntros (Hinstr Hwimm Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
      destruct (IsLInt_inv _ _ Hwimm) as [πimm ->].
-     iDestruct (map_of_regs_2 with "HPC Hrimm") as "[Hmap %]".
-     iApply (wp_Jmp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+     iDestruct (map_of_regs_1 with "Hrimm") as "Hmap".
+     iApply (wp_Jmp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      { set_solver+. }
-     iNext. iIntros (regs' retv) "(%Hspec & Hpc_a & Hmap)".
-     assert (lz_of_argument (<[PC:=WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π]>
-               (<[rimm:=WInt imm @@? πimm]> ∅)) (inr rimm) = Some imm) as Hz0.
-     { rewrite /lz_of_argument /llookup_reg lookup_insert_ne // lookup_insert_eq /=.
+     iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
+     assert (lz_of_argument {[rimm:=WInt imm @@? πimm]} (inr rimm) = Some imm) as Hz0.
+     { rewrite /lz_of_argument /llookup_reg lookup_singleton_eq /=.
        by case_decide. }
 
-     destruct Hspec as [regs' imm' Hz Hinc | Hfail].
+     destruct Hspec as [lpc' imm' Hz Hinc | Hfail].
      { (* Success *)
        iApply "Hφ". iFrame. rewrite Hz0 in Hz. simplify_eq.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
-       rewrite insert_insert_eq //.
-       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+       try incrementPC_inv as (?&?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
+       iRegsMap "Hmap"; eauto; iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail as [Hz | imm' Hz Hinc]; first congruence.
        rewrite Hz0 in Hz. simplify_eq.
-       eapply incrementPC_gen_None_inv in Hinc; last by rewrite lookup_insert_eq.
-       congruence.
+       eapply incrementPC_gen_None_inv in Hinc; last done.
+       all: try congruence.
      }
    Qed.
 

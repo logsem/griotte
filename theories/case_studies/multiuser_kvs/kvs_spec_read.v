@@ -47,7 +47,7 @@ Section KVS_spec_read.
 
     ((* initial register file *)
 
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -65,7 +65,7 @@ Section KVS_spec_read.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ▷ (
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -97,7 +97,7 @@ Section KVS_spec_read.
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
     iEval (rewrite /kvs_read_instrs /assembled_kvs_read) in "Hcode_main".
-    iEval (rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2) -/(kvs_search ca0 ctp ct1 ct2)
+    iEval (rewrite -/(kvs_getFullKey kvs_read_getFullKey_off ctp ca0 ca1) -/(kvs_search ca0 ctp ct1 ct2)
       -/(kvs_check_uint16 ca1 ct1)) in "Hcode_main".
     iEval (cbn [fmap list_fmap]) in "Hcode_main".
     iEval (cbn [concat]) in "Hcode_main".
@@ -116,8 +116,10 @@ Section KVS_spec_read.
 
     focus_block 2 "Hcode_main" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent Ha_check_uint.
-    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto; iNext.
-    iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & _ & Ha_user_key & _)".
+    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto.
+    { kvs_getFullKey_offset. }
+    iNext.
+    iIntros "(HPC & Hctp & Hca0 & Hca1 & _ & Ha_user_key & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 3 "Hcode_main" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcode_main" as hcode ; clear dependent Ha_get_full_key.
@@ -187,7 +189,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -205,7 +207,7 @@ Section KVS_spec_read.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ ( na_own cerise_nais E ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -304,7 +306,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -319,7 +321,7 @@ Section KVS_spec_read.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ lupdatePcPerm wret ∗
+         PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -386,7 +388,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -402,7 +404,7 @@ Section KVS_spec_read.
       ▷ (user_key, nkey) ↦(KVS) w ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ lupdatePcPerm wret ∗
+         PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -470,7 +472,7 @@ Section KVS_spec_read.
     ( region W C ∗
       (* initial register file *)
 
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -489,7 +491,7 @@ Section KVS_spec_read.
 
       ▷ (
           region W C ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -521,7 +523,7 @@ Section KVS_spec_read.
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
     iEval (rewrite /kvs_read_instrs /assembled_kvs_read) in "Hcode_main".
-    iEval (rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2) -/(kvs_search ca0 ctp ct1 ct2)
+    iEval (rewrite -/(kvs_getFullKey kvs_read_getFullKey_off ctp ca0 ca1) -/(kvs_search ca0 ctp ct1 ct2)
       -/(kvs_check_uint16 ca1 ct1)) in "Hcode_main".
     iEval (cbn [fmap list_fmap]) in "Hcode_main".
     iEval (cbn [concat]) in "Hcode_main".
@@ -540,8 +542,10 @@ Section KVS_spec_read.
 
     focus_block 2 "Hcode_main" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent Ha_check_uint.
-    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto; iNext.
-    iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & _ & Ha_user_key & _)".
+    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto.
+    { kvs_getFullKey_offset. }
+    iNext.
+    iIntros "(HPC & Hctp & Hca0 & Hca1 & _ & Ha_user_key & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 3 "Hcode_main" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcode_main" as hcode ; clear dependent Ha_get_full_key.
@@ -613,7 +617,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -632,7 +636,7 @@ Section KVS_spec_read.
 
       ▷ ( region W C ∗
           na_own cerise_nais E ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -733,7 +737,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -749,7 +753,7 @@ Section KVS_spec_read.
 
       ▷ (region W C ∗
          na_own cerise_nais E ∗
-         PC ↦ᵣ lupdatePcPerm wret ∗
+         PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -817,7 +821,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -834,7 +838,7 @@ Section KVS_spec_read.
 
       ▷ (region W C ∗
          na_own cerise_nais E ∗
-         PC ↦ᵣ lupdatePcPerm wret ∗
+         PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
@@ -896,7 +900,7 @@ Section KVS_spec_read.
 
     ((* initial register file *)
 
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -914,7 +918,7 @@ Section KVS_spec_read.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ▷ (
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
@@ -944,7 +948,7 @@ Section KVS_spec_read.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     iEval (rewrite /kvs_read_instrs /assembled_kvs_read) in "Hcode_main".
-    iEval (rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2) -/(kvs_search ca0 ctp ct1 ct2)
+    iEval (rewrite -/(kvs_getFullKey kvs_read_getFullKey_off ctp ca0 ca1) -/(kvs_search ca0 ctp ct1 ct2)
       -/(kvs_check_uint16 ca1 ct1)) in "Hcode_main".
     iEval (cbn [fmap list_fmap]) in "Hcode_main".
     iEval (cbn [concat]) in "Hcode_main".
@@ -963,8 +967,10 @@ Section KVS_spec_read.
 
     focus_block 2 "Hcode_main" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent Ha_check_uint.
-    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto; iNext.
-    iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & _ & Ha_user_key & _)".
+    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto.
+    { kvs_getFullKey_offset. }
+    iNext.
+    iIntros "(HPC & Hctp & Hca0 & Hca1 & _ & Ha_user_key & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 3 "Hcode_main" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcode_main" as hcode ; clear dependent Ha_get_full_key.
@@ -1045,7 +1051,7 @@ Section KVS_spec_read.
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
 
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -1063,7 +1069,7 @@ Section KVS_spec_read.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ ( na_own cerise_nais E ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
@@ -1157,7 +1163,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -1172,7 +1178,7 @@ Section KVS_spec_read.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ lupdatePcPerm wret ∗
+         PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
@@ -1233,7 +1239,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
@@ -1249,7 +1255,7 @@ Section KVS_spec_read.
       ▷ (user_key, nkey) ↦(KVS) ⊥ ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ lupdatePcPerm wret ∗
+         PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
@@ -1301,7 +1307,7 @@ Section KVS_spec_read.
 
     (
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ - ∗
       ca1 ↦ᵣ wca1 ∗ (* Key to read *)
@@ -1311,7 +1317,7 @@ Section KVS_spec_read.
       (* initial memory layout *)
       codefrag_pers pc_a kvs_read_instrs ∗
 
-      ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
+      ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
@@ -1331,7 +1337,7 @@ Section KVS_spec_read.
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
     iEval (rewrite /kvs_read_instrs /assembled_kvs_read) in "Hcode_main".
-    iEval (rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2) -/(kvs_search ca0 ctp ct1 ct2)
+    iEval (rewrite -/(kvs_getFullKey kvs_read_getFullKey_off ctp ca0 ca1) -/(kvs_search ca0 ctp ct1 ct2)
       -/(kvs_check_uint16 ca1 ct1)) in "Hcode_main".
     iEval (cbn [fmap list_fmap]) in "Hcode_main".
     iEval (cbn [concat]) in "Hcode_main".
@@ -1370,7 +1376,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ - ∗
       ca1 ↦ᵣ wca1 ∗ (* Key to read *)
@@ -1378,7 +1384,7 @@ Section KVS_spec_read.
       cnull ↦ᵣ - ∗
 
       ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ lupdatePcPerm wret ∗
+         PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
@@ -1424,6 +1430,7 @@ Section KVS_spec_read.
 
     is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
+    (pc_b + kvs_read_pcc_off)%a = Some pc_a ->
     is_uint16 nkey ->
     (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
@@ -1431,7 +1438,7 @@ Section KVS_spec_read.
 
     (
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
@@ -1448,7 +1455,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (Hunsealing_shadow HsubBounds Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
+    iIntros (Hunsealing_shadow HsubBounds Hpc_a Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp
       & [%wcnull Hcnull] & #Hcode_main & #Ha_unsealing)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
@@ -1458,7 +1465,7 @@ Section KVS_spec_read.
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
     iEval (rewrite /kvs_read_instrs /assembled_kvs_read) in "Hcode_main".
-    iEval (rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2) -/(kvs_search ca0 ctp ct1 ct2)
+    iEval (rewrite -/(kvs_getFullKey kvs_read_getFullKey_off ctp ca0 ca1) -/(kvs_search ca0 ctp ct1 ct2)
       -/(kvs_check_uint16 ca1 ct1)) in "Hcode_main".
     iEval (cbn [fmap list_fmap]) in "Hcode_main".
     iEval (cbn [concat]) in "Hcode_main".
@@ -1477,7 +1484,8 @@ Section KVS_spec_read.
 
     focus_block 2 "Hcode_main" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent Ha_check_uint.
-    iApply (KVS_getFullKey_spec_invalid_sealed_user_key with "[- $HPC $Hctp $Hca0 $Hct1 $Hct2 $Ha_unsealing $Hcode]") ; eauto; iNext.
+    iApply (KVS_getFullKey_spec_invalid_sealed_user_key with "[- $HPC $Hctp $Hca0 $Ha_unsealing $Hcode]") ; eauto.
+    { kvs_getFullKey_offset. }
   Qed.
 
   Lemma KVS_read_spec_invalid_sealed_user_key
@@ -1498,7 +1506,7 @@ Section KVS_spec_read.
       na_own cerise_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
@@ -1533,6 +1541,8 @@ Section KVS_spec_read.
     rewrite /kvs_service_instrs.
     focus_block_nochangePC 1 "Hcode_main" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
+    assert ((KVS_pcc_b + kvs_read_pcc_off)%a = Some kvs_read_pcc_addr) as Hread_off
+      by (rewrite /kvs_read_pcc_addr /kvs_read_pcc_off; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b').
     iApply ( KVS_read_spec_invalid_sealed_user_key_pre ); eauto; iFrame "∗ Hcode Ha_unsealing".
   Qed.
 

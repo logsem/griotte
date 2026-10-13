@@ -265,8 +265,9 @@ Proof.
 Defined.
 
 
+Definition hts_concrete_pc : Word :=
+  WCap true RX Global hts_main_pcc_b hts_main_pcc_e hts_main_code_a.
 Definition hts_concrete_registers : Reg :=
-  <[PC := WCap true RX Global hts_main_pcc_b hts_main_pcc_e hts_main_code_a]>
   (<[cgp := WCap true RW Global hts_main_cgp_b hts_main_cgp_e hts_main_cgp_b]>
   (<[csp := WCap true RWL Local hts_stack_b hts_stack_e hts_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
@@ -275,19 +276,19 @@ Definition hts_concrete_sregisters : SReg :=
     hts_trusted_stack_b]> ∅.
 Definition hts_concrete_memory : Mem := hts_initial_memory.
 Definition hts_concrete_initial_state : ExecConf :=
-  (hts_concrete_registers, hts_concrete_sregisters, hts_concrete_memory, initial_heap_shadow).
+  (hts_concrete_pc, hts_concrete_registers, hts_concrete_sregisters, hts_concrete_memory, initial_heap_shadow).
 
-Lemma hts_concrete_registers_correct : hts_is_initial_registers hts_concrete_registers.
+Lemma hts_concrete_registers_correct :
+  hts_is_initial_registers hts_concrete_pc hts_concrete_registers.
 Proof.
-  rewrite /hts_is_initial_registers /hts_concrete_registers.
-  split; [rewrite lookup_insert; reflexivity|]. split.
-  - rewrite lookup_insert_ne; last done. rewrite lookup_insert.
+  rewrite /hts_is_initial_registers /hts_concrete_pc /hts_concrete_registers.
+  split; [reflexivity|]. split.
+  - rewrite lookup_insert.
     case_decide; last done.
     cbn [hts_main_cmpt hts_concrete_layout cmpt_b_cgp cmpt_e_cgp hts_concrete_main].
     reflexivity.
   - split.
-    + rewrite lookup_insert_ne; last done.
-      rewrite lookup_insert_ne; last done. rewrite lookup_insert.
+    + rewrite lookup_insert_ne; last done. rewrite lookup_insert.
       cbn [hts_switcher_cmpt hts_concrete_layout b_stack e_stack hts_concrete_switcher].
       reflexivity.
     + intros r Hr. rewrite !lookup_insert_ne; try set_solver.
@@ -324,16 +325,16 @@ Lemma hts_concrete_heap_disjoint : initial_heap_memory ##ₘ hts_initial_program
 Proof. hts_compute_layout. Qed.
 
 (** The concrete initial state satisfies the general safety theorem. *)
-Lemma hts_concrete_adequacy reg' sreg' mem' sh' es :
+Lemma hts_concrete_adequacy pc' reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)], hts_concrete_initial_state)
-    (es, (reg', sreg', mem', sh')) ->
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! hts_assert_flag = Some (WInt 0).
 Proof.
   intro Hrun.
   pose proof
     (@hts_adequacy hts_machine_parameters hts_concrete_layout
-      hts_concrete_registers reg' hts_concrete_sregisters sreg'
+      hts_concrete_pc pc' hts_concrete_registers reg' hts_concrete_sregisters sreg'
       hts_concrete_memory mem' initial_heap_shadow sh' es
       hts_concrete_registers_correct hts_concrete_sregisters_correct
       hts_concrete_memory_correct eq_refl hts_concrete_heap_disjoint Hrun)
@@ -346,9 +347,9 @@ Qed.
 
 (** The concrete execution halts, and adequacy preserves the assertion flag. *)
 Theorem hts_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem' sh',
+  ∃ pc' reg' sreg' mem' sh',
     rtc erased_step ([Seq (Instr Executable)], hts_concrete_initial_state)
-      ([Instr Halted], (reg', sreg', mem', sh')) ∧
+      ([Instr Halted], (pc', reg', sreg', mem', sh')) ∧
     mem' !! hts_assert_flag = Some (WInt 0).
 Proof.
   pose proof
@@ -358,8 +359,9 @@ Proof.
   destruct Hrun as [state Hrun].
   destruct state as [state sh_final].
   destruct state as [state mem_final].
-  destruct state as [reg_final sreg_final].
-  exists reg_final, sreg_final, mem_final, sh_final. split.
+  destruct state as [state sreg_final].
+  destruct state as [pc_final reg_final].
+  exists pc_final, reg_final, sreg_final, mem_final, sh_final. split.
   - exact Hrun.
   - eapply hts_concrete_adequacy; exact Hrun.
 Qed.

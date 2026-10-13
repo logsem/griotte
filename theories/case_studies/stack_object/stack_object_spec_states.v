@@ -47,18 +47,18 @@ Section SO_Code.
   (** [so_main_code], as the chain of its blocks. *)
   Lemma so_main_code_flat :
     so_main_code =
-      fetch_instrs 0 ct0 cs0 cs1
-      ++ fetch_instrs 2 ct1 cs0 cs1
+      fetch_instrs (so_fetch_offset 0) ct0
+      ++ fetch_instrs (so_fetch_offset 1) ct1
       ++ encodeInstrsW [Jalr cra ct0; Halt]
       ++ encodeInstrsW [Mov ct1 ca1]
       ++ checkra_instrs ca0 cs0 cs1
       ++ check_no_overlap_instrs ca0 csp cs0 cs1
       ++ checkints_instrs ca0 cs0 cs1
       ++ so_f_alloc_instrs
-      ++ fetch_instrs 0 ct0 cs0 cs1
+      ++ fetch_instrs (so_fetch_offset 8) ct0
       ++ so_f_call_instrs
       ++ so_f_assert_prep_instrs
-      ++ assert_instrs 1 ct2 ct3 ct4
+      ++ assert_instrs (so_fetch_offset 11) ct2 ca2
       ++ so_f_return_instrs.
   Proof. rewrite /so_main_code /SO_main_code_run /SO_main_code_f -!app_assoc //. Qed.
 
@@ -69,6 +69,14 @@ Notation so_block_offset := (code_block_offset so_main_blocks).
 
 (** Offset of the [i]-th instruction of the block [n] in [so_main_code]. *)
 Notation so_instr_offset := (code_instr_offset so_main_blocks).
+
+(** Compute the offsets of the fetches of [so_main_code] in the goal. *)
+Ltac so_fetch_offsets_compute :=
+  repeat match goal with
+    | |- context [so_fetch_offset ?n] =>
+        let v := eval vm_compute in (so_fetch_offset n) in
+        change (so_fetch_offset n) with v
+    end.
 
 (** Unfold [so_main_code] into the chain of its blocks, in the goal (both in
     the code and in the continuation). *)

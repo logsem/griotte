@@ -28,7 +28,7 @@ Section SO_Call_Blocks_3.
     so_code_bounds pc_b pc_e pc_a C_f ->
     disjoint_from_shadow csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ca1 ↦ᵣ wca1 ∗
     ct0 ↦ᵣ wct0 ∗
@@ -43,7 +43,7 @@ Section SO_Call_Blocks_3.
         ⌜(csp_b + 1)%a = Some a_stk1⌝ ∗
         ⌜(a_stk1 + 1)%a = Some a_stk2⌝ ∗
         ⌜(a_stk2 <= csp_e)%a⌝ ∗
-        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
         ca1 ↦ᵣ WCap true RWL Local a_stk1 a_stk2 a_stk1 ∗
         ct0 ↦ᵣ so_switcher_entry ∗
@@ -141,13 +141,14 @@ Section SO_Call_Blocks_3.
     (* Block 8: fetch the entry point of the switcher *)
     focus_block 8 "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+    iApply (fetch_spec 0 _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
+      with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
+    { so_fetch_offsets_compute; offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & _ & Himport_switcher)".
+    iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

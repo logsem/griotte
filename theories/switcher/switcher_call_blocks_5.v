@@ -28,15 +28,17 @@ Section Switcher_Call_Blocks_5.
     wcgp wcra wcs0 wcs1 b_stk e_stk a_stk :
     let switcher_instrs_16 := (switcher_instrs_n 16) in
     let len_switcher_16 := length switcher_instrs_16 in
+    (* The distance from this block to the block that clears the registers. *)
+    let off_dead_zeros := (switcher_block_offset 14 - switcher_block_offset 16)%Z in
     disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
 
-    (pc_a ^+ 10 + -36)%a = Some (pc_a ^+ -26)%a ->
+    (pc_a ^+ 10 + (off_dead_zeros - 10))%a = Some (pc_a ^+ off_dead_zeros)%a ->
 
     (b_stk <= a_stk)%a ->
     (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
     (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
     (∃ wcgp', cgp ↦ᵣ wcgp') ∗
@@ -52,7 +54,7 @@ Section Switcher_Call_Blocks_5.
     ▷ (∀ rcgp rcra rcs0 rcs1,
         ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
           load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝ -∗
-        ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
+        ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ off_dead_zeros)%a ∗
              cs0 ↦ᵣ rcs0 ∗
              cs1 ↦ᵣ rcs1 ∗
              cgp ↦ᵣ rcgp ∗
@@ -72,10 +74,14 @@ Section Switcher_Call_Blocks_5.
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_16 len_switcher_16; subst switcher_instrs_16 len_switcher_16.
+    intros switcher_instrs_16 len_switcher_16 off_dead_zeros;
+      subst switcher_instrs_16 len_switcher_16 off_dead_zeros.
     iIntros (Hstk_shadow Hsub_reg Hpca_next Hbstk Hbstk')
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0] & [%wca1 Hca1]
       & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & #Hcode & Hpost)".
+    (* Compute the distance to the block that clears the registers. *)
+    offsets_compute.
+    offsets_sub_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -140,7 +146,7 @@ Section Switcher_Call_Blocks_5.
     destruct (decide (ca0 = cnull))as [|_]; first done.
     (* Mov ca1 (inl 0%Z); *)
     iInstr "Hcode" with "Hlc".
-    (* Jmp (inl (-36)%Z) *)
+    (* Jmp (inl (-20)%Z) *)
     iInstr "Hcode".
 
     iApply ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done. iFrame "∗ Hcode".
@@ -155,15 +161,17 @@ Section Switcher_Call_Blocks_5.
     wcgp wcra wcs0 wcs1 b_stk e_stk a_stk :
     let switcher_instrs_16 := (switcher_instrs_n 16) in
     let len_switcher_16 := length switcher_instrs_16 in
+    (* The distance from this block to the block that clears the registers. *)
+    let off_dead_zeros := (switcher_block_offset 14 - switcher_block_offset 16)%Z in
     disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
 
-    (pc_a ^+ 10 + -36)%a = Some (pc_a ^+ -26)%a ->
+    (pc_a ^+ 10 + (off_dead_zeros - 10))%a = Some (pc_a ^+ off_dead_zeros)%a ->
 
     (b_stk <= a_stk)%a ->
     (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
     (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
     (∃ wcgp', cgp ↦ᵣ wcgp') ∗
@@ -183,7 +191,7 @@ Section Switcher_Call_Blocks_5.
           load_heap_in_world W wcs0 rcs0 ∧
           load_heap_in_world W wcs1 rcs1⌝ -∗
         ( world_interp W C ∗
-             PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
+             PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ off_dead_zeros)%a ∗
              cs0 ↦ᵣ rcs0 ∗
              cs1 ↦ᵣ rcs1 ∗
              cgp ↦ᵣ rcgp ∗
@@ -203,10 +211,14 @@ Section Switcher_Call_Blocks_5.
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_16 len_switcher_16; subst switcher_instrs_16 len_switcher_16.
+    intros switcher_instrs_16 len_switcher_16 off_dead_zeros;
+      subst switcher_instrs_16 len_switcher_16 off_dead_zeros.
     iIntros (Hstk_shadow Hsub_reg Hpca_next Hbstk Hbstk')
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0] & [%wca1 Hca1]
       & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & Hworld & #Hcode & Hpost)".
+    (* Compute the distance to the block that clears the registers. *)
+    offsets_compute.
+    offsets_sub_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -272,7 +284,7 @@ Section Switcher_Call_Blocks_5.
     destruct (decide (ca0 = cnull))as [|_]; first done.
     (* Mov ca1 (inl 0%Z); *)
     iInstr "Hcode" with "Hlc".
-    (* Jmp (inl (-36)%Z) *)
+    (* Jmp (inl (-20)%Z) *)
     iInstr "Hcode".
 
     iEval (rewrite -open_world_interp_empty) in "Hworld".
@@ -289,9 +301,9 @@ Section Switcher_Call_Blocks_5.
     (b e a : Addr) (wcs0 wcs1 wcra wcgp : LWord) (rmap : LReg) :
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
-    dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ᵣ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_block_pc 16 ∗
     (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
     (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
     (∃ wcgp', cgp ↦ᵣ wcgp') ∗
@@ -305,8 +317,8 @@ Section Switcher_Call_Blocks_5.
     ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs0 rcs1,
         ⌜ load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
           load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1 ⌝ ∗
-        ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ᵣ lupdatePcPerm rcra ∗
+        ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+        PC ↦ₚ lupdatePcPerm rcra ∗
         cs0 ↦ᵣ rcs0 ∗
         cs1 ↦ᵣ rcs1 ∗
         cgp ↦ᵣ rcgp ∗
@@ -356,9 +368,9 @@ Section Switcher_Call_Blocks_5.
     (b e a : Addr) (wcs0 wcs1 wcra wcgp : LWord) (rmap : LReg) :
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
-    dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ᵣ switcher_block_pc 16 ∗
+    PC ↦ₚ switcher_block_pc 16 ∗
     (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
     (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
     (∃ wcgp', cgp ↦ᵣ wcgp') ∗
@@ -373,9 +385,9 @@ Section Switcher_Call_Blocks_5.
     ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs0 rcs1,
         ⌜ load_heap_in_world W wcgp rcgp ∧ load_heap_in_world W wcra rcra ∧
           load_heap_in_world W wcs0 rcs0 ∧ load_heap_in_world W wcs1 rcs1 ⌝ ∗
-        ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+        ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
         world_interp W C ∗
-        PC ↦ᵣ lupdatePcPerm rcra ∗
+        PC ↦ₚ lupdatePcPerm rcra ∗
         cs0 ↦ᵣ rcs0 ∗
         cs1 ↦ᵣ rcs1 ∗
         cgp ↦ᵣ rcgp ∗

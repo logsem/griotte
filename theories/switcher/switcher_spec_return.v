@@ -39,7 +39,7 @@ Section Switcher.
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
-    dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
+    dom rmap = all_registers_s ∖ ({[ csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
     (* NOTE: there is only one side of the implication... *)
@@ -56,7 +56,7 @@ Section Switcher.
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
     ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ RevokedResources Wfixed C l
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0

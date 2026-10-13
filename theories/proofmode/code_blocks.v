@@ -49,10 +49,39 @@ Ltac offsets_compute :=
         change (code_block_offset bs n) with v in H
     end.
 
+(** Succeed when [z] is a closed integer literal. *)
+Ltac Z_literal z :=
+  let rec pos p :=
+    lazymatch p with
+    | xH => idtac
+    | xO ?q => pos q
+    | xI ?q => pos q
+    end in
+  lazymatch z with
+  | Z0 => idtac
+  | Zpos ?p => pos p
+  | Zneg ?p => pos p
+  end.
+
+(** Compute the differences of integer literals, such as the differences of
+    block offsets left by [offsets_compute], in the goal and the hypotheses.
+    Differences with an open operand are left untouched. *)
+Ltac offsets_sub_compute :=
+  repeat match goal with
+    | |- context [(?x - ?y)%Z] =>
+        Z_literal x; Z_literal y;
+        let v := eval vm_compute in (x - y)%Z in
+        progress change (x - y)%Z with v
+    | H : context [(?x - ?y)%Z] |- _ =>
+        Z_literal x; Z_literal y;
+        let v := eval vm_compute in (x - y)%Z in
+        progress change (x - y)%Z with v in H
+    end.
+
 (** Change the address of the PC to [a']. *)
 Ltac change_pc_to a' :=
   try (unfold lword_of_word);
-  match goal with |- context [ environments.Esnoc _ _ (PC ↦ᵣ (WCap _ _ _ _ _ ?a) @@? _)%I ] =>
+  match goal with |- context [ environments.Esnoc _ _ (PC ↦ₚ (WCap _ _ _ _ _ ?a) @@? _)%I ] =>
     rewrite (_ : a = a');
     [| offsets_compute; solve_addr]
   end.

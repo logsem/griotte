@@ -25,7 +25,7 @@ Section SO_Check_Blocks_1.
     (csp_b csp_e : Addr)
     (wca0 wca1 wct1 wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 3)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 3)%a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -37,7 +37,7 @@ Section SO_Check_Blocks_1.
         ⌜readAllowed p = true⌝ ∗
         ⌜wca0 = WCap t p g b e a @@? π⌝ ∗
         ⌜finz.seq_between b e ## finz.seq_between csp_b csp_e⌝ ∗
-        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
+        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
         ca0 ↦ᵣ WCap t p g b e a @@? π ∗
         ca1 ↦ᵣ wca1 ∗
         ct1 ↦ᵣ wca1 ∗

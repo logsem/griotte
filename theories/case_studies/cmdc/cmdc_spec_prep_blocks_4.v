@@ -27,7 +27,7 @@ Section CMDC_Prep_Blocks_4.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     is_mmio_address cgp_b = false ->
     is_heap_address (cgp_b ^+ 1)%a = false ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 5)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 5)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e (cgp_b ^+ 1)%a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
@@ -35,7 +35,7 @@ Section CMDC_Prep_Blocks_4.
     ct1 ↦ᵣ wct1 ∗
     cgp_b ↦ₐ wcgp_b ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ ( PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 6)%a ∗
+    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_block_offset 6)%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WCap true RW Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
         ca1 ↦ᵣ WInt 0 ∗

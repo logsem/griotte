@@ -1,9 +1,8 @@
-From iris.algebra Require Import frac.
-From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
-From griotte Require Import fetch assert switcher.
+From griotte Require Import machine_parameters assembler fetch assert switcher.
 
 Section DLE_Main.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
 
@@ -29,57 +28,71 @@ Section DLE_Main.
      b_main + 2 : WSealed ot_switcher B.f
 
    *)
-  Definition dle_main_code : list Word :=
-    let rw_dl := (encodePermPair (RW_DL, Local)) in
-    encodeInstrsW [
-      (* #"main_b_code"; *)
+  (** [rw_dl] is the encoding of the permission and locality of the
+      shared capability, kept abstract during the assembly. *)
+  Definition dle_main_asm (rw_dl : Z) : list (list asm_code) :=
+    [ [ (* the imports *)
+        #@".Limport_switcher";
+        #@".Limport_assert";
+        #@".Limport_B_f";
 
-      (* set b <- 0 *)
-      Store cgp 0%Z 0;      (* b <- 0 *)
-      Mov ct0 cgp;        (* ct0 := (RW, Global, b, e, b) *)
+        (* set b <- 0 *)
+        store cgp 0;        (* b <- 0 *)
+        mov ct0 cgp;        (* ct0 := (RW, Global, b, e, b) *)
 
-      (* set a <- (RW, Global, b, b+1, b) *)
-      GetB ct1 cgp;       (* ct1 := b *)
-      Add ct2 ct1 1%Z;    (* ct2 := b+1 = a *)
-      Subseg ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
+        (* set a <- (RW, Global, b, b+1, b) *)
+        getb ct1 cgp;       (* ct1 := b *)
+        add ct2 ct1 1;      (* ct2 := b+1 = a *)
+        subseg ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
 
-      Lea cgp 1%Z;        (* cgp := (RW, Global, b, e, b+1) *)
-      Store cgp ct0 0;      (* a <- (RW, Global, b, b+1, b) *)
-      (* call B.f (RW-DL, Local, a, a+1, a) *)
-      Mov ca0 cgp;         (* ca0 := (RW, Global, b, e, b+1) = (RW, Global, b, e, a) *)
-      Lea cgp (-1)%Z;      (* cgp := (RW, Global, b, e, b) *)
-      Add ct1 ct2 1%Z;     (* ct1 := a+1 *)
-      Subseg ca0 ct2 ct1;  (* ca0 := (RW, Global, a, a+1, a) *)
-      Restrict ca0 rw_dl  (* ca0 := (RO_DRO, Global, a, a+1, a) *)
-    ]
-    ++ fetch_instrs 0 ct0 ct1 ct2 (* ct0 -> switcher entry point *)
-    ++ fetch_instrs 2 ct1 ct2 ct3 (* ct1 -> {B.f}_(ot_switcher)  *)
-    ++
-    encodeInstrsW [
-      (* Use cs0 and cs1 to save ct0 and ct1 through the call *)
-      Mov cs0 ct0; (* cs0 -> switcher entry point *)
-      Mov cs1 ct1; (* cs1 -> {B.f}_(ot_switcher)  *)
-      (* switcher_call to B.f *)
-      Jalr cra ct0;
-      (* set b := 42 *)
-      Store cgp 42%Z 0;      (* b <- 0 *)
-      (* call B.adv null *)
-      Mov ca0 0%Z;
-      Mov ct0 cs0; (* ct0 -> switcher entry point *)
-      Mov ct1 cs1; (* ct1 -> {B.f}_(ot_switcher)  *)
-      (* switcher_call to B.f *)
-      Jalr cra ct0;
-      (* assert (b==42) *)
-      CLoad ct0 cgp 0; (* ct0 -> b *)
-      Mov ct1 42%Z  (* ct1 -> 42 *)
-    ]
-    ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
-    ++
-    encodeInstrsW [
-      (* halt *)
-      Halt
-      (* #"main_e" *)
+        lea cgp 1;          (* cgp := (RW, Global, b, e, b+1) *)
+        store cgp ct0;      (* a <- (RW, Global, b, b+1, b) *)
+        (* call B.f (RW-DL, Local, a, a+1, a) *)
+        mov ca0 cgp;        (* ca0 := (RW, Global, b, e, b+1) = (RW, Global, b, e, a) *)
+        lea cgp (-1);       (* cgp := (RW, Global, b, e, b) *)
+        add ct1 ct2 1;      (* ct1 := a+1 *)
+        subseg ca0 ct2 ct1; (* ca0 := (RW, Global, a, a+1, a) *)
+        restrict ca0 rw_dl (* ca0 := (RO_DRO, Global, a, a+1, a) *)
+      ];
+      fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      fetch_asm ".Limport_B_f" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
+      [ (* Use cs0 and cs1 to save ct0 and ct1 through the call *)
+        mov cs0 ct0; (* cs0 -> switcher entry point *)
+        mov cs1 ct1; (* cs1 -> {B.f}_(ot_switcher)  *)
+        (* switcher_call to B.f *)
+        jalr cra ct0;
+        (* set b := 42 *)
+        store cgp 42;      (* b <- 0 *)
+        (* call B.adv null *)
+        mov ca0 0;
+        mov ct0 cs0; (* ct0 -> switcher entry point *)
+        mov ct1 cs1; (* ct1 -> {B.f}_(ot_switcher)  *)
+        (* switcher_call to B.f *)
+        jalr cra ct0;
+        (* assert (b==42) *)
+        load ct0 cgp; (* ct0 -> b *)
+        mov ct1 42  (* ct1 -> 42 *)
+      ];
+      assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
+      [ (* halt *)
+        halt
+      ]
     ].
+
+  Definition dle_main_assembled' :=
+    Eval vm_compute in (λ rw_dl, assemble_block (dle_main_asm rw_dl)).
+  Definition dle_main_assembled :=
+    Eval cbv in (λ rw_dl, revert_regs_code_block (dle_main_assembled' rw_dl)).
+  Definition dle_main_instrs_n (n : nat) : list Word :=
+    encodeInstrsW (default [] (dle_main_assembled (encodePermPair (RW_DL, Local)) !! n)).
+
+  Definition dle_main_code : list Word :=
+    dle_main_instrs_n 0 ++
+    dle_main_instrs_n 1 ++
+    dle_main_instrs_n 2 ++
+    dle_main_instrs_n 3 ++
+    dle_main_instrs_n 4 ++
+    dle_main_instrs_n 5.
 
   Definition dle_main_data : list Word := [WInt 0; WInt 0].
 

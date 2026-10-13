@@ -144,12 +144,9 @@ Qed.
   Lemma normal_always_step:
     forall φ, exists cf φ', step (Executable, φ) (cf, φ').
   Proof.
-    intros. destruct (reg φ !! PC) as [wpc | ] eqn:Hreg
+    intros. destruct (isCorrectPC_dec (pcc φ)) as [Hcorr | ]
     ; last (eexists _,_; by econstructor).
-    destruct (isCorrectPC_dec wpc) as [Hcorr | ]
-    ; last (eexists _,_; by econstructor).
-    set (Hcorr' := Hcorr).
-    inversion Hcorr' as [?????? Hre]. subst wpc.
+    inversion Hcorr as [?????? Hre].
     destruct (mem φ !! a) as [wa | ] eqn:Hmem.
     all: eexists _,_; by econstructor.
   Qed.
@@ -167,25 +164,23 @@ Qed.
     (regs: Reg) (sregs : SReg) (mem : Mem) (shadow : ShadowTbl)
     (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (w : Word)
     (instr : instr) (c: ConfFlag) (σ: ExecConf) :
-    regs !! PC = Some (WCap t p g b e a) →
     isCorrectPC (WCap t p g b e a) →
     mem !! a = Some w →
     decodeInstrW w = instr →
-    step (Executable, (regs, sregs, mem, shadow)) (c, σ) →
-    exec instr p (regs, sregs, mem, shadow) = (c, σ).
+    step (Executable, (WCap t p g b e a, regs, sregs, mem, shadow)) (c, σ) →
+    exec instr p (WCap t p g b e a, regs, sregs, mem, shadow) = (c, σ).
   Proof.
-    intros HPC Hpc Hm Hinstr. inversion 1; cbn in *.
-    1,2,3: congruence.
+    intros Hpc Hm Hinstr. inversion 1; cbn in *.
+    1,2: congruence.
     simplify_eq. by destruct (exec _ _).
   Qed.
 
-  Lemma step_fail_inv (wpc : Word) (c : ConfFlag) (σ σ': ExecConf) :
-    reg σ !! PC = Some wpc →
-    ¬ isCorrectPC wpc →
+  Lemma step_fail_inv (c : ConfFlag) (σ σ': ExecConf) :
+    ¬ isCorrectPC (pcc σ) →
     step (Executable, σ) (c, σ') →
     c = Failed ∧ σ' = σ.
   Proof.
-    intros Hw HPC Hs. inversion Hs; subst; auto.
+    intros HPC Hs. inversion Hs; subst; auto.
     congruence.
   Qed.
 
@@ -216,7 +211,7 @@ Qed.
     all: repeat destruct (reg _ !!ᵣ _); cbn in *; repeat case_match.
     all: repeat destruct (get_a _); repeat destruct (get_b _); repeat destruct (get_e _);
       repeat destruct (get_p _); repeat destruct (get_l _).
-    all: repeat destruct (reg _ !! PC); cbn in *; repeat case_match.
+    all: repeat destruct (pcc _); cbn in *; repeat case_match.
     all: repeat destruct (sreg _ !! _); cbn in *; repeat case_match.
     all: repeat destruct (finz.incr _ _); cbn in *; repeat case_match.
     all: repeat destruct (mem _ !! _); cbn in *; repeat case_match.
@@ -265,6 +260,9 @@ Qed.
   Lemma dom_sweep_mem shadow m :
     dom (sweep_mem shadow m) = dom m.
   Proof. by rewrite /sweep_mem dom_fmap_L. Qed.
+
+  Lemma revoker_sweep_pcc φ : pcc (revoker_sweep φ) = pcc φ.
+  Proof. done. Qed.
 
   Lemma revoker_sweep_reg φ : reg (revoker_sweep φ) = reg φ.
   Proof. done. Qed.

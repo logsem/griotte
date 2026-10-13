@@ -1,9 +1,8 @@
-From iris.algebra Require Import frac.
-From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
-From griotte Require Import fetch assert switcher.
+From griotte Require Import machine_parameters assembler fetch assert switcher.
 
 Section LSE_Main.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
   (** CHERIoT code for the LSE downward example
@@ -54,39 +53,61 @@ int __cheri_compartment("known") run()
       return
    *)
 
-  Definition LSE_main_code_run : list Word :=
-    (* set a := 2 *)
-    encodeInstrsW [
-        Store cgp 2 0
+  Definition lse_main_asm : list (list asm_code) :=
+    [ (* run *)
+      [ (* the imports *)
+        #@".Limport_switcher";
+        #@".Limport_assert";
+        #@".Limport_B_adv";
+
+        (* set a := 2 *)
+        store cgp 2
+      ];
+      (* call B.adv LSE.awkward *)
+      fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      fetch_asm ".Limport_B_adv" ct1; (* ct1 -> {B.adv}_(ot_switcher)  *)
+      [ jalr cra ct0; (* jmp to entry point *)
+        halt
+      ];
+      (* f *)
+      (* push a := (RW, Global, a, a+1, a) *)
+      [ getb cs0 cgp;
+        add cs1 cs0 1;
+        subseg cgp cs0 cs1; (* cgp := (RW, Global, a, a+1, a) *)
+        (* csp = (RWL, Local, bstk, estk, bstk)  *)
+        store csp cgp; (* bstk -> (RW, Global, a, a+1, a) *)
+        (* -- assert (a == 2) -- *)
+        load ct0 cgp;
+        mov ct1 2
+      ];
+      assert_asm ".Limport_assert" cgp cs0; (* asserts that ( *ct0 = *ct1 ) *)
+      [ (* return 0 *)
+        mov ca0 0;
+        mov ca1 0;
+        ret
       ]
-    (* call B.adv LSE.awkward *)
-    ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
-    ++ fetch_instrs 2 ct1 cs0 cs1 (* ct1 -> {B.adv}_(ot_switcher)  *)
-    ++
-    encodeInstrsW [
-      Jalr cra ct0; (* jmp to entry point *)
-      Halt
     ].
 
+  Definition lse_main_assembled' :=
+    Eval vm_compute in assemble_block lse_main_asm.
+  Definition lse_main_assembled :=
+    Eval cbv in revert_regs_code_block lse_main_assembled'.
+  Definition lse_main_instrs_n (n : nat) : list Word :=
+    encodeInstrsW (default [] (lse_main_assembled !! n)).
+
+  Definition LSE_main_code_run : list Word :=
+    lse_main_instrs_n 0 ++
+    lse_main_instrs_n 1 ++
+    lse_main_instrs_n 2 ++
+    lse_main_instrs_n 3.
+
   Definition LSE_main_code_f : list Word :=
-    (* push a := (RW, Global, a, a+1, a) *)
-    encodeInstrsW [
-        GetB cs0 cgp;
-        machine_instructions.Add cs1 cs0 1;
-        Subseg cgp cs0 cs1; (* cgp := (RW, Global, a, a+1, a) *)
-        (* csp = (RWL, Local, bstk, estk, bstk)  *)
-        Store csp cgp 0; (* bstk -> (RW, Global, a, a+1, a) *)
-        (* -- assert (a == 2) -- *)
-        CLoad ct0 cgp 0;
-        Mov ct1 2
-      ]
-      ++ assert_instrs 1 cgp cs0 cs1 (* asserts that ( *ct0 = *ct1 ) *)
-      ++ encodeInstrsW [
-        (* return 0 *)
-        Mov ca0 0%Z;
-        Mov ca1 0%Z;
-        Jalr cnull cra
-      ].
+    lse_main_instrs_n 4 ++
+    lse_main_instrs_n 5 ++
+    lse_main_instrs_n 6.
+
+  Local Close Scope Z_scope.
+  Local Coercion Z.of_nat : nat >-> Z.
 
   Definition lse_main_code : list Word
     := LSE_main_code_run ++ LSE_main_code_f.
@@ -118,3 +139,31 @@ int __cheri_compartment("known") run()
     [ lse_exp_tbl_entry_f ].
 
 End LSE_Main.
+
+(** The code of the concrete adversary of [lse_concrete], assembled here,
+    away from the program logic's coercions. *)
+Section lse_C_code.
+  Context `{MP: MachineParameters}.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
+
+  Definition lse_C_asm : list asm_code :=
+    [ #@".Limport_switcher";
+      #@".Limport_main_f";
+      store csp cra;
+      lea csp 1 ] ++
+    fetch_asm ".Limport_switcher" ct0 ++
+    fetch_asm ".Limport_main_f" ct1 ++
+    [ jalr cra ct0 ] ++
+    fetch_asm ".Limport_switcher" ct0 ++
+    fetch_asm ".Limport_main_f" ct1 ++
+    [ jalr cra ct0;
+      lea csp (-1);
+      load cra csp;
+      mov ca0 0;
+      mov ca1 0;
+      ret ].
+
+  Definition lse_C_instrs : list instr :=
+    Eval vm_compute in concat (assemble_block [lse_C_asm]).
+End lse_C_code.

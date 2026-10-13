@@ -21,42 +21,37 @@ Section KVS_getFullKey.
 
   (*** Specification for known code *)
   Lemma KVS_getFullKey_spec
-    (pc_b pc_e pc_a : Addr)
-    (rdst rsealkey rkey rscratch1 rscratch2 : RegName)
+    (pc_b pc_e pc_a : Addr) (off : Z)
+    (rdst rsealkey rkey : RegName)
     (user_key nkey : Z) (πnkey : option AId) (l_user_key : Locality) ( user_key_addr : Addr )
     :
-    let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
+    let instrs := (kvs_getFullKey_instrs off rdst rsealkey rkey) in
     is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
+    (pc_a + off)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
 
-    rscratch1 ≠ cnull ->
-    rscratch2 ≠ cnull ->
     rsealkey ≠ cnull ->
     rkey ≠ cnull ->
     rdst ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       rdst ↦ᵣ - ∗
       rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
       rkey ↦ᵣ WInt nkey @@? πnkey ∗
-      rscratch1 ↦ᵣ - ∗
-      rscratch2 ↦ᵣ - ∗
 
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
       codefrag_pers pc_a instrs ∗
       ▷ (
-          PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
           rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
           rkey ↦ᵣ WInt nkey @@? πnkey ∗
-          rscratch1 ↦ᵣ WInt (pc_b - pc_a) ∗
-          rscratch2 ↦ᵣ WInt pc_a ∗
 
           (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key ∗
@@ -67,42 +62,29 @@ Section KVS_getFullKey.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (Hunsealing_shadow Huser_key_shadow HsubBounds Hbounds_user_key_addr Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
-      "(HPC & [%wdst Hrdst] & Hrsealkey & Hrkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
+    iIntros (Hunsealing_shadow Huser_key_shadow HsubBounds Hoff Hbounds_user_key_addr Hrsealkey Hkey Hdst)
+      "(HPC & [%wdst Hrdst] & Hrsealkey & Hrkey
       & #Ha_unsealing & Ha_user_key & #Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
-    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
-    assert ((pc_b + UNSEALING_USER_KEY_OFFSET)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a) as Hpc_bn
-    ;[rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr|].
-    (* mov rdst PC; *)
+    (* Auipcc rdst off. *)
     iInstr "Hcode".
-    (* getb rscratch1 rdst; *)
-    iInstr "Hcode".
-    (* geta rscratch2 rdst; *)
-    iInstr "Hcode".
-    (* sub rscratch1 rscratch1 rscratch2; *)
-    iInstr "Hcode".
-    (* lea rdst rscratch1; *)
-    iInstr "Hcode".
-    (* lea rdst UNSEALING_USER_KEY_OFFSET; *)
-    iInstr "Hcode".
-    (* load rdst rdst; *)
+    (* CLoad rdst rdst 0. *)
     iInstr "Hcode".
     { done. }
-    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
-    (* unseal rdst rsealkey rscratch; *)
+    { rewrite /UNSEALING_USER_KEY_OFFSET in Hoff |- *; solve_addr. }
+    (* UnSeal rdst rdst rsealkey. *)
     iInstr "Hcode"; try done.
     { rewrite /withinBounds; pose proof KVS_OTYPE_size; solve_addr. }
-    (* load rdst rdst; *)
+    (* CLoad rdst rdst 0. *)
     iInstr "Hcode".
     { done. }
-    (* lshiftl rdst rdst 16; *)
+    (* LShiftL rdst rdst 16. *)
     iInstr "Hcode".
-    (* lor rdst rdst rkey *)
+    (* LOr rdst rdst rkey. *)
     iInstr "Hcode".
 
     iApply "Hpost"; iFrame "∗ Hcode Ha_unsealing".
@@ -110,27 +92,24 @@ Section KVS_getFullKey.
 
   (*** Specification for unknown code *)
   Lemma KVS_getFullKey_spec_invalid_sealed_user_key
-    (pc_b pc_e pc_a : Addr)
-    (rdst rsealkey rkey rscratch1 rscratch2 : RegName)
+    (pc_b pc_e pc_a : Addr) (off : Z)
+    (rdst rsealkey rkey : RegName)
     ( wsealkey : LWord )
     :
-    let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
+    let instrs := (kvs_getFullKey_instrs off rdst rsealkey rkey) in
     is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
+    (pc_a + off)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ->
 
     (is_sealed_with_o wsealkey.(lw) KVS_OTYPE = false \/ get_tag wsealkey.(lw) = false) ->
 
-    rscratch1 ≠ cnull ->
-    rscratch2 ≠ cnull ->
     rsealkey ≠ cnull ->
     rdst ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       rdst ↦ᵣ - ∗
       rsealkey ↦ᵣ wsealkey ∗
-      rscratch1 ↦ᵣ - ∗
-      rscratch2 ↦ᵣ - ∗
 
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
 
@@ -138,34 +117,21 @@ Section KVS_getFullKey.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (Hunsealing_shadow HsubBounds Hnot_sealed_with_kvs_otype Hrscratch1 Hrscratch2 Hrsealkey Hdst)
-      "(HPC & [%wdst Hrdst] & Hrsealkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
+    iIntros (Hunsealing_shadow HsubBounds Hoff Hnot_sealed_with_kvs_otype Hrsealkey Hdst)
+      "(HPC & [%wdst Hrdst] & Hrsealkey
       & #Ha_unsealing & #Hcode)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
-    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
-    assert ((pc_b + UNSEALING_USER_KEY_OFFSET)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a) as Hpc_bn
-    ;[rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr|].
-    (* mov rdst PC; *)
+    (* Auipcc rdst off. *)
     iInstr "Hcode".
-    (* getb rscratch1 rdst; *)
-    iInstr "Hcode".
-    (* geta rscratch2 rdst; *)
-    iInstr "Hcode".
-    (* sub rscratch1 rscratch1 rscratch2; *)
-    iInstr "Hcode".
-    (* lea rdst rscratch1; *)
-    iInstr "Hcode".
-    (* lea rdst UNSEALING_USER_KEY_OFFSET; *)
-    iInstr "Hcode".
-    (* load rdst rdst; *)
+    (* CLoad rdst rdst 0. *)
     iInstr "Hcode".
     { done. }
-    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
-    (* unseal rdst rsealkey rscratch; *)
+    { rewrite /UNSEALING_USER_KEY_OFFSET in Hoff |- *; solve_addr. }
+    (* UnSeal rdst rdst rsealkey. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_unseal_unknown' with "[$HPC $Hi $Hrdst $Hrsealkey]"); try solve_pure.
@@ -191,3 +157,28 @@ Section KVS_getFullKey.
   Qed.
 
 End KVS_getFullKey.
+
+(** Resolve the premise of [KVS_getFullKey_spec] on the offset of the
+    unsealing key, at a call site in one of the entries of the service:
+    the address of the fetch is given by a hypothesis [H] on the offset of
+    the block, whose closed code length is computed first. *)
+Ltac kvs_getFullKey_offset :=
+  match goal with
+  | H : (_ + ?n)%a = Some ?a |- (?a + _)%a = Some _ =>
+      match n with context [length ?l] =>
+        let v := eval vm_compute in (length l) in change (length l) with v in H
+      end
+  end;
+  pose proof KVS_size_imports as Himports_size;
+  unfold kvs_addOrUpdate_pcc_addr, kvs_read_pcc_addr, kvs_erase_pcc_addr,
+    kvs_addOrUpdate_pcc_off, kvs_read_pcc_off, kvs_erase_pcc_off,
+    UNSEALING_USER_KEY_OFFSET in *;
+  let v := eval vm_compute in length_kvs_imports in
+  change length_kvs_imports with v in *;
+  let v := eval vm_compute in (length kvs_addOrUpdate_instrs) in
+  change (length kvs_addOrUpdate_instrs) with v in *;
+  let v := eval vm_compute in (length kvs_read_instrs) in
+  change (length kvs_read_instrs) with v in *;
+  let v := eval vm_compute in (length kvs_erase_instrs) in
+  change (length kvs_erase_instrs) with v in *;
+  solve_addr.

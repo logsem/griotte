@@ -51,7 +51,7 @@ Section AllocatorFree.
        na_own cerise_nais E ∗
        P ∗
        a_owner ↦ₐ WInt o ∗
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -62,14 +62,14 @@ Section AllocatorFree.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
        ▷ (na_own cerise_nais E ∗
           P ∗
           a_owner ↦ₐ WInt o ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -79,8 +79,8 @@ Section AllocatorFree.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
@@ -118,17 +118,18 @@ Section AllocatorFree.
     iDestruct "Hcnull" as (wnull) "Hcnull".
     (* Block 0: the owner identifier of the allocator capability. *)
     iApply (allocator_free_owner_spec with
-      "[- $HPC $Hctp $Hct3 $Hct4 $Hca0 $Hkey $Howner $Hfree_code]");
-      [done|done|by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
-    iNext. iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca0 & _ & Howner & _)".
+      "[- $HPC $Hctp $Hca0 $Hkey $Howner $Hfree_code]");
+      [done|apply allocator_free_pcc_addr_off|done
+      |by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
+    iNext. iIntros "(HPC & Hctp & Hca0 & _ & Howner & _)".
     (* The tail: set ALLOC_INVALID, return and close the service
        invariant. *)
-    iAssert (PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+    iAssert (PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
                (allocator_free_pcc_addr ^+ allocator_free_invalid_offset)%a ∗
              cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
              ca0 ↦ᵣ WInt o ∗
              ca1 ↦ᵣ wreq ∗
-             ca2 ↦ᵣ - ∗ ct0 ↦ᵣ - ∗ ct1 ↦ᵣ - ∗ ct2 ↦ᵣ - ∗ ct3 ↦ᵣ - ∗ ct4 ↦ᵣ - ∗ ctp ↦ᵣ - ∗
+             ca2 ↦ᵣ - ∗ ct0 ↦ᵣ - ∗ ct1 ↦ᵣ - ∗ ct2 ↦ᵣ - ∗ ca3 ↦ᵣ - ∗ ca4 ↦ᵣ - ∗ ctp ↦ᵣ - ∗
              allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
              allocator_headers (heap_b ^+ 1)%a next allocations ∗
              allocator_cells Cs -∗
@@ -159,9 +160,10 @@ Section AllocatorFree.
         as (s1 s2 eh oh Hcheck Hheader) "(Hs1 & Hs2 & Hhdr & Hheader_close)";
         [solve_addr|done|done|].
       iApply (allocator_free_header_spec with
-        "[- $HPC $Hctp $Hct3 $Hct4 $Hca2 $Hct0 $Hct1 $Hct2 $Hshadow_import $Hs1 $Hs2 $Hhdr
-            $Hca0 $Hfree_code]"); [done|solve_addr|done|].
-      iNext. iIntros "(_ & Hs1 & Hs2 & Hhdr & Hca0 & Hct0 & Hct1 & Hct2 & Hct4 &
+        "[- $HPC $Hctp $Hct3 $Hct4 $Hca2 $Hct0 $Hct1 $Hct2 $Hshadow_import $Hrevoker_import
+            $Hs1 $Hs2 $Hhdr $Hca0 $Hfree_code]");
+        [done|apply allocator_free_pcc_addr_off|solve_addr|done|].
+      iNext. iIntros "(_ & _ & Hs1 & Hs2 & Hhdr & Hca0 & Hct0 & Hct1 & Hct2 & Hct4 &
         _ & Hout)".
       iDestruct ("Hheader_close" with "Hs1 Hs2 Hhdr") as "[Hcells Hheaders]".
       iDestruct "Hout" as "[(%Hok & _)|(_ & HPC & Hct3 & Hca2 & Hctp)]".
@@ -197,7 +199,7 @@ Section AllocatorFree.
        na_own cerise_nais E ∗
        alloc_obj ι b e ∗
        a_owner ↦ₐ WInt o ∗
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -208,13 +210,13 @@ Section AllocatorFree.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -224,8 +226,8 @@ Section AllocatorFree.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
@@ -292,7 +294,7 @@ Section AllocatorFree.
        allocator_owner_id id Ω ∗
        alloc_obj ι b e ∗
        a_owner ↦ₐ WInt id ∗
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -303,14 +305,14 @@ Section AllocatorFree.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
        ▷ (na_own cerise_nais E ∗
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -320,8 +322,8 @@ Section AllocatorFree.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
@@ -393,7 +395,7 @@ Section AllocatorFree.
        a_owner ↦ₐ WInt o ∗
 
        (* Initial register file. *)
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -404,14 +406,14 @@ Section AllocatorFree.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
 
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -421,8 +423,8 @@ Section AllocatorFree.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0
 
@@ -469,7 +471,7 @@ Section AllocatorFree.
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     length ws = length (finz.seq_between b e) ->
     dom rmap = all_registers_s ∖
-      {[PC; cgp; cra; ca0; ca1; ca2; ct0; ct1; ct2; ct3; ct4; ctp; cnull]} ->
+      {[cgp; cra; ca0; ca1; ca2; ct0; ct1; ct2; ca3; ca4; ctp; cnull]} ->
     (∀ r w, rmap !! r = Some w -> has_authority w.(lw) -> w.(lprov) = None) ->
     (has_authority wret.(lw) -> wret.(lprov) = None) ->
 
@@ -484,7 +486,7 @@ Section AllocatorFree.
        free_auth_held ι ∗
 
        (* Initial register file. *)
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -495,8 +497,8 @@ Section AllocatorFree.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
@@ -505,7 +507,7 @@ Section AllocatorFree.
        ▷ (na_own cerise_nais E ∗
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -515,8 +517,8 @@ Section AllocatorFree.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0 ∗
           ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
@@ -566,9 +568,10 @@ Section AllocatorFree.
 
     (* Block 0: the owner identifier of the allocator capability. *)
     iApply (allocator_free_owner_spec with
-      "[- $HPC $Hctp $Hct3 $Hct4 $Hca0 $Hkey $Howner $Hfree_code]");
-      [done|done|by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
-    iNext. iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca0 & _ & Howner & _)".
+      "[- $HPC $Hctp $Hca0 $Hkey $Howner $Hfree_code]");
+      [done|apply allocator_free_pcc_addr_off|done
+      |by apply withinBounds_true_iff in Hbounds_a as [_ ?]|].
+    iNext. iIntros "(HPC & Hctp & Hca0 & _ & Howner & _)".
     (* Blocks 1 and 2: the request is a capability in the allocated prefix. *)
     iApply (allocator_free_check_valid_spec _ _ _ _ next id _ ((WCap true p g b e a) @@ ι) with
       "[- $Hslot $HPC $Hcgp $Hca0 $Hca1 $Hctp $Hct0 $Hct1 $Hct2 $Hct3 $Hfree_code]").
@@ -584,9 +587,10 @@ Section AllocatorFree.
       as (s1 s2 eh oh Hcheck Hheader) "(Hs1 & Hs2 & Hhdr & Hheader_close)";
       [solve_addr|done|done|].
     iApply (allocator_free_header_spec with
-      "[- $HPC $Hctp $Hct3 $Hct4 $Hca2 $Hct0 $Hct1 $Hct2 $Hshadow_import $Hs1 $Hs2 $Hhdr
-          $Hca0 $Hfree_code]"); [done|solve_addr|done|].
-    iNext. iIntros "(_ & Hs1 & Hs2 & Hhdr & Hca0 & Hct0 & Hct1 & Hct2 & Hct4 &
+      "[- $HPC $Hctp $Hct3 $Hct4 $Hca2 $Hct0 $Hct1 $Hct2 $Hshadow_import $Hrevoker_import
+          $Hs1 $Hs2 $Hhdr $Hca0 $Hfree_code]");
+      [done|apply allocator_free_pcc_addr_off|solve_addr|done|].
+    iNext. iIntros "(_ & _ & Hs1 & Hs2 & Hhdr & Hca0 & Hct0 & Hct1 & Hct2 & Hct4 &
       _ & Hout)".
     iDestruct ("Hheader_close" with "Hs1 Hs2 Hhdr") as "[Hcells Hheaders]".
     iDestruct "Hout" as "[(_ & HPC & Hct3 & Hca2 & Hctp)|(%Hmiss & _)]"; last first.
@@ -611,9 +615,9 @@ Section AllocatorFree.
     (* The revoker store kills [ι]; unpaint the payload. *)
     iApply (allocator_free_revoke_spec with
       "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hrmap
-          $Hrevoker_import $Hobj $Hquar $Hpayload $Htail_code]"); [done|done|done|done|done|].
+          $Hobj $Hquar $Hpayload $Htail_code]"); [done|done|done|done|done|].
     iNext. iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 &
-      Hctp & Hcnull & Hrmap & _ & Hdead & Hcells_free & _)".
+      Hctp & Hcnull & Hrmap & Hdead & Hcells_free & _)".
     (* Return. *)
     iApply (allocator_free_return_spec with "[- $HPC $Hcra $Hcnull $Htail_code]"); first done.
     iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
@@ -638,12 +642,12 @@ Section AllocatorFree.
     allocator_service_ctx ∗
     allocator_service_static ∗
     na_own cerise_nais E ∗
-    PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+    PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
       allocator_free_pcc_addr ∗
     ca0 ↦ᵣ wsealed ∗
     ctp ↦ᵣ - ∗
-    ct3 ↦ᵣ - ∗
-    ct4 ↦ᵣ -
+    ca3 ↦ᵣ - ∗
+    ca4 ↦ᵣ -
     ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
     iIntros (HEservice Hwsealed)
@@ -661,8 +665,8 @@ Section AllocatorFree.
       as "(_ & #Hkey & _)".
     (* Block 0: the owner block traps. *)
     iApply (allocator_free_owner_invalid_spec with
-      "[$HPC $Hctp $Hct3 $Hct4 $Hca0 $Hkey $Hfree_code]");
-      [apply allocator_free_entry_bounds|done].
+      "[$HPC $Hctp $Hca0 $Hkey $Hfree_code]");
+      [apply allocator_free_entry_bounds|apply allocator_free_pcc_addr_off|done].
   Qed.
 
 End AllocatorFree.

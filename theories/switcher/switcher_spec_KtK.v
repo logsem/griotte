@@ -53,9 +53,9 @@ Section Switcher_KtK.
        ⌜ is_arg_rmap arg_rmap' 8 ⌝
        ∗ ⌜ dom rmap' =
              all_registers_s ∖
-               ({[ PC ; cgp ; cra ; csp ]} ∪ dom_arg_rmap 8) ⌝
+               ({[ cgp ; cra ; csp ]} ∪ dom_arg_rmap 8) ⌝
        ∗ na_own cerise_nais E
-       ∗ PC ↦ᵣ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
+       ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
        ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
        ∗ cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return
        ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
@@ -73,9 +73,9 @@ Section Switcher_KtK.
                 (stk_mem_ret : list LWord),
               ⌜ dom rmap_ret =
                     all_registers_s ∖
-                      {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
+                      {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
               ∗ na_own cerise_nais E
-              ∗ PC ↦ᵣ WCap true XSRW_ Local
+              ∗ PC ↦ₚ WCap true XSRW_ Local
                           b_switcher e_switcher a_switcher_return
               ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
               ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
@@ -128,7 +128,7 @@ Section Switcher_KtK.
     is_Some (bpcc_tgt + off_tgt)%a ->
     dom rmap =
       all_registers_s ∖
-        ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+        ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
     na_inv cerise_nais Nswitcher switcher_inv
@@ -137,7 +137,7 @@ Section Switcher_KtK.
     ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
     ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off_tgt)
     ∗ na_own cerise_nais E
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -157,9 +157,9 @@ Section Switcher_KtK.
         (∃ (rcgp rcra rcs0 rcs1 wca0 wca1 : LWord) (rmap' : LReg),
            ⌜ dom rmap' =
                  all_registers_s ∖
-                   {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
+                   {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
            ∗ na_own cerise_nais E
-           ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+           ∗ PC ↦ₚ lupdatePcPerm (rcra)
            ∗ cgp ↦ᵣ rcgp
            ∗ cra ↦ᵣ rcra
            ∗ cs0 ↦ᵣ rcs0
@@ -178,9 +178,9 @@ Section Switcher_KtK.
         (∃ (rmap' : LReg) (stk_mem' : list LWord) rcgp rcra rcs0 rcs1,
            ⌜ dom rmap' =
                  all_registers_s ∖
-                   {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
+                   {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
            ∗ na_own cerise_nais E
-           ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+           ∗ PC ↦ₚ lupdatePcPerm (rcra)
            ∗ cgp ↦ᵣ rcgp
            ∗ cra ↦ᵣ rcra
            ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
@@ -229,9 +229,9 @@ Section Switcher_KtK.
                (stk_mem_ret : list LWord),
              ⌜ dom rmap_ret =
                    all_registers_s ∖
-                     {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
+                     {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
              ∗ na_own cerise_nais E
-             ∗ PC ↦ᵣ WCap true XSRW_ Local
+             ∗ PC ↦ₚ WCap true XSRW_ Local
                          b_switcher e_switcher a_switcher_return
              ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
              ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
@@ -262,9 +262,9 @@ Section Switcher_KtK.
                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
                ∗ ⌜ dom rmap_final =
                      all_registers_s ∖
-                       {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
+                       {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
                ∗ na_own cerise_nais E
-               ∗ PC ↦ᵣ lupdatePcPerm (rcra)
+               ∗ PC ↦ₚ lupdatePcPerm (rcra)
                ∗ cgp ↦ᵣ rcgp
                ∗ cra ↦ᵣ rcra
                ∗ cs0 ↦ᵣ rcs0

@@ -23,12 +23,13 @@ Section Switcher_Call_Blocks_6.
     pc_a wca0 wca1 :
     SubBounds b_switcher e_switcher pc_a
       (pc_a ^+ length (switcher_instrs_n 17))%a ->
-    (pc_a ^+ 2 + (-61))%a = Some a_switcher_return ->
-    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    (pc_a ^+ 2 + (switcher_block_offset 12 - switcher_block_offset 17 - 2))%a =
+      Some a_switcher_return ->
+    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a (switcher_instrs_n 17) ∗
-    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
         ca1 ↦ᵣ WInt 0 ∗
         codefrag_pers pc_a (switcher_instrs_n 17) -∗
@@ -38,6 +39,9 @@ Section Switcher_Call_Blocks_6.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hsub Hret) "(HPC & Hca0 & Hca1 & #Hcode & Hpost)".
+    (* Compute the distance to the return block. *)
+    offsets_compute.
+    offsets_sub_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
     (* Mov ca0 (inl (-1)%Z) *)
@@ -51,11 +55,11 @@ Section Switcher_Call_Blocks_6.
 
   (** Block 17: force the unwinding of the call. *)
   Lemma switcher_call_block_17_spec (wca0 wca1 : LWord) :
-    PC ↦ᵣ switcher_block_pc 17 ∗
+    PC ↦ₚ switcher_block_pc 17 ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     switcher_code ∗
-    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
         ca1 ↦ᵣ WInt 0 ∗
         switcher_code -∗

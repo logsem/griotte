@@ -1,9 +1,9 @@
-From iris.algebra Require Import frac.
-From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
+From griotte Require Import machine_parameters assembler.
 From griotte Require Import kvs fetch assert.
 
 Section KVS_Main.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
   (** Example using the KVS service.
@@ -23,99 +23,125 @@ Section KVS_Main.
       ```
    *)
 
-  Definition SWITCHER_CALL_OFFSET := 0.
-  Definition ASSERT_OFFSET := 1.
-  Definition ADV_F_OFFSET := 2.
-  Definition KVS_INSERT_OFFSET := 3.
-  Definition KVS_READ_OFFSET := 4.
-  Definition KVS_ERASE_OFFSET := 5.
-  Definition SEALED_USER_KEY_OFFSET := 6.
+  Definition SWITCHER_CALL_OFFSET : nat := 0.
+  Definition ASSERT_OFFSET : nat := 1.
+  Definition ADV_F_OFFSET : nat := 2.
+  Definition KVS_INSERT_OFFSET : nat := 3.
+  Definition KVS_READ_OFFSET : nat := 4.
+  Definition KVS_ERASE_OFFSET : nat := 5.
+  Definition SEALED_USER_KEY_OFFSET : nat := 6.
 
-  (** Multi-instruction fragments and semantic phases used by the main proof. *)
-  Definition kvs_main_add_args_instrs : list Word :=
-    encodeInstrsW [
-      (* #"main_code"; *)
-      (* addOrUpdate(sealedUserKey, 1, 12) *)
-      Mov ca0 cs1;
-      Mov ca1 1;
-      Mov ca2 12
+  (** The main program. The data symbols [#@] name the entries of the
+      import table, which precedes the code, in the order of
+      [kvs_main_imports]; the offsets above are their indices. *)
+  Definition kvs_main_asm : list (list asm_code) :=
+    [ (* 0: fetch the sealed user key *)
+      [ #@".Limport_switcher";
+        #@".Limport_assert";
+        #@".Limport_adv";
+        #@".Limport_addOrUpdate";
+        #@".Limport_read";
+        #@".Limport_erase";
+        #@".Limport_user_key" ] ++
+      fetch_asm ".Limport_user_key" cs1;
+      (* 1: addOrUpdate(sealedUserKey, 1, 12) *)
+      [ mov ca0 cs1;
+        mov ca1 1;
+        mov ca2 12 ];
+      (* 2: ctp -> switcher entry point *)
+      fetch_asm ".Limport_switcher" ctp;
+      (* 3: ct1 -> {KVS.addOrUpdate}_(ot_switcher) *)
+      fetch_asm ".Limport_addOrUpdate" ct1;
+      (* 4 *)
+      [ jalr cra ctp ];
+      (* 5: check if inserted *)
+      [ jnz 2 ca0; (* ca0 = 0 if inserted. So, jumps if no empty slot *)
+        (* case INSERT_PASS *)
+        jmp 2;
+        (* case INSERT_FAIL / ENOTENOUGHTRUSTEDSTACK *)
+        halt;
+        (* case INSERT_PASS *)
+        mov ca0 0;
+        mov ca1 0 ];
+      (* 6: ctp -> switcher entry point *)
+      fetch_asm ".Limport_switcher" ctp;
+      (* 7: ct1 -> {adv.f}_(ot_switcher) *)
+      fetch_asm ".Limport_adv" ct1;
+      (* 8: adv.f() *)
+      [ jalr cra ctp ];
+      (* 9: res = read(sealedUserKey, 1) *)
+      [ mov ca0 cs1;
+        mov ca1 1 ];
+      (* 10: ctp -> switcher entry point *)
+      fetch_asm ".Limport_switcher" ctp;
+      (* 11: ct1 -> {KVS.read}_(ot_switcher) *)
+      fetch_asm ".Limport_read" ct1;
+      (* 12 *)
+      [ jalr cra ctp ];
+      (* 13: check if ENOTENOUGHTRUSTEDSTACK *)
+      [ jnz 2 ca0; (* ca0 = 0 if NOT ENOTENOUGHTRUSTEDSTACK. *)
+        (* case PASS *)
+        jmp 2;
+        (* case ENOTENOUGHTRUSTEDSTACK *)
+        halt;
+        (* case PASS *)
+        mov ct0 ca1;
+        mov ct1 12 ];
+      (* 14: assert (ret == 12), that is ( *ct0 = *ct1 ) *)
+      assert_asm ".Limport_assert" ct2 ca2;
+      (* 15 *)
+      [ halt ]
     ].
 
-  Definition kvs_main_add_result_instrs : list Word :=
-    encodeInstrsW [
-      (* check if inserted *)
-      Jnz 2 ca0;  (* ca0 = 0 if inserted. So, jumps if no empty slot *)
-      (* case INSERT_PASS *)
-      Jmp 2;
-      (* case INSERT_FAIL / ENOTENOUGHTRUSTEDSTACK *)
-      Halt;
-      (* case INSERT_PASS *)
-      Mov ca0 0;
-      Mov ca1 0
-    ].
-
-  Definition kvs_main_read_args_instrs : list Word :=
-    encodeInstrsW [
-      (* read(sealedUserKey, 1)*)
-      Mov ca0 cs1;
-      Mov ca1 1
-    ].
-
-  Definition kvs_main_read_result_instrs : list Word :=
-    encodeInstrsW [
-      (* check if ENOTENOUGHTRUSTEDSTACK *)
-      Jnz 2 ca0;  (* ca0 = 0 if NOT ENOTENOUGHTRUSTEDSTACK. *)
-      (* case PASS *)
-      Jmp 2;
-      (* case ENOTENOUGHTRUSTEDSTACK *)
-      Halt;
-      (* case PASS *)
-      Mov ct0 ca1;
-      Mov ct1 12
-    ].
+  Definition kvs_main_assembled' :=
+    Eval vm_compute in assemble_block kvs_main_asm.
+  Definition kvs_main_assembled :=
+    Eval cbv in revert_regs_code_block kvs_main_assembled'.
+  Definition kvs_main_instrs_n (n : nat) : list Word :=
+    encodeInstrsW (default [] (kvs_main_assembled !! n)).
 
   Definition kvs_main_add_phase_instrs : list Word :=
-    fetch_instrs SEALED_USER_KEY_OFFSET cs1 ct0 ct1
-    ++ kvs_main_add_args_instrs
-    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1
-    ++ fetch_instrs KVS_INSERT_OFFSET ct1 ct0 cs0
-    ++ encodeInstrsW [Jalr cra ctp]
-    ++ kvs_main_add_result_instrs.
+    kvs_main_instrs_n 0
+    ++ kvs_main_instrs_n 1
+    ++ kvs_main_instrs_n 2
+    ++ kvs_main_instrs_n 3
+    ++ kvs_main_instrs_n 4
+    ++ kvs_main_instrs_n 5.
 
   Definition kvs_main_adversary_phase_instrs : list Word :=
-    fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1
-    ++ fetch_instrs ADV_F_OFFSET ct1 ct0 cs0
-    ++ encodeInstrsW [Jalr cra ctp].
+    kvs_main_instrs_n 6
+    ++ kvs_main_instrs_n 7
+    ++ kvs_main_instrs_n 8.
 
   Definition kvs_main_read_assert_phase_instrs : list Word :=
-    kvs_main_read_args_instrs
-    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1
-    ++ fetch_instrs KVS_READ_OFFSET ct1 ct0 cs0
-    ++ encodeInstrsW [Jalr cra ctp]
-    ++ kvs_main_read_result_instrs
-    ++ assert_instrs ASSERT_OFFSET ct2 ct3 ct4
-    ++ encodeInstrsW [Halt].
+    kvs_main_instrs_n 9
+    ++ kvs_main_instrs_n 10
+    ++ kvs_main_instrs_n 11
+    ++ kvs_main_instrs_n 12
+    ++ kvs_main_instrs_n 13
+    ++ kvs_main_instrs_n 14
+    ++ kvs_main_instrs_n 15.
 
   Definition kvs_main_code : list Word :=
-    fetch_instrs SEALED_USER_KEY_OFFSET cs1 ct0 ct1 (* cs1 -> switcher entry point *)
-    ++ kvs_main_add_args_instrs
-    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
-    ++ fetch_instrs KVS_INSERT_OFFSET ct1 ct0 cs0    (* ct1 -> {KVS.addOrUpdate}_(ot_switcher)  *)
-    ++ encodeInstrsW [Jalr cra ctp]
-    (* adv.f() *)
-    ++ kvs_main_add_result_instrs
-    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
-    ++ fetch_instrs ADV_F_OFFSET ct1 ct0 cs0         (* ct1 -> {adv.f}_(ot_switcher)  *)
-    ++ encodeInstrsW [Jalr cra ctp]
-    (* res = read(sealedUserKey, 1) *)
-    ++ kvs_main_read_args_instrs
-    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
-    ++ fetch_instrs KVS_READ_OFFSET ct1 ct0 cs0      (* ct1 -> {KVS.read}_(ot_switcher)  *)
-    ++ encodeInstrsW [Jalr cra ctp]
-    (* assert (ret == 12) *)
-    ++ kvs_main_read_result_instrs
-    ++ assert_instrs ASSERT_OFFSET ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
-    ++ encodeInstrsW [Halt].
+    kvs_main_instrs_n 0
+    ++ kvs_main_instrs_n 1
+    ++ kvs_main_instrs_n 2
+    ++ kvs_main_instrs_n 3
+    ++ kvs_main_instrs_n 4
+    ++ kvs_main_instrs_n 5
+    ++ kvs_main_instrs_n 6
+    ++ kvs_main_instrs_n 7
+    ++ kvs_main_instrs_n 8
+    ++ kvs_main_instrs_n 9
+    ++ kvs_main_instrs_n 10
+    ++ kvs_main_instrs_n 11
+    ++ kvs_main_instrs_n 12
+    ++ kvs_main_instrs_n 13
+    ++ kvs_main_instrs_n 14
+    ++ kvs_main_instrs_n 15.
+
+  Local Close Scope Z_scope.
+  Local Coercion Z.of_nat : nat >-> Z.
 
   Definition kvs_main_data  : list Word := [].
   Definition kvs_main_static_sealed ( KVS_USER_KEY_MAIN : Z ) : list Word := [ WInt KVS_USER_KEY_MAIN ].
@@ -135,4 +161,68 @@ Section KVS_Main.
       (kvs_user_seal_key Global kvs_main_static_sealed_addr)
     ].
 
+  (** The size of the import table, which precedes the code. *)
+  Definition kvs_main_imports_size : nat := 7.
+
+  Lemma kvs_main_imports_length {KVS : kvsLayout}
+    (kvs_main_static_sealed_addr : Addr)
+    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+    (b_assert e_assert : Addr) (B_f : Sealable) :
+    length (kvs_main_imports kvs_main_static_sealed_addr b_switcher e_switcher
+      a_cc_switcher ot_switcher b_assert e_assert B_f) = kvs_main_imports_size.
+  Proof. reflexivity. Qed.
+
 End KVS_Main.
+
+(** The code of the concrete adversary of [kvs_concrete], assembled here,
+    away from the program logic's coercions. It inserts key [1] with value
+    [42] in its own KVS namespace, then erases that key. It restores its
+    return capability and clears its argument registers before returning to
+    the main program. *)
+Section kvs_B_code.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
+
+  Definition kvs_B_asm : list asm_code :=
+    [ #@".Limport_switcher";
+      #@".Limport_addOrUpdate";
+      #@".Limport_read";
+      #@".Limport_erase";
+      #@".Limport_user_key";
+      #"adv_entry" ] ++
+    (* Fetch the adversary's sealed KVS user key. *)
+    fetch_asm ".Limport_user_key" cs1 ++
+    (* Preserve the return capability and prepare
+       addOrUpdate(sealed key, 1, 42). *)
+    [ mov cs0 cra;
+      mov ca0 cs1;
+      mov ca1 1;
+      mov ca2 42 ] ++
+    (* Fetch the switcher entry point and the sealed KVS.addOrUpdate entry
+       point, and invoke KVS.addOrUpdate through the switcher. *)
+    fetch_asm ".Limport_switcher" ctp ++
+    fetch_asm ".Limport_addOrUpdate" ct1 ++
+    [ jalr cra ctp;
+      (* Prepare erase(sealed key, 1). *)
+      mov ca0 cs1;
+      mov ca1 1 ] ++
+    (* Fetch the switcher entry point and the sealed KVS.erase entry point,
+       and invoke KVS.erase through the switcher. *)
+    fetch_asm ".Limport_switcher" ctp ++
+    fetch_asm ".Limport_erase" ct1 ++
+    [ jalr cra ctp;
+      (* Restore the return capability, clear arguments, and return via the
+         switcher. *)
+      mov cra cs0;
+      mov ca0 0;
+      mov ca1 0;
+      mov ca2 0;
+      ret ].
+
+  Definition kvs_B_instrs : list instr :=
+    Eval vm_compute in concat (assemble_block [kvs_B_asm]).
+
+  (** The offset of the entry point from the start of the PCC. *)
+  Definition kvs_B_adv_entry : nat :=
+    Eval vm_compute in default 0%nat ((compute_asm_code_env kvs_B_asm).2 !! "adv_entry").
+End kvs_B_code.

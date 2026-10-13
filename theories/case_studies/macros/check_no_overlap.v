@@ -40,7 +40,7 @@ Section Check_No_Overlap.
         ].
 
   Definition check_no_overlap_asm_env :=
-    Eval vm_compute in (compute_asm_code_env (check_no_overlap_asm_pre PC PC PC PC)).2.
+    Eval vm_compute in (compute_asm_code_env (check_no_overlap_asm_pre cnull cnull cnull cnull)).2.
   Definition check_no_overlap_asm ( rsrc1 rsrc2 r1 r2 : RegName) :=
     Eval compute in resolve_labels_macros (check_no_overlap_asm_pre rsrc1 rsrc2 r1 r2) check_no_overlap_asm_env.
   Definition check_no_overlap (rsrc1 rsrc2 r1 r2 : RegName) : list instr :=

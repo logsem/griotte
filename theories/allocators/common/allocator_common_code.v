@@ -27,6 +27,24 @@ Section AllocatorCommonCode.
 
   Definition allocator_revoker_import_off : Z := 2.
 
+  (** The imports are a data prefix of the code, named by symbols in the order
+      of [allocator_imports]: an allocator program starts with
+      [allocator_import_symbols_asm], and the fetches load the imports
+      relative to the PC. *)
+  Definition allocator_import_symbols_asm : list asm_code :=
+    [ #@".Limport_shadow";
+      #@".Limport_unsealing_key";
+      #@".Limport_revoker"
+    ].
+
+  (** Prefix the first block of an allocator program [l] with the import
+      symbols. *)
+  Definition allocator_with_imports (l : list (list asm_code)) : list (list asm_code) :=
+    match l with
+    | [] => []
+    | b :: l => (allocator_import_symbols_asm ++ b) :: l
+    end.
+
   Definition allocator_header_words : Z := 3.
 
   (** These loops resolve their local labels before being embedded into a
@@ -88,17 +106,18 @@ Section AllocatorCommonCode.
 
   (** The shadow segment of [malloc]: [ca2] holds the payload capability with
       its cursor at the payload base, [ct0] the full heap capability with its
-      cursor at the new header, [ct1] the payload base and [ct2] its end. The
-      memory is zeroed before its shadow entries are written. *)
+      cursor at the new header, [ct1] the payload base, [ct2] its end and
+      [ctp] the shadow capability, fetched from the imports by the block
+      before the segment. The memory is zeroed before its shadow entries are
+      written. *)
 
   Definition allocator_malloc_shadow_asm : list (list asm_code) :=
-    [ allocator_zero_asm ca2 ct2 ct3;
-      fetch_asm allocator_shadow_import_off ctp ct3 ca2;
+    [ allocator_zero_asm ca2 ct2 ca3;
       [ (* Translate the header address by its offset within the heap. *)
-        getb ct3 ct0;
-        sub ct3 ct1 ct3;
-        sub ct3 ct3 allocator_header_words;
-        lea ctp ct3;
+        getb ca3 ct0;
+        sub ca3 ct1 ca3;
+        sub ca3 ca3 allocator_header_words;
+        lea ctp ca3;
         mov ca2 allocator_header_words
       ];
       (* Paint the three header words quarantined, as CHERIoT does: [free]
@@ -145,7 +164,9 @@ Section AllocatorCommonCode.
 
   (** The tail of [free], once the request is known to be an allocation:
       [ctp] holds the shadow capability with its cursor at the payload base,
-      [ca2] the payload size, [ct1] the payload base and [ct2] its end. It
+      [ca2] the payload size, [ct1] the payload base, [ct2] its end and [ca3]
+      the revoker capability, fetched from the imports by the block before the
+      segment. It
       paints the payload quarantined, revokes it and unpaints it. It also
       holds the rejection of an invalid request, and the return. *)
 
@@ -157,13 +178,14 @@ Section AllocatorCommonCode.
         mov ca0 ALLOC_OK;
         mov ca1 0
       ];
-      fetch_asm allocator_revoker_import_off ct3 ct4 ca2;
-      [ (* Sweep memory: every capability to the painted payload loses its tag. *)
-        store ct3 0;
-        (* Rewind the shadow cursor to the payload base and reset the count. *)
-        sub ct4 ct1 ct2;
-        lea ctp ct4;
-        sub ca2 ct2 ct1
+      [ (* The offset back to the payload base and the count, computed first
+           so that [ca4] and [ca2] hold integers during the sweep. *)
+        sub ca4 ct1 ct2;
+        sub ca2 ct2 ct1;
+        (* Sweep memory: every capability to the painted payload loses its tag. *)
+        store ca3 0;
+        (* Rewind the shadow cursor to the payload base. *)
+        lea ctp ca4
       ];
       (* The revoked payload leaves quarantine: unpaint it. *)
       allocator_paint_asm ctp ca2 ShadowLive;

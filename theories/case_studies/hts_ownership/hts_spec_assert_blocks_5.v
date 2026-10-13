@@ -35,11 +35,13 @@ Section HTS_Spec_Assert.
     disjoint_from_shadow cgp_b cgp_e ->
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    (pc_b + length (hts_main_imports owner_a C_f))%a = Some pc_a ->
     hts_ctx ∗
     adv2_ret
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hcgp_shadow Hcgp_contiguous HsubBounds) "(#Hctx & Hret)".
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_contiguous HsubBounds Himports_contiguous)
+      "(#Hctx & Hret)".
     iDestruct "Hctx" as "(#Hassert & _)".
     iDestruct "Hret" as "(Hframe & Hregs)".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & _ & _ & _
@@ -67,13 +69,14 @@ Section HTS_Spec_Assert.
     (* Block 22: fetch and call the assertion service. *)
     focus_block 22 "Hcode_main" of hts_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iExtractList "Hrmap" [ct2;ct3;ct4;cnull] as
-      ["[Hct2 _]";"[Hct3 _]";"[Hct4 _]";"[Hcnull _]"].
-    iApply (assert_success_spec with
-      "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1
+    iExtractList "Hrmap" [ct2;ca2;cnull] as
+      ["[Hct2 _]";"[Hca2 _]";"[Hcnull _]"].
+    iApply (assert_success_spec 1 with
+      "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1
         $Hcnull $Hcra $Hcode $Himport_assert]"); auto.
+    { offsets_compute; solve_addr. }
     { solve_addr. }
-    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0
       & Hct1 & Hcnull & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

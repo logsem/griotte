@@ -108,15 +108,15 @@ Section fundamental.
        - when the caller is trusted, use the continuation relation;
        - when the caller is untrusted, close the world and
          [switcher_jump_to_caller_spec]. *)
-    iIntros "[#Hinv_switcher #[Hcode _]] %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iIntros "[#Hinv_switcher #[Hcode _]] %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (HPC & Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
     rewrite /registers_pointsto.
 
     (* --- Extract scratch registers ct2 ctp --- *)
     cbn in Hfull_rmap.
 
-    getRegValList [PC;cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1].
-    iExtractList "Hrmap" [PC;cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1]
-      as ["HPC";"Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1"].
+    getRegValList [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1].
+    iExtractList "Hrmap" [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1]
+      as ["Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1"].
     iAssert (interp W C wcsp) as "#Hinterp_wcsp".
     { iApply "Hrmap_interp"; eauto; done. }
     iAssert (interp W C wca0) as "#Hinterp_wca0".

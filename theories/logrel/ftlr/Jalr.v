@@ -33,16 +33,14 @@ Section fundamental.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
-    iInsert "Hmap" PC.
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_Jalr with "[$Ha $Hmap]"); eauto.
-    { simplify_map_eq; auto. }
+    iApply (wp_Jalr with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
-      apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
+      apply elem_of_dom. apply Hsome. }
 
-    iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
+    iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [ regs' pc_a' wsrc Hrsrc Hpca' ->| Hpca' ]; cycle 1.
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -65,21 +63,9 @@ Section fundamental.
     }
 
     iApply wp_pure_step_later; auto.
-    rewrite (linsert_reg_not_cnull PC) // insert_insert_eq.
-
-    destruct (decide (rdst = PC)) as [HPC_dst|HPC_dst]; simplify_eq.
-    { iNext; iIntros "_".
-      iApply (wp_bind (fill [SeqCtx])).
-      rewrite (linsert_reg_not_cnull PC) // insert_insert_eq.
-      iExtract "Hmap" PC as "HPC".
-      iApply (wp_notCorrectPC with "HPC"); first by inversion 1.
-      iNext; iIntros "HPC /=".
-      iApply wp_pure_step_later; auto; iNext; iIntros "_".
-      iApply wp_value; iIntros; discriminate.
-    }
 
     set (wret := if decide (rdst = cnull) then lnull else WSentry true p g b e pc_a' @@? None).
-    rewrite /linsert_reg (insert_insert_ne _ rdst PC) //.
+    rewrite /linsert_reg.
     iAssert (interp W C wret) as "#Hinterp_ret'".
     { rewrite /wret.
       destruct (decide (rdst = cnull)); [by iApply interp_untagged | iExact "Hinterp_ret"]. }
@@ -90,14 +76,11 @@ Section fundamental.
     destruct wsrc as [wsrc πs].
     rewrite /lupdatePcPerm /lift_word /=.
     iAssert (interp W C (wsrc @@? πs)) as "#Hwsrc".
-    { destruct (decide (rsrc = PC)) as [->|HrsrcPC].
-      - rewrite llookup_reg_not_cnull // lookup_insert_eq in Hrsrc.
-        injection Hrsrc as <- <-. iExact "Hinv_interp".
-      - destruct (decide (rsrc = cnull)) as [->|Hnull].
-        + rewrite /llookup_reg in Hrsrc. apply bind_Some in Hrsrc as (? & _ & Hw).
-          injection Hw as <- <-. by iApply interp_untagged.
-        + rewrite llookup_reg_not_cnull // lookup_insert_ne // in Hrsrc.
-          iApply "Hreg"; eauto. }
+    { destruct (decide (rsrc = cnull)) as [->|Hnull].
+      + rewrite /llookup_reg in Hrsrc. apply bind_Some in Hrsrc as (? & _ & Hw).
+        injection Hw as <- <-. by iApply interp_untagged.
+      + rewrite llookup_reg_not_cnull // in Hrsrc.
+        iApply "Hreg"; eauto. }
 
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
     iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
@@ -109,7 +92,6 @@ Section fundamental.
     { destruct t0; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
-        iExtract "Hmap" PC as "HPC".
         iApply (wp_notCorrectPC_tag with "HPC"); first done.
         iNext; iIntros "HPC /=".
         iApply wp_pure_step_later; auto; iNext; iIntros "_".
@@ -118,7 +100,6 @@ Section fundamental.
       destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
-        iExtract "Hmap" PC as "HPC".
         iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
         iNext; iIntros "HPC /=".
         iApply wp_pure_step_later; auto; iNext; iIntros "_".
@@ -129,10 +110,10 @@ Section fundamental.
       { destruct c; inv Hwsrc.
         iNext ; iIntros "_".
         iApply ("IH" $! _ _ _ _ _ (<[rdst:=wret]> regs) with
-                 "[%] [] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
+                 "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
         - intros; cbn. rewrite lookup_insert_is_Some.
           destruct (decide (rdst = x)); auto; right; split; auto.
-        - iIntros (ri wi Hri Hregs_ri).
+        - iIntros (ri wi Hregs_ri).
           destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
           * iApply ("Hreg" $! ri) ; auto.
           * iExact "Hinterp_ret'".
@@ -148,20 +129,19 @@ Section fundamental.
       iSpecialize ("Hinterp_src" $! g0 Hg0).
       iNext. iIntros "_".
       iApply ("Hinterp_src" $! cstk Ws Cs (<[rdst:=wret]> regs)
-               with "[$Hmap $Hworld_interp $Htframe $Hown $Hcont]").
+               with "[$HPC $Hmap $Hworld_interp $Htframe $Hown $Hcont]").
       iSplit; last done.
       iSplit.
       + iIntros (ri); cbn; iPureIntro.
         rewrite lookup_insert_is_Some.
         destruct (decide (rdst = ri)); auto; right; split; auto.
-      + iIntros (ri wi Hri Hregs_ri).
+      + iIntros (ri wi Hregs_ri).
         destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
         * iApply ("Hreg" $! ri) ; auto.
         * iExact "Hinterp_ret'".
     }
 
     (* Non-capability cases *)
-    all: iExtract "Hmap" PC as "HPC".
     all: iNext; iIntros "_".
     all: iApply (wp_bind (fill [SeqCtx])).
     all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].

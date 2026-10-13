@@ -26,7 +26,7 @@ Section DLE_Overwrite_Blocks_3.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length dle_main_code)%a ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 3)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_instr_offset 3 3)%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ct0 ↦ᵣ wct0 ∗
@@ -36,7 +36,7 @@ Section DLE_Overwrite_Blocks_3.
     cs1 ↦ᵣ WSealed ot_switcher C_f ∗
     cgp_b ↦ₐ wcgp_b ∗
     codefrag_pers pc_a dle_main_code ∗
-    ▷ ( PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ dle_switcher_entry ∗

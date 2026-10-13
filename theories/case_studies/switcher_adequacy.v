@@ -42,7 +42,7 @@ Section helpers_switcher_adequacy.
     iModIntro;iNext.
 
     iIntros (cstk Ws Cs ???)
-      "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
+      "( Hcont & %Hfreq & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hworld_interp & %Hcsp_sync & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
@@ -50,9 +50,8 @@ Section helpers_switcher_adequacy.
     iSpecialize ("H_jmp" $! cstk Ws Cs regs).
     iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
     iApply "H_jmp".
-    rewrite insert_id ; last done.
     iFrame "∗%#".
-    iIntros (r v Hrpc Hr).
+    iIntros (r v Hr).
     destruct (decide (r = cgp)) as [-> | Hrcgp].
     { rewrite Hregs_cgp in Hr ; simplify_eq.
       iExact "Hinterp_cgp'".
@@ -63,11 +62,11 @@ Section helpers_switcher_adequacy.
     }
     destruct (decide (r = csp)) as [-> | Hrcsp].
     { by rewrite Hregs_csp in Hr ; simplify_eq. }
-    assert (r ∉ ({[PC; cra; cgp; csp]} : gset RegName)) as Hrr.
-    { set_solver+Hrpc Hrcgp Hrcsp Hrcra. }
+    assert (r ∉ ({[cra; cgp; csp]} : gset RegName)) as Hrr.
+    { set_solver+Hrcgp Hrcsp Hrcra. }
     destruct (decide ( r ∈ dom_arg_rmap args)) as [Hr_arg | Hr_arg].
     + iApply "Hregs_interp"; eauto.
-    + assert (r ∉ {[PC; cra; cgp; csp]} ∪ dom_arg_rmap args) as Hrrr by set_solver+Hrr Hr_arg.
+    + assert (r ∉ {[cra; cgp; csp]} ∪ dom_arg_rmap args) as Hrrr by set_solver+Hrr Hr_arg.
       iSpecialize ("Hregs_zeros" $! r _ Hrrr Hr); iDestruct "Hregs_zeros" as "->".
       iApply interp_int.
   Qed.

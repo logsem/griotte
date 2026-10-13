@@ -19,7 +19,7 @@ Section KVS_search.
     (rkey ridx ridx_empty rscratch : RegName)
     (pkvs : kvs_physical_map) (idx : nat) (fkey : full_key_t) (w : LWord) : iProp Σ :=
     let instrs := kvs_search_instrs rkey ridx ridx_empty rscratch in
-    (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+    (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx))%a ∗
      rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ WInt idx ∗ ridx_empty ↦ᵣ - ∗ rscratch ↦ᵣ - ∗
@@ -37,7 +37,7 @@ Section KVS_search.
     (pkvs : kvs_physical_map) (fkey : full_key_t) : iProp Σ :=
     let instrs := kvs_search_instrs rkey ridx ridx_empty rscratch in
     ((∃ idx_empty_slot : nat,
-       PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+       PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
        rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ WInt (-1)%Z ∗
        ridx_empty ↦ᵣ WInt idx_empty_slot ∗ rscratch ↦ᵣ - ∗
@@ -49,7 +49,7 @@ Section KVS_search.
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty_slot + 2))%a = true⌝ ∗
        ⌜0 <= idx_empty_slot⌝ ∗
        ⌜pkvs !! idx_empty_slot = Some None⌝ ∗ codefrag_pers pc_a instrs) ∨
-     (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+     (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ WInt (-1)%Z ∗
       ridx_empty ↦ᵣ WInt (-1)%Z ∗ rscratch ↦ᵣ - ∗
@@ -86,7 +86,7 @@ Section KVS_search.
     ridx_empty ≠ cnull ->
     rkey ≠ cnull ->
 
-    (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+    (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ∗
      rkey ↦ᵣ WInt fkey ∗
@@ -98,7 +98,7 @@ Section KVS_search.
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ w2 ∗
      codefrag_pers pc_a instrs ∗
 
-     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+     ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a ∗
         rkey ↦ᵣ WInt fkey ∗
@@ -153,7 +153,7 @@ Section KVS_search.
     ridx_empty ≠ cnull ->
     rkey ≠ cnull ->
 
-    (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+    (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ∗
      rkey ↦ᵣ WInt fkey ∗
@@ -166,7 +166,7 @@ Section KVS_search.
      codefrag_pers pc_a instrs ∗
 
      ▷ (((⌜fkey = kidx⌝ ∗
-           PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+           PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
            cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
              (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ∗
            rkey ↦ᵣ WInt fkey ∗
@@ -178,7 +178,7 @@ Section KVS_search.
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ widx ∗
            codefrag_pers pc_a instrs) ∨
           (⌜fkey ≠ kidx⌝ ∗
-           PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+           PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
            cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
              (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a ∗
            rkey ↦ᵣ WInt fkey ∗
@@ -263,7 +263,7 @@ Section KVS_search.
     ridx_empty ≠ cnull ->
     rkey ≠ cnull ->
 
-    (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+    (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_e ∗
      rkey ↦ᵣ WInt fkey ∗
      ridx ↦ᵣ WInt SIZE_MAP ∗
@@ -271,7 +271,7 @@ Section KVS_search.
      rscratch ↦ᵣ wscratch ∗
      codefrag_pers pc_a instrs ∗
 
-     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+     ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         rkey ↦ᵣ WInt fkey ∗
         ridx ↦ᵣ WInt (-1)%Z ∗
@@ -310,7 +310,7 @@ Section KVS_search.
     withinBounds cgp_b cgp_e cgp_b = true ->
     ((cgp_b + (ASM_SIZEOF_KVS_ENTRY * SIZE_MAP)%Z)%a = Some cgp_e)%a ->
     rscratch ≠ cnull -> ridx ≠ cnull -> ridx_empty ≠ cnull -> rkey ≠ cnull ->
-    (PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    (PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
      rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ - ∗ ridx_empty ↦ᵣ - ∗ rscratch ↦ᵣ - ∗
      is_physical_kvs cgp_b pkvs ∗ codefrag_pers pc_a instrs ∗
@@ -620,7 +620,7 @@ Section KVS_search.
     rkey ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt fkey ∗
       ridx ↦ᵣ - ∗
@@ -631,7 +631,7 @@ Section KVS_search.
 
       codefrag_pers pc_a instrs ∗
       ▷ (
-          PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           cgp ↦ᵣ WCap true RW Global cgp_b cgp_e (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx) )%a ∗
           rkey ↦ᵣ WInt fkey ∗
           ridx ↦ᵣ WInt idx ∗
@@ -696,7 +696,7 @@ Section KVS_search.
     rkey ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt fkey ∗
       ridx ↦ᵣ - ∗
@@ -709,7 +709,7 @@ Section KVS_search.
       ▷ ( (* An empty slot was found*)
           ( ∃ idx_empty_slot : nat,
             (
-            PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+            PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
             rkey ↦ᵣ WInt fkey ∗
             ridx ↦ᵣ WInt (-1)%Z ∗
@@ -730,7 +730,7 @@ Section KVS_search.
           )
           ∨ (* No empty slot found*)
             (
-              PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+              PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
               cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
               rkey ↦ᵣ WInt fkey ∗
               ridx ↦ᵣ WInt (-1) ∗

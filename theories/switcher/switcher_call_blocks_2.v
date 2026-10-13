@@ -36,7 +36,7 @@ Section Switcher_Call_Blocks_2.
     disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_2)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
@@ -45,7 +45,7 @@ Section Switcher_Call_Blocks_2.
     [[a_stk,e_stk]]↦ₐ[[stk_mem]] ∗
     codefrag_pers pc_a switcher_instrs_2 ∗
     ▷ ( ∀ stk_mem',
-          ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_2)%a ∗
+          ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_2)%a ∗
             cs0 ↦ᵣ wcs0 ∗
             cs1 ↦ᵣ wcs1 ∗
             cra ↦ᵣ wcra ∗
@@ -179,14 +179,16 @@ Section Switcher_Call_Blocks_2.
     let len_switcher_3 := length switcher_instrs_3 in
     let a_tstk1 := (a_tstk ^+ 1)%a in
     let a_tstk2 := (a_tstk ^+ 2)%a in
+    (* The distance from this block to the block of the exhausted trusted stack. *)
+    let off_exhausted := (switcher_block_offset 16 - switcher_block_offset 3)%Z in
     disjoint_from_shadow b_trusted_stack e_trusted_stack ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_3)%a ->
     (b_trusted_stack <= a_tstk)%a ->
     (a_tstk <= e_trusted_stack)%a ->
 
-    (pc_a ^+ 6 + 114)%a = Some (pc_a ^+ 120)%a ->
+    (pc_a ^+ 6 + (off_exhausted - 6))%a = Some (pc_a ^+ off_exhausted)%a ->
 
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     ctp ↦ᵣ wctp ∗
     ct2 ↦ᵣ wct2 ∗
@@ -196,7 +198,7 @@ Section Switcher_Call_Blocks_2.
     codefrag_pers pc_a switcher_instrs_3 ∗
     ▷  (
         (∃ tstk_next',
-            PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_3)%a ∗
+            PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_3)%a ∗
               cs0 ↦ᵣ WInt (a_tstk1) ∗
               ctp ↦ᵣ WInt 1 ∗
               ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
@@ -212,7 +214,7 @@ Section Switcher_Call_Blocks_2.
         ∨
           (
             ⌜ ¬ (a_tstk + 1 < e_trusted_stack)%Z ⌝ ∗
-            PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 120)%a ∗
+            PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ off_exhausted)%a ∗
             cs0 ↦ᵣ WInt (a_tstk + 1) ∗
             ctp ↦ᵣ WInt 0 ∗
             ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
@@ -226,9 +228,13 @@ Section Switcher_Call_Blocks_2.
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_3 len_switcher_3 a_tstk1 a_tstk2; subst switcher_instrs_3 len_switcher_3.
+    intros switcher_instrs_3 len_switcher_3 a_tstk1 a_tstk2 off_exhausted;
+      subst switcher_instrs_3 len_switcher_3 off_exhausted.
     iIntros (Htstk_shadow Hsub_reg Hbounds_tstk_b Hbounds_tstk_e Hpc_fail)
       "(HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Htstk & #Hcode & Hpost)".
+    (* Compute the distance to the block of the exhausted trusted stack. *)
+    offsets_compute.
+    offsets_sub_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -253,7 +259,7 @@ Section Switcher_Call_Blocks_2.
     ; cycle 1.
     {
       iInstr "Hcode".
-      (* Jmp (inl 114%Z) *)
+      (* Jmp (inl 81%Z) *)
       iInstr "Hcode".
       iApply "Hpost".
       iRight.
@@ -310,7 +316,7 @@ Section Switcher_Call_Blocks_2.
     (b_trusted_stack <= a_tstk)%a ->
     (a_tstk <= e_trusted_stack)%a ->
 
-    PC ↦ᵣ switcher_block_pc 2 ∗
+    PC ↦ₚ switcher_block_pc 2 ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
@@ -332,7 +338,7 @@ Section Switcher_Call_Blocks_2.
         switcher_code ∗
         ( ( ⌜ ((a_tstk ^+ 1) + 1)%a = Some (a_tstk ^+ 2)%a ⌝ ∗
             ⌜ (a_tstk ^+ 1 < e_trusted_stack)%a ⌝ ∗
-            PC ↦ᵣ switcher_block_pc 4 ∗
+            PC ↦ₚ switcher_block_pc 4 ∗
             cs0 ↦ᵣ WInt (a_tstk ^+ 1)%a ∗
             ctp ↦ᵣ WInt 1 ∗
             ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack (a_tstk ^+ 1)%a ∗
@@ -341,7 +347,7 @@ Section Switcher_Call_Blocks_2.
             [[ (a_tstk ^+ 2)%a , e_trusted_stack ]] ↦ₐ [[ drop 1 tstk_next ]] ∗
             £ 2 )
           ∨
-          ( PC ↦ᵣ switcher_block_pc 16 ∗
+          ( PC ↦ₚ switcher_block_pc 16 ∗
             cs0 ↦ᵣ WInt (a_tstk + 1)%Z ∗
             ctp ↦ᵣ WInt 0 ∗
             ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
@@ -398,7 +404,7 @@ Section Switcher_Call_Blocks_2.
     switcher_csp_checked wcsp ->
     (∀ b e a, wcsp.(lw) = WCap true RWL Local b e a -> (a < b)%a ∨ (e <= a)%a) ->
 
-    PC ↦ᵣ switcher_block_pc 2 ∗
+    PC ↦ₚ switcher_block_pc 2 ∗
     csp ↦ᵣ wcsp ∗
     cs0 ↦ᵣ wcs0 ∗
     switcher_code

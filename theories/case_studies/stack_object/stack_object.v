@@ -1,6 +1,192 @@
+From griotte Require Import machine_parameters assembler fetch assert switcher check_no_overlap.
+
+(** The assembly of [so_main_code], from which the offsets of its fetches
+    of imports are derived. The macros [checkra_instrs],
+    [check_no_overlap_instrs] and [checkints_instrs] are written in assembly
+    here; [so_main_code_asm] checks that the assembly is the code. *)
+Section SO_Asm.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
+  Context `{MP: MachineParameters}.
+
+  Definition so_secret : Z := 42.
+
+  Definition so_checkra_asm (r r1 r2 : RegName) : list asm_code :=
+    [
+      getwtype r1 r;
+      sub r2 r1 (encodeWordType wt_cap);
+      jnz 4 r2;
+      getp r1 r;
+      sub r2 r1 (encodePerm (O LG LM));
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm (O DL LM));
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm (O LG DRO));
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm (O DL DRO));
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WO_DL);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WO_DRO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WO_DL_DRO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WLO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WLO_DL);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WLO_DRO);
+      jnz 2 r2;
+      fail;
+      sub r2 r1 (encodePerm WLO_DL_DRO);
+      jnz 2 r2;
+      fail;
+      mov r1 0;
+      mov r2 0
+    ].
+
+  Definition so_is_int_asm (r r1 : RegName) : list asm_code :=
+    [ getwtype r1 r;
+      sub r1 r1 (encodeWordType wt_int);
+      jnz 2 r1;
+      jmp 2;
+      fail ].
+
+  Definition so_checkints_asm (r r1 r2 : RegName) : list asm_code :=
+    [ (* lea_to_base *)
+      getb r1 r;
+      geta r2 r;
+      sub r1 r1 r2;
+      lea r r1;
+      mov r1 0;
+      mov r2 0;
+      getb r1 r;
+      gete r2 r;
+      lt r1 r1 r2;
+      sub r1 r1 1; (* invert result for the jump *)
+      jnz 12 r1;
+      (* the loop *)
+      load r1 r ] ++
+    so_is_int_asm r1 r2 ++
+    [ lea r 1;
+      geta r1 r;
+      gete r2 r;
+      lt r1 r1 r2;
+      jnz (-10) r1;
+      mov r1 0;
+      mov r2 0 ].
+
+  Definition so_main_asm : list (list asm_code) :=
+    [ (* run *)
+      (* the imports *)
+      [ #@".Limport_switcher";
+        #@".Limport_assert";
+        #@".Limport_B_adv" ] ++
+      fetch_asm ".Limport_switcher" ct0;
+      fetch_asm ".Limport_B_adv" ct1;
+      [ jalr cra ct0; halt ];
+      (* f *)
+      [ mov ct1 ca1 ];
+      so_checkra_asm ca0 cs0 cs1;
+      check_no_overlap_asm ca0 csp cs0 cs1;
+      so_checkints_asm ca0 cs0 cs1;
+      [ store csp so_secret;
+        lea csp 1;
+        mov ca1 csp;
+        geta cs0 ca1;
+        add cs1 cs0 1;
+        subseg ca1 cs0 cs1;
+        store ca1 0;
+        lea csp 1 ];
+      fetch_asm ".Limport_switcher" ct0;
+      [ mov cs0 cra;
+        mov cs1 ct1;
+        jalr cra ct0 ];
+      [ lea csp (-2);
+        load ct0 csp;
+        mov ct1 so_secret ];
+      assert_asm ".Limport_assert" ct2 ca2;
+      [ mov cra cs0;
+        mov ca0 0;
+        mov ca1 0;
+        ret ]
+    ].
+
+  Definition so_main_assembled :=
+    Eval vm_compute in assemble_block so_main_asm.
+
+  (** The offset of the fetch (or of the assert) of the block [n]. *)
+  Definition so_fetch_offsets : list Z :=
+    Eval vm_compute in fetch_offset <$> so_main_assembled.
+  Definition so_fetch_offset (n : nat) : Z :=
+    default 0 (so_fetch_offsets !! n).
+End SO_Asm.
+
+(** The code of the concrete adversary of [stack_object_concrete]. *)
+Section SO_C_code.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
+
+  Definition so_C_asm : list asm_code :=
+    [ #@".Limport_switcher";
+      #@".Limport_main_f";
+      #@".Limport_g";
+      #"adv_entry";
+      store csp cra;
+      lea csp 1;
+      mov ca0 csp;
+      geta cs0 ca0;
+      add cs1 cs0 1;
+      subseg ca0 cs0 cs1;
+      store ca0 0;
+      lea csp 1 ] ++
+    fetch_asm ".Limport_switcher" ct0 ++
+    fetch_asm ".Limport_main_f" ct1 ++
+    fetch_asm ".Limport_g" ca1 ++
+    [ mov cs0 cra;
+      mov cs1 ct1;
+      jalr cra ct0;
+      lea csp (-1);
+      lea csp (-1);
+      load cra csp;
+      mov ca0 0;
+      mov ca1 0;
+      mov ct0 0;
+      mov ct1 0;
+      mov cs0 0;
+      mov cs1 0;
+      ret;
+
+      #"g_entry";
+      lea ca0 (-1);
+      store ca0 7;
+      store ca1 9;
+      ret ].
+
+  Definition so_C_instrs : list instr :=
+    Eval vm_compute in concat (assemble_block [so_C_asm]).
+
+  (** The offsets of the two entry points from the start of the PCC. *)
+  Definition so_C_adv_entry : nat :=
+    Eval vm_compute in default 0%nat ((compute_asm_code_env so_C_asm).2 !! "adv_entry").
+  Definition so_C_g_entry : nat :=
+    Eval vm_compute in default 0%nat ((compute_asm_code_env so_C_asm).2 !! "g_entry").
+End SO_C_code.
+
 From griotte Require Import rules proofmode.
-From griotte Require Import fetch assert switcher.
-From griotte Require Import checkra checkints check_no_overlap.
+From griotte Require Import checkra checkints.
 
 Section SO_Main.
   Context `{MP: MachineParameters}.
@@ -60,15 +246,13 @@ int __cheri_compartment("known") run()
 
   Definition SO_main_code_run : list Word :=
     (* call B.adv LSE.awkward *)
-    fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
-    ++ fetch_instrs 2 ct1 cs0 cs1 (* ct1 -> {B.adv}_(ot_switcher)  *)
+    fetch_instrs (so_fetch_offset 0) ct0 (* ct0 -> switcher entry point *)
+    ++ fetch_instrs (so_fetch_offset 1) ct1 (* ct1 -> {B.adv}_(ot_switcher)  *)
     ++
     encodeInstrsW [
       Jalr cra ct0; (* jmp to entry point *)
       Halt
     ].
-
-  Definition so_secret : Z := 42.
 
   Definition so_f_alloc_instrs : list Word :=
     encodeInstrsW [
@@ -117,19 +301,24 @@ int __cheri_compartment("known") run()
       ++ checkints_instrs ca0 cs0 cs1
       ++ so_f_alloc_instrs
       (* call g () *)
-      ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
+      ++ fetch_instrs (so_fetch_offset 8) ct0 (* ct0 -> switcher entry point *)
       ++
       so_f_call_instrs
       ++
       (* assert csp_b *)
       so_f_assert_prep_instrs
-      ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
+      ++ assert_instrs (so_fetch_offset 11) ct2 ca2 (* asserts that ( *ct0 = *ct1 ) *)
       (* return cra *)
       ++
       so_f_return_instrs.
 
   Definition so_main_code : list Word
     := SO_main_code_run ++ SO_main_code_f.
+
+  (** The code is its assembly. *)
+  Lemma so_main_code_asm :
+    so_main_code = concat (encodeInstrsW <$> so_main_assembled).
+  Proof. reflexivity. Qed.
 
   Definition so_main_data : list Word := [].
 

@@ -1,9 +1,8 @@
-From iris.algebra Require Import frac.
-From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
-From griotte Require Import fetch assert switcher.
+From griotte Require Import machine_parameters assembler fetch assert switcher.
 
 Section VAE_Main.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
 
@@ -24,61 +23,85 @@ Section VAE_Main.
       return
    *)
 
-  Definition VAE_main_code_init : list Word :=
-    (* set a := 0 *)
-    encodeInstrsW [Store cgp 0 0]
-    (* call B.adv VAE.awkward *)
-    ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
-    ++ fetch_instrs 2 ct1 cs0 cs1 (* ct1 -> {B.f}_(ot_switcher)  *)
-    ++
-    encodeInstrsW [
-      Jalr cra ct0; (* jmp to entry point *)
-      Halt
+  Definition vae_main_asm : list (list asm_code) :=
+    [ (* init *)
+      [ (* the imports *)
+        #@".Limport_switcher";
+        #@".Limport_assert";
+        #@".Limport_B_adv";
+
+        (* set a := 0 *)
+        store cgp 0
+      ];
+      (* call B.adv VAE.awkward *)
+      fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      fetch_asm ".Limport_B_adv" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
+      [ jalr cra ct0; (* jmp to entry point *)
+        halt
+      ];
+      (* awkward *)
+      (* set a := 0 *)
+      [ store cgp 0 ];
+      (* call g () *)
+      fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      [ mov cs0 cra; (* cs0 -> return-to-switcher *)
+        mov cs1 ca0; (* cs1 -> fun_g *)
+        mov ct1 ca0; (* ct1 -> fun_g *)
+        mov ca0 0;
+        jalr cra ct0 (* jmp to g *)
+      ];
+      (* set a := 1 *)
+      [ store cgp 1;
+        mov cra cs0; (* cra -> return_to-switcher *)
+        mov ct1 cs1  (* ct1 -> fun_g *)
+      ];
+      (* call g () *)
+      fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      [ mov cs0 cra; (* cs0 -> return-to-switcher *)
+        mov ca0 0;
+        mov ca1 0;
+        jalr cra ct0; (* jmp to arg_1 *)
+
+        (* assert (a == 1) *)
+        load ct0 cgp; (* ct0 -> a *)
+        mov ct1 1  (* ct1 -> 1 *)
+      ];
+      assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
+      (* return cra *)
+      [ mov cra cs0; (* cra -> return_to-switcher *)
+
+        (* return a *)
+        mov ca0 0;
+        mov ca1 0;
+        ret
+      ]
     ].
+
+  Definition vae_main_assembled' :=
+    Eval vm_compute in assemble_block vae_main_asm.
+  Definition vae_main_assembled :=
+    Eval cbv in revert_regs_code_block vae_main_assembled'.
+  Definition vae_main_instrs_n (n : nat) : list Word :=
+    encodeInstrsW (default [] (vae_main_assembled !! n)).
+
+  Definition VAE_main_code_init : list Word :=
+    vae_main_instrs_n 0 ++
+    vae_main_instrs_n 1 ++
+    vae_main_instrs_n 2 ++
+    vae_main_instrs_n 3.
 
   Definition VAE_main_code_f (ot_switcher : OType) : list Word :=
-    (* set a := 0 *)
-    encodeInstrsW [Store cgp 0 0]
-    (* call g () *)
-    ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
-    ++
-    encodeInstrsW [
-      Mov cs0 cra; (* cs0 -> return-to-switcher *)
-      Mov cs1 ca0; (* cs1 -> fun_g *)
-      Mov ct1 ca0; (* ct1 -> fun_g *)
-      Mov ca0 0;
-      Jalr cra ct0 (* jmp to g *)
-    ]
-    (* set a := 1 *)
-    ++ encodeInstrsW [
-      Store cgp 1 0;
-      Mov cra cs0; (* cra -> return_to-switcher *)
-      Mov ct1 cs1  (* ct1 -> fun_g *)
-    ]
-    (* call g () *)
-    ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
-    ++
-    encodeInstrsW [
-      Mov cs0 cra; (* cs0 -> return-to-switcher *)
-      Mov ca0 0;
-      Mov ca1 0;
-      Jalr cra ct0; (* jmp to arg_1 *)
+    vae_main_instrs_n 4 ++
+    vae_main_instrs_n 5 ++
+    vae_main_instrs_n 6 ++
+    vae_main_instrs_n 7 ++
+    vae_main_instrs_n 8 ++
+    vae_main_instrs_n 9 ++
+    vae_main_instrs_n 10 ++
+    vae_main_instrs_n 11.
 
-      (* assert (a == 1) *)
-      CLoad ct0 cgp 0; (* ct0 -> a *)
-      Mov ct1 1%Z  (* ct1 -> 1 *)
-    ]
-    ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
-    (* return cra *)
-    ++
-    encodeInstrsW [
-      Mov cra cs0; (* cra -> return_to-switcher *)
-
-      (* return a *)
-      Mov ca0 0%Z;
-      Mov ca1 0%Z;
-      Jalr cnull cra
-    ].
+  Local Close Scope Z_scope.
+  Local Coercion Z.of_nat : nat >-> Z.
 
   Definition vae_main_code `{!switcherLayout} : list Word
     := VAE_main_code_init ++ (VAE_main_code_f ot_switcher).
@@ -110,3 +133,51 @@ Section VAE_Main.
     [ vae_exp_tbl_entry_awkward ].
 
 End VAE_Main.
+
+(** The code of the concrete adversary of [vae_concrete], assembled here,
+    away from the program logic's coercions. *)
+Section vae_C_code.
+  Import Asm_Griotte.
+  Local Open Scope Z_scope.
+
+  Definition vae_C_asm : list asm_code :=
+    [ #@".Limport_switcher";
+      #@".Limport_awkward";
+      #@".Limport_g";
+      #"adv_entry";
+      store csp cra;
+      lea csp 1 ] ++
+    fetch_asm ".Limport_switcher" ct0 ++
+    fetch_asm ".Limport_awkward" ct1 ++
+    fetch_asm ".Limport_g" ca0 ++
+    [ jalr cra ct0;
+      lea csp (-1);
+      load cra csp;
+      mov ca0 0;
+      ret;
+
+      #"g_entry";
+      load ct0 cgp;
+      jnz ("g_ret")%asm ct0;
+      store cgp 1;
+      store csp cra;
+      lea csp 1 ] ++
+    fetch_asm ".Limport_switcher" ct0 ++
+    fetch_asm ".Limport_awkward" ct1 ++
+    fetch_asm ".Limport_g" ca0 ++
+    [ jalr cra ct0;
+      lea csp (-1);
+      load cra csp;
+      mov ca0 0;
+      #"g_ret";
+      ret ].
+
+  Definition vae_C_instrs : list instr :=
+    Eval vm_compute in concat (assemble_block [vae_C_asm]).
+
+  (** The offsets of the two entry points from the start of the PCC. *)
+  Definition vae_C_adv_entry : nat :=
+    Eval vm_compute in default 0%nat ((compute_asm_code_env vae_C_asm).2 !! "adv_entry").
+  Definition vae_C_g_entry : nat :=
+    Eval vm_compute in default 0%nat ((compute_asm_code_env vae_C_asm).2 !! "g_entry").
+End vae_C_code.

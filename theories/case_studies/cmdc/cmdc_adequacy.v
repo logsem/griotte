@@ -229,14 +229,14 @@ Section Adequacy.
 
 
   Lemma cmdc_adequacy' `{Layout: @memory_layout MP}
-    (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
+    (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
     (es: list griotte_lang.expr):
-    is_initial_registers reg →
+    is_initial_registers pc reg →
     is_initial_sregisters sreg →
     is_initial_memory m →
     sh = initial_heap_shadow →
     initial_heap_memory ##ₘ mk_initial_program_memory →
-    rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
+    rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
     intros Hreg Hsreg Hm Hshadow_initial Hheap_disjoint Hstep.
@@ -276,8 +276,8 @@ Section Adequacy.
             by rewrite (assert_code_nonheap assert_cmpt).
           * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
           * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-        + rewrite main_code /cmdc_main_code /fetch.fetch_instrs /assert_instrs !Forall_app.
-          repeat split; (apply word_rooted_instrs || apply Forall_nil_2).
+        + rewrite main_code /cmdc_main_code !Forall_app.
+          repeat split; apply word_rooted_instrs.
         + rewrite main_data /cmdc_main_data. repeat constructor; apply word_rooted_int.
         + by apply word_rooted_not_heap_caps.
         + rewrite main_exp_tbl. apply Forall_nil_2.
@@ -298,7 +298,7 @@ Section Adequacy.
         + by apply word_rooted_not_heap_caps.
         + rewrite C_exp_tbl. repeat constructor; apply word_rooted_int. }
     { destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
-    iIntros (ceriseg) "Hreg Hsreg Hmem _ _ Hna ([#Hentry_Bf #Hentry_Bf'] & [#Hentry_Cg #Hentry_Cg'] & _)".
+    iIntros (ceriseg) "HPC Hreg Hsreg Hmem _ _ Hna ([#Hentry_Bf #Hentry_Bf'] & [#Hentry_Cg #Hentry_Cg'] & _)".
 
     (* 3 - We initialise the seal store, the call stack and the world
        interpretations of B and C *)
@@ -425,7 +425,7 @@ Section Adequacy.
     }
 
     (* 8 - Extract registers *)
-    iDestruct (initial_registers_split with "Hreg")
+    iDestruct (initial_registers_split with "[$HPC $Hreg]")
       as (rmap) "(HPC & Hcgp & Hcsp & Hrmap & %Hrmap_dom & %Hrmap_zero)"; first exact Hreg.
     pose proof (main_spec_size_obligations _ _ _ _ main_imports main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
@@ -507,14 +507,14 @@ Local Program Instance CmptNames_CMDC_CmptNameG : CmptNameG :=
 
 (** END-TO-END THEOREM *)
 Theorem cmdc_adequacy `{Layout: memory_layout}
-  (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
+  (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
   (es: list griotte_lang.expr):
-  is_initial_registers reg →
+  is_initial_registers pc reg →
   is_initial_sregisters sreg →
   is_initial_memory m →
     sh = initial_heap_shadow →
     initial_heap_memory ##ₘ mk_initial_program_memory →
-  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
+  rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
   m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
 Proof.
   intros ? ? ? ? ? ?.

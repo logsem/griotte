@@ -14,27 +14,8 @@ Section Assert_subroutine.
       {MP: MachineParameters}
   .
 
-  (* Asserts (ct0 == ct1). Jumps back to cra.
-     Clobbers cra, ct0, ct1.
-   *)
-  Definition assert_subroutine_instrs :=
-    encodeInstrsW [
-      Sub ct0 ct0 ct1;
-      Jnz 4 ct0;
-      (* success case *)
-      Mov ct0 0;
-      Mov ct1 0;
-      Jalr cnull cra; (* return *)
-      (* failure case *)
-      Mov ct1 PC; (* pointer to cap: *)
-      Lea ct1 7; (* pointer to cap: *)
-      CLoad ct1 ct1 0;
-      Store ct1 1 0;
-      Mov ct0 0;
-      Mov ct1 0;
-      Jalr cnull cra (* return *)
-    ].
-  (* followed in memory by:
+  (* [assert_subroutine_instrs] asserts (ct0 == ct1) and jumps back to cra.
+     It clobbers cra, ct0, ct1. It is followed in memory by:
     cap: (RW, flag, end, flag)
     flag: <0 or 1>
     end:
@@ -62,13 +43,13 @@ Section Assert_subroutine.
     is_shadow_address a_flag = false →
     is_heap_address a_flag = false →
     (  assert_static pc_b pc_e a_flag
-     ∗ PC ↦ᵣ WCap true RX pc_g pc_b pc_e pc_b
+     ∗ PC ↦ₚ WCap true RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
      ∗ cnull ↦ᵣ wnull
      ∗ a_flag ↦ₐ WInt flag
-     ∗ ▷ (PC ↦ᵣ updatePcPerm wret
+     ∗ ▷ (PC ↦ₚ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0
           ∗ ct1 ↦ᵣ WInt 0
@@ -94,10 +75,11 @@ Section Assert_subroutine.
       iGo "Hprog".
       iApply "Hφ". iFrame "∗". rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
+      (* Jnz 4 ct0. *)
       iInstr "Hprog". { intros Hcontra; inversion Hcontra; lia. }
+      (* Auipcc ct1 6. *)
       iInstr "Hprog".
-      iInstr "Hprog".
-      rewrite (_: (pc_b ^+ 12)%a = cap_addr); [|solve_addr].
+      rewrite (_: (pc_b ^+ 11)%a = cap_addr); [|solve_addr].
       assert (is_shadow_address cap_addr = false) as Hcap_not_shadow.
       { eapply disjoint_from_shadow_not_in; first exact Hcode_shadow.
         apply withinBounds_true_iff; solve_addr. }
@@ -105,7 +87,9 @@ Section Assert_subroutine.
         as Hcap_not_heap.
       { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hflag_not_heap /=.
         reflexivity. }
+      (* CLoad ct1 ct1 0. *)
       iInstr "Hprog"; first solve_addr.
+      (* Store ct1 1 0. *)
       iInstr "Hprog"; first solve_addr.
       iGo "Hprog".
       iApply "Hφ". iFrame "∗". rewrite (_: (n1 =? n2)%Z = false) //.
@@ -118,12 +102,12 @@ Section Assert_subroutine.
     (φ : language.val griotte_lang -> iProp Σ) :
     n1 = n2 →
     (  assert_static pc_b pc_e a_flag
-     ∗ PC ↦ᵣ WCap true RX pc_g pc_b pc_e pc_b
+     ∗ PC ↦ₚ WCap true RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
      ∗ cnull ↦ᵣ wnull
-     ∗ ▷ (PC ↦ᵣ updatePcPerm wret
+     ∗ ▷ (PC ↦ₚ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0%Z
           ∗ ct1 ↦ᵣ WInt 0%Z
@@ -153,36 +137,45 @@ Section Assert.
       {MP: MachineParameters}
   .
 
+  Lemma assert_instrs_fetch (off : Z) (rdst rscratch : RegName) :
+    assert_instrs off rdst rscratch =
+      fetch_instrs off rdst ++
+      encodeInstrsW [ Mov rscratch cra;
+                      Jalr cra rdst;
+                      Mov cra rscratch;
+                      Mov rscratch 0;
+                      Mov rdst 0 ].
+  Proof. reflexivity. Qed.
+
   Lemma assert_success_spec
-    (n : Z) (rdst rscratch1 rscratch2 : RegName)
+    (n off : Z) (rdst rscratch : RegName)
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
-    (n1 n2 : Z) (wdst wcra w1 w2 wnull : LWord) (dq : dfrac)
+    (n1 n2 : Z) (wdst wcra wscratch wnull : LWord) (dq : dfrac)
     (φ : language.val griotte_lang -> iProp Σ) :
 
-    let assert_macro := assert_instrs n rdst rscratch1 rscratch2 in
+    let assert_macro := assert_instrs off rdst rscratch in
     let a_last := (pc_a ^+ length assert_macro)%a in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
+    (pc_a + off)%a = Some (pc_b ^+ n)%a ->
     withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
     disjoint_from_shadow pc_b pc_e →
 
     n1 = n2 →
     (  assert_static b_assert e_assert a_flag
-     ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+     ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
      ∗ rdst ↦ᵣ wdst
-     ∗ rscratch1 ↦ᵣ w1
-     ∗ rscratch2 ↦ᵣ w2
+     ∗ rscratch ↦ᵣ wscratch
      ∗ cra ↦ᵣ wcra
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
      ∗ cnull ↦ᵣ wnull
      ∗ codefrag_pers pc_a assert_macro
      ∗ (pc_b ^+ n)%a ↦ₐ{dq} (WSentry true RX g_assert b_assert e_assert b_assert)
-     ∗ ▷ (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+     ∗ ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
           ∗ rdst ↦ᵣ WInt 0
-          ∗ rscratch1 ↦ᵣ WInt 0
-          ∗ rscratch2 ↦ᵣ WInt 0
+          ∗ rscratch ↦ᵣ WInt 0
           ∗ cra ↦ᵣ wcra
           ∗ ct0 ↦ᵣ WInt 0
           ∗ ct1 ↦ᵣ WInt 0
@@ -193,23 +186,19 @@ Section Assert.
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
     intros assert_macro a_last; subst assert_macro a_last.
-    iIntros (Hpc_exec HsubBounds Hinbounds Hcode_shadow Heq)
-      "(#Hassert & HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hcra & Hct0 & Hct1 & Hcnull & #Hcode_main & Hpc_bn & Hφ)".
+    iIntros (Hpc_exec HsubBounds Hoff Hinbounds Hcode_shadow Heq)
+      "(#Hassert & HPC & Hrdst & Hrscratch & Hcra & Hct0 & Hct1 & Hcnull & #Hcode_main & Hpc_bn & Hφ)".
     iAssert (⌜is_heap_address b_assert = false⌝)%I as %Hassert_not_heap.
     { by iDestruct "Hassert" as "[$ _]". }
     codefrag_facts "Hcode_main".
-    rewrite /assert_instrs /assembled_assert.
-    repeat (iEval (cbn [concat]) in "Hcode_main").
-    repeat (iEval (cbn [fmap list_fmap]) in "Hcode_main").
-    repeat (iEval (cbn [concat]) in "Hcode_main").
+    rewrite assert_instrs_fetch.
     focus_block_0 "Hcode_main" as "Hfetch" "Hcont"; iHide "Hcode_main" as hcode.
-    iDestruct (regname_neq with "Hrscratch1 Hcnull") as "%".
-    iDestruct (regname_neq with "Hrscratch2 Hcnull") as "%".
+    iDestruct (regname_neq with "Hrscratch Hcnull") as "%".
     iDestruct (regname_neq with "Hrdst Hcnull") as "%".
-    iApply (fetch_spec n rdst rscratch1 rscratch2 with "[-]"); last iFrame "∗ Hfetch"; eauto.
+    iApply (fetch_spec n off rdst with "[-]"); last iFrame "∗ Hfetch"; eauto.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hassert_not_heap /=.
       reflexivity. }
-    iNext; iIntros "(HPC & Hrdst & Hrscratch1 & Hrscratch2 & _ & Hpc_bn)".
+    iNext; iIntros "(HPC & Hrdst & _ & Hpc_bn)".
     unfocus_block "Hfetch" "Hcont" as "Hcode_main"; subst hcode.
     focus_block 1 "Hcode_main" as a_assert Ha_assert "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iGo "Hcode".
@@ -219,7 +208,8 @@ Section Assert.
     iEval (cbn) in "HPC".
     iGo "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    replace (a_assert ^+ 5)%a with (pc_a ^+ 14)%a by solve_addr.
+    replace (a_assert ^+ 5)%a with (pc_a ^+ length (assert_instrs off rdst rscratch))%a
+      by (cbn; solve_addr).
     iApply "Hφ"; iFrame "∗ Hcode_main".
   Qed.
 

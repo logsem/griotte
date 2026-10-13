@@ -39,7 +39,7 @@ Section HTS_Reload.
     (s + 1)%a = Some (s ^+ 1)%a ->
     (s < e)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_reload_buffer_instrs)%a ->
-    (PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    (PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
      csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
      ca0 ↦ᵣ w0 ∗
      s ↦ₐ raw ∗
@@ -47,7 +47,7 @@ Section HTS_Reload.
      load_witness_res wit ∗
      ▷ (∀ actual,
        ⌜load_post wit RWL raw actual⌝ -∗
-       PC ↦ᵣ WCap true RX Global pc_b pc_e
+       PC ↦ₚ WCap true RX Global pc_b pc_e
          (pc_a ^+ length hts_reload_buffer_instrs)%a ∗
        csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
        ca0 ↦ᵣ actual ∗
@@ -66,8 +66,7 @@ Section HTS_Reload.
     (* CLoad ca0 csp (-1). *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iDestruct (map_of_regs_3 with "HPC Hcsp Hca0")
-      as "[Hmap (%Hpc_csp & %Hpc_ca0 & %Hcsp_ca0)]".
+    iDestruct (map_of_regs_2 with "Hcsp Hca0") as "[Hmap %Hcsp_ca0]".
     iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha")
       as "[Hmem %Hpc_a]".
     iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
@@ -76,10 +75,9 @@ Section HTS_Reload.
     iApply (wp_load_general_shadow_imm ⊤ RX Global pc_b pc_e pc_a None
       ca0 csp (-1) (lword_of_word (encodeInstrW _))
       (<[pc_a:=lword_of_word (encodeInstrW _)]> (<[s:=raw]> ∅)) _ _ ∅ DfracDiscarded wit
-      with "[$Hmem $Hshadow $Hmap $Hwit]").
+      with "[$HPC $Hmem $Hshadow $Hmap $Hwit]").
     { apply decode_encode_instrW_inv. }
     { solve_pure. }
-    { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
@@ -92,8 +90,8 @@ Section HTS_Reload.
       case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & Hwit & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
                       |Hfail].
@@ -103,12 +101,10 @@ Section HTS_Reload.
         assert (ea0 = x) as -> by solve_addr end.
       rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
       injection Hlookup as <-.
-      unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
       assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc by solve_addr.
       rewrite Hpc in Hinc. simplify_eq.
-      rewrite (insert_insert_ne _ ca0 PC) // insert_insert_eq.
       rewrite (insert_insert_ne _ ca0 csp) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hcsp & Hca0)"; eauto.
+      iDestruct (regs_of_map_2 with "Hmap") as "(Hcsp & Hca0)"; eauto.
       iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
       wp_pure.
       iClear "Hi".
@@ -124,10 +120,10 @@ Section HTS_Reload.
 
   Lemma hts_check_live_buffer_spec pc_b pc_e pc_a b e a π (w0 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_check_buffer_instrs)%a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
     ∗ ca0 ↦ᵣ WCap true RW Global b e a @@? π ∗ ct0 ↦ᵣ w0
     ∗ codefrag_pers pc_a hts_check_buffer_instrs
-    ∗ ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length hts_check_buffer_instrs)%a
+    ∗ ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length hts_check_buffer_instrs)%a
          ∗ ca0 ↦ᵣ WCap true RW Global b e a @@? π ∗ ct0 ↦ᵣ WInt 1
          ∗ codefrag_pers pc_a hts_check_buffer_instrs
          -∗ WP Seq (Instr Executable)
@@ -147,7 +143,7 @@ Section HTS_Reload.
 
   Lemma hts_check_quarantined_buffer_spec pc_b pc_e pc_a b e a π (w0 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_check_buffer_instrs)%a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
     ∗ ca0 ↦ᵣ WCap false RW Global b e a @@? π ∗ ct0 ↦ᵣ w0
     ∗ codefrag_pers pc_a hts_check_buffer_instrs
     ∗ na_own cerise_nais ⊤
@@ -197,14 +193,15 @@ Section HTS_Spec_Free.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    (pc_b + length (hts_main_imports C_f))%a = Some pc_a ->
     hts_ctx ∗
     adv1_ret ∗
     (free_ret -∗
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap HsubBounds)
-      "(#Hctx & Hret & Hcontinue)".
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap HsubBounds
+      Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
@@ -295,7 +292,7 @@ Section HTS_Spec_Free.
     (* Block 11: store cgp, which covers exactly p, in live b. *)
     focus_block 11 "Hcode_main" of hts_main_blocks at pc_a as a_private Ha_private "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iExtractList "Hrmap" [ct1;ct2] as ["[Hct1 _]";"[Hct2 _]"].
+    iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
     (* Store ca0 cgp 0. *)
     iInstr_success "Hcode".
     { apply hts_heap_not_shadow. solve_addr. }
@@ -306,44 +303,40 @@ Section HTS_Spec_Free.
     focus_block 12 "Hcode_main" of hts_main_blocks at pc_a as a_fetch12 Ha_fetch12 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp] as ["[Hctp _]"].
-    iApply (fetch_spec hts_switcher_offset ctp ct0 ct2 RX Global
+    iApply (fetch_spec 0 _ ctp RX Global
       pc_b pc_e a_fetch12
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hcode]").
+      _ _ _ with "[- $HPC $Hctp $Hcode]").
     { reflexivity. }
     { solve_addr. }
-    { rewrite /hts_switcher_offset. apply withinBounds_true_iff. solve_addr. }
+    { offsets_compute; solve_addr. }
+    { apply withinBounds_true_iff. solve_addr. }
     { exact Hpc_shadow. }
     { apply switcher_call_sentry_not_heap. }
     { done. }
-    { done. }
-    { done. }
-    replace (pc_b ^+ hts_switcher_offset)%a with pc_b
-      by (rewrite /hts_switcher_offset; solve_addr).
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct2 & _ & Himport_switcher)".
+    iNext; iIntros "(HPC & Hctp & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 13: fetch the sealed free entry. *)
     focus_block 13 "Hcode_main" of hts_main_blocks at pc_a as a_fetch13 Ha_fetch13 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec hts_free_offset ct1 ct0 ct2 RX Global
+    iApply (fetch_spec 4 _ ct1 RX Global
       pc_b pc_e a_fetch13
       (WSealed ot_switcher (allocator_free Global))
-      _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hcode]").
+      _ _ _ with "[- $HPC $Hct1 $Hcode]").
     { reflexivity. }
     { solve_addr. }
-    { rewrite /hts_free_offset. apply withinBounds_true_iff. solve_addr. }
+    { offsets_compute; solve_addr. }
+    { apply withinBounds_true_iff. solve_addr. }
     { exact Hpc_shadow. }
     { unfold allocator_free. apply sealed_cap_nonheap.
       exact hts_export_tbl_not_heap. }
     { done. }
-    { done. }
-    { done. }
-    replace (pc_b ^+ hts_free_offset)%a with (pc_b ^+ 4)%a by reflexivity.
     iFrame "Himport_free".
-    iNext; iIntros "(HPC & Hct1 & Hct0 & Hct2 & _ & Himport_free)".
+    iNext; iIntros "(HPC & Hct1 & _ & Himport_free)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -372,16 +365,16 @@ Section HTS_Spec_Free.
     set (free_arg := ({[ca0 := hts_buffer b @@ ι; ca1 := w1;
       ca2 := lword_of_word (WInt 0); ca3 := lword_of_word (WInt 0);
       ca4 := lword_of_word (WInt 0); ca5 := lword_of_word (WInt 0);
-      ct0 := lword_of_word (WInt 0)]} : LReg)).
+      ct0 := lword_of_word (WInt 1)]} : LReg)).
     iAssert ([∗ map] rarg↦warg ∈ free_arg, rarg ↦ᵣ warg)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hfree_arg".
     { subst free_arg.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]). done. }
-    iInsertList "Hrmap" [ctp;ct2].
-    set (free_other := <[ct2:=lword_of_word (WInt 0)]>
-      (<[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+    iInsertList "Hrmap" [ctp].
+    set (free_other :=
+      <[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
-         (delete ct1 (delete ct0 rmap)))))))).
+         (delete ct1 (delete ct0 rmap))))))).
     iPoseProof (hts_free_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_block_offset 15)%a)

@@ -26,13 +26,13 @@ Section Check_No_Overlap_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
     ∗ ▷ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a check_no_overlap
-    ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
           ∗ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
           ∗ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
           ∗ r1 ↦ᵣ WInt 0%Z

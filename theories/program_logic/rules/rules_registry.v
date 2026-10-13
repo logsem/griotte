@@ -17,20 +17,20 @@ Section rules_registry.
   (** Opens the state interpretation for a ghost update that keeps the
       physical state. *)
   Lemma si_ghost_update σ P Q :
-    (∀ lreg lmem R C,
-       ⌜erasure R C σ lreg lmem⌝ -∗
+    (∀ lpc lreg lmem R C,
+       ⌜erasure R C σ lpc lreg lmem⌝ -∗
        gen_heap_interp lreg -∗ gen_heap_interp (sreg σ) -∗ gen_heap_interp lmem -∗
        gen_heap_interp (shadowtbl σ) -∗ reg_auth R -∗ addr_alloc_auth C -∗ P ==∗
-       ∃ R' C', ⌜erasure R' C' σ lreg lmem⌝ ∗
+       ∃ R' C', ⌜erasure R' C' σ lpc lreg lmem⌝ ∗
          gen_heap_interp lreg ∗ gen_heap_interp (sreg σ) ∗ gen_heap_interp lmem ∗
          gen_heap_interp (shadowtbl σ) ∗ reg_auth R' ∗ addr_alloc_auth C' ∗ Q) →
     cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q.
   Proof.
     iIntros (Hupd) "Hσ HP".
-    iDestruct "Hσ" as (lreg lmem R C) "(Hr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iDestruct "Hσ" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
     iMod (Hupd with "[//] Hr Hsr Hm Hst HR HC HP")
       as (R' C' Her') "(Hr & Hsr & Hm & Hst & HR & HC & HQ)".
-    iModIntro. iFrame "HQ". iExists lreg, lmem, R', C'. by iFrame.
+    iModIntro. iFrame "HQ". iExists lpc, lreg, lmem, R', C'. by iFrame.
   Qed.
 
 
@@ -41,7 +41,7 @@ Section rules_registry.
     ι ↦st{1} ALive ⊢ |~{E}~> ι ↦st{1} APainting.
   Proof.
     apply si_upd_ghost. intros σ. iApply si_ghost_update.
-    iIntros (lreg lmem R C Her) "Hr Hsr Hm Hst HR HC Htok".
+    iIntros (lpc lreg lmem R C Her) "Hr Hsr Hm Hst HR HC Htok".
     iDestruct (reg_lookup_own with "HR Htok") as %(b & e' & γ & HRι).
     iMod (reg_step _ _ _ _ _ _ APainting with "HR Htok") as "[HR Htok]";
       [done|simpl; lia|].
@@ -75,7 +75,7 @@ Section rules_registry.
        [∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined)%I
       with "[$Hobj $Htok $Hcells]").
     intros σ. iApply si_ghost_update.
-    iIntros (lreg lmem R C Her) "Hr Hsr Hm Hst HR HC (#Hobj & Htok & Hcells)".
+    iIntros (lpc lreg lmem R C Her) "Hr Hsr Hm Hst HR HC (#Hobj & Htok & Hcells)".
     iDestruct (reg_lookup_own with "HR Htok") as %(b1 & e1 & γ & HRι).
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ' & s & HRι').
     rewrite HRι in HRι'. simplify_eq.
@@ -132,7 +132,7 @@ Section rules_registry.
       [∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι).
   Proof.
     apply si_upd_ghost. intros σ. iApply si_ghost_update.
-    iIntros (lreg lmem R C Her) "Hr Hsr Hm Hst HR HC Hcells".
+    iIntros (lpc lreg lmem R C Her) "Hr Hsr Hm Hst HR HC Hcells".
     set (ι := fresh (dom R ∪ S)).
     assert (ι ∉ dom R ∪ S) as Hfresh by apply is_fresh.
     assert (R !! ι = None) as HRι by (apply not_elem_of_dom; set_solver).
@@ -178,9 +178,9 @@ Section rules_registry.
     iIntros ([Ht [b Hab]] Hι) "Hr #Hd".
     iApply (si_upd_ghost _ (r ↦ᵣ v ∗ ι ⊒ ADead) with "[$Hr $Hd]").
     intros σ. iApply si_ghost_update.
-    iIntros (lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC [Hr Hd]".
+    iIntros (lpc lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC [Hr Hd]".
     iDestruct (gen_heap_valid with "Hlr Hr") as %Hv.
-    pose proof (erasure_observe _ _ _ _ _ _ _ _ Her Hv Ht Hab) as Hobs.
+    pose proof (erasure_observe _ _ _ _ _ _ _ _ _ Her Hv Ht Hab) as Hobs.
     rewrite Hι in Hobs. destruct Hobs as (x & Hx & Hnd & _).
     iDestruct (reg_lookup_lb with "HR Hd") as %(b' & e' & γ & s & HRι & Hle).
     rewrite Hx in HRι. simplify_eq. destruct s; cbn in Hle, Hnd; try lia; done.
@@ -204,10 +204,10 @@ Section rules_registry.
     iIntros (Ht Hab) "Hr Hc".
     iApply (si_upd_ghost _ (r ↦ᵣ v ∗ addr_alloc b c) with "[$Hr $Hc]").
     intros σ. iApply si_ghost_update.
-    iIntros (lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC [Hr Hc]".
+    iIntros (lpc lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC [Hr Hc]".
     iDestruct (gen_heap_valid with "Hlr Hr") as %Hv.
     iDestruct (addr_alloc_lookup with "HC Hc") as %HCb.
-    pose proof (erasure_observe _ _ _ _ _ _ _ _ Her Hv Ht Hab) as Hobs.
+    pose proof (erasure_observe _ _ _ _ _ _ _ _ _ Her Hv Ht Hab) as Hobs.
     iModIntro. iExists R, C. iFrame. iPureIntro. split; first done.
     destruct (lprov v) as [ι|].
     - destruct Hobs as (_ & _ & _ & HC'). congruence.
@@ -242,13 +242,13 @@ Section rules_registry.
     iIntros "Hmap".
     iApply (si_upd_ghost _ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) with "Hmap").
     intros σ. iApply si_ghost_update.
-    iIntros (lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC Hmap".
+    iIntros (lpc lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC Hmap".
     iDestruct (gen_heap_valid_inclSepM with "Hlr Hmap") as %Hincl.
     iModIntro. iExists R, C. iFrame. iPureIntro. split; first done.
     intros r v ι b e Hv Ht Hb Hlt Hι x Hx.
-    destruct (erasure_reg_word _ _ _ _ _ r v Her (lookup_weaken _ _ _ _ Hv Hincl)) as [Hprov _].
+    destruct (erasure_reg_word _ _ _ _ _ _ r v Her (lookup_weaken _ _ _ _ Hv Hincl)) as [Hprov _].
     destruct (Hprov ι b e Ht Hb Hlt Hι) as (y & Hy & Hyb & Hye).
-    eapply (reg_ok_heap _ _ _ (er_registry _ _ _ _ _ Her)); first exact Hy.
+    eapply (reg_ok_heap _ _ _ (er_registry _ _ _ _ _ _ Her)); first exact Hy.
     rewrite /re_covers. solve_addr.
   Qed.
 

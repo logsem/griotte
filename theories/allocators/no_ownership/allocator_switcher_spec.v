@@ -61,18 +61,16 @@ Section AllocatorSwitcherSpec.
        "[Hct0 %Hwct0]"].
     iClear "Hargs".
     rewrite Harg in Hwca0. simplify_eq.
-    iExtractList "Hrmap" [ct1;ct2;ct3;ct4;ctp;cnull] as
-      ["Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
+    iExtractList "Hrmap" [ct1;ct2;ctp;cnull] as
+      ["Hct1";"Hct2";"Hctp";"Hcnull"].
     iDestruct "Hct1" as "[Hct1 %Hct1]".
     iDestruct "Hct2" as "[Hct2 %Hct2]".
-    iDestruct "Hct3" as "[Hct3 %Hct3]".
-    iDestruct "Hct4" as "[Hct4 %Hct4]".
     iDestruct "Hctp" as "[Hctp %Hctp]".
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
     iApply (allocator_malloc_valid_correct S ⊤ n None _ with
       "[- $Hservice $Hstatic $Hna $HPC $Hcgp $Hcra
-       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull]");
+       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hcnull]");
       eauto.
     iNext.
     iIntros "(Hna & HPC & Hcgp & Hcra & Hca2 & Hct0 & Hct1 & Hct2
@@ -88,15 +86,14 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hct3" as (wct3_ret) "Hct3".
     iDestruct "Hct4" as (wct4_ret) "Hct4".
     iDestruct "Hctp" as (wctp_ret) "Hctp".
-    iInsertList "Hrmap" [ca2;ca3;ca4;ca5;ct0;ct1;ct2;ct3;ct4;ctp;cnull].
+    iInsertList "Hrmap" [ca2;ca5;ct0;ct1;ct2;ca3;ca4;ctp;cnull].
     set (rmap_ret := <[cnull:=lword_of_word (WInt 0)]>
-      (<[ctp:=wctp_ret]> (<[ct4:=wct4_ret]> (<[ct3:=wct3_ret]>
+      (<[ctp:=wctp_ret]> (<[ca4:=wct4_ret]> (<[ca3:=wct3_ret]>
       (<[ct2:=wct2_ret]> (<[ct1:=wct1_ret]> (<[ct0:=wct0_ret]>
-      (<[ca5:=lword_of_word (WInt 0)]> (<[ca4:=lword_of_word (WInt 0)]>
-      (<[ca3:=lword_of_word (WInt 0)]>
-      (<[ca2:=wca2_ret]> (delete cs1 (delete cs0 rmap'))))))))))))).
+      (<[ca5:=lword_of_word (WInt 0)]>
+      (<[ca2:=wca2_ret]> (delete cs1 (delete cs0 rmap'))))))))))).
     assert (dom rmap_ret =
-      all_registers_s ∖ {[PC; csp; cgp; cra; cs0; cs1; ca0; ca1]})
+      all_registers_s ∖ {[csp; cgp; cra; cs0; cs1; ca0; ca1]})
       as Hdom_ret.
     { subst rmap_ret. repeat (rewrite dom_insert_L).
       repeat (rewrite dom_delete_L).
@@ -153,43 +150,37 @@ Section AllocatorSwitcherSpec.
        "[Hct0 %Hwct0]"].
     iClear "Hargs".
     rewrite Harg in Hwca0. simplify_eq.
-    iExtractList "Hrmap" [ct1;ct2;ct3;ct4;ctp;cnull] as
-      ["Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
+    iExtractList "Hrmap" [ct1;ct2;ctp;cnull] as
+      ["Hct1";"Hct2";"Hctp";"Hcnull"].
     iDestruct "Hct1" as "[Hct1 %Hct1]".
     iDestruct "Hct2" as "[Hct2 %Hct2]".
-    iDestruct "Hct3" as "[Hct3 %Hct3]".
-    iDestruct "Hct4" as "[Hct4 %Hct4]".
     iDestruct "Hctp" as "[Hctp %Hctp]".
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
     (* The registers framed by [free] hold zero or the stack capability:
        none carries an identifier. *)
-    set (rmap0 := delete cnull (delete ctp (delete ct4 (delete ct3
-      (delete ct2 (delete ct1 rmap')))))).
+    set (rmap0 := delete cnull (delete ctp (delete ct2 (delete ct1 rmap')))).
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap #Hzero]".
     iDestruct (big_sepM_pure_1 with "Hzero") as %Hzero.
     iClear "Hzero".
     set (rframe := <[csp := lword_of_word (WCap true RWL Local
         (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)]>
-      (<[ca5 := lword_of_word (WInt 0)]> (<[ca4 := lword_of_word (WInt 0)]>
-      (<[ca3 := lword_of_word (WInt 0)]> rmap0)))).
+      (<[ca5 := lword_of_word (WInt 0)]> rmap0)).
     iAssert ([∗ map] r↦w ∈ rframe, r ↦ᵣ w)%I
-      with "[Hrmap Hca3 Hca4 Hca5 Hcsp]" as "Hframe".
+      with "[Hrmap Hca5 Hcsp]" as "Hframe".
     { subst rframe rmap0.
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcsp").
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca5").
-      iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca4").
-      iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca3").
       iExact "Hrmap". }
     iApply (allocator_free_valid_correct ⊤ p g ι b e a ws _ rframe with
       "[- $Hservice $Hstatic $Hna $Hobj $Hheld $HPC $Hcgp $Hcra
-       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hframe $Hmem]");
+       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hcnull $Hframe $Hmem]");
       eauto.
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom
         /dom_arg_rmap /=. set_solver+. }
     { intros r w Hr _. subst rframe.
       rewrite !lookup_insert_Some in Hr.
-      destruct Hr as [ [_ <-]|[_ [ [_ <-]|[_ [ [_ <-]|[_ [ [_ <-]|[_ Hr] ] ] ] ] ] ] ];
+      destruct Hr as [ [_ <-]|[_ [ [_ <-]|[_ Hr] ] ] ];
         try done.
       by rewrite (Hzero _ _ Hr). }
     iNext.
@@ -209,7 +200,7 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hct3" as (wct3_ret) "Hct3".
     iDestruct "Hct4" as (wct4_ret) "Hct4".
     iDestruct "Hctp" as (wctp_ret) "Hctp".
-    iInsertList "Hframe" [ca2;ct0;ct1;ct2;ct3;ct4;ctp;cnull].
+    iInsertList "Hframe" [ca2;ct0;ct1;ct2;ca3;ca4;ctp;cnull].
     iApply ("Hpost" $! (lword_of_word (WInt ALLOC_OK)) (lword_of_word (WInt 0)) _
       (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hframe Hstk Hcstk".

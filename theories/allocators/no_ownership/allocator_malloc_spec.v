@@ -31,7 +31,7 @@ Section AllocatorMalloc.
        na_own cerise_nais E ∗
 
        (* Initial register file. *)
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_malloc_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -42,13 +42,13 @@ Section AllocatorMalloc.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
 
        ▷ (na_own cerise_nais E ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -58,8 +58,8 @@ Section AllocatorMalloc.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0
 
@@ -111,7 +111,7 @@ Section AllocatorMalloc.
        na_own cerise_nais E ∗
 
        (* Initial register file. *)
-       PC ↦ᵣ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_malloc_pcc_addr ∗
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
@@ -122,13 +122,13 @@ Section AllocatorMalloc.
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
-       ct3 ↦ᵣ - ∗
-       ct4 ↦ᵣ - ∗
+       ca3 ↦ᵣ - ∗
+       ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
 
        ▷ (na_own cerise_nais E ∗
-          PC ↦ᵣ lupdatePcPerm wret ∗
+          PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
@@ -136,8 +136,8 @@ Section AllocatorMalloc.
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
-          ct3 ↦ᵣ - ∗
-          ct4 ↦ᵣ - ∗
+          ca3 ↦ᵣ - ∗
+          ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0 ∗
 
@@ -201,12 +201,16 @@ Section AllocatorMalloc.
         as (ι Hι) "(#Hobj & Htok & Hhdr_mem & Hpay_mem & Hheader & Hpayload & Hcells_close)";
         [done|solve_addr|].
       apply not_elem_of_union in Hι as [HιS Hιissued].
-      (* Block 1: the capacity check, the payload capability and the header. *)
+      iDestruct (allocator_imports_split_pers with "Himports")
+        as "(#Hshadow_import & #Hseal_import & #Hrevoker_import)".
+      (* Block 1: the capacity check, the payload capability, the header and
+         the shadow capability. *)
       iApply (allocator_malloc_prepare_success_spec with
-        "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hslot $Hhdr_mem $Hobj $Htok
-            $Hmalloc_code]"); [done|done|solve_addr|done|done|solve_addr|].
-      iNext. iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot &
-        Hhead & Htok & _)".
+        "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hctp $Hslot $Hshadow_import
+            $Hhdr_mem $Hobj $Htok $Hmalloc_code]");
+        [done|apply allocator_malloc_pcc_addr_off|done|solve_addr|done|done|solve_addr|].
+      iNext. iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hctp & Hslot &
+        _ & Hhead & Htok & _)".
       (* Block 2, the shadow segment: zero the payload. *)
       iDestruct (allocator_malloc_shadow_acc with "Hmalloc_code")
         as "#Hshadow_code".
@@ -215,13 +219,11 @@ Section AllocatorMalloc.
         [by apply allocator_malloc_shadow_bounds|solve_addr|].
       iNext. iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hzeros & _)".
       (* Paint the header and store over the payload. *)
-      iDestruct (allocator_imports_split_pers with "Himports")
-        as "(#Hshadow_import & #Hseal_import & #Hrevoker_import)".
       iApply (allocator_malloc_translate_paint_spec with
-        "[- $HPC $Hctp $Hct3 $Hca2 $Hct0 $Hct1 $Hct2 $Hshadow_import $Hheader $Hpayload
+        "[- $HPC $Hctp $Hct3 $Hca2 $Hct0 $Hct1 $Hct2 $Hheader $Hpayload
             $Hshadow_code]");
         [by apply allocator_malloc_shadow_bounds|solve_addr|done|solve_addr|].
-      iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & _ & Hheader &
+      iNext. iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & Hheader &
         Hpayload & _)".
       iEval (rewrite (allocator_malloc_shadow_end _ _ _ Hbounds)) in "HPC".
       (* Blocks 3 and 4: publish the bump cursor and return. *)

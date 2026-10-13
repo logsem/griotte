@@ -202,7 +202,7 @@ Section HTS_States.
       resources that are threaded through every call. *)
   Definition hts_frame (a_ret a_stk : Addr) : iProp Σ :=
     na_own cerise_nais ⊤ ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e a_ret ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e a_ret ∗
     cra ↦ᵣ WSentry true RX Global pc_b pc_e a_ret ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk ∗
@@ -214,14 +214,14 @@ Section HTS_States.
   (** The registers cleared by the switcher. *)
   Definition hts_zero_regs : iProp Σ :=
     ∃ rmap : LReg,
-      ⌜dom rmap = all_registers_s ∖ {[PC; csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝ ∗
+      ⌜dom rmap = all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝ ∗
       ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝).
 
   (** Enough to run a failing result check at [a]: [ca0] holds the integer
       error code [z]. *)
   Definition hts_halt_ready (a : Addr) (z : Z) : iProp Σ :=
     na_own cerise_nais ⊤ ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e a ∗
     ca0 ↦ᵣ WInt z ∗
     (∃ w, ct0 ↦ᵣ w) ∗
     codefrag_pers pc_a hts_main_code.

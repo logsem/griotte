@@ -46,4 +46,28 @@ Section AllocatorLayoutFacts.
     solve_addr.
   Qed.
 
+  (** The code of each entry is at its offset in the PCC: the fetches load the
+      imports relative to the PC. *)
+  Lemma allocator_malloc_pcc_addr_off :
+    (allocator_pcc_b + allocator_malloc_pcc_off)%a = Some allocator_malloc_pcc_addr.
+  Proof.
+    pose proof allocator_size_code as Hsize_code.
+    pose proof allocator_size_imports as Himports_size.
+    rewrite /allocator_code length_app in Hsize_code.
+    rewrite allocator_imports_length in Himports_size.
+    unfold allocator_malloc_pcc_addr, allocator_malloc_pcc_off in *.
+    solve_addr.
+  Qed.
+
+  Lemma allocator_free_pcc_addr_off :
+    (allocator_pcc_b + allocator_free_pcc_off)%a = Some allocator_free_pcc_addr.
+  Proof.
+    pose proof allocator_size_code as Hsize_code.
+    pose proof allocator_size_imports as Himports_size.
+    rewrite /allocator_code length_app in Hsize_code.
+    rewrite allocator_imports_length in Himports_size.
+    unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
+    solve_addr.
+  Qed.
+
 End AllocatorLayoutFacts.

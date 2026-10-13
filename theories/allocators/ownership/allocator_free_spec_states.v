@@ -33,10 +33,10 @@ Section AllocatorFreeCode.
 
   (** The code of [free], as the chain of its blocks. *)
   Definition allocator_free_code : list Word :=
-    allocator_owner_instrs ctp ca0 ct3 ct4 ++
+    allocator_owner_instrs allocator_free_owner_off ctp ca0 ++
     allocator_free_instrs_n 1 ++
     allocator_free_instrs_n 2 ++
-    fetch_instrs allocator_shadow_import_off ctp ct3 ca2 ++
+    allocator_free_instrs_n 3 ++
     allocator_free_instrs_n 4 ++
     allocator_free_tail_code.
 
@@ -57,7 +57,7 @@ Notation allocator_free_instr_offset := (code_instr_offset allocator_free_blocks
 
 (** Offset of the rejection of [free] in [allocator_free_code]. *)
 Notation allocator_free_invalid_offset :=
-  (allocator_free_block_offset 5 + allocator_free_tail_block_offset 6)%Z.
+  (allocator_free_block_offset 5 + allocator_free_tail_block_offset 5)%Z.
 
 (** Unfold [allocator_free_code] into the chain of its blocks. *)
 Ltac allocator_free_unfold_code h := unfold_code allocator_free_code h.

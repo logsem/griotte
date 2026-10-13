@@ -36,7 +36,7 @@ Section AllocatorMallocCode.
     allocator_malloc_instrs_n 0 ++
     allocator_malloc_instrs_n 1 ++
     allocator_malloc_shadow_code ++
-    allocator_malloc_instrs_n 8 ++
+    allocator_malloc_instrs_n 7 ++
     allocator_malloc_exit_code.
 
   Lemma allocator_malloc_instrs_code : allocator_malloc_instrs = allocator_malloc_code.
@@ -104,7 +104,7 @@ Section AllocatorMallocStates.
 
   Lemma allocator_malloc_shadow_end pc_b pc_e pc_a :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
-    ((pc_a ^+ allocator_malloc_block_offset 2) ^+ allocator_malloc_shadow_block_offset 6)%a =
+    ((pc_a ^+ allocator_malloc_block_offset 2) ^+ allocator_malloc_shadow_block_offset 5)%a =
     (pc_a ^+ allocator_malloc_block_offset 3)%a.
   Proof. intros (Hpc & _ & _). cbn in Hpc. offsets_compute. solve_addr. Qed.
 

@@ -4,7 +4,7 @@ From griotte Require Export logrel interp_weakening monotone.
 From griotte Require Export
   ftlr_base
   Jmp Jnz Jalr Mov CLoad Store BinOp Restrict
-  Subseg Get ClearTag Lea Seal UnSeal ReadSR WriteSR FailHalt.
+  Subseg Get ClearTag Lea Seal UnSeal ReadSR WriteSR FailHalt Auipcc.
 From griotte Require Import register_tactics.
 
 Section fundamental.
@@ -60,7 +60,7 @@ Section fundamental.
   (** Execution fails when the PC is not a correct PC. *)
   Lemma wp_notCorrectPC_halted (w : LWord) (φ : iProp Σ) :
     ¬ isCorrectPC w.(lw) →
-    PC ↦ᵣ w -∗
+    PC ↦ₚ w -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → φ }}.
   Proof.
     iIntros (HnPC) "HPC".
@@ -100,16 +100,16 @@ Section fundamental.
     isCorrectPC (WCap true p g b e a) →
     validPCperm p g →
     interp W C (WCap true p g b e a) -∗
-    (∀ (r : RegName) (v : LWord), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     ∃ (p' : Perm) (P : V),
       ⌜PermFlowsTo p p'⌝ ∗
       ⌜persistent_cond P⌝ ∗
       rel C (LNonHeap a) p' (safeC P) ∗
       ▷ zcond P C ∗
-      (if decide (readAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a)
+      (if decide (readAllowed_a_in_lregs regs a)
        then ▷ (rcond P C p' interp)
        else emp) ∗
-      (if decide (writeAllowed_a_in_lregs (<[PC:=WCap true p g b e a @@? None]> regs) a)
+      (if decide (writeAllowed_a_in_lregs regs a)
        then ▷ wcond P C interp
        else emp) ∗
       monoReq W C (LNonHeap a) p' P ∗
@@ -137,11 +137,10 @@ Section fundamental.
       interp_expression W C (WCap true p g b e a @@? π).
   Proof.
     iIntros "#Hinv_interp".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hreg] [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]".
+    iIntros (cstk Ws Cs regs) "[[Hfull Hreg] [HPC [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]]".
     destruct (readAllowed p) eqn:Hread_p; cycle 1.
     { (* if p not readable, then execution will fail *)
       apply notreadAllowed_is_notexecuteAllowed in Hread_p.
-      rewrite /registers_pointsto; iExtract "Hmreg" PC as "HPC".
       iApply (wp_notCorrectPC_halted with "HPC").
       intro Hcontra ; destruct p ; inv Hcontra; congruence.
     }
@@ -152,13 +151,13 @@ Section fundamental.
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
       iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih π_ih)
-        "%Hfull #Hregs Hmreg Hworld_interp Hcont %Hframe' Hown Htframe Hinterp".
-      iApply ("IH'" with "[%] [] [] [Hmreg] [$] [$] [$] [$]");eauto.
+        "%Hfull #Hregs HPC Hmreg Hworld_interp Hcont %Hframe' Hown Htframe Hinterp".
+      iApply ("IH'" with "[%] [] [] [HPC] [Hmreg] [$] [$] [$] [$]");eauto.
       done.
     }
     iIntros "#Hinv_interp".
     iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
-    rewrite /registers_pointsto; iExtract "Hmreg" PC as "HPC".
+    rewrite /registers_pointsto.
     destruct (decide (isCorrectPC (WCap true p g b e a))) as [HcorrectPC|] ; cycle 1.
     { (* Not correct PC *)
       by iApply (wp_notCorrectPC_halted with "HPC").
@@ -223,6 +222,7 @@ Section fundamental.
     - (* Halt *) apply halt_case.
     - (* GetTag *) by_get_case.
     - (* ClearTag *) apply cleartag_case.
+    - (* Auipcc *) apply auipcc_case.
   Qed.
 
   Theorem fundamental W C w :
@@ -230,11 +230,9 @@ Section fundamental.
   Proof.
     iIntros "Hw"; destruct w as [ [| [ [] p g b e a | ] | | ] π].
     2: { iApply fundamental_cap; done. }
-    all: iIntros (????) "(? & Hreg & ?)"; unfold interp_conf.
+    all: iIntros (????) "(? & HPC & ?)"; unfold interp_conf.
     all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
     all: iApply (wp_bind (fill [SeqCtx])); cbn.
-    all: unfold registers_pointsto; rewrite -insert_delete_eq.
-    all: iDestruct (big_sepM_insert with "Hreg") as "[HPC ?]"; first by rewrite lookup_delete_eq.
     all: iApply (wp_notCorrectPC with "HPC"); first by inversion 1.
     all: iNext; iIntros; cbn; iApply wp_pure_step_later; auto.
     all: iNext; iIntros "_"; iApply wp_value; iIntros (?); congruence.
@@ -290,7 +288,7 @@ Section fundamental.
     ⊢ ftlr_IH.
   Proof.
     iModIntro; iNext.
-    iIntros (????????????) "????????#Hv".
+    iIntros (????????????) "?????????#Hv".
     iDestruct (fundamental with "Hv") as "Hcont".
     iApply "Hcont"; iFrame "∗#".
   Qed.
@@ -304,7 +302,7 @@ Section fundamental.
                (⌜w = WCap true p g b e a @@? π ∨ w = WSentry true p g b e a @@? π⌝
                 ∗ □ ∀ W', future_world g W W'
                           → ▷ (interp_expr interp (interp_cont interp) W' C) (lupdatePcPerm w)))
-         else φ FailedV ∗ PC ↦ᵣ lupdatePcPerm w
+         else φ FailedV ∗ PC ↦ₚ lupdatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
     iIntros "#Hw".

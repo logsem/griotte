@@ -17,7 +17,7 @@ Local Notation "'OT' z" :=
 
 Definition droe_main_pcc_b : Addr := A 9.
 Definition droe_main_code_a : Addr := A 12.
-Definition droe_main_pcc_e : Addr := A 64.
+Definition droe_main_pcc_e : Addr := A 43.
 Definition droe_C_pcc_b : Addr := A 64.
 Definition droe_C_code_a : Addr := A 65.
 Definition droe_C_pcc_e : Addr := A 69.
@@ -34,13 +34,13 @@ Definition droe_C_exp_cgp : Addr := A 75.
 Definition droe_C_exp_entries_b : Addr := A 76.
 Definition droe_C_exp_entries_e : Addr := A 77.
 Definition droe_assert_b : Addr := A 77.
-Definition droe_assert_cap : Addr := A 89.
-Definition droe_assert_e : Addr := A 90.
-Definition droe_assert_flag : Addr := A 90.
+Definition droe_assert_cap : Addr := A 88.
+Definition droe_assert_e : Addr := A 89.
+Definition droe_assert_flag : Addr := A 89.
 Definition droe_switcher_b : Addr := A 91.
 Definition droe_switcher_call : Addr := A 92.
-Definition droe_switcher_return : Addr := A 180.
-Definition droe_switcher_e : Addr := A 242.
+Definition droe_switcher_return : Addr := A 159.
+Definition droe_switcher_e : Addr := A 205.
 Definition droe_stack_b : Addr := A 1024.
 Definition droe_stack_e : Addr := A 1124.
 Definition droe_trusted_stack_b : Addr := A 4096.
@@ -388,8 +388,10 @@ Proof.
        droe_concrete_assert_switcher_disjoints).
 Defined.
 
+Definition droe_initial_pc : Word :=
+  WCap true RX Global droe_main_pcc_b droe_main_pcc_e droe_main_code_a.
+
 Definition droe_initial_registers : Reg :=
-  <[PC := WCap true RX Global droe_main_pcc_b droe_main_pcc_e droe_main_code_a]>
   (<[cgp := WCap true RW Global droe_main_cgp_b droe_main_cgp_e droe_main_cgp_b]>
   (<[csp := WCap true RWL Local droe_stack_b droe_stack_e droe_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
@@ -401,9 +403,9 @@ Definition droe_initial_sregisters : SReg :=
 Definition droe_initial_memory : Mem := mk_initial_memory.
 
 Lemma droe_initial_registers_correct :
-  is_initial_registers droe_initial_registers.
+  is_initial_registers droe_initial_pc droe_initial_registers.
 Proof.
-  rewrite /is_initial_registers /droe_initial_registers.
+  rewrite /is_initial_registers /droe_initial_pc /droe_initial_registers.
   cbn [droe_concrete_layout droe_concrete_main_cmpt].
   split; [|split; [|split]].
   - vm_compute; reflexivity.
@@ -439,17 +441,17 @@ Lemma droe_initial_heap_disjoint :
   initial_heap_memory ##ₘ mk_initial_program_memory.
 Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
 
-Lemma droe_concrete_adequacy reg' sreg' mem' sh' es :
+Lemma droe_concrete_adequacy pc' reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow))
-    (es, (reg', sreg', mem', sh')) ->
+      (droe_initial_pc, droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow))
+    (es, (pc', reg', sreg', mem', sh')) ->
   mem' !! droe_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@droe_adequacy machine_parameters_instance droe_concrete_layout
-      droe_initial_registers reg'
+      droe_initial_pc pc' droe_initial_registers reg'
       droe_initial_sregisters sreg'
       droe_initial_memory mem' initial_heap_shadow sh' es
       droe_initial_registers_correct
@@ -467,20 +469,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem droe_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem' sh',
+  ∃ pc' reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow))
-      ([Instr Halted], (reg', sreg', mem', sh'))
+        (droe_initial_pc, droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow))
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! droe_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct 3000 Executable
-      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow)
+      (droe_initial_pc, droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
-  exists reg', sreg', mem', sh'. split.
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply droe_concrete_adequacy; exact Hrun.
 Qed.

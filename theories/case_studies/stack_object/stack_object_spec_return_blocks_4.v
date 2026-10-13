@@ -22,19 +22,18 @@ Section SO_Return_Blocks_4.
   Lemma so_return_blocks_4_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (csp_b csp_e a_stk2 : Addr)
-    (wct0 wct1 wct2 wct3 wct4 wcnull wcra wret wca0 wca1 : LWord) :
+    (wct0 wct1 wct2 wca2 wcnull wcra wret wca0 wca1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     disjoint_from_shadow csp_b csp_e ->
     (csp_b + 2)%a = Some a_stk2 ->
     (csp_b < csp_e)%a ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 10)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 10)%a ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
-    ct3 ↦ᵣ wct3 ∗
-    ct4 ↦ᵣ wct4 ∗
+    ca2 ↦ᵣ wca2 ∗
     cnull ↦ᵣ wcnull ∗
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wret ∗
@@ -43,13 +42,12 @@ Section SO_Return_Blocks_4.
     csp_b ↦ₐ WInt so_secret ∗
     (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (PC ↦ᵣ lupdatePcPerm wret ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
         ct2 ↦ᵣ WInt 0 ∗
-        ct3 ↦ᵣ WInt 0 ∗
-        ct4 ↦ᵣ WInt 0 ∗
+        ca2 ↦ᵣ WInt 0 ∗
         cnull ↦ᵣ WInt 0 ∗
         cra ↦ᵣ wret ∗
         cs0 ↦ᵣ wret ∗
@@ -63,7 +61,7 @@ Section SO_Return_Blocks_4.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow
                Hastk2 Hcsp_size)
-      "(#Hassert & HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hcnull & Hcra
+      "(#Hassert & HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull & Hcra
       & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
@@ -87,11 +85,12 @@ Section SO_Return_Blocks_4.
     (* Block 11: assert that the secret is unchanged *)
     focus_block 11 "Hcode_main" of so_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (assert_success_spec with
-             "[- $Hassert $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcra $Hcnull
+    iApply (assert_success_spec 1 with
+             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra $Hcnull
               $Hcode $Himport_assert]"); auto.
+    { so_fetch_offsets_compute; offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

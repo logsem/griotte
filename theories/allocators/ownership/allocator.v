@@ -37,7 +37,7 @@ From griotte.allocators.common Require Export allocator_common_code.
     and clobbers its scratch registers. The switcher handles register clearing. *)
 
 (* Notes for specifications. [allocator_owner_asm] runs first in both entries
-   and leaves the owner identifier in [ctp], zeroing [ct3] and [ct4]; [free]
+   and leaves the owner identifier in [ctp]; [free]
    then moves it to [ca0], since [ctp] later holds the shadow capability. The
    only new invalid path is an owner mismatch in [free]; a non-integer owner
    word traps on the comparison. Invariants must ensure that every capability
@@ -51,28 +51,30 @@ Section Allocator.
   Local Coercion Z.of_nat : nat >-> Z.
 
   (** Load the owner identifier of the allocator capability [rsealed] into
-      [rdst], using the imported unsealing key. The scratch registers are
-      zeroed by the fetch. An allocator capability that is not sealed traps
-      on [unseal]; one sealed with another otype unseals to an untagged
-      capability and traps on [load]. *)
+      [rdst], using the imported unsealing key. An allocator capability that
+      is not sealed traps on [unseal]; one sealed with another otype unseals
+      to an untagged capability and traps on [load]. *)
 
-  Definition allocator_owner_asm (rdst rsealed rscratch1 rscratch2 : RegName)
-    : list asm_code :=
-    fetch_asm allocator_unsealing_key_import_off rdst rscratch1 rscratch2 ++
+  Definition allocator_owner_asm (rdst rsealed : RegName) : list asm_code :=
+    fetch_asm ".Limport_unsealing_key" rdst ++
     [ unseal rdst rdst rsealed;
       load rdst rdst
     ].
 
-  Definition allocator_owner (rdst rsealed rscratch1 rscratch2 : RegName) :=
-    Eval vm_compute in assemble (allocator_owner_asm rdst rsealed rscratch1 rscratch2).
+  (** The assembled macro, where [off] is the resolved offset of the unsealing
+      key from the address of the fetch. *)
+  Definition allocator_owner (off : Z) (rdst rsealed : RegName) : list instr :=
+    fetch off rdst ++
+    [ machine_instructions.UnSeal rdst rdst rsealed;
+      machine_instructions.CLoad rdst rdst 0 ].
 
-  Definition allocator_owner_instrs (rdst rsealed rscratch1 rscratch2 : RegName)
-    : list Word := encodeInstrsW (allocator_owner rdst rsealed rscratch1 rscratch2).
+  Definition allocator_owner_instrs (off : Z) (rdst rsealed : RegName) : list Word :=
+    encodeInstrsW (allocator_owner off rdst rsealed).
 
   (** [ctp] holds the owner identifier until it is stored in the header,
       [ca1] the requested size,
       [ct0] the full heap capability with its cursor at the new header,
-      [ct1] the payload base, [ct2] its end, and [ct4] the result capability.
+      [ct1] the payload base, [ct2] its end, and [ca4] the result capability.
       Capacity includes all three header words. Bounds are checked
       using integer subtraction before any capability address is advanced.
       The memory is zeroed before its shadow entries are cleared, and the
@@ -110,13 +112,13 @@ Section Allocator.
   *)
 
   Definition allocator_malloc_asm : list (list asm_code) :=
-    [ allocator_owner_asm ctp ca0 ct3 ct4;
+    [ allocator_owner_asm ctp ca0;
       [ (* Reject noninteger and nonpositive sizes before touching the heap. *)
-        getwtype ct3 ca1;
-        sub ct3 ct3 (encodeWordType wt_int);
-        jnz (".malloc_invalid")%asm ct3;
-        lt ct3 0 ca1;
-        jnz (".malloc_size_ok")%asm ct3;
+        getwtype ca3 ca1;
+        sub ca3 ca3 (encodeWordType wt_int);
+        jnz (".malloc_invalid")%asm ca3;
+        lt ca3 0 ca1;
+        jnz (".malloc_size_ok")%asm ca3;
         jmp (".malloc_invalid")%asm
       ];
       [ #".malloc_size_ok";
@@ -125,48 +127,35 @@ Section Allocator.
         load ct0 cgp;
         geta ct1 ct0;
         gete ct2 ct0;
-        sub ct3 ct2 ct1;
-        sub ct3 ct3 allocator_header_words;
-        lt ct3 ct3 ca1;
-        jnz (".malloc_no_memory")%asm ct3;
+        sub ca3 ct2 ct1;
+        sub ca3 ca3 allocator_header_words;
+        lt ca3 ca3 ca1;
+        jnz (".malloc_no_memory")%asm ca3;
         (* Bound the returned capability to the payload, excluding its header. *)
         add ct1 ct1 allocator_header_words;
         add ct2 ct1 ca1;
-        mov ct4 ct0;
-        lea ct4 allocator_header_words;
-        subseg ct4 ct1 ct2;
+        mov ca4 ct0;
+        lea ca4 allocator_header_words;
+        subseg ca4 ct1 ct2;
         (* Record the immutable end and owner, and initialize the reserved
            address. The header's shadow entries are painted below. *)
         store ct0 ct2;
         store_imm ct0 ctp 1;
         store_imm ct0 0 2;
-        mov ca2 ct4
-      ]
+        mov ca2 ca4
+      ] ++
+      (* The shadow capability, for the shadow segment. *)
+      fetch_asm ".Limport_shadow" ctp
     ] ++ allocator_malloc_shadow_asm ++
     [ [ (* Skip the header and payload, publishing only after initialization. *)
         lea ct0 allocator_header_words;
         lea ct0 ca1;
         store cgp ct0;
-        mov ca0 ct4;
+        mov ca0 ca4;
         mov ca1 0;
         jmp (".malloc_return")%asm
       ]
     ] ++ allocator_malloc_exit_asm.
-
-  Definition assembled_allocator_malloc' :=
-    Eval vm_compute in assemble_block allocator_malloc_asm.
-
-  Definition assembled_allocator_malloc :=
-    Eval cbv in revert_regs_code_block assembled_allocator_malloc'.
-
-  Definition assembled_allocator_malloc_n (n : nat) : list instr :=
-    default [] (assembled_allocator_malloc !! n).
-
-  Definition allocator_malloc_instrs_n (n : nat) : list Word :=
-    encodeInstrsW (assembled_allocator_malloc_n n).
-
-  Definition allocator_malloc_instrs : list Word :=
-    concat (encodeInstrsW <$> assembled_allocator_malloc).
 
   (** [free] accepts, in [ca1], a tagged ordinary capability whose base and
       end exactly match an original payload, whose header records the owner
@@ -219,71 +208,95 @@ Section Allocator.
   *)
 
   Definition allocator_free_asm : list (list asm_code) :=
-    [ allocator_owner_asm ctp ca0 ct3 ct4;
+    [ allocator_owner_asm ctp ca0;
       [ (* Keep the owner in [ca0]: [ctp] receives the shadow capability. *)
         mov ca0 ctp;
         (* Reject every non-capability word, including null. *)
-        getwtype ct3 ca1;
-        sub ct3 ct3 (encodeWordType wt_cap);
-        jnz (".free_invalid")%asm ct3
+        getwtype ca3 ca1;
+        sub ca3 ca3 (encodeWordType wt_cap);
+        jnz (".free_invalid")%asm ca3
       ];
-      [ gettag ct3 ca1;
-        sub ct3 ct3 1;
-        jnz (".free_invalid")%asm ct3;
+      [ gettag ca3 ca1;
+        sub ca3 ca3 1;
+        jnz (".free_invalid")%asm ca3;
         (* Check bounds against the allocated prefix, ignoring the cursor. *)
         load ct0 cgp;
         getb ct1 ca1;
         gete ct2 ca1;
-        getb ct3 ct0;
-        lt ct3 ct3 ct1;
-        jnz (".free_base_ok")%asm ct3;
+        getb ca3 ct0;
+        lt ca3 ca3 ct1;
+        jnz (".free_base_ok")%asm ca3;
         jmp (".free_invalid")%asm;
         #".free_base_ok";
-        lt ct3 ct1 ct2;
-        jnz (".free_nonempty")%asm ct3;
+        lt ca3 ct1 ct2;
+        jnz (".free_nonempty")%asm ca3;
         jmp (".free_invalid")%asm;
         #".free_nonempty";
-        geta ct3 ct0;
-        lt ct3 ct3 ct2;
-        jnz (".free_invalid")%asm ct3
+        geta ca3 ct0;
+        lt ca3 ca3 ct2;
+        jnz (".free_invalid")%asm ca3
       ];
-      fetch_asm allocator_shadow_import_off ctp ct3 ca2;
+      fetch_asm ".Limport_shadow" ctp;
       [ (* Translate the word below the payload base to its shadow entry. *)
-        getb ct3 ct0;
-        sub ct3 ct1 ct3;
-        sub ct3 ct3 1;
-        lea ctp ct3;
+        getb ca3 ct0;
+        sub ca3 ct1 ca3;
+        sub ca3 ca3 1;
+        lea ctp ca3;
         (* The last header word is painted. Compare against the machine's
            encoding rather than assuming quarantined is one. *)
-        load ct3 ctp;
-        sub ct3 ct3 (encodeAllocStatus ShadowQuarantined);
-        jnz (".free_invalid")%asm ct3;
+        load ca3 ctp;
+        sub ca3 ca3 (encodeAllocStatus ShadowQuarantined);
+        jnz (".free_invalid")%asm ca3;
         (* The payload base is unpainted. *)
         lea ctp 1;
-        load ct3 ctp;
-        sub ct3 ct3 (encodeAllocStatus ShadowLive);
-        jnz (".free_invalid")%asm ct3;
+        load ca3 ctp;
+        sub ca3 ca3 (encodeAllocStatus ShadowLive);
+        jnz (".free_invalid")%asm ca3;
         (* Rederive the header from the trusted heap root, never by [Subseg],
            and compare the recorded end. *)
-        mov ct4 ct0;
-        geta ct3 ct0;
-        sub ct3 ct1 ct3;
-        sub ct3 ct3 allocator_header_words;
-        lea ct4 ct3;
-        load ca2 ct4;
-        sub ct3 ca2 ct2;
-        jnz (".free_invalid")%asm ct3;
+        mov ca4 ct0;
+        geta ca3 ct0;
+        sub ca3 ct1 ca3;
+        sub ca3 ca3 allocator_header_words;
+        lea ca4 ca3;
+        load ca2 ca4;
+        sub ca3 ca2 ct2;
+        jnz (".free_invalid")%asm ca3;
         (* The recorded owner is the owner of the allocator capability. *)
-        load_imm ct3 ct4 1;
-        sub ct3 ct3 ca0;
-        jnz (".free_invalid")%asm ct3;
+        load_imm ca3 ca4 1;
+        sub ca3 ca3 ca0;
+        jnz (".free_invalid")%asm ca3;
         (* Paint only the complete payload; its header remains accessible. *)
         sub ca2 ct2 ct1
-      ]
+      ] ++
+      (* The revoker capability, for the tail. *)
+      fetch_asm ".Limport_revoker" ca3
     ] ++ allocator_free_tail_asm.
 
+  (** [malloc] and [free] form one program, after the imports. *)
+  Definition allocator_asm : list (list asm_code) :=
+    allocator_with_imports (allocator_malloc_asm ++ allocator_free_asm).
+
+  Definition assembled_allocator' :=
+    Eval vm_compute in assemble_block allocator_asm.
+
+  Definition assembled_allocator_malloc' :=
+    Eval vm_compute in take (length allocator_malloc_asm) assembled_allocator'.
+
+  Definition assembled_allocator_malloc :=
+    Eval cbv in revert_regs_code_block assembled_allocator_malloc'.
+
+  Definition assembled_allocator_malloc_n (n : nat) : list instr :=
+    default [] (assembled_allocator_malloc !! n).
+
+  Definition allocator_malloc_instrs_n (n : nat) : list Word :=
+    encodeInstrsW (assembled_allocator_malloc_n n).
+
+  Definition allocator_malloc_instrs : list Word :=
+    concat (encodeInstrsW <$> assembled_allocator_malloc).
+
   Definition assembled_allocator_free' :=
-    Eval vm_compute in assemble_block allocator_free_asm.
+    Eval vm_compute in drop (length allocator_malloc_asm) assembled_allocator'.
 
   Definition assembled_allocator_free :=
     Eval cbv in revert_regs_code_block assembled_allocator_free'.
@@ -296,6 +309,12 @@ Section Allocator.
 
   Definition allocator_free_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_allocator_free).
+
+  (** The offsets of the fetches of the unsealing key by [allocator_owner_asm]
+      in the first block of each entry, from the assembled program. *)
+  Definition allocator_malloc_owner_off : Z := fetch_offset (assembled_allocator_malloc_n 0).
+
+  Definition allocator_free_owner_off : Z := fetch_offset (assembled_allocator_free_n 0).
 
   Definition allocator_code : list Word :=
     allocator_malloc_instrs ++ allocator_free_instrs.

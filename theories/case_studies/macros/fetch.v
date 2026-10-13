@@ -5,26 +5,28 @@ Section Fetch.
   Local Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
-  (* Expects r1 := e_stk ; r2 := a_stk *)
-  (** Fetch the value at the address (pc_b + n).
-     - rdst contains the fetched value.
-     - rscratch1 and rscratch2 are both clobbered.
-   **)
-  Definition fetch_asm (n : Z) (rdst rscratch1 rscratch2 : RegName) : list asm_code :=
+  (** Fetch the word named by the data symbol [sym] (an import entry,
+      declared with [#@] before the code of the enclosing program) with a
+      PC-relative load into [rdst]. The symbol resolves in the enclosing
+      program: the macro is inlined in its code, not assembled separately. *)
+  Definition fetch_asm (sym : string) (rdst : RegName) : list asm_code :=
     [
-      mov rdst PC;
-      getb rscratch1 rdst;
-      geta rscratch2 rdst;
-      sub rscratch1 rscratch1 rscratch2;
-      lea rdst rscratch1;
-      lea rdst n;
-      load rdst rdst;
-      mov rscratch1 0;
-      mov rscratch2 0
+      auipcc rdst sym;
+      load rdst rdst
     ].
 
-  Definition fetch (n : Z) (rdst rscratch1 rscratch2 : RegName) :=
-    Eval compute in assemble (fetch_asm n rdst rscratch1 rscratch2).
-  Definition fetch_instrs (n : Z) (rdst rscratch1 rscratch2 : RegName) : list Word :=
-    encodeInstrsW (fetch n rdst rscratch1 rscratch2).
+  (** The assembled macro, where [off] is the resolved offset of the symbol
+      from the address of the [auipcc]. *)
+  Definition fetch (off : Z) (rdst : RegName) : list instr :=
+    [machine_instructions.Auipcc rdst off; machine_instructions.CLoad rdst rdst 0].
+  Definition fetch_instrs (off : Z) (rdst : RegName) : list Word :=
+    encodeInstrsW (fetch off rdst).
+
+  (** The offset of the fetch that starts the assembled code [l], to derive
+      the offset of an inlined fetch from the assembled program. *)
+  Definition fetch_offset (l : list instr) : Z :=
+    match l with
+    | machine_instructions.Auipcc _ off :: _ => off
+    | _ => 0
+    end.
 End Fetch.

@@ -28,14 +28,14 @@ Section SO_Checkints_Blocks_2.
     readAllowed p = true ->
     disjoint_from_shadow b e ->
     l ≡ₚ finz.seq_between b e ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
     ca0 ↦ᵣ WCap t p g b e a @@? π ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
     codefrag_pers pc_a so_main_code ∗
     ▷ (⌜Forall (λ w, ∃ z, w.(lw) = WInt z) ws⌝ ∗
-        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
+        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 7)%a ∗
         ca0 ↦ᵣ WCap t p g b e (finz.max b e) @@? π ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
@@ -69,7 +69,7 @@ Section SO_Checkints_Blocks_2.
     (wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     (b < e)%a ->
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_block_offset 6)%a ∗
     ca0 ↦ᵣ WCap false p g b e a @@? π ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗

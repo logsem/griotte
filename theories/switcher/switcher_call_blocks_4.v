@@ -38,12 +38,12 @@ Section Switcher_Call_Blocks_4.
     0 ≤ nargs ≤ 7 ->
 
     atbl_tgt ↦ₐ□ WInt (encode_entry_point nargs off_tgt) ∗
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
     cs0 ↦ᵣ wcs0 ∗
     ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
     ct2 ↦ᵣ wct2 ∗
     codefrag_pers pc_a switcher_instrs_7 ∗
-    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
         ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
         ct2 ↦ᵣ WInt nargs ∗
@@ -97,7 +97,7 @@ Section Switcher_Call_Blocks_4.
 
     btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt ∗
     (btbl_tgt ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ WInt off_tgt ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -105,7 +105,7 @@ Section Switcher_Call_Blocks_4.
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
     codefrag_pers pc_a switcher_instrs_8 ∗
-    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_8)%a ∗
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_8)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
         cs1 ↦ᵣ WInt (btbl_tgt - atbl_tgt) ∗
         ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt (btbl_tgt ^+ 1)%a ∗
@@ -184,7 +184,7 @@ Section Switcher_Call_Blocks_4.
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off) ∗
-    PC ↦ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
+    PC ↦ₚ switcher_pc (switcher_block_offset 7 + 1) ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
@@ -192,7 +192,7 @@ Section Switcher_Call_Blocks_4.
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
     switcher_code ∗
-    ▷ ( PC ↦ᵣ switcher_block_pc 9 ∗
+    ▷ ( PC ↦ₚ switcher_block_pc 9 ∗
         cs0 ↦ᵣ WInt off ∗
         cs1 ↦ᵣ WInt (b_tbl - a_tbl) ∗
         ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl (b_tbl ^+ 1)%a ∗
@@ -233,9 +233,9 @@ Section Switcher_Call_Blocks_4.
       to the callee. *)
   Lemma switcher_call_blocks_10_11_spec
     (wcs0 wcs1 wct1 wct2 wctp : LWord) (bpcc epcc a_tgt : Addr) (rmap : LReg) :
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    PC ↦ᵣ switcher_block_pc 10 ∗
+    PC ↦ₚ switcher_block_pc 10 ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -245,8 +245,8 @@ Section Switcher_Call_Blocks_4.
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
-        ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
+        ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
+        PC ↦ₚ WCap true RX Global bpcc epcc a_tgt ∗
         cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code -∗
@@ -299,12 +299,12 @@ Section Switcher_Call_Blocks_4.
     is_heap_address bpcc = false ->
     is_heap_cap wcgp_tgt = false ->
     is_arg_rmap arg_rmap 8 ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off) ∗
-    PC ↦ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
+    PC ↦ₚ switcher_pc (switcher_block_offset 7 + 1) ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
@@ -318,8 +318,8 @@ Section Switcher_Call_Blocks_4.
     switcher_code ∗
     ▷ ( ∀ (arg_rmap' rmap' : LReg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
-        ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ᵣ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
+        ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
+        PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
         cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
@@ -380,12 +380,12 @@ Section Switcher_Call_Blocks_4.
     is_heap_address bpcc = false ->
     is_heap_cap wcgp_tgt = false ->
     is_arg_rmap arg_rmap 8 ->
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off) ∗
-    PC ↦ᵣ switcher_pc (switcher_block_offset 7 + 1) ∗
+    PC ↦ₚ switcher_pc (switcher_block_offset 7 + 1) ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
@@ -398,8 +398,8 @@ Section Switcher_Call_Blocks_4.
     switcher_code ∗
     ▷ ( ∀ (arg_rmap' rmap' : LReg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
-        ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ᵣ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
+        ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
+        PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
         cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',

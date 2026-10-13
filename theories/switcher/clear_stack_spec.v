@@ -20,12 +20,12 @@ Section ClearStackMacro.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
       ∗ csp ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
       ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2)
       ∗ ([[ csp_a , csp_e ]] ↦ₐ [[ ws ]])
-      ∗ ▷ ( (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
+      ∗ ▷ ( (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
              ∗ csp ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a
              ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_e
              ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2)

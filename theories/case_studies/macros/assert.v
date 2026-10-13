@@ -27,14 +27,13 @@ Section Assert_Code.
       mov ct1 0;
       ret; (* return *)
       #"assert_fail";
-      mov ct1 PC;
-      lea ct1 ("cap_flag"+1)%asm; (* pointer to cap: *)
+      auipcc ct1 ("cap_flag")%asm; (* pointer to cap: *)
       load ct1 ct1;
       store ct1 1;
       mov ct0 0;
       mov ct1 0;
       ret;
-      #"cap_flag"
+      #@"cap_flag"
        (* cap: (RW, flag, end, flag) *)
        (* flag: <0 or 1> *)
        (* end*)
@@ -44,31 +43,42 @@ Section Assert_Code.
     Eval vm_compute in (compute_asm_code_env (assert_subroutine_asm_pre)).2.
   Definition assert_subroutine_asm :=
     Eval compute in resolve_labels_macros assert_subroutine_asm_pre assert_subroutine_asm_env.
+  Definition assert_subroutine' : list instr :=
+    Eval vm_compute in assemble assert_subroutine_asm.
   Definition assert_subroutine : list instr :=
-    Eval compute in assemble assert_subroutine_asm.
+    Eval cbv in revert_regs_code assert_subroutine'.
   Definition assert_subroutine_instrs : list Word :=
     encodeInstrsW assert_subroutine.
 
-  (* assert macros:
-   - fetch the assert entry point an the n-th position in the import table
-   - execute the assert subroutine
+  (* assert macro:
+   - fetch the assert entry point, the import named by the data symbol [sym]
+   - execute the assert subroutine, saving [cra] in [rscratch]
 
-   - rdst, rscratch1 and rscratch2 are all clobbered
+   - rdst and rscratch are both clobbered
    *)
-  Definition assert_asm (n : Z) (rdst rscratch1 rscratch2 : RegName) :=
-    [ fetch_asm n rdst rscratch1 rscratch2
-      ;
-      [
-        mov rscratch1 cra;
-        jalr cra rdst;
-        mov cra rscratch1;
-        mov rscratch1 0;
-        mov rdst 0
-      ]
+  Definition assert_asm (sym : string) (rdst rscratch : RegName) : list asm_code :=
+    fetch_asm sym rdst ++
+    [
+      mov rscratch cra;
+      jalr cra rdst;
+      mov cra rscratch;
+      mov rscratch 0;
+      mov rdst 0
     ].
-
-  Definition assembled_assert (n : Z) (rdst rscratch1 rscratch2 : RegName) :=
-    Eval compute in assemble_block (assert_asm n rdst rscratch1 rscratch2).
-  Definition assert_instrs (n : Z) (rdst rscratch1 rscratch2 : RegName) : list Word :=
-    concat (encodeInstrsW <$> (assembled_assert n rdst rscratch1 rscratch2)).
 End Assert_Code.
+
+Section Assert_Assembled.
+  Context `{MP: MachineParameters}.
+
+  (** The assembled macro, where [off] is the resolved offset of the import
+      from the address of the first instruction. *)
+  Definition assembled_assert (off : Z) (rdst rscratch : RegName) : list instr :=
+    fetch off rdst ++
+    [ Mov rscratch (inr cra);
+      Jalr cra rdst;
+      Mov cra (inr rscratch);
+      Mov rscratch (inl 0%Z);
+      Mov rdst (inl 0%Z) ].
+  Definition assert_instrs (off : Z) (rdst rscratch : RegName) : list Word :=
+    encodeInstrsW (assembled_assert off rdst rscratch).
+End Assert_Assembled.

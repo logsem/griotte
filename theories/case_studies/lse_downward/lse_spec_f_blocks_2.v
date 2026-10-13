@@ -21,13 +21,12 @@ Section LSE_F_Blocks_2.
 
   Lemma lse_f_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wcgp wcs0 wcs1 wcra wca0 wca1 wcnull : LWord) :
+    (wcgp wcs0 wcra wca0 wca1 wcnull : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_block_offset 5)%a ∗
     cgp ↦ᵣ wcgp ∗
     cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
     ct0 ↦ᵣ WInt 2 ∗
     ct1 ↦ᵣ WInt 2 ∗
     cra ↦ᵣ wcra ∗
@@ -36,10 +35,9 @@ Section LSE_F_Blocks_2.
     cnull ↦ᵣ wcnull ∗
     (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
     codefrag_pers pc_a lse_main_code ∗
-    ▷ (PC ↦ᵣ lupdatePcPerm wcra ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
         cgp ↦ᵣ WInt 0 ∗
         cs0 ↦ᵣ WInt 0 ∗
-        cs1 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
         cra ↦ᵣ wcra ∗
@@ -52,7 +50,7 @@ Section LSE_F_Blocks_2.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
-      "(#Hassert & HPC & Hcgp & Hcs0 & Hcs1 & Hct0 & Hct1 & Hcra
+      "(#Hassert & HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra
       & Hca0 & Hca1 & Hcnull & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
@@ -61,11 +59,12 @@ Section LSE_F_Blocks_2.
     (* Block 5: assert that [a] contains [2] *)
     focus_block 5 "Hcode_main" of lse_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (assert_success_spec with
-             "[- $Hassert $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra $Hcnull
+    iApply (assert_success_spec 1 with
+             "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hcnull
               $Hcode $Himport_assert]"); auto.
+    { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(HPC & Hcgp & Hcs0 & Hcs1 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hcgp & Hcs0 & Hcra & Hct0 & Hct1 & Hcnull
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

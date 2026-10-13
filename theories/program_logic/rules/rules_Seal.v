@@ -16,48 +16,52 @@ Section griotte_lang_rules.
   Implicit Types ms : gmap Addr LWord.
 
   (* The sealed word keeps the identifier of its payload. *)
-  Inductive Seal_failure (regs: LReg) (dst: RegName) (src1 src2: RegName) : LReg → Prop :=
+  Inductive Seal_failure (lpc : LWord) (regs: LReg) (dst: RegName) (src1 src2: RegName) :
+    LWord → LReg → Prop :=
   | Seal_fail_sealr w :
       regs !!ₗ src1 = Some w →
       is_sealr w.(lw) = false →
-      Seal_failure regs dst src1 src2 regs
+      Seal_failure lpc regs dst src1 src2 lpc regs
   | Seal_fail_sealb w :
       regs !!ₗ src2 = Some w →
       is_sealb w.(lw) = false →
-      Seal_failure regs dst src1 src2 regs
+      Seal_failure lpc regs dst src1 src2 lpc regs
   | Seal_fail_invalidated_PC (t : bool) p g b e a π1 sb π :
       regs !!ₗ src1 = Some (WSealRange t p g b e a @@? π1) →
       regs !!ₗ src2 = Some (WSealable sb @@? π) →
       t && get_tag_sealable sb && permit_seal p && withinBounds b e a = false →
-      incrementPC (<[ dst := WSealed a (clear_tag_sealable sb) @@? π ]ₗ> regs) = None →
-      Seal_failure regs dst src1 src2 regs
+      incrementPC lpc = None →
+      Seal_failure lpc regs dst src1 src2 lpc regs
   | Seal_fail_incrPC p g b e a π1 sb π :
       regs !!ₗ src1 = Some (WSealRange true p g b e a @@? π1) →
       regs !!ₗ src2 = Some (WSealable sb @@? π) →
       get_tag_sealable sb = true →
       permit_seal p = true →
       withinBounds b e a = true →
-      incrementPC (<[ dst := WSealed a sb @@? π ]ₗ> regs) = None →
-      Seal_failure regs dst src1 src2 regs.
+      incrementPC lpc = None →
+      Seal_failure lpc regs dst src1 src2 lpc regs.
 
-  Inductive Seal_spec (regs: LReg) (dst: RegName) (src1 src2: RegName) (regs': LReg): griotte_lang.val -> Prop :=
+  Inductive Seal_spec (lpc : LWord) (regs: LReg) (dst: RegName) (src1 src2: RegName)
+    (lpc' : LWord) (regs': LReg): griotte_lang.val -> Prop :=
   | Seal_spec_success p g b e a π1 sb π:
       regs !!ₗ src1 = Some (WSealRange true p g b e a @@? π1) →
       regs !!ₗ src2 = Some (WSealable sb @@? π) →
       get_tag_sealable sb = true →
       permit_seal p = true →
       withinBounds b e a = true →
-      incrementPC (<[ dst := WSealed a sb @@? π ]ₗ> regs) = Some regs' →
-      Seal_spec regs dst src1 src2 regs' NextIV
+      incrementPC lpc = Some lpc' →
+      regs' = <[ dst := WSealed a sb @@? π ]ₗ> regs →
+      Seal_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | Seal_spec_invalidated (t : bool) p g b e a π1 sb π :
       regs !!ₗ src1 = Some (WSealRange t p g b e a @@? π1) →
       regs !!ₗ src2 = Some (WSealable sb @@? π) →
       t && get_tag_sealable sb && permit_seal p && withinBounds b e a = false →
-      incrementPC (<[ dst := WSealed a (clear_tag_sealable sb) @@? π ]ₗ> regs) = Some regs' →
-      Seal_spec regs dst src1 src2 regs' NextIV
+      incrementPC lpc = Some lpc' →
+      regs' = <[ dst := WSealed a (clear_tag_sealable sb) @@? π ]ₗ> regs →
+      Seal_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | Seal_spec_failure :
-      Seal_failure regs dst src1 src2 regs' →
-      Seal_spec regs dst src1 src2 regs' FailedV.
+      Seal_failure lpc regs dst src1 src2 lpc' regs' →
+      Seal_spec lpc regs dst src1 src2 lpc' regs' FailedV.
 
   (* The sealed word keeps the bounds of its payload and never gains a tag. *)
   Lemma reg_word_ok_seal R C (sb sb' : Sealable) π o :
@@ -73,21 +77,22 @@ Section griotte_lang_rules.
   Lemma wp_Seal Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src1 src2 regs dq :
     decodeInstrW w.(lw) = Seal dst src1 src2 ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (Seal dst src1 src2) ⊆ dom regs →
 
-    {{{ ▷ pc_a ↦ₐ{dq} w ∗
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ regs' retv, RET retv;
-        ⌜ Seal_spec regs dst src1 src2 regs' retv ⌝ ∗
+    {{{ lpc' regs' retv, RET retv;
+        ⌜ Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv ⌝ ∗
+        PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "Hpc_a Hmap"); eauto.
+    iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
+    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "Hr Hsr Hm Hst HR HC Hpc_a Hmap".
+      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     odestruct (Hri src2) as [r2v [Hr2 _]]; first by set_solver+.
@@ -99,17 +104,17 @@ Section griotte_lang_rules.
     { eapply lookup_reg_weaken; last exact Hregs. by rewrite lookup_reg_erase Hr2. }
     rewrite /exec /= Hr2' Hr1' /= in Hstep.
     destruct (is_sealr r1v.(lw)) eqn:Hr1v.
-    2:{ assert (c = Failed ∧ σ' = (r, sr, m, st)) as [-> ->].
+    2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
         { unfold is_sealr in Hr1v. destruct r1v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
-        iApply (instr_close_fail with "Hr Hsr Hm Hst HR HC Hmap"); first done.
-        iIntros "Hmap". iApply "Hφ". iFrame. iPureIntro.
+        iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
+        iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
         econstructor. by eapply Seal_fail_sealr. }
     destruct r1v as [[ | [ | t p g b e a ] | | ] π1]; try inversion Hr1v. clear Hr1v.
     destruct (is_sealb r2v.(lw)) eqn:Hr2v.
-    2:{ assert (c = Failed ∧ σ' = (r, sr, m, st)) as [-> ->].
+    2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
         { unfold is_sealb in Hr2v. destruct r2v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
-        iApply (instr_close_fail with "Hr Hsr Hm Hst HR HC Hmap"); first done.
-        iIntros "Hmap". iApply "Hφ". iFrame. iPureIntro.
+        iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
+        iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
         econstructor. by eapply Seal_fail_sealb. }
     destruct r2v as [[ | sb | | ] π]; try inversion Hr2v. clear Hr2v.
     assert (reg_word_ok R C (WSealable sb @@? π)) as Hok.
@@ -119,23 +124,23 @@ Section griotte_lang_rules.
     - apply andb_true_iff in Hvalid as [Hvalid Hwb].
       apply andb_true_iff in Hvalid as [Hvalid Hps].
       apply andb_true_iff in Hvalid as [-> Htag].
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ dst (WSealed a sb @@? π) _ _ _
-        (λ regs' retv, Seal_spec regs dst src1 src2 regs' retv)
-        with "Hr Hsr Hm Hst HR HC Hmap [Hφ Hpc_a]").
-      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. } { by eexists. }
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (WSealed a sb @@? π) _ _ _
+        (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
+        with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
+      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
       { apply (reg_word_ok_seal _ _ sb); auto. } { exact Hstep. }
       { intros. by eapply Seal_spec_success. }
       { intros. econstructor. by eapply Seal_fail_incrPC. }
-      iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
-    - iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ dst
+      iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
+    - iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst
         (WSealed a (clear_tag_sealable sb) @@? π) _ _ _
-        (λ regs' retv, Seal_spec regs dst src1 src2 regs' retv)
-        with "Hr Hsr Hm Hst HR HC Hmap [Hφ Hpc_a]").
-      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. } { by eexists. }
+        (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
+        with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
+      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
       { apply (reg_word_ok_seal _ _ sb); auto. } { exact Hstep. }
       { intros. by eapply Seal_spec_invalidated. }
       { intros. econstructor. by eapply Seal_fail_invalidated_PC. }
-      iIntros (regs' retv Hspec) "Hmap". iApply "Hφ". by iFrame.
+      iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
   (* after pruning impossible or impractical options, 5 wp rules remain *)
@@ -151,14 +156,14 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ w'
         ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealable sb @@? π }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WSealed a sb @@? π
           ∗ r1 ↦ᵣ WSealRange true p g b e a @@? πs
@@ -166,10 +171,10 @@ Section griotte_lang_rules.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Htag Hps Hwb Hpc_a' Hcnull Hcnull' Hncull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
-    iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    iDestruct (map_of_regs_3 with "Hr1 Hr2 Hdst") as "[Hmap (%&%&%)]".
+    iApply (wp_Seal with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
+    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | * Hfail].
     2: (simplify_lmap_eq; simplify_eq;
@@ -177,10 +182,8 @@ Section griotte_lang_rules.
           apply andb_false_iff in Hbad; destruct Hbad
         end; try congruence).
     { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_lmap_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
-              (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
+      iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
+      iRegsMap "Hmap"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto; try congruence.
       all: repeat match goal with Hbad : _ && _ = false |- _ =>
@@ -199,23 +202,23 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealable sb @@? π }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ WSealed a sb @@? π
           ∗ r2 ↦ᵣ WSealable sb @@? π
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Htag Hps Hwb Hpc_a' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
+    iApply (wp_Seal with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
+    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | * Hfail].
     2: (simplify_lmap_eq; simplify_eq;
@@ -223,9 +226,8 @@ Section griotte_lang_rules.
           apply andb_false_iff in Hbad; destruct Hbad
         end; congruence).
     { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_lmap_eq.
-      rewrite (insert_insert_ne _ PC r1) // insert_insert_eq (insert_insert_ne _ r1 PC) // insert_insert_eq.
-       iDestruct (regs_of_map_3 with "[$Hmap]") as "[HPC [Hr1 Hr2] ]"; eauto; iFrame. }
+      iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
+      iRegsMap "Hmap"; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto; try congruence.
       all: repeat match goal with Hbad : _ && _ = false |- _ =>
@@ -245,23 +247,23 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealable sb @@? π }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ WSealRange true p g b e a @@? πs
           ∗ r2 ↦ᵣ WSealed a sb @@? π
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Htag Hps Hwb Hpc_a' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
+    iApply (wp_Seal with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
+    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | * Hfail].
     2: (simplify_lmap_eq; simplify_eq;
@@ -269,9 +271,8 @@ Section griotte_lang_rules.
           apply andb_false_iff in Hbad; destruct Hbad
         end; congruence).
     { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_lmap_eq.
-      rewrite (insert_insert_ne _ r2 PC) // insert_insert_eq (insert_insert_ne _ r1 r2) // insert_insert_eq.
-       iDestruct (regs_of_map_3 with "[$Hmap]") as "[HPC [Hr1 Hr2] ]"; eauto; iFrame. }
+      iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
+      iRegsMap "Hmap"; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto; try congruence.
       all: repeat match goal with Hbad : _ && _ = false |- _ =>
@@ -281,94 +282,6 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  (* the 2 rules where r2=PC (and d=r1 or d≠r2) are also admissible *)
-
-  Lemma wp_seal_PC E pc_p pc_g pc_b pc_e pc_a pc_π w w' dst r1 p g b e a pc_a' πs dq :
-    decodeInstrW w.(lw) = Seal dst r1 PC →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    permit_seal p = true →
-    withinBounds b e a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    dst ≠ cnull ->
-    r1 ≠ cnull ->
-
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ dst ↦ᵣ w'
-        ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ dst ↦ᵣ WSealed a (SCap true pc_p pc_g pc_b pc_e pc_a) @@? pc_π
-          ∗ r1 ↦ᵣ WSealRange true p g b e a @@? πs
-      }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hdst Hr1") as "[Hmap (%&%&%)]".
-    iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [ | | * Hfail].
-    2: (simplify_lmap_eq; simplify_eq;
-        repeat match goal with Hbad : _ && _ = false |- _ =>
-          apply andb_false_iff in Hbad; destruct Hbad
-        end; congruence).
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_lmap_eq.
-      rewrite (insert_insert_ne _ dst PC) // insert_insert_eq insert_insert_eq.
-       iDestruct (regs_of_map_3 with "[$Hmap]") as "[HPC [Hr1 Hr2] ]"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto; try congruence.
-      all: repeat match goal with Hbad : _ && _ = false |- _ =>
-        apply andb_false_iff in Hbad; destruct Hbad
-      end; try congruence.
-    }
-    Unshelve. all: auto.
-  Qed.
-
- Lemma wp_seal_PC_eq E pc_p pc_g pc_b pc_e pc_a pc_π w w' r1 p g b e a pc_a' πs dq :
-    decodeInstrW w.(lw) = Seal r1 r1 PC →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    permit_seal p = true →
-    withinBounds b e a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ r1 ↦ᵣ WSealed a (SCap true pc_p pc_g pc_b pc_e pc_a) @@? pc_π
-      }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
-    iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
-    iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [ | | * Hfail].
-    2: (simplify_lmap_eq; simplify_eq;
-        repeat match goal with Hbad : _ && _ = false |- _ =>
-          apply andb_false_iff in Hbad; destruct Hbad
-        end; congruence).
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_lmap_eq.
-      rewrite (insert_insert_ne _ r1 PC) // !insert_insert_eq.
-      iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr1]"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto; try congruence.
-      all: repeat match goal with Hbad : _ && _ = false |- _ =>
-        apply andb_false_iff in Hbad; destruct Hbad
-      end; try congruence.
-    }
-    Unshelve. all: auto.
-  Qed.
 
   Lemma wp_seal_nosb_r2 E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 p g b e a (w2 : LWord) pc_a' πs dq :
     decodeInstrW w.(lw) = Seal r2 r1 r2 →
@@ -378,7 +291,7 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
           ∗ ▷ pc_a ↦ₐ{dq} w
           ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
           ∗ ▷ r2 ↦ᵣ w2 }}}
@@ -387,10 +300,10 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hfalse Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
 
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
+    iApply (wp_Seal with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
+    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | ]; last by iApply "Hφ".
     all: by simplify_lmap_eq.
@@ -401,36 +314,40 @@ End griotte_lang_rules.
 Section instruction_outcomes.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
-  Local Lemma seal_invalidated_map E pc_p pc_g pc_b pc_e pc_a pc_π
-      w dst src1 src2 regs regs' (t : bool) p g b e a πs sb π dq :
+  Local Lemma seal_invalidated_map E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+      w dst src1 src2 regs (t : bool) p g b e a πs sb π dq :
     decodeInstrW w.(lw) = Seal dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) →
     regs_of (Seal dst src1 src2) ⊆ dom regs →
     regs !!ₗ src1 = Some (WSealRange t p g b e a @@? πs) →
     regs !!ₗ src2 = Some (WSealable sb @@? π) →
     t && get_tag_sealable sb && permit_seal p && withinBounds b e a = false →
-    incrementPC (<[ dst := WSealed a (clear_tag_sealable sb) @@? π ]ₗ> regs) = Some regs' →
-    {{{ ▷ pc_a ↦ₐ{dq} w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+    (pc_a + 1)%a = Some pc_a' →
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET NextIV; pc_a ↦ₐ{dq} w ∗ [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
+    {{{ RET NextIV;
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        [∗ map] k↦y ∈ <[ dst := WSealed a (clear_tag_sealable sb) @@? π ]ₗ> regs, k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hinstr Hvpc HPC Dregs Hr1 Hr2 Hvalid Hincr φ) "(Hpc_a & Hmap) Hφ".
-    iApply (wp_Seal with "[$Hpc_a $Hmap]"); eauto.
-    iNext. iIntros (regs'' retv) "(%Hspec & Hpc_a & Hmap)".
+    iIntros (Hinstr Hvpc Dregs Hr1 Hr2 Hvalid Hpca' φ) "(HPC & Hpc_a & Hmap) Hφ".
+    iApply (wp_Seal with "[$HPC $Hpc_a $Hmap]"); eauto.
+    iNext. iIntros (lpc' regs'' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     destruct Hspec as [ | | Hfail].
     - simplify_eq.
       repeat match goal with Hbad : _ && _ = false |- _ =>
         apply andb_false_iff in Hbad; destruct Hbad
       end; try congruence.
-    - simplify_eq. iApply "Hφ". iFrame.
-    - destruct Hfail; simplify_eq; cbn in *; try congruence.
+    - simplify_eq. try incrementPC_inv; simplify_eq. iApply "Hφ". iFrame.
+    - destruct Hfail; try incrementPC_inv; simplify_eq; cbn in *; try congruence.
       all: repeat match goal with Hbad : _ && _ = false |- _ =>
         apply andb_false_iff in Hbad; destruct Hbad
       end; try congruence.
   Qed.
 
-  (* Seal: include shared sources, destination aliases, PC sources, and cnull. *)
+  (* Seal: include shared sources, destination aliases and cnull. *)
   Lemma wp_seal_invalidated E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a r2 sb dst (wd : LWord) πs π dq :
     decodeInstrW w.(lw) = Seal dst r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -438,33 +355,29 @@ Section instruction_outcomes.
     r1 ≠ cnull →
     r2 ≠ cnull →
     t && get_tag_sealable (sb) && permit_seal p && withinBounds b e a = false →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealable sb @@? π
         ∗ ▷ dst ↦ᵣ wd }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ r2 ↦ᵣ WSealable sb @@? π
         ∗ dst ↦ᵣ (if decide (dst = cnull) then lnull else WSealed a (clear_tag_sealable (sb)) @@? π) }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2 & >Hr3) Hφ".
-    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hr3") as "[Hmap %Hne]".
-    destruct Hne as (? & ? & ? & ? & ? & ?).
-    iApply (seal_invalidated_map E _ _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]> (<[r1 := WSealRange t p g b e a @@? πs]> (<[r2 := WSealable sb @@? π]> (<[dst := (if decide (dst
-        = cnull) then lnull else WSealed a (clear_tag_sealable (sb)) @@? π)]> (∅ : LReg))))) t p g b e a _ (sb) _ with "[$Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+    iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap %Hne]".
+    destruct Hne as (? & ? & ?).
+    iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (sb) _ with "[$HPC $Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /linsert_reg ?lookup_insert.
-      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
-      apply f_equal; apply map_eq; intros;
-      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
-    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
-      iApply (regs_of_map_4 with "Hmap"); eauto.
+    iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
+    rewrite /linsert_reg; try (rewrite decide_False; [|done]).
+    iRegsMap "Hmap"; iFrame.
   Qed.
 
   Lemma wp_seal_invalidated_r1 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a r2 sb πs π dq :
@@ -474,31 +387,26 @@ Section instruction_outcomes.
     r1 ≠ cnull →
     r2 ≠ cnull →
     t && get_tag_sealable (sb) && permit_seal p && withinBounds b e a = false →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealable sb @@? π }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealed a (clear_tag_sealable (sb)) @@? π
         ∗ r2 ↦ᵣ WSealable sb @@? π }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
-    destruct Hne as (? & ? & ?).
-    iApply (seal_invalidated_map E _ _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]> (<[r1 := WSealed a (clear_tag_sealable (sb)) @@? π]> (<[r2 := WSealable sb @@? π]> (∅ : LReg))))
-        t p g b e a _ (sb) _ with "[$Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
+    iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (sb) _ with "[$HPC $Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /linsert_reg ?lookup_insert.
-      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
-      apply f_equal; apply map_eq; intros;
-      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
-    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
-      iApply (regs_of_map_3 with "Hmap"); eauto.
+    iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
+    rewrite /linsert_reg; try (rewrite decide_False; [|done]).
+    iRegsMap "Hmap"; iFrame.
   Qed.
 
   Lemma wp_seal_invalidated_r2 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a r2 sb πs π dq :
@@ -508,30 +416,26 @@ Section instruction_outcomes.
     r1 ≠ cnull →
     r2 ≠ cnull →
     t && get_tag_sealable (sb) && permit_seal p && withinBounds b e a = false →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ ▷ r2 ↦ᵣ WSealable sb @@? π }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ r2 ↦ᵣ WSealed a (clear_tag_sealable (sb)) @@? π }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
-    destruct Hne as (? & ? & ?).
-    iApply (seal_invalidated_map E _ _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]> (<[r1 := WSealRange t p g b e a @@? πs]> (<[r2 := WSealed a (clear_tag_sealable (sb)) @@? π]> (∅ : LReg)))) t p g b e a _ (sb) _ with "[$Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
+    iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (sb) _ with "[$HPC $Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /linsert_reg ?lookup_insert.
-      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
-      apply f_equal; apply map_eq; intros;
-      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
-    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
-      iApply (regs_of_map_3 with "Hmap"); eauto.
+    iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
+    rewrite /linsert_reg; try (rewrite decide_False; [|done]).
+    iRegsMap "Hmap"; iFrame.
   Qed.
 
   Lemma wp_seal_invalidated_same E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a dst (wd : LWord) πs dq :
@@ -540,30 +444,26 @@ Section instruction_outcomes.
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
     t && get_tag_sealable (SSealRange t p g b e a) && permit_seal p && withinBounds b e a = false →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ ▷ dst ↦ᵣ wd }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ dst ↦ᵣ (if decide (dst = cnull) then lnull else WSealed a (clear_tag_sealable (SSealRange t p g b e a)) @@? πs) }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull1 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
-    destruct Hne as (? & ? & ?).
-    iApply (seal_invalidated_map E _ _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]> (<[r1 := WSealRange t p g b e a @@? πs]> (<[dst := (if decide (dst = cnull) then lnull else WSealed a (clear_tag_sealable (SSealRange t p g b e a)) @@? πs)]> (∅ : LReg)))) t p g b e a _ (SSealRange t p g b e a) _ with "[$Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
+    iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (SSealRange t p g b e a) _ with "[$HPC $Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /linsert_reg ?lookup_insert.
-      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
-      apply f_equal; apply map_eq; intros;
-      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
-    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
-      iApply (regs_of_map_3 with "Hmap"); eauto.
+    iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
+    rewrite /linsert_reg; try (rewrite decide_False; [|done]).
+    iRegsMap "Hmap"; iFrame.
   Qed.
 
   Lemma wp_seal_invalidated_all E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a πs dq :
@@ -572,87 +472,24 @@ Section instruction_outcomes.
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
     t && get_tag_sealable (SSealRange t p g b e a) && permit_seal p && withinBounds b e a = false →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealed a (clear_tag_sealable (SSealRange t p g b e a)) @@? πs }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull1 Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
-    iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %Hne]".
-    iApply (seal_invalidated_map E _ _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]> (<[r1 := WSealed a (clear_tag_sealable (SSealRange t p g b e a)) @@? πs]> (∅ : LReg))) t p g b e a _ (SSealRange t p g b e a) _ with "[$Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+    iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
+    iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (SSealRange t p g b e a) _ with "[$HPC $Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /linsert_reg ?lookup_insert.
-      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
-      apply f_equal; apply map_eq; intros;
-      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
-    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
-      iApply (regs_of_map_2 with "Hmap"); eauto.
+    iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
+    rewrite /linsert_reg; try (rewrite decide_False; [|done]).
+    iRegsMap "Hmap"; iFrame.
   Qed.
 
-  Lemma wp_seal_invalidated_PC E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a dst (wd : LWord) πs dq :
-    decodeInstrW w.(lw) = Seal dst r1 PC →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull →
-    t && get_tag_sealable (SCap true pc_p pc_g pc_b pc_e pc_a) && permit_seal p && withinBounds b e a = false →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs
-        ∗ ▷ dst ↦ᵣ wd }}}
-      Instr Executable @ E
-    {{{ RET NextIV;
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-        ∗ pc_a ↦ₐ{dq} w
-        ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
-        ∗ dst ↦ᵣ (if decide (dst = cnull) then lnull else WSealed a (clear_tag_sealable (SCap true pc_p pc_g pc_b pc_e pc_a)) @@? pc_π) }}}.
-  Proof.
-    iIntros (Hinstr Hpc Hincr Hnull1 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
-    destruct Hne as (? & ? & ?).
-    iApply (seal_invalidated_map E _ _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]> (<[r1 := WSealRange t p g b e a @@? πs]> (<[dst := (if decide (dst = cnull) then lnull else WSealed a (clear_tag_sealable (SCap true pc_p pc_g pc_b pc_e pc_a)) @@? pc_π)]> (∅ : LReg)))) t p g b e a _ (SCap true pc_p pc_g pc_b pc_e pc_a) _ with "[$Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
-      try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
-                 repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /linsert_reg ?lookup_insert.
-      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
-      apply f_equal; apply map_eq; intros;
-      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
-    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
-      iApply (regs_of_map_3 with "Hmap"); eauto.
-  Qed.
-
-  Lemma wp_seal_invalidated_PC_eq E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a πs dq :
-    decodeInstrW w.(lw) = Seal r1 r1 PC →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull →
-    t && get_tag_sealable (SCap true pc_p pc_g pc_b pc_e pc_a) && permit_seal p && withinBounds b e a = false →
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? πs }}}
-      Instr Executable @ E
-    {{{ RET NextIV;
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-        ∗ pc_a ↦ₐ{dq} w
-        ∗ r1 ↦ᵣ WSealed a (clear_tag_sealable (SCap true pc_p pc_g pc_b pc_e pc_a)) @@? pc_π }}}.
-  Proof.
-    iIntros (Hinstr Hpc Hincr Hnull1 Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
-    iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %Hne]".
-    iApply (seal_invalidated_map E _ _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]> (<[r1 := WSealed a (clear_tag_sealable (SCap true pc_p pc_g pc_b pc_e pc_a)) @@? pc_π]> (∅ : LReg))) t p g b e a _ (SCap true pc_p pc_g pc_b pc_e pc_a) _ with "[$Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
-      try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
-                 repeat case_decide; simplify_eq; cbn; eauto].
-    - rewrite /incrementPC /incrementPC_gen /linsert_reg ?lookup_insert.
-      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
-      apply f_equal; apply map_eq; intros;
-      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
-    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
-      iApply (regs_of_map_2 with "Hmap"); eauto.
-  Qed.
 End instruction_outcomes.
