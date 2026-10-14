@@ -100,7 +100,7 @@ Section fundamental.
       destruct (decide (r = ctp)); first by simplify_map_eq.
       destruct (decide (r = csp)); first by simplify_map_eq.
       simplify_map_eq. apply Hfull_rmap.
-    + iIntros (r w Hr).
+    + iIntros (r w Hr). iApply interp_filter_heap.
       destruct (decide (r = ca1)); first (simplify_map_eq; iApply interp_int).
       destruct (decide (r = ca0)); first (simplify_map_eq; iApply interp_int).
       destruct (decide (r = ct2)); first (simplify_map_eq; iApply interp_int).
@@ -230,7 +230,9 @@ Section fundamental.
        - [switcher_call_blocks_4_spec]: load the callee and jump to it;
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs0 [Hregs (HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
+    iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
+    iIntros (regs) "%Hfull_rmap #Hreg Hrmap Hworld_interp". clear regs0.
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
     iPoseProof "Hstatic" as "[#Hcode #Hb_switcher]".

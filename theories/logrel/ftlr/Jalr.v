@@ -135,7 +135,7 @@ Section fundamental.
       + iIntros (ri); cbn; iPureIntro.
         rewrite lookup_insert_is_Some.
         destruct (decide (rdst = ri)); auto; right; split; auto.
-      + iIntros (ri wi Hregs_ri).
+      + iIntros (ri wi Hregs_ri). iApply interp_filter_heap.
         destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
         * iApply ("Hreg" $! ri) ; auto.
         * iExact "Hinterp_ret'".

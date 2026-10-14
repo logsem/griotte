@@ -51,7 +51,7 @@ Section helpers_switcher_adequacy.
     iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
     iApply "H_jmp".
     iFrame "∗%#".
-    iIntros (r v Hr).
+    iIntros (r v Hr). iApply interp_filter_heap.
     destruct (decide (r = cgp)) as [-> | Hrcgp].
     { rewrite Hregs_cgp in Hr ; simplify_eq.
       iExact "Hinterp_cgp'".
