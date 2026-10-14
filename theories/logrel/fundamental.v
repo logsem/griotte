@@ -137,7 +137,11 @@ Section fundamental.
       interp_expression W C (WCap true p g b e a @@? π).
   Proof.
     iIntros "#Hinv_interp".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hreg] [HPC [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]]".
+    iIntros (cstk Ws Cs regs0) "[Hregs [HPC [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]]".
+    (* The registers are replaced by their filtered words, which are safe. *)
+    iApply (interp_reg_refilter with "Hregs Hmreg Hworld_interp").
+    iIntros (regs) "Hfull Hreg Hmreg Hworld_interp".
+    clear regs0.
     destruct (readAllowed p) eqn:Hread_p; cycle 1.
     { (* if p not readable, then execution will fail *)
       apply notreadAllowed_is_notexecuteAllowed in Hread_p.
@@ -152,8 +156,7 @@ Section fundamental.
     { iModIntro; iNext.
       iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih π_ih)
         "%Hfull #Hregs HPC Hmreg Hworld_interp Hcont %Hframe' Hown Htframe Hinterp".
-      iApply ("IH'" with "[%] [] [] [HPC] [Hmreg] [$] [$] [$] [$]");eauto.
-      done.
+      iApply ("IH'" with "[%] HPC Hcont Hown Htframe [%] Hregs Hmreg Hworld_interp Hinterp"); eauto.
     }
     iIntros "#Hinv_interp".
     iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
@@ -288,9 +291,10 @@ Section fundamental.
     ⊢ ftlr_IH.
   Proof.
     iModIntro; iNext.
-    iIntros (????????????) "?????????#Hv".
+    iIntros (????????????) "? #Hregs ???????#Hv".
     iDestruct (fundamental with "Hv") as "Hcont".
     iApply "Hcont"; iFrame "∗#".
+    iIntros (r v Hv). iApply interp_filter_heap. by iApply "Hregs".
   Qed.
 
   Lemma jmp_or_fail_spec W C (w : LWord) φ :

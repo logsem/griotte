@@ -5,6 +5,7 @@ From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Export cerise_instance entry rules_base rules_Load machine_instructions call_stack.
 From griotte Require Export world_ghost_theory.
+From griotte Require Import rules_registry.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -77,15 +78,36 @@ Section logrel.
   Qed.
 
 
+  (** The CLoad filter as the world sees it. A word with heap authority and an
+      identifier [ι] loads untagged once the world has [ι] Quarantined;
+      every other word loads unchanged. The lookup is by the word's
+      identifier, not by address. *)
+  Definition filter_heap (W : WORLD) (w : LWord) : LWord :=
+    match heap_authority_base w.(lw), w.(lprov) with
+    | Some _, Some ι =>
+        match heap_std W !! ι with
+        | Some o =>
+            match alloc_object_status o with
+            | AllocObjectLive => w
+            | AllocObjectQuarantined => lclear_tag w
+            end
+        | None => w
+        end
+    | _, _ => w
+    end.
+
   (* interp expression definitions *)
   Definition registers_pointsto (r : LReg) : iProp Σ :=
     ([∗ map] r↦w ∈ r, r ↦ᵣ w)%I.
 
   Definition full_map (reg : LReg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
+  (** Each register is safe once filtered by the world: a register word with
+      heap authority whose identifier the world has Quarantined is only
+      required to be safe untagged. *)
   Program Definition interp_reg (interp : V) : R :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg ∧
-       ∀ (r : RegName) (v : LWord), (⌜reg !! r = Some v⌝ → interp W C v))%I.
+       ∀ (r : RegName) (v : LWord), (⌜reg !! r = Some v⌝ → interp W C (filter_heap W v)))%I.
   Solve All Obligations with solve_proper.
 
   Definition interp_conf (W : WORLD) (C : CmptName) : iProp Σ :=
@@ -177,24 +199,6 @@ Section logrel.
     rewrite /interp_expr. intros ???. simpl.
     by repeat f_equiv.
   Qed.
-
-  (** The CLoad filter as the world sees it. A word with heap authority and an
-      identifier [ι] loads untagged once the world has [ι] Quarantined;
-      every other word loads unchanged. The lookup is by the word's
-      identifier, not by address. *)
-  Definition filter_heap (W : WORLD) (w : LWord) : LWord :=
-    match heap_authority_base w.(lw), w.(lprov) with
-    | Some _, Some ι =>
-        match heap_std W !! ι with
-        | Some o =>
-            match alloc_object_status o with
-            | AllocObjectLive => w
-            | AllocObjectQuarantined => lclear_tag w
-            end
-        | None => w
-        end
-    | _, _ => w
-    end.
 
   Lemma filter_heap_nonheap W w :
     heap_authority_base w.(lw) = None -> filter_heap W w = w.
@@ -1086,6 +1090,88 @@ Section logrel.
 
   Lemma interp_clear_tag W C w : ⊢ interp W C (lclear_tag w).
   Proof. apply interp_untagged. rewrite lw_lclear_tag. apply get_tag_clear_tag. Qed.
+
+  (** The world's filter preserves safety. *)
+  Lemma interp_filter_heap W C w :
+    interp W C w -∗ interp W C (filter_heap W w).
+  Proof.
+    iIntros "Hw". destruct (filter_heap_result W w) as [-> | ->]; first done.
+    iApply interp_clear_tag.
+  Qed.
+
+  Lemma world_interp_heap_provenance W C :
+    world_interp W C -∗ world_interp W C ∗ heap_provenance (heap_std W).
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "(Hr & Hsts & Hseal)".
+    iDestruct (region_heap_provenance with "Hr") as "[Hr #Hprov]".
+    by iFrame "∗#".
+  Qed.
+
+  (** A register can be replaced by its filtered word: the filter clears
+      only words with authority whose identifier is quarantined, and those
+      already have an untagged physical copy. *)
+  Lemma reg_refilter_world E W r v :
+    heap_provenance (heap_std W) -∗
+    r ↦ᵣ v -∗
+    |~{E}~> r ↦ᵣ filter_heap W v.
+  Proof.
+    iIntros "#Hprov Hr".
+    destruct (decide (filter_heap W v = v)) as [Heq | Hne].
+    { rewrite Heq. by iModIntro. }
+    destruct (filter_heap_cleared W v Hne) as (b & ι & o & Hb & Hι & Ho & Hq).
+    rewrite (filter_heap_quarantined W v b ι o) //.
+    iDestruct (heap_provenance_quarantined with "Hprov") as "#Hquar"; [done | done |].
+    destruct (get_tag v.(lw)) eqn:Htag.
+    - iApply (reg_refilter with "Hquar Hr"); [split; eauto | done].
+    - rewrite lclear_tag_untagged //. by iModIntro.
+  Qed.
+
+  (** A register file safe up to the world's filter is replaced by its
+      filtered words, which are safe. *)
+  Lemma registers_refilter E W C (regs : LReg) :
+    world_interp W C -∗
+    registers_pointsto regs -∗
+    (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C (filter_heap W v)) -∗
+    |~{E}~>
+    world_interp W C ∗
+    registers_pointsto (filter_heap W <$> regs) ∗
+    (∀ (r : RegName) (v : LWord), ⌜(filter_heap W <$> regs) !! r = Some v⌝ → interp W C v).
+  Proof.
+    iIntros "Hworld Hregs Hsafe".
+    iDestruct (world_interp_heap_provenance with "Hworld") as "[Hworld #Hprov]".
+    iAssert (|~{E}~> [∗ map] r↦v ∈ regs, r ↦ᵣ filter_heap W v)%I
+      with "[Hregs]" as ">Hregs".
+    { iInduction regs as [|r v regs Hr] "IH" using map_ind.
+      - iModIntro. by rewrite big_sepM_empty.
+      - iDestruct (big_sepM_insert with "Hregs") as "[Hr Hregs]"; first done.
+        iMod (reg_refilter_world with "Hprov Hr") as "Hr".
+        iMod ("IH" with "Hregs") as "Hregs".
+        iModIntro. rewrite big_sepM_insert //. iFrame. }
+    iModIntro. rewrite /registers_pointsto big_sepM_fmap. iFrame.
+    iIntros (r v Hv). apply lookup_fmap_Some in Hv as (v0 & <- & Hv0).
+    by iApply "Hsafe".
+  Qed.
+
+  (** Running from a register file safe up to the world's filter reduces to
+      running from a register file whose words are safe. *)
+  Lemma interp_reg_refilter W C (regs : LReg) :
+    interp_reg interp W C regs -∗
+    registers_pointsto regs -∗
+    world_interp W C -∗
+    (∀ (regs' : LReg),
+        full_map regs' -∗
+        (∀ (r : RegName) (v : LWord), ⌜regs' !! r = Some v⌝ → interp W C v) -∗
+        registers_pointsto regs' -∗
+        world_interp W C -∗
+        interp_conf W C) -∗
+    interp_conf W C.
+  Proof.
+    iIntros "[%Hfull Hsafe] Hregs Hworld Hcont". rewrite /interp_conf.
+    iMod (registers_refilter with "Hworld Hregs Hsafe") as "(Hworld & Hregs & Hsafe)".
+    iApply ("Hcont" with "[] Hsafe Hregs Hworld").
+    iIntros (r). iPureIntro. rewrite lookup_fmap. by destruct (Hfull r) as [? ->].
+  Qed.
 
   Lemma interp_int W C z π : ⊢ interp W C (WInt z @@? π).
   Proof. by apply interp_untagged. Qed.
