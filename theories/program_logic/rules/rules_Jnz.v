@@ -75,21 +75,23 @@ Section griotte_lang_rules.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
     destruct (Hri rcond) as [wrcond [H'rcond _]]; first by set_solver+.
-    pose proof (llookup_reg_incl _ _ _ _ Hregs H'rcond) as Hrcond.
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs H'rcond) as (sc & Hrcond & _).
+    assert (nonZero (and_tag sc wrcond.(lw)) = nonZero wrcond.(lw)) as Hnz'.
+    { by destruct sc, wrcond as [[| [] | | ? []] ?]. }
     set (φc := (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) in Hstep.
     destruct (nonZero wrcond.(lw)) eqn:Hnz.
     - destruct (lz_of_argument regs rimm) as [imm|] eqn:Himm.
       2: { assert (exec_opt (Jnz rimm rcond) pc_p φc = None) as HH.
-           { cbn. rewrite Hrcond /= Hnz.
-             rewrite (lz_of_argument_None regs r); [done|done| |done].
+           { cbn. rewrite Hrcond /= Hnz'.
+             rewrite (lz_of_argument_None R regs r); [done|done| |done].
              intros x ->. apply Dregs. set_solver+. }
            rewrite HH in Hstep. simplify_eq.
            iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
            iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
            constructor. by eapply Jnz_fail_no_imm. }
       assert (exec_opt (Jnz rimm rcond) pc_p φc = updatePC_gen φc imm) as HH.
-      { cbn. rewrite Hrcond /= Hnz.
-        by rewrite (lz_of_argument_incl regs r _ imm). }
+      { cbn. rewrite Hrcond /= Hnz'.
+        by rewrite (lz_of_argument_incl R regs r _ imm). }
       rewrite HH in Hstep.
       iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
         (λ lpc' retv, Jnz_spec _ regs rimm rcond lpc' retv)
@@ -98,7 +100,7 @@ Section griotte_lang_rules.
       { intros. constructor. by eapply Jnz_fail_PC_overflow_jmp. }
       iIntros (lpc' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
     - assert (exec_opt (Jnz rimm rcond) pc_p φc = updatePC_gen φc 1) as HH.
-      { cbn. by rewrite Hrcond /= Hnz. }
+      { cbn. by rewrite Hrcond /= Hnz'. }
       rewrite HH in Hstep.
       iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
         (λ lpc' retv, Jnz_spec _ regs rimm rcond lpc' retv)

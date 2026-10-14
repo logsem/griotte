@@ -106,7 +106,7 @@ Section AllocatorMacros.
   Lemma allocator_zero_spec
     (rptr rend rtmp : RegName) (E : coPset)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (p : Perm) (g : Locality) (b e : Addr) (π : option AId) (wtmp : LWord)
+    (p : Perm) (g : Locality) (b e : Addr) (π : option AId) (dw : deref_witness) (wtmp : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let code := allocator_zero_instrs rptr rend rtmp in
@@ -117,15 +117,18 @@ Section AllocatorMacros.
     writeAllowed p = true ->
     (heap_b <= b /\ b < e /\ e <= heap_e)%a ->
     NoDup [cnull; rptr; rend; rtmp] ->
+    π = deref_id dw ->
 
     PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
     rptr ↦ᵣ WCap true p g b e b @@? π ∗
+    deref_witness_res dw ∗
     rend ↦ᵣ WInt (finz.to_z e) ∗
     rtmp ↦ᵣ wtmp ∗
     allocator_range_memory b e ∗
     codefrag_pers pc_a code ∗
     ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_end ∗
          rptr ↦ᵣ WCap true p g b e e @@? π ∗
+         deref_witness_res dw ∗
          rend ↦ᵣ WInt (finz.to_z e) ∗
          rtmp ↦ᵣ WInt 0 ∗
          ([∗ list] a ∈ finz.seq_between b e, a ↦ₐ WInt 0) ∗
@@ -135,8 +138,8 @@ Section AllocatorMacros.
 
   Proof.
     intros code pc_end; subst code pc_end.
-    iIntros (Hexec Hpc Hpc_shadow Hwrite Hheap Hregs)
-      "(HPC & Hptr & Hend & Htmp & Hmem & #Hcode & Hφ)".
+    iIntros (Hexec Hpc Hpc_shadow Hwrite Hheap Hregs Hπ)
+      "(HPC & Hptr & Hdw & Hend & Htmp & Hmem & #Hcode & Hφ)".
     assert (Hrptr : rptr ≠ cnull) by (repeat rewrite NoDup_cons in Hregs; set_solver).
     assert (Hrend : rend ≠ cnull) by (repeat rewrite NoDup_cons in Hregs; set_solver).
     assert (Hrtmp : rtmp ≠ cnull) by (repeat rewrite NoDup_cons in Hregs; set_solver).
@@ -155,11 +158,17 @@ Section AllocatorMacros.
       (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons) in "Hmem".
     iDestruct "Hmem" as "[[%w Ha] Hmem]".
 
-    (* Store rptr 0. *)
-    iInstr_success "Hcode".
+    (* Store rptr 0: the status witness of the capability's identifier
+       keeps its copy exact. *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_success_z_imm_dw with "[$HPC $Hi $Hptr $Ha $Hdw]"); try solve_pure.
     { eapply disjoint_from_shadow_not_in; first exact heap_shadow_disjoint.
       apply withinBounds_true_iff; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
+    { solve_addr. }
+    iNext. iIntros "(HPC & Hi & Hptr & Ha & Hdw)".
+    wp_pure. iClear "Hi".
 
     (* Lea rptr 1 advances the heap cursor. *)
     iInstr "Hcode".
@@ -185,10 +194,10 @@ Section AllocatorMacros.
       wp_pure.
       iClear "Hi".
       iApply ("IH" $! (b ^+ 1)%a with
-        "[] [] HPC Hptr Hend Htmp Hmem [Ha Hφ]").
+        "[] [] HPC Hptr Hdw Hend Htmp Hmem [Ha Hφ]").
       { iPureIntro; solve_addr. }
       { iPureIntro; solve_addr. }
-      iNext. iIntros "(HPC & Hptr & Hend & Htmp & Hzero & _)".
+      iNext. iIntros "(HPC & Hptr & Hdw & Hend & Htmp & Hzero & _)".
       iApply "Hφ"; iFrame "∗ Hcode".
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons.
       iFrame "∗".

@@ -74,6 +74,7 @@ Section Switcher_Return_Blocks_1.
     b_trusted_stack e_trusted_stack :
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
+    is_heap_address b_trusted_stack = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
 
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
@@ -86,7 +87,7 @@ Section Switcher_Return_Blocks_1.
   Proof.
     intros switcher_instrs_12 len_switcher_12.
     subst switcher_instrs_12 len_switcher_12.
-    iIntros (Hsub_reg) "(HPC & Hctp & Hcsp & Hmtdc & #Hcode)".
+    iIntros (Hts_heap Hsub_reg) "(HPC & Hctp & Hcsp & Hmtdc & #Hcode)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -123,6 +124,7 @@ Section Switcher_Return_Blocks_1.
     b_stk e_stk a_stk a_stk4 :
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
+    is_heap_address b_trusted_stack = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (b_trusted_stack < a_tstk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
@@ -147,7 +149,7 @@ Section Switcher_Return_Blocks_1.
   Proof.
     intros switcher_instrs_12 len_switcher_12.
     subst switcher_instrs_12 len_switcher_12.
-    iIntros (Hsub_reg Hnonempty Ha_stk4) "(HPC & Hctp & Hcsp & Hmtdc & #Hcode & Hpost)".
+    iIntros (Hts_heap Hsub_reg Hnonempty Ha_stk4) "(HPC & Hctp & Hcsp & Hmtdc & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -211,7 +213,7 @@ Section Switcher_Return_Blocks_1.
       |done|solve_addr+Hb_tstk|].
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & _)".
     iApply (switcher_return_block_12_pop_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [done|done|done|].
+      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [apply trusted_stack_not_heap|done|done|done|].
     iNext; iIntros "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     switcher_change_pc (switcher_label_offset ".Lswitcher_restore_cgp").
@@ -241,7 +243,7 @@ Section Switcher_Return_Blocks_1.
       [apply trusted_stack_disjoint_from_shadow|done|done|solve_addr|].
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & _)".
     iApply (switcher_return_block_12_empty_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); done.
+      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [apply trusted_stack_not_heap|done].
   Qed.
 
 End Switcher_Return_Blocks_1.

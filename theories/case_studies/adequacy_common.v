@@ -530,7 +530,8 @@ Proof.
   iModIntro. iPureIntro.
   destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her Hm'_flag)
     as (pw & Hpw & _ & _ & Hnonheap & _).
-  rewrite /state_is_good Hpw (Hnonheap eq_refl) //.
+  destruct (Hnonheap eq_refl) as [Heq | (_ & Hb)]; last by destruct Hb.
+  rewrite /state_is_good Hpw Heq //.
 Qed.
 
 (** ** Initial world, seal store and call stack *)

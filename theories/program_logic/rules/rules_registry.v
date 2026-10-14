@@ -34,6 +34,25 @@ Section rules_registry.
   Qed.
 
 
+  (** The same, with the PC authority. *)
+  Lemma si_ghost_update_pc σ P Q :
+    (∀ lpc lreg lmem R C,
+       ⌜erasure R C σ lpc lreg lmem⌝ -∗
+       PC_auth lpc -∗
+       gen_heap_interp lreg -∗ gen_heap_interp (sreg σ) -∗ gen_heap_interp lmem -∗
+       gen_heap_interp (shadowtbl σ) -∗ reg_auth R -∗ addr_alloc_auth C -∗ P ==∗
+       ∃ R' C', ⌜erasure R' C' σ lpc lreg lmem⌝ ∗ PC_auth lpc ∗
+         gen_heap_interp lreg ∗ gen_heap_interp (sreg σ) ∗ gen_heap_interp lmem ∗
+         gen_heap_interp (shadowtbl σ) ∗ reg_auth R' ∗ addr_alloc_auth C' ∗ Q) →
+    cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q.
+  Proof.
+    iIntros (Hupd) "Hσ HP".
+    iDestruct "Hσ" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iMod (Hupd with "[//] HPCa Hr Hsr Hm Hst HR HC HP")
+      as (R' C' Her') "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & HQ)".
+    iModIntro. iFrame "HQ". iExists lpc, lreg, lmem, R', C'. by iFrame.
+  Qed.
+
   (** ** Registry transitions *)
 
   (** [ALive → APainting], given the whole token. *)
@@ -60,22 +79,34 @@ Section rules_registry.
   Qed.
 
   (** [APainting → AQuar], given the whole token and the painted range. It
-      issues the quarantine witness. *)
-  Lemma reg_quarantine E ι b e' :
+      issues the quarantine witness. The whole register file and the PC are
+      owned, and none of their words with authority carries [ι] ([cnull]
+      always holds the null word). *)
+  Lemma reg_quarantine E ι b e' lpc (regs : LReg) :
+    (∀ x, is_Some (regs !! x)) →
+    (∀ v, (v = lpc ∨ ∃ x, x ≠ cnull ∧ regs !! x = Some v) →
+       has_authority v.(lw) → v.(lprov) ≠ Some ι) →
     alloc_obj ι b e' -∗
     ι ↦st{1} APainting -∗
     ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) -∗
+    PC ↦ₚ lpc -∗
+    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     |~{E}~>
       ι ↦st{1} AQuar ∗ ι ⊒ AQuar ∗
-      [∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined.
+      ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) ∗
+      PC ↦ₚ lpc ∗
+      [∗ map] k↦y ∈ regs, k ↦ᵣ y.
   Proof.
-    iIntros "#Hobj Htok Hcells".
+    iIntros (Hfull Hclean) "#Hobj Htok Hcells HPC Hmap".
     iApply (si_upd_ghost _
       (alloc_obj ι b e' ∗ ι ↦st{1} APainting ∗
-       [∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined)%I
-      with "[$Hobj $Htok $Hcells]").
-    intros σ. iApply si_ghost_update.
-    iIntros (lpc lreg lmem R C Her) "Hr Hsr Hm Hst HR HC (#Hobj & Htok & Hcells)".
+       ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) ∗
+       PC ↦ₚ lpc ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y)%I
+      with "[$Hobj $Htok $Hcells $HPC $Hmap]").
+    intros σ. iApply si_ghost_update_pc.
+    iIntros (lpc' lreg lmem R C Her) "HPCa Hr Hsr Hm Hst HR HC (#Hobj & Htok & Hcells & HPC & Hmap)".
+    iDestruct (PC_agree with "HPCa HPC") as %<-.
+    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hincl.
     iDestruct (reg_lookup_own with "HR Htok") as %(b1 & e1 & γ & HRι).
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ' & s & HRι').
     rewrite HRι in HRι'. simplify_eq.
@@ -89,22 +120,39 @@ Section rules_registry.
       [done|simpl; lia|].
     iDestruct (st_lb_get with "Htok") as "#Hq".
     iModIntro. iExists _, C. iFrame "∗#". iPureIntro.
-    eapply erasure_reg_step; eauto; done.
+    eapply erasure_reg_step; eauto; try done.
+    intros _ v Hv Hauth. destruct Hv as [-> | (x & Hx)].
+    { apply Hclean; [by left | done]. }
+    destruct (decide (x = cnull)) as [->|Hxn].
+    { (* [cnull] holds the null word, which has no authority. *)
+      destruct Her as [_ _ Hcnull _ _ _ _ _ _ _].
+      rewrite (Hcnull _ Hx) in Hauth. by inversion Hauth. }
+    apply Hclean; last done.
+    right. exists x. split; first done. destruct (Hfull x) as [v' Hv'].
+    by rewrite (lookup_weaken _ _ _ _ Hv' Hincl) in Hx; simplify_eq.
   Qed.
 
-  Lemma wp_reg_quarantine E e Φ ι b e' :
+  Lemma wp_reg_quarantine E e Φ ι b e' lpc (regs : LReg) :
     to_val e = None →
+    (∀ x, is_Some (regs !! x)) →
+    (∀ v, (v = lpc ∨ ∃ x, x ≠ cnull ∧ regs !! x = Some v) →
+       has_authority v.(lw) → v.(lprov) ≠ Some ι) →
     alloc_obj ι b e' -∗
     ι ↦st{1} APainting -∗
     ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) -∗
+    PC ↦ₚ lpc -∗
+    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (ι ↦st{1} AQuar -∗ ι ⊒ AQuar -∗
      ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) -∗
+     PC ↦ₚ lpc -∗
+     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
      WP e @ E {{ Φ }}) -∗
     WP e @ E {{ Φ }}.
   Proof.
-    iIntros (He) "Hobj Htok Hcells Hwp".
-    iMod (reg_quarantine with "Hobj Htok Hcells") as "(Htok & Hq & Hcells)".
-    iApply ("Hwp" with "Htok Hq Hcells").
+    iIntros (He Hfull Hclean) "Hobj Htok Hcells HPC Hmap Hwp".
+    iMod (reg_quarantine with "Hobj Htok Hcells HPC Hmap") as "(Htok & Hq & Hcells & HPC & Hmap)";
+      [done|done|].
+    iApply ("Hwp" with "Htok Hq Hcells HPC Hmap").
   Qed.
 
   (** ** Allocation (strong, with a freshness set) *)
@@ -169,63 +217,83 @@ Section rules_registry.
 
   (** ** Observation
 
-      A register word with authority is not dead, and its base is claimed by
-      its identifier, or is a heap root if it has none. *)
-  Lemma observe_dead E r v ι :
-    has_authority v.(lw) → v.(lprov) = Some ι →
-    r ↦ᵣ v -∗ ι ⊒ ADead -∗ |~{E}~> False.
-  Proof.
-    iIntros ([Ht [b Hab]] Hι) "Hr #Hd".
-    iApply (si_upd_ghost _ (r ↦ᵣ v ∗ ι ⊒ ADead) with "[$Hr $Hd]").
-    intros σ. iApply si_ghost_update.
-    iIntros (lpc lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC [Hr Hd]".
-    iDestruct (gen_heap_valid with "Hlr Hr") as %Hv.
-    pose proof (erasure_observe _ _ _ _ _ _ _ _ _ Her Hv Ht Hab) as Hobs.
-    rewrite Hι in Hobs. destruct Hobs as (x & Hx & Hnd & _).
-    iDestruct (reg_lookup_lb with "HR Hd") as %(b' & e' & γ & s & HRι & Hle).
-    rewrite Hx in HRι. simplify_eq. destruct s; cbn in Hle, Hnd; try lia; done.
-  Qed.
-
-  Lemma wp_observe_dead E e Φ r v ι :
-    to_val e = None →
-    has_authority v.(lw) → v.(lprov) = Some ι →
-    r ↦ᵣ v -∗ ι ⊒ ADead -∗ WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He Ha Hι) "Hr Hd". by iMod (observe_dead _ _ _ _ Ha Hι with "Hr Hd") as "[]".
-  Qed.
-
-  Lemma observe_claim E r v b c :
-    get_tag v.(lw) = true → heap_authority_base v.(lw) = Some b →
+      A register word with authority is claimed at its base by its
+      identifier while the identifier is not dead, as a status token shows;
+      its base is a heap root if it has no identifier. *)
+  Lemma observe_claim E r v b c q s :
+    get_tag v.(lw) = true → heap_authority_base v.(lw) = Some b → s ≠ ADead →
     r ↦ᵣ v -∗ addr_alloc b c -∗
+    (if v.(lprov) is Some ι then ι ↦st{q} s else True) -∗
     |~{E}~>
       r ↦ᵣ v ∗ addr_alloc b c ∗
+      (if v.(lprov) is Some ι then ι ↦st{q} s else True) ∗
       ⌜match v.(lprov) with Some ι => c = Claimed ι | None => c = HeapRoot end⌝.
   Proof.
-    iIntros (Ht Hab) "Hr Hc".
-    iApply (si_upd_ghost _ (r ↦ᵣ v ∗ addr_alloc b c) with "[$Hr $Hc]").
+    iIntros (Ht Hab Hs) "Hr Hc Htok".
+    iApply (si_upd_ghost _ (r ↦ᵣ v ∗ addr_alloc b c ∗
+      (if v.(lprov) is Some ι then ι ↦st{q} s else True))%I with "[$Hr $Hc $Htok]").
     intros σ. iApply si_ghost_update.
-    iIntros (lpc lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC [Hr Hc]".
+    iIntros (lpc lreg lmem R C Her) "Hlr Hsr Hm Hst HR HC (Hr & Hc & Htok)".
     iDestruct (gen_heap_valid with "Hlr Hr") as %Hv.
     iDestruct (addr_alloc_lookup with "HC Hc") as %HCb.
     pose proof (erasure_observe _ _ _ _ _ _ _ _ _ Her Hv Ht Hab) as Hobs.
-    iModIntro. iExists R, C. iFrame. iPureIntro. split; first done.
     destruct (lprov v) as [ι|].
-    - destruct Hobs as (_ & _ & _ & HC'). congruence.
-    - congruence.
+    - iDestruct (reg_lookup_own with "HR Htok") as %(b' & e' & γ & HRι).
+      iModIntro. iExists R, C. iFrame. iPureIntro. split; first done.
+      destruct Hobs as (x & Hx & HC'). rewrite HRι in Hx. simplify_eq.
+      rewrite HC' in HCb; [by simplify_eq | done].
+    - iModIntro. iExists R, C. iFrame. iPureIntro. split; first done. congruence.
   Qed.
 
-  Lemma wp_observe_claim E e Φ r v b c :
+  Lemma wp_observe_claim E e Φ r v b c q s :
     to_val e = None →
-    get_tag v.(lw) = true → heap_authority_base v.(lw) = Some b →
+    get_tag v.(lw) = true → heap_authority_base v.(lw) = Some b → s ≠ ADead →
     r ↦ᵣ v -∗ addr_alloc b c -∗
+    (if v.(lprov) is Some ι then ι ↦st{q} s else True) -∗
     (r ↦ᵣ v -∗ addr_alloc b c -∗
+     (if v.(lprov) is Some ι then ι ↦st{q} s else True) -∗
      ⌜match v.(lprov) with Some ι => c = Claimed ι | None => c = HeapRoot end⌝ -∗
      WP e @ E {{ Φ }}) -∗
     WP e @ E {{ Φ }}.
   Proof.
-    iIntros (He Ht Hab) "Hr Hc Hwp".
-    iMod (observe_claim _ _ _ _ _ Ht Hab with "Hr Hc") as "(Hr & Hc & %H)".
-    iApply ("Hwp" with "Hr Hc [//]").
+    iIntros (He Ht Hab Hs) "Hr Hc Htok Hwp".
+    iMod (observe_claim _ _ _ _ _ _ _ Ht Hab Hs with "Hr Hc Htok") as "(Hr & Hc & Htok & %H)".
+    iApply ("Hwp" with "Hr Hc Htok [//]").
+  Qed.
+
+  (** ** Re-filtering a register
+
+      A register word with authority whose identifier is quarantined or dead
+      already has an untagged physical copy: its logical tag can be
+      cleared. *)
+  Lemma reg_refilter E r v ι :
+    has_authority v.(lw) → v.(lprov) = Some ι →
+    ι ⊒ AQuar -∗ r ↦ᵣ v -∗ |~{E}~> r ↦ᵣ lclear_tag v.
+  Proof.
+    iIntros (Hauth Hι) "#Hq Hr".
+    iApply (si_upd_ghost _ (r ↦ᵣ v ∗ ι ⊒ AQuar)%I with "[$Hr $Hq]").
+    iIntros (σ) "Hσ [Hr #Hq]".
+    iDestruct "Hσ" as (lpc lreg lmem R C) "(HPCa & Hlr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iDestruct (gen_heap_valid with "Hlr Hr") as %Hv.
+    iDestruct (reg_lookup_lb with "HR Hq") as %(b & e & γ & s & HRι & Hs).
+    iMod (gen_heap_update with "Hlr Hr") as "[Hlr Hr]".
+    iModIntro. iFrame "Hr". iExists lpc, (<[r := lclear_tag v]> lreg), lmem, R, C. iFrame.
+    iPureIntro.
+    destruct σ as [[[[pc rg] sr] m] st].
+    assert (quar_or_dead s) as Hqd.
+    { rewrite /quar_or_dead. destruct s; cbn in Hs; try lia; auto. }
+    pose proof Her as Her'.
+    destruct Her' as [_ [_ Hregs] Hcnull _ _ _ _ _ _ _].
+    destruct (Hregs r v Hv) as (w & Hw & Hrel).
+    assert (w = clear_tag v.(lw)) as ->.
+    { destruct Hrel as [_ Hstrip]. by eapply Hstrip. }
+    assert (r ≠ cnull) as Hr.
+    { intros ->. rewrite (Hcnull _ Hv) in Hauth. by inversion Hauth. }
+    pose proof (erasure_insert_reg _ _ _ _ _ _ _ _ _ _ r (lclear_tag v) (clear_tag v.(lw))
+                  Hr Her (reg_word_ok_lclear_tag _ _ _)) as Her_new.
+    cbn in Hw. rewrite (insert_id rg) in Her_new; last exact Hw.
+    apply Her_new.
+    apply reg_phys_untagged. rewrite lw_lclear_tag. apply get_tag_clear_tag.
   Qed.
 
   (** Every tagged, non-empty register capability with an identifier lies in

@@ -66,12 +66,15 @@ Section griotte_lang_rules.
       destruct (pc_a + imm)%a;
         apply (reg_word_ok_derive _ _ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π));
         [by left|done|done|done|by left|done|done|done]. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
       (λ lpc' regs' retv,
          Auipcc_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst imm lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
     { exact Hok. } { exact Hstep. }
+    { apply reg_phys_no_id. rewrite /v /auipcc_word.
+      pose proof (erasure_pc_no_id _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ. subst pc_π.
+      by destruct (pc_a + imm)%a. }
     { intros. by econstructor. }
     { intros. by econstructor. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.

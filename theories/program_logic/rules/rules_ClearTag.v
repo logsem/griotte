@@ -52,16 +52,17 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
     destruct (Hri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc' & Hrel).
     assert (exec_opt (ClearTag dst src) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-      updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (lclear_tag wsrc).(lw))) as HH.
-    { cbn. erewrite lookup_reg_weaken; [done| |exact Hregs].
-      by rewrite lookup_reg_erase H'src. }
+      updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+        (clear_tag (and_tag s wsrc.(lw))))) as HH.
+    { cbn. by rewrite Hsrc'. }
     rewrite HH in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag wsrc) _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag wsrc) _ _ _ _
       (λ lpc' regs' retv, ClearTag_spec _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-    { apply reg_word_ok_lclear_tag. } { exact Hstep. }
+    { apply reg_word_ok_lclear_tag. } { exact Hstep. } { by apply reg_phys_lclear_tag. }
     { intros. by econstructor. }
     { intros. by econstructor. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.

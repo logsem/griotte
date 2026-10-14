@@ -691,6 +691,20 @@ Section logrel.
     a ↦ₐ v -∗ key_share (addr_key π a) -∗ addr_key π a ↦ₖ v.
   Proof. iIntros "Ha Hs". iApply addr_key_pointsto. iFrame. Qed.
 
+  (** The status share of a heap key is a dereference witness for a
+      capability with the key's identifier. *)
+  Lemma key_share_deref π a :
+    key_share (addr_key π a) -∗
+    ∃ dw, ⌜π = deref_id dw⌝ ∗ deref_witness_res dw ∗
+      (deref_witness_res dw -∗ key_share (addr_key π a)).
+  Proof.
+    iIntros "Hs". destruct π as [ι|]; cbn.
+    - iDestruct "Hs" as (b e Hbe) "[#Hobj Htok]".
+      iExists (DerefLive ι _). iFrame "Htok". iSplit; first done.
+      iIntros "Htok". iExists b, e. by iFrame "∗#".
+    - iExists DerefNoId. iSplit; first done. iSplit; first done. by iIntros.
+  Qed.
+
   Definition region_state_pwl (W : WORLD) (k : LAddr) : Prop :=
     (std W) !! k = Some Temporary.
 

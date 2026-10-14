@@ -122,8 +122,10 @@ Section wp_interp.
 
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
       [by eapply writeAllowed_nonO|done|].
-    iApply (wp_store_success_reg_store_word_imm with "[$HPC $Hi $Hsrc $Hdst $Ha]"); eauto.
-    iNext; iIntros "(HPC & Hi & Hsrc & Hdst & Ha)".
+    iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
+    iApply (wp_store_success_reg_store_word_imm_dw with "[$HPC $Hi $Hsrc $Hdst $Ha $Hdw]"); eauto.
+    iNext; iIntros "(HPC & Hi & Hsrc & Hdst & Ha & Hdw)".
+    iDestruct ("Hshare" with "Hdw") as "Hshare".
 
     iAssert (P W C (lstore_word p wsrc)) as "Hinterp'".
     { iApply "Hwcond". by iApply interp_lstore_word. }
@@ -361,8 +363,10 @@ Section wp_interp.
 
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
       [by eapply writeAllowed_nonO|done|].
-    iApply (wp_store_success_z_imm with "[$HPC $Hi $Hdst $Ha]"); eauto.
-    iNext; iIntros "(HPC & Hi & Hdst & Ha)".
+    iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
+    iApply (wp_store_success_z_imm_dw with "[$HPC $Hi $Hdst $Ha $Hdw]"); eauto.
+    iNext; iIntros "(HPC & Hi & Hdst & Ha & Hdw)".
+    iDestruct ("Hshare" with "Hdw") as "Hshare".
 
     iAssert (P W C (WInt z)) as "Hinterp'".
     { iApply "Hwcond"; iApply interp_int. }
@@ -796,7 +800,8 @@ Section wp_interp.
     iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
     (* CLoad rdst rsrc imm. *)
-    iApply (wp_load_witness_imm with "[$HPC $Hmem $Hwit $Hmap]"); eauto.
+    iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
+    iApply (wp_load_witness_imm with "[$HPC $Hmem $Hwit $Hdw $Hmap]"); eauto.
     { by rewrite !dom_insert; set_solver+. }
     { by rewrite lookup_insert_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
@@ -807,7 +812,8 @@ Section wp_interp.
       rewrite Hnot_shadow.
       destruct (is_revoker_address ea); first done.
       eexists. by simplify_map_eq. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hmap)".
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hdw & Hmap)".
+    iDestruct ("Hshare" with "Hdw") as "Hshare".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
@@ -990,20 +996,23 @@ Section wp_interp.
 
   (** A load from a register file whose source is a valid, in-bounds
       read capability and whose PC can be incremented does not fail. *)
-  Lemma load_failure_spec_impossible (regs : LReg) r1 r2 imm mem wit p g b e a ea pc_p pc_g
+  Lemma load_failure_spec_impossible (regs : LReg) r1 r2 imm mem wit dw p g b e a ea pc_p pc_g
       pc_b pc_e pc_a pc_a' pc_π :
     lw <$> regs !!ₗ r2 = Some (WCap true p g b e a) →
+    (∀ v : LWord, regs !!ₗ r2 = Some v → v.(lprov) = deref_id dw) →
     (a + imm)%a = Some ea →
     readAllowed p = true → withinBounds b e ea = true →
     is_shadow_address ea = false →
     is_Some (mem !! ea) →
     (pc_a + 1)%a = Some pc_a' →
-    Load_failure_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ wit →
+    Load_failure_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ wit dw →
     False.
   Proof.
-    intros Hr2 Hea Hra Hwb Hsh [v Hv] Hpca' Hfail.
+    intros Hr2 Hid Hea Hra Hwb Hsh [v Hv] Hpca' Hfail.
     destruct Hfail as [w0 Hw0 Hcap|? ? ? ? ? H|? ? ? ? ? H H0|? ? ? ? ? ? H H0 H1
-                      |? ? ? ? ? ? ? ? H H0 H1 H2 H3 Hinc|? ? ? ? ? ? ? ? H H0 H1|? ? ? ? ? ? H H0 H1 H2 Hinc].
+                      |? ? ? ? ? ? ? ? H H0 H1 H2 H3 Hinc|? ? ? ? ? ? ? ? H H0 H1|? ? ? ? ? ? H H0 H1 H2 Hinc
+                      |? ? ? ? ? π H Hπ].
+    all: try (by apply Hπ, (Hid _ H)).
     all: try (rewrite Hr2 in H; simplify_eq).
     - rewrite Hw0 /= in Hr2. injection Hr2 as Hw. rewrite Hw in Hcap. discriminate.
     - destruct H1; congruence.
@@ -1047,7 +1056,7 @@ Section wp_interp.
     assert (is_shadow_address a = false) as Hnot_shadow
       by (eapply disjoint_from_shadow_not_in; [exact Hshadow|exact Hbounds]).
     iApply (wp_load_witness_imm _ RX Global pc_b pc_e pc_a None ca0 cgp imm
-              (encodeInstrW (CLoad ca0 cgp imm) @@? None) with "[$HPC $Hmem $Hwit $Hmap]").
+              (encodeInstrW (CLoad ca0 cgp imm) @@? None) _ _ _ DerefNoId with "[$HPC $Hmem $Hwit $Hmap //]").
     { apply decode_encode_instrW_inv. }
     { solve_pure. }
     { by rewrite !dom_insert; set_solver+. }
@@ -1060,7 +1069,7 @@ Section wp_interp.
       rewrite Hnot_shadow.
       destruct (is_revoker_address a); first done.
       eexists. by simplify_map_eq. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hmap)".
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
@@ -1120,7 +1129,8 @@ Section wp_interp.
     iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
       as "Hshadow".
     { by rewrite big_sepM_empty. }
-    iApply (wp_load_general_shadow_imm with "[$HPC $Hmem $Hshadow $Hwit $Hmap]"); eauto.
+    iApply (wp_load_general_shadow_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
+              with "[$HPC $Hmem $Hshadow $Hwit $Hmap //]"); eauto.
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
@@ -1132,7 +1142,7 @@ Section wp_interp.
       destruct (is_revoker_address a); first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hmap)".
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
@@ -1143,9 +1153,10 @@ Section wp_interp.
       rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
       rewrite addr_add_0 in Haddr; injection Haddr as <-;
       simplify_map_eq; congruence.
-    2: { exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ RW Global b e a a);
+    2: { exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ _ RW Global b e a a);
          eauto; try by simplify_map_eq.
          all: try by rewrite addr_add_0.
+         all: try (by intros ? Hv; rewrite llookup_reg_not_cnull // in Hv; simplify_map_eq).
          all: rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').

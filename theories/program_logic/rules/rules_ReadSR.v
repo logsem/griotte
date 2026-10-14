@@ -84,11 +84,12 @@ Section griotte_lang_rules.
                           (lword_of_word wsrc).(lw))) as HH.
     { by cbn; rewrite Hsrc Hxsr /=. }
     rewrite HH in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word wsrc) _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word wsrc) _ _ _ _
       (λ lpc' regs' retv, ReadSR_spec _ regs sregs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
     { by eapply (er_sreg_words _ _ _ _ _ _ Her src). } { exact Hstep. }
+    { apply reg_phys_lword_of_word. }
     { intros. by econstructor. }
     { intros. econstructor. by eapply ReadSR_fail_incrPC. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.

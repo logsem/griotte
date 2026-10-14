@@ -102,10 +102,8 @@ Section griotte_lang_rules.
     odestruct (Hri src2) as [r2v [Hr2 _]]; first by set_solver+.
     odestruct (Hri src1) as [r1v [Hr1 _]]; first by set_solver+.
     clear Hri.
-    assert (lookup_reg src1 r = Some r1v.(lw)) as Hr1'.
-    { eapply lookup_reg_weaken; last exact Hregs. by rewrite lookup_reg_erase Hr1. }
-    assert (lookup_reg src2 r = Some r2v.(lw)) as Hr2'.
-    { eapply lookup_reg_weaken; last exact Hregs. by rewrite lookup_reg_erase Hr2. }
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr1) as (s1 & Hr1' & Hrel1).
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr2) as (s2 & Hr2' & Hrel2).
     rewrite /exec /= Hr2' Hr1' /= in Hstep.
     destruct (is_sealr r1v.(lw)) eqn:Hr1v.
     2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
@@ -114,6 +112,9 @@ Section griotte_lang_rules.
         iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
         econstructor. by eapply UnSeal_fail_sealr. }
     destruct r1v as [[ | [ | t p g b e a ] | | ] πs]; try inversion Hr1v. clear Hr1v.
+    (* The unsealing key has no bounds: its copy is exact. *)
+    pose proof (reg_phys_no_bounds R (WSealRange t p g b e a @@? πs) _ eq_refl Hrel1) as Hk. cbn in Hk.
+    assert (s1 && t = t) as Hs1 by congruence.
     destruct (is_sealed r2v.(lw)) eqn:Hr2v.
     2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
         { unfold is_sealed in Hr2v. destruct r2v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
@@ -123,28 +124,36 @@ Section griotte_lang_rules.
     destruct r2v as [[ | | | o sb ] π]; try inversion Hr2v. clear Hr2v.
     assert (reg_word_ok R C (WSealed o sb @@? π)) as Hok.
     { by eapply erasure_llookup_reg_word. }
-    cbn in Hstep.
+    cbn in Hstep. rewrite Hs1 in Hstep.
     destruct (t && get_tag_sealable sb && permit_unseal p && withinBounds b e o) eqn:Hvalid.
     - apply andb_true_iff in Hvalid as [Hvalid Hwb].
       apply andb_true_iff in Hvalid as [Hvalid Hps].
       apply andb_true_iff in Hvalid as [-> Htag].
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst
-        (WSealable (machine_word.unseal g sb) @@? π) _ _ _
+        (WSealable (machine_word.unseal g sb) @@? π) _ _ _ _
         (λ lpc' regs' retv, UnSeal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
       { apply (reg_word_ok_unseal _ _ sb _ _ o); auto; by destruct sb. }
       { exact Hstep. }
+      { eapply (reg_phys_derive_eq _ (WSealed o sb @@? π) s2); [done|by destruct sb|by destruct sb|].
+        destruct s2; rewrite ?and_tag_sealable_true ?and_tag_sealable_false.
+        - rewrite Htag Hps Hwb /=. by destruct sb.
+        - rewrite get_tag_clear_tag_sealable andb_false_r /=. by destruct sb. }
       { intros. by eapply UnSeal_spec_success. }
       { intros. econstructor. by eapply UnSeal_fail_incrPC. }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
     - iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst
-        (WSealable (clear_tag_sealable (machine_word.unseal g sb)) @@? π) _ _ _
+        (WSealable (clear_tag_sealable (machine_word.unseal g sb)) @@? π) _ _ _ _
         (λ lpc' regs' retv, UnSeal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
       { apply (reg_word_ok_unseal _ _ sb _ _ o); auto; by destruct sb. }
       { exact Hstep. }
+      { eapply (reg_phys_derive_eq _ (WSealed o sb @@? π) s2); [done|by destruct sb|by destruct sb|].
+        destruct s2; rewrite ?and_tag_sealable_true ?and_tag_sealable_false.
+        - rewrite Hvalid. by destruct sb.
+        - rewrite get_tag_clear_tag_sealable andb_false_r /=. by destruct sb. }
       { intros. by eapply UnSeal_spec_invalidated. }
       { intros. econstructor. by eapply UnSeal_fail_invalidated_PC. }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.

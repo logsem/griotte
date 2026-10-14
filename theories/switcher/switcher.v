@@ -219,7 +219,8 @@ Section Switcher.
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
 
         switcher_base_not_shadow : is_shadow_address b_switcher = false;
-        switcher_not_heap_range : not_heap_range b_switcher e_switcher
+        switcher_not_heap_range : not_heap_range b_switcher e_switcher;
+        trusted_stack_not_heap : is_heap_address b_trusted_stack = false
       }.
 
   Lemma switcher_base_not_heap

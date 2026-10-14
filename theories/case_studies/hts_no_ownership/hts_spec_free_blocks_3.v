@@ -74,8 +74,8 @@ Section HTS_Reload.
     { by rewrite big_sepM_empty. }
     iApply (wp_load_general_shadow_imm ⊤ RX Global pc_b pc_e pc_a None
       ca0 csp (-1) (lword_of_word (encodeInstrW _))
-      (<[pc_a:=lword_of_word (encodeInstrW _)]> (<[s:=raw]> ∅)) _ _ ∅ DfracDiscarded wit
-      with "[$HPC $Hmem $Hshadow $Hmap $Hwit]").
+      (<[pc_a:=lword_of_word (encodeInstrW _)]> (<[s:=raw]> ∅)) _ _ ∅ DfracDiscarded wit DerefNoId
+      with "[$HPC $Hmem $Hshadow $Hmap $Hwit //]").
     { apply decode_encode_instrW_inv. }
     { solve_pure. }
     { by rewrite !dom_insert; set_solver+. }
@@ -90,7 +90,7 @@ Section HTS_Reload.
       case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & Hmap)".
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
@@ -118,24 +118,32 @@ Section HTS_Reload.
     - wp_pure. wp_end. by iIntros (?).
   Qed.
 
-  Lemma hts_check_live_buffer_spec pc_b pc_e pc_a b e a π (w0 : LWord) :
+  Lemma hts_check_live_buffer_spec pc_b pc_e pc_a b e a π (w0 : LWord) dw :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_check_buffer_instrs)%a ->
+    π = deref_id dw ->
+    load_exact_cond (WCap true RW Global b e a @@? π) ->
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
     ∗ ca0 ↦ᵣ WCap true RW Global b e a @@? π ∗ ct0 ↦ᵣ w0
+    ∗ deref_witness_res dw
     ∗ codefrag_pers pc_a hts_check_buffer_instrs
     ∗ ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length hts_check_buffer_instrs)%a
          ∗ ca0 ↦ᵣ WCap true RW Global b e a @@? π ∗ ct0 ↦ᵣ WInt 1
+         ∗ deref_witness_res dw
          ∗ codefrag_pers pc_a hts_check_buffer_instrs
          -∗ WP Seq (Instr Executable)
              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hsub) "(HPC & Hca0 & Hct0 & Hcode & Hpost)".
+    iIntros (Hsub Hπ Hcond) "(HPC & Hca0 & Hct0 & Hdw & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_check_buffer_instrs.
-    (* --- GetTag ct0 ca0 --- *)
-    iInstr "Hcode".
+    (* --- GetTag ct0 ca0 (exact under the witness) --- *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_gettag_success_dw _ _ _ _ _ _ _ _ _ _ _ _ _ _ dw
+      with "[$HPC $Hi $Hca0 $Hct0 $Hdw]"); try solve_pure.
+    iNext. iIntros "(HPC & Hi & Hca0 & Hct0 & Hdw)". wp_pure. iClear "Hi".
     (* --- Jnz 2 ct0 (skip Halt for a tagged buffer) --- *)
     iInstr "Hcode".
     iApply "Hpost". iFrame "∗ Hcode".
@@ -281,12 +289,16 @@ Section HTS_Spec_Free.
     iMod (hts_world_reopen_live C csp_b csp_e W_init_C _ ι b Wret
       Hbounds Hrelated_share_ret Hι_ret with "Hrel_b Hworld")
       as (v_b) "(%Hstd_rev & Hworld_open & Hstate_b & [Hb Hb_share])".
+    (* The share of the buffer cell is the dereference witness of [ι]. *)
+    iDestruct (key_share_deref (Some ι) b with "Hb_share") as (dw Hdw) "[Hdw Hdw_close]".
     focus_block (hts_block ".Lhts_check_buffer") "Hcode_main" of hts_main_blocks at pc_a as a_check Ha_check "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (hts_check_live_buffer_spec pc_b pc_e a_check
-      b (b ^+ 1)%a b (Some ι) _ with "[- $HPC $Hca0 $Hct0 $Hcode]").
+      b (b ^+ 1)%a b (Some ι) _ dw with "[- $HPC $Hca0 $Hct0 $Hdw $Hcode]").
     { solve_addr. }
-    iNext. iIntros "(HPC & Hca0 & Hct0 & _)".
+    { done. }
+    { eapply nonempty_exact_cond; [done|solve_addr]. }
+    iNext. iIntros "(HPC & Hca0 & Hct0 & Hdw & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 11: store cgp, which covers exactly p, in live b. *)
@@ -294,9 +306,15 @@ Section HTS_Spec_Free.
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
     (* Store ca0 cgp 0. *)
-    iInstr_success "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_success_reg_store_word_imm_dw with "[$HPC $Hi $Hcgp $Hca0 $Hb $Hdw]");
+      try solve_pure.
     { apply hts_heap_not_shadow. solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
+    { solve_addr. }
+    iNext. iIntros "(HPC & Hi & Hcgp & Hca0 & Hb & Hdw)". wp_pure. iClear "Hi".
+    iDestruct ("Hdw_close" with "Hdw") as "Hb_share".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 12: fetch the switcher entry for free. *)

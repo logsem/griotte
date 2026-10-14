@@ -17,18 +17,20 @@ Section AllocatorMallocShadowBlocks.
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorCommonLayoutWf}.
 
   Lemma allocator_malloc_zero_spec
-    (E : coPset) (pc_b pc_e pc_a b finish : Addr) (ι : AId) (w3 : LWord)
+    (E : coPset) (pc_b pc_e pc_a b finish : Addr) (ι : AId) (q : Qp) (w3 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_shadow_code pc_b pc_e pc_a ->
     (heap_b <= b /\ b < finish /\ finish <= heap_e)%a ->
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     ca2 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
+    ι ↦st{q} ALive ∗
     ct2 ↦ᵣ WInt finish ∗
     ca3 ↦ᵣ w3 ∗
     allocator_range_memory b finish ∗
     codefrag_pers pc_a allocator_malloc_shadow_code ∗
     ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a ∗
        ca2 ↦ᵣ (WCap true RW Global b finish finish) @@ ι ∗
+       ι ↦st{q} ALive ∗
        ct2 ↦ᵣ WInt finish ∗
        ca3 ↦ᵣ WInt 0 ∗
        ([∗ list] a ∈ finz.seq_between b finish, a ↦ₐ WInt 0) ∗
@@ -37,7 +39,7 @@ Section AllocatorMallocShadowBlocks.
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Hrange.
-    iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hmem & #Hcode_main & Hφ)".
+    iIntros "(HPC & Hca2 & Hst & Hct2 & Hct3 & Hmem & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_shadow_unfold_code "Hcode_main".
 
@@ -46,10 +48,11 @@ Section AllocatorMallocShadowBlocks.
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
     iApply (allocator_zero_spec ca2 ct2 ca3 E RX Global pc_b pc_e a_zero
-      RW Global b finish (Some ι) w3 with "[- $HPC $Hca2 $Hct2 $Hct3 $Hmem $Hcode]");
-      [done|solve_addr|done|done|solve_addr| |].
+      RW Global b finish (Some ι) (DerefLive ι q) w3
+      with "[- $HPC $Hca2 $Hst $Hct2 $Hct3 $Hmem $Hcode]");
+      [done|solve_addr|done|done|solve_addr| |done|].
     { repeat constructor; set_solver. }
-    iNext. iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hzeros & _)".
+    iNext. iIntros "(HPC & Hca2 & Hst & Hct2 & Hct3 & Hzeros & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a.
     iApply "Hφ". iFrame "∗ Hcode_main".

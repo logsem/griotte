@@ -107,6 +107,12 @@ Ltac instr_failure_registers instr :=
 
 Ltac solve_instr_failure :=
   intros;
+  (* A physical register is a copy of its logical word, its tag kept or
+     cleared: consider both cases. *)
+  repeat match goal with
+  | H : _ !! _ = Some (and_tag ?s _) |- _ =>
+      is_var s; destruct s; rewrite ?and_tag_true ?and_tag_false in H
+  end;
   cbn [lw lword_of_word] in *;
   rewrite /exec /exec_opt /= /word_of_argument /z_of_argument /lookup_reg;
   rewrite ?finz_add_0 /=;

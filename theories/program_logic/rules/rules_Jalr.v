@@ -55,7 +55,7 @@ Section griotte_lang_rules.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
     destruct (Hri rsrc) as [wsrc [H'rsrc _]]; first by set_solver+.
-    pose proof (llookup_reg_incl _ _ _ _ Hregs H'rsrc) as Hrsrc.
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs H'rsrc) as (s & Hrsrc & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs H'rsrc) as Hoksrc.
     pose proof (er_pc_word _ _ _ _ _ _ Her) as HokPC.
     rewrite /exec /= Hrsrc /= in Hstep.
@@ -66,10 +66,12 @@ Section griotte_lang_rules.
     assert (reg_word_ok R C (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hoksent.
     { apply (reg_word_ok_derive _ _ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π));
         [by left|done|done|done]. }
+    pose proof (erasure_pc_no_id _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ.
     pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ rdst
-                  (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) Her Hoksent) as Her1.
-    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc) Her1
-                  (reg_word_ok_lupdatePcPerm _ _ _ Hoksrc)) as Her2.
+                  (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) _ Her Hoksent
+                  ltac:(by apply reg_phys_no_id)) as Her1.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc) _ Her1
+                  (reg_word_ok_lupdatePcPerm _ _ _ Hoksrc) (reg_phys_lupdatePcPerm _ _ _ Hrel)) as Her2.
     assert (is_Some (regs !! rdst)) as [wdst Hwdst].
     { apply elem_of_dom, Dregs. set_solver+. }
     iMod (gen_heap_update_inSepM _ _ rdst
@@ -78,7 +80,7 @@ Section griotte_lang_rules.
     iMod (PC_update _ _ (lupdatePcPerm wsrc) with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplitR "Hφ HPC Hmap Hpc_a".
     - iExists _, _, lmem, R, C. iFrame "HPCa Hr Hsr Hm Hst HR HC". iPureIntro.
-      rewrite lw_lupdatePcPerm in Her2. exact Her2.
+      exact Her2.
     - iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
 

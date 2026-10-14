@@ -91,8 +91,15 @@ Section HTS_Spec_Share.
     focus_block (hts_block ".Lhts_malloc_result") "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
+    (* The share of the buffer cell is the dereference witness of [ι]. *)
+    iDestruct (key_share_deref (Some ι) b with "Hb_share") as (dw Hdw) "[Hdw Hdw_close]".
     (* GetTag ct0 ca0. *)
-    iInstr "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_gettag_success_dw _ _ _ _ _ _ _ _ _ _ _ _ _ _ dw
+      with "[$HPC $Hi $Hca0 $Hct0 $Hdw]"); try solve_pure.
+    { eapply nonempty_exact_cond; [done|solve_addr]. }
+    iNext. iIntros "(HPC & Hi & Hca0 & Hct0 & Hdw)". wp_pure. iClear "Hi".
     (* Jnz 2 ct0. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -134,9 +141,14 @@ Section HTS_Spec_Share.
     (* Lea csp 1. *)
     iInstr "Hcode".
     (* Store ca0 0 0. *)
-    iInstr_success "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_success_z_imm_dw with "[$HPC $Hi $Hca0 $Hb $Hdw]"); try solve_pure.
     { apply hts_heap_not_shadow. solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
+    { solve_addr. }
+    iNext. iIntros "(HPC & Hi & Hca0 & Hb & Hdw)". wp_pure. iClear "Hi".
+    iDestruct ("Hdw_close" with "Hdw") as "Hb_share".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 7: fetch the switcher for the first adversary call. *)

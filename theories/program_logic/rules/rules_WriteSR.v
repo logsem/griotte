@@ -19,7 +19,8 @@ Section griotte_lang_rules.
   Implicit Types ms : gmap Addr LWord.
 
   (* System registers hold identifier-less words: a successful write stores the
-     physical word of an identifier-less register word. *)
+     physical word of an identifier-less register word, which is exact when
+     a tagged word has authority or no heap base. *)
   Inductive WriteSR_failure (lpc : LWord) (regs: LReg) (sregs : SReg) (dst: SRegName) (src: RegName) :=
   | WriteSR_fail_nonxrs p g b e a π:
       lpc = WCap true p g b e a @@? π →
@@ -58,7 +59,8 @@ Section griotte_lang_rules.
     (if (has_sreg_access pc_p)
     then sregs_of (WriteSR dst src) ⊆ dom sregs
     else True) →
-    (has_sreg_access pc_p = true → ∀ (v : LWord), regs !!ₗ src = Some v → v.(lprov) = None) →
+    (has_sreg_access pc_p = true → ∀ (v : LWord), regs !!ₗ src = Some v →
+       v.(lprov) = None ∧ load_exact_cond v) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
@@ -88,18 +90,20 @@ Section griotte_lang_rules.
       econstructor; first done. by eapply WriteSR_fail_nonxrs. }
     specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
     destruct (Hsri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
-    assert (lookup_reg src r = Some wsrc.(lw)) as Hsrc.
-    { eapply lookup_reg_weaken; last exact Hregs. by rewrite lookup_reg_erase H'src. }
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc & Hrel).
+    destruct (Hnoid eq_refl _ H'src) as [Hπ Hnh].
+    rewrite (reg_phys_exact_cond _ _ _ Hrel) in Hsrc.
+    2: { intros (ι & x & Hι & _). congruence. }
+    2: { done. }
     assert (exec_opt (WriteSR dst src) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
               updatePC (update_sreg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst wsrc.(lw))) as HH.
     { by cbn; rewrite Hsrc Hxsr /=. }
     rewrite HH /update_sreg /= in Hstep.
-    pose proof (Hnoid eq_refl _ H'src) as Hπ.
     assert (reg_word_ok R C (lword_of_word wsrc.(lw))) as Hok.
     { apply reg_word_ok_no_id; first done. by eapply erasure_llookup_reg_word. }
     pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ dst _ Her Hok) as Her1.
     destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as [Hu Her2].
+    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
       iMod (gen_heap_update_inSepM _ _ dst wsrc.(lw) with "Hsr Hsmap") as "[Hsr Hsmap]"; first eauto.
@@ -120,6 +124,7 @@ Section griotte_lang_rules.
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull ->
+    load_exact_cond (lword_of_word wsrc) →
 
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
@@ -132,7 +137,7 @@ Section griotte_lang_rules.
           ∗ dst ↦ₛᵣ wsrc
           ∗ src ↦ᵣ lword_of_word wsrc }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' ? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' ? Hnh ϕ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
     iApply (wp_WriteSR with "[$HPC $Hmap $Hsmap Hpc_a]"); eauto; simplify_map_eq; eauto.

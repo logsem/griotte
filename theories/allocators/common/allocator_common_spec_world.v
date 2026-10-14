@@ -11,6 +11,31 @@ Section AllocatorCommonWorld.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters}.
 
+  (** A request observed against the cells: at the base of its authority,
+      its cell is claimed by its identifier, or is a heap root. *)
+  Definition allocator_request_observed
+      (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) (w : LWord) : Prop :=
+    ∀ b (x : AddrClaim * AllocStatus * bool),
+      heap_authority_base w.(lw) = Some b -> Cs !! b = Some x ->
+      match w.(lprov) with
+      | Some ι => x.1.1 = Claimed ι
+      | None => x.1.1 = HeapRoot
+      end.
+
+  (** A GetTag returning 1 on the request, with the cells in hand, observes
+      the request against the cells. *)
+  Lemma gettag_result_cells dw Cs w :
+    gettag_result dw
+      (λ C, ∀ a (x : AddrClaim * AllocStatus * bool), Cs !! a = Some x -> C !! a = Some x.1.1)
+      w 1 ->
+    allocator_request_observed Cs w.
+  Proof.
+    intros (_ & _ & Hobs) b x Hab Hx.
+    destruct (Hobs eq_refl) as (C & HC & Hb).
+    specialize (Hb b Hab). rewrite (HC _ _ Hx) in Hb.
+    destruct (lprov w); by simplify_eq.
+  Qed.
+
   (** Take the cells of a new chunk [next, finish) above the bump cursor: they
       are unclaimed, unpainted and not headers. The header cells [next, b)
       stay unclaimed; the payload cells [b, finish) are claimed by a fresh
@@ -110,11 +135,22 @@ Section AllocatorCommonWorld.
     destruct (acw_dom _ _ _ _ _ Hcwf b) as [ [ [c s] hdr] Hc]; first solve_addr.
     iDestruct (allocator_cells_acc _ _ _ Hc with "Hcells") as "[Hcell Hcells_close]".
     iDestruct "Hcell" as "(Hclaim & Hcell)".
-    iMod (observe_claim E r _ b c with "Hr Hclaim") as "(Hr & Hclaim & %Hclaim)".
+    (* The share of the base cell shows that [ι] is not dead. *)
+    assert (Hseq : finz.seq_between b e = b :: finz.seq_between (b ^+ 1)%a e)
+      by (apply finz_seq_between_cons; solve_addr).
+    iEval (rewrite Hseq) in "Hshares".
+    iDestruct (big_sepL_cons with "Hshares") as "[Hshare_b Hshares]".
+    iMod (observe_claim E r _ b c _ ALive with "Hr Hclaim Hshare_b")
+      as "(Hr & Hclaim & Hshare_b & %Hclaim)".
     { done. }
     { cbn. rewrite decide_True; last solve_addr.
       assert (is_heap_address b = true) as -> by (apply withinBounds_true_iff; solve_addr).
       done. }
+    { done. }
+    iSimpl in "Hshare_b".
+    iAssert ([∗ list] _ ∈ finz.seq_between b e, ι ↦st{share (finz.dist b e)} ALive)%I
+      with "[Hshare_b Hshares]" as "Hshares".
+    { rewrite Hseq. iFrame. }
     cbn in Hclaim. subst c.
     iDestruct ("Hcells_close" $! (Claimed ι, s, hdr) with "[$Hclaim $Hcell]") as "Hcells".
     rewrite insert_id; last exact Hc.

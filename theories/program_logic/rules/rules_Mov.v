@@ -52,16 +52,17 @@ Section griotte_lang_rules.
     assert (exists w, lword_of_argument regs src = Some w) as [wsrc Hwsrc].
     { destruct src as [| r0]; eauto; cbn.
       destruct (Hri r0) as [? [? ?]]; first set_solver+. eauto. }
+    destruct (lword_of_argument_phys _ _ _ _ _ Hregs Hwsrc) as (s & Hsrc & Hrel).
     assert (exec_opt (Mov dst src) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst wsrc.(lw))) as HH.
-    { cbn. erewrite word_of_arg_mono; [done|exact Hregs|].
-      by rewrite word_of_argument_erase Hwsrc. }
+              updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+                (and_tag s wsrc.(lw)))) as HH.
+    { cbn. by rewrite Hsrc. }
     rewrite HH in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst wsrc _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst wsrc _ _ _ _
       (λ lpc' regs' retv, Mov_spec _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-    { by eapply erasure_lword_of_argument_word. } { exact Hstep. }
+    { by eapply erasure_lword_of_argument_word. } { exact Hstep. } { exact Hrel. }
     { intros. by econstructor. }
     { intros. by econstructor. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.

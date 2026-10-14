@@ -82,8 +82,6 @@ Section AllocatorMallocPrepareBlocks3.
     wp_instr.
     iApply (wp_load_success_exact with "[$HPC $Hi $Hct0 $Hcgp $Hslot]"); try solve_pure.
     { apply allocator_cgp_not_shadow. }
-    { done. }
-    { intros _. left. apply allocator_heap_root_authority. }
     { apply withinBounds_true_iff. solve_addr. }
     { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
     iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot)". wp_pure.
@@ -122,6 +120,7 @@ Section AllocatorMallocPrepareBlocks3.
       try solve_pure.
     { rewrite /isWithin. solve_addr. }
     { solve_addr. }
+    { by left. }
     { done. }
     iIntros "!> (HPC & Hi & Hct1 & Hct2 & Hct4 & _ & Htok)". wp_pure.
     iClear "Hi".
@@ -276,7 +275,6 @@ Section AllocatorMallocPrepareBlocks3.
     wp_instr.
     iApply (wp_load_success_exact with "[$HPC $Hi $Hct0 $Hcgp $Hslot]"); try solve_pure.
     { apply allocator_cgp_not_shadow. }
-    { done. }
     { intros _. left. apply allocator_heap_root_authority. }
     { apply withinBounds_true_iff. solve_addr. }
     { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }

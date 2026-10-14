@@ -34,7 +34,8 @@ Section Switcher_Restore.
     iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
       as "Hshadow".
     { by rewrite big_sepM_empty. }
-    iApply (wp_load_general_shadow_imm with "[$HPC $Hmem $Hshadow $Hwit $Hmap]"); eauto.
+    iApply (wp_load_general_shadow_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
+              with "[$HPC $Hmem $Hshadow $Hwit $Hmap //]"); eauto.
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
@@ -46,7 +47,7 @@ Section Switcher_Restore.
       destruct (is_revoker_address a); first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & Hmap)".
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
@@ -57,9 +58,10 @@ Section Switcher_Restore.
       rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
       rewrite addr_add_0 in Haddr; injection Haddr as <-;
       simplify_map_eq; congruence.
-    2: { exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ RWL Local b e a a);
+    2: { exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ _ RWL Local b e a a);
          eauto; try by simplify_map_eq.
          all: try by rewrite addr_add_0.
+         all: try (by intros ? Hv; rewrite llookup_reg_not_cnull // in Hv; simplify_map_eq).
          all: rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
