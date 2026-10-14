@@ -70,8 +70,8 @@ Section HTS_Reload.
     { by rewrite big_sepM_empty. }
     iApply (wp_load_general_shadow_imm ⊤ RX Global pc_b pc_e pc_a None
       ca0 csp (-1) (lword_of_word (encodeInstrW _))
-      (<[pc_a:=lword_of_word (encodeInstrW _)]> (<[s:=raw]> ∅)) _ _ ∅ DfracDiscarded wit
-      with "[$HPC $Hmem $Hshadow $Hmap $Hwit]").
+      (<[pc_a:=lword_of_word (encodeInstrW _)]> (<[s:=raw]> ∅)) _ _ ∅ DfracDiscarded wit DerefNoId
+      with "[$HPC $Hmem $Hshadow $Hmap $Hwit //]").
     { apply decode_encode_instrW_inv. }
     { solve_pure. }
     { by rewrite !dom_insert; set_solver+. }
@@ -86,7 +86,7 @@ Section HTS_Reload.
       case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & Hmap)".
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
@@ -215,10 +215,18 @@ Section HTS_Spec_Free.
     iEval (cbn) in "Hca0".
     iExtractList "Hrmap" [ct0;ct1] as ["[Hct0 %Hwct0]";"[Hct1 _]"].
     subst wct0.
+    (* The share of the buffer cell is the dereference witness of [ι]. *)
+    iDestruct (key_share_deref (Some ι) b with "Hb_share") as (dw Hdw) "[Hdw Hdw_close]".
     (* Store ca0 cgp 0. *)
-    iInstr_success "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_success_reg_store_word_imm_dw with "[$HPC $Hi $Hcgp $Hca0 $Hb $Hdw]");
+      try solve_pure.
     { apply hts_heap_not_shadow. solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
+    { solve_addr. }
+    iNext. iIntros "(HPC & Hi & Hcgp & Hca0 & Hb & Hdw)". wp_pure. iClear "Hi".
+    iDestruct ("Hdw_close" with "Hdw") as "Hb_share".
     (* Mov ca1 ca0. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

@@ -157,11 +157,10 @@ Section griotte_lang_rules.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
     destruct (Hri dst) as [wdst [Hdst _]]; first by set_solver+.
-    assert (r !!ᵣ dst = Some wdst.(lw)) as Hdst'.
-    { eapply lookup_reg_weaken; last exact Hregs. by rewrite lookup_reg_erase Hdst. }
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s & Hdst' & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs Hdst) as Hokdst.
-    pose proof (lz_of_argument_phys regs r src1 Hregs ltac:(intros ? ->; set_solver)) as Hz1.
-    pose proof (lz_of_argument_phys regs r src2 Hregs ltac:(intros ? ->; set_solver)) as Hz2.
+    pose proof (lz_of_argument_phys R regs r src1 Hregs ltac:(intros ? ->; set_solver)) as Hz1.
+    pose proof (lz_of_argument_phys R regs r src2 Hregs ltac:(intros ? ->; set_solver)) as Hz2.
     (* The heap-root fact for the new base, when needed. *)
     iAssert (⌜∀ a1, laddr_of_argument regs src1 = Some a1 →
                ¬ subseg_root_free regs dst src1 src2 → C !! a1 = Some HeapRoot⌝)%I
@@ -201,15 +200,16 @@ Section griotte_lang_rules.
          iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
          iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap").
          constructor. by apply Subseg_fail_src2_nonz. }
-    assert (∃ w',
+    assert (∃ w' pw,
         reg_word_ok R C w' ∧
+        reg_phys R w' pw ∧
         (∀ lpc', incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
           Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' (<[dst := w']ₗ> regs) NextIV) ∧
         (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
           Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FailedV) ∧
-        (match updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst w'.(lw)) with
+        (match updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst pw) with
          | Some conf => conf | None => (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ'))
-      as (w' & Hok' & Hsuccess & Hfailure & Hupdate).
+      as (w' & pw & Hok' & Hpw & Hsuccess & Hfailure & Hupdate).
     { destruct wd as [ | [t p g b e a | t p g b e a] | | ];
         try discriminate Hwdst.
       - rewrite Hz1 Hz2 /= in Hstep.
@@ -217,12 +217,18 @@ Section griotte_lang_rules.
           destruct (z_to_addr n2) as [a2 |] eqn:Ha2.
         1: exists (WCap (t && isWithin a1 a2 b e && (a1 <=? a2)%a) p g a1 a2 a @@? π).
         2-4: exists (WCap false p g b e a @@? π).
-        all: split_and!; [ | intros | intros | exact Hstep ].
+        all: eexists; split_and!; [ | | intros | intros | exact Hstep ].
         all: try solve [eapply Subseg_spec_success_cap; eauto
                        | eapply Subseg_spec_unrepresentable_cap; eauto
                        | constructor; eapply Subseg_fail_incrPC_cap; eauto
                        | constructor; eapply Subseg_fail_incrPC_unrepresentable_cap; eauto].
-        2-4: by apply reg_word_ok_untagged.
+        3-8: first [by apply reg_word_ok_untagged | by apply reg_phys_untagged].
+        2: { assert (s && t && isWithin a1 a2 b e && (a1 <=? a2)%a =
+                       s && (t && isWithin a1 a2 b e && (a1 <=? a2)%a)) as -> by (by destruct s).
+             eapply reg_phys_subseg; [apply Her | exact Hokdst | exact Hrel |].
+             intros Ht. apply andb_prop in Ht as [Ht Hle]. apply andb_prop in Ht as [-> Hw].
+             apply isWithin_implies in Hw. apply Z.leb_le in Hle.
+             split; first done. solve_addr. }
         eapply reg_word_ok_subseg; [apply Her | exact Hokdst | |].
         + intros Ht. apply andb_prop in Ht as [Ht Hle]. apply andb_prop in Ht as [-> Hw].
           apply isWithin_implies in Hw. apply Z.leb_le in Hle.
@@ -236,18 +242,21 @@ Section griotte_lang_rules.
           destruct (z_to_otype n2) as [a2 |] eqn:Ha2.
         1: exists (WSealRange (t && isWithin a1 a2 b e) p g a1 a2 a @@? π).
         2-4: exists (WSealRange false p g b e a @@? π).
-        all: split_and!; [ | intros | intros | exact Hstep ].
+        all: eexists; split_and!; [ | | intros | intros | exact Hstep ].
+        all: try solve [by apply reg_phys_untagged
+                       | eapply (reg_phys_derive_eq _ (WSealRange t p g b e a @@? π) s);
+                         [exact Hrel | done | cbn; intros; by destruct t | by destruct s] ].
         all: try solve [eapply Subseg_spec_success_sr; eauto
                        | eapply Subseg_spec_unrepresentable_sr; eauto
                        | constructor; eapply Subseg_fail_incrPC_sr; eauto
                        | constructor; eapply Subseg_fail_incrPC_unrepresentable_sr; eauto].
         all: apply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π));
           [by right | cbn; intros; by destruct t | done | exact Hokdst]. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst w' _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst w' pw _ _ _
       (λ lpc' regs' retv, Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-    { exact Hok'. } { exact Hupdate. } { exact Hsuccess. } { exact Hfailure. }
+    { exact Hok'. } { exact Hupdate. } { exact Hpw. } { exact Hsuccess. } { exact Hfailure. }
   Qed.
 
   (** The generic rule on its pure branch. *)
@@ -907,7 +916,7 @@ Section griotte_lang_rules.
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (a1 <= a2)%a →
-    s ≠ ADead →
+    s = ALive ∨ s = APainting →
     executeAllowed p = false →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
@@ -948,27 +957,49 @@ Section griotte_lang_rules.
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ & s' & HRι).
     iDestruct (reg_lookup_own with "HR Htok") as %(b' & e' & γ' & HRι').
     rewrite HRι in HRι'. simplify_eq.
-    assert (r !! dst = Some (WCap true p g b e a)) as Hdst'.
-    { eapply lookup_weaken; last exact Hregs.
-      rewrite lookup_lregs_erase /regs. by simplify_map_eq. }
-    assert (r !! r1 = Some (WInt n1)) as Hr1'.
-    { eapply lookup_weaken; last exact Hregs.
-      rewrite lookup_lregs_erase /regs. by simplify_map_eq. }
-    assert (r !! r2 = Some (WInt n2)) as Hr2'.
-    { eapply lookup_weaken; last exact Hregs.
-      rewrite lookup_lregs_erase /regs. by simplify_map_eq. }
+    assert (regs !!ₗ dst = Some (WCap true p g b e a @@? None)) as Hd.
+    { rewrite /regs llookup_reg_not_cnull //. by simplify_map_eq. }
+    assert (regs !!ₗ r1 = Some (WInt n1 @@? π1)) as Hd1.
+    { rewrite /regs llookup_reg_not_cnull //. by simplify_map_eq. }
+    assert (regs !!ₗ r2 = Some (WInt n2 @@? π2)) as Hd2.
+    { rewrite /regs llookup_reg_not_cnull //. by simplify_map_eq. }
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hd) as (sd & Hdst' & Hreld).
+    pose proof (llookup_reg_phys_int _ _ _ _ _ _ Hregs Hd1) as Hr1'.
+    pose proof (llookup_reg_phys_int _ _ _ _ _ _ Hregs Hd2) as Hr2'.
     assert (exec_opt (Subseg dst (inr r1) (inr r2)) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst v.(lw))) as HH.
-    { rewrite /exec_opt /= /lookup_reg Hdst' Hr1' Hr2' /=.
-      rewrite !decide_False //= Hn1 Hn2 Hwb Hle' /=. done. }
+              updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+                (WCap sd p g b' e' a))) as HH.
+    { rewrite /exec_opt /= Hdst' Hr1' Hr2' /=.
+      rewrite Hn1 Hn2 Hwb Hle' /= !andb_true_r. done. }
     rewrite Hinstr /exec HH in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _
+    (* The physical result is a copy of [v]: exact, or untagged when the
+       source is an empty heap capability without authority. *)
+    assert (reg_phys R v (WCap sd p g b' e' a)) as Hpv.
+    { destruct sd.
+      - apply reg_phys_exact. intros ι' x Ha Hι Hx. rewrite /v /= in Hι. simplify_eq.
+        cbn. by intros [-> | ->]; destruct Hs.
+      - destruct Hreld as [[Heq | [_ [[(? & ? & ? & _) _] | [Hna [base Hh]]]]] _];
+          cbn in *; try discriminate.
+        split; last done. right. split; first done. right.
+        assert (is_heap_address b = true) as Hbh.
+        { rewrite /heap_cap_base /= in Hh. by destruct (is_heap_address b). }
+        assert (¬ (b < e)%a) as Hnlt.
+        { intros Hlt. apply Hna. split; first done. exists b.
+          apply heap_authority_base_memory_cap_bounds. eauto. }
+        apply isWithin_implies in Hwb.
+        assert (b' = b) as -> by solve_addr. assert (e' = b) as -> by solve_addr.
+        split.
+        + intros [_ [b' Hab]]. apply heap_authority_base_memory_cap_bounds in Hab as (? & [= <- <-] & ? & _).
+          solve_addr.
+        + rewrite /heap_cap_base /= Hbh. eauto. }
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
       (λ lpc' regs' retv,
          (retv = NextIV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧ regs' = <[dst := v]ₗ> regs) ∨
          (retv = FailedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None))
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Htok]").
     { exact Her. } { exact Hlregs. } { rewrite /regs. set_solver+. }
-    { by eapply reg_word_ok_rebase. } { exact Hstep. }
+    { eapply reg_word_ok_rebase; eauto. by destruct Hs as [-> | ->]. } { exact Hstep. }
+    { exact Hpv. }
     { intros. by left. } { intros. by right. }
     iIntros (lpc' regs' retv [(-> & Hincr & ->) | [-> Hincr]]) "HPC Hmap"; subst regs v.
     - iApply "Hφ". iFrame "∗#". try incrementPC_inv; simplify_map_eq.

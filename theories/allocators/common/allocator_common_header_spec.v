@@ -410,6 +410,16 @@ Section AllocatorCellsContracts.
     iFrame "Hx". iIntros (x') "Hx'". iApply ("Hclose" with "Hx'").
   Qed.
 
+  (** The claims of the cells agree with the claim map. *)
+  Lemma allocator_cells_claims C Cs :
+    addr_alloc_auth C -∗ allocator_cells Cs -∗
+    ⌜∀ a x, Cs !! a = Some x -> C !! a = Some x.1.1⌝.
+  Proof.
+    iIntros "HC Hcells" (a x Ha).
+    iDestruct (big_sepM_lookup with "Hcells") as "(Hc & _)"; first exact Ha.
+    iApply (addr_alloc_lookup with "HC Hc").
+  Qed.
+
   (** The cells of a duplicate-free list of addresses, and the map with these
       cells replaced. *)
   Lemma allocator_cells_range_acc (l : list Addr) f Cs :

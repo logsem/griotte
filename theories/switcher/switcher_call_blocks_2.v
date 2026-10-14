@@ -182,6 +182,7 @@ Section Switcher_Call_Blocks_2.
     (* The distance from this block to the block of the exhausted trusted stack. *)
     let off_exhausted :=
       asm_label_offset switcher_asm ".Lswitcher_trusted_stack_push" ".Lswitch_trusted_stack_exhausted" in
+    is_heap_address b_trusted_stack = false ->
     disjoint_from_shadow b_trusted_stack e_trusted_stack ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_3)%a ->
     (b_trusted_stack <= a_tstk)%a ->
@@ -234,7 +235,7 @@ Section Switcher_Call_Blocks_2.
   Proof.
     intros switcher_instrs_3 len_switcher_3 a_tstk1 a_tstk2 off_exhausted;
       subst switcher_instrs_3 len_switcher_3 off_exhausted.
-    iIntros (Htstk_shadow Hsub_reg Hbounds_tstk_b Hbounds_tstk_e Hpc_fail)
+    iIntros (Hts_heap Htstk_shadow Hsub_reg Hbounds_tstk_b Hbounds_tstk_e Hpc_fail)
       "(HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Htstk & #Hcode & Hpost)".
     (* Compute the distance to the block of the exhausted trusted stack. *)
     offsets_compute.
@@ -382,7 +383,7 @@ Section Switcher_Call_Blocks_2.
     switcher_focus_block (switcher_block ".Lswitcher_trusted_stack_push") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_3_spec with
       "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]");
-      [apply trusted_stack_disjoint_from_shadow|done|done|done|offsets_compute; solve_addr|].
+      [apply trusted_stack_not_heap|apply trusted_stack_disjoint_from_shadow|done|done|done|offsets_compute; solve_addr|].
     iNext.
     iIntros "[
       (%tstk_next' & HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc

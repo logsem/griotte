@@ -251,11 +251,14 @@ Section ghost_init.
       + intros a. rewrite lookup_init_claims. destruct (is_heap_address a); last done.
         case_decide; last done. intros _. by apply Hinit.
       + apply Hinit.
-    - apply map_eq. intros r. rewrite lookup_lregs_erase lookup_init_lregs.
-      case_decide as Hr.
-      + subst r. destruct (reg σ !! cnull) as [w|] eqn:Hc; last done.
-        cbn. by rewrite Hc (gi_cnull _ _ Hinit w Hc).
-      + destruct (reg σ !! r) eqn:E; rewrite ?E; done.
+    - split.
+      + apply set_eq. intros r. rewrite !elem_of_dom lookup_init_lregs.
+        case_decide; by rewrite fmap_is_Some.
+      + intros r v. rewrite lookup_init_lregs. case_decide as Hr.
+        * subst r. intros Hv. apply fmap_Some in Hv as (w & Hc & ->).
+          exists w. split; first done. rewrite (gi_cnull _ _ Hinit w Hc). apply reg_phys_lnull.
+        * intros Hv. apply fmap_Some in Hv as (w & Hw & ->).
+          exists w. split; first done. apply reg_phys_lword_of_word.
     - intros v. rewrite lookup_init_lregs. case_decide; last done. intros Hv.
       apply fmap_Some in Hv as (? & _ & ->). done.
     - intros r v. rewrite lookup_init_lregs. case_decide.
@@ -266,10 +269,11 @@ Section ghost_init.
     - by rewrite /init_lmem dom_fmap_L.
     - intros a v pw Hv Hpw. rewrite /init_lmem lookup_fmap Hpw /= in Hv.
       injection Hv as <-.
-      apply (reg_word_ok_mem _ _ (lword_of_word pw)), Hok; last by eapply gi_mem_exec.
+      apply (reg_phys_mem_word_ok _ _ (lword_of_word pw)); last apply reg_phys_lword_of_word.
+      apply Hok; last by eapply gi_mem_exec.
       intros b. eapply gi_mem; eauto.
     - apply Hinit.
-    - done.
+    - apply reg_phys_lword_of_word.
     - apply Hok; last by apply (gi_pc_exec _ _ Hinit). intros b. by apply gi_pc.
   Qed.
 

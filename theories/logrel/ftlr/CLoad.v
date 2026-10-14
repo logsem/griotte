@@ -461,7 +461,10 @@ Section fundamental.
 
     iDestruct (heap_provenance_load_witness_mem W
                  regs src imm mem with "Hprov") as "Hwit".
-    iApply (wp_load_witness_imm with "[$HPC $HMemRes $Hwit $Hmap]"); eauto.
+    (* The source needs no status witness: a revoked source fails, which is
+       safe. *)
+    iApply (wp_load_witness_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
+              with "[$HPC $HMemRes $Hwit $Hmap //]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
     { intros p0 g0 b0 e0 ea0 Hallow.
@@ -469,7 +472,7 @@ Section fundamental.
       pose proof (Hnonmmio _ _ _ _ _ _ Hallow') as Hmmio.
       apply orb_false_iff in Hmmio as [-> ->].
       by eapply allow_load_implies_loadv_imm. }
-    iNext. iIntros (lpc' regs' retv) "(%HSpec & HPC & Hmem & _ & Hmap)".
+    iNext. iIntros (lpc' regs' retv) "(%HSpec & HPC & Hmem & _ & _ & Hmap)".
     destruct HSpec as [p0 g0 b0 e0 ea loadv loadv' Hallow Hsh Hl Hpost Hincr ->
                     |p0 g0 b0 e0 ea heap_a revoked Hallow Hsh
                     |p0 g0 b0 e0 ea Hallow Hrev

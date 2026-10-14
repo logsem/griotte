@@ -198,6 +198,8 @@ Section CmptLayout.
         (* The switcher's sentries are executable: their closed bounds avoid
            the heap. *)
         switcher_end_not_heap : is_heap_address e_switcher = false;
+        (* The trusted stack is not in the heap. *)
+        trusted_stack_not_heap : is_heap_address b_trusted_stack = false;
       }.
 
   Definition trusted_stack_disjoint_from_shadow (C : cmptSwitcher) :

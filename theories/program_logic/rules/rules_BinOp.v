@@ -105,50 +105,46 @@ Section griotte_lang_rules.
     (* Failure: arg1 is not an integer *)
     { unfold lz_of_argument in Hn1. destruct arg1 as [| r0]; [ congruence |].
       destruct (Hri r0) as [r0v [Hr'0 Hr0]]; first by unfold regs_of_argument; set_solver+.
-      assert (lookup_reg r0 r = Some r0v.(lw)) as Hsrc0.
-      { eapply lookup_reg_weaken; last exact Hregs. by rewrite lookup_reg_erase Hr'0. }
+      destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr'0) as (s0 & Hsrc0 & _).
       assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
       { rewrite Hr'0 in Hn1.
         destruct r0v; try congruence.
         destruct_word lw; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep; cbn in Hstep.
-        all: rewrite Hsrc0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
+        all: rewrite Hsrc0 /= in Hstep. all: repeat case_match; simplify_eq; eauto. }
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
       iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. constructor.
       by eapply BinOp_fail_nonconst1. }
-    rewrite -z_of_argument_erase in Hn1.
-    apply (z_of_arg_mono _ r arg1 n1) in Hn1; auto.
+    apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn1.
 
     destruct (lz_of_argument regs arg2) as [n2|] eqn:Hn2;
       pose proof Hn2 as Hn2'; cycle 1.
     (* Failure: arg2 is not an integer *)
     { unfold lz_of_argument in Hn2. destruct arg2 as [| r1]; [ congruence |].
       destruct (Hri r1) as [r1v [Hr'1 Hr1]]; first by unfold regs_of_argument; set_solver+.
-      assert (lookup_reg r1 r = Some r1v.(lw)) as Hsrc1.
-      { eapply lookup_reg_weaken; last exact Hregs. by rewrite lookup_reg_erase Hr'1. }
+      destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr'1) as (s1 & Hsrc1 & _).
       assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
       { rewrite Hr'1 in Hn2.
         destruct r1v; try congruence.
         destruct_word lw; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep; cbn in Hstep.
         all: rewrite Hn1 /= in Hstep.
-        all: rewrite Hsrc1 in Hstep. all: repeat case_match; simplify_eq; eauto. }
+        all: rewrite Hsrc1 /= in Hstep. all: repeat case_match; simplify_eq; eauto. }
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
       iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. constructor.
       by eapply BinOp_fail_nonconst2. }
-    rewrite -z_of_argument_erase in Hn2.
-    apply (z_of_arg_mono _ r arg2 n2) in Hn2; auto.
+    apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2.
 
     assert (exec_opt i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
     { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
       all: by rewrite Hn1 Hn2; cbn. }
     rewrite HH in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt (denote i n1 n2))) _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt (denote i n1 n2))) _ _ _ _
       (λ lpc' regs' retv, BinOp_spec i _ regs dst arg1 arg2 lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. }
     { apply Dregs. set_solver+. }
-    { apply reg_word_ok_int. } { exact Hstep. }
+    { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
     { intros. by econstructor. }
     { intros. constructor. by eapply BinOp_fail_incrPC. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.

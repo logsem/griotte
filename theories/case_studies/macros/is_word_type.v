@@ -155,7 +155,19 @@ Section Is_WordType_spec.
       replace (encodeWordType (WCap t c g b e a) - encodeWordType wt_cap)%Z with 0%Z.
       2: { rewrite (encodeWordType_correct_cap t c g b e a true (O LG LM) Global 0%a 0%a 0%a) /wt_cap; lia. }
       destruct t; cbn.
-      + iGo "Hprog". iApply "Hφ"; iFrame "∗ Hprog".
+      + (* Jnz 2 r1. *)
+        iInstr "Hprog".
+        (* Jmp 2. *)
+        iInstr "Hprog".
+        (* GetTag r1 r: the tag of the word may read as 0. *)
+        iInstr_lookup "Hprog" as "Hi" "Hcont".
+        wp_instr.
+        iApply (wp_gettag_lax with "[$HPC $Hi $Hr $Hr1]"); try solve_pure.
+        iNext. iIntros (z) "(HPC & _ & Hr & Hr1 & %Hz)".
+        wp_pure.
+        destruct Hz; destruct_and?; simplify_eq.
+        * cbn. iGo "Hprog". iApply "Hφ"; iFrame "∗ Hprog".
+        * iGo "Hprog". wp_end; iApply "Hfailed".
       + iGo "Hprog". wp_end; iApply "Hfailed".
     - iGo "Hprog".
       { pose proof (encodeWordType_correct w wt_cap) as Hencode ; cbn in Hencode.

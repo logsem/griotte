@@ -632,7 +632,7 @@ Section griotte_lang_rules.
        ⌜erasure R C (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
           (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lmem⌝ -∗
        ⌜regs ⊆ lreg⌝ -∗
-       ⌜lregs_erase regs ⊆ r⌝ -∗
+       ⌜lregs_phys R regs r⌝ -∗
        ⌜lmem !! pc_a = Some w⌝ -∗
        ⌜exec (decodeInstrW w.(lw)) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ -∗
        PC_auth (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) -∗
@@ -653,7 +653,7 @@ Section griotte_lang_rules.
     iDestruct (gen_heap_valid with "Hm Hpc_a") as %Hpc_a.
     pose proof (erasure_regs_incl _ _ _ _ _ _ _ Her Hregs) as Hregs'.
     destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her Hpc_a) as (pw & Hpw & Hok).
-    pose proof (er_pc _ _ _ _ _ _ Her) as HPCr. cbn in HPCr. subst pc.
+    pose proof (erasure_pc_correct _ _ _ _ _ _ Her Hvpc) as HPCr. cbn in HPCr. subst pc.
     iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
@@ -693,7 +693,7 @@ Section griotte_lang_rules.
     iIntros (σ1 nt l1 l2 ns) "Hσ1 /="; destruct σ1 as [[[[pc r] sr] m] st]; simpl.
     iDestruct "Hσ1" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
     iDestruct (PC_agree with "HPCa HPC") as %->.
-    pose proof (er_pc _ _ _ _ _ _ Her) as HPCr. cbn in HPCr. subst pc.
+    pose proof (erasure_pc_not_correct _ _ _ _ _ _ Her Hnpc) as Hnpc'. cbn in Hnpc'.
     iApply fupd_frame_l.
     iSplit; first (by iPureIntro; apply normal_always_base_reducible).
     iModIntro. iIntros (e1 σ2 efs Hstep).
@@ -1031,37 +1031,62 @@ Tactic Notation "incrementPC_inv" "as" simple_intropattern(pat):=
 Section logical_lookups.
   Context `{MP : MachineParameters}.
 
-  Lemma llookup_reg_incl (regs : LReg) (r : Reg) x (v : LWord) :
-    lregs_erase regs ⊆ r → regs !!ₗ x = Some v → lookup_reg x r = Some v.(lw).
+  (** A register read: the physical word is a copy of the logical one. *)
+  Lemma llookup_reg_phys R (regs : LReg) (r : Reg) x (v : LWord) :
+    lregs_phys R regs r → regs !!ₗ x = Some v →
+    ∃ s, lookup_reg x r = Some (and_tag s v.(lw)) ∧ reg_phys R v (and_tag s v.(lw)).
   Proof.
-    intros Hincl Hx. eapply lookup_reg_weaken; last exact Hincl.
-    by rewrite lookup_reg_erase Hx.
+    intros Hincl Hx. rewrite /llookup_reg in Hx.
+    destruct (regs !! x) as [v'|] eqn:Hv'; cbn in Hx; last done.
+    destruct (Hincl x v' Hv') as (w & Hw & Hrel).
+    rewrite /lookup_reg Hw /=. case_decide; simplify_eq.
+    - exists true. split; first done. apply reg_phys_lnull.
+    - destruct (reg_phys_and_tag _ _ _ Hrel) as [s ->]. by exists s.
   Qed.
 
-  Lemma lz_of_argument_incl (regs : LReg) (r : Reg) arg z :
-    lregs_erase regs ⊆ r → lz_of_argument regs arg = Some z → z_of_argument r arg = Some z.
-  Proof. intros Hincl Hz. eapply z_of_arg_mono; first exact Hincl. by rewrite z_of_argument_erase. Qed.
+  (** Integer reads are exact. *)
+  Lemma llookup_reg_phys_int R (regs : LReg) (r : Reg) x z π :
+    lregs_phys R regs r → regs !!ₗ x = Some (MkLWord (WInt z) π) → lookup_reg x r = Some (WInt z).
+  Proof. intros Hincl Hx. by destruct (llookup_reg_phys _ _ _ _ _ Hincl Hx) as (s & -> & _). Qed.
 
-  Lemma lz_of_argument_None (regs : LReg) (r : Reg) arg :
-    lregs_erase regs ⊆ r → (∀ x, arg = inr x → x ∈ dom regs) →
+  Lemma lz_of_argument_incl R (regs : LReg) (r : Reg) arg z :
+    lregs_phys R regs r → lz_of_argument regs arg = Some z → z_of_argument r arg = Some z.
+  Proof.
+    intros Hincl Hz. destruct arg as [z'|x]; cbn in *; first done.
+    destruct (regs !!ₗ x) as [[[] π]|] eqn:Hx; try done. simplify_eq.
+    by rewrite (llookup_reg_phys_int _ _ _ _ _ _ Hincl Hx).
+  Qed.
+
+  Lemma lz_of_argument_None R (regs : LReg) (r : Reg) arg :
+    lregs_phys R regs r → (∀ x, arg = inr x → x ∈ dom regs) →
     lz_of_argument regs arg = None → z_of_argument r arg = None.
   Proof.
     intros Hincl Hdom Hz. destruct arg as [z|x]; cbn in *; first done.
     destruct (regs !!ₗ x) as [v|] eqn:Hx.
-    - rewrite (llookup_reg_incl _ _ _ _ Hincl Hx). by destruct v as [[] ?].
+    - destruct (llookup_reg_phys _ _ _ _ _ Hincl Hx) as (s & -> & _).
+      by destruct v as [[| [] | | ? []] ?].
     - exfalso. assert (is_Some (regs !!ₗ x)) as [? ?]; last congruence.
       apply elem_of_dom_lreg. by apply Hdom.
   Qed.
 
-  Lemma lz_of_argument_phys (regs : LReg) (r : Reg) arg :
-    lregs_erase regs ⊆ r →
+  Lemma lz_of_argument_phys R (regs : LReg) (r : Reg) arg :
+    lregs_phys R regs r →
     (∀ x, arg = inr x → x ∈ dom regs) →
     z_of_argument r arg = lz_of_argument regs arg.
   Proof.
-    intros Hincl Hdom. destruct arg as [z|x]; first done. cbn.
-    assert (is_Some (regs !!ₗ x)) as [v Hv].
-    { apply elem_of_dom_lreg. by apply Hdom. }
-    rewrite (llookup_reg_incl _ _ _ _ Hincl Hv) Hv. by destruct v as [[] ?].
+    intros Hincl Hdom. destruct (lz_of_argument regs arg) eqn:Hz.
+    - by eapply lz_of_argument_incl.
+    - by eapply lz_of_argument_None.
+  Qed.
+
+  (** A word argument: a register read, or an exact integer. *)
+  Lemma lword_of_argument_phys R (regs : LReg) (r : Reg) arg (v : LWord) :
+    lregs_phys R regs r → lword_of_argument regs arg = Some v →
+    ∃ s, word_of_argument r arg = Some (and_tag s v.(lw)) ∧ reg_phys R v (and_tag s v.(lw)).
+  Proof.
+    intros Hincl Hv. destruct arg as [z|x]; cbn in Hv.
+    - simplify_eq. exists true. split; first done. apply reg_phys_lword_of_word.
+    - by eapply llookup_reg_phys.
   Qed.
 
   Lemma llookup_reg_cap (regs : LReg) r t p g b e a :
@@ -1097,17 +1122,46 @@ End logical_lookups.
 Section erasure_PC.
   Context `{MP : MachineParameters}.
 
+  (* The PC increment on a copy of the PC gives the same copy of the
+     incremented PC. *)
+  Lemma incrementPC_gen_phys R (lpc lpc' : LWord) pc (r : Reg) sr m st n :
+    reg_phys R lpc pc →
+    incrementPC_gen lpc n = Some lpc' →
+    ∃ pc', updatePC_gen (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
+           reg_phys R lpc' pc'.
+  Proof.
+    intros Hpc Hi.
+    apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
+    destruct (reg_phys_and_tag _ _ _ Hpc) as [s ->].
+    exists (and_tag s (WCap t p g b e a')). split.
+    - rewrite /updatePC_gen /update_pcc /= Ha'. done.
+    - by apply (reg_phys_derive _ (WCap t p g b e a @@? π)).
+  Qed.
+
+  Lemma incrementPC_gen_phys_fail R (lpc : LWord) pc (r : Reg) sr m st n :
+    reg_phys R lpc pc →
+    incrementPC_gen lpc n = None →
+    updatePC_gen (pc, r, sr, m, st) n = None.
+  Proof.
+    intros Hpc Hi. destruct (reg_phys_and_tag _ _ _ Hpc) as [s ->].
+    rewrite /incrementPC_gen in Hi. rewrite /updatePC_gen /=.
+    destruct lpc as [w π]; cbn in *.
+    destruct w as [| [? ? ? ? ? a' | ] | |]; cbn; auto.
+    destruct (a' + n)%a; auto. congruence.
+  Qed.
+
   (* The PC increment keeps erasure: the incremented PC keeps the bounds, the
      tag and the identifier of the PC. *)
   Lemma erasure_incrementPC_gen R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lmem n :
     erasure R C (pc, r, sr, m, st) lpc lreg lmem →
     incrementPC_gen lpc n = Some lpc' →
-    updatePC_gen (pc, r, sr, m, st) n = Some (NextI, (lpc'.(lw), r, sr, m, st)) ∧
-    erasure R C (lpc'.(lw), r, sr, m, st) lpc' lreg lmem.
+    ∃ pc', updatePC_gen (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
+           erasure R C (pc', r, sr, m, st) lpc' lreg lmem.
   Proof.
     intros Her Hi.
-    pose proof (er_pc _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
-    split; first by apply incrementPC_gen_success_updatePC_gen.
+    destruct (incrementPC_gen_phys _ _ _ _ r sr m st _ (er_pc _ _ _ _ _ _ Her) Hi)
+      as (pc' & Hu & Hpc').
+    exists pc'. split; first done.
     apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
     destruct Her as [Hreg Hregs Hcnull Hrw Hsrw Hdom Hmw Hmmio Hpc Hpcw].
     constructor; cbn in *; try done.
@@ -1116,20 +1170,86 @@ Section erasure_PC.
   Lemma erasure_incrementPC R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lmem :
     erasure R C (pc, r, sr, m, st) lpc lreg lmem →
     incrementPC lpc = Some lpc' →
-    updatePC (pc, r, sr, m, st) = Some (NextI, (lpc'.(lw), r, sr, m, st)) ∧
-    erasure R C (lpc'.(lw), r, sr, m, st) lpc' lreg lmem.
+    ∃ pc', updatePC (pc, r, sr, m, st) = Some (NextI, (pc', r, sr, m, st)) ∧
+           erasure R C (pc', r, sr, m, st) lpc' lreg lmem.
   Proof. apply erasure_incrementPC_gen. Qed.
 
   Lemma erasure_incrementPC_fail R C (pc : Word) (r : Reg) sr m st lpc (lreg : LReg) lmem n :
     erasure R C (pc, r, sr, m, st) lpc lreg lmem →
     incrementPC_gen lpc n = None →
     updatePC_gen (pc, r, sr, m, st) n = None.
-  Proof.
-    intros Her Hi.
-    pose proof (er_pc _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
-    by apply incrementPC_gen_fail_updatePC_gen.
-  Qed.
+  Proof. intros Her. apply incrementPC_gen_phys_fail with R, Her. Qed.
 End erasure_PC.
+
+(** ** Dereference witnesses
+
+    A Load source, a Store destination or a GetTag source is read exactly
+    while its identifier is live: the witness is a status share of the
+    identifier, or the absence of an identifier. *)
+Inductive deref_witness := DerefNoId | DerefLive (ι : AId) (q : Qp).
+
+Definition deref_id (dw : deref_witness) : option AId :=
+  match dw with DerefNoId => None | DerefLive ι _ => Some ι end.
+
+Section deref_witness.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+
+  Definition deref_witness_res (dw : deref_witness) : iProp Σ :=
+    match dw with
+    | DerefNoId => emp
+    | DerefLive ι q => ι ↦st{q} ALive
+    end%I.
+
+  Global Instance deref_witness_res_timeless dw : Timeless (deref_witness_res dw).
+  Proof. destruct dw; apply _. Qed.
+
+  Definition deref_witness_ok (R : RegState) (dw : deref_witness) : Prop :=
+    match dw with
+    | DerefNoId => True
+    | DerefLive ι _ => ∃ x, R !! ι = Some x ∧ re_status x = ALive
+    end.
+
+  Lemma deref_witness_lookup R dw :
+    reg_auth R -∗ deref_witness_res dw -∗ ⌜deref_witness_ok R dw⌝.
+  Proof.
+    iIntros "HR Hw". destruct dw as [|ι q]; cbn; first done.
+    iDestruct (reg_lookup_own with "HR Hw") as %(b & e & γ & HRι).
+    iPureIntro. eexists. split; first done. done.
+  Qed.
+
+  Lemma deref_witness_not_stale R dw (v : LWord) :
+    deref_witness_ok R dw → v.(lprov) = deref_id dw → ¬ stale_id R v.
+  Proof.
+    intros Hok Hπ (ι & x & Hι & Hx & Hs). destruct dw as [|ι' q]; cbn in *; first congruence.
+    destruct Hok as (x' & Hx' & Hs'). simplify_eq; congruence.
+  Qed.
+
+  (** A word read under its witness is exact. *)
+  Lemma deref_exact R dw (v : LWord) w :
+    deref_witness_ok R dw → v.(lprov) = deref_id dw → load_exact_cond v →
+    reg_phys R v w → w = v.(lw).
+  Proof.
+    intros Hok Hπ Hcond Hw. eapply reg_phys_exact_cond; eauto.
+    by eapply deref_witness_not_stale.
+  Qed.
+
+  (** A tagged word with non-empty bounds has authority or no heap base. *)
+  Lemma nonempty_exact_cond (v : LWord) b e :
+    memory_cap_bounds v.(lw) = Some (b, e) → (b < e)%a → load_exact_cond v.
+  Proof.
+    intros Hb Hlt Ht. destruct (is_heap_address b) eqn:Hh.
+    - left. split; first done. exists b. apply heap_authority_base_memory_cap_bounds. eauto.
+    - right. by rewrite /heap_cap_base memory_cap_base_bounds Hb /= Hh.
+  Qed.
+End deref_witness.
+
+Lemma reg_phys_derive_eq `{MachineParameters} R (v : LWord) s w' w'' :
+  reg_phys R v (and_tag s v.(lw)) →
+  memory_cap_bounds w' = memory_cap_bounds v.(lw) →
+  (get_tag w' = true → get_tag v.(lw) = true) →
+  and_tag s w' = w'' →
+  reg_phys R (MkLWord w' v.(lprov)) w''.
+Proof. intros ? ? ? <-. by apply reg_phys_derive. Qed.
 
 Section instruction_closing.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
@@ -1173,7 +1293,7 @@ Section instruction_closing.
   Proof.
     iIntros (Her Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     destruct (incrementPC_gen lpc n) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as [Hu Her2].
+    - destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
       iModIntro. iSplitR "Hφ HPC Hmap".
@@ -1189,14 +1309,15 @@ Section instruction_closing.
       the new PC and owned registers on success, and of the old ones on
       failure. *)
   Lemma instr_close_reg_update pc (r : Reg) sr m st lpc (lreg : LReg) lmem R C
-      (regs : LReg) dst (v : LWord) c σ' (Φ : griotte_lang.val → iProp Σ)
+      (regs : LReg) dst (v : LWord) (w : Word) c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → LReg → griotte_lang.val → Prop) :
     erasure R C (pc, r, sr, m, st) lpc lreg lmem →
     regs ⊆ lreg →
     dst ∈ dom regs →
     reg_word_ok R C v →
-    (match updatePC (update_reg (pc, r, sr, m, st) dst v.(lw)) with
+    (match updatePC (update_reg (pc, r, sr, m, st) dst w) with
      | Some conf => conf | None => (Failed, (pc, r, sr, m, st)) end) = (c, σ') →
+    reg_phys R v w →
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
     (incrementPC lpc = None → P lpc regs FailedV) →
     PC_auth lpc -∗
@@ -1208,11 +1329,11 @@ Section instruction_closing.
        ([∗ map] k↦y ∈ regs', k ↦ᵣ y) -∗ Φ retv) ==∗
     cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
   Proof.
-    iIntros (Her Hlregs Hdst Hok Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
-    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ dst v Her Hok) as Her1.
+    iIntros (Her Hlregs Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
+    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
     rewrite /update_reg /= in Hstep.
     destruct (incrementPC lpc) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as [Hu Her2].
+    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
       assert (is_Some (regs !! dst)) as [vold Hvold] by by apply elem_of_dom.
       iMod (gen_heap_update_inSepM _ _ dst (if decide (dst = cnull) then lnull else v)
@@ -1230,6 +1351,13 @@ Section instruction_closing.
 
 End instruction_closing.
 
+Lemma lregs_phys_lookup `{MachineParameters} R (regs : LReg) (r : Reg) x (v : LWord) :
+  lregs_phys R regs r → regs !! x = Some v → ∃ s, r !! x = Some (and_tag s v.(lw)).
+Proof.
+  intros Hincl Hv. destruct (Hincl x v Hv) as (w & Hw & Hrel).
+  destruct (reg_phys_and_tag _ _ _ Hrel) as [s ->]. by exists s.
+Qed.
+
 Section instruction_outcomes.
 
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
@@ -1241,7 +1369,7 @@ Section instruction_outcomes.
   Local Lemma wp_instr_failed_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (∀ r sr m st, lregs_erase regs ⊆ r →
+    (∀ R r sr m st, lregs_phys R regs r →
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
          (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
@@ -1257,7 +1385,7 @@ Section instruction_outcomes.
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hregs Hregs' Hpc_a Hstep)
       "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
-    rewrite Hinstr (Hfailed r sr m st Hregs') in Hstep. simplify_eq.
+    rewrite Hinstr (Hfailed R r sr m st Hregs') in Hstep. simplify_eq.
     iModIntro. iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
     iExists _, lreg, lmem, R, C. by iFrame.
   Qed.
@@ -1277,7 +1405,7 @@ Section instruction_outcomes.
     iApply (wp_instr_failed_map _ _ _ _ _ _ _ _ _ ∅ with "[$HPC $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros r sr m st _. apply Hfailed.
+    - intros R r sr m st _. apply Hfailed.
     - by rewrite big_sepM_empty.
     - iNext. iIntros "(HPC & Hmem & _)".
       iApply "Hφ". iFrame.
@@ -1287,7 +1415,7 @@ Section instruction_outcomes.
   Lemma wp_instr_failed_1 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (∀ r sr m st, r !! r1 = Some w1.(lw) →
+    (∀ r sr m st s1, r !! r1 = Some (and_tag s1 w1.(lw)) →
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
          (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ pc_a ↦ₐ{dq} w }}}
@@ -1300,10 +1428,9 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros r sr m st Hincl. apply Hfailed.
-      all: eapply lookup_weaken; last exact Hincl.
-      all: rewrite lookup_lregs_erase ?lookup_insert ?lookup_empty; repeat case_decide; try congruence.
-      all: done.
+    - intros R r sr m st Hincl.
+      destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
+      by eapply Hfailed.
     - iNext. iIntros "(HPC & Hmem & Hmap)".
       iDestruct (regs_of_map_1 with "Hmap") as "Hr1"; eauto.
       iApply "Hφ". iFrame.
@@ -1313,8 +1440,8 @@ Section instruction_outcomes.
   Lemma wp_instr_failed_2 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (∀ r sr m st, r !! r1 = Some w1.(lw) →
-       r !! r2 = Some w2.(lw) →
+    (∀ r sr m st s1 s2, r !! r1 = Some (and_tag s1 w1.(lw)) →
+       r !! r2 = Some (and_tag s2 w2.(lw)) →
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
          (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2 ∗ ▷ pc_a ↦ₐ{dq} w }}}
@@ -1327,10 +1454,10 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros r sr m st Hincl. apply Hfailed.
-      all: eapply lookup_weaken; last exact Hincl.
-      all: rewrite lookup_lregs_erase ?lookup_insert ?lookup_empty; repeat case_decide; try congruence.
-      all: done.
+    - intros R r sr m st Hincl.
+      destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
+      destruct (lregs_phys_lookup _ _ r r2 w2 Hincl) as [s2 Hl2]; first by simplify_map_eq.
+      by eapply Hfailed.
     - iNext. iIntros "(HPC & Hmem & Hmap)".
       iDestruct (regs_of_map_2 with "Hmap") as "(Hr1 & Hr2)"; eauto.
       iApply "Hφ". iFrame.
@@ -1340,9 +1467,9 @@ Section instruction_outcomes.
   Lemma wp_instr_failed_3 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 r3 w3 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (∀ r sr m st, r !! r1 = Some w1.(lw) →
-       r !! r2 = Some w2.(lw) →
-       r !! r3 = Some w3.(lw) →
+    (∀ r sr m st s1 s2 s3, r !! r1 = Some (and_tag s1 w1.(lw)) →
+       r !! r2 = Some (and_tag s2 w2.(lw)) →
+       r !! r3 = Some (and_tag s3 w3.(lw)) →
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
          (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
@@ -1365,10 +1492,11 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros r sr m st Hincl. apply Hfailed.
-      all: eapply lookup_weaken; last exact Hincl.
-      all: rewrite lookup_lregs_erase ?lookup_insert ?lookup_empty; repeat case_decide; try congruence.
-      all: done.
+    - intros R r sr m st Hincl.
+      destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
+      destruct (lregs_phys_lookup _ _ r r2 w2 Hincl) as [s2 Hl2]; first by simplify_map_eq.
+      destruct (lregs_phys_lookup _ _ r r3 w3 Hincl) as [s3 Hl3]; first by simplify_map_eq.
+      by eapply Hfailed.
     - iNext. iIntros "(HPC & Hmem & Hmap)".
       iDestruct (regs_of_map_3 with "Hmap") as "(Hr1 & Hr2 & Hr3)"; eauto.
       iApply "Hφ". iFrame.

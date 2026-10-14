@@ -42,7 +42,12 @@ Section fundamental.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
-    destruct HSpec as [wsrc z Hsrc Hz Hinc -> | ]; cycle 1.
+    (* GetTag may return 0 on a word whose tag may have been cleared: either
+       way an integer is written. *)
+    assert (retv = FailedV ∨ ∃ z, retv = NextIV ∧ incrementPC (WCap true p g b e a) = Some lpc' ∧
+              regs' = <[dst := WInt z]ₗ> regs) as [-> | (z & -> & Hinc & ->)].
+    { destruct HSpec as [wsrc z Hsrc Hz Hinc -> | wsrc Hgt Hsrc Hstrip Hinc -> | ];
+        [right; by exists z | right; by exists 0%Z | by left]. }
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
     - incrementPC_inv; simplify_map_eq.

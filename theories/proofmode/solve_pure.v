@@ -163,6 +163,28 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (?w = store_word RWLX ?w) =>
   symmetry; apply store_word_isWL; reflexivity : solve_pure.
 
+(* get_exact: trivial for the Get instructions other than GetTag, and for a
+   GetTag on an untagged word. *)
+#[export] Hint Extern 1 (get_exact (GetTag _ _) ?w) =>
+  (assert_fails (has_evar w); apply get_exact_gettag_untagged; reflexivity) : solve_pure.
+#[export] Hint Extern 2 (get_exact _ _) => exact I : solve_pure.
+
+(* Identifier-less operands *)
+#[export] Hint Extern 1 (@eq (option AId) ?x None) =>
+  (assert_fails (has_evar x); cbn; reflexivity) : solve_pure.
+
+(* load_exact_cond: a tagged word with non-empty bounds has authority or no
+   heap base; an untagged word satisfies it vacuously. *)
+#[export] Hint Extern 1 (load_exact_cond ?v) =>
+  (assert_fails (has_evar v); intros ?; discriminate) : solve_pure.
+#[export] Hint Extern 2 (load_exact_cond ?v) =>
+  (assert_fails (has_evar v); eapply nonempty_exact_cond; [reflexivity | solve_addr]) : solve_pure.
+(* A word whose base is known not to be in the heap. *)
+Lemma load_exact_cond_nonheap_cap `{MachineParameters} t p g b e a π :
+  is_heap_address b = false → load_exact_cond (WCap t p g b e a @@? π).
+Proof. intros Hb _. right. by rewrite /heap_cap_base /= Hb. Qed.
+#[export] Hint Resolve load_exact_cond_nonheap_cap : solve_pure.
+
 (* denote - required for Get *)
 #[export] Hint Extern 1 (rules_Get.denote (GetTag _ _) _ = Some _) =>
   apply gettag_denote : solve_pure.

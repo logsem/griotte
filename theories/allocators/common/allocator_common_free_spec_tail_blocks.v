@@ -86,7 +86,10 @@ Section AllocatorFreeTailBlocks.
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
-  (** Block 2: the revoker store, over the whole register file [regs]. *)
+  (** Block 2: the revoker store, over the whole register file [regs].
+      Right before the store, with the PC and the whole register file in
+      hand, none of whose words with authority carries [ι], the painted
+      payload moves the status token of [ι] to [AQuar]. *)
   Lemma allocator_free_revoke_store_spec
     (E : coPset) (pc_b pc_e pc_a b e sb se : Addr) (ι : AId) (w4 wa2 : LWord) (regs : LReg)
     (φ : language.val griotte_lang → iPropI Σ) :
@@ -103,7 +106,9 @@ Section AllocatorFreeTailBlocks.
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e se ∗
     ca2 ↦ᵣ wa2 ∗
     ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
-    revoke_pre ι ∗
+    alloc_obj ι b e ∗
+    ι ↦st{1} APainting ∗
+    ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
     ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 3)%a ∗
        ct1 ↦ᵣ WInt b ∗
@@ -114,12 +119,14 @@ Section AllocatorFreeTailBlocks.
        ca2 ↦ᵣ WInt (e - b) ∗
        ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
        revoke_post ι ∗
+       ι ⊒ AQuar ∗
        codefrag_pers pc_a allocator_free_tail_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Hsb Hdom Hclean.
-    iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hpre & #Hcode_main & Hφ)".
+    iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & #Hobj & Hpainting &
+      Hpayload & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
     pose proof allocator_common_revoker_size as Hrev.
@@ -152,12 +159,11 @@ Section AllocatorFreeTailBlocks.
       first (simplify_map_eq; apply Hnone; set_solver).
     iDestruct (big_sepM_insert with "[$Hregs $Hct1]") as "Hregs";
       first (simplify_map_eq; apply Hnone; set_solver).
-    iApply (wp_store_revoker _ RX Global pc_b pc_e (a_revoke ^+ 2)%a None
-              (a_revoke ^+ 3)%a _ _ ca3 (inl 0%Z) 0 RW Global
-              revoker_addr (revoker_addr ^+ 1)%a revoker_addr {[ι]}
-      with "[$HPC $Hi $Hregs Hpre]").
-    { cbn. apply decode_encode_instrW_inv. }
-    { solve_pure. }
+    (* Every cell is quarantined and no register carries [ι]: the status
+       token moves to [AQuar]. *)
+    iDestruct (big_sepL_sep with "Hpayload") as "[Hshadows Hclaims]".
+    iMod (reg_quarantine _ ι b e with "Hobj Hpainting Hshadows HPC Hregs")
+      as "(Hquar & #Hq & Hshadows & HPC & Hregs)".
     { intros x.
       destruct (decide (x ∈ ({[ct1; ct2; ca3; ca4; ctp; ca2]} : gset RegName))) as [Hx|Hx].
       { rewrite !elem_of_union !elem_of_singleton in Hx.
@@ -165,18 +171,26 @@ Section AllocatorFreeTailBlocks.
       rewrite !lookup_insert_ne; [|set_solver..].
       apply elem_of_dom. rewrite Hdom. apply elem_of_difference.
       split; [apply all_registers_s_correct|done]. }
-    { split_and!; [by simplify_map_eq | by rewrite finz_add_0 | done |].
-      apply withinBounds_true_iff. solve_addr. }
-    { solve_addr. }
-    { intros x lv ι' bv Hx Hlookup Htag Hbase Hprov.
-      rewrite not_elem_of_singleton. intros ->.
+    { intros v [-> | (x & Hxn & Hlookup)] Hauth; first done.
       destruct (decide (x ∈ ({[ct1; ct2; ca3; ca4; ctp; ca2]} : gset RegName))) as [Hin|Hin].
       { rewrite !elem_of_union !elem_of_singleton in Hin.
         destruct_or! Hin; subst x; simplify_map_eq; done. }
       do 6 (rewrite lookup_insert_ne in Hlookup; last set_solver).
-      by apply (Hclean x lv Hx Hlookup); [split; [|exists bv]|]. }
-    { by intros ι' bv _ ?. }
-    { by rewrite big_sepS_singleton. }
+      by apply (Hclean x v Hxn Hlookup). }
+    iCombine "Hshadows Hclaims" as "Hpayload".
+    rewrite -big_sepL_sep.
+    iApply (wp_store_revoker _ RX Global pc_b pc_e (a_revoke ^+ 2)%a None
+              (a_revoke ^+ 3)%a _ _ ca3 (inl 0%Z) 0 RW Global
+              revoker_addr (revoker_addr ^+ 1)%a revoker_addr {[ι]}
+      with "[$HPC $Hi $Hregs Hquar Hpayload]").
+    { cbn. apply decode_encode_instrW_inv. }
+    { solve_pure. }
+    { rewrite /regs_of !dom_insert_L. set_solver. }
+    { split_and!; [by simplify_map_eq | by rewrite finz_add_0 | done |].
+      apply withinBounds_true_iff. solve_addr. }
+    { intros v Hv. by simplify_map_eq. }
+    { solve_addr. }
+    { rewrite big_sepS_singleton. iExists b, e. iFrame "Hobj Hquar Hpayload". }
     iNext. iIntros "(HPC & Hi & Hregs & Hpost)".
     rewrite big_sepS_singleton.
     wp_pure.
@@ -198,7 +212,7 @@ Section AllocatorFreeTailBlocks.
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_free_tail_block_offset 3)%a.
-    iApply "Hφ". iFrame "∗ Hcode_main".
+    iApply "Hφ". iFrame "∗ Hq Hcode_main".
   Qed.
 
   Lemma allocator_free_revoke_spec
@@ -226,7 +240,7 @@ Section AllocatorFreeTailBlocks.
     cnull ↦ᵣ wnull ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
     alloc_obj ι b e ∗
-    ι ↦st{1} AQuar ∗
+    ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
     ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 4)%a ∗
@@ -244,6 +258,7 @@ Section AllocatorFreeTailBlocks.
        cnull ↦ᵣ wnull ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
        ι ↦st{1} ADead ∗
+       ι ⊒ AQuar ∗
        ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) ∗
        codefrag_pers pc_a allocator_free_tail_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
@@ -252,7 +267,7 @@ Section AllocatorFreeTailBlocks.
     intros Hbounds_code Hbounds Hdom Hclean Hclean_ret.
     pose proof Hbounds_code as (Hpc & Hpc_shadow).
     iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp &
-      Hcnull & Hrmap & #Hobj & Hquar & Hpayload & #Hcode_main & Hφ)".
+      Hcnull & Hrmap & #Hobj & Hpainting & Hpayload & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
     pose proof heap_shadow_same_size as Hss.
@@ -277,7 +292,8 @@ Section AllocatorFreeTailBlocks.
     iDestruct (big_sepM_insert with "[$Hregs $Hcgp]") as "Hregs";
       first (simplify_map_eq; apply Hrmap_none; set_solver).
     iApply (allocator_free_revoke_store_spec _ _ _ _ b e sb se ι with
-      "[- $HPC $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hca2 $Hregs $Hcode_main]").
+      "[- $HPC $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hca2 $Hregs $Hobj $Hpainting $Hpayload
+          $Hcode_main]").
     { exact Hbounds_code. }
     { subst sb se. solve_addr. }
     { rewrite !dom_insert_L Hdom.
@@ -292,8 +308,7 @@ Section AllocatorFreeTailBlocks.
       destruct (decide (x = ct0)); [subst; simplify_map_eq; done|].
       rewrite !lookup_insert_ne // in Hlookup.
       by rewrite (Hclean _ _ Hlookup Hauth). }
-    iSplitL "Hquar Hpayload"; first (iExists b, e; iFrame "Hobj Hquar Hpayload").
-    iNext. iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hdead &
+    iNext. iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hdead & #Hq &
       _)".
     iDestruct "Hdead" as (b1 e1) "(#Hobj1 & Hdead & _ & Hcells_dead)".
     iDestruct (alloc_obj_agree with "Hobj Hobj1") as %[<- <-].
@@ -328,7 +343,7 @@ Section AllocatorFreeTailBlocks.
     iNext. iIntros "(HPC & Hctp & Hca2 & _ & Hcells & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_free_tail_block_offset 4)%a.
-    iApply "Hφ". iFrame "∗ Hcode_main".
+    iApply "Hφ". iFrame "∗ Hq Hcode_main".
   Qed.
 
   Lemma allocator_free_return_spec

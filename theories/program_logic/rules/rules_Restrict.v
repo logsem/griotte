@@ -117,23 +117,23 @@ Section griotte_lang_rules.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
     destruct (Hri dst) as [wdst [H'dst _]]; first by set_solver+.
-    pose proof (llookup_reg_incl _ _ _ _ Hregs H'dst) as Hdst.
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs H'dst) as (s & Hdst & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs H'dst) as Hok.
     rewrite /exec /= Hdst /= in Hstep.
     destruct (lz_of_argument regs src) as [n|] eqn:Hn.
-    2: { rewrite (lz_of_argument_None regs r) /= in Hstep; [|done| |done].
+    2: { rewrite (lz_of_argument_None R regs r) /= in Hstep; [|done| |done].
          2: { intros x ->. apply Dregs. set_solver+. }
          simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
          iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
          constructor. by constructor. }
-    rewrite (lz_of_argument_incl regs r _ n) /= in Hstep; [|done|done].
+    rewrite (lz_of_argument_incl R regs r _ n) /= in Hstep; [|done|done].
     destruct wdst as [[ | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
     1,4,5: (simplify_eq; iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done;
             iIntros "HPC Hmap"; iApply "Hφ"; iFrame; iPureIntro;
             constructor; eapply Restrict_fail_allowed; eauto).
     - destruct (decodePermPair n) as [p' g'] eqn:HdecPair.
       set (nt := t && PermFlowsTo p' p && LocalityFlowsTo g' g).
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (WCap nt p' g' b e a @@? π) _ _ _
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (WCap nt p' g' b e a @@? π) _ _ _ _
         (λ lpc' regs' retv, Restrict_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -142,6 +142,8 @@ Section griotte_lang_rules.
         - rewrite /nt /=. intros [[? Hfl]%andb_prop ?]%andb_prop Hx.
           eapply (executeAllowed_flowsto p' p); [by rewrite Hfl | exact Hx]. }
       { exact Hstep. }
+      { eapply (reg_phys_derive_eq _ (WCap t p g b e a @@? π) s); [done|done| |by destruct s].
+        rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop. }
       { intros lpc' Hi. rewrite /nt in Hi |- *.
         destruct (PermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
           rewrite ?andb_true_r ?andb_false_r /= in Hi |- *;
@@ -153,7 +155,7 @@ Section griotte_lang_rules.
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
     - destruct (decodeSealPermPair n) as [p' g'] eqn:HdecPair.
       set (nt := t && SealPermFlowsTo p' p && LocalityFlowsTo g' g).
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (WSealRange nt p' g' b e a @@? π) _ _ _
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (WSealRange nt p' g' b e a @@? π) _ _ _ _
         (λ lpc' regs' retv, Restrict_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -161,6 +163,8 @@ Section griotte_lang_rules.
         - rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop.
         - done. }
       { exact Hstep. }
+      { eapply (reg_phys_derive_eq _ (WSealRange t p g b e a @@? π) s); [done|done| |by destruct s].
+        rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop. }
       { intros lpc' Hi. rewrite /nt in Hi |- *.
         destruct (SealPermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
           rewrite ?andb_true_r ?andb_false_r /= in Hi |- *;

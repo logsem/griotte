@@ -215,9 +215,9 @@ Section AllocatorMalloc.
       iDestruct (allocator_malloc_shadow_acc with "Hmalloc_code")
         as "#Hshadow_code".
       iApply (allocator_malloc_zero_spec with
-        "[- $HPC $Hca2 $Hct2 $Hct3 $Hpay_mem $Hshadow_code]");
+        "[- $HPC $Hca2 $Htok $Hct2 $Hct3 $Hpay_mem $Hshadow_code]");
         [by apply allocator_malloc_shadow_bounds|solve_addr|].
-      iNext. iIntros "(HPC & Hca2 & Hct2 & Hct3 & Hzeros & _)".
+      iNext. iIntros "(HPC & Hca2 & Htok & Hct2 & Hct3 & Hzeros & _)".
       (* Paint the header and store over the payload. *)
       iApply (allocator_malloc_translate_paint_spec with
         "[- $HPC $Hctp $Hct3 $Hca2 $Hct0 $Hct1 $Hct2 $Hheader $Hpayload

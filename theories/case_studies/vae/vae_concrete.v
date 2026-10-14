@@ -91,7 +91,7 @@ Proof.
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
     ltac:(by apply Forall_replicate)
-    vae_stack_b vae_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _).
+    vae_stack_b vae_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -114,6 +114,7 @@ Proof.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - solve_disjoint_from_mmio.
+  - vm_compute; reflexivity.
   - vm_compute; reflexivity.
 Defined.
 

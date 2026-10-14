@@ -61,7 +61,7 @@ Section griotte_lang_rules.
     assert (exec_opt (Jmp rimm) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
               (imm ← lz_of_argument regs rimm;
                updatePC_gen (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
-    { rewrite -(lz_of_argument_phys regs r rimm Hregs Hdomr). done. }
+    { rewrite -(lz_of_argument_phys R regs r rimm Hregs Hdomr). done. }
     rewrite HH in Hstep. clear HH.
     destruct (lz_of_argument regs rimm) as [imm|] eqn:Himm.
     2: { cbn in Hstep. simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
@@ -71,7 +71,7 @@ Section griotte_lang_rules.
     2: { rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her Hpc') in Hstep.
          simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
          iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. constructor. by eapply Jmp_fail_PC_overflow. }
-    destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ Her Hpc') as [Hu Her2].
+    destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ Her Hpc') as (pc' & Hu & Her2).
     rewrite Hu in Hstep. simplify_eq.
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplitR "Hφ HPC Hmap Hpc_a".
