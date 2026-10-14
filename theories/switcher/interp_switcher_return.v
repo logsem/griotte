@@ -108,7 +108,9 @@ Section fundamental.
        - when the caller is trusted, use the continuation relation;
        - when the caller is untrusted, close the world and
          [switcher_jump_to_caller_spec]. *)
-    iIntros "[#Hinv_switcher #[Hcode _]] %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (HPC & Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iIntros "[#Hinv_switcher #[Hcode _]] %cstk %Ws %Cs %rmap0 [Hregs (HPC & Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
+    iIntros (rmap) "%Hfull_rmap #Hrmap_interp Hrmap Hworld_interp". clear rmap0.
     rewrite /registers_pointsto.
 
     (* --- Extract scratch registers ct2 ctp --- *)

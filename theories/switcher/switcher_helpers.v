@@ -276,6 +276,7 @@ Section switcher_helper.
           rewrite Hdom.
           set_solver+.
         + iIntros (r v) "%Hr".
+          iApply interp_filter_heap.
           subst regs.
           clear -Hr Hrmap_zeroes.
           destruct (decide (r = csp)); simplify_map_eq; first done.
