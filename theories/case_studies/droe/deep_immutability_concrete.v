@@ -100,7 +100,7 @@ Proof.
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
     ltac:(by apply Forall_replicate)
-    droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
+    droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -123,12 +123,13 @@ Proof.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - solve_disjoint_from_mmio.
+  - vm_compute; reflexivity.
 Defined.
 
 Program Definition droe_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance
-    droe_assert_b droe_assert_e droe_assert_cap droe_assert_flag _ _ _ _ _ _ _).
+    droe_assert_b droe_assert_e droe_assert_cap droe_assert_flag _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -140,6 +141,7 @@ Proof.
     solve_addr.
   - solve_disjoint_from_mmio.
   - solve_disjoint_from_mmio.
+  - vm_compute; reflexivity.
 Defined.
 
 Local Instance droe_concrete_switcherLayout : switcherLayout.
@@ -167,7 +169,7 @@ Proof.
     droe_main_exp_entries_b droe_main_exp_entries_e
     droe_main_imports_concrete droe_main_code droe_main_data [] []
     _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ ).
+    _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -200,6 +202,7 @@ Proof.
     + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
       intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
       unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
 Defined.
 
 Program Definition droe_concrete_C_cmpt : cmpt.
@@ -211,7 +214,7 @@ Proof.
     droe_C_exp_entries_b droe_C_exp_entries_e
     droe_C_imports droe_C_code droe_C_data [] droe_C_exports
     _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ ).
+    _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -244,6 +247,7 @@ Proof.
     + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
       intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
       unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The two

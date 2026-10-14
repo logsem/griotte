@@ -65,7 +65,7 @@ Section griotte_lang_rules.
       rewrite /v /auipcc_word.
       destruct (pc_a + imm)%a;
         apply (reg_word_ok_derive _ _ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π));
-        [by left|done|done|by left|done|done]. }
+        [by left|done|done|done|by left|done|done|done]. }
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _
       (λ lpc' regs' retv,
          Auipcc_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst imm lpc' regs' retv)

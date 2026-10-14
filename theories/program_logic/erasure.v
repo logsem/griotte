@@ -192,6 +192,33 @@ Proof.
   rewrite /heap_cap_base memory_cap_base_bounds. intros -> Hb. by rewrite /= Hb.
 Qed.
 
+(** The execute permission of a capability, a sentry or a sealed capability. *)
+Definition executable_word (w : Word) : bool :=
+  match w with
+  | WCap _ p _ _ _ _ | WSentry _ p _ _ _ _ | WSealed _ (SCap _ p _ _ _ _) => executeAllowed p
+  | _ => false
+  end.
+
+Lemma executable_word_bounds w :
+  executable_word w = true → is_Some (memory_cap_bounds w).
+Proof. destruct w as [| [] | | ? []]; cbn; by eauto. Qed.
+
+Lemma executable_word_clear_tag w : executable_word (clear_tag w) = executable_word w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+
+Lemma executable_word_load_word p w : executable_word (load_word p w) = executable_word w.
+Proof.
+  rewrite /load_word.
+  destruct w as [| [? [] | ] | | ? [? [] | ]]; repeat case_match; simplify_eq; done.
+Qed.
+
+Lemma executable_word_store_word p w : executable_word (store_word p w) = executable_word w.
+Proof. rewrite /store_word. case_match; auto using executable_word_clear_tag. Qed.
+
+Lemma executable_word_updatePcPerm w :
+  executable_word (updatePcPerm w) = executable_word w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+
 (** ** Registry entries *)
 
 Notation RegEntry := (Addr * Addr * gname * AllocLifecycle)%type.
@@ -224,7 +251,16 @@ Section erasure.
       | None => C !! b = Some HeapRoot
       end.
 
-  Definition reg_word_ok R C v : Prop := lword_prov R v ∧ reg_authority R C v.
+  (** Heap capabilities are never executable: a tagged executable word has no
+      identifier, and its base and its closed bounds avoid the heap. *)
+  Definition lword_exec v : Prop :=
+    get_tag v.(lw) = true → executable_word v.(lw) = true →
+    v.(lprov) = None ∧
+    ∀ b e, memory_cap_bounds v.(lw) = Some (b, e) →
+      is_heap_address b = false ∧ ∀ y, (b <= y)%a ∧ (y <= e)%a → is_heap_address y = false.
+
+  Definition reg_word_ok R C v : Prop :=
+    lword_prov R v ∧ reg_authority R C v ∧ lword_exec v.
 
   (** The memory clause, for a logical word [v] and its physical copy [pw]. *)
   Definition mem_authority R C v pw : Prop :=
@@ -240,7 +276,8 @@ Section erasure.
     lword_prov R v ∧
     (pw = v.(lw) ∨ pw = clear_tag v.(lw)) ∧
     (heap_cap_base v.(lw) = None → pw = v.(lw)) ∧
-    mem_authority R C v pw.
+    mem_authority R C v pw ∧
+    lword_exec v.
 
   (** Registry and claims, whatever words exist. *)
   Record registry_ok R C (shadow : ShadowTbl) : Prop := {
@@ -281,14 +318,25 @@ Section erasure.
   Lemma lword_prov_no_id R v : v.(lprov) = None → lword_prov R v.
   Proof. intros Hp ι b e _ _ _ Hp'. congruence. Qed.
 
+  Lemma lword_exec_untagged v : get_tag v.(lw) = false → lword_exec v.
+  Proof. intros Ht Ht'. congruence. Qed.
+
+  Lemma lword_exec_not_executable v : executable_word v.(lw) = false → lword_exec v.
+  Proof. intros Hx _ Hx'. congruence. Qed.
+
   Lemma reg_word_ok_int R C z π : reg_word_ok R C (MkLWord (WInt z) π).
-  Proof. split; [by apply lword_prov_untagged | intros b Ht; done]. Qed.
+  Proof.
+    split_and!; [by apply lword_prov_untagged | intros b Ht; done | by apply lword_exec_untagged].
+  Qed.
 
   Lemma reg_word_ok_lnull R C : reg_word_ok R C lnull.
   Proof. apply reg_word_ok_int. Qed.
 
   Lemma reg_word_ok_untagged R C v : get_tag v.(lw) = false → reg_word_ok R C v.
-  Proof. intros Ht. split; [by apply lword_prov_untagged | intros b Ht'; congruence]. Qed.
+  Proof.
+    intros Ht. split_and!;
+      [by apply lword_prov_untagged | intros b Ht'; congruence | by apply lword_exec_untagged].
+  Qed.
 
   (** A word derived by an operation that keeps the bounds, does not add a
       tag and keeps the identifier. *)
@@ -302,23 +350,41 @@ Section erasure.
     eapply Hprov; eauto. congruence.
   Qed.
 
+  (** The same derivation, which moreover does not add the execute
+      permission. *)
+  Lemma lword_exec_derive v w' :
+    (memory_cap_bounds w' = memory_cap_bounds v.(lw) ∨ memory_cap_bounds w' = None) →
+    (get_tag w' = true → get_tag v.(lw) = true) →
+    (get_tag w' = true → executable_word w' = true → executable_word v.(lw) = true) →
+    lword_exec v → lword_exec (MkLWord w' v.(lprov)).
+  Proof.
+    intros Hb Ht Hx Hexec Ht' Hx'; cbn in *.
+    destruct (Hexec (Ht Ht') (Hx Ht' Hx')) as [Hp Havoid]. split; first done.
+    intros b e Hbe. destruct Hb as [Hb|Hb]; last congruence.
+    apply Havoid. congruence.
+  Qed.
+
   Lemma reg_word_ok_derive R C v w' :
     (memory_cap_bounds w' = memory_cap_bounds v.(lw) ∨ memory_cap_bounds w' = None) →
     (get_tag w' = true → get_tag v.(lw) = true) →
+    (get_tag w' = true → executable_word w' = true → executable_word v.(lw) = true) →
     reg_word_ok R C v → reg_word_ok R C (MkLWord w' v.(lprov)).
   Proof.
-    intros Hb Ht [Hprov Hauth]. split; first by apply lword_prov_derive.
-    intros b Ht' Hab; cbn in *.
-    destruct Hb as [Hb|Hb].
-    - apply (Hauth b); first auto. by rewrite -(heap_authority_base_bounds_eq _ _ Hb).
-    - by rewrite heap_authority_base_None_bounds in Hab.
+    intros Hb Ht Hx (Hprov & Hauth & Hexec). split_and!.
+    - by apply lword_prov_derive.
+    - intros b Ht' Hab; cbn in *.
+      destruct Hb as [Hb|Hb].
+      + apply (Hauth b); first auto. by rewrite -(heap_authority_base_bounds_eq _ _ Hb).
+      + by rewrite heap_authority_base_None_bounds in Hab.
+    - by apply lword_exec_derive.
   Qed.
 
   Lemma reg_word_ok_lift R C f v :
     (∀ w, memory_cap_bounds (f w) = memory_cap_bounds w ∨ memory_cap_bounds (f w) = None) →
     (∀ w, get_tag (f w) = true → get_tag w = true) →
+    (∀ w, get_tag (f w) = true → executable_word (f w) = true → executable_word w = true) →
     reg_word_ok R C v → reg_word_ok R C (lift_word f v).
-  Proof. intros Hb Ht. apply reg_word_ok_derive; auto. Qed.
+  Proof. intros Hb Ht Hx. apply reg_word_ok_derive; auto. Qed.
 
   Lemma reg_word_ok_lclear_tag R C v : reg_word_ok R C (lclear_tag v).
   Proof. apply reg_word_ok_untagged. apply get_tag_clear_tag. Qed.
@@ -328,6 +394,7 @@ Section erasure.
     apply reg_word_ok_lift; intros w.
     - left. apply memory_cap_bounds_load_word.
     - by rewrite get_tag_load_word.
+    - by rewrite executable_word_load_word.
   Qed.
 
   Lemma reg_word_ok_lupdatePcPerm R C v :
@@ -336,12 +403,13 @@ Section erasure.
     apply reg_word_ok_lift; intros w.
     - left. apply memory_cap_bounds_updatePcPerm.
     - by rewrite get_tag_updatePcPerm.
+    - by rewrite executable_word_updatePcPerm.
   Qed.
 
   Lemma reg_word_ok_mem R C v : reg_word_ok R C v → mem_word_ok R C v v.(lw).
   Proof.
-    intros [Hprov Hauth]. split; first done. split; first by left.
-    split; first done.
+    intros (Hprov & Hauth & Hexec). split; first done. split; first by left.
+    split; first done. split; last done.
     intros b Ht Hab. specialize (Hauth b Ht Hab).
     destruct (lprov v) as [ι|]; last done.
     destruct Hauth as (x & Hx & Hs). exists x. split; first done. split; first done.
@@ -354,6 +422,7 @@ Section erasure.
     apply reg_word_ok_lift; intros w.
     - left. apply memory_cap_bounds_store_word.
     - apply get_tag_store_word.
+    - by rewrite executable_word_store_word.
   Qed.
 
   (** A CLoad: the physical result of the CLoad filter on the physical copy
@@ -394,11 +463,11 @@ Section erasure.
     reg_word_ok R C (MkLWord pl v.(lprov)).
   Proof.
     intros Hok Hpl. pose proof (mem_word_ok_load_word _ _ _ _ _ _ _ Hok Hpl) as Hcases.
-    destruct Hok as (Hprov & Hpw & Hnh & Hauth).
+    destruct Hok as (Hprov & Hpw & Hnh & Hauth & Hexec).
     assert (memory_cap_bounds pl = memory_cap_bounds v.(lw)) as Hb.
     { destruct Hcases as [-> | ->];
         rewrite ?memory_cap_bounds_clear_tag memory_cap_bounds_load_word //. }
-    split.
+    split_and!.
     - apply lword_prov_derive; auto.
       destruct Hcases as [-> | ->]; rewrite ?get_tag_clear_tag ?get_tag_load_word //.
     - intros b Ht Hab; cbn in *.
@@ -414,6 +483,10 @@ Section erasure.
       + destruct Hauth as (x & Hx & _ & Hdead). exists x. split; first done.
         intros Hd. specialize (Hdead Hd). subst pw. by rewrite get_tag_clear_tag in Htpw.
       + by destruct Hauth.
+    - apply lword_exec_derive; auto.
+      + destruct Hcases as [-> | ->]; rewrite ?get_tag_clear_tag ?get_tag_load_word //.
+      + destruct Hcases as [-> | ->];
+          rewrite ?executable_word_clear_tag executable_word_load_word //.
   Qed.
 
   Lemma mem_word_ok_load_lload_heap R C v pw p pl shadow :
@@ -656,15 +729,15 @@ Section erasure.
         * intros (x' & Hx' & Hcov & Hd). destruct (Hlook _ _ Hx') as [[-> ->]|[Hne Hx]].
           -- exists (b, e, γ, s). split; first done. split; first done. done.
           -- exists x'. eauto.
-    - intros r v Hv. destruct (Hrw r v Hv) as [Hp Hauth]. split; first by apply Hprov.
+    - intros r v Hv. destruct (Hrw r v Hv) as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b' Ht Hab. specialize (Hauth b' Ht Hab).
       destruct (lprov v) as [ι'|]; last done.
       destruct Hauth as (x & Hx & Hd). destruct (Hlook' _ _ Hx) as (x' & Hx' & _ & _ & _ & Hd').
       exists x'. split; first done. by rewrite Hd'.
-    - intros sr w Hw. destruct (Hsrw sr w Hw) as [Hp Hauth]. split; first by apply Hprov.
+    - intros sr w Hw. destruct (Hsrw sr w Hw) as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b' Ht Hab. by specialize (Hauth b' Ht Hab).
-    - intros a v pw Hv Hpw. destruct (Hmw a v pw Hv Hpw) as (Hp & Hrel & Hnh & Hauth).
-      split; first by apply Hprov. split; first done. split; first done.
+    - intros a v pw Hv Hpw. destruct (Hmw a v pw Hv Hpw) as (Hp & Hrel & Hnh & Hauth & Hexec).
+      split; first by apply Hprov. split; first done. split; first done. split; last done.
       intros b' Ht Hab. specialize (Hauth b' Ht Hab).
       destruct (lprov v) as [ι'|]; last done.
       destruct Hauth as (x & Hx & Hl & Hd).
@@ -672,7 +745,7 @@ Section erasure.
       + rewrite lookup_insert_eq. eexists. split; first done. cbn.
         split; intros; done.
       + rewrite lookup_insert_ne //. eauto.
-    - destruct Hpcw as [Hp Hauth]. split; first by apply Hprov.
+    - destruct Hpcw as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b' Ht Hab. specialize (Hauth b' Ht Hab).
       destruct (lprov lpc) as [ι'|]; last done.
       destruct Hauth as (x & Hx & Hd). destruct (Hlook' _ _ Hx) as (x' & Hx' & _ & _ & _ & Hd').
@@ -748,19 +821,19 @@ Section erasure.
              ++ rewrite HR'ne // in Hx. eauto.
       + intros a. rewrite HC'. case_decide; first done. apply Hroot.
       + done.
-    - intros r v Hv. destruct (Hrw r v Hv) as [Hp Hauth]. split; first by apply Hprov.
+    - intros r v Hv. destruct (Hrw r v Hv) as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b' Ht Hab. pose proof (Hnotι v b' Hp Ht Hab) as Hne. specialize (Hauth b' Ht Hab).
       destruct (lprov v) as [ι'|]; last by apply Hroot'.
       destruct Hauth as (x & Hx & Hd). exists x. rewrite HR'ne //. congruence.
-    - intros sr w Hw. destruct (Hsrw sr w Hw) as [Hp Hauth]. split; first by apply Hprov.
+    - intros sr w Hw. destruct (Hsrw sr w Hw) as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b' Ht Hab. apply Hroot'. by apply (Hauth b' Ht Hab).
-    - intros a v pw Hv Hpw. destruct (Hmw a v pw Hv Hpw) as (Hp & Hrel & Hnh & Hauth).
-      split; first by apply Hprov. split; first done. split; first done.
+    - intros a v pw Hv Hpw. destruct (Hmw a v pw Hv Hpw) as (Hp & Hrel & Hnh & Hauth & Hexec).
+      split; first by apply Hprov. split; first done. split; first done. split; last done.
       intros b' Ht Hab. pose proof (Hnotι v b' Hp Ht Hab) as Hne. specialize (Hauth b' Ht Hab).
       destruct (lprov v) as [ι'|].
       + destruct Hauth as (x & Hx & Hl & Hd). exists x. rewrite HR'ne //. congruence.
       + destruct Hauth. split; first done. by apply Hroot'.
-    - destruct Hpcw as [Hp Hauth]. split; first by apply Hprov.
+    - destruct Hpcw as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b' Ht Hab. pose proof (Hnotι lpc b' Hp Ht Hab) as Hne. specialize (Hauth b' Ht Hab).
       destruct (lprov lpc) as [ι'|]; last by apply Hroot'.
       destruct Hauth as (x & Hx & Hd). exists x. rewrite HR'ne //. congruence.
@@ -827,17 +900,17 @@ Section erasure.
       + intros a. rewrite HC'. intros Hc. apply fmap_Some in Hc as (c & Hc & Heq).
         destruct c as [|ι'|]; try done; first by case_decide. by apply Hroot.
       + done.
-    - intros x v Hv. destruct (Hrw x v Hv) as [Hp Hauth]. split; first by apply Hprov.
+    - intros x v Hv. destruct (Hrw x v Hv) as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b Ht Hab. pose proof (Hregs_clean x v) as Hclean. specialize (Hauth b Ht Hab).
       destruct (lprov v) as [ι|] eqn:Hι; last by apply Hroot'.
       destruct Hauth as (x0 & Hx0 & Hd). destruct (HR'r _ _ Hx0) as (x' & Hx' & _ & _ & Hs').
       exists x'. split; first done. rewrite Hs' decide_False //. eapply Hclean; eauto.
-    - intros sr' w Hw. destruct (Hsrw sr' w Hw) as [Hp Hauth]. split; first by apply Hprov.
+    - intros sr' w Hw. destruct (Hsrw sr' w Hw) as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b Ht Hab. apply Hroot'. by apply (Hauth b Ht Hab).
     - by rewrite dom_sweep_mem.
     - intros a v pw' Hv Hpw'. rewrite lookup_sweep_mem in Hpw'.
       apply fmap_Some in Hpw' as (pw & Hpw & ->).
-      destruct (Hmw a v pw Hv Hpw) as (Hp & Hrel & Hnh & Hauth).
+      destruct (Hmw a v pw Hv Hpw) as (Hp & Hrel & Hnh & Hauth & Hexec).
       assert (memory_cap_bounds pw = memory_cap_bounds v.(lw)) as Hbpw.
       { destruct Hrel as [-> | ->]; rewrite ?memory_cap_bounds_clear_tag //. }
       split; first by apply Hprov. split.
@@ -846,6 +919,7 @@ Section erasure.
       split.
       { intros Hn. rewrite sweep_word_nonheap; first by apply Hnh.
         by rewrite (heap_cap_base_bounds_eq _ _ Hbpw). }
+      split; last done.
       intros b Ht Hab. specialize (Hauth b Ht Hab).
       pose proof Hab as (e & Hbe & Hlt)%heap_authority_base_bounds.
       assert (is_heap_address b = true) as Hbh.
@@ -876,7 +950,7 @@ Section erasure.
         { eapply memory_cap_bounds_heap_cap_base; eauto. }
         rewrite Hb' in Hbase. simplify_eq. by rewrite (Hroot _ Hc).
     - by apply mem_avoids_mmio_sweep.
-    - destruct Hpcw as [Hp Hauth]. split; first by apply Hprov.
+    - destruct Hpcw as (Hp & Hauth & Hexec). split; first by apply Hprov. split; last done.
       intros b Ht Hab. specialize (Hauth b Ht Hab).
       destruct (lprov lpc) as [ι|] eqn:Hι; last by apply Hroot'.
       destruct Hauth as (x0 & Hx0 & Hd). destruct (HR'r _ _ Hx0) as (x' & Hx' & _ & _ & Hs').
@@ -900,7 +974,7 @@ Section erasure.
     pose proof (mem_word_ok_load_word _ _ _ _ _ _ _ Hok Hpl) as Hcases.
     destruct (get_tag v.(lw)) eqn:Ht.
     - destruct (Hside eq_refl) as [_ (b & Hab)].
-      destruct Hok as (Hp & Hrel & Hnh & Hauth). specialize (Hauth b Ht Hab).
+      destruct Hok as (Hp & Hrel & Hnh & Hauth & _). specialize (Hauth b Ht Hab).
       rewrite Hι in Hauth. destruct Hauth as (x' & Hx' & _ & Hd). rewrite Hx in Hx'. simplify_eq.
       destruct (re_status x') eqn:Hs; cbn in Hle; try lia.
       + (* AQuar *)
@@ -961,7 +1035,7 @@ Section erasure.
   Proof.
     intros Hreg Hok Hpl Hι Hx Hs Hside.
     eapply load_filter_exact_aux; eauto.
-    intros b Ht Hab. destruct Hok as (Hp & _ & _ & Hauth). specialize (Hauth b Ht Hab).
+    intros b Ht Hab. destruct Hok as (Hp & _ & _ & Hauth & _). specialize (Hauth b Ht Hab).
     rewrite Hι in Hauth. destruct Hauth as (x' & Hx' & Hl & _). rewrite Hx in Hx'. simplify_eq.
     split; first by apply Hl.
     pose proof Hab as (e & Hbe & Hlt)%heap_authority_base_bounds.
@@ -981,7 +1055,7 @@ Section erasure.
   Proof.
     intros Hreg Hok Hpl Hι Hside.
     eapply load_filter_exact_aux; eauto.
-    intros b Ht Hab. destruct Hok as (_ & _ & _ & Hauth). specialize (Hauth b Ht Hab).
+    intros b Ht Hab. destruct Hok as (_ & _ & _ & Hauth & _). specialize (Hauth b Ht Hab).
     rewrite Hι in Hauth. destruct Hauth as [Hpw Hc]. split; first done.
     eapply reg_ok_root; eauto.
   Qed.
@@ -1010,7 +1084,7 @@ Section erasure.
     | None => C !! b = Some HeapRoot
     end.
   Proof.
-    intros Her Hv Ht Hab. destruct (er_reg_words _ _ _ _ _ _ Her r v Hv) as [Hp Hauth].
+    intros Her Hv Ht Hab. destruct (er_reg_words _ _ _ _ _ _ Her r v Hv) as (Hp & Hauth & _).
     specialize (Hauth b Ht Hab). destruct (lprov v) as [ι|] eqn:Hι; last done.
     destruct Hauth as (x & Hx & Hd). exists x. do 2 (split; first done).
     pose proof Hab as (e & Hbe & Hlt)%heap_authority_base_bounds.
@@ -1023,21 +1097,22 @@ Section erasure.
 
   (** A Subseg result keeps the identifier of its source. A tagged result lies
       in the source's bounds, so the source's provenance covers it; an
-      identifier-less, tagged, non-empty heap result needs a heap root. *)
+      identifier-less, tagged, non-empty heap result needs a heap root. The
+      closed bounds of a tagged result are within those of its source. *)
   Lemma reg_word_ok_subseg R C st t p g b e a t' a1 a2 π :
     registry_ok R C st →
     reg_word_ok R C (MkLWord (WCap t p g b e a) π) →
-    (t' = true → t = true ∧ (b <= a1)%a ∧ (a2 <= e)%a) →
+    (t' = true → t = true ∧ (b <= a1)%a ∧ (a2 <= e)%a ∧ (a1 <= a2)%a) →
     (t' = true → (a1 < a2)%a → is_heap_address a1 = true → π = None → C !! a1 = Some HeapRoot) →
     reg_word_ok R C (MkLWord (WCap t' p g a1 a2 a) π).
   Proof.
-    intros Hreg [Hp Hauth] Ht' Hroot. split.
+    intros Hreg (Hp & Hauth & Hexec) Ht' Hroot. split_and!.
     - intros ι b' e' Ht Hb Hlt Hι; cbn in *.
-      destruct (Ht' Ht) as (-> & Hb1 & He1). simplify_eq.
+      destruct (Ht' Ht) as (-> & Hb1 & He1 & _). simplify_eq.
       destruct (Hp ι b e eq_refl eq_refl ltac:(solve_addr) eq_refl) as (x & Hx & ? & ?).
       exists x. split; first done. cbn in *. split; solve_addr.
     - intros b' Ht Hab; cbn in *. subst t'.
-      destruct (Ht' eq_refl) as (-> & Hb1 & He1).
+      destruct (Ht' eq_refl) as (-> & Hb1 & He1 & _).
       case_decide as Hlt; last done. destruct (is_heap_address a1) eqn:Hh; last done. simplify_eq.
       destruct π as [ι|]; last by apply Hroot.
       destruct (Hp ι b e eq_refl eq_refl ltac:(solve_addr) eq_refl) as (x & Hx & ? & ?).
@@ -1046,18 +1121,25 @@ Section erasure.
       { apply heap_authority_base_memory_cap_bounds. exists e. split; first done.
         split; first solve_addr. eapply reg_ok_heap; eauto. rewrite /re_covers. cbn in *. solve_addr. }
       destruct (Hauth b eq_refl Hsrc) as (x' & Hx' & Hd). eauto.
+    - intros Ht Hx; cbn in *. subst t'.
+      destruct (Ht' eq_refl) as (-> & Hb1 & He1 & Hle).
+      destruct (Hexec eq_refl Hx) as [Hπ Havoid]. split; first done.
+      intros b' e' [= <- <-]. destruct (Havoid b e eq_refl) as [_ Hy].
+      split; first (apply Hy; solve_addr).
+      intros y Hy'. apply Hy. solve_addr.
   Qed.
 
-  (** The rebase: a capability with exactly the range of a non-dead
-      identifier. *)
+  (** The rebase: a non-executable capability with exactly the range of a
+      non-dead identifier. *)
   Lemma reg_word_ok_rebase R C t p g a ι b e γ s :
-    R !! ι = Some (b, e, γ, s) → s ≠ ADead →
+    R !! ι = Some (b, e, γ, s) → s ≠ ADead → executeAllowed p = false →
     reg_word_ok R C (MkLWord (WCap t p g b e a) (Some ι)).
   Proof.
-    intros Hx Hs. split.
+    intros Hx Hs Hp. split_and!.
     - intros ι' b' e' Ht Hb Hlt Hι; cbn in *. simplify_eq.
       exists (b', e', γ, s). split; first done. cbn. split; solve_addr.
     - intros b' Ht Hab; cbn. exists (b, e, γ, s). done.
+    - by apply lword_exec_not_executable.
   Qed.
 
 End erasure.

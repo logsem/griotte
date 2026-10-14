@@ -159,6 +159,16 @@ Section initial_rootedness.
     apply IH; last done. by apply mem_rooted_union.
   Qed.
 
+  Lemma mem_exec_ok_foldl_initial_cmpt (m : Mem) (cmpts : list cmpt) :
+    mem_exec_ok m →
+    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts →
+    mem_exec_ok (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
+  Proof.
+    revert m; induction cmpts as [|C cmpts IH]; intros m Hm Hcmpts; cbn; first done.
+    apply Forall_cons in Hcmpts as [HC Hcmpts].
+    apply IH; last done. by apply mem_exec_ok_union.
+  Qed.
+
   Lemma mem_avoids_mmio_foldl_initial_cmpt (m : Mem) (cmpts : list cmpt) :
     mem_avoids_mmio m →
     mem_avoids_mmio (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
@@ -194,6 +204,38 @@ Section initial_rootedness.
       apply (assert_flag_not_heap_of_disjoint_dom _ _ Hheap). set_solver.
   Qed.
 
+  (** The executable words of the initial memory avoid the heap, provided
+      that those of each compartment do. *)
+  Lemma mem_exec_ok_initial_memory
+    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
+    Forall is_z (stack_content sw) →
+    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts →
+    mem_exec_ok (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
+  Proof.
+    intros Hstack Hcmpts.
+    apply mem_exec_ok_union; first apply mem_exec_ok_initial_heap.
+    apply mem_exec_ok_foldl_initial_cmpt; last done.
+    apply mem_exec_ok_union.
+    - apply mem_exec_ok_initial_switcher. by apply word_exec_ok_ints.
+    - apply mem_exec_ok_initial_assert.
+  Qed.
+
+  (** The compartments' executable words avoid the heap, provided that each
+      compartment's words are non-executable or switcher or assert sentries. *)
+  Lemma mem_exec_ok_initial_cmpts
+    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
+    initial_heap_memory ##ₘ initial_program_memory sw Cassert cmpts →
+    Forall (λ C, Forall (initial_exec_word sw Cassert) (cmpt_words C)) cmpts →
+    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts.
+  Proof.
+    intros Hheap Hcmpts.
+    pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
+    pose proof (assert_disjoint_from_heap_of_disjoint_dom Cassert _ Hheap
+      ltac:(set_solver)) as Hassert.
+    eapply Forall_impl; first exact Hcmpts.
+    intros C. by apply mem_exec_ok_initial_cmpt_words.
+  Qed.
+
   Lemma mem_rooted_initial_memory
     (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
     initial_heap_memory ##ₘ initial_program_memory sw Cassert cmpts →
@@ -226,6 +268,25 @@ Section initial_rootedness.
     rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_rooted_int.
   Qed.
 
+  (** The initial PC is the PCC of [main]; the other initial registers hold
+      non-executable capabilities and integers. *)
+  Lemma initial_pc_exec_ok (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
+    is_initial_registers_of sw main pc reg →
+    word_exec_ok pc.
+  Proof. intros (-> & _). apply word_exec_ok_pcc. Qed.
+
+  Lemma initial_registers_exec_ok (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
+    is_initial_registers_of sw main pc reg →
+    ∀ r w, reg !! r = Some w → word_exec_ok w.
+  Proof.
+    intros (_ & Hcgp & Hcsp & Hr) r w Hw.
+    destruct (decide (r = cgp)) as [->|]; [rewrite Hcgp in Hw; injection Hw as <-;
+      by apply word_exec_ok_not_executable|].
+    destruct (decide (r = csp)) as [->|]; [rewrite Hcsp in Hw; injection Hw as <-;
+      by apply word_exec_ok_not_executable|].
+    rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_exec_ok_int.
+  Qed.
+
   Lemma initial_registers_rooted (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
     is_initial_registers_of sw main pc reg →
     ∀ r w, reg !! r = Some w → word_rooted ∅ w.
@@ -240,9 +301,13 @@ Section initial_rootedness.
     (∀ sr w, sreg !! sr = Some w → word_rooted R w) →
     mem_avoids_mmio m →
     reg !! cnull = Some (WInt 0) →
+    mem_exec_ok m →
+    word_exec_ok pc →
+    (∀ r w, reg !! r = Some w → word_exec_ok w) →
+    (∀ sr w, sreg !! sr = Some w → word_exec_ok w) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
-    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull.
+    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -258,6 +323,10 @@ Section initial_rootedness.
     - intros sr w b Hw. by eapply Hsreg.
     - exact Hmmio.
     - intros w Hw. rewrite Hnull in Hw. by injection Hw as <-.
+    - exact Hmx.
+    - exact Hpcx.
+    - exact Hregx.
+    - exact Hsregx.
   Qed.
 
   (** The initial condition of a layout with heap roots [R]. *)
@@ -271,9 +340,10 @@ Section initial_rootedness.
     is_initial_sregisters_of sw sreg →
     Forall is_z (stack_content sw) →
     Forall (λ C, mem_rooted R (mk_initial_cmpt C)) cmpts →
+    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts →
     ghost_init_cond (pc, reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) R.
   Proof.
-    intros HR -> Hheap Hreg Hsreg Hstack Hcmpts.
+    intros HR -> Hheap Hreg Hsreg Hstack Hcmpts Hcmpts_exec.
     pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
     apply ghost_init_cond_roots; first done.
     - by apply mem_rooted_initial_memory_roots.
@@ -287,6 +357,11 @@ Section initial_rootedness.
       apply mem_avoids_mmio_foldl_initial_cmpt, mem_avoids_mmio_union;
         [apply mem_avoids_mmio_initial_switcher|apply mem_avoids_mmio_initial_assert].
     - destruct Hreg as (_&_&_&Hr). apply Hr. set_solver.
+    - by apply mem_exec_ok_initial_memory.
+    - by eapply initial_pc_exec_ok.
+    - by eapply initial_registers_exec_ok.
+    - intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      by apply word_exec_ok_not_executable.
   Qed.
 
   (** The initial condition of a layout without heap roots. *)
@@ -299,6 +374,7 @@ Section initial_rootedness.
     is_initial_sregisters_of sw sreg →
     Forall is_z (stack_content sw) →
     Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
+    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts →
     ghost_init_cond (pc, reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) ∅.
   Proof. apply ghost_init_cond_initial_layout_roots. set_solver. Qed.
 

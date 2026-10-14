@@ -276,7 +276,8 @@ Section adequacy_ghost_init.
   Qed.
 
   (** The initial condition without heap roots, for a system without an
-      allocator: no initial word carries heap authority. *)
+      allocator: no initial word carries heap authority, and every tagged
+      executable word has closed bounds that avoid the heap. *)
   Lemma ghost_init_cond_no_roots (pc : Word) (reg : Reg) (sreg : SReg) (m : Mem) :
     mem_rooted ∅ m →
     word_rooted ∅ pc →
@@ -284,9 +285,13 @@ Section adequacy_ghost_init.
     (∀ sr w, sreg !! sr = Some w → word_rooted ∅ w) →
     mem_avoids_mmio m →
     reg !! cnull = Some (WInt 0) →
+    mem_exec_ok m →
+    word_exec_ok pc →
+    (∀ r w, reg !! r = Some w → word_exec_ok w) →
+    (∀ sr w, sreg !! sr = Some w → word_exec_ok w) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) ∅.
   Proof.
-    intros Hm Hpc Hreg Hsreg Hmmio Hnull.
+    intros Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx.
     constructor; cbn.
     - set_solver.
     - set_solver.
@@ -300,6 +305,10 @@ Section adequacy_ghost_init.
     - intros sr w b Hw. by eapply Hsreg.
     - exact Hmmio.
     - intros w Hw. rewrite Hnull in Hw. by injection Hw as <-.
+    - exact Hmx.
+    - exact Hpcx.
+    - exact Hregx.
+    - exact Hsregx.
   Qed.
 
   (** Program memory disjoint from the initial heap holds no heap address. *)
@@ -338,6 +347,22 @@ Section adequacy_ghost_init.
     etrans; last exact Hdom.
     rewrite /mk_initial_switcher !dom_union_L dom_switcher_trusted_stack_mregion.
     set_solver.
+  Qed.
+
+  (** The assert code lies outside the heap. *)
+  Lemma assert_disjoint_from_heap_of_disjoint_dom (Cassert : cmptAssert) (pm : Mem) :
+    initial_heap_memory ##ₘ pm →
+    dom (mk_initial_assert Cassert) ⊆ dom pm →
+    disjoint_from_heap (b_assert Cassert) (e_assert Cassert).
+  Proof.
+    intros Hdisj Hdom. apply (disjoint_from_heap_of_disjoint_dom pm); first done.
+    etrans; last exact Hdom.
+    rewrite /mk_initial_assert !dom_union_L dom_assert_code_mregion dom_assert_cap_mregion
+      /cmpt_assert_code_region /cmpt_assert_cap_region.
+    pose proof (assert_code_size Cassert). pose proof (assert_cap_size Cassert).
+    rewrite (finz_seq_between_split (b_assert Cassert) (cap_assert Cassert) (e_assert Cassert));
+      last solve_addr.
+    rewrite list_to_set_app_L. set_solver.
   Qed.
 
   (** The assert flag lies outside the heap. *)

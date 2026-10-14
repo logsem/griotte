@@ -316,7 +316,9 @@ Section Adequacy.
       subst sh mem.
       apply (ghost_init_cond_initial_layout_roots {[heap_b]} hts_switcher_cmpt hts_assert_cmpt
              hts_main_cmpt [hts_main_cmpt; hts_allocator_cmpt; hts_adv_cmpt]);
-        [| done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |].
+        [| done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |
+         | eapply (mem_exec_ok_initial_cmpts hts_switcher_cmpt hts_assert_cmpt);
+             [exact Hheap_disjoint | solve_initial_exec_cmpts] ].
       { intros a ->%elem_of_singleton. apply withinBounds_true_iff.
         pose proof heap_valid. solve_addr. }
       repeat constructor.

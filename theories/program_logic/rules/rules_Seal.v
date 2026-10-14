@@ -72,6 +72,7 @@ Section griotte_lang_rules.
     intros Hsb. apply (reg_word_ok_derive _ _ (WSealable sb @@? π)); cbn.
     - left. destruct Hsb as [-> | ->]; by destruct sb.
     - destruct Hsb as [-> | ->]; first done. by rewrite get_tag_clear_tag_sealable.
+    - destruct Hsb as [-> | ->]; by destruct sb.
   Qed.
 
   Lemma wp_Seal Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src1 src2 regs dq :

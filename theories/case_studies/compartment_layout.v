@@ -55,7 +55,9 @@ Section CmptLayout.
         cmpt_exp_tbl_not_heap_range :
         not_heap_range cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end;
         cmpt_static_sealed_not_heap_range :
-        not_heap_range cmpt_b_static_sealed cmpt_e_static_sealed
+        not_heap_range cmpt_b_static_sealed cmpt_e_static_sealed;
+        (* The PCC is executable: its closed bounds avoid the heap. *)
+        cmpt_pcc_end_not_heap : is_heap_address cmpt_e_pcc = false
       }.
 
   Definition cmpt_pcc_disjoint_from_shadow (C : cmpt) :
@@ -193,6 +195,9 @@ Section CmptLayout.
         stack_disjoint_from_heap : disjoint_from_heap b_stack e_stack;
 
         switcher_disjoint_from_mmio : disjoint_from_mmio b_switcher e_switcher;
+        (* The switcher's sentries are executable: their closed bounds avoid
+           the heap. *)
+        switcher_end_not_heap : is_heap_address e_switcher = false;
       }.
 
   Definition trusted_stack_disjoint_from_shadow (C : cmptSwitcher) :
@@ -282,7 +287,9 @@ Section CmptLayout.
 
         assert_disjoint_from_mmio : disjoint_from_mmio b_assert e_assert;
         assert_flag_disjoint_from_mmio :
-        disjoint_from_mmio flag_assert (flag_assert ^+ 1)%a
+        disjoint_from_mmio flag_assert (flag_assert ^+ 1)%a;
+        (* The assert sentry is executable: its closed bounds avoid the heap. *)
+        assert_end_not_heap : is_heap_address e_assert = false
       }.
 
   Global Instance cmptAssert_assertLayout (assert_cmpt : cmptAssert) : assertLayout.
@@ -1030,6 +1037,194 @@ Section CmptLayout.
     - repeat constructor. apply word_rooted_int.
   Qed.
 
+  (** ** Executable words of the initial memory
+
+      Every tagged executable word of an initial memory has closed bounds
+      that avoid the heap ([gi_mem_exec] of [cerise_ghost_init]). *)
+  Definition word_exec_ok (w : Word) : Prop := lword_exec (lword_of_word w).
+
+  Definition mem_exec_ok (m : Mem) : Prop :=
+    ∀ a w, m !! a = Some w → word_exec_ok w.
+
+  Lemma word_exec_ok_not_executable w : executable_word w = false → word_exec_ok w.
+  Proof. intros Hx. by apply (lword_exec_not_executable (lword_of_word w)). Qed.
+
+  Lemma word_exec_ok_int z : word_exec_ok (WInt z).
+  Proof. by apply word_exec_ok_not_executable. Qed.
+
+  Lemma word_exec_ok_ints (ws : list Word) :
+    Forall is_z ws → Forall word_exec_ok ws.
+  Proof.
+    intros Hws. eapply Forall_impl; first exact Hws.
+    intros [] Hz; try done; apply word_exec_ok_int.
+  Qed.
+
+  (** A word whose closed bounds avoid the heap. *)
+  Lemma word_exec_ok_closed w b e :
+    memory_cap_bounds w = Some (b, e) →
+    not_heap_range b e →
+    is_heap_address e = false →
+    word_exec_ok w.
+  Proof.
+    intros Hbe [Hb Hdisj] He _ _. split; first done.
+    intros b' e' Hbe'. cbn in Hbe'. rewrite Hbe in Hbe'. simplify_eq.
+    split; first done.
+    intros y [Hy1 Hy2]. destruct (decide (y = e')) as [->|Hne]; first done.
+    apply (disjoint_from_heap_not_in b' e'); first done.
+    apply withinBounds_true_iff. solve_addr.
+  Qed.
+
+  (** The switcher's sentries. *)
+  Lemma word_exec_ok_switcher_sentry (C : cmptSwitcher) t p g a :
+    word_exec_ok (WSentry t p g (b_switcher C) (e_switcher C) a).
+  Proof.
+    eapply word_exec_ok_closed;
+      [done | apply switcher_not_heap_range | apply switcher_end_not_heap].
+  Qed.
+
+  (** The assert sentry, when the assert code lies outside the heap. *)
+  Lemma word_exec_ok_assert_sentry (C : cmptAssert) t p g a :
+    disjoint_from_heap (b_assert C) (e_assert C) →
+    word_exec_ok (WSentry t p g (b_assert C) (e_assert C) a).
+  Proof.
+    intros Hdisj. eapply word_exec_ok_closed; first done.
+    - split; [apply assert_code_nonheap | done].
+    - apply assert_end_not_heap.
+  Qed.
+
+  Lemma word_exec_ok_instrs (l : list instr) :
+    Forall word_exec_ok (encodeInstrsW l).
+  Proof. apply Forall_fmap, Forall_true. intros i. apply word_exec_ok_int. Qed.
+
+  Lemma mem_exec_ok_union m1 m2 :
+    mem_exec_ok m1 → mem_exec_ok m2 → mem_exec_ok (m1 ∪ m2).
+  Proof. intros H1 H2 a w [Ha|[_ Ha] ]%lookup_union_Some_raw; eauto. Qed.
+
+  Lemma mem_exec_ok_mkregion b e ws :
+    Forall word_exec_ok ws → mem_exec_ok (mkregion b e ws).
+  Proof.
+    intros Hws a w Ha. apply elem_of_list_to_map_2, elem_of_zip_r in Ha.
+    by eapply Forall_forall.
+  Qed.
+
+  Lemma mem_exec_ok_initial_heap : mem_exec_ok initial_heap_memory.
+  Proof.
+    intros a w Ha. rewrite /initial_heap_memory lookup_gset_to_gmap_Some in Ha.
+    destruct Ha as [_ <-]. apply word_exec_ok_int.
+  Qed.
+
+  (** The PCC of a compartment. *)
+  Lemma word_exec_ok_pcc (C : cmpt) t p g a :
+    word_exec_ok (WCap t p g (cmpt_b_pcc C) (cmpt_e_pcc C) a).
+  Proof.
+    eapply word_exec_ok_closed;
+      [done | apply cmpt_pcc_not_heap_range | apply cmpt_pcc_end_not_heap].
+  Qed.
+
+  Lemma mem_exec_ok_initial_cmpt (C : cmpt) :
+    Forall word_exec_ok (cmpt_imports C) →
+    Forall word_exec_ok (cmpt_code C) →
+    Forall word_exec_ok (cmpt_data C) →
+    Forall word_exec_ok (cmpt_static_sealed C) →
+    Forall word_exec_ok (cmpt_exp_tbl_entries C) →
+    mem_exec_ok (mk_initial_cmpt C).
+  Proof.
+    intros Himports Hcode Hdata Hstatic Hentries.
+    rewrite /mk_initial_cmpt /cmpt_pcc_mregion /cmpt_cgp_mregion
+      /cmpt_static_sealed_mregion /cmpt_exp_tbl_mregion.
+    repeat apply mem_exec_ok_union; apply mem_exec_ok_mkregion; try done.
+    - apply Forall_singleton, word_exec_ok_pcc.
+    - apply Forall_singleton. by apply word_exec_ok_not_executable.
+  Qed.
+
+  Lemma mem_exec_ok_initial_switcher (C : cmptSwitcher) :
+    Forall word_exec_ok (stack_content C) →
+    mem_exec_ok (mk_initial_switcher C).
+  Proof.
+    intros Hstack.
+    pose proof (word_exec_ok_ints _ (trusted_stack_content_ints C)) as Htrusted.
+    rewrite /mk_initial_switcher /cmpt_switcher_code_mregion
+      /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
+    repeat apply mem_exec_ok_union; apply mem_exec_ok_mkregion; try done.
+    - apply Forall_singleton. by apply word_exec_ok_not_executable.
+    - rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
+      intros l. apply word_exec_ok_instrs.
+  Qed.
+
+  Lemma mem_exec_ok_initial_assert (C : cmptAssert) :
+    mem_exec_ok (mk_initial_assert C).
+  Proof.
+    rewrite /mk_initial_assert /cmpt_assert_code_mregion
+      /cmpt_assert_cap_mregion /cmpt_assert_flag_mregion.
+    repeat apply mem_exec_ok_union; apply mem_exec_ok_mkregion.
+    - apply word_exec_ok_instrs.
+    - apply Forall_singleton. by apply word_exec_ok_not_executable.
+    - apply Forall_singleton, word_exec_ok_int.
+  Qed.
+
+  (** ** The words of an initial compartment
+
+      The words a compartment brings to the initial memory, and the shape
+      every initial executable word has: a word without the execute
+      permission, a sentry of the switcher, or the assert sentry. *)
+  Definition cmpt_words (C : cmpt) : list Word :=
+    cmpt_imports C ++ cmpt_code C ++ cmpt_data C ++ cmpt_static_sealed C ++
+    cmpt_exp_tbl_entries C.
+
+  Definition initial_exec_word (sw : cmptSwitcher) (Ca : cmptAssert) (w : Word) : Prop :=
+    executable_word w = false ∨
+    (∃ t p g a, w = WSentry t p g (b_switcher sw) (e_switcher sw) a) ∨
+    (∃ t p g a, w = WSentry t p g (b_assert Ca) (e_assert Ca) a).
+
+  Lemma Forall_initial_exec_word_ints sw Ca (ws : list Word) :
+    Forall is_z ws → Forall (initial_exec_word sw Ca) ws.
+  Proof.
+    intros Hws. eapply Forall_impl; first exact Hws. intros [] Hz; try done. by left.
+  Qed.
+
+  Lemma Forall_initial_exec_word_data sw Ca (C : cmpt) (ws : list Word) :
+    Forall (is_initial_data_word C) ws → Forall (initial_exec_word sw Ca) ws.
+  Proof.
+    intros Hws. eapply Forall_impl; first exact Hws. intros w [Hz|Hin]; left.
+    - by destruct w.
+    - destruct w as [z|[t p g b' e' a|t p g b' e' a]|t p g b' e' a|o sb];
+        cbn in Hin |- *; try done.
+      destruct g; try done. destruct Hin as (Hfl & _).
+      by eapply notexecuteAllowed_flowsfrom.
+  Qed.
+
+  Lemma Forall_initial_exec_word_static sw Ca (ws : list Word) :
+    Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) ws →
+    Forall (initial_exec_word sw Ca) ws.
+  Proof. intros Hws. eapply Forall_impl; first exact Hws. intros w [_ Hx]. by left. Qed.
+
+  (** A list of words checked by computation to have no execute permission,
+      such as assembled code. *)
+  Lemma Forall_initial_exec_word_check sw Ca (ws : list Word) :
+    forallb (λ w, negb (executable_word w)) ws = true →
+    Forall (initial_exec_word sw Ca) ws.
+  Proof.
+    intros Hws. apply Forall_forall. intros w Hw. left.
+    rewrite forallb_forall in Hws. specialize (Hws w).
+    apply list_elem_of_In in Hw. specialize (Hws Hw).
+    by destruct (executable_word w).
+  Qed.
+
+  Lemma mem_exec_ok_initial_cmpt_words sw Ca (C : cmpt) :
+    disjoint_from_heap (b_assert Ca) (e_assert Ca) →
+    Forall (initial_exec_word sw Ca) (cmpt_words C) →
+    mem_exec_ok (mk_initial_cmpt C).
+  Proof.
+    intros Hassert Hws. rewrite /cmpt_words !Forall_app in Hws.
+    destruct Hws as (Himports & Hcode & Hdata & Hstatic & Hentries).
+    assert (∀ w, initial_exec_word sw Ca w → word_exec_ok w) as Hok.
+    { intros w [Hx | [(t & p & g & a & ->) | (t & p & g & a & ->) ] ].
+      - by apply word_exec_ok_not_executable.
+      - apply word_exec_ok_switcher_sentry.
+      - by apply word_exec_ok_assert_sentry. }
+    apply mem_exec_ok_initial_cmpt; by eapply Forall_impl.
+  Qed.
+
 End CmptLayout.
 
 (* Discharges [disjoint_from_mmio] for concrete address ranges. *)
@@ -1059,3 +1254,29 @@ Ltac solve_mem_avoids_mmio_initial :=
   | |- mem_avoids_mmio (mk_initial_switcher _) => apply mem_avoids_mmio_initial_switcher
   | |- mem_avoids_mmio (mk_initial_assert _) => apply mem_avoids_mmio_initial_assert
   end.
+
+(* Discharges [Forall (initial_exec_word sw Ca) (cmpt_words C)] for one
+   compartment. It rewrites the compartment's fields with the equations in
+   the context, uses the hypotheses on adversarial code, data and static
+   sealed words, checks concrete lists by computation, and otherwise
+   classifies each word: without the execute permission, a switcher sentry
+   or the assert sentry. The goals it cannot solve are left. *)
+Ltac solve_initial_exec_words :=
+  cbv beta; rewrite /cmpt_words ?Forall_app; split_and!;
+  try (match goal with
+       | H : ?f ?C = _ |- Forall _ (?f ?C) => rewrite H
+       end);
+  try (by apply Forall_initial_exec_word_ints);
+  try (by eapply Forall_initial_exec_word_data);
+  try (by apply Forall_initial_exec_word_static);
+  try (apply Forall_initial_exec_word_check; vm_compute; reflexivity);
+  repeat apply Forall_cons_2; try apply Forall_nil_2;
+  try (by left);
+  try (by right; left; do 4 eexists);
+  try (by right; right; do 4 eexists).
+
+(* Discharges [Forall (λ C, Forall (initial_exec_word sw Ca) (cmpt_words C))]
+   for a concrete list of compartments. *)
+Ltac solve_initial_exec_cmpts :=
+  repeat apply Forall_cons_2; try apply Forall_nil_2;
+  solve_initial_exec_words.

@@ -63,14 +63,19 @@ Section griotte_lang_rules.
       UnSeal_failure lpc regs dst src1 src2 lpc' regs' →
       UnSeal_spec lpc regs dst src1 src2 lpc' regs' FailedV.
 
-  (* The unsealed word keeps the bounds of the sealed one and never gains a tag. *)
+  (* The unsealed word keeps the bounds and the permissions of the sealed one
+     and never gains a tag. *)
   Lemma reg_word_ok_unseal R C (sb sb' : Sealable) π o :
     (memory_cap_bounds (WSealable sb') = memory_cap_bounds (WSealed o sb)) →
     (get_tag_sealable sb' = true → get_tag_sealable sb = true) →
+    executable_word (WSealable sb') = executable_word (WSealed o sb) →
     reg_word_ok R C (WSealed o sb @@? π) →
     reg_word_ok R C (WSealable sb' @@? π).
   Proof.
-    intros Hb Ht. apply (reg_word_ok_derive _ _ (WSealed o sb @@? π)); cbn; auto.
+    intros Hb Ht Hx. apply (reg_word_ok_derive _ _ (WSealed o sb @@? π)).
+    - cbn; auto.
+    - cbn; auto.
+    - intros _ Hx'. rewrite -Hx. exact Hx'.
   Qed.
 
   Lemma wp_UnSeal Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src1 src2 regs dq :
@@ -128,9 +133,7 @@ Section griotte_lang_rules.
         (λ lpc' regs' retv, UnSeal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-      { apply (reg_word_ok_unseal _ _ sb _ _ o); auto.
-        by destruct sb.
-      }
+      { apply (reg_word_ok_unseal _ _ sb _ _ o); auto; by destruct sb. }
       { exact Hstep. }
       { intros. by eapply UnSeal_spec_success. }
       { intros. econstructor. by eapply UnSeal_fail_incrPC. }
@@ -140,9 +143,7 @@ Section griotte_lang_rules.
         (λ lpc' regs' retv, UnSeal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-      { apply (reg_word_ok_unseal _ _ sb _ _ o); auto.
-        - by destruct sb.
-        - by rewrite get_tag_clear_tag_sealable. }
+      { apply (reg_word_ok_unseal _ _ sb _ _ o); auto; by destruct sb. }
       { exact Hstep. }
       { intros. by eapply UnSeal_spec_invalidated. }
       { intros. econstructor. by eapply UnSeal_fail_invalidated_PC. }

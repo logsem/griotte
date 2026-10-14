@@ -121,6 +121,7 @@ Section AllocatorMallocPrepareBlocks2.
       try solve_pure.
     { rewrite /isWithin. solve_addr. }
     { solve_addr. }
+    { done. }
     iIntros "!> (HPC & Hi & Hct1 & Hct2 & Hct4 & _ & Htok)". wp_pure.
     iClear "Hi".
 
