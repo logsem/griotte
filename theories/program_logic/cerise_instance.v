@@ -185,7 +185,8 @@ Section ghost_init.
       (gset_to_gmap tt heap_addresses).
 
   (** Every initial word with authority is based on a heap root, heap roots
-      are unpainted, and [cnull] holds zero. *)
+      are unpainted, [cnull] holds zero, and every tagged executable word
+      has closed bounds that avoid the heap. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -198,6 +199,10 @@ Section ghost_init.
                       heap_authority_base w = Some b → b ∈ H;
     gi_mmio : mem_avoids_mmio (mem σ);
     gi_cnull w : reg σ !! cnull = Some w → w = WInt 0;
+    gi_mem_exec a w : mem σ !! a = Some w → lword_exec (lword_of_word w);
+    gi_pc_exec : lword_exec (lword_of_word (pcc σ));
+    gi_regs_exec r w : reg σ !! r = Some w → lword_exec (lword_of_word w);
+    gi_sregs_exec sr w : sreg σ !! sr = Some w → lword_exec (lword_of_word w);
   }.
 
   Lemma lookup_init_claims H a :
@@ -227,8 +232,9 @@ Section ghost_init.
   Proof.
     intros Hinit.
     assert (∀ w, (∀ b, get_tag w = true → heap_authority_base w = Some b → b ∈ H) →
+              lword_exec (lword_of_word w) →
               reg_word_ok ∅ (init_claims H) (lword_of_word w)) as Hok.
-    { intros w Hroot. split; first by apply lword_prov_no_id.
+    { intros w Hroot Hexec. split; first by apply lword_prov_no_id. split; last done.
       intros b Ht Hab; cbn. rewrite lookup_init_claims.
       assert (is_heap_address b = true) as ->.
       { apply heap_authority_base_memory_cap_bounds in Hab as (? & ? & ? & ?). done. }
@@ -255,15 +261,16 @@ Section ghost_init.
     - intros r v. rewrite lookup_init_lregs. case_decide.
       + intros Hv. apply fmap_Some in Hv as (? & _ & ->). apply reg_word_ok_lnull.
       + intros Hv. apply fmap_Some in Hv as (w & Hw & ->).
-        apply Hok. intros b. eapply gi_regs; eauto.
-    - intros sr w Hw. apply Hok. intros b. eapply gi_sregs; eauto.
+        apply Hok; last by eapply gi_regs_exec. intros b. eapply gi_regs; eauto.
+    - intros sr w Hw. apply Hok; last by eapply gi_sregs_exec. intros b. eapply gi_sregs; eauto.
     - by rewrite /init_lmem dom_fmap_L.
     - intros a v pw Hv Hpw. rewrite /init_lmem lookup_fmap Hpw /= in Hv.
       injection Hv as <-.
-      apply (reg_word_ok_mem _ _ (lword_of_word pw)), Hok. intros b. eapply gi_mem; eauto.
+      apply (reg_word_ok_mem _ _ (lword_of_word pw)), Hok; last by eapply gi_mem_exec.
+      intros b. eapply gi_mem; eauto.
     - apply Hinit.
     - done.
-    - apply Hok. intros b. by apply gi_pc.
+    - apply Hok; last by apply (gi_pc_exec _ _ Hinit). intros b. by apply gi_pc.
   Qed.
 
   Context `{!ceriseGpreS Σ}.

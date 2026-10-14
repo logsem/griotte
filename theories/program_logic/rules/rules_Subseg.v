@@ -225,7 +225,8 @@ Section griotte_lang_rules.
         2-4: by apply reg_word_ok_untagged.
         eapply reg_word_ok_subseg; [apply Her | exact Hokdst | |].
         + intros Ht. apply andb_prop in Ht as [Ht Hle]. apply andb_prop in Ht as [-> Hw].
-          apply isWithin_implies in Hw. split; first done. solve_addr.
+          apply isWithin_implies in Hw. apply Z.leb_le in Hle.
+          split; first done. solve_addr.
         + intros Ht Hlt Hheap ->. apply Hrootc.
           * by rewrite /laddr_of_argument Hn1.
           * intros Hfree. specialize (Hfree t p g b e a a1 a2 Hdst).
@@ -241,7 +242,7 @@ Section griotte_lang_rules.
                        | constructor; eapply Subseg_fail_incrPC_sr; eauto
                        | constructor; eapply Subseg_fail_incrPC_unrepresentable_sr; eauto].
         all: apply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π));
-          [by right | cbn; intros; by destruct t | exact Hokdst]. }
+          [by right | cbn; intros; by destruct t | done | exact Hokdst]. }
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst w' _ _ _
       (λ lpc' regs' retv, Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ").
@@ -894,7 +895,8 @@ Section griotte_lang_rules.
   Qed.
 
   (** Case 4, the rebase: an identifier-less source narrowed to exactly the
-      range of a non-dead identifier [ι] takes [ι]. The allocate step
+      range of a non-dead identifier [ι] takes [ι]. The source is not
+      executable, since an identified word never is. The allocate step
       ([rules_registry]) gives [alloc_obj] and the status token. *)
   Lemma wp_subseg_rebase E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 p g b e a w1 n1 w2 n2 a1 a2 pc_a'
       ι q s dq :
@@ -906,6 +908,7 @@ Section griotte_lang_rules.
     isWithin a1 a2 b e = true →
     (a1 <= a2)%a →
     s ≠ ADead →
+    executeAllowed p = false →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
@@ -929,7 +932,7 @@ Section griotte_lang_rules.
           ∗ ι ↦st{q} s
       }}}.
   Proof.
-    iIntros (Hinstr Hw1 Hw2 Hvpc Hn1 Hn2 Hwb Hle Hs Hpc_a' Hcnull Hcnull' Hcnull'' ϕ)
+    iIntros (Hinstr Hw1 Hw2 Hvpc Hn1 Hn2 Hwb Hle Hs Hpx Hpc_a' Hcnull Hcnull' Hcnull'' ϕ)
       "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2 & #Hobj & Htok) Hφ".
     destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     destruct (IsLInt_inv _ _ Hw2) as [π2 ->].

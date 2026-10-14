@@ -139,21 +139,21 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   ∧ (cmpt_code main_cmpt) = cmdc_main_code
   ∧ (cmpt_data main_cmpt) = cmdc_main_data
   ∧ (cmpt_exp_tbl_entries main_cmpt) = []
-  ∧ Forall (λ w, is_heap_cap w = false) (cmpt_static_sealed main_cmpt)
+  ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed main_cmpt)
 
   (* instantiating B *)
   ∧ (cmpt_imports B_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code B_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word B_cmpt) (cmpt_data B_cmpt)
   ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (encode_entry_point cmdc_B_f_args offset_B_f)]
-  ∧ Forall (λ w, is_heap_cap w = false) (cmpt_static_sealed B_cmpt)
+  ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed B_cmpt)
 
   (* instantiating C *)
   ∧ (cmpt_imports C_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
   ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point cmdc_C_g_args offset_C_g)]
-  ∧ Forall (λ w, is_heap_cap w = false) (cmpt_static_sealed C_cmpt)
+  ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed C_cmpt)
 
   (* initial stack *)
   ∧ Forall is_z (stack_content switcher_cmpt)
@@ -267,7 +267,9 @@ Section Adequacy.
       subst sh m.
       apply (ghost_init_cond_initial_layout switcher_cmpt assert_cmpt main_cmpt
              [main_cmpt; B_cmpt; C_cmpt]);
-        [done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |].
+        [done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |
+         | eapply (mem_exec_ok_initial_cmpts switcher_cmpt assert_cmpt);
+             [exact Hheap_disjoint | solve_initial_exec_cmpts] ].
       repeat constructor.
       - apply mem_rooted_initial_cmpt.
         + rewrite main_imports. repeat constructor; apply word_rooted_not_heap_cap.
@@ -279,7 +281,8 @@ Section Adequacy.
         + rewrite main_code /cmdc_main_code !Forall_app.
           repeat split; apply word_rooted_instrs.
         + rewrite main_data /cmdc_main_data. repeat constructor; apply word_rooted_int.
-        + by apply word_rooted_not_heap_caps.
+        + apply word_rooted_not_heap_caps.
+          eapply Forall_impl; first done. by intros ? [? _].
         + rewrite main_exp_tbl. apply Forall_nil_2.
       - apply mem_rooted_initial_cmpt.
         + rewrite B_imports. repeat constructor; apply word_rooted_not_heap_cap.
@@ -287,7 +290,8 @@ Section Adequacy.
         + by apply word_rooted_ints.
         + eapply Forall_impl; first exact B_data.
           intros w Hw. by eapply word_rooted_initial_data.
-        + by apply word_rooted_not_heap_caps.
+        + apply word_rooted_not_heap_caps.
+          eapply Forall_impl; first done. by intros ? [? _].
         + rewrite B_exp_tbl. repeat constructor; apply word_rooted_int.
       - apply mem_rooted_initial_cmpt.
         + rewrite C_imports. repeat constructor; apply word_rooted_not_heap_cap.
@@ -295,7 +299,8 @@ Section Adequacy.
         + by apply word_rooted_ints.
         + eapply Forall_impl; first exact C_data.
           intros w Hw. by eapply word_rooted_initial_data.
-        + by apply word_rooted_not_heap_caps.
+        + apply word_rooted_not_heap_caps.
+          eapply Forall_impl; first done. by intros ? [? _].
         + rewrite C_exp_tbl. repeat constructor; apply word_rooted_int. }
     { destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
     iIntros (ceriseg) "HPC Hreg Hsreg Hmem _ _ Hna ([#Hentry_Bf #Hentry_Bf'] & [#Hentry_Cg #Hentry_Cg'] & _)".

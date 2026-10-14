@@ -65,7 +65,7 @@ Section griotte_lang_rules.
     injection Hstep as <- <-.
     assert (reg_word_ok R C (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hoksent.
     { apply (reg_word_ok_derive _ _ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π));
-        [by left|done|done]. }
+        [by left|done|done|done]. }
     pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ rdst
                   (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) Her Hoksent) as Her1.
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc) Her1

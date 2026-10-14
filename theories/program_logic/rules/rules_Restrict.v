@@ -138,7 +138,9 @@ Section griotte_lang_rules.
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
       { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); last done; first by left.
-        rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop. }
+        - rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop.
+        - rewrite /nt /=. intros [[? Hfl]%andb_prop ?]%andb_prop Hx.
+          eapply (executeAllowed_flowsto p' p); [by rewrite Hfl | exact Hx]. }
       { exact Hstep. }
       { intros lpc' Hi. rewrite /nt in Hi |- *.
         destruct (PermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
@@ -156,7 +158,8 @@ Section griotte_lang_rules.
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
       { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); last done; first by right.
-        rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop. }
+        - rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop.
+        - done. }
       { exact Hstep. }
       { intros lpc' Hi. rewrite /nt in Hi |- *.
         destruct (SealPermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;

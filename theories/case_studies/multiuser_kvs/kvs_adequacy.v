@@ -299,7 +299,9 @@ Section Adequacy.
       subst sh m.
       apply (ghost_init_cond_initial_layout switcher_cmpt assert_cmpt main_cmpt
              [main_cmpt; kvs_cmpt; B_cmpt]);
-        [done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |].
+        [done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |
+         | eapply (mem_exec_ok_initial_cmpts switcher_cmpt assert_cmpt);
+             [exact Hheap_disjoint | solve_initial_exec_cmpts] ].
       repeat constructor.
       - apply mem_rooted_initial_cmpt.
         + rewrite main_imports /kvs_main_imports.

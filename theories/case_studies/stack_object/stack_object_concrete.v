@@ -90,7 +90,7 @@ Proof.
     so_switcher_sealing_type so_trusted_stack_b so_trusted_stack_e
     _ _ _ _ (replicate 100 (WInt 0)) _ eq_refl
     ltac:(by apply Forall_replicate)
-    so_stack_b so_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
+    so_stack_b so_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -112,12 +112,13 @@ Proof.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - solve_disjoint_from_mmio.
+  - vm_compute; reflexivity.
 Defined.
 
 Program Definition so_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance
-    so_assert_b so_assert_e so_assert_cap so_assert_flag _ _ _ _ _ _ _).
+    so_assert_b so_assert_e so_assert_cap so_assert_flag _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -126,6 +127,7 @@ Proof.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'. solve_addr.
   - solve_disjoint_from_mmio.
   - solve_disjoint_from_mmio.
+  - vm_compute; reflexivity.
 Defined.
 
 Local Instance so_concrete_switcherLayout : switcherLayout.
@@ -158,7 +160,7 @@ Proof.
     so_main_exports_entries_b so_main_exports_entries_e
     so_main_imports_concrete so_main_code so_main_data [] so_export_table_entries
     _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ ).
+    _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -191,6 +193,7 @@ Proof.
     + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
       intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
       unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
 Defined.
 
 Program Definition so_concrete_C_cmpt : cmpt.
@@ -200,7 +203,7 @@ Proof.
     so_C_exports_pcc so_C_exports_cgp
     so_C_exports_entries_b so_C_exports_entries_e
     so_C_imports so_C_code so_C_data [] so_C_exports _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ ).
+    _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -233,6 +236,7 @@ Proof.
     + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
       intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
       unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The empty

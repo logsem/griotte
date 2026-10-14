@@ -127,7 +127,7 @@ Section griotte_lang_rules.
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
          { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-         { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); [by left|done|done]. }
+         { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); [by left|done|done|done]. }
          { exact Hstep. }
          { intros lpc' Hi. eapply Lea_spec_success_cap; eauto. }
          { intros Hi. constructor. eapply Lea_fail_overflow_PC_cap; eauto. }
@@ -136,7 +136,7 @@ Section griotte_lang_rules.
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
          { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-         { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); [by left|done|done]. }
+         { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); [by left|done|done|done]. }
          { exact Hstep. }
          { intros lpc' Hi. eapply Lea_spec_invalidated_cap; eauto. }
          { intros Hi. constructor. eapply Lea_fail_overflow_cap; eauto. }
@@ -146,7 +146,7 @@ Section griotte_lang_rules.
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
          { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-         { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); [by right|done|done]. }
+         { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); [by right|done|done|done]. }
          { exact Hstep. }
          { intros lpc' Hi. eapply Lea_spec_success_sr; eauto. }
          { intros Hi. constructor. eapply Lea_fail_overflow_PC_sr; eauto. }
@@ -155,7 +155,7 @@ Section griotte_lang_rules.
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
          { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
-         { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); [by right|done|done]. }
+         { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); [by right|done|done|done]. }
          { exact Hstep. }
          { intros lpc' Hi. eapply Lea_spec_invalidated_sr; eauto. }
          { intros Hi. constructor. eapply Lea_fail_overflow_sr; eauto. }
