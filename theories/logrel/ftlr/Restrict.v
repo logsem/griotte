@@ -53,8 +53,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
-    iIntros "Hstate HPC Hmap".
+    iIntros "Hpre"; iNamed "Hpre".
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
