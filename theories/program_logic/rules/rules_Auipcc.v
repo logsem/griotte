@@ -51,8 +51,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
     rewrite Hinstr /exec in Hstep.
     set (v := auipcc_word (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm).
     assert (exec_opt (Auipcc dst imm) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =

@@ -151,8 +151,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hroot & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
@@ -830,8 +829,7 @@ Section griotte_lang_rules.
                       (<[dst:=WCap true p g b e a @@? None]> (∅ : LReg)))).
     set (v := WCap true p g a1 a2 a @@ ι).
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ & s' & HRι).
     iDestruct (reg_lookup_own with "HR Htok") as %(b' & e' & γ' & HRι').
     rewrite HRι in HRι'. simplify_eq.

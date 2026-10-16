@@ -163,8 +163,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     erewrite regs_of_is_Get in Hri; eauto.
@@ -511,8 +510,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hvpc Dregs HP φ) "(>HPC & >Hpc_a & Hdw & HPr & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
     iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
     iDestruct (HP with "HC HPr") as %HΦc.
     rewrite Hdecode /exec in Hstep.

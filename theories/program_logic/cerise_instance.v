@@ -4,6 +4,7 @@ From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import excl_auth.
 From griotte Require Import griotte_lang entry.
 From griotte Require Export logical_words alloc_registry erasure.
+From griotte Require Import named_props.
 
 
 
@@ -98,11 +99,14 @@ Section state_interp.
 
   Definition cerise_state_interp (σ : ExecConf) : iProp Σ :=
     ∃ (lpc : LWord) (lreg : LReg) (lmem : LMem) (R : RegState) (C : gmap Addr AddrClaim),
-      PC_auth lpc ∗
-      gen_heap_interp lreg ∗ gen_heap_interp (sreg σ) ∗
-      gen_heap_interp lmem ∗ gen_heap_interp (shadowtbl σ) ∗
-      reg_auth R ∗ addr_alloc_auth C ∗
-      ⌜erasure R C σ lpc lreg lmem⌝.
+      "HPCa" ∷ PC_auth lpc ∗
+      "Hr" ∷ gen_heap_interp lreg ∗
+      "Hsr" ∷ gen_heap_interp (sreg σ) ∗
+      "Hm" ∷ gen_heap_interp lmem ∗
+      "Hst" ∷ gen_heap_interp (shadowtbl σ) ∗
+      "HR" ∷ reg_auth R ∗
+      "HC" ∷ addr_alloc_auth C ∗
+      "%Her" ∷ ⌜erasure R C σ lpc lreg lmem⌝.
 
   #[global] Instance cerise_state_interp_timeless σ : Timeless (cerise_state_interp σ).
   Proof. apply _. Qed.

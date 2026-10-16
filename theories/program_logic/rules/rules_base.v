@@ -4,6 +4,7 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth gmap.
 From griotte Require Export iris_extra stdpp_extra griotte_lang.
 From griotte Require Export machine_base cerise_instance register_file machine_instructions.
+From griotte Require Export named_props.
 
 (* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
 
@@ -431,24 +432,31 @@ Section griotte_lang_rules.
     ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lmem : LMem)
        (R : RegState) (C : gmap Addr AddrClaim) (c : ConfFlag) (σ' : ExecConf),
-       ⌜erasure R C (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
-          (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lmem⌝ -∗
-       ⌜regs ⊆ lreg⌝ -∗
-       ⌜lregs_phys R regs r⌝ -∗
-       ⌜lmem !! pc_a = Some w⌝ -∗
-       ⌜exec (decodeInstrW w.(lw)) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ -∗
-       PC_auth (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) -∗
-       gen_heap_interp lreg -∗ gen_heap_interp sr -∗ gen_heap_interp lmem -∗
-       gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
-       PC ↦ₚ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) -∗
-       pc_a ↦ₐ{dq} w -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ==∗
+       ("%Her" ∷ ⌜erasure R C (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
+                    (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lmem⌝ ∗
+        "%Hlregs" ∷ ⌜regs ⊆ lreg⌝ ∗
+        "%Hregs" ∷ ⌜lregs_phys R regs r⌝ ∗
+        "%Hpc_a" ∷ ⌜lmem !! pc_a = Some w⌝ ∗
+        "%Hstep" ∷ ⌜exec (decodeInstrW w.(lw)) pc_p
+                     (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ ∗
+        "HPCa" ∷ PC_auth (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
+        "Hr" ∷ gen_heap_interp lreg ∗
+        "Hsr" ∷ gen_heap_interp sr ∗
+        "Hm" ∷ gen_heap_interp lmem ∗
+        "Hst" ∷ gen_heap_interp st ∗
+        "HR" ∷ reg_auth R ∗
+        "HC" ∷ addr_alloc_auth C ∗
+        "HPC" ∷ PC ↦ₚ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
+        "Hpc_a" ∷ pc_a ↦ₐ{dq} w ∗
+        "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
+       ==∗
        cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)))
     -∗ WP Instr Executable @ E {{ Φ }}.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
     iIntros (σ1 ns l1 l2 nt) "Hσ /=". destruct σ1 as [[[[pc r] sr] m] st]; cbn.
-    iDestruct "Hσ" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iNamed "Hσ".
     iMod "HPC". iMod "Hpc_a". iMod "Hmap".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
@@ -462,7 +470,8 @@ Section griotte_lang_rules.
     iIntros "_". iSplitR; first done.
     eapply step_exec_inv in Hstep; eauto; cbn in Hstep.
     rewrite (mem_word_ok_decode _ _ _ _ Hok) in Hstep.
-    iApply ("Hcont" with "[//] [//] [//] [//] [//] HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap").
+    iApply ("Hcont" with "[$HPCa $Hr $Hsr $Hm $Hst $HR $HC $HPC $Hpc_a $Hmap]").
+    by iFrame "%".
   Qed.
 
   (* ----------------------------------- FAIL RULES ---------------------------------- *)
@@ -479,7 +488,7 @@ Section griotte_lang_rules.
     iIntros (ϕ) "HPC Hϕ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
     iIntros (σ1 nt l1 l2 ns) "Hσ1 /="; destruct σ1 as [[[[pc r] sr] m] st]; simpl.
-    iDestruct "Hσ1" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iNamed "Hσ1".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     pose proof (erasure_pc_not_correct _ _ _ _ _ _ Her Hnpc) as Hnpc'. cbn in Hnpc'.
     iApply fupd_frame_l.
@@ -517,10 +526,9 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hregs Hregs' Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC Hpc Hpca _".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
-    iModIntro. iSplitR "Hφ Hpc Hpca"; last (cbn; iApply "Hφ"; iFrame).
+    iModIntro. iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
     iExists _, lreg, lmem, R, C. by iFrame.
   Qed.
 
@@ -535,10 +543,9 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hregs Hregs' Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC Hpc Hpca _".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
-    iModIntro. iSplitR "Hφ Hpc Hpca"; last (cbn; iApply "Hφ"; iFrame).
+    iModIntro. iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
     iExists _, lreg, lmem, R, C. by iFrame.
   Qed.
 
@@ -1160,9 +1167,8 @@ Section instruction_outcomes.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hregs Hregs' Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
-    rewrite Hinstr (Hfailed R r sr m st Hregs') in Hstep. simplify_eq.
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
+    rewrite Hinstr (Hfailed R r sr m st Hregs) in Hstep. simplify_eq.
     iModIntro. iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
     iExists _, lreg, lmem, R, C. by iFrame.
   Qed.
