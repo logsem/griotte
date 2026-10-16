@@ -142,6 +142,48 @@ Section griotte_lang_rules.
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
+  (** A BinOp on two integer operands, whose PC increments, has one
+      outcome. *)
+  Lemma BinOp_spec_next i lpc regs dst arg1 arg2 lpc' regs' retv n1 n2 lpc0 :
+    lz_of_argument regs arg1 = Some n1 →
+    lz_of_argument regs arg2 = Some n2 →
+    incrementPC lpc = Some lpc0 →
+    BinOp_spec i lpc regs dst arg1 arg2 lpc' regs' retv →
+    retv = NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := WInt (denote i n1 n2)]ₗ> regs.
+  Proof.
+    intros H1 H2 Hinc [n1' n2' H1' H2' Hinc' -> | Hfail].
+    - simplify_eq. done.
+    - destruct Hfail; simplify_eq; congruence.
+  Qed.
+
+  (** The map-form success rule, from which the register-shaped ones
+      follow. *)
+  Lemma wp_BinOp_next E i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs n1 n2 lpc' dq :
+    decodeInstrW w.(lw) = i →
+    is_BinOp i dst arg1 arg2 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    {[dst]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2 ⊆ dom regs →
+    lz_of_argument regs arg1 = Some n1 →
+    lz_of_argument regs arg2 = Some n2 →
+    incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w ∗
+        [∗ map] k↦y ∈ <[dst := WInt (denote i n1 n2)]ₗ> regs, k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hdecode Hi Hvpc Hdom H1 H2 Hinc φ) "(HPC & Hpc_a & Hmap) Hφ".
+    iApply (wp_BinOp with "[$HPC $Hpc_a $Hmap]"); eauto.
+    { by erewrite regs_of_is_BinOp. }
+    iIntros "!>" (lpc0 regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
+    rewrite Hdecode in Hspec.
+    destruct (BinOp_spec_next _ _ _ _ _ _ _ _ _ _ _ _ H1 H2 Hinc Hspec) as (-> & -> & ->).
+    iApply "Hφ". by iFrame.
+  Qed.
+
   (* Derived specifications *)
   Lemma wp_binop_success_z_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' dq :
     decodeInstrW w.(lw) = ins →
@@ -163,16 +205,8 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull ϕ) "(HPC & Hpc_a & Hdst) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_r_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 n2 pc_a' dq :
@@ -200,16 +234,8 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hinstr Hw1 Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr1 & Hdst) Hφ".
     destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     iDestruct (map_of_regs_2 with "Hr1 Hdst") as "[Hmap %]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_z_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 r2 w2 n2 pc_a' dq :
@@ -237,16 +263,8 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hinstr Hw2 Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
     destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     iDestruct (map_of_regs_2 with "Hr2 Hdst") as "[Hmap %]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_r_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 r2 w2 n2 pc_a' dq :
@@ -279,16 +297,8 @@ Section griotte_lang_rules.
     destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hdst") as "[Hmap (%&%&%)]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_r_r_same E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r wr n pc_a' dq :
@@ -316,16 +326,8 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hinstr Hwr Hpc_a Hvpc Hcnull Hncull' ϕ) "(HPC & Hpc_a & Hr & Hdst) Hφ".
     destruct (IsLInt_inv _ _ Hwr) as [πr ->].
     iDestruct (map_of_regs_2 with "Hr Hdst") as "[Hmap %]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_dst_z E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' dq :
@@ -350,16 +352,8 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hinstr Hwdst Hpc_a Hvpc Hcnull ϕ) "(HPC & Hpc_a & Hdst) Hφ".
     destruct (IsLInt_inv _ _ Hwdst) as [πdst ->].
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_z_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 n2 pc_a' dq :
@@ -384,16 +378,8 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hinstr Hwdst Hpc_a Hvpc Hcnull ϕ) "(HPC & Hpc_a & Hdst) Hφ".
     destruct (IsLInt_inv _ _ Hwdst) as [πdst ->].
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_dst_r E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n1 r2 w2 n2 pc_a' dq :
@@ -423,16 +409,8 @@ Section griotte_lang_rules.
     destruct (IsLInt_inv _ _ Hwdst) as [πdst ->].
     destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
     iDestruct (map_of_regs_2 with "Hr2 Hdst") as "[Hmap %]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_r_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 w1 n1 n2 pc_a' dq :
@@ -462,16 +440,8 @@ Section griotte_lang_rules.
     destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
     destruct (IsLInt_inv _ _ Hwdst) as [πdst ->].
     iDestruct (map_of_regs_2 with "Hr2 Hdst") as "[Hmap %]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_binop_success_dst_dst E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins n pc_a' dq :
@@ -496,16 +466,8 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hinstr Hwdst Hpc_a Hvpc Hcnull ϕ) "(HPC & Hpc_a & Hdst) Hφ".
     destruct (IsLInt_inv _ _ Hwdst) as [πdst ->].
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
+    iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   (* Slightly generalized: fails in all cases where r2 does not contain an integer. *)

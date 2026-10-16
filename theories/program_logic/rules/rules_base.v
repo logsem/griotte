@@ -1051,6 +1051,48 @@ Section instruction_closing.
       iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
   Qed.
 
+  (** Closes an instruction that writes one system register then increments
+      the PC, as the physical [updatePC (update_sreg φ dst w)]. The spec [P]
+      holds of the new PC and owned system registers on success, and of the
+      old ones on failure. *)
+  Lemma instr_close_sreg_update pc (r : Reg) sr m st lpc (lreg : LReg) lmem R C
+      (regs : LReg) (sregs : SReg) dst (w : Word) c σ' (Φ : griotte_lang.val → iProp Σ)
+      (P : LWord → SReg → griotte_lang.val → Prop) :
+    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+    dst ∈ dom sregs →
+    reg_word_ok R C (lword_of_word w) →
+    (match updatePC (update_sreg (pc, r, sr, m, st) dst w) with
+     | Some conf => conf | None => (Failed, (pc, r, sr, m, st)) end) = (c, σ') →
+    (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := w]> sregs) NextIV) →
+    (incrementPC lpc = None → P lpc sregs FailedV) →
+    PC_auth lpc -∗
+    gen_heap_interp lreg -∗ gen_heap_interp sr -∗ gen_heap_interp lmem -∗
+    gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
+    PC ↦ₚ lpc -∗
+    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
+    ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y) -∗
+    (∀ lpc' sregs' retv, ⌜P lpc' sregs' retv⌝ -∗ PC ↦ₚ lpc' -∗
+       ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ ([∗ map] k↦y ∈ sregs', k ↦ₛᵣ y) -∗ Φ retv) ==∗
+    cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
+  Proof.
+    iIntros (Her Hdst Hok Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hsmap Hφ".
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ dst _ Her Hok) as Her1.
+    rewrite /update_sreg /= in Hstep.
+    destruct (incrementPC lpc) as [lpc'|] eqn:Hi.
+    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
+      rewrite Hu in Hstep. simplify_eq.
+      assert (is_Some (sregs !! dst)) as [vold Hvold] by by apply elem_of_dom.
+      iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
+      iMod (gen_heap_update_inSepM _ _ dst w with "Hsr Hsmap") as "[Hsr Hsmap]"; first eauto.
+      iModIntro. iSplitR "Hφ HPC Hmap Hsmap".
+      + iExists lpc', _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+      + iApply ("Hφ" with "[%] HPC Hmap Hsmap"). by apply HPs.
+    - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
+      rewrite /updatePC Hfail in Hstep.
+      simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
+      iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap Hsmap"). by apply HPf.
+  Qed.
+
 End instruction_closing.
 
 (** Closes the failing branch of a general rule with [instr_close_fail], then
@@ -1067,6 +1109,24 @@ Ltac instr_fail_close :=
     [Hstep : (Failed, φ) = (c, σ')]. *)
 Ltac instr_fail Hstep :=
   first [injection Hstep as <- <- | simplify_eq]; instr_fail_close.
+
+(** Pure side conditions of the map-form rules ([wp_Get_next], …) applied to
+    register maps built by [map_of_regs_k]: a small closed set of goals
+    (instruction decoding, register lookups and domains, the PC increment).
+    A tactic because the goals vary with the instruction class. *)
+Ltac solve_next_side :=
+  first [ done
+        | by apply incrementPC_add
+        | by rewrite /regs_of /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver+
+        | by simplify_map_eq
+        | by eapply llookup_reg_cnull; simplify_map_eq
+        | by rewrite /lz_of_argument /=; simplify_map_eq ].
+
+(** Splits the register map of a post after the write of one register, as
+    [iRegsMap]. *)
+Ltac iRegsMapWrite H :=
+  rewrite ?linsert_reg_cnull ?linsert_reg_not_cnull // ?insert_insert_eq ?insert_singleton;
+  iRegsMap H.
 
 Lemma lregs_phys_lookup `{MachineParameters} R (regs : LReg) (r : Reg) x (v : LWord) :
   lregs_phys R regs r → regs !! x = Some v → ∃ s, r !! x = Some (and_tag s v.(lw)).
