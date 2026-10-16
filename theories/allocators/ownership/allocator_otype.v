@@ -126,7 +126,7 @@ Section AllocatorOtype.
     iAssert (sts_seals_std C AllocOtype {[WSealable sb @@? π]})%I as "#Hseal'".
     { iApply sts_seals_std_weaken; last iFrame "Hseal"; set_solver+. }
     rewrite world_interp_eq /world_interp_def.
-    iDestruct "Hworld" as "(Hregion & Hsts & Hseals)".
+    iNamed "Hworld".
     iDestruct (open_sealing_map_singleton with "Hspred Hseal' Hseals Hsts")
       as "(Hseals & Hsts & Hres & HP)".
     (* Every part of the opened resources is timeless, except the
@@ -137,7 +137,7 @@ Section AllocatorOtype.
     rewrite /lforce_global /lift_word /force_global /= /allocator_capability_scap in Heq.
     simplify_eq.
     iModIntro.
-    iExists g, a, id, Ω. iFrame "Ha Hid Hrights Hregion Hsts".
+    iExists g, a, id, Ω. iFrame "Ha Hid Hrights Hr Hsts".
     iSplit; first done.
     iSplit; first done.
     iSplit; first done.

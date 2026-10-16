@@ -119,7 +119,7 @@ Section KVS_spec_read_safe.
     (* Either the map key is already allocated, or it is not *)
     iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
     - iEval (rewrite world_interp_sopen_eq /world_interp_sopen_def) in "Hworld".
-      iDestruct "Hworld" as "(Hregion & Hsts & Hseals)".
+      iNamed "Hworld".
       iApply KVS_read_spec_in_world; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hregion & Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hct1 & Hct2 & Hctp & Hcnull

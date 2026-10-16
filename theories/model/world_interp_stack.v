@@ -79,7 +79,7 @@ Section WorldInterpStack.
       ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
   Proof.
      rewrite world_interp_eq /world_interp_def.
-     iIntros "(Hinterp & [Hr [Hsts Hseals ] ])".
+     iIntros "(Hinterp & @)".
      iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
         as (l) "($ & $ & $ & $ & $ & $ & $ & $)"; eauto.
     iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
@@ -101,7 +101,7 @@ Section WorldInterpStack.
     world_interp (std_update_multiple W la Temporary) C.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (???) "[Hr [Hsts Hseals ] ] Hres Hl".
+    iIntros (???) "@ Hres Hl".
     iMod (update_region_revoked_temp_pwl_multiple
            with "Hsts Hr [Hres] [Hl]") as "[$ $]"; eauto.
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.

@@ -523,10 +523,10 @@ Proof.
   iExists (fun _ => True)%I. cbn. iFrame "Hσ".
   iSplitL "Hwp".
   { iApply (wp_mono with "Hwp"); iIntros (?) "?"; done. }
-  iIntros "(%lpc & %lreg & %lmem & %R & %Cl & _ & _ & _ & Hmem' & _ & _ & _ & %Her)".
+  iIntros "@".
   iExists (⊤ ∖ ↑flagN).
   iInv flagN as ">Hflag'" "Hclose".
-  iDestruct (gen_heap_valid with "Hmem' Hflag'") as %Hm'_flag.
+  iDestruct (gen_heap_valid with "Hm Hflag'") as %Hm'_flag.
   iModIntro. iPureIntro.
   destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her Hm'_flag)
     as (pw & Hpw & _ & _ & Hnonheap & _).

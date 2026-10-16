@@ -49,15 +49,15 @@ Section region_alloc.
     iIntros (Hnone) "Hfull Hreg Hk".
     iDestruct (heap_key_resource_known with "Hk") as %Hknown_k.
     rewrite region_eq rel_eq /region_def /rel_def.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
-    iDestruct "Hpreds" as "[%Hknown [Hheap Hpreds]]".
+    iNamed "Hreg".
+    iDestruct "Hmap" as "[%Hknown [Hheap Hpreds]]".
     destruct (M !! k) eqn:HRl.
     { (* The location is not in the map *)
-      exfalso. apply Hnone. rewrite HMW elem_of_dom HRl. eauto. }
+      exfalso. apply Hnone. rewrite Hdom elem_of_dom HRl. eauto. }
     (* if not, we need to allocate a new saved pred using φ,
        and extend R with k := pred *)
     iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
-    iMod (update_RELS _ _ _ k γpred p with "Hγrel") as "[HR Hγrel]"; auto.
+    iMod (update_RELS _ _ _ k γpred p with "HM") as "[HR HM]"; auto.
     iMod (sts_alloc_std_i W C k ρ with "[] Hfull") as "(Hfull & Hstate)"; auto.
     assert (related_sts_pub_world W (<s[k := ρ]s>W)) as Hrelated
         by by apply related_sts_pub_world_fresh.
@@ -73,9 +73,9 @@ Section region_alloc.
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[k := ρ]> Mρ); iSplitR; [|iSplitR].
-    - iPureIntro. rewrite /std_update in HMW |- *.
-      repeat rewrite dom_insert_L; rewrite HMW; auto.
-    - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
+    - iPureIntro. rewrite /std_update in Hdom |- *.
+      repeat rewrite dom_insert_L; rewrite Hdom; auto.
+    - iPureIntro. repeat rewrite dom_insert_L. rewrite Hdomρ. auto.
     - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists ρ. iFrame. iSplitR; [iPureIntro; apply lookup_insert_eq|].
@@ -400,8 +400,8 @@ Section region_alloc.
       by rewrite -not_elem_of_dom.
     }
     rewrite open_region_many_eq /open_region_many_def ?fmap_cons.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
-    iDestruct "Hpreds" as "[%Hknown [Hheap Hpreds]]".
+    iNamed "Hreg".
+    iDestruct "Hmap" as "[%Hknown [Hheap Hpreds]]".
     destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       assert ((delete_list (LNonHeap <$> la1)) M !! LNonHeap a = Some o) as HRl'.
@@ -416,7 +416,7 @@ Section region_alloc.
     (* if not, we need to allocate a new saved pred using φ, *)
     (*      and extend R with l := pred *)
     iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
-    iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR #Hγrel]"; auto.
+    iMod (update_RELS _ _ _ a γpred p with "HM") as "[HR #HM]"; auto.
     iAssert (rel C a p φ) as "Ha_rel".
     { rewrite rel_eq /rel_def; iFrame "#". }
     iMod (sts_alloc_std_i _ C (LNonHeap a) Permanent
@@ -430,14 +430,14 @@ Section region_alloc.
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[LNonHeap a :=Permanent]> Mρ);iSplitR;[|iSplitR].
-    - iPureIntro. rewrite /std_update in HMW |- *.
-      repeat rewrite dom_insert_L; rewrite HMW; auto.
-    - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
+    - iPureIntro. rewrite /std_update in Hdom |- *.
+      repeat rewrite dom_insert_L; rewrite Hdom; auto.
+    - iPureIntro. repeat rewrite dom_insert_L. rewrite Hdomρ. auto.
     - iSplit; first done. cbn.
       rewrite -(delete_list_delete _ (<[LNonHeap a :=(γpred, p)]> M)); last done.
       rewrite delete_insert_id; last done.
       rewrite -(delete_list_delete _ (<[LNonHeap a :=_]> Mρ)); last done.
-      rewrite delete_insert_id; last (rewrite -not_elem_of_dom HMρ not_elem_of_dom; done).
+      rewrite delete_insert_id; last (rewrite -not_elem_of_dom Hdomρ not_elem_of_dom; done).
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha) "Hρ".
       iDestruct "Hρ" as (ρ Hρ) "[Hstate Hρ]".

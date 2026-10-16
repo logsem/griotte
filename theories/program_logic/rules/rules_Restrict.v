@@ -111,8 +111,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.

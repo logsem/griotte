@@ -265,7 +265,7 @@ Section griotte_lang_rules.
      iApply wp_lift_atomic_base_step_no_fork; auto.
      iIntros (σ1 ns l1 l2 nt) "Hσ /=".
      destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
-     iDestruct "Hσ" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
+     iNamed "Hσ".
      iDestruct (PC_agree with "HPCa HPC") as %->.
      pose proof (erasure_pc_correct _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
      iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
@@ -1193,9 +1193,8 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
   Proof.
     iIntros (Hinstr Hvpc Hdst Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hregs Hregs' Hpc_a' Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs' Hdst) as (s0 & Hdst' & _).
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
     assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
     { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
@@ -1693,8 +1692,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
   Proof.
     iIntros (Hinstr Hvpc Dregs Hallow Hnoid Hpca' φ) "(HPC & Hpc_a & Hmap & Hpre) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hlregs Hregs Hpc_a Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     (* The physical step: the sweep, then the PC increment. The revoker
        capability has no identifier and non-empty bounds: its copy is exact. *)
@@ -1870,9 +1868,8 @@ Section shadow_store_res.
   Proof.
     iIntros (Hinstr Hvpc Hdst Hcap φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem Rg Cg c σ' Her Hregs Hregs' Hpc_a' Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs' Hdst) as (s0 & Hdst' & _).
+    iNext; iIntros (r sr m st lreg lmem Rg Cg c σ') "@".
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
     assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
     { destruct wa as [ [| [|] | |] ?]; cbn in Hcap; try discriminate.

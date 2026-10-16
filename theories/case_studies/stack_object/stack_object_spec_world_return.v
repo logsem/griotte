@@ -625,7 +625,7 @@ Section SO_World_Return.
   Proof.
     intros Hdom.
     rewrite world_interp_eq /world_interp_def.
-    iIntros "(Hr & Hsts & Hseals)".
+    iIntros "@".
     iDestruct (region_addrs_status_some W C l Hdom with "Hr")
       as "[Hr %Hstatuses]".
     iFrame. iPureIntro. exact Hstatuses.

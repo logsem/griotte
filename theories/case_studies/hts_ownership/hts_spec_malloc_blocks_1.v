@@ -246,10 +246,7 @@ Section HTS_Spec_Malloc.
     iFrame "Howner Howner_word".
     iNext.
     iIntros "[Hcall|Hcall]".
-    - iDestruct "Hcall" as
-        (rcgp rcra rcs0 rcs1 wca0_ret wca1_ret rmap_ret Hdom_rmap_ret)
-        "(Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-          & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & %Hrestored & Hmalloc_post)".
+    - iNamed "Hcall".
       destruct Hrestored as (Hgp & Hra & _ & _).
       apply load_heap_nonheap in Hgp.
       2: { destruct Hcgp_heap as [Hcgp_nonheap _].
@@ -261,8 +258,8 @@ Section HTS_Spec_Malloc.
       subst rcgp rcra.
       iEval (cbn) in "HPC".
       iApply "Hcontinue".
-      iEval (rewrite /hts_malloc_result) in "Hmalloc_post".
-      iDestruct "Hmalloc_post" as "(Howner_word & [(%Hoom & Howner)|Hok])".
+      iEval (rewrite /hts_malloc_result) in "HQ".
+      iDestruct "HQ" as "(Howner_word & [(%Hoom & Howner)|Hok])".
       + (* Allocator failure. *)
         destruct Hoom as [-> ->].
         iLeft. iExists _. iFrame "Hna HPC Hca0 Hcode_main".
@@ -283,10 +280,7 @@ Section HTS_Spec_Malloc.
         iSplit; first (iPureIntro; rewrite /hts_buffer_bounds; solve_addr).
         iFrame "∗#".
         iPureIntro. split; [exact Hdom_rmap_ret|exact Hstack_revoked].
-    - iDestruct "Hcall" as
-        (rmap_exhaust stk_mem_exhaust rcgp rcra rcs0 rcs1 Hdom_rmap_exhaust)
-        "(Hna & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1 & Hca0 & Hca1
-          & Hrmap & Hstk & Hcstk & %Hrestored & _)".
+    - iNamed "Hcall".
       destruct Hrestored as (_ & Hra & _ & _).
       apply load_heap_nonheap in Hra.
       2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.

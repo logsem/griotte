@@ -544,17 +544,7 @@ Section KVS_Main_Blocks.
     { apply kvs_main_add_arg_rmap_is_arg. }
     iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iNext.
-    iIntros "[
-    (%rcgp & %rcra & %rcs0 & %rcs1
-    & %wca0_ret & %wca1_ret & %rmap_ret & %Hdom_rmap_ret
-    & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & %Hrestored & HKVS_post)
-    |
-    (%rmap_ret & %stk_mem' & %rcgp & %rcra & %rcs0 & %rcs1 & %Hdom_rmap_ret & Hna
-    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
-    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag & %Hrestored & HKVS_pre)
-    ]"
-    ; iEval (cbn) in "HPC"
+    iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.
     {
       destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
@@ -585,7 +575,7 @@ Section KVS_Main_Blocks.
           /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs1.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
-    iDestruct "HKVS_post"
+    iDestruct "HQ"
       as "(Hstatic_sealed_b & HLUKVS & %Hwca1_ret
            & [(%Hwca0_ret & Hkvs_1)
              | (%Hwca0_ret & Hkvs_1)])".
@@ -825,17 +815,7 @@ Section KVS_Main_Blocks.
     { apply kvs_main_read_arg_rmap_is_arg. }
     iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iNext.
-    iIntros "[
-    (%rcgp & %rcra & %rcs0 & %rcs1
-    & %wca0_ret & %wca1_ret & %rmap_read & %Hdom_rmap_read
-    & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & %Hrestored & HKVS_read_post)
-    |
-    (%rmap_read & %stk_mem' & %rcgp & %rcra & %rcs0 & %rcs1 & %Hdom_rmap_read & Hna
-    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
-    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag & %Hrestored & HKVS_read_pre)
-    ]"
-    ; iEval (cbn) in "HPC"
+    iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.
     {
       destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
@@ -866,7 +846,7 @@ Section KVS_Main_Blocks.
           /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs1.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
-    iDestruct "HKVS_read_post"
+    iDestruct "HQ"
       as "(Hstatic_sealed_b & HLUKVS & Hkvs_1 & %Hwca0_ret & %Hwca1_ret)".
     subst wca0_ret wca1_ret.
 

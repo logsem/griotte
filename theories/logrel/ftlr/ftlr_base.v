@@ -53,26 +53,26 @@ Section fundamental.
     → std W !! LNonHeap a = Some ρ
     → ρ ≠ Revoked
     → Pinstr
-    -> ftlr_IH
-    -∗ interp W C (WCap true p g b e a)
-    -∗ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v)
-    -∗ rel C (LNonHeap a) p' (safeC P)
-    -∗ □ (if decide (readAllowed_a_in_lregs regs a)
-            then ▷ (rcond P C p' interp)
-            else emp)
-    -∗ □ (if decide (writeAllowed_a_in_lregs regs a)
-          then ▷ wcond P C interp
-          else emp)
-    -∗ monoReq W C a p' P
-    -∗ ▷ WorldRes W C a p' (safeC P) w ρ
-    -∗ interp_continuation cstk Ws Cs
-    -∗ ⌜frame_match Ws Cs cstk W C⌝
-    -∗ world_interp_open W C [LNonHeap a]
-    -∗ na_own cerise_nais ⊤
-    -∗ cstack_frag cstk
-    -∗ sts_state_std C (LNonHeap a) ρ
-    -∗ PC ↦ₚ (WCap true p g b e a)
-    -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y)
+    -> ("#IH" ∷ ftlr_IH ∗
+        "#Hinv_interp" ∷ interp W C (WCap true p g b e a) ∗
+        "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
+        "#Hinva" ∷ rel C (LNonHeap a) p' (safeC P) ∗
+        "#Hrcond" ∷ □ (if decide (readAllowed_a_in_lregs regs a)
+                       then ▷ (rcond P C p' interp)
+                       else emp) ∗
+        "#Hwcond" ∷ □ (if decide (writeAllowed_a_in_lregs regs a)
+                       then ▷ wcond P C interp
+                       else emp) ∗
+        "#Hmono" ∷ monoReq W C a p' P ∗
+        "WorldRes" ∷ ▷ WorldRes W C a p' (safeC P) w ρ ∗
+        "Hcont" ∷ interp_continuation cstk Ws Cs ∗
+        "%Hframe" ∷ ⌜frame_match Ws Cs cstk W C⌝ ∗
+        "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
+        "Hown" ∷ na_own cerise_nais ⊤ ∗
+        "Htframe" ∷ cstack_frag cstk ∗
+        "Hstate" ∷ sts_state_std C (LNonHeap a) ρ ∗
+        "HPC" ∷ PC ↦ₚ (WCap true p g b e a) ∗
+        "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
     -∗ WP Instr Executable
         {{ v, WP Seq (griotte_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝

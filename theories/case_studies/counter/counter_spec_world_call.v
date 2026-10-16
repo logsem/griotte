@@ -54,7 +54,7 @@ Section Counter_World_Call.
       rewrite elem_of_dom. exists Temporary. destruct Hl_unk as [_ Htemp].
       apply Htemp. apply elem_of_app. by left. }
     iEval (rewrite world_interp_eq /world_interp_def) in "Hworld_interp_C".
-    iDestruct "Hworld_interp_C" as "(Hr & Hsts & Hseals)".
+    iNamed "Hworld_interp_C".
     iDestruct (region_addrs_status_some (revoke W0) C l Hdom_l with "Hr") as "[Hr %Hstatuses_l]".
     rewrite revoke_heap in Hstatuses_l.
     destruct (heap_status_partition (heap_std W0) l Hstatuses_l)

@@ -4,7 +4,7 @@ From iris.proofmode Require Import proofmode.
 From griotte.program_logic Require Export allocator_resources.
 From griotte.allocators.common Require Export allocator_common_preamble.
 From griotte.allocators.ownership Require Export allocator allocator_owners.
-From griotte Require Import memory_region region_keys.
+From griotte Require Import memory_region region_keys named_props_extra.
 
 (** The resources of the allocator service that are specific to this
     allocator. The shared ones are in [allocator_common_preamble]. *)
@@ -165,14 +165,14 @@ Section AllocatorService.
   Definition allocator_service_data (next : Addr) : iProp Σ :=
     (∃ (allocations : list allocator_header_entry) (live issued : gset AId)
        (Cs : gmap Addr (AddrClaim * AllocStatus * bool)),
-     ⌜(heap_b < next /\ next <= heap_e)%a⌝ ∗ (* Bump bounds. *)
-     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗ (* Bump slot. *)
-     allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Physical header chain. *)
-     ⌜allocator_entries_wf allocations⌝ ∗ (* Reserved word 0, distinct identifiers. *)
-     ⌜allocator_cells_wf next allocations live issued Cs⌝ ∗ (* Cursor and claim clauses. *)
-     allocator_entries_res live allocations ∗ (* Identifiers and status tokens. *)
-     allocator_service_owners allocations ∗ (* Owner map. *)
-     allocator_cells Cs)%I. (* Claims, shadow entries and memory of the heap cells. *)
+     "%Hnext" ∷ ⌜(heap_b < next /\ next <= heap_e)%a⌝ ∗ (* Bump bounds. *)
+     "Hslot" ∷ allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗ (* Bump slot. *)
+     "Hheaders" ∷ allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Physical header chain. *)
+     "%Hwf" ∷ ⌜allocator_entries_wf allocations⌝ ∗ (* Reserved word 0, distinct identifiers. *)
+     "%Hcwf" ∷ ⌜allocator_cells_wf next allocations live issued Cs⌝ ∗ (* Cursor and claim clauses. *)
+     "Htoks" ∷ allocator_entries_res live allocations ∗ (* Identifiers and status tokens. *)
+     "Howners" ∷ allocator_service_owners allocations ∗ (* Owner map. *)
+     "Hcells" ∷ allocator_cells Cs)%I. (* Claims, shadow entries and memory of the heap cells. *)
 
   Definition allocator_service_inv : iProp Σ :=
     ∃ next : Addr, allocator_service_data next.

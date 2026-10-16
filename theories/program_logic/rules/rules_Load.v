@@ -279,7 +279,7 @@ Section griotte_lang_rules.
     iApply wp_lift_atomic_base_step_no_fork; auto.
     iIntros (σ1 ns l1 l2 nt) "Hσ /=".
     destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
-    iDestruct "Hσ" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iNamed "Hσ".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     pose proof (erasure_pc_correct _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
     iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
@@ -1107,9 +1107,8 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hregs Hregs' Hpc_a' Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs' Hsrc) as (s0 & Hsrc' & _).
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
     { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
@@ -1182,9 +1181,8 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Hwa Hadd φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hregs Hregs' Hpc_a' Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs' Hsrc) as (s0 & Hsrc' & _).
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     rewrite Hwa /= in Hstep. destruct s0; cbn in Hstep; rewrite ?Hadd /= in Hstep.
     all: assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->] by (by simplify_eq).
@@ -1208,9 +1206,8 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext. iIntros (r sr m st lreg lmem R C c σ' Her Hregs Hregs' Hpc_a' Hstep)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap".
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs' Hsrc) as (s0 & Hsrc' & _).
+    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
     { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.

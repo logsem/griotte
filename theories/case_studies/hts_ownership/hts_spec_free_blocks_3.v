@@ -385,11 +385,7 @@ Section HTS_Spec_Free.
     iSplitR; first (iPureIntro; set_solver+).
     iNext.
     iIntros "[Hcall|Hcall]".
-    - iDestruct "Hcall" as
-        (rcgp rcra rcs0 rcs1 wca0_ret wca1_ret free_rmap_ret
-          Hdom_free_rmap_ret)
-        "(Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-          & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & %Hrestored & Hfree_post)".
+    - iNamed "Hcall".
       destruct Hrestored as (Hgp_free & Hra_free & _ & _).
       apply load_heap_nonheap in Hgp_free.
       2: { destruct Hcgp_heap as [Hcgp_nonheap _].
@@ -400,18 +396,14 @@ Section HTS_Spec_Free.
              Hpc_nonheap /=. reflexivity. }
       subst rcgp rcra.
       iEval (cbn) in "HPC".
-      iEval (rewrite /hts_free_result /allocator_free_result) in "Hfree_post".
-      iDestruct "Hfree_post" as
+      iEval (rewrite /hts_free_result /allocator_free_result) in "HQ".
+      iDestruct "HQ" as
         "(#Hquar & _ & Howner_word & %Hfree_values)".
       destruct Hfree_values as [-> ->].
       iApply "Hcontinue".
       iRight. iExists ι, b, Wret.
       iFrame "∗#%".
-    - iDestruct "Hcall" as
-        (free_rmap_exhaust stk_mem_exhaust rcgp rcra rcs0 rcs1
-          Hdom_free_rmap_exhaust)
-        "(Hna & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
-          & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & %Hrestored & _)".
+    - iNamed "Hcall".
       destruct Hrestored as (_ & Hra_free & _ & _).
       apply load_heap_nonheap in Hra_free.
       2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=

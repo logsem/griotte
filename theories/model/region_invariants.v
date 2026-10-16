@@ -73,11 +73,11 @@ Section standard_world_interp.
                     ∗ heap_key_resource (heap_std W) k (region_std_interp W C k p φ ρ))%I.
 
   Definition region_def (W : WORLD) (C : CmptName) : iProp Σ :=
-    (∃ (M : relT) (Mρ: gmap LAddr region_type),
-        RELS C M
-        ∗ ⌜dom (std W) = dom M⌝
-        ∗ ⌜dom Mρ = dom M⌝
-        ∗ region_map_def W C M Mρ)%I.
+    (∃ (M : relT) (Mρ : gmap LAddr region_type),
+        "HM" ∷ RELS C M ∗
+        "%Hdom" ∷ ⌜dom (std W) = dom M⌝ ∗
+        "%Hdomρ" ∷ ⌜dom Mρ = dom M⌝ ∗
+        "Hmap" ∷ region_map_def W C M Mρ)%I.
   #[local] Definition region_aux : seal (@region_def). Proof. by eexists. Qed.
   Definition region := region_aux.(unseal).
   Definition region_eq : @region = @region_def := region_aux.(seal_eq).
@@ -90,8 +90,8 @@ Section standard_world_interp.
   Proof.
     iIntros (Hlookup) "[Hr Hsts]".
     rewrite region_eq /region_def.
-    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
-    iDestruct "Hr" as "[%Hcovered Hr]".
+    iNamed "Hr".
+    iDestruct "Hmap" as "[%Hcovered Hr]".
     iDestruct "Hr" as "[Hheap Hr]".
     assert (is_Some (M !! a)) as [ [γ p] Hγp].
     { apply elem_of_dom.
@@ -120,7 +120,7 @@ Section standard_world_interp.
   Proof.
     iIntros (Hlookup) "[Hr Hsts]".
     rewrite region_eq /region_def.
-    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
+    iNamed "Hr".
     rewrite /region_map_def.
     iDestruct "Hmap" as "(%Hcovered & Hheap & Hentries)".
     assert (is_Some (M !! a)) as [γp Hγp].
@@ -186,8 +186,8 @@ Section standard_world_interp.
     region W C
     -∗ region W' C.
   Proof.
-    iIntros (Hdomeq Hrelated Hheap) "HW". rewrite region_eq.
-    iDestruct "HW" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)"; simplify_map_eq.
+    rewrite region_eq /region_def.
+    iIntros (Hdomeq Hrelated Hheap) "@"; simplify_map_eq.
     iExists M, Mρ. iFrame "HM".
     iSplitR.
     { iPureIntro. rewrite -Hdomeq Hdom; done. }
@@ -203,11 +203,11 @@ Section standard_world_interp.
   (* ----------------------------------------------------------------------------------------------- *)
 
   Definition open_region_def (W : WORLD) (C : CmptName) (a : LAddr) : iProp Σ :=
-    (∃ (M : relT) (Mρ: gmap LAddr region_type),
-        RELS C M
-        ∗ ⌜dom (std W) = dom M⌝
-        ∗ ⌜dom Mρ = dom M⌝
-        ∗ region_map_def W C (delete a M) (delete a Mρ))%I.
+    (∃ (M : relT) (Mρ : gmap LAddr region_type),
+        "HM" ∷ RELS C M ∗
+        "%Hdom" ∷ ⌜dom (std W) = dom M⌝ ∗
+        "%Hdomρ" ∷ ⌜dom Mρ = dom M⌝ ∗
+        "Hmap" ∷ region_map_def W C (delete a M) (delete a Mρ))%I.
   #[local] Definition open_region_aux : seal (@open_region_def). Proof. by eexists. Qed.
   Definition open_region := open_region_aux.(unseal).
 
@@ -267,11 +267,11 @@ Section standard_world_interp.
   (* ---------------------------------------------------------------------------------------- *)
 
   Definition open_region_many_def  (W : WORLD) (C : CmptName) (l : list LAddr) : iProp Σ :=
-    (∃ (M : relT) (Mρ: gmap LAddr region_type),
-        RELS C M
-        ∗ ⌜dom (std W) = dom M⌝
-        ∗ ⌜dom Mρ = dom M⌝
-        ∗ region_map_def W C (delete_list l M) (delete_list l Mρ))%I.
+    (∃ (M : relT) (Mρ : gmap LAddr region_type),
+        "HM" ∷ RELS C M ∗
+        "%Hdom" ∷ ⌜dom (std W) = dom M⌝ ∗
+        "%Hdomρ" ∷ ⌜dom Mρ = dom M⌝ ∗
+        "Hmap" ∷ region_map_def W C (delete_list l M) (delete_list l Mρ))%I.
   #[local] Definition open_region_many_aux : seal (@open_region_many_def). Proof. by eexists. Qed.
   Definition open_region_many := open_region_many_aux.(unseal).
   Definition open_region_many_eq : @open_region_many = @open_region_many_def := open_region_many_aux.(seal_eq).
@@ -281,7 +281,7 @@ Section standard_world_interp.
   Proof.
     intros Hperm.
     rewrite open_region_many_eq /open_region_many_def.
-    iIntros "H". iDestruct "H" as (? ?) "(? & % & ?)".
+    iIntros "@".
     rewrite !(delete_list_permutation l1 l2); try done.
     iExists _,_. iFrame. eauto.
   Qed.
@@ -294,8 +294,8 @@ Section standard_world_interp.
   Proof.
     iIntros (Hdomeq Hrelated Hheap) "HW".
     rewrite open_region_many_eq /open_region_many_def.
-    iDestruct "HW" as (M Mρ) "(Hm & %Hdom & %Hdomρ & Hmap)" ; simplify_eq.
-    iExists M, Mρ. iFrame "Hm".
+    iNamed "HW"; simplify_eq.
+    iExists M, Mρ. iFrame "HM".
     iSplitR; first (iPureIntro; congruence).
     iSplitR; first done.
     iAssert (⌜heap_keys_known (heap_std W) (dom (std W))⌝)%I as %Hknown.
@@ -309,7 +309,7 @@ Section standard_world_interp.
     open_region_many W C l -∗ ⌜heap_keys_known (heap_std W) (dom (std W))⌝.
   Proof.
     rewrite open_region_many_eq /open_region_many_def.
-    iIntros "H". iDestruct "H" as (M Mρ) "(_ & _ & _ & % & _)". done.
+    iIntros "@". iDestruct "Hmap" as "[% _]". done.
   Qed.
 
   Lemma region_open_nil W C :
@@ -340,8 +340,8 @@ Section standard_world_interp.
     rewrite /open_region_many_def /region_map_def /=.
     rewrite rel_eq /rel_def /rel_def /region_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
-    iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
-    iDestruct "Hpreds" as "[%Hknown Hpreds]".
+    iNamed "Hopen"; simplify_eq.
+    iDestruct "Hmap" as "[%Hknown Hpreds]".
     iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
@@ -388,8 +388,8 @@ Section standard_world_interp.
     rewrite /open_region_many_def /region_map_def /=.
     rewrite rel_eq /rel_def /rel_def /region_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
-    iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
-    iDestruct "Hpreds" as "[%Hknown Hpreds]".
+    iNamed "Hopen"; simplify_eq.
+    iDestruct "Hmap" as "[%Hknown Hpreds]".
     iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
@@ -439,8 +439,8 @@ Section standard_world_interp.
     rewrite /open_region_many_def /= /region_map_def.
     rewrite rel_eq /rel_def /rel_def /region_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
-    iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
-    iDestruct "Hpreds" as "[%Hknown Hpreds]".
+    iNamed "Hopen"; simplify_eq.
+    iDestruct "Hmap" as "[%Hknown Hpreds]".
     iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
@@ -486,8 +486,8 @@ Section standard_world_interp.
     iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
-    iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
-    iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hpreds") as "Hpreds".
+    iNamed "Hreg_open".
+    iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hmap") as "Hpreds".
     iDestruct "Hpreds" as "[%Hknown Hpreds]".
     iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
@@ -526,8 +526,8 @@ Section standard_world_interp.
     iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
-    iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
-    iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hpreds") as "Hpreds".
+    iNamed "Hreg_open".
+    iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hmap") as "Hpreds".
     iDestruct "Hpreds" as "[%Hknown Hpreds]".
     iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
@@ -565,8 +565,8 @@ Section standard_world_interp.
     iIntros (Hnin) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
-    iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
-    iDestruct (region_map_insert _ _ _ _ _ Permanent with "Hpreds") as "Hpreds".
+    iNamed "Hreg_open".
+    iDestruct (region_map_insert _ _ _ _ _ Permanent with "Hmap") as "Hpreds".
     iDestruct "Hpreds" as "[%Hknown Hpreds]".
     iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
@@ -812,8 +812,8 @@ Section standard_world_interp.
     rewrite open_region_many_eq /open_region_many_def /= /region_map_def.
     rewrite rel_eq /rel_def.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
-    iDestruct "Hopen" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hpreds)".
-    iDestruct "Hpreds" as "[%Hknown Hpreds]".
+    iNamed "Hopen".
+    iDestruct "Hmap" as "[%Hknown Hpreds]".
     iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct (reg_in with "[$HM $Hγpred]") as %HMeq.
     rewrite HMeq delete_list_insert; auto.
@@ -847,8 +847,8 @@ Section standard_world_interp.
     rewrite open_region_many_eq /open_region_many_def.
     rewrite rel_eq /rel_def.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hsaved]".
-    iDestruct "Hopen" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hpreds)".
-    iDestruct (region_map_insert _ _ _ _ _ ρ with "Hpreds") as "Hpreds".
+    iNamed "Hopen".
+    iDestruct (region_map_insert _ _ _ _ _ ρ with "Hmap") as "Hpreds".
     iDestruct "Hpreds" as "[%Hknown Hpreds]".
     iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.

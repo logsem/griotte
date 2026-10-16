@@ -26,8 +26,7 @@ Section rules_registry.
          gen_heap_interp (shadowtbl σ) ∗ reg_auth R' ∗ addr_alloc_auth C' ∗ Q) →
     cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q.
   Proof.
-    iIntros (Hupd) "Hσ HP".
-    iDestruct "Hσ" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iIntros (Hupd) "@ HP".
     iMod (Hupd with "[//] Hr Hsr Hm Hst HR HC HP")
       as (R' C' Her') "(Hr & Hsr & Hm & Hst & HR & HC & HQ)".
     iModIntro. iFrame "HQ". iExists lpc, lreg, lmem, R', C'. by iFrame.
@@ -46,8 +45,7 @@ Section rules_registry.
          gen_heap_interp (shadowtbl σ) ∗ reg_auth R' ∗ addr_alloc_auth C' ∗ Q) →
     cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q.
   Proof.
-    iIntros (Hupd) "Hσ HP".
-    iDestruct "Hσ" as (lpc lreg lmem R C) "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iIntros (Hupd) "@ HP".
     iMod (Hupd with "[//] HPCa Hr Hsr Hm Hst HR HC HP")
       as (R' C' Her') "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & HQ)".
     iModIntro. iFrame "HQ". iExists lpc, lreg, lmem, R', C'. by iFrame.

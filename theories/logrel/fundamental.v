@@ -185,11 +185,9 @@ Section fundamental.
     ; [apply heap_key_live_nonheap | destruct ρ; auto; contradiction | exact Hρ |].
 
     iApply (wp_bind (fill [SeqCtx])).
-    iApply (ftlr_instr_dispatch with
-             "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-             [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
-             [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
-             [$Hstate] [$HPC] [Hmreg]")
+    iApply (ftlr_instr_dispatch W C regs p p'' g b e a w ρ P'' cstk Ws Cs with
+             "[$IH $Hinv_interp $Hreg $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
+               $Hcont $Hworld_interp $Hown $Hframe $Hstate $HPC $Hmreg //]")
     ; [| eauto..].
     (* proof by cases on each instruction *)
     intros i; destruct i.

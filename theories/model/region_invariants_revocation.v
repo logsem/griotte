@@ -32,10 +32,10 @@ Section region_invariant_revocation.
   Proof.
     iIntros (Hι Hstatus Hrev) "Hsts Hreg #Hrel".
     rewrite region_eq /region_def.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
-    iDestruct "Hpreds" as "[%Hknown [Hheapfrag Hpreds]]".
+    iNamed "Hreg"; simplify_eq.
+    iDestruct "Hmap" as "[%Hknown [Hheapfrag Hpreds]]".
     rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
-    iDestruct ( (reg_in C M) with "[$HREL $Hγrel]") as %HMeq;eauto.
+    iDestruct ( (reg_in C M) with "[$HREL $HM]") as %HMeq;eauto.
     rewrite /region_map_def HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
     iDestruct "Hpreds" as "[Hl' Hr]".
     iDestruct "Hl'" as (ρ Hl) "[Hstate Hresources]".
@@ -71,7 +71,7 @@ Section region_invariant_revocation.
     apply insert_id in Hl; rewrite -Hl.
     split.
     - repeat rewrite dom_insert_L;rewrite Hdom;set_solver.
-    - repeat rewrite insert_insert_eq dom_insert_L;rewrite Hdom';set_solver.
+    - repeat rewrite insert_insert_eq dom_insert_L;rewrite Hdomρ;set_solver.
   Qed.
 
   Lemma update_region_revoked_temp_pwl_updated E W C k p v φ `{∀ Wv, Persistent (φ Wv)}  :
@@ -96,10 +96,10 @@ Section region_invariant_revocation.
     intro.
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
     rewrite region_eq /region_def.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
-    iDestruct "Hpreds" as "[%Hknown [Hheapfrag Hpreds]]".
+    iNamed "Hreg"; simplify_eq.
+    iDestruct "Hmap" as "[%Hknown [Hheapfrag Hpreds]]".
     rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
-    iDestruct ( (reg_in C M) with "[$HREL $Hγrel]") as %HMeq;eauto.
+    iDestruct ( (reg_in C M) with "[$HREL $HM]") as %HMeq;eauto.
     rewrite /region_map_def HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
     iDestruct "Hpreds" as "[Hl' Hr]".
     iDestruct "Hl'" as (ρ Hl) "[Hstate Hresources]".
@@ -134,7 +134,7 @@ Section region_invariant_revocation.
     apply insert_id in Hl; rewrite -Hl.
     split.
     - repeat rewrite dom_insert_L;rewrite Hdom;set_solver.
-    - repeat rewrite insert_insert_eq dom_insert_L;rewrite Hdom';set_solver.
+    - repeat rewrite insert_insert_eq dom_insert_L;rewrite Hdomρ;set_solver.
   Qed.
 
   Lemma update_region_revoked_temp_pwl E W C k p v φ `{∀ Wv, Persistent (φ Wv)}  :
@@ -267,9 +267,8 @@ Section region_invariant_revocation.
         rewrite /revoke_list /= /=.
         rewrite Htemp.
         rewrite rel_eq /rel_def.
-        iDestruct "Hr" as (M Mρ) "(HM & % & #Hdom & Hpreds)".
-        iDestruct "Hpreds" as "[%Hknown [Hheapfrag Hpreds]]".
-        iDestruct "Hdom" as %Hdom.
+        iNamed "Hr".
+        iDestruct "Hmap" as "[%Hknown [Hheapfrag Hpreds]]".
         iDestruct "Hx" as (p' φ' Hpers) "Hx".
         iDestruct "Hx" as (γpred) "#(Hγpred & Hφ)".
         iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq; auto.
@@ -298,8 +297,8 @@ Section region_invariant_revocation.
         ++ iFrame "%".
            iPureIntro. rewrite dom_insert_L.
            assert (x ∈ dom M) as Hin.
-           { rewrite -Hdom. apply elem_of_dom. eauto. }
-           revert Hin Hdom. clear; intros Hin Hdom. rewrite Hdom. set_solver.
+           { rewrite -Hdomρ. apply elem_of_dom. eauto. }
+           revert Hin Hdomρ. clear; intros Hin Hdomρ. rewrite Hdomρ. set_solver.
         ++ iSplitR;auto.
            iDestruct "Ha" as (γpred0 p0 φ0 Heq0 Hpers0) "(#Hsaved & Ha)".
            iDestruct (heap_key_resource_live_elim _ _ _ Hlive_x with "Ha") as "Ha".
@@ -319,9 +318,9 @@ Section region_invariant_revocation.
         apply submseteq_cons_r in Hsub as [Hsub | [l'' [Hcontr _] ] ].
         2: { exfalso. apply n. rewrite Hcontr. apply list_elem_of_here. }
         iMod ("IH" with "[] [] [] [] [$Hrel $Hfull $Hr]") as "(Hfull & Hr & Hl)"; auto.
-        iDestruct "Hr" as (M Mρ) "(HM & #Hdom & #Hdom' & Hr)".
-        iDestruct "Hr" as "[%Hknown [Hheapfrag Hr]]".
-        iDestruct "Hdom" as %Hdom. iDestruct "Hdom'" as %Hdom'. iClear "IH".
+        iNamed "Hr".
+        iDestruct "Hmap" as "[%Hknown [Hheapfrag Hr]]".
+        iClear "IH".
         rewrite /revoke_list /=. destruct W as [ [ [ Wstd_sta Wloc] Wseals] W_heap ].
         destruct (Wstd_sta !! x) eqn:Hsome.
         2: { iFrame. iModIntro. rewrite Hsome. iFrame. iFrame. auto. }
@@ -352,8 +351,8 @@ Section region_invariant_revocation.
         iFrame "%".
         iPureIntro. rewrite dom_insert_L.
         assert (x ∈ dom M) as Hin.
-        { rewrite -Hdom'. apply elem_of_dom. eauto. }
-        revert Hin Hdom'. clear; intros Hin Hdom. rewrite Hdom. set_solver.
+        { rewrite -Hdomρ. apply elem_of_dom. eauto. }
+        revert Hin Hdomρ. clear; intros Hin Hdom. rewrite Hdom. set_solver.
   Qed.
 
   Lemma monotone_revoke_sts_full_world_keep W C (l : list LAddr)
@@ -414,8 +413,8 @@ Section region_invariant_revocation.
       iPureIntro. apply Forall_lookup. done. }
     iMod (monotone_revoke_sts_full_world_keep with "[] [$HW $Hr $Hl]") as "(HW & Hr & Hl)"; eauto.
     rewrite region_eq /region_def.
-    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & % & Hpreds)".
-    iDestruct (monotone_revoke_region_def with "[] [$HW] [$Hpreds]") as "[Hpreds HW]"; auto.
+    iNamed "Hr".
+    iDestruct (monotone_revoke_region_def with "[] [$HW] [$Hmap]") as "[Hpreds HW]"; auto.
     iModIntro. iFrame. iSplitR.
     - iPureIntro.
       rewrite /revoke in Hdom |- *.
@@ -445,7 +444,7 @@ Section region_invariant_revocation.
     region W C ∗ ⌜a ∈ dom (std W)⌝.
   Proof.
     rewrite region_eq /region_def rel_eq /rel_def.
-    iIntros "(%M & %Mρ & HM & %Hdom & %Hdomρ & Hr) (%γ & #Hrel & _)".
+    iIntros "@ (%γ & #Hrel & _)".
     iDestruct (reg_in C M a γ p with "[$HM $Hrel]") as %HMeq.
     iSplitL; first by iExists M, Mρ; iFrame "%∗".
     iPureIntro. rewrite Hdom HMeq dom_insert_L. set_solver.
@@ -496,8 +495,8 @@ Section region_invariant_revocation.
         assert (x ∈ l) as Hinl.
         { apply elem_of_submseteq with (x:=x) in Hsub;[auto|apply elem_of_cons;by left]. }
         rewrite region_eq /region_def /region_map_def.
-        iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
-        iDestruct "Hr" as "[%Hknown [Hheapfrag Hr]]".
+        iNamed "Hr".
+        iDestruct "Hmap" as "[%Hknown [Hheapfrag Hr]]".
         rewrite rel_eq /rel_def.
         iDestruct "Hrel" as (γpred) "#[Hrel Hsaved]".
         iDestruct (reg_in C M x γpred p with "[$HM $Hrel]") as %HMeq. rewrite HMeq.
@@ -522,7 +521,7 @@ Section region_invariant_revocation.
         iFrame.
         iModIntro.
         repeat (iSplit; auto).
-        iPureIntro. rewrite dom_insert_L. rewrite -Hdom'.
+        iPureIntro. rewrite dom_insert_L. rewrite -Hdomρ.
         assert (x ∈ dom  Mρ);[apply elem_of_dom;eauto|]. set_solver.
       + iFrame; done.
   Qed.
@@ -680,7 +679,7 @@ Section region_invariant_revocation.
     intros Hrevoked Hstd Hrelated.
     iIntros "Hsts Hreg".
     rewrite region_eq /region_def.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
+    iNamed "Hreg"; simplify_eq.
     iDestruct (monotone_revoke_region_def_update_loc _ _ _ _ _ Hheap with "[] [] [] [] [$] [$]") as "[Hsts Hpreds]"; eauto.
     rewrite Hstd in Hdom.
     iFrame; eauto.
@@ -710,9 +709,9 @@ Section region_invariant_revocation.
      intros Hlive.
      iIntros (Hstd_a) "(Hregion & Hworld & Ha)".
      rewrite region_eq /region_def.
-     iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
+     iNamed "Hregion".
      rewrite /region_map_def.
-     iDestruct "Hr" as "[%Hknown [Hheapfrag Hr]]".
+     iDestruct "Hmap" as "[%Hknown [Hheapfrag Hr]]".
      assert (is_Some (M !! a)) as [ [γ p] Hγp].
      { apply elem_of_dom. rewrite -Hdom. auto. }
      iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].

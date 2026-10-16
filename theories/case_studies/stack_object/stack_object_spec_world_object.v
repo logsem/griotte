@@ -74,7 +74,7 @@ Section SO_World_List.
   Proof.
     intros la Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (????) "(Hrels & [Hr [Hsts Hseals] ])".
+    iIntros (????) "(Hrels & @)".
     iDestruct (region_open_list W C' l l' with "[$Hrels $Hr $Hsts]") as
       "(% & $ & $ & $ & $ & $ & $ & $)"; auto.
   Qed.
