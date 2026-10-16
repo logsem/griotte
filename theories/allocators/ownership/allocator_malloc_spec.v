@@ -187,8 +187,7 @@ Section AllocatorMalloc.
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">Hdata".
     iDestruct "Hstatic" as "[#Himports #Hcode]".
-    iDestruct "Hdata" as (next allocations live issued Cs)
-      "(%Hnext & Hslot & Hheaders & %Hwf & %Hcwf & Htoks & Howners & Hcells)".
+    iNamed "Hdata".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
     iEval (rewrite /allocator_code allocator_code_b_malloc) in "Hcode".
     focus_block_0 "Hcode" as "Hmalloc_code" "Hcode_cont".

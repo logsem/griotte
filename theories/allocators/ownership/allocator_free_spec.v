@@ -95,8 +95,7 @@ Section AllocatorFree.
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">Hdata".
     iDestruct "Hstatic" as "[#Himports #Hcode]".
-    iDestruct "Hdata" as (next allocations live issued Cs)
-      "(%Hnext & Hslot & Hheaders & %Hwf & %Hcwf & Htoks & Howners & Hcells)".
+    iNamed "Hdata".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
     iEval (rewrite /allocator_code) in "Hcode".
     focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfree_code" "Hcode_cont".
@@ -541,8 +540,7 @@ Section AllocatorFree.
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">Hdata".
     iDestruct "Hstatic" as "[#Himports #Hcode]".
-    iDestruct "Hdata" as (next allocations live issued Cs)
-      "(%Hnext & Hslot & Hheaders & %Hwf & %Hcwf & Htoks & Howners & Hcells)".
+    iNamed "Hdata".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
     (* Observe [ca1]: its bounds are those of the entry of [ι], which records
        the owner [id]; rebuild the whole status token of [ι]. *)
