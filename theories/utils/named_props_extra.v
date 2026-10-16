@@ -1,6 +1,10 @@
 From iris.proofmode Require Import proofmode ltac_tactics.
 From griotte Require Export named_props.
 
+(** Named conjuncts print as their proposition: the names matter only to
+    [iNamed], so goals show [P ∗ Q] instead of ["HP" ∷ P ∗ "HQ" ∷ Q]. *)
+Notation "P" := (named _ P) (at level 79, P at level 79, only printing).
+
 (** Opens the hypothesis [H] with the lemma [lem] (whose conclusion is under a
     modality that [iMod] eliminates, such as [◇]), then names its conjuncts with
     [iNamed]. *)
