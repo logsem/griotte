@@ -523,8 +523,7 @@ Proof.
   iExists (fun _ => True)%I. cbn. iFrame "Hσ".
   iSplitL "Hwp".
   { iApply (wp_mono with "Hwp"); iIntros (?) "?"; done. }
-  iIntros "Hσ".
-  iNamed "Hσ".
+  iIntrosNamed.
   iExists (⊤ ∖ ↑flagN).
   iInv flagN as ">Hflag'" "Hclose".
   iDestruct (gen_heap_valid with "Hm Hflag'") as %Hm'_flag.

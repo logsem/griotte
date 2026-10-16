@@ -4,7 +4,7 @@ From iris.proofmode Require Import proofmode.
 From griotte.program_logic Require Export allocator_resources.
 From griotte.allocators.common Require Export allocator_common_preamble.
 From griotte.allocators.ownership Require Export allocator allocator_owners.
-From griotte Require Import memory_region region_keys named_props.
+From griotte Require Import memory_region region_keys named_props_extra.
 
 (** The resources of the allocator service that are specific to this
     allocator. The shared ones are in [allocator_common_preamble]. *)

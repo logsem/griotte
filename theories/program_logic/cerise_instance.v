@@ -4,7 +4,7 @@ From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import excl_auth.
 From griotte Require Import griotte_lang entry.
 From griotte Require Export logical_words alloc_registry erasure.
-From griotte Require Import named_props.
+From griotte Require Import named_props_extra.
 
 
 

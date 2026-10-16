@@ -52,7 +52,7 @@ Section fundamental.
       ) cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "Hpre"; iNamed "Hpre".
+    iIntrosNamed.
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 

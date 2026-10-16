@@ -5,7 +5,7 @@ From griotte Require Import classes tactics_helpers proofmode_instr_support
   proofmode_instr_rules.
 From griotte Require Export class_instances solve_pure solve_addr_extra.
 From iris.proofmode Require Import proofmode spec_patterns coq_tactics ltac_tactics reduction.
-From griotte Require Export named_props.
+From griotte Require Export named_props_extra.
 From machine_utils Require Export tactics.
 From iris.bi Require Import bi.
 Import bi.
@@ -641,12 +641,6 @@ Ltac iNamedIntro :=
   let x := iFresh in
   iIntros x; iNamed x.
 Ltac2 iNamedIntro () := ltac1:(iNamedIntro).
-
-(** Opens the hypothesis [H] with the lemma [lem] (whose conclusion is under a
-    modality that [iMod] eliminates, such as [◇]), then names its conjuncts with
-    [iNamed]. *)
-Tactic Notation "iModNamed" open_constr(lem) constr(H) :=
-  iMod (lem with H) as H; iNamed H.
 
 Ltac2 on_lasts tacs :=
   Control.extend [] (fun _ => ()) tacs.

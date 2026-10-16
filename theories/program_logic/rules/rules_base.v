@@ -4,7 +4,7 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth gmap.
 From griotte Require Export iris_extra stdpp_extra griotte_lang.
 From griotte Require Export machine_base cerise_instance register_file machine_instructions.
-From griotte Require Export named_props.
+From griotte Require Export named_props_extra.
 
 (* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
 
@@ -526,7 +526,7 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
+    iNext; iIntrosNamed (r sr m st lreg lmem R C c σ').
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
     iModIntro. iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
     iExists _, lreg, lmem, R, C. by iFrame.
@@ -543,7 +543,7 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
+    iNext; iIntrosNamed (r sr m st lreg lmem R C c σ').
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
     iModIntro. iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
     iExists _, lreg, lmem, R, C. by iFrame.
@@ -1167,7 +1167,7 @@ Section instruction_outcomes.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "Hσ"; iNamed "Hσ".
+    iNext; iIntrosNamed (r sr m st lreg lmem R C c σ').
     rewrite Hinstr (Hfailed R r sr m st Hregs) in Hstep. simplify_eq.
     iModIntro. iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
     iExists _, lreg, lmem, R, C. by iFrame.

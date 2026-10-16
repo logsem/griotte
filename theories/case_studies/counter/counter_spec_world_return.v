@@ -189,7 +189,7 @@ Section Counter_World_Return.
       rewrite Hperm_l. apply elem_of_app. left.
       apply elem_of_app. by left. }
     iEval (rewrite world_interp_eq /world_interp_def) in "Hworld_interp_C".
-    iDestruct "Hworld_interp_C" as "(Hr & Hsts & Hseals)".
+    iNamed "Hworld_interp_C".
     iDestruct (region_addrs_status_some W3 C l_live Hdom_live_W3 with "Hr")
       as "[Hr %Hstatuses_live_W3]".
     iAssert (world_interp W3 C) with "[Hr Hsts Hseals]" as "Hworld_interp_C".
