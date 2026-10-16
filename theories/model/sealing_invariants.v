@@ -58,9 +58,9 @@ Section sealing_interp.
                  (∀ w, future_priv_mono C Po w) ∗
                  ( [∗ set] w ∈ normalise_sealed_words ws, ▷ Po (W, C, w) )).
 
-  #[local] Definition sealing_map_aux : { x | x = @sealing_map_def }. by eexists. Qed.
-  Definition sealing_map := proj1_sig sealing_map_aux.
-  #[local] Definition sealing_map_eq : @sealing_map = @sealing_map_def := proj2_sig sealing_map_aux.
+  #[local] Definition sealing_map_aux : seal (@sealing_map_def). Proof. by eexists. Qed.
+  Definition sealing_map := sealing_map_aux.(unseal).
+  #[local] Definition sealing_map_eq : @sealing_map = @sealing_map_def := sealing_map_aux.(seal_eq).
 
   #[local] Lemma sealing_map_def_empty (C : CmptName) : ⊢ (sealing_map_def (∅, (∅,∅), ∅, ∅) C)%I.
   Proof. iStartProof; rewrite /sealing_map_def ; done. Qed.
@@ -405,9 +405,9 @@ Section sealing_interp.
            ∃ Po, seal_pred o Po ∗
                  (∀ w, future_priv_mono C Po w) ∗
                  ( [∗ set] w ∈ (normalise_sealed_words ws), ▷ Po (W, C, w) )).
-  #[local] Definition sealing_map_open_aux : { x | x = @sealing_map_open_def }. by eexists. Qed.
-  Definition sealing_map_open := proj1_sig sealing_map_open_aux.
-  #[local] Definition sealing_map_open_eq : @sealing_map_open = @sealing_map_open_def := proj2_sig sealing_map_open_aux.
+  #[local] Definition sealing_map_open_aux : seal (@sealing_map_open_def). Proof. by eexists. Qed.
+  Definition sealing_map_open := sealing_map_open_aux.(unseal).
+  #[local] Definition sealing_map_open_eq : @sealing_map_open = @sealing_map_open_def := sealing_map_open_aux.(seal_eq).
 
   Definition sealing_map_resource_open (W : WORLD) (C : CmptName) (o : OType) Po ws :=
     ( ∃ (ws' : gset LWord),

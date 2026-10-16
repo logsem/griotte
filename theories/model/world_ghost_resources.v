@@ -45,23 +45,23 @@ Section REL_defs.
 
   Definition REL_def (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) : iProp Σ :=
     own (γrel C) (◯ {[ a := to_agree (γ,p) ]}).
-  Definition REL_aux : { x | x = @REL_def }. by eexists. Qed.
-  Definition REL := proj1_sig REL_aux.
-  Definition REL_eq : @REL = @REL_def := proj2_sig REL_aux.
+  #[local] Definition REL_aux : seal (@REL_def). Proof. by eexists. Qed.
+  Definition REL := REL_aux.(unseal).
+  Definition REL_eq : @REL = @REL_def := REL_aux.(seal_eq).
 
   Definition RELS_def  (C : CmptName) (M : relT) : iProp Σ :=
    own (γrel C) (● (to_agree <$> M : relUR)).
-  Definition RELS_aux : { x | x = @RELS_def }. by eexists. Qed.
-  Definition RELS := proj1_sig RELS_aux.
-  Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
+  #[local] Definition RELS_aux : seal (@RELS_def). Proof. by eexists. Qed.
+  Definition RELS := RELS_aux.(unseal).
+  Definition RELS_eq : @RELS = @RELS_def := RELS_aux.(seal_eq).
 
   Definition rel_def (C : CmptName) (a : LAddr) (p : Perm)
     (φ : (WorldT * CmptName * LWord) -> iProp Σ)
     : iProp Σ :=
     (∃ (γpred : gnameO), REL C a γpred p ∗ saved_pred_own γpred DfracDiscarded φ)%I.
-  Definition rel_aux : { x | x = @rel_def }. by eexists. Qed.
-  Definition rel := proj1_sig rel_aux.
-  Definition rel_eq : @rel = @rel_def := proj2_sig rel_aux.
+  #[local] Definition rel_aux : seal (@rel_def). Proof. by eexists. Qed.
+  Definition rel := rel_aux.(unseal).
+  Definition rel_eq : @rel = @rel_def := rel_aux.(seal_eq).
 End REL_defs.
 
 Section relPre.

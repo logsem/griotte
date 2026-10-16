@@ -44,17 +44,17 @@ Section world_ghost_theory.
       All safety resources of the addresses in the world are owned by the world interpretation. *)
   Definition world_interp_def (W : WORLD) (C : CmptName) : iProp Σ :=
     region W C ∗ sts_full_world W C ∗ sealing_map W C.
-  Definition world_interp_aux : { x | x = @world_interp_def }. by eexists. Qed.
-  Definition world_interp := proj1_sig world_interp_aux.
-  Definition world_interp_eq : @world_interp = @world_interp_def := proj2_sig world_interp_aux.
+  #[local] Definition world_interp_aux : seal (@world_interp_def). Proof. by eexists. Qed.
+  Definition world_interp := world_interp_aux.(unseal).
+  Definition world_interp_eq : @world_interp = @world_interp_def := world_interp_aux.(seal_eq).
 
   (** Definition of [world_interp_open].
       The safety resources of the addresses in [s] are not owned by the world interpretation. *)
   Definition world_interp_open_def (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
     open_region_many W C s ∗ sts_full_world W C ∗ sealing_map W C.
-  Definition world_interp_open_aux : { x | x = @world_interp_open_def }. by eexists. Qed.
-  Definition world_interp_open := proj1_sig world_interp_open_aux.
-  Definition world_interp_open_eq : @world_interp_open = @world_interp_open_def := proj2_sig world_interp_open_aux.
+  #[local] Definition world_interp_open_aux : seal (@world_interp_open_def). Proof. by eexists. Qed.
+  Definition world_interp_open := world_interp_open_aux.(unseal).
+  Definition world_interp_open_eq : @world_interp_open = @world_interp_open_def := world_interp_open_aux.(seal_eq).
 
   Lemma world_interp_open_heap_provenance W C s :
     world_interp_open W C s -∗
@@ -77,9 +77,9 @@ Section world_ghost_theory.
       The sealing resources of the otype [o] are not owned by the world interpretation. *)
   Definition world_interp_sopen_def (W : WORLD) (C : CmptName) (o : OType) : iProp Σ :=
     region W C ∗ sts_full_world W C ∗ sealing_map_open W C o.
-  Definition world_interp_sopen_aux : { x | x = @world_interp_sopen_def }. by eexists. Qed.
-  Definition world_interp_sopen := proj1_sig world_interp_sopen_aux.
-  Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := proj2_sig world_interp_sopen_aux.
+  #[local] Definition world_interp_sopen_aux : seal (@world_interp_sopen_def). Proof. by eexists. Qed.
+  Definition world_interp_sopen := world_interp_sopen_aux.(unseal).
+  Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := world_interp_sopen_aux.(seal_eq).
 
   (** Definition of safety resources *)
   Definition mono_temporary (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) : iProp Σ :=

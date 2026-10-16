@@ -78,9 +78,9 @@ Section standard_world_interp.
         ∗ ⌜dom (std W) = dom M⌝
         ∗ ⌜dom Mρ = dom M⌝
         ∗ region_map_def W C M Mρ)%I.
-  Definition region_aux : { x | x = @region_def }. by eexists. Qed.
-  Definition region := proj1_sig region_aux.
-  Definition region_eq : @region = @region_def := proj2_sig region_aux.
+  #[local] Definition region_aux : seal (@region_def). Proof. by eexists. Qed.
+  Definition region := region_aux.(unseal).
+  Definition region_eq : @region = @region_def := region_aux.(seal_eq).
 
   Lemma region_rel_get (W : WORLD) (C : CmptName) (a : LAddr) :
     (std W) !! a = Some Temporary ->
@@ -208,8 +208,8 @@ Section standard_world_interp.
         ∗ ⌜dom (std W) = dom M⌝
         ∗ ⌜dom Mρ = dom M⌝
         ∗ region_map_def W C (delete a M) (delete a Mρ))%I.
-  Definition open_region_aux : { x | x = @open_region_def }. by eexists. Qed.
-  Definition open_region := proj1_sig open_region_aux.
+  #[local] Definition open_region_aux : seal (@open_region_def). Proof. by eexists. Qed.
+  Definition open_region := open_region_aux.(unseal).
 
   (* ----------------------------------------------------------------------------------------------- *)
   (* ------------------------- LEMMAS FOR OPENING THE REGION MAP ----------------------------------- *)
@@ -272,9 +272,9 @@ Section standard_world_interp.
         ∗ ⌜dom (std W) = dom M⌝
         ∗ ⌜dom Mρ = dom M⌝
         ∗ region_map_def W C (delete_list l M) (delete_list l Mρ))%I.
-  Definition open_region_many_aux : { x | x = @open_region_many_def }. by eexists. Qed.
-  Definition open_region_many := proj1_sig open_region_many_aux.
-  Definition open_region_many_eq : @open_region_many = @open_region_many_def := proj2_sig open_region_many_aux.
+  #[local] Definition open_region_many_aux : seal (@open_region_many_def). Proof. by eexists. Qed.
+  Definition open_region_many := open_region_many_aux.(unseal).
+  Definition open_region_many_eq : @open_region_many = @open_region_many_def := open_region_many_aux.(seal_eq).
 
   Lemma open_region_many_permutation W C l1 l2:
     l1 ≡ₚ l2 → open_region_many W C l1 -∗ open_region_many W C l2.
