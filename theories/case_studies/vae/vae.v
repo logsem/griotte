@@ -2,7 +2,7 @@ From griotte Require Import machine_parameters assembler fetch assert switcher.
 
 Section VAE_Main.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
 
@@ -114,8 +114,8 @@ Section VAE_Main.
     vae_main_instrs_n 10 ++
     vae_main_instrs_n 11.
 
-  Local Close Scope Z_scope.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Close Scope Z_scope.
+  #[local] Coercion Z.of_nat : nat >-> Z.
 
   Definition vae_main_code `{!switcherLayout} : list Word
     := VAE_main_code_init ++ (VAE_main_code_f ot_switcher).
@@ -152,7 +152,7 @@ End VAE_Main.
     away from the program logic's coercions. *)
 Section vae_C_code.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
 
   Definition vae_C_asm : list asm_code :=
     [ #@".Limport_switcher";

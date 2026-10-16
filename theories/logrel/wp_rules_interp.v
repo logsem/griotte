@@ -524,7 +524,7 @@ Section wp_interp.
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ wsealr
-              ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
+              ∗ r2 ↦ᵣ WSealable (unseal_sb gsr wsb) @@? π
               ∗ ⌜ wsealr = WSealRange true psr gsr bsr esr asr @@? πsr ⌝
               ∗ ⌜ permit_unseal psr = true ⌝
               ∗ ⌜ wsealed = WSealed ot wsb @@? π ⌝
@@ -535,7 +535,7 @@ Section wp_interp.
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ wsealr
-              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
+              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
               ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr @@? πsr ⌝
               ∗ ⌜ wsealed = WSealed ot sb @@? π ⌝
               ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
@@ -589,7 +589,7 @@ Section wp_interp.
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
+              ∗ r1 ↦ᵣ WSealable (unseal_sb gsr wsb) @@? π
               ∗ r2 ↦ᵣ wsealed
               ∗ ⌜ wsealr = WSealRange true psr gsr bsr esr asr @@? πsr ⌝
               ∗ ⌜ permit_unseal psr = true ⌝
@@ -600,7 +600,7 @@ Section wp_interp.
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
+              ∗ r1 ↦ᵣ WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
               ∗ r2 ↦ᵣ wsealed
               ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr @@? πsr ⌝
               ∗ ⌜ wsealed = WSealed ot sb @@? π ⌝
@@ -656,7 +656,7 @@ Section wp_interp.
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
-              ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb) @@? π
+              ∗ r2 ↦ᵣ WSealable (unseal_sb gsr wsb) @@? π
               ∗ ⌜ wsealed = WSealed ot wsb @@? π ⌝
               ∗ ⌜ get_tag_sealable wsb = true ⌝
               ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
@@ -665,7 +665,7 @@ Section wp_interp.
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
-              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb)) @@? π
+              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
               ∗ ⌜ wsealed = WSealed ot sb @@? π ⌝
               ∗ ⌜ get_tag_sealable sb && withinBounds bsr esr ot = false ⌝
       }}}.

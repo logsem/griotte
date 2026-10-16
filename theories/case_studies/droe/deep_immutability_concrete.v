@@ -6,13 +6,13 @@ From griotte Require Import
   deep_immutability deep_immutability_adequacy
   disjoint_regions_tactics.
 
-Existing Instance machine_parameters_instance.
+#[export] Existing Instance machine_parameters_instance.
 
-Local Transparent MemNum ONum.
+#[local] Transparent MemNum ONum.
 
-Local Notation "'A' z" :=
+#[local] Notation "'A' z" :=
   (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-Local Notation "'OT' z" :=
+#[local] Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
 Definition droe_main_pcc_b : Addr := A 9.
@@ -145,12 +145,12 @@ Proof.
   - vm_compute; reflexivity.
 Defined.
 
-Local Instance droe_concrete_switcherLayout : switcherLayout.
+#[local] Instance droe_concrete_switcherLayout : switcherLayout.
 Proof.
   exact (cmptSwitcher_switcherLayout droe_concrete_cmptSwitcher).
 Defined.
 
-Local Instance droe_concrete_assertLayout : assertLayout.
+#[local] Instance droe_concrete_assertLayout : assertLayout.
 Proof.
   exact (cmptAssert_assertLayout droe_concrete_cmptAssert).
 Defined.
@@ -276,7 +276,7 @@ Proof.
   disj_regions.
 Qed.
 
-Local Lemma droe_concrete_cmpts_disjoints :
+#[local] Lemma droe_concrete_cmpts_disjoints :
   droe_concrete_main_cmpt ## droe_concrete_C_cmpt.
 Proof.
   change
@@ -298,7 +298,7 @@ Proof.
   solve_addr_partition_disjoint droe_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma droe_concrete_switcher_cmpt_disjoints :
+#[local] Lemma droe_concrete_switcher_cmpt_disjoints :
   switcher_cmpt_disjoint
     droe_concrete_main_cmpt droe_concrete_cmptSwitcher
   ∧ switcher_cmpt_disjoint
@@ -331,7 +331,7 @@ Proof.
   solve_addr_partition_disjoint droe_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma droe_concrete_assert_cmpt_disjoints :
+#[local] Lemma droe_concrete_assert_cmpt_disjoints :
   assert_cmpt_disjoint droe_concrete_main_cmpt droe_concrete_cmptAssert
   ∧ assert_cmpt_disjoint droe_concrete_C_cmpt droe_concrete_cmptAssert.
 Proof.
@@ -362,7 +362,7 @@ Proof.
   solve_addr_partition_disjoint droe_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma droe_concrete_assert_switcher_disjoints :
+#[local] Lemma droe_concrete_assert_switcher_disjoints :
   assert_switcher_disjoint
     droe_concrete_cmptAssert droe_concrete_cmptSwitcher.
 Proof.
@@ -378,7 +378,7 @@ Proof.
   solve_addr_partition_disjoint droe_concrete_region_partition Hpartition.
 Qed.
 
-Global Instance droe_concrete_layout : memory_layout.
+#[global] Instance droe_concrete_layout : memory_layout.
 Proof.
   refine
     (@Build_memory_layout

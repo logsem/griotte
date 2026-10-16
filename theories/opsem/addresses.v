@@ -3,7 +3,7 @@ From machine_utils Require Export finz.
 From stdpp Require Export numbers.
 
 (* No longer a coercion in Coq >= 8.14*)
-Local Coercion Z.of_nat : nat >-> Z.
+#[local] Coercion Z.of_nat : nat >-> Z.
 
 (* We assume a fixed set of memory addresses.
 
@@ -11,7 +11,7 @@ Local Coercion Z.of_nat : nat >-> Z.
    parameter of the machine.
 *)
 Definition MemNum: Z := 2000000.
-Global Opaque MemNum.
+#[global] Opaque MemNum.
 
 (* -------------------------------- Memory addresses -----------------------------------*)
 
@@ -39,6 +39,6 @@ Notation "a1 =? a2" := (eqb_addr a1 a2) : Addr_scope.
 
 Notation addr_incr_eq := (finz_incr_eq).
 
-Global Open Scope general_if_scope.
+#[global] Open Scope general_if_scope.
 
-Global Instance addr_inhabited: Inhabited Addr := populate (@finz.FinZ MemNum 0%Z eq_refl eq_refl).
+#[global] Instance addr_inhabited: Inhabited Addr := populate (@finz.FinZ MemNum 0%Z eq_refl eq_refl).

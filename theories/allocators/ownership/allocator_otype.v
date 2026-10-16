@@ -27,7 +27,7 @@ Section AllocatorOtype.
   Definition allocator_owned_rights (Ω : gset AId) : iProp Σ :=
     [∗ set] ι ∈ Ω, (ι ⊒ AQuar ∨ free_right ι).
 
-  Global Instance allocator_owned_rights_timeless Ω :
+  #[global] Instance allocator_owned_rights_timeless Ω :
     Timeless (allocator_owned_rights Ω).
   Proof. rewrite /allocator_owned_rights. apply _. Qed.
 
@@ -77,7 +77,7 @@ Section AllocatorOtype.
     iIntros (W W' _). iModIntro. iIntros "H". done.
   Qed.
 
-  Global Instance allocator_otype_propC_timeless W C w :
+  #[global] Instance allocator_otype_propC_timeless W C w :
     Timeless (allocator_otype_propC (W, C, w)).
   Proof. rewrite /allocator_otype_propC /= /allocator_otype_inv. apply _. Qed.
 
@@ -121,7 +121,7 @@ Section AllocatorOtype.
     rewrite /is_sealed_with_o Z.eqb_eq in Hsealed.
     assert (ot = AllocOtype) as -> by solve_addr+Hsealed.
     cbn in Htag.
-    iEval (rewrite fixpoint_interp1_eq /= Htag) in "Hinterp".
+    iEval (rewrite interp_unfold /= Htag) in "Hinterp".
     iDestruct "Hinterp" as "[#Hseal _]".
     iAssert (sts_seals_std C AllocOtype {[WSealable sb @@? π]})%I as "#Hseal'".
     { iApply sts_seals_std_weaken; last iFrame "Hseal"; set_solver+. }

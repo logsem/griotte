@@ -15,16 +15,16 @@ From griotte Require Export machine_base machine_parameters griotte_opsem region
 Record LWord := MkLWord { lw : Word; lprov : option AId }.
 Add Printing Constructor LWord.
 
-Global Instance LWord_eq_dec : EqDecision LWord.
+#[global] Instance LWord_eq_dec : EqDecision LWord.
 Proof. solve_decision. Defined.
 
-Global Instance LWord_countable : Countable LWord.
+#[global] Instance LWord_countable : Countable LWord.
 Proof.
   refine (inj_countable' (λ v, (lw v, lprov v)) (λ x, MkLWord x.1 x.2) _).
   by intros [].
 Qed.
 
-Global Instance LWord_inhabited : Inhabited LWord := populate (MkLWord (WInt 0) None).
+#[global] Instance LWord_inhabited : Inhabited LWord := populate (MkLWord (WInt 0) None).
 
 (** Words without identifier, e.g. integers and code. *)
 Definition lword_of_word (w : Word) : LWord := MkLWord w None.
@@ -94,7 +94,7 @@ Definition lseal_capability (v : LWord) (ot : OType) : LWord :=
 (** Unsealing acts on a sealed word only; other words are kept. *)
 Definition lunseal (g : Locality) (v : LWord) : LWord :=
   match v with
-  | MkLWord (WSealed _ sb) π => MkLWord (WSealable (machine_word.unseal g sb)) π
+  | MkLWord (WSealed _ sb) π => MkLWord (WSealable (unseal_sb g sb)) π
   | _ => v
   end.
 
@@ -158,7 +158,7 @@ Proof.
   by rewrite /lstore_word /lift_word /= store_word_canStore.
 Qed.
 
-Global Hint Rewrite lw_lclear_tag lprov_lclear_tag lw_lload_word lprov_lload_word
+#[export] Hint Rewrite lw_lclear_tag lprov_lclear_tag lw_lload_word lprov_lload_word
   lw_lstore_word lprov_lstore_word lw_lupdatePcPerm lprov_lupdatePcPerm
   lw_lborrow lprov_lborrow lw_lforce_global lprov_lforce_global
   lw_lseal_capability lprov_lseal_capability lprov_lunseal : lword.

@@ -19,7 +19,7 @@ Section Heap_Temporal_Safety_Main.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
-  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+  #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   Context {C : CmptName}.
 

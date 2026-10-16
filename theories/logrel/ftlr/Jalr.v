@@ -119,7 +119,7 @@ Section fundamental.
           * iExact "Hinterp_ret'".
       }
       inv Hwsrc.
-      iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
+      iEval (rewrite interp_unfold) in "Hwsrc".
       simpl; rewrite /enter_cond.
       iDestruct "Hwsrc" as "[%Hnonheap #Hinterp_src]".
       iAssert (future_world g0 W W) as "Hfuture".

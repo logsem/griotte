@@ -10,16 +10,18 @@ Definition entryR : cmra :=
 Class entryGpreS Σ := EntryGpreS {
   entryPreG_rel :: inG Σ entryR;
 }.
+#[export] Hint Mode entryGpreS - : typeclass_instances.
 
 Class entryGS Σ := EntryGS {
   entryG_rel :: inG Σ entryR;
   γentry : Word -> gname
 }.
+#[export] Hint Mode entryGS - : typeclass_instances.
 
 Definition entryPreΣ :=
   #[ GFunctor entryR ].
 
-Instance subG_entryPreΣ {Σ} :
+#[export] Instance subG_entryPreΣ {Σ} :
   subG entryPreΣ Σ →
   entryGpreS Σ.
 Proof. solve_inG. Qed.
@@ -29,9 +31,9 @@ Section ENTRY_defs.
 
   Definition ENTRY_def (w : Word) (n : nat) : iProp Σ :=
     own (γentry w) (to_agree n).
-  Definition ENTRY_aux : { x | x = @ENTRY_def }. by eexists. Qed.
-  Definition ENTRY := proj1_sig ENTRY_aux.
-  Definition ENTRY_eq : @ENTRY = @ENTRY_def := proj2_sig ENTRY_aux.
+  #[local] Definition ENTRY_aux : seal (@ENTRY_def). Proof. by eexists. Qed.
+  Definition ENTRY := ENTRY_aux.(unseal).
+  Definition ENTRY_eq : @ENTRY = @ENTRY_def := ENTRY_aux.(seal_eq).
   Notation "w ↦□ₑ n" :=(ENTRY w n) (at level 20) : bi_scope.
 
   Lemma entry_agree w n1 n2:
@@ -44,7 +46,7 @@ Section ENTRY_defs.
     apply to_agree_op_inv in H.
     done.
   Qed.
-  Global Instance persistent_entry w n : Persistent (w ↦□ₑ n)%I.
+  #[global] Instance persistent_entry w n : Persistent (w ↦□ₑ n)%I.
   Proof.
     rewrite ENTRY_eq /ENTRY_def.
     apply _.

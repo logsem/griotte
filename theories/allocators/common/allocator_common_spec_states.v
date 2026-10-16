@@ -18,7 +18,7 @@ From griotte.allocators.common Require Export allocator_common_preamble allocato
     [allocator_malloc_exit_block_offset] and [allocator_free_tail_block_offset].
     Each allocator focuses the segment in its own code. *)
 
-Global Instance allocator_free_in_prefix_dec {MP : MachineParameters} next w :
+#[global] Instance allocator_free_in_prefix_dec {MP : MachineParameters} next w :
   Decision (allocator_free_in_prefix next w).
 Proof.
   unfold allocator_free_in_prefix.

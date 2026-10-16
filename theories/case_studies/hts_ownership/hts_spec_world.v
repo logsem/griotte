@@ -32,7 +32,7 @@ Section HTS_World_Buffer.
     iIntros (Hadv_nonheap) "#Hadv".
     destruct C_f as [t p g base endp off | t p g ob oe oa].
     - destruct t.
-      + rewrite !fixpoint_interp1_eq /= /interp_sb.
+      + rewrite !interp_unfold /= /interp_sb.
         iDestruct "Hadv" as "[$ %Hvalid]".
         iPureIntro.
         rewrite /heap_cap_valid in Hvalid |- *.
@@ -44,7 +44,7 @@ Section HTS_World_Buffer.
         exact Hvalid.
       + iApply interp_untagged. reflexivity.
     - destruct t.
-      + rewrite !fixpoint_interp1_eq /= /interp_sb.
+      + rewrite !interp_unfold /= /interp_sb.
         iDestruct "Hadv" as "[$ _]".
       + iApply interp_untagged. reflexivity.
   Qed.
@@ -147,7 +147,7 @@ Section HTS_World.
       - unfold alloc_object_contains; cbn. solve_addr. }
     { subst Wbuf. rewrite /heap_std_update /=. exact Hb_fresh. }
     iAssert (interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι)) as "#Hinterp_buf".
-    { iEval (rewrite /hts_buffer fixpoint_interp1_eq /=).
+    { iEval (rewrite /hts_buffer interp_unfold /=).
       iSplitL.
       { rewrite /interp_cap_body.
         rewrite (finz_seq_between_cons b); last solve_addr.

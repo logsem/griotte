@@ -79,7 +79,7 @@ Section fundamental.
         rewrite /linsert_reg in Hregs_ri.
         destruct (decide (ri = dst)); simplify_map_eq.
         { destruct (decide (dst = cnull)) ; [iApply interp_int|].
-         repeat rewrite fixpoint_interp1_eq; auto. }
+         repeat rewrite interp_unfold; auto. }
         { iApply "Hreg"; eauto. }
       + iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.

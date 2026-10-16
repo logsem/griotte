@@ -2,7 +2,7 @@ From griotte Require Import machine_parameters assembler fetch assert switcher.
 
 Section LSE_Main.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
   (** CHERIoT code for the LSE downward example
@@ -114,8 +114,8 @@ int __cheri_compartment("known") run()
     lse_main_instrs_n 5 ++
     lse_main_instrs_n 6.
 
-  Local Close Scope Z_scope.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Close Scope Z_scope.
+  #[local] Coercion Z.of_nat : nat >-> Z.
 
   Definition lse_main_code : list Word
     := LSE_main_code_run ++ LSE_main_code_f.
@@ -153,7 +153,7 @@ End LSE_Main.
 Section lse_C_code.
   Context `{MP: MachineParameters}.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
 
   Definition lse_C_asm : list asm_code :=
     [ #@".Limport_switcher";

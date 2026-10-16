@@ -84,9 +84,7 @@ Section griotte_lang_rules.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
     destruct (Hri src) as [wsrc [H'src _]]; first by set_solver+.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
-    { cbn in Hstep. rewrite Hxsr in Hstep. simplify_eq.
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-      iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
+    { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
       econstructor; first done. by eapply WriteSR_fail_nonxrs. }
     specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
     destruct (Hsri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
@@ -98,24 +96,16 @@ Section griotte_lang_rules.
     assert (exec_opt (WriteSR dst src) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
               updatePC (update_sreg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst wsrc.(lw))) as HH.
     { by cbn; rewrite Hsrc Hxsr /=. }
-    rewrite HH /update_sreg /= in Hstep.
+    rewrite HH in Hstep.
     assert (reg_word_ok R C (lword_of_word wsrc.(lw))) as Hok.
     { apply reg_word_ok_no_id; first done. by eapply erasure_llookup_reg_word. }
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ dst _ Her Hok) as Her1.
-    destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
-      rewrite Hu in Hstep. simplify_eq.
-      iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-      iMod (gen_heap_update_inSepM _ _ dst wsrc.(lw) with "Hsr Hsmap") as "[Hsr Hsmap]"; first eauto.
-      iModIntro. iSplitR "Hφ HPC Hmap Hsmap Hpc_a".
-      + iExists _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
-      + iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
-    - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
-      rewrite /updatePC Hfail in Hstep.
-      simplify_eq.
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-      iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
-      econstructor; first done. by eapply WriteSR_fail_incrPC.
+    iApply (instr_close_sreg_update _ _ _ _ _ _ _ _ _ _ _ _ dst wsrc.(lw) _ _ _
+      (λ lpc' sregs' retv, WriteSR_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lpc' regs sregs sregs' dst src retv)
+      with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hsmap [Hφ Hpc_a]").
+    { exact Her. } { by apply elem_of_dom. } { exact Hok. } { exact Hstep. }
+    { intros. econstructor; eauto. }
+    { intros. econstructor; first done. by eapply WriteSR_fail_incrPC. }
+    iIntros (lpc' sregs' retv Hspec) "HPC Hmap Hsmap". iApply "Hφ". by iFrame.
   Qed.
 
   Lemma wp_writesr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) dq :

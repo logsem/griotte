@@ -18,11 +18,13 @@ From griotte.program_logic Require Import alloc_registry.
 Class allocatorOwnerPreG Σ := {
   allocator_owner_preG_inG :: inG Σ (authR (gmapUR Z (exclR (gsetO AId))));
 }.
+#[export] Hint Mode allocatorOwnerPreG - : typeclass_instances.
 
 Class allocatorOwnerG Σ := {
   allocator_owner_inG :: allocatorOwnerPreG Σ;
   allocator_owner_name : gname;
 }.
+#[export] Hint Mode allocatorOwnerG - : typeclass_instances.
 
 Definition allocator_ownerΣ : gFunctors :=
   #[GFunctor (authR (gmapUR Z (exclR (gsetO AId))))].

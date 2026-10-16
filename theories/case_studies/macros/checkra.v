@@ -87,7 +87,7 @@ Section Checkra_spec.
       {MP: MachineParameters}
   .
 
-  Local Ltac fail_check_ra :=
+  #[local] Ltac fail_check_ra :=
     match goal with
     | _ : _ |- context [ WInt (encodePerm ?p - encodePerm ?p') ] =>
         replace (encodePerm p' - encodePerm p')%Z with 0%Z by lia
@@ -95,7 +95,7 @@ Section Checkra_spec.
     ; iInstr "Hcode"
     ; iInstr "Hcode"
     ; by wp_end.
-  Local Ltac pass_check_ra :=
+  #[local] Ltac pass_check_ra :=
     match goal with
     | _ : _ |- context [ WInt (encodePerm ?p - encodePerm ?p') ] =>
         let Heq := fresh "Heq" in
@@ -111,7 +111,7 @@ Section Checkra_spec.
         ; iInstr "Hcode"
         ; clear Hneq
     end.
-  Local Ltac check_ra :=
+  #[local] Ltac check_ra :=
     match goal with
     | _ : _ |- context [ WInt (encodePerm ?p - encodePerm ?p') ] =>
         let Hp := fresh "Hp" in

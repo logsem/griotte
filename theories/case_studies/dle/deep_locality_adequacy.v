@@ -41,13 +41,14 @@ Class memory_layout `{MP: MachineParameters} := {
     assert_switcher_disjoints :
     assert_switcher_disjoint assert_cmpt switcher_cmpt;
   }.
+#[export] Hint Mode memory_layout - : typeclass_instances.
 
-Local Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
+#[local] Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
 Proof.
   exact (cmptSwitcher_switcherLayout switcher_cmpt).
 Defined.
 
-Local Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
+#[local] Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
 Proof.
   pose proof (ot_switcher_size switcher_cmpt).
   pose proof (switcher_size switcher_cmpt).
@@ -60,7 +61,7 @@ Proof.
   refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
-Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
+#[local] Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
 Proof.
   exact (cmptAssert_assertLayout assert_cmpt).
 Defined.
@@ -337,16 +338,16 @@ Section Adequacy.
 End Adequacy.
 
 Inductive CmptNames_dle := | B .
-Local Instance CmptNames_dle_eq_dec : EqDecision CmptNames_dle.
+#[local] Instance CmptNames_dle_eq_dec : EqDecision CmptNames_dle.
 Proof. intros C C'; destruct C,C'; solve_decision. Qed.
-Local Instance CmptNames_dle_finite : finite.Finite CmptNames_dle.
+#[local] Instance CmptNames_dle_finite : finite.Finite CmptNames_dle.
 Proof.
   refine {| finite.enum := [B] |}.
   + apply NoDup_singleton.
   + intros []; left.
 Defined.
 
-Local Program Instance CmptNames_dle_CmptNameG : CmptNameG :=
+#[local] Program Instance CmptNames_dle_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_dle; |}.
 
 (** END-TO-END THEOREM *)

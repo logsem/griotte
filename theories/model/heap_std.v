@@ -7,7 +7,7 @@ From griotte Require Export addresses region_keys.
     allocation registry keeps the ranges of live objects disjoint. *)
 Inductive AllocObjectStatus := AllocObjectLive | AllocObjectQuarantined.
 
-Global Instance alloc_object_status_eq_dec : EqDecision AllocObjectStatus.
+#[global] Instance alloc_object_status_eq_dec : EqDecision AllocObjectStatus.
 Proof. solve_decision. Defined.
 
 Record AllocObject := MkAllocObject {
@@ -16,7 +16,7 @@ Record AllocObject := MkAllocObject {
   alloc_object_status : AllocObjectStatus;
 }.
 
-Global Instance alloc_object_eq_dec : EqDecision AllocObject.
+#[global] Instance alloc_object_eq_dec : EqDecision AllocObject.
 Proof. solve_decision. Defined.
 
 Definition Heap := gmap AId AllocObject.
@@ -24,7 +24,7 @@ Definition Heap := gmap AId AllocObject.
 Definition alloc_object_contains (o : AllocObject) (a : Addr) : Prop :=
   (alloc_object_base o <= a < alloc_object_end o)%a.
 
-Global Instance alloc_object_contains_dec o a :
+#[global] Instance alloc_object_contains_dec o a :
   Decision (alloc_object_contains o a).
 Proof. unfold alloc_object_contains. apply _. Defined.
 

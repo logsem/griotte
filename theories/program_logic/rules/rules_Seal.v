@@ -105,9 +105,7 @@ Section griotte_lang_rules.
     destruct (is_sealr r1v.(lw)) eqn:Hr1v.
     2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
         { unfold is_sealr in Hr1v. destruct r1v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
-        iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-        iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
-        econstructor. by eapply Seal_fail_sealr. }
+        instr_fail_close. econstructor. by eapply Seal_fail_sealr. }
     destruct r1v as [[ | [ | t p g b e a ] | | ] π1]; try inversion Hr1v. clear Hr1v.
     (* The sealing key has no bounds: its copy is exact. *)
     pose proof (reg_phys_no_bounds R (WSealRange t p g b e a @@? π1) _ eq_refl Hrel1) as Hk. cbn in Hk.
@@ -115,9 +113,7 @@ Section griotte_lang_rules.
     destruct (is_sealb r2v.(lw)) eqn:Hr2v.
     2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
         { unfold is_sealb in Hr2v. destruct r2v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
-        iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-        iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
-        econstructor. by eapply Seal_fail_sealb. }
+        instr_fail_close. econstructor. by eapply Seal_fail_sealb. }
     destruct r2v as [[ | sb | | ] π]; try inversion Hr2v. clear Hr2v.
     assert (reg_word_ok R C (WSealable sb @@? π)) as Hok.
     { by eapply erasure_llookup_reg_word. }
@@ -292,39 +288,12 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-
-  Lemma wp_seal_nosb_r2 E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 p g b e a (w2 : LWord) pc_a' πs dq :
-    decodeInstrW w.(lw) = Seal r2 r1 r2 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    is_sealb w2.(lw) = false →
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ WSealRange true p g b e a @@? πs
-          ∗ ▷ r2 ↦ᵣ w2 }}}
-      Instr Executable @ E
-      {{{ RET FailedV; True }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpc_a' Hfalse Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
-
-    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
-    iApply (wp_Seal with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [ | | ]; last by iApply "Hφ".
-    all: by simplify_lmap_eq.
-  Qed.
-
 End griotte_lang_rules.
 
 Section instruction_outcomes.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
-  Local Lemma seal_invalidated_map E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+  #[local] Lemma seal_invalidated_map E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
       w dst src1 src2 regs (t : bool) p g b e a πs sb π dq :
     decodeInstrW w.(lw) = Seal dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

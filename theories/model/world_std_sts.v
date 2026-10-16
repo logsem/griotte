@@ -10,9 +10,9 @@ Section world_standard_sts.
   | Permanent
   | Revoked.
 
-  Global Instance LeibnizEquiv_region_type : @LeibnizEquiv region_type (@eq region_type).
+  #[global] Instance LeibnizEquiv_region_type : @LeibnizEquiv region_type (@eq region_type).
   Proof. rewrite /LeibnizEquiv; intros ? ? ?; done. Defined.
-  Global Instance region_type_EqDecision : EqDecision region_type :=
+  #[global] Instance region_type_EqDecision : EqDecision region_type :=
     (fun x y => match x, y with
              | Permanent, Permanent
              | Revoked, Revoked
@@ -20,7 +20,7 @@ Section world_standard_sts.
              | _, _ => ltac:(right; auto)
              end).
 
-  Global Instance region_type_countable : Countable region_type.
+  #[global] Instance region_type_countable : Countable region_type.
   Proof.
     set encode := fun ty => match ty with
                          | Temporary => 1
@@ -103,7 +103,7 @@ Section world_standard_sts.
 
   (* ------------------------- DEFINITION STD STS CLASS -------------------------- *)
 
-  Global Program Instance sts_std : STS_STD region_type :=
+  #[global] Program Instance sts_std : STS_STD region_type :=
     {|
       Rpub := std_rel_pub;
       Rpriv := std_rel_priv;

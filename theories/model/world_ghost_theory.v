@@ -44,17 +44,17 @@ Section world_ghost_theory.
       All safety resources of the addresses in the world are owned by the world interpretation. *)
   Definition world_interp_def (W : WORLD) (C : CmptName) : iProp Σ :=
     region W C ∗ sts_full_world W C ∗ sealing_map W C.
-  Definition world_interp_aux : { x | x = @world_interp_def }. by eexists. Qed.
-  Definition world_interp := proj1_sig world_interp_aux.
-  Definition world_interp_eq : @world_interp = @world_interp_def := proj2_sig world_interp_aux.
+  #[local] Definition world_interp_aux : seal (@world_interp_def). Proof. by eexists. Qed.
+  Definition world_interp := world_interp_aux.(unseal).
+  Definition world_interp_eq : @world_interp = @world_interp_def := world_interp_aux.(seal_eq).
 
   (** Definition of [world_interp_open].
       The safety resources of the addresses in [s] are not owned by the world interpretation. *)
   Definition world_interp_open_def (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
     open_region_many W C s ∗ sts_full_world W C ∗ sealing_map W C.
-  Definition world_interp_open_aux : { x | x = @world_interp_open_def }. by eexists. Qed.
-  Definition world_interp_open := proj1_sig world_interp_open_aux.
-  Definition world_interp_open_eq : @world_interp_open = @world_interp_open_def := proj2_sig world_interp_open_aux.
+  #[local] Definition world_interp_open_aux : seal (@world_interp_open_def). Proof. by eexists. Qed.
+  Definition world_interp_open := world_interp_open_aux.(unseal).
+  Definition world_interp_open_eq : @world_interp_open = @world_interp_open_def := world_interp_open_aux.(seal_eq).
 
   Lemma world_interp_open_heap_provenance W C s :
     world_interp_open W C s -∗
@@ -77,9 +77,9 @@ Section world_ghost_theory.
       The sealing resources of the otype [o] are not owned by the world interpretation. *)
   Definition world_interp_sopen_def (W : WORLD) (C : CmptName) (o : OType) : iProp Σ :=
     region W C ∗ sts_full_world W C ∗ sealing_map_open W C o.
-  Definition world_interp_sopen_aux : { x | x = @world_interp_sopen_def }. by eexists. Qed.
-  Definition world_interp_sopen := proj1_sig world_interp_sopen_aux.
-  Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := proj2_sig world_interp_sopen_aux.
+  #[local] Definition world_interp_sopen_aux : seal (@world_interp_sopen_def). Proof. by eexists. Qed.
+  Definition world_interp_sopen := world_interp_sopen_aux.(unseal).
+  Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := world_interp_sopen_aux.(seal_eq).
 
   (** Definition of safety resources *)
   Definition mono_temporary (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) : iProp Σ :=
@@ -126,14 +126,14 @@ Section world_ghost_theory.
 
 
   (** ** Lemmas about monotonicity *)
-  Global Instance mono_temporary_Persistent C p Φ w:
+  #[global] Instance mono_temporary_Persistent C p Φ w:
     Persistent (mono_temporary C p Φ w).
   Proof. rewrite /mono_temporary; destruct ( decide (isWL p = true ∨ isDL p = true) ); apply _. Qed.
 
-  Global Instance mono_permanent_Persistent C Φ w: Persistent (mono_permanent C Φ w).
+  #[global] Instance mono_permanent_Persistent C Φ w: Persistent (mono_permanent C Φ w).
   Proof. apply _. Qed.
 
-  Global Instance mono_invariant_Persistent C p Φ w ρ:
+  #[global] Instance mono_invariant_Persistent C p Φ w ρ:
     Persistent (mono_invariant C p Φ w ρ).
   Proof. rewrite /mono_invariant; destruct ( decide (ρ = Temporary) ); apply _. Qed.
 
@@ -186,7 +186,7 @@ Section world_ghost_theory.
 
   (* For internal use only, links [RevokedResources] from the clean interface with
      [close_list_resources] from the internal model *)
-  Local Lemma RevokedResources_eq (W : WORLD) ( C : CmptName ) (l : list LAddr) :
+  #[local] Lemma RevokedResources_eq (W : WORLD) ( C : CmptName ) (l : list LAddr) :
     Forall (λ a, heap_key_live (heap_std W) a) l ->
     RevokedResources W C l ⊣⊢ close_list_resources C W l false.
   Proof.
@@ -275,7 +275,7 @@ Section world_ghost_theory.
     done.
   Qed.
 
-  Global Instance RevokedResources_Permutation_proper (W : WORLD) (C : CmptName) :
+  #[global] Instance RevokedResources_Permutation_proper (W : WORLD) (C : CmptName) :
     Proper (Permutation ==> equiv) (RevokedResources W C).
   Proof. iIntros (l l' Hl); rewrite /RevokedResources; setoid_rewrite Hl; done. Defined.
 

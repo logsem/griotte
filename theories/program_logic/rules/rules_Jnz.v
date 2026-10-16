@@ -85,9 +85,7 @@ Section griotte_lang_rules.
            { cbn. rewrite Hrcond /= Hnz'.
              rewrite (lz_of_argument_None R regs r); [done|done| |done].
              intros x ->. apply Dregs. set_solver+. }
-           rewrite HH in Hstep. simplify_eq.
-           iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-           iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
+           rewrite HH in Hstep. instr_fail Hstep.
            constructor. by eapply Jnz_fail_no_imm. }
       assert (exec_opt (Jnz rimm rcond) pc_p φc = updatePC_gen φc imm) as HH.
       { cbn. rewrite Hrcond /= Hnz'.

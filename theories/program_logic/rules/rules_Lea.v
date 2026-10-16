@@ -114,14 +114,10 @@ Section griotte_lang_rules.
      destruct (lz_of_argument regs arg) as [argz|] eqn:Harg.
      2: { rewrite (lz_of_argument_None R regs r) /= in Hstep; [|done| |done].
           2: { intros x ->. apply Dregs. set_solver+. }
-          simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-          iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
-          constructor. by constructor. }
+          instr_fail Hstep. constructor. by constructor. }
      rewrite (lz_of_argument_incl R regs r _ argz) /= in Hstep; [|done|done].
      destruct r1v as [[ | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
-     1,4,5: (simplify_eq; iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done;
-             iIntros "HPC Hmap"; iApply "Hφ"; iFrame; iPureIntro;
-             constructor; eapply Lea_fail_allowed; eauto).
+     1,4,5: (instr_fail Hstep; constructor; eapply Lea_fail_allowed; eauto).
      - destruct (a + argz)%a as [a'|] eqn:Hoffset; cbn in Hstep.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (WCap t p g b e a' @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
@@ -166,6 +162,68 @@ Section griotte_lang_rules.
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
    Qed.
 
+   (** The word a Lea writes into a capability or a sealing range: the moved
+       cursor, or the untagged original if the cursor overflows. *)
+   Definition lea_result (v : LWord) (z : Z) : option LWord :=
+     match v.(lw) with
+     | WCap t p g b e a =>
+         Some (match (a + z)%a with
+               | Some a' => WCap t p g b e a'
+               | None => WCap false p g b e a
+               end @@? v.(lprov))
+     | WSealRange t p g b e a =>
+         Some (match (a + z)%ot with
+               | Some a' => WSealRange t p g b e a'
+               | None => WSealRange false p g b e a
+               end @@? v.(lprov))
+     | _ => None
+     end.
+
+   (** A Lea on a capability or a sealing range, whose PC increments, has one
+       outcome. *)
+   Lemma Lea_spec_next lpc regs r1 arg lpc' regs' retv wr z wr' lpc0 :
+     regs !!ₗ r1 = Some wr →
+     lz_of_argument regs arg = Some z →
+     lea_result wr z = Some wr' →
+     incrementPC lpc = Some lpc0 →
+     Lea_spec lpc regs r1 arg lpc' regs' retv →
+     retv = NextIV ∧ lpc' = lpc0 ∧ regs' = <[r1 := wr']ₗ> regs.
+   Proof.
+     intros Hr Hz Hres Hinc Hspec.
+     destruct Hspec as [* Hr' Hz' Ha' Hinc' -> | * Hr' Hz' Ha' Hinc' ->
+                       | * Hr' Hz' Ha' Hinc' -> | * Hr' Hz' Ha' Hinc' -> | Hfail].
+     1-4: rewrite Hr in Hr'; simplify_eq; rewrite /lea_result /= Ha' in Hres; by simplify_eq.
+     destruct Hfail as [Hz' | w' Hr' Hm | | | |]; try congruence.
+     rewrite Hr in Hr'. injection Hr' as <-.
+     destruct wr as [w0 ?]. destruct_word w0; cbn in *; congruence.
+   Qed.
+
+   (** The map-form success rule, from which the register-shaped ones
+       follow. *)
+   Lemma wp_lea_next E pc_p pc_g pc_b pc_e pc_a pc_π w r1 arg regs wr z wr' lpc' dq :
+     decodeInstrW w.(lw) = Lea r1 arg →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     regs_of (Lea r1 arg) ⊆ dom regs →
+     regs !!ₗ r1 = Some wr →
+     lz_of_argument regs arg = Some z →
+     lea_result wr z = Some wr' →
+     incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
+     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+         ▷ pc_a ↦ₐ{dq} w ∗
+         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+       Instr Executable @ E
+     {{{ RET NextIV;
+         PC ↦ₚ lpc' ∗
+         pc_a ↦ₐ{dq} w ∗
+         [∗ map] k↦y ∈ <[r1 := wr']ₗ> regs, k ↦ᵣ y }}}.
+   Proof.
+     iIntros (Hdecode Hvpc Dregs Hr Hz Hres Hinc φ) "(HPC & Hpc_a & Hmap) Hφ".
+     iApply (wp_lea with "[$HPC $Hpc_a $Hmap]"); [done..|].
+     iIntros "!>" (lpc0 regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
+     destruct (Lea_spec_next _ _ _ _ _ _ _ _ _ _ _ Hr Hz Hres Hinc Hspec) as (-> & -> & ->).
+     iApply "Hφ". by iFrame.
+   Qed.
+
    Lemma wp_lea_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z a' π dq :
      decodeInstrW w.(lw) = Lea r1 (inr rv) →
      IsLInt wz z →
@@ -189,23 +247,10 @@ Section griotte_lang_rules.
      iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
      destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_2 with "Hrv Hr1") as "[Hmap %]".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [ | | | | * Hfail ].
-     3,4: by simplify_lmap_eq.
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       (* FIXME: tedious *)
-       iRegsMap "Hmap"; iFrame. }
-     { (* Success with WSealRange (contradiction) *)
-       simplify_lmap_eq. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-       all: try destruct p; cbn in * ; congruence. }
-    Unshelve. all: auto.
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
+       (WCap t p g b e a' @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+       try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
    Lemma wp_lea_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z a' π dq :
@@ -226,23 +271,10 @@ Section griotte_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
      iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [ | | | | * Hfail ].
-     3,4: by simplify_lmap_eq.
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       (* FIXME: tedious *)
-       iRegsMap "Hmap"; eauto. iFrame. }
-     { (* Success with WSealRange (contradiction) *)
-       simplify_lmap_eq. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-       all: try destruct p; cbn in * ; congruence. }
-     Unshelve. all:auto.
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
+       (WCap t p g b e a' @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+       try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
    (* Similar rules in case we have a SealRange instead of a capability, where some cases are impossible, because a SealRange is not a valid PC *)
@@ -270,24 +302,10 @@ Section griotte_lang_rules.
      iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
      destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_2 with "Hrv Hr1") as "[Hmap %]".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [ | | | | * Hfail ].
-     3,4: by simplify_lmap_eq.
-     { (* Success with WSealCap (contradiction) *)
-       simplify_lmap_eq. }
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       (* FIXME: tedious *)
-       iRegsMap "Hmap"; iFrame. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-       all: try congruence.
-     }
-    Unshelve. all: auto.
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WSealRange t p g b e a @@? π) _
+       (WSealRange t p g b e a' @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+       try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
   Lemma wp_lea_success_z_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z a' π dq :
@@ -308,24 +326,10 @@ Section griotte_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
      iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [ | | | | * Hfail ].
-     3,4: by simplify_lmap_eq.
-     { (* Success with WSealRange (contradiction) *)
-       simplify_lmap_eq. }
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       (* FIXME: tedious *)
-       iRegsMap "Hmap"; eauto. iFrame. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-       all: try congruence.
-     }
-     Unshelve. all:auto.
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WSealRange t p g b e a @@? π) _
+       (WSealRange t p g b e a' @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+       try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
    Lemma wp_lea_overflow_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π dq :
@@ -351,21 +355,10 @@ Section griotte_lang_rules.
      iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
      destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_2 with "Hrv Hr1") as "[Hmap %]".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [ | | | | * Hfail ].
-     1,2,4: by simplify_lmap_eq.
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       (* FIXME: tedious *)
-       iRegsMap "Hmap"; iFrame. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-       all: try destruct p; cbn in * ; congruence. }
-    Unshelve. all: auto.
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
+       (WCap false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+       try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
    Lemma wp_lea_overflow_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z π dq :
@@ -386,21 +379,10 @@ Section griotte_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
      iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [ | | | | * Hfail ].
-     1,2,4: by simplify_lmap_eq.
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       (* FIXME: tedious *)
-       iRegsMap "Hmap"; eauto. iFrame. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-       all: try destruct p; cbn in * ; congruence. }
-     Unshelve. all:auto.
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
+       (WCap false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+       try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
    Lemma wp_lea_overflow_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π dq :
@@ -426,22 +408,10 @@ Section griotte_lang_rules.
      iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
      destruct (IsLInt_inv _ _ Hwz) as [πz ->].
      iDestruct (map_of_regs_2 with "Hrv Hr1") as "[Hmap %]".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [ | | | | * Hfail ].
-     1,2,3: by simplify_lmap_eq.
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       (* FIXME: tedious *)
-       iRegsMap "Hmap"; iFrame. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-       all: try congruence.
-     }
-    Unshelve. all: auto.
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WSealRange t p g b e a @@? π) _
+       (WSealRange false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+       try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
    Lemma wp_lea_overflow_z_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z π dq :
@@ -462,52 +432,10 @@ Section griotte_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
      iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [ | | | | * Hfail ].
-     1,2,3: by simplify_lmap_eq.
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       (* FIXME: tedious *)
-       iRegsMap "Hmap"; eauto. iFrame. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
-       all: try congruence.
-     }
-     Unshelve. all:auto.
-   Qed.
-
-   Lemma wp_Lea_fail_integer Ep pc_p pc_g pc_b pc_e pc_a pc_π w r1 w1 z z' dq :
-     decodeInstrW w.(lw) = Lea r1 (inl z) →
-     IsLInt w1 z' →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-         ∗ ▷ pc_a ↦ₐ{dq} w
-         ∗ ▷ r1 ↦ᵣ w1
-     }}}
-       Instr Executable @ Ep
-       {{{ RET FailedV; True }}}.
-   Proof.
-     iIntros (Hdecode Hw1 Hvpc φ) "(>HPC & >Hpc_a & >Hsrc) Hφ".
-     destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
-     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
-     iApply (wp_lea with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-     destruct Hspec as [* Hsucc | * Hsucc | * Hsucc | * Hsucc |].
-     3,4: (destruct (decide (r1 = cnull)); simplify_lmap_eq).
-     { (* Success (contradiction) *) simplify_lmap_eq.
-       destruct (decide (r1 = cnull)); done.
-     }
-     { (* Success (contradiction) *) simplify_lmap_eq.
-       destruct (decide (r1 = cnull)); done.
-     }
-     { (* Failure, done *) by iApply "Hφ". }
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WSealRange t p g b e a @@? π) _
+       (WSealRange false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+       try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
 End griotte_lang_rules.

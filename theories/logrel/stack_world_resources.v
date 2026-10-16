@@ -146,7 +146,7 @@ Section Stack_World_Resources.
   Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
     StackWorldResources interp W C la (replicate (length la) (lword_of_word (WInt 0))).
 
-  Global Instance StackRevokedResources_Persistent W C la : Persistent (StackRevokedResources W C la).
+  #[global] Instance StackRevokedResources_Persistent W C la : Persistent (StackRevokedResources W C la).
   Proof. apply _. Qed.
 
   Lemma StackRevokedResources_app

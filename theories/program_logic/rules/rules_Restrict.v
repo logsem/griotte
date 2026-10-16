@@ -123,14 +123,10 @@ Section griotte_lang_rules.
     destruct (lz_of_argument regs src) as [n|] eqn:Hn.
     2: { rewrite (lz_of_argument_None R regs r) /= in Hstep; [|done| |done].
          2: { intros x ->. apply Dregs. set_solver+. }
-         simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-         iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
-         constructor. by constructor. }
+         instr_fail Hstep. constructor. by constructor. }
     rewrite (lz_of_argument_incl R regs r _ n) /= in Hstep; [|done|done].
     destruct wdst as [[ | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
-    1,4,5: (simplify_eq; iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done;
-            iIntros "HPC Hmap"; iApply "Hφ"; iFrame; iPureIntro;
-            constructor; eapply Restrict_fail_allowed; eauto).
+    1,4,5: (instr_fail Hstep; constructor; eapply Restrict_fail_allowed; eauto).
     - destruct (decodePermPair n) as [p' g'] eqn:HdecPair.
       set (nt := t && PermFlowsTo p' p && LocalityFlowsTo g' g).
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (WCap nt p' g' b e a @@? π) _ _ _ _
@@ -269,107 +265,12 @@ Section griotte_lang_rules.
        all: try incrementPC_inv; simplify_lmap_eq; eauto; congruence. }
    Qed.
 
-   (* Similar rules in case we have a SealRange instead of a capability, where some cases are impossible, because a SealRange is not a valid PC *)
-
- Lemma wp_restrict_success_reg_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z p' g' π dq :
-     decodeInstrW w.(lw) = Restrict r1 (inr rv) →
-     IsLInt wz z →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-     (pc_a + 1)%a = Some pc_a' →
-     (p',g') = (decodeSealPermPair z) ->
-     SealPermFlowsTo p' p = true →
-     LocalityFlowsTo g' g = true →
-     rv ≠ cnull ->
-     r1 ≠ cnull ->
-
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-         ∗ ▷ pc_a ↦ₐ{dq} w
-         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π
-         ∗ ▷ rv ↦ᵣ wz }}}
-       Instr Executable @ Ep
-       {{{ RET NextIV;
-           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-           ∗ pc_a ↦ₐ{dq} w
-           ∗ rv ↦ᵣ wz
-           ∗ r1 ↦ᵣ WSealRange t p' g' b e a @@? π }}}.
-   Proof.
-     iIntros (Hinstr Hwz Hvpc Hpca' HdecPair HPflows HLflows Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
-     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
-     iDestruct (map_of_regs_2 with "Hr1 Hrv") as "[Hmap %]".
-     iApply (wp_Restrict with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| | | | * Hfail].
-     3,4: (simplify_lmap_eq; simplify_pair_eq;
-       match goal with Hbad : _ && _ = false |- _ =>
-         rewrite HPflows HLflows in Hbad; discriminate
-       end).
-    { (* Success with WCap (contradiction) *)
-      simplify_lmap_eq.
-    }
-    { (* Success *)
-      iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       simplify_pair_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; simplify_lmap_eq; eauto; try congruence.
-       all: simplify_pair_eq; try match goal with Hbad : _ && _ = false |- _ =>
-         rewrite HPflows HLflows in Hbad; discriminate
-       end.
-      all: try incrementPC_inv; simplify_lmap_eq; eauto; try congruence. }
-   Qed.
-
-   Lemma wp_restrict_success_z_sr Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z p' g' π dq :
-     decodeInstrW w.(lw) = Restrict r1 (inl z) →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-     (pc_a + 1)%a = Some pc_a' →
-     (p',g') = (decodeSealPermPair z) ->
-     SealPermFlowsTo p' p = true →
-     LocalityFlowsTo g' g = true →
-     r1 ≠ cnull ->
-
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-         ∗ ▷ pc_a ↦ₐ{dq} w
-         ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a @@? π }}}
-       Instr Executable @ Ep
-     {{{ RET NextIV;
-         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-         ∗ pc_a ↦ₐ{dq} w
-         ∗ r1 ↦ᵣ WSealRange t p' g' b e a @@? π }}}.
-   Proof.
-     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
-     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-     iApply (wp_Restrict with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-     all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-     destruct Hspec as [| | | | * Hfail].
-     3,4: (simplify_lmap_eq; simplify_pair_eq;
-       match goal with Hbad : _ && _ = false |- _ =>
-         rewrite HPflows HLflows in Hbad; discriminate
-       end).
-     { (* Success with WSealRange (contradiction) *)
-       simplify_lmap_eq.
-     }
-     { (* Success *)
-       iApply "Hφ". iFrame. try incrementPC_inv; simplify_lmap_eq.
-       simplify_pair_eq.
-       iRegsMap "Hmap"; eauto; iFrame. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; simplify_lmap_eq; eauto; try congruence.
-       all: simplify_pair_eq; try match goal with Hbad : _ && _ = false |- _ =>
-         rewrite HPflows HLflows in Hbad; discriminate
-       end.
-       all: try incrementPC_inv; simplify_lmap_eq; eauto; try congruence. }
-   Qed.
-
 End griotte_lang_rules.
 
 Section instruction_outcomes.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
-  Local Lemma restrict_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+  #[local] Lemma restrict_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
       w dst src regs (t : bool) p g b e a π n p' g' dq :
     decodeInstrW w.(lw) = Restrict dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -404,7 +305,7 @@ Section instruction_outcomes.
   Qed.
 
   (* Exact register-map continuation, including aliases and special registers. *)
-  Local Lemma restrict_invalidated_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+  #[local] Lemma restrict_invalidated_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
       w dst src regs (t : bool) p g b e a π n p' g' dq :
     decodeInstrW w.(lw) = Restrict dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

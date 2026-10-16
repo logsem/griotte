@@ -122,7 +122,7 @@ Ltac solve_instr_failure :=
     | H : ?lhs = ?rhs |- context [?lhs] => progress (rewrite H; cbn)
     end ];
   repeat match goal with
-  | sb : Sealable |- context [clear_tag_sealable (machine_word.unseal _ ?x)] =>
+  | sb : Sealable |- context [clear_tag_sealable (unseal_sb _ ?x)] =>
       constr_eq sb x; destruct sb; cbn
   | sb : Sealable |- context [clear_tag_sealable ?x] =>
       constr_eq sb x; destruct sb; cbn

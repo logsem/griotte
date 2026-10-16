@@ -3,7 +3,7 @@ From griotte Require Import kvs fetch assert.
 
 Section KVS_Main.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
   (** Example using the KVS service.
@@ -141,8 +141,8 @@ Section KVS_Main.
     ++ kvs_main_instrs_n 14
     ++ kvs_main_instrs_n 15.
 
-  Local Close Scope Z_scope.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Close Scope Z_scope.
+  #[local] Coercion Z.of_nat : nat >-> Z.
 
   Definition kvs_main_data  : list Word := [].
   Definition kvs_main_static_sealed ( KVS_USER_KEY_MAIN : Z ) : list Word := [ WInt KVS_USER_KEY_MAIN ].
@@ -171,7 +171,7 @@ End KVS_Main.
     the main program. *)
 Section kvs_B_code.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
 
   Definition kvs_B_asm : list asm_code :=
     [ #@".Limport_switcher";

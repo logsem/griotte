@@ -97,17 +97,17 @@ Definition permit_seal (s : SealPerms) :=
 Definition permit_unseal (s : SealPerms) :=
   s.2.
 
-Global Instance rxperm_eq_dec : EqDecision RXperm.
+#[global] Instance rxperm_eq_dec : EqDecision RXperm.
 Proof. solve_decision. Defined.
-Global Instance wperm_eq_dec : EqDecision Wperm.
+#[global] Instance wperm_eq_dec : EqDecision Wperm.
 Proof. solve_decision. Defined.
-Global Instance dlperm_eq_dec : EqDecision DLperm.
+#[global] Instance dlperm_eq_dec : EqDecision DLperm.
 Proof. solve_decision. Defined.
-Global Instance droperm_eq_dec : EqDecision DROperm.
+#[global] Instance droperm_eq_dec : EqDecision DROperm.
 Proof. solve_decision. Defined.
-Global Instance perm_eq_dec : EqDecision Perm.
+#[global] Instance perm_eq_dec : EqDecision Perm.
 Proof. solve_decision. Defined.
-Global Instance loc_eq_dec : EqDecision Locality.
+#[global] Instance loc_eq_dec : EqDecision Locality.
 Proof. solve_decision. Defined.
 
 Ltac destruct_perm p :=
@@ -204,7 +204,7 @@ Lemma RXPermFlowsTo_refl : forall rx,  RXPermFlowsTo rx rx.
 Proof.
   intro rx; destruct rx; cbn ; done.
 Qed.
-Global Instance RXPermFlowsToReflexive: Reflexive RXPermFlowsTo.
+#[global] Instance RXPermFlowsToReflexive: Reflexive RXPermFlowsTo.
 Proof.
   rewrite /Reflexive.
   apply RXPermFlowsTo_refl.
@@ -215,7 +215,7 @@ Proof.
   red; intros x y z.
   destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
-Global Instance RXPermFlowsToTransitive: Transitive RXPermFlowsTo.
+#[global] Instance RXPermFlowsToTransitive: Transitive RXPermFlowsTo.
 Proof.
   rewrite /Transitive.
   apply RXPermFlowsTo_trans.
@@ -239,7 +239,7 @@ Lemma WPermFlowsTo_refl : forall rx,  WPermFlowsTo rx rx.
 Proof.
   intro rx; destruct rx; cbn ; done.
 Qed.
-Global Instance WPermFlowsToReflexive: Reflexive WPermFlowsTo.
+#[global] Instance WPermFlowsToReflexive: Reflexive WPermFlowsTo.
 Proof.
   rewrite /Reflexive.
   apply WPermFlowsTo_refl.
@@ -250,7 +250,7 @@ Proof.
   red; intros x y z.
   destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
-Global Instance WPermFlowsToTransitive: Transitive WPermFlowsTo.
+#[global] Instance WPermFlowsToTransitive: Transitive WPermFlowsTo.
 Proof.
   rewrite /Transitive.
   apply WPermFlowsTo_trans.
@@ -270,7 +270,7 @@ Lemma DLPermFlowsTo_refl : forall rx,  DLPermFlowsTo rx rx.
 Proof.
   intro rx; destruct rx; cbn ; done.
 Qed.
-Global Instance DLPermFlowsToReflexive: Reflexive DLPermFlowsTo.
+#[global] Instance DLPermFlowsToReflexive: Reflexive DLPermFlowsTo.
 Proof.
   rewrite /Reflexive.
   apply DLPermFlowsTo_refl.
@@ -281,7 +281,7 @@ Proof.
   red; intros x y z.
   destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
-Global Instance DLPermFlowsToTransitive: Transitive DLPermFlowsTo.
+#[global] Instance DLPermFlowsToTransitive: Transitive DLPermFlowsTo.
 Proof.
   rewrite /Transitive.
   apply DLPermFlowsTo_trans.
@@ -300,7 +300,7 @@ Lemma DROPermFlowsTo_refl : forall rx,  DROPermFlowsTo rx rx.
 Proof.
   intro rx; destruct rx; cbn ; done.
 Qed.
-Global Instance DROPermFlowsToReflexive: Reflexive DROPermFlowsTo.
+#[global] Instance DROPermFlowsToReflexive: Reflexive DROPermFlowsTo.
 Proof.
   rewrite /Reflexive.
   apply DROPermFlowsTo_refl.
@@ -311,7 +311,7 @@ Proof.
   red; intros x y z.
   destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
-Global Instance DROPermFlowsToTransitive: Transitive DROPermFlowsTo.
+#[global] Instance DROPermFlowsToTransitive: Transitive DROPermFlowsTo.
 Proof.
   rewrite /Transitive.
   apply DROPermFlowsTo_trans.
@@ -348,7 +348,7 @@ Proof.
     repeat (apply andb_prop_intro;split;try (etransitivity; eassumption) ).
 Qed.
 
-Global Instance PermFlowsToTransitive: Transitive PermFlowsTo.
+#[global] Instance PermFlowsToTransitive: Transitive PermFlowsTo.
 Proof.
   rewrite /Transitive.
   apply PermFlowsTo_trans.
@@ -360,7 +360,7 @@ Lemma PermFlowsTo_refl:
 Proof.
   intros p; destruct_perm p; auto.
 Qed.
-Global Instance PermFlowsToReflexive: Reflexive PermFlowsTo.
+#[global] Instance PermFlowsToReflexive: Reflexive PermFlowsTo.
 Proof.
   rewrite /Reflexive.
   apply PermFlowsTo_refl.
@@ -383,7 +383,7 @@ Lemma localityflowsto_trans :
 Proof.
   red; intros x y z; destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
-Global Instance LocalityFlowsToTransitive: Transitive LocalityFlowsTo.
+#[global] Instance LocalityFlowsToTransitive: Transitive LocalityFlowsTo.
 Proof.
   rewrite /Transitive.
   apply localityflowsto_trans.
@@ -395,7 +395,7 @@ Lemma localityflowsto_refl:
 Proof.
   intros g; destruct g; auto.
 Qed.
-Global Instance LocalityFlowsToReflexive: Reflexive LocalityFlowsTo.
+#[global] Instance LocalityFlowsToReflexive: Reflexive LocalityFlowsTo.
 Proof.
   rewrite /Reflexive.
   apply localityflowsto_refl.
@@ -414,7 +414,7 @@ Lemma SealPermFlowsTo_trans:
 Proof.
   red; intros. unfold SealPermFlowsTo in *. repeat destruct (permit_seal _); repeat destruct (permit_unseal _); auto.
 Qed.
-Global Instance SealPermFlowsToTransitive: Transitive SealPermFlowsTo.
+#[global] Instance SealPermFlowsToTransitive: Transitive SealPermFlowsTo.
 Proof.
   rewrite /Transitive.
   apply SealPermFlowsTo_trans.
@@ -426,7 +426,7 @@ Lemma SealPermFlowsTo_refl:
 Proof.
   intros; unfold SealPermFlowsTo. destruct (permit_seal _), (permit_unseal _); auto.
 Qed.
-Global Instance SealPermFlowsToReflexive: Reflexive SealPermFlowsTo.
+#[global] Instance SealPermFlowsToReflexive: Reflexive SealPermFlowsTo.
 Proof.
   rewrite /Reflexive.
   apply SealPermFlowsTo_refl.
@@ -659,7 +659,7 @@ Proof.
   destruct_perm p1; destruct_perm p2 ; cbn in *; done.
 Qed.
 
-Global Instance rxperm_countable : Countable RXperm.
+#[global] Instance rxperm_countable : Countable RXperm.
 Proof.
   set encode :=
     fun p => match p with
@@ -680,7 +680,7 @@ Proof.
   intro p. destruct p; reflexivity.
 Defined.
 
-Global Instance wperm_countable : Countable Wperm.
+#[global] Instance wperm_countable : Countable Wperm.
 Proof.
   set encode :=
     fun p => match p with
@@ -699,7 +699,7 @@ Proof.
   intro p. destruct p; reflexivity.
 Defined.
 
-Global Instance dlperm_countable : Countable DLperm.
+#[global] Instance dlperm_countable : Countable DLperm.
 Proof.
   set encode :=
     fun p => match p with
@@ -716,7 +716,7 @@ Proof.
   intro p. destruct p; reflexivity.
 Defined.
 
-Global Instance droperm_countable : Countable DROperm.
+#[global] Instance droperm_countable : Countable DROperm.
 Proof.
   set encode :=
     fun p => match p with
@@ -733,7 +733,7 @@ Proof.
   intro p. destruct p; reflexivity.
 Defined.
 
-Global Instance perm_countable : Countable Perm.
+#[global] Instance perm_countable : Countable Perm.
 Proof.
   set encode :=
     fun (p : Perm) => match p with
@@ -747,7 +747,7 @@ Proof.
   intro p. destruct p; reflexivity.
 Defined.
 
-Global Instance locality_countable : Countable Locality.
+#[global] Instance locality_countable : Countable Locality.
 Proof.
   set encode := fun l => match l with
     | Local => 1

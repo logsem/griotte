@@ -23,8 +23,8 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
   Lemma enter_cond_weakening W C p b e a π :
-    (□ enter_cond W C p Global b e a π (fixpoint interp1)) -∗
-     □ enter_cond W C p Local b e a π (fixpoint interp1).
+    (□ enter_cond W C p Global b e a π interp) -∗
+     □ enter_cond W C p Local b e a π interp.
   Proof.
     iIntros "#Hinterp".
     rewrite /enter_cond /interp_expr /=.
@@ -46,7 +46,7 @@ Section fundamental.
   Proof.
     iIntros "#Hinterp".
     destruct t; last (iApply interp_untagged; done).
-    rewrite !fixpoint_interp1_eq /=.
+    rewrite !interp_unfold /=.
     iDestruct "Hinterp" as "[$ Hinterp]".
     destruct g; auto.
     iApply enter_cond_weakening;auto.
@@ -72,7 +72,7 @@ Section fundamental.
     intros HpO Hp Hg. iIntros "Hinterp".
     destruct t; last (iApply interp_untagged; done).
     iDestruct (interp_cap_heap_conditions with "Hinterp") as %[Hvalid Hcoverage].
-    iEval (rewrite fixpoint_interp1_eq interp1_eq HpO).
+    iEval (rewrite interp_unfold interp1_eq HpO).
     iPureIntro. split; first (eapply heap_cap_valid_perm; eauto).
     intros x Hx Hheap. specialize (Hcoverage x Hx Hheap).
     destruct g, g'; cbn in Hg; try done. by left.
@@ -88,7 +88,7 @@ Section fundamental.
   Proof.
     intros HpnotO HpnotO' Hp Hl. iIntros "HA".
     destruct t; last (iApply interp_untagged; done).
-    rewrite !fixpoint_interp1_eq !interp1_eq.
+    rewrite !interp_unfold !interp1_eq.
     rewrite HpnotO HpnotO'.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
@@ -203,7 +203,7 @@ Section fundamental.
   Proof.
   intros Hb He Hp Hg. iIntros "#HA".
   destruct t; last (iApply interp_untagged; done).
-  rewrite !fixpoint_interp1_eq. cbn.
+  rewrite !interp_unfold. cbn.
   destruct (permit_seal p') eqn:Hseal; [eapply (permit_seal_flowsto _ p) in Hseal as ->; auto | ].
   all: destruct (permit_unseal p') eqn:Hunseal; [eapply (permit_unseal_flowsto _ p) in Hunseal as ->; auto | ]; iDestruct "HA" as "[Hs Hus]".
   all: iSplitL "Hs";
@@ -216,7 +216,7 @@ Section fundamental.
   Proof.
     iIntros "Hinterp".
     destruct sb as [t p g b e a | t p g b e a]; destruct t;
-      rewrite !fixpoint_interp1_eq /= /interp_sb /=; try done.
+      rewrite !interp_unfold /= /interp_sb /=; try done.
     all: iDestruct "Hinterp" as "[Hinterp $]".
     all: iApply sts_seals_std_weaken; last iFrame.
     all: rewrite /lborrow /lift_word /=; set_solver+.
@@ -235,7 +235,7 @@ Section fundamental.
     destruct p;try done; cbn; cycle 1.
     destruct (isO (BPerm rx w dl dro)) eqn:HpO.
     { destruct rx,w; cbn in *; try done.
-      rewrite !fixpoint_interp1_eq //=.
+      rewrite !interp_unfold //=.
     }
     iApply interp_weakening_same_bounds; eauto; try done; try solve_addr.
     apply DL_flowsto.
@@ -251,12 +251,12 @@ Section fundamental.
     destruct w; try done.
     - destruct sb as [t p g b e a | t p g b e a];
       destruct t; cbn in Htag; try discriminate; try done; cbn; cycle 1.
-      { by rewrite !fixpoint_interp1_eq. }
+      { by rewrite !interp_unfold. }
       {
         destruct p.
         destruct (isO (BPerm rx w dl dro)) eqn:HpO.
         { destruct rx,w; cbn in *; try done.
-          rewrite !fixpoint_interp1_eq /=.
+          rewrite !interp_unfold /=.
           iDestruct "Hw" as %[Hvalid Hcoverage].
           iPureIntro. split; first done.
           intros x Hx Hheap. specialize (Hcoverage x Hx Hheap).
@@ -281,7 +281,7 @@ Section fundamental.
     destruct p;try done; cbn; cycle 1.
     destruct (isO (BPerm rx w dl dro)) eqn:HpO.
     { destruct rx,w; cbn in *; try done.
-      rewrite !fixpoint_interp1_eq //=.
+      rewrite !interp_unfold //=.
     }
     destruct (isO (BPerm rx Ow dl DRO)) eqn:HpO'.
     { iApply (interp_weakening_O_same_bounds with "Hw"); auto.
@@ -329,7 +329,7 @@ Section fundamental.
   Proof.
     iIntros "#Hsealed Hmem".
     destruct sb as [t p g b e a|t p g b e a]; destruct t.
-    - iEval (rewrite fixpoint_interp1_eq /= /interp_sb) in "Hsealed".
+    - iEval (rewrite interp_unfold /= /interp_sb) in "Hsealed".
       iDestruct "Hsealed" as "[_ %Hvalid]". cbn in Hvalid.
       iEval (rewrite interp_in_mem_eq) in "Hmem".
       replace (lload_word RWL (WCap true p g b e a @@? π)) with (WCap true p g b e a @@? π)
@@ -491,7 +491,7 @@ Section fundamental.
     2: { iModIntro. iExists W. iFrame.
          iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
          iSplit; first done. iApply interp_untagged. done. }
-    rewrite (fixpoint_interp1_eq W C (WSealRange true _ _ _ _ _ @@? _)).
+    rewrite (interp_unfold W C (WSealRange true _ _ _ _ _ @@? _)).
     iDestruct "HVsr" as "[Hss _]"; rewrite /= Hseal.
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_elem_of_acc with "Hss") as "[HSa0 _]"; eauto.
@@ -514,7 +514,7 @@ Section fundamental.
     iModIntro.
     iExists _. iSplit; first done. iSplit; first done.
     iFrame "Hworld_interp".
-    iEval (rewrite fixpoint_interp1_eq /= Htag /interp_sb).
+    iEval (rewrite interp_unfold /= Htag /interp_sb).
     iSplit.
     - iApply sts_seals_std_weaken; last iFrame "#". set_solver+.
     - destruct sb as [t q l b' e' a'|t q l b' e' a']; destruct t;
@@ -531,7 +531,7 @@ Section fundamental.
         interp W C (WSealRange true p0 g0 b0 e0 a0 @@? π0) -∗
         world_interp_open W C s
         -∗
-        ▷ (interp W C (WSealable (machine_word.unseal g0 sb) @@? π) ∗
+        ▷ (interp W C (WSealable (unseal_sb g0 sb) @@? π) ∗
            world_interp_open W C s).
   Proof.
     iIntros (Hpseal Hwb) "#HVsd #HVsr Hworld_interp".
@@ -539,8 +539,8 @@ Section fundamental.
     destruct (get_tag_sealable sb) eqn:Htag.
     2: { iNext. iFrame. iApply interp_untagged. by rewrite /= get_tag_unseal Htag. }
     rewrite
-      (fixpoint_interp1_eq W C (WSealRange true _ _ _ _ _ @@? _))
-      (fixpoint_interp1_eq W C (WSealed _ _ @@? _)) /= Htag Hpseal /interp_sb.
+      (interp_unfold W C (WSealRange true _ _ _ _ _ @@? _))
+      (interp_unfold W C (WSealed _ _ @@? _)) /= Htag Hpseal /interp_sb.
     iDestruct "HVsr" as "[_ Hss]".
     iDestruct "HVsd" as "[HVsd _]".
     apply seq_between_dist_Some in Hwb.
@@ -557,12 +557,12 @@ Section fundamental.
     destruct g0.
     - rewrite unseal_global.
       iApply (interp_in_mem_unseal_payload W C o sb with "[Hsealed_input]").
-      { iEval (rewrite fixpoint_interp1_eq /= Htag /interp_sb). done. }
+      { iEval (rewrite interp_unfold /= Htag /interp_sb). done. }
       by iApply "Hrcond".
     - rewrite unseal_local.
       iApply (interp_borrow_word W C (WSealable sb @@? π)).
       iApply (interp_in_mem_unseal_payload W C o sb with "[Hsealed_input]").
-      { iEval (rewrite fixpoint_interp1_eq /= Htag /interp_sb). done. }
+      { iEval (rewrite interp_unfold /= Htag /interp_sb). done. }
       by iApply "Hrcond".
   Qed.
 
@@ -611,7 +611,7 @@ Section fundamental.
   Proof.
     intros HpnotO HpnotO' Hb He Hgate Hp Hl. iIntros "HA".
     destruct t; last (iApply interp_untagged; done).
-    rewrite !fixpoint_interp1_eq !interp1_eq.
+    rewrite !interp_unfold !interp1_eq.
     rewrite HpnotO HpnotO'.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
@@ -692,7 +692,7 @@ Section fundamental.
     destruct t; last (iApply interp_untagged; done).
     destruct (isO p') eqn:HpO'.
     { iDestruct (interp_cap_heap_conditions with "HA") as %[Hvalid Hcoverage].
-      iEval (rewrite fixpoint_interp1_eq interp1_eq HpO').
+      iEval (rewrite interp_unfold interp1_eq HpO').
       iPureIntro. split.
       - eapply heap_cap_valid_perm; first exact Hp.
         eapply heap_cap_valid_subseg; eauto.
@@ -720,8 +720,8 @@ Section fundamental.
     intros Hsentry HpnotO Hb He Hl.
     iIntros "#IH #HA".
     destruct t; last (iApply interp_untagged; done).
-    iEval (rewrite fixpoint_interp1_eq /=).
-    iEval (rewrite fixpoint_interp1_eq interp1_eq) in "HA".
+    iEval (rewrite interp_unfold /=).
+    iEval (rewrite interp_unfold interp1_eq) in "HA".
     rewrite HpnotO.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     iDestruct "HA" as "[A %Hconditions]".
@@ -740,7 +740,7 @@ Section fundamental.
     rewrite /interp_conf.
     iApply ("IH" $! W' C cstk Ws Cs regs p g'' b' e' a' None
       with "Hfull Hmap HPC Hreg Hworld_interp Hcont Hframe Hown Hcstk").
-    iModIntro. iEval (rewrite fixpoint_interp1_eq interp1_eq HpnotO HpXSR).
+    iModIntro. iEval (rewrite interp_unfold interp1_eq HpnotO HpXSR).
     iSplitR; cycle 1.
     {
       iPureIntro. split; last (split; [exact (proj1 Hregions')|
@@ -788,8 +788,8 @@ Section fundamental.
 
   Lemma interp_weakening_word_load (W : WORLD) (C : CmptName) (p p' : Perm) v :
     PermFlowsTo p p'
-    -> fixpoint interp1 W C (lload_word p' v)
-    -∗ fixpoint interp1 W C (lload_word p v).
+    -> interp W C (lload_word p' v)
+    -∗ interp W C (lload_word p v).
   Proof.
     iIntros (Hfl) "#Hinterp".
     destruct v as [v π].
@@ -801,7 +801,7 @@ Section fundamental.
     - rewrite !load_word_int; done.
     - destruct sb as [t p0 g b e a | t p0 g b e a]; destruct t; cbn in Htag; try discriminate; cycle 1.
       { rewrite !load_word_sealrange; cbn.
-        by rewrite !fixpoint_interp1_eq /=.
+        by rewrite !interp_unfold /=.
       }
       destruct p0 as [ rx0 w0 dl0 dro0 ].
 

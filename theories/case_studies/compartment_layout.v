@@ -115,7 +115,7 @@ Section CmptLayout.
   Definition disjoint_cmpt (C1 C2 : cmpt) : Prop :=
     cmpt_region C1 ## cmpt_region C2.
 
-  Global Instance Cmpt_Disjoint : Disjoint cmpt := disjoint_cmpt.
+  #[global] Instance Cmpt_Disjoint : Disjoint cmpt := disjoint_cmpt.
 
   Definition cmpt_pcc_mregion (C: cmpt) : gmap Addr Word :=
     mkregion (cmpt_b_pcc C) (cmpt_a_code C) (cmpt_imports C) ∪
@@ -217,7 +217,7 @@ Section CmptLayout.
     proj2 (switcher_not_heap_range C).
 
 
-  Global Instance cmptSwitcher_switcherLayout (switcher_cmpt : cmptSwitcher) : switcherLayout.
+  #[global] Instance cmptSwitcher_switcherLayout (switcher_cmpt : cmptSwitcher) : switcherLayout.
   Proof.
     refine (@mkSwitcherLayout
               (b_switcher switcher_cmpt)
@@ -294,7 +294,7 @@ Section CmptLayout.
         assert_end_not_heap : is_heap_address e_assert = false
       }.
 
-  Global Instance cmptAssert_assertLayout (assert_cmpt : cmptAssert) : assertLayout.
+  #[global] Instance cmptAssert_assertLayout (assert_cmpt : cmptAssert) : assertLayout.
   Proof.
     refine (@mkAssertLayout
               (b_assert assert_cmpt)

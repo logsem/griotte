@@ -2,9 +2,9 @@ From stdpp Require Import countable.
 From stdpp Require Export ssreflect.
 From stdpp Require Export base gmap list.
 
-Local Coercion Z.of_nat : nat >-> Z.
+#[local] Coercion Z.of_nat : nat >-> Z.
 
-Global Instance divide_dec : forall p1 p2, Decision (Pos.divide p1 p2).
+#[global] Instance divide_dec : forall p1 p2, Decision (Pos.divide p1 p2).
 Proof.
   intros p1 p2.
   destruct (Znumtheory.Zdivide_dec (Z.pos p1) (Z.pos p2)).
@@ -266,7 +266,7 @@ Qed.
 
 Class DisjointList A := disjoint_list : list A → Prop.
 #[export] Hint Mode DisjointList ! : typeclass_instances.
-Instance: Params (@disjoint_list) 2 := {}.
+#[export] Instance: Params (@disjoint_list) 2 := {}.
 Notation "## Xs" := (disjoint_list Xs) (at level 20, format "##  Xs") : stdpp_scope.
 Notation "##@{ A } Xs" :=
   (@disjoint_list A _ Xs) (at level 20, only parsing) : stdpp_scope.
@@ -279,7 +279,7 @@ Section disjoint_list.
   Inductive disjoint_list_default : DisjointList A :=
     | disjoint_nil_2 : ##@{A} []
     | disjoint_cons_2 (X : A) (Xs : list A) : X ## ⋃ Xs → ## Xs → ## (X :: Xs).
-  Global Existing Instance disjoint_list_default.
+  #[global] Existing Instance disjoint_list_default.
 
   Lemma disjoint_list_cons X Xs : ## (X :: Xs) ↔ X ## ⋃ Xs ∧ ## Xs.
   Proof.
@@ -294,10 +294,10 @@ Proof. intros * HXY. rewrite !elem_of_disjoint. eauto. Qed.
 Lemma disjoint_mono_r A C `{ElemOf A C} (X Y Z: C) : X ⊆ Y → Z ## Y → Z ## X.
 Proof. intros * HXY. rewrite !elem_of_disjoint. eauto. Qed.
 
-Global Instance Empty_list {A}: Empty (list A). exact []. Defined.
-Global Instance Union_list {A}: Union (list A). exact app. Defined.
-Global Instance Singleton_list {A}: Singleton A (list A). exact (λ a, [a]). Defined.
-Global Instance Semiset_list {A}: SemiSet A (list A) .
+#[global] Instance Empty_list {A}: Empty (list A). exact []. Defined.
+#[global] Instance Union_list {A}: Union (list A). exact app. Defined.
+#[global] Instance Singleton_list {A}: Singleton A (list A). exact (λ a, [a]). Defined.
+#[global] Instance Semiset_list {A}: SemiSet A (list A) .
 Proof. split; set_solver. Qed.
 
 Lemma filter_complement_list {A : Type} (l : list A) (P : A -> Prop) {Hdec: ∀ x, Decision (P x)} :
@@ -329,6 +329,7 @@ Class Ord A `{EqDecision A} : Type :=
   { le_a : relation A;
     le_a_decision : ∀ a1 a2, Decision (le_a a1 a2);
     le_a_preorder : PreOrder le_a }.
+#[export] Hint Mode Ord ! - : typeclass_instances.
 
 (* TODO: integrate into stdpp? *)
 Lemma pair_eq_inv {A B} {y u : A} {z t : B} {x} :

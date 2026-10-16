@@ -155,7 +155,7 @@ Section switcher_macros.
 
   (* Closes one argument-count case of [clear_registers_pre_call_skip_spec]
      after the symbolic execution. *)
-  Local Ltac clear_args_post :=
+  #[local] Ltac clear_args_post :=
     iApply "Hcont";
     iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅)))))));
     rewrite big_sepM_arg_rmap;

@@ -10,7 +10,7 @@ Class assertLayout : Type :=
 
 Section Assert_Code.
   Import Asm_Griotte.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
   (* Maintains a flag storing whether an assert has failed. *)

@@ -13,6 +13,7 @@ Class cerise_na_invs Σ :=
     na_invG :: na_invG Σ;
     cerise_nais : na_inv_pool_name;
   }.
+#[export] Hint Mode cerise_na_invs - : typeclass_instances.
 
 (** The logical PC: a single exclusive value, whose authoritative part is in
     the state interpretation. The PC is not a general register. *)
@@ -22,10 +23,12 @@ Class pcG Σ := PcG {
   pc_inG :: inG Σ pcUR;
   pc_name : gname;
 }.
+#[export] Hint Mode pcG - : typeclass_instances.
 
 Class pcGpreS Σ := { pc_preG_inG :: inG Σ pcUR }.
+#[export] Hint Mode pcGpreS - : typeclass_instances.
 Definition pcΣ : gFunctors := #[GFunctor pcUR].
-Global Instance subG_pcGpreS {Σ} : subG pcΣ Σ → pcGpreS Σ.
+#[global] Instance subG_pcGpreS {Σ} : subG pcΣ Σ → pcGpreS Σ.
 Proof. solve_inG. Qed.
 
 Section pc_resource.
@@ -34,9 +37,9 @@ Section pc_resource.
   Definition PC_auth (lpc : LWord) : iProp Σ := own pc_name (●E (lpc : leibnizO LWord)).
   Definition PC_frag (lpc : LWord) : iProp Σ := own pc_name (◯E (lpc : leibnizO LWord)).
 
-  Global Instance PC_auth_timeless lpc : Timeless (PC_auth lpc).
+  #[global] Instance PC_auth_timeless lpc : Timeless (PC_auth lpc).
   Proof. apply _. Qed.
-  Global Instance PC_frag_timeless lpc : Timeless (PC_frag lpc).
+  #[global] Instance PC_frag_timeless lpc : Timeless (PC_frag lpc).
   Proof. apply _. Qed.
 
   Lemma PC_agree lpc lpc' : PC_auth lpc -∗ PC_frag lpc' -∗ ⌜lpc = lpc'⌝.
@@ -81,6 +84,7 @@ Class ceriseG Σ :=
       cerise_registryG :: allocRegistryG Σ; (* allocation registry *)
       cerise_addr_allocG :: addrAllocG Σ (* address claims *)
     }.
+#[export] Hint Mode ceriseG - : typeclass_instances.
 
 (** The state interpretation: the logical PC, registers and memory, the
     physical system registers and shadow table, the registry and the address
@@ -100,12 +104,12 @@ Section state_interp.
       reg_auth R ∗ addr_alloc_auth C ∗
       ⌜erasure R C σ lpc lreg lmem⌝.
 
-  Global Instance cerise_state_interp_timeless σ : Timeless (cerise_state_interp σ).
+  #[global] Instance cerise_state_interp_timeless σ : Timeless (cerise_state_interp σ).
   Proof. apply _. Qed.
 End state_interp.
 
 (* invariants for memory, and a state interpretation for (mem,reg) *)
-Global Instance memG_irisG `{MachineParameters} `{!ceriseG Σ} : irisGS griotte_lang Σ := {
+#[global] Instance memG_irisG `{MachineParameters} `{!ceriseG Σ} : irisGS griotte_lang Σ := {
   iris_invGS := cerise_invG;
   state_interp σ _ κs _ := cerise_state_interp σ;
   fork_post _ := True%I;
@@ -158,12 +162,13 @@ Class ceriseGpreS Σ := {
   cerise_preG_registry :: allocRegistryPreG Σ;
   cerise_preG_addr_alloc :: addrAllocPreG Σ;
 }.
+#[export] Hint Mode ceriseGpreS - : typeclass_instances.
 
 Definition ceriseGpreΣ : gFunctors :=
   #[gen_heapΣ Addr LWord; gen_heapΣ Addr AllocStatus; pcΣ; gen_heapΣ RegName LWord;
     gen_heapΣ SRegName Word; allocRegistryΣ; addrAllocΣ].
 
-Global Instance subG_ceriseGpreS {Σ} : subG ceriseGpreΣ Σ → ceriseGpreS Σ.
+#[global] Instance subG_ceriseGpreS {Σ} : subG ceriseGpreΣ Σ → ceriseGpreS Σ.
 Proof. solve_inG. Qed.
 
 Section ghost_init.

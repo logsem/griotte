@@ -37,10 +37,10 @@ Inductive instr: Type :=
 (* The PC capability with its address offset by [imm]. *)
 | Auipcc (dst: RegName) (imm: Z).
 
-Global Instance instr_eq_dec : EqDecision instr.
+#[global] Instance instr_eq_dec : EqDecision instr.
 Proof. solve_decision. Defined.
 
-Global Instance instr_countable : Countable instr.
+#[global] Instance instr_countable : Countable instr.
 Proof.
 
   set (enc := fun e =>

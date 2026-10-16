@@ -4,7 +4,7 @@ From griotte.allocators.ownership Require Import allocator.
 Section Heap_Temporal_Safety.
   Import Asm_Griotte.
   Context `{MP : MachineParameters}.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
 
   (** Heap temporal safety, without address reuse:
 

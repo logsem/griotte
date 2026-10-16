@@ -21,6 +21,7 @@ Class KvsPhysicalG Σ :=
       kvs_physical_genG :: ghost_varG Σ kvs_physical_map;
       γpkvs : gname;
     }.
+#[export] Hint Mode KvsPhysicalG - : typeclass_instances.
 
 Notation "●(PKVS) pkvs" :=
   (ghost_var γpkvs 1 pkvs)%I (at level 20) : bi_scope.
@@ -247,16 +248,16 @@ Section KVS_physical_map.
     iFrame; eauto.
   Qed.
 
-  Global Instance Permutation_Reflexive {A} : Reflexive (@Permutation A).
+  #[global] Instance Permutation_Reflexive {A} : Reflexive (@Permutation A).
   Proof. intros l ; done. Qed.
 
-  Global Instance Permutation_Transitive {A} : Transitive (@Permutation A).
+  #[global] Instance Permutation_Transitive {A} : Transitive (@Permutation A).
   Proof. intros l1 l2 l3 Hl12 Hl23; eapply Permutation_trans; done. Qed.
 
-  Global Instance Permutation_PreOrder {A} : PreOrder (@Permutation A).
+  #[global] Instance Permutation_PreOrder {A} : PreOrder (@Permutation A).
   Proof. split; apply _. Qed.
 
-  Local Instance Proper_get_kvs_key (opt_kv : kvs_physical_entry) :
+  #[local] Instance Proper_get_kvs_key (opt_kv : kvs_physical_entry) :
   Proper (Permutation ==> Permutation)
     (λ acc : list full_key_t, match opt_kv with
                      | Some kv => kv.1 :: acc
@@ -793,7 +794,7 @@ Proof.
         ** by eexists; split; eauto; simplify_map_eq.
 Qed.
 
-Local Lemma kvs_synced_logical_kvs_insert_1
+#[local] Lemma kvs_synced_logical_kvs_insert_1
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
   (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
@@ -833,7 +834,7 @@ Proof.
     by eexists idx'; simplify_map_eq.
 Qed.
 
-Local Lemma kvs_synced_logical_kvs_insert_2
+#[local] Lemma kvs_synced_logical_kvs_insert_2
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
   (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
@@ -917,7 +918,7 @@ Proof.
   done.
 Qed.
 
-Local Lemma kvs_synced_logical_kvs_delete_1
+#[local] Lemma kvs_synced_logical_kvs_delete_1
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
   (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
@@ -955,7 +956,7 @@ Proof.
     * by exists idx'; simplify_map_eq.
 Qed.
 
-Local Lemma kvs_synced_logical_kvs_delete_2
+#[local] Lemma kvs_synced_logical_kvs_delete_2
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
   (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
@@ -1013,6 +1014,7 @@ Class KvsLogicalG Σ :=
   Build_KvsLogicalG {
       kvs_logical_genG :: gen_heapGS user_key_t kvs_user_map Σ;
     }.
+#[export] Hint Mode KvsLogicalG - : typeclass_instances.
 
 Notation "'↪●LKVS' lkvs" :=
   ( gen_heap_interp (L:=user_key_t) (V:= kvs_user_map) lkvs )%I (at level 20) : bi_scope.
@@ -1129,6 +1131,7 @@ Class KvsUserG Σ :=
       kvs_user_genG :: ghost_mapG Σ map_key_t (option LWord);
       γkvs_user : user_key_t -> gname;
     }.
+#[export] Hint Mode KvsUserG - : typeclass_instances.
 
 Notation "uk '↪●UKVS' ukvs" :=
   ( ghost_map_auth (K:=map_key_t) (V:= option LWord) (γkvs_user uk) 1%Qp ukvs)%I (at level 20) : bi_scope.
@@ -1191,6 +1194,7 @@ Class kvsG Σ :=
       kvs_logicalG :: KvsLogicalG Σ;
       kvs_userG :: KvsUserG Σ;
     }.
+#[export] Hint Mode kvsG - : typeclass_instances.
 
 
 Section KVS_init.
@@ -1431,7 +1435,7 @@ Section KVS_preamble.
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
       codefrag_pers KVS_pcc_b' kvs_service_instrs.
 
-  Global Instance kvs_static_persistent {KVS : kvsLayout} :
+  #[global] Instance kvs_static_persistent {KVS : kvsLayout} :
     Persistent kvs_static.
   Proof. apply _. Qed.
 
@@ -1613,4 +1617,4 @@ Section UserKvsInit.
 
 End UserKvsInit.
 
-Global Opaque kvs_physical_map_init.
+#[global] Opaque kvs_physical_map_init.

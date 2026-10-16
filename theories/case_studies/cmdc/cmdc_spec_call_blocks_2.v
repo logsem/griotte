@@ -25,7 +25,7 @@ Section CMDC_Call_Blocks_2.
       start at the labels [l_call], [l_fetch] and [l_jump], and that returns
       at [l_ret]: the code of the two calls only differs by the import of
       the callee. *)
-  Local Ltac cmdc_call_blocks_proof l_call l_fetch l_jump l_ret pc_a pc_b :=
+  #[local] Ltac cmdc_call_blocks_proof l_call l_fetch l_jump l_ret pc_a pc_b :=
     let hcont := fresh "hcont" in
     let a_fetch1 := fresh "a_fetch1" in
     let a_fetch2 := fresh "a_fetch2" in

@@ -63,15 +63,16 @@ Class memory_layout `{MP: MachineParameters} := {
     assert_switcher_disjoints :
     assert_switcher_disjoint assert_cmpt switcher_cmpt;
   }.
+#[export] Hint Mode memory_layout - : typeclass_instances.
 
 
 (** We instantiate the switcher and assert layout with the memory layout. *)
-Local Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
+#[local] Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
 Proof.
   exact (cmptSwitcher_switcherLayout switcher_cmpt).
 Defined.
 
-Local Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
+#[local] Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
 Proof.
   pose proof (ot_switcher_size switcher_cmpt).
   pose proof (switcher_size switcher_cmpt).
@@ -84,7 +85,7 @@ Proof.
   refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
-Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
+#[local] Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
 Proof.
   exact (cmptAssert_assertLayout assert_cmpt).
 Defined.
@@ -499,16 +500,16 @@ End Adequacy.
 (** We initialise concretely the compartments name typeclass. *)
 
 Inductive CmptNames_CMDC := | B | C.
-Local Instance CmptNames_CMDC_eq_dec : EqDecision CmptNames_CMDC.
+#[local] Instance CmptNames_CMDC_eq_dec : EqDecision CmptNames_CMDC.
 Proof. intros C C'; destruct C,C'; solve_decision. Qed.
-Local Instance CmptNames_CMDC_finite : finite.Finite CmptNames_CMDC.
+#[local] Instance CmptNames_CMDC_finite : finite.Finite CmptNames_CMDC.
 Proof.
   refine {| finite.enum := [B; C] |}.
   + constructor; [ by rewrite list_elem_of_singleton | apply NoDup_singleton ].
   + intros [|]; [ left | right; left ].
 Defined.
 
-Local Program Instance CmptNames_CMDC_CmptNameG : CmptNameG :=
+#[local] Program Instance CmptNames_CMDC_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_CMDC; |}.
 
 (** END-TO-END THEOREM *)

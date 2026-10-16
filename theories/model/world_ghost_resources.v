@@ -22,6 +22,7 @@ Class relGpreS Σ {Cname : CmptNameG} :=
       relPreG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       relPreG_rel :: inG Σ (authR relUR);
     }.
+#[export] Hint Mode relGpreS - - : typeclass_instances.
 
 Class relGS Σ {Cname : CmptNameG} :=
   RelGS {
@@ -29,11 +30,12 @@ Class relGS Σ {Cname : CmptNameG} :=
       relG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       γrel : CmptName -> gname
     }.
+#[export] Hint Mode relGS - - : typeclass_instances.
 
 Definition relPreΣ {Cname : CmptNameG} :=
   #[ GFunctor (authR relUR) ].
 
-Instance subG_relPreΣ {Σ} {Cname : CmptNameG}:
+#[export] Instance subG_relPreΣ {Σ} {Cname : CmptNameG}:
   subG relPreΣ Σ →
   invGpreS Σ →
   subG (savedPredΣ (WorldT * CmptName * LWord)) Σ →
@@ -45,23 +47,23 @@ Section REL_defs.
 
   Definition REL_def (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) : iProp Σ :=
     own (γrel C) (◯ {[ a := to_agree (γ,p) ]}).
-  Definition REL_aux : { x | x = @REL_def }. by eexists. Qed.
-  Definition REL := proj1_sig REL_aux.
-  Definition REL_eq : @REL = @REL_def := proj2_sig REL_aux.
+  #[local] Definition REL_aux : seal (@REL_def). Proof. by eexists. Qed.
+  Definition REL := REL_aux.(unseal).
+  Definition REL_eq : @REL = @REL_def := REL_aux.(seal_eq).
 
   Definition RELS_def  (C : CmptName) (M : relT) : iProp Σ :=
    own (γrel C) (● (to_agree <$> M : relUR)).
-  Definition RELS_aux : { x | x = @RELS_def }. by eexists. Qed.
-  Definition RELS := proj1_sig RELS_aux.
-  Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
+  #[local] Definition RELS_aux : seal (@RELS_def). Proof. by eexists. Qed.
+  Definition RELS := RELS_aux.(unseal).
+  Definition RELS_eq : @RELS = @RELS_def := RELS_aux.(seal_eq).
 
   Definition rel_def (C : CmptName) (a : LAddr) (p : Perm)
     (φ : (WorldT * CmptName * LWord) -> iProp Σ)
     : iProp Σ :=
     (∃ (γpred : gnameO), REL C a γpred p ∗ saved_pred_own γpred DfracDiscarded φ)%I.
-  Definition rel_aux : { x | x = @rel_def }. by eexists. Qed.
-  Definition rel := proj1_sig rel_aux.
-  Definition rel_eq : @rel = @rel_def := proj2_sig rel_aux.
+  #[local] Definition rel_aux : seal (@rel_def). Proof. by eexists. Qed.
+  Definition rel := rel_aux.(unseal).
+  Definition rel_eq : @rel = @rel_def := rel_aux.(seal_eq).
 End REL_defs.
 
 Section relPre.
@@ -106,13 +108,13 @@ Section rel.
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
 
-  Global Instance REL_persistent (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) :
+  #[global] Instance REL_persistent (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) :
     Persistent (REL C a γ p).
   Proof. rewrite REL_eq /REL_def.
          apply _.
   Qed.
 
-  Global Instance rel_persistent (C : CmptName) (a : LAddr) (p : Perm)
+  #[global] Instance rel_persistent (C : CmptName) (a : LAddr) (p : Perm)
     (φ : (WORLD * CmptName * LWord) -> iProp Σ) :
     Persistent (rel C a p φ).
   Proof. rewrite rel_eq /rel_def REL_eq /REL_def.
@@ -289,6 +291,7 @@ Class sealStoreG Σ := SealStoreG { (* Create record constructor for typeclass *
     SG_sealStore ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
     SG_sealN : gname;
 }.
+#[export] Hint Mode sealStoreG - : typeclass_instances.
 
 Definition sealStorePreΣ :=
   #[ GFunctor (gmapUR OType (csumR (exclR unitO) (agreeR gnameO))) ].
@@ -296,11 +299,12 @@ Definition sealStorePreΣ :=
 Class sealStorePreG Σ := {
     SG_sealStorePre ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
 }.
+#[export] Hint Mode sealStorePreG - : typeclass_instances.
 
-Instance sealStoreG_preG `{sealStoreG Σ} : sealStorePreG Σ.
+#[export] Instance sealStoreG_preG `{sealStoreG Σ} : sealStorePreG Σ.
 Proof. constructor. all: apply _. Defined.
 
-Global Instance subG_sealStorePreΣ {Σ}:
+#[global] Instance subG_sealStorePreΣ {Σ}:
   subG sealStorePreΣ Σ →
   sealStorePreG Σ.
 Proof. solve_inG. Qed.
@@ -316,7 +320,7 @@ Section Store.
   Definition seal_pred (o : OType) (P : WORLD * CmptName * LWord → iProp Σ) :=
     (∃ γpred: gname, own SG_sealN ({[o := Cinr (to_agree γpred)]})
                      ∗ saved_pred_own γpred DfracDiscarded P)%I.
-  Global Instance seal_pred_persistent i P : Persistent (seal_pred i P).
+  #[global] Instance seal_pred_persistent i P : Persistent (seal_pred i P).
   Proof. apply _. Qed.
   Definition can_alloc_pred (o : OType) :=
     (own SG_sealN ({[o := Cinl (Excl ())]}))%I.

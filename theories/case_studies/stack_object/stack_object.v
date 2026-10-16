@@ -5,7 +5,7 @@ From griotte Require Import checkra checkints.
     blocks from [so_main_asm]. *)
 Section SO_Asm.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
   Definition so_secret : Z := 42.
@@ -72,7 +72,7 @@ End SO_Asm.
 (** The code of the concrete adversary of [stack_object_concrete]. *)
 Section SO_C_code.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
 
   Definition so_C_asm : list asm_code :=
     [ #@".Limport_switcher";

@@ -52,9 +52,9 @@ Section fundamental.
       [done | apply Hcases].
   Qed.
 
-  Local Ltac by_binop_case :=
+  #[local] Ltac by_binop_case :=
     eapply ftlr_instr_base_mono; [| eapply binop_case]; intros ->; eauto 10.
-  Local Ltac by_get_case :=
+  #[local] Ltac by_get_case :=
     eapply get_case; rewrite /is_Get; eauto 10.
 
   (** Execution fails when the PC is not a correct PC. *)
@@ -88,7 +88,7 @@ Section fundamental.
     destruct w ; cbn in Hpwl ; try congruence.
     destruct g; last done.
     (* Contradiction -- WL and Global are not safe *)
-    rewrite fixpoint_interp1_eq interp1_eq.
+    rewrite interp_unfold interp1_eq.
     replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
     cbn.
     destruct rx; auto.
@@ -118,7 +118,7 @@ Section fundamental.
     iIntros (HcorrectPC Hp) "#Hinv #Hreg".
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
-    iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv".
+    iEval (rewrite !interp_unfold interp1_eq) in "Hinv".
     destruct (isO p) eqn: HnO.
     { destruct Hp as [Hexec _]; eapply executeAllowed_nonO in Hexec; congruence. }
     destruct (has_sreg_access p) eqn:HpXRS; first done.
@@ -321,7 +321,7 @@ Section fundamental.
         iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
         iExists _,_,_,_,_,_.
-        rewrite /= fixpoint_interp1_eq /=.
+        rewrite /= interp_unfold /=.
         iSplit;[eauto|]. iModIntro.
         iDestruct "Hw" as "[%Hnonheap #Hw]".
         rewrite /enter_cond.

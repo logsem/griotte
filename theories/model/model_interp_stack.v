@@ -59,7 +59,7 @@ Section WorldInterpStack.
       { by eapply withinBounds_true_iff. }
       iAssert (⌜ ρ = Temporary ⌝)%I as "%Hρ_eq" ;simplify_eq.
       {
-        rewrite fixpoint_interp1_eq /=.
+        rewrite interp_unfold /=.
         destruct g; auto.
         iDestruct "Hinterp" as "[Hinterp _]".
         iDestruct (big_sepL_elem_of with "Hinterp") as "Ha".
@@ -138,7 +138,7 @@ Section WorldInterpStack.
   Qed.
 
 
-  Local Lemma submseteq_dom (l : list Addr) (Wstd_sta : gmap Addr region_type) :
+  #[local] Lemma submseteq_dom (l : list Addr) (Wstd_sta : gmap Addr region_type) :
     Forall (λ i : Addr, Wstd_sta !! i = Some Temporary) l
     → NoDup l → l ⊆+ (map_to_list Wstd_sta).*1.
   Proof.
@@ -179,7 +179,7 @@ Section WorldInterpStack.
      They are not meant to be understood or used by a Griotte user.
    *)
 
-  Local Lemma revoked_stack_revoked W C l' :
+  #[local] Lemma revoked_stack_revoked W C l' :
     ([∗ list] a' ∈ l',
        ⌜ std W !! LNonHeap a' = Some Temporary ⌝ ∗
        (

@@ -22,7 +22,7 @@ Section Heap_Temporal_Safety_Interp.
   (** The safe [malloc] runs with the ownership layer's [FreeAuth] instance:
       the right to free a new object is added to the sealing predicate of the
       allocator capability. *)
-  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+  #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   (** Execute malloc for an arbitrary caller and return a safe result. *)
   Lemma malloc_exec_entry_point (W : WORLD) (C : CmptName)
@@ -252,7 +252,7 @@ Section Heap_Temporal_Safety_Interp.
             destruct Hbounds as (Hb & Hbe & He). solve_addr. }
         iAssert (interp Wshare C (WCap true RW Global b e b @@ ι))
           with "[]" as "#Hinterp_result".
-        { iEval (rewrite fixpoint_interp1_eq interp1_eq /=).
+        { iEval (rewrite interp_unfold interp1_eq /=).
           iSplit; last (iPureIntro; split; [exact I|split; assumption]).
           iApply big_sepL_intro.
           iIntros (k a Ha).

@@ -558,8 +558,8 @@ Section SO_World_Object.
 
     iAssert (interp W2 C (WCap true p g b e (finz.max b e) @@? π))%I
       as "#Hinterp_wca0_W2".
-    { iEval (rewrite fixpoint_interp1_eq interp1_eq).
-      iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_wca0_W0".
+    { iEval (rewrite interp_unfold interp1_eq).
+      iEval (rewrite interp_unfold interp1_eq) in "Hinterp_wca0_W0".
       destruct (isO p) eqn:HpO.
       { iDestruct "Hinterp_wca0_W0" as %[Hvalid Hcoverage].
         iPureIntro. split.

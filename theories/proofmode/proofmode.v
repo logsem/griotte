@@ -504,53 +504,53 @@ Class FramableMemoryPointsto (a: Addr) (dq: dfrac) (w: LWord) := {}.
 Class FramableCodefrag (a: Addr) (l: list Word) := {}.
 #[export] Hint Mode FramableCodefrag + - : typeclass_instances.
 
-Instance FramableSRegisterPointsto_default sr w :
+#[export] Instance FramableSRegisterPointsto_default sr w :
   FramableSRegisterPointsto sr w
 | 100. Qed.
 
-Instance FramableRegisterPointsto_default r w :
+#[export] Instance FramableRegisterPointsto_default r w :
   FramableRegisterPointsto r w
 | 100. Qed.
 
-Instance FramableMemoryPointsto_default a dq w :
+#[export] Instance FramableMemoryPointsto_default a dq w :
   FramableMemoryPointsto a dq w
 | 100. Qed.
 
-Instance FramableCodefrag_default a l :
+#[export] Instance FramableCodefrag_default a l :
   FramableCodefrag a l
 | 100. Qed.
 
-Instance FramableMachineResource_sreg `{ceriseG Σ} sr w :
+#[export] Instance FramableMachineResource_sreg `{ceriseG Σ} sr w :
   FramableSRegisterPointsto sr w →
   FramableMachineResource (sr ↦ₛᵣ w).
 Qed.
 
-Instance FramableMachineResource_pc `{ceriseG Σ} w :
+#[export] Instance FramableMachineResource_pc `{ceriseG Σ} w :
   FramableMachineResource (PC ↦ₚ w).
 Qed.
 
-Instance FramableMachineResource_reg `{ceriseG Σ} r w :
+#[export] Instance FramableMachineResource_reg `{ceriseG Σ} r w :
   FramableRegisterPointsto r w →
   FramableMachineResource (r ↦ᵣ w).
 Qed.
 
-Instance FramableMachineResource_mem `{ceriseG Σ} a dq w :
+#[export] Instance FramableMachineResource_mem `{ceriseG Σ} a dq w :
   FramableMemoryPointsto a dq w →
   FramableMachineResource (a ↦ₐ{dq} w).
 Qed.
 
-Instance FramableMachineResource_codefrag `{ceriseG Σ} a l :
+#[export] Instance FramableMachineResource_codefrag `{ceriseG Σ} a l :
   FramableCodefrag a l →
   FramableMachineResource (codefrag a l).
 Qed.
 
-Instance FramableMachineResource_codefrag_pers `{ceriseG Σ} a l :
+#[export] Instance FramableMachineResource_codefrag_pers `{ceriseG Σ} a l :
   FramableCodefrag a l →
   FramableMachineResource (codefrag_pers a l).
 Qed.
 
 (* Address claims, for the Subseg rule on heap roots (case 3). *)
-Instance FramableMachineResource_addr_alloc `{ceriseG Σ} a c :
+#[export] Instance FramableMachineResource_addr_alloc `{ceriseG Σ} a c :
   FramableMachineResource (addr_alloc a c).
 Qed.
 
@@ -798,7 +798,7 @@ Ltac simplify_load_word p w :=
 Ltac reduce_cap_word :=
   cbn [store_word canStore isLocalWord isLocalSealable isLocal isWL writeAllowed andb
        load_word load_word_perm isDL isDRO
-       machine_word.unseal unseal_locality borrow borrow_sb deeplocal deeplocal_sb deeplocal_perm
+       unseal_sb unseal_locality borrow borrow_sb deeplocal deeplocal_sb deeplocal_perm
        readonly readonly_sb readonly_perm
        clear_tag clear_tag_sealable get_tag get_tag_sealable].
 

@@ -36,9 +36,9 @@ for another implementation of the same idea.
 *)
 
 (** * Settings *)
-Local Set SsrOldRewriteGoalsOrder. (* See Coq issue #5706 *)
+#[local] Set SsrOldRewriteGoalsOrder. (* See Coq issue #5706 *)
 
-Local Open Scope Z_scope.
+#[local] Open Scope Z_scope.
 
 (** * Helper lemmas to upstream *)
 Lemma Nat_eqb_eq n1 n2 :
@@ -181,28 +181,28 @@ Ltac simpl_bool :=
 (** * [simplify_bitblast_index] *)
 Create HintDb simplify_bitblast_index_db discriminated.
 
-Global Hint Rewrite
+#[export] Hint Rewrite
   Z.sub_add
   Z.add_simpl_r
   : simplify_bitblast_index_db.
 
-Local Ltac simplify_bitblast_index := autorewrite with simplify_bitblast_index_db.
+#[local] Ltac simplify_bitblast_index := autorewrite with simplify_bitblast_index_db.
 
 (** * Main typeclasses for bitblast *)
 Create HintDb bitblast discriminated.
-Global Hint Constants Opaque : bitblast.
-Global Hint Variables Opaque : bitblast.
+#[export] Hint Constants Opaque : bitblast.
+#[export] Hint Variables Opaque : bitblast.
 
 (** ** [IsPowerOfTwo] *)
 Class IsPowerOfTwo (z n : Z) := {
   is_power_of_two_proof : z = 2 ^ n;
 }.
-Global Arguments is_power_of_two_proof _ _ {_}.
-Global Hint Mode IsPowerOfTwo + - : bitblast.
+#[global] Arguments is_power_of_two_proof _ _ {_}.
+#[export] Hint Mode IsPowerOfTwo + - : bitblast.
 Lemma is_power_of_two_pow2 n :
   IsPowerOfTwo (2 ^ n) n.
 Proof. constructor. done. Qed.
-Global Hint Resolve is_power_of_two_pow2 | 10 : bitblast.
+#[export] Hint Resolve is_power_of_two_pow2 | 10 : bitblast.
 Lemma is_power_of_two_const n p :
   (∀ x, [(n, 1%nat)] = x → prod_map Z.of_nat id <$> Z_to_bit_ranges (Z.pos p) = x) →
   IsPowerOfTwo (Z.pos p) n.
@@ -214,7 +214,7 @@ Proof.
   rewrite Exists_cons Exists_nil /=.
   rewrite Z.pow2_bits_eqb ?Z_eqb_eq ?bool_decide_spec; lia.
 Qed.
-Global Hint Extern 10 (IsPowerOfTwo (Z.pos ?p) _) =>
+#[export] Hint Extern 10 (IsPowerOfTwo (Z.pos ?p) _) =>
   lazymatch isPcst p with | true => idtac end;
   simple notypeclasses refine (is_power_of_two_const _ _ _);
    let H := fresh in intros ? H; vm_compute; apply H
@@ -224,10 +224,10 @@ Global Hint Extern 10 (IsPowerOfTwo (Z.pos ?p) _) =>
 Class BitblastBounded (z n : Z) := {
   bitblast_bounded_proof : 0 ≤ z < 2 ^ n;
 }.
-Global Arguments bitblast_bounded_proof _ _ {_}.
-Global Hint Mode BitblastBounded + - : bitblast.
+#[global] Arguments bitblast_bounded_proof _ _ {_}.
+#[export] Hint Mode BitblastBounded + - : bitblast.
 
-Global Hint Extern 10 (BitblastBounded _ _) =>
+#[export] Hint Extern 10 (BitblastBounded _ _) =>
   constructor; first [ split; [lia|done] | done]
   : bitblast.
 
@@ -235,14 +235,14 @@ Global Hint Extern 10 (BitblastBounded _ _) =>
 Class Bitblast (z n : Z) (b : bool) := {
   bitblast_proof : Z.testbit z n = b;
 }.
-Global Arguments bitblast_proof _ _ _ {_}.
-Global Hint Mode Bitblast + + - : bitblast.
+#[global] Arguments bitblast_proof _ _ _ {_}.
+#[export] Hint Mode Bitblast + + - : bitblast.
 
 Definition BITBLAST_TESTBIT := Z.testbit.
 Lemma bitblast_id z n :
   Bitblast z n (bool_decide (0 ≤ n) && BITBLAST_TESTBIT z n).
 Proof. constructor. case_bool_decide => //=. rewrite Z.testbit_neg_r //; lia. Qed.
-Global Hint Resolve bitblast_id | 1000 : bitblast.
+#[export] Hint Resolve bitblast_id | 1000 : bitblast.
 Lemma bitblast_id_bounded z z' n :
   BitblastBounded z z' →
   Bitblast z n (bool_decide (0 ≤ n < z') && BITBLAST_TESTBIT z n).
@@ -255,11 +255,11 @@ Proof.
   destruct (decide (0 ≤ z')) => //.
   rewrite Z.pow_neg_r in Hb; lia.
 Qed.
-Global Hint Resolve bitblast_id_bounded | 990 : bitblast.
+#[export] Hint Resolve bitblast_id_bounded | 990 : bitblast.
 Lemma bitblast_0 n :
   Bitblast 0 n false.
 Proof. constructor. by rewrite Z.bits_0. Qed.
-Global Hint Resolve bitblast_0 | 10 : bitblast.
+#[export] Hint Resolve bitblast_0 | 10 : bitblast.
 Lemma bitblast_pos p n rs b :
   (∀ x, rs = x → (λ p, (Z.of_nat p.1, Z.of_nat p.1 + Z.of_nat p.2)) <$> Z_to_bit_ranges (Z.pos p) = x) →
   existsb (λ '(r1, r2), bool_decide (r1 ≤ n ∧ n < r2)) rs = b →
@@ -273,7 +273,7 @@ Proof.
   apply eq_bool_prop_intro. rewrite Z_to_bit_ranges_spec; [|done..]. rewrite existb_True Exists_fmap.
   f_equiv => -[??] /=. by rewrite bool_decide_spec.
 Qed.
-Global Hint Extern 10 (Bitblast (Z.pos ?p) _ _) =>
+#[export] Hint Extern 10 (Bitblast (Z.pos ?p) _ _) =>
   lazymatch isPcst p with | true => idtac end;
   simple notypeclasses refine (bitblast_pos _ _ _ _ _ _);[shelve|
    let H := fresh in intros ? H; vm_compute; apply H |
@@ -293,7 +293,7 @@ Proof.
   rewrite negb_forallb existb_True Exists_fmap.
   f_equiv => -[??] /=. rewrite negb_True bool_decide_spec. lia.
 Qed.
-Global Hint Extern 10 (Bitblast (Z.neg ?p) _ _) =>
+#[export] Hint Extern 10 (Bitblast (Z.neg ?p) _ _) =>
   lazymatch isPcst p with | true => idtac end;
   simple notypeclasses refine (bitblast_neg _ _ _ _ _ _);[shelve|shelve|
    let H := fresh in intros ? H; vm_compute; apply H |
@@ -304,19 +304,19 @@ Lemma bitblast_land z1 z2 n b1 b2 :
   Bitblast z2 n b2 →
   Bitblast (Z.land z1 z2) n (b1 && b2).
 Proof. move => [<-] [<-]. constructor. by rewrite Z.land_spec. Qed.
-Global Hint Resolve bitblast_land | 10 : bitblast.
+#[export] Hint Resolve bitblast_land | 10 : bitblast.
 Lemma bitblast_lor z1 z2 n b1 b2 :
   Bitblast z1 n b1 →
   Bitblast z2 n b2 →
   Bitblast (Z.lor z1 z2) n (b1 || b2).
 Proof. move => [<-] [<-]. constructor. by rewrite Z.lor_spec. Qed.
-Global Hint Resolve bitblast_lor | 10 : bitblast.
+#[export] Hint Resolve bitblast_lor | 10 : bitblast.
 Lemma bitblast_lxor z1 z2 n b1 b2 :
   Bitblast z1 n b1 →
   Bitblast z2 n b2 →
   Bitblast (Z.lxor z1 z2) n (xorb b1 b2).
 Proof. move => [<-] [<-]. constructor. by rewrite Z.lxor_spec. Qed.
-Global Hint Resolve bitblast_lxor | 10 : bitblast.
+#[export] Hint Resolve bitblast_lxor | 10 : bitblast.
 Lemma bitblast_shiftr z1 z2 n b1 :
   Bitblast z1 (n + z2) b1 →
   Bitblast (z1 ≫ z2) n (bool_decide (0 ≤ n) && b1).
@@ -324,7 +324,7 @@ Proof.
   move => [<-]. constructor.
   case_bool_decide => /=; [by rewrite Z.shiftr_spec| rewrite Z.testbit_neg_r //; lia].
 Qed.
-Global Hint Resolve bitblast_shiftr | 10 : bitblast.
+#[export] Hint Resolve bitblast_shiftr | 10 : bitblast.
 Lemma bitblast_shiftl z1 z2 n b1 :
   Bitblast z1 (n - z2) b1 →
   Bitblast (z1 ≪ z2) n (bool_decide (0 ≤ n) && b1).
@@ -332,7 +332,7 @@ Proof.
   move => [<-]. constructor.
   case_bool_decide => /=; [by rewrite Z.shiftl_spec| rewrite Z.testbit_neg_r //; lia].
 Qed.
-Global Hint Resolve bitblast_shiftl | 10 : bitblast.
+#[export] Hint Resolve bitblast_shiftl | 10 : bitblast.
 Lemma bitblast_lnot z1 n b1 :
   Bitblast z1 n b1 →
   Bitblast (Z.lnot z1) n (bool_decide (0 ≤ n) && negb b1).
@@ -340,13 +340,13 @@ Proof.
   move => [<-]. constructor.
   case_bool_decide => /=; [by rewrite Z.lnot_spec| rewrite Z.testbit_neg_r //; lia].
 Qed.
-Global Hint Resolve bitblast_lnot | 10 : bitblast.
+#[export] Hint Resolve bitblast_lnot | 10 : bitblast.
 Lemma bitblast_ldiff z1 z2 n b1 b2 :
   Bitblast z1 n b1 →
   Bitblast z2 n b2 →
   Bitblast (Z.ldiff z1 z2) n (b1 && negb b2).
 Proof. move => [<-] [<-]. constructor. by rewrite Z.ldiff_spec. Qed.
-Global Hint Resolve bitblast_ldiff | 10 : bitblast.
+#[export] Hint Resolve bitblast_ldiff | 10 : bitblast.
 Lemma bitblast_ones z1 n :
   Bitblast (Z.ones z1) n (bool_decide (0 ≤ n < z1) || bool_decide (z1 < 0 ∧ 0 ≤ n)).
 Proof.
@@ -356,7 +356,7 @@ Proof.
   - destruct (decide (0 ≤ n)); [|rewrite Z.testbit_neg_r //; lia].
     apply Z.ones_spec_high; lia.
 Qed.
-Global Hint Resolve bitblast_ones | 10 : bitblast.
+#[export] Hint Resolve bitblast_ones | 10 : bitblast.
 Lemma bitblast_pow2 n n' :
   Bitblast (2 ^ n') n (bool_decide (n = n' ∧ 0 ≤ n)).
 Proof.
@@ -364,12 +364,12 @@ Proof.
   destruct (decide (0 ≤ n)); [|rewrite Z.testbit_neg_r //; lia].
   apply Z.pow2_bits_false. lia.
 Qed.
-Global Hint Resolve bitblast_pow2 | 10 : bitblast.
+#[export] Hint Resolve bitblast_pow2 | 10 : bitblast.
 Lemma bitblast_setbit z1 n b1 n' :
   Bitblast (Z.lor z1 (2 ^ n')) n b1 →
   Bitblast (Z.setbit z1 n') n b1.
 Proof. by rewrite Z.setbit_spec'. Qed.
-Global Hint Resolve bitblast_setbit | 10 : bitblast.
+#[export] Hint Resolve bitblast_setbit | 10 : bitblast.
 Lemma bitblast_mod z1 z2 z2' n b1 :
   IsPowerOfTwo z2 z2' →
   Bitblast z1 n b1 →
@@ -381,14 +381,14 @@ Proof.
   rewrite -Z.land_ones; [|lia]. rewrite Z.land_spec Z.ones_spec; [|lia..].
   by rewrite andb_comm.
 Qed.
-Global Hint Resolve bitblast_mod | 10 : bitblast.
+#[export] Hint Resolve bitblast_mod | 10 : bitblast.
 (* TODO: What are good instances for +? Maybe something based on Z_add_nocarry_lor? *)
 Lemma bitblast_add_0 z1 z2 b1 b2 :
   Bitblast z1 0 b1 →
   Bitblast z2 0 b2 →
   Bitblast (z1 + z2) 0 (xorb b1 b2).
 Proof. move => [<-] [<-]. constructor. apply Z.add_bit0. Qed.
-Global Hint Resolve bitblast_add_0 | 5 : bitblast.
+#[export] Hint Resolve bitblast_add_0 | 5 : bitblast.
 Lemma bitblast_add_1 z1 z2 b10 b11 b20 b21 :
   Bitblast z1 0 b10 →
   Bitblast z2 0 b20 →
@@ -396,7 +396,7 @@ Lemma bitblast_add_1 z1 z2 b10 b11 b20 b21 :
   Bitblast z2 1 b21 →
   Bitblast (z1 + z2) 1 (xorb (xorb b11 b21) (b10 && b20)).
 Proof. move => [<-] [<-] [<-] [<-]. constructor. apply Z.add_bit1. Qed.
-Global Hint Resolve bitblast_add_1 | 5 : bitblast.
+#[export] Hint Resolve bitblast_add_1 | 5 : bitblast.
 Lemma bitblast_clearbit z n b m :
   Bitblast z n b →
   Bitblast (Z.clearbit z m) n (bool_decide (n ≠ m) && b).
@@ -406,14 +406,14 @@ Proof.
   - by apply Z.clearbit_neq.
   - by apply Z.clearbit_eq.
 Qed.
-Global Hint Resolve bitblast_clearbit | 10 : bitblast.
+#[export] Hint Resolve bitblast_clearbit | 10 : bitblast.
 Lemma bitblast_bool_to_Z b n:
   Bitblast (bool_to_Z b) n (bool_decide (n = 0) && b).
 Proof.
   constructor. destruct b; simpl_bool; repeat case_bool_decide;
     subst; try done; rewrite ?Z.bits_0; by destruct n.
 Qed.
-Global Hint Resolve bitblast_bool_to_Z | 10 : bitblast.
+#[export] Hint Resolve bitblast_bool_to_Z | 10 : bitblast.
 
 (** Instances for [bv] *)
 Lemma bitblast_bv_wrap z1 n n1 b1:
@@ -423,17 +423,17 @@ Proof.
   intros [<-]. constructor.
   destruct (decide (0 ≤ n)); [by rewrite bv_wrap_spec| rewrite !Z.testbit_neg_r; [|lia..]; btauto].
 Qed.
-Global Hint Resolve bitblast_bv_wrap | 10 : bitblast.
+#[export] Hint Resolve bitblast_bv_wrap | 10 : bitblast.
 Lemma bitblast_bounded_bv_unsigned n (b : bv n):
   BitblastBounded (bv_unsigned b) (Z.of_N n).
 Proof. constructor. apply bv_unsigned_in_range. Qed.
-Global Hint Resolve bitblast_bounded_bv_unsigned | 15 : bitblast.
+#[export] Hint Resolve bitblast_bounded_bv_unsigned | 15 : bitblast.
 
 (** * Tactics *)
 
 (** ** Helper definitions and lemmas for the tactics *)
 Definition BITBLAST_BOOL_DECIDE := @bool_decide.
-Global Arguments BITBLAST_BOOL_DECIDE _ {_}.
+#[global] Arguments BITBLAST_BOOL_DECIDE _ {_}.
 
 Lemma tac_bitblast_bool_decide_true G (P : Prop) `{!Decision P} :
   P →

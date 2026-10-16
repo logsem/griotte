@@ -8,7 +8,7 @@ Section world_std_revocation.
     `{MP: MachineParameters}.
 
   (* The lemmas of this file do not depend on the type of sealed words. *)
-  Local Notation WORLD := (prodO (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))) (leibnizO Heap)).
+  #[local] Notation WORLD := (prodO (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))) (leibnizO Heap)).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.

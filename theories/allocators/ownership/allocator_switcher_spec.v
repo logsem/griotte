@@ -26,7 +26,7 @@ Section AllocatorSwitcherSpec.
 
   (** The ownership layer's [FreeAuth] instance: the caller holds the right
       to free, [free_right ι]. *)
-  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+  #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   (** The results of [malloc n]: exhaustion, with the owner token back, or a
       fresh object [ι ∉ S] of [n] zeroed cells, with its right to free and

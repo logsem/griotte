@@ -76,7 +76,7 @@ Section CMDC_World.
 
     (* The capability pointing to [a] is safe to share *)
     iSplit.
-    { iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+    { iEval (rewrite interp_unfold). iEval (cbn).
       iSplitL; last first.
       { iPureIntro. split.
         - split.

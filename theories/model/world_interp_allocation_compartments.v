@@ -306,7 +306,7 @@ Section region_alloc_cmpt.
       - iSplit; last iApply future_priv_mono_interp_in_mem_global.
         iApply interp_to_in_mem.
         destruct tag; last (iApply interp_untagged; done).
-        rewrite fixpoint_interp1_eq interp1_eq.
+        rewrite interp_unfold interp1_eq.
         destruct Hw as (Hp & Hb & He).
         destruct (isO p) eqn:HpO.
         { assert (Hsub : finz.seq_between b e ⊆
@@ -423,7 +423,7 @@ Section region_alloc_cmpt.
     }
 
     iSplit.
-    - iEval (rewrite fixpoint_interp1_eq /=).
+    - iEval (rewrite interp_unfold /=).
       iSplitR; last (iPureIntro; split; [exact Hpcc_shadow|apply heap_cap_valid_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
@@ -486,7 +486,7 @@ Section region_alloc_cmpt.
       iSplit; last done.
       iApply (monoReq_interp_in_mem _ _ _ _ Permanent); done.
 
-    - iEval (rewrite fixpoint_interp1_eq /=).
+    - iEval (rewrite interp_unfold /=).
       iSplitR; last (iPureIntro; split; [exact Hcgp_shadow|apply heap_cap_valid_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
@@ -579,7 +579,7 @@ Section region_alloc_cmpt.
     iIntros "(#Hrel_pcc & #Hrel_data & Hworld_C)".
 
     iAssert (interp Wfinal C pcc_cap) as "#Hinterp_pcc".
-    { iEval (rewrite fixpoint_interp1_eq /=).
+    { iEval (rewrite interp_unfold /=).
       iSplitR; last (iPureIntro; split; [exact Hpcc_shadow|apply heap_cap_valid_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
@@ -648,7 +648,7 @@ Section region_alloc_cmpt.
     }
 
     iAssert (interp Wfinal C cgp_cap) as "#Hinterp_cgp".
-    { iEval (rewrite fixpoint_interp1_eq /=).
+    { iEval (rewrite interp_unfold /=).
       iSplitR; last (iPureIntro; split; [exact Hcgp_shadow|apply heap_cap_valid_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).

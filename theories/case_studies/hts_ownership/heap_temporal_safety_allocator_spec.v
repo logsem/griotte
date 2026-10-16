@@ -24,7 +24,7 @@ Section Heap_Temporal_Safety_Allocator.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}.
 
-  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+  #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   Definition hts_malloc_result (a_owner : Addr) (id : Z) (Ω : gset AId)
     : LWord -> LWord -> iProp Σ :=

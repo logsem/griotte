@@ -129,32 +129,6 @@ Section griotte_lang_rules.
       unfold lclear_tag, lift_word in *; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
   Qed.
 
-  Lemma ClearTag_spec_failure_regs lpc regs dst src lpc' regs' :
-    ClearTag_spec lpc regs dst src lpc' regs' FailedV → lpc' = lpc ∧ regs' = regs.
-  Proof. by inversion 1. Qed.
-
-  Lemma wp_ClearTag_failure E pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs wsrc dq :
-    decodeInstrW w.(lw) = ClearTag dst src →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs_of (ClearTag dst src) ⊆ dom regs →
-    regs !!ₗ src = Some wsrc →
-    incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
-      Instr Executable @ E
-    {{{ RET FailedV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        pc_a ↦ₐ{dq} w ∗
-        [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
-  Proof.
-    iIntros (Hdecode Hvpc Hdom Hsrc Hinc φ) "Hpre Hφ".
-    iApply (wp_ClearTag with "Hpre"); eauto.
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & Hregs)".
-    destruct Hspec; simplify_eq.
-    iApply "Hφ". iFrame.
-  Qed.
-
   Lemma wp_ClearTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn dq :
     decodeInstrW w.(lw) = ClearTag cnull cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

@@ -7,7 +7,7 @@ From machine_utils Require Import solve_finz.
 Ltac without_evars c :=
   (has_evar c; fail 1) || idtac.
 
-Global Ltac zify_finz_op_nonbranching_step_hook ::=
+#[global] Ltac zify_finz_op_nonbranching_step_hook ::=
   lazymatch goal with
   | H : IncrFinZ _ _ _ |- _ => unfold IncrFinZ in H
   | |- IncrFinZ ?a ?z ?a' =>

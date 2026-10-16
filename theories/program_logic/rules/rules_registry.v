@@ -68,16 +68,6 @@ Section rules_registry.
     eapply erasure_reg_step; eauto; done.
   Qed.
 
-  Lemma wp_reg_painting E e Φ ι :
-    to_val e = None →
-    ι ↦st{1} ALive -∗
-    (ι ↦st{1} APainting -∗ WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He) "Htok Hwp". iMod (reg_painting with "Htok") as "Htok".
-    by iApply "Hwp".
-  Qed.
-
   (** [APainting → AQuar], given the whole token and the painted range. It
       issues the quarantine witness. The whole register file and the PC are
       owned, and none of their words with authority carries [ι] ([cnull]
@@ -132,29 +122,6 @@ Section rules_registry.
     by rewrite (lookup_weaken _ _ _ _ Hv' Hincl) in Hx; simplify_eq.
   Qed.
 
-  Lemma wp_reg_quarantine E e Φ ι b e' lpc (regs : LReg) :
-    to_val e = None →
-    (∀ x, is_Some (regs !! x)) →
-    (∀ v, (v = lpc ∨ ∃ x, x ≠ cnull ∧ regs !! x = Some v) →
-       has_authority v.(lw) → v.(lprov) ≠ Some ι) →
-    alloc_obj ι b e' -∗
-    ι ↦st{1} APainting -∗
-    ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) -∗
-    PC ↦ₚ lpc -∗
-    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    (ι ↦st{1} AQuar -∗ ι ⊒ AQuar -∗
-     ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) -∗
-     PC ↦ₚ lpc -∗
-     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-     WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He Hfull Hclean) "Hobj Htok Hcells HPC Hmap Hwp".
-    iMod (reg_quarantine with "Hobj Htok Hcells HPC Hmap") as "(Htok & Hq & Hcells & HPC & Hmap)";
-      [done|done|].
-    iApply ("Hwp" with "Htok Hq Hcells HPC Hmap").
-  Qed.
-
   (** ** Allocation (strong, with a freshness set) *)
 
   Lemma lookup_claim_range (C : gmap Addr AddrClaim) (l : list Addr) (c : AddrClaim) a :
@@ -202,19 +169,6 @@ Section rules_registry.
       rewrite big_sepL_sep. iFrame.
   Qed.
 
-  Lemma wp_reg_alloc E e Φ b e' (S : gset AId) :
-    to_val e = None →
-    ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) -∗
-    (∀ ι, ⌜ι ∉ S⌝ -∗ alloc_obj ι b e' -∗ ι ↦st{1} ALive -∗
-       ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) -∗
-       WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He) "Hcells Hwp".
-    iMod (reg_alloc _ _ _ S with "Hcells") as (ι HιS) "(Hobj & Htok & Hcells)".
-    iApply ("Hwp" with "[//] Hobj Htok Hcells").
-  Qed.
-
   (** ** Observation
 
       A register word with authority is claimed at its base by its
@@ -243,22 +197,6 @@ Section rules_registry.
       destruct Hobs as (x & Hx & HC'). rewrite HRι in Hx. simplify_eq.
       rewrite HC' in HCb; [by simplify_eq | done].
     - iModIntro. iExists R, C. iFrame. iPureIntro. split; first done. congruence.
-  Qed.
-
-  Lemma wp_observe_claim E e Φ r v b c q s :
-    to_val e = None →
-    get_tag v.(lw) = true → heap_authority_base v.(lw) = Some b → s ≠ ADead →
-    r ↦ᵣ v -∗ addr_alloc b c -∗
-    (if v.(lprov) is Some ι then ι ↦st{q} s else True) -∗
-    (r ↦ᵣ v -∗ addr_alloc b c -∗
-     (if v.(lprov) is Some ι then ι ↦st{q} s else True) -∗
-     ⌜match v.(lprov) with Some ι => c = Claimed ι | None => c = HeapRoot end⌝ -∗
-     WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He Ht Hab Hs) "Hr Hc Htok Hwp".
-    iMod (observe_claim _ _ _ _ _ _ _ Ht Hab Hs with "Hr Hc Htok") as "(Hr & Hc & Htok & %H)".
-    iApply ("Hwp" with "Hr Hc Htok [//]").
   Qed.
 
   (** ** Re-filtering a register

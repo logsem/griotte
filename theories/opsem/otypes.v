@@ -3,7 +3,7 @@ From machine_utils Require Export finz.
 From griotte Require Export stdpp_extra.
 
 (* No longer a coercion in Coq >= 8.14*)
-Local Coercion Z.of_nat : nat >-> Z.
+#[local] Coercion Z.of_nat : nat >-> Z.
 
 (* We assume a fixed set of otypes.
 
@@ -11,7 +11,7 @@ Local Coercion Z.of_nat : nat >-> Z.
    parameter of the machine.
 *)
 Definition ONum: Z := 2000000.
-Global Opaque ONum.
+#[global] Opaque ONum.
 
 (* ---------------------------------- OTypes ----------------------------------------*)
 
@@ -40,4 +40,4 @@ Notation "a1 =? a2" := (eqb_otype a1 a2) : OType_scope.
 
 Notation otype_incr_eq := (finz_incr_eq).
 
-Global Instance otype_inhabited: Inhabited OType := populate (@finz.FinZ ONum 0%Z eq_refl eq_refl).
+#[global] Instance otype_inhabited: Inhabited OType := populate (@finz.FinZ ONum 0%Z eq_refl eq_refl).

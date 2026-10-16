@@ -114,14 +114,14 @@ Proof.
       rewrite /finz.dist. solve_finz.
 Qed.
 
-Global Instance finz_le_preorder `{finz_bound : Z} : PreOrder (@finz.le finz_bound).
+#[global] Instance finz_le_preorder `{finz_bound : Z} : PreOrder (@finz.le finz_bound).
 Proof.
   apply Build_PreOrder.
   - rewrite /Reflexive. solve_addr.
   - rewrite /Transitive. solve_addr.
 Qed.
 
-Global Instance finz_le_ord `{finz_bound : Z} : Ord (@finz finz_bound) :=
+#[global] Instance finz_le_ord `{finz_bound : Z} : Ord (@finz finz_bound) :=
   {| le_a := finz.le;
      le_a_decision := finz_le_dec;
      le_a_preorder := finz_le_preorder |}.

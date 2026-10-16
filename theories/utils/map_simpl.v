@@ -201,7 +201,7 @@ Ltac2 rec reify_helper kk aa term fm :=
   | ?m => (constr:(@Symb $aa), m, fm)
   end.
 
-Local Ltac2 replace_with (lhs: constr) (rhs: constr) :=
+#[local] Ltac2 replace_with (lhs: constr) (rhs: constr) :=
   ltac1:(lhs rhs |- replace lhs with rhs) (Ltac1.of_constr lhs) (Ltac1.of_constr rhs).
 
 Ltac2 rec make_list_from_unions h x :=
@@ -224,7 +224,7 @@ Ltac2 post_process k m :=
 (* vm_compute does not work here, as it does to much calculation, so we come up with a more refined way of simplifying `simpl_rmap` expressions *)
 
 (* Clear all hypothesis that do not explicitly feature in the goal, to avoid incorrect substitutions later. *)
-Local Ltac clear_all :=
+#[local] Ltac clear_all :=
   repeat (match goal with
         | H : _ |- _ => clear H end ).
 
@@ -237,7 +237,7 @@ Theorem boxed_eq `(P : A): (boxed P) = P. Proof. auto. Qed.
    [WCap p g b e (b ^+ 1)%a] then costs seconds at [Qed]. The values are
    abstracted by [generalize] (a beta-redex in the proof term), not by
    [remember], which produces a [let] whose body the kernel VM unfolds. *)
-Local Ltac box_all := repeat (match goal with
+#[local] Ltac box_all := repeat (match goal with
       |  |- context [Ins ?k ?v] =>
            lazymatch v with
            | boxed _ => fail

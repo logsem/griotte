@@ -17,7 +17,7 @@ Class switcherLayout : Type :=
 Section Switcher.
   Import Asm_Griotte.
   Context `{MP: MachineParameters}.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
 
   Definition ECOMPARTMENTFAIL : Z := -1.
   Definition ENOTENOUGHTRUSTEDSTACK : Z := -141.

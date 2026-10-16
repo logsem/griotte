@@ -44,6 +44,7 @@ Class hts_memory_layout `{MP : MachineParameters} := {
           cmpt_assert_region hts_assert_cmpt;
           finz.seq_between heap_b heap_e; finz.seq_between shadow_b shadow_e]
   }.
+#[export] Hint Mode hts_memory_layout - : typeclass_instances.
 
 #[local] Instance hts_memory_switcher_layout `{hts_memory_layout} : switcherLayout :=
   cmptSwitcher_switcherLayout hts_switcher_cmpt.
@@ -578,16 +579,16 @@ Section Adequacy.
 End Adequacy.
 
 Inductive CmptNames_hts := | B .
-Local Instance CmptNames_hts_eq_dec : EqDecision CmptNames_hts.
+#[local] Instance CmptNames_hts_eq_dec : EqDecision CmptNames_hts.
 Proof. intros C C'; destruct C,C'; solve_decision. Qed.
-Local Instance CmptNames_hts_finite : finite.Finite CmptNames_hts.
+#[local] Instance CmptNames_hts_finite : finite.Finite CmptNames_hts.
 Proof.
   refine {| finite.enum := [B] |}.
   + apply NoDup_singleton.
   + intros []; left.
 Defined.
 
-Local Program Instance CmptNames_hts_CmptNameG : CmptNameG :=
+#[local] Program Instance CmptNames_hts_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_hts; |}.
 
 (** END-TO-END THEOREM *)

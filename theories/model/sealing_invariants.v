@@ -48,7 +48,7 @@ Section sealing_interp.
     set_solver+.
   Qed.
 
-  Local Definition sealing_map_def
+  #[local] Definition sealing_map_def
     (W : WORLD)
     (C : CmptName)
     : iProp Σ
@@ -58,14 +58,14 @@ Section sealing_interp.
                  (∀ w, future_priv_mono C Po w) ∗
                  ( [∗ set] w ∈ normalise_sealed_words ws, ▷ Po (W, C, w) )).
 
-  Local Definition sealing_map_aux : { x | x = @sealing_map_def }. by eexists. Qed.
-  Definition sealing_map := proj1_sig sealing_map_aux.
-  Local Definition sealing_map_eq : @sealing_map = @sealing_map_def := proj2_sig sealing_map_aux.
+  #[local] Definition sealing_map_aux : seal (@sealing_map_def). Proof. by eexists. Qed.
+  Definition sealing_map := sealing_map_aux.(unseal).
+  #[local] Definition sealing_map_eq : @sealing_map = @sealing_map_def := sealing_map_aux.(seal_eq).
 
-  Local Lemma sealing_map_def_empty (C : CmptName) : ⊢ (sealing_map_def (∅, (∅,∅), ∅, ∅) C)%I.
+  #[local] Lemma sealing_map_def_empty (C : CmptName) : ⊢ (sealing_map_def (∅, (∅,∅), ∅, ∅) C)%I.
   Proof. iStartProof; rewrite /sealing_map_def ; done. Qed.
 
-  Local Lemma sealing_map_def_monotone (C : CmptName) (W W' : WORLD) :
+  #[local] Lemma sealing_map_def_monotone (C : CmptName) (W W' : WORLD) :
     (seal_std W) = (seal_std W') ->
     related_sts_priv_world W W' →
     sealing_map_def W C -∗
@@ -90,7 +90,7 @@ Section sealing_interp.
     iApply "Hmono"; eauto.
   Qed.
 
-  Local Lemma sealing_map_def_alloc (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ) (o : OType) (ws : gset LWord)  :
+  #[local] Lemma sealing_map_def_alloc (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ) (o : OType) (ws : gset LWord)  :
     let W' := (<o[ o := ws ]o> W) in
     o ∉ dom (seal_std W) ->
     seal_pred o Po -∗
@@ -138,7 +138,7 @@ Section sealing_interp.
     done.
   Qed.
 
-  Local Lemma sealing_map_def_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ)
+  #[local] Lemma sealing_map_def_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ)
     (o : OType) (ws ws' : gset LWord)  :
     let W' := (<o[ o := ws' ∪ ws ]o> W) in
     (seal_std W) !! o = Some ws ->
@@ -225,7 +225,7 @@ Section sealing_interp.
     by iFrame.
   Qed.
 
-  Local Lemma sealing_map_def_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ)
+  #[local] Lemma sealing_map_def_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ)
     (o : OType) (ws : gset LWord)  :
     let W' := (<o[ o := ws ]o> W) in
     seal_pred o Po -∗
@@ -395,7 +395,7 @@ Section sealing_interp.
     by rewrite normalise_sealed_words_singleton big_sepS_singleton.
   Qed.
 
-  Local Definition sealing_map_open_def
+  #[local] Definition sealing_map_open_def
     (W : WORLD)
     (C : CmptName)
     (o : OType)
@@ -405,9 +405,9 @@ Section sealing_interp.
            ∃ Po, seal_pred o Po ∗
                  (∀ w, future_priv_mono C Po w) ∗
                  ( [∗ set] w ∈ (normalise_sealed_words ws), ▷ Po (W, C, w) )).
-  Local Definition sealing_map_open_aux : { x | x = @sealing_map_open_def }. by eexists. Qed.
-  Definition sealing_map_open := proj1_sig sealing_map_open_aux.
-  Local Definition sealing_map_open_eq : @sealing_map_open = @sealing_map_open_def := proj2_sig sealing_map_open_aux.
+  #[local] Definition sealing_map_open_aux : seal (@sealing_map_open_def). Proof. by eexists. Qed.
+  Definition sealing_map_open := sealing_map_open_aux.(unseal).
+  #[local] Definition sealing_map_open_eq : @sealing_map_open = @sealing_map_open_def := sealing_map_open_aux.(seal_eq).
 
   Definition sealing_map_resource_open (W : WORLD) (C : CmptName) (o : OType) Po ws :=
     ( ∃ (ws' : gset LWord),
@@ -418,7 +418,7 @@ Section sealing_interp.
         ([∗ set] w ∈ (normalise_sealed_words ws' ∖ normalise_sealed_words ws), Po (W, C, w))
     )%I.
 
-  Local Lemma open_sealing_map_def (W : WORLD) (C : CmptName) (o : OType) Po (ws : gset LWord) :
+  #[local] Lemma open_sealing_map_def (W : WORLD) (C : CmptName) (o : OType) Po (ws : gset LWord) :
     seal_pred o Po -∗
     sts_seals_std C o ws -∗
     sealing_map_def W C -∗
@@ -454,7 +454,7 @@ Section sealing_interp.
       by iRewrite ("Heq" $! (W, C, w)).
   Qed.
 
-  Local Lemma close_sealing_map_def' (W : WORLD) (C : CmptName) (o : OType) Po (ws : gset LWord) :
+  #[local] Lemma close_sealing_map_def' (W : WORLD) (C : CmptName) (o : OType) Po (ws : gset LWord) :
     (seal_std W) !! o = Some ws ->
     seal_pred o Po -∗
     sts_seals_std C o ws -∗
@@ -468,7 +468,7 @@ Section sealing_interp.
     iDestruct (big_sepM_delete with "[ - $Hseals ]" ) as "Hseals"; eauto.
   Qed.
 
-  Local Lemma close_sealing_map_def (W : WORLD) (C : CmptName) (o : OType) Po (ws : gset LWord) :
+  #[local] Lemma close_sealing_map_def (W : WORLD) (C : CmptName) (o : OType) Po (ws : gset LWord) :
     seal_pred o Po -∗
     sealing_map_resource_open W C o Po ws -∗
     ([∗ set] w ∈ (normalise_sealed_words ws), Po (W, C, w)) -∗

@@ -97,45 +97,6 @@ Section griotte_lang_rules.
       all: try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
   Qed.
 
-  Lemma wp_move_success_z E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 wr1 z dq :
-    decodeInstrW w.(lw) = Mov r1 (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ r1 ↦ᵣ wr1 }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ r1 ↦ᵣ WInt z }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
-    iApply (wp_move_success_z_gen with "[$HPC $Hpc_a $Hr1]"); eauto.
-    destruct (decide (r1 = cnull)); first done.
-    iFrame.
-  Qed.
-
-  Lemma wp_move_success_cnull_z E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w w0 z dq :
-    decodeInstrW w.(lw) = Mov cnull (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ cnull ↦ᵣ w0 }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ cnull ↦ᵣ WInt 0 }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
-    iApply (wp_move_success_z_gen with "[$HPC $Hpc_a $Hr1]"); eauto.
-  Qed.
-
   Lemma wp_move_success_reg E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 wr1 rv wrv dq :
     decodeInstrW w.(lw) = Mov r1 (inr rv) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
