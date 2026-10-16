@@ -154,46 +154,46 @@ Section Switcher_KtK.
         b_stk e_stk a_stk arg_rmap cstk nargs E
         bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt
     ∗ ▷ (
-        (∃ (rcgp rcra rcs0 rcs1 wca0 wca1 : LWord) (rmap' : LReg),
-           ⌜ dom rmap' =
+        (∃ (rcgp rcra rcs0 rcs1 wca0_ret wca1_ret : LWord) (rmap_ret : LReg),
+           "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                  all_registers_s ∖
                    {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-           ∗ na_own cerise_nais E
-           ∗ PC ↦ₚ lupdatePcPerm (rcra)
-           ∗ cgp ↦ᵣ rcgp
-           ∗ cra ↦ᵣ rcra
-           ∗ cs0 ↦ᵣ rcs0
-           ∗ cs1 ↦ᵣ rcs1
-           ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-           ∗ ca0 ↦ᵣ wca0
-           ∗ ca1 ↦ᵣ wca1
-           ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
-           ∗ [[ a_stk , e_stk ]] ↦ₐ
+           ∗ "Hna" ∷ na_own cerise_nais E
+           ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
+           ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
+           ∗ "Hcra" ∷ cra ↦ᵣ rcra
+           ∗ "Hcs0" ∷ cs0 ↦ᵣ rcs0
+           ∗ "Hcs1" ∷ cs1 ↦ᵣ rcs1
+           ∗ "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+           ∗ "Hca0" ∷ ca0 ↦ᵣ wca0_ret
+           ∗ "Hca1" ∷ ca1 ↦ᵣ wca1_ret
+           ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
+           ∗ "Hstk" ∷ [[ a_stk , e_stk ]] ↦ₐ
                [[ region_addrs_zeroes a_stk e_stk ]]
-           ∗ cstack_frag cstk
-           ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
+           ∗ "Hcstk" ∷ cstack_frag cstk
+           ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-           ∗ Q wca0 wca1)
+           ∗ "HQ" ∷ Q wca0_ret wca1_ret)
         ∨
-        (∃ (rmap' : LReg) (stk_mem' : list LWord) rcgp rcra rcs0 rcs1,
-           ⌜ dom rmap' =
+        (∃ (rmap_ret : LReg) (stk_mem' : list LWord) rcgp rcra rcs0 rcs1,
+           "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                  all_registers_s ∖
                    {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-           ∗ na_own cerise_nais E
-           ∗ PC ↦ₚ lupdatePcPerm (rcra)
-           ∗ cgp ↦ᵣ rcgp
-           ∗ cra ↦ᵣ rcra
-           ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-           ∗ cs0 ↦ᵣ rcs0
-           ∗ cs1 ↦ᵣ rcs1
-           ∗ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
-           ∗ ca1 ↦ᵣ WInt 0
-           ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
-           ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem' ]]
-           ∗ cstack_frag cstk
-           ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
+           ∗ "Hna" ∷ na_own cerise_nais E
+           ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
+           ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
+           ∗ "Hcra" ∷ cra ↦ᵣ rcra
+           ∗ "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+           ∗ "Hcs0" ∷ cs0 ↦ᵣ rcs0
+           ∗ "Hcs1" ∷ cs1 ↦ᵣ rcs1
+           ∗ "Hca0" ∷ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
+           ∗ "Hca1" ∷ ca1 ↦ᵣ WInt 0
+           ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
+           ∗ "Hstk" ∷ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem' ]]
+           ∗ "Hcstk" ∷ cstack_frag cstk
+           ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-           ∗ P)
+           ∗ "HP" ∷ P)
           -∗ WP Seq (Instr Executable)
                 {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
