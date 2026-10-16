@@ -531,7 +531,7 @@ Section fundamental.
         interp W C (WSealRange true p0 g0 b0 e0 a0 @@? π0) -∗
         world_interp_open W C s
         -∗
-        ▷ (interp W C (WSealable (machine_word.unseal g0 sb) @@? π) ∗
+        ▷ (interp W C (WSealable (unseal_sb g0 sb) @@? π) ∗
            world_interp_open W C s).
   Proof.
     iIntros (Hpseal Hwb) "#HVsd #HVsr Hworld_interp".

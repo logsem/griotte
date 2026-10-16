@@ -94,7 +94,7 @@ Definition lseal_capability (v : LWord) (ot : OType) : LWord :=
 (** Unsealing acts on a sealed word only; other words are kept. *)
 Definition lunseal (g : Locality) (v : LWord) : LWord :=
   match v with
-  | MkLWord (WSealed _ sb) π => MkLWord (WSealable (machine_word.unseal g sb)) π
+  | MkLWord (WSealed _ sb) π => MkLWord (WSealable (unseal_sb g sb)) π
   | _ => v
   end.
 

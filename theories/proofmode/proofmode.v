@@ -798,7 +798,7 @@ Ltac simplify_load_word p w :=
 Ltac reduce_cap_word :=
   cbn [store_word canStore isLocalWord isLocalSealable isLocal isWL writeAllowed andb
        load_word load_word_perm isDL isDRO
-       machine_word.unseal unseal_locality borrow borrow_sb deeplocal deeplocal_sb deeplocal_perm
+       unseal_sb unseal_locality borrow borrow_sb deeplocal deeplocal_sb deeplocal_perm
        readonly readonly_sb readonly_perm
        clear_tag clear_tag_sealable get_tag get_tag_sealable].
 

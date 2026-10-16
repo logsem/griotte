@@ -331,23 +331,23 @@ Definition borrow_sb (sb : Sealable) :=
 Definition unseal_locality (authority payload : Locality) : Locality :=
   match authority with Global => payload | Local => Local end.
 
-Definition unseal (authority : Locality) (sb : Sealable) : Sealable :=
+Definition unseal_sb (authority : Locality) (sb : Sealable) : Sealable :=
   match sb with
   | SCap t p g b e a => SCap t p (unseal_locality authority g) b e a
   | SSealRange t p g b e a => SSealRange t p (unseal_locality authority g) b e a
   end.
 
-Lemma unseal_global sb : unseal Global sb = sb.
+Lemma unseal_global sb : unseal_sb Global sb = sb.
 Proof. by destruct sb. Qed.
 
-Lemma unseal_local sb : unseal Local sb = borrow_sb sb.
+Lemma unseal_local sb : unseal_sb Local sb = borrow_sb sb.
 Proof. by destruct sb. Qed.
 
-Lemma get_tag_unseal g sb : get_tag_sealable (unseal g sb) = get_tag_sealable sb.
+Lemma get_tag_unseal g sb : get_tag_sealable (unseal_sb g sb) = get_tag_sealable sb.
 Proof. by destruct sb. Qed.
 
 Lemma clear_tag_unseal g sb :
-  clear_tag_sealable (unseal g sb) = unseal g (clear_tag_sealable sb).
+  clear_tag_sealable (unseal_sb g sb) = unseal_sb g (clear_tag_sealable sb).
 Proof. by destruct sb. Qed.
 
 Definition borrow (w : Word) :=
