@@ -185,9 +185,8 @@ Section AllocatorMalloc.
       Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
-    iDestruct "Hinv" as ">Hdata".
+    iDestruct "Hinv" as ">@".
     iDestruct "Hstatic" as "[#Himports #Hcode]".
-    iNamed "Hdata".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
     iEval (rewrite /allocator_code allocator_code_b_malloc) in "Hcode".
     focus_block_0 "Hcode" as "Hmalloc_code" "Hcode_cont".

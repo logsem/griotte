@@ -59,7 +59,7 @@ Section VAE_Return_Repair.
   Proof.
     intros Hdom.
     rewrite world_interp_eq /world_interp_def.
-    iIntrosNamed.
+    iIntros "@".
     iDestruct (region_addrs_status_some W C l Hdom with "Hr")
       as "[Hr %Hstatuses]".
     iFrame. iPureIntro. exact Hstatuses.

@@ -1105,7 +1105,7 @@ Section logrel.
     world_interp W C -∗ world_interp W C ∗ heap_provenance (heap_std W).
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntrosNamed.
+    iIntros "@".
     iDestruct (region_heap_provenance with "Hr") as "[Hr #Hprov]".
     by iFrame "∗#".
   Qed.

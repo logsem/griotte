@@ -187,7 +187,7 @@ Section standard_world_interp.
     -∗ region W' C.
   Proof.
     rewrite region_eq /region_def.
-    iIntrosNamed (Hdomeq Hrelated Hheap); simplify_map_eq.
+    iIntros (Hdomeq Hrelated Hheap) "@"; simplify_map_eq.
     iExists M, Mρ. iFrame "HM".
     iSplitR.
     { iPureIntro. rewrite -Hdomeq Hdom; done. }
@@ -281,7 +281,7 @@ Section standard_world_interp.
   Proof.
     intros Hperm.
     rewrite open_region_many_eq /open_region_many_def.
-    iIntrosNamed.
+    iIntros "@".
     rewrite !(delete_list_permutation l1 l2); try done.
     iExists _,_. iFrame. eauto.
   Qed.
@@ -309,7 +309,7 @@ Section standard_world_interp.
     open_region_many W C l -∗ ⌜heap_keys_known (heap_std W) (dom (std W))⌝.
   Proof.
     rewrite open_region_many_eq /open_region_many_def.
-    iIntrosNamed. iDestruct "Hmap" as "[% _]". done.
+    iIntros "@". iDestruct "Hmap" as "[% _]". done.
   Qed.
 
   Lemma region_open_nil W C :

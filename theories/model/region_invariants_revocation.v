@@ -444,7 +444,7 @@ Section region_invariant_revocation.
     region W C ∗ ⌜a ∈ dom (std W)⌝.
   Proof.
     rewrite region_eq /region_def rel_eq /rel_def.
-    iIntros "Hr (%γ & #Hrel & _)". iNamed "Hr".
+    iIntros "@ (%γ & #Hrel & _)".
     iDestruct (reg_in C M a γ p with "[$HM $Hrel]") as %HMeq.
     iSplitL; first by iExists M, Mρ; iFrame "%∗".
     iPureIntro. rewrite Hdom HMeq dom_insert_L. set_solver.

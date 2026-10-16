@@ -61,7 +61,7 @@ Section switcher_helpers_cframe.
     ⌜is_Some (heap_key_status (heap_std W) (LNonHeap a))⌝.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros "Hworld Hrel". iNamed "Hworld".
+    iIntros "@ Hrel".
     iDestruct (region_rel_dom with "Hr Hrel") as "[Hr %Hdom]".
     iDestruct (region_addr_status_some W C a Hdom with "Hr") as "[Hr %Hstatus]".
     iFrame. iPureIntro. exact Hstatus.

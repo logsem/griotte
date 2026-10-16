@@ -544,9 +544,7 @@ Section KVS_Main_Blocks.
     { apply kvs_main_add_arg_rmap_is_arg. }
     iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iNext.
-    iIntros "[Hcall|Hcall]"
-    ; iNamed "Hcall"
-    ; iEval (cbn) in "HPC"
+    iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.
     {
       destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
@@ -817,9 +815,7 @@ Section KVS_Main_Blocks.
     { apply kvs_main_read_arg_rmap_is_arg. }
     iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iNext.
-    iIntros "[Hcall|Hcall]"
-    ; iNamed "Hcall"
-    ; iEval (cbn) in "HPC"
+    iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.
     {
       destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).

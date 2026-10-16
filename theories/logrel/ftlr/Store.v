@@ -433,7 +433,7 @@ Section fundamental.
      ftlr_instr W C regs p p' g b e a w (Store dst src imm) ρ P cstk Ws Cs.
    Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntrosNamed.
+    iIntros "@".
 
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoV) WorldRes ]".
 

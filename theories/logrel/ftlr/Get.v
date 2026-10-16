@@ -31,7 +31,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w ins ρ P cstk Ws Cs.
   Proof.
     intros Hinstr Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntrosNamed.
+    iIntros "@".
     rewrite <- Hi in Hinstr; clear Hi.
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
