@@ -5,7 +5,7 @@ From griotte Require Import classes tactics_helpers proofmode_instr_support
   proofmode_instr_rules.
 From griotte Require Export class_instances solve_pure solve_addr_extra.
 From iris.proofmode Require Import proofmode spec_patterns coq_tactics ltac_tactics reduction.
-From griotte Require Export NamedProp.
+From griotte Require Export named_props.
 From machine_utils Require Export tactics.
 From iris.bi Require Import bi.
 Import bi.
