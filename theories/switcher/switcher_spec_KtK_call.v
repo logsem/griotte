@@ -291,11 +291,7 @@ Section Switcher_KtK_Call.
     iPoseProof "Hstatic" as "[#Hcode #Hb_switcher]".
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
-    rewrite /switcher_inv.
-    iDestruct "Hswitcher_inv"
-      as (a_tstk cstk' tstk_next)
-           "(>Hmtdc & >%Hot_bounds & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
-           & Hcstk_full & >%Hlen_cstk & Hstk_interp & #Hp_ot_switcher)".
+    iModNamed switcher_inv_open "Hswitcher_inv".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
 

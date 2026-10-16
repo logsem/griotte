@@ -131,16 +131,11 @@ Section Switcher_KtK_Return.
     (* Open the switcher invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
-    rewrite /switcher_inv.
-    iDestruct "Hswitcher_inv"
-      as (a_tstk cstk' tstk_next)
-           "(>Hmtdc & >%Hot_bounds & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
-           & Hcstk_full & >%Hlen_cstk & Hstk_interp & #Hp_ot_switcher)".
+    iModNamed switcher_inv_open "Hswitcher_inv".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
 
     (* Read the topmost frame *)
-    iDestruct "Hcstk_full" as ">Hcstk_full".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     rewrite /frame /cframe_interp; iEval (cbn) in "Hcframe_interp".

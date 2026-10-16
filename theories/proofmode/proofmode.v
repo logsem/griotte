@@ -642,6 +642,12 @@ Ltac iNamedIntro :=
   iIntros x; iNamed x.
 Ltac2 iNamedIntro () := ltac1:(iNamedIntro).
 
+(** Opens the hypothesis [H] with the lemma [lem] (whose conclusion is under a
+    modality that [iMod] eliminates, such as [◇]), then names its conjuncts with
+    [iNamed]. *)
+Tactic Notation "iModNamed" open_constr(lem) constr(H) :=
+  iMod (lem with H) as H; iNamed H.
+
 Ltac2 on_lasts tacs :=
   Control.extend [] (fun _ => ()) tacs.
 

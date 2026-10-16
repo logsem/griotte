@@ -312,15 +312,36 @@ Section Switcher_preamble.
       The used part is contained in the definition of [stack_interp].
    *)
   Definition switcher_inv : iProp Σ :=
-    ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list LWord),
-     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk
-     ∗ ⌜ (ot_switcher < (ot_switcher ^+1) )%ot ⌝
-     ∗ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
-     ∗ ⌜ (b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a ⌝
-     ∗ cstack_full cstk
-     ∗ ⌜ (b_trusted_stack + length cstk)%a = Some a_tstk ⌝
-     ∗ cstack_interp cstk a_tstk (* link the topmost frame of cstk to the state *)
-     ∗ seal_pred ot_switcher ot_switcher_propC.
+    ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
+      "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+      "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
+      "Htstk" ∷ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
+      "[%Hbounds_tstk_b %Hbounds_tstk_e]" ∷ ⌜(b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a⌝ ∗
+      "Hcstk_full" ∷ cstack_full cstk' ∗
+      "%Hlen_cstk" ∷ ⌜(b_trusted_stack + length cstk')%a = Some a_tstk⌝ ∗
+      (* link the topmost frame of cstk' to the state *)
+      "Hstk_interp" ∷ cstack_interp cstk' a_tstk ∗
+      "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC.
+
+  (** Opens [switcher_inv] under the later of [na_inv_acc]: the timeless
+      conjuncts lose their later, so that [iNamed] can name them. *)
+  Lemma switcher_inv_open :
+    ▷ switcher_inv -∗
+    ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
+      "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+      "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
+      "Htstk" ∷ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
+      "[%Hbounds_tstk_b %Hbounds_tstk_e]" ∷ ⌜(b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a⌝ ∗
+      "Hcstk_full" ∷ cstack_full cstk' ∗
+      "%Hlen_cstk" ∷ ⌜(b_trusted_stack + length cstk')%a = Some a_tstk⌝ ∗
+      "Hstk_interp" ∷ ▷ cstack_interp cstk' a_tstk ∗
+      "#Hp_ot_switcher" ∷ ▷ seal_pred ot_switcher ot_switcher_propC.
+  Proof.
+    iIntros "Hinv".
+    iDestruct "Hinv" as (a_tstk cstk' tstk_next)
+      "(>Hmtdc & >% & >Htstk & >% & >Hcstk_full & >% & Hstk_interp & #Hp_ot_switcher)".
+    iModIntro. iExists a_tstk, cstk', tstk_next. by iFrame "∗ # %".
+  Qed.
 
   (** [switcher_static] holds the read-only memory of the switcher: its code,
       and the unsealing capability of the switcher's otype. *)
