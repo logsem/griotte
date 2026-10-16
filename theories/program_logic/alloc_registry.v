@@ -37,6 +37,7 @@ Class allocRegistryPreG Σ := {
   registry_ghost_mapG :: ghost_mapG Σ AId (Addr * Addr * gname);
   registry_mono_natG :: mono_natG Σ;
 }.
+#[export] Hint Mode allocRegistryPreG - : typeclass_instances.
 
 Definition allocRegistryΣ : gFunctors :=
   #[ghost_mapΣ AId (Addr * Addr * gname); mono_natΣ].
@@ -49,6 +50,7 @@ Class allocRegistryG Σ := {
   registry_preG :: allocRegistryPreG Σ;
   registry_name : gname;
 }.
+#[export] Hint Mode allocRegistryG - : typeclass_instances.
 
 (** [share n] is the fraction of a status token held by each of the [n] cells
     of an allocation, and by the allocator. Together with the client half,
@@ -311,6 +313,7 @@ Proof. solve_decision. Defined.
 Class addrAllocPreG Σ := {
   addr_alloc_ghost_mapG :: ghost_mapG Σ Addr AddrClaim;
 }.
+#[export] Hint Mode addrAllocPreG - : typeclass_instances.
 
 Definition addrAllocΣ : gFunctors := #[ghost_mapΣ Addr AddrClaim].
 
@@ -321,6 +324,7 @@ Class addrAllocG Σ := {
   addr_alloc_preG :: addrAllocPreG Σ;
   addr_alloc_name : gname;
 }.
+#[export] Hint Mode addrAllocG - : typeclass_instances.
 
 Section addr_alloc.
   Context `{!addrAllocG Σ}.
@@ -396,6 +400,7 @@ Class FreeAuth (Σ : gFunctors) `{!allocRegistryG Σ} := {
   free_auth_held_timeless ι :: Timeless (free_auth_held ι);
   free_auth_split ι : free_auth_kept ι ∗ free_auth_held ι ⊣⊢ ι ↦st{1/2} ALive;
 }.
+#[export] Hint Mode FreeAuth - - : typeclass_instances.
 
 (** * Heap-cell points-to
 

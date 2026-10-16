@@ -44,6 +44,7 @@ Class hts_memory_layout `{MP : MachineParameters} := {
           cmpt_assert_region hts_assert_cmpt;
           finz.seq_between heap_b heap_e; finz.seq_between shadow_b shadow_e]
   }.
+#[export] Hint Mode hts_memory_layout - : typeclass_instances.
 
 #[local] Instance hts_memory_switcher_layout `{hts_memory_layout} : switcherLayout :=
   cmptSwitcher_switcherLayout hts_switcher_cmpt.

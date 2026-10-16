@@ -84,6 +84,7 @@ Class HeapShadowTranslation `{HeapRegion} `{ShadowRegion} := {
     heap_shadow_inverse a s :
       heap_to_shadow a = Some s <-> shadow_to_heap s = Some a;
   }.
+#[export] Hint Mode HeapShadowTranslation - - : typeclass_instances.
 
 (** The default translation preserves the offset from the region's base.
     Checked addition prevents an out-of-range address from wrapping around. *)

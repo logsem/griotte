@@ -63,6 +63,7 @@ Class memory_layout `{MP: MachineParameters} := {
     assert_switcher_disjoints :
     assert_switcher_disjoint assert_cmpt switcher_cmpt;
   }.
+#[export] Hint Mode memory_layout - : typeclass_instances.
 
 
 (** We instantiate the switcher and assert layout with the memory layout. *)

@@ -22,6 +22,7 @@ Class relGpreS Σ {Cname : CmptNameG} :=
       relPreG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       relPreG_rel :: inG Σ (authR relUR);
     }.
+#[export] Hint Mode relGpreS - - : typeclass_instances.
 
 Class relGS Σ {Cname : CmptNameG} :=
   RelGS {
@@ -29,6 +30,7 @@ Class relGS Σ {Cname : CmptNameG} :=
       relG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       γrel : CmptName -> gname
     }.
+#[export] Hint Mode relGS - - : typeclass_instances.
 
 Definition relPreΣ {Cname : CmptNameG} :=
   #[ GFunctor (authR relUR) ].
@@ -289,6 +291,7 @@ Class sealStoreG Σ := SealStoreG { (* Create record constructor for typeclass *
     SG_sealStore ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
     SG_sealN : gname;
 }.
+#[export] Hint Mode sealStoreG - : typeclass_instances.
 
 Definition sealStorePreΣ :=
   #[ GFunctor (gmapUR OType (csumR (exclR unitO) (agreeR gnameO))) ].
@@ -296,6 +299,7 @@ Definition sealStorePreΣ :=
 Class sealStorePreG Σ := {
     SG_sealStorePre ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
 }.
+#[export] Hint Mode sealStorePreG - : typeclass_instances.
 
 #[export] Instance sealStoreG_preG `{sealStoreG Σ} : sealStorePreG Σ.
 Proof. constructor. all: apply _. Defined.

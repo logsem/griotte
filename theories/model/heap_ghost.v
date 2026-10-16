@@ -38,10 +38,12 @@ Proof.
 Qed.
 
 Class heap_preG Σ := { heap_inG :: inG Σ heap_authUR }.
+#[export] Hint Mode heap_preG - : typeclass_instances.
 Class heapG Σ `{CmptNameG} := {
   heap_pre_inG :: heap_preG Σ;
   heap_name : CmptName -> gname;
 }.
+#[export] Hint Mode heapG - - : typeclass_instances.
 Definition heapΣ := #[GFunctor heap_authUR].
 #[global] Instance subG_heapΣ Σ : subG heapΣ Σ -> heap_preG Σ.
 Proof. solve_inG. Qed.

@@ -10,11 +10,13 @@ Definition entryR : cmra :=
 Class entryGpreS Σ := EntryGpreS {
   entryPreG_rel :: inG Σ entryR;
 }.
+#[export] Hint Mode entryGpreS - : typeclass_instances.
 
 Class entryGS Σ := EntryGS {
   entryG_rel :: inG Σ entryR;
   γentry : Word -> gname
 }.
+#[export] Hint Mode entryGS - : typeclass_instances.
 
 Definition entryPreΣ :=
   #[ GFunctor entryR ].

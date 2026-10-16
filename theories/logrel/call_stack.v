@@ -93,11 +93,13 @@ Definition cstackUR := excl_authUR CSTK.
 
 Class CSTACK_preG Σ :=
   { cstack_preG :: inG Σ cstackUR; }.
+#[export] Hint Mode CSTACK_preG - : typeclass_instances.
 
 Class CSTACKG Σ :=
   { cstack_inG :: inG Σ cstackUR;
     γcstack : gname;
   }.
+#[export] Hint Mode CSTACKG - : typeclass_instances.
 
 Definition CSTACK_preΣ :=
   #[ GFunctor cstackUR ].

@@ -21,6 +21,7 @@ Class KvsPhysicalG Σ :=
       kvs_physical_genG :: ghost_varG Σ kvs_physical_map;
       γpkvs : gname;
     }.
+#[export] Hint Mode KvsPhysicalG - : typeclass_instances.
 
 Notation "●(PKVS) pkvs" :=
   (ghost_var γpkvs 1 pkvs)%I (at level 20) : bi_scope.
@@ -1013,6 +1014,7 @@ Class KvsLogicalG Σ :=
   Build_KvsLogicalG {
       kvs_logical_genG :: gen_heapGS user_key_t kvs_user_map Σ;
     }.
+#[export] Hint Mode KvsLogicalG - : typeclass_instances.
 
 Notation "'↪●LKVS' lkvs" :=
   ( gen_heap_interp (L:=user_key_t) (V:= kvs_user_map) lkvs )%I (at level 20) : bi_scope.
@@ -1129,6 +1131,7 @@ Class KvsUserG Σ :=
       kvs_user_genG :: ghost_mapG Σ map_key_t (option LWord);
       γkvs_user : user_key_t -> gname;
     }.
+#[export] Hint Mode KvsUserG - : typeclass_instances.
 
 Notation "uk '↪●UKVS' ukvs" :=
   ( ghost_map_auth (K:=map_key_t) (V:= option LWord) (γkvs_user uk) 1%Qp ukvs)%I (at level 20) : bi_scope.
@@ -1191,6 +1194,7 @@ Class kvsG Σ :=
       kvs_logicalG :: KvsLogicalG Σ;
       kvs_userG :: KvsUserG Σ;
     }.
+#[export] Hint Mode kvsG - : typeclass_instances.
 
 
 Section KVS_init.

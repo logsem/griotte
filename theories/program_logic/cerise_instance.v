@@ -13,6 +13,7 @@ Class cerise_na_invs Σ :=
     na_invG :: na_invG Σ;
     cerise_nais : na_inv_pool_name;
   }.
+#[export] Hint Mode cerise_na_invs - : typeclass_instances.
 
 (** The logical PC: a single exclusive value, whose authoritative part is in
     the state interpretation. The PC is not a general register. *)
@@ -22,8 +23,10 @@ Class pcG Σ := PcG {
   pc_inG :: inG Σ pcUR;
   pc_name : gname;
 }.
+#[export] Hint Mode pcG - : typeclass_instances.
 
 Class pcGpreS Σ := { pc_preG_inG :: inG Σ pcUR }.
+#[export] Hint Mode pcGpreS - : typeclass_instances.
 Definition pcΣ : gFunctors := #[GFunctor pcUR].
 #[global] Instance subG_pcGpreS {Σ} : subG pcΣ Σ → pcGpreS Σ.
 Proof. solve_inG. Qed.
@@ -81,6 +84,7 @@ Class ceriseG Σ :=
       cerise_registryG :: allocRegistryG Σ; (* allocation registry *)
       cerise_addr_allocG :: addrAllocG Σ (* address claims *)
     }.
+#[export] Hint Mode ceriseG - : typeclass_instances.
 
 (** The state interpretation: the logical PC, registers and memory, the
     physical system registers and shadow table, the registry and the address
@@ -158,6 +162,7 @@ Class ceriseGpreS Σ := {
   cerise_preG_registry :: allocRegistryPreG Σ;
   cerise_preG_addr_alloc :: addrAllocPreG Σ;
 }.
+#[export] Hint Mode ceriseGpreS - : typeclass_instances.
 
 Definition ceriseGpreΣ : gFunctors :=
   #[gen_heapΣ Addr LWord; gen_heapΣ Addr AllocStatus; pcΣ; gen_heapΣ RegName LWord;

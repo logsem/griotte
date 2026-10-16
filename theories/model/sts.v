@@ -29,6 +29,7 @@ Class STS_STD (B : Type) :=
   { Rpub : relation B;
     Rpriv : relation B;
   }.
+#[export] Hint Mode STS_STD ! : typeclass_instances.
 
 
 (** STS for seals  *)
@@ -52,6 +53,7 @@ Class STS_preG A B O Wd Σ
     sts_pre_seals_std_inG :: inG Σ (seals_stdUR O Wd);
     sts_pre_rel_inG :: inG Σ sts_relUR;
     sts_pre_heapG :: heap_preG Σ; }.
+#[export] Hint Mode STS_preG - - - - - - - - - - - - - - : typeclass_instances.
 
 Class STSG A B O Wd Σ
   `{EqDecision A, Countable A}
@@ -68,6 +70,7 @@ Class STSG A B O Wd Σ
     γr_loc : CmptName -> gname;
     γs_seals : CmptName -> gname;
 }.
+#[export] Hint Mode STSG - - - - - - - - - - - - - - - : typeclass_instances.
 
 Definition STS_preΣ A B O Wd
   `{EqDecision A, Countable A}

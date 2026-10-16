@@ -329,6 +329,7 @@ Class Ord A `{EqDecision A} : Type :=
   { le_a : relation A;
     le_a_decision : ∀ a1 a2, Decision (le_a a1 a2);
     le_a_preorder : PreOrder le_a }.
+#[export] Hint Mode Ord ! - : typeclass_instances.
 
 (* TODO: integrate into stdpp? *)
 Lemma pair_eq_inv {A B} {y u : A} {z t : B} {x} :
