@@ -121,7 +121,7 @@ Section AllocatorOtype.
     rewrite /is_sealed_with_o Z.eqb_eq in Hsealed.
     assert (ot = AllocOtype) as -> by solve_addr+Hsealed.
     cbn in Htag.
-    iEval (rewrite fixpoint_interp1_eq /= Htag) in "Hinterp".
+    iEval (rewrite interp_unfold /= Htag) in "Hinterp".
     iDestruct "Hinterp" as "[#Hseal _]".
     iAssert (sts_seals_std C AllocOtype {[WSealable sb @@? π]})%I as "#Hseal'".
     { iApply sts_seals_std_weaken; last iFrame "Hseal"; set_solver+. }

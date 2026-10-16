@@ -38,7 +38,7 @@ Section fundamental.
 
     destruct (has_sreg_access p) eqn:HpXRS.
     { iClear "IH Hreg Hinva Hrcond Hwcond Hmono Hworld_interp Htframe Hown Hstate HPC Ha Hmap".
-      iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv_interp".
+      iEval (rewrite !interp_unfold interp1_eq) in "Hinv_interp".
       destruct (isO p) eqn: HnO.
       { destruct Hp as [Hexec _]
         ; eapply executeAllowed_nonO in Hexec

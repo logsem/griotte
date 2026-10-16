@@ -209,7 +209,7 @@ Section monotone.
   Proof.
     iIntros (Hheap Hrelated) "#Hinterp".
     destruct sb as [t p g b e a | t p g b e a]; destruct t;
-      rewrite !fixpoint_interp1_eq /= /interp_sb /heap_cap_valid /heap_cap_live; try done.
+      rewrite !interp_unfold /= /interp_sb /heap_cap_valid /heap_cap_live; try done.
     by rewrite -Hheap.
   Qed.
 
@@ -219,7 +219,7 @@ Section monotone.
   Proof.
     iIntros (Hrelated) "#Hw".
     destruct t; last (iApply interp_untagged; done).
-    rewrite !fixpoint_interp1_eq /=.
+    rewrite !interp_unfold /=.
     iDestruct "Hw" as "[$ Hw]".
     iModIntro. iIntros (W'').
     destruct g.
@@ -306,7 +306,7 @@ Section monotone.
   Proof.
     iIntros (Hheap Hrelated) "#Hw".
     destruct t; last (iApply interp_untagged; done).
-    rewrite !fixpoint_interp1_eq !interp1_eq.
+    rewrite !interp_unfold !interp1_eq.
     destruct (isO p).
     { iDestruct "Hw" as %[Hvalid Hcoverage].
       iPureIntro. split; first by apply Hheap.
@@ -357,7 +357,7 @@ Section monotone.
   Proof.
     iIntros (Hrelated) "#Hw".
     destruct t; last (iApply interp_untagged; done).
-    rewrite !fixpoint_interp1_eq /=; auto.
+    rewrite !interp_unfold /=; auto.
     iDestruct "Hw" as "[Hw_seal Hw_unseal]".
     iSplitL "Hw_seal".
     - destruct (permit_seal p); last done.
@@ -375,7 +375,7 @@ Section monotone.
     pose proof (related_sts_pub_priv_world _ _ Hrelated) as Hrelated'.
     destruct w as [w π].
     destruct w; [ | destruct sb | | ].
-    - rewrite !fixpoint_interp1_eq /=; auto.
+    - rewrite !interp_unfold /=; auto.
     - iApply (interp_monotone_cap_valid with "[] [$]"); eauto.
       by rewrite /heap_cap_valid /heap_cap_live -Hheap.
     - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
@@ -390,7 +390,7 @@ Section monotone.
   Proof.
     iIntros (Hrelated Hnl) "#Hw".
     destruct t; last (iApply interp_untagged; done).
-    rewrite !fixpoint_interp1_eq /=.
+    rewrite !interp_unfold /=.
     iDestruct "Hw" as "[$ Hw]".
     destruct g ; cbn in Hnl ; try done.
     iModIntro. iIntros (W'').
@@ -413,7 +413,7 @@ Section monotone.
     iIntros (Hheap Hrelated Hnl) "#Hw".
     destruct t; last (iApply interp_untagged; done).
     destruct g; cbn in Hnl; try done.
-    rewrite !fixpoint_interp1_eq !interp1_eq.
+    rewrite !interp_unfold !interp1_eq.
     destruct (isO p).
     { iDestruct "Hw" as %[Hvalid Hcoverage].
       iPureIntro. split; first by apply Hheap.
@@ -439,7 +439,7 @@ Section monotone.
     iIntros (Hheap Hrelated Hnl) "#Hw".
     destruct w as [w π].
     destruct w; [ | destruct sb | | ].
-    - rewrite !fixpoint_interp1_eq /=; auto.
+    - rewrite !interp_unfold /=; auto.
     - iApply (interp_monotone_nl_cap_valid with "[] [] [$]"); eauto.
       by rewrite /heap_cap_valid /heap_cap_live -Hheap.
     - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
@@ -472,7 +472,7 @@ Section monotone.
     intros Hrelated Htag Hfilter. iIntros "#Hw".
     destruct sb as [t p g b e a | t p g b e a]; destruct t;
       cbn in Htag; try discriminate;
-      rewrite !fixpoint_interp1_eq /= /interp_sb; last done.
+      rewrite !interp_unfold /= /interp_sb; last done.
     iDestruct "Hw" as "[$ %Hvalid]". cbn in Hvalid. iPureIntro.
     eapply (heap_cap_valid_future_retained W W' (WSealed ot (SCap true p g b e a) @@? π)); eauto.
     - exact (proj2 (proj2 (proj2 Hrelated))).

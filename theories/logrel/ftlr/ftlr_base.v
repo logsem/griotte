@@ -54,7 +54,7 @@ Section fundamental.
     → ρ ≠ Revoked
     → Pinstr
     -> ftlr_IH
-    -∗ fixpoint interp1 W C (WCap true p g b e a)
+    -∗ interp W C (WCap true p g b e a)
     -∗ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v)
     -∗ rel C (LNonHeap a) p' (safeC P)
     -∗ □ (if decide (readAllowed_a_in_lregs regs a)

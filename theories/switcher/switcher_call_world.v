@@ -183,7 +183,7 @@ Section Switcher_Call_World.
     }
     destruct (get_tag_sealable wsb0) eqn:Htag; cycle 1.
     { iFrame; iIntros "!>" (wsb π Hwsb Htag'); simplify_eq; congruence. }
-    rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher wsb0 @@? π0)).
+    rewrite (interp_unfold _ _ (WSealed ot_switcher wsb0 @@? π0)).
     iEval (cbn; rewrite Htag) in "Htarget_v".
     rewrite /interp_sb.
     iDestruct "Htarget_v" as "[#Htarget_v _]".
@@ -367,7 +367,7 @@ Section Switcher_Call_World.
     iSplit; last (iPureIntro; split; [apply related_sts_pub_update_multiple_temp|]; done).
     assert (disjoint_from_mmio (a ^+ 4)%a e ∧ disjoint_from_heap (a ^+ 4)%a e) as [Hshadow Hheap].
     { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
-    iApply fixpoint_interp1_eq. iSimpl.
+    iApply interp_unfold. iSimpl.
     iSplit; last first.
     { iPureIntro. split; first exact Hshadow. by apply heap_cap_valid_disjoint. }
     rewrite /StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.

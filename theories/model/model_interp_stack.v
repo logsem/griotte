@@ -59,7 +59,7 @@ Section WorldInterpStack.
       { by eapply withinBounds_true_iff. }
       iAssert (⌜ ρ = Temporary ⌝)%I as "%Hρ_eq" ;simplify_eq.
       {
-        rewrite fixpoint_interp1_eq /=.
+        rewrite interp_unfold /=.
         destruct g; auto.
         iDestruct "Hinterp" as "[Hinterp _]".
         iDestruct (big_sepL_elem_of with "Hinterp") as "Ha".

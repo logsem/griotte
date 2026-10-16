@@ -604,19 +604,19 @@ Section Adequacy.
     subst W1; set (W1 := <o[ ot_switcher := adversary_imports]o> W0).
 
     iAssert ( interp W1 B (WSealed ot_switcher kvs_addOrUpdate)) as "#Hinterp_kvs_addOrUpdate".
-    { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
       iPureIntro; cbn.
       apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap.
     }
     iAssert ( interp W1 B (WSealed ot_switcher kvs_read)) as "#Hinterp_kvs_read".
-    { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
       iPureIntro; cbn.
       apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap.
     }
     iAssert ( interp W1 B (WSealed ot_switcher kvs_erase)) as "#Hinterp_kvs_erase".
-    { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
       iPureIntro; cbn.
       apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap.
@@ -663,7 +663,7 @@ Section Adequacy.
     subst W1' ; set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
 
     iAssert ( interp W1' B (WSealed ot_kvs kvs_user_key_B_sb)) as "#Hinterp_kvs_user_key_B".
-    { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_ku") ; last set_solver+).
       iPureIntro; cbn.
       apply heap_cap_valid_disjoint.

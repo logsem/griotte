@@ -88,7 +88,7 @@ Section fundamental.
     destruct w ; cbn in Hpwl ; try congruence.
     destruct g; last done.
     (* Contradiction -- WL and Global are not safe *)
-    rewrite fixpoint_interp1_eq interp1_eq.
+    rewrite interp_unfold interp1_eq.
     replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
     cbn.
     destruct rx; auto.
@@ -118,7 +118,7 @@ Section fundamental.
     iIntros (HcorrectPC Hp) "#Hinv #Hreg".
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
-    iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv".
+    iEval (rewrite !interp_unfold interp1_eq) in "Hinv".
     destruct (isO p) eqn: HnO.
     { destruct Hp as [Hexec _]; eapply executeAllowed_nonO in Hexec; congruence. }
     destruct (has_sreg_access p) eqn:HpXRS; first done.
@@ -321,7 +321,7 @@ Section fundamental.
         iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
         iExists _,_,_,_,_,_.
-        rewrite /= fixpoint_interp1_eq /=.
+        rewrite /= interp_unfold /=.
         iSplit;[eauto|]. iModIntro.
         iDestruct "Hw" as "[%Hnonheap #Hw]".
         rewrite /enter_cond.

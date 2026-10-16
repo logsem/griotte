@@ -315,7 +315,7 @@ Section fundamental.
     ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "[#Hinv #Hstatic]".
-    rewrite fixpoint_interp1_eq /=.
+    rewrite interp_unfold /=.
     iSplit; first (iPureIntro; exact switcher_not_heap_range).
     iIntros "!> %regs %W' % %".
     destruct g'; first done.

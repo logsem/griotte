@@ -102,7 +102,7 @@ Section KVS_spec_read_safe.
     cbn in Hwca0_tag.
 
     (* Open sealing predicate of sealed user key *)
-    iEval (rewrite fixpoint_interp1_eq /= /interp_sb Hwca0_tag) in "Hinterp_wca0".
+    iEval (rewrite interp_unfold /= /interp_sb Hwca0_tag) in "Hinterp_wca0".
     iDestruct "Hinterp_wca0" as "[#Hinterp_wca0 %Hvalid_wca0]".
     iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb @@? π0]})%I as "#Hinterp_wca0'".
     { iApply sts_seals_std_weaken; last iFrame "Hinterp_wca0"; last set_solver+. }

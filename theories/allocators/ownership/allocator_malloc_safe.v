@@ -252,7 +252,7 @@ Section Heap_Temporal_Safety_Interp.
             destruct Hbounds as (Hb & Hbe & He). solve_addr. }
         iAssert (interp Wshare C (WCap true RW Global b e b @@ ι))
           with "[]" as "#Hinterp_result".
-        { iEval (rewrite fixpoint_interp1_eq interp1_eq /=).
+        { iEval (rewrite interp_unfold interp1_eq /=).
           iSplit; last (iPureIntro; split; [exact I|split; assumption]).
           iApply big_sepL_intro.
           iIntros (k a Ha).

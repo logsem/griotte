@@ -136,7 +136,7 @@ Section SO_World_Call.
 
     iAssert (interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1))%I
       as "#Hinterp_fresh".
-    { iEval (rewrite fixpoint_interp1_eq interp1_eq).
+    { iEval (rewrite interp_unfold interp1_eq).
       cbn.
       iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[Hshadow Hheap]; first done.
       iSplit; last first.

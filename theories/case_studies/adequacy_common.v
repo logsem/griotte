@@ -636,7 +636,7 @@ Section adversary_world.
     interp W C (WCap true RWL Local b e b).
   Proof.
     iIntros (Hmmio Hheap Htemp) "#Hrel".
-    iEval (rewrite fixpoint_interp1_eq /=).
+    iEval (rewrite interp_unfold /=).
     iSplit.
     { iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
@@ -767,7 +767,7 @@ Section adversary_world.
     iIntros "#Hseal".
     iApply big_sepS_intro; iIntros "!>" (v Hv).
     destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _ & (g & a & ->) & Hsub).
-    iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    iEval (rewrite interp_unfold /= /interp_sb).
     iSplit; first (iApply sts_seals_std_weaken; done).
     iPureIntro; cbn.
     apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap.
@@ -1141,7 +1141,7 @@ Section adversary_imports.
     interp W C (WSealed o sb).
   Proof.
     iIntros (Hsub Hheap) "#Hseal".
-    iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    iEval (rewrite interp_unfold /= /interp_sb).
     destruct (get_tag_sealable sb); last done.
     iSplit; first (iApply (sts_seals_std_weaken with "Hseal"); by destruct sb).
     iPureIntro.
@@ -1288,7 +1288,7 @@ Section main_exports.
         by (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
       iFrame "Hprop". }
     iModIntro.
-    iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    iEval (rewrite interp_unfold /= /interp_sb).
     replace (get_tag_sealable sb) with true
       by (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
     iSplit; first done.

@@ -1060,12 +1060,14 @@ Section logrel.
   Qed.
 
   (** Definition of [interp] via the fixpoint combinator. *)
-  Lemma fixpoint_interp1_eq (W : WORLD) (C : CmptName) (w : leibnizO LWord) :
-    fixpoint (interp1) W C w ≡ interp1 (fixpoint (interp1)) W C w.
-  Proof. exact: (fixpoint_unfold (interp1) W C w). Qed.
+  Definition interp_def : V := fixpoint interp1.
+  #[local] Definition interp_aux : seal (@interp_def). Proof. by eexists. Qed.
+  Definition interp := interp_aux.(unseal).
+  #[local] Definition interp_unseal : @interp = @interp_def := interp_aux.(seal_eq).
 
-  Program Definition interp : V := (fixpoint (interp1)).
-  Solve All Obligations with solve_proper.
+  Lemma interp_unfold (W : WORLD) (C : CmptName) (w : leibnizO LWord) :
+    interp W C w ≡ interp1 interp W C w.
+  Proof. rewrite interp_unseal. exact: (fixpoint_unfold interp1 W C w). Qed.
   Program Definition interp_in_mem (p : Perm) : V :=
     λne W C w, interp_in_mem_pre W C p interp w.
   Solve All Obligations with solve_proper.
@@ -1081,7 +1083,7 @@ Section logrel.
   Lemma interp_untagged_eq W C w :
     get_tag w.(lw) = false → interp W C w ≡ True%I.
   Proof.
-    intros Htag. rewrite /interp fixpoint_interp1_eq /interp1 /= Htag. reflexivity.
+    intros Htag. rewrite interp_unfold /interp1 /= Htag. reflexivity.
   Qed.
 
   Lemma interp_untagged W C w :
@@ -1188,7 +1190,7 @@ Section logrel.
   Proof.
     destruct (get_tag w.(lw)) eqn:Htag.
     2: { rewrite (interp_untagged_eq W C w Htag). apply _. }
-    rewrite /interp fixpoint_interp1_eq.
+    rewrite interp_unfold.
     destruct w as [w π]; cbn in Htag.
     destruct_word w; try destruct t; cbn in Htag; try discriminate.
     - destruct c as [rx wp dl dro].
@@ -1197,7 +1199,7 @@ Section logrel.
               | match goal with
                 | |- context [WCap _ ?p ?g _ _ _] =>
                     change (Persistent
-                      (interp_cap_body (fixpoint interp1) W C p g b e π ∗
+                      (interp_cap_body interp W C p g b e π ∗
                         ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e π⌝)%I);
                     apply _
                 end ].
@@ -1294,7 +1296,7 @@ Section logrel.
     ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e π⌝.
   Proof.
     iIntros (HnonO) "Hinterp".
-    rewrite fixpoint_interp1_eq interp1_eq HnonO.
+    rewrite interp_unfold interp1_eq HnonO.
     destruct (has_sreg_access p); first done.
     iDestruct "Hinterp" as "[_ %Hregions]".
     iPureIntro. naive_solver.
@@ -1315,7 +1317,7 @@ Section logrel.
     interp W C (WCap true p g b e a @@? π) -∗
     ⌜heap_cap_O_valid W p g b e π⌝.
   Proof.
-    rewrite fixpoint_interp1_eq interp1_eq.
+    rewrite interp_unfold interp1_eq.
     destruct (isO p); first by iIntros "$".
     destruct (has_sreg_access p); first by iIntros "H".
     iIntros "[#Hlist %Hconditions]".
@@ -1393,8 +1395,7 @@ Section logrel.
     rewrite Forall_forall.
     iIntros (a Ha).
     apply elem_of_finz_seq_between in Ha.
-    rewrite /interp; cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
+    rewrite interp_unfold interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Hwa ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
@@ -1423,8 +1424,7 @@ Section logrel.
   Proof.
     iIntros (Hin Ra) "Hinterp".
     apply Is_true_eq_true in Ra.
-    rewrite /interp. cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
+    rewrite interp_unfold interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Ra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
@@ -1492,8 +1492,7 @@ Section logrel.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
-    rewrite /interp. cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
+    rewrite interp_unfold interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Hra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
@@ -1523,8 +1522,7 @@ Section logrel.
   Proof.
     iIntros (Hin Ra) "Hinterp".
     apply Is_true_eq_true in Ra.
-    rewrite /interp. cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
+    rewrite interp_unfold interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Ra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
@@ -1589,7 +1587,7 @@ Section logrel.
     interp W C (WCap t p g b e a' @@? π).
   Proof.
     destruct t.
-    - rewrite !fixpoint_interp1_eq !interp1_eq. reflexivity.
+    - rewrite !interp_unfold !interp1_eq. reflexivity.
     - rewrite !interp_untagged_eq; done.
   Qed.
 
@@ -1601,8 +1599,7 @@ Section logrel.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
-    rewrite /interp. cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
+    rewrite interp_unfold interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Hra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
@@ -1635,8 +1632,7 @@ Section logrel.
     rewrite Forall_forall.
     iIntros (a Ha).
     apply elem_of_finz_seq_between in Ha.
-    rewrite /interp; cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
+    rewrite interp_unfold interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Hwa ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
@@ -1658,7 +1654,7 @@ Section logrel.
   Proof.
     intros Hp Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
+    rewrite interp_unfold interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply isWL_nonO in Hp ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
@@ -1821,7 +1817,7 @@ Section logrel.
       iDestruct ("Hreg" $! r _ Hsome) as "Hinterp_w".
       destruct_word w; try destruct t; cbn in * ; try done.
       apply withinBounds_le_addr in Hvw.
-      iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
+      iEval (rewrite interp_unfold interp1_eq) in "Hinterp_w".
       replace (isO c) with false.
       2: { eapply readAllowed_nonO in Hrar ;done. }
       destruct (has_sreg_access c) eqn:HnXSR; auto.
@@ -1840,7 +1836,7 @@ Section logrel.
       iDestruct ("Hreg" $! r _ Hsome) as "Hinterp_w".
       destruct_word w; try destruct t; cbn in * ; try done.
       apply withinBounds_le_addr in Hvw.
-      iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
+      iEval (rewrite interp_unfold interp1_eq) in "Hinterp_w".
       replace (isO c) with false.
       2: { eapply writeAllowed_nonO in Hwaw ;done. }
       destruct (has_sreg_access c) eqn:HnXSR; auto.
