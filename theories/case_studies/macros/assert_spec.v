@@ -31,7 +31,7 @@ Section Assert_subroutine.
        ⌜is_Some (a_flag + 1)%a⌝ ∗
        cap_addr ↦ₐ□ WCap true RW Global a_flag (a_flag ^+1)%a a_flag).
 
-  Global Instance assert_static_persistent b_assert e_assert a_flag :
+  #[global] Instance assert_static_persistent b_assert e_assert a_flag :
     Persistent (assert_static b_assert e_assert a_flag).
   Proof. apply _. Qed.
 

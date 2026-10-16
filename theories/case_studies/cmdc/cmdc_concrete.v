@@ -5,13 +5,13 @@ From griotte Require Import
   registers griotte_lang machine_run switcher assert compartment_layout
   cmdc cmdc_adequacy disjoint_regions_tactics.
 
-Existing Instance machine_parameters_instance.
+#[export] Existing Instance machine_parameters_instance.
 
-Local Transparent MemNum ONum.
+#[local] Transparent MemNum ONum.
 
-Local Notation "'A' z" :=
+#[local] Notation "'A' z" :=
   (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-Local Notation "'OT' z" :=
+#[local] Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
 Definition cmdc_main_pcc_b : Addr := A 9.
@@ -167,12 +167,12 @@ Proof.
   - vm_compute; reflexivity.
 Defined.
 
-Local Instance cmdc_concrete_switcherLayout : switcherLayout.
+#[local] Instance cmdc_concrete_switcherLayout : switcherLayout.
 Proof.
   exact (cmptSwitcher_switcherLayout cmdc_concrete_cmptSwitcher).
 Defined.
 
-Local Instance cmdc_concrete_assertLayout : assertLayout.
+#[local] Instance cmdc_concrete_assertLayout : assertLayout.
 Proof.
   exact (cmptAssert_assertLayout cmdc_concrete_cmptAssert).
 Defined.
@@ -350,7 +350,7 @@ Qed.
     Their explicit region forms avoid reducing the large transparent concrete
     records; the empty static-sealed ranges are removed before selecting
     pairwise facts from the shared certificate. *)
-Local Lemma cmdc_concrete_cmpts_disjoints :
+#[local] Lemma cmdc_concrete_cmpts_disjoints :
   cmdc_concrete_main_cmpt ## cmdc_concrete_B_cmpt
   ∧ cmdc_concrete_main_cmpt ## cmdc_concrete_C_cmpt
   ∧ cmdc_concrete_B_cmpt ## cmdc_concrete_C_cmpt.
@@ -396,7 +396,7 @@ Proof.
   solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma cmdc_concrete_switcher_cmpt_disjoints :
+#[local] Lemma cmdc_concrete_switcher_cmpt_disjoints :
   switcher_cmpt_disjoint
     cmdc_concrete_main_cmpt cmdc_concrete_cmptSwitcher
   ∧ switcher_cmpt_disjoint
@@ -442,7 +442,7 @@ Proof.
   solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma cmdc_concrete_assert_cmpt_disjoints :
+#[local] Lemma cmdc_concrete_assert_cmpt_disjoints :
   assert_cmpt_disjoint
     cmdc_concrete_main_cmpt cmdc_concrete_cmptAssert
   ∧ assert_cmpt_disjoint
@@ -488,7 +488,7 @@ Proof.
   solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma cmdc_concrete_assert_switcher_disjoints :
+#[local] Lemma cmdc_concrete_assert_switcher_disjoints :
   assert_switcher_disjoint
     cmdc_concrete_cmptAssert cmdc_concrete_cmptSwitcher.
 Proof.
@@ -504,7 +504,7 @@ Proof.
   solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
 Qed.
 
-Global Instance cmdc_concrete_layout : memory_layout.
+#[global] Instance cmdc_concrete_layout : memory_layout.
 Proof.
   refine
     (@Build_memory_layout

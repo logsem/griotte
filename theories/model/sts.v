@@ -81,7 +81,7 @@ Definition STS_preΣ A B O Wd
      GFunctor heap_authUR
 ].
 
-Instance subG_STS_preΣ A B O Wd
+#[export] Instance subG_STS_preΣ A B O Wd
   `{EqDecision A, Countable A}
   `{EqDecision O, Countable O}
   `{EqDecision Wd, Countable Wd}
@@ -188,24 +188,24 @@ Section definitionsS.
     related_sts_seals_std (seal_std W) (seal_std W') ∧
     related_sts_heap_std (heap_std W) (heap_std W').
 
-  Global Instance sts_rel_loc_Persistent C i rpub rpriv : Persistent (sts_rel_loc C i rpub rpriv).
+  #[global] Instance sts_rel_loc_Persistent C i rpub rpriv : Persistent (sts_rel_loc C i rpub rpriv).
   Proof. apply _. Qed.
-  Global Instance sts_seals_std_Persistent C o ws : Persistent (sts_seals_std C o ws).
-  Proof. apply _. Qed.
-
-  Global Instance sts_rel_loc_Timeless C i rpub rpriv : Timeless (sts_rel_loc C i rpub rpriv).
+  #[global] Instance sts_seals_std_Persistent C o ws : Persistent (sts_seals_std C o ws).
   Proof. apply _. Qed.
 
-  Global Instance sts_state_std_Timeless C i x : Timeless (sts_state_std C i x).
-  Proof. apply _. Qed.
-  Global Instance sts_state_loc_Timeless C i x : Timeless (sts_state_loc C i x).
-  Proof. apply _. Qed.
-  Global Instance sts_seals_std_Timeless C i x : Timeless (sts_seals_std C i x).
+  #[global] Instance sts_rel_loc_Timeless C i rpub rpriv : Timeless (sts_rel_loc C i rpub rpriv).
   Proof. apply _. Qed.
 
-  Global Instance sts_full_Timeless C fs fr : Timeless (sts_full C fs fr).
+  #[global] Instance sts_state_std_Timeless C i x : Timeless (sts_state_std C i x).
   Proof. apply _. Qed.
-  Global Instance sts_full_world_Timeless W C : Timeless (sts_full_world W C).
+  #[global] Instance sts_state_loc_Timeless C i x : Timeless (sts_state_loc C i x).
+  Proof. apply _. Qed.
+  #[global] Instance sts_seals_std_Timeless C i x : Timeless (sts_seals_std C i x).
+  Proof. apply _. Qed.
+
+  #[global] Instance sts_full_Timeless C fs fr : Timeless (sts_full C fs fr).
+  Proof. apply _. Qed.
+  #[global] Instance sts_full_world_Timeless W C : Timeless (sts_full_world W C).
   Proof. apply _. Qed.
 End definitionsS.
 

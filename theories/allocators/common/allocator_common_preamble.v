@@ -108,7 +108,7 @@ Section AllocatorHeaders.
          allocator_headers e stop rest)%I
     end.
 
-  Global Instance allocator_headers_timeless h stop allocations :
+  #[global] Instance allocator_headers_timeless h stop allocations :
     Timeless (allocator_headers h stop allocations).
   Proof.
     revert h. induction allocations as [| [ [ [b e] reserved] ι] rest IH];
@@ -156,10 +156,10 @@ Section AllocatorTokens.
     [∗ list] entry ∈ allocations,
       let '(b, e, _, ι) := entry in alloc_obj ι b e ∗ allocator_tok live ι b e.
 
-  Global Instance allocator_tok_timeless live ι b e : Timeless (allocator_tok live ι b e).
+  #[global] Instance allocator_tok_timeless live ι b e : Timeless (allocator_tok live ι b e).
   Proof. rewrite /allocator_tok. case_decide; apply _. Qed.
 
-  Global Instance allocator_entries_res_timeless live allocations :
+  #[global] Instance allocator_entries_res_timeless live allocations :
     Timeless (allocator_entries_res live allocations).
   Proof.
     apply big_sepL_timeless. intros k [ [ [b e] reserved] ι] _. apply _.
@@ -188,10 +188,10 @@ Section AllocatorCells.
   Definition allocator_cells (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) : iProp Σ :=
     [∗ map] a ↦ x ∈ Cs, cell_res a x.1.1 x.1.2 x.2.
 
-  Global Instance cell_res_timeless a c s hdr : Timeless (cell_res a c s hdr).
+  #[global] Instance cell_res_timeless a c s hdr : Timeless (cell_res a c s hdr).
   Proof. rewrite /cell_res. destruct c; [destruct hdr| |]; apply _. Qed.
 
-  Global Instance allocator_cells_timeless Cs : Timeless (allocator_cells Cs).
+  #[global] Instance allocator_cells_timeless Cs : Timeless (allocator_cells Cs).
   Proof. apply _. Qed.
 
 End AllocatorCells.

@@ -102,7 +102,7 @@ Section griotte_lang.
     is_Some (to_val (fill_item Ki e)) → is_Some (to_val e).
   Proof. intros [v ?]. destruct Ki; simplify_option_eq; eauto. Qed.
 
-  Instance fill_item_inj Ki : Inj (=) (=) (fill_item Ki).
+  #[local] Instance fill_item_inj Ki : Inj (=) (=) (fill_item Ki).
   Proof. destruct Ki; intros ???; simplify_eq; auto with f_equal. Qed.
 
   Lemma base_ctx_step_val Ki e σ1 κ e2 σ2 ef :
@@ -149,20 +149,20 @@ Canonical Structure griotte_lang `{MachineParameters} := LanguageOfEctx cap_ectx
 #[export] Hint Extern 10 (AsVal _) =>
 eexists; rewrite /IntoVal; eapply of_to_val; rewrite /= !to_of_val /=; solve [ eauto ] : typeclass_instances.
 
-Local Hint Resolve language.val_irreducible : core.
-Local Hint Resolve to_of_val : core.
-Local Hint Unfold language.irreducible : core.
+#[local] Hint Resolve language.val_irreducible : core.
+#[local] Hint Resolve to_of_val : core.
+#[local] Hint Unfold language.irreducible : core.
 
-Global Instance dec_pc c : Decision (isCorrectPC c).
+#[global] Instance dec_pc c : Decision (isCorrectPC c).
 Proof. apply isCorrectPC_dec. Qed.
 
 (* There is probably a more general instance to be stated there...*)
-Instance Reflexive_ofe_equiv_Word : (Reflexive (ofe_equiv (leibnizO Word))).
+#[export] Instance Reflexive_ofe_equiv_Word : (Reflexive (ofe_equiv (leibnizO Word))).
 Proof. intro; reflexivity. Qed.
 
 (****)
 
-Global Instance is_atomic_correct `{MachineParameters} s (e : expr) : is_atomic e → Atomic s e.
+#[global] Instance is_atomic_correct `{MachineParameters} s (e : expr) : is_atomic e → Atomic s e.
 Proof.
   intros Ha; apply strongly_atomic_atomic, ectx_language_atomic.
   - destruct e.

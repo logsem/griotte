@@ -369,7 +369,7 @@ End griotte_lang_rules.
 Section instruction_outcomes.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
-  Local Lemma restrict_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+  #[local] Lemma restrict_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
       w dst src regs (t : bool) p g b e a π n p' g' dq :
     decodeInstrW w.(lw) = Restrict dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -404,7 +404,7 @@ Section instruction_outcomes.
   Qed.
 
   (* Exact register-map continuation, including aliases and special registers. *)
-  Local Lemma restrict_invalidated_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+  #[local] Lemma restrict_invalidated_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
       w dst src regs (t : bool) p g b e a π n p' g' dq :
     decodeInstrW w.(lw) = Restrict dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

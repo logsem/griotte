@@ -44,7 +44,7 @@ Section griotte_lang_rules.
     | _ => None
     end.
 
-  Global Arguments denote : simpl nomatch.
+  #[global] Arguments denote : simpl nomatch.
 
   Definition is_Get (i: instr) (dst src: RegName) :=
     i = GetP dst src ∨
@@ -695,14 +695,14 @@ Proof. intros; unfold is_Get; eauto; firstorder. Qed.
 Lemma getwtype_denote `{MachineParameters} r1 r2 w : denote (GetWType r1 r2) w = Some (encodeWordType w).
 Proof. by destruct_word w ; cbn. Qed.
 
-Global Hint Resolve is_Get_GetP : core.
-Global Hint Resolve is_Get_GetL : core.
-Global Hint Resolve is_Get_GetB : core.
-Global Hint Resolve is_Get_GetE : core.
-Global Hint Resolve is_Get_GetA : core.
-Global Hint Resolve is_Get_GetOType : core.
-Global Hint Resolve is_Get_GetWType : core.
-Global Hint Resolve getwtype_denote : core.
+#[export] Hint Resolve is_Get_GetP : core.
+#[export] Hint Resolve is_Get_GetL : core.
+#[export] Hint Resolve is_Get_GetB : core.
+#[export] Hint Resolve is_Get_GetE : core.
+#[export] Hint Resolve is_Get_GetA : core.
+#[export] Hint Resolve is_Get_GetOType : core.
+#[export] Hint Resolve is_Get_GetWType : core.
+#[export] Hint Resolve getwtype_denote : core.
 
 Lemma is_Get_GetTag dst src : is_Get (GetTag dst src) dst src.
 Proof. unfold is_Get; tauto. Qed.
@@ -713,4 +713,4 @@ Proof. intros Ht [Ht' _]. congruence. Qed.
 Lemma gettag_denote `{MachineParameters} dst src w :
   denote (GetTag dst src) w = Some (Z.b2z (get_tag w)).
 Proof. by destruct_word w. Qed.
-Global Hint Resolve is_Get_GetTag gettag_denote : core.
+#[export] Hint Resolve is_Get_GetTag gettag_denote : core.

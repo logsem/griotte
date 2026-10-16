@@ -5,12 +5,12 @@ From griotte Require Import
   registers griotte_lang machine_run switcher assert compartment_layout
   kvs kvs_main kvs_adequacy disjoint_regions_tactics.
 
-Existing Instance machine_parameters_instance.
-Local Transparent MemNum ONum.
+#[export] Existing Instance machine_parameters_instance.
+#[local] Transparent MemNum ONum.
 
-Local Notation "'A' z" :=
+#[local] Notation "'A' z" :=
   (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-Local Notation "'OT' z" :=
+#[local] Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
 Definition kvs_main_pcc_b : Addr := A 9.
@@ -101,7 +101,7 @@ Ltac unfold_kvs_addresses_in H :=
     kvs_trusted_stack_b, kvs_trusted_stack_e,
     kvs_stack_b, kvs_stack_e in H.
 
-Local Instance kvs_concrete_kvsLayout : kvsLayout :=
+#[local] Instance kvs_concrete_kvsLayout : kvsLayout :=
   @mkKvsLayout kvs_service_sealing_type
     kvs_KVS_pcc_b kvs_KVS_code_start kvs_KVS_pcc_e
     kvs_KVS_data_b kvs_KVS_data_e
@@ -167,12 +167,12 @@ Proof.
   - vm_compute; reflexivity.
 Defined.
 
-Local Instance kvs_concrete_switcherLayout : switcherLayout.
+#[local] Instance kvs_concrete_switcherLayout : switcherLayout.
 Proof.
   exact (cmptSwitcher_switcherLayout kvs_concrete_cmptSwitcher).
 Defined.
 
-Local Instance kvs_concrete_assertLayout : assertLayout.
+#[local] Instance kvs_concrete_assertLayout : assertLayout.
 Proof.
   exact (cmptAssert_assertLayout kvs_concrete_cmptAssert).
 Defined.
@@ -458,7 +458,7 @@ Ltac solve_kvs_assert_switcher_disjoint :=
   destruct Hx' as [[Hx' | Hx'] | Hx'];
   solve_addr.
 
-Global Instance kvs_concrete_layout : memory_layout.
+#[global] Instance kvs_concrete_layout : memory_layout.
 Proof.
   refine (@Build_memory_layout machine_parameters_instance
     kvs_concrete_cmptSwitcher kvs_concrete_cmptAssert

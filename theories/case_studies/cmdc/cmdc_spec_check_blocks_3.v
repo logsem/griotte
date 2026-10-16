@@ -23,7 +23,7 @@ Section CMDC_Check_Blocks_3.
       at the label [l_ret], followed by the assertion at [l_assert] and by
       the code at [l_next]: the code of the two calls only differs by the
       asserted value. *)
-  Local Ltac cmdc_check_blocks_proof l_ret l_assert l_next pc_a :=
+  #[local] Ltac cmdc_check_blocks_proof l_ret l_assert l_next pc_a :=
     let hcont := fresh "hcont" in
     let a_call := fresh "a_call" in
     let a_assert := fresh "a_assert" in

@@ -163,7 +163,7 @@ Section HTS_States.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
-  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+  #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   (** The parameters of [hts_main_spec]. Each definition below only takes
       the ones it uses, in this order. *)
@@ -191,7 +191,7 @@ Section HTS_States.
     interp W_init_C C (WSealed ot_switcher C_f) ∗
     (WSealed ot_switcher C_f) ↦□ₑ 1.
 
-  Global Instance hts_main_ctx_persistent : Persistent hts_main_ctx.
+  #[global] Instance hts_main_ctx_persistent : Persistent hts_main_ctx.
   Proof. rewrite /hts_main_ctx. tc_solve. Qed.
 
   (** The imported words, in the order of [hts_main_imports]. *)

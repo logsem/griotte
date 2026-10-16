@@ -71,7 +71,7 @@ Section logrel.
       | apply related_sts_pub_refl_world].
   Qed.
 
-  Global Instance future_world_persistent (g : Locality) (W W' : WORLD) :
+  #[global] Instance future_world_persistent (g : Locality) (W W' : WORLD) :
     Persistent (future_world g W W').
   Proof.
     unfold future_world. destruct g; apply bi.pure_persistent.
@@ -192,7 +192,7 @@ Section logrel.
     )%I.
   Solve All Obligations with solve_proper.
 
-  Global Instance interp_expr_ne n :
+  #[global] Instance interp_expr_ne n :
     Proper (dist n ==> dist n ==> dist n) (interp_expr).
   Proof.
     intros interp interp0 Heq K K0 HK.
@@ -273,11 +273,11 @@ Section logrel.
     (W : WORLD) (C : CmptName) (p : Perm) (interp : V) (w : LWord) : iProp Σ :=
     interp W C (filter_heap W (lload_word p w)).
 
-  Global Instance interp_in_mem_pre_ne W C p w :
+  #[global] Instance interp_in_mem_pre_ne W C p w :
     NonExpansive (λ interp, interp_in_mem_pre W C p interp w).
   Proof. intros n x y Hxy. apply Hxy. Qed.
 
-  Global Instance interp_in_mem_pre_contractive W C p w :
+  #[global] Instance interp_in_mem_pre_contractive W C p w :
     Contractive (λ interp, ▷ interp_in_mem_pre W C p interp w)%I.
   Proof. rewrite /interp_in_mem_pre. solve_contractive. Qed.
 
@@ -290,11 +290,11 @@ Section logrel.
   Definition zcond (P : V) (C : CmptName) : iProp Σ :=
     (□ ∀ (W1 W2: WORLD) (z : Z) (π : option AId),
        P W1 C (WInt z @@? π) -∗ P W2 C (WInt z @@? π)).
-  Global Instance zcond_ne n :
+  #[global] Instance zcond_ne n :
     Proper ((=) ==> (=) ==> dist n) zcond.
   Proof. solve_proper_prepare.
          repeat f_equiv;auto. Qed.
-  Global Instance zcond_contractive (P : V) (C : CmptName) :
+  #[global] Instance zcond_contractive (P : V) (C : CmptName) :
     Contractive (λ interp, ▷ zcond P C)%I.
   Proof. solve_contractive. Qed.
 
@@ -309,10 +309,10 @@ Section logrel.
       deep-permission load filter and the current world's heap revocation filter. *)
   Definition rcond (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : LWord), P W C w -∗ interp_in_mem_pre W C p interp w).
-  Global Instance rcond_ne n :
+  #[global] Instance rcond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond.
   Proof. rewrite /rcond /interp_in_mem_pre. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance rcond_contractive (P : V) (C : CmptName) (p : Perm) :
+  #[global] Instance rcond_contractive (P : V) (C : CmptName) (p : Perm) :
     Contractive (λ interp, ▷ rcond P C p interp)%I.
   Proof. rewrite /rcond /interp_in_mem_pre. solve_contractive. Qed.
 
@@ -321,10 +321,10 @@ Section logrel.
       a value that is safe to share, but we need to store a value respecting [P]. *)
   Definition wcond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : LWord), interp W C w -∗ P W C w).
-  Global Instance wcond_ne n :
+  #[global] Instance wcond_ne n :
     Proper ((=) ==> (=)  ==> dist n ==> dist n) wcond.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance wcond_contractive (P : V) (C : CmptName) :
+  #[global] Instance wcond_contractive (P : V) (C : CmptName) :
     Contractive (λ interp, ▷ wcond P C interp)%I.
   Proof. solve_contractive. Qed.
 
@@ -339,7 +339,7 @@ Section logrel.
     rcond φ C p interp ∗
     wcond φ C interp ∗
     ⌜ persistent_cond φ ⌝.
-  Global Instance valid_interp_ne n :
+  #[global] Instance valid_interp_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) valid_stk_interp.
   Proof. rewrite /valid_stk_interp; solve_proper. Qed.
 
@@ -352,10 +352,10 @@ Section logrel.
       rel C (LNonHeap a) p (safeC φ) ∗
       valid_stk_interp interp C φ p ∗
       ⌜ PermFlowsTo RWL p ⌝.
-  Global Instance StackWorldResource_ne n :
+  #[global] Instance StackWorldResource_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackWorldResource.
   Proof. rewrite /StackWorldResource; solve_proper. Qed.
-  Global Instance StackWorldResource_Persistent
+  #[global] Instance StackWorldResource_Persistent
     (interp : V) (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) :
     Persistent (StackWorldResource interp W C a v).
   Proof.
@@ -384,10 +384,10 @@ Section logrel.
    *)
   Definition StackWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lws : list LWord) : iProp Σ :=
     ([∗ list] a ; v ∈ la ; lws, StackWorldResource interp W C a v).
-  Global Instance StackWorldResources_ne n :
+  #[global] Instance StackWorldResources_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackWorldResources.
   Proof. rewrite /StackWorldResources; solve_proper. Qed.
-  Global Instance StackWorldResources_Persistent
+  #[global] Instance StackWorldResources_Persistent
     (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lv : list LWord) :
     Persistent (StackWorldResources interp W C la lv).
   Proof. apply _. Qed.
@@ -400,7 +400,7 @@ Section logrel.
    *)
   Definition StackOpenWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lws : list LWord) : iProp Σ :=
     StackWorldResources interp W C la lws ∗ ([∗ list] a ∈ la, sts_state_std C (LNonHeap a) Temporary).
-  Global Instance StackOpenWorldResources_ne n :
+  #[global] Instance StackOpenWorldResources_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackOpenWorldResources.
   Proof. rewrite /StackOpenWorldResources; solve_proper. Qed.
 
@@ -484,7 +484,7 @@ Section logrel.
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
-  Global Instance interp_cont_exec_ne n :
+  #[global] Instance interp_cont_exec_ne n :
     Proper (dist n ==> dist n ==> dist n) (fun interp cont => interp_cont_exec interp cont).
   Proof. solve_proper. Qed.
 
@@ -559,7 +559,7 @@ Section logrel.
     | _,_,_ =>  False%I
     end.
   Solve All Obligations with ( solve_proper; split; intros ; (intros [?  [] ]; done) ).
-  Global Instance interp_cont_aux_ne n :
+  #[global] Instance interp_cont_aux_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) (interp_cont_aux).
   Proof.
     intros interp interp0 Heq x y -> W W0 -> C C0 ->.
@@ -584,7 +584,7 @@ Section logrel.
        interp_cont_aux interp cstk Ws Cs
     ).
   Solve All Obligations with solve_proper.
-  Global Instance interp_cont_ne n :
+  #[global] Instance interp_cont_ne n :
     Proper (dist n ==> dist n) (interp_cont).
   Proof. solve_proper. Qed.
 
@@ -598,13 +598,13 @@ Section logrel.
        ⌜a ∈ₐ [[ b , e ]]⌝
        → future_world g W W'
        → ▷ interp_expr interp (interp_cont interp) W' C (WCap true p g b e a @@? π))%I.
-  Global Instance exec_cond_ne n :
+  #[global] Instance exec_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
   Proof.
     solve_proper_prepare.
     solve_proper.
   Qed.
-  Global Instance exec_cond_contractive W C b e g p π :
+  #[global] Instance exec_cond_contractive W C b e g p π :
     Contractive (λ interp, exec_cond W C b e g p π interp).
   Proof.
     intros ????. rewrite /exec_cond.
@@ -636,13 +636,13 @@ Section logrel.
        future_world g W W'
        → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ → (▷ interp_expr interp (interp_cont interp) W' C (WCap true p g' b e a @@? π)))
     )%I.
-  Global Instance enter_cond_ne n :
+  #[global] Instance enter_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
   Proof.
     solve_proper_prepare.
     solve_proper.
   Qed.
-  Global Instance enter_cond_contractive W C p g b e a π :
+  #[global] Instance enter_cond_contractive W C p g b e a π :
     Contractive (λ interp, enter_cond W C p g b e a π interp).
   Proof.
     intros ????. rewrite /enter_cond.
@@ -874,19 +874,19 @@ Section logrel.
         ∧ ⌜if isWL p then region_state_pwl W (addr_key π a)
             else region_state_nwl W (addr_key π a) g⌝)%I.
 
-  Global Instance interp_cap_body_contractive W C p g b e π :
+  #[global] Instance interp_cap_body_contractive W C p g b e π :
     Contractive (λ interp, interp_cap_body interp W C p g b e π).
   Proof.
     rewrite /interp_cap_body.
     solve_contractive.
   Qed.
 
-  Global Instance interp_cap_body_ne n :
+  #[global] Instance interp_cap_body_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n)
       interp_cap_body.
   Proof. rewrite /interp_cap_body. solve_proper. Qed.
 
-  Global Instance interp_cap_body_persistent interp W C p g b e π :
+  #[global] Instance interp_cap_body_persistent interp W C p g b e π :
     Persistent (interp_cap_body interp W C p g b e π).
   Proof. apply _. Qed.
 
@@ -936,19 +936,19 @@ Section logrel.
    *)
   Definition unseal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : LWord), P W C (lforce_global w) -∗ interp W C (filter_heap W w)).
-  Global Instance unseal_cond_ne n :
+  #[global] Instance unseal_cond_ne n :
     Proper ((=) ==> (=) ==> dist n ==> dist n) unseal_cond.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance unseal_contractive (P : V) (C : CmptName) (p : Perm) :
+  #[global] Instance unseal_contractive (P : V) (C : CmptName) (p : Perm) :
     Contractive (λ interp, ▷ unseal_cond P C interp)%I.
   Proof. solve_contractive. Qed.
 
   Definition seal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : LWord), interp W C w -∗ P W C (lforce_global w)).
-  Global Instance seal_cond_ne n :
+  #[global] Instance seal_cond_ne n :
     Proper ((=) ==> (=) ==> dist n ==> dist n) seal_cond.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance seal_contractive (P : V) (C : CmptName) (p : Perm) :
+  #[global] Instance seal_contractive (P : V) (C : CmptName) (p : Perm) :
     Contractive (λ interp, ▷ seal_cond P C interp)%I.
   Proof. solve_contractive. Qed.
 
@@ -1002,7 +1002,7 @@ Section logrel.
 
   (** To be able to use the fixpoint combinator to define [interp],
       we need to show that all case of [interp] are contractive. *)
-  Global Instance interp_sentry_contractive :
+  #[global] Instance interp_sentry_contractive :
     Contractive (interp_sentry).
   Proof.
     intros n x y Hdist W C [w π].
@@ -1015,7 +1015,7 @@ Section logrel.
     f_equiv. f_equiv. by apply enter_cond_contractive.
   Qed.
 
-  Global Instance interp_cap_contractive :
+  #[global] Instance interp_cap_contractive :
     Contractive (interp_cap).
   Proof.
     intros n x y Hdist W C [w π].
@@ -1033,7 +1033,7 @@ Section logrel.
     end.
   Qed.
 
-  Global Instance interp_sr_contractive :
+  #[global] Instance interp_sr_contractive :
     Contractive (interp_sr).
   Proof.
     intros n x y Hdist W C [w π].
@@ -1043,7 +1043,7 @@ Section logrel.
     solve_contractive.
   Qed.
 
-  Global Instance interp1_contractive :
+  #[global] Instance interp1_contractive :
     Contractive (interp1).
   Proof.
     intros n x y Hdistn W C [w π].
@@ -1184,7 +1184,7 @@ Section logrel.
 
 
   (** We have, and we _WANT_, [interp] to be Persistent *)
-  Global Instance interp_persistent W C w : Persistent (interp W C w).
+  #[global] Instance interp_persistent W C w : Persistent (interp W C w).
   Proof.
     destruct (get_tag w.(lw)) eqn:Htag.
     2: { rewrite (interp_untagged_eq W C w Htag). apply _. }
@@ -1213,11 +1213,11 @@ Section logrel.
         destruct t; cbn in Htag; try discriminate; apply _.
   Qed.
 
-  Global Instance interp_in_mem_pre_persistent W C p w :
+  #[global] Instance interp_in_mem_pre_persistent W C p w :
     Persistent (interp_in_mem_pre W C p interp w).
   Proof. apply _. Qed.
 
-  Global Instance interp_in_mem_persistent p W C w : Persistent (interp_in_mem p W C w).
+  #[global] Instance interp_in_mem_persistent p W C w : Persistent (interp_in_mem p W C w).
   Proof. apply _. Qed.
 
   Lemma interp_to_in_mem W C w : interp W C w -∗ interp_in_mem RWL W C w.
@@ -1739,7 +1739,7 @@ Section logrel.
     ∃ r (w : LWord), regs !! r = Some w ∧ w.(lprov) = None ∧
                      writeAllowedWord w.(lw) ∧ hasValidAddress w.(lw) a.
 
-  Global Instance readAllowed_a_in_lregs_Decidable (regs : LReg) (a : Addr) :
+  #[global] Instance readAllowed_a_in_lregs_Decidable (regs : LReg) (a : Addr) :
     Decision (readAllowed_a_in_lregs regs a).
   Proof.
     eapply finite.exists_dec.
@@ -1751,7 +1751,7 @@ Section logrel.
     left; eexists _; eauto.
   Qed.
 
-  Global Instance writeAllowed_a_in_lregs_Decidable (regs : LReg) (a : Addr) :
+  #[global] Instance writeAllowed_a_in_lregs_Decidable (regs : LReg) (a : Addr) :
     Decision (writeAllowed_a_in_lregs regs a).
   Proof.
     eapply finite.exists_dec.

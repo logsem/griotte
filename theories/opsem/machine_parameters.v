@@ -368,22 +368,22 @@ Proof. apply decode_encode_instr_inv. Qed.
 Definition encodeInstrsW `{MachineParameters} : list instr → list Word :=
   map encodeInstrW.
 
-Global Instance decode_encode_cancel `{MachineParameters}: Cancel (=) decodeInstr encodeInstr.
+#[global] Instance decode_encode_cancel `{MachineParameters}: Cancel (=) decodeInstr encodeInstr.
 Proof. intro. eapply decode_encode_instr_inv. Qed.
 
-Global Instance decode_encode_cancelW `{MachineParameters}: Cancel (=) decodeInstrW encodeInstrW.
+#[global] Instance decode_encode_cancelW `{MachineParameters}: Cancel (=) decodeInstrW encodeInstrW.
 Proof. intro. eapply decode_encode_instrW_inv. Qed.
 
-Global Instance decode_instr_surj `{MachineParameters}: Surj (=) decodeInstr.
+#[global] Instance decode_instr_surj `{MachineParameters}: Surj (=) decodeInstr.
 Proof. eapply cancel_surj. Qed.
 
-Global Instance encode_instr_inj `{MachineParameters}: Inj (=) (=) encodeInstr.
+#[global] Instance encode_instr_inj `{MachineParameters}: Inj (=) (=) encodeInstr.
 Proof. eapply cancel_inj. Qed.
 
-Global Instance decode_instrW_surj `{MachineParameters}: Surj (=) decodeInstrW.
+#[global] Instance decode_instrW_surj `{MachineParameters}: Surj (=) decodeInstrW.
 Proof. eapply cancel_surj. Qed.
 
-Global Instance encode_instrw_inj `{MachineParameters}: Inj (=) (=) encodeInstrW.
+#[global] Instance encode_instrw_inj `{MachineParameters}: Inj (=) (=) encodeInstrW.
 Proof. eapply cancel_inj. Qed.
 
 

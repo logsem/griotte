@@ -45,7 +45,7 @@ Section griotte_lang_rules.
     | LoadLive ι q => ι ↦st{q} ALive
     end%I.
 
-  Global Instance load_witness_res_timeless wit : Timeless (load_witness_res wit).
+  #[global] Instance load_witness_res_timeless wit : Timeless (load_witness_res wit).
   Proof. destruct wit; apply _. Qed.
 
   Definition load_post (wit : load_witness) (p : Perm) (v v' : LWord) : Prop :=
@@ -249,7 +249,7 @@ Section griotte_lang_rules.
     allow_load_mem_or_shadow_offset r 0 regs mem shadow.
 
   (* Closes a failing load: the state is unchanged. *)
-  Local Ltac load_fail Hstep :=
+  #[local] Ltac load_fail Hstep :=
     injection Hstep as <- <-;
     try iApply bupd_fupd;
      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|];
@@ -827,7 +827,7 @@ Section griotte_lang_rules.
     - done.
   Qed.
 
-  Local Ltac load_fail_contra :=
+  #[local] Ltac load_fail_contra :=
     exfalso;
     lazymatch goal with Hfail : Load_failure_spec _ _ _ _ _ _ _ _ _ |- _ => destruct Hfail end;
     simplify_map_eq; cbn in *; try congruence;

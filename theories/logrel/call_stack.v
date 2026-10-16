@@ -102,7 +102,7 @@ Class CSTACKG Σ :=
 Definition CSTACK_preΣ :=
   #[ GFunctor cstackUR ].
 
-Instance subG_CSTACK_preΣ {Σ} :
+#[export] Instance subG_CSTACK_preΣ {Σ} :
   subG CSTACK_preΣ Σ → CSTACK_preG Σ.
 Proof. solve_inG. Qed.
 

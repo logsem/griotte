@@ -619,7 +619,7 @@ Section standard_world_interp.
       destruct (isWL p), (isDL p); done.
   Qed.
 
-  Global Instance monotonicity_guarantees_region_Persistent C P p w ρ :
+  #[global] Instance monotonicity_guarantees_region_Persistent C P p w ρ :
     Persistent (monotonicity_guarantees_region C P p w ρ).
   Proof.
     destruct ρ; cbn; try apply _.

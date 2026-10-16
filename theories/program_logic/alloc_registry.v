@@ -18,7 +18,7 @@ From griotte Require Import addresses machine_word region_keys logical_words.
 
 Inductive AllocLifecycle := ALive | APainting | AQuar | ADead.
 
-Global Instance alloc_lifecycle_eq_dec : EqDecision AllocLifecycle.
+#[global] Instance alloc_lifecycle_eq_dec : EqDecision AllocLifecycle.
 Proof. solve_decision. Defined.
 
 Definition lifecycle_enc (s : AllocLifecycle) : nat :=
@@ -41,7 +41,7 @@ Class allocRegistryPreG Σ := {
 Definition allocRegistryΣ : gFunctors :=
   #[ghost_mapΣ AId (Addr * Addr * gname); mono_natΣ].
 
-Global Instance subG_allocRegistryΣ {Σ} :
+#[global] Instance subG_allocRegistryΣ {Σ} :
   subG allocRegistryΣ Σ → allocRegistryPreG Σ.
 Proof. solve_inG. Qed.
 
@@ -89,20 +89,20 @@ Notation "ι ⊒ s" := (st_lb ι s) (at level 20) : bi_scope.
 Section registry_lemmas.
   Context `{!allocRegistryG Σ}.
 
-  Global Instance alloc_obj_persistent ι b e : Persistent (alloc_obj ι b e).
+  #[global] Instance alloc_obj_persistent ι b e : Persistent (alloc_obj ι b e).
   Proof. apply _. Qed.
-  Global Instance alloc_obj_timeless ι b e : Timeless (alloc_obj ι b e).
+  #[global] Instance alloc_obj_timeless ι b e : Timeless (alloc_obj ι b e).
   Proof. apply _. Qed.
-  Global Instance st_lb_persistent ι s : Persistent (ι ⊒ s).
+  #[global] Instance st_lb_persistent ι s : Persistent (ι ⊒ s).
   Proof. apply _. Qed.
-  Global Instance st_lb_timeless ι s : Timeless (ι ⊒ s).
+  #[global] Instance st_lb_timeless ι s : Timeless (ι ⊒ s).
   Proof. apply _. Qed.
-  Global Instance st_own_timeless ι q s : Timeless (ι ↦st{q} s).
+  #[global] Instance st_own_timeless ι q s : Timeless (ι ↦st{q} s).
   Proof. apply _. Qed.
-  Global Instance reg_auth_timeless R : Timeless (reg_auth R).
+  #[global] Instance reg_auth_timeless R : Timeless (reg_auth R).
   Proof. apply _. Qed.
 
-  Global Instance st_own_fractional ι s : Fractional (λ q, ι ↦st{q} s)%I.
+  #[global] Instance st_own_fractional ι s : Fractional (λ q, ι ↦st{q} s)%I.
   Proof.
     intros q1 q2. iSplit.
     - iIntros "(%b & %e & %γ & #H & A)". rewrite Qp.div_add_distr.
@@ -113,7 +113,7 @@ Section registry_lemmas.
       iCombine "A1 A2" as "A". iFrame.
   Qed.
 
-  Global Instance st_own_as_fractional ι q s :
+  #[global] Instance st_own_as_fractional ι q s :
     AsFractional (ι ↦st{q} s) (λ q, ι ↦st{q} s)%I q.
   Proof. split; [done | apply _]. Qed.
 
@@ -305,7 +305,7 @@ Qed.
     the registry. *)
 Inductive AddrClaim := Unclaimed | Claimed (ι : AId) | HeapRoot.
 
-Global Instance addr_claim_eq_dec : EqDecision AddrClaim.
+#[global] Instance addr_claim_eq_dec : EqDecision AddrClaim.
 Proof. solve_decision. Defined.
 
 Class addrAllocPreG Σ := {
@@ -314,7 +314,7 @@ Class addrAllocPreG Σ := {
 
 Definition addrAllocΣ : gFunctors := #[ghost_mapΣ Addr AddrClaim].
 
-Global Instance subG_addrAllocΣ {Σ} : subG addrAllocΣ Σ → addrAllocPreG Σ.
+#[global] Instance subG_addrAllocΣ {Σ} : subG addrAllocΣ Σ → addrAllocPreG Σ.
 Proof. solve_inG. Qed.
 
 Class addrAllocG Σ := {
@@ -331,9 +331,9 @@ Section addr_alloc.
   Definition addr_alloc_auth (C : gmap Addr AddrClaim) : iProp Σ :=
     ghost_map_auth addr_alloc_name 1 C.
 
-  Global Instance addr_alloc_timeless a c : Timeless (addr_alloc a c).
+  #[global] Instance addr_alloc_timeless a c : Timeless (addr_alloc a c).
   Proof. apply _. Qed.
-  Global Instance addr_alloc_auth_timeless C : Timeless (addr_alloc_auth C).
+  #[global] Instance addr_alloc_auth_timeless C : Timeless (addr_alloc_auth C).
   Proof. apply _. Qed.
 
   Lemma addr_alloc_exclusive a c c' : addr_alloc a c -∗ addr_alloc a c' -∗ False.
@@ -418,9 +418,9 @@ Section heap_pointsto.
     | LHeap a ι => pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) v ∗ key_share (LHeap a ι)
     end%I.
 
-  Global Instance key_share_timeless k : Timeless (key_share k).
+  #[global] Instance key_share_timeless k : Timeless (key_share k).
   Proof. destruct k; apply _. Qed.
-  Global Instance key_pointsto_timeless k v : Timeless (key_pointsto k v).
+  #[global] Instance key_pointsto_timeless k v : Timeless (key_pointsto k v).
   Proof. destruct k; apply _. Qed.
 
 End heap_pointsto.

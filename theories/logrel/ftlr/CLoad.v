@@ -326,7 +326,7 @@ Section fundamental.
     := (if decide (readAllowed_a_in_lregs regs a)
              then (rcond P C p' interp)
              else emp)%I.
-  Instance rcond'_pers P C a regs p' : Persistent (rcond' P C a regs p' ).
+  #[local] Instance rcond'_pers P C a regs p' : Persistent (rcond' P C a regs p' ).
   Proof. intros. rewrite /rcond'. case_decide;apply _. Qed.
 
   Lemma mem_map_recover_res (imm : Z)

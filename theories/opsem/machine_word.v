@@ -74,9 +74,9 @@ Proof. destruct w as [| [] | | ? []]; cbn; intros; subst; done. Qed.
 
 (* EqDecision instances *)
 
-Global Instance sealb_eq_dec : EqDecision Sealable.
+#[global] Instance sealb_eq_dec : EqDecision Sealable.
 Proof. solve_decision. Qed.
-Global Instance word_eq_dec : EqDecision Word.
+#[global] Instance word_eq_dec : EqDecision Word.
 Proof. solve_decision. Qed.
 
 Ltac destruct_word w :=
@@ -890,7 +890,7 @@ Ltac entry_point_inj :=
 (** Useful instances *)
 
 
-Global Instance sealable_countable : Countable Sealable.
+#[global] Instance sealable_countable : Countable Sealable.
 Proof.
   set (enc := fun sb =>
        match sb with
@@ -906,7 +906,7 @@ Proof.
   intros i. destruct i; simpl; done.
 Defined.
 
-Global Instance word_countable : Countable Word.
+#[global] Instance word_countable : Countable Word.
 Proof.
   set (enc := fun w =>
       match w with
@@ -926,14 +926,14 @@ Proof.
   intros i. destruct i; simpl; done.
 Qed.
 
-Global Instance word_inhabited: Inhabited Word := populate (WInt 0).
+#[global] Instance word_inhabited: Inhabited Word := populate (WInt 0).
 
 
-Global Instance readAllowedWord_dec w: Decision (readAllowedWord w).
+#[global] Instance readAllowedWord_dec w: Decision (readAllowedWord w).
 Proof. destruct w as [| [ [] p g b e a |  ] | | ]; simpl; apply _. Qed.
 
-Global Instance writeAllowedWord_dec w: Decision (writeAllowedWord w).
+#[global] Instance writeAllowedWord_dec w: Decision (writeAllowedWord w).
 Proof. destruct w as [| [ [] p g b e a |  ] | | ]; simpl; apply _. Qed.
 
-Global Instance hasValidAddress_dec w a: Decision (hasValidAddress w a).
+#[global] Instance hasValidAddress_dec w a: Decision (hasValidAddress w a).
 Proof. destruct w as [| [ t p g b e a' |  ] | | ]; try (right; solve [auto]). destruct p;simpl;apply _. Qed.

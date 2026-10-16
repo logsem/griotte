@@ -2,7 +2,7 @@ From griotte Require Import machine_parameters assembler.
 
 Section Fetch.
   Import Asm_Griotte.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
   (** Fetch the word named by the data symbol [sym] (an import entry,

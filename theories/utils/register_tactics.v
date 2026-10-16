@@ -23,7 +23,7 @@ Section denote_domain.
       | Symb => mdom
       end.
 
-   Local Arguments denote {_ _ _ _} _ _ _.
+   #[local] Arguments denote {_ _ _ _} _ _ _.
    Lemma denote_domain_correct {A : Type} (rm: @rgmap A) (fm: nat -> option K) (m : gmap K A) (mdom : gset K) : dom m = mdom → dom (denote rm fm m) = denote_domain rm fm mdom.
      intro Hmdom.
      induction rm; cbn [denote denote_domain].

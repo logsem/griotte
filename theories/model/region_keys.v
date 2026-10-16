@@ -21,10 +21,10 @@ Definition laddr_addr (k : LAddr) : Addr :=
   | LNonHeap a | LHeap a _ => a
   end.
 
-Global Instance LNonHeap_inj : Inj eq eq LNonHeap.
+#[global] Instance LNonHeap_inj : Inj eq eq LNonHeap.
 Proof. by intros ?? [=]. Qed.
 
-Global Instance LHeap_inj : Inj2 eq eq eq LHeap.
+#[global] Instance LHeap_inj : Inj2 eq eq eq LHeap.
 Proof. by intros ???? [=]. Qed.
 
 Lemma LNonHeap_LHeap_ne a a' ι : LNonHeap a ≠ LHeap a' ι.
@@ -39,13 +39,13 @@ Proof. done. Qed.
 Lemma LNonHeap_ne (a a' : Addr) : a ≠ a' → LNonHeap a ≠ LNonHeap a'.
 Proof. by intros ? [=]. Qed.
 
-Global Hint Resolve LNonHeap_LHeap_ne LNonHeap_ne : core.
-Global Hint Rewrite laddr_addr_LNonHeap laddr_addr_LHeap : laddr.
+#[export] Hint Resolve LNonHeap_LHeap_ne LNonHeap_ne : core.
+#[export] Hint Rewrite laddr_addr_LNonHeap laddr_addr_LHeap : laddr.
 
-Global Instance LAddr_eq_dec : EqDecision LAddr.
+#[global] Instance LAddr_eq_dec : EqDecision LAddr.
 Proof. solve_decision. Defined.
 
-Global Instance LAddr_countable : Countable LAddr.
+#[global] Instance LAddr_countable : Countable LAddr.
 Proof.
   refine (inj_countable'
             (λ k, match k with
@@ -60,10 +60,10 @@ Proof.
 Qed.
 
 (** Region keys are compared by their address. *)
-Global Instance laddr_le_preorder : PreOrder (λ k k', (laddr_addr k <= laddr_addr k')%a).
+#[global] Instance laddr_le_preorder : PreOrder (λ k k', (laddr_addr k <= laddr_addr k')%a).
 Proof. split; [intros ?|intros ???]; solve_addr. Qed.
 
-Global Instance LAddr_ord : Ord LAddr :=
+#[global] Instance LAddr_ord : Ord LAddr :=
   {| le_a := λ k k', (laddr_addr k <= laddr_addr k')%a;
      le_a_decision := λ k k', finz_le_dec (laddr_addr k) (laddr_addr k');
      le_a_preorder := laddr_le_preorder |}.
@@ -77,13 +77,13 @@ Lemma not_elem_of_LNonHeap_fmap (a : Addr) (l : list Addr) :
   LNonHeap a ∉ LNonHeap <$> l ↔ a ∉ l.
 Proof. by rewrite elem_of_LNonHeap_fmap. Qed.
 
-Global Hint Extern 0 (LNonHeap _ ∉ LNonHeap <$> _) =>
+#[export] Hint Extern 0 (LNonHeap _ ∉ LNonHeap <$> _) =>
   apply not_elem_of_LNonHeap_fmap; assumption : core.
-Global Hint Extern 0 (LNonHeap _ ∈ LNonHeap <$> _) =>
+#[export] Hint Extern 0 (LNonHeap _ ∈ LNonHeap <$> _) =>
   apply elem_of_LNonHeap_fmap; assumption : core.
-Global Hint Extern 1 (LNonHeap _ ∉ LNonHeap <$> _) =>
+#[export] Hint Extern 1 (LNonHeap _ ∉ LNonHeap <$> _) =>
   apply not_elem_of_LNonHeap_fmap : core.
-Global Hint Extern 1 (LNonHeap _ ∈ LNonHeap <$> _) =>
+#[export] Hint Extern 1 (LNonHeap _ ∈ LNonHeap <$> _) =>
   apply elem_of_LNonHeap_fmap : core.
 
 Lemma NoDup_LNonHeap_fmap (l : list Addr) :

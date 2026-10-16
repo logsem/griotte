@@ -19,7 +19,7 @@ Class entryGS Σ := EntryGS {
 Definition entryPreΣ :=
   #[ GFunctor entryR ].
 
-Instance subG_entryPreΣ {Σ} :
+#[export] Instance subG_entryPreΣ {Σ} :
   subG entryPreΣ Σ →
   entryGpreS Σ.
 Proof. solve_inG. Qed.
@@ -44,7 +44,7 @@ Section ENTRY_defs.
     apply to_agree_op_inv in H.
     done.
   Qed.
-  Global Instance persistent_entry w n : Persistent (w ↦□ₑ n)%I.
+  #[global] Instance persistent_entry w n : Persistent (w ↦□ₑ n)%I.
   Proof.
     rewrite ENTRY_eq /ENTRY_def.
     apply _.

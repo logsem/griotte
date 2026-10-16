@@ -73,7 +73,7 @@ Section griotte_lang_rules.
       BinOp_failure i lpc regs dst rv1 rv2 ->
       BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' FailedV.
 
-  Local Ltac iFail Hcont get_fail_case :=
+  #[local] Ltac iFail Hcont get_fail_case :=
     cbn; iFrame; iApply Hcont; iFrame; iPureIntro;
     econstructor; eapply get_fail_case; eauto.
 
@@ -608,11 +608,11 @@ Lemma is_BinOp_Lt dst arg1 arg2 :
   is_BinOp (Lt dst arg1 arg2) dst arg1 arg2.
 Proof. intros; unfold is_BinOp; naive_solver. Qed.
 
-Global Hint Resolve is_BinOp_Add : core.
-Global Hint Resolve is_BinOp_Sub : core.
-Global Hint Resolve is_BinOp_Mul : core.
-Global Hint Resolve is_BinOp_LAnd : core.
-Global Hint Resolve is_BinOp_LOr : core.
-Global Hint Resolve is_BinOp_LShiftL : core.
-Global Hint Resolve is_BinOp_LShiftR : core.
-Global Hint Resolve is_BinOp_Lt : core.
+#[export] Hint Resolve is_BinOp_Add : core.
+#[export] Hint Resolve is_BinOp_Sub : core.
+#[export] Hint Resolve is_BinOp_Mul : core.
+#[export] Hint Resolve is_BinOp_LAnd : core.
+#[export] Hint Resolve is_BinOp_LOr : core.
+#[export] Hint Resolve is_BinOp_LShiftL : core.
+#[export] Hint Resolve is_BinOp_LShiftR : core.
+#[export] Hint Resolve is_BinOp_Lt : core.

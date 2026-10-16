@@ -5,7 +5,7 @@ From griotte Require Import switcher fetch.
 Section KVS_Service.
   Import Asm_Griotte.
   Context `{MP: MachineParameters}.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
 
   (* Encoding of type constructors into ASM *)
   Definition ASM_TRUE : Z := 0.
@@ -491,10 +491,10 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
 
 
-  Local Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
+  #[local] Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
     WSealRange true (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
 
-  Local Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
+  #[local] Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
     : list Word :=
     [
       WSentry true XSRW_ Local b_switcher e_switcher a_cc_switcher;
@@ -684,7 +684,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
 End KVS_Service.
 
-Global Ltac solve_addr.solve_addr_prepare ::=
+#[global] Ltac solve_addr.solve_addr_prepare ::=
   repeat match goal with
     | H : context [ ASM_SIZEOF_KVS_ENTRY ] |- _ => rewrite /ASM_SIZEOF_KVS_ENTRY in H
     | _ : _ |- context [ ASM_SIZEOF_KVS_ENTRY ] => rewrite /ASM_SIZEOF_KVS_ENTRY

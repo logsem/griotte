@@ -107,7 +107,7 @@ Section SO_Object.
       l.
 
   (** The object may be a heap object: its addresses are keyed by [addr_key π]. *)
-  Global Instance addr_key_inj π : Inj eq eq (addr_key π).
+  #[global] Instance addr_key_inj π : Inj eq eq (addr_key π).
   Proof.
     intros a a' Heq.
     rewrite -(addr_key_addr π a) -(addr_key_addr π a'). by rewrite Heq.

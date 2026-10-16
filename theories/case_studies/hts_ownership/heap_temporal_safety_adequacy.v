@@ -578,16 +578,16 @@ Section Adequacy.
 End Adequacy.
 
 Inductive CmptNames_hts := | B .
-Local Instance CmptNames_hts_eq_dec : EqDecision CmptNames_hts.
+#[local] Instance CmptNames_hts_eq_dec : EqDecision CmptNames_hts.
 Proof. intros C C'; destruct C,C'; solve_decision. Qed.
-Local Instance CmptNames_hts_finite : finite.Finite CmptNames_hts.
+#[local] Instance CmptNames_hts_finite : finite.Finite CmptNames_hts.
 Proof.
   refine {| finite.enum := [B] |}.
   + apply NoDup_singleton.
   + intros []; left.
 Defined.
 
-Local Program Instance CmptNames_hts_CmptNameG : CmptNameG :=
+#[local] Program Instance CmptNames_hts_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_hts; |}.
 
 (** END-TO-END THEOREM *)

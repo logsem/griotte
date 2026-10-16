@@ -19,7 +19,7 @@ Section Switcher_Call_Blocks_6.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  Local Lemma switcher_call_block_17_spec_aux
+  #[local] Lemma switcher_call_block_17_spec_aux
     pc_a wca0 wca1 :
     SubBounds b_switcher e_switcher pc_a
       (pc_a ^+ length (switcher_instrs_n 17))%a ->

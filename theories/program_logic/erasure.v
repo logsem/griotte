@@ -305,9 +305,9 @@ Definition re_b (x : RegEntry) : Addr := x.1.1.1.
 Definition re_e (x : RegEntry) : Addr := x.1.1.2.
 Definition re_status (x : RegEntry) : AllocLifecycle := x.2.
 Definition re_covers (x : RegEntry) (a : Addr) : Prop := (re_b x <= a < re_e x)%a.
-Global Arguments re_b /.
-Global Arguments re_e /.
-Global Arguments re_status /.
+#[global] Arguments re_b /.
+#[global] Arguments re_e /.
+#[global] Arguments re_status /.
 
 Section erasure.
   Context `{MP : MachineParameters}.

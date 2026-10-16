@@ -22,7 +22,7 @@ Section Switcher_Call_Blocks_2.
   .
 
   (** The stack is not a shadow-table address. *)
-  Local Ltac stk_not_shadow H :=
+  #[local] Ltac stk_not_shadow H :=
     eapply disjoint_from_shadow_not_in;
     [exact (disjoint_from_mmio_shadow _ _ H) | rewrite /withinBounds; solve_addr].
 

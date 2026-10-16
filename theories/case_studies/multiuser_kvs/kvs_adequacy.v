@@ -62,12 +62,12 @@ Class memory_layout `{MP: MachineParameters} := {
 
   }.
 
-Local Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
+#[local] Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
 Proof.
   exact (cmptSwitcher_switcherLayout switcher_cmpt).
 Defined.
 
-Local Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
+#[local] Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
 Proof.
   pose proof (ot_switcher_size switcher_cmpt).
   pose proof (switcher_size switcher_cmpt).
@@ -80,7 +80,7 @@ Proof.
   refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
-Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
+#[local] Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
 Proof.
   exact (cmptAssert_assertLayout assert_cmpt).
 Defined.
@@ -103,7 +103,7 @@ Definition is_initial_registers `{memory_layout} := is_initial_registers_of swit
     which contains the trusted stack capability. *)
 Definition is_initial_sregisters `{memory_layout} := is_initial_sregisters_of switcher_cmpt.
 
-Local Instance memory_layout_kvs_layout `{memory_layout} : kvsLayout.
+#[local] Instance memory_layout_kvs_layout `{memory_layout} : kvsLayout.
 Proof.
   refine (@mkKvsLayout ot_kvs
             (cmpt_b_pcc kvs_cmpt) (cmpt_a_code kvs_cmpt) (cmpt_e_pcc kvs_cmpt)
@@ -227,8 +227,8 @@ Section Adequacy.
 
   Context {Layout: memory_layout}.
 
-  Local Notation kvs_user_key_K_a := (0 ^+ kvs_user_key_K)%a.
-  Local Notation kvs_user_key_B_a := (0 ^+ kvs_user_key_B)%a.
+  #[local] Notation kvs_user_key_K_a := (0 ^+ kvs_user_key_K)%a.
+  #[local] Notation kvs_user_key_B_a := (0 ^+ kvs_user_key_B)%a.
 
   Context {kvs_alloc_preg: gen_heapGpreS user_key_t kvs_user_map Σ}.
   Context {kvs_physical_user_preg : ghost_varG Σ kvs_physical_map }.
@@ -239,7 +239,7 @@ Section Adequacy.
   Definition assertN : namespace := nroot .@ "kvs" .@ "assert_flag".
   Definition kvsN : namespace := nroot .@ "kvs" .@ "code".
 
-  Local Notation ot_switcher := (ot_switcher switcher_cmpt).
+  #[local] Notation ot_switcher := (ot_switcher switcher_cmpt).
   Lemma kvs_adequacy'
     (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
     (es: list griotte_lang.expr):
@@ -835,16 +835,16 @@ Section Adequacy.
 End Adequacy.
 
 Inductive CmptNames_kvs := | B .
-Local Instance CmptNames_kvs_eq_dec : EqDecision CmptNames_kvs.
+#[local] Instance CmptNames_kvs_eq_dec : EqDecision CmptNames_kvs.
 Proof. intros C C'; destruct C,C'; solve_decision. Qed.
-Local Instance CmptNames_kvs_finite : finite.Finite CmptNames_kvs.
+#[local] Instance CmptNames_kvs_finite : finite.Finite CmptNames_kvs.
 Proof.
   refine {| finite.enum := [B] |}.
   + apply NoDup_singleton.
   + intros []; left.
 Defined.
 
-Local Program Instance CmptNames_kvs_CmptNameG : CmptNameG :=
+#[local] Program Instance CmptNames_kvs_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_kvs; |}.
 
 (** END-TO-END THEOREM *)

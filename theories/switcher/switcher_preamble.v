@@ -328,7 +328,7 @@ Section Switcher_preamble.
     codefrag_pers a_switcher_call switcher_instrs ∗
     b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher.
 
-  Global Instance switcher_static_persistent : Persistent switcher_static.
+  #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.
 
 End Switcher_preamble.

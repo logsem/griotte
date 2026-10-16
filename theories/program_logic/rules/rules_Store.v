@@ -244,7 +244,7 @@ Section griotte_lang_rules.
 
 
    (* Closes a failing store: the state is unchanged. *)
-   Local Ltac store_fail Hstep :=
+   #[local] Ltac store_fail Hstep :=
      injection Hstep as <- <-;
      try iApply bupd_fupd;
      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|];
@@ -2742,7 +2742,7 @@ Section shadow_store_res.
   Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
 
   (* Closes a failing store: the state is unchanged. *)
-  Local Ltac store_fail Hstep :=
+  #[local] Ltac store_fail Hstep :=
     injection Hstep as <- <-;
     try iApply bupd_fupd;
     iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|];

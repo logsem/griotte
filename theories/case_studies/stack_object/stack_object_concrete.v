@@ -5,12 +5,12 @@ From griotte Require Import
   registers griotte_lang machine_run switcher assert compartment_layout
   stack_object stack_object_adequacy disjoint_regions_tactics.
 
-Existing Instance machine_parameters_instance.
-Local Transparent MemNum ONum.
+#[export] Existing Instance machine_parameters_instance.
+#[local] Transparent MemNum ONum.
 
-Local Notation "'A' z" :=
+#[local] Notation "'A' z" :=
   (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-Local Notation "'OT' z" :=
+#[local] Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
 Definition so_main_pcc_b : Addr := A 9.
@@ -131,10 +131,10 @@ Proof.
   - vm_compute; reflexivity.
 Defined.
 
-Local Instance so_concrete_switcherLayout : switcherLayout.
+#[local] Instance so_concrete_switcherLayout : switcherLayout.
 Proof. exact (cmptSwitcher_switcherLayout so_concrete_cmptSwitcher). Defined.
 
-Local Instance so_concrete_assertLayout : assertLayout.
+#[local] Instance so_concrete_assertLayout : assertLayout.
 Proof. exact (cmptAssert_assertLayout so_concrete_cmptAssert). Defined.
 
 Definition so_C_f : Sealable :=
@@ -264,21 +264,21 @@ Proof.
   disj_regions.
 Qed.
 
-Local Lemma so_main_data_region_empty :
+#[local] Lemma so_main_data_region_empty :
   finz.seq_between so_main_data_b so_main_data_e = [].
 Proof.
   apply finz_seq_between_empty.
   unfold_so_addresses; solve_addr.
 Qed.
 
-Local Lemma so_C_static_region_empty :
+#[local] Lemma so_C_static_region_empty :
   finz.seq_between so_C_data_e so_C_data_e = [].
 Proof.
   apply finz_seq_between_empty.
   unfold_so_addresses; solve_addr.
 Qed.
 
-Local Lemma so_concrete_cmpts_disjoints :
+#[local] Lemma so_concrete_cmpts_disjoints :
   so_concrete_main_cmpt ## so_concrete_C_cmpt.
 Proof.
   change
@@ -296,7 +296,7 @@ Proof.
   solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma so_concrete_switcher_cmpt_disjoints :
+#[local] Lemma so_concrete_switcher_cmpt_disjoints :
   switcher_cmpt_disjoint so_concrete_main_cmpt so_concrete_cmptSwitcher
   ∧ switcher_cmpt_disjoint so_concrete_C_cmpt so_concrete_cmptSwitcher.
 Proof.
@@ -321,7 +321,7 @@ Proof.
   solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma so_concrete_assert_cmpt_disjoints :
+#[local] Lemma so_concrete_assert_cmpt_disjoints :
   assert_cmpt_disjoint so_concrete_main_cmpt so_concrete_cmptAssert
   ∧ assert_cmpt_disjoint so_concrete_C_cmpt so_concrete_cmptAssert.
 Proof.
@@ -346,7 +346,7 @@ Proof.
   solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma so_concrete_assert_switcher_disjoints :
+#[local] Lemma so_concrete_assert_switcher_disjoints :
   assert_switcher_disjoint so_concrete_cmptAssert so_concrete_cmptSwitcher.
 Proof.
   change
@@ -360,7 +360,7 @@ Proof.
   solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
 Qed.
 
-Global Instance so_concrete_layout : memory_layout.
+#[global] Instance so_concrete_layout : memory_layout.
 Proof.
   refine
     (@Build_memory_layout machine_parameters_instance

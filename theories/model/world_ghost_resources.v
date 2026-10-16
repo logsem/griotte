@@ -33,7 +33,7 @@ Class relGS Σ {Cname : CmptNameG} :=
 Definition relPreΣ {Cname : CmptNameG} :=
   #[ GFunctor (authR relUR) ].
 
-Instance subG_relPreΣ {Σ} {Cname : CmptNameG}:
+#[export] Instance subG_relPreΣ {Σ} {Cname : CmptNameG}:
   subG relPreΣ Σ →
   invGpreS Σ →
   subG (savedPredΣ (WorldT * CmptName * LWord)) Σ →
@@ -106,13 +106,13 @@ Section rel.
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
 
-  Global Instance REL_persistent (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) :
+  #[global] Instance REL_persistent (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) :
     Persistent (REL C a γ p).
   Proof. rewrite REL_eq /REL_def.
          apply _.
   Qed.
 
-  Global Instance rel_persistent (C : CmptName) (a : LAddr) (p : Perm)
+  #[global] Instance rel_persistent (C : CmptName) (a : LAddr) (p : Perm)
     (φ : (WORLD * CmptName * LWord) -> iProp Σ) :
     Persistent (rel C a p φ).
   Proof. rewrite rel_eq /rel_def REL_eq /REL_def.
@@ -297,10 +297,10 @@ Class sealStorePreG Σ := {
     SG_sealStorePre ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
 }.
 
-Instance sealStoreG_preG `{sealStoreG Σ} : sealStorePreG Σ.
+#[export] Instance sealStoreG_preG `{sealStoreG Σ} : sealStorePreG Σ.
 Proof. constructor. all: apply _. Defined.
 
-Global Instance subG_sealStorePreΣ {Σ}:
+#[global] Instance subG_sealStorePreΣ {Σ}:
   subG sealStorePreΣ Σ →
   sealStorePreG Σ.
 Proof. solve_inG. Qed.
@@ -316,7 +316,7 @@ Section Store.
   Definition seal_pred (o : OType) (P : WORLD * CmptName * LWord → iProp Σ) :=
     (∃ γpred: gname, own SG_sealN ({[o := Cinr (to_agree γpred)]})
                      ∗ saved_pred_own γpred DfracDiscarded P)%I.
-  Global Instance seal_pred_persistent i P : Persistent (seal_pred i P).
+  #[global] Instance seal_pred_persistent i P : Persistent (seal_pred i P).
   Proof. apply _. Qed.
   Definition can_alloc_pred (o : OType) :=
     (own SG_sealN ({[o := Cinl (Excl ())]}))%I.

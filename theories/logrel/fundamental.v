@@ -52,9 +52,9 @@ Section fundamental.
       [done | apply Hcases].
   Qed.
 
-  Local Ltac by_binop_case :=
+  #[local] Ltac by_binop_case :=
     eapply ftlr_instr_base_mono; [| eapply binop_case]; intros ->; eauto 10.
-  Local Ltac by_get_case :=
+  #[local] Ltac by_get_case :=
     eapply get_case; rewrite /is_Get; eauto 10.
 
   (** Execution fails when the PC is not a correct PC. *)

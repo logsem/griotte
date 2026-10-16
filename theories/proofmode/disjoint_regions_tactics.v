@@ -117,7 +117,7 @@ Proof. intros. rewrite disjoint_list_cons; auto. Qed.
     [disjoint_list] certificate. The concrete-layout proofs use this lemma to
     share one ordered partition without unfolding its proof at every layout
     field. *)
-Local Lemma addr_disjoint_list_lookup_lt
+#[local] Lemma addr_disjoint_list_lookup_lt
     (regions : list (list Addr)) (i j : nat)
     (ri rj : list Addr) :
   ## regions ->

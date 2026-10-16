@@ -2,7 +2,7 @@ From griotte Require Import machine_parameters assembler.
 
 Section ClearStackMacro.
   Import Asm_Griotte.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
   Definition rclear_asm (l : list RegName) : list asm_code :=

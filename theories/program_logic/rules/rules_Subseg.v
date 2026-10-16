@@ -1015,7 +1015,7 @@ Section instruction_outcomes.
 
   (* Internal proof lemmas over maps. Public outcome rules below expose
      each required register explicitly. *)
-  Local Lemma subseg_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π
+  #[local] Lemma subseg_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π
       pc_a' w dst src1 src2 regs (t : bool) p g b e a n1 n2 a1 a2  π dq:
     decodeInstrW w.(lw) = Subseg dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1057,7 +1057,7 @@ Section instruction_outcomes.
     all: simplify_eq; iApply "Hφ"; iFrame.
   Qed.
 
-  Local Lemma subseg_unrepresentable_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π
+  #[local] Lemma subseg_unrepresentable_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π
       pc_a' w dst src1 src2 regs (t : bool) p g b e a n1 n2  π dq:
     decodeInstrW w.(lw) = Subseg dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1093,7 +1093,7 @@ Section instruction_outcomes.
     all: simplify_eq; iApply "Hφ"; iFrame.
   Qed.
 
-  Local Lemma subseg_invalidated_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π
+  #[local] Lemma subseg_invalidated_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π
       pc_a' w dst src1 src2 regs (t : bool) p g b e a n1 n2 a1 a2  π dq:
     decodeInstrW w.(lw) = Subseg dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1131,7 +1131,7 @@ Section instruction_outcomes.
     all: simplify_eq; iApply "Hφ"; iFrame.
   Qed.
 
-  Local Lemma subseg_unrepresentable_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π
+  #[local] Lemma subseg_unrepresentable_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π
       pc_a' w dst src1 src2 regs (t : bool) p g b e a n1 n2  π dq:
     decodeInstrW w.(lw) = Subseg dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

@@ -128,7 +128,7 @@ Section HTS_Spec_Free.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
-  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+  #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   Context (C : CmptName).
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
@@ -136,10 +136,10 @@ Section HTS_Spec_Free.
   Context (Ws : list WORLD) (Cs : list CmptName).
   Context (Nswitcher : namespace) (cstk : CSTK).
 
-  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
-  Local Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
+  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
+  #[local] Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
-  Local Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
+  #[local] Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a Ws Cs cstk).
 
   Lemma hts_spec_free :

@@ -294,7 +294,7 @@ End griotte_lang_rules.
 Section instruction_outcomes.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
-  Local Lemma unseal_invalidated_map E pc_p pc_g pc_b pc_e pc_a pc_π pc_a''
+  #[local] Lemma unseal_invalidated_map E pc_p pc_g pc_b pc_e pc_a pc_π pc_a''
       w dst src1 src2 regs (t : bool) p g b e a πs a' sb π dq :
     decodeInstrW w.(lw) = UnSeal dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

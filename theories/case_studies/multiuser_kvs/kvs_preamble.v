@@ -247,16 +247,16 @@ Section KVS_physical_map.
     iFrame; eauto.
   Qed.
 
-  Global Instance Permutation_Reflexive {A} : Reflexive (@Permutation A).
+  #[global] Instance Permutation_Reflexive {A} : Reflexive (@Permutation A).
   Proof. intros l ; done. Qed.
 
-  Global Instance Permutation_Transitive {A} : Transitive (@Permutation A).
+  #[global] Instance Permutation_Transitive {A} : Transitive (@Permutation A).
   Proof. intros l1 l2 l3 Hl12 Hl23; eapply Permutation_trans; done. Qed.
 
-  Global Instance Permutation_PreOrder {A} : PreOrder (@Permutation A).
+  #[global] Instance Permutation_PreOrder {A} : PreOrder (@Permutation A).
   Proof. split; apply _. Qed.
 
-  Local Instance Proper_get_kvs_key (opt_kv : kvs_physical_entry) :
+  #[local] Instance Proper_get_kvs_key (opt_kv : kvs_physical_entry) :
   Proper (Permutation ==> Permutation)
     (λ acc : list full_key_t, match opt_kv with
                      | Some kv => kv.1 :: acc
@@ -793,7 +793,7 @@ Proof.
         ** by eexists; split; eauto; simplify_map_eq.
 Qed.
 
-Local Lemma kvs_synced_logical_kvs_insert_1
+#[local] Lemma kvs_synced_logical_kvs_insert_1
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
   (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
@@ -833,7 +833,7 @@ Proof.
     by eexists idx'; simplify_map_eq.
 Qed.
 
-Local Lemma kvs_synced_logical_kvs_insert_2
+#[local] Lemma kvs_synced_logical_kvs_insert_2
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
   (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
@@ -917,7 +917,7 @@ Proof.
   done.
 Qed.
 
-Local Lemma kvs_synced_logical_kvs_delete_1
+#[local] Lemma kvs_synced_logical_kvs_delete_1
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
   (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
@@ -955,7 +955,7 @@ Proof.
     * by exists idx'; simplify_map_eq.
 Qed.
 
-Local Lemma kvs_synced_logical_kvs_delete_2
+#[local] Lemma kvs_synced_logical_kvs_delete_2
   (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
   (idx : kvs_idx_t)
   (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : LWord) :
@@ -1431,7 +1431,7 @@ Section KVS_preamble.
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
       codefrag_pers KVS_pcc_b' kvs_service_instrs.
 
-  Global Instance kvs_static_persistent {KVS : kvsLayout} :
+  #[global] Instance kvs_static_persistent {KVS : kvsLayout} :
     Persistent kvs_static.
   Proof. apply _. Qed.
 
@@ -1613,4 +1613,4 @@ Section UserKvsInit.
 
 End UserKvsInit.
 
-Global Opaque kvs_physical_map_init.
+#[global] Opaque kvs_physical_map_init.

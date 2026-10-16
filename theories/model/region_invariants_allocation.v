@@ -10,12 +10,12 @@ Section region_alloc.
     {relg : relGS Σ}
     `{MP: MachineParameters}.
 
-  Local Hint Rewrite (std_update_multiple_heap (Wd:=LWord)) (std_update_keys_heap (Wd:=LWord)) : heap.
-  Local Hint Extern 2 (heap_key_live _ _) =>
+  #[local] Hint Rewrite (std_update_multiple_heap (Wd:=LWord)) (std_update_keys_heap (Wd:=LWord)) : heap.
+  #[local] Hint Extern 2 (heap_key_live _ _) =>
     progress autorewrite with heap; assumption : core.
-  Local Hint Extern 2 (Forall (heap_key_live _) _) =>
+  #[local] Hint Extern 2 (Forall (heap_key_live _) _) =>
     progress autorewrite with heap; assumption : core.
-  Local Hint Extern 2 (heap_std _ = heap_std _) =>
+  #[local] Hint Extern 2 (heap_std _ = heap_std _) =>
     progress autorewrite with heap; reflexivity : core.
 
   Implicit Types W : WORLD.

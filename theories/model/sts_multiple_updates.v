@@ -15,7 +15,7 @@ Section std_updates.
     `{MP: MachineParameters}.
 
   (* The lemmas of this file do not depend on the type of sealed words. *)
-  Local Notation WORLD := (prodO (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))) (leibnizO Heap)).
+  #[local] Notation WORLD := (prodO (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))) (leibnizO Heap)).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -74,7 +74,7 @@ Section std_updates.
      - by rewrite IHHperm1 IHHperm2.
    Qed.
 
-   Global Instance std_update_multiple_Permutation W ρ :
+   #[global] Instance std_update_multiple_Permutation W ρ :
      Proper (Permutation ==> eq) (λ l, std_update_multiple W l ρ).
    Proof. intros y1 y2 Hperm. simpl. by apply std_update_multiple_permutation. Defined.
 

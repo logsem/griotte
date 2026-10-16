@@ -92,7 +92,7 @@ Proof.
       iDestruct ("IH" with "Hmap") as "Hmap". iFrame.
 Qed.
 
-Global Instance if_persistent `{PROP:bi} (b: bool) (φ1 φ2: PROP) (H1: Persistent φ1) (H2: Persistent φ2):
+#[global] Instance if_persistent `{PROP:bi} (b: bool) (φ1 φ2: PROP) (H1: Persistent φ1) (H2: Persistent φ2):
   Persistent (if b then φ1 else φ2).
 Proof.
   destruct b; auto.

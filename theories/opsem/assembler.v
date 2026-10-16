@@ -166,8 +166,8 @@ Module Asm_Griotte.
   Arguments Ok {A} a.
   Arguments Err {A} msg.
 
-  Global Instance asm_result_ret : MRet asm_result := λ A a, Ok a.
-  Global Instance asm_result_bind : MBind asm_result :=
+  #[global] Instance asm_result_ret : MRet asm_result := λ A a, Ok a.
+  #[global] Instance asm_result_bind : MBind asm_result :=
     λ A B f r, match r with Ok a => f a | Err msg => Err msg end.
 
   (** The value of a result, or [d] on an error. *)

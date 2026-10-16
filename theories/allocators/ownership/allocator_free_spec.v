@@ -23,7 +23,7 @@ Section AllocatorFree.
       owner map. The owner word of the allocator capability in [ca0] is only
       read. Other client resources can be framed. *)
 
-  Local Lemma allocator_free_reject_correct
+  #[local] Lemma allocator_free_reject_correct
     (E : coPset) (g_owner : Locality) (a_owner : Addr) (o : Z)
     (wreq wret : LWord) (P : iProp Σ)
     (φ : language.val griotte_lang → iPropI Σ) :

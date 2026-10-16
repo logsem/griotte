@@ -22,7 +22,7 @@ Section Heap_Temporal_Safety_Interp.
   (** The safe [malloc] runs with the ownership layer's [FreeAuth] instance:
       the right to free a new object is added to the sealing predicate of the
       allocator capability. *)
-  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+  #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   (** Execute malloc for an arbitrary caller and return a safe result. *)
   Lemma malloc_exec_entry_point (W : WORLD) (C : CmptName)

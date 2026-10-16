@@ -3,10 +3,10 @@ From griotte Require Import machine_parameters machine_parameters_instance machi
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_adequacy.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 
-Local Transparent MemNum ONum.
-Local Notation "'A' z" :=
+#[local] Transparent MemNum ONum.
+#[local] Notation "'A' z" :=
   (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-Local Notation "'OT' z" :=
+#[local] Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
 (** The default machine instance has only the allocator's reserved heap address.
@@ -229,7 +229,7 @@ Defined.
 
 (** Split unions structurally, then decide only the endpoint inequalities.
     Keeping the interval lemma opaque avoids reducing large address lists. *)
-Local Lemma hts_interval_disjoint (b e b' e' : Addr) :
+#[local] Lemma hts_interval_disjoint (b e b' e' : Addr) :
   (e <= b' \/ e' <= b \/ e <= b \/ e' <= b')%a ->
   finz.seq_between b e ## finz.seq_between b' e'.
 Proof.

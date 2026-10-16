@@ -2,7 +2,7 @@ From griotte Require Import machine_parameters assembler fetch assert switcher.
 
 Section DROE_Main.
   Import Asm_Griotte.
-  Local Open Scope Z_scope.
+  #[local] Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
 

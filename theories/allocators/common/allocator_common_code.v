@@ -13,7 +13,7 @@ From griotte Require Import machine_parameters assembler switcher fetch.
 Section AllocatorCommonCode.
   Import Asm_Griotte.
   Context `{MP : MachineParameters}.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
 
   Definition ALLOC_OK : Z := 0.
 

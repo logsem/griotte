@@ -15,9 +15,9 @@ Section si_upd.
 
   Definition si_upd_def (E : coPset) (P : iProp Σ) : iProp Σ :=
     ∀ σ, cerise_state_interp σ ={E}=∗ cerise_state_interp σ ∗ P.
-  Local Definition si_upd_aux : seal (@si_upd_def). Proof. by eexists. Qed.
+  #[local] Definition si_upd_aux : seal (@si_upd_def). Proof. by eexists. Qed.
   Definition si_upd := si_upd_aux.(stdpp.base.unseal).
-  Local Definition si_upd_unseal : @si_upd = @si_upd_def := si_upd_aux.(stdpp.base.seal_eq).
+  #[local] Definition si_upd_unseal : @si_upd = @si_upd_def := si_upd_aux.(stdpp.base.seal_eq).
 End si_upd.
 
 Notation "|~{ E }~> P" := (si_upd E P)
@@ -74,11 +74,11 @@ Section si_upd_laws.
     iApply ("Hwp" $! σ ns κ κs nt with "Hσ").
   Qed.
 
-  Global Instance from_modal_si_upd E P :
+  #[global] Instance from_modal_si_upd E P :
     FromModal True modality_id (|~{E}~> P) (|~{E}~> P) P.
   Proof. rewrite /FromModal /=. intros _. apply si_upd_intro. Qed.
 
-  Global Instance elim_modal_si_upd_wp p s E e P Φ :
+  #[global] Instance elim_modal_si_upd_wp p s E e P Φ :
     ElimModal (language.to_val e = None) p false (|~{E}~> P) P
       (WP e @ s; E {{ Φ }}) (WP e @ s; E {{ Φ }}).
   Proof.
@@ -86,7 +86,7 @@ Section si_upd_laws.
     iIntros (He) "[HP Hwp]". iApply (wp_si_upd with "HP Hwp"); done.
   Qed.
 
-  Global Instance elim_modal_si_upd_si_upd p E P Q :
+  #[global] Instance elim_modal_si_upd_si_upd p E P Q :
     ElimModal True p false (|~{E}~> P) P (|~{E}~> Q) (|~{E}~> Q).
   Proof.
     rewrite /ElimModal bi.intuitionistically_if_elim /= si_upd_unseal.
@@ -94,14 +94,14 @@ Section si_upd_laws.
     iApply ("HQ" with "HP Hσ").
   Qed.
 
-  Global Instance elim_modal_bupd_si_upd p E P Q :
+  #[global] Instance elim_modal_bupd_si_upd p E P Q :
     ElimModal True p false (|==> P) P (|~{E}~> Q) (|~{E}~> Q).
   Proof.
     rewrite /ElimModal bi.intuitionistically_if_elim /= si_upd_unseal.
     iIntros (_) "[HP HQ] %σ Hσ". iMod "HP". iApply ("HQ" with "HP Hσ").
   Qed.
 
-  Global Instance elim_modal_fupd_si_upd p E P Q :
+  #[global] Instance elim_modal_fupd_si_upd p E P Q :
     ElimModal True p false (|={E}=> P) P (|~{E}~> Q) (|~{E}~> Q).
   Proof.
     rewrite /ElimModal bi.intuitionistically_if_elim /= si_upd_unseal.

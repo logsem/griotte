@@ -23,7 +23,7 @@ Section Heap_Temporal_Safety_Interp.
   (** The safe [free] runs with the ownership layer's [FreeAuth] instance:
       the right to free an object is held by the sealing predicate of its
       owner's allocator capability. *)
-  Local Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
+  #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   (** Open the cells of [lk] in the region, with the standard states held
       separately (the sealing map may be open). *)

@@ -155,7 +155,7 @@ Section AllocatorService.
     ([[allocator_pcc_b, allocator_code_b]] ↦ₐ□ [[lword_of_word <$> allocator_imports]] ∗
      codefrag_pers allocator_code_b allocator_code)%I.
 
-  Global Instance allocator_service_static_persistent :
+  #[global] Instance allocator_service_static_persistent :
     Persistent allocator_service_static.
   Proof. apply _. Qed.
 

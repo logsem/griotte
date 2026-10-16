@@ -253,11 +253,11 @@ Section region.
   Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
             (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
 
-  Global Instance region_pointsto_pers_persistent b e ws :
+  #[global] Instance region_pointsto_pers_persistent b e ws :
     Persistent ([[ b , e ]] ↦ₐ□ [[ ws ]]).
   Proof. apply _. Qed.
 
-  Global Instance region_pointsto_pers_timeless b e ws :
+  #[global] Instance region_pointsto_pers_timeless b e ws :
     Timeless ([[ b , e ]] ↦ₐ□ [[ ws ]]).
   Proof. apply _. Qed.
 
@@ -332,17 +332,17 @@ Section region.
 
 End region.
 
-Global Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
+#[global] Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
             (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
-Global Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
+#[global] Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
             (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
-Global Notation "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]" := (heap_region_pointsto ι b e ws)
+#[global] Notation "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]" := (heap_region_pointsto ι b e ws)
             (at level 50, format "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]") : bi_scope.
 
-Global Notation "[[ b , e ]] ⊂ₐ [[ b' , e' ]]" := (included b e b' e')
+#[global] Notation "[[ b , e ]] ⊂ₐ [[ b' , e' ]]" := (included b e b' e')
             (at level 50, format "[[ b , e ]] ⊂ₐ [[ b' , e' ]]") : bi_scope.
 
-Global Notation "a ∈ₐ [[ b , e ]]" := (in_range a b e)
+#[global] Notation "a ∈ₐ [[ b , e ]]" := (in_range a b e)
             (at level 50, format "a ∈ₐ [[ b , e ]]") : bi_scope.
 
 (** Normalise the spine of the list [l] into [x0 :: ... :: xn :: t], by
@@ -426,18 +426,18 @@ Section codefrag.
   (* Persistent code: every cell is a discarded points-to. The definition is
      sealed, so that unifying a persistent code fragment over a concrete list
      of instructions (e.g. when framing) never unfolds its [[∗ list]]. *)
-  Local Definition codefrag_pers_def (a0: Addr) (cs: list Word) : iProp Σ :=
+  #[local] Definition codefrag_pers_def (a0: Addr) (cs: list Word) : iProp Σ :=
     (⌜ContiguousRegion a0 (length cs)⌝ ∗
      [∗ list] i ↦ w ∈ cs, (a0 ^+ i)%a ↦ₐ□ lword_of_word w)%I.
-  Local Definition codefrag_pers_aux : seal (@codefrag_pers_def). Proof. by eexists. Qed.
+  #[local] Definition codefrag_pers_aux : seal (@codefrag_pers_def). Proof. by eexists. Qed.
   Definition codefrag_pers := codefrag_pers_aux.(stdpp.base.unseal).
-  Local Definition codefrag_pers_unseal :
+  #[local] Definition codefrag_pers_unseal :
     @codefrag_pers = @codefrag_pers_def := codefrag_pers_aux.(seal_eq).
 
-  Global Instance codefrag_pers_persistent a0 cs : Persistent (codefrag_pers a0 cs).
+  #[global] Instance codefrag_pers_persistent a0 cs : Persistent (codefrag_pers a0 cs).
   Proof. rewrite codefrag_pers_unseal. apply _. Qed.
 
-  Global Instance codefrag_pers_timeless a0 cs : Timeless (codefrag_pers a0 cs).
+  #[global] Instance codefrag_pers_timeless a0 cs : Timeless (codefrag_pers a0 cs).
   Proof. rewrite codefrag_pers_unseal. apply _. Qed.
 
   Lemma codefrag_contiguous_region_pers a0 cs :

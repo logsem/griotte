@@ -146,7 +146,7 @@ Section KVS_check_uint16.
     | _ => False
     end.
 
-  Global Instance word_is_uint16_dec (w : Word ) : Decision (word_is_uint16 w).
+  #[global] Instance word_is_uint16_dec (w : Word ) : Decision (word_is_uint16 w).
   Proof. destruct w; solve_decision. Qed.
 
   Lemma KVS_check_uint16_spec_not_uint16 `{KVS : kvsLayout}

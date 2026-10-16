@@ -126,14 +126,14 @@ Section world_ghost_theory.
 
 
   (** ** Lemmas about monotonicity *)
-  Global Instance mono_temporary_Persistent C p Φ w:
+  #[global] Instance mono_temporary_Persistent C p Φ w:
     Persistent (mono_temporary C p Φ w).
   Proof. rewrite /mono_temporary; destruct ( decide (isWL p = true ∨ isDL p = true) ); apply _. Qed.
 
-  Global Instance mono_permanent_Persistent C Φ w: Persistent (mono_permanent C Φ w).
+  #[global] Instance mono_permanent_Persistent C Φ w: Persistent (mono_permanent C Φ w).
   Proof. apply _. Qed.
 
-  Global Instance mono_invariant_Persistent C p Φ w ρ:
+  #[global] Instance mono_invariant_Persistent C p Φ w ρ:
     Persistent (mono_invariant C p Φ w ρ).
   Proof. rewrite /mono_invariant; destruct ( decide (ρ = Temporary) ); apply _. Qed.
 
@@ -186,7 +186,7 @@ Section world_ghost_theory.
 
   (* For internal use only, links [RevokedResources] from the clean interface with
      [close_list_resources] from the internal model *)
-  Local Lemma RevokedResources_eq (W : WORLD) ( C : CmptName ) (l : list LAddr) :
+  #[local] Lemma RevokedResources_eq (W : WORLD) ( C : CmptName ) (l : list LAddr) :
     Forall (λ a, heap_key_live (heap_std W) a) l ->
     RevokedResources W C l ⊣⊢ close_list_resources C W l false.
   Proof.
@@ -275,7 +275,7 @@ Section world_ghost_theory.
     done.
   Qed.
 
-  Global Instance RevokedResources_Permutation_proper (W : WORLD) (C : CmptName) :
+  #[global] Instance RevokedResources_Permutation_proper (W : WORLD) (C : CmptName) :
     Proper (Permutation ==> equiv) (RevokedResources W C).
   Proof. iIntros (l l' Hl); rewrite /RevokedResources; setoid_rewrite Hl; done. Defined.
 

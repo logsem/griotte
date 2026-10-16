@@ -30,7 +30,7 @@ Section fundamental.
     := (if decide (writeAllowed_a_in_lregs regs a)
         then □ (∀ W0 (w : LWord), interp W0 C w -∗ P W0 C w)
         else emp)%I.
-  Instance wcond'_pers P C a r: Persistent (wcond' P C a r).
+  #[local] Instance wcond'_pers P C a r: Persistent (wcond' P C a r).
   Proof. intros. rewrite /wcond'. case_decide;apply _. Qed.
 
   (* A decision procedure that does not unfold [reg_allows_store_imm], so that

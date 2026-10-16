@@ -48,7 +48,7 @@ From griotte.allocators.common Require Export allocator_common_code.
 Section Allocator.
   Import Asm_Griotte.
   Context `{MP : MachineParameters}.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
 
   (** Load the owner identifier of the allocator capability [rsealed] into
       [rdst], using the imported unsealing key. An allocator capability that

@@ -31,10 +31,10 @@ Section HTS_Spec_Dangling.
   Context (Ws : list WORLD) (Cs : list CmptName).
   Context (Nswitcher : namespace) (cstk : CSTK).
 
-  Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
-  Local Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
+  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
+  #[local] Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a Ws Cs cstk).
-  Local Notation adv2_ret := (hts_adv2_ret pc_b pc_e pc_a cgp_b cgp_e
+  #[local] Notation adv2_ret := (hts_adv2_ret pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a cstk).
 
   Lemma hts_spec_dangling :

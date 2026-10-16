@@ -111,7 +111,7 @@ Ltac to_pm_ident H :=
   | ident => constr:(H)
   end.
 
-Local Ltac iDeex_as i x :=
+#[local] Ltac iDeex_as i x :=
   let x' := fresh x in
   iDestructHyp i as (x') i.
 
@@ -169,7 +169,7 @@ Lemma tac_name_replace {PROP:bi} (i: ident) Δ p (P: PROP) Q name :
   envs_entails Δ Q.
 Proof. rewrite /named. apply coq_tactics.tac_rename. Qed.
 
-Local Ltac iNameReplace i name :=
+#[local] Ltac iNameReplace i name :=
   eapply (tac_name_replace i _ _ _ _ name);
   [ first [ reduction.pm_reflexivity
           | fail 1 "iNamed: could not find" i ]
@@ -204,7 +204,7 @@ Proof.
     iApply "HQ"; iFrame "#".
 Qed.
 
-Local Ltac iNameIntuitionistic i i' :=
+#[local] Ltac iNameIntuitionistic i i' :=
   eapply (tac_name_intuitionistic _ i i' _ _ _ _ _);
   [ reduction.pm_reflexivity
   | tc_solve
@@ -212,7 +212,7 @@ Local Ltac iNameIntuitionistic i i' :=
   | reduction.pm_reduce
   ].
 
-Local Ltac iNamePure i name :=
+#[local] Ltac iNamePure i name :=
   string_to_ident_cps name
   ltac:(fun x => let id := fresh x in iPure i as id).
 
@@ -220,7 +220,7 @@ Local Ltac iNamePure i name :=
 
    The complete tactic is mutually recursive with iNamed_go for * patterns; this
    self-contained version takes iNamed_go as a parameter *)
-Local Ltac iNameHyp_go_rx H iNamed_go :=
+#[local] Ltac iNameHyp_go_rx H iNamed_go :=
   let i := to_pm_ident H in
   lazymatch goal with
   | |- context[Esnoc _ i (named ?name ?P)] =>
@@ -279,7 +279,7 @@ Ltac iNamedDestruct_go_rx H iNameHyp :=
   go H H.
 
 (* this declaration defines iNamed by tying together all the mutual recursion *)
-Local Ltac iNamed_go H :=
+#[local] Ltac iNamed_go H :=
   lazymatch H with
   | 1%Z => let i := iFresh in iIntros i; iNamed_go i
   | 1%nat => let i := iFresh in iIntros i; iNamed_go i

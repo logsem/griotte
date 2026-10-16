@@ -1,13 +1,13 @@
 From stdpp Require Import countable.
 From griotte Require Import machine_base machine_parameters.
 
-Local Open Scope Z_scope.
-Local Transparent MemNum.
+#[local] Open Scope Z_scope.
+#[local] Transparent MemNum.
 
-Local Definition encode_countable `{Countable A} (x : A) : Z :=
+#[local] Definition encode_countable `{Countable A} (x : A) : Z :=
   Z.pos (encode x).
 
-Local Definition decode_countable `{Countable A} (default : A) (z : Z) : A :=
+#[local] Definition decode_countable `{Countable A} (default : A) (z : Z) : A :=
   match z with
   | Z.pos p =>
       match decode p with
@@ -17,7 +17,7 @@ Local Definition decode_countable `{Countable A} (default : A) (z : Z) : A :=
   | _ => default
   end.
 
-Local Lemma decode_encode_countable `{Countable A} (default x : A) :
+#[local] Lemma decode_encode_countable `{Countable A} (default x : A) :
   decode_countable default (encode_countable x) = x.
 Proof.
   unfold decode_countable, encode_countable.
@@ -25,7 +25,7 @@ Proof.
   reflexivity.
 Qed.
 
-Local Lemma encode_countable_inj `{Countable A} :
+#[local] Lemma encode_countable_inj `{Countable A} :
   Inj (=) (=) (@encode_countable A _ _).
 Proof.
   intros x y Hxy.
@@ -33,7 +33,7 @@ Proof.
   by injection Hxy.
 Qed.
 
-Local Definition encode_word_type (w : Word) : Z :=
+#[local] Definition encode_word_type (w : Word) : Z :=
   match w with
   | WInt _ => 0
   | WCap _ _ _ _ _ _ => 1
@@ -42,7 +42,7 @@ Local Definition encode_word_type (w : Word) : Z :=
   | WSealed _ _ => 4
   end.
 
-Local Definition decode_word_type (z : Z) : Word :=
+#[local] Definition decode_word_type (z : Z) : Word :=
   match z with
   | 1 => wt_cap
   | 2 => wt_sentry
@@ -51,7 +51,7 @@ Local Definition decode_word_type (z : Z) : Word :=
   | _ => wt_int
   end.
 
-Local Lemma encode_word_type_correct :
+#[local] Lemma encode_word_type_correct :
   forall w w', match w, w' with
   | WCap _ _ _ _ _ _, WCap _ _ _ _ _ _ =>
       encode_word_type w = encode_word_type w'
@@ -67,33 +67,33 @@ Local Lemma encode_word_type_correct :
   end.
 Proof. intros w w'. destruct_word w; destruct_word w'; done. Qed.
 
-Local Definition encode_alloc_status (s : AllocStatus) : Z :=
+#[local] Definition encode_alloc_status (s : AllocStatus) : Z :=
   match s with ShadowLive => 0 | ShadowQuarantined => 1 end.
 
-Local Definition decode_alloc_status (z : Z) : AllocStatus :=
+#[local] Definition decode_alloc_status (z : Z) : AllocStatus :=
   if Z.eqb z 0 then ShadowLive else ShadowQuarantined.
 
-Local Lemma decode_encode_alloc_status s :
+#[local] Lemma decode_encode_alloc_status s :
   decode_alloc_status (encode_alloc_status s) = s.
 Proof. by destruct s. Qed.
 
-Local Definition default_heap_region : HeapRegion := {|
+#[local] Definition default_heap_region : HeapRegion := {|
     heap_b := 0%a;
     heap_e := @finz.FinZ MemNum 1%Z eq_refl eq_refl;
     heap_valid := ltac:(solve_addr)
   |}.
 
-Local Definition default_shadow_region : ShadowRegion := {|
+#[local] Definition default_shadow_region : ShadowRegion := {|
     shadow_b := @finz.FinZ MemNum 2%Z eq_refl eq_refl;
     shadow_e := @finz.FinZ MemNum 3%Z eq_refl eq_refl;
     shadow_valid := ltac:(solve_addr)
   |}.
 
-Local Definition default_revoker_region : RevokerRegion := {|
+#[local] Definition default_revoker_region : RevokerRegion := {|
     revoker_addr := @finz.FinZ MemNum 4%Z eq_refl eq_refl
   |}.
 
-Local Instance machine_parameters_instance : MachineParameters := {|
+#[local] Instance machine_parameters_instance : MachineParameters := {|
   instruction_encoding_mixin := {|
     decodeInstr := decode_countable Fail;
     encodeInstr := encode_countable;

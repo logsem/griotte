@@ -784,22 +784,22 @@ Section griotte_lang_rules.
 
   (* ----------------------------------- PURE RULES ---------------------------------- *)
 
-  Local Ltac solve_exec_safe := intros; subst; do 3 eexists; econstructor; eauto.
-  Local Ltac solve_exec_puredet := simpl; intros; by inv_base_step.
-  Local Ltac solve_exec_pure := intros ?; apply nsteps_once, pure_base_step_pure_step;
+  #[local] Ltac solve_exec_safe := intros; subst; do 3 eexists; econstructor; eauto.
+  #[local] Ltac solve_exec_puredet := simpl; intros; by inv_base_step.
+  #[local] Ltac solve_exec_pure := intros ?; apply nsteps_once, pure_base_step_pure_step;
                                 constructor; [solve_exec_safe|]; intros;
                                 (match goal with
                                 | H : base_step _ _ _ _ _ _ |- _ => inversion H end).
 
-  Global Instance pure_seq_failed :
+  #[global] Instance pure_seq_failed :
     PureExec True 1 (Seq (Instr Failed)) (Instr Failed).
   Proof. by solve_exec_pure. Qed.
 
-  Global Instance pure_seq_halted :
+  #[global] Instance pure_seq_halted :
     PureExec True 1 (Seq (Instr Halted)) (Instr Halted).
   Proof. by solve_exec_pure. Qed.
 
-  Global Instance pure_seq_done :
+  #[global] Instance pure_seq_done :
     PureExec True 1 (Seq (Instr NextI)) (Seq (Instr Executable)).
   Proof. by solve_exec_pure. Qed.
 
@@ -1200,7 +1200,7 @@ Section deref_witness.
     | DerefLive ι q => ι ↦st{q} ALive
     end%I.
 
-  Global Instance deref_witness_res_timeless dw : Timeless (deref_witness_res dw).
+  #[global] Instance deref_witness_res_timeless dw : Timeless (deref_witness_res dw).
   Proof. destruct dw; apply _. Qed.
 
   Definition deref_witness_ok (R : RegState) (dw : deref_witness) : Prop :=
@@ -1366,7 +1366,7 @@ Section instruction_outcomes.
      about all physical register files that include the erased owned
      registers, so no absent register or memory address can be mistaken for
      evidence of runtime failure. *)
-  Local Lemma wp_instr_failed_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
+  #[local] Lemma wp_instr_failed_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ R r sr m st, lregs_phys R regs r →

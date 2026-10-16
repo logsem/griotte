@@ -130,7 +130,7 @@ Definition heap_key_resource {Σ : gFunctors} (W_heap : Heap) (k : LAddr) (P : i
 Section heap_key_resource.
   Context {Σ : gFunctors}.
 
-  Global Instance heap_key_resource_ne W_heap k : NonExpansive (heap_key_resource (Σ:=Σ) W_heap k).
+  #[global] Instance heap_key_resource_ne W_heap k : NonExpansive (heap_key_resource (Σ:=Σ) W_heap k).
   Proof.
     intros n P Q HPQ. rewrite /heap_key_resource.
     destruct k as [a|a ι]; first done.
@@ -250,11 +250,11 @@ Section heap_region.
   Definition heap_provenance (h : Heap) : iProp Σ :=
     [∗ map] ι ↦ o ∈ h, heap_entry_provenance ι o.
 
-  Global Instance heap_entry_provenance_persistent ι o :
+  #[global] Instance heap_entry_provenance_persistent ι o :
     Persistent (heap_entry_provenance ι o).
   Proof. rewrite /heap_entry_provenance. destruct (alloc_object_status o); apply _. Qed.
 
-  Global Instance heap_provenance_persistent h : Persistent (heap_provenance h).
+  #[global] Instance heap_provenance_persistent h : Persistent (heap_provenance h).
   Proof. apply _. Qed.
 
   Lemma heap_provenance_lookup h ι o :

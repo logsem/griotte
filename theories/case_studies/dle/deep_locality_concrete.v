@@ -6,13 +6,13 @@ From griotte Require Import
   deep_locality deep_locality_adequacy
   disjoint_regions_tactics.
 
-Existing Instance machine_parameters_instance.
+#[export] Existing Instance machine_parameters_instance.
 
-Local Transparent MemNum ONum.
+#[local] Transparent MemNum ONum.
 
-Local Notation "'A' z" :=
+#[local] Notation "'A' z" :=
   (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-Local Notation "'OT' z" :=
+#[local] Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
 Definition dle_main_pcc_b : Addr := A 9.
@@ -153,12 +153,12 @@ Proof.
   - vm_compute; reflexivity.
 Defined.
 
-Local Instance dle_concrete_switcherLayout : switcherLayout.
+#[local] Instance dle_concrete_switcherLayout : switcherLayout.
 Proof.
   exact (cmptSwitcher_switcherLayout dle_concrete_cmptSwitcher).
 Defined.
 
-Local Instance dle_concrete_assertLayout : assertLayout.
+#[local] Instance dle_concrete_assertLayout : assertLayout.
 Proof.
   exact (cmptAssert_assertLayout dle_concrete_cmptAssert).
 Defined.
@@ -285,7 +285,7 @@ Proof.
   disj_regions.
 Qed.
 
-Local Lemma dle_concrete_cmpts_disjoints :
+#[local] Lemma dle_concrete_cmpts_disjoints :
   dle_concrete_main_cmpt ## dle_concrete_C_cmpt.
 Proof.
   change
@@ -307,7 +307,7 @@ Proof.
   solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma dle_concrete_switcher_cmpt_disjoints :
+#[local] Lemma dle_concrete_switcher_cmpt_disjoints :
   switcher_cmpt_disjoint
     dle_concrete_main_cmpt dle_concrete_cmptSwitcher
   ∧ switcher_cmpt_disjoint
@@ -340,7 +340,7 @@ Proof.
   solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma dle_concrete_assert_cmpt_disjoints :
+#[local] Lemma dle_concrete_assert_cmpt_disjoints :
   assert_cmpt_disjoint dle_concrete_main_cmpt dle_concrete_cmptAssert
   ∧ assert_cmpt_disjoint dle_concrete_C_cmpt dle_concrete_cmptAssert.
 Proof.
@@ -371,7 +371,7 @@ Proof.
   solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
 Qed.
 
-Local Lemma dle_concrete_assert_switcher_disjoints :
+#[local] Lemma dle_concrete_assert_switcher_disjoints :
   assert_switcher_disjoint
     dle_concrete_cmptAssert dle_concrete_cmptSwitcher.
 Proof.
@@ -387,7 +387,7 @@ Proof.
   solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
 Qed.
 
-Global Instance dle_concrete_layout : memory_layout.
+#[global] Instance dle_concrete_layout : memory_layout.
 Proof.
   refine
     (@Build_memory_layout

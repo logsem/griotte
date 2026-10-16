@@ -2,7 +2,7 @@ From griotte Require Import machine_parameters assembler.
 
 Section Check_No_Overlap.
   Import Asm_Griotte.
-  Local Coercion Z.of_nat : nat >-> Z.
+  #[local] Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
   Definition check_no_overlap_asm (rsrc1 rsrc2 r1 r2 : RegName) : list asm_code :=

@@ -5,7 +5,7 @@ From machine_utils Require Export finz.
 From griotte Require Export stdpp_extra.
 
 (* No longer a coercion in Coq >= 8.14*)
-Local Coercion Z.of_nat : nat >-> Z.
+#[local] Coercion Z.of_nat : nat >-> Z.
 
 (* We assume a fixed set of registers: the RV32E register file x0-x15 *)
 Definition RegNum: nat := 15.
@@ -20,7 +20,7 @@ Inductive RegName: Type :=
 Inductive SRegName : Type :=
 | MTDC.
 
-Global Instance reg_eq_dec : EqDecision RegName.
+#[global] Instance reg_eq_dec : EqDecision RegName.
 Proof. intros r1 r2.  destruct r1 as [n fin],r2 as [n0 fin0].
        destruct (Nat.eq_dec n n0).
        + subst n0. left.
@@ -39,7 +39,7 @@ Next Obligation.
   intros. eapply Nat.leb_le; eauto.
 Defined.
 
-Global Instance reg_countable : Countable RegName.
+#[global] Instance reg_countable : Countable RegName.
 Proof.
   refine {| encode r := encode match r with
                                | R n fin => n
@@ -58,10 +58,10 @@ Proof.
 Defined.
 
 
-Global Instance sreg_eq_dec : EqDecision SRegName.
+#[global] Instance sreg_eq_dec : EqDecision SRegName.
 Proof. intros r1 r2; destruct r1,r2; by left. Defined.
 
-Global Instance sreg_countable : Countable SRegName.
+#[global] Instance sreg_countable : Countable SRegName.
 Proof.
   refine {| encode r := encode match r with
                                | MTDC => Some ()
@@ -74,7 +74,7 @@ Proof.
   intro r. destruct r; auto.
 Defined.
 
-Global Instance reg_finite : finite.Finite RegName.
+#[global] Instance reg_finite : finite.Finite RegName.
 Proof. apply (finite.enc_finite (λ r : RegName, match r with
                                                 | R n fin => n
                                                 end)
@@ -92,7 +92,7 @@ Proof. apply (finite.enc_finite (λ r : RegName, match r with
          lia.
 Defined.
 
-Global Instance sreg_finite : finite.Finite SRegName.
+#[global] Instance sreg_finite : finite.Finite SRegName.
 Proof.
  apply (finite.enc_finite (λ r : SRegName, match r with | MTDC => 0%nat end)
                 (λ n : nat, MTDC)
@@ -110,14 +110,14 @@ Definition Z_of_regname (r: RegName): Z.
   exact (S n).
 Defined.
 
-Instance RegName_InjTyp : InjTyp RegName Z.
+#[export] Instance RegName_InjTyp : InjTyp RegName Z.
   refine (mkinj _ _ Z_of_regname (fun n => 1 <= n <= RegNum + 1)%Z _).
   intros [n fin]; cbn.
   apply Nat.leb_le in fin; lia.
 Defined.
 Add Zify InjTyp RegName_InjTyp.
 
-Instance Op_RegName_eq : BinRel (@eq RegName).
+#[export] Instance Op_RegName_eq : BinRel (@eq RegName).
   refine ({| TR := @eq Z; TRInj := _ |}).
   cbn. intros r1 r2. split.
   - intros ->; eauto.
@@ -235,7 +235,7 @@ Proof.
   apply all_registers_correct.
 Qed.
 
-Instance setunfold_all_regs:
+#[export] Instance setunfold_all_regs:
   forall x, SetUnfoldElemOf x all_registers_s True.
 Proof.
   intros. constructor. split; auto.
@@ -260,4 +260,4 @@ Proof.
   rewrite elem_of_subseteq. intros ? _. apply all_registers_s_correct.
 Qed.
 
-Global Opaque cnull cra csp cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5.
+#[global] Opaque cnull cra csp cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5.

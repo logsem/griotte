@@ -43,7 +43,7 @@ Class heapG Σ `{CmptNameG} := {
   heap_name : CmptName -> gname;
 }.
 Definition heapΣ := #[GFunctor heap_authUR].
-Global Instance subG_heapΣ Σ : subG heapΣ Σ -> heap_preG Σ.
+#[global] Instance subG_heapΣ Σ : subG heapΣ Σ -> heap_preG Σ.
 Proof. solve_inG. Qed.
 
 Section heap_ghost.
@@ -56,9 +56,9 @@ Section heap_ghost.
   Definition heap_std_fragments (C : CmptName) (h : Heap) : iProp Σ :=
     [∗ map] b ↦ o ∈ h, heap_std_auth C b o.
 
-  Global Instance heap_std_full_timeless C h : Timeless (heap_std_full C h).
+  #[global] Instance heap_std_full_timeless C h : Timeless (heap_std_full C h).
   Proof. apply _. Qed.
-  Global Instance heap_std_auth_timeless C b o : Timeless (heap_std_auth C b o).
+  #[global] Instance heap_std_auth_timeless C b o : Timeless (heap_std_auth C b o).
   Proof. apply _. Qed.
 
   Lemma heap_auth_fragments_pack γ (a : heapUR) h :

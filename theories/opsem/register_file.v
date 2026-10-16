@@ -19,7 +19,7 @@ Definition writeAllowed_a_in_regs (r : Reg) (a : Addr) :=
 Definition readAllowed_a_in_regs (r : Reg) (a : Addr) :=
   ∃ reg (w : Word), r !! reg = Some w ∧ readAllowedWord w ∧ hasValidAddress w a.
 
-Global Instance writeAllowed_a_in_regs_Decidable
+#[global] Instance writeAllowed_a_in_regs_Decidable
   (r : Reg) (a : Addr) :
   Decision (writeAllowed_a_in_regs r a).
 Proof.
@@ -30,7 +30,7 @@ Proof.
   left; eexists _; auto.
 Qed.
 
-Global Instance readAllowed_a_in_regs_Decidable
+#[global] Instance readAllowed_a_in_regs_Decidable
   (r : Reg) (a : Addr) :
   Decision (readAllowed_a_in_regs r a).
 Proof.
