@@ -73,10 +73,6 @@ Section griotte_lang_rules.
       BinOp_failure i lpc regs dst rv1 rv2 ->
       BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' FailedV.
 
-  #[local] Ltac iFail Hcont get_fail_case :=
-    cbn; iFrame; iApply Hcont; iFrame; iPureIntro;
-    econstructor; eapply get_fail_case; eauto.
-
   Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
     is_BinOp i dst arg1 arg2 →
@@ -112,9 +108,7 @@ Section griotte_lang_rules.
         destruct_word lw; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep; cbn in Hstep.
         all: rewrite Hsrc0 /= in Hstep. all: repeat case_match; simplify_eq; eauto. }
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
-      iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. constructor.
-      by eapply BinOp_fail_nonconst1. }
+      instr_fail_close. constructor. by eapply BinOp_fail_nonconst1. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn1.
 
     destruct (lz_of_argument regs arg2) as [n2|] eqn:Hn2;
@@ -130,9 +124,7 @@ Section griotte_lang_rules.
         all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep; cbn in Hstep.
         all: rewrite Hn1 /= in Hstep.
         all: rewrite Hsrc1 /= in Hstep. all: repeat case_match; simplify_eq; eauto. }
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
-      iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. constructor.
-      by eapply BinOp_fail_nonconst2. }
+      instr_fail_close. constructor. by eapply BinOp_fail_nonconst2. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2.
 
     assert (exec_opt i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
@@ -535,48 +527,6 @@ Section griotte_lang_rules.
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
     destruct Hspec as [* Hsucc |].
     { (* Success (contradiction) *)  destruct w2 as [[] ?]; simplify_map_eq. }
-    { (* Failure, done *) by iApply "Hφ". }
-  Qed.
-
-  Lemma wp_binop_fail_r_r_1 E ins dst r1 r2 w wdst w1 w2 pc_p pc_g pc_b pc_e pc_a pc_π dq :
-    decodeInstrW w.(lw) = ins →
-    is_BinOp ins dst (inr r1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    is_z w1.(lw) = false →
-    r1 ≠ cnull ->
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 }}}
-      Instr Executable
-      @ E
-      {{{ RET FailedV; pc_a ↦ₐ{dq} w }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hvpc Hzf Hcnull φ) "(HPC & Hpc_a & Hdst & Hr1 & Hr2) Hφ".
-    iDestruct (map_of_regs_3 with "Hdst Hr1 Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [* Hsucc |].
-    { (* Success (contradiction) *) destruct w1 as [[] ?]; simplify_map_eq. }
-    { (* Failure, done *) by iApply "Hφ". }
-  Qed.
-
-  Lemma wp_binop_fail_r_r_2 E ins dst r1 r2 w wdst w2 w3 pc_p pc_g pc_b pc_e pc_a pc_π dq :
-    decodeInstrW w.(lw) = ins →
-    is_BinOp ins dst (inr r1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    is_z w3.(lw) = false →
-    r2 ≠ cnull ->
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w2 ∗ r2 ↦ᵣ w3}}}
-      Instr Executable
-      @ E
-      {{{ RET FailedV; pc_a ↦ₐ{dq} w }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hvpc Hzf Hcnull φ) "(HPC & Hpc_a & Hdst & Hr1 & Hr2) Hφ".
-    iDestruct (map_of_regs_3 with "Hdst Hr1 Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [* Hsucc |].
-    { (* Success (contradiction) *) simplify_map_eq. destruct w3 as [[] ?]; simplify_map_eq. }
     { (* Failure, done *) by iApply "Hφ". }
   Qed.
 

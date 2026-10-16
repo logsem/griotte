@@ -108,9 +108,7 @@ Section griotte_lang_rules.
     destruct (is_sealr r1v.(lw)) eqn:Hr1v.
     2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
         { unfold is_sealr in Hr1v. destruct r1v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
-        iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-        iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
-        econstructor. by eapply UnSeal_fail_sealr. }
+        instr_fail_close. econstructor. by eapply UnSeal_fail_sealr. }
     destruct r1v as [[ | [ | t p g b e a ] | | ] πs]; try inversion Hr1v. clear Hr1v.
     (* The unsealing key has no bounds: its copy is exact. *)
     pose proof (reg_phys_no_bounds R (WSealRange t p g b e a @@? πs) _ eq_refl Hrel1) as Hk. cbn in Hk.
@@ -118,9 +116,7 @@ Section griotte_lang_rules.
     destruct (is_sealed r2v.(lw)) eqn:Hr2v.
     2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
         { unfold is_sealed in Hr2v. destruct r2v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
-        iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-        iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
-        econstructor. by eapply UnSeal_fail_sealed. }
+        instr_fail_close. econstructor. by eapply UnSeal_fail_sealed. }
     destruct r2v as [[ | | | o sb ] π]; try inversion Hr2v. clear Hr2v.
     assert (reg_word_ok R C (WSealed o sb @@? π)) as Hok.
     { by eapply erasure_llookup_reg_word. }

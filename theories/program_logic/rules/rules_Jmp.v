@@ -64,19 +64,14 @@ Section griotte_lang_rules.
     { rewrite -(lz_of_argument_phys R regs r rimm Hregs Hdomr). done. }
     rewrite HH in Hstep. clear HH.
     destruct (lz_of_argument regs rimm) as [imm|] eqn:Himm.
-    2: { cbn in Hstep. simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
-         iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. by constructor; constructor. }
+    2: { cbn in Hstep. instr_fail Hstep. by constructor; constructor. }
     cbn [mbind option_bind] in Hstep.
-    destruct (incrementPC_gen (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm) as [lpc'|] eqn:Hpc'.
-    2: { rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her Hpc') in Hstep.
-         simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
-         iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. constructor. by eapply Jmp_fail_PC_overflow. }
-    destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ Her Hpc') as (pc' & Hu & Her2).
-    rewrite Hu in Hstep. simplify_eq.
-    iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-    iModIntro. iSplitR "Hφ HPC Hmap Hpc_a".
-    - iExists _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
-    - iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
+    iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
+      (λ lpc' retv, Jmp_spec _ regs rimm lpc' retv)
+      with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]"); first done; first done.
+    { intros. by eapply Jmp_spec_success. }
+    { intros. constructor. by eapply Jmp_fail_PC_overflow. }
+    iIntros (lpc' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
    Lemma wp_jmp_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm dq :

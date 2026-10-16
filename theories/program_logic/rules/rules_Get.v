@@ -64,45 +64,6 @@ Section griotte_lang_rules.
     intros HH. destruct_or! HH; subst i; reflexivity.
   Qed.
 
-  (* Simpler definition, easier to use when proving wp-rules *)
-  Definition denote_cap (i: instr) (t : bool) (p : Perm) (g : Locality) (b e a : Addr): Z :=
-      match i with
-      | GetP _ _ => (encodePerm p)
-      | GetL _ _ => (encodeLoc g)
-      | GetB _ _ => b
-      | GetE _ _ => e
-      | GetA _ _ => a
-      | GetOType _ _ => (-1)%Z
-      | GetTag _ _ => Z.b2z t
-      | GetWType _ _ => (encodeWordType (WCap t p g b e a))
-      | _ => 0%Z
-      end.
-  Lemma denote_cap_denote i (t : bool) p g b e a z src dst:
-    is_Get i src dst → denote_cap i t p g b e a = z → denote i (WCap t p g b e a) = Some z.
-  Proof.
-    unfold denote_cap, denote, is_Get.
-    intros Hi <-. destruct_or! Hi; subst; done.
-  Qed.
-
-  Definition denote_seal (i: instr) (t : bool) (p : SealPerms) (g : Locality) (b e a : OType): Z :=
-      match i with
-      | GetP _ _ => (encodeSealPerms p)
-      | GetL _ _ => (encodeLoc g)
-      | GetB _ _ => b
-      | GetE _ _ => e
-      | GetA _ _ => a
-      | GetOType _ _ => (-1)%Z
-      | GetTag _ _ => Z.b2z t
-      | GetWType _ _ => (encodeWordType (WSealRange t p g b e a))
-      | _ => 0%Z
-      end.
-  Lemma denote_seal_denote i (t : bool) (p : SealPerms) (g : Locality) (b e a : OType) z src dst:
-    is_Get i src dst → denote_seal i t p g b e a = z → denote i (WSealRange t p g b e a) = Some z.
-  Proof.
-    unfold denote_seal, denote, is_Get.
-    intros Hi <-. destruct_or! Hi; subst; done.
-  Qed.
-
   Inductive Get_failure (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName) :=
     | Get_fail_src_denote w:
         regs !!ₗ src = Some w →
@@ -233,10 +194,7 @@ Section griotte_lang_rules.
     rewrite Hden in Hstep.
     destruct (denote get_i wsrc.(lw)) as [z | ] eqn:Hwsrc.
     2 : { (* Failure: src is not of the right word type *)
-      simplify_eq.
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first exact Her.
-      iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. constructor.
-      by eapply Get_fail_src_denote. }
+      instr_fail Hstep. constructor. by eapply Get_fail_src_denote. }
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt z)) _ _ _ _
       (λ lpc' regs' retv, Get_spec get_i _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
@@ -319,37 +277,6 @@ Section griotte_lang_rules.
       exfalso. rewrite Hi in Hexact. simplify_map_eq; by apply Hexact. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
-  Qed.
-
-  Lemma wp_Get_fail E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc zsrc wdst dq :
-    decodeInstrW w.(lw) = get_i →
-    is_Get get_i dst src →
-    IsLInt wsrc zsrc →
-    (forall dst' src', get_i <> GetOType dst' src') ->
-    (forall dst' src', get_i <> GetWType dst' src') ->
-    (forall dst' src', get_i <> GetTag dst' src') ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    src ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-      ∗ ▷ pc_a ↦ₐ{dq} w
-      ∗ ▷ dst ↦ᵣ wdst
-      ∗ ▷ src ↦ᵣ wsrc }}}
-      Instr Executable @ E
-      {{{ RET FailedV; True }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hwsrc Hnot_otype Hnot_wtype Hnot_tag Hvpc Hcnull φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
-    destruct (IsLInt_inv _ _ Hwsrc) as [πsrc ->].
-    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %]".
-    iApply (wp_Get with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_Get; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [* Hsucc | * Hi | ].
-    { (* Success (contradiction) *)
-      destruct_or! Hinstr; simplify_map_eq; match goal with H : denote _ _ = Some _ |- _ => rewrite Hinstr /denote in H end; naive_solver.
-    }
-    { (* Cleared tag (contradiction) *) by exfalso; eapply Hnot_tag. }
-    { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
   Lemma wp_Get_unknown E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wsrc wdst dq :

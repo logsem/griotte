@@ -73,9 +73,7 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
-    { cbn in Hstep. rewrite Hxsr in Hstep. simplify_eq.
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-      iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
+    { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
       econstructor. by eapply ReadSR_fail_nonxrs. }
     specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
     destruct (Hsri src) as [wsrc [H'src Hsrc]]; first by set_solver+.

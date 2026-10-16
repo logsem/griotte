@@ -112,46 +112,7 @@ Section griotte_lang_rules.
     iDestruct "Hmap" as "(? & ? & ? & _)"; iFrame.
   Qed.
 
-  Lemma map_of_regs_4 (r1 r2 r3 r4: RegName) (w1 w2 w3 w4: LWord) :
-    r1 ↦ᵣ w1 -∗ r2 ↦ᵣ w2 -∗ r3 ↦ᵣ w3 -∗ r4 ↦ᵣ w4 -∗
-    ([∗ map] k↦y ∈ (<[r1:=w1]> (<[r2:=w2]> (<[r3:=w3]> (<[r4:=w4]> ∅)))), k ↦ᵣ y) ∗
-     ⌜ r1 ≠ r2 ∧ r1 ≠ r3 ∧ r1 ≠ r4 ∧ r2 ≠ r3 ∧ r2 ≠ r4 ∧ r3 ≠ r4 ⌝.
-  Proof.
-    iIntros "H1 H2 H3 H4".
-    iPoseProof (regname_neq with "H1 H2") as "%".
-    iPoseProof (regname_neq with "H1 H3") as "%".
-    iPoseProof (regname_neq with "H1 H4") as "%".
-    iPoseProof (regname_neq with "H2 H3") as "%".
-    iPoseProof (regname_neq with "H2 H4") as "%".
-    iPoseProof (regname_neq with "H3 H4") as "%".
-    rewrite !big_sepM_insert ?big_sepM_empty; simplify_map_eq; eauto.
-    iFrame. eauto.
-  Qed.
-
-  Lemma regs_of_map_4 (r1 r2 r3 r4: RegName) (w1 w2 w3 w4: LWord) :
-    r1 ≠ r2 → r1 ≠ r3 → r1 ≠ r4 → r2 ≠ r3 → r2 ≠ r4 → r3 ≠ r4 →
-    ([∗ map] k↦y ∈ (<[r1:=w1]> (<[r2:=w2]> (<[r3:=w3]> (<[r4:=w4]> ∅)))), k ↦ᵣ y) -∗
-    r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ r3 ↦ᵣ w3 ∗ r4 ↦ᵣ w4.
-  Proof.
-    intros. iIntros "Hmap". rewrite !big_sepM_insert ?big_sepM_empty; simplify_map_eq; eauto.
-    iDestruct "Hmap" as "(? & ? & ? & ? & _)"; iFrame.
-  Qed.
-
   (* ------------------------- system registers points-to --------------------------------- *)
-
-  Lemma sregname_dupl_false (sr : SRegName) (w1 w2 : Word) :
-    sr ↦ₛᵣ w1 -∗ sr ↦ₛᵣ w2 -∗ False.
-  Proof.
-    iIntros "Hr1 Hr2".
-    iDestruct (pointsto_valid_2 with "Hr1 Hr2") as %?.
-    destruct H. eapply dfrac_full_exclusive in H. auto.
-  Qed.
-
-  Lemma sregname_neq (sr1 sr2 : SRegName) (w1 w2 : Word) :
-    sr1 ↦ₛᵣ w1 -∗ sr2 ↦ₛᵣ w2 -∗ ⌜ sr1 ≠ sr2 ⌝.
-  Proof.
-    iIntros "H1 H2" (?). subst sr1. iApply (sregname_dupl_false with "H1 H2").
-  Qed.
 
   Lemma map_of_sregs_1 (sr1: SRegName) (w1: Word) :
     sr1 ↦ₛᵣ w1 -∗
@@ -175,20 +136,6 @@ Section griotte_lang_rules.
   Qed.
 
   (* -------------- semantic heap + a map of pointsto -------------------------- *)
-
-  Lemma gen_heap_valid_inSepM:
-    ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
-      (Σ : gFunctors) (gen_heapG0 : gen_heapGS L V Σ)
-      (σ σ' : gmap L V) (l : L) (q : Qp) (v : V),
-      σ' !! l = Some v →
-      gen_heap_interp σ -∗
-      ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn q) y) -∗
-      ⌜σ !! l = Some v⌝.
-  Proof.
-    intros * Hσ'.
-    rewrite (big_sepM_delete _ σ' l) //. iIntros "? [? ?]".
-    iApply (gen_heap_valid with "[$]"). eauto.
-  Qed.
 
   Lemma gen_heap_valid_inSepM':
     ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
@@ -216,30 +163,6 @@ Section griotte_lang_rules.
     iDestruct "H" as %Hincl. iPureIntro. intro l.
     unfold option_relation.
     destruct (σ' !! l) eqn:HH'; destruct (σ !! l) eqn:HH; naive_solver.
-  Qed.
-
-  Lemma gen_heap_valid_allSepM:
-    ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
-      (EV: Equiv V) (REV: Reflexive EV) (LEV: @LeibnizEquiv V EV)
-      (Σ : gFunctors) (gen_heapG0 : gen_heapGS L V Σ)
-      (σ σ' : gmap L V) (q : Qp),
-      (forall (l:L), is_Some (σ' !! l)) →
-      gen_heap_interp σ -∗
-      ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn q) y) -∗
-      ⌜ σ = σ' ⌝.
-  Proof.
-    intros * ? ? * Hσ'. iIntros "A B".
-    iAssert (⌜ forall l, σ !! l = σ' !! l ⌝)%I with "[A B]" as %HH.
-    { iIntros (l).
-      specialize (Hσ' l). unfold is_Some in Hσ'. destruct Hσ' as [v Hσ'].
-      rewrite Hσ'.
-      eapply (gen_heap_valid_inSepM _ _ _ _ _ _ σ σ') in Hσ'.
-      iApply (Hσ' with "[$]"). eauto. }
-    iPureIntro. eapply map_leibniz. intro.
-    eapply leibniz_equiv_iff. auto.
-    Unshelve.
-    unfold equiv. unfold Reflexive. intros [ x |].
-    { unfold option_equiv. constructor. apply REV. } constructor.
   Qed.
 
   Lemma gen_heap_update_inSepM :
@@ -285,15 +208,6 @@ Section griotte_lang_rules.
   Qed.
 
   (* -------------- predicates on memory maps -------------------------- *)
-
-  Lemma extract_sep_if_split a pc_a P Q R:
-     (if (a =? pc_a)%a then P else Q ∗ R)%I ≡
-     ((if (a =? pc_a)%a then P else Q) ∗
-     if (a =? pc_a)%a then emp else R)%I.
-  Proof.
-    destruct (a =? pc_a)%a; auto.
-    iSplit; auto. iIntros "[H1 H2]"; auto.
-  Qed.
 
   Lemma memMap_resource_0  :
         True ⊣⊢ ([∗ map] a↦w ∈ ∅, a ↦ₐ w).
@@ -358,21 +272,6 @@ Section griotte_lang_rules.
       iApply IHla1; last iFrame.
   Qed.
 
-  Lemma big_sepL2_nodup (la : list Addr) (lws : list LWord):
-    ⊢ ([∗ list] a;w ∈ la;lws, a ↦ₐ w) -∗ ⌜NoDup la ⌝.
-  Proof.
-    generalize dependent lws.
-    induction la as [|a la]; iIntros (lws) "Hla".
-    - iPureIntro ; by apply NoDup_nil.
-    - destruct lws; first done.
-      rewrite big_sepL2_cons.
-      iDestruct "Hla" as "[Ha Hla]".
-      iDestruct (big_sepL2_disjoint_pointsto with "[$]") as "%Hnotin".
-      iDestruct (IHla with "[$]") as "%Hnodup".
-      rewrite NoDup_cons.
-      iSplit ; done.
-  Qed.
-
 
   Lemma big_sepL2_disjoint (la1 la2 : list Addr) (lw1 lw2 : list LWord) :
     ⊢ ([∗ list] a1;w1 ∈ la1;lw1, a1 ↦ₐ w1) ∗ ([∗ list] a2;w2 ∈ la2;lw2, a2 ↦ₐ w2) -∗ ⌜ la1 ## la2 ⌝.
@@ -404,41 +303,6 @@ Section griotte_lang_rules.
     iApply memMap_resource_2ne; auto. iSplitL "Hi"; auto.
   Qed.
 
-  Lemma memMap_resource_2gen (a1 a2 : Addr) (w1 w2 : LWord)  :
-    ( ∃ mem, ([∗ map] a↦w ∈ mem, a ↦ₐ w) ∧
-       ⌜ if  (a2 =? a1)%a
-       then mem =  (<[a1:=w1]> ∅)
-       else mem = <[a1:=w1]> (<[a2:=w2]> ∅)⌝
-    )%I ⊣⊢ (a1 ↦ₐ w1 ∗ if (a2 =? a1)%a then emp else a2 ↦ₐ w2) .
-  Proof.
-    destruct (a2 =? a1)%a eqn:Heq.
-    - apply Z.eqb_eq, finz_to_z_eq in Heq. rewrite memMap_resource_1.
-      iSplit.
-      * iDestruct 1 as (mem) "[HH ->]".  by iSplit.
-      * iDestruct 1 as "[Hmap _]". iExists (<[a1:=w1]> ∅); iSplitL; auto.
-    - apply Z.eqb_neq in Heq.
-      rewrite -memMap_resource_2ne; auto. 2 : congruence.
-      iSplit.
-      * iDestruct 1 as (mem) "[HH ->]". done.
-      * iDestruct 1 as "Hmap". iExists (<[a1:=w1]> (<[a2:=w2]> ∅)); iSplitL; auto.
-  Qed.
-
-  Lemma memMap_resource_2gen_d (Φ : Addr → LWord → iProp Σ) (a1 a2 : Addr) (w1 w2 : LWord)  :
-    ( ∃ mem, ([∗ map] a↦w ∈ mem, Φ a w) ∧
-       ⌜ if  (a2 =? a1)%a
-       then mem =  (<[a1:=w1]> ∅)
-       else mem = <[a1:=w1]> (<[a2:=w2]> ∅)⌝
-    ) -∗ (Φ a1 w1 ∗ if (a2 =? a1)%a then emp else Φ a2 w2) .
-  Proof.
-    iIntros "Hmem". iDestruct "Hmem" as (mem) "[Hmem Hif]".
-    destruct ((a2 =? a1)%a) eqn:Heq.
-    - iDestruct "Hif" as %->.
-      iDestruct (big_sepM_insert with "Hmem") as "[$ Hmem]". auto.
-    - iDestruct "Hif" as %->. iDestruct (big_sepM_insert with "Hmem") as "[$ Hmem]".
-      { rewrite lookup_insert_ne;auto. apply Z.eqb_neq in Heq. solve_addr. }
-      iDestruct (big_sepM_insert with "Hmem") as "[$ Hmem]". auto.
-  Qed.
-
   Lemma memMap_resource_2gen_d_dq (Φ : Addr → dfrac → LWord → iProp Σ) (a1 a2 : Addr) (dq1 dq2 : dfrac) (w1 w2 : LWord)  :
     ( ∃ mem dfracs, ([∗ map] a↦wq ∈ prod_merge dfracs mem, Φ a wq.1 wq.2) ∧
        ⌜ (if  (a2 =? a1)%a
@@ -463,27 +327,6 @@ Section griotte_lang_rules.
       iDestruct (big_sepM_insert with "Hmem") as "[$ Hmem]". auto.
   Qed.
 
-
-  (* Not the world's most beautiful lemma, but it does avoid us having to fiddle around with a later under an if in proofs *)
-  Lemma memMap_resource_2gen_clater (a1 a2 : Addr) (w1 w2 : LWord) (Φ : Addr -> LWord -> iProp Σ)  :
-    (▷ Φ a1 w1) -∗
-    (if (a2 =? a1)%a then emp else ▷ Φ a2 w2) -∗
-    (∃ mem, ▷ ([∗ map] a↦w ∈ mem, Φ a w) ∗
-       ⌜if  (a2 =? a1)%a
-       then mem =  (<[a1:=w1]> ∅)
-       else mem = <[a1:=w1]> (<[a2:=w2]> ∅)⌝
-    )%I.
-  Proof.
-    iIntros "Hc1 Hc2".
-    destruct (a2 =? a1)%a eqn:Heq.
-    - iExists (<[a1:= w1]> ∅); iSplitL; auto. iNext. iApply big_sepM_insert;[|by iFrame].
-      auto.
-    - iExists (<[a1:=w1]> (<[a2:=w2]> ∅)); iSplitL; auto.
-      iNext.
-      iApply big_sepM_insert;[|iFrame].
-      { apply Z.eqb_neq in Heq. rewrite lookup_insert_ne//. congruence. }
-      iApply big_sepM_insert;[|by iFrame]. auto.
-  Qed.
 
   Lemma memMap_resource_2gen_clater_dq (a1 a2 : Addr) (dq1 dq2 : dfrac) (w1 w2 : LWord) (Φ : Addr -> dfrac → LWord -> iProp Σ)  :
     (▷ Φ a1 dq1 w1) -∗
@@ -537,15 +380,6 @@ Section griotte_lang_rules.
     iFrame. iPureIntro. done.
   Qed.
 
-  Lemma memMap_delete:
-    ∀(a : Addr) (w : LWord) mem0,
-      mem0 !! a = Some w →
-      ([∗ map] a↦w ∈ mem0, a ↦ₐ w) ⊣⊢ (a ↦ₐ w ∗ ([∗ map] k↦y ∈ delete a mem0, k ↦ₐ y)).
-  Proof.
-    intros a w mem0 Hmem0a.
-    rewrite -(big_sepM_delete _ _ a); auto.
-  Qed.
-
   Lemma mem_remove_dq mem dq :
     ([∗ map] a↦w ∈ mem, a ↦ₐ{dq} w) ⊣⊢
     ([∗ map] a↦dw ∈ (prod_merge (create_gmap_default (elements (dom mem)) dq) mem), a ↦ₐ{dw.1} dw.2).
@@ -571,18 +405,6 @@ Section griotte_lang_rules.
         iFrame. iApply "IH". iFrame.
   Qed.
 
-  Lemma gen_mem_valid_inSepM:
-    ∀ mem0 (m : LMem) (a : Addr) (w : LWord),
-      mem0 !! a = Some w →
-      gen_heap_interp m
-                   -∗ ([∗ map] a↦w ∈ mem0, a ↦ₐ w)
-                   -∗ ⌜m !! a = Some w⌝.
-  Proof.
-    iIntros (mem0 m a w Hmem_pc) "Hm Hmem".
-    iDestruct (memMap_delete a with "Hmem") as "[Hpc_a Hmem]"; eauto.
-    iDestruct (gen_heap_valid with "Hm Hpc_a") as %?; auto.
-  Qed.
-
   (* a more general version of load to work also with any fraction and persistent points tos *)
   Lemma gen_mem_valid_inSepM_general:
     ∀ mem0 (m : LMem) (a : Addr) (w : LWord) dq,
@@ -594,26 +416,6 @@ Section griotte_lang_rules.
     iIntros (mem0 m a w dq Hmem_pc) "Hm Hmem".
     iDestruct (big_sepM_delete _ _ a with "Hmem") as "[Hpc_a Hmem]"; eauto.
     iDestruct (gen_heap_valid with "Hm Hpc_a") as %?; auto.
-  Qed.
-
-  Lemma gen_mem_update_inSepM :
-    ∀ {Σ : gFunctors} {gen_heapG0 : gen_heapGS Addr LWord Σ}
-      (σ : gmap Addr LWord) mem0 (l : Addr) (v' v : LWord),
-      mem0 !! l = Some v' →
-      gen_heap_interp σ
-      -∗ ([∗ map] a↦w ∈ mem0, a ↦ₐ w)
-      ==∗ gen_heap_interp (<[l:=v]> σ)
-          ∗ ([∗ map] a↦w ∈ <[l:=v]> mem0, a ↦ₐ w).
-  Proof.
-    intros.
-    rewrite (big_sepM_delete _ _ l);[|eauto].
-    iIntros "Hh [Hl Hmap]".
-    iMod (gen_heap_update with "Hh Hl") as "[Hh Hl]"; eauto.
-    iModIntro.
-    iSplitL "Hh"; eauto.
-    iDestruct (big_sepM_insert _ _ l with "[$Hmap $Hl]") as "H".
-    { apply lookup_delete_eq. }
-    rewrite insert_delete_eq. iFrame.
   Qed.
 
   (* ------------------------- the state interpretation --------------------------- *)
@@ -663,20 +465,6 @@ Section griotte_lang_rules.
     iApply ("Hcont" with "[//] [//] [//] [//] [//] HPCa Hr Hsr Hm Hst HR HC HPC Hpc_a Hmap").
   Qed.
 
-  (** Updates of the state interpretation that ride on any instruction step:
-      ghost steps that need the registry or the claims authority. *)
-  Lemma wp_si_update E e Φ P Q :
-    to_val e = None →
-    (∀ σ, cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q) →
-    P -∗ (Q -∗ WP e @ E {{ Φ }}) -∗ WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He Hupd) "HP Hwp". rewrite !wp_unfold /wp_pre /= He.
-    iIntros (σ ns κ κs nt) "Hσ".
-    iMod (Hupd with "Hσ HP") as "[Hσ HQ]".
-    iSpecialize ("Hwp" with "HQ").
-    iApply ("Hwp" $! σ ns κ κs nt with "Hσ").
-  Qed.
-
   (* ----------------------------------- FAIL RULES ---------------------------------- *)
   (* Bind Scope expr_scope with language.expr griotte_lang. *)
 
@@ -714,34 +502,6 @@ Section griotte_lang_rules.
     iApply (wp_notCorrectPC with "HPC").
     { by apply not_isCorrectPC_untagged. }
     iNext. iIntros "HPC". by iApply "Hφ".
-  Qed.
-
-  (* Subcases for respectively permissions and bounds *)
-
-  Lemma wp_notCorrectPC_perm E (t : bool) pc_p pc_g pc_b pc_e pc_a pc_π :
-    executeAllowed pc_p = false ->
-    {{{ PC ↦ₚ WCap t pc_p pc_g pc_b pc_e pc_a @@? pc_π }}}
-      Instr Executable @ E
-      {{{ RET FailedV; True }}}.
-  Proof.
-    iIntros (Hperm φ) "HPC Hwp".
-    iApply (wp_notCorrectPC _ (WCap t pc_p pc_g pc_b pc_e pc_a @@? pc_π) with "[HPC]");
-      [apply not_isCorrectPC_perm;eauto|iFrame|].
-    iNext. iIntros "HPC /=".
-    by iApply "Hwp".
-  Qed.
-
-  Lemma wp_notCorrectPC_range E (t : bool) pc_p pc_g pc_b pc_e pc_a pc_π :
-       ¬ (pc_b <= pc_a < pc_e)%a →
-      {{{ PC ↦ₚ WCap t pc_p pc_g pc_b pc_e pc_a @@? pc_π }}}
-      Instr Executable @ E
-      {{{ RET FailedV; True }}}.
-  Proof.
-    iIntros (Hperm φ) "HPC Hwp".
-    iApply (wp_notCorrectPC _ (WCap t pc_p pc_g pc_b pc_e pc_a @@? pc_π) with "[HPC]");
-      [apply not_isCorrectPC_bounds;eauto|iFrame|].
-    iNext. iIntros "HPC /=".
-    by iApply "Hwp".
   Qed.
 
   (* ----------------------------------- ATOMIC RULES -------------------------------- *)
@@ -805,19 +565,6 @@ Section griotte_lang_rules.
 
 End griotte_lang_rules.
 
-(* Used to close the failing cases of the ftlr.
-  - Hcont is the (iris) name of the closing hypothesis (usually "Hφ")
-  - fail_case_name is one constructor of the spec_name,
-    indicating the appropriate error case
- *)
-Ltac iFailCore fail_case_name :=
-      iPureIntro;
-      econstructor; eauto;
-      eapply fail_case_name ; eauto.
-
-Ltac iFailWP Hcont fail_case_name :=
-  by (cbn; iFrame; iApply Hcont; iFrame; iFailCore fail_case_name).
-
 (* Splits the points-to of a register map built by inserts into one
    points-to per register; the inserted keys must be provably distinct. *)
 Ltac iRegsMap H :=
@@ -831,17 +578,6 @@ Ltac iRegsMap H :=
   iClear "Hregs_map".
 
 (* ----------------- useful definitions to factor out the wp specs ---------------- *)
-
-(*--- register equality ---*)
-  Lemma addr_ne_reg_ne {regs : leibnizO Reg} {r1 r2 : RegName}
-        {t0 t : bool} {p0 g0 b0 e0 a0 p g b e a}:
-    regs !! r1 = Some (WCap t0 p0 g0 b0 e0 a0)
-    → regs !! r2 = Some (WCap t p g b e a)
-    → a0 ≠ a → r1 ≠ r2.
-  Proof.
-    intros Hr1 Hr2 Hne.
-    destruct (decide (r1 = r2)); simplify_eq; auto.
-  Qed.
 
 (*--- regs_of ---*)
 
@@ -886,19 +622,6 @@ Definition regs_of (i: instr): gset RegName :=
   | Auipcc dst _ => {[ dst ]}
   | _ => ∅
   end.
-
-Lemma indom_regs_incl D (regs regs': Reg) :
-  D ⊆ dom regs →
-  regs ⊆ regs' →
-  ∀ r, r ∈ D →
-       ∃ (w:Word), (regs !!ᵣ r = Some w) ∧ (regs' !!ᵣ r = Some w).
-Proof.
-  intros * HD Hincl rr Hr.
-  assert (is_Some (regs !!ᵣ rr)) as [w Hw].
-  { eapply elem_of_dom_reg.
-    eapply elem_of_subseteq; eauto. }
-  exists w. split; auto. eapply lookup_reg_weaken; eauto.
-Qed.
 
 Lemma indom_lregs_incl D (regs regs': LReg) :
   D ⊆ dom regs →
@@ -982,31 +705,10 @@ Lemma incrementPC_None_inv lpc (t : bool) p g b e a π :
   (a + 1)%a = None.
 Proof. apply incrementPC_gen_None_inv. Qed.
 
-(* Relation with the physical [updatePC]. *)
-Lemma incrementPC_gen_fail_updatePC_gen (lpc : LWord) (r : Reg) sregs m shadow n :
-  incrementPC_gen lpc n = None ->
-  updatePC_gen (lpc.(lw), r, sregs, m, shadow) n = None.
-Proof.
-  rewrite /incrementPC_gen /updatePC_gen /=. destruct lpc as [w π]; cbn.
-  destruct w as [| [? ? ? ? ? a' | ] | |]; auto.
-  destruct (a' + n)%a; auto. congruence.
-Qed.
-Lemma incrementPC_fail_updatePC (lpc : LWord) (r : Reg) sregs m shadow :
-  incrementPC lpc = None ->
-  updatePC (lpc.(lw), r, sregs, m, shadow) = None.
-Proof. apply incrementPC_gen_fail_updatePC_gen. Qed.
-
-Lemma incrementPC_gen_success_updatePC_gen (lpc lpc' : LWord) (r : Reg) sregs m shadow n :
-  incrementPC_gen lpc n = Some lpc' ->
-  updatePC_gen (lpc.(lw), r, sregs, m, shadow) n = Some (NextI, (lpc'.(lw), r, sregs, m, shadow)).
-Proof.
-  intros Hi. apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
-  rewrite /updatePC_gen /update_pcc /= Ha'. done.
-Qed.
-Lemma incrementPC_success_updatePC (lpc lpc' : LWord) (r : Reg) sregs m shadow :
-  incrementPC lpc = Some lpc' ->
-  updatePC (lpc.(lw), r, sregs, m, shadow) = Some (NextI, (lpc'.(lw), r, sregs, m, shadow)).
-Proof. apply incrementPC_gen_success_updatePC_gen. Qed.
+Lemma incrementPC_add (t : bool) p g b e a a' π :
+  (a + 1)%a = Some a' →
+  incrementPC (WCap t p g b e a @@? π) = Some (WCap t p g b e a' @@? π).
+Proof. intros Ha. by rewrite /incrementPC /incrementPC_gen /= Ha. Qed.
 
 Ltac incrementPC_inv :=
   match goal with
@@ -1350,6 +1052,21 @@ Section instruction_closing.
   Qed.
 
 End instruction_closing.
+
+(** Closes the failing branch of a general rule with [instr_close_fail], then
+    the rule's continuation ["Hφ"], and leaves the spec as a pure goal. A
+    tactic rather than a lemma: it passes the state hypotheses that
+    [wp_instr_step] (and the lifting of the Load and Store rules) introduce
+    under fixed names. *)
+Ltac instr_fail_close :=
+  try iApply bupd_fupd;
+  iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|];
+  iIntros "HPC Hmap"; iApply "Hφ"; iFrame; iPureIntro.
+
+(** The same, after substituting the failed configuration given by
+    [Hstep : (Failed, φ) = (c, σ')]. *)
+Ltac instr_fail Hstep :=
+  first [injection Hstep as <- <- | simplify_eq]; instr_fail_close.
 
 Lemma lregs_phys_lookup `{MachineParameters} R (regs : LReg) (r : Reg) x (v : LWord) :
   lregs_phys R regs r → regs !! x = Some v → ∃ s, r !! x = Some (and_tag s v.(lw)).

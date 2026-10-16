@@ -171,10 +171,6 @@ Section griotte_lang_rules.
         iPureIntro. intros a1 Ha1 _. rewrite Ha1 in Ha1'. by simplify_eq.
       - iDestruct "Hroot" as %Hfree.
         iPureIntro. intros ? ? Hn. by exfalso. }
-    iAssert (∀ lpc' regs' retv, ⌜Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv⌝ -∗
-               PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs', k ↦ᵣ y) -∗ φ retv)%I
-      with "[Hφ Hpc_a Hroot]" as "Hφ".
-    { iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
     destruct wdst as [wd π].
     destruct (is_mutable_range wd) eqn:Hwdst.
     2: { (* Failure: wdst is not of the right type *)
@@ -182,24 +178,18 @@ Section griotte_lang_rules.
       { cbn in Hdst', Hstep. rewrite Hdst' /= in Hstep.
         destruct wd as [ | [t p b e a | ] | | ]; try by inversion Hwdst.
         all: cbn in Hstep; by simplify_pair_eq. }
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-      iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap").
-      constructor. by eapply (Subseg_fail_allowed _ _ _ _ _ (wd @@? π)). }
+      instr_fail_close. constructor. by eapply (Subseg_fail_allowed _ _ _ _ _ (wd @@? π)). }
     cbn in Hdst', Hstep. rewrite Hdst' /= in Hstep.
     destruct (lz_of_argument regs src1) as [n1 |] eqn:Hn1.
     2: { assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
          { destruct_word wd; cbn in Hwdst; try discriminate;
            rewrite Hz1 /= in Hstep; by simplify_pair_eq. }
-         iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-         iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap").
-         constructor. by apply Subseg_fail_src1_nonz. }
+         instr_fail_close. constructor. by apply Subseg_fail_src1_nonz. }
     destruct (lz_of_argument regs src2) as [n2 |] eqn:Hn2.
     2: { assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
          { destruct_word wd; cbn in Hwdst; try discriminate;
            rewrite Hz1 Hz2 /= in Hstep; by simplify_pair_eq. }
-         iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-         iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap").
-         constructor. by apply Subseg_fail_src2_nonz. }
+         instr_fail_close. constructor. by apply Subseg_fail_src2_nonz. }
     assert (∃ w' pw,
         reg_word_ok R C w' ∧
         reg_phys R w' pw ∧
@@ -254,9 +244,10 @@ Section griotte_lang_rules.
           [by right | cbn; intros; by destruct t | done | exact Hokdst]. }
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst w' pw _ _ _
       (λ lpc' regs' retv, Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
-      with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ").
+      with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hroot]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
     { exact Hok'. } { exact Hupdate. } { exact Hpw. } { exact Hsuccess. } { exact Hfailure. }
+    iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
   (** The generic rule on its pure branch. *)

@@ -84,9 +84,7 @@ Section griotte_lang_rules.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
     destruct (Hri src) as [wsrc [H'src _]]; first by set_solver+.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
-    { cbn in Hstep. rewrite Hxsr in Hstep. simplify_eq.
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-      iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
+    { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
       econstructor; first done. by eapply WriteSR_fail_nonxrs. }
     specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
     destruct (Hsri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
@@ -111,10 +109,7 @@ Section griotte_lang_rules.
       + iExists _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
       + iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
     - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
-      rewrite /updatePC Hfail in Hstep.
-      simplify_eq.
-      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-      iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
+      rewrite /updatePC Hfail in Hstep. instr_fail Hstep.
       econstructor; first done. by eapply WriteSR_fail_incrPC.
   Qed.
 
