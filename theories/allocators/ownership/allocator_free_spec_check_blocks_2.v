@@ -127,12 +127,13 @@ Section AllocatorFreeCheckBlocks2.
     unfold lword_of_word.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_success_exact with "[$HPC $Hi $Hct0 $Hcgp $Hslot]"); try solve_pure.
+    iPoseProof deref_res_none as "-#Hderef".
+    iApply (wp_load_success_exact with "[$HPC $Hi $Hct0 $Hcgp $Hslot $Hderef]"); try solve_pure.
     { apply allocator_cgp_not_shadow. }
     { intros _. left. apply allocator_heap_root_authority. }
     { apply withinBounds_true_iff. solve_addr. }
     { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
-    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot)". wp_pure.
+    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot & _)". wp_pure.
     iClear "Hi".
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
     iEval (cbn [load_word]) in "Hct0".
@@ -317,12 +318,13 @@ Section AllocatorFreeCheckBlocks2.
     unfold lword_of_word.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_success_exact with "[$HPC $Hi $Hct0 $Hcgp $Hslot]"); try solve_pure.
+    iPoseProof deref_res_none as "-#Hderef".
+    iApply (wp_load_success_exact with "[$HPC $Hi $Hct0 $Hcgp $Hslot $Hderef]"); try solve_pure.
     { apply allocator_cgp_not_shadow. }
     { intros _. left. apply allocator_heap_root_authority. }
     { apply withinBounds_true_iff. solve_addr. }
     { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
-    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot)". wp_pure.
+    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hslot & _)". wp_pure.
     iClear "Hi".
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
     iEval (cbn [load_word]) in "Hct0".

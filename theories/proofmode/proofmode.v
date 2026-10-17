@@ -555,6 +555,31 @@ Qed.
 Qed.
 
 
+(* Dereference resources: [deref_res (Some ι) q] is framed from a status
+   share [ι ↦st{q} ALive], or from a hypothesis [deref_res (Some ι) q]. The
+   identifier must be known: the lookup waits until the register holding the
+   capability has been framed. [deref_res None q] is [emp]. *)
+Class DerefResId (π : option AId) (ι : AId) := {}.
+#[export] Hint Mode DerefResId ! - : typeclass_instances.
+
+#[export] Instance DerefResId_some ι : DerefResId (Some ι) ι.
+Qed.
+
+#[export] Instance LookupFramableMachineResource_deref_res `{ceriseG Σ} π ι q :
+  DerefResId π ι →
+  LookupFramableMachineResource (deref_res π q) (ι ↦st{q} ALive)
+| 10.
+Qed.
+
+#[export] Instance FramableMachineResource_deref_res `{ceriseG Σ} π ι q :
+  DerefResId π ι →
+  FramableMachineResource (deref_res π q).
+Qed.
+
+#[export] Instance frame_deref_res_status `{ceriseG Σ} p ι q :
+  Frame p (ι ↦st{q} ALive) (deref_res (Some ι) q) emp.
+Proof. rewrite /Frame /deref_res. iIntros "[H _]". by iApply bi.intuitionistically_if_elim. Qed.
+
 (* Auto-framing from the intuitionistic context, beside the spatial lookup
    of [FramableMachineHyp_default]: a persistent resource (e.g. a persistent
    points-to) is framed and kept. The spatial context is tried first. *)
@@ -579,7 +604,8 @@ Qed.
 
 (* remembering names after auto-framing done by iFrameAuto *)
 
-Ltac2 Type hyp_table_kind := [ PCReg | Reg | SReg | Mem | Codefrag | CodefragPers | Claim ].
+Ltac2 Type hyp_table_kind :=
+  [ PCReg | Reg | SReg | Mem | Codefrag | CodefragPers | Claim | DerefRes ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -608,6 +634,8 @@ Ltac2 record_framed
     | (codefrag ?a _) => (a, Codefrag)
     | (codefrag_pers ?a _) => (a, CodefragPers)
     | (addr_alloc ?a _) => (a, Claim)
+    | (st_own ?ι _ _) => (ι, DerefRes)
+    | (deref_res (Some ?ι) _) => (ι, DerefRes)
     end in
   table.(contents) := (hname, lhs, kind) :: table.(contents).
 
@@ -733,6 +761,14 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
       ltac1:(c a name |- change (addr_alloc a c) with (name ∷ (addr_alloc a c)))
         (Ltac1.of_constr c) (Ltac1.of_constr a) (Ltac1.of_constr name)
     end
+  | DerefRes =>
+    (* The identifier may be a projection of the register's word. *)
+    match! goal with [ |- context [ deref_res ?π ?q ] ] =>
+      let π' := eval cbn in $π in
+      assert_constr_eq π' '(Some $lhs);
+      ltac1:(q π name |- change (deref_res π q) with (name ∷ (deref_res π q)))
+        (Ltac1.of_constr q) (Ltac1.of_constr π) (Ltac1.of_constr name)
+    end
   end.
 
 Lemma envs_entails_rew_goal {Σ} (Δ: envs (uPredI (iResUR Σ))) P P' :
@@ -831,7 +867,7 @@ Ltac simplify_cap_word :=
 
 (* TODO: make this extensible. Remove updatePcPerm? unfolding sometimes causes issues. *)
 Ltac2 iApplyCapAuto_cleanup () :=
-  cbn [rules_Get.denote rules_BinOp.denote updatePcPerm
+  cbn [rules_Get.denote rules_BinOp.denote updatePcPerm deref_res
        get_a get_b get_e get_p get_l
        get_a_sealable get_b_sealable get_e_sealable get_p_sealable get_l_sealable
        encodePermSum
@@ -839,6 +875,25 @@ Ltac2 iApplyCapAuto_cleanup () :=
   ltac1:(simplify_cap_word).
 
 (* iApplyCapAutoCore *)
+
+(* The share of [deref_res None q] is irrelevant: once the identifier is
+   known to be [None], an undetermined share is set to [1]. *)
+Ltac instantiate_deref_res_none :=
+  repeat match goal with
+  | |- context [ deref_res ?π ?q ] =>
+    is_evar q; assert_fails (has_evar π);
+    let π' := eval cbn in π in
+    lazymatch π' with None => unify q 1%Qp end
+  end.
+
+(* The resource given back for [deref_res None q] is an anonymous [emp]. *)
+Ltac clear_anonymous_emp :=
+  repeat match goal with
+  | |- envs_entails (Envs _ ?Γs _) _ =>
+    match Γs with context [ Esnoc _ (IAnon ?n) emp%I ] =>
+      let h := constr:(IAnon n) in iClear h
+    end
+  end.
 
 (* Once the premise of the rule has been framed, unlocks the rest of the
    goal, or reports the resources that could not be framed. *)
@@ -860,10 +915,12 @@ Ltac2 iApplyCapAutoCore lemma :=
     Control.extend [] (fun _ => try (Control.once solve_pure_iinstr))
       [ (fun _ => try (iFrameCap ())) ]);
   on_lasts [ (fun _ =>
+    ltac1:(instantiate_deref_res_none);
     ltac1:(iUnlockFramed);
     try ltac1:(iNext);
     reintro_cap_resources tbl;
-    iApplyCapAuto_cleanup ()
+    iApplyCapAuto_cleanup ();
+    ltac1:(clear_anonymous_emp)
   )].
 
 Ltac2 Notation "iApplyCapAuto" lem(constr) := iApplyCapAutoCore lem.

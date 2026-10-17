@@ -217,15 +217,12 @@ Section HTS_Spec_Free.
     subst wct0.
     (* The share of the buffer cell is the dereference witness of [ι]. *)
     iDestruct (key_share_deref (Some ι) b with "Hb_share") as (dw Hdw) "[Hdw Hdw_close]".
+    destruct dw as [|ι' q]; cbn in Hdw; [done|]. injection Hdw as <-.
+    iSimpl in "Hdw".
     (* Store ca0 cgp 0. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_success_reg_store_word_imm_dw with "[$HPC $Hi $Hcgp $Hca0 $Hb $Hdw]");
-      try solve_pure.
+    iInstr "Hcode".
     { apply hts_heap_not_shadow. solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    { solve_addr. }
-    iNext. iIntros "(HPC & Hi & Hcgp & Hca0 & Hb & Hdw)". wp_pure. iClear "Hi".
     iDestruct ("Hdw_close" with "Hdw") as "Hb_share".
     (* Mov ca1 ca0. *)
     iInstr "Hcode".

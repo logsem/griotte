@@ -162,12 +162,14 @@ Section AllocatorMacros.
        keeps its copy exact. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_store_success_z_imm_dw with "[$HPC $Hi $Hptr $Ha $Hdw]"); try solve_pure.
+    iEval (rewrite deref_witness_res_deref_res -Hπ) in "Hdw".
+    iApply (wp_store_success_z_imm with "[$HPC $Hi $Hptr $Ha $Hdw]"); try solve_pure.
     { eapply disjoint_from_shadow_not_in; first exact heap_shadow_disjoint.
       apply withinBounds_true_iff; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     { solve_addr. }
     iNext. iIntros "(HPC & Hi & Hptr & Ha & Hdw)".
+    iEval (rewrite Hπ -deref_witness_res_deref_res) in "Hdw".
     wp_pure. iClear "Hi".
 
     (* Lea rptr 1 advances the heap cursor. *)

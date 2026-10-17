@@ -75,20 +75,15 @@ Section ClearStackMacro.
       wp_pure.
       iClear "Hi".
 
-      (* --- Store r2 0%Z --- *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
       rewrite finz_seq_between_cons in Hlen_stk; last solve_addr.
       destruct ws as [|wa ws]; simplify_eq.
       rewrite (region_pointsto_cons _ (csp_a ^+ 1)%a); [| solve_addr | solve_addr].
       iDestruct "Hstack" as "[Ha Hstack]".
-      iApply (wp_store_success_z with "[$HPC $Hi $Hr2 $Ha]"); try solve_pure.
+      (* Store r2 0 0. *)
+      iInstr "Hcode".
       { eapply disjoint_from_shadow_not_in; first exact Hdisjoint.
         apply withinBounds_true_iff; solve_addr. }
       { apply withinBounds_true_iff; solve_addr. }
-      iIntros "!> (HPC & Hi & Hr2 & Ha)".
-      wp_pure.
-      iClear "Hi".
 
       (* --- Lea r2 1 --- *)
       destruct (csp_a + 1)%a eqn:Ha;cycle 1.

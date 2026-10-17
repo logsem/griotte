@@ -74,9 +74,10 @@ Section VAE_Awkward_Blocks_1.
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.
     iAssert (cgp_b ↦ₐ (if b then WInt 1 else WInt 0))%I with "[Hflag]" as "Hflag".
     { destruct b; iFrame. }
-    iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hflag]"); try solve_pure.
+    iPoseProof deref_res_none as "-#Hdw".
+    iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hflag $Hdw]"); try solve_pure.
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
-    iIntros "!> (HPC & Hi & Hcgp & Hflag)".
+    iIntros "!> (HPC & Hi & Hcgp & Hflag & _)".
     iMod (world_interp_update_loc _ _ _ _ false with "Hworld Hst")
       as "[Hworld Hst]"; [done|done|].
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".

@@ -900,6 +900,17 @@ Inductive deref_witness := DerefNoId | DerefLive (ι : AId) (q : Qp).
 Definition deref_id (dw : deref_witness) : option AId :=
   match dw with DerefNoId => None | DerefLive ι _ => Some ι end.
 
+(** The witness for an identifier [π], with share [q] if [π] is some. *)
+Definition deref_witness_of (π : option AId) (q : Qp) : deref_witness :=
+  match π with None => DerefNoId | Some ι => DerefLive ι q end.
+
+Lemma deref_id_witness_of π q : deref_id (deref_witness_of π q) = π.
+Proof. by destruct π. Qed.
+
+(** The share of a witness, [1] without an identifier. *)
+Definition deref_share (dw : deref_witness) : Qp :=
+  match dw with DerefNoId => 1%Qp | DerefLive _ q => q end.
+
 Section deref_witness.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
@@ -911,6 +922,35 @@ Section deref_witness.
 
   #[global] Instance deref_witness_res_timeless dw : Timeless (deref_witness_res dw).
   Proof. destruct dw; apply _. Qed.
+
+  (** The dereference resource of a capability with identifier [π]:
+      nothing without an identifier, a share [q] of a live status
+      otherwise. The share [q] is irrelevant when [π] is [None]. *)
+  Definition deref_res (π : option AId) (q : Qp) : iProp Σ :=
+    match π with
+    | None => emp
+    | Some ι => ι ↦st{q} ALive
+    end%I.
+
+  #[global] Instance deref_res_timeless π q : Timeless (deref_res π q).
+  Proof. destruct π; apply _. Qed.
+
+  (* Kept folded by instance search, so that [deref_res None q] is not taken
+     for [emp] before its share is determined. *)
+  #[global] Typeclasses Opaque deref_res.
+
+  Lemma deref_res_witness π q :
+    deref_res π q = deref_witness_res (deref_witness_of π q).
+  Proof. by destruct π. Qed.
+
+  (** The resource of an identifier-less capability, with share [1]. *)
+  Lemma deref_res_none : ⊢ deref_res None 1.
+  Proof. done. Qed.
+
+  (** A witness is the dereference resource of its identifier. *)
+  Lemma deref_witness_res_deref_res dw :
+    deref_witness_res dw = deref_res (deref_id dw) (deref_share dw).
+  Proof. by destruct dw. Qed.
 
   Definition deref_witness_ok (R : RegState) (dw : deref_witness) : Prop :=
     match dw with
