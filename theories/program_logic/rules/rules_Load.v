@@ -418,6 +418,86 @@ Section griotte_lang_rules.
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
+  (** [wp_load_general_shadow_imm] for a load from memory outside the shadow
+      table, with one points-to per resource. *)
+  Lemma wp_load_general_shadow_imm_one E pc_p pc_g pc_b pc_e pc_a pc_a' dst src
+      (imm : Z) (wi wd : LWord) dq p g b e a_src a (raw : LWord) wit :
+    decodeInstrW wi.(lw) = CLoad dst src imm →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (a_src + imm)%a = Some a →
+    is_shadow_address a = false →
+    (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull →
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+        pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ wd ∗
+        src ↦ᵣ WCap true p g b e a_src ∗
+        a ↦ₐ raw ∗
+        load_witness_res wit }}}
+      Instr Executable @ E
+    {{{ retv, RET retv; ⌜retv = FailedV⌝ ∨
+        ∃ actual, ⌜retv = NextIV⌝ ∗
+        ⌜load_post wit p raw actual⌝ ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+        pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ actual ∗
+        src ↦ᵣ WCap true p g b e a_src ∗
+        a ↦ₐ raw ∗
+        load_witness_res wit }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hea Hnot_shadow Hpca' Hdst Φ)
+      "(HPC & Hi & Hdst & Hsrc & Ha & Hwit) HΦ".
+    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
+    iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
+    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
+      as "Hshadow".
+    { by rewrite big_sepM_empty. }
+    iApply (wp_load_general_shadow_imm E pc_p pc_g pc_b pc_e pc_a None dst src imm wi
+      (<[pc_a:=wi]> (<[a:=raw]> ∅)) _ _ ∅ DfracDiscarded wit DerefNoId
+      with "[$HPC $Hmem $Hshadow $Hmap $Hwit //]").
+    { exact Hinstr. }
+    { exact Hvpc. }
+    { by rewrite !dom_insert; set_solver+. }
+    { by simplify_map_eq. }
+    { intros p0 g0 b0 e0 ea0 Hallow.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      rewrite Hnot_shadow.
+      case_match; first done.
+      eexists. by simplify_map_eq. }
+    { by rewrite !dom_insert_L. }
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
+                      |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
+                      |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |Hfail].
+    - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
+      injection Hlookup as <-.
+      rewrite linsert_reg_not_cnull //.
+      apply incrementPC_Some_inv in Hinc
+        as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
+      injection HPC as <- <- <- <- <- <- <-.
+      rewrite Hpca' in Hapc. injection Hapc as <-.
+      rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
+      iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
+      iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
+      iApply "HΦ". iRight. iExists actual. by iFrame.
+    - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
+    - iApply "HΦ". by iLeft.
+  Qed.
+
   Lemma wp_load_general Ep
      pc_p pc_g pc_b pc_e pc_a pc_π
      r1 r2 w mem (dfracs : gmap Addr dfrac) regs shadow sdq wit dw :
@@ -1667,6 +1747,78 @@ Section load_exact.
     { rewrite create_gmap_default_dom list_to_set_elements_L. auto. }
     iNext. iIntros (? ? ?) "(?&?&Hmem&_&Hwit&Hdw&?)". iApply "Hφ". iFrame.
     iDestruct (mem_remove_dq with "Hmem") as "Hmem". iFrame.
+  Qed.
+
+  (** [wp_load_witness_imm] for a load from memory outside the shadow table,
+      with one points-to per resource. *)
+  Lemma wp_load_witness_imm_one E pc_p pc_g pc_b pc_e pc_a pc_a' dst src (imm : Z)
+      (wi wd : LWord) p g b e a_src a (raw : LWord) wit :
+    decodeInstrW wi.(lw) = CLoad dst src imm →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (a_src + imm)%a = Some a →
+    is_shadow_address a = false →
+    (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull →
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+        pc_a ↦ₐ wi ∗
+        dst ↦ᵣ wd ∗
+        src ↦ᵣ WCap true p g b e a_src ∗
+        a ↦ₐ raw ∗
+        load_witness_res wit }}}
+      Instr Executable @ E
+    {{{ retv, RET retv; ⌜retv = FailedV⌝ ∨
+        ∃ actual, ⌜retv = NextIV⌝ ∗
+        ⌜load_post wit p raw actual⌝ ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+        pc_a ↦ₐ wi ∗
+        dst ↦ᵣ actual ∗
+        src ↦ᵣ WCap true p g b e a_src ∗
+        a ↦ₐ raw }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hea Hnot_shadow Hpca' Hdst Φ)
+      "(HPC & Hi & Hdst & Hsrc & Ha & Hwit) HΦ".
+    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
+    iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
+    iApply (wp_load_witness_imm _ pc_p pc_g pc_b pc_e pc_a None dst src imm wi _ _ _ DerefNoId
+      with "[$HPC $Hmem $Hwit $Hmap //]").
+    { exact Hinstr. }
+    { exact Hvpc. }
+    { by rewrite !dom_insert; set_solver+. }
+    { by simplify_map_eq. }
+    { intros p0 g0 b0 e0 ea0 Hallow.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      rewrite Hnot_shadow.
+      destruct (is_revoker_address a); first done.
+      eexists. by simplify_map_eq. }
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
+                      |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
+                      |p0 g0 b0 e0 ea0 Hallow Hrev Hl
+                      |Hfail].
+    2,3: exfalso;
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
+      rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
+      rewrite Hea in Haddr; injection Haddr as <-;
+      simplify_map_eq; congruence.
+    2: { iApply "HΦ". by iLeft. }
+    destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+    rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+    rewrite Hea in Haddr. injection Haddr as <-.
+    rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
+    rewrite linsert_reg_not_cnull //.
+    apply incrementPC_Some_inv in Hinc
+      as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
+    injection HPC as <- <- <- <- <- <- <-.
+    rewrite Hpca' in Hapc. injection Hapc as <-.
+    rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
+    iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
+    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+    iApply "HΦ". iRight. iExists loadv'. by iFrame.
   Qed.
 
 End load_exact.
