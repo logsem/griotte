@@ -18,13 +18,11 @@ Section griotte_lang_rules.
   (* The sealed word keeps the identifier of its payload. *)
   Inductive Seal_failure (lpc : LWord) (regs: LReg) (dst: RegName) (src1 src2: RegName) :
     LWord → LReg → Prop :=
-  | Seal_fail_sealr w :
-      regs !!ₗ src1 = Some w →
-      is_sealr w.(lw) = false →
-      Seal_failure lpc regs dst src1 src2 lpc regs
-  | Seal_fail_sealb w :
-      regs !!ₗ src2 = Some w →
-      is_sealb w.(lw) = false →
+  | Seal_fail_PC_untagged w1 w2 :
+      regs !!ₗ src1 = Some w1 →
+      regs !!ₗ src2 = Some w2 →
+      is_sealr w1.(lw) && is_sealb w2.(lw) = false →
+      incrementPC lpc = None →
       Seal_failure lpc regs dst src1 src2 lpc regs
   | Seal_fail_invalidated_PC (t : bool) p g b e a π1 sb π :
       regs !!ₗ src1 = Some (WSealRange t p g b e a @@? π1) →
@@ -58,6 +56,14 @@ Section griotte_lang_rules.
       t && get_tag_sealable sb && permit_seal p && withinBounds b e a = false →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := WSealed a (clear_tag_sealable sb) @@? π ]ₗ> regs →
+      Seal_spec lpc regs dst src1 src2 lpc' regs' NextIV
+  (* Without a sealing range and a sealable, the sealee loses its tag. *)
+  | Seal_spec_untagged w1 w2 :
+      regs !!ₗ src1 = Some w1 →
+      regs !!ₗ src2 = Some w2 →
+      is_sealr w1.(lw) && is_sealb w2.(lw) = false →
+      incrementPC lpc = Some lpc' →
+      regs' = <[ dst := lclear_tag w2 ]ₗ> regs →
       Seal_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | Seal_spec_failure :
       Seal_failure lpc regs dst src1 src2 lpc' regs' →
@@ -101,18 +107,23 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr1) as (s1 & Hr1' & Hrel1).
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr2) as (s2 & Hr2' & Hrel2).
     rewrite /exec /= Hr2' Hr1' /= in Hstep.
-    destruct (is_sealr r1v.(lw)) eqn:Hr1v.
-    2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
-        { unfold is_sealr in Hr1v. destruct r1v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
-        instr_fail_close. econstructor. by eapply Seal_fail_sealr. }
+    destruct (decide (is_sealr r1v.(lw) && is_sealb r2v.(lw) = false)) as [Hk | Hk].
+    { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag r2v) (clear_tag r2v.(lw)) _ _ _
+        (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
+        with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
+      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+      { apply reg_word_ok_lclear_tag. }
+      { rewrite -Hstep.
+        by destruct r1v as [[| [] | | ? []] ?], r2v as [[| [] | | ? []] ?], s1, s2. }
+      { apply reg_phys_lclear_tag in Hrel2. by rewrite clear_tag_and_tag in Hrel2. }
+      { intros. by eapply Seal_spec_untagged. }
+      { intros. econstructor. by eapply Seal_fail_PC_untagged. }
+      iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
+    apply not_false_is_true, andb_true_iff in Hk as [Hr1v Hr2v].
     destruct r1v as [[ | [ | t p g b e a ] | | ] π1]; try inversion Hr1v. clear Hr1v.
     (* The sealing key has no bounds: its copy is exact. *)
     pose proof (reg_phys_no_bounds R (WSealRange t p g b e a @@? π1) _ eq_refl Hrel1) as Hk. cbn in Hk.
     assert (s1 && t = t) as Hs1 by congruence.
-    destruct (is_sealb r2v.(lw)) eqn:Hr2v.
-    2:{ assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
-        { unfold is_sealb in Hr2v. destruct r2v as [[|[]| |] ?]; cbn in *; by simplify_pair_eq. }
-        instr_fail_close. econstructor. by eapply Seal_fail_sealb. }
     destruct r2v as [[ | sb | | ] π]; try inversion Hr2v. clear Hr2v.
     assert (reg_word_ok R C (WSealable sb @@? π)) as Hok.
     { by eapply erasure_llookup_reg_word. }
@@ -181,7 +192,8 @@ Section griotte_lang_rules.
     all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [ | | * Hfail].
+    destruct Hspec as [ | | ? ? ? ? ? ? ? | * Hfail].
+    3: (simplify_lmap_eq; by simplify_eq).
     2: (simplify_lmap_eq; simplify_eq;
         repeat match goal with Hbad : _ && _ = false |- _ =>
           apply andb_false_iff in Hbad; destruct Hbad
@@ -225,7 +237,8 @@ Section griotte_lang_rules.
     all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [ | | * Hfail].
+    destruct Hspec as [ | | ? ? ? ? ? ? ? | * Hfail].
+    3: (simplify_lmap_eq; by simplify_eq).
     2: (simplify_lmap_eq; simplify_eq;
         repeat match goal with Hbad : _ && _ = false |- _ =>
           apply andb_false_iff in Hbad; destruct Hbad
@@ -270,7 +283,8 @@ Section griotte_lang_rules.
     all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [ | | * Hfail].
+    destruct Hspec as [ | | ? ? ? ? ? ? ? | * Hfail].
+    3: (simplify_lmap_eq; by simplify_eq).
     2: (simplify_lmap_eq; simplify_eq;
         repeat match goal with Hbad : _ && _ = false |- _ =>
           apply andb_false_iff in Hbad; destruct Hbad
@@ -313,12 +327,13 @@ Section instruction_outcomes.
     iIntros (Hinstr Hvpc Dregs Hr1 Hr2 Hvalid Hpca' φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_Seal with "[$HPC $Hpc_a $Hmap]"); eauto.
     iNext. iIntros (lpc' regs'' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [ | | Hfail].
+    destruct Hspec as [ | | ? ? ? ? ? ? ? | Hfail].
     - simplify_eq.
       repeat match goal with Hbad : _ && _ = false |- _ =>
         apply andb_false_iff in Hbad; destruct Hbad
       end; try congruence.
     - simplify_eq. try incrementPC_inv; simplify_eq. iApply "Hφ". iFrame.
+    - by simplify_eq.
     - destruct Hfail; try incrementPC_inv; simplify_eq; cbn in *; try congruence.
       all: repeat match goal with Hbad : _ && _ = false |- _ =>
         apply andb_false_iff in Hbad; destruct Hbad

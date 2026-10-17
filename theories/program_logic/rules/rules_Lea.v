@@ -17,12 +17,10 @@ Section griotte_lang_rules.
   Implicit Types ms : gmap Addr LWord.
 
   Inductive Lea_failure (lpc : LWord) (regs : LReg) (r1: RegName) (rv: Z + RegName) :=
-  | Lea_fail_rv_nonconst :
-     lz_of_argument regs rv = None ->
-     Lea_failure lpc regs r1 rv
-  | Lea_fail_allowed : forall w,
+  | Lea_fail_overflow_PC_other : forall w,
      regs !!ₗ r1 = Some w ->
      is_mutable_range w.(lw) = false →
+     incrementPC lpc = None ->
      Lea_failure lpc regs r1 rv
   | Lea_fail_overflow_cap : forall (t : bool) p g b e a π z,
      regs !!ₗ r1 = Some (WCap t p g b e a @@? π) ->
@@ -82,6 +80,20 @@ Section griotte_lang_rules.
     incrementPC lpc = Some lpc' ->
     regs' = <[ r1 := WSealRange false p g b e a @@? π ]ₗ> regs ->
     Lea_spec lpc regs r1 rv lpc' regs' NextIV
+  (* An integer moves by the offset. *)
+  | Lea_spec_int: forall n π z,
+    regs !!ₗ r1 = Some (WInt n @@? π) ->
+    lz_of_argument regs rv = Some z ->
+    incrementPC lpc = Some lpc' ->
+    regs' = <[ r1 := WInt (n + z) @@? π ]ₗ> regs ->
+    Lea_spec lpc regs r1 rv lpc' regs' NextIV
+  (* A sealed word or a sentry loses its tag. *)
+  | Lea_spec_sealed: forall w,
+    regs !!ₗ r1 = Some w ->
+    (is_sealed w.(lw) || is_sentry w.(lw)) = true ->
+    incrementPC lpc = Some lpc' ->
+    regs' = <[ r1 := lclear_tag w ]ₗ> regs ->
+    Lea_spec lpc regs r1 rv lpc' regs' NextIV
   | Lea_spec_failure :
     Lea_failure lpc regs r1 rv ->
     Lea_spec lpc regs r1 rv lpc' regs' FailedV.
@@ -110,13 +122,31 @@ Section griotte_lang_rules.
      destruct (llookup_reg_phys _ _ _ _ _ Hregs H'r1) as (s & Hr1 & Hrel).
      pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs H'r1) as Hok.
      rewrite /exec /= Hr1 /= in Hstep.
-     destruct (lz_of_argument regs arg) as [argz|] eqn:Harg.
-     2: { rewrite (lz_of_argument_None R regs r) /= in Hstep; [|done| |done].
-          2: { intros x ->. apply Dregs. set_solver+. }
-          instr_fail Hstep. constructor. by constructor. }
+     destruct (lz_of_argument_dom regs arg) as [argz Harg].
+     { intros x ->. apply Dregs. set_solver+. }
      rewrite (lz_of_argument_incl R regs r _ argz) /= in Hstep; [|done|done].
-     destruct r1v as [[ | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
-     1,4,5: (instr_fail Hstep; constructor; eapply Lea_fail_allowed; eauto).
+     destruct (decide ((is_sealed r1v.(lw) || is_sentry r1v.(lw)) = true)) as [Hsl | Hsl].
+     { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (lclear_tag r1v) (clear_tag r1v.(lw)) _ _ _
+          (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
+          with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
+       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+       { apply reg_word_ok_lclear_tag. }
+       { rewrite -Hstep. by destruct r1v as [[| [] | | ? []] ?], s. }
+       { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
+       { intros lpc' Hi. eapply Lea_spec_sealed; eauto. }
+       { intros Hi. constructor. eapply Lea_fail_overflow_PC_other; eauto.
+         by destruct r1v as [[| [] | | ? []] ?]. }
+       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
+     destruct r1v as [[ n | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
+     4,5: by exfalso; apply Hsl.
+     1: { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (WInt (n + argz) @@? π) _ _ _ _
+          (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
+          with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
+       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+       { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_int. }
+       { intros lpc' Hi. eapply Lea_spec_int; eauto. }
+       { intros Hi. constructor. eapply Lea_fail_overflow_PC_other; eauto. }
+       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
      - destruct (a + argz)%a as [a'|] eqn:Hoffset; cbn in Hstep.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (WCap t p g b e a' @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
@@ -161,8 +191,9 @@ Section griotte_lang_rules.
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
    Qed.
 
-   (** The word a Lea writes into a capability or a sealing range: the moved
-       cursor, or the untagged original if the cursor overflows. *)
+   (** The word a Lea writes: for a capability or a sealing range, the moved
+       cursor, or the untagged original if the cursor overflows; the moved
+       integer; the untagged original otherwise. *)
    Definition lea_result (v : LWord) (z : Z) : option LWord :=
      match v.(lw) with
      | WCap t p g b e a =>
@@ -175,11 +206,11 @@ Section griotte_lang_rules.
                | Some a' => WSealRange t p g b e a'
                | None => WSealRange false p g b e a
                end @@? v.(lprov))
-     | _ => None
+     | WInt n => Some (WInt (n + z) @@? v.(lprov))
+     | _ => Some (lclear_tag v)
      end.
 
-   (** A Lea on a capability or a sealing range, whose PC increments, has one
-       outcome. *)
+   (** A Lea whose PC increments has one outcome. *)
    Lemma Lea_spec_next lpc regs r1 arg lpc' regs' retv wr z wr' lpc0 :
      regs !!ₗ r1 = Some wr →
      lz_of_argument regs arg = Some z →
@@ -190,11 +221,13 @@ Section griotte_lang_rules.
    Proof.
      intros Hr Hz Hres Hinc Hspec.
      destruct Hspec as [* Hr' Hz' Ha' Hinc' -> | * Hr' Hz' Ha' Hinc' ->
-                       | * Hr' Hz' Ha' Hinc' -> | * Hr' Hz' Ha' Hinc' -> | Hfail].
+                       | * Hr' Hz' Ha' Hinc' -> | * Hr' Hz' Ha' Hinc' ->
+                       | * Hr' Hz' Hinc' -> | w' Hr' Hsl Hinc' -> | Hfail].
      1-4: rewrite Hr in Hr'; simplify_eq; rewrite /lea_result /= Ha' in Hres; by simplify_eq.
-     destruct Hfail as [Hz' | w' Hr' Hm | | | |]; try congruence.
-     rewrite Hr in Hr'. injection Hr' as <-.
-     destruct wr as [w0 ?]. destruct_word w0; cbn in *; congruence.
+     1: rewrite Hr in Hr'; simplify_eq; rewrite /lea_result /= in Hres; by simplify_eq.
+     1: { rewrite Hr in Hr'. injection Hr' as <-.
+          destruct wr as [w0 ?]. destruct_word w0; cbn in *; simplify_eq; done. }
+     by destruct Hfail; congruence.
    Qed.
 
    (** The map-form success rule, from which the register-shaped ones
@@ -273,6 +306,29 @@ Section griotte_lang_rules.
      iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
        (WCap t p g b e a' @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
        try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
+   Qed.
+
+   (** A Lea on an integer moves it by the offset. *)
+   Lemma wp_lea_success_z_int Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 n z π dq :
+     decodeInstrW w.(lw) = Lea r1 (inl z) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     (pc_a + 1)%a = Some pc_a' →
+     r1 ≠ cnull ->
+
+     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+           ∗ ▷ pc_a ↦ₐ{dq} w
+           ∗ ▷ r1 ↦ᵣ WInt n @@? π }}}
+       Instr Executable @ Ep
+     {{{ RET NextIV;
+         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+            ∗ pc_a ↦ₐ{dq} w
+            ∗ r1 ↦ᵣ WInt (n + z) @@? π }}}.
+   Proof.
+     iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WInt n @@? π) _
+       (WInt (n + z) @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side; try done.
      iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 

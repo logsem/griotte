@@ -178,7 +178,9 @@ bool dyn_check_uint16(MKeyT mk) {
 
   (**  KVS uint16 check:
        This macros checks whether the argument [rv] is a correct UINT16,
-       and in particular that UINT16_MIN <= [rv] < UINT16_MAX.
+       and in particular that UINT16_MIN <= [rv] < UINT16_MAX. A word that is
+       not an integer is rejected before the range checks, which read the
+       address of a capability.
        Arguments:
        - [rv] contains the value that will be checked
        - [rdst] -
@@ -188,8 +190,12 @@ bool dyn_check_uint16(MKeyT mk) {
    *)
   Definition kvs_check_uint16_asm (rv rdst : RegName) : (list asm_code) :=
     macro: [
+      getwtype rdst rv;
+      sub rdst rdst (encodeWordType wt_int); (* rdst := 0 iff rv is an integer *)
+      jnz (".kvs_key_check_uint16_not_int")%asm rdst;
       lt rdst (UINT16_MIN-1)%Z rv; (* rdst := if (UINT16_MIN <= rv) then 0 else 1 *)
       jnz (".kvs_key_check_uint16_min")%asm rdst;
+      #".kvs_key_check_uint16_not_int";
       #".kvs_key_check_uint16_too_low";
       mov rdst ASM_FALSE;
       jmp (".kvs_key_ret")%asm;

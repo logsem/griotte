@@ -261,8 +261,8 @@ Definition lz_of_argument (regs : LReg) (a : Z + RegName) : option Z :=
   | inl z => Some z
   | inr r =>
     match regs !!ₗ r with
-    | Some (MkLWord (WInt z) _) => Some z
-    | _ => None
+    | Some w => Some (get_a w.(lw))
+    | None => None
     end
   end.
 
@@ -280,29 +280,37 @@ Definition lotype_of_argument (regs : LReg) (src : Z + RegName) : option OType :
 
 Lemma lz_of_argument_Some_inv (regs : LReg) (arg : Z + RegName) (z : Z) :
   lz_of_argument regs arg = Some z →
-  (arg = inl z ∨ ∃ r π, arg = inr r ∧ regs !!ₗ r = Some (MkLWord (WInt z) π)).
+  (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ₗ r = Some w ∧ get_a w.(lw) = z).
 Proof.
-  unfold lz_of_argument. intro. repeat case_match; simplify_eq/=; eauto.
+  unfold lz_of_argument. intro. repeat case_match; simplify_eq/=; eauto 10.
+Qed.
+
+(** An operand register always has an integer view. *)
+Lemma lz_of_argument_is_Some (regs : LReg) (arg : Z + RegName) :
+  (∀ r, arg = inr r → is_Some (regs !!ₗ r)) → is_Some (lz_of_argument regs arg).
+Proof.
+  intros Hr. destruct arg as [z|r]; cbn; first by eexists.
+  by destruct (Hr r eq_refl) as [w ->].
 Qed.
 
 Lemma lz_of_argument_IsLInt (regs : LReg) (r : RegName) (w : LWord) (z : Z) :
   regs !!ₗ r = Some w → IsLInt w z → lz_of_argument regs (inr r) = Some z.
-Proof. intros Hr [Hw]. rewrite /lz_of_argument Hr. destruct w; cbn in *; by subst. Qed.
+Proof. intros Hr [Hw]. rewrite /lz_of_argument Hr. by rewrite Hw. Qed.
 
 Lemma lz_of_argument_Some_inv' (regs regs' : LReg) (arg : Z + RegName) (z : Z) :
   lz_of_argument regs arg = Some z →
   regs ⊆ regs' →
-  (arg = inl z ∨ ∃ r π, arg = inr r ∧ regs !!ₗ r = Some (MkLWord (WInt z) π) ∧
-                       regs' !!ₗ r = Some (MkLWord (WInt z) π)).
+  (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ₗ r = Some w ∧
+                       regs' !!ₗ r = Some w ∧ get_a w.(lw) = z).
 Proof.
-  intros Ha Hincl. apply lz_of_argument_Some_inv in Ha as [? | (r & π & -> & Hr)]; eauto.
-  right. exists r, π. split; [done|split; [done|]]. eapply llookup_reg_weaken; eauto.
+  intros Ha Hincl. apply lz_of_argument_Some_inv in Ha as [? | (r & w & -> & Hr & Hz)]; eauto.
+  right. exists r, w. split; [done|split; [done|split; [|done]]]. eapply llookup_reg_weaken; eauto.
 Qed.
 
 Lemma lz_of_arg_mono (regs r : LReg) arg argz :
   regs ⊆ r → lz_of_argument regs arg = Some argz → lz_of_argument r arg = Some argz.
 Proof.
-  intros Hincl Ha. eapply lz_of_argument_Some_inv' in Ha as [-> | (? & ? & -> & _ & Hr)]; eauto.
+  intros Hincl Ha. eapply lz_of_argument_Some_inv' in Ha as [-> | (? & ? & -> & _ & Hr & <-)]; eauto.
   cbn. by rewrite Hr.
 Qed.
 
@@ -332,7 +340,7 @@ Qed.
 Lemma laddr_of_argument_Some_inv (regs : LReg) (arg : Z + RegName) (a : Addr) :
   laddr_of_argument regs arg = Some a →
   ∃ z, z_to_addr z = Some a ∧
-       (arg = inl z ∨ ∃ r π, arg = inr r ∧ regs !!ₗ r = Some (MkLWord (WInt z) π)).
+       (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ₗ r = Some w ∧ get_a w.(lw) = z).
 Proof.
   rewrite /laddr_of_argument. destruct (lz_of_argument regs arg) eqn:Hz; last done.
   intros. eexists. split; eauto. by apply lz_of_argument_Some_inv.
@@ -349,7 +357,7 @@ Qed.
 Lemma lotype_of_argument_Some_inv (regs : LReg) (arg : Z + RegName) (o : OType) :
   lotype_of_argument regs arg = Some o →
   ∃ z, z_to_otype z = Some o ∧
-       (arg = inl z ∨ ∃ r π, arg = inr r ∧ regs !!ₗ r = Some (MkLWord (WInt z) π)).
+       (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ₗ r = Some w ∧ get_a w.(lw) = z).
 Proof.
   rewrite /lotype_of_argument. destruct (lz_of_argument regs arg) eqn:Hz; last done.
   intros. eexists. split; eauto. by apply lz_of_argument_Some_inv.
@@ -405,7 +413,7 @@ Lemma z_of_argument_erase (regs : LReg) arg :
   z_of_argument (lregs_erase regs) arg = lz_of_argument regs arg.
 Proof.
   destruct arg as [z|r]; cbn; first done.
-  rewrite lookup_reg_erase. by destruct (regs !!ₗ r) as [[[] ?]|].
+  rewrite lookup_reg_erase. by destruct (regs !!ₗ r).
 Qed.
 
 Lemma word_of_argument_erase (regs : LReg) arg :

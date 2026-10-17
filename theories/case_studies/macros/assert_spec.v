@@ -76,7 +76,7 @@ Section Assert_subroutine.
       iApply "Hφ". iFrame "∗". rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
       (* Jnz 4 ct0. *)
-      iInstr "Hprog". { intros Hcontra; inversion Hcontra; lia. }
+      iInstr "Hprog". { apply negb_true_iff, Z.eqb_neq; cbn; lia. }
       (* Auipcc ct1 6. *)
       iInstr "Hprog".
       rewrite (_: (pc_b ^+ 11)%a = cap_addr); [|solve_addr].

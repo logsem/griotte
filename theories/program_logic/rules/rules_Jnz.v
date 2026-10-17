@@ -28,11 +28,6 @@ Section griotte_lang_rules.
       nonZero cond.(lw) = true →
       lz_of_argument regs rimm = Some imm →
       incrementPC_gen lpc imm = None →
-      Jnz_failure lpc regs rimm rcond
-  | Jnz_fail_no_imm cond:
-      regs !!ₗ rcond = Some cond →
-      nonZero cond.(lw) = true →
-      lz_of_argument regs rimm = None →
       Jnz_failure lpc regs rimm rcond.
 
   Inductive Jnz_spec (lpc : LWord) (regs : LReg) (rimm: Z + RegName) (rcond : RegName) :
@@ -75,17 +70,11 @@ Section griotte_lang_rules.
     unfold regs_of in Hri, Dregs.
     destruct (Hri rcond) as [wrcond [H'rcond _]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'rcond) as (sc & Hrcond & _).
-    assert (nonZero (and_tag sc wrcond.(lw)) = nonZero wrcond.(lw)) as Hnz'.
-    { by destruct sc, wrcond as [[| [] | | ? []] ?]. }
+    pose proof (nonZero_and_tag sc wrcond.(lw)) as Hnz'.
     set (φc := (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) in Hstep.
     destruct (nonZero wrcond.(lw)) eqn:Hnz.
-    - destruct (lz_of_argument regs rimm) as [imm|] eqn:Himm.
-      2: { assert (exec_opt (Jnz rimm rcond) pc_p φc = None) as HH.
-           { cbn. rewrite Hrcond /= Hnz'.
-             rewrite (lz_of_argument_None R regs r); [done|done| |done].
-             intros x ->. apply Dregs. set_solver+. }
-           rewrite HH in Hstep. instr_fail Hstep.
-           constructor. by eapply Jnz_fail_no_imm. }
+    - destruct (lz_of_argument_dom regs rimm) as [imm Himm].
+      { intros x ->. apply Dregs. set_solver+. }
       assert (exec_opt (Jnz rimm rcond) pc_p φc = updatePC_gen φc imm) as HH.
       { cbn. rewrite Hrcond /= Hnz'.
         by rewrite (lz_of_argument_incl R regs r _ imm). }
@@ -110,7 +99,7 @@ Section griotte_lang_rules.
   Lemma wp_jnz_success_jmp_z E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond dq :
     decodeInstrW w.(lw) = Jnz (inl imm) rcond →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    wcond.(lw) ≠ WInt 0%Z →
+    nonZero wcond.(lw) = true →
     (pc_a + imm)%a = Some pc_a' ->
     rcond ≠ cnull ->
 
@@ -131,12 +120,6 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    assert (nonZero wcond.(lw) = true).
-    { unfold nonZero, Z.eqb in *.
-      destruct wcond as [wc πc]; cbn in *. destruct wc; auto.
-      repeat case_match; try congruence; by cbn.
-    }
-
     destruct Hspec as [ | | Hfail ].
     { exfalso; simplify_lmap_eq; congruence. }
     { iApply "Hφ". iFrame. simplify_lmap_eq.
@@ -151,7 +134,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = Jnz (inr rimm) rcond →
     IsLInt wimm imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    wcond.(lw) ≠ WInt 0%Z →
+    nonZero wcond.(lw) = true →
     (pc_a + imm)%a = Some pc_a' ->
     rcond ≠ cnull ->
     rimm ≠ cnull ->
@@ -175,12 +158,6 @@ Section griotte_lang_rules.
     iApply (wp_Jnz with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
     { by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    assert (nonZero wcond.(lw) = true).
-    { unfold nonZero, Z.eqb in *.
-      destruct wcond as [wc πc]; cbn in *. destruct wc; auto.
-      repeat case_match; try congruence; by cbn.
-    }
 
     destruct Hspec as [ | | Hfail ].
     { exfalso; simplify_lmap_eq; congruence. }
@@ -219,9 +196,7 @@ Section griotte_lang_rules.
     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero (WInt imm) = true).
-    { unfold nonZero, Z.eqb in *.
-      destruct imm; auto.
-    }
+    { rewrite /nonZero /=. by apply negb_true_iff, Z.eqb_neq. }
 
     destruct Hspec as [ | | Hfail ].
     { exfalso; simplify_lmap_eq; congruence. }

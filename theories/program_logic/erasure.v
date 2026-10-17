@@ -272,6 +272,20 @@ Proof. apply heap_cap_base_bounds_eq, memory_cap_bounds_and_tag. Qed.
 Lemma clear_tag_and_tag s w : clear_tag (and_tag s w) = clear_tag w.
 Proof. destruct s; by rewrite ?and_tag_true ?and_tag_false ?clear_tag_idempotent. Qed.
 
+(** The field reads ignore the tag. *)
+Lemma get_a_and_tag s w : get_a (and_tag s w) = get_a w.
+Proof. rewrite and_tag_if. destruct s; auto using get_a_clear_tag. Qed.
+Lemma get_b_and_tag s w : get_b (and_tag s w) = get_b w.
+Proof. rewrite and_tag_if. destruct s; auto using get_b_clear_tag. Qed.
+Lemma get_e_and_tag s w : get_e (and_tag s w) = get_e w.
+Proof. rewrite and_tag_if. destruct s; auto using get_e_clear_tag. Qed.
+Lemma get_p_and_tag s w : get_p (and_tag s w) = get_p w.
+Proof. rewrite and_tag_if. destruct s; auto using get_p_clear_tag. Qed.
+Lemma get_l_and_tag s w : get_l (and_tag s w) = get_l w.
+Proof. rewrite and_tag_if. destruct s; auto using get_l_clear_tag. Qed.
+Lemma nonZero_and_tag s w : nonZero (and_tag s w) = nonZero w.
+Proof. by rewrite /nonZero get_a_and_tag. Qed.
+
 Lemma and_tag_untagged s w : get_tag w = false → and_tag s w = w.
 Proof. intros Ht. rewrite and_tag_if. destruct s; auto using clear_tag_untagged. Qed.
 

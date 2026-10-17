@@ -138,7 +138,7 @@ Section KVS_spec_read.
     iInstr "Hcode".
     (* Jnz 5 ct1 *)
     iInstr "Hcode".
-    { injection; intros; lia. }
+    { apply nonZero_WInt; injection; intros; lia. }
     (* Lea cgp 1 *)
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx. }
@@ -560,7 +560,7 @@ Section KVS_spec_read.
     iInstr "Hcode".
     (* Jnz 4 ctp *)
     iInstr "Hcode".
-    { intros Hcontra; inversion Hcontra; lia. }
+    { apply nonZero_WInt; intros Hcontra; inversion Hcontra; lia. }
     (* Lea cgp 2 *)
     iInstr "Hcode".
     { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a); [|done].

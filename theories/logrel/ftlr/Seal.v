@@ -40,7 +40,8 @@ Section fundamental.
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [ * Hr1 Hr2 Htag Hseal Hwb HincrPC Hregs'
-                      | * Hr1 Hr2 Hvalid HincrPC Hregs' | ].
+                      | * Hr1 Hr2 Hvalid HincrPC Hregs'
+                      | * Hr1 Hr2 Hk HincrPC Hregs' | ].
     - apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
       assert (r1 ≠ cnull) as Hr1null.
@@ -100,6 +101,26 @@ Section fundamental.
         { iApply "Hreg"; auto. by simplify_map_eq. }
       + iApply (interp_next_PC with "Hinv_interp"); eauto.
     
+    - { (* The destination loses its tag. *)
+      apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
+      injection HPC as <- <- <- <- <- <- <-.
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
+      - cbn; intros; subst regs'. rewrite /linsert_reg.
+        by repeat (apply lookup_insert_is_Some'; right).
+      - iIntros (ri wi Hregs_ri).
+        subst regs'. rewrite /linsert_reg in Hregs_ri.
+        destruct (decide (ri = dst)) as [->|Hne].
+        { rewrite lookup_insert_eq in Hregs_ri.
+          injection Hregs_ri as <-.
+          destruct (decide (dst = cnull)); [by iApply interp_untagged | iApply interp_clear_tag]. }
+        rewrite !lookup_insert_ne in Hregs_ri; try congruence.
+        iApply "Hreg"; eauto.
+      - iApply (interp_next_PC with "Hinv_interp"); eauto.
+    }
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
   Qed.

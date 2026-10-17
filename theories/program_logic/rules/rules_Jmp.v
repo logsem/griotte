@@ -18,9 +18,6 @@ Section griotte_lang_rules.
   Implicit Types ms : gmap Addr LWord.
 
   Inductive Jmp_failure (lpc : LWord) (regs : LReg) (rimm: Z + RegName) :=
-  | Jmp_fail_no_imm:
-      lz_of_argument regs rimm = None →
-      Jmp_failure lpc regs rimm
   | Jmp_fail_PC_overflow imm:
       lz_of_argument regs rimm = Some imm →
       incrementPC_gen lpc imm = None →
@@ -62,9 +59,8 @@ Section griotte_lang_rules.
                updatePC_gen (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
     { rewrite -(lz_of_argument_phys R regs r rimm Hregs Hdomr). done. }
     rewrite HH in Hstep. clear HH.
-    destruct (lz_of_argument regs rimm) as [imm|] eqn:Himm.
-    2: { cbn in Hstep. instr_fail Hstep. by constructor; constructor. }
-    cbn [mbind option_bind] in Hstep.
+    destruct (lz_of_argument_dom regs rimm Hdomr) as [imm Himm].
+    rewrite Himm in Hstep. cbn [mbind option_bind] in Hstep.
     iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
       (λ lpc' retv, Jmp_spec _ regs rimm lpc' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]"); first done; first done.
@@ -135,7 +131,7 @@ Section griotte_lang_rules.
        try incrementPC_inv as (?&?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
        iRegsMap "Hmap"; eauto; iFrame. }
      { (* Failure (contradiction) *)
-       destruct Hfail as [Hz | imm' Hz Hinc]; first congruence.
+       destruct Hfail as [imm' Hz Hinc].
        rewrite Hz0 in Hz. simplify_eq.
        eapply incrementPC_gen_None_inv in Hinc; last done.
        all: try congruence.

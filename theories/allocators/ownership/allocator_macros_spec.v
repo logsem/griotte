@@ -187,6 +187,7 @@ Section AllocatorOwnerMacro.
     inversion Hspec as
       [ p g b e a πs o sb π Hsrc1 Hsrc2 Htag Hperm Hwb HincrPC
       | t p g b e a πs o sb π Hsrc1 Hsrc2 Hfalse HincrPC
+      | w1 w2 Hsrc1 Hsrc2 Hnot_sealed HincrPC
       | Hfail ]; subst.
     - (* A well-formed allocator capability: excluded. *)
       exfalso. simplify_map_eq.
@@ -204,6 +205,19 @@ Section AllocatorOwnerMacro.
       iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "_".
       { by simplify_map_eq. }
       { by destruct sb. }
+      wp_end; iIntros "%Hcontr"; done.
+    - (* The word is not sealed: it loses its tag, and the load traps. *)
+      simplify_map_eq.
+      assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)%a) as Ha3 by solve_addr.
+      rewrite Ha3 in HincrPC; simplify_eq.
+      iEval (rewrite !insert_insert_eq) in "Hmap".
+      iDestruct (regs_of_map_2 with "Hmap") as "(Hctp & Hca0)"; first done.
+      wp_pure.
+      iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
+      (* CLoad ctp ctp 0. *)
+      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "_".
+      { by simplify_map_eq. }
+      { apply get_tag_clear_tag. }
       wp_end; iIntros "%Hcontr"; done.
     - wp_pure; wp_end; iIntros "%Hcontr"; done.
   Qed.

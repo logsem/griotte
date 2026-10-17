@@ -45,13 +45,15 @@ Definition updatePC_gen (φ: ExecConf) (imm : Z): option Conf :=
 Definition updatePC (φ: ExecConf): option Conf := updatePC_gen φ 1.
 
 
+(* An integer operand reads the address of a register word, as in
+   cheriot-sail. *)
 Definition z_of_argument (regs: Reg) (a: Z + RegName) : option Z :=
   match a with
   | inl z => Some z
   | inr r =>
     match regs !!ᵣ r with
-    | Some (WInt z) => Some z
-    | _ => None
+    | Some w => Some (get_a w)
+    | None => None
     end
   end.
 
@@ -195,7 +197,9 @@ Section opsem.
           | Some a' => updatePC (update_reg φ dst (WSealRange t p g b e a'))
           | None => updatePC (update_reg φ dst (WSealRange false p g b e a))
           end
-      | _ => None
+      | WInt z => updatePC (update_reg φ dst (WInt (z + n)%Z))
+      (* A sealed word or a sentry loses its tag; its address is unchanged. *)
+      | _ => updatePC (update_reg φ dst (clear_tag wdst))
       end
     | Restrict dst ρ =>
       n ← z_of_argument (reg φ) ρ ;
@@ -209,7 +213,9 @@ Section opsem.
           let (p',g') := decodeSealPermPair n in
           let new_tag := t && SealPermFlowsTo p' p && LocalityFlowsTo g' g in
           updatePC (update_reg φ dst (WSealRange new_tag p' g' b e a))
-      | _ => None
+      (* An integer is unchanged; a sealed word or a sentry loses its tag,
+         its permissions unchanged. *)
+      | _ => updatePC (update_reg φ dst (clear_tag wdst))
       end
     | machine_instructions.Add dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
@@ -264,28 +270,25 @@ Section opsem.
         updatePC (update_reg φ dst (WSealRange new_tag p g o1 o2 a))
       | _, _ => updatePC (update_reg φ dst (WSealRange false p g b e a))
       end
-    | _ => None
+    (* An integer is unchanged; a sealed word or a sentry loses its tag, its
+       bounds unchanged. *)
+    | _ => updatePC (update_reg φ dst (clear_tag wdst))
     end
   | GetA dst r =>
     wr ← (reg φ) !!ᵣ r;
-    z ← get_a wr;
-    updatePC (update_reg φ dst (WInt z))
+    updatePC (update_reg φ dst (WInt (get_a wr)))
   | GetB dst r =>
     wr ← (reg φ) !!ᵣ r;
-    z ← get_b wr;
-    updatePC (update_reg φ dst (WInt z))
+    updatePC (update_reg φ dst (WInt (get_b wr)))
   | GetE dst r =>
     wr ← (reg φ) !!ᵣ r;
-    z ← get_e wr;
-    updatePC (update_reg φ dst (WInt z))
+    updatePC (update_reg φ dst (WInt (get_e wr)))
   | GetP dst r =>
     wr ← (reg φ) !!ᵣ r;
-    p ← get_p wr;
-    updatePC (update_reg φ dst (WInt (encodePermSum p)))
+    updatePC (update_reg φ dst (WInt (encodePermSum (get_p wr))))
   | GetL dst r =>
     wr ← (reg φ) !!ᵣ r;
-    g ← get_l wr;
-    updatePC (update_reg φ dst (WInt (encodeLoc g)))
+    updatePC (update_reg φ dst (WInt (encodeLoc (get_l wr))))
 
   | GetOType dst r =>
     wr ← (reg φ) !!ᵣ r;
@@ -314,7 +317,9 @@ Section opsem.
       let new_tag := ta && get_tag_sealable sb && permit_seal p && withinBounds b e a in
       let sb' := if new_tag then sb else clear_tag_sealable sb in
       updatePC (update_reg φ dst (WSealed a sb'))
-    | _, _ => None
+    (* Without a sealing range and a sealable, the sealee loses its tag and is
+       not sealed. *)
+    | _, _ => updatePC (update_reg φ dst (clear_tag wr2))
     end
   | UnSeal dst r1 r2 =>
     wr1 ← (reg φ) !!ᵣ r1;
@@ -324,7 +329,9 @@ Section opsem.
       let new_tag := ta && get_tag_sealable sb && permit_unseal p && withinBounds b e a' in
       let sb' := if new_tag then unseal_sb g sb else clear_tag_sealable (unseal_sb g sb) in
       updatePC (update_reg φ dst (WSealable sb'))
-    | _,_ => None
+    (* Without a sealing range and a sealed word, the operand loses its tag
+       and is not unsealed. *)
+    | _,_ => updatePC (update_reg φ dst (clear_tag wr2))
     end
   | ReadSR dst src =>
       if has_sreg_access plevel

@@ -136,7 +136,7 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     (* Jnz 5 ctp *)
     iInstr "Hcode".
-    { injection; intros; lia. }
+    { apply nonZero_WInt; injection; intros; lia. }
     (* Lea cgp 2 *)
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); last done; solve_addr+Hcgp_idx. }
@@ -600,7 +600,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       (* jnz (".addOrUpdate_empty_slot_found")%asm ctp; *)
       iInstr "Hcode".
-      { intros Hcontra; inversion Hcontra; lia. }
+      { apply nonZero_WInt; intros Hcontra; inversion Hcontra; lia. }
       (* mul ct1 ct1 ASM_SIZEOF_KVS_ENTRY *)
       iInstr "Hcode".
       (* lea cgp ct1; *)

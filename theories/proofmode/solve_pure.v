@@ -126,6 +126,19 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (is_z _ = false) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (is_z _ = true) => reflexivity : solve_pure.
 
+(* Branch conditions: a jump is taken on a word with a nonzero address. *)
+Lemma nonZero_WInt z : WInt z ≠ WInt 0 → nonZero (WInt z) = true.
+Proof. intros Hz. rewrite /nonZero /=. by destruct (Z.eqb_spec z 0) as [->|]. Qed.
+
+Ltac solve_nonZero :=
+  lazymatch goal with
+  | |- nonZero ?w = true =>
+      let w' := eval cbn [lw] in w in
+      change (nonZero w' = true);
+      first [ reflexivity | apply nonZero_WInt; assumption ]
+  end.
+#[export] Hint Extern 1 (nonZero _ = true) => solve_nonZero : solve_pure.
+
 (* validity tags *)
 #[export] Hint Extern 1 (get_tag _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (get_tag_sealable _ = true) => reflexivity : solve_pure.

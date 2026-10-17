@@ -132,7 +132,7 @@ Section KVS_spec_erase.
     iInstr "Hcode".
     (* jnz (".erase_key_found")%asm ctp; *)
     iInstr "Hcode".
-    { injection; intros; lia. }
+    { apply nonZero_WInt; injection; intros; lia. }
     (* store cgp ASM_NONE; *)
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.

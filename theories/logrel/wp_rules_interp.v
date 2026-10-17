@@ -522,7 +522,12 @@ Section wp_interp.
     }}}
       Instr Executable @ E
       {{{ retv, RET retv;
-          ⌜ retv = FailedV ⌝
+          (⌜ retv = NextIV ⌝
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ{dq} wi
+              ∗ r1 ↦ᵣ wsealr
+              ∗ r2 ↦ᵣ lclear_tag wsealed
+              ∗ ⌜ is_sealr wsealr.(lw) && is_sealed wsealed.(lw) = false ⌝)
           ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
@@ -554,7 +559,8 @@ Section wp_interp.
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
     destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc ->
-                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc ->|].
+                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc ->
+                      | w1 w2 Hw1 Hw2 Hk Hinc -> | Hfail].
     { iApply "Hφ". iRight. iLeft.
       rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
       iExists p, g, b, e, a, πs, o, sb, π.
@@ -571,7 +577,14 @@ Section wp_interp.
       iRegsMap "Hmap".
       iFrame; done.
     }
-    { iApply "Hφ". by iLeft. }
+    { iApply "Hφ". iLeft.
+      rewrite !llookup_reg_not_cnull // in Hw1 Hw2. simplify_map_eq.
+      rewrite (insert_insert_ne _ _ r1) //.
+      rewrite !insert_insert_eq.
+      iRegsMap "Hmap".
+      iFrame; done.
+    }
+    { exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence. }
   Qed.
 
   Lemma wp_unseal_unknown' {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
@@ -588,7 +601,12 @@ Section wp_interp.
     }}}
       Instr Executable @ E
       {{{ retv, RET retv;
-          ⌜ retv = FailedV ⌝
+          (⌜ retv = NextIV ⌝
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ{dq} wi
+              ∗ r1 ↦ᵣ lclear_tag wsealed
+              ∗ r2 ↦ᵣ wsealed
+              ∗ ⌜ is_sealr wsealr.(lw) && is_sealed wsealed.(lw) = false ⌝)
           ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
@@ -620,7 +638,8 @@ Section wp_interp.
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
     destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc ->
-                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc ->|].
+                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc ->
+                      | w1 w2 Hw1 Hw2 Hk Hinc -> | Hfail].
     { iApply "Hφ". iRight. iLeft.
       rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
       iExists p, g, b, e, a, πs, o, sb, π.
@@ -635,7 +654,13 @@ Section wp_interp.
       iRegsMap "Hmap".
       iFrame; done.
     }
-    { iApply "Hφ". by iLeft. }
+    { iApply "Hφ". iLeft.
+      rewrite !llookup_reg_not_cnull // in Hw1 Hw2. simplify_map_eq.
+      rewrite !insert_insert_eq.
+      iRegsMap "Hmap".
+      iFrame; done.
+    }
+    { exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence. }
   Qed.
 
   Lemma wp_unseal_unknown_sealed {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 psr gsr bsr esr asr wsealed  :
@@ -654,7 +679,12 @@ Section wp_interp.
     }}}
       Instr Executable @ E
       {{{ retv, RET retv;
-          ⌜ retv = FailedV ⌝
+          (⌜ retv = NextIV ⌝
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ{dq} wi
+              ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
+              ∗ r2 ↦ᵣ lclear_tag wsealed
+              ∗ ⌜ is_sealed wsealed.(lw) = false ⌝)
           ∨ (∃ ot wsb π,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
@@ -682,7 +712,8 @@ Section wp_interp.
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
     destruct Hspec as [p g b e a πs o sb π Hsr' Hsd Htag Hperm Hwb Hinc ->
-                      |t p g b e a πs o sb π Hsr' Hsd Hinvalid Hinc ->|].
+                      |t p g b e a πs o sb π Hsr' Hsd Hinvalid Hinc ->
+                      | w1 w2 Hw1 Hw2 Hk Hinc -> | Hfail].
     { iApply "Hφ". iRight. iLeft.
       rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
       iExists o, sb, π.
@@ -702,7 +733,14 @@ Section wp_interp.
       end.
       iFrame; done.
     }
-    { iApply "Hφ". by iLeft. }
+    { iApply "Hφ". iLeft.
+      rewrite !llookup_reg_not_cnull // in Hw1 Hw2. simplify_map_eq.
+      rewrite (insert_insert_ne _ _ r1) //.
+      rewrite !insert_insert_eq.
+      iRegsMap "Hmap".
+      iFrame; done.
+    }
+    { exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence. }
   Qed.
 
   (** A load through a valid capability: the world supplies the quarantine

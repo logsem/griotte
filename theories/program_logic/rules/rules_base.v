@@ -762,8 +762,9 @@ Section logical_lookups.
     lregs_phys R regs r → lz_of_argument regs arg = Some z → z_of_argument r arg = Some z.
   Proof.
     intros Hincl Hz. destruct arg as [z'|x]; cbn in *; first done.
-    destruct (regs !!ₗ x) as [[[] π]|] eqn:Hx; try done. simplify_eq.
-    by rewrite (llookup_reg_phys_int _ _ _ _ _ _ Hincl Hx).
+    destruct (regs !!ₗ x) as [v|] eqn:Hx; last done. simplify_eq.
+    destruct (llookup_reg_phys _ _ _ _ _ Hincl Hx) as (s & -> & _).
+    by rewrite /= get_a_and_tag.
   Qed.
 
   Lemma lz_of_argument_None R (regs : LReg) (r : Reg) arg :
@@ -772,10 +773,17 @@ Section logical_lookups.
   Proof.
     intros Hincl Hdom Hz. destruct arg as [z|x]; cbn in *; first done.
     destruct (regs !!ₗ x) as [v|] eqn:Hx.
-    - destruct (llookup_reg_phys _ _ _ _ _ Hincl Hx) as (s & -> & _).
-      by destruct v as [[| [] | | ? []] ?].
+    - done.
     - exfalso. assert (is_Some (regs !!ₗ x)) as [? ?]; last congruence.
       apply elem_of_dom_lreg. by apply Hdom.
+  Qed.
+
+  (** An operand whose register is in the map has an integer view. *)
+  Lemma lz_of_argument_dom (regs : LReg) arg :
+    (∀ x, arg = inr x → x ∈ dom regs) → is_Some (lz_of_argument regs arg).
+  Proof.
+    intros Hdom. apply lz_of_argument_is_Some. intros x Hx.
+    apply elem_of_dom_lreg. by apply Hdom.
   Qed.
 
   Lemma lz_of_argument_phys R (regs : LReg) (r : Reg) arg :

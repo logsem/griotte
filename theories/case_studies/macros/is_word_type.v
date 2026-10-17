@@ -108,7 +108,8 @@ Section Is_WordType_spec.
       iApply "Hφ"; iFrame "∗ Hprog".
       iPureIntro; eexists; done.
     - iGo "Hprog".
-      { pose proof (encodeWordType_correct w wt_int) as Hencode ; cbn in Hencode.
+      { apply nonZero_WInt.
+        pose proof (encodeWordType_correct w wt_int) as Hencode ; cbn in Hencode.
         intro H; injection H; intro Hcontra.
         destruct w as [| [] | |]; cbn in *; try done; try lia.
       }
@@ -167,7 +168,8 @@ Section Is_WordType_spec.
         * iGo "Hprog". wp_end; iApply "Hfailed".
       + iGo "Hprog". wp_end; iApply "Hfailed".
     - iGo "Hprog".
-      { pose proof (encodeWordType_correct w wt_cap) as Hencode ; cbn in Hencode.
+      { apply nonZero_WInt.
+        pose proof (encodeWordType_correct w wt_cap) as Hencode ; cbn in Hencode.
         intro H; injection H; intro Hcontra.
         destruct w as [| [] | |]; cbn in *; try done; try lia.
       }
