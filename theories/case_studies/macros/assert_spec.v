@@ -174,7 +174,7 @@ Section Assert.
      ∗ ct1 ↦ᵣ WInt n2
      ∗ cnull ↦ᵣ wnull
      ∗ codefrag_pers pc_a assert_macro
-     ∗ (pc_b ^+ n)%a ↦ₐ{dq} (WSentry true RX g_assert b_assert e_assert b_assert)
+     ∗ (pc_b ^+ n)%a ↦ₐ{dq} (WSentry Inherit true RX g_assert b_assert e_assert b_assert)
      ∗ ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
           ∗ rdst ↦ᵣ WInt 0
           ∗ rscratch ↦ᵣ WInt 0
@@ -183,7 +183,7 @@ Section Assert.
           ∗ ct1 ↦ᵣ WInt 0
           ∗ cnull ↦ᵣ WInt 0
           ∗ codefrag_pers pc_a assert_macro
-          ∗ (pc_b ^+ n)%a ↦ₐ{dq} (WSentry true RX g_assert b_assert e_assert b_assert)
+          ∗ (pc_b ^+ n)%a ↦ₐ{dq} (WSentry Inherit true RX g_assert b_assert e_assert b_assert)
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.

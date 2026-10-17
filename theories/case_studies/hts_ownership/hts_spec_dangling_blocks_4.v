@@ -121,7 +121,7 @@ Section HTS_Spec_Dangling.
     subst wct0.
     iApply (fetch_spec 0 _ ctp RX Global
       pc_b pc_e a_fetch18
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       _ _ _ with "[- $HPC $Hctp $Hcode]").
     { reflexivity. }
     { solve_addr. }
@@ -186,12 +186,12 @@ Section HTS_Spec_Dangling.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp].
     set (adv_other :=
-      <[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+      <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wfree Wret ι) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
+      (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f stk
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp

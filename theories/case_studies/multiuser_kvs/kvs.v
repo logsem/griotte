@@ -503,7 +503,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   #[local] Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
     : list Word :=
     [
-      WSentry true XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_cc_switcher;
       (kvs_service_unsealing_key_pre KVS_OTYPE)
     ].
 

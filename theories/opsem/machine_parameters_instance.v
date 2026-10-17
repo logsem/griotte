@@ -37,7 +37,7 @@ Qed.
   match w with
   | WInt _ => 0
   | WCap _ _ _ _ _ _ => 1
-  | WSentry _ _ _ _ _ _ => 2
+  | WSentry _ _ _ _ _ _ _ => 2
   | WSealRange _ _ _ _ _ _ => 3
   | WSealed _ _ => 4
   end.
@@ -55,7 +55,7 @@ Qed.
   forall w w', match w, w' with
   | WCap _ _ _ _ _ _, WCap _ _ _ _ _ _ =>
       encode_word_type w = encode_word_type w'
-  | WSentry _ _ _ _ _ _, WSentry _ _ _ _ _ _ =>
+  | WSentry _ _ _ _ _ _ _, WSentry _ _ _ _ _ _ _ =>
       encode_word_type w = encode_word_type w'
   | WSealRange _ _ _ _ _ _, WSealRange _ _ _ _ _ _ =>
       encode_word_type w = encode_word_type w'

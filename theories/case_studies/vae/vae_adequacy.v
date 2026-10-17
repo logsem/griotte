@@ -92,7 +92,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry true XSRW_ Local
+    WSentry FwdDisable true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
@@ -376,7 +376,7 @@ Section Adequacy.
       (* Switcher cross-compartment *)
       iSplit.
       { assert (heap_authority_base
-          (WSentry true XSRW_ Local (b_switcher switcher_cmpt)
+          (WSentry FwdDisable true XSRW_ Local (b_switcher switcher_cmpt)
             (e_switcher switcher_cmpt) (a_switcher_call switcher_cmpt)) = None) as Hcall_nonheap.
         { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
           apply heap_authority_base_heap_cap_base in Hauth.

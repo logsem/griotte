@@ -75,7 +75,7 @@ Section Counter.
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
-      ∗ cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return
+      ∗ cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       ∗ world_interp W0 C

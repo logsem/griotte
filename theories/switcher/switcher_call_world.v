@@ -211,7 +211,7 @@ Section Switcher_Call_World.
     dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ->
 
     cgp ↦ᵣ wcgp ∗
-    cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     csp ↦ᵣ wstk ∗
     interp W' C wstk ∗
     ( [∗ map] r↦w ∈ arg_rmap',

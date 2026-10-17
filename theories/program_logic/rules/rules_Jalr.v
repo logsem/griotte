@@ -26,7 +26,7 @@ Section griotte_lang_rules.
     regs !!ₗ rsrc = Some wsrc ->
     jalr_target_ok wsrc.(lw) = true ->
     (pc_a + 1)%a = Some pc_a' ->
-    regs' = (<[rdst := WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ]ₗ> regs) →
+    regs' = (<[rdst := WSentry (ret_kind InterruptDisabled) true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ]ₗ> regs) →
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc (lupdatePcPerm wsrc) regs' NextIV
   | Jalr_spec_failure_target wsrc :
     regs !!ₗ rsrc = Some wsrc ->
@@ -77,12 +77,12 @@ Section griotte_lang_rules.
     destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; cbn in Hstep.
     2: { instr_fail Hstep. by constructor. }
     injection Hstep as <- <-.
-    assert (reg_word_ok R C (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hoksent.
+    assert (reg_word_ok R C (WSentry (ret_kind InterruptDisabled) true pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hoksent.
     { apply (reg_word_ok_derive _ _ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π));
         [by left|done|done|done]. }
     pose proof (erasure_pc_no_id _ _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ.
     iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ rdst
-              (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) _ (lupdatePcPerm wsrc)
+              (WSentry (ret_kind InterruptDisabled) true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) _ (lupdatePcPerm wsrc)
               with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
     - exact Her.
     - apply Dregs. set_solver+.
@@ -112,7 +112,7 @@ Section griotte_lang_rules.
           PC ↦ₚ lupdatePcPerm wsrc
           ∗ pc_a ↦ₐ{dq} w
           ∗ rsrc ↦ᵣ wsrc
-          ∗ rdst ↦ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ rdst ↦ᵣ WSentry (ret_kind InterruptDisabled) true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' Htgt Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
@@ -176,7 +176,7 @@ Section griotte_lang_rules.
       {{{ RET NextIV;
           PC ↦ₚ lupdatePcPerm wdst
           ∗ pc_a ↦ₐ{dq} w
-          ∗ rdst ↦ᵣ WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ rdst ↦ᵣ WSentry (ret_kind InterruptDisabled) true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' Htgt Hcnull ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".

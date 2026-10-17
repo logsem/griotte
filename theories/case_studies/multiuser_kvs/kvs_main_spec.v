@@ -181,7 +181,7 @@ Section KVS_main_spec.
       "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     changePCto a_fetch1.
     iApply (fetch_spec SWITCHER_CALL_OFFSET _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hctp $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { kvs_main_fetch_offset. }
     { kvs_main_fetch_bounds. }
@@ -217,7 +217,7 @@ Section KVS_main_spec.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp].
     set (rmap_B :=
-      <[ctp := lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+      <[ctp := lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
         (delete ca5 (delete ca4 (delete ca3
           (delete ca2 (delete ct1 (delete ct0 rmap_ret))))))).
     set (stk_mem_B := region_addrs_zeroes csp_b csp_e).
@@ -239,7 +239,7 @@ Section KVS_main_spec.
 
     iApply (kvs_main_adversary_phase_spec Nswitcher W1 B
              (WCap true RW Global cgp_b cgp_e cgp_b)
-             (WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a)
+             (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_call ^+ 1)%a)
              wcs0 (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e csp_b B_f stk_mem_B rmap_B cstk Ws Cs
              ); try assumption.
@@ -287,7 +287,7 @@ Section KVS_main_spec.
     iApply (kvs_main_read_assert_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap warg0 warg1
-      (WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a) rcs0
+      (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_call ^+ 1)%a) rcs0
       KVS_USER_KEY_MAIN b_assert e_assert a_flag Nswitcher
       stk_mem cstk with
       "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical

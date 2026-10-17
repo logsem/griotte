@@ -87,7 +87,7 @@ Section Heap_Temporal_Safety_Interp.
     destruct Hsize_dec as [Hvalid|Hinvalid].
     2: { (* Reject an invalid size and return ALLOC_INVALID. *)
       iApply (allocator_malloc_invalid_correct ⊤ g_owner a_owner id wca1
-        (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
+        (WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try exact Hinvalid; try assumption.
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
@@ -135,7 +135,7 @@ Section Heap_Temporal_Safety_Interp.
       destruct Hvalid as (n & Hwa1 & Hpositive). cbn in Hwa1. subst wa1.
       iApply (allocator_malloc_valid_correct
         (dom (heap_std (revoke W))) ⊤ g_owner a_owner id Ω n π1
-        (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
+        (WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try exact Hpositive; try assumption.
       iFrame "Hservice Hstatic Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0".
       iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".

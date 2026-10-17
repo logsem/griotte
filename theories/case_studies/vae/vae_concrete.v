@@ -158,7 +158,7 @@ Definition vae_C_g : Sealable :=
 Definition vae_main_imports_concrete : list Word := vae_main_imports vae_C_f.
 
 Definition vae_C_imports : list Word :=
-  [ WSentry true XSRW_ Local vae_switcher_b vae_switcher_e vae_switcher_call
+  [ WSentry FwdDisable true XSRW_ Local vae_switcher_b vae_switcher_e vae_switcher_call
   ; WSealed vae_switcher_sealing_type
       (vae_entry_awkward_sb vae_main_exports_pcc vae_main_exports_entries_e)
   ; WSealed vae_switcher_sealing_type vae_C_g

@@ -222,7 +222,7 @@ Definition and_tag (s : bool) (w : Word) : Word :=
   match w with
   | WInt z => WInt z
   | WSealable sb => WSealable (and_tag_sealable s sb)
-  | WSentry t p g b e a => WSentry (s && t) p g b e a
+  | WSentry k t p g b e a => WSentry k (s && t) p g b e a
   | WSealed o sb => WSealed o (and_tag_sealable s sb)
   end.
 

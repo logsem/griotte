@@ -50,7 +50,7 @@ Section SO_Call_Blocks_3.
         ct1 ↦ᵣ wct1 ∗
         cs0 ↦ᵣ wcra ∗
         cs1 ↦ᵣ wct1 ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
+        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
         csp_b ↦ₐ WInt so_secret ∗
         a_stk1 ↦ₐ WInt 0 ∗
         [[a_stk2, csp_e]] ↦ₐ [[stk_mem']] ∗
@@ -140,7 +140,7 @@ Section SO_Call_Blocks_3.
     focus_block (so_block ".Lso_f_fetch_switcher") "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }

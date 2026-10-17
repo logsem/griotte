@@ -66,10 +66,10 @@ Section KVS_Main_Blocks.
       [[lword_of_word <$> kvs_main_imports static_sealed_b b_switcher e_switcher
           a_switcher_call ot_switcher b_assert e_assert B_f]]
     ⊣⊢
-      pc_b ↦ₐ WSentry true XSRW_ Local
+      pc_b ↦ₐ WSentry FwdDisable true XSRW_ Local
         b_switcher e_switcher a_switcher_call
       ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ
-        WSentry true RX Global b_assert e_assert b_assert
+        WSentry Inherit true RX Global b_assert e_assert b_assert
       ∗ (pc_b ^+ ADV_F_OFFSET)%a ↦ₐ WSealed ot_switcher B_f
       ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ
         WSealed ot_switcher (KVS_addOrUpdate Global)
@@ -140,10 +140,10 @@ Section KVS_Main_Blocks.
       [[lword_of_word <$> kvs_main_imports static_sealed_b b_switcher e_switcher
           a_switcher_call ot_switcher b_assert e_assert B_f]]
     ⊢
-      pc_b ↦ₐ□ WSentry true XSRW_ Local
+      pc_b ↦ₐ□ WSentry FwdDisable true XSRW_ Local
         b_switcher e_switcher a_switcher_call
       ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ□
-        WSentry true RX Global b_assert e_assert b_assert
+        WSentry Inherit true RX Global b_assert e_assert b_assert
       ∗ (pc_b ^+ ADV_F_OFFSET)%a ↦ₐ□ WSealed ot_switcher B_f
       ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ□
         WSealed ot_switcher (KVS_addOrUpdate Global)
@@ -355,7 +355,7 @@ Section KVS_Main_Blocks.
     ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
     ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w)
     ∗ pc_b ↦ₐ□
-        WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
+        WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ□
         WSealed ot_switcher (KVS_addOrUpdate Global)
     ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ□
@@ -386,7 +386,7 @@ Section KVS_Main_Blocks.
         ∗ user_kvs_inv KVS_USER_KEY_MAIN
         ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
         ∗ pc_b ↦ₐ□
-            WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
+            WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
         ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ□
             WSealed ot_switcher (KVS_addOrUpdate Global)
         ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ□
@@ -441,7 +441,7 @@ Section KVS_Main_Blocks.
     focus_block 2 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_main1.
     iApply (fetch_spec SWITCHER_CALL_OFFSET _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hctp $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { kvs_main_fetch_offset. }
     { kvs_main_fetch_bounds. }
@@ -505,7 +505,7 @@ Section KVS_Main_Blocks.
 
     iPoseProof (KVS_add_spec_known_to_known
                   (WCap true RW Global cgp_b cgp_e cgp_b)
-                  (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+                  (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
                   wcs0 (kvs_user_seal_key Global static_sealed_b)
                   csp_b csp_e csp_b rmap_arg cstk ⊤
                   KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
@@ -515,7 +515,7 @@ Section KVS_Main_Blocks.
     iApply (switcher_cc_specification_known_to_known_end_to_end
               Nswitcher
               (WCap true RW Global cgp_b cgp_e cgp_b)
-              (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e csp_b stk_mem rmap_arg rmap' cstk
               kvs_addOrUpdate_nargs ⊤
@@ -663,11 +663,11 @@ Section KVS_Main_Blocks.
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
     ∗ pc_b ↦ₐ□
-        WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
+        WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ (pc_b ^+ KVS_READ_OFFSET)%a ↦ₐ□
         WSealed ot_switcher (KVS_read Global)
     ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ□
-        WSentry true RX Global b_assert e_assert b_assert
+        WSentry Inherit true RX Global b_assert e_assert b_assert
     ∗ codefrag_pers pc_a kvs_main_code
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -725,7 +725,7 @@ Section KVS_Main_Blocks.
     focus_block 10 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent Ha_blk.
     iApply (fetch_spec SWITCHER_CALL_OFFSET _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hctp $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { kvs_main_fetch_offset. }
     { kvs_main_fetch_bounds. }
@@ -772,7 +772,7 @@ Section KVS_Main_Blocks.
 
     iPoseProof (KVS_read_spec_known_to_known
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+      (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
       wcs0 (kvs_user_seal_key Global static_sealed_b)
       csp_b csp_e csp_b rmap_arg_read cstk ⊤
       KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
@@ -782,7 +782,7 @@ Section KVS_Main_Blocks.
     iApply (switcher_cc_specification_known_to_known_end_to_end
               Nswitcher
               (WCap true RW Global cgp_b cgp_e cgp_b)
-              (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call cstk
               kvs_read_nargs ⊤

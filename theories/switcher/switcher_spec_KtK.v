@@ -57,7 +57,7 @@ Section Switcher_KtK.
        ∗ na_own cerise_nais E
        ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
        ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-       ∗ cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return
+       ∗ cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return
        ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
        ∗ ([∗ map] rarg↦warg ∈ arg_rmap',
             rarg ↦ᵣ warg

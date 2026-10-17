@@ -71,7 +71,7 @@ Section CMDC_Check_Blocks_3.
     cnull ↦ᵣ wcnull ∗
     cra ↦ᵣ wcra ∗
     a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a cmdc_main_code ∗
     ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_next_label c))%a ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
@@ -82,7 +82,7 @@ Section CMDC_Check_Blocks_3.
         cnull ↦ᵣ WInt 0 ∗
         cra ↦ᵣ wcra ∗
         a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
-        (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+        (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
         codefrag_pers pc_a cmdc_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.

@@ -39,7 +39,7 @@ Section DROE_Assert_Blocks_3.
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 42 ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a droe_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.

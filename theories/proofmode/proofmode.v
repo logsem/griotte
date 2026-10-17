@@ -816,7 +816,7 @@ Ltac simplify_load_word p w :=
     lazymatch w with
     | WInt ?z => rewrite (load_word_int p z)
     | WCap ?t ?pw ?g ?b ?e ?a => rewrite (load_word_cap t p pw g b e a)
-    | WSentry ?t ?pw ?g ?b ?e ?a => rewrite (load_word_sentry t p pw g b e a)
+    | WSentry ?k ?t ?pw ?g ?b ?e ?a => rewrite (load_word_sentry k t p pw g b e a)
     | WSealRange ?t ?pw ?g ?b ?e ?a => rewrite (load_word_sealrange t p pw g b e a)
     | WSealed ?o ?sb => rewrite (load_word_sealed p o sb)
     end

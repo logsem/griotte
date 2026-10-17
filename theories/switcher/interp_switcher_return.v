@@ -308,7 +308,7 @@ Section fundamental.
   Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static
-    ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp W C (WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "[#Hinv #Hstatic]".
     rewrite interp_unfold /=.

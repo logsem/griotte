@@ -213,9 +213,9 @@ Section monotone.
     by rewrite -Hheap.
   Qed.
 
-  Lemma interp_monotone_sentry W W' C t p g b e a π :
+  Lemma interp_monotone_sentry W W' C k t p g b e a π :
     ⌜related_sts_pub_world W W'⌝
-    -∗ interp W C (WSentry t p g b e a @@? π) -∗ interp W' C (WSentry t p g b e a @@? π).
+    -∗ interp W C (WSentry k t p g b e a @@? π) -∗ interp W' C (WSentry k t p g b e a @@? π).
   Proof.
     iIntros (Hrelated) "#Hw".
     destruct t; last (iApply interp_untagged; done).
@@ -383,10 +383,10 @@ Section monotone.
     - iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto.
   Qed.
 
-  Lemma interp_monotone_nl_sentry W W' C t p g b e a π :
+  Lemma interp_monotone_nl_sentry W W' C k t p g b e a π :
     ⌜related_sts_priv_world W W'⌝
-    -∗ ⌜isLocalWord (WSentry t p g b e a) = false⌝
-    -∗ interp W C (WSentry t p g b e a @@? π) -∗ interp W' C (WSentry t p g b e a @@? π).
+    -∗ ⌜isLocalWord (WSentry k t p g b e a) = false⌝
+    -∗ interp W C (WSentry k t p g b e a @@? π) -∗ interp W' C (WSentry k t p g b e a @@? π).
   Proof.
     iIntros (Hrelated Hnl) "#Hw".
     destruct t; last (iApply interp_untagged; done).
@@ -486,7 +486,7 @@ Section monotone.
   Proof.
     intros Hrelated Htag Hfilter. iIntros "#Hw".
     destruct w as [w π].
-    destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot sb].
+    destruct w as [z|[t p g b e a|t p g b e a]|k t p g b e a|ot sb].
     - discriminate.
     - iApply (interp_monotone_cap_valid with "[] Hw"); [|done].
       intros Hvalid. eapply (heap_cap_valid_future_retained _ _ (WCap t p g b e a @@? π)); eauto.
@@ -506,7 +506,7 @@ Section monotone.
   Proof.
     intros Hrelated Hnl Htag Hfilter. iIntros "#Hw".
     destruct w as [w π].
-    destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot sb].
+    destruct w as [z|[t p g b e a|t p g b e a]|k t p g b e a|ot sb].
     - discriminate.
     - iApply (interp_monotone_nl_cap_valid with "[] [] Hw"); [|done|done].
       intros Hvalid. eapply (heap_cap_valid_future_retained _ _ (WCap t p g b e a @@? π)); eauto.

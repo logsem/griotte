@@ -35,7 +35,7 @@ Section SO_Run_Blocks_1.
     ▷ (PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ct0 ↦ᵣ so_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_run_halt")%a ∗
+        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_run_halt")%a ∗
         pc_b ↦ₐ□ so_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
         codefrag_pers pc_a so_main_code
@@ -53,7 +53,7 @@ Section SO_Run_Blocks_1.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }

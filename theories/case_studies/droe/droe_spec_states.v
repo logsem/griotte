@@ -63,8 +63,8 @@ Section DROE_States.
 
   (** The imported words, in the order of [droe_main_imports]. *)
   Definition droe_imports (pc_b : Addr) (C_f : Sealable) : iProp Σ :=
-    pc_b ↦ₐ□ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    pc_b ↦ₐ□ WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f.
 
   (** The imports and the code, that the block groups return unchanged. *)
@@ -82,6 +82,6 @@ Section DROE_States.
 
   (** The capability of the entry point of the switcher. *)
   Definition droe_switcher_entry : Word :=
-    WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call.
+    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
 End DROE_States.

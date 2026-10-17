@@ -37,8 +37,8 @@ Section Heap_Temporal_Safety_Imports.
   Lemma hts_main_imports_pointsto_pers b e owner_a adv_f :
     (b + 6)%a = Some e ->
     [[b, e]] ↦ₐ□ [[lword_of_word <$> hts_main_imports owner_a adv_f]] ⊣⊢
-      b ↦ₐ□ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
-      ∗ (b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert
+      b ↦ₐ□ WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
+      ∗ (b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert
       ∗ (b ^+ 2)%a ↦ₐ□ WSealed ot_switcher adv_f
       ∗ (b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (allocator_malloc Global)
       ∗ (b ^+ 4)%a ↦ₐ□ WSealed ot_switcher (allocator_free Global)

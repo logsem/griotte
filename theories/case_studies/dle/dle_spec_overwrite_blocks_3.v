@@ -41,7 +41,7 @@ Section DLE_Overwrite_Blocks_3.
         ca0 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ dle_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
+        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
         cs0 ↦ᵣ dle_switcher_entry ∗
         cs1 ↦ᵣ WSealed ot_switcher C_f ∗
         cgp_b ↦ₐ WInt 42 ∗

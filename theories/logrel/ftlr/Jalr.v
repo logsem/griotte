@@ -43,7 +43,7 @@ Section fundamental.
     destruct HSpec as [ regs' pc_a' wsrc Hrsrc Htgt Hpca' -> | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
     1,2: iApply wp_pure_step_later; auto; iNext; iIntros "_"; iApply wp_value; auto.
 
-    iAssert (interp W C (WSentry true p g b e pc_a')) as "Hinterp_ret".
+    iAssert (interp W C (WSentry (ret_kind InterruptDisabled) true p g b e pc_a')) as "Hinterp_ret".
     {
       destruct Hp as [Hexec _].
       iDestruct (interp_cap_disjoint with "Hinv_interp") as %[_ Hheap]; first exact Hexec.
@@ -60,7 +60,7 @@ Section fundamental.
 
     iApply wp_pure_step_later; auto.
 
-    set (wret := if decide (rdst = cnull) then lnull else WSentry true p g b e pc_a' @@? None).
+    set (wret := if decide (rdst = cnull) then lnull else WSentry (ret_kind InterruptDisabled) true p g b e pc_a' @@? None).
     rewrite /linsert_reg.
     iAssert (interp W C wret) as "#Hinterp_ret'".
     { rewrite /wret.
@@ -83,7 +83,7 @@ Section fundamental.
     { destruct ρ;auto;contradiction. }
 
     destruct (updatePcPerm wsrc) as
-      [z | [t0 p0 g0 b0 e0 a0 | t0 sp0 g0 b0 e0 a0] | t0 p0 g0 b0 e0 a0 | ot sb]
+      [z | [t0 p0 g0 b0 e0 a0 | t0 sp0 g0 b0 e0 a0] | k0 t0 p0 g0 b0 e0 a0 | ot sb]
       eqn:Hwsrc; cycle 1.
     { destruct t0; cycle 1.
       { iNext; iIntros "_".

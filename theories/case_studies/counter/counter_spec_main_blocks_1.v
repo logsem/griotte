@@ -43,7 +43,7 @@ Section Counter_Main_Blocks_1.
         ct0 ↦ᵣ counter_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ wcra ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ counter_label_offset ".Lcounter_return")%a ∗
+        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ counter_label_offset ".Lcounter_return")%a ∗
         cgp_b ↦ₐ WInt (cnt + 1) ∗
         pc_b ↦ₐ□ counter_switcher_entry ∗
         (pc_b ^+ 1)%a ↦ₐ□ WSealed ot_switcher C_f ∗

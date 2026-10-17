@@ -87,7 +87,7 @@ Section Switcher_preamble.
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg
        ∧ ⌜ reg !! cgp = Some wcgp ⌝
-       ∧ ⌜ reg !! cra = Some (lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)) ⌝
+       ∧ ⌜ reg !! cra = Some (lword_of_word (WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return)) ⌝
        ∧ ⌜ reg !! csp = Some wstk ⌝
        ∗ interp W C wstk
        ∗ (∀ (r : RegName) (v : LWord), (⌜r ∈ (dom_arg_rmap nargs)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))

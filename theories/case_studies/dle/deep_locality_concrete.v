@@ -95,7 +95,7 @@ Definition dle_C_code : list Word :=
 Definition dle_C_data : list Word := [WInt 0].
 
 Definition dle_C_imports : list Word :=
-  [WSentry true XSRW_ Local dle_switcher_b dle_switcher_e dle_switcher_call].
+  [WSentry FwdDisable true XSRW_ Local dle_switcher_b dle_switcher_e dle_switcher_call].
 
 Definition dle_C_exports : list Word :=
   [WInt (encode_entry_point 1 1)].

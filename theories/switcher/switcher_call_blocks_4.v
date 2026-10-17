@@ -247,7 +247,7 @@ Section Switcher_Call_Blocks_4.
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ WCap true RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
@@ -321,7 +321,7 @@ Section Switcher_Call_Blocks_4.
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
@@ -401,7 +401,7 @@ Section Switcher_Call_Blocks_4.
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs)
                      then ⌜ arg_rmap !! r = Some w ⌝

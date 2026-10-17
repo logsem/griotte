@@ -153,7 +153,7 @@ Definition lse_C_f : Sealable :=
 Definition lse_main_imports_concrete : list Word := lse_main_imports lse_C_f.
 
 Definition lse_C_imports : list Word :=
-  [ WSentry true XSRW_ Local lse_switcher_b lse_switcher_e lse_switcher_call
+  [ WSentry FwdDisable true XSRW_ Local lse_switcher_b lse_switcher_e lse_switcher_call
   ; WSealed lse_switcher_sealing_type
       (lse_entry_f_sb lse_main_exports_pcc lse_main_exports_entries_e)
   ].

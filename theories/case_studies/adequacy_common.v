@@ -1139,7 +1139,7 @@ Section adversary_imports.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
 
   Lemma switcher_call_import_safe (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
-    let w := lword_of_word (WSentry true XSRW_ Local
+    let w := lword_of_word (WSentry FwdDisable true XSRW_ Local
                switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
@@ -1148,7 +1148,7 @@ Section adversary_imports.
     intros w; subst w.
     iIntros "#Hswitcher #Hswitcher_static".
     assert (heap_authority_base
-              (WSentry true XSRW_ Local
+              (WSentry FwdDisable true XSRW_ Local
                  switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) = None)
       as Hcall_nonheap.
     { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
