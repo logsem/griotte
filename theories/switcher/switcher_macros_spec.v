@@ -76,24 +76,14 @@ Section switcher_macros.
       iApply "Hφ". subst. iFrame "∗ #".
     - (* csp_a ≠ csp_2 ==> another iteration (or failure) *)
       (* --- Jnz 2 r1 --- *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hr1]"); try solve_pure.
+      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hr1]" as "(HPC & Hct2)".
       { intros Hcontr; inversion Hcontr; solve_addr. }
-      iIntros "!> (HPC & Hi & Hct2)".
-      wp_pure.
-      iClear "Hi".
 
       (* --- Store r2 0%Z --- *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_interp_z_cap with "[$HPC $Hi $Hworld_interp Hr2]"); try solve_pure.
+      iInstrApply "Hcode" wp_store_interp_z_cap with "[$HPC $Hworld_interp Hr2]"
+        as (v) "[-> | (-> & HPC & Hr2 & Hworld_interp & %Hwa & %Hstorebounds)]".
       { iFrame "∗ #". }
-      iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hr2
-      & Hworld_interp & %Hwa & %Hstorebounds)] /=".
-      { wp_pure. wp_end. iFrame. }
-      wp_pure.
-      iClear "Hi".
+      { wp_end. iFrame. }
 
       (* --- Lea r2 1 --- *)
       assert (is_Some (csp_a + 1)%a) as [f Ha].

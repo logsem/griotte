@@ -1048,61 +1048,16 @@ Section wp_interp.
     iIntros (Hshadow Hheap_raw Hea Hbounds Hsub)
       "(HPC & Hcgp & Hca0 & Ha & Hcode & Hregion & Hpost)".
     codefrag_facts "Hcode". clear H0.
-    (* CLoad ca0 cgp imm. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
     iDestruct (region_heap_provenance with "Hregion") as "[Hregion #Hprov]".
     iDestruct (heap_provenance_load_witness W raw with "Hprov") as "Hwit".
-    iDestruct (map_of_regs_2 with "Hcgp Hca0")
-      as "[Hmap %Hcgp_ca0]".
-    iDestruct (memMap_resource_2ne_apply with "Hi Ha")
-      as "[Hmem %Hpc_a]".
-    assert (is_shadow_address a = false) as Hnot_shadow
-      by (eapply disjoint_from_shadow_not_in; [exact Hshadow|exact Hbounds]).
-    iApply (wp_load_witness_imm _ RX Global pc_b pc_e pc_a None ca0 cgp imm
-              (encodeInstrW (CLoad ca0 cgp imm) @@? None) _ _ _ DerefNoId with "[$HPC $Hmem $Hwit $Hmap //]").
-    { apply decode_encode_instrW_inv. }
-    { solve_pure. }
-    { by rewrite !dom_insert; set_solver+. }
-    { by simplify_map_eq. }
-    { intros p0 g0 b0 e0 ea0 Hallow.
-      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
-      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite Hea in Haddr. injection Haddr as <-.
-      rewrite Hnot_shadow.
-      destruct (is_revoker_address a); first done.
-      eexists. by simplify_map_eq. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
-                      |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
-                      |p0 g0 b0 e0 ea0 Hallow Hrev Hl
-                      |Hfail].
-    2,3: exfalso;
-      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
-      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
-      rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
-      rewrite Hea in Haddr; injection Haddr as <-;
-      simplify_map_eq; congruence.
-    2: { wp_pure. wp_end. by iIntros (?). }
-    destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
-    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-    rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite Hea in Haddr. injection Haddr as <-.
-    rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
-    pose proof (load_post_world_load_heap_in_world W RW raw loadv' Hpost) as Hloaded.
+    (* CLoad ca0 cgp imm. *)
+    iInstrApply "Hcode" (wp_load_witness_imm_one _ _ _ _ _ _ _ ca0 cgp imm)
+      with "[$HPC $Hca0 $Hcgp $Ha $Hwit]"
+      as (retv) "[-> | (%loadv' & -> & %Hload & HPC & Hca0 & Hcgp & Ha)]".
+    { eapply disjoint_from_shadow_not_in; [exact Hshadow|exact Hbounds]. }
+    { wp_end. by iIntros (?). }
+    pose proof (load_post_world_load_heap_in_world W RW raw loadv' Hload) as Hloaded.
     rewrite lload_word_RW in Hloaded.
-    rewrite linsert_reg_not_cnull //.
-    apply incrementPC_Some_inv in Hinc
-      as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
-    injection HPC as <- <- <- <- <- <- <-.
-    assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc by solve_addr.
-    rewrite Hpc in Hapc. injection Hapc as <-.
-    rewrite (insert_insert_ne _ ca0 cgp) // insert_insert_eq.
-    iDestruct (regs_of_map_2 with "Hmap") as "(Hcgp & Hca0)"; eauto.
-    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
-    wp_pure.
-    iSpecialize ("Hcode" with "Hi").
     iApply ("Hpost" $! loadv' with "[//]"). iFrame.
   Qed.
 

@@ -77,60 +77,52 @@ Section Switcher_Return_Blocks_2.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
     (* --- CLoad cgp csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcgp $Hcsp $Ha_stk3]");
-      [ |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+    iInstrApply "Hcode" (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
+      _ _ _ _ _ _)
+      with "[$HPC $Hcgp $Hcsp $Ha_stk3]"
+      as (rcgp) "(%HPg & HPC & Hcgp & Hcsp & Ha_stk3)".
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcgp) "(%HPg & HPC & Hi & Hcgp & Hcsp & Ha_stk3 )".
-    wp_pure. iClear "Hi".
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
     (* --- CLoad cra csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 8)%a cra csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcra $Hcsp $Ha_stk2]");
-      [ |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+    iInstrApply "Hcode" (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 8)%a cra csp
+      _ _ _ _ _ _)
+      with "[$HPC $Hcra $Hcsp $Ha_stk2]"
+      as (rcra) "(%HPra & HPC & Hcra & Hcsp & Ha_stk2)".
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcra) "(%HPra & HPC & Hi & Hcra & Hcsp & Ha_stk2 )".
-    wp_pure. iClear "Hi".
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
     (* --- CLoad cs1 csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcs1 $Hcsp $Ha_stk1]");
-      [ |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+    iInstrApply "Hcode" (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
+      _ _ _ _ _ _)
+      with "[$HPC $Hcs1 $Hcsp $Ha_stk1]"
+      as (rcs1) "(%HPs1 & HPC & Hcs1 & Hcsp & Ha_stk1)".
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 )".
-    wp_pure. iClear "Hi".
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 
     (* --- CLoad cs0 csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcs0 $Hcsp $Ha_stk]");
-      [ |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+    iInstrApply "Hcode" (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
+      _ _ _ _ _ _)
+      with "[$HPC $Hcs0 $Hcsp $Ha_stk]"
+      as (rcs0) "(%HPs0 & HPC & Hcs0 & Hcsp & Ha_stk)".
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcs0) "(%HPs0 & HPC & Hi & Hcs0 & Hcsp & Ha_stk )".
-    wp_pure. iClear "Hi".
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- GetE ct0 csp --- *)
     iInstr "Hcode" with "Hlc".
@@ -213,60 +205,52 @@ Section Switcher_Return_Blocks_2.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
     (* --- CLoad cgp csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcgp $Hcsp $Ha_stk3 $Hworld $Hnormal_gp]");
-      [exact Hheap_eq| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+    iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
+      _ _ _ _ _ _)
+      with "[$HPC $Hcgp $Hcsp $Ha_stk3 $Hworld $Hnormal_gp]"
+      as (rcgp) "(%HPg & HPC & Hcgp & Hcsp & Ha_stk3 & Hworld & #Hactual_gp)".
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcgp) "(%HPg & HPC & Hi & Hcgp & Hcsp & Ha_stk3 & Hworld & #Hactual_gp)".
-    wp_pure. iClear "Hi".
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
     (* --- CLoad cra csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 8)%a cra csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcra $Hcsp $Ha_stk2 $Hworld $Hnormal_ra]");
-      [exact Hheap_eq| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+    iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 8)%a cra csp
+      _ _ _ _ _ _)
+      with "[$HPC $Hcra $Hcsp $Ha_stk2 $Hworld $Hnormal_ra]"
+      as (rcra) "(%HPra & HPC & Hcra & Hcsp & Ha_stk2 & Hworld & #Hactual_ra)".
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcra) "(%HPra & HPC & Hi & Hcra & Hcsp & Ha_stk2 & Hworld & #Hactual_ra)".
-    wp_pure. iClear "Hi".
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
     (* --- CLoad cs1 csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcs1 $Hcsp $Ha_stk1 $Hworld $Hnormal_s1]");
-      [exact Hheap_eq| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+    iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
+      _ _ _ _ _ _)
+      with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hworld $Hnormal_s1]"
+      as (rcs1) "(%HPs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hworld & #Hactual_s1)".
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 & Hworld & #Hactual_s1)".
-    wp_pure. iClear "Hi".
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 
     (* --- CLoad cs0 csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcs0 $Hcsp $Ha_stk $Hworld $Hnormal_s0]");
-      [exact Hheap_eq| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+    iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
+      _ _ _ _ _ _)
+      with "[$HPC $Hcs0 $Hcsp $Ha_stk $Hworld $Hnormal_s0]"
+      as (rcs0) "(%HPs0 & HPC & Hcs0 & Hcsp & Ha_stk & Hworld & #Hactual_s0)".
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcs0) "(%HPs0 & HPC & Hi & Hcs0 & Hcsp & Ha_stk & Hworld & #Hactual_s0)".
-    wp_pure. iClear "Hi".
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- GetE ct0 csp --- *)
     iInstr "Hcode" with "Hlc".
@@ -368,64 +352,52 @@ Section Switcher_Return_Blocks_2.
       rewrite /switcher_instrs_n /assembled_switcher_n.
 
       (* CLoad cgp csp. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
-        _ _ _ _ _ (pc_a ^+ 6)%a cgp csp _ _ _ _ _ _
-        with "[$HPC $Hi $Hcgp $Hcsp $Ha_stk3 $Hworld]");
-        [exact Hheap_eq| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened
+        _ _ _ _ _ (pc_a ^+ 6)%a cgp csp _ _ _ _ _ _)
+        with "[$HPC $Hcgp $Hcsp $Ha_stk3 $Hworld]"
+        as (rcgp) "(%HPg & HPC & Hcgp & Hcsp & Ha_stk3 & Hworld)".
       { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
         rewrite /withinBounds; solve_addr. }
-      iNext. iIntros (rcgp) "(%HPg & HPC & Hi & Hcgp & Hcsp & Ha_stk3 & Hworld)".
-      wp_pure. iClear "Hi".
+      { rewrite /withinBounds; solve_addr. }
 
       (* Lea csp (-1)%Z. *)
       iInstr "Hcode".
       { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
       (* CLoad cra csp. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
-        _ _ _ _ _ (pc_a ^+ 8)%a cra csp _ _ _ _ _ _
-        with "[$HPC $Hi $Hcra $Hcsp $Ha_stk2 $Hworld]");
-        [exact Hheap_eq| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened
+        _ _ _ _ _ (pc_a ^+ 8)%a cra csp _ _ _ _ _ _)
+        with "[$HPC $Hcra $Hcsp $Ha_stk2 $Hworld]"
+        as (rcra) "(%HPra & HPC & Hcra & Hcsp & Ha_stk2 & Hworld)".
       { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
         rewrite /withinBounds; solve_addr. }
-      iNext. iIntros (rcra) "(%HPra & HPC & Hi & Hcra & Hcsp & Ha_stk2 & Hworld)".
-      wp_pure. iClear "Hi".
+      { rewrite /withinBounds; solve_addr. }
 
       (* Lea csp (-1)%Z. *)
       iInstr "Hcode".
       { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
       (* CLoad cs1 csp. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
-        _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp _ _ _ _ _ _
-        with "[$HPC $Hi $Hcs1 $Hcsp $Ha_stk1 $Hworld]");
-        [exact Hheap_eq| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened
+        _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp _ _ _ _ _ _)
+        with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hworld]"
+        as (rcs1) "(%HPs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
       { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
         rewrite /withinBounds; solve_addr. }
-      iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
-      wp_pure. iClear "Hi".
+      { rewrite /withinBounds; solve_addr. }
 
       (* Lea csp (-1)%Z. *)
       iInstr "Hcode".
       { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 
       (* CLoad cs0 csp. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
-        _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp _ _ _ _ _ _
-        with "[$HPC $Hi $Hcs0 $Hcsp $Ha_stk $Hworld]");
-        [exact Hheap_eq| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened
+        _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp _ _ _ _ _ _)
+        with "[$HPC $Hcs0 $Hcsp $Ha_stk $Hworld]"
+        as (rcs0) "(%HPs0 & HPC & Hcs0 & Hcsp & Ha_stk & Hworld)".
       { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
         rewrite /withinBounds; solve_addr. }
-      iNext. iIntros (rcs0) "(%HPs0 & HPC & Hi & Hcs0 & Hcsp & Ha_stk & Hworld)".
-      wp_pure. iClear "Hi".
+      { rewrite /withinBounds; solve_addr. }
 
       (* GetE ct0 csp. *)
       iInstr "Hcode" with "Hlc".

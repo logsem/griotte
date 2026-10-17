@@ -142,10 +142,6 @@ Section AllocatorFreeTailBlocks.
     iInstr "Hcode".
     (* Sub ca2 ct2 ct1. *)
     iInstr "Hcode".
-    (* Store ca3 0. *)
-    unfold lword_of_word.
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
     (* Assemble the whole register file. *)
     iDestruct (big_sepM_insert with "[$Hregs $Hca2]") as "Hregs";
       first (apply Hnone; set_solver).
@@ -179,22 +175,19 @@ Section AllocatorFreeTailBlocks.
       by apply (Hclean x v Hxn Hlookup). }
     iCombine "Hshadows Hclaims" as "Hpayload".
     rewrite -big_sepL_sep.
-    iApply (wp_store_revoker _ RX Global pc_b pc_e (a_revoke ^+ 2)%a None
+    unfold lword_of_word.
+    (* Store ca3 0. *)
+    iInstrApply "Hcode" (wp_store_revoker _ RX Global pc_b pc_e (a_revoke ^+ 2)%a None
               (a_revoke ^+ 3)%a _ _ ca3 (inl 0%Z) 0 RW Global
-              revoker_addr (revoker_addr ^+ 1)%a revoker_addr {[ι]}
-      with "[$HPC $Hi $Hregs Hquar Hpayload]").
-    { cbn. apply decode_encode_instrW_inv. }
-    { solve_pure. }
+              revoker_addr (revoker_addr ^+ 1)%a revoker_addr {[ι]})
+      with "[$HPC $Hregs Hquar Hpayload]"
+      as "(HPC & Hregs & Hpost)".
     { rewrite /regs_of !dom_insert_L. set_solver. }
     { split_and!; [by simplify_map_eq | by rewrite finz_add_0 | done |].
       apply withinBounds_true_iff. solve_addr. }
     { intros v Hv. by simplify_map_eq. }
-    { solve_addr. }
     { rewrite big_sepS_singleton. iExists b, e. iFrame "Hobj Hquar Hpayload". }
-    iNext. iIntros "(HPC & Hi & Hregs & Hpost)".
     rewrite big_sepS_singleton.
-    wp_pure.
-    iClear "Hi".
     (* Take the registers back. *)
     iDestruct (big_sepM_insert with "Hregs") as "[Hct1 Hregs]";
       first (simplify_map_eq; apply Hnone; set_solver).

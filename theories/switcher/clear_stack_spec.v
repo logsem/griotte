@@ -67,13 +67,8 @@ Section ClearStackMacro.
       done.
     - (* csp_a ≠ csp_2 ==> another iteration (or failure) *)
       (* --- Jnz 2 r1 --- *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hr1]"); try solve_pure.
+      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hr1]" as "(HPC & Hct2)".
       { intros Hcontr; inversion Hcontr; solve_addr. }
-      iIntros "!> (HPC & Hi & Hct2)".
-      wp_pure.
-      iClear "Hi".
 
       rewrite finz_seq_between_cons in Hlen_stk; last solve_addr.
       destruct ws as [|wa ws]; simplify_eq.

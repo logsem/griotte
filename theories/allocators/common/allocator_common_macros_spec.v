@@ -158,19 +158,16 @@ Section AllocatorMacros.
       (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons) in "Hmem".
     iDestruct "Hmem" as "[[%w Ha] Hmem]".
 
+    iEval (rewrite deref_witness_res_deref_res -Hπ) in "Hdw".
     (* Store rptr 0: the status witness of the capability's identifier
        keeps its copy exact. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iEval (rewrite deref_witness_res_deref_res -Hπ) in "Hdw".
-    iApply (wp_store_success_z_imm with "[$HPC $Hi $Hptr $Ha $Hdw]"); try solve_pure.
+    iInstrApply "Hcode" wp_store_success_z_imm with "[$HPC $Hptr $Ha $Hdw]"
+      as "(HPC & Hptr & Ha & Hdw)".
     { eapply disjoint_from_shadow_not_in; first exact heap_shadow_disjoint.
       apply withinBounds_true_iff; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     { solve_addr. }
-    iNext. iIntros "(HPC & Hi & Hptr & Ha & Hdw)".
     iEval (rewrite Hπ -deref_witness_res_deref_res) in "Hdw".
-    wp_pure. iClear "Hi".
 
     (* Lea rptr 1 advances the heap cursor. *)
     iInstr "Hcode".
@@ -187,14 +184,10 @@ Section AllocatorMacros.
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap)))
         Hlast finz_seq_between_empty; last solve_addr.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
-    - (* Jnz .allocator_zero rtmp repeats the loop. *) iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Htmp]"); try solve_pure.
+    - (* Jnz .allocator_zero rtmp repeats the loop. *)
+      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Htmp]" as "(HPC & Htmp)".
       { intros Hzero; inversion Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
-      iIntros "!> (HPC & Hi & Htmp)".
-      wp_pure.
-      iClear "Hi".
       iApply ("IH" $! (b ^+ 1)%a with
         "[] [] HPC Hptr Hdw Hend Htmp Hmem [Ha Hφ]").
       { iPureIntro; solve_addr. }
@@ -211,6 +204,52 @@ Section AllocatorMacros.
   Definition allocator_paint_ok (R : iProp Σ) (P : Addr → iProp Σ) (b e : Addr) : Prop :=
     ∀ a Rs Cs, (b <= a < e)%a →
       reg_auth Rs -∗ addr_alloc_auth Cs -∗ R ∗ P a -∗ ⌜shadow_perm_ok Rs Cs a⌝.
+
+  (** The shadow store of the paint loop: the entry of [b] receives [s_new],
+      either its current value or justified by [allocator_paint_ok]. *)
+  Lemma allocator_paint_store_spec E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq
+    (rptr : RegName) (s_old s_new : AllocStatus) (b e sb : Addr)
+    (R : iProp Σ) (P : Addr → iProp Σ) :
+    decodeInstrW w.(lw) = Store rptr (inl (encodeAllocStatus s_new)) 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    rptr ≠ cnull →
+    (b < e)%a →
+    (shadow_b <= sb < shadow_e)%a →
+    heap_to_shadow b = Some sb →
+    s_old = s_new ∨ allocator_paint_ok R P b e →
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
+        ▷ b ↦ₛ s_old ∗
+        R ∗
+        P b }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
+        b ↦ₛ s_new ∗
+        R ∗
+        P b }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' Hrptr Hbe Hsb Hmap Hok Φ)
+      "(HPC & Hi & Hptr & Hs & HR & HP) HΦ".
+    destruct Hok as [<- | Hok].
+    - iApply (wp_store_success_shadow_z_same with "[$HPC $Hi $Hptr $Hs]"); try solve_pure.
+      { unfold is_shadow_address. apply withinBounds_true_iff; solve_addr. }
+      { by apply heap_shadow_inverse. }
+      { apply withinBounds_true_iff; solve_addr. }
+      iIntros "!> (HPC & Hi & Hptr & Hs)". iApply "HΦ". iFrame.
+    - iApply (wp_store_success_shadow_z_res _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ s_new s_old b
+        (R ∗ P b) with "[$HPC $Hi $Hptr $Hs $HR $HP]"); try solve_pure.
+      { intros Rs Cs. iIntros "HRs HCs HRP".
+        iApply (Hok b with "HRs HCs HRP"). solve_addr. }
+      { unfold is_shadow_address. apply withinBounds_true_iff; solve_addr. }
+      { by apply heap_shadow_inverse. }
+      { apply withinBounds_true_iff; solve_addr. }
+      iIntros "!> (HPC & Hi & Hptr & Hs & HR & HP)". iApply "HΦ". iFrame.
+  Qed.
 
   (** The paint loop stores [s_new] into the shadow entries of a nonempty
       range, touching no memory. The shared resource [R] and the per-cell
@@ -285,33 +324,11 @@ Section AllocatorMacros.
     unfold lword_of_word.
 
     (* Store rptr (encodeAllocStatus s_new). *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iAssert (WP Instr Executable @ E {{ v,
-      ⌜v = NextIV⌝ ∗
-      PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a ∗
-      pc_a ↦ₐ□ encodeInstrW (Store rptr (inl (encodeAllocStatus s_new)) 0) ∗
-      rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
-      b ↦ₛ s_new ∗ R ∗ P b }})%I
-      with "[HPC Hi Hptr Hs HR HP]" as "Hstore".
-    { destruct Hok as [<- | Hok].
-      - iApply (wp_store_success_shadow_z_same with "[$HPC $Hi $Hptr $Hs]"); try solve_pure.
-        { unfold is_shadow_address. apply withinBounds_true_iff; solve_addr. }
-        { by apply heap_shadow_inverse. }
-        { apply withinBounds_true_iff; solve_addr. }
-        iIntros "!> (HPC & Hi & Hptr & Hs)". iFrame "∗". done.
-      - iApply (wp_store_success_shadow_z_res _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ s_new s_old b
-          (R ∗ P b) with "[$HPC $Hi $Hptr $Hs $HR $HP]"); try solve_pure.
-        { intros Rs Cs. iIntros "HRs HCs HRP".
-          iApply (Hok b with "HRs HCs HRP"). solve_addr. }
-        { unfold is_shadow_address. apply withinBounds_true_iff; solve_addr. }
-        { by apply heap_shadow_inverse. }
-        { apply withinBounds_true_iff; solve_addr. }
-        iIntros "!> (HPC & Hi & Hptr & Hs & HR & HP)". iFrame "∗". done. }
-    iApply (wp_wand with "Hstore").
-    iIntros (v) "(-> & HPC & Hi & Hptr & Hs & HR & HP)".
-    wp_pure.
-    iClear "Hi".
+    iInstrApply "Hcode" (allocator_paint_store_spec _ _ _ _ _ _ _ _ _ _ _ s_old s_new b e sb R P)
+      with "[$HPC $Hptr $Hs $HR $HP]"
+      as "(HPC & Hptr & Hs & HR & HP)".
+    { solve_addr. }
+    { solve_addr. }
 
     (* Lea rptr 1 advances the shadow cursor. *)
     iInstr "Hcode".
@@ -329,14 +346,9 @@ Section AllocatorMacros.
         Hlast finz_seq_between_empty; last solve_addr.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jnz .allocator_paint rcount repeats the loop. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hcount]"); try solve_pure.
+      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hcount]" as "(HPC & Hcount)".
       { intros Hzero; inversion Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
-      iIntros "!> (HPC & Hi & Hcount)".
-      wp_pure.
-      iClear "Hi".
       replace (e - b - 1)%Z with (e - (b ^+ 1)%a)%Z by solve_addr.
       iApply ("IH" $! (b ^+ 1)%a (sb ^+ 1)%a with
         "[] [] [] [] [] HPC Hptr Hcount HR Hcells [Hs HP Hφ]").

@@ -1172,6 +1172,243 @@ Tactic Notation "iInstr_invalidate" constr(H) "with" constr(Hlc) :=
   instr_normalize_register_aliases;
   instr_using_rule dispatch_instr_invalidation instr_apply_invalidation H Hlc.
 
+(** * Explicit instruction rules
+
+    [iInstrApply "Hcode" rule with "spat" as (x1 … xn) "ipat"] applies an
+    explicit instruction [rule] to the next instruction of the code fragment
+    ["Hcode"]. The instruction points-to is looked up, framed into the
+    precondition of [rule] and removed from its postcondition by the tactic:
+    it never appears in [spat] or [ipat]. The side goals that [solve_pure]
+    does not prove stay before the main goal. In the main goal, the
+    postcondition is introduced with [x1 … xn] and [ipat]; in every branch
+    that gives the instruction back, [wp_pure] is tried and the instruction is
+    put back into the code fragment.
+
+    Split form, for a step between the lookup and the rule (e.g. opening an
+    invariant): [iInstrStart "Hcode"] looks up the instruction,
+    [iInstrApply rule with "spat" as … "ipat"] continues the started
+    instruction, and [iInstrEnd] introduces the pending modality, takes the
+    pure step and puts the instruction back if not done yet.
+
+    [iInstrApply "Hcode" with "Hlc" rule …] collects the later credit of the
+    pure step into ["Hlc"], as [iInstr "Hcode" with "Hlc"]. *)
+
+(* [InstrFront I P Q]: the instruction [I] is at the front of [P], i.e.
+   [P ⊢ I ∗ Q], through [∗] and [∃]. *)
+Class InstrFront {PROP : bi} (I P Q : PROP) := instr_front : P ⊢ I ∗ Q.
+#[export] Hint Mode InstrFront + + ! - : typeclass_instances.
+
+(* [InstrFrontPost I P Q fl]: [Q] is [P] with [I] moved to the front of the
+   branches of its top-level disjunction marked [true] in [fl]. *)
+Class InstrFrontPost {PROP : bi} (I P Q : PROP) (fl : list bool) :=
+  instr_front_post : P ⊢ Q.
+#[export] Hint Mode InstrFrontPost + + ! - - : typeclass_instances.
+
+Section instr_front.
+  Context {PROP : bi}.
+  Implicit Types I P Q : PROP.
+
+  #[global] Instance instr_front_here I : InstrFront I I emp | 0.
+  Proof. rewrite /InstrFront. iIntros "$". Qed.
+  #[global] Instance instr_front_sep_here I Q : InstrFront I (I ∗ Q) Q | 0.
+  Proof. by rewrite /InstrFront. Qed.
+  #[global] Instance instr_front_sep_r I P Q Q' :
+    InstrFront I Q Q' → InstrFront I (P ∗ Q) (P ∗ Q') | 1.
+  Proof.
+    rewrite /InstrFront => HQ. rewrite HQ. iIntros "(HP & HI & HQ)". iFrame.
+  Qed.
+  #[global] Instance instr_front_sep_l I P P' Q :
+    InstrFront I P P' → InstrFront I (P ∗ Q) (P' ∗ Q) | 2.
+  Proof.
+    rewrite /InstrFront => HP. rewrite HP. iIntros "((HI & HP) & HQ)". iFrame.
+  Qed.
+  #[global] Instance instr_front_exist {A} I (Φ Ψ : A → PROP) :
+    (∀ x, InstrFront I (Φ x) (Ψ x)) → InstrFront I (∃ x, Φ x) (∃ x, Ψ x) | 1.
+  Proof.
+    rewrite /InstrFront => HΦ. iIntros "[%x H]".
+    iDestruct (HΦ x with "H") as "[$ H]". by iExists x.
+  Qed.
+
+  #[global] Instance instr_front_post_or I P1 P2 Q1 Q2 b fl :
+    InstrFrontPost I P1 Q1 [b] → InstrFrontPost I P2 Q2 fl →
+    InstrFrontPost I (P1 ∨ P2) (Q1 ∨ Q2) (b :: fl) | 0.
+  Proof.
+    rewrite /InstrFrontPost => H1 H2. iIntros "[H|H]".
+    - iLeft. by iApply H1.
+    - iRight. by iApply H2.
+  Qed.
+  #[global] Instance instr_front_post_branch I P Q :
+    InstrFront I P Q → InstrFrontPost I P (I ∗ Q) [true] | 1.
+  Proof. done. Qed.
+  #[global] Instance instr_front_post_none I P : InstrFrontPost I P P [false] | 2.
+  Proof. by rewrite /InstrFrontPost. Qed.
+
+  Lemma instr_front_post_elim I P Q fl : InstrFrontPost I P Q fl → P -∗ Q.
+  Proof. rewrite /InstrFrontPost => HPQ. iIntros "HP". by iApply HPQ. Qed.
+End instr_front.
+
+(* The intro pattern [p] of a postcondition, with the hidden name [h]
+   inserted at the front of the branches marked in [fl]. *)
+Definition instr_front_pat (h : ident.ident) (fl : list bool)
+    (p : intro_patterns.intro_pat) : option intro_patterns.intro_pat :=
+  match fl, p with
+  | [true], _ => Some (intro_patterns.IList [ [intro_patterns.IIdent h; p] ])
+  | [false], _ => Some p
+  | _, intro_patterns.IList alts =>
+      if decide (length alts = length fl) then
+        Some (intro_patterns.IList (zip_with (λ (b : bool) alt,
+          if b then [intro_patterns.IList [intro_patterns.IIdent h :: alt] ] else alt)
+          fl alts))
+      else None
+  | _, _ => None
+  end.
+
+(* The specialization pattern [sps], with the hypothesis [h] framed in its
+   first goal. *)
+Definition instr_frame_spat (h : ident.ident) (sps : list spec_pat)
+    : option (list spec_pat) :=
+  match sps with
+  | SGoal g :: sps =>
+      Some (SGoal (SpecGoal (spec_goal_kind g) (spec_goal_negate g)
+                            (h :: spec_goal_frame g) (spec_goal_hyps g)
+                            (spec_goal_done g)) :: sps)
+  | _ => None
+  end.
+
+(* The instruction points-to of the started instruction. *)
+Ltac instr_started_hyp :=
+  lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
+    lazymatch Γs with
+    | context [ Esnoc _ ?hi (_ ↦ₐ{_} encodeInstrW _ @@? _)%I ] => hi
+    | _ => fail "iInstrApply: no started instruction (use iInstrStart)"
+    end
+  end.
+
+(* Puts the instruction back: into its code fragment, through the
+   continuation left by the lookup, or dropped on persistent code. *)
+Ltac instr_apply_close :=
+  lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
+    lazymatch Γs with
+    | context [ Esnoc _ ?hi (_ ↦ₐ{_} encodeInstrW _ @@? _)%I ] =>
+      lazymatch Γs with
+      | context [ Esnoc _ ?hcont ((_ ↦ₐ{_} encodeInstrW _ @@? _) -∗ _)%I ] =>
+        let pat := constr:(cons (SIdent hi nil) nil) in
+        iSpecialize (hcont with pat)
+      | _ => iClear hi
+      end
+    end
+  end.
+
+(* Looks up the next instruction of [hprog] and binds it. The continuation
+   back to the code fragment takes the name [hprog]. *)
+Ltac instr_apply_start hprog :=
+  instr_normalize_lwords;
+  let hi := iFresh in
+  iInstr_lookup hprog as hi hprog;
+  try wp_instr.
+
+(* In a branch of the postcondition: the pure step, then the instruction
+   back, if the branch gives it back. *)
+Ltac instr_apply_branch hlc hlc' :=
+  simpl_cnull_zero;
+  try wp_pure_lc hlc';
+  try (iCombine_ident (INamed hlc) hlc' as (INamed hlc));
+  try instr_apply_close.
+
+(* The main goal: the postcondition, with the instruction moved to the
+   front of the branches that give it back, is introduced with [ipat] and a
+   hidden name for the instruction. *)
+Ltac instr_apply_main hlc hlc' I intro_xs ipat :=
+  iNext; intro_xs ();
+  let Hp := iFresh in
+  iIntros Hp;
+  let P := lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
+    lazymatch Γs with context [ Esnoc _ Hp ?P ] => P end end in
+  (* Solved here, and the lemma below given explicitly: a global resolution
+     would also try the instances left pending by [iApply]. *)
+  let c := constr:(ltac:(tc_solve) : InstrFrontPost I P _ _) in
+  lazymatch type of c with InstrFrontPost _ _ ?Q ?fl =>
+    let h := iFresh in
+    let p := intro_patterns.intro_pat.parse_one ipat in
+    lazymatch eval vm_compute in (instr_front_pat h fl p) with
+    | Some ?p' =>
+      iDestruct (instr_front_post_elim I P Q fl c with Hp) as p';
+      instr_apply_branch hlc hlc'
+    | None => fail "iInstrApply: the pattern" ipat
+                "does not match the branches of the postcondition"
+    end
+  end.
+
+Ltac instr_apply_core hlc rule spat intro_xs ipat :=
+  let hi := instr_started_hyp in
+  let I := lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
+    lazymatch Γs with context [ Esnoc _ hi ?I ] => I end end in
+  let sps := spec_pat.parse spat in
+  let sps := lazymatch eval vm_compute in (instr_frame_spat hi sps) with
+    | Some ?sps => sps
+    | None => fail "iInstrApply: the pattern" spat "has no goal for the precondition"
+    end in
+  let hlc' :=
+    match goal with
+    | |- context [ Esnoc _ (INamed hlc) (£ _)%I ] => iFresh
+    | _ => hlc
+    end in
+  iApply (rule with sps);
+  [ try solve_pure .. | instr_apply_main hlc hlc' I intro_xs ipat ].
+
+Tactic Notation "iInstrStart" constr(hprog) := instr_apply_start hprog.
+
+Tactic Notation "iInstrEnd" :=
+  iModIntro; try wp_pure; try instr_apply_close.
+
+(* Continuing a started instruction. *)
+Tactic Notation "iInstrApply" open_constr(rule) "with" constr(spat) "as" constr(ipat) :=
+  instr_apply_core "_" rule spat ltac:(fun _ => idtac) ipat.
+Tactic Notation "iInstrApply" open_constr(rule) "with" constr(spat)
+    "as" "(" simple_intropattern(x1) ")" constr(ipat) :=
+  instr_apply_core "_" rule spat ltac:(fun _ => iIntros (x1)) ipat.
+Tactic Notation "iInstrApply" open_constr(rule) "with" constr(spat)
+    "as" "(" simple_intropattern(x1) simple_intropattern(x2) ")" constr(ipat) :=
+  instr_apply_core "_" rule spat ltac:(fun _ => iIntros (x1 x2)) ipat.
+Tactic Notation "iInstrApply" open_constr(rule) "with" constr(spat)
+    "as" "(" simple_intropattern(x1) simple_intropattern(x2)
+    simple_intropattern(x3) ")" constr(ipat) :=
+  instr_apply_core "_" rule spat ltac:(fun _ => iIntros (x1 x2 x3)) ipat.
+
+(* Looking up the instruction and applying the rule. *)
+Tactic Notation "iInstrApply" open_constr(hprog) open_constr(rule) "with" constr(spat)
+    "as" constr(ipat) :=
+  instr_apply_start hprog;
+  instr_apply_core "_" rule spat ltac:(fun _ => idtac) ipat.
+Tactic Notation "iInstrApply" open_constr(hprog) open_constr(rule) "with" constr(spat)
+    "as" "(" simple_intropattern(x1) ")" constr(ipat) :=
+  instr_apply_start hprog;
+  instr_apply_core "_" rule spat ltac:(fun _ => iIntros (x1)) ipat.
+Tactic Notation "iInstrApply" open_constr(hprog) open_constr(rule) "with" constr(spat)
+    "as" "(" simple_intropattern(x1) simple_intropattern(x2) ")" constr(ipat) :=
+  instr_apply_start hprog;
+  instr_apply_core "_" rule spat ltac:(fun _ => iIntros (x1 x2)) ipat.
+Tactic Notation "iInstrApply" open_constr(hprog) open_constr(rule) "with" constr(spat)
+    "as" "(" simple_intropattern(x1) simple_intropattern(x2)
+    simple_intropattern(x3) ")" constr(ipat) :=
+  instr_apply_start hprog;
+  instr_apply_core "_" rule spat ltac:(fun _ => iIntros (x1 x2 x3)) ipat.
+
+(* With the later credit of the pure step. *)
+Tactic Notation "iInstrApply" open_constr(hprog) "with" constr(hlc) open_constr(rule)
+    "with" constr(spat) "as" constr(ipat) :=
+  instr_apply_start hprog;
+  instr_apply_core hlc rule spat ltac:(fun _ => idtac) ipat.
+Tactic Notation "iInstrApply" open_constr(hprog) "with" constr(hlc) open_constr(rule)
+    "with" constr(spat) "as" "(" simple_intropattern(x1) ")" constr(ipat) :=
+  instr_apply_start hprog;
+  instr_apply_core hlc rule spat ltac:(fun _ => iIntros (x1)) ipat.
+Tactic Notation "iInstrApply" open_constr(hprog) "with" constr(hlc) open_constr(rule)
+    "with" constr(spat) "as" "(" simple_intropattern(x1) simple_intropattern(x2) ")"
+    constr(ipat) :=
+  instr_apply_start hprog;
+  instr_apply_core hlc rule spat ltac:(fun _ => iIntros (x1 x2)) ipat.
+
 Ltac2 rec iGo hprog :=
   let stop_if_at_least_two_goals () :=
     on_lasts [ (fun _ => ()); (fun _ => ()) ] in

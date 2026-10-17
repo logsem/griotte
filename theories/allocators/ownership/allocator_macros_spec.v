@@ -178,16 +178,12 @@ Section AllocatorOwnerMacro.
     iInstr "Hcode".
     { done. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
-    (* UnSeal ctp ctp ca0. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
     iDestruct (map_of_regs_2 with "Hctp Hca0") as "[Hmap %Hctpca0]".
-    iApply (wp_UnSeal _ RX Global pc_b pc_e (pc_a ^+ 2)%a None _ ctp ctp ca0
-      with "[$HPC $Hi $Hmap]").
-    { by rewrite decode_encode_instrW_inv. }
-    { solve_pure. }
+    (* UnSeal ctp ctp ca0. *)
+    iInstrApply "Hcode" (wp_UnSeal _ RX Global pc_b pc_e (pc_a ^+ 2)%a None _ ctp ctp ca0)
+      with "[$HPC $Hmap]"
+      as (lpc' regs' retv) "(%Hspec & HPC & Hmap)".
     { rewrite /regs_of !dom_insert_L. set_solver+. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hi & Hmap)".
     inversion Hspec as
       [ p g b e a πs o sb π Hsrc1 Hsrc2 Htag Hperm Hwb HincrPC
       | t p g b e a πs o sb π Hsrc1 Hsrc2 Hfalse HincrPC
@@ -203,18 +199,12 @@ Section AllocatorOwnerMacro.
       iEval (rewrite !insert_insert_eq) in "Hmap".
       iDestruct (regs_of_map_2 with "Hmap") as "(Hctp & Hca0)"; first done.
       wp_pure.
-      iClear "Hi".
-      (* CLoad ctp ctp 0. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
       iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
-      iApply (wp_load_fail_tag with "[$HPC $Hi $Hmap]").
-      { by rewrite decode_encode_instrW_inv. }
-      2: { by simplify_map_eq. }
-      { apply isCorrectPC_intro; [solve_addr|auto]. }
+      (* CLoad ctp ctp 0. *)
+      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "_".
+      { by simplify_map_eq. }
       { by destruct sb. }
-      iNext. iIntros "_".
-      wp_pure; wp_end; iIntros "%Hcontr"; done.
+      wp_end; iIntros "%Hcontr"; done.
     - wp_pure; wp_end; iIntros "%Hcontr"; done.
   Qed.
 

@@ -75,11 +75,10 @@ Section Switcher_Call_Blocks_2.
     rewrite finz_seq_between_length in Hstklen.
     destruct (decide (b_stk <= a_stk < e_stk)%a) as [Hastk_inbounds|Hastk_inbounds]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs0 $Hcsp]") ; try solve_pure.
+      (* Store csp cs0 0 *)
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs0 $Hcsp]" as "_".
       { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+      wp_end. iIntros "%Hcontr";done.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk_inbounds.
     destruct stk_mem as [|w0 stk_mem]; simplify_eq.
@@ -98,11 +97,10 @@ Section Switcher_Call_Blocks_2.
     (* --- Store csp cs1 --- *)
     destruct (decide (b_stk <= (a_stk ^+ 1)%a < e_stk)%a) as [Hastk1_inbounds|Hastk1_inbounds]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs1 $Hcsp]") ; try solve_pure.
+      (* Store csp cs1 0 *)
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs1 $Hcsp]" as "_".
       { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+      wp_end. iIntros "%Hcontr";done.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk1_inbounds.
     destruct stk_mem as [|w1 stk_mem]; simplify_eq.
@@ -120,11 +118,10 @@ Section Switcher_Call_Blocks_2.
     (* --- Store csp cra --- *)
     destruct (decide (b_stk <= (a_stk ^+ 2)%a < e_stk)%a) as [Hastk2_inbounds|Hastk2_inbounds]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcra $Hcsp]") ; try solve_pure.
+      (* Store csp cra 0 *)
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcra $Hcsp]" as "_".
       { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+      wp_end. iIntros "%Hcontr";done.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk2_inbounds.
     destruct stk_mem as [|w2 stk_mem]; simplify_eq.
@@ -142,11 +139,10 @@ Section Switcher_Call_Blocks_2.
     (* --- Store csp cgp --- *)
     destruct (decide (b_stk <= (a_stk ^+ 3)%a < e_stk)%a) as [Hastk3_inbounds|Hastk3_inbounds]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcgp $Hcsp]") ; try solve_pure.
+      (* Store csp cgp 0 *)
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcgp $Hcsp]" as "_".
       { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+      wp_end. iIntros "%Hcontr";done.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk3_inbounds.
     destruct stk_mem as [|w3 stk_mem]; simplify_eq.
@@ -421,23 +417,21 @@ Section Switcher_Call_Blocks_2.
     switcher_focus_block (switcher_block ".Lswitcher_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* Store csp cs0 *)
     destruct (is_cap wcsp.(lw)) eqn:Hcap; cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg_not_cap_lword with "[$HPC $Hi $Hcs0 $Hcsp]"); try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    { (* Store csp cs0 *)
+      iInstrApply "Hcode" wp_store_fail_reg_not_cap_lword with "[$HPC $Hcs0 $Hcsp]" as "_".
+      wp_end. iIntros "%Hcontr"; done. }
     destruct wcsp as [ [| [t p g b e a|] | | ] π]; cbn in Hcap; try discriminate.
     destruct t.
     2: {
       (* Store csp cs0 *)
       iInstr_fail "Hcode".
       wp_end. iIntros "%Hcontr"; done. }
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
     destruct (switcher_csp_checked_cap _ _ _ _ _ _ Hchecked) as [-> ->].
     specialize (Hnot_stk b e a eq_refl).
-    iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs0 $Hcsp]"); try solve_pure.
+    (* Store csp cs0 *)
+    iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs0 $Hcsp]" as "_".
     { destruct Hnot_stk; rewrite /withinBounds; solve_addr. }
-    iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done.
+    wp_end. iIntros "%Hcontr"; done.
   Qed.
 
 End Switcher_Call_Blocks_2.

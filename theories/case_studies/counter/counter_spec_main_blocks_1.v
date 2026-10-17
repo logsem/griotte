@@ -67,15 +67,11 @@ Section Counter_Main_Blocks_1.
     { split; first done. apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
     (* Add cs0 cs0 1 *)
     iInstr "Hcode".
-    (* Store cgp cs0 0 *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
     iPoseProof deref_res_none as "-#Hdw".
-    iApply (wp_store_success_reg with "[$HPC $Hi $Hcs0 $Hcgp $Hcgp_b $Hdw]"); try solve_pure.
+    (* Store cgp cs0 0 *)
+    iInstrApply "Hcode" wp_store_success_reg with "[$HPC $Hcs0 $Hcgp $Hcgp_b $Hdw]"
+      as "(HPC & Hcs0 & Hcgp & Hcgp_b & _)".
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
-    iIntros "!> (HPC & Hi & Hcs0 & Hcgp & Hcgp_b & _)".
-    iClear "Hi".
-    wp_pure.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 1: fetch the entry point of the switcher *)

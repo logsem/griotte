@@ -143,17 +143,13 @@ Section KVS_spec_read.
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx. }
     (* CLoad ca1 cgp 0: the heap shadow can clear the returned tag. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_load_preserve_or_clear _ _ _ _ _ _ _ (a_read ^+ 7)%a with "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val]");
-      try solve_pure; try solve_addr.
+    iInstrApply "Hcode" (wp_load_preserve_or_clear _ _ _ _ _ _ _ (a_read ^+ 7)%a)
+      with "[$HPC $Hca1 $Hcgp $Hcgp_val]"
+      as (ret) "[-> | (%actual & -> & %Hactual & HPC & Hca1 & Hcgp & Hcgp_val)]".
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
       rewrite /withinBounds; solve_addr. }
-    iIntros "!>" (ret)
-      "[-> | (%actual & -> & %Hactual & HPC & Hi & Hca1 & Hcgp & Hcgp_val)]".
-    { wp_pure; wp_end; iIntros "%Hcontr"; done. }
+    { wp_end; iIntros "%Hcontr"; done. }
     rewrite lload_word_RW in Hactual.
-    wp_pure. iClear "Hi".
     (* Mov ca1 0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
@@ -570,16 +566,11 @@ Section KVS_spec_read.
     { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a); [|done].
       apply withinBounds_true_iff in Hcgp_idx; solve_addr. }
     (* CLoad ca1 cgp 0: the heap shadow can clear the returned tag. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (load_read_retained _ W C with
-      "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val $Hregion]");
-      try solve_pure; try solve_addr.
+    iInstrApply "Hcode" (load_read_retained _ W C)
+      with "[$HPC $Hca1 $Hcgp $Hcgp_val $Hregion]"
+      as (actual) "(%Hactual & HPC & Hca1 & Hcgp & Hcgp_val & Hregion)".
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
       rewrite /withinBounds; solve_addr. }
-    iIntros "!>" (actual)
-      "(%Hactual & HPC & Hi & Hca1 & Hcgp & Hcgp_val & Hregion)".
-    wp_pure. iClear "Hi".
     (* Mov ca0 0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
