@@ -282,4 +282,84 @@ Qed.
   Lemma dom_revoker_sweep_mem φ : dom (mem (revoker_sweep φ)) = dom (mem φ).
   Proof. apply dom_sweep_mem. Qed.
 
+  (*--- The tagged-PC invariant ---*)
+
+  (** A tagged PC, MTCC or MEPCC is an unsealed executable capability. *)
+  Definition sys_pc_ok (φ : ExecConf) : Prop :=
+    pc_ok (pcc φ) ∧
+    ∀ sr w, is_pc_sreg sr = true → sreg φ !! sr = Some w → pc_ok w.
+
+  Lemma sys_pc_ok_ext φ φ' :
+    pcc φ' = pcc φ → sreg φ' = sreg φ → sys_pc_ok φ → sys_pc_ok φ'.
+  Proof. rewrite /sys_pc_ok. by intros -> ->. Qed.
+
+  Lemma sys_pc_ok_update_sreg φ sr w :
+    sys_pc_ok φ → sys_pc_ok (update_sreg φ sr (legalise sr w)).
+  Proof.
+    intros [Hpc Hsr]. split; first done.
+    intros sr' w' Hsr'. cbn. destruct (decide (sr = sr')) as [<-|Hne].
+    - rewrite lookup_insert_eq. intros [= <-]. by apply legalise_pc_sreg_pc_ok.
+    - rewrite lookup_insert_ne //. by apply Hsr.
+  Qed.
+
+  Lemma updatePC_gen_sys_pc_ok φ imm c :
+    sys_pc_ok φ → updatePC_gen φ imm = Some c → sys_pc_ok c.2.
+  Proof.
+    intros [Hpc Hsr]. rewrite /updatePC_gen.
+    destruct (pcc φ) as [| [] | | ] eqn:Hφ; try done.
+    destruct (_ + _)%a; intros; simplify_eq. split; last done.
+    cbn. by eapply pc_ok_cap_addr.
+  Qed.
+
+  Lemma updatePC_sys_pc_ok φ c :
+    sys_pc_ok φ → updatePC φ = Some c → sys_pc_ok c.2.
+  Proof. apply updatePC_gen_sys_pc_ok. Qed.
+
+  Lemma exec_opt_sys_pc_ok i p φ c :
+    sys_pc_ok φ → exec_opt i p φ = Some c → sys_pc_ok c.2.
+  Proof.
+    intros Hinv Hexec.
+    destruct i; cbn in Hexec.
+    all: repeat (case_match || simplify_option_eq); simplify_eq/=; try done.
+    (* Every instruction but Jalr writes the PC through [updatePC_gen]. *)
+    all: try match goal with
+      | Hup : updatePC_gen ?φ' _ = Some _ |- _ => eapply (updatePC_gen_sys_pc_ok φ'); [|exact Hup]
+      | Hup : updatePC ?φ' = Some _ |- _ => eapply (updatePC_sys_pc_ok φ'); [|exact Hup]
+      end.
+    (* MTCC and MEPCC change only by a legalised write. *)
+    all: try (eapply sys_pc_ok_ext; [| |exact Hinv]; done).
+    all: try (eapply sys_pc_ok_ext; [| |apply sys_pc_ok_update_sreg, Hinv]; done).
+    (* Jalr checks its target. *)
+    all: match goal with
+      | Ht : negb (get_tag ?w) = false, Hs : is_sealed ?w = false,
+        Hx : negb (executable_word ?w) = false |- _ =>
+          split; [apply jalr_target_ok_pc_ok | apply (proj2 Hinv)];
+          rewrite /jalr_target_ok -(negb_involutive (get_tag w)) Ht Hs /=;
+          by rewrite -(negb_involutive (executable_word w)) Hx
+      end.
+  Qed.
+
+  Lemma exec_sys_pc_ok i p φ :
+    sys_pc_ok φ → sys_pc_ok (exec i p φ).2.
+  Proof.
+    intros Hinv. rewrite /exec.
+    destruct (exec_opt i p φ) eqn:Hexec; last done.
+    by eapply exec_opt_sys_pc_ok.
+  Qed.
+
+  (** The machine preserves the tagged-PC invariant. *)
+  Lemma step_sys_pc_ok σ σ' :
+    sys_pc_ok σ.2 → step σ σ' → sys_pc_ok σ'.2.
+  Proof.
+    intros Hinv Hstep.
+    destruct Hstep as [| |φ p g b e a i c wa _ _ _ _ <-]; try done.
+    by apply exec_sys_pc_ok.
+  Qed.
+
+  Lemma rtc_step_sys_pc_ok σ σ' :
+    sys_pc_ok σ.2 → rtc step σ σ' → sys_pc_ok σ'.2.
+  Proof.
+    intros Hinv Hsteps. induction Hsteps; eauto using step_sys_pc_ok.
+  Qed.
+
 End opsem_prop.

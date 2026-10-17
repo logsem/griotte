@@ -27,9 +27,10 @@ Inductive instr: Type :=
 | GetOType (dst r: RegName)
 | Seal (dst : RegName) (r1 r2: RegName)
 | UnSeal (dst : RegName) (r1 r2: RegName)
-(* Separate SpecialRW into 2 instructions *)
-| ReadSR (dst: RegName) (src: SRegName)
-| WriteSR (dst: SRegName) (src: RegName)
+(* Swaps a system register: [dst] receives the old value of [sr], and [sr]
+   receives the legalised value of [src]. The source [inr cnull] leaves [sr]
+   unchanged, and the destination [cnull] drops the old value. *)
+| SpecialRW (dst: RegName) (sr: SRegName) (src: Z + RegName)
 | Fail
 | Halt
 | GetTag (dst src: RegName)
@@ -67,8 +68,7 @@ Proof.
 
       | Seal dst r1 r2 => GenNode 18 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
       | UnSeal dst r1 r2 => GenNode 19 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
-      | ReadSR dst src => GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr src))]
-      | WriteSR dst src => GenNode 21 [GenLeaf (inl (inr dst)); GenLeaf (inl (inl src))]
+      | SpecialRW dst sr src => GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr sr)); GenLeaf (inr src)]
       | Fail => GenNode 22 []
       | Halt => GenNode 23 []
       | Mul dst r1 r2 => GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
@@ -105,8 +105,7 @@ Proof.
 
       | GenNode 18 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => Seal dst r1 r2
       | GenNode 19 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => UnSeal dst r1 r2
-      | GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr src))] => ReadSR dst src
-      | GenNode 21 [GenLeaf (inl (inr dst)); GenLeaf (inl (inl src))] => WriteSR dst src
+      | GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr sr)); GenLeaf (inr src)] => SpecialRW dst sr src
       | GenNode 22 [] => Fail
       | GenNode 23 [] => Halt
       | GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Mul dst r1 r2
