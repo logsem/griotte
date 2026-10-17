@@ -31,6 +31,11 @@ Inductive instr: Type :=
    receives the legalised value of [src]. The source [inr cnull] leaves [sr]
    unchanged, and the destination [cnull] drops the old value. *)
 | SpecialRW (dst: RegName) (sr: SRegName) (src: Z + RegName)
+(* Sets the MIE bit of mstatus to [b], keeping MPIE. *)
+| SetMIE (b: InterruptStatus)
+(* Returns from an exception: the PC receives MEPCC, MIE receives MPIE, and
+   MPIE becomes enabled. *)
+| Mret
 | Fail
 | Halt
 | GetTag (dst src: RegName)
@@ -69,6 +74,9 @@ Proof.
       | Seal dst r1 r2 => GenNode 18 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
       | UnSeal dst r1 r2 => GenNode 19 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
       | SpecialRW dst sr src => GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr sr)); GenLeaf (inr src)]
+      | SetMIE InterruptEnabled => GenNode 21 []
+      | SetMIE InterruptDisabled => GenNode 33 []
+      | Mret => GenNode 34 []
       | Fail => GenNode 22 []
       | Halt => GenNode 23 []
       | Mul dst r1 r2 => GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
@@ -106,6 +114,9 @@ Proof.
       | GenNode 18 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => Seal dst r1 r2
       | GenNode 19 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => UnSeal dst r1 r2
       | GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr sr)); GenLeaf (inr src)] => SpecialRW dst sr src
+      | GenNode 21 [] => SetMIE InterruptEnabled
+      | GenNode 33 [] => SetMIE InterruptDisabled
+      | GenNode 34 [] => Mret
       | GenNode 22 [] => Fail
       | GenNode 23 [] => Halt
       | GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Mul dst r1 r2
@@ -120,5 +131,5 @@ Proof.
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).
-  intros i. destruct i; simpl; done.
+  intros i. destruct i; try match goal with b : InterruptStatus |- _ => destruct b end; done.
 Defined.

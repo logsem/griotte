@@ -4,7 +4,7 @@ From griotte Require Export logrel interp_weakening monotone.
 From griotte Require Export
   ftlr_base
   Jmp Jnz Jalr Mov CLoad Store BinOp Restrict
-  Subseg Get ClearTag Lea Seal UnSeal SpecialRW FailHalt Auipcc.
+  Subseg Get ClearTag Lea Seal UnSeal SpecialRW SetMIE Mret FailHalt Auipcc.
 From griotte Require Import register_tactics.
 
 Section fundamental.
@@ -218,6 +218,8 @@ Section fundamental.
     - (* Seal *) apply seal_case.
     - (* UnSeal *) apply unseal_case.
     - (* SpecialRW *) apply specialrw_case.
+    - (* SetMIE *) apply setmie_case.
+    - (* Mret *) apply mret_case.
     - (* Fail *) apply fail_case.
     - (* Halt *) apply halt_case.
     - (* GetTag *) by_get_case.

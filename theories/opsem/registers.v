@@ -170,6 +170,18 @@ Notation mstatus := MSTATUS.
 Notation mcause  := MCAUSE.
 Notation mtval   := MTVAL.
 
+(** The values of the interrupt-enable bits MIE and MPIE of mstatus. *)
+Inductive InterruptStatus : Type :=
+| InterruptEnabled
+| InterruptDisabled.
+
+#[global] Instance InterruptStatus_eq_dec : EqDecision InterruptStatus.
+Proof. solve_decision. Defined.
+
+(** The positions of the MIE and MPIE bits in mstatus. *)
+Definition MIE_BIT : Z := 3.
+Definition MPIE_BIT : Z := 7.
+
 (* A list of all general purpose registers *)
 Definition all_registers : list RegName :=
   [
