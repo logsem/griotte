@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Import ftlr_base interp_weakening.
-From griotte Require Import rules_base rules_ReadSR.
+From griotte Require Import rules_base rules_SpecialRW.
 From griotte Require Import map_simpl register_tactics.
 From griotte Require Import stdpp_extra.
 
@@ -25,10 +25,13 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-  Lemma readsr_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
+  (** Code that the logical relation covers has no system-register
+      permission, so [SpecialRW] fails. *)
+  Lemma specialrw_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (dst : RegName) (src : SRegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr W C regs p p' g b e a w (ReadSR dst src) ρ P cstk Ws Cs.
+    (w : LWord) (ρ : region_type) (dst : RegName) (sr : SRegName) (src : Z + RegName)
+    (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (SpecialRW dst sr src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -47,16 +50,17 @@ Section fundamental.
       congruence.
     }
 
-    iApply (wp_ReadSR with "[$HPC $Ha $Hmap]"); eauto.
+    iApply (wp_SpecialRW _ _ _ _ _ _ _ _ _ _ _ _ ∅ with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
     { by rewrite HpXRS. }
+    { by rewrite HpXRS. }
 
-    iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
+    iIntros "!>" (lpc' regs' sregs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap & _)".
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
-    - by simplify_map_eq.
+    - simplify_map_eq; congruence.
   Qed.
 
 End fundamental.

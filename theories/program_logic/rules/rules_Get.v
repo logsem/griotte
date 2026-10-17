@@ -148,7 +148,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     erewrite regs_of_is_Get in Hri; eauto.
@@ -159,7 +159,7 @@ Section griotte_lang_rules.
       as [(-> & -> & Ht) | Hexact].
     { (* The physical tag is cleared. *)
       rewrite Ht /= in Hstep.
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt 0)) _ _ _ _
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt 0)) _ _ _ _
         (λ lpc' regs' retv, Get_spec (GetTag dst src) _ regs dst src lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. }
@@ -178,7 +178,7 @@ Section griotte_lang_rules.
     rewrite Hden in Hstep.
     destruct (denote_is_Get _ _ _ wsrc.(lw) Hinstr) as [z Hwsrc].
     rewrite Hwsrc in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt z)) _ _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt z)) _ _ _ _
       (λ lpc' regs' retv, Get_spec get_i _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. }
@@ -445,7 +445,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hvpc Dregs HP φ) "(>HPC & >Hpc_a & Hdw & HPr & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
     iDestruct (HP with "HC HPr") as %HΦc.
     rewrite Hdecode /exec in Hstep.
@@ -468,10 +468,10 @@ Section griotte_lang_rules.
         { rewrite get_tag_and_tag. by destruct (s && get_tag v.(lw)). }
         assert (get_tag v.(lw) = true) as Ht.
         { pose proof (reg_phys_tagged _ _ _ Hrel Htw) as Heq. by rewrite -Heq. }
-        pose proof (reg_phys_observe _ _ _ _ _ _ (er_registry _ _ _ _ _ _ Her)
-                      (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs Hv) Hrel Htw Hab) as Hobs.
+        pose proof (reg_phys_observe _ _ _ _ _ _ (er_registry _ _ _ _ _ _ _ Her)
+                      (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs Hv) Hrel Htw Hab) as Hobs.
         destruct (lprov v); [by destruct Hobs as (? & ? & ? & ?) | done]. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst
       (lword_of_word (WInt (Z.b2z (s && get_tag v.(lw))))) _ _ _ _
       (λ lpc' regs' retv,
          (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧

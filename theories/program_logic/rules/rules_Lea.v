@@ -114,19 +114,19 @@ Section griotte_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
      iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-     iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
      rewrite Hinstr in Hstep.
      specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
      unfold regs_of in Hri, Dregs.
      destruct (Hri r1) as [r1v [H'r1 _]]; first by set_solver+.
      destruct (llookup_reg_phys _ _ _ _ _ Hregs H'r1) as (s & Hr1 & Hrel).
-     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs H'r1) as Hok.
+     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs H'r1) as Hok.
      rewrite /exec /= Hr1 /= in Hstep.
      destruct (lz_of_argument_dom regs arg) as [argz Harg].
      { intros x ->. apply Dregs. set_solver+. }
      rewrite (lz_of_argument_incl R regs r _ argz) /= in Hstep; [|done|done].
      destruct (decide ((is_sealed r1v.(lw) || is_sentry r1v.(lw)) = true)) as [Hsl | Hsl].
-     { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (lclear_tag r1v) (clear_tag r1v.(lw)) _ _ _
+     { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (lclear_tag r1v) (clear_tag r1v.(lw)) _ _ _
           (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
        { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -139,7 +139,7 @@ Section griotte_lang_rules.
        iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
      destruct r1v as [[ n | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
      4,5: by exfalso; apply Hsl.
-     1: { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (WInt (n + argz) @@? π) _ _ _ _
+     1: { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WInt (n + argz) @@? π) _ _ _ _
           (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
        { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -148,7 +148,7 @@ Section griotte_lang_rules.
        { intros Hi. constructor. eapply Lea_fail_overflow_PC_other; eauto. }
        iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
      - destruct (a + argz)%a as [a'|] eqn:Hoffset; cbn in Hstep.
-       + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (WCap t p g b e a' @@? π) _ _ _ _
+       + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WCap t p g b e a' @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
          { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -158,7 +158,7 @@ Section griotte_lang_rules.
          { intros lpc' Hi. eapply Lea_spec_success_cap; eauto. }
          { intros Hi. constructor. eapply Lea_fail_overflow_PC_cap; eauto. }
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-       + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (WCap false p g b e a @@? π) _ _ _ _
+       + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WCap false p g b e a @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
          { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -169,7 +169,7 @@ Section griotte_lang_rules.
          { intros Hi. constructor. eapply Lea_fail_overflow_cap; eauto. }
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
      - destruct (a + argz)%ot as [a'|] eqn:Hoffset; cbn in Hstep.
-       + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (WSealRange t p g b e a' @@? π) _ _ _ _
+       + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WSealRange t p g b e a' @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
          { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -179,7 +179,7 @@ Section griotte_lang_rules.
          { intros lpc' Hi. eapply Lea_spec_success_sr; eauto. }
          { intros Hi. constructor. eapply Lea_fail_overflow_PC_sr; eauto. }
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-       + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 (WSealRange false p g b e a @@? π) _ _ _ _
+       + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WSealRange false p g b e a @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
          { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }

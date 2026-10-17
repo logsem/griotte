@@ -17,8 +17,15 @@ Definition RegNum: nat := 15.
 Inductive RegName: Type :=
 | R (n: nat) (fin: n <=? RegNum = true).
 
+(* The system registers: the special capability registers MTCC, MTDC and
+   MEPCC, and the integer CSRs mstatus, mcause and mtval. *)
 Inductive SRegName : Type :=
-| MTDC.
+| MTCC
+| MTDC
+| MEPCC
+| MSTATUS
+| MCAUSE
+| MTVAL.
 
 #[global] Instance reg_eq_dec : EqDecision RegName.
 Proof. intros r1 r2.  destruct r1 as [n fin],r2 as [n0 fin0].
@@ -59,19 +66,25 @@ Defined.
 
 
 #[global] Instance sreg_eq_dec : EqDecision SRegName.
-Proof. intros r1 r2; destruct r1,r2; by left. Defined.
+Proof. solve_decision. Defined.
+
+Definition sreg_to_nat (sr : SRegName) : nat :=
+  match sr with
+  | MTCC => 0 | MTDC => 1 | MEPCC => 2 | MSTATUS => 3 | MCAUSE => 4 | MTVAL => 5
+  end.
+
+Definition nat_to_sreg (n : nat) : SRegName :=
+  match n with
+  | 0 => MTCC | 1 => MTDC | 2 => MEPCC | 3 => MSTATUS | 4 => MCAUSE | _ => MTVAL
+  end.
+
+Lemma nat_to_sreg_to_nat sr : nat_to_sreg (sreg_to_nat sr) = sr.
+Proof. by destruct sr. Qed.
 
 #[global] Instance sreg_countable : Countable SRegName.
 Proof.
-  refine {| encode r := encode match r with
-                               | MTDC => Some ()
-                               end ;
-            decode n := match (decode n) with
-                        | Some () => Some MTDC
-                        | None => None
-                        end ;
-            decode_encode := _ |}.
-  intro r. destruct r; auto.
+  refine (inj_countable' sreg_to_nat nat_to_sreg _).
+  apply nat_to_sreg_to_nat.
 Defined.
 
 #[global] Instance reg_finite : finite.Finite RegName.
@@ -94,12 +107,10 @@ Defined.
 
 #[global] Instance sreg_finite : finite.Finite SRegName.
 Proof.
- apply (finite.enc_finite (λ r : SRegName, match r with | MTDC => 0%nat end)
-                (λ n : nat, MTDC)
-                1%nat).
- - by intro sr; destruct sr.
- - intro sr; destruct sr; lia.
- - lia.
+  apply (finite.enc_finite sreg_to_nat nat_to_sreg 6%nat).
+  - apply nat_to_sreg_to_nat.
+  - intro sr; destruct sr; cbn; lia.
+  - intros n Hn. do 6 (destruct n as [|n]; [done|]). lia.
 Defined.
 
 (* Instances for [zify]: make [lia] work on registers *)
@@ -152,7 +163,12 @@ Definition ca3 : RegName := R 13 eq_refl.
 Definition ca4 : RegName := R 14 eq_refl.
 Definition ca5 : RegName := R 15 eq_refl.
 
-Notation mtdc  := MTDC.
+Notation mtcc    := MTCC.
+Notation mtdc    := MTDC.
+Notation mepcc   := MEPCC.
+Notation mstatus := MSTATUS.
+Notation mcause  := MCAUSE.
+Notation mtval   := MTVAL.
 
 (* A list of all general purpose registers *)
 Definition all_registers : list RegName :=

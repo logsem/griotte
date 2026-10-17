@@ -4,6 +4,7 @@ From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
   registers griotte_lang machine_run switcher assert compartment_layout
   vae vae_adequacy disjoint_regions_tactics.
+From griotte Require Import adequacy_common.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
@@ -397,8 +398,9 @@ Definition vae_initial_registers : Reg :=
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition vae_initial_sregisters : SReg :=
-  <[MTDC := WCap true RWL Local vae_trusted_stack_b vae_trusted_stack_e
-      vae_trusted_stack_b]> ∅.
+  initial_sregisters_with
+    (WCap true RWL Local vae_trusted_stack_b vae_trusted_stack_e
+      vae_trusted_stack_b).
 
 Definition vae_initial_memory : Mem := mk_initial_memory.
 
@@ -422,7 +424,7 @@ Lemma vae_initial_sregisters_correct :
 Proof.
   rewrite /is_initial_sregisters /vae_initial_sregisters.
   cbn [vae_concrete_layout vae_concrete_cmptSwitcher].
-  simplify_map_eq; vm_compute; reflexivity.
+  apply initial_sregisters_with_correct. vm_compute; reflexivity.
 Qed.
 
 Lemma vae_initial_memory_correct : is_initial_memory vae_initial_memory.

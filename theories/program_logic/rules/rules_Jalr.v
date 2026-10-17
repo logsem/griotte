@@ -55,14 +55,14 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
     destruct (Hri rsrc) as [wsrc [H'rsrc _]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'rsrc) as (s & Hrsrc & Hrel).
-    pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs H'rsrc) as Hoksrc.
-    pose proof (er_pc_word _ _ _ _ _ _ Her) as HokPC.
+    pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs H'rsrc) as Hoksrc.
+    pose proof (er_pc_word _ _ _ _ _ _ _ Her) as HokPC.
     rewrite /exec /= Hrsrc /= jalr_target_checks in Hstep.
     (* The target checks fail on the physical copy exactly when they fail on
        the logical word: a word that passes them is executable, hence
@@ -80,8 +80,8 @@ Section griotte_lang_rules.
     assert (reg_word_ok R C (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hoksent.
     { apply (reg_word_ok_derive _ _ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π));
         [by left|done|done|done]. }
-    pose proof (erasure_pc_no_id _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ.
-    iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ rdst
+    pose proof (erasure_pc_no_id _ _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ.
+    iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ rdst
               (WSentry true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) _ (lupdatePcPerm wsrc)
               with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
     - exact Her.

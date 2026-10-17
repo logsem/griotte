@@ -4,6 +4,7 @@ From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
   registers griotte_lang machine_run switcher assert compartment_layout
   cmdc cmdc_adequacy disjoint_regions_tactics.
+From griotte Require Import adequacy_common.
 
 #[export] Existing Instance machine_parameters_instance.
 
@@ -536,8 +537,9 @@ Definition cmdc_initial_registers : Reg :=
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition cmdc_initial_sregisters : SReg :=
-  <[MTDC := WCap true RWL Local cmdc_trusted_stack_b cmdc_trusted_stack_e
-      cmdc_trusted_stack_b]> ∅.
+  initial_sregisters_with
+    (WCap true RWL Local cmdc_trusted_stack_b cmdc_trusted_stack_e
+      cmdc_trusted_stack_b).
 
 Definition cmdc_initial_memory : Mem := mk_initial_memory.
 
@@ -561,7 +563,7 @@ Lemma cmdc_initial_sregisters_correct :
 Proof.
   rewrite /is_initial_sregisters /cmdc_initial_sregisters.
   cbn [cmdc_concrete_layout cmdc_concrete_cmptSwitcher].
-  simplify_map_eq; vm_compute; reflexivity.
+  apply initial_sregisters_with_correct. vm_compute; reflexivity.
 Qed.
 
 Lemma cmdc_initial_memory_correct :

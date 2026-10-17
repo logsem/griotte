@@ -75,6 +75,113 @@ Definition otype_of_argument regs src : option OType :=
   | None => None : option OType
   end.
 
+(** * System registers *)
+
+(** The values of the interrupt-enable bits MIE and MPIE of mstatus. *)
+Inductive InterruptStatus : Type :=
+| InterruptEnabled
+| InterruptDisabled.
+
+#[global] Instance InterruptStatus_eq_dec : EqDecision InterruptStatus.
+Proof. solve_decision. Defined.
+
+Definition interrupt_status_bit (b : InterruptStatus) : bool :=
+  match b with InterruptEnabled => true | InterruptDisabled => false end.
+
+Definition interrupt_status_of_bit (bit : bool) : InterruptStatus :=
+  if bit then InterruptEnabled else InterruptDisabled.
+
+(** The positions of the MIE and MPIE bits in mstatus. *)
+Definition MIE_BIT : Z := 3.
+Definition MPIE_BIT : Z := 7.
+
+(** mstatus holds MIE and MPIE; its other bits read as 0. *)
+Definition mstatus_enc (mie mpie : InterruptStatus) : Z :=
+  (Z.shiftl (Z.b2z (interrupt_status_bit mie)) MIE_BIT +
+   Z.shiftl (Z.b2z (interrupt_status_bit mpie)) MPIE_BIT)%Z.
+
+Definition mie_of (z : Z) : InterruptStatus := interrupt_status_of_bit (Z.testbit z MIE_BIT).
+Definition mpie_of (z : Z) : InterruptStatus := interrupt_status_of_bit (Z.testbit z MPIE_BIT).
+
+Lemma mie_of_mstatus_enc mie mpie : mie_of (mstatus_enc mie mpie) = mie.
+Proof. by destruct mie, mpie. Qed.
+
+Lemma mpie_of_mstatus_enc mie mpie : mpie_of (mstatus_enc mie mpie) = mpie.
+Proof. by destruct mie, mpie. Qed.
+
+Lemma mstatus_enc_inj mie mpie mie' mpie' :
+  mstatus_enc mie mpie = mstatus_enc mie' mpie' → mie = mie' ∧ mpie = mpie'.
+Proof. by destruct mie, mpie, mie', mpie'. Qed.
+
+(** A write to MTCC or MEPCC clears the tag of a word that is sealed (a
+    sentry included) or not executable, as cheriot-sail's [CSpecialRW]. Word
+    addresses have no alignment constraint. *)
+Definition legalise_pc (w : Word) : Word :=
+  if is_sealb w && executable_word w then w else clear_tag w.
+
+(** The value a system register stores when [w] is written to it: MTCC and
+    MEPCC are legalised, MTDC stores [w], and the CSRs store the integer view
+    of [w], mstatus keeping only its MIE and MPIE bits. *)
+Definition legalise (sr : SRegName) (w : Word) : Word :=
+  match sr with
+  | MTCC | MEPCC => legalise_pc w
+  | MTDC => w
+  | MSTATUS => WInt (mstatus_enc (mie_of (get_a w)) (mpie_of (get_a w)))
+  | MCAUSE | MTVAL => WInt (get_a w)
+  end.
+
+(** The system registers that hold a PC: [mret] and trap entry jump to them
+    without checks. *)
+Definition is_pc_sreg (sr : SRegName) : bool :=
+  match sr with MTCC | MEPCC => true | _ => false end.
+
+Lemma legalise_pc_pc_ok w : pc_ok (legalise_pc w).
+Proof.
+  rewrite /legalise_pc /pc_ok.
+  destruct (is_sealb w) eqn:Hs, (executable_word w) eqn:Hx; cbn;
+    rewrite ?get_tag_clear_tag; naive_solver.
+Qed.
+
+Lemma legalise_mtcc_pc_ok w : pc_ok (legalise MTCC w).
+Proof. apply legalise_pc_pc_ok. Qed.
+
+Lemma legalise_mepcc_pc_ok w : pc_ok (legalise MEPCC w).
+Proof. apply legalise_pc_pc_ok. Qed.
+
+Lemma legalise_pc_sreg_pc_ok sr w : is_pc_sreg sr = true → pc_ok (legalise sr w).
+Proof. destruct sr; try done; intros _; apply legalise_pc_pc_ok. Qed.
+
+Lemma legalise_pc_ok_id w : pc_ok w → legalise_pc w = w.
+Proof.
+  rewrite /legalise_pc /pc_ok. intros Hok.
+  destruct (get_tag w) eqn:Ht.
+  - by destruct (Hok eq_refl) as [-> ->].
+  - destruct (is_sealb w && executable_word w); first done.
+    destruct w as [| [] | | ? []]; cbn in *; by subst.
+Qed.
+
+Lemma legalise_mstatus w :
+  legalise MSTATUS w = WInt (mstatus_enc (mie_of (get_a w)) (mpie_of (get_a w))).
+Proof. done. Qed.
+
+Lemma legalise_mstatus_enc mie mpie :
+  legalise MSTATUS (WInt (mstatus_enc mie mpie)) = WInt (mstatus_enc mie mpie).
+Proof. by rewrite legalise_mstatus /= mie_of_mstatus_enc mpie_of_mstatus_enc. Qed.
+
+Lemma legalise_clear_tag sr w : legalise sr (clear_tag w) = clear_tag (legalise sr w).
+Proof.
+  destruct sr; cbn; rewrite ?get_a_clear_tag //.
+  all: rewrite /legalise_pc; destruct w as [| [] | | ? []]; cbn; by repeat case_match.
+Qed.
+
+Lemma legalise_idemp sr w : legalise sr (legalise sr w) = legalise sr w.
+Proof.
+  destruct sr; cbn; try done.
+  1,2: rewrite /legalise_pc; destruct w as [| [] | | ? []]; cbn;
+       repeat case_match; cbn in *; congruence.
+  by rewrite mie_of_mstatus_enc mpie_of_mstatus_enc.
+Qed.
+
 Section opsem.
   Context `{MachineParameters}.
   Definition get_shadow_address (a : Addr) : Addr := a.
@@ -339,13 +446,20 @@ Section opsem.
        and is not unsealed. *)
     | _,_ => updatePC (update_reg φ dst (clear_tag wr2))
     end
-  | ReadSR dst src =>
+  | SpecialRW dst sr src =>
+      (* The source is read before [dst] is written, so [dst = src] swaps.
+         The source [inr cnull] does not write [sr]; the destination [cnull]
+         drops the old value of [sr]. *)
       if has_sreg_access plevel
-      then tomov ← (sreg φ) !! src; updatePC (update_reg φ dst tomov)
-      else None
-  | WriteSR dst src =>
-      if has_sreg_access plevel
-      then tomov ← (reg φ) !!ᵣ src; updatePC (update_sreg φ dst tomov)
+      then
+        wold ← (sreg φ) !! sr;
+        φ' ← match src with
+             | inr r =>
+                 if decide (r = cnull) then Some φ
+                 else wsrc ← (reg φ) !!ᵣ r; Some (update_sreg φ sr (legalise sr wsrc))
+             | inl z => Some (update_sreg φ sr (legalise sr (WInt z)))
+             end;
+        updatePC (if decide (dst = cnull) then φ' else update_reg φ' dst wold)
       else None
   | Auipcc dst imm =>
       (* As Lea on the PC: the tag is cleared on an address overflow. *)

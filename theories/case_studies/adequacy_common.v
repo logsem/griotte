@@ -83,9 +83,28 @@ Definition is_initial_registers_of `{MP: MachineParameters}
   reg !! csp = Some (stack_cap sw) ∧
   (∀ (r : RegName), r ∉ ({[ cgp; csp ]} : gset RegName) → reg !! r = Some (WInt 0)).
 
+(** The initial system registers: MTDC holds the trusted stack, mstatus has
+    interrupts disabled, and the others hold zero (MTCC is untagged). *)
+Definition initial_sreg `{MP: MachineParameters} (sw : cmptSwitcher) (sr : SRegName) : Word :=
+  match sr with
+  | MTDC => trusted_stack_cap sw
+  | MSTATUS => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
+  | MTCC | MEPCC | MCAUSE | MTVAL => WInt 0
+  end.
+
 Definition is_initial_sregisters_of `{MP: MachineParameters}
   (sw : cmptSwitcher) (sreg : SReg) :=
-  sreg !! MTDC = Some (trusted_stack_cap sw).
+  ∀ sr, sreg !! sr = Some (initial_sreg sw sr).
+
+(** A concrete initial system-register file, with [w] in MTDC. *)
+Definition initial_sregisters_with (w : Word) : SReg :=
+  <[MTCC := WInt 0]> (<[MTDC := w]> (<[MEPCC := WInt 0]>
+    (<[MSTATUS := WInt (mstatus_enc InterruptDisabled InterruptDisabled)]>
+    (<[MCAUSE := WInt 0]> (<[MTVAL := WInt 0]> ∅))))).
+
+Lemma initial_sregisters_with_correct `{MP: MachineParameters} (sw : cmptSwitcher) w :
+  w = trusted_stack_cap sw → is_initial_sregisters_of sw (initial_sregisters_with w).
+Proof. intros -> sr. by destruct sr; rewrite /initial_sregisters_with; simplify_map_eq. Qed.
 
 Section registers.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP: MachineParameters}.
@@ -312,9 +331,10 @@ Section initial_rootedness.
     (∀ r w, reg !! r = Some w → word_exec_ok w) →
     (∀ sr w, sreg !! sr = Some w → word_exec_ok w) →
     pc_ok pc →
+    (∀ sr w, is_pc_sreg sr = true → sreg !! sr = Some w → pc_ok w) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
-    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok.
+    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -335,6 +355,7 @@ Section initial_rootedness.
     - exact Hregx.
     - exact Hsregx.
     - exact Hpcok.
+    - exact Hsregok.
   Qed.
 
   (** The initial condition of a layout with heap roots [R]. *)
@@ -358,7 +379,8 @@ Section initial_rootedness.
     - by eapply initial_pc_rooted_roots.
     - by eapply initial_registers_rooted_roots.
     - (* The trusted stack is in the program memory, hence outside the heap. *)
-      intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      destruct sr; try apply word_rooted_int.
       apply word_rooted_cap_disjoint.
       apply (trusted_stack_disjoint_from_heap_of_disjoint_dom _ _ Hheap). set_solver.
     - apply mem_avoids_mmio_union; first apply mem_avoids_mmio_initial_heap.
@@ -368,9 +390,12 @@ Section initial_rootedness.
     - by apply mem_exec_ok_initial_memory.
     - by eapply initial_pc_exec_ok.
     - by eapply initial_registers_exec_ok.
-    - intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
-      by apply word_exec_ok_not_executable.
+    - intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      by destruct sr; apply word_exec_ok_not_executable.
     - by eapply initial_pc_ok.
+    - (* MTCC and MEPCC start untagged. *)
+      intros sr w Hsr Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      by destruct sr; apply pc_ok_untagged.
   Qed.
 
   (** The initial condition of a layout without heap roots. *)
@@ -487,7 +512,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   (∀ (ceriseg : ceriseG Σ),
      PC ↦ₚ lword_of_word pc -∗
      ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) -∗
-     ([∗ map] r↦w ∈ sreg, r ↦ₛᵣ w) -∗
+     ([∗ map] r↦w ∈ sreg, r ↦ₛᵣ lword_of_word w) -∗
      ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
      ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
@@ -537,7 +562,7 @@ Proof.
   iInv flagN as ">Hflag'" "Hclose".
   iDestruct (gen_heap_valid with "Hm Hflag'") as %Hm'_flag.
   iModIntro. iPureIntro.
-  destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her Hm'_flag)
+  destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hm'_flag)
     as (pw & Hpw & _ & _ & Hnonheap & _).
   destruct (Hnonheap eq_refl) as [Heq | (_ & Hb)]; last by destruct Hb.
   rewrite /state_is_good Hpw Heq //.

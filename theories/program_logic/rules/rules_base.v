@@ -115,12 +115,12 @@ Section griotte_lang_rules.
 
   (* ------------------------- system registers points-to --------------------------------- *)
 
-  Lemma map_of_sregs_1 (sr1: SRegName) (w1: Word) :
+  Lemma map_of_sregs_1 (sr1: SRegName) (w1: LWord) :
     sr1 ↦ₛᵣ w1 -∗
     ([∗ map] k↦y ∈ {[sr1 := w1]}, k ↦ₛᵣ y).
   Proof. rewrite big_sepM_singleton; auto. Qed.
 
-  Lemma sregs_of_map_1 (sr1: SRegName) (w1: Word) :
+  Lemma sregs_of_map_1 (sr1: SRegName) (w1: LWord) :
     ([∗ map] k↦y ∈ {[sr1 := w1]}, k ↦ₛᵣ y) -∗
     sr1 ↦ₛᵣ w1.
   Proof. rewrite big_sepM_singleton; auto. Qed.
@@ -430,10 +430,10 @@ Section griotte_lang_rules.
     ▷ PC ↦ₚ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) -∗
     ▷ pc_a ↦ₐ{dq} w -∗
     ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lmem : LMem)
+    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lsreg : LSReg) (lmem : LMem)
        (R : RegState) (C : gmap Addr AddrClaim) (c : ConfFlag) (σ' : ExecConf),
        ("%Her" ∷ ⌜erasure R C (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
-                    (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lmem⌝ ∗
+                    (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lsreg lmem⌝ ∗
         "%Hlregs" ∷ ⌜regs ⊆ lreg⌝ ∗
         "%Hregs" ∷ ⌜lregs_phys R regs r⌝ ∗
         "%Hpc_a" ∷ ⌜lmem !! pc_a = Some w⌝ ∗
@@ -441,7 +441,7 @@ Section griotte_lang_rules.
                      (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ ∗
         "HPCa" ∷ PC_auth (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hr" ∷ gen_heap_interp lreg ∗
-        "Hsr" ∷ gen_heap_interp sr ∗
+        "Hsr" ∷ gen_heap_interp lsreg ∗
         "Hm" ∷ gen_heap_interp lmem ∗
         "Hst" ∷ gen_heap_interp st ∗
         "HR" ∷ reg_auth R ∗
@@ -461,9 +461,9 @@ Section griotte_lang_rules.
     iDestruct (PC_agree with "HPCa HPC") as %->.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     iDestruct (gen_heap_valid with "Hm Hpc_a") as %Hpc_a.
-    pose proof (erasure_regs_incl _ _ _ _ _ _ _ Her Hregs) as Hregs'.
-    destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her Hpc_a) as (pw & Hpw & Hok).
-    pose proof (erasure_pc_correct _ _ _ _ _ _ Her Hvpc) as HPCr. cbn in HPCr. subst pc.
+    pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hregs) as Hregs'.
+    destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hpc_a) as (pw & Hpw & Hok).
+    pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as HPCr. cbn in HPCr. subst pc.
     iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
@@ -490,7 +490,7 @@ Section griotte_lang_rules.
     iIntros (σ1 nt l1 l2 ns) "Hσ1 /="; destruct σ1 as [[[[pc r] sr] m] st]; simpl.
     iNamed "Hσ1".
     iDestruct (PC_agree with "HPCa HPC") as %->.
-    pose proof (erasure_pc_not_correct _ _ _ _ _ _ Her Hnpc) as Hnpc'. cbn in Hnpc'.
+    pose proof (erasure_pc_not_correct _ _ _ _ _ _ _ Her Hnpc) as Hnpc'. cbn in Hnpc'.
     iApply fupd_frame_l.
     iSplit; first (by iPureIntro; apply normal_always_base_reducible).
     iModIntro. iIntros (e1 σ2 efs Hstep).
@@ -498,7 +498,7 @@ Section griotte_lang_rules.
     eapply step_fail_inv in Hstep as [-> ->]; eauto.
     iNext. iIntros "_".
     iModIntro. iSplitR; auto. iSplitR "Hϕ HPC"; last by iApply "Hϕ".
-    iExists w, lreg, lmem, R, C. by iFrame.
+    iExists w, lreg, lsreg, lmem, R, C. by iFrame.
   Qed.
 
   Lemma wp_notCorrectPC_tag E (w : LWord) :
@@ -526,10 +526,10 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
     iModIntro. iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
-    iExists _, lreg, lmem, R, C. by iFrame.
+    iExists _, lreg, lsreg, lmem, R, C. by iFrame.
   Qed.
 
   Lemma wp_fail E pc_p pc_g pc_b pc_e pc_a pc_π w dq :
@@ -543,10 +543,10 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
     iModIntro. iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
-    iExists _, lreg, lmem, R, C. by iFrame.
+    iExists _, lreg, lsreg, lmem, R, C. by iFrame.
   Qed.
 
   (* ----------------------------------- PURE RULES ---------------------------------- *)
@@ -624,8 +624,8 @@ Definition regs_of (i: instr): gset RegName :=
   | Jalr rdst rsrc => {[ rdst; rsrc ]}
   | Seal dst r1 r2 => {[dst; r1; r2]}
   | UnSeal dst r1 r2 => {[dst; r1; r2]}
-  | ReadSR dst _ => {[ dst ]}
-  | WriteSR _ src => {[ src ]}
+  (* [cnull] is neither read nor written by [SpecialRW]. *)
+  | SpecialRW dst _ src => ({[ dst ]} ∪ regs_of_argument src) ∖ {[ cnull ]}
   | Auipcc dst _ => {[ dst ]}
   | _ => ∅
   end.
@@ -645,16 +645,15 @@ Qed.
 
 Definition sregs_of (i: instr): gset SRegName :=
   match i with
-  | ReadSR _ src => {[ src ]}
-  | WriteSR dst _ => {[ dst ]}
+  | SpecialRW _ sr _ => {[ sr ]}
   | _ => ∅
   end.
 
-Lemma indom_sregs_incl D (sregs sregs': SReg) :
+Lemma indom_sregs_incl D (sregs sregs': LSReg) :
   D ⊆ dom sregs →
   sregs ⊆ sregs' →
   ∀ sr, sr ∈ D →
-       ∃ (w:Word), (sregs !! sr = Some w) ∧ (sregs' !! sr = Some w).
+       ∃ (w:LWord), (sregs !! sr = Some w) ∧ (sregs' !! sr = Some w).
 Proof.
   intros * HD Hincl rr Hr.
   assert (is_Some (sregs !! rr)) as [w Hw].
@@ -869,14 +868,14 @@ Section erasure_PC.
 
   (* The PC increment keeps erasure: the incremented PC keeps the bounds, the
      tag and the identifier of the PC. *)
-  Lemma erasure_incrementPC_gen R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lmem n :
-    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+  Lemma erasure_incrementPC_gen R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lsreg lmem n :
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     incrementPC_gen lpc n = Some lpc' →
     ∃ pc', updatePC_gen (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
-           erasure R C (pc', r, sr, m, st) lpc' lreg lmem.
+           erasure R C (pc', r, sr, m, st) lpc' lreg lsreg lmem.
   Proof.
     intros Her Hi.
-    destruct (incrementPC_gen_phys _ _ _ _ r sr m st _ (er_pc _ _ _ _ _ _ Her) Hi)
+    destruct (incrementPC_gen_phys _ _ _ _ r sr m st _ (er_pc _ _ _ _ _ _ _ Her) Hi)
       as (pc' & Hu & Hpc').
     exists pc'. split; first done.
     apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
@@ -884,15 +883,15 @@ Section erasure_PC.
     constructor; cbn in *; try done.
   Qed.
 
-  Lemma erasure_incrementPC R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lmem :
-    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+  Lemma erasure_incrementPC R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lsreg lmem :
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     incrementPC lpc = Some lpc' →
     ∃ pc', updatePC (pc, r, sr, m, st) = Some (NextI, (pc', r, sr, m, st)) ∧
-           erasure R C (pc', r, sr, m, st) lpc' lreg lmem.
+           erasure R C (pc', r, sr, m, st) lpc' lreg lsreg lmem.
   Proof. apply erasure_incrementPC_gen. Qed.
 
-  Lemma erasure_incrementPC_fail R C (pc : Word) (r : Reg) sr m st lpc (lreg : LReg) lmem n :
-    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+  Lemma erasure_incrementPC_fail R C (pc : Word) (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem n :
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     incrementPC_gen lpc n = None →
     updatePC_gen (pc, r, sr, m, st) n = None.
   Proof. intros Her. apply incrementPC_gen_phys_fail with R, Her. Qed.
@@ -1012,11 +1011,11 @@ Section instruction_closing.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
   (** Closes a failed instruction: the state is unchanged. *)
-  Lemma instr_close_fail pc (r : Reg) sr m st lpc (lreg : LReg) lmem R C
+  Lemma instr_close_fail pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp sr -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1025,22 +1024,22 @@ Section instruction_closing.
   Proof.
     iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ". iModIntro.
     iSplitR "Hφ HPC Hmap"; last by iApply ("Hφ" with "HPC").
-    iExists lpc, lreg, lmem, R, C. by iFrame.
+    iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
   Qed.
 
   (** Closes an instruction that only moves the PC by [n], as the physical
       [updatePC_gen φ n]. The spec [P] holds of the new PC on success, and of
       the old one on failure. *)
-  Lemma instr_close_pc_update pc (r : Reg) sr m st lpc (lreg : LReg) lmem R C
+  Lemma instr_close_pc_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) n c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → griotte_lang.val → Prop) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     (match updatePC_gen (pc, r, sr, m, st) n with
      | Some conf => conf | None => (Failed, (pc, r, sr, m, st)) end) = (c, σ') →
     (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
     (incrementPC_gen lpc n = None → P lpc FailedV) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp sr -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1050,13 +1049,13 @@ Section instruction_closing.
   Proof.
     iIntros (Her Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     destruct (incrementPC_gen lpc n) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as (pc' & Hu & Her2).
+    - destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
       iModIntro. iSplitR "Hφ HPC Hmap".
-      + iExists lpc', _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+      + iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
       + iApply ("Hφ" with "[%] HPC Hmap"). by apply HPs.
-    - rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her Hi) in Hstep.
+    - rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) in Hstep.
       simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
       iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
   Qed.
@@ -1065,10 +1064,10 @@ Section instruction_closing.
       as the physical [updatePC (update_reg φ dst v)]. The spec [P] holds of
       the new PC and owned registers on success, and of the old ones on
       failure. *)
-  Lemma instr_close_reg_update pc (r : Reg) sr m st lpc (lreg : LReg) lmem R C
+  Lemma instr_close_reg_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → LReg → griotte_lang.val → Prop) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     regs ⊆ lreg →
     dst ∈ dom regs →
     reg_word_ok R C v →
@@ -1078,7 +1077,7 @@ Section instruction_closing.
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
     (incrementPC lpc = None → P lpc regs FailedV) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp sr -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1087,20 +1086,20 @@ Section instruction_closing.
     cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
   Proof.
     iIntros (Her Hlregs Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
-    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
+    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
     rewrite /update_reg /= in Hstep.
     destruct (incrementPC lpc) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
+    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
       assert (is_Some (regs !! dst)) as [vold Hvold] by by apply elem_of_dom.
       iMod (gen_heap_update_inSepM _ _ dst (if decide (dst = cnull) then lnull else v)
         with "Hr Hmap") as "[Hr Hmap]"; first eauto.
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
       iModIntro. iSplitR "Hφ HPC Hmap".
-      + iExists lpc', _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+      + iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
       + iApply ("Hφ" with "[%] HPC [Hmap]"); first by apply HPs.
         by rewrite /linsert_reg.
-    - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
+    - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
       rewrite /updatePC Hfail in Hstep.
       simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
       iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
@@ -1108,10 +1107,10 @@ Section instruction_closing.
 
   (** Closes an instruction that sets the PC to [lpc'] and writes one
       register, as the physical [update_reg (update_pcc φ pc') dst w]. *)
-  Lemma instr_close_reg_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lmem R C
+  Lemma instr_close_reg_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) (lpc' : LWord) (pc' : Word)
       (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     dst ∈ dom regs →
     reg_word_ok R C v →
     reg_phys R v w →
@@ -1119,7 +1118,7 @@ Section instruction_closing.
     reg_phys R lpc' pc' →
     pc_ok lpc'.(lw) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp sr -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1129,57 +1128,15 @@ Section instruction_closing.
   Proof.
     iIntros (Her Hdst Hok Hw Hokpc Hwpc Hpcok)
       "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
-    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
-    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ lpc' pc' Her1 Hokpc Hwpc Hpcok) as Her2.
+    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her1 Hokpc Hwpc Hpcok) as Her2.
     assert (is_Some (regs !! dst)) as [vold Hvold] by by apply elem_of_dom.
     iMod (gen_heap_update_inSepM _ _ dst (if decide (dst = cnull) then lnull else v)
       with "Hr Hmap") as "[Hr Hmap]"; first eauto.
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplitR "Hφ HPC Hmap".
-    - iExists lpc', _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+    - iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
     - iApply ("Hφ" with "HPC [Hmap]"). by rewrite /linsert_reg.
-  Qed.
-
-  (** Closes an instruction that writes one system register then increments
-      the PC, as the physical [updatePC (update_sreg φ dst w)]. The spec [P]
-      holds of the new PC and owned system registers on success, and of the
-      old ones on failure. *)
-  Lemma instr_close_sreg_update pc (r : Reg) sr m st lpc (lreg : LReg) lmem R C
-      (regs : LReg) (sregs : SReg) dst (w : Word) c σ' (Φ : griotte_lang.val → iProp Σ)
-      (P : LWord → SReg → griotte_lang.val → Prop) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
-    dst ∈ dom sregs →
-    reg_word_ok R C (lword_of_word w) →
-    (match updatePC (update_sreg (pc, r, sr, m, st) dst w) with
-     | Some conf => conf | None => (Failed, (pc, r, sr, m, st)) end) = (c, σ') →
-    (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := w]> sregs) NextIV) →
-    (incrementPC lpc = None → P lpc sregs FailedV) →
-    PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp sr -∗ gen_heap_interp lmem -∗
-    gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
-    PC ↦ₚ lpc -∗
-    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y) -∗
-    (∀ lpc' sregs' retv, ⌜P lpc' sregs' retv⌝ -∗ PC ↦ₚ lpc' -∗
-       ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ ([∗ map] k↦y ∈ sregs', k ↦ₛᵣ y) -∗ Φ retv) ==∗
-    cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
-  Proof.
-    iIntros (Her Hdst Hok Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hsmap Hφ".
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ dst _ Her Hok) as Her1.
-    rewrite /update_sreg /= in Hstep.
-    destruct (incrementPC lpc) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
-      rewrite Hu in Hstep. simplify_eq.
-      assert (is_Some (sregs !! dst)) as [vold Hvold] by by apply elem_of_dom.
-      iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-      iMod (gen_heap_update_inSepM _ _ dst w with "Hsr Hsmap") as "[Hsr Hsmap]"; first eauto.
-      iModIntro. iSplitR "Hφ HPC Hmap Hsmap".
-      + iExists lpc', _, lmem, R, C. iFrame. iPureIntro. exact Her2.
-      + iApply ("Hφ" with "[%] HPC Hmap Hsmap"). by apply HPs.
-    - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
-      rewrite /updatePC Hfail in Hstep.
-      simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-      iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap Hsmap"). by apply HPf.
   Qed.
 
 End instruction_closing.
@@ -1249,10 +1206,10 @@ Section instruction_outcomes.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr (Hfailed R r sr m st Hregs) in Hstep. simplify_eq.
     iModIntro. iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
-    iExists _, lreg, lmem, R, C. by iFrame.
+    iExists _, lreg, lsreg, lmem, R, C. by iFrame.
   Qed.
 
   (* Failure with PC alone; all resources are returned unchanged. *)

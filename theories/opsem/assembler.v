@@ -95,8 +95,7 @@ Module Asm_Griotte.
   | GetOType (dst r: RegName)
   | Seal (dst : RegName) (r1 r2: RegName)
   | UnSeal (dst : RegName) (r1 r2: RegName)
-  | ReadSR (dst: RegName) (src: SRegName)
-  | WriteSR (dst: SRegName) (src: RegName)
+  | SpecialRW (dst: RegName) (sr: SRegName) (src: asm_arg)
   | Fail
   | Halt
   | GetTag (dst src: RegName)
@@ -348,10 +347,9 @@ Module Asm_Griotte.
         Ok (machine_instructions.Seal dst r1 r2)
     | UnSeal dst r1 r2 =>
         Ok (machine_instructions.UnSeal dst r1 r2)
-    | ReadSR dst src =>
-        Ok (machine_instructions.ReadSR dst src)
-    | WriteSR dst src =>
-        Ok (machine_instructions.WriteSR dst src)
+    | SpecialRW dst sr src =>
+        src ← assemble_arg src env n;
+        Ok (machine_instructions.SpecialRW dst sr src)
     | Fail=>
         Ok (machine_instructions.Fail)
     | Halt=>
@@ -730,8 +728,18 @@ Module Asm_Griotte.
   Definition getotype dst src := (ASM_Instr (GetOType dst src)).
   Definition seal dst r1 r2 := (ASM_Instr (Seal dst r1 r2)).
   Definition unseal dst r1 r2 := (ASM_Instr (UnSeal dst r1 r2)).
-  Definition readsr dst src := (ASM_Instr (ReadSR dst src)).
-  Definition writesr dst src := (ASM_Instr (WriteSR dst src)).
+  (** [specialrw dst sr src] swaps [src] into the system register [sr] and
+      its old value into [dst]. The source [cnull] does not write [sr], and
+      the destination [cnull] drops the old value. *)
+  Definition specialrw dst sr src := (ASM_Instr (SpecialRW dst sr src)).
+  (** [readsr dst sr]: [dst] receives [sr], which is unchanged. *)
+  Definition readsr dst sr := specialrw dst sr (asmr cnull).
+  (** [writesr sr src]: [sr] receives [src], legalised. *)
+  Definition writesr sr (src : RegName) := specialrw cnull sr (asmr src).
+  (** The CSR forms. [csrw sr src] also takes an immediate; with the source
+      [cnull] it does not write [sr]: write the immediate [0] instead. *)
+  Definition csrr dst sr := readsr dst sr.
+  Definition csrw sr src := specialrw cnull sr src.
   Definition fail:= (ASM_Instr Fail).
   Definition halt:= (ASM_Instr Halt).
 

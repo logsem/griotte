@@ -5,6 +5,7 @@ From griotte Require Import
   registers griotte_lang machine_run switcher assert compartment_layout
   deep_locality deep_locality_adequacy
   disjoint_regions_tactics.
+From griotte Require Import adequacy_common.
 
 #[export] Existing Instance machine_parameters_instance.
 
@@ -412,8 +413,9 @@ Definition dle_initial_registers : Reg :=
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition dle_initial_sregisters : SReg :=
-  <[MTDC := WCap true RWL Local dle_trusted_stack_b dle_trusted_stack_e
-      dle_trusted_stack_b]> ∅.
+  initial_sregisters_with
+    (WCap true RWL Local dle_trusted_stack_b dle_trusted_stack_e
+      dle_trusted_stack_b).
 
 Definition dle_initial_memory : Mem := mk_initial_memory.
 
@@ -437,7 +439,7 @@ Lemma dle_initial_sregisters_correct :
 Proof.
   rewrite /is_initial_sregisters /dle_initial_sregisters.
   cbn [dle_concrete_layout dle_concrete_cmptSwitcher].
-  simplify_map_eq; vm_compute; reflexivity.
+  apply initial_sregisters_with_correct. vm_compute; reflexivity.
 Qed.
 
 Lemma dle_initial_memory_correct :

@@ -90,6 +90,8 @@ Definition lreadonly : LWord → LWord := lift_word readonly.
 Definition ldeeplocal : LWord → LWord := lift_word deeplocal.
 Definition lseal_capability (v : LWord) (ot : OType) : LWord :=
   lift_word (λ w, seal_capability w ot) v.
+(** The value a system register stores when [v] is written to it. *)
+Definition llegalise (sr : SRegName) : LWord → LWord := lift_word (legalise sr).
 
 (** Unsealing acts on a sealed word only; other words are kept. *)
 Definition lunseal (g : Locality) (v : LWord) : LWord :=
@@ -129,6 +131,15 @@ Lemma lprov_lseal_capability v ot : (lseal_capability v ot).(lprov) = v.(lprov).
 Proof. done. Qed.
 Lemma lprov_lunseal g v : (lunseal g v).(lprov) = v.(lprov).
 Proof. by destruct v as [[] ?]. Qed.
+Lemma lw_llegalise sr v : (llegalise sr v).(lw) = legalise sr v.(lw).
+Proof. done. Qed.
+Lemma lprov_llegalise sr v : (llegalise sr v).(lprov) = v.(lprov).
+Proof. done. Qed.
+Lemma llegalise_mtdc v : llegalise MTDC v = v.
+Proof. by destruct v. Qed.
+Lemma llegalise_lword_of_word sr w :
+  llegalise sr (lword_of_word w) = lword_of_word (legalise sr w).
+Proof. done. Qed.
 
 Lemma lclear_tag_lword_of_word w : lclear_tag (lword_of_word w) = lword_of_word (clear_tag w).
 Proof. done. Qed.
@@ -161,7 +172,8 @@ Qed.
 #[export] Hint Rewrite lw_lclear_tag lprov_lclear_tag lw_lload_word lprov_lload_word
   lw_lstore_word lprov_lstore_word lw_lupdatePcPerm lprov_lupdatePcPerm
   lw_lborrow lprov_lborrow lw_lforce_global lprov_lforce_global
-  lw_lseal_capability lprov_lseal_capability lprov_lunseal : lword.
+  lw_lseal_capability lprov_lseal_capability lprov_lunseal
+  lw_llegalise lprov_llegalise : lword.
 
 (** The plain CLoad post: the loaded word, or its untagged copy when it is a
     heap capability (the CLoad filter may have stripped it). The identifier is
@@ -172,6 +184,7 @@ Definition lload_heap `{HeapRegion} (s v : LWord) : Prop :=
 (** ** Logical register files and memories *)
 
 Notation LReg := (gmap RegName LWord).
+Notation LSReg := (gmap SRegName LWord).
 Notation LMem := (gmap Addr LWord).
 
 (** The word held by [cnull]: a write to [cnull] stores it, and a read of

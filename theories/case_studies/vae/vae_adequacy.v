@@ -256,7 +256,7 @@ Section Adequacy.
     set (W0 := (∅, (∅, ∅), ∅, ∅) : WORLD).
 
     (* Get initial sregister mtdc *)
-    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first exact Hsreg.
+    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first exact (Hsreg MTDC).
 
     (* Separate all compartments *)
     rewrite Hm /mk_initial_memory.

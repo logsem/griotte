@@ -45,7 +45,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
     assert (exists w, lword_of_argument regs src = Some w) as [wsrc Hwsrc].
@@ -57,7 +57,7 @@ Section griotte_lang_rules.
                 (and_tag s wsrc.(lw)))) as HH.
     { cbn. by rewrite Hsrc. }
     rewrite HH in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst wsrc _ _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst wsrc _ _ _ _
       (λ lpc' regs' retv, Mov_spec _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }

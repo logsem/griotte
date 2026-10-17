@@ -281,14 +281,14 @@ Section griotte_lang_rules.
     destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
     iNamed "Hσ".
     iDestruct (PC_agree with "HPCa HPC") as %->.
-    pose proof (erasure_pc_correct _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
+    pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
     iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hlregs.
-    pose proof (erasure_regs_incl _ _ _ _ _ _ _ Her Hlregs) as Hregs.
+    pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hlregs) as Hregs.
     iDestruct (load_witness_lookup with "HR Hwit") as %Hwit.
     iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
-    pose proof (er_registry _ _ _ _ _ _ Her) as Hreg; cbn in Hreg.
-    pose proof (er_mmio _ _ _ _ _ _ Her) as Hmmio; cbn in Hmmio.
+    pose proof (er_registry _ _ _ _ _ _ _ Her) as Hreg; cbn in Hreg.
+    pose proof (er_mmio _ _ _ _ _ _ _ Her) as Hmmio; cbn in Hmmio.
     iAssert (⌜∀ a loadv, mem !! a = Some loadv → lmem !! a = Some loadv⌝)%I as %Hmem_valid.
     { iIntros (a loadv Hlookup).
       assert (is_Some (dfracs !! a)) as [dq Hdq].
@@ -304,7 +304,7 @@ Section griotte_lang_rules.
     odestruct (Hri r1) as [r1v [Hr'1 _]]; first by set_solver+.
     clear Hri.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr'2) as (s2 & Hr2 & Hrel2).
-    destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hmem_pc))
+    destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hmem_pc))
       as (pw & Hpw & Hpwok).
     iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
@@ -381,7 +381,7 @@ Section griotte_lang_rules.
         + rewrite /= in Hstep.
           assert (mem !! ea = None) as Hnone.
           { destruct (mem !! ea) as [v|] eqn:Hv; last done.
-            destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hv)) as (pv & Hpv & _).
+            destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hv)) as (pv & Hpv & _).
             by rewrite (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hpv) in Hrevoker. }
           exists (lword_of_word (WInt 0)), (WInt 0).
           split; first apply reg_word_ok_int. split; first apply reg_phys_lword_of_word.
@@ -390,7 +390,7 @@ Section griotte_lang_rules.
           * intros. by eapply Load_spec_success_revoker.
           * intros. apply Load_spec_failure. by eapply Load_fail_invalid_PC_revoker_imm; eauto; rewrite Hr'2.
         + destruct HaLoad as (loadv & Hlookup).
-          destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hlookup))
+          destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hlookup))
             as (pv & Hpv & Hpvok).
           rewrite Hpv /= in Hstep.
           destruct (load_filter_is_Some R C st p pv Hreg) as [pl Hpl].
@@ -409,7 +409,7 @@ Section griotte_lang_rules.
           * intros. apply Load_spec_failure. eapply Load_fail_invalid_PC_imm; eauto. by rewrite Hr'2.
     }
     iApply bupd_fupd.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ r1 v pv _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 v pv _ _ _
       (λ lpc' regs' retv, Load_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' regs' mem shadow wit dw retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hmem Hshadow Hwit Hdw]").
     { exact Her. } { exact Hlregs. }
@@ -1204,7 +1204,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
@@ -1278,7 +1278,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Hwa Hadd φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     rewrite Hwa /= in Hstep. destruct s0; cbn in Hstep; rewrite ?Hadd /= in Hstep.
@@ -1303,7 +1303,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].

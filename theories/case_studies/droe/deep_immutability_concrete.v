@@ -5,6 +5,7 @@ From griotte Require Import
   registers griotte_lang machine_run switcher assert compartment_layout
   deep_immutability deep_immutability_adequacy
   disjoint_regions_tactics.
+From griotte Require Import adequacy_common.
 
 #[export] Existing Instance machine_parameters_instance.
 
@@ -402,8 +403,9 @@ Definition droe_initial_registers : Reg :=
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition droe_initial_sregisters : SReg :=
-  <[MTDC := WCap true RWL Local droe_trusted_stack_b droe_trusted_stack_e
-      droe_trusted_stack_b]> ∅.
+  initial_sregisters_with
+    (WCap true RWL Local droe_trusted_stack_b droe_trusted_stack_e
+      droe_trusted_stack_b).
 
 Definition droe_initial_memory : Mem := mk_initial_memory.
 
@@ -427,7 +429,7 @@ Lemma droe_initial_sregisters_correct :
 Proof.
   rewrite /is_initial_sregisters /droe_initial_sregisters.
   cbn [droe_concrete_layout droe_concrete_cmptSwitcher].
-  simplify_map_eq; vm_compute; reflexivity.
+  apply initial_sregisters_with_correct. vm_compute; reflexivity.
 Qed.
 
 Lemma droe_initial_memory_correct :
