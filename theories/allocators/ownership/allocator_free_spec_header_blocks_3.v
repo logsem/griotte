@@ -210,14 +210,15 @@ Section AllocatorFreeHeaderBlocks3.
     (* CLoad ca2 ca4: the recorded end. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_success_notinstr _ ca2 ca4 with "[$HPC $Hi $Hca2 $Hct4 $Hhdr]");
+    iPoseProof deref_res_none as "Hdw".
+    iApply (wp_load_success_notinstr _ ca2 ca4 with "[$HPC $Hi $Hca2 $Hct4 $Hhdr $Hdw]");
       try solve_pure.
     { eapply (disjoint_from_shadow_not_in heap_b heap_e (b ^+ -3)%a);
         first exact heap_shadow_disjoint.
       apply withinBounds_true_iff. solve_addr. }
     { reflexivity. }
     { split; first done. apply withinBounds_true_iff. solve_addr. }
-    iIntros "!> (HPC & Hca2 & Hi & Hct4 & Hhdr)".
+    iIntros "!> (HPC & Hca2 & Hi & Hct4 & Hhdr & _)".
     wp_pure.
     iClear "Hi".
     iEval (rewrite /lload_word /lift_word /=) in "Hca2".
@@ -230,7 +231,7 @@ Section AllocatorFreeHeaderBlocks3.
       (* CLoad ca3 ca4 1: the recorded owner. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (wp_load_success_notinstr_imm _ ca3 ca4 with "[$HPC $Hi $Hct3 $Hct4 $Hown]");
+      iApply (wp_load_success_notinstr_imm _ ca3 ca4 with "[$HPC $Hi $Hct3 $Hct4 $Hown $Hdw]");
         try solve_pure.
       { eapply (disjoint_from_shadow_not_in heap_b heap_e ((b ^+ -3) ^+ 1)%a);
           first exact heap_shadow_disjoint.
@@ -238,7 +239,7 @@ Section AllocatorFreeHeaderBlocks3.
       { reflexivity. }
       { split; first done. apply withinBounds_true_iff. solve_addr. }
       { solve_addr. }
-      iIntros "!> (HPC & Hct3 & Hi & Hct4 & Hown)".
+      iIntros "!> (HPC & Hct3 & Hi & Hct4 & Hown & _)".
       wp_pure.
       iClear "Hi".
       iEval (rewrite /lload_word /lift_word /=) in "Hct3".

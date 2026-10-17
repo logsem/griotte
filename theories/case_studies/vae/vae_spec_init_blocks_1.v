@@ -69,9 +69,10 @@ Section VAE_Init_Blocks_1.
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.
     iDestruct (world_interp_loc_valid with "Hworld Hst") as %Hloc'.
     rewrite Hloc in Hloc'; simplify_eq.
-    iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hflag]"); try solve_pure.
+    iPoseProof deref_res_none as "Hdw".
+    iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hflag $Hdw]"); try solve_pure.
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
-    iIntros "!> (HPC & Hi & Hcgp & Hflag)".
+    iIntros "!> (HPC & Hi & Hcgp & Hflag & _)".
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
     iModIntro.
     wp_pure.

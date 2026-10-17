@@ -157,13 +157,14 @@ Section AllocatorMallocPrepareBlocks3.
     (* Store ct0 0 2. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
+    iPoseProof deref_res_none as "Hdw".
     iApply (wp_store_success_z_imm _ _ _ _ _ _ _ _ _ _ ct0 0 wr2 _ _ _ _ _ (next ^+ 2)%a 2
-      with "[$HPC $Hi $Hct0 $Hr2]"); try solve_pure.
+      with "[$HPC $Hi $Hct0 $Hr2 $Hdw]"); try solve_pure.
     { eapply (disjoint_from_shadow_not_in heap_b heap_e); first exact heap_shadow_disjoint.
       apply withinBounds_true_iff. solve_addr. }
     { apply withinBounds_true_iff. solve_addr. }
     { solve_addr. }
-    iIntros "!> (HPC & Hi & Hct0 & Hr2)". wp_pure.
+    iIntros "!> (HPC & Hi & Hct0 & Hr2 & _)". wp_pure.
     iClear "Hi".
     (* Mov ca2 ca4. *)
     iInstr "Hcode".
