@@ -163,8 +163,17 @@ Ltac dispatch_generic_failure instr cont :=
     end
   end.
 
+(* Jalr fails on its target before it writes anything. *)
+Ltac dispatch_jalr_failure instr cont :=
+  let instr := eval unfold register_file.regn, register_file.cst in instr in
+  lazymatch instr with
+  | Jalr ?r ?r => cont (@wp_jalr_fail_target_same)
+  | Jalr _ _ => cont (@wp_jalr_fail_target)
+  end.
+
 Ltac dispatch_instr_failure instr cont :=
-  first [ dispatch_generic_failure instr cont
+  first [ dispatch_jalr_failure instr cont
+        | dispatch_generic_failure instr cont
         | fail "No immediate-failure provider found for instruction" instr ].
 
 (* Like ordinary success dispatch, invalidation selects explicit-resource

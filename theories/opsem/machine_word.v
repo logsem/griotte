@@ -309,6 +309,57 @@ Definition updatePcPerm (w: Word): Word :=
   | _ => w
   end.
 
+(** The execute permission of a capability, a sentry or a sealed capability. *)
+Definition executable_word (w : Word) : bool :=
+  match w with
+  | WCap _ p _ _ _ _ | WSentry _ p _ _ _ _ | WSealed _ (SCap _ p _ _ _ _) => executeAllowed p
+  | _ => false
+  end.
+
+Lemma executable_word_clear_tag w : executable_word (clear_tag w) = executable_word w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+
+Lemma executable_word_updatePcPerm w :
+  executable_word (updatePcPerm w) = executable_word w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+
+(** The checks of Jalr on its target: it is tagged, it is not sealed (a
+    sentry passes), and it has the execute permission. *)
+Definition jalr_target_ok (w : Word) : bool :=
+  get_tag w && negb (is_sealed w) && executable_word w.
+
+(** The three checks in the order of cheriot-sail give [jalr_target_ok]. *)
+Lemma jalr_target_checks {A} (w : Word) (x : option A) :
+  (if negb (get_tag w) then None
+   else if is_sealed w then None
+   else if negb (executable_word w) then None
+   else x) = (if jalr_target_ok w then x else None).
+Proof.
+  rewrite /jalr_target_ok.
+  by destruct (get_tag w), (is_sealed w), (executable_word w).
+Qed.
+
+Lemma jalr_target_ok_clear_tag w : jalr_target_ok (clear_tag w) = false.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+
+(** A PC word that is tagged is an unsealed executable capability. *)
+Definition pc_ok (w : Word) : Prop :=
+  get_tag w = true → is_sealb w = true ∧ executable_word w = true.
+
+Lemma pc_ok_untagged w : get_tag w = false → pc_ok w.
+Proof. intros Ht Ht'. congruence. Qed.
+
+(** A PC update keeps the tag, the permission and the kind. *)
+Lemma pc_ok_cap_addr t p g b e a a' :
+  pc_ok (WCap t p g b e a) → pc_ok (WCap t p g b e a').
+Proof. done. Qed.
+
+Lemma jalr_target_ok_pc_ok w : jalr_target_ok w = true → pc_ok (updatePcPerm w).
+Proof.
+  rewrite /jalr_target_ok /pc_ok.
+  destruct w as [| [] | | ? []]; cbn; rewrite ?andb_true_r; naive_solver.
+Qed.
+
 (** Branches test the address of their condition, as in cheriot-sail. *)
 Definition nonZero (w: Word): bool := negb (Z.eqb (get_a w) 0).
 

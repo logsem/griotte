@@ -87,6 +87,7 @@ Section AllocatorMacros.
     cra ↦ᵣ wret ∗
     cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a code ∗
+    ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          cnull ↦ᵣ WInt 0 ∗
@@ -96,8 +97,12 @@ Section AllocatorMacros.
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros code Hpc Hdisjoint; subst code.
-    iIntros "(HPC & Hcra & Hcnull & #Hcode & Hφ)".
+    iIntros "(HPC & Hcra & Hcnull & #Hcode & Hfailed & Hφ)".
     codefrag_facts "Hcode".
+    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    { (* Jalr cnull cra. *)
+      iInstr_fail "Hcode".
+      wp_end. iExact "Hfailed". }
     (* Jalr cnull cra. *)
     iInstr "Hcode" with "Hlc".
     iApply "Hφ". iFrame "∗ Hcode".

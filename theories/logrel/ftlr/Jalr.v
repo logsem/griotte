@@ -40,11 +40,8 @@ Section fundamental.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
-    destruct HSpec as [ regs' pc_a' wsrc Hrsrc Hpca' ->| Hpca' ]; cycle 1.
-    {
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto.
-    }
+    destruct HSpec as [ regs' pc_a' wsrc Hrsrc Htgt Hpca' -> | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
+    1,2: iApply wp_pure_step_later; auto; iNext; iIntros "_"; iApply wp_value; auto.
 
     iAssert (interp W C (WSentry true p g b e pc_a')) as "Hinterp_ret".
     {

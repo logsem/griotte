@@ -880,7 +880,7 @@ Section erasure_PC.
       as (pc' & Hu & Hpc').
     exists pc'. split; first done.
     apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
-    destruct Her as [Hreg Hregs Hcnull Hrw Hsrw Hdom Hmw Hmmio Hpc Hpcw].
+    destruct Her as [Hreg Hregs Hcnull Hrw Hsrw Hdom Hmw Hmmio Hpc Hpcw Hpcok].
     constructor; cbn in *; try done.
   Qed.
 
@@ -1104,6 +1104,40 @@ Section instruction_closing.
       rewrite /updatePC Hfail in Hstep.
       simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
       iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
+  Qed.
+
+  (** Closes an instruction that sets the PC to [lpc'] and writes one
+      register, as the physical [update_reg (update_pcc φ pc') dst w]. *)
+  Lemma instr_close_reg_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lmem R C
+      (regs : LReg) dst (v : LWord) (w : Word) (lpc' : LWord) (pc' : Word)
+      (Φ : griotte_lang.val → iProp Σ) :
+    erasure R C (pc, r, sr, m, st) lpc lreg lmem →
+    dst ∈ dom regs →
+    reg_word_ok R C v →
+    reg_phys R v w →
+    reg_word_ok R C lpc' →
+    reg_phys R lpc' pc' →
+    pc_ok lpc'.(lw) →
+    PC_auth lpc -∗
+    gen_heap_interp lreg -∗ gen_heap_interp sr -∗ gen_heap_interp lmem -∗
+    gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
+    PC ↦ₚ lpc -∗
+    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
+    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
+    cerise_state_interp (update_reg (update_pcc (pc, r, sr, m, st) pc') dst w) ∗
+    from_option Φ False (to_val (Instr NextI)).
+  Proof.
+    iIntros (Her Hdst Hok Hw Hokpc Hwpc Hpcok)
+      "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
+    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ lpc' pc' Her1 Hokpc Hwpc Hpcok) as Her2.
+    assert (is_Some (regs !! dst)) as [vold Hvold] by by apply elem_of_dom.
+    iMod (gen_heap_update_inSepM _ _ dst (if decide (dst = cnull) then lnull else v)
+      with "Hr Hmap") as "[Hr Hmap]"; first eauto.
+    iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
+    iModIntro. iSplitR "Hφ HPC Hmap".
+    - iExists lpc', _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+    - iApply ("Hφ" with "HPC [Hmap]"). by rewrite /linsert_reg.
   Qed.
 
   (** Closes an instruction that writes one system register then increments

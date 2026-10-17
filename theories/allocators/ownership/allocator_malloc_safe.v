@@ -91,6 +91,7 @@ Section Heap_Temporal_Safety_Interp.
         with "[-]"); try solve_ndisj; try exact Hinvalid; try assumption.
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+      iSplitR; first (iNext; by iIntros (?)).
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
       (* Close the sealing predicate of the allocator capability. *)
@@ -138,6 +139,7 @@ Section Heap_Temporal_Safety_Interp.
         with "[-]"); try solve_ndisj; try exact Hpositive; try assumption.
       iFrame "Hservice Hstatic Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0".
       iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+      iSplitR; first (iNext; by iIntros (?)).
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hresult)".
       iDestruct "Hresult" as "[Hoom|Hsuccess]".

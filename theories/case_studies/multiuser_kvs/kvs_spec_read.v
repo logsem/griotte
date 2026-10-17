@@ -152,6 +152,10 @@ Section KVS_spec_read.
     rewrite lload_word_RW in Hactual.
     (* Mov ca1 0 *)
     iInstr "Hcode".
+    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    { (* Jalr cnull cra *)
+      iInstr_fail "Hcode".
+      wp_end; by iIntros (?). }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -573,6 +577,10 @@ Section KVS_spec_read.
       rewrite /withinBounds; solve_addr. }
     (* Mov ca0 0 *)
     iInstr "Hcode".
+    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    { (* Jalr cnull cra *)
+      iInstr_fail "Hcode".
+      wp_end; by iIntros (?). }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -992,6 +1000,10 @@ Section KVS_spec_read.
         iInstr "Hcode".
         (* jmp (".read_key_ret")%asm; *)
         iInstr "Hcode".
+        destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+        { (* jalr cnull cra *)
+          iInstr_fail "Hcode".
+          wp_end; by iIntros (?). }
         (* jalr cnull cra *)
         iInstr "Hcode".
         unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -1013,6 +1025,10 @@ Section KVS_spec_read.
         iInstr "Hcode".
         (* jmp (".read_key_ret")%asm; *)
         iInstr "Hcode".
+        destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+        { (* jalr cnull cra *)
+          iInstr_fail "Hcode".
+          wp_end; by iIntros (?). }
         (* jalr cnull cra *)
         iInstr "Hcode".
         unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -1345,6 +1361,10 @@ Section KVS_spec_read.
     iInstr "Hcode".
     (* mov ca1 0; *)
     iInstr "Hcode".
+    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    { (* jalr cnull cra; *)
+      iInstr_fail "Hcode".
+      wp_end; by iIntros (?). }
     (* jalr cnull cra; *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.

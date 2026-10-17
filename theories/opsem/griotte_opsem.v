@@ -111,8 +111,14 @@ Section opsem.
              updatePC_gen φ imm
         else updatePC φ
     | Jalr rdst rsrc =>
-        (* Note: allow jumping to integers, sealing ranges etc; machine will crash later *)
         wrsrc ← (reg φ) !!ᵣ rsrc;
+        (* The checks on the target, in the order of cheriot-sail: the tag,
+           the sealing (a sentry passes), the execute permission. A failed
+           check writes neither the PC nor the link register. *)
+        if negb (get_tag wrsrc) then None
+        else if is_sealed wrsrc then None
+        else if negb (executable_word wrsrc) then None
+        else
         match pcc φ with
         | (WCap t p g b e a) =>
             match (a + 1)%a with

@@ -139,6 +139,12 @@ Ltac solve_nonZero :=
   end.
 #[export] Hint Extern 1 (nonZero _ = true) => solve_nonZero : solve_pure.
 
+(* Jalr targets: a known target passes the checks by computation. *)
+#[export] Hint Extern 1 (jalr_target_ok _ = true) =>
+  first [ assumption | reflexivity ] : solve_pure.
+#[export] Hint Extern 1 (jalr_target_ok _ = false) =>
+  first [ assumption | reflexivity ] : solve_pure.
+
 (* validity tags *)
 #[export] Hint Extern 1 (get_tag _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (get_tag_sealable _ = true) => reflexivity : solve_pure.

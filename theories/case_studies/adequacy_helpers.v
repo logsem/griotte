@@ -289,9 +289,10 @@ Section adequacy_ghost_init.
     word_exec_ok pc →
     (∀ r w, reg !! r = Some w → word_exec_ok w) →
     (∀ sr w, sreg !! sr = Some w → word_exec_ok w) →
+    pc_ok pc →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) ∅.
   Proof.
-    intros Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx.
+    intros Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok.
     constructor; cbn.
     - set_solver.
     - set_solver.
@@ -309,6 +310,7 @@ Section adequacy_ghost_init.
     - exact Hpcx.
     - exact Hregx.
     - exact Hsregx.
+    - exact Hpcok.
   Qed.
 
   (** Program memory disjoint from the initial heap holds no heap address. *)
