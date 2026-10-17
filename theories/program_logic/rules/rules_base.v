@@ -469,7 +469,7 @@ Section griotte_lang_rules.
                      (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ ∗
         "HPCa" ∷ PC_auth (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hr" ∷ gen_heap_interp lreg ∗
-        "Hsr" ∷ gen_heap_interp lsreg ∗
+        "Hsr" ∷ sreg_interp lsreg ∗
         "Hm" ∷ gen_heap_interp lmem ∗
         "Hst" ∷ gen_heap_interp st ∗
         "HR" ∷ reg_auth R ∗
@@ -675,8 +675,7 @@ Qed.
 Definition sregs_of (i: instr): gset SRegName :=
   match i with
   | SpecialRW _ sr _ => {[ sr ]}
-  | SetMIE _ => {[ MSTATUS ]}
-  | Mret => {[ MEPCC; MSTATUS ]}
+  | Mret => {[ MEPCC ]}
   | _ => ∅
   end.
 
@@ -1046,7 +1045,7 @@ Section instruction_closing.
       (regs : LReg) (Φ : griotte_lang.val → iProp Σ) :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1070,7 +1069,7 @@ Section instruction_closing.
     (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
     (incrementPC_gen lpc n = None → P lpc FailedV) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1108,7 +1107,7 @@ Section instruction_closing.
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
     (incrementPC lpc = None → P lpc regs FailedV) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1149,7 +1148,7 @@ Section instruction_closing.
     reg_phys R lpc' pc' →
     pc_ok lpc'.(lw) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1179,7 +1178,7 @@ Section instruction_closing.
     reg_phys R lpc' pc' →
     pc_ok lpc'.(lw) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗

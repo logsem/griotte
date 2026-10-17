@@ -50,14 +50,13 @@ Section fundamental.
       congruence.
     }
 
-    iApply (wp_SetMIE _ _ _ _ _ _ _ _ _ ∅ with "[$HPC $Ha]"); eauto.
-    { by rewrite HpXRS. }
+    iApply (wp_SetMIE with "[$HPC $Ha]"); eauto.
 
-    iIntros "!>" (lpc' sregs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & _)".
+    iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha)".
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
-    - simplify_map_eq; congruence.
+    - simplify_eq; congruence.
   Qed.
 
 End fundamental.

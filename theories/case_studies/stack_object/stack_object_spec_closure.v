@@ -161,7 +161,7 @@ Section SO.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
+      "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
     assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /so_code_bounds; eauto 10).
@@ -239,7 +239,7 @@ Section SO.
     iApply (so_call_blocks_3_spec with
              "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Himport_switcher
               $Hcode_main]"); [done..|].
-    iNext; iIntros (a_stk1 a_stk2 stk_tail)
+    iNext; iIntros (mie a_stk1 a_stk2 stk_tail)
       "(%Hastk1 & %Hastk2 & %Hastk2_csp_e & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
       & Hcra & Hsecret & Hastk1 & Hstk & _ & _)".
 

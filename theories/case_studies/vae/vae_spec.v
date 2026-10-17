@@ -149,7 +149,7 @@ Section VAE.
     iApply (vae_init_blocks_1_spec with
              "[- $Hawk_inv $Hworld_interp_C $HPC $Hcgp $Hct0 $Hct1 $Hcra
               $Himport_switcher $Himport_C_f $Hcode_main]"); [done..|exact Hloc_i_0|].
-    iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hct0 & Hct1 & Hcra
+    iNext; iIntros (mie) "(Hworld_interp_C & HPC & Hcgp & Hct0 & Hct1 & Hcra
                     & _ & _ & _)".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")

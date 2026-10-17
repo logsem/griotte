@@ -219,7 +219,7 @@ Section HTS_States.
   Definition hts_frame (a_ret a_stk : Addr) : iProp Σ :=
     na_own cerise_nais ⊤ ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e a_ret ∗
-    cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e a_ret ∗
+    (∃ mie, cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret) ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk ∗
     (∃ w, cs0 ↦ᵣ w) ∗

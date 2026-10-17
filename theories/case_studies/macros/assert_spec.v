@@ -42,7 +42,7 @@ Section Assert_subroutine.
     disjoint_from_shadow pc_b pc_e →
     is_shadow_address a_flag = false →
     is_heap_address a_flag = false →
-    jalr_target_ok wret = true →
+    jalr_target_ok cnull cra wret = true →
     (  assert_static pc_b pc_e a_flag
      ∗ PC ↦ₚ WCap true RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
@@ -100,7 +100,7 @@ Section Assert_subroutine.
     ( n1 n2 flag : Z ) ( wret : Word)
     (φ : language.val griotte_lang -> iProp Σ) :
     n1 = n2 →
-    jalr_target_ok wret = true →
+    jalr_target_ok cnull cra wret = true →
     (  assert_static pc_b pc_e a_flag
      ∗ PC ↦ₚ WCap true RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
@@ -197,10 +197,12 @@ Section Assert.
     iNext; iIntros "(HPC & Hrdst & _ & Hpc_bn)".
     unfocus_block "Hfetch" "Hcont" as "Hcode_main"; subst hcode.
     focus_block 1 "Hcode_main" as a_assert Ha_assert "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
+    iDestruct (regname_neq with "Hrdst Hcra") as %Hrdst_cra.
     iGo "Hcode".
     iEval (cbn) in "HPC".
     (* The return target is the link sentry, executable as the PC is. *)
     iApply (assert_subroutine_success_spec with "[-]"); last iFrame "∗ Hassert"; try done.
+    all: try (by destruct mie).
     iNext; iIntros "(HPC & Hcra & Hct0 & Hct1)".
     iEval (cbn) in "HPC".
     iGo "Hcode".

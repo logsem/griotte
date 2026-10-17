@@ -76,7 +76,7 @@ Section HTS_Spec_Share.
       & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
       & Hright & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
-    iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & [%wcs0 Hcs0]
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
@@ -233,7 +233,7 @@ Section HTS_Spec_Share.
          (delete ct1 (delete ct0 rmap))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C ι b) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
+      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
       (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
       adv_arg adv_other cstk Ws Cs 1

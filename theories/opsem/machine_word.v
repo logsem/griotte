@@ -357,23 +357,63 @@ Lemma executable_word_updatePcPerm w :
   executable_word (updatePcPerm w) = executable_word w.
 Proof. by destruct w as [| [] | | ? []]. Qed.
 
-(** The checks of Jalr on its target: it is tagged, it is not sealed (a
-    sentry passes), and it has the execute permission. *)
-Definition jalr_target_ok (w : Word) : bool :=
-  get_tag w && negb (is_sealed w) && executable_word w.
+(** A backward (return) sentry kind. *)
+Definition is_backward_kind (k : SentryKind) : bool :=
+  match k with
+  | RetDisable | RetEnable => true
+  | Inherit | FwdDisable | FwdEnable => false
+  end.
+
+Lemma is_backward_kind_ret_kind b : is_backward_kind (ret_kind b) = true.
+Proof. by destruct b. Qed.
+
+(** The interrupt status a jump through a sentry of kind [k] sets, if any. *)
+Definition sentry_kind_mie (k : SentryKind) : option InterruptStatus :=
+  match k with
+  | FwdDisable | RetDisable => Some InterruptDisabled
+  | FwdEnable | RetEnable => Some InterruptEnabled
+  | Inherit => None
+  end.
+
+(** The interrupt status a jump to [w] sets, if any: only sentries change it. *)
+Definition jalr_target_mie (w : Word) : option InterruptStatus :=
+  match w with
+  | WSentry k _ _ _ _ _ _ => sentry_kind_mie k
+  | _ => None
+  end.
+
+(** The sealing check of Jalr, by the form of the instruction, as in
+    cheriot-sail: a return ([rdst = cnull], [rsrc = cra]) accepts only
+    backward sentries; a call ([rdst = cra]) accepts unsealed capabilities and
+    forward sentries; any other form accepts unsealed capabilities and
+    inheriting sentries. A sealed capability is never accepted. *)
+Definition jalr_sealing_ok (rdst rsrc : RegName) (w : Word) : bool :=
+  match w with
+  | WSealed _ _ => false
+  | WSentry k _ _ _ _ _ _ =>
+      if decide (rdst = cnull ∧ rsrc = cra) then is_backward_kind k
+      else if decide (rdst = cra) then negb (is_backward_kind k)
+      else bool_decide (k = Inherit)
+  | _ => negb (bool_decide (rdst = cnull ∧ rsrc = cra))
+  end.
+
+(** The checks of Jalr on its target: it is tagged, its sealing is accepted
+    by the form of the instruction, and it has the execute permission. *)
+Definition jalr_target_ok (rdst rsrc : RegName) (w : Word) : bool :=
+  get_tag w && jalr_sealing_ok rdst rsrc w && executable_word w.
 
 (** The three checks in the order of cheriot-sail give [jalr_target_ok]. *)
-Lemma jalr_target_checks {A} (w : Word) (x : option A) :
+Lemma jalr_target_checks {A} (rdst rsrc : RegName) (w : Word) (x : option A) :
   (if negb (get_tag w) then None
-   else if is_sealed w then None
+   else if negb (jalr_sealing_ok rdst rsrc w) then None
    else if negb (executable_word w) then None
-   else x) = (if jalr_target_ok w then x else None).
+   else x) = (if jalr_target_ok rdst rsrc w then x else None).
 Proof.
   rewrite /jalr_target_ok.
-  by destruct (get_tag w), (is_sealed w), (executable_word w).
+  by destruct (get_tag w), (jalr_sealing_ok rdst rsrc w), (executable_word w).
 Qed.
 
-Lemma jalr_target_ok_clear_tag w : jalr_target_ok (clear_tag w) = false.
+Lemma jalr_target_ok_clear_tag rdst rsrc w : jalr_target_ok rdst rsrc (clear_tag w) = false.
 Proof. by destruct w as [| [] | | ? []]. Qed.
 
 (** A PC word that is tagged is an unsealed executable capability. *)
@@ -388,10 +428,12 @@ Lemma pc_ok_cap_addr t p g b e a a' :
   pc_ok (WCap t p g b e a) → pc_ok (WCap t p g b e a').
 Proof. done. Qed.
 
-Lemma jalr_target_ok_pc_ok w : jalr_target_ok w = true → pc_ok (updatePcPerm w).
+Lemma jalr_target_ok_pc_ok rdst rsrc w :
+  jalr_target_ok rdst rsrc w = true → pc_ok (updatePcPerm w).
 Proof.
   rewrite /jalr_target_ok /pc_ok.
-  destruct w as [| [] | | ? []]; cbn; rewrite ?andb_true_r; naive_solver.
+  intros [[Ht Hs]%andb_prop Hx]%andb_prop _.
+  destruct w as [| [] | | ? []]; cbn in *; try done; by split.
 Qed.
 
 (** Branches test the address of their condition, as in cheriot-sail. *)

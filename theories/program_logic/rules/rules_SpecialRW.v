@@ -143,7 +143,8 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Dregs Dsregs Hnoid φ) "(>HPC & >Hpc_a & >Hmap & >Hsmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
-    iDestruct (gen_heap_valid_inclSepM with "Hsr Hsmap") as %Hlsregs.
+    iAssert (⌜sregs ⊆ lsreg⌝)%I as %Hlsregs.
+    { iDestruct "Hsr" as "[Hsr _]". iApply (gen_heap_valid_inclSepM with "Hsr Hsmap"). }
     rewrite Hinstr /exec in Hstep.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
@@ -167,10 +168,12 @@ Section griotte_lang_rules.
       instr_fail Hstep.
       apply SpecialRW_spec_failure; [done|done|]. by apply SpecialRW_fail_incrPC. }
     (* The ghost system registers *)
-    iAssert (|==> gen_heap_interp lsreg' ∗ [∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)%I
+    iAssert (|==> sreg_interp lsreg' ∗ [∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)%I
       with "[Hsr Hsmap]" as ">[Hsr Hsmap]".
-    { destruct Hup as [[-> ->] | (nv & -> & ->)]; first by iFrame.
-      iApply (gen_heap_update_inSepM with "Hsr Hsmap"). by eexists. }
+    { rewrite /sreg_interp. iDestruct "Hsr" as "[Hsr Hmst]".
+      destruct Hup as [[-> ->] | (nv & -> & ->)]; first by iFrame.
+      iMod (gen_heap_update_inSepM with "Hsr Hsmap") as "[Hsr Hsmap]"; first by eexists.
+      by iFrame. }
     pose proof (er_sreg_words _ _ _ _ _ _ _ Her _ _ Hvold') as Hokold.
     case_decide as Hdst.
     - (* The old value is dropped. *)

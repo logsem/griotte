@@ -111,6 +111,8 @@ Ltac dispatch_instr_rule instr cont :=
   | Jmp (inr _) => cont (@wp_jmp_success_reg)
   (* Jalr *)
   | Jalr cnull _ => cont (@wp_jalr_success_cnull)
+  | Jalr cra cra => cont (@wp_jalr_success_call_same)
+  | Jalr cra _ => cont (@wp_jalr_success_call)
   | Jalr ?r ?r => cont (@wp_jalr_success_rdst)
   | Jalr _ _ => cont (@wp_jalr_success)
   (* Subseg *)

@@ -44,7 +44,7 @@ Section HTS_Spec_Assert.
       "(#Hctx & Hret)".
     iDestruct "Hctx" as "(#Hassert & _)".
     iDestruct "Hret" as "(Hframe & Hregs)".
-    iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & _ & _ & _
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & _ & _ & _
       & Himports & Hcode_main & Hp & _)".
     iDestruct "Himports" as "(_ & Himport_assert & _)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".

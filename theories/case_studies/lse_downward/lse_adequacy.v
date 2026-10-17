@@ -240,7 +240,7 @@ Section Adequacy.
       [done | apply NoDup_singleton |].
 
     (* Get initial sregister mtdc *)
-    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first exact (Hsreg MTDC).
+    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first (apply lookup_delete_Some; split; [|exact (Hsreg MTDC)]; done).
 
     (* Separate all compartments *)
     rewrite Hm /mk_initial_memory.

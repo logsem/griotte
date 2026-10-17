@@ -150,7 +150,7 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }
@@ -630,7 +630,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       (* mov ca1 0; *)
       iInstr "Hcode".
-      destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+      destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
       { (* jalr cnull cra; *)
         iInstr_fail "Hcode".
         wp_end; by iIntros (?). }
@@ -666,7 +666,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       (* mov ca1 0; *)
       iInstr "Hcode".
-      destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+      destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
       { (* jalr cnull cra; *)
         iInstr_fail "Hcode".
         wp_end; by iIntros (?). }
@@ -1066,7 +1066,7 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     (* mov ca1 0; *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* jalr cnull cra; *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }
@@ -1295,7 +1295,7 @@ Section KVS_spec_addOrUpdate.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg Hca2_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
-    iIntros "(#Hkvs_static & #Hkvs & #Hkvs_logical)" (arg_rmap' rmap')
+    iIntros "(#Hkvs_static & #Hkvs & #Hkvs_logical)" (mie arg_rmap' rmap')
        "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hcstk
        & (Huser_key & Huser_kvs & Hkey)

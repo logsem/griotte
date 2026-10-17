@@ -45,10 +45,10 @@ Section VAE_Awkward_Blocks_2.
     cs1 ↦ᵣ wg ∗
     pc_b ↦ₐ□ vae_switcher_entry ∗
     codefrag_pers pc_a vae_main_code ∗
-    ▷ (world_interp (<l[i:=true]l>W) C ∗
+    ▷ (∀ mie, world_interp (<l[i:=true]l>W) C ∗
         PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
         ca0 ↦ᵣ WInt 0 ∗
         ca1 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ vae_switcher_entry ∗

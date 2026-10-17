@@ -239,7 +239,7 @@ Section KVS_main_spec.
 
     iApply (kvs_main_adversary_phase_spec Nswitcher W1 B
              (WCap true RW Global cgp_b cgp_e cgp_b)
-             (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_call ^+ 1)%a)
+             (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
              wcs0 (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e csp_b B_f stk_mem_B rmap_B cstk Ws Cs
              ); try assumption.
@@ -287,7 +287,7 @@ Section KVS_main_spec.
     iApply (kvs_main_read_assert_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap warg0 warg1
-      (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_call ^+ 1)%a) rcs0
+      (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a) rcs0
       KVS_USER_KEY_MAIN b_assert e_assert a_flag Nswitcher
       stk_mem cstk with
       "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical

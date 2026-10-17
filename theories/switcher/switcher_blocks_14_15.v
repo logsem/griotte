@@ -48,7 +48,7 @@ Section Switcher_Blocks_14_15.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* --- Jalr cnull cra --- *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }

@@ -422,7 +422,7 @@ Section Switcher.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { rewrite !dom_delete_L Hdom. set_solver. }
-    iNext; iIntros (arg_rmap' rmap')
+    iNext; iIntros (mie arg_rmap' rmap')
       "(%Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)

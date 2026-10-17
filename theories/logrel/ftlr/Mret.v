@@ -53,7 +53,7 @@ Section fundamental.
     iApply (wp_Mret _ _ _ _ _ _ _ _ ∅ with "[$HPC $Ha]"); eauto.
     { by rewrite HpXRS. }
 
-    iIntros "!>" (lpc' sregs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & _)".
+    iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha & _)".
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.

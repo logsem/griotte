@@ -31,8 +31,8 @@ Section DLE_Share_Blocks_2.
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
     dle_static_mem pc_b pc_a C_f ∗
-    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
+    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
         ct0 ↦ᵣ dle_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ dle_switcher_entry ∗

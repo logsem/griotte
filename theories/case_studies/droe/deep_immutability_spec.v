@@ -144,7 +144,7 @@ Section DROE.
     iApply (droe_share_blocks_2_spec with
              "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcra $Hmem]");
       first (rewrite /droe_code_bounds; eauto 10).
-    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hmem)".
+    iNext; iIntros (mie) "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hmem)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
 
     (* Share the data in the world *)

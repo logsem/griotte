@@ -19,10 +19,10 @@ Section rules_registry.
   Lemma si_ghost_update σ P Q :
     (∀ lpc lreg lsreg lmem R C,
        ⌜erasure R C σ lpc lreg lsreg lmem⌝ -∗
-       gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+       gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
        gen_heap_interp (shadowtbl σ) -∗ reg_auth R -∗ addr_alloc_auth C -∗ P ==∗
        ∃ R' C', ⌜erasure R' C' σ lpc lreg lsreg lmem⌝ ∗
-         gen_heap_interp lreg ∗ gen_heap_interp lsreg ∗ gen_heap_interp lmem ∗
+         gen_heap_interp lreg ∗ sreg_interp lsreg ∗ gen_heap_interp lmem ∗
          gen_heap_interp (shadowtbl σ) ∗ reg_auth R' ∗ addr_alloc_auth C' ∗ Q) →
     cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q.
   Proof.
@@ -38,10 +38,10 @@ Section rules_registry.
     (∀ lpc lreg lsreg lmem R C,
        ⌜erasure R C σ lpc lreg lsreg lmem⌝ -∗
        PC_auth lpc -∗
-       gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+       gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
        gen_heap_interp (shadowtbl σ) -∗ reg_auth R -∗ addr_alloc_auth C -∗ P ==∗
        ∃ R' C', ⌜erasure R' C' σ lpc lreg lsreg lmem⌝ ∗ PC_auth lpc ∗
-         gen_heap_interp lreg ∗ gen_heap_interp lsreg ∗ gen_heap_interp lmem ∗
+         gen_heap_interp lreg ∗ sreg_interp lsreg ∗ gen_heap_interp lmem ∗
          gen_heap_interp (shadowtbl σ) ∗ reg_auth R' ∗ addr_alloc_auth C' ∗ Q) →
     cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q.
   Proof.

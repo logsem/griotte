@@ -505,7 +505,7 @@ Section KVS_Main_Blocks.
 
     iPoseProof (KVS_add_spec_known_to_known
                   (WCap true RW Global cgp_b cgp_e cgp_b)
-                  (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+                  (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
                   wcs0 (kvs_user_seal_key Global static_sealed_b)
                   csp_b csp_e csp_b rmap_arg cstk ⊤
                   KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
@@ -515,7 +515,7 @@ Section KVS_Main_Blocks.
     iApply (switcher_cc_specification_known_to_known_end_to_end
               Nswitcher
               (WCap true RW Global cgp_b cgp_e cgp_b)
-              (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e csp_b stk_mem rmap_arg rmap' cstk
               kvs_addOrUpdate_nargs ⊤
@@ -772,7 +772,7 @@ Section KVS_Main_Blocks.
 
     iPoseProof (KVS_read_spec_known_to_known
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+      (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
       wcs0 (kvs_user_seal_key Global static_sealed_b)
       csp_b csp_e csp_b rmap_arg_read cstk ⊤
       KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
@@ -782,7 +782,7 @@ Section KVS_Main_Blocks.
     iApply (switcher_cc_specification_known_to_known_end_to_end
               Nswitcher
               (WCap true RW Global cgp_b cgp_e cgp_b)
-              (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call cstk
               kvs_read_nargs ⊤

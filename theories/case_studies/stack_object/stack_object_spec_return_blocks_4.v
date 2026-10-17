@@ -101,7 +101,7 @@ Section SO_Return_Blocks_4.
     iInstr "Hcode".
     (* Mov ca1 0%Z *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }

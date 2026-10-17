@@ -59,7 +59,7 @@ Section Counter_Main_Blocks_2.
     iInstr "Hcode".
     (* Mov cs1 0 *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }

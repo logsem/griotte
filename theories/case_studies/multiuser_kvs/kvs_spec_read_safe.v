@@ -227,7 +227,7 @@ Section KVS_spec_read_safe.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
+      "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.
 

@@ -395,7 +395,7 @@ Section fundamental.
         specialize (Hfull_rmap i) as [x Hx]. eauto.
       - intros [? [? ?] ]. apply elem_of_difference.
         split;auto. apply all_registers_s_correct. }
-    iNext; iIntros (arg_rmap' rmap'')
+    iNext; iIntros (mie arg_rmap' rmap'')
       "(%Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)

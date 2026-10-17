@@ -68,7 +68,7 @@ Section AllocatorSwitcherSpec.
   Proof.
     iIntros (Hn Hshadow_owner Hbounds_owner Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
-    iIntros (arg_rmap' rmap')
+    iIntros (mie arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
         & Hargs & Hrmap & Hstk & Hcstk & (Hid & Ha_owner) & Hpost)".
     iEval (cbn) in "HPC".
@@ -170,7 +170,7 @@ Section AllocatorSwitcherSpec.
   Proof.
     iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
-    iIntros (arg_rmap' rmap')
+    iIntros (mie arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
         & Hargs & Hrmap & Hstk & Hcstk
         & (Hid & %HιΩ & Ha_owner & #Hobj & Hheld & Hmem) & Hpost)".

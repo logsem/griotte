@@ -85,6 +85,8 @@ Section mem_avoids_mmio.
     all: try (match goal with H : updatePC _ = Some _ |- _ =>
                 rewrite (updatePC_gen_mem _ _ _ H) end).
     all: try (match goal with H : Some _ = Some _ |- _ => injection H as <- end).
+    (* Jalr may write mstatus. *)
+    all: try (match goal with |- context [jalr_mstatus ?w ?z] => destruct (jalr_mstatus w z) end).
     all: cbn; try done.
     - (* Revoker store *)
       by apply mem_avoids_mmio_sweep.
@@ -294,8 +296,12 @@ Proof. by destruct w as [| [] | | ? []]. Qed.
 Lemma updatePcPerm_and_tag s w : updatePcPerm (and_tag s w) = and_tag s (updatePcPerm w).
 Proof. rewrite !and_tag_if. destruct s; auto using updatePcPerm_clear_tag. Qed.
 
-Lemma jalr_target_ok_and_tag s w : jalr_target_ok (and_tag s w) = s && jalr_target_ok w.
+Lemma jalr_target_ok_and_tag rdst rsrc s w :
+  jalr_target_ok rdst rsrc (and_tag s w) = s && jalr_target_ok rdst rsrc w.
 Proof. destruct s; [by rewrite and_tag_true | by rewrite and_tag_false jalr_target_ok_clear_tag]. Qed.
+
+Lemma jalr_target_mie_and_tag s w : jalr_target_mie (and_tag s w) = jalr_target_mie w.
+Proof. by destruct s, w as [| [] | | ? []]. Qed.
 
 Lemma decodeInstrW_and_tag `{MachineParameters} s w :
   decodeInstrW (and_tag s w) = decodeInstrW w.

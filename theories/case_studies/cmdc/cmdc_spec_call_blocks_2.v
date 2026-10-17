@@ -77,10 +77,10 @@ Section CMDC_Call_Blocks_2.
     pc_b ↦ₐ□ cmdc_switcher_entry ∗
     (pc_b ^+ cmdc_call_import c)%a ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ctp ↦ᵣ cmdc_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
-        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
           (pc_a ^+ cmdc_label_offset (cmdc_return_label c))%a ∗
         pc_b ↦ₐ□ cmdc_switcher_entry ∗
         (pc_b ^+ cmdc_call_import c)%a ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗

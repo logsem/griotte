@@ -198,7 +198,7 @@ Section HTS_Spec_Malloc.
            (delete ca0 (delete ca1 rmap)))))))))))).
     iPoseProof (hts_malloc_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
+      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       wcs0 wcs1 csp_b csp_e csp_b rmap_arg cstk
       Global owner_a hts_main_owner_id ∅
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
@@ -211,7 +211,7 @@ Section HTS_Spec_Malloc.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind InterruptDisabled) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
+      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other cstk
       allocator_malloc_nargs ⊤
       allocator_exp_tbl_b

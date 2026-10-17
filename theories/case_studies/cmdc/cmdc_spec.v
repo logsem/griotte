@@ -176,7 +176,7 @@ Section CMDC.
     iApply (cmdc_call_blocks_2_spec cmdc_call_B with
              "[- $HPC $Hctp $Hct1 $Hcra
               $Himport_switcher $Himport_B_f $Hcode_main]"); first done.
-    iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
+    iNext; iIntros (mie) "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_B_f & Hcode_main)".
 
     (* Share b in the world of B *)
@@ -242,7 +242,7 @@ Section CMDC.
     iApply (cmdc_call_blocks_2_spec cmdc_call_C with
              "[- $HPC $Hctp $Hct1 $Hcra
               $Himport_switcher $Himport_C_g $Hcode_main]"); first done.
-    iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
+    iNext; iIntros (mie') "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_C_g & Hcode_main)".
 
     (* Share c in the world of C *)

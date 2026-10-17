@@ -97,7 +97,7 @@ Section AllocatorMacros.
     intros code Hpc Hdisjoint; subst code.
     iIntros "(HPC & Hcra & #Hcode & Hfailed & Hφ)".
     codefrag_facts "Hcode".
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra. *)
       iInstr_fail "Hcode".
       wp_end. iExact "Hfailed". }

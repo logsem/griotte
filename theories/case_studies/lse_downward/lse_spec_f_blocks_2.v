@@ -73,7 +73,7 @@ Section LSE_F_Blocks_2.
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wcra.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wcra.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }

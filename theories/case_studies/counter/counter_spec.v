@@ -24,6 +24,7 @@ Section Counter.
 
   Lemma counter_spec
 
+    (mie : InterruptStatus)
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
@@ -75,7 +76,7 @@ Section Counter.
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
-      ∗ cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return
+      ∗ cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       ∗ world_interp W0 C
@@ -137,7 +138,7 @@ Section Counter.
     iApply (counter_main_blocks_1_spec with
              "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcra $Hcgp_b
               $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|done|].
-    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b
+    iNext; iIntros (mie_call) "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b
                     & _ & _ & _)".
     iMod ("Hmem_close" with "[$Hna Hcgp_b]")
       as "Hna".
@@ -252,7 +253,7 @@ Section Counter.
         & #Hinterp_C_f & #HentryC_f)
       % % % % % %
       (HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
-    iDestruct "Hregister_state" as "(%Hfullrmap & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
+    iDestruct "Hregister_state" as "(%Hfullrmap & %Hcgp & [%mie %Hcra] & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.
 

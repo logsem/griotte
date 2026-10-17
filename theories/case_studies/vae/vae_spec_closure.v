@@ -132,7 +132,7 @@ Section VAE.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
+      "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
     assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /vae_code_bounds; eauto 10).
@@ -170,7 +170,7 @@ Section VAE.
     iApply (vae_awkward_blocks_1_spec with
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].
-    iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hct0 & Hct1 & Hcs0 & Hcs1
+    iNext; iIntros (mie) "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hct0 & Hct1 & Hcs0 & Hcs1
                     & _ & _)".
 
     (* Close the quarantined revoked keys *)
@@ -244,7 +244,7 @@ Section VAE.
     iApply (vae_awkward_blocks_2_spec with
              "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].
-    iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hcs0
+    iNext; iIntros (mie') "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hcs0
                     & Hcs1 & _ & _)".
 
     (* Close the quarantined keys revoked by the first call *)

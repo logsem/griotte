@@ -110,7 +110,7 @@ Section LSE.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & _ & _)".
+      "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & _ & _)".
     rewrite /interp_conf /registers_pointsto.
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).

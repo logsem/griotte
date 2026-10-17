@@ -40,11 +40,15 @@ Section fundamental.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
-    destruct HSpec as [ regs' pc_a' wsrc Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
+    destruct HSpec as [ regs' pc_a' wsrc mie Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
     1,2: iApply wp_pure_step_later; auto; iNext; iIntros "_"; iApply wp_value; auto.
 
-    iAssert (interp W C (WSentry (ret_kind InterruptDisabled) true p g b e pc_a')) as "Hinterp_ret".
-    {
+    (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
+    iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
+    { rewrite /jalr_link. destruct (decide (rdst = cra)) as [Hcra | Hcra].
+      2: { iApply (interp_weakening with "IH Hinv_interp");
+           [solve_addr | solve_addr | apply subseg_heap_base_same
+           | apply PermFlowsToReflexive | apply LocalityFlowsToReflexive]. }
       destruct Hp as [Hexec _].
       iDestruct (interp_cap_disjoint with "Hinv_interp") as %[_ Hheap]; first exact Hexec.
       assert (not_heap_range b e) as Hsentry.

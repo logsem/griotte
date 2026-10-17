@@ -244,10 +244,10 @@ Section Switcher_Call_Blocks_4.
     cra ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
-    ▷ ( ∀ (rmap' : LReg),
+    ▷ ( ∀ (mie : InterruptStatus) (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ WCap true RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
@@ -278,7 +278,7 @@ Section Switcher_Call_Blocks_4.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     rewrite (_ : ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_call_callee") ^+ 1)%a = a_switcher_return);
       last (rewrite switcher_return_offset; offsets_compute; solve_addr).
-    iApply ("Hpost" $! rmap'); iFrame "∗ Hswitcher"; done.
+    iApply ("Hpost" $! mie rmap'); iFrame "∗ Hswitcher"; done.
   Qed.
 
   (** Blocks 7-11: read the entry of the export table, load the callee,
@@ -316,12 +316,12 @@ Section Switcher_Call_Blocks_4.
         r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
-    ▷ ( ∀ (arg_rmap' rmap' : LReg),
+    ▷ ( ∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
@@ -358,8 +358,8 @@ Section Switcher_Call_Blocks_4.
     iApply (switcher_call_blocks_10_11_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs]"); first done.
     iSplitR; first iFrame "Hswitcher".
-    iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hregs & _)".
-    iApply ("Hpost" $! arg_rmap' rmap'); iFrame "∗ Hswitcher"; done.
+    iNext; iIntros (mie rmap') "(%Hrmap' & HPC & Hcra & Hregs & _)".
+    iApply ("Hpost" $! mie arg_rmap' rmap'); iFrame "∗ Hswitcher"; done.
   Qed.
 
   (** Variant of [switcher_call_blocks_4_spec] for a known callee, whose
@@ -396,12 +396,12 @@ Section Switcher_Call_Blocks_4.
     ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ w ) ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
-    ▷ ( ∀ (arg_rmap' rmap' : LReg),
+    ▷ ( ∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs)
                      then ⌜ arg_rmap !! r = Some w ⌝
@@ -440,8 +440,8 @@ Section Switcher_Call_Blocks_4.
     iApply (switcher_call_blocks_10_11_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs]"); first done.
     iSplitR; first iFrame "Hswitcher".
-    iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hregs & _)".
-    iApply ("Hpost" $! arg_rmap' rmap'); iFrame "∗ Hswitcher"; done.
+    iNext; iIntros (mie rmap') "(%Hrmap' & HPC & Hcra & Hregs & _)".
+    iApply ("Hpost" $! mie arg_rmap' rmap'); iFrame "∗ Hswitcher"; done.
   Qed.
 
 End Switcher_Call_Blocks_4.
