@@ -42,7 +42,7 @@ Class WordEncoding := {
     encodeWordType_correct :
     forall w w', match w,w' with
             | WCap _ _ _ _ _ _, WCap _ _ _ _ _ _ => encodeWordType w = encodeWordType w'
-            | WSentry _ _ _ _ _ _, WSentry _ _ _ _ _ _ => encodeWordType w = encodeWordType w'
+            | WSentry _ _ _ _ _ _ _, WSentry _ _ _ _ _ _ _ => encodeWordType w = encodeWordType w'
             | WSealRange _ _ _ _ _ _, WSealRange _ _ _ _ _ _ => encodeWordType w = encodeWordType w'
             | WSealed _ _, WSealed _ _ => encodeWordType w = encodeWordType w'
             | WInt _, WInt _ => encodeWordType w = encodeWordType w'
@@ -235,7 +235,7 @@ Definition heap_cap_base `{HeapRegion} (w : Word) : option Addr :=
 (** Empty bounds carry no authority, even when their base is in the heap. *)
 Definition heap_authority_base `{HeapRegion} (w : Word) : option Addr :=
   match w with
-  | WCap _ _ _ b e _ | WSentry _ _ _ b e _
+  | WCap _ _ _ b e _ | WSentry _ _ _ _ b e _
   | WSealed _ (SCap _ _ _ b e _) =>
       if decide (b < e)%a then heap_cap_base w else None
   | _ => None
@@ -253,7 +253,7 @@ Qed.
 (* Bounds of memory capabilities, including sealed ones and sentries. *)
 Definition memory_cap_bounds (w : Word) : option (Addr * Addr) :=
   match w with
-  | WCap _ _ _ b e _ | WSentry _ _ _ b e _
+  | WCap _ _ _ b e _ | WSentry _ _ _ _ b e _
   | WSealed _ (SCap _ _ _ b e _) => Some (b, e)
   | _ => None
   end.
@@ -397,7 +397,7 @@ Definition encodePermSum `{MachineParameters} (p : Perm + SealPerms) : Z :=
 
 Section word_type_encoding.
   Definition wt_cap := WCap true (O LG LM) Global 0%a 0%a 0%a.
-  Definition wt_sentry := WSentry true (O LG LM) Global 0%a 0%a 0%a.
+  Definition wt_sentry := WSentry Inherit true (O LG LM) Global 0%a 0%a 0%a.
   Definition wt_sealrange := WSealRange true (false, false) Global 0%ot 0%ot 0%ot.
   Definition wt_sealed := WSealed 0%ot (SCap true (O LG LM) Global 0%a 0%a 0%a).
   Definition wt_int := WInt 0.
@@ -417,8 +417,8 @@ Ltac simpl_encodeWordType :=
   | H: _ |- context G [encodeWordType (WCap ?t ?p ?g ?b ?e ?a)] =>
       rewrite (_: encodeWordType (WCap t p g b e a) = encodeWordType wt_cap) ; last solve_encodeWordType
 
-  | H: _ |- context G [encodeWordType (WSentry ?t ?p ?g ?b ?e ?a)] =>
-      rewrite (_: encodeWordType (WSentry t p g b e a) = encodeWordType wt_sentry) ; last solve_encodeWordType
+  | H: _ |- context G [encodeWordType (WSentry ?k ?t ?p ?g ?b ?e ?a)] =>
+      rewrite (_: encodeWordType (WSentry k t p g b e a) = encodeWordType wt_sentry) ; last solve_encodeWordType
 
   | H: _ |- context G [encodeWordType (WSealRange ?t ?p ?g ?b ?e ?a)] =>
       rewrite (_: encodeWordType (WSealRange t p g b e a) = encodeWordType wt_sealrange) ; last solve_encodeWordType
@@ -435,8 +435,8 @@ Lemma encodeWordType_correct_cap `{MachineParameters} : forall t p g b e a t' p'
   intros; solve_encodeWordType.
 Qed.
 
-Lemma encodeWordType_correct_sentry `{MachineParameters} : forall t p g b e a t' p' g' b' e' a',
-  encodeWordType (WSentry t p g b e a) = encodeWordType (WSentry t' p' g' b' e' a').
+Lemma encodeWordType_correct_sentry `{MachineParameters} : forall k t p g b e a k' t' p' g' b' e' a',
+  encodeWordType (WSentry k t p g b e a) = encodeWordType (WSentry k' t' p' g' b' e' a').
   intros; solve_encodeWordType.
 Qed.
 

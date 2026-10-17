@@ -72,6 +72,6 @@ Section Counter_States.
 
   (** The capability of the entry point of the switcher. *)
   Definition counter_switcher_entry : Word :=
-    WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call.
+    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
 End Counter_States.

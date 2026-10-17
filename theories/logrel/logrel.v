@@ -851,7 +851,7 @@ Section logrel.
   (** Interp for sentry in [enter_cond]. *)
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w.(lw) with
-                | WSentry t p g b e a =>
+                | WSentry k t p g b e a =>
                     ⌜not_heap_range b e⌝ ∗
                     □ enter_cond W C p g b e a w.(lprov) interp
                 | _ => False
@@ -994,7 +994,7 @@ Section logrel.
     | WInt _ => interp_z W C w
     | WCap t (O _ _) g b e a => interp_cap_O W C w
     | WCap t _ g b e a => interp_cap interp W C w
-    | WSentry t p g b e a => interp_sentry interp W C w
+    | WSentry k t p g b e a => interp_sentry interp W C w
     | WSealRange t p g b e a => interp_sr interp W C w
     | WSealed o sb => interp_sb W C o (WSealable sb @@? w.(lprov))
     end else True)%I.
@@ -1055,7 +1055,7 @@ Section logrel.
       destruct rx, wp; try reflexivity;
         exact Hcap.
     - exact (interp_sr_contractive n x y Hdistn W C (WSealRange t sr g b e a @@? π)).
-    - exact (interp_sentry_contractive n x y Hdistn W C (WSentry t sd g b e a @@? π)).
+    - exact (interp_sentry_contractive n x y Hdistn W C (WSentry k t sd g b e a @@? π)).
     - reflexivity.
   Qed.
 
@@ -1867,9 +1867,9 @@ Section logrel.
     filter_heap W (lborrow w) = lborrow (filter_heap W w).
   Proof.
     apply filter_heap_map.
-    - intros w'. by destruct w' as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ].
+    - intros w'. by destruct w' as [z|[t p g b e a|t p g b e a]|k t p g b e a|ot [t p g b e a|t p g b e a] ].
     - destruct w as [w π].
-      by destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ].
+      by destruct w as [z|[t p g b e a|t p g b e a]|k t p g b e a|ot [t p g b e a|t p g b e a] ].
   Qed.
 
   Lemma filter_heap_load_word W p w :

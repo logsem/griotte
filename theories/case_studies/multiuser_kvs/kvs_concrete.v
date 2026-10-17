@@ -186,7 +186,7 @@ Definition kvs_main_imports_concrete : list Word :=
     kvs_switcher_b kvs_switcher_e kvs_switcher_call
     kvs_switcher_sealing_type kvs_assert_b kvs_assert_e kvs_B_f.
 Definition kvs_B_imports : list Word :=
-  [ WSentry true XSRW_ Local kvs_switcher_b kvs_switcher_e kvs_switcher_call
+  [ WSentry FwdDisable true XSRW_ Local kvs_switcher_b kvs_switcher_e kvs_switcher_call
   ; WSealed kvs_switcher_sealing_type (KVS_addOrUpdate Global)
   ; WSealed kvs_switcher_sealing_type (KVS_read Global)
   ; WSealed kvs_switcher_sealing_type (KVS_erase Global)

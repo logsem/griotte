@@ -38,12 +38,12 @@ Section Counter_Main_Blocks_1.
     pc_b ↦ₐ□ counter_switcher_entry ∗
     (pc_b ^+ 1)%a ↦ₐ□ WSealed ot_switcher C_f ∗
     codefrag_pers pc_a counter_main_code ∗
-    ▷ (PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ counter_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ wcra ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ counter_label_offset ".Lcounter_return")%a ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ counter_label_offset ".Lcounter_return")%a ∗
         cgp_b ↦ₐ WInt (cnt + 1) ∗
         pc_b ↦ₐ□ counter_switcher_entry ∗
         (pc_b ^+ 1)%a ↦ₐ□ WSealed ot_switcher C_f ∗

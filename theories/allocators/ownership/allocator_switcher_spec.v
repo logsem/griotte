@@ -68,7 +68,7 @@ Section AllocatorSwitcherSpec.
   Proof.
     iIntros (Hn Hshadow_owner Hbounds_owner Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
-    iIntros (arg_rmap' rmap')
+    iIntros (mie arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
         & Hargs & Hrmap & Hstk & Hcstk & (Hid & Ha_owner) & Hpost)".
     iEval (cbn) in "HPC".
@@ -87,12 +87,12 @@ Section AllocatorSwitcherSpec.
     simplify_eq.
     iApply (allocator_malloc_valid_correct S ⊤ g_owner a_owner id Ω n None _ with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $HPC $Hcgp $Hcra
-       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hcnull]");
+       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp]");
       eauto.
     iSplitR; first (iNext; by iIntros (?)).
     iNext.
     iIntros "(Hna & Ha_owner & HPC & Hcgp & Hcra & Hca2 & Hct0 & Hct1 & Hct2
-      & Hct3 & Hct4 & Hctp & Hcnull & Hres)".
+      & Hct3 & Hct4 & Hctp & Hres)".
     iEval (cbn) in "HPC".
     iExtractList "Hrmap" [cs0;cs1] as
       ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]"].
@@ -170,7 +170,7 @@ Section AllocatorSwitcherSpec.
   Proof.
     iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
-    iIntros (arg_rmap' rmap')
+    iIntros (mie arg_rmap' rmap')
       "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
         & Hargs & Hrmap & Hstk & Hcstk
         & (Hid & %HιΩ & Ha_owner & #Hobj & Hheld & Hmem) & Hpost)".
@@ -203,7 +203,7 @@ Section AllocatorSwitcherSpec.
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcsp").
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca5").
       iExact "Hrmap". }
-    iApply (allocator_free_valid_correct ⊤ g_owner a_owner id Ω p g ι b e a ws _ rframe with
+    iApply (allocator_free_valid_correct ⊤ g_owner a_owner id Ω p g ι b e a ws _ _ rframe with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hcnull $Hframe $Hmem]");
       eauto.

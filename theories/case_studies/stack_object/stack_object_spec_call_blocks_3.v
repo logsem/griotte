@@ -39,7 +39,7 @@ Section SO_Call_Blocks_3.
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     pc_b ↦ₐ□ so_switcher_entry ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (∀ a_stk1 a_stk2 stk_mem',
+    ▷ (∀ mie a_stk1 a_stk2 stk_mem',
         ⌜(csp_b + 1)%a = Some a_stk1⌝ ∗
         ⌜(a_stk1 + 1)%a = Some a_stk2⌝ ∗
         ⌜(a_stk2 <= csp_e)%a⌝ ∗
@@ -50,7 +50,7 @@ Section SO_Call_Blocks_3.
         ct1 ↦ᵣ wct1 ∗
         cs0 ↦ᵣ wcra ∗
         cs1 ↦ᵣ wct1 ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
         csp_b ↦ₐ WInt so_secret ∗
         a_stk1 ↦ₐ WInt 0 ∗
         [[a_stk2, csp_e]] ↦ₐ [[stk_mem']] ∗
@@ -140,7 +140,7 @@ Section SO_Call_Blocks_3.
     focus_block (so_block ".Lso_f_fetch_switcher") "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
@@ -162,7 +162,7 @@ Section SO_Call_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_call ^+ 3)%a = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
       by (offsets_compute; solve_addr).
-    iApply ("Hpost" $! a_stk1 a_stk2 stk_mem); iFrame "∗ Hcode_main".
+    iApply ("Hpost" $! mie a_stk1 a_stk2 stk_mem); iFrame "∗ Hcode_main".
     iPureIntro; repeat split; solve_addr.
   Qed.
 

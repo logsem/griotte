@@ -40,11 +40,15 @@ Section fundamental.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
-    destruct HSpec as [ regs' pc_a' wsrc Hrsrc Htgt Hpca' -> | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
+    destruct HSpec as [ regs' pc_a' wsrc mie Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
     1,2: iApply wp_pure_step_later; auto; iNext; iIntros "_"; iApply wp_value; auto.
 
-    iAssert (interp W C (WSentry true p g b e pc_a')) as "Hinterp_ret".
-    {
+    (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
+    iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
+    { rewrite /jalr_link. destruct (decide (rdst = cra)) as [Hcra | Hcra].
+      2: { iApply (interp_weakening with "IH Hinv_interp");
+           [solve_addr | solve_addr | apply subseg_heap_base_same
+           | apply PermFlowsToReflexive | apply LocalityFlowsToReflexive]. }
       destruct Hp as [Hexec _].
       iDestruct (interp_cap_disjoint with "Hinv_interp") as %[_ Hheap]; first exact Hexec.
       assert (not_heap_range b e) as Hsentry.
@@ -60,12 +64,16 @@ Section fundamental.
 
     iApply wp_pure_step_later; auto.
 
-    set (wret := if decide (rdst = cnull) then lnull else WSentry true p g b e pc_a' @@? None).
-    rewrite /linsert_reg.
-    iAssert (interp W C wret) as "#Hinterp_ret'".
-    { rewrite /wret.
-      destruct (decide (rdst = cnull)); [by iApply interp_untagged | iExact "Hinterp_ret"]. }
-    iClear "Hinterp_ret".
+    (* A [cnull] destination leaves the registers unchanged. *)
+    assert (∀ x, is_Some (regs' !! x)) as Hsome'.
+    { intros x. rewrite Hregs'. case_decide; first apply Hsome.
+      rewrite /linsert_reg decide_False // lookup_insert_is_Some.
+      destruct (decide (rdst = x)); auto; right; split; auto. }
+    iAssert (∀ ri wi, ⌜regs' !! ri = Some wi⌝ → interp W C wi)%I as "#Hreg'".
+    { iIntros (ri wi Hri). rewrite Hregs' in Hri. case_decide; first by iApply "Hreg".
+      rewrite /linsert_reg decide_False // in Hri.
+      destruct (decide (ri = rdst)); simplify_map_eq; [iExact "Hinterp_ret" | by iApply "Hreg"]. }
+    iClear "Hinterp_ret". clear Hregs'.
 
     (* The new PC is the source word with the PC permission, and keeps its
        identifier. *)
@@ -83,7 +91,7 @@ Section fundamental.
     { destruct ρ;auto;contradiction. }
 
     destruct (updatePcPerm wsrc) as
-      [z | [t0 p0 g0 b0 e0 a0 | t0 sp0 g0 b0 e0 a0] | t0 p0 g0 b0 e0 a0 | ot sb]
+      [z | [t0 p0 g0 b0 e0 a0 | t0 sp0 g0 b0 e0 a0] | k0 t0 p0 g0 b0 e0 a0 | ot sb]
       eqn:Hwsrc; cycle 1.
     { destruct t0; cycle 1.
       { iNext; iIntros "_".
@@ -105,14 +113,8 @@ Section fundamental.
       destruct_word wsrc; try destruct t; cbn in Hwsrc; try discriminate.
       { destruct c; inv Hwsrc.
         iNext ; iIntros "_".
-        iApply ("IH" $! _ _ _ _ _ (<[rdst:=wret]> regs) with
+        iApply ("IH" $! _ _ _ _ _ regs' with
                  "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
-        - intros; cbn. rewrite lookup_insert_is_Some.
-          destruct (decide (rdst = x)); auto; right; split; auto.
-        - iIntros (ri wi Hregs_ri).
-          destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
-          * iApply ("Hreg" $! ri) ; auto.
-          * iExact "Hinterp_ret'".
       }
       inv Hwsrc.
       iEval (rewrite interp_unfold) in "Hwsrc".
@@ -124,17 +126,12 @@ Section fundamental.
       pose proof (LocalityFlowsToReflexive g0) as Hg0.
       iSpecialize ("Hinterp_src" $! g0 Hg0).
       iNext. iIntros "_".
-      iApply ("Hinterp_src" $! cstk Ws Cs (<[rdst:=wret]> regs)
+      iApply ("Hinterp_src" $! cstk Ws Cs regs'
                with "[$HPC $Hmap $Hworld_interp $Htframe $Hown $Hcont]").
       iSplit; last done.
       iSplit.
-      + iIntros (ri); cbn; iPureIntro.
-        rewrite lookup_insert_is_Some.
-        destruct (decide (rdst = ri)); auto; right; split; auto.
-      + iIntros (ri wi Hregs_ri). iApply interp_filter_heap.
-        destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
-        * iApply ("Hreg" $! ri) ; auto.
-        * iExact "Hinterp_ret'".
+      + iIntros (ri); cbn; iPureIntro. apply Hsome'.
+      + iIntros (ri wi Hregs_ri). iApply interp_filter_heap. by iApply "Hreg'".
     }
 
     (* Non-capability cases *)

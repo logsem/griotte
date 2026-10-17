@@ -350,10 +350,11 @@ Qed.
     all: try (eapply (sys_pc_ok_update_pcc_sreg _ MEPCC); [done|eassumption|exact Hinv]).
     (* Jalr checks its target. *)
     all: match goal with
-      | Ht : negb (get_tag ?w) = false, Hs : is_sealed ?w = false,
+      | Ht : negb (get_tag ?w) = false, Hs : negb (jalr_sealing_ok ?rd ?rs ?w) = false,
         Hx : negb (executable_word ?w) = false |- _ =>
-          split; [apply jalr_target_ok_pc_ok | apply (proj2 Hinv)];
-          rewrite /jalr_target_ok -(negb_involutive (get_tag w)) Ht Hs /=;
+          split; [apply (jalr_target_ok_pc_ok rd rs) | apply (proj2 Hinv)];
+          rewrite /jalr_target_ok -(negb_involutive (get_tag w)) Ht
+            -(negb_involutive (jalr_sealing_ok rd rs w)) Hs /=;
           by rewrite -(negb_involutive (executable_word w)) Hx
       end.
   Qed.

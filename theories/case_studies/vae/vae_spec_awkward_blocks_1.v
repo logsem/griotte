@@ -43,10 +43,10 @@ Section VAE_Awkward_Blocks_1.
     cs1 ↦ᵣ wcs1 ∗
     pc_b ↦ₐ□ vae_switcher_entry ∗
     codefrag_pers pc_a vae_main_code ∗
-    ▷ (world_interp (<l[i:=false]l>W) C ∗
+    ▷ (∀ mie, world_interp (<l[i:=false]l>W) C ∗
         PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
         ca0 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ vae_switcher_entry ∗
         ct1 ↦ᵣ wca0 ∗
@@ -87,7 +87,7 @@ Section VAE_Awkward_Blocks_1.
     focus_block (vae_block ".Lvae_awkward_fetch_switcher_1") "Hcode_main" of vae_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }

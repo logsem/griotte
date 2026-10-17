@@ -959,7 +959,7 @@ Section CmptLayout.
     intros [Hz|Hin].
     - destruct w; try done; apply word_rooted_int.
     - intros b Ht Hb.
-      destruct w as [z|[t p g b' e' a|t p g b' e' a]|t p g b' e' a|o sb];
+      destruct w as [z|[t p g b' e' a|t p g b' e' a]|k t p g b' e' a|o sb];
         cbn in Hin; try done.
       destruct g; try done. destruct Hin as (_ & Hlo & Hhi).
       rewrite /heap_authority_base in Hb. case_decide as Hlt; last done.
@@ -1077,17 +1077,17 @@ Section CmptLayout.
   Qed.
 
   (** The switcher's sentries. *)
-  Lemma word_exec_ok_switcher_sentry (C : cmptSwitcher) t p g a :
-    word_exec_ok (WSentry t p g (b_switcher C) (e_switcher C) a).
+  Lemma word_exec_ok_switcher_sentry (C : cmptSwitcher) k t p g a :
+    word_exec_ok (WSentry k t p g (b_switcher C) (e_switcher C) a).
   Proof.
     eapply word_exec_ok_closed;
       [done | apply switcher_not_heap_range | apply switcher_end_not_heap].
   Qed.
 
   (** The assert sentry, when the assert code lies outside the heap. *)
-  Lemma word_exec_ok_assert_sentry (C : cmptAssert) t p g a :
+  Lemma word_exec_ok_assert_sentry (C : cmptAssert) k t p g a :
     disjoint_from_heap (b_assert C) (e_assert C) →
-    word_exec_ok (WSentry t p g (b_assert C) (e_assert C) a).
+    word_exec_ok (WSentry k t p g (b_assert C) (e_assert C) a).
   Proof.
     intros Hdisj. eapply word_exec_ok_closed; first done.
     - split; [apply assert_code_nonheap | done].
@@ -1175,8 +1175,8 @@ Section CmptLayout.
 
   Definition initial_exec_word (sw : cmptSwitcher) (Ca : cmptAssert) (w : Word) : Prop :=
     executable_word w = false ∨
-    (∃ t p g a, w = WSentry t p g (b_switcher sw) (e_switcher sw) a) ∨
-    (∃ t p g a, w = WSentry t p g (b_assert Ca) (e_assert Ca) a).
+    (∃ k t p g a, w = WSentry k t p g (b_switcher sw) (e_switcher sw) a) ∨
+    (∃ k t p g a, w = WSentry k t p g (b_assert Ca) (e_assert Ca) a).
 
   Lemma Forall_initial_exec_word_ints sw Ca (ws : list Word) :
     Forall is_z ws → Forall (initial_exec_word sw Ca) ws.
@@ -1189,7 +1189,7 @@ Section CmptLayout.
   Proof.
     intros Hws. eapply Forall_impl; first exact Hws. intros w [Hz|Hin]; left.
     - by destruct w.
-    - destruct w as [z|[t p g b' e' a|t p g b' e' a]|t p g b' e' a|o sb];
+    - destruct w as [z|[t p g b' e' a|t p g b' e' a]|k t p g b' e' a|o sb];
         cbn in Hin |- *; try done.
       destruct g; try done. destruct Hin as (Hfl & _).
       by eapply notexecuteAllowed_flowsfrom.
@@ -1220,7 +1220,7 @@ Section CmptLayout.
     intros Hassert Hws. rewrite /cmpt_words !Forall_app in Hws.
     destruct Hws as (Himports & Hcode & Hdata & Hstatic & Hentries).
     assert (∀ w, initial_exec_word sw Ca w → word_exec_ok w) as Hok.
-    { intros w [Hx | [(t & p & g & a & ->) | (t & p & g & a & ->) ] ].
+    { intros w [Hx | [(k & t & p & g & a & ->) | (k & t & p & g & a & ->) ] ].
       - by apply word_exec_ok_not_executable.
       - apply word_exec_ok_switcher_sentry.
       - by apply word_exec_ok_assert_sentry. }
@@ -1274,8 +1274,8 @@ Ltac solve_initial_exec_words :=
   try (apply Forall_initial_exec_word_check; vm_compute; reflexivity);
   repeat apply Forall_cons_2; try apply Forall_nil_2;
   try (by left);
-  try (by right; left; do 4 eexists);
-  try (by right; right; do 4 eexists).
+  try (by right; left; do 5 eexists);
+  try (by right; right; do 5 eexists).
 
 (* Discharges [Forall (λ C, Forall (initial_exec_word sw Ca) (cmpt_words C))]
    for a concrete list of compartments. *)

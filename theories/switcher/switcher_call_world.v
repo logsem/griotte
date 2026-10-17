@@ -204,14 +204,14 @@ Section Switcher_Call_World.
 
   (** The registers when entering the callee. *)
   Lemma switcher_call_entry_registers W W' C (nargs : nat)
-    (arg_rmap' rmap' : LReg) (wcgp wstk : LWord) :
+    (arg_rmap' rmap' : LReg) (wcgp wstk : LWord) (mie : InterruptStatus) :
     related_sts_pub_world W W' ->
     heap_std W = heap_std W' ->
     is_arg_rmap arg_rmap' 8 ->
     dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ->
 
     cgp ↦ᵣ wcgp ∗
-    cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     csp ↦ᵣ wstk ∗
     interp W' C wstk ∗
     ( [∗ map] r↦w ∈ arg_rmap',
@@ -247,7 +247,7 @@ Section Switcher_Call_World.
       apply elem_of_difference. split;[apply all_registers_s_correct|set_solver]. }
     repeat iSplit.
     - iPureIntro. clear. simplify_map_eq. auto.
-    - iPureIntro. clear. simplify_map_eq. auto.
+    - iPureIntro. exists mie. simplify_map_eq. auto.
     - iPureIntro. clear. simplify_map_eq. done.
     - done.
     - iIntros (r v Hr Hv).

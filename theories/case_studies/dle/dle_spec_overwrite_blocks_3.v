@@ -36,12 +36,12 @@ Section DLE_Overwrite_Blocks_3.
     cs1 ↦ᵣ WSealed ot_switcher C_f ∗
     cgp_b ↦ₐ wcgp_b ∗
     codefrag_pers pc_a dle_main_code ∗
-    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ dle_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
         cs0 ↦ᵣ dle_switcher_entry ∗
         cs1 ↦ᵣ WSealed ot_switcher C_f ∗
         cgp_b ↦ₐ WInt 42 ∗

@@ -57,7 +57,8 @@ Section helpers_switcher_adequacy.
       iExact "Hinterp_cgp'".
     }
     destruct (decide (r = cra)) as [-> | Hrcra].
-    { rewrite Hregs_cra in Hr ; simplify_eq.
+    { destruct Hregs_cra as [mie Hregs_cra].
+      rewrite Hregs_cra in Hr ; simplify_eq.
       iApply (interp_switcher_return with "[$Hinv_switcher $Hswitcher_static]").
     }
     destruct (decide (r = csp)) as [-> | Hrcsp].

@@ -469,7 +469,7 @@ Section griotte_lang_rules.
                      (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ ∗
         "HPCa" ∷ PC_auth (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hr" ∷ gen_heap_interp lreg ∗
-        "Hsr" ∷ gen_heap_interp lsreg ∗
+        "Hsr" ∷ sreg_interp lsreg ∗
         "Hm" ∷ gen_heap_interp lmem ∗
         "Hst" ∷ gen_heap_interp st ∗
         "HR" ∷ reg_auth R ∗
@@ -649,7 +649,8 @@ Definition regs_of (i: instr): gset RegName :=
   | Store r1 arg _ => {[ r1 ]} ∪ regs_of_argument arg
   | Jnz arg1 r2 => {[ r2 ]} ∪ regs_of_argument arg1
   | Jmp arg => regs_of_argument arg
-  | Jalr rdst rsrc => {[ rdst; rsrc ]}
+  (* A [cnull] destination of [Jalr] is not written. *)
+  | Jalr rdst rsrc => {[ rsrc ]} ∪ ({[ rdst ]} ∖ {[ cnull ]})
   | Seal dst r1 r2 => {[dst; r1; r2]}
   | UnSeal dst r1 r2 => {[dst; r1; r2]}
   (* [cnull] is neither read nor written by [SpecialRW]. *)
@@ -674,8 +675,7 @@ Qed.
 Definition sregs_of (i: instr): gset SRegName :=
   match i with
   | SpecialRW _ sr _ => {[ sr ]}
-  | SetMIE _ => {[ MSTATUS ]}
-  | Mret => {[ MEPCC; MSTATUS ]}
+  | Mret => {[ MEPCC ]}
   | _ => ∅
   end.
 
@@ -1045,7 +1045,7 @@ Section instruction_closing.
       (regs : LReg) (Φ : griotte_lang.val → iProp Σ) :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1069,7 +1069,7 @@ Section instruction_closing.
     (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
     (incrementPC_gen lpc n = None → P lpc FailedV) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1107,7 +1107,7 @@ Section instruction_closing.
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
     (incrementPC lpc = None → P lpc regs FailedV) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1148,7 +1148,7 @@ Section instruction_closing.
     reg_phys R lpc' pc' →
     pc_ok lpc'.(lw) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ gen_heap_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
@@ -1167,6 +1167,31 @@ Section instruction_closing.
     iModIntro. iSplitR "Hφ HPC Hmap".
     - iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
     - iApply ("Hφ" with "HPC [Hmap]"). by rewrite /linsert_reg.
+  Qed.
+
+  (** Closes a step that only sets the PC. *)
+  Lemma instr_close_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
+      (regs : LReg) (lpc' : LWord) (pc' : Word)
+      (Φ : griotte_lang.val → iProp Σ) :
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    reg_word_ok R C lpc' →
+    reg_phys R lpc' pc' →
+    pc_ok lpc'.(lw) →
+    PC_auth lpc -∗
+    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
+    PC ↦ₚ lpc -∗
+    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
+    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
+    cerise_state_interp (update_pcc (pc, r, sr, m, st) pc') ∗
+    from_option Φ False (to_val (Instr NextI)).
+  Proof.
+    iIntros (Her Hokpc Hwpc Hpcok) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her Hokpc Hwpc Hpcok) as Her'.
+    iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
+    iModIntro. iSplitR "Hφ HPC Hmap".
+    - iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her'.
+    - iApply ("Hφ" with "HPC Hmap").
   Qed.
 
 End instruction_closing.

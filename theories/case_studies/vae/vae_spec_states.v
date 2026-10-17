@@ -86,11 +86,11 @@ Section VAE_States.
 
   (** The capability of the entry point of the switcher. *)
   Definition vae_switcher_entry : Word :=
-    WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call.
+    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
   (** The capability of the entry point of the assert routine. *)
   Definition vae_assert_entry : Word :=
-    WSentry true RX Global b_assert e_assert b_assert.
+    WSentry Inherit true RX Global b_assert e_assert b_assert.
 
   (** The arguments of both calls to the adversary: all the argument
       registers are cleared, and [ct0] is the entry point of the switcher. *)

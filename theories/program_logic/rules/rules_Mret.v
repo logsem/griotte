@@ -27,21 +27,19 @@ Section griotte_lang_rules.
       has_sreg_access p = false →
       Mret_failure lpc.
 
-  (** On success, the new PC is the value of MEPCC. *)
-  Inductive Mret_spec (lpc : LWord) (sregs : LSReg) (lpc' : LWord) (sregs' : LSReg)
+  (** On success, the new PC is the value of MEPCC. mstatus is held by the
+      state interpretation: the rule does not expose it. *)
+  Inductive Mret_spec (lpc : LWord) (sregs : LSReg) (lpc' : LWord)
     : griotte_lang.val → Prop :=
-  | Mret_spec_success p g b e a π vst :
+  | Mret_spec_success p g b e a π :
       lpc = WCap true p g b e a @@? π →
       has_sreg_access p = true →
       sregs !! MEPCC = Some lpc' →
-      sregs !! MSTATUS = Some vst →
-      sregs' = <[MSTATUS := mret_mstatus vst]> sregs →
-      Mret_spec lpc sregs lpc' sregs' NextIV
+      Mret_spec lpc sregs lpc' NextIV
   | Mret_spec_failure :
       lpc' = lpc →
-      sregs' = sregs →
       Mret_failure lpc →
-      Mret_spec lpc sregs lpc' sregs' FailedV.
+      Mret_spec lpc sregs lpc' FailedV.
 
   Lemma wp_Mret Ep pc_p pc_g pc_b pc_e pc_a pc_π w sregs dq :
     decodeInstrW w.(lw) = Mret →
@@ -54,25 +52,27 @@ Section griotte_lang_rules.
         ▷ ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
     }}}
       Instr Executable @ Ep
-    {{{ lpc' sregs' retv, RET retv;
-        ⌜ Mret_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' sregs' retv ⌝ ∗
+    {{{ lpc' retv, RET retv;
+        ⌜ Mret_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
-        ([∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)
+        ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
     }}}.
   Proof.
     iIntros (Hinstr Hvpc Dsregs φ) "(>HPC & >Hpc_a & >Hsmap) Hφ".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); eauto.
     iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
-    iDestruct (gen_heap_valid_inclSepM with "Hsr Hsmap") as %Hlsregs.
+    iAssert (⌜sregs ⊆ lsreg⌝)%I as %Hlsregs.
+    { iDestruct "Hsr" as "[Hsr _]". iApply (gen_heap_valid_inclSepM with "Hsr Hsmap"). }
+    iAssert (⌜∃ vst, lsreg !! MSTATUS = Some vst⌝)%I as %[vst Hvst'].
+    { iDestruct "Hsr" as "[Hsr [%v Hmst]]".
+      iDestruct (gen_heap_valid with "Hsr Hmst") as %?. iPureIntro. by exists v. }
     rewrite Hinstr /exec in Hstep.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
-      apply Mret_spec_failure; [done|done|]. by eapply Mret_fail_nonxsr. }
+      apply Mret_spec_failure; first done. by eapply Mret_fail_nonxsr. }
     destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs MEPCC) as (vepcc & Hvepcc & Hvepcc');
-      first (rewrite /sregs_of; set_solver).
-    destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs MSTATUS) as (vst & Hvst & Hvst');
       first (rewrite /sregs_of; set_solver).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc') as (wepcc & Hwepcc & Hrelepcc).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
@@ -88,44 +88,43 @@ Section griotte_lang_rules.
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
     specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
                   ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her MEPCC))).
-    iMod (gen_heap_update_inSepM _ _ MSTATUS (mret_mstatus vst) with "Hsr Hsmap")
-      as "[Hsr Hsmap]"; first by eexists.
+    iDestruct "Hsr" as "[Hsr [%v Hmst]]".
+    iMod (gen_heap_update _ _ _ (mret_mstatus vst) with "Hsr Hmst") as "[Hsr Hmst]".
+    iAssert (sreg_interp (<[MSTATUS := mret_mstatus vst]> lsreg))
+      with "[Hsr Hmst]" as "Hsr".
+    { iFrame "Hsr". by iExists _. }
     iMod (PC_update _ _ vepcc with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplitR "Hφ HPC Hpc_a Hsmap".
     - iExists vepcc, _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
     - iApply "Hφ". iFrame. iPureIntro. by eapply Mret_spec_success.
   Qed.
 
-  (** [mret]: the PC receives MEPCC, MIE receives MPIE, and MPIE becomes
-      enabled. *)
-  Lemma wp_mret_success E pc_p pc_g pc_b pc_e pc_a pc_π w (vepcc : LWord) mie mpie dq :
+  (** [mret]: the PC receives MEPCC; MIE receives MPIE and MPIE becomes
+      enabled, in the state interpretation. *)
+  Lemma wp_mret_success E pc_p pc_g pc_b pc_e pc_a pc_π w (vepcc : LWord) dq :
     decodeInstrW w.(lw) = Mret →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
 
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ mepcc ↦ₛᵣ vepcc
-        ∗ ▷ mstatus ↦ₛᵣ WInt (mstatus_enc mie mpie) }}}
+        ∗ ▷ mepcc ↦ₛᵣ vepcc }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ vepcc
           ∗ pc_a ↦ₐ{dq} w
-          ∗ mepcc ↦ₛᵣ vepcc
-          ∗ mstatus ↦ₛᵣ WInt (mstatus_enc mpie InterruptEnabled) }}}.
+          ∗ mepcc ↦ₛᵣ vepcc }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr φ) "(>HPC & >Hpc_a & >Hepcc & >Hst) Hφ".
-    iDestruct (map_of_sregs_2 with "Hepcc Hst") as "[Hsmap %Hne]".
+    iIntros (Hinstr Hvpc Hxsr φ) "(>HPC & >Hpc_a & >Hepcc) Hφ".
+    iDestruct (map_of_sregs_1 with "Hepcc") as "Hsmap".
     iApply (wp_Mret with "[$HPC $Hsmap $Hpc_a]"); eauto.
-    { rewrite Hxsr /sregs_of !dom_insert_L. set_solver. }
-    iNext. iIntros (lpc' sregs' retv) "(%Hspec & HPC & Hpc_a & Hsmap)".
-    destruct Hspec as [p g b e a π vst Hpc Hx Hvepcc Hvst -> | -> -> [p g b e a π Hpc Hx]];
+    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & Hsmap)".
+    destruct Hspec as [p g b e a π Hpc Hx Hvepcc | -> [p g b e a π Hpc Hx]];
       simplify_eq; last by rewrite Hxsr in Hx.
     simplify_map_eq.
-    rewrite (insert_insert_ne _ MSTATUS MEPCC) // insert_insert_eq.
-    rewrite /mret_mstatus /= mpie_of_mstatus_enc.
     iApply "Hφ". iFrame.
-    iDestruct (sregs_of_map_2 with "Hsmap") as "[$ $]"; done.
+    iApply (sregs_of_map_1 with "Hsmap").
   Qed.
 
 End griotte_lang_rules.

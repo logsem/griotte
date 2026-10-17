@@ -200,14 +200,14 @@ Section Switcher_KtK_Call.
     ∗ cstack_frag cstk
 
 
-    ∗ ▷ ( (∃ arg_rmap' rmap',
+    ∗ ▷ ( (∃ mie arg_rmap' rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais E
               (* Registers *)
               ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
               ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-              ∗ cra ↦ᵣ (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
+              ∗ cra ↦ᵣ (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
               (* Stack register *)
               ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
               (* All the other registers *)
@@ -331,7 +331,7 @@ Section Switcher_KtK_Call.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { rewrite !dom_delete_L Hdom. set_solver. }
-    iNext; iIntros (arg_rmap' rmap')
+    iNext; iIntros (mie arg_rmap' rmap')
       "(%Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)

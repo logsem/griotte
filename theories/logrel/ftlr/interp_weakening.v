@@ -40,9 +40,9 @@ Section fundamental.
     iFrame "#".
   Qed.
 
-  Lemma interp_weakening_from_sentry W C t p g b e a π :
-      interp W C (WSentry t p g b e a @@? π)
-      -∗ interp W C (WSentry t p Local b e a @@? π).
+  Lemma interp_weakening_from_sentry W C sk t p g b e a π :
+      interp W C (WSentry sk t p g b e a @@? π)
+      -∗ interp W C (WSentry sk t p Local b e a @@? π).
   Proof.
     iIntros "#Hinterp".
     destruct t; last (iApply interp_untagged; done).
@@ -355,9 +355,9 @@ Section fundamental.
     filter_heap W (lreadonly w) = lreadonly (filter_heap W w).
   Proof.
     apply filter_heap_map.
-    - intros w'. by destruct w' as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ].
+    - intros w'. by destruct w' as [z|[t p g b e a|t p g b e a]|k t p g b e a|ot [t p g b e a|t p g b e a] ].
     - destruct w as [w π].
-      by destruct w as [z|[t [] g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ].
+      by destruct w as [z|[t [] g b e a|t p g b e a]|k t p g b e a|ot [t p g b e a|t p g b e a] ].
   Qed.
 
   Lemma interp_in_mem_readonly_word W C w :
@@ -707,7 +707,7 @@ Section fundamental.
     { iApply (interp_weakeningEO _ _ true p p' g g'); eauto. }
   Qed.
 
-  Lemma interp_weakeningSentry W C t p g g' b b' e e' a a' :
+  Lemma interp_weakeningSentry W C sk t p g g' b b' e e' a a' :
       not_heap_range b' e' ->
       isO p = false ->
       (b <= b')%a ->
@@ -715,7 +715,7 @@ Section fundamental.
       LocalityFlowsTo g' g ->
       ftlr_IH -∗
       interp W C (WCap t p g b e a) -∗
-      interp W C (WSentry t p g' b' e' a').
+      interp W C (WSentry sk t p g' b' e' a').
   Proof.
     intros Hsentry HpnotO Hb He Hl.
     iIntros "#IH #HA".

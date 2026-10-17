@@ -25,7 +25,7 @@ Section VAE_Awkward_Blocks_3.
   Lemma vae_awkward_blocks_3_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive) (N : namespace)
-    (wret wcra wca0 wca1 wct0 wct1 wct2 wca2 wcnull : LWord) :
+    (wret wcra wca0 wca1 wct0 wct1 wct2 wca2 : LWord) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
@@ -43,7 +43,6 @@ Section VAE_Awkward_Blocks_3.
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
-    cnull ↦ᵣ wcnull ∗
     (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
     codefrag_pers pc_a vae_main_code ∗
     ▷ (world_interp W C ∗
@@ -57,7 +56,6 @@ Section VAE_Awkward_Blocks_3.
         ct1 ↦ᵣ WInt 0 ∗
         ct2 ↦ᵣ WInt 0 ∗
         ca2 ↦ᵣ WInt 0 ∗
-        cnull ↦ᵣ WInt 0 ∗
         (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
         codefrag_pers pc_a vae_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -66,7 +64,7 @@ Section VAE_Awkward_Blocks_3.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
                Hcgp_shadow Hloc)
       "(#Hawk & Hworld & #Hassert & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
-      & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull
+      & Hct0 & Hct1 & Hct2 & Hca2
       & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     vae_unfold_code.
@@ -97,11 +95,11 @@ Section VAE_Awkward_Blocks_3.
     focus_block (vae_block ".Lvae_awkward_assert") "Hcode_main" of vae_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
-             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra
-              $Hcode $Himport_assert]"); auto.
+             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra
+              $Hcode $Himport_assert]"); auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -115,7 +113,7 @@ Section VAE_Awkward_Blocks_3.
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }

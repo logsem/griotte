@@ -44,7 +44,7 @@ Section HTS_Spec_Assert.
       "(#Hctx & Hret)".
     iDestruct "Hctx" as "(#Hassert & _)".
     iDestruct "Hret" as "(Hframe & Hregs)".
-    iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & _ & _ & _
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & _ & _ & _
       & Himports & Hcode_main & Hp & _)".
     iDestruct "Himports" as "(_ & Himport_assert & _)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
@@ -73,11 +73,11 @@ Section HTS_Spec_Assert.
       ["[Hct2 _]";"[Hca2 _]";"[Hcnull _]"].
     iApply (assert_success_spec 1 with
       "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1
-        $Hcnull $Hcra $Hcode $Himport_assert]"); auto.
+        $Hcra $Hcode $Himport_assert]"); auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { solve_addr. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0
-      & Hct1 & Hcnull & _ & Himport_assert)".
+      & Hct1 & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 23: halt with the assertion service token restored. *)

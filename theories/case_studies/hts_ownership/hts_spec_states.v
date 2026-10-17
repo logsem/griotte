@@ -196,8 +196,8 @@ Section HTS_States.
 
   (** The imported words, in the order of [hts_main_imports]. *)
   Definition hts_imports : iProp Σ :=
-    pc_b ↦ₐ□ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    pc_b ↦ₐ□ WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
     (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (allocator_malloc Global) ∗
     (pc_b ^+ 4)%a ↦ₐ□ WSealed ot_switcher (allocator_free Global) ∗
@@ -219,7 +219,7 @@ Section HTS_States.
   Definition hts_frame (a_ret a_stk : Addr) : iProp Σ :=
     na_own cerise_nais ⊤ ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e a_ret ∗
-    cra ↦ᵣ WSentry true RX Global pc_b pc_e a_ret ∗
+    (∃ mie, cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret) ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk ∗
     (∃ w, cs0 ↦ᵣ w) ∗

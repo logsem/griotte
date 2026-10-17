@@ -126,8 +126,8 @@ Section VAE_Main.
     (B_adv : Sealable)
     : list Word :=
     [
-      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
-      WSentry true RX Global b_assert e_assert b_assert;
+      WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry Inherit true RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_adv
     ].
 

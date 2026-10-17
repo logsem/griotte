@@ -235,7 +235,7 @@ Section Switcher.
 
   Lemma switcher_call_sentry_not_heap
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
-    is_heap_cap (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) = false.
+    is_heap_cap (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call) = false.
   Proof.
     rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
     reflexivity.

@@ -21,7 +21,7 @@ Section LSE_F_Blocks_2.
 
   Lemma lse_f_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wcgp wcs0 wcra wca0 wca1 wcnull : LWord) :
+    (wcgp wcs0 wcra wca0 wca1 : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     assert_static b_assert e_assert a_flag ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
@@ -32,7 +32,6 @@ Section LSE_F_Blocks_2.
     cra ↦ᵣ wcra ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
-    cnull ↦ᵣ wcnull ∗
     (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
     codefrag_pers pc_a lse_main_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
@@ -43,7 +42,6 @@ Section LSE_F_Blocks_2.
         cra ↦ᵣ wcra ∗
         ca0 ↦ᵣ WInt 0 ∗
         ca1 ↦ᵣ WInt 0 ∗
-        cnull ↦ᵣ WInt 0 ∗
         (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
         codefrag_pers pc_a lse_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -51,7 +49,7 @@ Section LSE_F_Blocks_2.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
       "(#Hassert & HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra
-      & Hca0 & Hca1 & Hcnull & Himport_assert & Hcode_main & Hpost)".
+      & Hca0 & Hca1 & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
     rewrite /lse_assert_entry.
@@ -60,11 +58,11 @@ Section LSE_F_Blocks_2.
     focus_block (lse_block ".Llse_f_assert") "Hcode_main" of lse_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
-             "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hcnull
-              $Hcode $Himport_assert]"); auto.
+             "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra
+              $Hcode $Himport_assert]"); auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    iNext; iIntros "(HPC & Hcgp & Hcs0 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hcgp & Hcs0 & Hcra & Hct0 & Hct1
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -75,7 +73,7 @@ Section LSE_F_Blocks_2.
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wcra.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wcra.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }

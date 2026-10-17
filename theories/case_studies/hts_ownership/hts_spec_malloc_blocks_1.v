@@ -121,7 +121,7 @@ Section HTS_Spec_Malloc.
     iExtractList "Hrmap" [ctp] as ["Hctp"].
     iApply (fetch_spec 0 _ ctp RX Global
       pc_b pc_e a_fetch2
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
       _ _ _ with "[- $HPC $Hctp $Hcode]").
     { reflexivity. }
     { solve_addr. }
@@ -192,13 +192,13 @@ Section HTS_Spec_Malloc.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done. }
     set (rmap_other :=
-      <[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+      <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete cs1 (delete cs0 (delete ct0 (delete ca5 (delete ca4 (delete ca3
          (delete ca2 (delete cra (delete ct1
            (delete ca0 (delete ca1 rmap)))))))))))).
     iPoseProof (hts_malloc_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
+      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       wcs0 wcs1 csp_b csp_e csp_b rmap_arg cstk
       Global owner_a hts_main_owner_id ∅
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
@@ -211,7 +211,7 @@ Section HTS_Spec_Malloc.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
+      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other cstk
       allocator_malloc_nargs ⊤
       allocator_exp_tbl_b

@@ -395,7 +395,7 @@ Section fundamental.
         specialize (Hfull_rmap i) as [x Hx]. eauto.
       - intros [? [? ?] ]. apply elem_of_difference.
         split;auto. apply all_registers_s_correct. }
-    iNext; iIntros (arg_rmap' rmap'')
+    iNext; iIntros (mie arg_rmap' rmap'')
       "(%Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)
@@ -437,7 +437,7 @@ Section fundamental.
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static
-    ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp W C (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "[#Hinv #Hstatic]".
     rewrite interp_unfold /=.

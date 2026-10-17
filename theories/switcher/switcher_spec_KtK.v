@@ -49,7 +49,7 @@ Section Switcher_KtK.
               ccrel := Known_to_Known
            |}
     in
-    (∀ (arg_rmap' rmap' : LReg),
+    (∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
        ⌜ is_arg_rmap arg_rmap' 8 ⌝
        ∗ ⌜ dom rmap' =
              all_registers_s ∖
@@ -57,7 +57,7 @@ Section Switcher_KtK.
        ∗ na_own cerise_nais E
        ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
        ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-       ∗ cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return
+       ∗ cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return
        ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
        ∗ ([∗ map] rarg↦warg ∈ arg_rmap',
             rarg ↦ᵣ warg
@@ -217,7 +217,7 @@ Section Switcher_KtK.
             Hargs Hregs Hstk Hcstk".
     iNext.
     iIntros "[
-      (%arg_rmap' & %rmap' & %Harg_rmap' & %Hrmap'
+      (%mie & %arg_rmap' & %rmap' & %Harg_rmap' & %Hrmap'
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hregs & Hstk & Hcstk)
       |
       (%rmap' & %stk_mem' & %rcgp & %rcra & %rcs0 & %rcs1 & %Hrmap'
@@ -300,7 +300,7 @@ Section Switcher_KtK.
         { exact HE. }
         { exact Hrmap_ret. }
       }
-      iApply ("Hf" $! arg_rmap' rmap').
+      iApply ("Hf" $! mie arg_rmap' rmap').
       iFrame "∗#".
       iSplit; first done.
       iPureIntro. rewrite Hrmap' Hdom. set_solver.

@@ -97,12 +97,18 @@ Section state_interp.
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ}.
 
+  (** The logical system registers, with the only points-to of mstatus: no
+      client holds mstatus. *)
+  Definition sreg_interp (lsreg : LSReg) : iProp Σ :=
+    gen_heap_interp lsreg ∗
+    ∃ mstatus_v, pointsto (L:=SRegName) (V:=LWord) MSTATUS (DfracOwn 1) mstatus_v.
+
   Definition cerise_state_interp (σ : ExecConf) : iProp Σ :=
     ∃ (lpc : LWord) (lreg : LReg) (lsreg : LSReg) (lmem : LMem) (R : RegState)
       (C : gmap Addr AddrClaim),
       "HPCa" ∷ PC_auth lpc ∗
       "Hr" ∷ gen_heap_interp lreg ∗
-      "Hsr" ∷ gen_heap_interp lsreg ∗
+      "Hsr" ∷ sreg_interp lsreg ∗
       "Hm" ∷ gen_heap_interp lmem ∗
       "Hst" ∷ gen_heap_interp (shadowtbl σ) ∗
       "HR" ∷ reg_auth R ∗
@@ -199,7 +205,7 @@ Section ghost_init.
   (** Every initial word with authority is based on a heap root, heap roots
       are unpainted, [cnull] holds zero, and every tagged executable word
       has closed bounds that avoid the heap; a tagged PC, MTCC or MEPCC is an
-      unsealed executable capability. *)
+      unsealed executable capability; mstatus exists. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -218,6 +224,7 @@ Section ghost_init.
     gi_sregs_exec sr w : sreg σ !! sr = Some w → lword_exec (lword_of_word w);
     gi_pc_ok : pc_ok (pcc σ);
     gi_sregs_pc_ok sr w : is_pc_sreg sr = true → sreg σ !! sr = Some w → pc_ok w;
+    gi_mstatus : is_Some (sreg σ !! MSTATUS);
   }.
 
   Lemma lookup_init_claims H a :
@@ -317,7 +324,7 @@ Section ghost_init.
       cerise_state_interp σ ∗
       PC ↦ₚ lword_of_word (pcc σ) ∗
       ([∗ map] r ↦ w ∈ init_lregs (reg σ), r ↦ᵣ w) ∗
-      ([∗ map] sr ↦ w ∈ sreg σ, sr ↦ₛᵣ lword_of_word w) ∗
+      ([∗ map] sr ↦ w ∈ delete MSTATUS (sreg σ), sr ↦ₛᵣ lword_of_word w) ∗
       ([∗ map] a ↦ w ∈ init_lmem (mem σ), a ↦ₐ w) ∗
       ([∗ map] a ↦ s ∈ shadowtbl σ, a ↦ₛ s) ∗
       ([∗ map] a ↦ c ∈ init_claims H, addr_alloc a c).
@@ -331,8 +338,12 @@ Section ghost_init.
     iMod registry_init as (regg) "HR".
     iMod (addr_alloc_init (init_claims H)) as (ag) "[HC HCs]".
     iModIntro. iExists mg, sg, pg, rg, srg, regg, ag.
-    rewrite /init_lsregs big_sepM_fmap. iFrame.
-    iPureIntro. by apply init_erasure.
+    rewrite /init_lsregs big_sepM_fmap.
+    destruct (gi_mstatus _ _ Hinit) as [wst Hwst].
+    iDestruct (big_sepM_delete _ _ MSTATUS with "Hsrs") as "[Hst_m Hsrs]"; first exact Hwst.
+    iAssert (sreg_interp (lword_of_word <$> sreg σ)) with "[Hsr Hst_m]" as "Hsr".
+    { iFrame "Hsr". by iExists _. }
+    iFrame. iPureIntro. by apply init_erasure.
   Qed.
 
   (** The projection of the initial logical memory onto the physical one. *)

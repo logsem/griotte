@@ -101,6 +101,19 @@ Lemma mstatus_enc_inj mie mpie mie' mpie' :
   mstatus_enc mie mpie = mstatus_enc mie' mpie' → mie = mie' ∧ mpie = mpie'.
 Proof. by destruct mie, mpie, mie', mpie'. Qed.
 
+(** The link Jalr writes to [rdst], for the return address [a] in the PC
+    [WCap t p g b e _]: a return sentry when [rdst] is [cra], whose kind
+    restores the interrupt status [mie] of the caller, and otherwise the
+    unsealed capability. *)
+Definition jalr_link (rdst : RegName) (mie : InterruptStatus)
+    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) : Word :=
+  if decide (rdst = cra) then WSentry (ret_kind mie) t p g b e a else WCap t p g b e a.
+
+(** mstatus after a jump to [w], from its value [z] before the jump: a
+    sentry that sets the interrupt status sets MIE, MPIE is unchanged. *)
+Definition jalr_mstatus (w : Word) (z : Z) : option Z :=
+  (λ mie, mstatus_enc mie (mpie_of z)) <$> jalr_target_mie w.
+
 (** A write to MTCC or MEPCC clears the tag of a word that is sealed (a
     sentry included) or not executable, as cheriot-sail's [CSpecialRW]. Word
     addresses have no alignment constraint. *)
@@ -208,19 +221,32 @@ Section opsem.
     | Jalr rdst rsrc =>
         wrsrc ← (reg φ) !!ᵣ rsrc;
         (* The checks on the target, in the order of cheriot-sail: the tag,
-           the sealing (a sentry passes), the execute permission. A failed
-           check writes neither the PC nor the link register. *)
+           the sealing by the form of the instruction, the execute
+           permission. A failed check writes neither the PC, nor the link
+           register, nor mstatus. *)
         if negb (get_tag wrsrc) then None
-        else if is_sealed wrsrc then None
+        else if negb (jalr_sealing_ok rdst rsrc wrsrc) then None
         else if negb (executable_word wrsrc) then None
         else
+        wst ← (sreg φ) !! MSTATUS;
         match pcc φ with
         | (WCap t p g b e a) =>
             match (a + 1)%a with
             | Some a' =>
                 let φ_next := (update_pcc φ (updatePcPerm wrsrc)) in
-                let φ_dst := (update_reg φ_next rdst (WSentry t p g b e a')) in
-                Some (NextI, φ_dst)
+                (* A [cnull] destination drops the link; the link's kind is
+                   taken from MIE before the jump. *)
+                let φ_dst :=
+                  if decide (rdst = cnull) then φ_next
+                  else update_reg φ_next rdst
+                         (jalr_link rdst (mie_of (get_a wst)) t p g b e a') in
+                (* A sentry that sets the interrupt status writes MIE. *)
+                let φ_st :=
+                  match jalr_mstatus wrsrc (get_a wst) with
+                  | Some z => update_sreg φ_dst MSTATUS (WInt z)
+                  | None => φ_dst
+                  end in
+                Some (NextI, φ_st)
             | None => None
             end
         | _ => None

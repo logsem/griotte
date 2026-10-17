@@ -151,7 +151,7 @@ Section LSE.
     iApply (lse_run_blocks_1_spec with
              "[- $HPC $Hcgp $Hct0 $Hct1 $Hcra $Hcgp_b
               $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|done|done|].
-    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcra & Hcgp_b
+    iNext; iIntros (mie) "(HPC & Hcgp & Hct0 & Hct1 & Hcra & Hcgp_b
                     & _ & _ & _)".
     iMod ("Hlse_close" with "[$Hna $Hcgp_b]") as "Hna".
     iInsertRegs "Hrmap" ["Hct0"].

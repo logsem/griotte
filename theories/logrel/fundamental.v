@@ -302,7 +302,7 @@ Section fundamental.
      -∗ (if decide (isCorrectPC (updatePcPerm w.(lw)))
          then
            (∃ p g b e a π,
-               (⌜w = WCap true p g b e a @@? π ∨ w = WSentry true p g b e a @@? π⌝
+               (⌜w = WCap true p g b e a @@? π ∨ (∃ k, w = WSentry k true p g b e a @@? π)⌝
                 ∗ □ ∀ W', future_world g W W'
                           → ▷ (interp_expr interp (interp_cont interp) W' C) (lupdatePcPerm w)))
          else φ FailedV ∗ PC ↦ₚ lupdatePcPerm w
@@ -321,7 +321,7 @@ Section fundamental.
       + destruct p0; cbn in * ; simplify_eq.
         iExists _,_,_,_,_,_.
         rewrite /= interp_unfold /=.
-        iSplit;[eauto|]. iModIntro.
+        iSplit;[iPureIntro; right; eauto|]. iModIntro.
         iDestruct "Hw" as "[%Hnonheap #Hw]".
         rewrite /enter_cond.
         iIntros (W') "Hfuture".

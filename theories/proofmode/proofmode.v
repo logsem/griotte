@@ -777,7 +777,19 @@ Lemma envs_entails_rew_goal {Σ} (Δ: envs (uPredI (iResUR Σ))) P P' :
   envs_entails Δ P.
 Proof. intros ->. auto. Qed.
 
+(* An existential that heads the postcondition of a rule is introduced
+   first, under its binder's name, so that the resources under it can be
+   named. *)
+Ltac intro_post_exists :=
+  repeat lazymatch goal with
+  | |- envs_entails _ (bi_wand (bi_exist (fun x => _)) _) =>
+      let x' := fresh x in
+      iIntros "Hpost_exists"; iDestruct "Hpost_exists" as (x') "Hpost_exists";
+      iRevert "Hpost_exists"
+  end.
+
 Ltac2 reintro_cap_resources tbl :=
+  ltac1:(intro_post_exists);
   (refine '(@envs_entails_rew_goal _ _ _ _ _ _);
    Control.shelve_unifiable ()) >
   [ List.iter (fun x => try (name_cap_resource x)) (tbl.(contents)); reflexivity | () ];
@@ -816,7 +828,7 @@ Ltac simplify_load_word p w :=
     lazymatch w with
     | WInt ?z => rewrite (load_word_int p z)
     | WCap ?t ?pw ?g ?b ?e ?a => rewrite (load_word_cap t p pw g b e a)
-    | WSentry ?t ?pw ?g ?b ?e ?a => rewrite (load_word_sentry t p pw g b e a)
+    | WSentry ?k ?t ?pw ?g ?b ?e ?a => rewrite (load_word_sentry k t p pw g b e a)
     | WSealRange ?t ?pw ?g ?b ?e ?a => rewrite (load_word_sealrange t p pw g b e a)
     | WSealed ?o ?sb => rewrite (load_word_sealed p o sb)
     end

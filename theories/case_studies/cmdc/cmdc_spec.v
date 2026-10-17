@@ -176,7 +176,7 @@ Section CMDC.
     iApply (cmdc_call_blocks_2_spec cmdc_call_B with
              "[- $HPC $Hctp $Hct1 $Hcra
               $Himport_switcher $Himport_B_f $Hcode_main]"); first done.
-    iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
+    iNext; iIntros (mie) "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_B_f & Hcode_main)".
 
     (* Share b in the world of B *)
@@ -226,9 +226,9 @@ Section CMDC.
 
     (* Blocks 3-4: assert that c is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_B with
-             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
               $Hcgp_c $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
-    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull & Hcra
+    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
                     & Hcgp_c & Himport_assert & Hcode_main)".
 
     (* Block 5: overwrite b and prepare the argument c *)
@@ -242,7 +242,7 @@ Section CMDC.
     iApply (cmdc_call_blocks_2_spec cmdc_call_C with
              "[- $HPC $Hctp $Hct1 $Hcra
               $Himport_switcher $Himport_C_g $Hcode_main]"); first done.
-    iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
+    iNext; iIntros (mie') "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_C_g & Hcode_main)".
 
     (* Share c in the world of C *)
@@ -283,9 +283,9 @@ Section CMDC.
 
     (* Blocks 8-9: assert that b is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_C with
-             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Hcra
+             "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
               $Hcgp_b $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
-    iNext; iIntros "(HPC & _ & _ & _ & _ & _ & _ & _ & _ & _ & Hcode_main)".
+    iNext; iIntros "(HPC & _ & _ & _ & _ & _ & _ & _ & _ & Hcode_main)".
 
     (* Block 10: halt *)
     iApply (cmdc_halt_blocks_5_spec with "[$HPC $Hcode_main Hφ Hna]"); first done.

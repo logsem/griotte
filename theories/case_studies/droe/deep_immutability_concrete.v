@@ -87,7 +87,7 @@ Definition droe_C_code : list Word :=
 Definition droe_C_data : list Word := [WInt 0].
 
 Definition droe_C_imports : list Word :=
-  [WSentry true XSRW_ Local droe_switcher_b droe_switcher_e droe_switcher_call].
+  [WSentry FwdDisable true XSRW_ Local droe_switcher_b droe_switcher_e droe_switcher_call].
 
 Definition droe_C_exports : list Word :=
   [WInt (encode_entry_point 1 1)].

@@ -21,7 +21,7 @@ Section DROE_Assert_Blocks_3.
 
   Lemma droe_assert_blocks_3_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
-    (wca0 wca1 wct0 wct1 wct2 wca2 wcnull wcs0 wcra : LWord) :
+    (wca0 wca1 wct0 wct1 wct2 wca2 wcs0 wcra : LWord) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
@@ -35,18 +35,17 @@ Section DROE_Assert_Blocks_3.
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
-    cnull ↦ᵣ wcnull ∗
     cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 42 ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry true RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a droe_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
              Hcgp_contiguous Hcgp_mmio)
       "(#Hassert & Hna & HPC & Hcgp & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hca2
-      & Hcnull & Hcs0 & Hcra & Hcgp_b & Himport_assert & Hcode_main)".
+ & Hcs0 & Hcra & Hcgp_b & Himport_assert & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code droe_main_code "Hcode_main".
 
@@ -69,11 +68,11 @@ Section DROE_Assert_Blocks_3.
     focus_block (droe_block ".Ldroe_assert") "Hcode_main" of droe_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
-             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra
-              $Hcode $Himport_assert]"); auto.
+             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra
+              $Hcode $Himport_assert]"); auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { solve_addr. }
-    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

@@ -143,7 +143,7 @@ Section DLE.
     iApply (dle_share_blocks_2_spec with
              "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hmem]");
       first (rewrite /dle_code_bounds; eauto 10).
-    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hcs1 & Hmem)".
+    iNext; iIntros (mie) "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hcs1 & Hmem)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
 
     (* Share the data in the world *)
@@ -194,7 +194,7 @@ Section DLE.
     iApply (dle_overwrite_blocks_3_spec with
              "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hcra $Hcs0 $Hcs1 $Hcgp_b $Hcode_main]");
       [done|done|done|].
-    iNext; iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b & Hcode_main)".
+    iNext; iIntros (mie') "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b & Hcode_main)".
     iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"].
     iDestruct (switcher_call_args_1 (revoke W4) C with "Hca0 [] Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -228,7 +228,7 @@ Section DLE.
 
     (* Blocks 3-5: assert that b is unchanged and halt *)
     iApply (dle_assert_blocks_4_spec _ _ _ _ _ C_f with
-             "[$Hassert $Hna $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Hcra
+             "[$Hassert $Hna $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
               $Hcgp_b $Himport_assert $Hcode_main]");
       [rewrite /dle_code_bounds; eauto 10|done..].
   Qed.

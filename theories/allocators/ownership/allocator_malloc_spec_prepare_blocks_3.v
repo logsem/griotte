@@ -179,43 +179,41 @@ Section AllocatorMallocPrepareBlocks3.
 
   (** Block 5, the exit segment: set [ALLOC_NO_MEMORY] and return. *)
   Lemma allocator_malloc_oom_spec
-    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 wnull : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_no_memory_offset)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
-    cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
        ca1 ↦ᵣ WInt 0 ∗
-       cnull ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds. pose proof Hbounds as (Hpc & _ & _).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hfailed & Hφ)".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hfailed & Hφ)".
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     assert ((pc_a ^+ allocator_malloc_no_memory_offset)%a =
       ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 1)%a)
       as -> by (cbn in Hpc; offsets_compute; solve_addr).
     iApply (allocator_malloc_exit_oom_spec with
-      "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode]");
+      "[- $HPC $Hcra $Hca0 $Hca1 $Hcode]");
       first by apply allocator_malloc_exit_bounds.
     iFrame "Hfailed".
-    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   Lemma allocator_malloc_prepare_oom_spec
     (E : coPset) (pc_b pc_e pc_a next : Addr) (n : Z) (πn : option AId)
-    (wret wca0 w0 w1 w2 w3 w4 wa2 wnull : LWord)
+    (wret wca0 w0 w1 w2 w3 w4 wa2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     (0 < n)%Z ->
@@ -232,7 +230,6 @@ Section AllocatorMallocPrepareBlocks3.
     ca3 ↦ᵣ w3 ∗
     ca4 ↦ᵣ w4 ∗
     ca2 ↦ᵣ wa2 ∗
-    cnull ↦ᵣ wnull ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ φ FailedV ∗
@@ -247,14 +244,13 @@ Section AllocatorMallocPrepareBlocks3.
        ca3 ↦ᵣ - ∗
        ca4 ↦ᵣ - ∗
        ca2 ↦ᵣ - ∗
-       cnull ↦ᵣ WInt 0 ∗
        allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
        codefrag_pers pc_a allocator_malloc_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds Hpositive Hnext Hoom. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
-    iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hcnull &
+    iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 &
       Hslot & #Hcode_main & Hfailed & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
@@ -292,10 +288,10 @@ Section AllocatorMallocPrepareBlocks3.
     { transitivity (Some (pc_a ^+ allocator_malloc_no_memory_offset)%a);
         offsets_compute; solve_addr. }
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    iApply (allocator_malloc_oom_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
+    iApply (allocator_malloc_oom_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcode_main]");
       first done.
     iFrame "Hfailed".
-    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & _)".
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & _ & _)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

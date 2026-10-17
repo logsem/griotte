@@ -109,9 +109,9 @@ Definition cmdc_C_code : list Word :=
 Definition cmdc_B_data : list Word := [WInt 0].
 Definition cmdc_C_data : list Word := [WInt 0].
 Definition cmdc_B_imports : list Word :=
-  [WSentry true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
+  [WSentry FwdDisable true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
 Definition cmdc_C_imports : list Word :=
-  [WSentry true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
+  [WSentry FwdDisable true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
 Definition cmdc_B_exports : list Word := [WInt (encode_entry_point 1 1)].
 Definition cmdc_C_exports : list Word := [WInt (encode_entry_point 1 1)].
 

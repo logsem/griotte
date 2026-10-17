@@ -144,7 +144,7 @@ Section DROE.
     iApply (droe_share_blocks_2_spec with
              "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcra $Hmem]");
       first (rewrite /droe_code_bounds; eauto 10).
-    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hmem)".
+    iNext; iIntros (mie) "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hmem)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
 
     (* Share the data in the world *)
@@ -191,7 +191,7 @@ Section DROE.
 
     (* Blocks 3-5: assert that b is unchanged and halt *)
     iApply (droe_assert_blocks_3_spec _ _ _ _ _ C_f with
-             "[$Hassert $Hna $HPC $Hcgp $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull
+             "[$Hassert $Hna $HPC $Hcgp $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hca2
               $Hcs0 $Hcra $Hcgp_b $Himport_assert $Hcode_main]");
       [rewrite /droe_code_bounds; eauto 10|done..].
   Qed.

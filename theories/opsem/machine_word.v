@@ -1,16 +1,49 @@
 From stdpp Require Import ssreflect.
 From griotte Require Export machine_utils_extra.
-From griotte Require Import addresses otypes permissions.
+From griotte Require Import addresses otypes permissions registers.
 
 (* Having different syntactic categories here simplifies the definition of instructions later, but requires some duplication in defining bounds changes and lea on sealing ranges *)
 Inductive Sealable: Type :=
 | SCap (tag : bool) (p : Perm) (g : Locality) (b e a : Addr)
 | SSealRange (tag : bool) (p : SealPerms) (g : Locality) (b e a : OType).
 
+(** The kind of a sentry, as cheriot-sail's sentry otypes 1 to 5: a forward
+    sentry inherits, disables or enables interrupts; a backward (return)
+    sentry disables or enables them. *)
+Inductive SentryKind : Type :=
+| Inherit
+| FwdDisable
+| FwdEnable
+| RetDisable
+| RetEnable.
+
+#[global] Instance SentryKind_eq_dec : EqDecision SentryKind.
+Proof. solve_decision. Defined.
+
+#[global] Instance SentryKind_countable : Countable SentryKind.
+Proof.
+  refine (inj_countable'
+    (λ k, match k with
+          | Inherit => 0 | FwdDisable => 1 | FwdEnable => 2
+          | RetDisable => 3 | RetEnable => 4 end)
+    (λ n, match n with
+          | 0 => Inherit | 1 => FwdDisable | 2 => FwdEnable
+          | 3 => RetDisable | _ => RetEnable end) _).
+  by intros [].
+Defined.
+
+(** The kind of the return sentry built by a call: it restores the interrupt
+    status [b] the caller had. *)
+Definition ret_kind (b : InterruptStatus) : SentryKind :=
+  match b with
+  | InterruptEnabled => RetEnable
+  | InterruptDisabled => RetDisable
+  end.
+
 Inductive Word: Type :=
 | WInt (z : Z)
 | WSealable (sb : Sealable)
-| WSentry (tag : bool) (p : Perm) (g : Locality) (b e a : Addr)
+| WSentry (k : SentryKind) (tag : bool) (p : Perm) (g : Locality) (b e a : Addr)
 | WSealed (ot : OType) (sb : Sealable)
 .
 
@@ -23,7 +56,7 @@ Definition memory_cap_base (w : Word) : option Addr :=
   match w with
   | WCap _ _ _ b _ _ => Some b
   | WSealed _ (SCap _ _ _ b _ _) => Some b
-  | WSentry _ _ _ b _ _ => Some b
+  | WSentry _ _ _ _ b _ _ => Some b
   | _ => None
   end.
 
@@ -37,7 +70,7 @@ Definition get_tag (w : Word) : bool :=
   match w with
   | WInt _ => false
   | WSealable sb | WSealed _ sb => get_tag_sealable sb
-  | WSentry t _ _ _ _ _ => t
+  | WSentry _ t _ _ _ _ _ => t
   end.
 
 Definition clear_tag_sealable (sb : Sealable) : Sealable :=
@@ -50,7 +83,7 @@ Definition clear_tag (w : Word) : Word :=
   match w with
   | WInt z => WInt z
   | WSealable sb => WSealable (clear_tag_sealable sb)
-  | WSentry _ p g b e a => WSentry false p g b e a
+  | WSentry k _ p g b e a => WSentry k false p g b e a
   | WSealed ot sb => WSealed ot (clear_tag_sealable sb)
   end.
 
@@ -81,12 +114,13 @@ Proof. solve_decision. Qed.
 
 Ltac destruct_word w :=
   let z := fresh "z" in
+  let k := fresh "k" in
   let t := fresh "t" in
   let c := fresh "c" in
   let sr := fresh "sr" in
   let sd := fresh "sd" in
   let e := fresh "e" in
-  destruct w as [ z | [t c | t sr] | t sd | e].
+  destruct w as [ z | [t c | t sr] | k t sd | e].
 
 (***** Identifying parts of String.String.words *****)
 
@@ -128,31 +162,31 @@ Definition get_a (w : Word) : Z :=
   match w with
   | WInt z => z
   | WSealable sb | WSealed _ sb => get_a_sealable sb
-  | WSentry _ _ _ _ _ a => a
+  | WSentry _ _ _ _ _ _ a => a
   end.
 Definition get_b (w : Word) : Z :=
   match w with
   | WInt _ => 0
   | WSealable sb | WSealed _ sb => get_b_sealable sb
-  | WSentry _ _ _ b _ _ => b
+  | WSentry _ _ _ _ b _ _ => b
   end.
 Definition get_e (w : Word) : Z :=
   match w with
   | WInt _ => 0
   | WSealable sb | WSealed _ sb => get_e_sealable sb
-  | WSentry _ _ _ _ e _ => e
+  | WSentry _ _ _ _ _ e _ => e
   end.
 Definition get_p (w : Word) : Perm + SealPerms :=
   match w with
   | WInt _ => inl (O DL DRO)
   | WSealable sb | WSealed _ sb => get_p_sealable sb
-  | WSentry _ p _ _ _ _ => inl p
+  | WSentry _ _ p _ _ _ _ => inl p
   end.
 Definition get_l (w : Word) : Locality :=
   match w with
   | WInt _ => Local
   | WSealable sb | WSealed _ sb => get_l_sealable sb
-  | WSentry _ _ g _ _ _ => g
+  | WSentry _ _ _ g _ _ _ => g
   end.
 
 Lemma get_a_sealed o sb : get_a (WSealed o sb) = get_a (WSealable sb).
@@ -216,7 +250,7 @@ Definition is_sealed (w : Word) : bool :=
 (* Sealed <-> Word *)
 Definition is_sentry (w : Word) : bool :=
   match w with
-  | WSentry t _ _ _ _ _ => true
+  | WSentry _ _ _ _ _ _ _ => true
   |  _ => false
   end.
 
@@ -246,7 +280,7 @@ Definition isLocalSealable (sb : Sealable): bool :=
 Definition isLocalWord (w : Word): bool :=
   match w with
   | WInt _ => false
-  | WSentry t _ l _ _ _ => t && isLocal l
+  | WSentry _ t _ l _ _ _ => t && isLocal l
   | WSealed _ sb
   | WSealable sb => isLocalSealable sb
   end.
@@ -265,7 +299,7 @@ Definition isGlobalSealable (sb : Sealable): bool :=
 Definition isGlobalWord (w : Word): bool :=
   match w with
   | WInt _ => false
-  | WSentry t _ l _ _ _ => t && isGlobal l
+  | WSentry _ t _ l _ _ _ => t && isGlobal l
   | WSealed _ sb
   | WSealable sb => isGlobalSealable sb
   end.
@@ -305,14 +339,14 @@ Definition hasValidAddress (w : Word) (a : Addr) : Prop :=
 (* Turn E into RX, and ESR into XSR after a jump *)
 Definition updatePcPerm (w: Word): Word :=
   match w with
-  | WSentry t p g b e a => WCap t p g b e a
+  | WSentry _ t p g b e a => WCap t p g b e a
   | _ => w
   end.
 
 (** The execute permission of a capability, a sentry or a sealed capability. *)
 Definition executable_word (w : Word) : bool :=
   match w with
-  | WCap _ p _ _ _ _ | WSentry _ p _ _ _ _ | WSealed _ (SCap _ p _ _ _ _) => executeAllowed p
+  | WCap _ p _ _ _ _ | WSentry _ _ p _ _ _ _ | WSealed _ (SCap _ p _ _ _ _) => executeAllowed p
   | _ => false
   end.
 
@@ -323,23 +357,63 @@ Lemma executable_word_updatePcPerm w :
   executable_word (updatePcPerm w) = executable_word w.
 Proof. by destruct w as [| [] | | ? []]. Qed.
 
-(** The checks of Jalr on its target: it is tagged, it is not sealed (a
-    sentry passes), and it has the execute permission. *)
-Definition jalr_target_ok (w : Word) : bool :=
-  get_tag w && negb (is_sealed w) && executable_word w.
+(** A backward (return) sentry kind. *)
+Definition is_backward_kind (k : SentryKind) : bool :=
+  match k with
+  | RetDisable | RetEnable => true
+  | Inherit | FwdDisable | FwdEnable => false
+  end.
+
+Lemma is_backward_kind_ret_kind b : is_backward_kind (ret_kind b) = true.
+Proof. by destruct b. Qed.
+
+(** The interrupt status a jump through a sentry of kind [k] sets, if any. *)
+Definition sentry_kind_mie (k : SentryKind) : option InterruptStatus :=
+  match k with
+  | FwdDisable | RetDisable => Some InterruptDisabled
+  | FwdEnable | RetEnable => Some InterruptEnabled
+  | Inherit => None
+  end.
+
+(** The interrupt status a jump to [w] sets, if any: only sentries change it. *)
+Definition jalr_target_mie (w : Word) : option InterruptStatus :=
+  match w with
+  | WSentry k _ _ _ _ _ _ => sentry_kind_mie k
+  | _ => None
+  end.
+
+(** The sealing check of Jalr, by the form of the instruction, as in
+    cheriot-sail: a return ([rdst = cnull], [rsrc = cra]) accepts only
+    backward sentries; a call ([rdst = cra]) accepts unsealed capabilities and
+    forward sentries; any other form accepts unsealed capabilities and
+    inheriting sentries. A sealed capability is never accepted. *)
+Definition jalr_sealing_ok (rdst rsrc : RegName) (w : Word) : bool :=
+  match w with
+  | WSealed _ _ => false
+  | WSentry k _ _ _ _ _ _ =>
+      if decide (rdst = cnull ∧ rsrc = cra) then is_backward_kind k
+      else if decide (rdst = cra) then negb (is_backward_kind k)
+      else bool_decide (k = Inherit)
+  | _ => negb (bool_decide (rdst = cnull ∧ rsrc = cra))
+  end.
+
+(** The checks of Jalr on its target: it is tagged, its sealing is accepted
+    by the form of the instruction, and it has the execute permission. *)
+Definition jalr_target_ok (rdst rsrc : RegName) (w : Word) : bool :=
+  get_tag w && jalr_sealing_ok rdst rsrc w && executable_word w.
 
 (** The three checks in the order of cheriot-sail give [jalr_target_ok]. *)
-Lemma jalr_target_checks {A} (w : Word) (x : option A) :
+Lemma jalr_target_checks {A} (rdst rsrc : RegName) (w : Word) (x : option A) :
   (if negb (get_tag w) then None
-   else if is_sealed w then None
+   else if negb (jalr_sealing_ok rdst rsrc w) then None
    else if negb (executable_word w) then None
-   else x) = (if jalr_target_ok w then x else None).
+   else x) = (if jalr_target_ok rdst rsrc w then x else None).
 Proof.
   rewrite /jalr_target_ok.
-  by destruct (get_tag w), (is_sealed w), (executable_word w).
+  by destruct (get_tag w), (jalr_sealing_ok rdst rsrc w), (executable_word w).
 Qed.
 
-Lemma jalr_target_ok_clear_tag w : jalr_target_ok (clear_tag w) = false.
+Lemma jalr_target_ok_clear_tag rdst rsrc w : jalr_target_ok rdst rsrc (clear_tag w) = false.
 Proof. by destruct w as [| [] | | ? []]. Qed.
 
 (** A PC word that is tagged is an unsealed executable capability. *)
@@ -354,10 +428,12 @@ Lemma pc_ok_cap_addr t p g b e a a' :
   pc_ok (WCap t p g b e a) → pc_ok (WCap t p g b e a').
 Proof. done. Qed.
 
-Lemma jalr_target_ok_pc_ok w : jalr_target_ok w = true → pc_ok (updatePcPerm w).
+Lemma jalr_target_ok_pc_ok rdst rsrc w :
+  jalr_target_ok rdst rsrc w = true → pc_ok (updatePcPerm w).
 Proof.
   rewrite /jalr_target_ok /pc_ok.
-  destruct w as [| [] | | ? []]; cbn; rewrite ?andb_true_r; naive_solver.
+  intros [[Ht Hs]%andb_prop Hx]%andb_prop _.
+  destruct w as [| [] | | ? []]; cbn in *; try done; by split.
 Qed.
 
 (** Branches test the address of their condition, as in cheriot-sail. *)
@@ -418,7 +494,7 @@ Proof. by destruct sb. Qed.
 Definition borrow (w : Word) :=
   match w with
   | WSealable sb => WSealable (borrow_sb sb)
-  | WSentry t p _ b e a => WSentry t p Local b e a
+  | WSentry k t p _ b e a => WSentry k t p Local b e a
   | WSealed ot sb => WSealed ot (borrow_sb sb)
   | _ => w
   end.
@@ -463,7 +539,7 @@ Definition force_global_sb (sb : Sealable) :=
 Definition force_global (w : Word) :=
   match w with
   | WSealable sb => WSealable (force_global_sb sb)
-  | WSentry t p _ b e a => WSentry t p Global b e a
+  | WSentry k t p _ b e a => WSentry k t p Global b e a
   | WSealed ot sb => WSealed ot (force_global_sb sb)
   | _ => w
   end.
@@ -659,10 +735,10 @@ Proof.
   all: destruct p; cbn; try done.
 Qed.
 
-Lemma load_word_sentry (t : bool)
+Lemma load_word_sentry (k : SentryKind) (t : bool)
   (p' : Perm) (p : Perm)
   (g : Locality) (b e a : Addr) :
-  load_word p' (WSentry t p g b e a ) = (WSentry t p (if isDL p' then Local else g) b e a ).
+  load_word p' (WSentry k t p g b e a ) = (WSentry k t p (if isDL p' then Local else g) b e a ).
 Proof.
   rewrite /load_word.
   by destruct (isDRO p'),(isDL p'); cbn.
@@ -976,14 +1052,14 @@ Proof.
   set (enc := fun w =>
       match w with
       | WInt z => inl (inl z)
-      | WSentry t p g b e a => inl (inr (t,p,g,b,e,a))
+      | WSentry k t p g b e a => inl (inr (k,t,p,g,b,e,a))
       | WSealable sb => inr (inl sb)
       | WSealed x x0 => inr (inr (x, x0))
       end ).
   set (dec := fun e =>
       match e with
       | inl (inl z) => WInt z
-      | inl (inr (t,p,g,b,e,a)) => WSentry t p g b e a
+      | inl (inr (k,t,p,g,b,e,a)) => WSentry k t p g b e a
       | inr (inl sb) => WSealable sb
       | inr (inr (x, x0)) => WSealed x x0
       end ).

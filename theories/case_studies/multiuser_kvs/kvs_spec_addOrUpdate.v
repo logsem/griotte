@@ -50,7 +50,6 @@ Section KVS_spec_addOrUpdate.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       (* initial memory layout *)
       codefrag_pers kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_instrs ∗
@@ -69,7 +68,6 @@ Section KVS_spec_addOrUpdate.
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
-          cnull ↦ᵣ - ∗
 
           codefrag_pers kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_instrs ∗
           (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
@@ -84,7 +82,7 @@ Section KVS_spec_addOrUpdate.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
-      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
+      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
 
@@ -152,7 +150,7 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }
@@ -201,7 +199,6 @@ Section KVS_spec_addOrUpdate.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       (* initial memory layout *)
       user_key_addr ↦ₐ WInt user_key ∗
@@ -222,7 +219,6 @@ Section KVS_spec_addOrUpdate.
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
-          cnull ↦ᵣ - ∗
 
           user_key_addr ↦ₐ WInt user_key ∗
 
@@ -238,7 +234,7 @@ Section KVS_spec_addOrUpdate.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey [wnkey Hm_nkey])
       "(#Hkvs_static & #Hkvs_inv & Hna
-        & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+        & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
         & Ha_user_key
         & >Hlkvs_auth & (%pkvs & >%Hsync & >Hpkvs_frag) & >Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -275,10 +271,10 @@ Section KVS_spec_addOrUpdate.
 
 
     iApply (KVS_update_spec_layer_0 with
-             "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+             "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & _ & _ & Ha_user_key
                      & HPKVS )".
     rewrite Heq_addr.
@@ -331,7 +327,6 @@ Section KVS_spec_addOrUpdate.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       user_key_addr ↦ₐ WInt user_key ∗
 
@@ -347,7 +342,6 @@ Section KVS_spec_addOrUpdate.
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
-          cnull ↦ᵣ - ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
           user_key ↦(LKVS) (<[nkey := lstore_word RW wca2]> m)
@@ -360,20 +354,20 @@ Section KVS_spec_addOrUpdate.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
-      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
       & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_logical_inv Hna")
       as "( (%lkvs & Hlkvs_auth & HLKVS) & Hna & Hkvs_logical_inv_close)"; eauto.
 
     iApply (KVS_update_spec_layer_1 with
              "[- $Hkvs_static $Hkvs_inv
-                 $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+                 $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
                  $Ha_user_key
                  $Hlkvs_auth $HLKVS $Hm]"); last iFrame; eauto.
     {  solve_ndisj. }
 
     iNext; iIntros "(Hna
-                     & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+                     & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & Ha_user_key
                      & Hlkvs_auth & HLKVS & Hm)".
 
@@ -412,7 +406,6 @@ Section KVS_spec_addOrUpdate.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       user_key_addr ↦ₐ WInt user_key ∗
 
@@ -429,7 +422,6 @@ Section KVS_spec_addOrUpdate.
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
-          cnull ↦ᵣ - ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
           user_kvs_inv user_key ∗
@@ -443,7 +435,7 @@ Section KVS_spec_addOrUpdate.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
-      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & [%wk >Hk] & Hpost)".
 
     iDestruct (kvs_user_kvs_valid with "Hukvs_auth Hk") as "%Hk".
@@ -451,11 +443,11 @@ Section KVS_spec_addOrUpdate.
 
     iApply (KVS_update_spec_layer_2
              with "[- $Hkvs_static $Hkvs_inv $Hkvs_logical_inv $Hna
-                    $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+                    $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
                     $Ha_user_key
                     $Hm]"); eauto.
     iNext; iIntros "(Hna
-                     & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+                     & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & Ha_user_key
                      & Hm)".
 
@@ -495,7 +487,6 @@ Section KVS_spec_addOrUpdate.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       (* initial memory layout *)
       codefrag_pers kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_instrs ∗
@@ -513,7 +504,6 @@ Section KVS_spec_addOrUpdate.
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
-          cnull ↦ᵣ - ∗
 
           codefrag_pers kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_instrs ∗
           (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
@@ -543,7 +533,7 @@ Section KVS_spec_addOrUpdate.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
-      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
+      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
 
@@ -640,7 +630,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       (* mov ca1 0; *)
       iInstr "Hcode".
-      destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+      destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
       { (* jalr cnull cra; *)
         iInstr_fail "Hcode".
         wp_end; by iIntros (?). }
@@ -676,7 +666,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       (* mov ca1 0; *)
       iInstr "Hcode".
-      destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+      destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
       { (* jalr cnull cra; *)
         iInstr_fail "Hcode".
         wp_end; by iIntros (?). }
@@ -722,7 +712,6 @@ Section KVS_spec_addOrUpdate.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       (* initial memory layout *)
       user_key_addr ↦ₐ WInt user_key ∗
@@ -740,7 +729,6 @@ Section KVS_spec_addOrUpdate.
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
-          cnull ↦ᵣ - ∗
 
           user_key_addr ↦ₐ WInt user_key ∗
 
@@ -770,7 +758,7 @@ Section KVS_spec_addOrUpdate.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
       "( #Hkvs_static & #Hkvs_inv & Hna
-        & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+        & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
         & Ha_user_key
         & >Hlkvs_auth & (%pkvs & >%Hsync & >Hpkvs_frag) & >Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -805,10 +793,10 @@ Section KVS_spec_addOrUpdate.
 
 
     iApply (KVS_add_spec_layer_0 with
-             "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+             "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iNext; iIntros "(HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+    iNext; iIntros "(HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & _ & _ & Ha_user_key
                      & [ (%idx_empty & %Hidx_empty & Hca0 & HPKVS)
                          | (Hca0 & HPKVS)
@@ -866,7 +854,6 @@ Section KVS_spec_addOrUpdate.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       user_key_addr ↦ₐ WInt user_key ∗
 
@@ -881,7 +868,6 @@ Section KVS_spec_addOrUpdate.
          ctp ↦ᵣ - ∗ (* scratch *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
          user_key_addr ↦ₐ WInt user_key ∗
          (
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
@@ -904,19 +890,19 @@ Section KVS_spec_addOrUpdate.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
-      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
       & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_logical_inv Hna")
       as "( (%lkvs & Hlkvs_auth & HLKVS) & Hna & Hkvs_logical_inv_close)"; eauto.
 
     iApply (KVS_add_spec_layer_1 with
              "[- $Hkvs_static $Hkvs_inv
-                 $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+                 $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
                  $Ha_user_key
                  $Hlkvs_auth $HLKVS $Hm]"); last iFrame; eauto.
     {  solve_ndisj. }
     iNext; iIntros "(Hna
-                     & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+                     & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & Ha_user_key
                      & [ (Hca0 & Hlkvs_auth & HLKVS & Hm)
                      | (Hca0 & Hlkvs_auth & HLKVS & Hm)
@@ -959,7 +945,6 @@ Section KVS_spec_addOrUpdate.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       user_key_addr ↦ₐ WInt user_key ∗
 
@@ -975,7 +960,6 @@ Section KVS_spec_addOrUpdate.
          ctp ↦ᵣ - ∗ (* scratch *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
          user_key_addr ↦ₐ WInt user_key ∗
          user_kvs_inv user_key ∗
          (
@@ -999,7 +983,7 @@ Section KVS_spec_addOrUpdate.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
-      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
     iDestruct (kvs_user_kvs_valid with "Hukvs_auth Hk") as "%Hk".
@@ -1008,9 +992,9 @@ Section KVS_spec_addOrUpdate.
 
     iApply (KVS_add_spec_layer_2
              with "[- $Hkvs_static $Hkvs_inv $Hkvs_logical_inv $Hna
-                    $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+                    $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
                     $Ha_user_key $Hm]"); eauto.
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
               & Ha_user_key
               & [ (Hca0 & Hm) | (Hca0 & Hm) ] )".
 
@@ -1042,7 +1026,6 @@ Section KVS_spec_addOrUpdate.
       ca0 ↦ᵣ - ∗
       ca1 ↦ᵣ wca1 ∗ (* Key to addOrUpdate *)
       ct1 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       (* initial memory layout *)
       codefrag_pers pc_a kvs_addOrUpdate_instrs ∗
@@ -1052,7 +1035,6 @@ Section KVS_spec_addOrUpdate.
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
          ct1 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
          codefrag_pers pc_a kvs_addOrUpdate_instrs
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -1060,7 +1042,7 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (HsubBounds Hnkey_is_uint16)
-      "(HPC & Hcra & [%wca0 Hca0] & Hca1 & Hct1 & [%wcnull Hcnull] & #Hcode_main & Hpost)".
+      "(HPC & Hcra & [%wca0 Hca0] & Hca1 & Hct1 & #Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -1084,7 +1066,7 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     (* mov ca1 0; *)
     iInstr "Hcode".
-    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* jalr cnull cra; *)
       iInstr_fail "Hcode".
       wp_end; by iIntros (?). }
@@ -1115,22 +1097,20 @@ Section KVS_spec_addOrUpdate.
       ca0 ↦ᵣ - ∗
       ca1 ↦ᵣ wca1 ∗ (* Key to addOrUpdate *)
       ct1 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       ▷ (na_own cerise_nais E ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ -
+         ct1 ↦ᵣ - (* scratch *)
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (HE Hnkey_is_uint16)
-      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & Hpost)".
+      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( HKVS & Hna & Hkvs_inv_close)"; eauto.
     iDestruct (kvs_static_unsealing_key with "Hkvs_static") as "#Ha_unsealing".
@@ -1147,7 +1127,7 @@ Section KVS_spec_addOrUpdate.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_pcc_off_eq; solve_addr+HKVS_pcc_b').
     iApply ( KVS_addOrUpdate_spec_not_uint16_map_key_pre ); eauto; iFrame "∗ Hcode".
-    iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & _)".
+    iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & _)".
 
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
@@ -1180,7 +1160,6 @@ Section KVS_spec_addOrUpdate.
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       ctp ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       (* initial memory layout *)
       codefrag_pers pc_a kvs_addOrUpdate_instrs ∗
@@ -1191,7 +1170,7 @@ Section KVS_spec_addOrUpdate.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow HsubBounds Hpc_a Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp
-      & [%wcnull Hcnull] & #Hcode_main & #Ha_unsealing)".
+      & #Hcode_main & #Ha_unsealing)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
 
@@ -1247,14 +1226,13 @@ Section KVS_spec_addOrUpdate.
       ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to addOrUpdate *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ -
+      ctp ↦ᵣ - (* scratch *)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow HE Hnkey_is_uint16 Hwca0)
-      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull)".
+      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( HKVS & Hna & Hkvs_inv_close)"; eauto.
     iDestruct (kvs_static_unsealing_key with "Hkvs_static") as "#Ha_unsealing".
@@ -1317,7 +1295,7 @@ Section KVS_spec_addOrUpdate.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg Hca2_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
-    iIntros "(#Hkvs_static & #Hkvs & #Hkvs_logical)" (arg_rmap' rmap')
+    iIntros "(#Hkvs_static & #Hkvs & #Hkvs_logical)" (mie arg_rmap' rmap')
        "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hcstk
        & (Huser_key & Huser_kvs & Hkey)
@@ -1350,12 +1328,12 @@ Section KVS_spec_addOrUpdate.
 
     iApply (KVS_add_spec with
       "[- $Hkvs_static $Hkvs $Hkvs_logical $Hna $HPC $Hcgp $Hcra
-       $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+       $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
        $Huser_key $Huser_kvs $Hkey]"); auto.
     iNext.
     iIntros "(Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & Hca1
               & [%wca2 Hca2] & [%wctp Hctp] & [%wct1 Hct1]
-              & [%wct2 Hct2] & [%wcnull Hcnull]
+              & [%wct2 Hct2]
               & Huser_key & Huser_kvs & Hres)".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
@@ -1363,7 +1341,7 @@ Section KVS_spec_addOrUpdate.
     set (rmap_ret1 := <[ctp := wctp]> rmap_ret0).
     set (rmap_ret2 := <[ct1 := wct1]> rmap_ret1).
     set (rmap_ret3 := <[ct2 := wct2]> rmap_ret2).
-    set (rmap_ret4 := <[cnull := wcnull]> rmap_ret3).
+    set (rmap_ret4 := <[cnull := lword_of_word (WInt 0)]> rmap_ret3).
     set (rmap_ret5 := <[ca2 := wca2]> rmap_ret4).
     set (rmap_ret6 := <[ca3 := lword_of_word (WInt 0)]> rmap_ret5).
     set (rmap_ret7 := <[ca4 := lword_of_word (WInt 0)]> rmap_ret6).

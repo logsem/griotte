@@ -146,7 +146,7 @@ Definition so_C_g : Sealable :=
     (so_C_exports_entries_b ^+ 1)%a.
 Definition so_main_imports_concrete : list Word := so_main_imports so_C_f.
 Definition so_C_imports : list Word :=
-  [ WSentry true XSRW_ Local so_switcher_b so_switcher_e so_switcher_call
+  [ WSentry FwdDisable true XSRW_ Local so_switcher_b so_switcher_e so_switcher_call
   ; WSealed so_switcher_sealing_type
       (so_entry_f_sb so_main_exports_pcc so_main_exports_entries_e)
   ; WSealed so_switcher_sealing_type so_C_g
