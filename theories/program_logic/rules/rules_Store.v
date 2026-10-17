@@ -267,21 +267,21 @@ Section griotte_lang_rules.
      destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
      iNamed "Hσ".
      iDestruct (PC_agree with "HPCa HPC") as %->.
-     pose proof (erasure_pc_correct _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
+     pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
      iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
      iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hlregs.
-     pose proof (erasure_regs_incl _ _ _ _ _ _ _ Her Hlregs) as Hregs.
+     pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hlregs) as Hregs.
      iDestruct (gen_heap_valid_inclSepM with "Hm Hmem") as %Hlmem.
      iDestruct (gen_heap_valid_inclSepM with "Hst Hshadow") as %Hshadow_incl.
-     pose proof (er_mmio _ _ _ _ _ _ Her) as Hmmio; cbn in Hmmio.
+     pose proof (er_mmio _ _ _ _ _ _ _ Her) as Hmmio; cbn in Hmmio.
      specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
      odestruct (Hri r1) as [r1v [Hr1l _] ]; first by set_solver+.
      iAssert (⌜lmem !! pc_a = Some w⌝)%I as %Hlmem_pc.
      { destruct fetch_in_mem.
        - iPureIntro. by eapply lookup_weaken.
        - iApply (gen_heap_valid with "Hm Hfetch"). }
-     destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her Hlmem_pc) as (pw & Hpw & Hpwok).
+     destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hlmem_pc) as (pw & Hpw & Hpwok).
      iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
      iNext. iIntros (e2 σ2 efs Hpstep).
      apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
@@ -360,14 +360,14 @@ Section griotte_lang_rules.
          - iPureIntro. left. by eapply lookup_weaken.
          - iDestruct (HPm with "HR HC Hperms") as %Hok; first done.
            iPureIntro. by right. }
-       pose proof (erasure_shadow_store _ _ _ _ _ _ _ _ _ _ heap_a status Her ltac:(eauto) Hsok) as Her1.
+       pose proof (erasure_shadow_store _ _ _ _ _ _ _ _ _ _ _ heap_a status Her ltac:(eauto) Hsok) as Her1.
        rewrite /update_shadowtbl /= in Hstep.
        destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.
        2: {
          pose proof Hregs' as Ha'. eapply incrementPC_None_inv in Ha'; [|reflexivity].
          unfold updatePC, updatePC_gen in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
          instr_fail Hstep. apply Store_spec_fail. by apply Store_fail_invalid_PC. }
-       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
+       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
        pose proof Hregs' as Ha'.
        apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
        injection Heq as <- <- <- <- <- <- <-.
@@ -381,15 +381,15 @@ Section griotte_lang_rules.
        iEval (rewrite insert_delete_eq) in "Hshadow".
        iMod (PC_update _ _ (WCap true pc_p pc_g pc_b pc_e a'1 @@? pc_π) with "HPCa HPC") as "[HPCa HPC]".
        iModIntro. iSplitR "Hφ HPC Hmem Hfetch Hshadow Hperms Hdw Hmap".
-       { iExists _, _, lmem, R, C. iFrame. done. }
+       { iExists _, _, _, lmem, R, C. iFrame. done. }
        iApply "Hφ". iFrame.
        iPureIntro. eapply Store_spec_success_shadow; eauto.
      - destruct HaStore as [oldv Hmema].
        assert (lmem !! ea = Some oldv) as Hlmea by by eapply lookup_weaken.
-       destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ Her Hlmea) as (pwea & Hmea & _).
+       destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hlmea) as (pwea & Hmea & _).
        rewrite (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hmea) in Hstep.
        rewrite /update_mem /= in Hstep.
-       pose proof (erasure_store _ _ _ _ _ _ _ _ _ _ ea (lstore_word p storev) _ _ Her Hlmea
+       pose proof (erasure_store _ _ _ _ _ _ _ _ _ _ _ ea (lstore_word p storev) _ _ Her Hlmea
          (reg_phys_mem_word_ok _ _ _ _ (reg_word_ok_lstore_word _ _ p _ Hstore_ok)
             (reg_phys_lstore_word _ p _ _ Hrelv))) as Her1.
        destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.
@@ -397,7 +397,7 @@ Section griotte_lang_rules.
          pose proof Hregs' as Ha'. eapply incrementPC_None_inv in Ha'; [|reflexivity].
          unfold updatePC, updatePC_gen in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
          instr_fail Hstep. apply Store_spec_fail. by apply Store_fail_invalid_PC. }
-       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
+       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
        pose proof Hregs' as Ha'.
        apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
        injection Heq as <- <- <- <- <- <- <-.
@@ -407,7 +407,7 @@ Section griotte_lang_rules.
        iMod ((gen_heap_update_inSepM _ _ ea) with "Hm Hmem") as "[Hm Hmem]"; eauto.
        iMod (PC_update _ _ (WCap true pc_p pc_g pc_b pc_e a'1 @@? pc_π) with "HPCa HPC") as "[HPCa HPC]".
        iModIntro. iSplitR "Hφ HPC Hmem Hfetch Hshadow Hperms Hdw Hmap".
-       { iExists _, _, _, R, C. iFrame. done. }
+       { iExists _, _, _, _, R, C. iFrame. done. }
        iApply "Hφ". iFrame.
        iPureIntro. eapply Store_spec_success; eauto.
    Qed.
@@ -1126,7 +1126,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hdst Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
     assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
@@ -1632,7 +1632,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
   Proof.
     iIntros (Hinstr Hvpc Dregs Hallow Hnoid Hpca' φ) "(HPC & Hpc_a & Hmap & Hpre) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     (* The physical step: the sweep, then the PC increment. The revoker
        capability has no identifier and non-empty bounds: its copy is exact. *)
@@ -1654,11 +1654,11 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
     rewrite (proj2 (is_revoker_address_spec revoker_addr) eq_refl) /= in Hstep.
     (* The ghost update *)
     iMod (revoke_ghost_update K R C with "HR HC Hpre") as "(HR & HC & Hpost & %HK)".
-    { intros ι a' _ Ha'. apply (reg_ok_claimed _ _ _ (er_registry _ _ _ _ _ _ Her)) in Ha'
+    { intros ι a' _ Ha'. apply (reg_ok_claimed _ _ _ (er_registry _ _ _ _ _ _ _ Her)) in Ha'
         as (x & Hx & Hcov & _). eauto. }
     assert (erasure (revoke_reg K R) (revoke_claims K C)
               (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, sweep_mem st m, st)
-              (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lmem)
+              (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lsreg lmem)
       as Her1.
     { eapply erasure_revoke; eauto.
       - apply lookup_revoke_reg.
@@ -1666,14 +1666,14 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
     assert (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) =
               Some (WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π))
       as Hinc by by rewrite /incrementPC /incrementPC_gen Hpca'.
-    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ Her1 Hinc) as (pc'' & Hu & Her2).
+    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hinc) as (pc'' & Hu & Her2).
     rewrite /updatePC /updatePC_gen /= Hpca' in Hu. simplify_eq.
     unfold revoker_sweep, updatePC, updatePC_gen in Hstep; cbn in Hstep.
     rewrite Hpca' in Hstep. simplify_eq.
     iMod (PC_update _ _ (WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) with "HPCa HPC")
       as "[HPCa HPC]".
     iModIntro. iSplitR "Hφ HPC Hpc_a Hmap Hpost".
-    { iExists _, _, lmem, _, _. iFrame. iPureIntro. exact Her2. }
+    { iExists _, _, _, lmem, _, _. iFrame. iPureIntro. exact Her2. }
     iApply "Hφ". iFrame.
   Qed.
 
@@ -1808,7 +1808,7 @@ Section shadow_store_res.
   Proof.
     iIntros (Hinstr Hvpc Hdst Hcap φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem Rg Cg c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem Rg Cg c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
     assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].

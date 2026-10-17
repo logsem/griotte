@@ -70,8 +70,8 @@ Proof.
   iModIntro. iExists (PcG _ _ γ). iFrame.
 Qed.
 
-(* CMRA for Cerise. The PC, registers and memory hold logical words; system
-   registers hold identifier-less words. *)
+(* CMRA for Cerise. The PC, registers, system registers and memory hold
+   logical words. *)
 Class ceriseG Σ :=
   CeriseG {
       cerise_invG : invGS Σ;
@@ -80,33 +80,34 @@ Class ceriseG Σ :=
       shadowtbl_gen_regG :: gen_heapGS Addr AllocStatus Σ; (* shadow table *)
       cerise_pcG :: pcG Σ; (* PC *)
       reg_gen_regG :: gen_heapGS RegName LWord Σ; (* register *)
-      sreg_gen_regG :: gen_heapGS SRegName Word Σ; (* system register *)
+      sreg_gen_regG :: gen_heapGS SRegName LWord Σ; (* system register *)
       entryG :: entryGS Σ; (* entry point *)
       cerise_registryG :: allocRegistryG Σ; (* allocation registry *)
       cerise_addr_allocG :: addrAllocG Σ (* address claims *)
     }.
 #[export] Hint Mode ceriseG - : typeclass_instances.
 
-(** The state interpretation: the logical PC, registers and memory, the
-    physical system registers and shadow table, the registry and the address
-    claims, related to the machine state by erasure. *)
+(** The state interpretation: the logical PC, registers, system registers and
+    memory, the physical shadow table, the registry and the address claims,
+    related to the machine state by erasure. *)
 Section state_interp.
   Context `{MP : MachineParameters}.
   Context `{!pcG Σ,
-            !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName Word Σ,
+            !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName LWord Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ}.
 
   Definition cerise_state_interp (σ : ExecConf) : iProp Σ :=
-    ∃ (lpc : LWord) (lreg : LReg) (lmem : LMem) (R : RegState) (C : gmap Addr AddrClaim),
+    ∃ (lpc : LWord) (lreg : LReg) (lsreg : LSReg) (lmem : LMem) (R : RegState)
+      (C : gmap Addr AddrClaim),
       "HPCa" ∷ PC_auth lpc ∗
       "Hr" ∷ gen_heap_interp lreg ∗
-      "Hsr" ∷ gen_heap_interp (sreg σ) ∗
+      "Hsr" ∷ gen_heap_interp lsreg ∗
       "Hm" ∷ gen_heap_interp lmem ∗
       "Hst" ∷ gen_heap_interp (shadowtbl σ) ∗
       "HR" ∷ reg_auth R ∗
       "HC" ∷ addr_alloc_auth C ∗
-      "%Her" ∷ ⌜erasure R C σ lpc lreg lmem⌝.
+      "%Her" ∷ ⌜erasure R C σ lpc lreg lsreg lmem⌝.
 
   #[global] Instance cerise_state_interp_timeless σ : Timeless (cerise_state_interp σ).
   Proof. apply _. Qed.
@@ -131,10 +132,10 @@ Notation "r ↦ᵣ w" := (pointsto (L:=RegName) (V:=LWord) r (DfracOwn 1) w) (at
 Notation "r ↦ᵣ -" := (∃ w, pointsto (L:=RegName) (V:=LWord) r (DfracOwn 1) w)%I (at level 20) : bi_scope.
 
 (* Points to predicates for system registers *)
-Notation "sr ↦ₛᵣ{ q } w" := (pointsto (L:=SRegName) (V:=Word) sr q w)
+Notation "sr ↦ₛᵣ{ q } w" := (pointsto (L:=SRegName) (V:=LWord) sr q w)
   (at level 20, q at level 50, format "sr  ↦ₛᵣ{ q }  w") : bi_scope.
-Notation "sr ↦ₛᵣ w" := (pointsto (L:=SRegName) (V:=Word) sr (DfracOwn 1) w) (at level 20) : bi_scope.
-Notation "sr ↦ₛᵣ -" := (∃ w, pointsto (L:=SRegName) (V:=Word) sr (DfracOwn 1) w)%I (at level 20) : bi_scope.
+Notation "sr ↦ₛᵣ w" := (pointsto (L:=SRegName) (V:=LWord) sr (DfracOwn 1) w) (at level 20) : bi_scope.
+Notation "sr ↦ₛᵣ -" := (∃ w, pointsto (L:=SRegName) (V:=LWord) sr (DfracOwn 1) w)%I (at level 20) : bi_scope.
 
 (* Points to predicates for memory *)
 Notation "a ↦ₐ{ q } w" := (pointsto (L:=Addr) (V:=LWord) a q w)
@@ -162,7 +163,7 @@ Class ceriseGpreS Σ := {
   cerise_preG_shadow :: gen_heapGpreS Addr AllocStatus Σ;
   cerise_preG_pc :: pcGpreS Σ;
   cerise_preG_reg :: gen_heapGpreS RegName LWord Σ;
-  cerise_preG_sreg :: gen_heapGpreS SRegName Word Σ;
+  cerise_preG_sreg :: gen_heapGpreS SRegName LWord Σ;
   cerise_preG_registry :: allocRegistryPreG Σ;
   cerise_preG_addr_alloc :: addrAllocPreG Σ;
 }.
@@ -170,7 +171,7 @@ Class ceriseGpreS Σ := {
 
 Definition ceriseGpreΣ : gFunctors :=
   #[gen_heapΣ Addr LWord; gen_heapΣ Addr AllocStatus; pcΣ; gen_heapΣ RegName LWord;
-    gen_heapΣ SRegName Word; allocRegistryΣ; addrAllocΣ].
+    gen_heapΣ SRegName LWord; allocRegistryΣ; addrAllocΣ].
 
 #[global] Instance subG_ceriseGpreS {Σ} : subG ceriseGpreΣ Σ → ceriseGpreS Σ.
 Proof. solve_inG. Qed.
@@ -188,6 +189,8 @@ Section ghost_init.
 
   Definition init_lmem (m : Mem) : LMem := lword_of_word <$> m.
 
+  Definition init_lsregs (sregs : SReg) : LSReg := lword_of_word <$> sregs.
+
   (** The initial claims: heap roots on [H], unclaimed elsewhere in the heap. *)
   Definition init_claims (H : gset Addr) : gmap Addr AddrClaim :=
     map_imap (λ a _, Some (if decide (a ∈ H) then HeapRoot else Unclaimed))
@@ -195,8 +198,8 @@ Section ghost_init.
 
   (** Every initial word with authority is based on a heap root, heap roots
       are unpainted, [cnull] holds zero, and every tagged executable word
-      has closed bounds that avoid the heap; a tagged PC is an unsealed
-      executable capability. *)
+      has closed bounds that avoid the heap; a tagged PC, MTCC or MEPCC is an
+      unsealed executable capability. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -214,6 +217,7 @@ Section ghost_init.
     gi_regs_exec r w : reg σ !! r = Some w → lword_exec (lword_of_word w);
     gi_sregs_exec sr w : sreg σ !! sr = Some w → lword_exec (lword_of_word w);
     gi_pc_ok : pc_ok (pcc σ);
+    gi_sregs_pc_ok sr w : is_pc_sreg sr = true → sreg σ !! sr = Some w → pc_ok w;
   }.
 
   Lemma lookup_init_claims H a :
@@ -239,7 +243,8 @@ Section ghost_init.
 
   Lemma init_erasure σ H :
     ghost_init_cond σ H →
-    erasure ∅ (init_claims H) σ (lword_of_word (pcc σ)) (init_lregs (reg σ)) (init_lmem (mem σ)).
+    erasure ∅ (init_claims H) σ (lword_of_word (pcc σ)) (init_lregs (reg σ))
+      (init_lsregs (sreg σ)) (init_lmem (mem σ)).
   Proof.
     intros Hinit.
     assert (∀ w, (∀ b, get_tag w = true → heap_authority_base w = Some b → b ∈ H) →
@@ -276,7 +281,16 @@ Section ghost_init.
       + intros Hv. apply fmap_Some in Hv as (? & _ & ->). apply reg_word_ok_lnull.
       + intros Hv. apply fmap_Some in Hv as (w & Hw & ->).
         apply Hok; last by eapply gi_regs_exec. intros b. eapply gi_regs; eauto.
-    - intros sr w Hw. apply Hok; last by eapply gi_sregs_exec. intros b. eapply gi_sregs; eauto.
+    - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
+      apply fmap_Some in Hv as (w & Hw & ->).
+      exists w. split; first done. apply reg_phys_lword_of_word.
+    - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
+      apply fmap_Some in Hv as (w & Hw & ->).
+      apply Hok; last by eapply gi_sregs_exec. intros b. eapply gi_sregs; eauto.
+    - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
+      by apply fmap_Some in Hv as (w & Hw & ->).
+    - intros sr v Hsr. rewrite /init_lsregs lookup_fmap. intros Hv.
+      apply fmap_Some in Hv as (w & Hw & ->). by eapply gi_sregs_pc_ok.
     - by rewrite /init_lmem dom_fmap_L.
     - intros a v pw Hv Hpw. rewrite /init_lmem lookup_fmap Hpw /= in Hv.
       injection Hv as <-.
@@ -298,12 +312,12 @@ Section ghost_init.
     ghost_init_cond σ H →
     ⊢ |==> ∃ (mg : gen_heapGS Addr LWord Σ) (sg : gen_heapGS Addr AllocStatus Σ)
              (pg : pcG Σ)
-             (rg : gen_heapGS RegName LWord Σ) (srg : gen_heapGS SRegName Word Σ)
+             (rg : gen_heapGS RegName LWord Σ) (srg : gen_heapGS SRegName LWord Σ)
              (regg : allocRegistryG Σ) (ag : addrAllocG Σ),
       cerise_state_interp σ ∗
       PC ↦ₚ lword_of_word (pcc σ) ∗
       ([∗ map] r ↦ w ∈ init_lregs (reg σ), r ↦ᵣ w) ∗
-      ([∗ map] sr ↦ w ∈ sreg σ, sr ↦ₛᵣ w) ∗
+      ([∗ map] sr ↦ w ∈ sreg σ, sr ↦ₛᵣ lword_of_word w) ∗
       ([∗ map] a ↦ w ∈ init_lmem (mem σ), a ↦ₐ w) ∗
       ([∗ map] a ↦ s ∈ shadowtbl σ, a ↦ₛ s) ∗
       ([∗ map] a ↦ c ∈ init_claims H, addr_alloc a c).
@@ -311,12 +325,13 @@ Section ghost_init.
     iIntros (Hinit).
     iMod (PC_init (lword_of_word (pcc σ))) as (pg) "[Hpc Hpcs]".
     iMod (gen_heap_init (init_lregs (reg σ))) as (rg) "(Hr & Hrs & _)".
-    iMod (gen_heap_init (sreg σ)) as (srg) "(Hsr & Hsrs & _)".
+    iMod (gen_heap_init (init_lsregs (sreg σ))) as (srg) "(Hsr & Hsrs & _)".
     iMod (gen_heap_init (init_lmem (mem σ))) as (mg) "(Hm & Hms & _)".
     iMod (gen_heap_init (shadowtbl σ)) as (sg) "(Hst & Hsts & _)".
     iMod registry_init as (regg) "HR".
     iMod (addr_alloc_init (init_claims H)) as (ag) "[HC HCs]".
-    iModIntro. iExists mg, sg, pg, rg, srg, regg, ag. iFrame.
+    iModIntro. iExists mg, sg, pg, rg, srg, regg, ag.
+    rewrite /init_lsregs big_sepM_fmap. iFrame.
     iPureIntro. by apply init_erasure.
   Qed.
 

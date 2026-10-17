@@ -2,6 +2,7 @@ From iris.program_logic Require Import adequacy.
 From griotte Require Import machine_parameters machine_parameters_instance machine_run assembler rules proofmode switcher assert compartment_layout disjoint_regions_tactics.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_adequacy.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
+From griotte Require Import adequacy_common.
 
 #[local] Transparent MemNum ONum.
 #[local] Notation "'A' z" :=
@@ -278,8 +279,9 @@ Definition hts_concrete_registers : Reg :=
   (<[csp := WCap true RWL Local hts_stack_b hts_stack_e hts_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 Definition hts_concrete_sregisters : SReg :=
-  <[MTDC := WCap true RWL Local hts_trusted_stack_b hts_trusted_stack_e
-    hts_trusted_stack_b]> ∅.
+  initial_sregisters_with
+    (WCap true RWL Local hts_trusted_stack_b hts_trusted_stack_e
+    hts_trusted_stack_b).
 Definition hts_concrete_memory : Mem := hts_initial_memory.
 Definition hts_concrete_initial_state : ExecConf :=
   (hts_concrete_pc, hts_concrete_registers, hts_concrete_sregisters, hts_concrete_memory, initial_heap_shadow).
@@ -302,7 +304,7 @@ Proof.
 Qed.
 
 Lemma hts_concrete_sregisters_correct : hts_is_initial_sregisters hts_concrete_sregisters.
-Proof. reflexivity. Qed.
+Proof. apply initial_sregisters_with_correct. reflexivity. Qed.
 
 Lemma hts_concrete_memory_correct : hts_is_initial_memory hts_concrete_memory.
 Proof.

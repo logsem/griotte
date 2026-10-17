@@ -51,7 +51,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     set (v := auipcc_word (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm).
     assert (exec_opt (Auipcc dst imm) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
@@ -60,19 +60,19 @@ Section griotte_lang_rules.
     { rewrite /v /auipcc_word /exec_opt /pcc /=. by destruct (pc_a + imm)%a. }
     rewrite HH in Hstep.
     assert (reg_word_ok R C v) as Hok.
-    { pose proof (er_pc_word _ _ _ _ _ _ Her) as HokPC.
+    { pose proof (er_pc_word _ _ _ _ _ _ _ Her) as HokPC.
       rewrite /v /auipcc_word.
       destruct (pc_a + imm)%a;
         apply (reg_word_ok_derive _ _ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π));
         [by left|done|done|done|by left|done|done|done]. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
       (λ lpc' regs' retv,
          Auipcc_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst imm lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
     { exact Hok. } { exact Hstep. }
     { apply reg_phys_no_id. rewrite /v /auipcc_word.
-      pose proof (erasure_pc_no_id _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ. subst pc_π.
+      pose proof (erasure_pc_no_id _ _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ. subst pc_π.
       by destruct (pc_a + imm)%a. }
     { intros. by econstructor. }
     { intros. by econstructor. }

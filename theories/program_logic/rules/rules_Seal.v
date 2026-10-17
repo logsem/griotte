@@ -98,7 +98,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     odestruct (Hri src2) as [r2v [Hr2 _]]; first by set_solver+.
@@ -108,7 +108,7 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr2) as (s2 & Hr2' & Hrel2).
     rewrite /exec /= Hr2' Hr1' /= in Hstep.
     destruct (decide (is_sealr r1v.(lw) && is_sealb r2v.(lw) = false)) as [Hk | Hk].
-    { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag r2v) (clear_tag r2v.(lw)) _ _ _
+    { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag r2v) (clear_tag r2v.(lw)) _ _ _
         (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -132,7 +132,7 @@ Section griotte_lang_rules.
     - apply andb_true_iff in Hvalid as [Hvalid Hwb].
       apply andb_true_iff in Hvalid as [Hvalid Hps].
       apply andb_true_iff in Hvalid as [-> Htag].
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (WSealed a sb @@? π) _ _ _ _
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WSealed a sb @@? π) _ _ _ _
         (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -144,7 +144,7 @@ Section griotte_lang_rules.
       { intros. by eapply Seal_spec_success. }
       { intros. econstructor. by eapply Seal_fail_incrPC. }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-    - iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst
+    - iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst
         (WSealed a (clear_tag_sealable sb) @@? π) _ _ _ _
         (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").

@@ -4,6 +4,7 @@ From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
   registers griotte_lang machine_run switcher assert compartment_layout
   kvs kvs_main kvs_adequacy disjoint_regions_tactics.
+From griotte Require Import adequacy_common.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
@@ -485,8 +486,9 @@ Definition kvs_initial_registers : Reg :=
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition kvs_initial_sregisters : SReg :=
-  <[MTDC := WCap true RWL Local kvs_trusted_stack_b kvs_trusted_stack_e
-      kvs_trusted_stack_b]> ∅.
+  initial_sregisters_with
+    (WCap true RWL Local kvs_trusted_stack_b kvs_trusted_stack_e
+      kvs_trusted_stack_b).
 
 Definition kvs_initial_memory : Mem := mk_initial_memory.
 
@@ -510,7 +512,7 @@ Lemma kvs_initial_sregisters_correct :
 Proof.
   rewrite /is_initial_sregisters /kvs_initial_sregisters.
   cbn [kvs_concrete_layout kvs_concrete_cmptSwitcher].
-  simplify_map_eq; vm_compute; reflexivity.
+  apply initial_sregisters_with_correct. vm_compute; reflexivity.
 Qed.
 
 Lemma kvs_initial_memory_correct :

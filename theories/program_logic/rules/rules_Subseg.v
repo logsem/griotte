@@ -153,13 +153,13 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hroot & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
     destruct (Hri dst) as [wdst [Hdst _]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s & Hdst' & Hrel).
-    pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs Hdst) as Hokdst.
+    pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs Hdst) as Hokdst.
     pose proof (lz_of_argument_phys R regs r src1 Hregs ltac:(intros ? ->; set_solver)) as Hz1.
     pose proof (lz_of_argument_phys R regs r src2 Hregs ltac:(intros ? ->; set_solver)) as Hz2.
     (* The heap-root fact for the new base, when needed. *)
@@ -176,7 +176,7 @@ Section griotte_lang_rules.
     cbn in Hdst', Hstep. rewrite Hdst' /= in Hstep.
     destruct (is_mutable_range wd) eqn:Hwdst.
     2: { (* An integer, a sealed word or a sentry: the tag is cleared. *)
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag (wd @@? π)) (clear_tag wd) _ _ _
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag (wd @@? π)) (clear_tag wd) _ _ _
         (λ lpc' regs' retv, Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hroot]").
       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -242,7 +242,7 @@ Section griotte_lang_rules.
                        | constructor; eapply Subseg_fail_incrPC_unrepresentable_sr; eauto].
         all: apply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π));
           [by right | cbn; intros; by destruct t | done | exact Hokdst]. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst w' pw _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst w' pw _ _ _
       (λ lpc' regs' retv, Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hroot]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
@@ -836,7 +836,7 @@ Section griotte_lang_rules.
                       (<[dst:=WCap true p g b e a @@? None]> (∅ : LReg)))).
     set (v := WCap true p g a1 a2 a @@ ι).
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ & s' & HRι).
     iDestruct (reg_lookup_own with "HR Htok") as %(b' & e' & γ' & HRι').
     rewrite HRι in HRι'. simplify_eq.
@@ -875,7 +875,7 @@ Section griotte_lang_rules.
         + intros [_ [b' Hab]]. apply heap_authority_base_memory_cap_bounds in Hab as (? & [= <- <-] & ? & _).
           solve_addr.
         + rewrite /heap_cap_base /= Hbh. eauto. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
       (λ lpc' regs' retv,
          (retv = NextIV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧ regs' = <[dst := v]ₗ> regs) ∨
          (retv = FailedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None))

@@ -89,10 +89,7 @@ Definition hts_is_initial_registers `{hts_memory_layout} (pc : Word) (reg : Reg)
   (∀ r, r ∉ ({[ cgp; csp]} : gset RegName) -> reg !! r = Some (WInt 0)).
 
 Definition hts_is_initial_sregisters `{hts_memory_layout} (sreg : SReg) :=
-  sreg !! MTDC = Some (WCap true RWL Local
-    (compartment_layout.b_trusted_stack hts_switcher_cmpt)
-    (compartment_layout.e_trusted_stack hts_switcher_cmpt)
-    (compartment_layout.b_trusted_stack hts_switcher_cmpt)).
+  is_initial_sregisters_of hts_switcher_cmpt sreg.
 
 Definition hts_is_initial_memory `{hts_memory_layout} (mem : Mem) :=
   let adv_f := SCap true RO Global
@@ -383,7 +380,7 @@ Section Adequacy.
       [done | apply NoDup_singleton |].
 
     (* Get initial sregister mtdc *)
-    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first exact Hsreg.
+    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first exact (Hsreg MTDC).
 
     (* Separate the initial heap from the compartments *)
     rewrite Hmem /hts_initial_memory.

@@ -495,7 +495,7 @@ Qed.
    [FramableMachineResource] from [machine_utils/tactics.v]
 *)
 
-Class FramableSRegisterPointsto (sr: SRegName) (w: Word) := {}.
+Class FramableSRegisterPointsto (sr: SRegName) (w: LWord) := {}.
 #[export] Hint Mode FramableSRegisterPointsto + - : typeclass_instances.
 Class FramableRegisterPointsto (r: RegName) (w: LWord) := {}.
 #[export] Hint Mode FramableRegisterPointsto + - : typeclass_instances.

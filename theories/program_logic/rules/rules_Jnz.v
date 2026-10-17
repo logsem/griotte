@@ -64,7 +64,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
@@ -79,7 +79,7 @@ Section griotte_lang_rules.
       { cbn. rewrite Hrcond /= Hnz'.
         by rewrite (lz_of_argument_incl R regs r _ imm). }
       rewrite HH in Hstep.
-      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
+      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
         (λ lpc' retv, Jnz_spec _ regs rimm rcond lpc' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]"); first done; first done.
       { intros. by eapply Jnz_spec_success_jmp. }
@@ -88,7 +88,7 @@ Section griotte_lang_rules.
     - assert (exec_opt (Jnz rimm rcond) pc_p φc = updatePC_gen φc 1) as HH.
       { cbn. by rewrite Hrcond /= Hnz'. }
       rewrite HH in Hstep.
-      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
+      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
         (λ lpc' retv, Jnz_spec _ regs rimm rcond lpc' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]"); first done; first done.
       { intros. by eapply Jnz_spec_success_next. }

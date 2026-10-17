@@ -4,6 +4,7 @@ From griotte Require Import
   machine_instructions machine_parameters machine_parameters_instance
   registers griotte_lang machine_run switcher assert compartment_layout
   stack_object stack_object_adequacy disjoint_regions_tactics.
+From griotte Require Import adequacy_common.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
@@ -382,8 +383,9 @@ Definition so_initial_registers : Reg :=
   (<[csp := WCap true RWL Local so_stack_b so_stack_e so_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 Definition so_initial_sregisters : SReg :=
-  <[MTDC := WCap true RWL Local so_trusted_stack_b so_trusted_stack_e
-      so_trusted_stack_b]> ∅.
+  initial_sregisters_with
+    (WCap true RWL Local so_trusted_stack_b so_trusted_stack_e
+      so_trusted_stack_b).
 Definition so_initial_memory : Mem := mk_initial_memory.
 
 Lemma so_initial_registers_correct : is_initial_registers so_initial_pc so_initial_registers.
@@ -405,7 +407,7 @@ Lemma so_initial_sregisters_correct :
 Proof.
   rewrite /is_initial_sregisters /so_initial_sregisters.
   cbn [so_concrete_layout so_concrete_cmptSwitcher].
-  simplify_map_eq; vm_compute; reflexivity.
+  apply initial_sregisters_with_correct. vm_compute; reflexivity.
 Qed.
 
 Lemma so_initial_memory_correct : is_initial_memory so_initial_memory.

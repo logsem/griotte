@@ -84,7 +84,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     erewrite regs_of_is_BinOp in Hri, Dregs; eauto.
@@ -100,7 +100,7 @@ Section griotte_lang_rules.
     { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
       all: by rewrite Hn1' Hn2'; cbn. }
     rewrite HH in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt (denote i n1 n2))) _ _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt (denote i n1 n2))) _ _ _ _
       (λ lpc' regs' retv, BinOp_spec i _ regs dst arg1 arg2 lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. }
