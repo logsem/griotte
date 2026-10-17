@@ -77,23 +77,11 @@ Definition otype_of_argument regs src : option OType :=
 
 (** * System registers *)
 
-(** The values of the interrupt-enable bits MIE and MPIE of mstatus. *)
-Inductive InterruptStatus : Type :=
-| InterruptEnabled
-| InterruptDisabled.
-
-#[global] Instance InterruptStatus_eq_dec : EqDecision InterruptStatus.
-Proof. solve_decision. Defined.
-
 Definition interrupt_status_bit (b : InterruptStatus) : bool :=
   match b with InterruptEnabled => true | InterruptDisabled => false end.
 
 Definition interrupt_status_of_bit (bit : bool) : InterruptStatus :=
   if bit then InterruptEnabled else InterruptDisabled.
-
-(** The positions of the MIE and MPIE bits in mstatus. *)
-Definition MIE_BIT : Z := 3.
-Definition MPIE_BIT : Z := 7.
 
 (** mstatus holds MIE and MPIE; its other bits read as 0. *)
 Definition mstatus_enc (mie mpie : InterruptStatus) : Z :=
@@ -460,6 +448,23 @@ Section opsem.
              | inl z => Some (update_sreg φ sr (legalise sr (WInt z)))
              end;
         updatePC (if decide (dst = cnull) then φ' else update_reg φ' dst wold)
+      else None
+  | SetMIE b =>
+      (* MIE receives [b]; MPIE is unchanged. *)
+      if has_sreg_access plevel
+      then
+        wst ← (sreg φ) !! MSTATUS;
+        updatePC (update_sreg φ MSTATUS (WInt (mstatus_enc b (mpie_of (get_a wst)))))
+      else None
+  | Mret =>
+      (* The PC receives MEPCC without checks: MEPCC is legalised when
+         written. MIE receives MPIE, and MPIE becomes enabled. *)
+      if has_sreg_access plevel
+      then
+        wepcc ← (sreg φ) !! MEPCC;
+        wst ← (sreg φ) !! MSTATUS;
+        Some (NextI, update_sreg (update_pcc φ wepcc) MSTATUS
+                       (WInt (mstatus_enc (mpie_of (get_a wst)) InterruptEnabled)))
       else None
   | Auipcc dst imm =>
       (* As Lea on the PC: the tag is cleared on an address overflow. *)

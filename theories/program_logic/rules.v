@@ -5,7 +5,7 @@ From griotte Require Export
      rules_Lea rules_Mov rules_Restrict rules_Subseg
      rules_Jmp rules_Jnz rules_Jalr
      rules_Seal rules_UnSeal
-     rules_SpecialRW rules_Auipcc rules_registry.
+     rules_SpecialRW rules_SetMIE rules_Mret rules_Auipcc rules_registry.
 
 (** Program specifications
 

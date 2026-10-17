@@ -125,6 +125,34 @@ Section griotte_lang_rules.
     sr1 ↦ₛᵣ w1.
   Proof. rewrite big_sepM_singleton; auto. Qed.
 
+  Lemma sregname_neq sr1 sr2 w1 w2 :
+    sr1 ↦ₛᵣ w1 -∗ sr2 ↦ₛᵣ w2 -∗ ⌜ sr1 ≠ sr2 ⌝.
+  Proof.
+    iIntros "H1 H2" (->).
+    iDestruct (pointsto_valid_2 with "H1 H2") as %[Hv _].
+    by apply dfrac_full_exclusive in Hv.
+  Qed.
+
+  Lemma map_of_sregs_2 (sr1 sr2: SRegName) (w1 w2: LWord) :
+    sr1 ↦ₛᵣ w1 -∗ sr2 ↦ₛᵣ w2 -∗
+    ([∗ map] k↦y ∈ (<[sr1:=w1]> (<[sr2:=w2]> ∅)), k ↦ₛᵣ y) ∗ ⌜ sr1 ≠ sr2 ⌝.
+  Proof.
+    iIntros "H1 H2". iPoseProof (sregname_neq with "H1 H2") as "%Hne".
+    rewrite !big_sepM_insert ?big_sepM_empty; eauto.
+    2: by apply lookup_insert_None; split; eauto.
+    iFrame. eauto.
+  Qed.
+
+  Lemma sregs_of_map_2 (sr1 sr2: SRegName) (w1 w2: LWord) :
+    sr1 ≠ sr2 →
+    ([∗ map] k↦y ∈ (<[sr1:=w1]> (<[sr2:=w2]> ∅)), k ↦ₛᵣ y) -∗
+    sr1 ↦ₛᵣ w1 ∗ sr2 ↦ₛᵣ w2.
+  Proof.
+    iIntros (Hne) "Hmap". rewrite !big_sepM_insert ?big_sepM_empty; eauto.
+    + by iDestruct "Hmap" as "(? & ? & _)"; iFrame.
+    + apply lookup_insert_None; split; eauto.
+  Qed.
+
   (* ------------------------- memory points-to --------------------------------- *)
 
   Lemma addr_dupl_false a w1 w2 :
@@ -646,6 +674,8 @@ Qed.
 Definition sregs_of (i: instr): gset SRegName :=
   match i with
   | SpecialRW _ sr _ => {[ sr ]}
+  | SetMIE _ => {[ MSTATUS ]}
+  | Mret => {[ MEPCC; MSTATUS ]}
   | _ => ∅
   end.
 

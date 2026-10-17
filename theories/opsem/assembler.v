@@ -96,6 +96,11 @@ Module Asm_Griotte.
   | Seal (dst : RegName) (r1 r2: RegName)
   | UnSeal (dst : RegName) (r1 r2: RegName)
   | SpecialRW (dst: RegName) (sr: SRegName) (src: asm_arg)
+  | SetMIE (b: InterruptStatus)
+  (* [csrsi]/[csrci] on [sr] with [mask]: only [mstatus] with the MIE mask
+     assembles, to [SetMIE b]. *)
+  | CsrMIE (b: InterruptStatus) (sr: SRegName) (mask: asm_expr)
+  | Mret
   | Fail
   | Halt
   | GetTag (dst src: RegName)
@@ -350,6 +355,15 @@ Module Asm_Griotte.
     | SpecialRW dst sr src =>
         src ← assemble_arg src env n;
         Ok (machine_instructions.SpecialRW dst sr src)
+    | SetMIE b =>
+        Ok (machine_instructions.SetMIE b)
+    | CsrMIE b sr mask =>
+        z ← asm_eval mask env n;
+        if decide (sr = MSTATUS ∧ z = Z.shiftl 1 MIE_BIT)
+        then Ok (machine_instructions.SetMIE b)
+        else Err "csrsi/csrci: only mstatus with the MIE mask 0x8"%string
+    | Mret =>
+        Ok machine_instructions.Mret
     | Fail=>
         Ok (machine_instructions.Fail)
     | Halt=>
@@ -740,6 +754,16 @@ Module Asm_Griotte.
       [cnull] it does not write [sr]: write the immediate [0] instead. *)
   Definition csrr dst sr := readsr dst sr.
   Definition csrw sr src := specialrw cnull sr src.
+  (** [setmie b]: the MIE bit of mstatus receives [b]. *)
+  Definition setmie b := (ASM_Instr (SetMIE b)).
+  (** [csrsi sr mask] and [csrci sr mask] set and clear the bits [mask] of
+      [sr]. Only [csrsi mstatus 0x8] and [csrci mstatus 0x8], which enable and
+      disable interrupts, assemble; any other operand is an assembler error. *)
+  Definition csrsi sr mask := (ASM_Instr (CsrMIE InterruptEnabled sr mask)).
+  Definition csrci sr mask := (ASM_Instr (CsrMIE InterruptDisabled sr mask)).
+  (** [mret]: returns from an exception (see [Mret]). It shadows stdpp's
+      monadic [mret] where this module is imported. *)
+  Definition mret := (ASM_Instr Mret).
   Definition fail:= (ASM_Instr Fail).
   Definition halt:= (ASM_Instr Halt).
 

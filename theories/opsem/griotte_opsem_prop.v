@@ -302,6 +302,21 @@ Qed.
     - rewrite lookup_insert_ne //. by apply Hsr.
   Qed.
 
+  Lemma sys_pc_ok_update_sreg_not_pc φ sr w :
+    is_pc_sreg sr = false → sys_pc_ok φ → sys_pc_ok (update_sreg φ sr w).
+  Proof.
+    intros Hsr_not_pc [Hpc Hsr]. split; first done.
+    intros sr' w' Hsr'. cbn. destruct (decide (sr = sr')) as [<-|Hne].
+    - by rewrite Hsr_not_pc in Hsr'.
+    - rewrite lookup_insert_ne //. by apply Hsr.
+  Qed.
+
+  (** A jump to the value of MTCC or MEPCC, as [mret] does. *)
+  Lemma sys_pc_ok_update_pcc_sreg φ sr w :
+    is_pc_sreg sr = true → sreg φ !! sr = Some w →
+    sys_pc_ok φ → sys_pc_ok (update_pcc φ w).
+  Proof. intros Hsr Hw [Hpc Hsregs]. split; [by eapply Hsregs | done]. Qed.
+
   Lemma updatePC_gen_sys_pc_ok φ imm c :
     sys_pc_ok φ → updatePC_gen φ imm = Some c → sys_pc_ok c.2.
   Proof.
@@ -321,7 +336,7 @@ Qed.
     intros Hinv Hexec.
     destruct i; cbn in Hexec.
     all: repeat (case_match || simplify_option_eq); simplify_eq/=; try done.
-    (* Every instruction but Jalr writes the PC through [updatePC_gen]. *)
+    (* Every instruction but Jalr and Mret writes the PC through [updatePC_gen]. *)
     all: try match goal with
       | Hup : updatePC_gen ?φ' _ = Some _ |- _ => eapply (updatePC_gen_sys_pc_ok φ'); [|exact Hup]
       | Hup : updatePC ?φ' = Some _ |- _ => eapply (updatePC_sys_pc_ok φ'); [|exact Hup]
@@ -329,6 +344,10 @@ Qed.
     (* MTCC and MEPCC change only by a legalised write. *)
     all: try (eapply sys_pc_ok_ext; [| |exact Hinv]; done).
     all: try (eapply sys_pc_ok_ext; [| |apply sys_pc_ok_update_sreg, Hinv]; done).
+    (* SetMIE and Mret write mstatus; Mret jumps to MEPCC. *)
+    all: try (apply sys_pc_ok_update_sreg_not_pc; [done|]).
+    all: try exact Hinv.
+    all: try (eapply (sys_pc_ok_update_pcc_sreg _ MEPCC); [done|eassumption|exact Hinv]).
     (* Jalr checks its target. *)
     all: match goal with
       | Ht : negb (get_tag ?w) = false, Hs : is_sealed ?w = false,
