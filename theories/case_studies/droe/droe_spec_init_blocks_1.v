@@ -70,18 +70,14 @@ Section DROE_Init_Blocks_1.
     (* Lea cgp 1%Z *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    (* Store cgp ct0 0 *)
-    (* [iInstr] does not find the resources of this store *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
     iPoseProof deref_res_none as "-#Hdw".
-    iApply (wp_store_success_reg with "[$HPC $Hi $Hct0 $Hcgp $Hcgp_a $Hdw]") ; try solve_pure.
+    (* [iInstr] does not find the resources of this store *)
+    (* Store cgp ct0 0 *)
+    iInstrApply "Hcode" wp_store_success_reg with "[$HPC $Hct0 $Hcgp $Hcgp_a $Hdw]"
+      as "(HPC & Hct0 & Hcgp & Hcgp_a & _)".
     { solve_not_shadow Hcgp_mmio. }
     { rewrite /withinBounds; solve_addr. }
     { done. }
-    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hcgp_a & _)".
-    iClear "Hi".
-    wp_pure.
     (* Mov ca0 cgp *)
     iInstr "Hcode".
     (* Lea cgp (-1)%Z *)

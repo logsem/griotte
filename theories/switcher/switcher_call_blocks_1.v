@@ -52,13 +52,9 @@ Section Switcher_Call_Blocks_1.
     (* Block 0: check the permission of csp *)
     focus_block_0 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* GetP ct2 csp *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
-    iIntros "!>" (v) "[-> | (%p0 & %Hp0 & _ & -> & HPC & Hi & Hcsp & Hct2)] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
-    wp_pure.
-    iClear "Hi".
+    iInstrApply "Hcode" wp_Get_unknown with "[$HPC $Hct2 $Hcsp]"
+      as (v) "[-> | (%p0 & %Hp0 & _ & -> & HPC & Hcsp & Hct2)]".
+    { wp_end. iIntros "%Hcontr"; done. }
     (* Mov ctp (encodePerm RWL) *)
     iInstr "Hcode".
     (* Sub ct2 ct2 ctp *)
@@ -66,15 +62,10 @@ Section Switcher_Call_Blocks_1.
     destruct (decide ((p0 - encodePerm RWL)%Z = 0)) as [Hp0'|Hp0']; cycle 1.
     {
       (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
+      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
       { intros Hcontr; inversion Hcontr; done. }
       { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
         offsets_compute; solve_addr. }
-      iIntros "!> (HPC & Hi & Hct2)".
-      wp_pure.
-      iClear "Hi".
       unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
       iApply "Hpost"; iRight.
       iSplit.
@@ -90,13 +81,9 @@ Section Switcher_Call_Blocks_1.
     focus_block 1 "Hswitcher" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls";
       iHide "Hswitcher" as hswitcher.
     (* GetL ct2 csp *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
-    iIntros "!>" (v) "[-> | (%g0 & %Hg0 & _ & -> & HPC & Hi & Hcsp & Hct2)] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
-    wp_pure.
-    iClear "Hi".
+    iInstrApply "Hcode" wp_Get_unknown with "[$HPC $Hct2 $Hcsp]"
+      as (v) "[-> | (%g0 & %Hg0 & _ & -> & HPC & Hcsp & Hct2)]".
+    { wp_end. iIntros "%Hcontr"; done. }
     (* Mov ctp (encodeLoc Local) *)
     iInstr "Hcode".
     (* Sub ct2 ct2 ctp *)
@@ -104,16 +91,11 @@ Section Switcher_Call_Blocks_1.
     destruct (decide ((g0 - encodeLoc Local)%Z = 0)) as [Hg0'|Hg0']; cycle 1.
     {
       (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
+      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
       { intros Hcontr; inversion Hcontr; done. }
       { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
         offsets_compute; solve_addr. }
-      iIntros "!> (HPC & Hi & Hct2)".
       iEval (simplify_map_eq) in "HPC".
-      wp_pure.
-      iClear "Hi".
       unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
       iApply "Hpost"; iRight.
       iSplit.

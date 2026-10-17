@@ -71,12 +71,10 @@ Section SO_Call_Blocks_3.
     iHide "Hcont" as hcont.
     destruct (decide ((csp_b < csp_e)%a)) as [Hcsp_size|Hcsp_size]; cycle 1.
     { (* The stack frame is empty: the first store fails *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
+      (* Store csp so_secret 0 *)
+      iInstrApply "Hcode" wp_store_fail_z with "[$HPC $Hcsp]" as "_".
       { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      iIntros "!> _".
-      wp_pure; wp_end; iIntros (?); done.
+      wp_end; iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
     rewrite finz_seq_between_length in Hstklen.

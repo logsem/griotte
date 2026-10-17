@@ -131,16 +131,12 @@ Section AllocatorFreeHeaderBlocks3.
     { transitivity (Some (sb ^+ -1)%a); subst sb; solve_addr. }
     unfold lword_of_word.
     (* CLoad ca3 ctp: the shadow entry of the word below the base. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_load_success_from_shadow _ ca3 ctp with "[$HPC $Hi $Hct3 $Hctp $Hs1]");
-      try solve_pure.
+    iInstrApply "Hcode" (wp_load_success_from_shadow _ ca3 ctp)
+      with "[$HPC $Hct3 $Hctp $Hs1]"
+      as "(HPC & Hct3 & Hctp & Hs1)".
     { exact (proj2 (heap_to_shadow_bounds _ _ Htr1)). }
     { apply heap_shadow_inverse. exact Htr1. }
     { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htr1)). }
-    iIntros "!> (HPC & Hct3 & Hi & Hctp & Hs1)".
-    wp_pure.
-    iClear "Hi".
     (* Sub ca3 ca3 (encodeAllocStatus ShadowQuarantined). *)
     iInstr "Hcode".
     change (match MP with {| encodeAllocStatus := f |} => f end ShadowQuarantined)
@@ -164,16 +160,12 @@ Section AllocatorFreeHeaderBlocks3.
     { transitivity (Some (sb ^+ 0)%a); subst sb; solve_addr. }
     replace ((sb ^+ -1) ^+ 1)%a with sb by (subst sb; solve_addr).
     (* CLoad ca3 ctp: the shadow entry of the base. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_load_success_from_shadow _ ca3 ctp with "[$HPC $Hi $Hct3 $Hctp $Hs2]");
-      try solve_pure.
+    iInstrApply "Hcode" (wp_load_success_from_shadow _ ca3 ctp)
+      with "[$HPC $Hct3 $Hctp $Hs2]"
+      as "(HPC & Hct3 & Hctp & Hs2)".
     { exact (proj2 (heap_to_shadow_bounds _ _ Htr2)). }
     { apply heap_shadow_inverse. exact Htr2. }
     { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htr2)). }
-    iIntros "!> (HPC & Hct3 & Hi & Hctp & Hs2)".
-    wp_pure.
-    iClear "Hi".
     (* Sub ca3 ca3 (encodeAllocStatus ShadowLive). *)
     iInstr "Hcode".
     change (match MP with {| encodeAllocStatus := f |} => f end ShadowLive)
@@ -207,20 +199,16 @@ Section AllocatorFreeHeaderBlocks3.
     (* Lea ca4 ca3. *)
     iInstr "Hcode".
     { transitivity (Some (b ^+ -3)%a); solve_addr. }
-    (* CLoad ca2 ca4: the recorded end. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
     iPoseProof deref_res_none as "-#Hdw".
-    iApply (wp_load_success_notinstr _ ca2 ca4 with "[$HPC $Hi $Hca2 $Hct4 $Hhdr $Hdw]");
-      try solve_pure.
+    (* CLoad ca2 ca4: the recorded end. *)
+    iInstrApply "Hcode" (wp_load_success_notinstr _ ca2 ca4)
+      with "[$HPC $Hca2 $Hct4 $Hhdr $Hdw]"
+      as "(HPC & Hca2 & Hct4 & Hhdr & _)".
     { eapply (disjoint_from_shadow_not_in heap_b heap_e (b ^+ -3)%a);
         first exact heap_shadow_disjoint.
       apply withinBounds_true_iff. solve_addr. }
     { reflexivity. }
     { split; first done. apply withinBounds_true_iff. solve_addr. }
-    iIntros "!> (HPC & Hca2 & Hi & Hct4 & Hhdr & _)".
-    wp_pure.
-    iClear "Hi".
     iEval (rewrite /lload_word /lift_word /=) in "Hca2".
     (* Sub ca3 ca2 ct2. *)
     iInstr "Hcode".
@@ -228,21 +216,17 @@ Section AllocatorFreeHeaderBlocks3.
     - rewrite Z.sub_diag.
       (* Jnz .free_invalid ca3. *)
       iInstr "Hcode".
-      (* CLoad ca3 ca4 1: the recorded owner. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
       iPoseProof deref_res_none as "-#Hdw".
-      iApply (wp_load_success_notinstr_imm _ ca3 ca4 with "[$HPC $Hi $Hct3 $Hct4 $Hown $Hdw]");
-        try solve_pure.
+      (* CLoad ca3 ca4 1: the recorded owner. *)
+      iInstrApply "Hcode" (wp_load_success_notinstr_imm _ ca3 ca4)
+        with "[$HPC $Hct3 $Hct4 $Hown $Hdw]"
+        as "(HPC & Hct3 & Hct4 & Hown & _)".
       { eapply (disjoint_from_shadow_not_in heap_b heap_e ((b ^+ -3) ^+ 1)%a);
           first exact heap_shadow_disjoint.
         apply withinBounds_true_iff. solve_addr. }
       { reflexivity. }
       { split; first done. apply withinBounds_true_iff. solve_addr. }
       { solve_addr. }
-      iIntros "!> (HPC & Hct3 & Hi & Hct4 & Hown & _)".
-      wp_pure.
-      iClear "Hi".
       iEval (rewrite /lload_word /lift_word /=) in "Hct3".
       (* Sub ca3 ca3 ca0. *)
       iInstr "Hcode".

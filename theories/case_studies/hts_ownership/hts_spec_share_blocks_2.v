@@ -108,18 +108,13 @@ Section HTS_Spec_Share.
     iHide "Hcont" as hcont.
     destruct (decide (csp_b < csp_e)%a) as [Hstk_nonempty|Hstk_empty]; cycle 1.
     { (* Empty stack: the store to the stack slot faults. *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg_imm _ 0 RX Global pc_b pc_e a_store None None _ csp ca0
-        RWL Local csp_b csp_e csp_b csp_b with "[$HPC $Hi $Hca0 $Hcsp]").
-      { rewrite decode_encode_instrW_inv. reflexivity. }
-      { solve_pure. }
+      (* Store csp ca0 0. *)
+      iInstrApply "Hcode" (wp_store_fail_reg_imm _ 0 RX Global pc_b pc_e a_store None None _ csp ca0
+        RWL Local csp_b csp_e csp_b csp_b) with "[$HPC $Hca0 $Hcsp]" as "_".
       { solve_addr. }
       { destruct (withinBounds csp_b csp_e csp_b) eqn:Hwb; last done.
         apply withinBounds_true_iff in Hwb. solve_addr. }
-      { done. }
-      { done. }
-      iNext. iIntros "_". wp_pure. wp_end. by iIntros (?). }
+      wp_end. by iIntros (?). }
     assert (region_addrs_zeroes csp_b csp_e =
       lword_of_word (WInt 0) :: region_addrs_zeroes (csp_b ^+ 1)%a csp_e) as Hzeroes.
     { rewrite (region_addrs_zeroes_split csp_b (csp_b ^+ 1)%a csp_e); last solve_addr.

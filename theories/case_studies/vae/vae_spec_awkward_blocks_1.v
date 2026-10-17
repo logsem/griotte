@@ -69,21 +69,18 @@ Section VAE_Awkward_Blocks_1.
     focus_block (vae_block ".Lvae_awkward") "Hcode_main" of vae_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Store cgp 0 0 *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
+    iInstrStart "Hcode".
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.
     iAssert (cgp_b ↦ₐ (if b then WInt 1 else WInt 0))%I with "[Hflag]" as "Hflag".
     { destruct b; iFrame. }
     iPoseProof deref_res_none as "-#Hdw".
-    iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hflag $Hdw]"); try solve_pure.
+    iInstrApply wp_store_success_z with "[$HPC $Hcgp $Hflag $Hdw]"
+      as "(HPC & Hcgp & Hflag & _)".
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
-    iIntros "!> (HPC & Hi & Hcgp & Hflag & _)".
     iMod (world_interp_update_loc _ _ _ _ false with "Hworld Hst")
       as "[Hworld Hst]"; [done|done|].
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
-    iModIntro.
-    wp_pure.
-    iClear "Hi".
+    iInstrEnd.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: fetch the entry point of the switcher *)

@@ -64,19 +64,16 @@ Section VAE_Init_Blocks_1.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Store cgp 0 0 *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
+    iInstrStart "Hcode".
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.
     iDestruct (world_interp_loc_valid with "Hworld Hst") as %Hloc'.
     rewrite Hloc in Hloc'; simplify_eq.
     iPoseProof deref_res_none as "-#Hdw".
-    iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hflag $Hdw]"); try solve_pure.
+    iInstrApply wp_store_success_z with "[$HPC $Hcgp $Hflag $Hdw]"
+      as "(HPC & Hcgp & Hflag & _)".
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
-    iIntros "!> (HPC & Hi & Hcgp & Hflag & _)".
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
-    iModIntro.
-    wp_pure.
-    iClear "Hi".
+    iInstrEnd.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 1: fetch the entry point of the switcher *)

@@ -160,11 +160,8 @@ Section Is_WordType_spec.
         (* Jmp 2. *)
         iInstr "Hprog".
         (* GetTag r1 r: the tag of the word may read as 0. *)
-        iInstr_lookup "Hprog" as "Hi" "Hcont".
-        wp_instr.
-        iApply (wp_gettag_lax with "[$HPC $Hi $Hr $Hr1]"); try solve_pure.
-        iNext. iIntros (z) "(HPC & _ & Hr & Hr1 & %Hz)".
-        wp_pure.
+        iInstrApply "Hprog" wp_gettag_lax with "[$HPC $Hr $Hr1]"
+          as (z) "(HPC & Hr & Hr1 & %Hz)".
         destruct Hz; destruct_and?; simplify_eq.
         * cbn. iGo "Hprog". iApply "Hφ"; iFrame "∗ Hprog".
         * iGo "Hprog". wp_end; iApply "Hfailed".

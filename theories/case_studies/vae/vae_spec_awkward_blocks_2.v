@@ -72,21 +72,18 @@ Section VAE_Awkward_Blocks_2.
     focus_block (vae_block ".Lvae_awkward_set_one") "Hcode_main" of vae_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Store cgp 1 0 *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
+    iInstrStart "Hcode".
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.
     iAssert (cgp_b ↦ₐ (if b then WInt 1 else WInt 0))%I with "[Hflag]" as "Hflag".
     { destruct b; iFrame. }
     iPoseProof deref_res_none as "-#Hdw".
-    iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hflag $Hdw]"); try solve_pure.
+    iInstrApply wp_store_success_z with "[$HPC $Hcgp $Hflag $Hdw]"
+      as "(HPC & Hcgp & Hflag & _)".
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
-    iIntros "!> (HPC & Hi & Hcgp & Hflag & _)".
     iMod (world_interp_update_loc _ _ _ _ true with "Hworld Hst")
       as "[Hworld Hst]"; [done|done|].
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
-    iModIntro.
-    wp_pure.
-    iClear "Hi".
+    iInstrEnd.
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Mov ct1 cs1 *)

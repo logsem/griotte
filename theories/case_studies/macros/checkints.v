@@ -195,14 +195,12 @@ Section Checkints_spec.
       apply withinBounds_true_iff; solve_addr. }
     (* A heap load may clear a tag or fail. Neither outcome can turn a
        noninteger into an integer accepted by the check below. *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_load_preserve_or_clear _ _ _ _ _ _ _ (pc_a ^+ 1)%a
-      with "[$HPC $Hi $Hr1 $Hr $Ha]"); try done; try solve_pure; try solve_addr.
-    iIntros "!>" (ret)
-      "[-> | (%actualv & -> & %Hactual & HPC & Hi & Hr1 & Hr & Ha)]".
-    { wp_pure; wp_end; iExact "Hfailed". }
-    wp_pure. iClear "Hi".
+    (* CLoad r1 r 0 *)
+    iInstrApply "Hcode" (wp_load_preserve_or_clear _ _ _ _ _ _ _ (pc_a ^+ 1)%a)
+      with "[$HPC $Hr1 $Hr $Ha]"
+      as (ret) "[-> | (%actualv & -> & %Hactual & HPC & Hr1 & Hr & Ha)]".
+    { solve_addr. }
+    { wp_end; iExact "Hfailed". }
     iDestruct ( big_sepL2_cons (λ _ a v, a ↦ₐ v)%I with "[$Ha $Hmem2]") as "Hmem"; auto.
     iDestruct ( big_sepL2_app (λ _ a v, a ↦ₐ v)%I with "[$Hmem1] [$Hmem]") as "Hmem"; auto.
     rewrite -Ha' -Hlw.
