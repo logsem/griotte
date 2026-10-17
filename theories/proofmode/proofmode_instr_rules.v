@@ -48,7 +48,7 @@ Ltac dispatch_instr_rule instr cont :=
   | GetTag cnull cnull => cont (@wp_GetTag_cnull)
   | GetTag cnull _ => cont (@wp_GetTag_to_cnull)
   | GetTag _ cnull => cont (@wp_GetTag_from_cnull)
-  | GetTag ?r1 ?r2 => dispatch_Get r1 r2 cont
+  | GetTag _ _ => cont (@wp_gettag_success)
   (* ClearTag *)
   | ClearTag cnull cnull => cont (@wp_ClearTag_cnull)
   | ClearTag cnull _ => cont (@wp_ClearTag_to_cnull)

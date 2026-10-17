@@ -567,7 +567,7 @@ Section griotte_lang_rules.
     - iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
 
-  Lemma wp_store_imm_fetch_dw Ep
+  Lemma wp_store_imm_fetch Ep
      pc_p pc_g pc_b pc_e pc_a pc_π
      r1 (r2 : Z + RegName) (imm : Z) w mem regs dq dw :
    decodeInstrW w.(lw) = Store r1 r2 imm →
@@ -605,33 +605,6 @@ Section griotte_lang_rules.
     - iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
     - exfalso. simplify_map_eq.
     - iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
-  Qed.
-
-  Lemma wp_store_imm_fetch Ep
-     pc_p pc_g pc_b pc_e pc_a pc_π
-     r1 (r2 : Z + RegName) (imm : Z) w mem regs dq :
-   decodeInstrW w.(lw) = Store r1 r2 imm →
-   isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-   regs_of (Store r1 r2 imm) ⊆ dom regs →
-   allow_store_map_or_true_imm r1 r2 imm regs mem →
-   (∀ p g b e a ea, reg_allows_store_imm regs r1 imm p g b e a ea →
-      is_shadow_address ea = false) →
-   {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-       ▷ pc_a ↦ₐ{dq} w ∗
-       (▷ [∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
-       ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
-     Instr Executable @ Ep
-   {{{ lpc' mem' retv, RET retv;
-       ⌜ Store_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' mem mem' (∅ : ShadowTbl) (∅ : ShadowTbl) DerefNoId retv⌝ ∗
-         PC ↦ₚ lpc' ∗
-         pc_a ↦ₐ{dq} w ∗
-         ([∗ map] a↦w ∈ mem', a ↦ₐ w) ∗
-         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Dregs HaStore Hordinary φ) "(HPC & Hfetch & Hmem & Hmap) Hφ".
-    iApply (wp_store_imm_fetch_dw _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
-      with "[$HPC $Hfetch $Hmem $Hmap]"); [done..|].
-    iIntros "!>" (lpc' mem' retv) "(? & ? & ? & ? & _ & ?)". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_store_fetch Ep
@@ -701,7 +674,7 @@ Section griotte_lang_rules.
       "(HPC & Hi & >Ha & Hdw & Hmap) Hφ".
     assert (lw <$> regs !!ₗ dst = Some (WCap true p g b e a)) as Hdst' by by rewrite Hdst.
     iDestruct (memMap_resource_1 with "Ha") as "Hmem".
-    iApply (wp_store_imm_fetch_dw with "[$HPC $Hi $Hmem $Hdw $Hmap]"); eauto.
+    iApply (wp_store_imm_fetch with "[$HPC $Hi $Hmem $Hdw $Hmap]"); eauto.
     { by eapply mem_eq_implies_allow_store_map_imm. }
     { intros ?????? (Hd & Ha' & _). rewrite Hdst' in Hd. simplify_eq. congruence. }
     iIntros "!>" (lpc0 mem' retv) "(%Hspec & HPC & Hi & Hmem & Hdw & Hmap)".
@@ -718,11 +691,11 @@ Section griotte_lang_rules.
 
   (** A store to the cell of the fetched instruction. *)
   Lemma wp_store_next_pc_imm E pc_p pc_g pc_b pc_e pc_a pc_π w dst src (imm : Z) regs
-      p g b e a storev lpc' :
+      p g b e a storev dw lpc' :
     decodeInstrW w.(lw) = Store dst src imm →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Store dst src imm) ⊆ dom regs →
-    regs !!ₗ dst = Some (WCap true p g b e a @@? None) →
+    regs !!ₗ dst = Some (WCap true p g b e a @@? deref_id dw) →
     (a + imm)%a = Some pc_a →
     writeAllowed p = true → withinBounds b e pc_a = true →
     is_shadow_address pc_a = false →
@@ -730,69 +703,40 @@ Section griotte_lang_rules.
     incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ w ∗
+        deref_witness_res dw ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ lstore_word p storev ∗
+        deref_witness_res dw ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hdecode Hvpc Dregs Hdst Hadd Hwa Hwb Hsh Harg Hinc φ) "(HPC & >Hi & Hmap) Hφ".
+    iIntros (Hdecode Hvpc Dregs Hdst Hadd Hwa Hwb Hsh Harg Hinc φ) "(HPC & >Hi & Hdw & Hmap) Hφ".
     assert (lw <$> regs !!ₗ dst = Some (WCap true p g b e a)) as Hdst' by by rewrite Hdst.
     iDestruct (memMap_resource_1 with "Hi") as "Hmem".
-    iApply (wp_store_imm with "[$HPC $Hmem $Hmap]"); eauto.
+    iAssert ((▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ revoked))%I) as "Hshadow".
+    { iNext. rewrite big_sepM_empty. done. }
+    iApply (wp_store_shadow_imm _ _ _ _ _ _ _ _ _ _ _ _ _ (∅ : ShadowTbl) ∅ dw
+      with "[$HPC $Hmem $Hshadow $Hdw $Hmap]"); eauto.
     { by rewrite lookup_insert_eq. }
-    { by eapply mem_eq_implies_allow_store_map_imm. }
-    { intros ?????? (Hd & Ha' & _). rewrite Hdst' in Hd. simplify_eq. congruence. }
-    iIntros "!>" (lpc0 mem' retv) "(%Hspec & HPC & Hmem & Hmap)".
+    { apply allow_store_map_or_true_imm_no_shadow.
+      - by eapply mem_eq_implies_allow_store_map_imm.
+      - intros ?????? (Hd & Ha' & _). rewrite Hdst' in Hd. simplify_eq. congruence. }
+    iIntros "!>" (lpc0 mem' shadow' retv) "(%Hspec & HPC & Hmem & _ & _ & Hdw & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 a0 ea0 v0 oldv0 Harg0 (Hd & Ha' & _) Hsh0 Hl0 -> _ Hinc0
                       | p0 g0 b0 e0 a0 ea0 ????? (Hd & Ha' & _) Hsh0
                       | _ _ Hfail].
     - rewrite Hdst' in Hd. simplify_eq.
       rewrite insert_insert_eq -memMap_resource_1. iApply "Hφ". by iFrame.
     - by rewrite Hdst' in Hd; simplify_eq.
-    - exfalso. eapply (Store_failure_impossible _ _ _ _ _ _ DerefNoId p g b e a pc_a); eauto.
+    - exfalso. eapply (Store_failure_impossible _ _ _ _ _ _ dw p g b e a pc_a); eauto.
       + intros v Hv. rewrite Hdst in Hv. by simplify_eq.
       + congruence.
   Qed.
 
     Lemma wp_store_success_reg_store_word_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src w'
-         p g b e a ea (imm : Z) w'' dq :
-     π = None →
-     is_shadow_address ea = false →
-      decodeInstrW w.(lw) = Store dst (inr src) imm →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-     (pc_a + 1)%a = Some pc_a' →
-     writeAllowed p = true → withinBounds b e ea = true →
-     (a + imm)%a = Some ea →
-     src ≠ cnull ->
-     dst ≠ cnull ->
-
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ{dq} w
-           ∗ ▷ src ↦ᵣ w''
-           ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
-           ∗ ▷ ea ↦ₐ w' }}}
-       Instr Executable @ E
-       {{{ RET NextIV;
-           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-              ∗ pc_a ↦ₐ{dq} w
-              ∗ src ↦ᵣ w''
-              ∗ dst ↦ᵣ WCap true p g b e a @@? π
-              ∗ ea ↦ₐ lstore_word p w'' }}}.
-    Proof.
-    iIntros (-> Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hsrc Hdst φ)
-      "(HPC & Hi & >Hsrc & >Hdst & Ha) Hφ".
-    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %]".
-    iApply (wp_store_next_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
-      with "[$HPC $Hi $Ha $Hmap]"); try solve_next_side.
-    iIntros "!> (HPC & Hi & Ha & Hdw & Hmap)". iRegsMap "Hmap".
-    iApply "Hφ". iFrame.
-    Qed.
-
-Lemma wp_store_success_reg_store_word_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src w'
-         p g b e a ea (imm : Z) w'' dq dw :
-     π = deref_id dw →
+         p g b e a ea (imm : Z) w'' dq q :
      is_shadow_address ea = false →
       decodeInstrW w.(lw) = Store dst (inr src) imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -807,7 +751,7 @@ Lemma wp_store_success_reg_store_word_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π
            ∗ ▷ src ↦ᵣ w''
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
            ∗ ▷ ea ↦ₐ w'
-           ∗ deref_witness_res dw }}}
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
@@ -815,20 +759,21 @@ Lemma wp_store_success_reg_store_word_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π
               ∗ src ↦ᵣ w''
               ∗ dst ↦ᵣ WCap true p g b e a @@? π
               ∗ ea ↦ₐ lstore_word p w''
-              ∗ deref_witness_res dw }}}.
+              ∗ deref_res π q }}}.
     Proof.
-    iIntros (-> Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hsrc Hdst φ)
+    rewrite deref_res_witness.
+    generalize (deref_id_witness_of π q). generalize (deref_witness_of π q).
+    intros dw <-.
+    iIntros (Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hsrc Hdst φ)
       "(HPC & Hi & >Hsrc & >Hdst & Ha & Hdw) Hφ".
     iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %]".
-    iApply (wp_store_next_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ dw
-      with "[$HPC $Hi $Ha $Hmap $Hdw]"); try solve_next_side.
+    iApply (wp_store_next_imm with "[$HPC $Hi $Ha $Hdw $Hmap]"); try solve_next_side.
     iIntros "!> (HPC & Hi & Ha & Hdw & Hmap)". iRegsMap "Hmap".
     iApply "Hφ". iFrame.
     Qed.
 
    Lemma wp_store_success_reg_same_store_word_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst w'
-         p g b e a ea (imm : Z) dq :
-     π = None →
+         p g b e a ea (imm : Z) dq q :
      is_shadow_address ea = false →
      decodeInstrW w.(lw) = Store dst (inr dst) imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -840,19 +785,23 @@ Lemma wp_store_success_reg_store_word_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π
      {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
-           ∗ ▷ ea ↦ₐ w' }}}
+           ∗ ▷ ea ↦ₐ w'
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ{dq} w
               ∗ dst ↦ᵣ WCap true p g b e a @@? π
-              ∗ ea ↦ₐ lstore_word p (WCap true p g b e a @@? π) }}}.
+              ∗ ea ↦ₐ lstore_word p (WCap true p g b e a @@? π)
+              ∗ deref_res π q }}}.
    Proof.
-    iIntros (-> Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hdst φ) "(HPC & Hi & >Hdst & Ha) Hφ".
+    rewrite deref_res_witness.
+    generalize (deref_id_witness_of π q). generalize (deref_witness_of π q).
+    intros dw <-.
+    iIntros (Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hdst φ) "(HPC & Hi & >Hdst & Ha & Hdw) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_store_next_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
-      with "[$HPC $Hi $Ha $Hmap]"); try solve_next_side.
-    iIntros "!> (HPC & Hi & Ha & _ & Hmap)". iRegsMap "Hmap".
+    iApply (wp_store_next_imm with "[$HPC $Hi $Ha $Hdw $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hi & Ha & Hdw & Hmap)". iRegsMap "Hmap".
     iApply "Hφ". iFrame.
    Qed.
 
@@ -890,41 +839,8 @@ Lemma wp_store_success_reg_store_word_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π
     iApply "Hφ". iFrame.
    Qed.
 
-Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z w'
-         p g b e a ea (imm : Z) dq dw :
-     π = deref_id dw →
-     is_shadow_address ea = false →
-     decodeInstrW w.(lw) = Store dst (inl z) imm →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-     (pc_a + 1)%a = Some pc_a' →
-     writeAllowed p = true → withinBounds b e ea = true →
-     (a + imm)%a = Some ea →
-     dst ≠ cnull ->
-
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ{dq} w
-           ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
-           ∗ ▷ ea ↦ₐ w'
-           ∗ deref_witness_res dw }}}
-       Instr Executable @ E
-       {{{ RET NextIV;
-           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-              ∗ pc_a ↦ₐ{dq} w
-              ∗ dst ↦ᵣ WCap true p g b e a @@? π
-              ∗ ea ↦ₐ WInt z
-              ∗ deref_witness_res dw }}}.
-   Proof.
-    iIntros (-> Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hdst φ) "(HPC & Hi & >Hdst & Ha & Hdw) Hφ".
-    iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_store_next_imm with "[$HPC $Hi $Ha $Hdw $Hmap]"); try solve_next_side.
-    iIntros "!> (HPC & Hi & Ha & Hdw & Hmap)". iRegsMap "Hmap".
-    rewrite lstore_word_canStore; last by apply writeAllowed_canStore_int.
-    iApply "Hφ". iFrame.
-   Qed.
-
    Lemma wp_store_success_reg_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src w'
-       p g b e a ea (imm : Z) w'' dq :
-     π = None →
+       p g b e a ea (imm : Z) w'' dq q :
      is_shadow_address ea = false →
      decodeInstrW w.(lw) = Store dst (inr src) imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -937,25 +853,26 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
            ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ src ↦ᵣ w''
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
-           ∗ ▷ ea ↦ₐ w' }}}
+           ∗ ▷ ea ↦ₐ w'
+           ∗ deref_res π q }}}
        Instr Executable @ E
      {{{ RET NextIV;
          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
            ∗ pc_a ↦ₐ{dq} w
            ∗ src ↦ᵣ w''
            ∗ dst ↦ᵣ WCap true p g b e a @@? π
-           ∗ ea ↦ₐ w'' }}}.
+           ∗ ea ↦ₐ w''
+           ∗ deref_res π q }}}.
    Proof.
-     iIntros (-> Hshadow Hinstr Hvpc Hpca' Hwa Hwb Hadd HcanStore Hsrc Hdst φ) "Hres Hφ".
+     iIntros (Hshadow Hinstr Hvpc Hpca' Hwa Hwb Hadd HcanStore Hsrc Hdst φ) "Hres Hφ".
      iApply (wp_store_success_reg_store_word_imm with "Hres"); eauto.
-     iNext. iIntros "(HPC & Hi & Hsrc & Hdst & Ha)".
+     iNext. iIntros "(HPC & Hi & Hsrc & Hdst & Ha & Hdw)".
      iEval (rewrite lstore_word_canStore //) in "Ha".
      iApply "Hφ". iFrame.
    Qed.
 
    Lemma wp_store_success_same_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z
-         p g b e a (imm : Z) :
-     π = None →
+         p g b e a (imm : Z) q :
      is_shadow_address pc_a = false →
      decodeInstrW w.(lw) = Store dst (inl z) imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -966,24 +883,28 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
 
      {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ (WInt z)
-              ∗ dst ↦ᵣ WCap true p g b e a @@? π }}}.
+              ∗ dst ↦ᵣ WCap true p g b e a @@? π
+              ∗ deref_res π q }}}.
     Proof.
-    iIntros (-> Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hdst φ) "(HPC & Hi & >Hdst) Hφ".
+    rewrite deref_res_witness.
+    generalize (deref_id_witness_of π q). generalize (deref_witness_of π q).
+    intros dw <-.
+    iIntros (Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hdst φ) "(HPC & Hi & >Hdst & Hdw) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_store_next_pc_imm with "[$HPC $Hi $Hmap]"); try solve_next_side.
-    iIntros "!> (HPC & Hi & Hmap)". iRegsMap "Hmap".
+    iApply (wp_store_next_pc_imm with "[$HPC $Hi $Hdw $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hi & Hdw & Hmap)". iRegsMap "Hmap".
     rewrite lstore_word_canStore; last by apply writeAllowed_canStore_int.
     iApply "Hφ". iFrame.
     Qed.
 
    Lemma wp_store_success_reg_same'_store_word_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst
-         p g b e a (imm : Z) :
-     π = None →
+         p g b e a (imm : Z) q :
      is_shadow_address pc_a = false →
      decodeInstrW w.(lw) = Store dst (inr dst) imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -994,23 +915,27 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
 
      {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ lstore_word p (WCap true p g b e a @@? π)
-              ∗ dst ↦ᵣ WCap true p g b e a @@? π }}}.
+              ∗ dst ↦ᵣ WCap true p g b e a @@? π
+              ∗ deref_res π q }}}.
    Proof.
-    iIntros (-> Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hdst φ) "(HPC & Hi & >Hdst) Hφ".
+    rewrite deref_res_witness.
+    generalize (deref_id_witness_of π q). generalize (deref_witness_of π q).
+    intros dw <-.
+    iIntros (Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hdst φ) "(HPC & Hi & >Hdst & Hdw) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_store_next_pc_imm with "[$HPC $Hi $Hmap]"); try solve_next_side.
-    iIntros "!> (HPC & Hi & Hmap)". iRegsMap "Hmap".
+    iApply (wp_store_next_pc_imm with "[$HPC $Hi $Hdw $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hi & Hdw & Hmap)". iRegsMap "Hmap".
     iApply "Hφ". iFrame.
    Qed.
 
    Lemma wp_store_success_reg_same_a_store_word_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src
-         p g b e a (imm : Z) w'' :
-     π = None →
+         p g b e a (imm : Z) w'' q :
      is_shadow_address pc_a = false →
       decodeInstrW w.(lw) = Store dst (inr src) imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1023,18 +948,23 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
      {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ src ↦ᵣ w''
-           ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ lstore_word p w''
               ∗ src ↦ᵣ w''
-              ∗ dst ↦ᵣ WCap true p g b e a @@? π}}}.
+              ∗ dst ↦ᵣ WCap true p g b e a @@? π
+              ∗ deref_res π q }}}.
    Proof.
-    iIntros (-> Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hsrc Hdst φ) "(HPC & Hi & >Hsrc & >Hdst) Hφ".
+    rewrite deref_res_witness.
+    generalize (deref_id_witness_of π q). generalize (deref_witness_of π q).
+    intros dw <-.
+    iIntros (Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hsrc Hdst φ) "(HPC & Hi & >Hsrc & >Hdst & Hdw) Hφ".
     iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %]".
-    iApply (wp_store_next_pc_imm with "[$HPC $Hi $Hmap]"); try solve_next_side.
-    iIntros "!> (HPC & Hi & Hmap)". iRegsMap "Hmap".
+    iApply (wp_store_next_pc_imm with "[$HPC $Hi $Hdw $Hmap]"); try solve_next_side.
+    iIntros "!> (HPC & Hi & Hdw & Hmap)". iRegsMap "Hmap".
     iApply "Hφ". iFrame.
    Qed.
 
@@ -1270,8 +1200,7 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
   Qed.
 
    Lemma wp_store_success_same E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z w'
-         p g b e :
-     π = None →
+         p g b e q :
      is_shadow_address pc_a = false →
      decodeInstrW w.(lw) = Store dst (inl z) 0 →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1281,19 +1210,20 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
 
      {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a @@? π }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a @@? π
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ (WInt z)
-              ∗ dst ↦ᵣ WCap true p g b e pc_a @@? π }}}.
+              ∗ dst ↦ᵣ WCap true p g b e pc_a @@? π
+              ∗ deref_res π q }}}.
   Proof.
     intros. eapply wp_store_success_same_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
 
    Lemma wp_store_success_reg_same'_store_word E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst
-         p g b e :
-     π = None →
+         p g b e q :
      is_shadow_address pc_a = false →
      decodeInstrW w.(lw) = Store dst (inr dst) 0 →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1303,19 +1233,20 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
 
      {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a @@? π }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a @@? π
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ lstore_word p (WCap true p g b e pc_a @@? π)
-              ∗ dst ↦ᵣ WCap true p g b e pc_a @@? π }}}.
+              ∗ dst ↦ᵣ WCap true p g b e pc_a @@? π
+              ∗ deref_res π q }}}.
    Proof.
     intros. eapply wp_store_success_reg_same'_store_word_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
 
    Lemma wp_store_success_reg_same_a_store_word E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src
-         p g b e w'' :
-     π = None →
+         p g b e w'' q :
       is_shadow_address pc_a = false →
      decodeInstrW w.(lw) = Store dst (inr src) 0 →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1327,20 +1258,21 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
      {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ src ↦ᵣ w''
-           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a @@? π }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a @@? π
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ lstore_word p w''
               ∗ src ↦ᵣ w''
-              ∗ dst ↦ᵣ WCap true p g b e pc_a @@? π}}}.
+              ∗ dst ↦ᵣ WCap true p g b e pc_a @@? π
+              ∗ deref_res π q }}}.
    Proof.
     intros. eapply wp_store_success_reg_same_a_store_word_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
 
    Lemma wp_store_success_reg_store_word E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src w'
-         p g b e a w'' dq :
-     π = None →
+         p g b e a w'' dq q :
       is_shadow_address a = false →
      decodeInstrW w.(lw) = Store dst (inr src) 0 →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1353,21 +1285,22 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
            ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ src ↦ᵣ w''
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
-           ∗ ▷ a ↦ₐ w' }}}
+           ∗ ▷ a ↦ₐ w'
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ{dq} w
               ∗ src ↦ᵣ w''
               ∗ dst ↦ᵣ WCap true p g b e a @@? π
-              ∗ a ↦ₐ lstore_word p w'' }}}.
+              ∗ a ↦ₐ lstore_word p w''
+              ∗ deref_res π q }}}.
     Proof.
     intros. eapply wp_store_success_reg_store_word_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
 
    Lemma wp_store_success_reg E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src w'
-         p g b e a w'' dq :
-     π = None →
+         p g b e a w'' dq q :
      is_shadow_address a = false →
       decodeInstrW w.(lw) = Store dst (inr src) 0 →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1381,21 +1314,22 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
            ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ src ↦ᵣ w''
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
-           ∗ ▷ a ↦ₐ w' }}}
+           ∗ ▷ a ↦ₐ w'
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ{dq} w
               ∗ src ↦ᵣ w''
               ∗ dst ↦ᵣ WCap true p g b e a @@? π
-              ∗ a ↦ₐ w'' }}}.
+              ∗ a ↦ₐ w''
+              ∗ deref_res π q }}}.
   Proof.
     intros. eapply wp_store_success_reg_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
 
    Lemma wp_store_success_reg_same_store_word E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst w'
-         p g b e a dq :
-     π = None →
+         p g b e a dq q :
      is_shadow_address a = false →
      decodeInstrW w.(lw) = Store dst (inr dst) 0 →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -1406,13 +1340,15 @@ Lemma wp_store_success_z_imm_dw E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst 
      {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
            ∗ ▷ pc_a ↦ₐ{dq} w
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
-           ∗ ▷ a ↦ₐ w' }}}
+           ∗ ▷ a ↦ₐ w'
+           ∗ deref_res π q }}}
        Instr Executable @ E
        {{{ RET NextIV;
            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
               ∗ pc_a ↦ₐ{dq} w
               ∗ dst ↦ᵣ WCap true p g b e a @@? π
-              ∗ a ↦ₐ lstore_word p (WCap true p g b e a @@? π) }}}.
+              ∗ a ↦ₐ lstore_word p (WCap true p g b e a @@? π)
+              ∗ deref_res π q }}}.
    Proof.
     intros. eapply wp_store_success_reg_same_store_word_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.

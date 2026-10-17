@@ -70,9 +70,10 @@ Section Counter_Main_Blocks_1.
     (* Store cgp cs0 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_store_success_reg with "[$HPC $Hi $Hcs0 $Hcgp $Hcgp_b]"); try solve_pure.
+    iPoseProof deref_res_none as "-#Hdw".
+    iApply (wp_store_success_reg with "[$HPC $Hi $Hcs0 $Hcgp $Hcgp_b $Hdw]"); try solve_pure.
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
-    iIntros "!> (HPC & Hi & Hcs0 & Hcgp & Hcgp_b)".
+    iIntros "!> (HPC & Hi & Hcs0 & Hcgp & Hcgp_b & _)".
     iClear "Hi".
     wp_pure.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

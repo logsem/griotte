@@ -123,8 +123,10 @@ Section wp_interp.
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
       [by eapply writeAllowed_nonO|done|].
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
-    iApply (wp_store_success_reg_store_word_imm_dw with "[$HPC $Hi $Hsrc $Hdst $Ha $Hdw]"); eauto.
+    iEval (rewrite deref_witness_res_deref_res -Hdw) in "Hdw".
+    iApply (wp_store_success_reg_store_word_imm with "[$HPC $Hi $Hsrc $Hdst $Ha $Hdw]"); eauto.
     iNext; iIntros "(HPC & Hi & Hsrc & Hdst & Ha & Hdw)".
+    iEval (rewrite Hdw -deref_witness_res_deref_res) in "Hdw".
     iDestruct ("Hshare" with "Hdw") as "Hshare".
 
     iAssert (P W C (lstore_word p wsrc)) as "Hinterp'".
@@ -364,8 +366,10 @@ Section wp_interp.
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
       [by eapply writeAllowed_nonO|done|].
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
-    iApply (wp_store_success_z_imm_dw with "[$HPC $Hi $Hdst $Ha $Hdw]"); eauto.
+    iEval (rewrite deref_witness_res_deref_res -Hdw) in "Hdw".
+    iApply (wp_store_success_z_imm with "[$HPC $Hi $Hdst $Ha $Hdw]"); eauto.
     iNext; iIntros "(HPC & Hi & Hdst & Ha & Hdw)".
+    iEval (rewrite Hdw -deref_witness_res_deref_res) in "Hdw".
     iDestruct ("Hshare" with "Hdw") as "Hshare".
 
     iAssert (P W C (WInt z)) as "Hinterp'".

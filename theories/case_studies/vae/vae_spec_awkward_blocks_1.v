@@ -74,7 +74,7 @@ Section VAE_Awkward_Blocks_1.
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.
     iAssert (cgp_b ↦ₐ (if b then WInt 1 else WInt 0))%I with "[Hflag]" as "Hflag".
     { destruct b; iFrame. }
-    iPoseProof deref_res_none as "Hdw".
+    iPoseProof deref_res_none as "-#Hdw".
     iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hflag $Hdw]"); try solve_pure.
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
     iIntros "!> (HPC & Hi & Hcgp & Hflag & _)".

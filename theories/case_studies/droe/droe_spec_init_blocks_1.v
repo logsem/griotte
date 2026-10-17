@@ -74,11 +74,12 @@ Section DROE_Init_Blocks_1.
     (* [iInstr] does not find the resources of this store *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_store_success_reg with "[$HPC $Hi $Hct0 $Hcgp $Hcgp_a]") ; try solve_pure.
+    iPoseProof deref_res_none as "-#Hdw".
+    iApply (wp_store_success_reg with "[$HPC $Hi $Hct0 $Hcgp $Hcgp_a $Hdw]") ; try solve_pure.
     { solve_not_shadow Hcgp_mmio. }
     { rewrite /withinBounds; solve_addr. }
     { done. }
-    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hcgp_a)".
+    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hcgp_a & _)".
     iClear "Hi".
     wp_pure.
     (* Mov ca0 cgp *)

@@ -91,14 +91,6 @@ Section griotte_lang_rules.
     - by right.
   Qed.
 
-  (** A Get result is exact, except a GetTag on a word whose tag may be
-      cleared. *)
-  Definition get_exact (i : instr) (w : LWord) : Prop :=
-    match i with
-    | GetTag _ _ => ¬ tag_strippable w
-    | _ => True
-    end.
-
   Inductive Get_spec (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName)
     (lpc' : LWord) (regs' : LReg): griotte_lang.val -> Prop :=
     | Get_spec_success w z:
@@ -213,11 +205,13 @@ Section griotte_lang_rules.
     denote i w.(lw) = Some z ∨
     ((∃ d s, i = GetTag d s) ∧ z = 0%Z ∧ tag_strippable w).
 
+  (** The result of a Get other than GetTag is its denotation. *)
   Lemma get_result_exact i w z z' :
-    get_result i w z → denote i w.(lw) = Some z' → get_exact i w → z = z'.
+    get_result i w z → denote i w.(lw) = Some z' →
+    (∀ dst' src', i ≠ GetTag dst' src') → z = z'.
   Proof.
-    intros [Hz | ((d & s & ->) & -> & Hs)] Hz' Hex; first congruence.
-    by exfalso; apply Hex.
+    intros [Hz | ((d & s & ->) & -> & Hs)] Hz' Hnot; first congruence.
+    by exfalso; apply (Hnot d s).
   Qed.
 
   (** A successful Get writes a [get_result]. *)
@@ -280,8 +274,8 @@ Section griotte_lang_rules.
     is_Get get_i r r →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
+    (∀ dst' src', get_i ≠ GetTag dst' src') →
     denote get_i wr.(lw) = Some z →
-    get_exact get_i wr →
     r ≠ cnull ->
 
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
@@ -293,12 +287,12 @@ Section griotte_lang_rules.
           ∗ pc_a ↦ₐ{dq} w
           ∗ r ↦ᵣ WInt z }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote Hexact Hcnull φ) "(HPC & Hpc_a & >Hr) Hφ".
+    iIntros (Hdecode Hinstr Hvpc Hpca' Hnot_tag Hdenote Hcnull φ) "(HPC & Hpc_a & >Hr) Hφ".
     iDestruct (map_of_regs_1 with "Hr") as "Hmap".
     iApply (wp_Get_next _ get_i r r _ _ _ _ _ _ _ _ wr with "[$HPC $Hpc_a $Hmap]");
       try solve_next_side; try by eexists.
     iIntros "!>" (z') "(%Hz & HPC & Hpc_a & Hmap)".
-    rewrite (get_result_exact _ _ _ z Hz Hdenote Hexact).
+    rewrite (get_result_exact _ _ _ z Hz Hdenote Hnot_tag).
     iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
@@ -307,8 +301,8 @@ Section griotte_lang_rules.
     is_Get get_i dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
+    (∀ dst' src', get_i ≠ GetTag dst' src') →
     denote get_i wsrc.(lw) = Some z →
-    get_exact get_i wsrc →
     src ≠ cnull ->
     dst ≠ cnull ->
 
@@ -323,13 +317,13 @@ Section griotte_lang_rules.
           ∗ src ↦ᵣ wsrc
           ∗ dst ↦ᵣ WInt z }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote Hexact Hcnull Hcnull' φ)
+    iIntros (Hdecode Hinstr Hvpc Hpca' Hnot_tag Hdenote Hcnull Hcnull' φ)
       "(HPC & Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %]".
     iApply (wp_Get_next _ get_i dst src _ _ _ _ _ _ _ _ wsrc with "[$HPC $Hpc_a $Hmap]");
       try solve_next_side; try by eexists.
     iIntros "!>" (z') "(%Hz & HPC & Hpc_a & Hmap)".
-    rewrite (get_result_exact _ _ _ z Hz Hdenote Hexact).
+    rewrite (get_result_exact _ _ _ z Hz Hdenote Hnot_tag).
     iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
@@ -413,7 +407,7 @@ Section griotte_lang_rules.
     iApply (wp_Get_next _ (GetTag dst cnull) dst cnull _ _ _ _ _ _ _ _ lnull
       with "[$HPC $Hpc_a $Hmap]"); try solve_next_side; try (by unfold is_Get; tauto); try by eexists.
     iIntros "!>" (z') "(%Hz & HPC & Hpc_a & Hmap)".
-    rewrite (get_result_exact _ _ _ 0 Hz); [| done | by intros [? _]].
+    assert (z' = 0%Z) as -> by (destruct Hz as [Hz | (_ & -> & [Ht _])]; by simplify_eq/=).
     iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
@@ -591,36 +585,38 @@ Section griotte_lang_rules.
     - exfalso. incrementPC_inv; simplify_map_eq; eauto; try congruence.
   Qed.
 
-  (** GetTag returns the tag of a word under a dereference witness for its
+  (** GetTag returns the tag of a word under the dereference resource of its
       identifier, when it has authority or no heap base. *)
-  Lemma wp_gettag_success_dw E dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc wdst pc_a' dq dw :
+  Lemma wp_gettag_success E dst src pc_p pc_g pc_b pc_e pc_a pc_π w ws πs wdst pc_a' dq q :
     decodeInstrW w.(lw) = GetTag dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
-    wsrc.(lprov) = deref_id dw →
-    load_exact_cond wsrc →
-    src ≠ dst →
+    load_exact_cond (ws @@? πs) →
     src ≠ cnull →
     dst ≠ cnull →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ src ↦ᵣ wsrc
+        ∗ ▷ src ↦ᵣ ws @@? πs
         ∗ ▷ dst ↦ᵣ wdst
-        ∗ deref_witness_res dw }}}
+        ∗ deref_res πs q }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
-          ∗ src ↦ᵣ wsrc
-          ∗ dst ↦ᵣ WInt (Z.b2z (get_tag wsrc.(lw)))
-          ∗ deref_witness_res dw }}}.
+          ∗ src ↦ᵣ ws @@? πs
+          ∗ dst ↦ᵣ WInt (Z.b2z (get_tag ws))
+          ∗ deref_res πs q }}}.
   Proof.
-    iIntros (Hdecode Hvpc Hpca' Hπ Hcond Hne Hsrc_null Hcnull φ)
-      "(HPC & Hpc_a & Hsrc & Hdst & Hdw) Hφ".
-    iApply (wp_gettag_obs _ _ _ _ _ _ _ _ _ _ _ _ _ _ dw emp%I (λ _, True)
+    iIntros (Hdecode Hvpc Hpca' Hcond Hsrc_null Hcnull φ)
+      "(HPC & Hpc_a & >Hsrc & >Hdst & Hdw) Hφ".
+    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hne]".
+    iDestruct (regs_of_map_2 with "Hmap") as "[Hsrc Hdst]"; first done.
+    rewrite deref_res_witness.
+    iApply (wp_gettag_obs _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ emp%I (λ _, True)
       with "[$HPC $Hpc_a $Hsrc $Hdst $Hdw]"); eauto.
     iNext. iIntros (z) "(HPC & Hpc_a & Hsrc & Hdst & Hdw & _ & %Hres)".
-    destruct Hres as (_ & Hexact & _). rewrite (Hexact Hπ Hcond).
+    destruct Hres as (_ & Hexact & _).
+    rewrite (Hexact (eq_sym (deref_id_witness_of _ _)) Hcond).
     iApply "Hφ". iFrame.
   Qed.
 
@@ -656,9 +652,6 @@ Proof. by destruct_word w ; cbn. Qed.
 
 Lemma is_Get_GetTag dst src : is_Get (GetTag dst src) dst src.
 Proof. unfold is_Get; tauto. Qed.
-Lemma get_exact_gettag_untagged `{MachineParameters} dst src (w : LWord) :
-  get_tag w.(lw) = false → get_exact (GetTag dst src) w.
-Proof. intros Ht [Ht' _]. congruence. Qed.
 
 Lemma gettag_denote `{MachineParameters} dst src w :
   denote (GetTag dst src) w = Some (Z.b2z (get_tag w)).

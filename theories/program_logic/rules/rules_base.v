@@ -907,6 +907,10 @@ Definition deref_witness_of (π : option AId) (q : Qp) : deref_witness :=
 Lemma deref_id_witness_of π q : deref_id (deref_witness_of π q) = π.
 Proof. by destruct π. Qed.
 
+(** The share of a witness, [1] without an identifier. *)
+Definition deref_share (dw : deref_witness) : Qp :=
+  match dw with DerefNoId => 1%Qp | DerefLive _ q => q end.
+
 Section deref_witness.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
 
@@ -942,6 +946,11 @@ Section deref_witness.
   (** The resource of an identifier-less capability, with share [1]. *)
   Lemma deref_res_none : ⊢ deref_res None 1.
   Proof. done. Qed.
+
+  (** A witness is the dereference resource of its identifier. *)
+  Lemma deref_witness_res_deref_res dw :
+    deref_witness_res dw = deref_res (deref_id dw) (deref_share dw).
+  Proof. by destruct dw. Qed.
 
   Definition deref_witness_ok (R : RegState) (dw : deref_witness) : Prop :=
     match dw with

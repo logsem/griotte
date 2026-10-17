@@ -762,10 +762,12 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
         (Ltac1.of_constr c) (Ltac1.of_constr a) (Ltac1.of_constr name)
     end
   | DerefRes =>
-    match! goal with [ |- context [ deref_res (Some ?ι) ?q ] ] =>
-      assert_constr_eq ι lhs;
-      ltac1:(q ι name |- change (deref_res (Some ι) q) with (name ∷ (deref_res (Some ι) q)))
-        (Ltac1.of_constr q) (Ltac1.of_constr ι) (Ltac1.of_constr name)
+    (* The identifier may be a projection of the register's word. *)
+    match! goal with [ |- context [ deref_res ?π ?q ] ] =>
+      let π' := eval cbn in $π in
+      assert_constr_eq π' '(Some $lhs);
+      ltac1:(q π name |- change (deref_res π q) with (name ∷ (deref_res π q)))
+        (Ltac1.of_constr q) (Ltac1.of_constr π) (Ltac1.of_constr name)
     end
   end.
 

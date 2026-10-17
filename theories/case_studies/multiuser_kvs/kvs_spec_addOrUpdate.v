@@ -143,10 +143,11 @@ Section KVS_spec_addOrUpdate.
     (* Store cgp (inr ca2) 0 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (rules_Store.wp_store_success_reg_store_word with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val]"); try solve_pure.
+    iPoseProof deref_res_none as "-#Hdw".
+    iApply (rules_Store.wp_store_success_reg_store_word with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val $Hdw]"); try solve_pure.
     { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
       solve_addr+Hcgp_idx. }
-    iNext; iIntros "(HPC & Hi & Hca2 & Hcgp & Hcgp_val)".
+    iNext; iIntros "(HPC & Hi & Hca2 & Hcgp & Hcgp_val & _)".
     wp_pure.
     iClear "Hi".
 
@@ -619,11 +620,12 @@ Section KVS_spec_addOrUpdate.
       (* store cgp ca0; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (rules_Store.wp_store_success_reg with "[$HPC $Hi $Hca0 $Hcgp $Hcgp_key]"); try solve_pure.
+      iPoseProof deref_res_none as "-#Hdw".
+      iApply (rules_Store.wp_store_success_reg with "[$HPC $Hi $Hca0 $Hcgp $Hcgp_key $Hdw]"); try solve_pure.
       { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
         solve_addr+Hcgp_bounds. }
       { solve_addr+Hcgp_bounds. }
-      iNext; iIntros "(HPC & Hi & Hca0 & Hcgp & Hcgp_key)".
+      iNext; iIntros "(HPC & Hi & Hca0 & Hcgp & Hcgp_key & _)".
       wp_pure.
       iClear "Hi".
       (* lea cgp 1; *)
@@ -632,10 +634,11 @@ Section KVS_spec_addOrUpdate.
       (* store cgp ca2; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (rules_Store.wp_store_success_reg_store_word with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val]"); try solve_pure.
+      iPoseProof deref_res_none as "-#Hdw".
+      iApply (rules_Store.wp_store_success_reg_store_word with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val $Hdw]"); try solve_pure.
       { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
         exact Hcgp_bounds. }
-      iNext; iIntros "(HPC & Hi & Hca2 & Hcgp & Hcgp_val)".
+      iNext; iIntros "(HPC & Hi & Hca2 & Hcgp & Hcgp_val & _)".
       wp_pure.
       iClear "Hi".
       (* mov ca0 ASM_TRUE; *)
