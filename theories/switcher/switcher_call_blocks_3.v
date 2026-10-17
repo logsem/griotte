@@ -143,10 +143,19 @@ Section Switcher_Call_Blocks_3.
              with "[$HPC $Hi $Hcs0 $Hct1]"); try done; try solve_pure.
     { pose proof ot_switcher_size; solve_addr. }
     iIntros "!>" (ret)
-      "[-> |
+      "[(-> & HPC & Hi & Hcs0 & Hct1 & %Hnot_sealed) |
        [(%o & %wsb & %π & -> & HPC & Hi & Hcs0 & Hct1 & %Hwct1 & %Htag & %Hrange)
        |(%ot & %sb & %π & -> & HPC & Hi & Hcs0 & Hct1 & %Hwct1 & %Hinvalid)]]".
-    { wp_pure. wp_end. iIntros "%Hcontr";done. }
+    { (* The operand is not sealed: it loses its tag, and the next CLoad
+         fails. *)
+      wp_pure.
+      iClear "Hi".
+      (* --- CLoad cs0 ct1 --- *)
+      iInstr_fail "Hcode".
+      { intros r sr m st s1 s2 _ Hr.
+        rewrite /exec /= /lookup_reg /= Hr.
+        destruct wct1 as [w0 π0]. destruct_word w0; by destruct s2. }
+      wp_end; iIntros "%Hcontr"; done. }
     2: {
       (* The unsealed entry point is invalid: the next CLoad fails. *)
       simplify_eq.

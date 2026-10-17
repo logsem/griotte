@@ -132,7 +132,7 @@ Section KVS_spec_erase.
     iInstr "Hcode".
     (* jnz (".erase_key_found")%asm ctp; *)
     iInstr "Hcode".
-    { injection; intros; lia. }
+    { apply nonZero_WInt; injection; intros; lia. }
     (* store cgp ASM_NONE; *)
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
@@ -142,6 +142,10 @@ Section KVS_spec_erase.
     iInstr "Hcode".
     (* mov ca1 0; *)
     iInstr "Hcode".
+    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    { (* jalr cnull cra *)
+      iInstr_fail "Hcode".
+      wp_end; by iIntros (?). }
     (* jalr cnull cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -564,6 +568,10 @@ Section KVS_spec_erase.
       iInstr "Hcode".
       (* jmp (".read_key_ret")%asm; *)
       iInstr "Hcode".
+      destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+      { (* jalr cnull cra *)
+        iInstr_fail "Hcode".
+        wp_end; by iIntros (?). }
       (* jalr cnull cra *)
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -585,6 +593,10 @@ Section KVS_spec_erase.
       iInstr "Hcode".
       (* jmp (".read_key_ret")%asm; *)
       iInstr "Hcode".
+      destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+      { (* jalr cnull cra *)
+        iInstr_fail "Hcode".
+        wp_end; by iIntros (?). }
       (* jalr cnull cra *)
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -917,6 +929,10 @@ Section KVS_spec_erase.
     iInstr "Hcode".
     (* mov ca1 0; *)
     iInstr "Hcode".
+    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    { (* jalr cnull cra; *)
+      iInstr_fail "Hcode".
+      wp_end; by iIntros (?). }
     (* jalr cnull cra; *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.

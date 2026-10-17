@@ -7,18 +7,19 @@ Section opsem_prop.
 
 Lemma z_of_argument_Some_inv (regs: Reg) (arg: Z + RegName) (z:Z) :
   z_of_argument regs arg = Some z →
-  (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z)).
+  (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ᵣ r = Some w ∧ get_a w = z).
 Proof.
-  unfold z_of_argument. intro. repeat case_match; simplify_eq/=; eauto.
+  unfold z_of_argument. intro. repeat case_match; simplify_eq/=; eauto 10.
 Qed.
 
 Lemma z_of_argument_Some_inv' (regs regs': Reg) (arg: Z + RegName) (z:Z) :
   z_of_argument regs arg = Some z →
   regs ⊆ regs' →
-  (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z) ∧ regs' !!ᵣ r  = Some (WInt z)).
+  (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ᵣ r = Some w ∧ regs' !!ᵣ r = Some w ∧
+                        get_a w = z).
 Proof.
   unfold z_of_argument. intro. repeat case_match; simplify_eq/=; eauto.
-  intros HH. unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto.
+  intros HH. unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto 10.
 Qed.
 
 Lemma z_of_arg_mono (regs r: Reg) arg argz:
@@ -79,21 +80,23 @@ Qed.
 Lemma addr_of_argument_Some_inv (regs: Reg) (arg: Z + RegName) (a:Addr) :
   addr_of_argument regs arg = Some a →
   ∃ z, z_to_addr z = Some a ∧
-       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z)).
+       (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ᵣ r = Some w ∧ get_a w = z).
 Proof.
-  unfold addr_of_argument, z_of_argument.
-  intro. repeat case_match; simplify_eq/=; eauto. eexists. eauto.
+  unfold addr_of_argument.
+  destruct (z_of_argument regs arg) eqn:Hz; last done.
+  intros. eexists. split; eauto. by apply z_of_argument_Some_inv.
 Qed.
 
 Lemma addr_of_argument_Some_inv' (regs regs': Reg) (arg: Z + RegName) (a:Addr) :
   addr_of_argument regs arg = Some a →
   regs ⊆ regs' →
   ∃ z, z_to_addr z = Some a ∧
-       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z) ∧ regs' !!ᵣ r = Some (WInt z)).
+       (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ᵣ r = Some w ∧ regs' !!ᵣ r = Some w ∧
+                             get_a w = z).
 Proof.
-  unfold addr_of_argument, z_of_argument.
-  intros ? HH. repeat case_match; simplify_eq/=; eauto. eexists. split; eauto.
-  unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto.
+  unfold addr_of_argument.
+  destruct (z_of_argument regs arg) eqn:Hz; last done.
+  intros ? HH. eexists. split; eauto. by eapply z_of_argument_Some_inv'.
 Qed.
 
 Lemma addr_of_arg_mono (regs r: Reg) arg w:
@@ -112,21 +115,23 @@ Qed.
 Lemma otype_of_argument_Some_inv (regs: Reg) (arg: Z + RegName) (o:OType) :
   otype_of_argument regs arg = Some o →
   ∃ z, z_to_otype z = Some o ∧
-       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z)).
+       (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ᵣ r = Some w ∧ get_a w = z).
 Proof.
-  unfold otype_of_argument, z_of_argument.
-  intro. repeat case_match; simplify_eq/=; eauto. eexists. eauto.
+  unfold otype_of_argument.
+  destruct (z_of_argument regs arg) eqn:Hz; last done.
+  intros. eexists. split; eauto. by apply z_of_argument_Some_inv.
 Qed.
 
 Lemma otype_of_argument_Some_inv' (regs regs': Reg) (arg: Z + RegName) (o:OType) :
   otype_of_argument regs arg = Some o →
   regs ⊆ regs' →
   ∃ z, z_to_otype z = Some o ∧
-       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z) ∧ regs' !!ᵣ r = Some (WInt z)).
+       (arg = inl z ∨ ∃ r w, arg = inr r ∧ regs !!ᵣ r = Some w ∧ regs' !!ᵣ r = Some w ∧
+                             get_a w = z).
 Proof.
-  unfold otype_of_argument, z_of_argument.
-  intros ? HH. repeat case_match; simplify_eq/=; eauto. eexists. split; eauto.
-  unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto.
+  unfold otype_of_argument.
+  destruct (z_of_argument regs arg) eqn:Hz; last done.
+  intros ? HH. eexists. split; eauto. by eapply z_of_argument_Some_inv'.
 Qed.
 
 Lemma otype_of_arg_mono (regs r: Reg) arg w:
@@ -209,8 +214,6 @@ Qed.
     ; repeat destruct (z_of_argument (reg φ) _)
     ; cbn in *; try by exfalso.
     all: repeat destruct (reg _ !!ᵣ _); cbn in *; repeat case_match.
-    all: repeat destruct (get_a _); repeat destruct (get_b _); repeat destruct (get_e _);
-      repeat destruct (get_p _); repeat destruct (get_l _).
     all: repeat destruct (pcc _); cbn in *; repeat case_match.
     all: repeat destruct (sreg _ !! _); cbn in *; repeat case_match.
     all: repeat destruct (finz.incr _ _); cbn in *; repeat case_match.

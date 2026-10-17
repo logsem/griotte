@@ -102,7 +102,11 @@ Section Switcher_Return_Blocks_1.
       iInstr "Hcode".
 
       (* --- Lea csp (-1)%Z --- *)
-      iInstr_fail "Hcode".
+      iInstr "Hcode".
+
+      (* --- CLoad cgp csp --- *)
+      iInstrApply "Hcode" (wp_instr_failed_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "_".
+      { intros r sr m st s1 Hr; by rewrite /exec /= /lookup_reg /= Hr. }
       wp_end; by iIntros (?).
     }
     assert (is_Some (b_trusted_stack + -1))%a
@@ -114,7 +118,11 @@ Section Switcher_Return_Blocks_1.
     iInstr "Hcode".
 
     (* --- Lea csp (-1)%Z --- *)
-    iInstr_fail "Hcode".
+    iInstr "Hcode".
+
+    (* --- CLoad cgp csp --- *)
+    iInstrApply "Hcode" (wp_instr_failed_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "_".
+    { intros r sr m st s1 Hr; by rewrite /exec /= /lookup_reg /= Hr. }
     wp_end; by iIntros (?).
   Qed.
 

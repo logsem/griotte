@@ -68,7 +68,7 @@ Section ClearStackMacro.
     - (* csp_a ≠ csp_2 ==> another iteration (or failure) *)
       (* --- Jnz 2 r1 --- *)
       iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hr1]" as "(HPC & Hct2)".
-      { intros Hcontr; inversion Hcontr; solve_addr. }
+      { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; solve_addr. }
 
       rewrite finz_seq_between_cons in Hlen_stk; last solve_addr.
       destruct ws as [|wa ws]; simplify_eq.

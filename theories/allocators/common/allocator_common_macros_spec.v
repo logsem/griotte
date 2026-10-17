@@ -87,6 +87,7 @@ Section AllocatorMacros.
     cra ↦ᵣ wret ∗
     cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a code ∗
+    ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          cnull ↦ᵣ WInt 0 ∗
@@ -96,8 +97,12 @@ Section AllocatorMacros.
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros code Hpc Hdisjoint; subst code.
-    iIntros "(HPC & Hcra & Hcnull & #Hcode & Hφ)".
+    iIntros "(HPC & Hcra & Hcnull & #Hcode & Hfailed & Hφ)".
     codefrag_facts "Hcode".
+    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    { (* Jalr cnull cra. *)
+      iInstr_fail "Hcode".
+      wp_end. iExact "Hfailed". }
     (* Jalr cnull cra. *)
     iInstr "Hcode" with "Hlc".
     iApply "Hφ". iFrame "∗ Hcode".
@@ -186,7 +191,7 @@ Section AllocatorMacros.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jnz .allocator_zero rtmp repeats the loop. *)
       iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Htmp]" as "(HPC & Htmp)".
-      { intros Hzero; inversion Hzero; solve_addr. }
+      { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
       iApply ("IH" $! (b ^+ 1)%a with
         "[] [] HPC Hptr Hdw Hend Htmp Hmem [Ha Hφ]").
@@ -347,7 +352,7 @@ Section AllocatorMacros.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jnz .allocator_paint rcount repeats the loop. *)
       iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hcount]" as "(HPC & Hcount)".
-      { intros Hzero; inversion Hzero; solve_addr. }
+      { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
       replace (e - b - 1)%Z with (e - (b ^+ 1)%a)%Z by solve_addr.
       iApply ("IH" $! (b ^+ 1)%a (sb ^+ 1)%a with

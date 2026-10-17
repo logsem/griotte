@@ -195,7 +195,8 @@ Section ghost_init.
 
   (** Every initial word with authority is based on a heap root, heap roots
       are unpainted, [cnull] holds zero, and every tagged executable word
-      has closed bounds that avoid the heap. *)
+      has closed bounds that avoid the heap; a tagged PC is an unsealed
+      executable capability. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -212,6 +213,7 @@ Section ghost_init.
     gi_pc_exec : lword_exec (lword_of_word (pcc σ));
     gi_regs_exec r w : reg σ !! r = Some w → lword_exec (lword_of_word w);
     gi_sregs_exec sr w : sreg σ !! sr = Some w → lword_exec (lword_of_word w);
+    gi_pc_ok : pc_ok (pcc σ);
   }.
 
   Lemma lookup_init_claims H a :
@@ -284,6 +286,7 @@ Section ghost_init.
     - apply Hinit.
     - apply reg_phys_lword_of_word.
     - apply Hok; last by apply (gi_pc_exec _ _ Hinit). intros b. by apply gi_pc.
+    - apply Hinit.
   Qed.
 
   Context `{!ceriseGpreS Σ}.

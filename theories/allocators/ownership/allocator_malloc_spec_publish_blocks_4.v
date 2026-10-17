@@ -31,6 +31,7 @@ Section AllocatorMallocPublishBlocks4.
     cnull ↦ᵣ wnull ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag_pers pc_a allocator_malloc_code ∗
+    ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
@@ -46,7 +47,7 @@ Section AllocatorMallocPublishBlocks4.
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds Hbase Hfinish Hrange. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
-    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hcnull & Hslot & #Hcode_main & Hφ)".
+    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hcnull & Hslot & #Hcode_main & Hfailed & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     unfold allocator_header_words in Hbase.
@@ -80,6 +81,7 @@ Section AllocatorMallocPublishBlocks4.
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]");
       first by apply allocator_malloc_exit_bounds.
+    iFrame "Hfailed".
     iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.

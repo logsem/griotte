@@ -92,7 +92,10 @@ Ltac destruct_word w :=
 
 (** Projections of the fields of a word. As in cheriot-sail, the field reads
     do not check the seal: on a sealed word, they project the fields of the
-    sealed payload. They fail on integers. *)
+    sealed payload. An integer reads as an untagged null capability whose
+    address is the integer: no permissions, [Local], and bounds 0 (a
+    simplification of cheriot-sail, which reads the bounds of
+    [{null_cap with address = z}]). *)
 
 Definition get_a_sealable (sb : Sealable) : Z :=
   match sb with
@@ -119,35 +122,37 @@ Definition get_l_sealable (sb : Sealable) : Locality :=
   | SCap _ _ g _ _ _ | SSealRange _ _ g _ _ _ => g
   end.
 
-Definition get_a (w : Word) : option Z :=
+(** The address of a word: its integer view, read by every operand that
+    expects an integer. *)
+Definition get_a (w : Word) : Z :=
   match w with
-  | WInt _ => None
-  | WSealable sb | WSealed _ sb => Some (get_a_sealable sb)
-  | WSentry _ _ _ _ _ a => Some (a : Z)
+  | WInt z => z
+  | WSealable sb | WSealed _ sb => get_a_sealable sb
+  | WSentry _ _ _ _ _ a => a
   end.
-Definition get_b (w : Word) : option Z :=
+Definition get_b (w : Word) : Z :=
   match w with
-  | WInt _ => None
-  | WSealable sb | WSealed _ sb => Some (get_b_sealable sb)
-  | WSentry _ _ _ b _ _ => Some (b : Z)
+  | WInt _ => 0
+  | WSealable sb | WSealed _ sb => get_b_sealable sb
+  | WSentry _ _ _ b _ _ => b
   end.
-Definition get_e (w : Word) : option Z :=
+Definition get_e (w : Word) : Z :=
   match w with
-  | WInt _ => None
-  | WSealable sb | WSealed _ sb => Some (get_e_sealable sb)
-  | WSentry _ _ _ _ e _ => Some (e : Z)
+  | WInt _ => 0
+  | WSealable sb | WSealed _ sb => get_e_sealable sb
+  | WSentry _ _ _ _ e _ => e
   end.
-Definition get_p (w : Word) : option (Perm + SealPerms) :=
+Definition get_p (w : Word) : Perm + SealPerms :=
   match w with
-  | WInt _ => None
-  | WSealable sb | WSealed _ sb => Some (get_p_sealable sb)
-  | WSentry _ p _ _ _ _ => Some (inl p)
+  | WInt _ => inl (O DL DRO)
+  | WSealable sb | WSealed _ sb => get_p_sealable sb
+  | WSentry _ p _ _ _ _ => inl p
   end.
-Definition get_l (w : Word) : option Locality :=
+Definition get_l (w : Word) : Locality :=
   match w with
-  | WInt _ => None
-  | WSealable sb | WSealed _ sb => Some (get_l_sealable sb)
-  | WSentry _ _ g _ _ _ => Some g
+  | WInt _ => Local
+  | WSealable sb | WSealed _ sb => get_l_sealable sb
+  | WSentry _ _ g _ _ _ => g
   end.
 
 Lemma get_a_sealed o sb : get_a (WSealed o sb) = get_a (WSealable sb).
@@ -160,6 +165,18 @@ Lemma get_p_sealed o sb : get_p (WSealed o sb) = get_p (WSealable sb).
 Proof. done. Qed.
 Lemma get_l_sealed o sb : get_l (WSealed o sb) = get_l (WSealable sb).
 Proof. done. Qed.
+
+(** The field reads ignore the tag. *)
+Lemma get_a_clear_tag w : get_a (clear_tag w) = get_a w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+Lemma get_b_clear_tag w : get_b (clear_tag w) = get_b w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+Lemma get_e_clear_tag w : get_e (clear_tag w) = get_e w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+Lemma get_p_clear_tag w : get_p (clear_tag w) = get_p w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+Lemma get_l_clear_tag w : get_l (clear_tag w) = get_l w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
 
 (* Z <-> Word *)
 Definition is_z (w : Word) : bool :=
@@ -292,11 +309,59 @@ Definition updatePcPerm (w: Word): Word :=
   | _ => w
   end.
 
-Definition nonZero (w: Word): bool :=
+(** The execute permission of a capability, a sentry or a sealed capability. *)
+Definition executable_word (w : Word) : bool :=
   match w with
-  | WInt n => negb (Z.eqb n 0)
-  | _ => true
+  | WCap _ p _ _ _ _ | WSentry _ p _ _ _ _ | WSealed _ (SCap _ p _ _ _ _) => executeAllowed p
+  | _ => false
   end.
+
+Lemma executable_word_clear_tag w : executable_word (clear_tag w) = executable_word w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+
+Lemma executable_word_updatePcPerm w :
+  executable_word (updatePcPerm w) = executable_word w.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+
+(** The checks of Jalr on its target: it is tagged, it is not sealed (a
+    sentry passes), and it has the execute permission. *)
+Definition jalr_target_ok (w : Word) : bool :=
+  get_tag w && negb (is_sealed w) && executable_word w.
+
+(** The three checks in the order of cheriot-sail give [jalr_target_ok]. *)
+Lemma jalr_target_checks {A} (w : Word) (x : option A) :
+  (if negb (get_tag w) then None
+   else if is_sealed w then None
+   else if negb (executable_word w) then None
+   else x) = (if jalr_target_ok w then x else None).
+Proof.
+  rewrite /jalr_target_ok.
+  by destruct (get_tag w), (is_sealed w), (executable_word w).
+Qed.
+
+Lemma jalr_target_ok_clear_tag w : jalr_target_ok (clear_tag w) = false.
+Proof. by destruct w as [| [] | | ? []]. Qed.
+
+(** A PC word that is tagged is an unsealed executable capability. *)
+Definition pc_ok (w : Word) : Prop :=
+  get_tag w = true → is_sealb w = true ∧ executable_word w = true.
+
+Lemma pc_ok_untagged w : get_tag w = false → pc_ok w.
+Proof. intros Ht Ht'. congruence. Qed.
+
+(** A PC update keeps the tag, the permission and the kind. *)
+Lemma pc_ok_cap_addr t p g b e a a' :
+  pc_ok (WCap t p g b e a) → pc_ok (WCap t p g b e a').
+Proof. done. Qed.
+
+Lemma jalr_target_ok_pc_ok w : jalr_target_ok w = true → pc_ok (updatePcPerm w).
+Proof.
+  rewrite /jalr_target_ok /pc_ok.
+  destruct w as [| [] | | ? []]; cbn; rewrite ?andb_true_r; naive_solver.
+Qed.
+
+(** Branches test the address of their condition, as in cheriot-sail. *)
+Definition nonZero (w: Word): bool := negb (Z.eqb (get_a w) 0).
 
 Definition cap_size (w : Word) : Z :=
   match w with

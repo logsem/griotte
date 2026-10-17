@@ -275,6 +275,12 @@ Section initial_rootedness.
     word_exec_ok pc.
   Proof. intros (-> & _). apply word_exec_ok_pcc. Qed.
 
+  (** The initial PC is an unsealed executable capability. *)
+  Lemma initial_pc_ok (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
+    is_initial_registers_of sw main pc reg →
+    pc_ok pc.
+  Proof. intros (-> & _) _. done. Qed.
+
   Lemma initial_registers_exec_ok (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
     is_initial_registers_of sw main pc reg →
     ∀ r w, reg !! r = Some w → word_exec_ok w.
@@ -305,9 +311,10 @@ Section initial_rootedness.
     word_exec_ok pc →
     (∀ r w, reg !! r = Some w → word_exec_ok w) →
     (∀ sr w, sreg !! sr = Some w → word_exec_ok w) →
+    pc_ok pc →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
-    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx.
+    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -327,6 +334,7 @@ Section initial_rootedness.
     - exact Hpcx.
     - exact Hregx.
     - exact Hsregx.
+    - exact Hpcok.
   Qed.
 
   (** The initial condition of a layout with heap roots [R]. *)
@@ -362,6 +370,7 @@ Section initial_rootedness.
     - by eapply initial_registers_exec_ok.
     - intros [] w Hw. rewrite Hsreg in Hw. injection Hw as <-.
       by apply word_exec_ok_not_executable.
+    - by eapply initial_pc_ok.
   Qed.
 
   (** The initial condition of a layout without heap roots. *)

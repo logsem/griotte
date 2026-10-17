@@ -66,7 +66,7 @@ Section HTS_Spec_Dangling.
         "Hcode" "Hcont".
       (* Jnz 2 ca0. *)
       iInstr "Hcode".
-      { intros [= ->]. done. }
+      { apply nonZero_WInt. intros [= ->]. done. }
       (* Halt. *)
       iInstr "Hcode".
       wp_end. by iIntros (?). }

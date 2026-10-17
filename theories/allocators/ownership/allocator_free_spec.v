@@ -68,6 +68,7 @@ Section AllocatorFree.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
+       ▷ φ FailedV ∗
        ▷ (na_own cerise_nais E ∗
           P ∗
           a_owner ↦ₐ WInt o ∗
@@ -90,7 +91,7 @@ Section AllocatorFree.
   Proof.
     intros Hreject_request HEservice Hshadow_a Hbounds_a.
     iIntros "(#Hservice & #Hstatic & Hna & HP & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 &
-      Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
+      Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hfailed & Hpost)".
     (* Open the service invariant and focus on the code of [free]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">@".
@@ -140,6 +141,7 @@ Section AllocatorFree.
         Hslot & Hheaders & Htoks & Howners & Hcells & HP)".
       iApply (allocator_free_invalid_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hfree_code]");
         first done.
+      iFrame "Hfailed".
       iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & _)".
       iMod ("Hclose" with "[$Hna Hslot Hheaders Htoks Howners Hcells]") as "Hna".
       { iNext. iExists next, allocations, live, issued, Cs. iFrame "∗". done. }
@@ -227,6 +229,7 @@ Section AllocatorFree.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
+       ▷ φ FailedV ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -250,7 +253,7 @@ Section AllocatorFree.
     intros Hbounds Hneq HEservice Hshadow_a Hbounds_a.
     iIntros "(#Hservice & #Hstatic & Hna & #Hobj & Howner & Hrest)".
     iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
-      Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
+      Hct3 & Hct4 & Hctp & Hcnull & Hfailed & Hpost)".
     iApply (allocator_free_reject_correct E g_owner a_owner o ((WCap true p g b' e' a) @@ ι) wret
       (alloc_obj ι b e) φ with "[-]"); [|exact HEservice|exact Hshadow_a|exact Hbounds_a|].
     { intros next allocations live issued Cs Hnext Hchain Hwf Hcwf Hprefix Hobs.
@@ -277,6 +280,7 @@ Section AllocatorFree.
         (ex_intro _ (o, r1) (ex_intro _ ι1 Hmember))). }
     iFrame "Hservice Hstatic Hna Hobj Howner HPC Hcgp Hcra Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp
       Hcnull".
+    iFrame "Hfailed".
     iNext. iIntros "(Hna & _ & Hrest)". iApply "Hpost". iFrame.
   Qed.
 
@@ -316,6 +320,7 @@ Section AllocatorFree.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
+       ▷ φ FailedV ∗
        ▷ (na_own cerise_nais E ∗
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗
@@ -340,7 +345,7 @@ Section AllocatorFree.
     intros HEservice Hshadow_a Hbounds_a HιΩ.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & #Hobj & Howner & Hrest)".
     iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
-      Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
+      Hct3 & Hct4 & Hctp & Hcnull & Hfailed & Hpost)".
     iApply (allocator_free_reject_correct E g_owner a_owner id ((WCap true p g b e a) @@ ι) wret
       (allocator_owner_id id Ω ∗ alloc_obj ι b e) φ with "[-]");
       [|exact HEservice|exact Hshadow_a|exact Hbounds_a|].
@@ -371,6 +376,7 @@ Section AllocatorFree.
       by apply HιΩ, (allocator_owners_wf_lookup _ _ _ _ _ _ _ _ Hown_wf Hentry HOid). }
     iFrame "Hservice Hstatic Hna Hid Hobj Howner HPC Hcgp Hcra Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4
       Hctp Hcnull".
+    iFrame "Hfailed".
     iNext. iIntros "(Hna & [Hid _] & Hrest)". iApply "Hpost". iFrame.
   Qed.
 
@@ -412,6 +418,7 @@ Section AllocatorFree.
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
 
+       ▷ φ FailedV ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -435,13 +442,14 @@ Section AllocatorFree.
     intros Hinvalid HEservice Hshadow_a Hbounds_a.
     iIntros "(#Hservice & #Hstatic & Hna & Howner & Hrest)".
     iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
-      Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
+      Hct3 & Hct4 & Hctp & Hcnull & Hfailed & Hpost)".
     iApply (allocator_free_reject_correct E g_owner a_owner o wreq wret emp%I φ with "[-]");
       [|exact HEservice|exact Hshadow_a|exact Hbounds_a|].
     { intros next allocations live issued Cs Hnext Hchain _ _ _ _.
       iIntros "_ Htoks Howners Hcells". iApply si_upd_intro. iFrame.
       iPureIntro. exact (Hinvalid next allocations Hnext Hchain). }
     iFrame "Hservice Hstatic Hna Howner HPC Hcgp Hcra Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+    iFrame "Hfailed".
     iNext. iIntros "(Hna & _ & Hrest)". iApply "Hpost". iFrame.
   Qed.
 
@@ -505,6 +513,7 @@ Section AllocatorFree.
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
        [[b, e]] ↦ₕ[ι] [[ws]] ∗
 
+       ▷ φ FailedV ∗
        ▷ (na_own cerise_nais E ∗
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗
@@ -531,7 +540,7 @@ Section AllocatorFree.
   Proof.
     intros HEservice Hshadow_a Hbounds_a HιΩ Hbounds Hlen Hdom Hclean Hclean_ret.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & #Hobj & Hheld & HPC & Hcgp & Hcra & Hca0 & Hca1 &
-      Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hrmap & Hheap & Hpost)".
+      Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hrmap & Hheap & Hfailed & Hpost)".
     (* Split the cells into their memory and their status shares. *)
     iDestruct (heap_region_pointsto_split with "Hobj") as "[Hto _]".
     iDestruct ("Hto" with "Hheap") as "[Hmem Hshares]".
@@ -618,6 +627,7 @@ Section AllocatorFree.
       Hctp & Hcnull & Hrmap & Hdead & #Hq & Hcells_free & _)".
     (* Return. *)
     iApply (allocator_free_return_spec with "[- $HPC $Hcra $Hcnull $Htail_code]"); first done.
+    iFrame "Hfailed".
     iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
     (* Release the entry of [ι] and close the service invariant. *)
     iDestruct ("Hcells_close" with "Hcells_free Hmem") as "Hcells".

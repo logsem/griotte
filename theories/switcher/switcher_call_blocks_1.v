@@ -52,9 +52,9 @@ Section Switcher_Call_Blocks_1.
     (* Block 0: check the permission of csp *)
     focus_block_0 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* GetP ct2 csp *)
-    iInstrApply "Hcode" wp_Get_unknown with "[$HPC $Hct2 $Hcsp]"
-      as (v) "[-> | (%p0 & %Hp0 & _ & -> & HPC & Hcsp & Hct2)]".
-    { wp_end. iIntros "%Hcontr"; done. }
+    iInstr "Hcode".
+    set (p0 := encodePermSum (get_p wcsp.(lw))).
+    assert (rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some p0) as Hp0 by done.
     (* Mov ctp (encodePerm RWL) *)
     iInstr "Hcode".
     (* Sub ct2 ct2 ctp *)
@@ -63,7 +63,7 @@ Section Switcher_Call_Blocks_1.
     {
       (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
       iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
-      { intros Hcontr; inversion Hcontr; done. }
+      { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; done. }
       { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
         offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
@@ -81,9 +81,9 @@ Section Switcher_Call_Blocks_1.
     focus_block 1 "Hswitcher" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls";
       iHide "Hswitcher" as hswitcher.
     (* GetL ct2 csp *)
-    iInstrApply "Hcode" wp_Get_unknown with "[$HPC $Hct2 $Hcsp]"
-      as (v) "[-> | (%g0 & %Hg0 & _ & -> & HPC & Hcsp & Hct2)]".
-    { wp_end. iIntros "%Hcontr"; done. }
+    iInstr "Hcode".
+    set (g0 := encodeLoc (get_l wcsp.(lw))).
+    assert (rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some g0) as Hg0 by done.
     (* Mov ctp (encodeLoc Local) *)
     iInstr "Hcode".
     (* Sub ct2 ct2 ctp *)
@@ -92,7 +92,7 @@ Section Switcher_Call_Blocks_1.
     {
       (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
       iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
-      { intros Hcontr; inversion Hcontr; done. }
+      { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; done. }
       { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
         offsets_compute; solve_addr. }
       iEval (simplify_map_eq) in "HPC".
@@ -106,12 +106,10 @@ Section Switcher_Call_Blocks_1.
     (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    assert (p0 = encodePerm RWL)%Z by lia; subst p0.
-    assert (g0 = encodeLoc Local)%Z by lia; subst g0.
     iApply "Hpost"; iLeft.
     iFrame "∗ Hswitcher".
     switcher_change_pc (switcher_label_offset ".Lswitcher_entry_first_spill").
-    iFrame. iPureIntro; split; done.
+    iFrame. iPureIntro; split; [rewrite Hp0 | rewrite Hg0]; f_equal; lia.
   Qed.
 
 

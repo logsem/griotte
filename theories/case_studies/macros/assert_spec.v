@@ -42,6 +42,7 @@ Section Assert_subroutine.
     disjoint_from_shadow pc_b pc_e →
     is_shadow_address a_flag = false →
     is_heap_address a_flag = false →
+    jalr_target_ok wret = true →
     (  assert_static pc_b pc_e a_flag
      ∗ PC ↦ₚ WCap true RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
@@ -58,7 +59,7 @@ Section Assert_subroutine.
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (Hcode_shadow Hflag_not_shadow Hflag_not_heap)
+    iIntros (Hcode_shadow Hflag_not_shadow Hflag_not_heap Htgt)
       "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hflag & Hφ)".
     iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hpc_e & %He_flag & Hcap)".
@@ -76,7 +77,7 @@ Section Assert_subroutine.
       iApply "Hφ". iFrame "∗". rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
       (* Jnz 4 ct0. *)
-      iInstr "Hprog". { intros Hcontra; inversion Hcontra; lia. }
+      iInstr "Hprog". { apply negb_true_iff, Z.eqb_neq; cbn; lia. }
       (* Auipcc ct1 6. *)
       iInstr "Hprog".
       rewrite (_: (pc_b ^+ 11)%a = cap_addr); [|solve_addr].
@@ -101,6 +102,7 @@ Section Assert_subroutine.
     ( n1 n2 flag : Z ) ( wret : Word) ( wnull : LWord)
     (φ : language.val griotte_lang -> iProp Σ) :
     n1 = n2 →
+    jalr_target_ok wret = true →
     (  assert_static pc_b pc_e a_flag
      ∗ PC ↦ₚ WCap true RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
@@ -115,7 +117,7 @@ Section Assert_subroutine.
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (Heq) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hφ)".
+    iIntros (Heq Htgt) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hφ)".
     iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
@@ -203,7 +205,8 @@ Section Assert.
     focus_block 1 "Hcode_main" as a_assert Ha_assert "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iGo "Hcode".
     iEval (cbn) in "HPC".
-    iApply (assert_subroutine_success_spec with "[-]"); eauto; iFrame "∗ Hassert".
+    (* The return target is the link sentry, executable as the PC is. *)
+    iApply (assert_subroutine_success_spec with "[-]"); last iFrame "∗ Hassert"; try done.
     iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hcnull)".
     iEval (cbn) in "HPC".
     iGo "Hcode".

@@ -21,19 +21,11 @@ Section griotte_lang_rules.
   (* Generalized denote function, since multiple cases result in similar success *)
   Definition denote (i: instr) (w : Word): option Z :=
     match i with
-    | GetP _ _ =>
-        match get_p w with
-        | Some p => Some (encodePermSum p)
-        | None => None
-        end
-    | GetL _ _ =>
-        match get_l w with
-        | Some g => Some (encodeLoc g)
-        | None => None
-        end
-    | GetB _ _ => get_b w
-    | GetE _ _ => get_e w
-    | GetA _ _ => get_a w
+    | GetP _ _ => Some (encodePermSum (get_p w))
+    | GetL _ _ => Some (encodeLoc (get_l w))
+    | GetB _ _ => Some (get_b w)
+    | GetE _ _ => Some (get_e w)
+    | GetA _ _ => Some (get_a w)
     | GetOType _ _ =>
         match w with
         | WSealed o _ => Some (o:Z)
@@ -64,11 +56,12 @@ Section griotte_lang_rules.
     intros HH. destruct_or! HH; subst i; reflexivity.
   Qed.
 
+  (** Every Get reads a result from any word. *)
+  Lemma denote_is_Get i dst src (w : Word) :
+    is_Get i dst src → is_Some (denote i w).
+  Proof. intros HH. destruct_or! HH; subst i; cbn; destruct w; by eexists. Qed.
+
   Inductive Get_failure (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName) :=
-    | Get_fail_src_denote w:
-        regs !!ₗ src = Some w →
-        denote i w.(lw) = None →
-        Get_failure i lpc regs dst src
     | Get_fail_overflow_PC w z:
         regs !!ₗ src = Some w →
         denote i w.(lw) = Some z →
@@ -183,9 +176,8 @@ Section griotte_lang_rules.
     { destruct_or! Hinstr; rewrite Hinstr; cbn; try done. f_equal.
       destruct s, (get_tag wsrc.(lw)); naive_solver. }
     rewrite Hden in Hstep.
-    destruct (denote get_i wsrc.(lw)) as [z | ] eqn:Hwsrc.
-    2 : { (* Failure: src is not of the right word type *)
-      instr_fail Hstep. constructor. by eapply Get_fail_src_denote. }
+    destruct (denote_is_Get _ _ _ wsrc.(lw) Hinstr) as [z Hwsrc].
+    rewrite Hwsrc in Hstep.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt z)) _ _ _ _
       (λ lpc' regs' retv, Get_spec get_i _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
@@ -235,7 +227,7 @@ Section griotte_lang_rules.
     ¬ Get_spec i lpc regs dst src lpc' regs' FailedV.
   Proof.
     intros Hsrc [z Hz] Hinc Hspec. inversion Hspec as [| | Hfail]; subst.
-    destruct Hfail as [w Hw Hd | w z' Hw Hd Hi]; rewrite Hsrc in Hw; simplify_eq; congruence.
+    destruct Hfail as [w z' Hw Hd Hi]; rewrite Hsrc in Hw; simplify_eq; congruence.
   Qed.
 
   (** The map-form success rule, from which the register-shaped ones
@@ -325,57 +317,6 @@ Section griotte_lang_rules.
     iIntros "!>" (z') "(%Hz & HPC & Hpc_a & Hmap)".
     rewrite (get_result_exact _ _ _ z Hz Hdenote Hnot_tag).
     iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
-  Qed.
-
-  Lemma wp_Get_unknown E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wsrc wdst dq :
-    decodeInstrW w.(lw) = get_i →
-    is_Get get_i dst src →
-    (forall dst' src', get_i <> GetOType dst' src') ->
-    (forall dst' src', get_i <> GetWType dst' src') ->
-    (forall dst' src', get_i <> GetTag dst' src') ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    src ≠ cnull ->
-    dst ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-      ∗ ▷ pc_a ↦ₐ{dq} w
-      ∗ ▷ dst ↦ᵣ wdst
-      ∗ ▷ src ↦ᵣ wsrc }}}
-      Instr Executable @ E
-       {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝
-        ∨ (∃ z,
-           ⌜ denote get_i wsrc.(lw) = Some z ⌝
-           ∗ ⌜ (is_cap wsrc.(lw) || is_sealr wsrc.(lw) || is_sentry wsrc.(lw) || is_sealed wsrc.(lw)) = true ⌝
-           ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-           ∗ pc_a ↦ₐ{dq} w
-           ∗ src ↦ᵣ wsrc
-           ∗ dst ↦ᵣ WInt z
-          )
-       }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hnot_otype Hnot_wtype Hnot_tag Hvpc Hpc_a' Hcnull Hcnull' φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
-    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %]".
-    iApply (wp_Get with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_Get; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [* Hsucc | * Hi | ].
-    2: { (* Cleared tag (contradiction) *) by exfalso; eapply Hnot_tag. }
-    2: { (* Failure, done *) by iApply "Hφ"; iLeft. }
-    { (* Success *)
-      iApply "Hφ".
-      iRight.
-      iExists z.
-      iFrame. try incrementPC_inv; simplify_map_eq.
-      iRegsMap "Hmap"; eauto; iFrame.
-      iFrame "%".
-      iSplit; last done.
-      iPureIntro.
-      destruct wsrc as [[| [|] | |] ?]; cbn; try done
-      ; destruct_or! Hinstr; simplify_map_eq; match goal with H : denote _ _ = Some _ |- _ => rewrite Hinstr /denote in H end; naive_solver.
-    }
   Qed.
 
   Lemma wp_GetTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn dq :

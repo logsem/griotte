@@ -1103,9 +1103,8 @@ Ltac instr_finish hprog hlc hlc' :=
 
 (* Integer operands are matched through [IsLInt] rather than by framing a
    [WInt _] points-to, so a rule only applies if its [IsLInt] premises are
-   proved. Fail otherwise, so that the dispatcher tries the next rule (e.g.
-   [wp_binop_fail_z_r] when the register holds a capability). Other side
-   goals are left to the caller. *)
+   proved. Fail otherwise, so that the dispatcher tries its next alternative.
+   Other side goals are left to the caller. *)
 Ltac instr_commit_lint :=
   lazymatch goal with
   | |- IsLInt _ _ => solve [ltac2:(solve_pure_iinstr ())]

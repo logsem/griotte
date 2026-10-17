@@ -136,10 +136,19 @@ Section KVS_getFullKey.
     wp_instr.
     iApply (wp_unseal_unknown' with "[$HPC $Hi $Hrdst $Hrsealkey]"); try solve_pure.
     iIntros "!>" (ret)
-      "[-> | [(% & % & % & % & % & % & %o & %wsb & %π & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec & %Htag & %Hrange)
+      "[(-> & HPC & Hi & Hrdst & Hrsealkey & %Hnot_sealed) | [(% & % & % & % & % & % & %o & %wsb & %π & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec & %Htag & %Hrange)
       | (%tsr & %psr & %gsr & %bsr & %esr & %asr & %πsr & %ot & %sb & %π
          & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & %Hsealed & %Hinvalid)]]".
-    { wp_pure; wp_end; iIntros "%Hcontr";done. }
+    { (* Not a sealing range and a sealed word: the result is untagged, and
+         the next instruction fails. *)
+      wp_pure.
+      iClear "Hi".
+      (* CLoad rdst rdst 0. *)
+      iInstr_fail "Hcode".
+      { intros r sr m st s1 Hr.
+        rewrite /exec /= /lookup_reg /= Hr /= decide_False //.
+        destruct wsealkey as [ [z | sb | t p g b e a | o sb] π0]; try destruct sb; by destruct s1. }
+      wp_end; iIntros "%Hcontr"; done. }
     {
     destruct Hnot_sealed_with_kvs_otype as [Hnot_sealed_with_kvs_otype | Hclear].
     2: { rewrite spec /= Htag in Hclear; done. }

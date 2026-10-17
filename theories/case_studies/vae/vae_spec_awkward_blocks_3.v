@@ -115,6 +115,10 @@ Section VAE_Awkward_Blocks_3.
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
+    destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
+    { (* Jalr cnull cra *)
+      iInstr_fail "Hcode".
+      wp_end; by iIntros (?). }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

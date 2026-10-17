@@ -22,6 +22,7 @@ Section AllocatorFreeReturnBlocks4.
     ca1 ↦ᵣ wca1 ∗
     cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a allocator_free_code ∗
+    ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
@@ -33,7 +34,7 @@ Section AllocatorFreeReturnBlocks4.
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds. pose proof Hbounds as (Hpc & _ & _).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hφ)".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hfailed & Hφ)".
     iDestruct (allocator_free_tail_acc with "Hcode_main") as "#Hcode".
     assert ((pc_a ^+ allocator_free_invalid_offset)%a =
       ((pc_a ^+ allocator_free_block_offset 5) ^+ allocator_free_tail_block_offset 5)%a)
@@ -41,6 +42,7 @@ Section AllocatorFreeReturnBlocks4.
     iApply (allocator_free_tail_invalid_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode]");
       first by apply allocator_free_tail_bounds.
+    iFrame "Hfailed".
     iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.

@@ -89,6 +89,7 @@ Section AllocatorSwitcherSpec.
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hcnull]");
       eauto.
+    iSplitR; first (iNext; by iIntros (?)).
     iNext.
     iIntros "(Hna & Ha_owner & HPC & Hcgp & Hcra & Hca2 & Hct0 & Hct1 & Hct2
       & Hct3 & Hct4 & Hctp & Hcnull & Hres)".
@@ -213,6 +214,7 @@ Section AllocatorSwitcherSpec.
       destruct Hr as [ [_ <-]|[_ [ [_ <-]|[_ Hr] ] ] ];
         try done.
       by rewrite (Hzero _ _ Hr). }
+    iSplitR; first (iNext; by iIntros (?)).
     iNext.
     iIntros "(Hna & Hid & Ha_owner & HPC & Hcgp & Hcra & Hca0 & Hca1
       & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hframe & #Hq & _)".

@@ -27,15 +27,10 @@ Section griotte_lang_rules.
 
   Inductive Subseg_failure (lpc : LWord) (regs : LReg) (dst: RegName) (src1 src2: Z + RegName) :
     LWord → LReg → Prop :=
-  | Subseg_fail_allowed w :
+  | Subseg_fail_incrPC_other w :
       regs !!ₗ dst = Some w →
       is_mutable_range w.(lw) = false →
-      Subseg_failure lpc regs dst src1 src2 lpc regs
-  | Subseg_fail_src1_nonz :
-      lz_of_argument regs src1 = None →
-      Subseg_failure lpc regs dst src1 src2 lpc regs
-  | Subseg_fail_src2_nonz :
-      lz_of_argument regs src2 = None →
+      incrementPC lpc = None →
       Subseg_failure lpc regs dst src1 src2 lpc regs
   | Subseg_fail_incrPC_cap (t : bool) p g b e a π n1 n2 a1 a2 :
       regs !!ₗ dst = Some (WCap t p g b e a @@? π) →
@@ -68,9 +63,9 @@ Section griotte_lang_rules.
       incrementPC lpc = None →
       Subseg_failure lpc regs dst src1 src2 lpc regs.
 
-  (* Both operands must be integers. If either endpoint cannot be represented,
-     the instruction clears the tag and preserves both original endpoints.
-     The result keeps the identifier of the source. *)
+  (* The operands are read through their integer view. If either endpoint
+     cannot be represented, the instruction clears the tag and preserves both
+     original endpoints. The result keeps the identifier of the source. *)
   Inductive Subseg_spec (lpc : LWord) (regs : LReg) (dst : RegName)
       (src1 src2 : Z + RegName) (lpc' : LWord) (regs' : LReg) : griotte_lang.val → Prop :=
   | Subseg_spec_success_cap (t : bool) p g b e a π n1 n2 a1 a2 :
@@ -106,6 +101,13 @@ Section griotte_lang_rules.
       (z_to_otype n1 = None ∨ z_to_otype n2 = None) →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := WSealRange false p g b e a @@? π ]ₗ> regs →
+      Subseg_spec lpc regs dst src1 src2 lpc' regs' NextIV
+  (* An integer is unchanged; a sealed word or a sentry loses its tag. *)
+  | Subseg_spec_untagged w :
+      regs !!ₗ dst = Some w →
+      is_mutable_range w.(lw) = false →
+      incrementPC lpc = Some lpc' →
+      regs' = <[ dst := lclear_tag w ]ₗ> regs →
       Subseg_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | Subseg_spec_failure :
       Subseg_failure lpc regs dst src1 src2 lpc' regs' →
@@ -171,24 +173,23 @@ Section griotte_lang_rules.
       - iDestruct "Hroot" as %Hfree.
         iPureIntro. intros ? ? Hn. by exfalso. }
     destruct wdst as [wd π].
-    destruct (is_mutable_range wd) eqn:Hwdst.
-    2: { (* Failure: wdst is not of the right type *)
-      assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
-      { cbn in Hdst', Hstep. rewrite Hdst' /= in Hstep.
-        destruct wd as [ | [t p b e a | ] | | ]; try by inversion Hwdst.
-        all: cbn in Hstep; by simplify_pair_eq. }
-      instr_fail_close. constructor. by eapply (Subseg_fail_allowed _ _ _ _ _ (wd @@? π)). }
     cbn in Hdst', Hstep. rewrite Hdst' /= in Hstep.
-    destruct (lz_of_argument regs src1) as [n1 |] eqn:Hn1.
-    2: { assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
-         { destruct_word wd; cbn in Hwdst; try discriminate;
-           rewrite Hz1 /= in Hstep; by simplify_pair_eq. }
-         instr_fail_close. constructor. by apply Subseg_fail_src1_nonz. }
-    destruct (lz_of_argument regs src2) as [n2 |] eqn:Hn2.
-    2: { assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
-         { destruct_word wd; cbn in Hwdst; try discriminate;
-           rewrite Hz1 Hz2 /= in Hstep; by simplify_pair_eq. }
-         instr_fail_close. constructor. by apply Subseg_fail_src2_nonz. }
+    destruct (is_mutable_range wd) eqn:Hwdst.
+    2: { (* An integer, a sealed word or a sentry: the tag is cleared. *)
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag (wd @@? π)) (clear_tag wd) _ _ _
+        (λ lpc' regs' retv, Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
+        with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hroot]").
+      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+      { apply reg_word_ok_lclear_tag. }
+      { rewrite -Hstep. by destruct wd as [| [] | | ? []], s. }
+      { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
+      { intros lpc' Hi. eapply Subseg_spec_untagged; eauto. }
+      { intros Hi. constructor. eapply Subseg_fail_incrPC_other; eauto. }
+      iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
+    destruct (lz_of_argument_dom regs src1) as [n1 Hn1].
+    { intros x ->. apply Dregs. set_solver+. }
+    destruct (lz_of_argument_dom regs src2) as [n2 Hn2].
+    { intros x ->. apply Dregs. set_solver+. }
     assert (∃ w' pw,
         reg_word_ok R C w' ∧
         reg_phys R w' pw ∧
@@ -201,7 +202,7 @@ Section griotte_lang_rules.
       as (w' & pw & Hok' & Hpw & Hsuccess & Hfailure & Hupdate).
     { destruct wd as [ | [t p g b e a | t p g b e a] | | ];
         try discriminate Hwdst.
-      - rewrite Hz1 Hz2 /= in Hstep.
+      - rewrite Hz1 Hz2 Hn1 Hn2 /= in Hstep.
         destruct (z_to_addr n1) as [a1 |] eqn:Ha1;
           destruct (z_to_addr n2) as [a2 |] eqn:Ha2.
         1: exists (WCap (t && isWithin a1 a2 b e && (a1 <=? a2)%a) p g a1 a2 a @@? π).
@@ -226,7 +227,7 @@ Section griotte_lang_rules.
           * by rewrite /laddr_of_argument Hn1.
           * intros Hfree. specialize (Hfree t p g b e a a1 a2 Hdst).
             rewrite /laddr_of_argument Hn1 Hn2 in Hfree. rewrite Hfree in Hheap; done.
-      - rewrite Hz1 Hz2 /= in Hstep.
+      - rewrite Hz1 Hz2 Hn1 Hn2 /= in Hstep.
         destruct (z_to_otype n1) as [a1 |] eqn:Ha1;
           destruct (z_to_otype n2) as [a2 |] eqn:Ha2.
         1: exists (WSealRange (t && isWithin a1 a2 b e) p g a1 a2 a @@? π).
@@ -288,11 +289,13 @@ Section griotte_lang_rules.
                       | * Hd' H1' H2' Hbad
                       | * Hd'
                       | * Hd'
+                      | * Hd' Hk
                       | Hfail].
     - rewrite Hd in Hd'. simplify_eq. done.
     - rewrite Hd in Hd'. simplify_eq. destruct Hbad; congruence.
     - rewrite Hd in Hd'. simplify_eq.
     - rewrite Hd in Hd'. simplify_eq.
+    - rewrite Hd in Hd'. by simplify_eq.
     - destruct Hfail; simplify_eq; try congruence.
   Qed.
 
@@ -312,11 +315,13 @@ Section griotte_lang_rules.
                       | * Hd'
                       | * Hd' H1' H2' Ha1' Ha2' Hinc' ->
                       | * Hd' H1' H2' Hbad
+                      | * Hd' Hk
                       | Hfail].
     - rewrite Hd in Hd'. simplify_eq.
     - rewrite Hd in Hd'. simplify_eq.
     - rewrite Hd in Hd'. simplify_eq. done.
     - rewrite Hd in Hd'. simplify_eq. destruct Hbad; congruence.
+    - rewrite Hd in Hd'. by simplify_eq.
     - destruct Hfail; simplify_eq; try congruence.
   Qed.
 
@@ -762,7 +767,9 @@ Section griotte_lang_rules.
                       | * Hdst Hz1 Hz2 Hbounds Hincr
                       | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
                       | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hk Hincr
                       | Hfail].
+    5: by simplify_lmap_eq.
     5: { destruct Hfail; unfold lz_of_argument in *; simplify_lmap_eq.
       all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
         destruct Hbad; congruence
@@ -920,7 +927,8 @@ Section instruction_outcomes.
       rewrite /laddr_of_argument Hsrc2 Hn2 in Ha2. simplify_eq.
       by rewrite -andb_assoc Hwithin andb_false_r in Ht. }
     iNext. iIntros (lpc' regs'' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [ | | | | Hfail]; simplify_eq.
+    destruct Hspec as [ | | | | ? ? ? ? ? | Hfail]; simplify_eq.
+    all: try (simplify_lmap_eq; done).
     all: try (destruct Hfail; simplify_eq).
     all: try incrementPC_inv; simplify_eq.
     all: repeat match goal with
@@ -959,7 +967,8 @@ Section instruction_outcomes.
       rewrite /laddr_of_argument Hsrc2 in Ha2.
       destruct Hover; congruence. }
     iNext. iIntros (lpc' regs'' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [ | | | | Hfail]; simplify_eq.
+    destruct Hspec as [ | | | | ? ? ? ? ? | Hfail]; simplify_eq.
+    all: try (simplify_lmap_eq; done).
     all: try (destruct Hfail; simplify_eq).
     all: try incrementPC_inv; simplify_eq.
     all: try (destruct Hover; congruence).
@@ -994,7 +1003,8 @@ Section instruction_outcomes.
     iApply (wp_Subseg_pure with "[$HPC $Hpc_a $Hmap]"); eauto.
     { intros ? ? ? ? ? ? ? ? Hd. by rewrite Hdst in Hd. }
     iNext. iIntros (lpc' regs'' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [ | | | | Hfail]; simplify_eq.
+    destruct Hspec as [ | | | | ? ? ? ? ? | Hfail]; simplify_eq.
+    all: try (simplify_lmap_eq; done).
     all: try (destruct Hfail; simplify_eq).
     all: try incrementPC_inv; simplify_eq.
     all: repeat match goal with
@@ -1030,7 +1040,8 @@ Section instruction_outcomes.
     iApply (wp_Subseg_pure with "[$HPC $Hpc_a $Hmap]"); eauto.
     { intros ? ? ? ? ? ? ? ? Hd. by rewrite Hdst in Hd. }
     iNext. iIntros (lpc' regs'' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [ | | | | Hfail]; simplify_eq.
+    destruct Hspec as [ | | | | ? ? ? ? ? | Hfail]; simplify_eq.
+    all: try (simplify_lmap_eq; done).
     all: try (destruct Hfail; simplify_eq).
     all: try incrementPC_inv; simplify_eq.
     all: try (destruct Hover; congruence).

@@ -113,7 +113,7 @@ Section rules_registry.
     { apply Hclean; [by left | done]. }
     destruct (decide (x = cnull)) as [->|Hxn].
     { (* [cnull] holds the null word, which has no authority. *)
-      destruct Her as [_ _ Hcnull _ _ _ _ _ _ _].
+      destruct Her as [_ _ Hcnull _ _ _ _ _ _ _ _].
       rewrite (Hcnull _ Hx) in Hauth. by inversion Hauth. }
     apply Hclean; last done.
     right. exists x. split; first done. destruct (Hfull x) as [v' Hv'].

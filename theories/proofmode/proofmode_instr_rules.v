@@ -23,9 +23,7 @@ Ltac dispatch_BinOp r1 x1 x2 cont :=
   | (?dst, (inr ?dst), (inl _)) => cont (@wp_binop_success_dst_z)
   | (?dst, (inr ?r), (inr ?r)) => cont (@wp_binop_success_r_r_same)
   | (?dst, (inr ?r), (inl _)) => cont (@wp_binop_success_r_z)
-  | (?dst, (inl _), (inr _)) =>
-    (cont (@wp_binop_success_z_r) ||
-     cont (@wp_binop_fail_z_r))
+  | (?dst, (inl _), (inr _)) => cont (@wp_binop_success_z_r)
   | (?dst, (inr _), (inr _)) => cont (@wp_binop_success_r_r)
   | (?dst, (inl _), (inl _)) => cont (@wp_binop_success_z_z)
   end.
@@ -66,7 +64,8 @@ Ltac dispatch_instr_rule instr cont :=
   | Lt ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   (* Lea *)
   | Lea _ (inr _) => (cont (@wp_lea_success_reg) || cont (@wp_lea_success_reg_sr))
-  | Lea _ (inl _) => (cont (@wp_lea_success_z) || cont (@wp_lea_success_z_sr))
+  | Lea _ (inl _) =>
+    (cont (@wp_lea_success_z) || cont (@wp_lea_success_z_sr) || cont (@wp_lea_success_z_int))
   (* CLoad *)
   | CLoad ?r ?r 0 =>
     (cont (fun MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' =>
@@ -164,8 +163,17 @@ Ltac dispatch_generic_failure instr cont :=
     end
   end.
 
+(* Jalr fails on its target before it writes anything. *)
+Ltac dispatch_jalr_failure instr cont :=
+  let instr := eval unfold register_file.regn, register_file.cst in instr in
+  lazymatch instr with
+  | Jalr ?r ?r => cont (@wp_jalr_fail_target_same)
+  | Jalr _ _ => cont (@wp_jalr_fail_target)
+  end.
+
 Ltac dispatch_instr_failure instr cont :=
-  first [ dispatch_generic_failure instr cont
+  first [ dispatch_jalr_failure instr cont
+        | dispatch_generic_failure instr cont
         | fail "No immediate-failure provider found for instruction" instr ].
 
 (* Like ordinary success dispatch, invalidation selects explicit-resource

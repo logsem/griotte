@@ -52,6 +52,7 @@ Section AllocatorMalloc.
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
 
+       ▷ φ FailedV ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -74,7 +75,7 @@ Section AllocatorMalloc.
   Proof.
     intros HEservice Hshadow_a Hbounds_a Hinvalid.
     iIntros "(#Hservice & #Hstatic & Hna & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 &
-      Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
+      Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hfailed & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">Hdata".
@@ -98,6 +99,7 @@ Section AllocatorMalloc.
     iApply (allocator_malloc_size_check_invalid_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hct3 $Hcnull $Hmalloc_code]");
       [apply allocator_malloc_entry_bounds|done|].
+    iFrame "Hfailed".
     iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct3 & Hcnull & _ & _)".
     (* Close the service invariant. *)
     iMod ("Hclose" with "[$Hna $Hdata]") as "Hna".
@@ -147,6 +149,7 @@ Section AllocatorMalloc.
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ - ∗
 
+       ▷ φ FailedV ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt id ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -182,7 +185,7 @@ Section AllocatorMalloc.
   Proof.
     intros HEservice Hshadow_a Hbounds_a Hpositive.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 &
-      Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hpost)".
+      Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hfailed & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">@".
@@ -257,6 +260,7 @@ Section AllocatorMalloc.
       iApply (allocator_malloc_publish_spec with
         "[- $HPC $Hcgp $Hcra $Hct0 $Hct4 $Hca0 $Hca1 $Hcnull $Hslot $Hmalloc_code]");
         [done|done|done|solve_addr|].
+      iFrame "Hfailed".
       iNext. iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hcnull & Hslot &
         _ & _)".
       (* Publish the entry of [ι], record it for its owner, and close the
@@ -277,6 +281,7 @@ Section AllocatorMalloc.
       iApply (allocator_malloc_prepare_oom_spec with
         "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hcnull $Hslot
             $Hmalloc_code]"); [done|done|done|lia|].
+      iFrame "Hfailed".
       iNext. iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 &
         Hcnull & Hslot & _)".
       (* Close the service invariant. *)

@@ -49,12 +49,6 @@ Section griotte_lang_rules.
   Qed.
 
   Inductive BinOp_failure (i: instr) (lpc : LWord) (regs : LReg) (dst: RegName) (rv1 rv2: Z + RegName) :=
-  | BinOp_fail_nonconst1:
-      lz_of_argument regs rv1 = None ->
-      BinOp_failure i lpc regs dst rv1 rv2
-  | BinOp_fail_nonconst2:
-      lz_of_argument regs rv2 = None ->
-      BinOp_failure i lpc regs dst rv1 rv2
   | BinOp_fail_incrPC n1 n2:
       lz_of_argument regs rv1 = Some n1 ->
       lz_of_argument regs rv2 = Some n2 ->
@@ -95,40 +89,16 @@ Section griotte_lang_rules.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     erewrite regs_of_is_BinOp in Hri, Dregs; eauto.
     destruct (Hri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
-    destruct (lz_of_argument regs arg1) as [n1|] eqn:Hn1;
-      pose proof Hn1 as Hn1'; cycle 1.
-    (* Failure: arg1 is not an integer *)
-    { unfold lz_of_argument in Hn1. destruct arg1 as [| r0]; [ congruence |].
-      destruct (Hri r0) as [r0v [Hr'0 Hr0]]; first by unfold regs_of_argument; set_solver+.
-      destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr'0) as (s0 & Hsrc0 & _).
-      assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
-      { rewrite Hr'0 in Hn1.
-        destruct r0v; try congruence.
-        destruct_word lw; try congruence.
-        all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep; cbn in Hstep.
-        all: rewrite Hsrc0 /= in Hstep. all: repeat case_match; simplify_eq; eauto. }
-      instr_fail_close. constructor. by eapply BinOp_fail_nonconst1. }
-    apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn1.
-
-    destruct (lz_of_argument regs arg2) as [n2|] eqn:Hn2;
-      pose proof Hn2 as Hn2'; cycle 1.
-    (* Failure: arg2 is not an integer *)
-    { unfold lz_of_argument in Hn2. destruct arg2 as [| r1]; [ congruence |].
-      destruct (Hri r1) as [r1v [Hr'1 Hr1]]; first by unfold regs_of_argument; set_solver+.
-      destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr'1) as (s1 & Hsrc1 & _).
-      assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as (-> & ->).
-      { rewrite Hr'1 in Hn2.
-        destruct r1v; try congruence.
-        destruct_word lw; try congruence.
-        all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep; cbn in Hstep.
-        all: rewrite Hn1 /= in Hstep.
-        all: rewrite Hsrc1 /= in Hstep. all: repeat case_match; simplify_eq; eauto. }
-      instr_fail_close. constructor. by eapply BinOp_fail_nonconst2. }
-    apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2.
+    destruct (lz_of_argument_dom regs arg1) as [n1 Hn1].
+    { intros x ->. apply Dregs. rewrite /regs_of_argument. set_solver+. }
+    apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn1 as Hn1'.
+    destruct (lz_of_argument_dom regs arg2) as [n2 Hn2].
+    { intros x ->. apply Dregs. rewrite /regs_of_argument. set_solver+. }
+    apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
 
     assert (exec_opt i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
     { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
-      all: by rewrite Hn1 Hn2; cbn. }
+      all: by rewrite Hn1' Hn2'; cbn. }
     rewrite HH in Hstep.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt (denote i n1 n2))) _ _ _ _
       (λ lpc' regs' retv, BinOp_spec i _ regs dst arg1 arg2 lpc' regs' retv)
@@ -467,28 +437,6 @@ Section griotte_lang_rules.
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_BinOp_next with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
-  Qed.
-
-  (* Slightly generalized: fails in all cases where r2 does not contain an integer. *)
-  Lemma wp_binop_fail_z_r E ins dst n1 r2 w w2 wdst pc_p pc_g pc_b pc_e pc_a pc_π dq :
-    decodeInstrW w.(lw) = ins →
-    is_BinOp ins dst (inl n1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    is_z w2.(lw) = false →
-    r2 ≠ cnull ->
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ wdst ∗ r2 ↦ᵣ w2 }}}
-      Instr Executable
-            @ E
-    {{{ RET FailedV; pc_a ↦ₐ{dq} w }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hvpc Hisnz Hcnull φ) "(HPC & Hpc_a & Hdst & Hr2) Hφ".
-    iDestruct (map_of_regs_2 with "Hdst Hr2") as "[Hmap %]".
-    iApply (wp_BinOp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by erewrite regs_of_is_BinOp; eauto; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [* Hsucc |].
-    { (* Success (contradiction) *)  destruct w2 as [[] ?]; simplify_map_eq. }
-    { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
 End griotte_lang_rules.

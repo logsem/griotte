@@ -17,12 +17,10 @@ Section griotte_lang_rules.
   Implicit Types ms : gmap Addr LWord.
 
   Inductive Restrict_failure (lpc : LWord) (regs : LReg) (dst: RegName) (src: Z + RegName) :=
-  | Restrict_fail_src_nonz:
-      lz_of_argument regs src = None →
-      Restrict_failure lpc regs dst src
-  | Restrict_fail_allowed w:
+  | Restrict_fail_PC_overflow_other w:
       regs !!ₗ dst = Some w →
       is_mutable_range w.(lw) = false →
+      incrementPC lpc = None →
       Restrict_failure lpc regs dst src
   | Restrict_fail_invalidated_PC_cap (t : bool) p g b e a π n p' g':
       regs !!ₗ dst = Some (WCap t p g b e a @@? π) →
@@ -90,6 +88,13 @@ Section griotte_lang_rules.
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := WSealRange false p' g' b e a @@? π ]ₗ> regs →
       Restrict_spec lpc regs dst src lpc' regs' NextIV
+  (* An integer is unchanged; a sealed word or a sentry loses its tag. *)
+  | Restrict_spec_untagged w:
+      regs !!ₗ dst = Some w →
+      is_mutable_range w.(lw) = false →
+      incrementPC lpc = Some lpc' →
+      regs' = <[ dst := lclear_tag w ]ₗ> regs →
+      Restrict_spec lpc regs dst src lpc' regs' NextIV
   | Restrict_spec_failure:
       Restrict_failure lpc regs dst src →
       Restrict_spec lpc regs dst src lpc' regs' FailedV.
@@ -119,13 +124,22 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'dst) as (s & Hdst & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ Her Hlregs H'dst) as Hok.
     rewrite /exec /= Hdst /= in Hstep.
-    destruct (lz_of_argument regs src) as [n|] eqn:Hn.
-    2: { rewrite (lz_of_argument_None R regs r) /= in Hstep; [|done| |done].
-         2: { intros x ->. apply Dregs. set_solver+. }
-         instr_fail Hstep. constructor. by constructor. }
+    destruct (lz_of_argument_dom regs src) as [n Hn].
+    { intros x ->. apply Dregs. set_solver+. }
     rewrite (lz_of_argument_incl R regs r _ n) /= in Hstep; [|done|done].
+    destruct (decide (is_mutable_range wdst.(lw) = false)) as [Hk | Hk].
+    { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag wdst) (clear_tag wdst.(lw)) _ _ _
+        (λ lpc' regs' retv, Restrict_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv)
+        with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
+      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+      { apply reg_word_ok_lclear_tag. }
+      { rewrite -Hstep. by destruct wdst as [[| [] | | ? []] ?], s. }
+      { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
+      { intros lpc' Hi. eapply Restrict_spec_untagged; eauto. }
+      { intros Hi. constructor. eapply Restrict_fail_PC_overflow_other; eauto. }
+      iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
     destruct wdst as [[ | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
-    1,4,5: (instr_fail Hstep; constructor; eapply Restrict_fail_allowed; eauto).
+    1,4,5: by exfalso; apply Hk.
     - destruct (decodePermPair n) as [p' g'] eqn:HdecPair.
       set (nt := t && PermFlowsTo p' p && LocalityFlowsTo g' g).
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ dst (WCap nt p' g' b e a @@? π) _ _ _ _
@@ -200,7 +214,8 @@ Section griotte_lang_rules.
      all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
      iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | | | * Hfail].
+    destruct Hspec as [| | | | ? ? ? ? ? | * Hfail].
+    5: (simplify_lmap_eq; done).
      3,4: (simplify_lmap_eq; simplify_pair_eq;
        match goal with Hbad : _ && _ = false |- _ =>
          rewrite HPflows HLflows in Hbad; discriminate
@@ -244,7 +259,8 @@ Section griotte_lang_rules.
      all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
      iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-     destruct Hspec as [| | | | * Hfail].
+     destruct Hspec as [| | | | ? ? ? ? ? | * Hfail].
+    5: (simplify_lmap_eq; done).
      3,4: (simplify_lmap_eq; simplify_pair_eq;
        match goal with Hbad : _ && _ = false |- _ =>
          rewrite HPflows HLflows in Hbad; discriminate
@@ -291,7 +307,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hvpc Dregs Hdst Hsrc Hdecode Hflows Hpca' φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_Restrict with "[$HPC $Hpc_a $Hmap]"); eauto.
     iNext. iIntros (lpc' regs'' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [ | | | | Hfail]; simplify_eq; simplify_pair_eq.
+    destruct Hspec as [ | | | | ? ? ? ? ? | Hfail]; simplify_eq; simplify_pair_eq.
     all: try (repeat match goal with Hbad : _ && _ = false |- _ =>
         apply andb_false_iff in Hbad; destruct Hbad
       end; congruence).
@@ -326,7 +342,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hvpc Dregs Hdst Hsrc Hdecode Hflows Hpca' φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_Restrict with "[$HPC $Hpc_a $Hmap]"); eauto.
     iNext. iIntros (lpc' regs'' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [ | | | | Hfail]; simplify_eq; simplify_pair_eq.
+    destruct Hspec as [ | | | | ? ? ? ? ? | Hfail]; simplify_eq; simplify_pair_eq.
     all: try (repeat match goal with Hbad : _ && _ = false |- _ =>
         apply andb_false_iff in Hbad; destruct Hbad
       end; congruence).
