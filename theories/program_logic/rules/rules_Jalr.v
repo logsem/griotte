@@ -19,14 +19,16 @@ Section griotte_lang_rules.
 
 
   (* The new PC is the source word with its identifier; the link sentry is
-     built from the PC and takes the PC's identifier. *)
+     built from the PC and takes the PC's identifier. A [cnull] destination
+     drops the link. *)
   Inductive Jalr_spec (regs : LReg) pc_p pc_g pc_b pc_e pc_a pc_π (rdst rsrc: RegName) :
     LWord → LReg → griotte_lang.val → Prop :=
   | Jalr_spec_success regs' pc_a' wsrc :
     regs !!ₗ rsrc = Some wsrc ->
     jalr_target_ok wsrc.(lw) = true ->
     (pc_a + 1)%a = Some pc_a' ->
-    regs' = (<[rdst := WSentry (ret_kind InterruptDisabled) true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ]ₗ> regs) →
+    regs' = (if decide (rdst = cnull) then regs
+             else <[rdst := WSentry (ret_kind InterruptDisabled) true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ]ₗ> regs) →
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc (lupdatePcPerm wsrc) regs' NextIV
   | Jalr_spec_failure_target wsrc :
     regs !!ₗ rsrc = Some wsrc ->
@@ -81,17 +83,29 @@ Section griotte_lang_rules.
     { apply (reg_word_ok_derive _ _ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π));
         [by left|done|done|done]. }
     pose proof (erasure_pc_no_id _ _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ.
+    destruct (decide (rdst = cnull)) as [Hnull | Hnull].
+    { iApply (instr_close_set_pc _ _ _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc)
+                with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
+      - exact Her.
+      - by apply reg_word_ok_lupdatePcPerm.
+      - by apply reg_phys_lupdatePcPerm.
+      - by apply jalr_target_ok_pc_ok.
+      - iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
+        eapply Jalr_spec_success; [exact H'rsrc | exact Hok | exact Hpca' |].
+        by rewrite decide_True. }
     iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ rdst
               (WSentry (ret_kind InterruptDisabled) true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) _ (lupdatePcPerm wsrc)
               with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
     - exact Her.
-    - apply Dregs. set_solver+.
+    - apply Dregs. set_solver.
     - exact Hoksent.
     - by apply reg_phys_no_id.
     - by apply reg_word_ok_lupdatePcPerm.
     - by apply reg_phys_lupdatePcPerm.
     - by apply jalr_target_ok_pc_ok.
-    - iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. by econstructor.
+    - iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro.
+      eapply Jalr_spec_success; [exact H'rsrc | exact Hok | exact Hpca' |].
+      by rewrite decide_False.
   Qed.
 
   Lemma wp_jalr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rsrc wsrc rdst wdst dq :
@@ -122,13 +136,14 @@ Section griotte_lang_rules.
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
    destruct Hspec as [ | ? Hlook Hfail | Hfail ]; subst.
-   { iApply "Hφ". iFrame. simplify_lmap_eq.
+   { rewrite decide_False //.
+     iApply "Hφ". iFrame. simplify_lmap_eq.
      iRegsMap "Hmap"; eauto; iFrame. }
    { simplify_lmap_eq. congruence. }
    { congruence. }
   Qed.
 
-  Lemma wp_jalr_success_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rsrc wsrc wdst dq :
+  Lemma wp_jalr_success_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rsrc wsrc dq :
     decodeInstrW w.(lw) = Jalr cnull rsrc →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -138,25 +153,24 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ rsrc ↦ᵣ wsrc
-        ∗ ▷ cnull ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ lupdatePcPerm wsrc
           ∗ pc_a ↦ₐ{dq} w
           ∗ rsrc ↦ᵣ wsrc
-          ∗ cnull ↦ᵣ WInt 0
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' Htgt Hcnull ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
-    iDestruct (map_of_regs_2 with "Hrsrc Hrdst") as "[Hmap %]".
+    iIntros (Hinstr Hvpc Hpca' Htgt Hcnull ϕ) "(>HPC & >Hpc_a & >Hrsrc) Hφ".
+    iDestruct (map_of_regs_1 with "Hrsrc") as "Hmap".
     iApply (wp_Jalr with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
     { set_solver. }
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
    destruct Hspec as [ | ? Hlook Hfail | Hfail ]; subst.
-   { iApply "Hφ". iFrame. simplify_lmap_eq; [|exact lnull..].
-     iRegsMap "Hmap"; eauto; iFrame. }
+   { destruct (decide (cnull = cnull)) as [_|Hc]; last done.
+     simplify_lmap_eq.
+     iApply "Hφ". iFrame. iApply (regs_of_map_1 with "Hmap"). }
    { simplify_lmap_eq. congruence. }
    { congruence. }
   Qed.
@@ -186,7 +200,8 @@ Section griotte_lang_rules.
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
    destruct Hspec as [ | ? Hlook Hfail | Hfail ]; subst.
-   { iApply "Hφ". iFrame.
+   { rewrite decide_False //.
+     iApply "Hφ". iFrame.
      simplify_lmap_eq.
      iRegsMap "Hmap"; eauto; iFrame. }
    { simplify_lmap_eq. congruence. }
@@ -220,6 +235,31 @@ Section griotte_lang_rules.
       case_decide; first done.
       by rewrite jalr_target_ok_and_tag Hfail andb_false_r.
     - iNext. iIntros "(HPC & Hrsrc & Hrdst & Hpc_a)". iApply "Hφ". iFrame.
+  Qed.
+
+  Lemma wp_jalr_fail_target_cnull E pc_p pc_g pc_b pc_e pc_a pc_π w rsrc wsrc dq :
+    decodeInstrW w.(lw) = Jalr cnull rsrc →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    jalr_target_ok wsrc.(lw) = false →
+
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ ▷ pc_a ↦ₐ{dq} w
+        ∗ ▷ rsrc ↦ᵣ wsrc
+    }}}
+      Instr Executable @ E
+      {{{ RET FailedV;
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+          ∗ pc_a ↦ₐ{dq} w
+          ∗ rsrc ↦ᵣ wsrc
+      }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hrsrc) Hφ".
+    iApply (wp_instr_failed_1 with "[$HPC $Hrsrc $Hpc_a]"); [done | done | | ].
+    - intros rf sr m st s1 Hr1.
+      rewrite /exec /= /lookup_reg Hr1 /= jalr_target_checks.
+      case_decide; first done.
+      by rewrite jalr_target_ok_and_tag Hfail andb_false_r.
+    - iNext. iIntros "(HPC & Hrsrc & Hpc_a)". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_jalr_fail_target_same E pc_p pc_g pc_b pc_e pc_a pc_π w r wr dq :

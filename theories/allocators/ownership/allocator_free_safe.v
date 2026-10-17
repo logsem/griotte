@@ -153,10 +153,10 @@ Section Heap_Temporal_Safety_Interp.
         with "[-]"); try solve_ndisj; try assumption;
         try (intros next allocations Hnext Hchain; exact (Hinvalid next allocations id Hnext Hchain)).
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
-      iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+      iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iSplitR; first (iNext; by iIntros (?)).
       iNext.
-      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the sealing predicate of the allocator capability. *)
       iDestruct ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights]") as "Hworld".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
@@ -235,10 +235,10 @@ Section Heap_Temporal_Safety_Interp.
           (WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return)
           with "[-]"); try solve_ndisj; try assumption.
         iFrame "Hservice Hstatic Hna Hid Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
-        iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+        iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
         iSplitR; first (iNext; by iIntros (?)).
         iNext.
-        iIntros "(Hna & Hid & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
+        iIntros "(Hna & Hid & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
         (* Close the sealing predicate in the revoked world. *)
         iDestruct ("Hclose" $! (revoke W) [] Ω
           with "[] [] [$Hsts $Ha_owner $Hid $Hrights Hregion]") as "Hworld".
@@ -305,7 +305,7 @@ Section Heap_Temporal_Safety_Interp.
         (delete cra (delete cgp regs)))))))))))).
       iApply (allocator_free_valid_correct ⊤ g_owner a_owner id Ω p g ι b e a ws
         (WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        rmap (λ v, (⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) with "[-]");
+        _ rmap (λ v, (⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) with "[-]");
         try solve_ndisj; try exact Hbounds; try (symmetry; exact Hlen);
         try assumption.
       { subst rmap. apply lregmap_full_dom in Hfull_rmap.
@@ -434,10 +434,10 @@ Section Heap_Temporal_Safety_Interp.
         with "[-]"); try solve_ndisj; try exact Hnarrow; try assumption.
       { destruct Hbounds as (_ & Hbe & _). solve_addr. }
       iFrame "Hservice Hstatic Hna Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
-      iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+      iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iSplitR; first (iNext; by iIntros (?)).
       iNext.
-      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the sealing predicate of the allocator capability. *)
       iDestruct ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights]") as "Hworld".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".

@@ -15,7 +15,7 @@ Section AllocatorMallocPublishBlocks4.
 
   Lemma allocator_malloc_publish_spec
     (E : coPset) (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (ι : AId)
-    (wret wca0 wnull : LWord)
+    (wret wca0 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     (next + allocator_header_words)%a = Some b ->
@@ -28,7 +28,6 @@ Section AllocatorMallocPublishBlocks4.
     ca4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ WInt n @@? πn ∗
-    cnull ↦ᵣ wnull ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ φ FailedV ∗
@@ -39,7 +38,6 @@ Section AllocatorMallocPublishBlocks4.
        ca4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
        ca0 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
        ca1 ↦ᵣ WInt 0 ∗
-       cnull ↦ᵣ WInt 0 ∗
        allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e finish ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
@@ -47,7 +45,7 @@ Section AllocatorMallocPublishBlocks4.
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds Hbase Hfinish Hrange. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
-    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hcnull & Hslot & #Hcode_main & Hfailed & Hφ)".
+    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hslot & #Hcode_main & Hfailed & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     unfold allocator_header_words in Hbase.
@@ -79,10 +77,10 @@ Section AllocatorMallocPublishBlocks4.
     change_pc_to
       ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 2)%a.
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
-    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]");
+    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcode]");
       first by apply allocator_malloc_exit_bounds.
     iFrame "Hfailed".
-    iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
+    iNext. iIntros "(HPC & Hcra & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

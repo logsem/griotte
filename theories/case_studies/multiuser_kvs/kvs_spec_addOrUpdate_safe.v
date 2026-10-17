@@ -50,7 +50,6 @@ Section KVS_spec_addOrUpdate_safe.
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
 
       world_interp W C ∗
 
@@ -64,7 +63,6 @@ Section KVS_spec_addOrUpdate_safe.
          ctp ↦ᵣ - ∗ (* scratch *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
 
          world_interp W C
 
@@ -74,13 +72,13 @@ Section KVS_spec_addOrUpdate_safe.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W)
       "(#Hspred & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
-      & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld & Hpost)".
+      & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hworld & Hpost)".
 
     (* Destruct validity map key *)
     destruct (decide (word_is_uint16 wca1.(lw))) as [Hwca1_uint16|Hwca1_uint16]; cycle 1.
     { (* the map key argument is not a uint16 *)
       iApply KVS_addOrUpdate_spec_not_uint16_map_key; eauto; iFrame "∗#".
-      iNext; iIntros "(Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull)".
+      iNext; iIntros "(Hna & HPC & Hcra & Hca0 & Hca1 & Hct1)".
       iApply "Hpost"; iFrame.
     }
     destruct wca1 as [ [nkey| | | ] πnkey]; cbn in Hwca1_uint16; try done.
@@ -123,7 +121,7 @@ Section KVS_spec_addOrUpdate_safe.
     - iApply KVS_update_spec; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hna
-                & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+                & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                 & Ha & HLUKVS & Hnkey)".
 
       iAssert (∀ W' : WORLD,
@@ -154,7 +152,7 @@ Section KVS_spec_addOrUpdate_safe.
     - iApply KVS_add_spec; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hna
-                & HPC & Hgcp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+                & HPC & Hgcp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                 & Ha
                 & HLUKVS & Hrest)".
 
@@ -297,14 +295,14 @@ Section KVS_spec_addOrUpdate_safe.
       rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr+Himports Hcode_size. }
     iApply (KVS_addOrupdate_spec_safe W0 (revoke W0) _ _ _ _ _ _ Hunsealing_shadow);
       try solve_ndisj; iFrame "∗#".
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld_C)".
+    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
     iAssert (∃ zca0, ca0 ↦ᵣ WInt zca0)%I with "[Hca0]" as "[%zca0 Hca0]".
     { iDestruct "Hca0" as "[$|$]". }
 
 
     iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
-    iDestruct "Hcnull" as "[% Hcnull]"; iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap".
+    iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
     iDestruct "Hct2" as "[% Hct2]"; iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }

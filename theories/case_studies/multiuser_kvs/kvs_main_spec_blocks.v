@@ -874,11 +874,11 @@ Section KVS_Main_Blocks.
     focus_block 14 "Hcode_main" as a_assert2 Ha_assert2 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent Ha_assert1.
     iApply (assert_success_spec ASSERT_OFFSET with
-             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra
-              $Hcode $Himport_assert]"); auto.
+             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra
+              $Hcode $Himport_assert]"); auto; try (by intros ?).
     { kvs_main_fetch_offset. }
     { kvs_main_fetch_bounds. }
-    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1
                     & _ & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 

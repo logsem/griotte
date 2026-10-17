@@ -190,8 +190,8 @@ Section Counter.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [cnull] as ["Hcnull"].
     iApply (counter_main_blocks_2_spec with
-             "[- $HPC $Hcra $Hcs0 $Hcs1 $Hca0 $Hca1 $Hcnull $Hcode_main]"); first done.
-    iNext; iIntros "(HPC & Hcra & Hcs0 & Hcs1 & Hca0 & Hca1 & Hcnull & _)".
+             "[- $HPC $Hcra $Hcs0 $Hcs1 $Hca0 $Hca1 $Hcode_main]"); first done.
+    iNext; iIntros "(HPC & Hcra & Hcs0 & Hcs1 & Hca0 & Hca1 & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iInsertRegs "Hrmap" ["Hcnull"; "Hcs0"; "Hcs1"; "Hcgp"; "Hcra"].
 

@@ -340,24 +340,22 @@ Section AllocatorFreeTailBlocks.
   Qed.
 
   Lemma allocator_free_return_spec
-    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wnull : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 4)%a ∗
     cra ↦ᵣ wret ∗
-    cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
     ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       cnull ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_free_tail_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hcnull & #Hcode_main & Hfailed & Hφ)".
+    iIntros "(HPC & Hcra & #Hcode_main & Hfailed & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
 
@@ -375,37 +373,35 @@ Section AllocatorFreeTailBlocks.
     focus_block 6 "Hcode_main" of allocator_free_tail_blocks at pc_a as a_ret Ha_ret
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]"); [solve_addr|done|].
+    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcode]"); [solve_addr|done|].
     iFrame "Hfailed".
-    iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
+    iNext. iIntros "(HPC & Hcra & _ & Hlc)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   (** Blocks 5 and 6: set [ALLOC_INVALID] and return. *)
   Lemma allocator_free_tail_invalid_spec
-    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 wnull : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 5)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
-    cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
     ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
-       cnull ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_free_tail_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hfailed & Hφ)".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hfailed & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
 
@@ -424,9 +420,9 @@ Section AllocatorFreeTailBlocks.
     focus_block 6 "Hcode_main" of allocator_free_tail_blocks at pc_a as a_ret Ha_ret
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcnull $Hcode]"); [solve_addr|done|].
+    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcode]"); [solve_addr|done|].
     iFrame "Hfailed".
-    iNext. iIntros "(HPC & Hcra & Hcnull & _ & Hlc)".
+    iNext. iIntros "(HPC & Hcra & _ & Hlc)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.

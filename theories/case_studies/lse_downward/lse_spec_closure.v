@@ -144,10 +144,10 @@ Section LSE.
 
     (* Blocks 5-6: assert that [a] contains [2], and return *)
     iApply (lse_f_blocks_2_spec with
-             "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hca0 $Hca1 $Hcnull
+             "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hca0 $Hca1
               $Himport_assert $Hcode_main]"); [done|].
     iNext; iIntros "(HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
-                    & Hcnull & _ & _)".
+                    & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iMod ("Hlse_code_close" with "[$Hna $Hcgp_b]") as "Hna".
     iInsertRegs "Hrmap" ["Hcnull";"Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].

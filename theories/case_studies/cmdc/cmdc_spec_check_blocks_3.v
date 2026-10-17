@@ -45,10 +45,10 @@ Section CMDC_Check_Blocks_3.
       as a_assert Ha_assert "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     iApply (assert_success_spec 1 with
-             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcnull $Hcra
-              $Hcode $Himport_assert]"); auto;
+             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra
+              $Hcode $Himport_assert]"); auto; try (by intros ?);
       [offsets_compute; solve_addr|solve_addr|];
-    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hcnull
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1
                     & _ & Himport_assert)";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
     change_pc_to (pc_a ^+ cmdc_label_offset l_next)%a;
@@ -57,7 +57,7 @@ Section CMDC_Check_Blocks_3.
   Lemma cmdc_check_blocks_3_spec (c : cmdc_call)
     (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable)
     (cgp_b cgp_e a_chk : Addr)
-    (wct0 wct1 wct2 wca2 wcnull wcra : LWord) :
+    (wct0 wct1 wct2 wca2 wcra : LWord) :
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
     (cgp_b <= a_chk < cgp_e)%a ->
     is_mmio_address a_chk = false ->
@@ -68,7 +68,6 @@ Section CMDC_Check_Blocks_3.
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
-    cnull ↦ᵣ wcnull ∗
     cra ↦ᵣ wcra ∗
     a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
     (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
@@ -79,7 +78,6 @@ Section CMDC_Check_Blocks_3.
         ct1 ↦ᵣ WInt 0 ∗
         ct2 ↦ᵣ WInt 0 ∗
         ca2 ↦ᵣ WInt 0 ∗
-        cnull ↦ᵣ WInt 0 ∗
         cra ↦ᵣ wcra ∗
         a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
         (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
@@ -90,7 +88,7 @@ Section CMDC_Check_Blocks_3.
     destruct c; cbn [cmdc_return_label cmdc_next_label cmdc_call_expected].
     all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap
                    & HC_g_nonheap) Ha_chk Ha_chk_mmio)
-      "(#Hassert & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull & Hcra
+      "(#Hassert & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
       & Ha_chk & Himport_assert & Hcode_main & Hpost)".
     all: codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     all: unfold_code cmdc_main_code "Hcode_main".

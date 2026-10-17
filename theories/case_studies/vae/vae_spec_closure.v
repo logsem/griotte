@@ -317,10 +317,10 @@ Section VAE.
       as ["Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
     iApply (vae_awkward_blocks_3_spec with
              "[- $HawkN $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
-              $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Himport_assert $Hcode_main]");
+              $Hct0 $Hct1 $Hct2 $Hca2 $Himport_assert $Hcode_main]");
       [done|done|done|exact Hloc_i_W7|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
-                    & Hct0 & Hct1 & Hct2 & Hca2 & Hcnull & _ & _)".
+                    & Hct0 & Hct1 & Hct2 & Hca2 & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iInsertRegs "Hrmap" ["Hcnull";"Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 

@@ -37,7 +37,7 @@ Section Assert_subroutine.
 
   Lemma assert_subroutine_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret : Word) ( wnull : LWord)
+    ( n1 n2 flag : Z ) ( wret : Word)
     (φ : language.val griotte_lang -> iProp Σ) :
     disjoint_from_shadow pc_b pc_e →
     is_shadow_address a_flag = false →
@@ -48,19 +48,17 @@ Section Assert_subroutine.
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
-     ∗ cnull ↦ᵣ wnull
      ∗ a_flag ↦ₐ WInt flag
      ∗ ▷ (PC ↦ₚ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0
           ∗ ct1 ↦ᵣ WInt 0
-          ∗ cnull ↦ᵣ WInt 0
           ∗ a_flag ↦ₐ WInt (if (n1 =? n2)%Z then flag else 1%Z)
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
     iIntros (Hcode_shadow Hflag_not_shadow Hflag_not_heap Htgt)
-      "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hflag & Hφ)".
+      "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hflag & Hφ)".
     iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hpc_e & %He_flag & Hcap)".
     destruct He_flag as [e_flag He_flag].
@@ -99,7 +97,7 @@ Section Assert_subroutine.
 
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret : Word) ( wnull : LWord)
+    ( n1 n2 flag : Z ) ( wret : Word)
     (φ : language.val griotte_lang -> iProp Σ) :
     n1 = n2 →
     jalr_target_ok wret = true →
@@ -108,16 +106,14 @@ Section Assert_subroutine.
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
-     ∗ cnull ↦ᵣ wnull
      ∗ ▷ (PC ↦ₚ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0%Z
           ∗ ct1 ↦ᵣ WInt 0%Z
-          ∗ cnull ↦ᵣ WInt 0
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (Heq Htgt) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hφ)".
+    iIntros (Heq Htgt) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hφ)".
     iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
@@ -153,7 +149,7 @@ Section Assert.
     (n off : Z) (rdst rscratch : RegName)
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
-    (n1 n2 : Z) (wdst wcra wscratch wnull : LWord) (dq : dfrac)
+    (n1 n2 : Z) (wdst wcra wscratch : LWord) (dq : dfrac)
     (φ : language.val griotte_lang -> iProp Σ) :
 
     let assert_macro := assert_instrs off rdst rscratch in
@@ -163,6 +159,8 @@ Section Assert.
     (pc_a + off)%a = Some (pc_b ^+ n)%a ->
     withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
     disjoint_from_shadow pc_b pc_e →
+    rdst ≠ cnull →
+    rscratch ≠ cnull →
 
     n1 = n2 →
     (  assert_static b_assert e_assert a_flag
@@ -172,7 +170,6 @@ Section Assert.
      ∗ cra ↦ᵣ wcra
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
-     ∗ cnull ↦ᵣ wnull
      ∗ codefrag_pers pc_a assert_macro
      ∗ (pc_b ^+ n)%a ↦ₐ{dq} (WSentry Inherit true RX g_assert b_assert e_assert b_assert)
      ∗ ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
@@ -181,22 +178,19 @@ Section Assert.
           ∗ cra ↦ᵣ wcra
           ∗ ct0 ↦ᵣ WInt 0
           ∗ ct1 ↦ᵣ WInt 0
-          ∗ cnull ↦ᵣ WInt 0
           ∗ codefrag_pers pc_a assert_macro
           ∗ (pc_b ^+ n)%a ↦ₐ{dq} (WSentry Inherit true RX g_assert b_assert e_assert b_assert)
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
     intros assert_macro a_last; subst assert_macro a_last.
-    iIntros (Hpc_exec HsubBounds Hoff Hinbounds Hcode_shadow Heq)
-      "(#Hassert & HPC & Hrdst & Hrscratch & Hcra & Hct0 & Hct1 & Hcnull & #Hcode_main & Hpc_bn & Hφ)".
+    iIntros (Hpc_exec HsubBounds Hoff Hinbounds Hcode_shadow Hrdst_cnull Hrscratch_cnull Heq)
+      "(#Hassert & HPC & Hrdst & Hrscratch & Hcra & Hct0 & Hct1 & #Hcode_main & Hpc_bn & Hφ)".
     iAssert (⌜is_heap_address b_assert = false⌝)%I as %Hassert_not_heap.
     { by iDestruct "Hassert" as "[$ _]". }
     codefrag_facts "Hcode_main".
     rewrite assert_instrs_fetch.
     focus_block_0 "Hcode_main" as "Hfetch" "Hcont"; iHide "Hcode_main" as hcode.
-    iDestruct (regname_neq with "Hrscratch Hcnull") as "%".
-    iDestruct (regname_neq with "Hrdst Hcnull") as "%".
     iApply (fetch_spec n off rdst with "[-]"); last iFrame "∗ Hfetch"; eauto.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hassert_not_heap /=.
       reflexivity. }
@@ -207,7 +201,7 @@ Section Assert.
     iEval (cbn) in "HPC".
     (* The return target is the link sentry, executable as the PC is. *)
     iApply (assert_subroutine_success_spec with "[-]"); last iFrame "∗ Hassert"; try done.
-    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hcnull)".
+    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1)".
     iEval (cbn) in "HPC".
     iGo "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.

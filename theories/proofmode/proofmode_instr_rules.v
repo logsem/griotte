@@ -173,6 +173,7 @@ Ltac dispatch_generic_failure instr cont :=
 Ltac dispatch_jalr_failure instr cont :=
   let instr := eval unfold register_file.regn, register_file.cst in instr in
   lazymatch instr with
+  | Jalr cnull _ => cont (@wp_jalr_fail_target_cnull)
   | Jalr ?r ?r => cont (@wp_jalr_fail_target_same)
   | Jalr _ _ => cont (@wp_jalr_fail_target)
   end.

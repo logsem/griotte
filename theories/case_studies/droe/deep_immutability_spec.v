@@ -191,7 +191,7 @@ Section DROE.
 
     (* Blocks 3-5: assert that b is unchanged and halt *)
     iApply (droe_assert_blocks_3_spec _ _ _ _ _ C_f with
-             "[$Hassert $Hna $HPC $Hcgp $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull
+             "[$Hassert $Hna $HPC $Hcgp $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hca2
               $Hcs0 $Hcra $Hcgp_b $Himport_assert $Hcode_main]");
       [rewrite /droe_code_bounds; eauto 10|done..].
   Qed.

@@ -219,7 +219,10 @@ Section opsem.
             match (a + 1)%a with
             | Some a' =>
                 let φ_next := (update_pcc φ (updatePcPerm wrsrc)) in
-                let φ_dst := (update_reg φ_next rdst (WSentry (ret_kind InterruptDisabled) t p g b e a')) in
+                (* A [cnull] destination drops the link. *)
+                let φ_dst :=
+                  if decide (rdst = cnull) then φ_next
+                  else update_reg φ_next rdst (WSentry (ret_kind InterruptDisabled) t p g b e a') in
                 Some (NextI, φ_dst)
             | None => None
             end

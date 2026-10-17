@@ -90,10 +90,10 @@ Section Heap_Temporal_Safety_Interp.
         (WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try exact Hinvalid; try assumption.
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
-      iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+      iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iSplitR; first (iNext; by iIntros (?)).
       iNext.
-      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the sealing predicate of the allocator capability. *)
       iDestruct ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights]") as "Hworld".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
@@ -138,10 +138,10 @@ Section Heap_Temporal_Safety_Interp.
         (WSentry (ret_kind InterruptDisabled) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]"); try solve_ndisj; try exact Hpositive; try assumption.
       iFrame "Hservice Hstatic Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0".
-      iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+      iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iSplitR; first (iNext; by iIntros (?)).
       iNext.
-      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hresult)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hresult)".
       iDestruct "Hresult" as "[Hoom|Hsuccess]".
       + (* Capacity exhausted: restore the caller and return ALLOC_NO_MEMORY. *)
         iDestruct "Hoom" as "(Hid & Hca0 & Hca1)".

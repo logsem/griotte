@@ -228,7 +228,7 @@ Section DLE.
 
     (* Blocks 3-5: assert that b is unchanged and halt *)
     iApply (dle_assert_blocks_4_spec _ _ _ _ _ C_f with
-             "[$Hassert $Hna $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcnull $Hcra
+             "[$Hassert $Hna $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
               $Hcgp_b $Himport_assert $Hcode_main]");
       [rewrite /dle_code_bounds; eauto 10|done..].
   Qed.

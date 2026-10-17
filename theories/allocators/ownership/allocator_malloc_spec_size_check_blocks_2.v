@@ -58,39 +58,37 @@ Section AllocatorMallocSizeCheckBlocks2.
 
   (** Block 5, the exit segment: set [ALLOC_INVALID] and return. *)
   Lemma allocator_malloc_reject_spec
-    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 wnull : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_invalid_offset)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
-    cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
-       cnull ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros Hbounds.
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & #Hcode_main & Hfailed & Hφ)".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hfailed & Hφ)".
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     iApply (allocator_malloc_exit_reject_spec with
-      "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode]");
+      "[- $HPC $Hcra $Hca0 $Hca1 $Hcode]");
       first by apply allocator_malloc_exit_bounds.
     iFrame "Hfailed".
-    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
+    iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   Lemma allocator_malloc_size_check_invalid_spec
-    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wca0 wreq wtmp wnull : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wca0 wreq wtmp : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     ¬ allocator_positive_size wreq.(lw) ->
@@ -99,7 +97,6 @@ Section AllocatorMallocSizeCheckBlocks2.
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wreq ∗
     ca3 ↦ᵣ wtmp ∗
-    cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
@@ -107,7 +104,6 @@ Section AllocatorMallocSizeCheckBlocks2.
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        ca3 ↦ᵣ - ∗
-       cnull ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
@@ -115,7 +111,7 @@ Section AllocatorMallocSizeCheckBlocks2.
   Proof.
     intros Hbounds Hinvalid. pose proof Hbounds as (Hpc & _ & _).
     destruct wreq as [wreq π]; cbn in Hinvalid.
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct3 & Hcnull & #Hcode_main & Hfailed & Hφ)".
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct3 & #Hcode_main & Hfailed & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
 
@@ -145,10 +141,10 @@ Section AllocatorMallocSizeCheckBlocks2.
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
-      iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
+      iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcode_main]");
         first done.
       iFrame "Hfailed".
-      iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
+      iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & _ & Hlc)".
       iApply "Hφ". iFrame "∗ Hcode_main".
     - assert (Hnonzero : WInt (encodeWordType wreq - encodeWordType (WInt 0)) ≠ WInt 0).
       { pose proof (encodeWordType_correct wreq (WInt 0)) as Hencode.
@@ -162,10 +158,10 @@ Section AllocatorMallocSizeCheckBlocks2.
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
-      iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcnull $Hcode_main]");
+      iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcode_main]");
         first done.
       iFrame "Hfailed".
-      iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hcnull & _ & Hlc)".
+      iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & _ & Hlc)".
       iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

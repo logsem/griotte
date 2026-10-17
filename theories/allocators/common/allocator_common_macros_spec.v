@@ -76,7 +76,7 @@ Section AllocatorMacros.
   Qed.
 
   Lemma allocator_return_spec
-    (E : coPset) (pc_b pc_e pc_a : Addr) (wret wnull : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let code := encodeInstrsW [Jalr cnull cra] in
@@ -85,19 +85,17 @@ Section AllocatorMacros.
 
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
-    cnull ↦ᵣ wnull ∗
     codefrag_pers pc_a code ∗
     ▷ φ FailedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
-         cnull ↦ᵣ WInt 0 ∗
          codefrag_pers pc_a code ∗
          £ 1
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
     intros code Hpc Hdisjoint; subst code.
-    iIntros "(HPC & Hcra & Hcnull & #Hcode & Hfailed & Hφ)".
+    iIntros "(HPC & Hcra & #Hcode & Hfailed & Hφ)".
     codefrag_facts "Hcode".
     destruct (jalr_target_ok wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra. *)
