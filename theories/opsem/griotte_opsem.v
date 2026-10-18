@@ -8,7 +8,7 @@ Definition ExecConf := (Word * Reg * SReg * Mem * ShadowTbl)%type.
 Inductive ConfFlag : Type :=
 | Executable
 | Halted
-| Failed
+| Faulted
 | NextI.
 
 Definition Conf: Type := ConfFlag * ExecConf.
@@ -207,7 +207,7 @@ Section opsem.
 
   Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with
-    | Fail => Some (Failed, φ)
+    | Fail => Some (Faulted, φ)
     | Halt => Some (Halted, φ)
     | Jmp rimm =>
         imm ← z_of_argument (reg φ) rimm;
@@ -505,7 +505,7 @@ Section opsem.
   end.
 
   Definition exec (i: instr) (plevel : Perm) (φ: ExecConf) : Conf :=
-     match exec_opt i plevel φ with | None => (Failed, φ) | Some conf => conf end .
+     match exec_opt i plevel φ with | None => (Faulted, φ) | Some conf => conf end .
 
   Lemma exec_opt_exec_some :
     forall φ i plevel c,
@@ -516,7 +516,7 @@ Section opsem.
   Lemma exec_opt_exec_none :
     forall φ i plevel,
       exec_opt i plevel φ = None →
-      exec i plevel φ = (Failed, φ).
+      exec i plevel φ = (Faulted, φ).
   Proof. unfold exec. by intros * ->. Qed.
 
 (* TODO I don't think that we need to check whether PC
@@ -526,12 +526,12 @@ Section opsem.
   | step_exec_corrfail:
       forall φ,
         not (isCorrectPC (pcc φ)) →
-        step (Executable, φ) (Failed, φ)
+        step (Executable, φ) (Faulted, φ)
   | step_exec_memfail:
       forall φ p g b e a,
         pcc φ = WCap true p g b e a →
         (mem φ) !! a = None →
-        step (Executable, φ) (Failed, φ)
+        step (Executable, φ) (Faulted, φ)
   | step_exec_instr:
       forall φ p g b e a i c wa,
         pcc φ = WCap true p g b e a → (* only works for caps *)

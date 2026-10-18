@@ -7,7 +7,7 @@ Section griotte_lang.
   Context `{MachineParameters}.
   Inductive val: Type :=
   | HaltedV: val
-  | FailedV: val
+  | FaultedV: val
   | NextIV: val.
 
   Inductive expr: Type :=
@@ -18,7 +18,7 @@ Section griotte_lang.
   Definition of_val (v: val): expr :=
     match v with
     | HaltedV => Instr Halted
-    | FailedV => Instr Failed
+    | FaultedV => Instr Faulted
     | NextIV => Instr NextI
     end.
 
@@ -28,7 +28,7 @@ Section griotte_lang.
       match c with
       | Executable => None
       | Halted => Some HaltedV
-      | Failed => Some FailedV
+      | Faulted => Some FaultedV
       | NextI => Some NextIV
       end
     | Seq _ => None
@@ -61,7 +61,7 @@ Section griotte_lang.
       step (Executable, σ) (e', σ') → prim_step (Instr Executable) σ [] (Instr e') σ' []
   | PS_no_fork_seq σ : prim_step (Seq (Instr NextI)) σ [] (Seq (Instr Executable)) σ []
   | PS_no_fork_halt σ : prim_step (Seq (Instr Halted)) σ [] (Instr Halted) σ []
-  | PS_no_fork_fail σ : prim_step (Seq (Instr Failed)) σ [] (Instr Failed) σ [].
+  | PS_no_fork_fail σ : prim_step (Seq (Instr Faulted)) σ [] (Instr Faulted) σ [].
 
   Lemma val_stuck:
     forall e σ o e' σ' efs,

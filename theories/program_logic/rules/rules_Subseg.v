@@ -111,7 +111,7 @@ Section griotte_lang_rules.
       Subseg_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | Subseg_spec_failure :
       Subseg_failure lpc regs dst src1 src2 lpc' regs' →
-      Subseg_spec lpc regs dst src1 src2 lpc' regs' FailedV.
+      Subseg_spec lpc regs dst src1 src2 lpc' regs' FaultedV.
 
   (** The premise of the generic rule. An identifier-less source that
       would give a tagged, non-empty heap result needs its new base to be a
@@ -196,9 +196,9 @@ Section griotte_lang_rules.
         (∀ lpc', incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
           Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' (<[dst := w']ₗ> regs) NextIV) ∧
         (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
-          Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FailedV) ∧
+          Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FaultedV) ∧
         (match updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst pw) with
-         | Some conf => conf | None => (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ'))
+         | Some conf => conf | None => (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ'))
       as (w' & pw & Hok' & Hpw & Hsuccess & Hfailure & Hupdate).
     { destruct wd as [ | [t p g b e a | t p g b e a] | | ];
         try discriminate Hwdst.
@@ -878,7 +878,7 @@ Section griotte_lang_rules.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
       (λ lpc' regs' retv,
          (retv = NextIV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧ regs' = <[dst := v]ₗ> regs) ∨
-         (retv = FailedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None))
+         (retv = FaultedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None))
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Htok]").
     { exact Her. } { exact Hlregs. } { rewrite /regs. set_solver+. }
     { eapply reg_word_ok_rebase; eauto. by destruct Hs as [-> | ->]. } { exact Hstep. }

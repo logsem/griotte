@@ -42,9 +42,7 @@ Section fundamental.
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [HincrPC Hregs' | HincrPC]; cycle 1.
-    { iApply wp_pure_step_later; auto.
-      iNext; iIntros "_".
-      iApply wp_value; auto. }
+    { iTrap; auto. }
 
     apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
     injection HPC as <- <- <- <- <- <- <-.

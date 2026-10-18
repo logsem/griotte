@@ -41,8 +41,7 @@ Section fundamental.
     iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [ lpc' imm Himm Hincr| ]; cycle 1.
     {
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto.
+      iTrap; auto.
     }
 
     incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&π0&?&Ha0'&?); simplify_map_eq.

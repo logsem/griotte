@@ -54,7 +54,7 @@ Section SO_Checkints_Blocks_2.
     focus_block (so_block ".Lso_f_checkints") "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hobject $Hcode]"); eauto.
-    iSplitL; last (iModIntro; iNext; iIntros (?); done).
+    iSplitL; last (iApply trap_ok_intro; iNext; iIntros (?); done).
     iNext; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hobject & %Hints & _ & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ so_label_offset ".Lso_f_alloc")%a.
@@ -84,7 +84,7 @@ Section SO_Checkints_Blocks_2.
     (* Block 6: [checkints] fails on the untagged object *)
     focus_block (so_block ".Lso_f_checkints") "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
     iApply (checkints_fail_untagged with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
-    iModIntro; iNext; iIntros (?); done.
+    iApply trap_ok_intro; iNext; iIntros (?); done.
   Qed.
 
 End SO_Checkints_Blocks_2.

@@ -64,13 +64,9 @@ Section fundamental.
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → φ }}.
   Proof.
     iIntros (HnPC) "HPC".
-    iApply (wp_bind (fill [SeqCtx])).
-    iApply (wp_notCorrectPC with "HPC"); first done.
-    iNext. iIntros "HPC /=".
-    iApply wp_pure_step_later; auto.
-    iNext ; iIntros "_".
-    iApply wp_value.
-    iIntros (Hcontr); inversion Hcontr.
+    iApply (wp_notCorrectPC_trap with "HPC"); first done.
+    iApply trap_ok_intro.
+    iIntros "!>" (Hcontr); inversion Hcontr.
   Qed.
 
   (** A safe, correct PC has a valid PC permission. *)
@@ -234,10 +230,9 @@ Section fundamental.
     2: { iApply fundamental_cap; done. }
     all: iIntros (????) "(? & HPC & ?)"; unfold interp_conf.
     all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
-    all: iApply (wp_bind (fill [SeqCtx])); cbn.
-    all: iApply (wp_notCorrectPC with "HPC"); first by inversion 1.
-    all: iNext; iIntros; cbn; iApply wp_pure_step_later; auto.
-    all: iNext; iIntros "_"; iApply wp_value; iIntros (?); congruence.
+    all: iApply (wp_notCorrectPC_trap with "HPC"); first by inversion 1.
+    all: iApply trap_ok_intro.
+    all: iIntros "!>" (Hhalted); congruence.
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
@@ -305,7 +300,7 @@ Section fundamental.
                (⌜w = WCap true p g b e a @@? π ∨ (∃ k, w = WSentry k true p g b e a @@? π)⌝
                 ∗ □ ∀ W', future_world g W W'
                           → ▷ (interp_expr interp (interp_cont interp) W' C) (lupdatePcPerm w)))
-         else φ FailedV ∗ PC ↦ₚ lupdatePcPerm w
+         else trap_ok ⊤ φ ∗ PC ↦ₚ lupdatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
     iIntros "#Hw".
@@ -329,10 +324,7 @@ Section fundamental.
         iSpecialize ("Hw" $! g0 (LocalityFlowsToReflexive g0)).
         iExact "Hw".
     - iIntros "[Hfailed HPC]".
-      iApply (wp_bind (fill [SeqCtx])).
-      iApply (wp_notCorrectPC with "HPC");eauto.
-      iNext. iIntros "_". iApply wp_pure_step_later;auto.
-      iNext; iIntros "_". iApply wp_value. iFrame.
+      by iApply (wp_notCorrectPC_trap with "HPC Hfailed").
   Qed.
 
 End fundamental.

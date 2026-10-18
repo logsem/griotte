@@ -51,7 +51,7 @@ Section AllocatorMalloc.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
 
-       ▷ φ FailedV ∗
+       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -145,7 +145,7 @@ Section AllocatorMalloc.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
 
-       ▷ φ FailedV ∗
+       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt id ∗
           PC ↦ₚ lupdatePcPerm wret ∗

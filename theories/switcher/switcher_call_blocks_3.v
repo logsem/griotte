@@ -155,7 +155,8 @@ Section Switcher_Call_Blocks_3.
       { intros r sr m st s1 s2 _ Hr.
         rewrite /exec /= /lookup_reg /= Hr.
         destruct wct1 as [w0 π0]. destruct_word w0; by destruct s2. }
-      wp_end; iIntros "%Hcontr"; done. }
+      iTrap.
+      iIntros "%Hcontr"; done. }
     2: {
       (* The unsealed entry point is invalid: the next CLoad fails. *)
       simplify_eq.
@@ -163,7 +164,8 @@ Section Switcher_Call_Blocks_3.
       iClear "Hi".
       (* --- CLoad cs0 ct1 --- *)
       iInstr_fail "Hcode".
-      wp_end; iIntros "%Hcontr"; done. }
+      iTrap.
+      iIntros "%Hcontr"; done. }
     simplify_eq.
     apply withinBounds_le_addr in Hrange.
     assert (o = ot_switcher) as -> by solve_addr.

@@ -154,7 +154,7 @@ Section Heap_Temporal_Safety_Interp.
         try (intros next allocations Hnext Hchain; exact (Hinvalid next allocations id Hnext Hchain)).
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
-      iSplitR; first (iNext; by iIntros (?)).
+      iSplitR; first (iApply trap_ok_intro; iNext; by iIntros (?)).
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the sealing predicate of the allocator capability. *)
@@ -236,7 +236,7 @@ Section Heap_Temporal_Safety_Interp.
           with "[-]"); try solve_ndisj; try assumption.
         iFrame "Hservice Hstatic Hna Hid Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
         iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
-        iSplitR; first (iNext; by iIntros (?)).
+        iSplitR; first (iApply trap_ok_intro; iNext; by iIntros (?)).
         iNext.
         iIntros "(Hna & Hid & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
         (* Close the sealing predicate in the revoked world. *)
@@ -318,7 +318,7 @@ Section Heap_Temporal_Safety_Interp.
         rewrite /allocator_free_nargs /dom_arg_rmap /=. set_solver. }
       iFrame "Hservice Hstatic Hna Hid Ha_owner Hobj Hheld HPCr Hcgpr Hcrar Hca0 Hca1 Hca2
         Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hrmap Hcells".
-      iSplitR; first (iNext; by iIntros (?)).
+      iSplitR; first (iApply trap_ok_intro; iNext; by iIntros (?)).
       iNext.
       iIntros "(Hna_post & Hid & Ha_owner & HPCr_post & Hcgpr_post &
         Hcrar_post & Hca0_post & Hca1_post & Hca2_post & Hct0_post &
@@ -435,7 +435,7 @@ Section Heap_Temporal_Safety_Interp.
       { destruct Hbounds as (_ & Hbe & _). solve_addr. }
       iFrame "Hservice Hstatic Hna Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
-      iSplitR; first (iNext; by iIntros (?)).
+      iSplitR; first (iApply trap_ok_intro; iNext; by iIntros (?)).
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the sealing predicate of the allocator capability. *)

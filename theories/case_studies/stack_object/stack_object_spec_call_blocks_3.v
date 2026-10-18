@@ -72,9 +72,10 @@ Section SO_Call_Blocks_3.
     destruct (decide ((csp_b < csp_e)%a)) as [Hcsp_size|Hcsp_size]; cycle 1.
     { (* The stack frame is empty: the first store fails *)
       (* Store csp so_secret 0 *)
-      iInstrApply "Hcode" wp_store_fail_z with "[$HPC $Hcsp]" as "_".
+      iInstrApply "Hcode" wp_store_fail_z with "[$HPC $Hcsp]" as "(HPC & _)".
       { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      wp_end; iIntros (?); done.
+      iTrap.
+      iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
     rewrite finz_seq_between_length in Hstklen.
@@ -104,12 +105,14 @@ Section SO_Call_Blocks_3.
         { rewrite /isWithin; solve_addr. }
         (* Store ca1 0%Z 0 *)
         iInstr_fail "Hcode".
-        wp_end; iIntros (?); done.
+        iTrap.
+        iIntros (?); done.
       - (* Subseg ca1 cs0 cs1 *)
         iInstr_invalidate "Hcode".
         (* Store ca1 0%Z 0 *)
         iInstr_fail "Hcode".
-        wp_end; iIntros (?); done.
+        iTrap.
+        iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     rewrite finz_seq_between_length in Hstklen'.

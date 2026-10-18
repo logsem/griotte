@@ -65,7 +65,9 @@ Section griotte_lang_rules.
       BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' NextIV
   | BinOp_spec_failure:
       BinOp_failure i lpc regs dst rv1 rv2 ->
-      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' FailedV.
+      lpc' = lpc ->
+      regs' = regs ->
+      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' FaultedV.
 
   Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
@@ -107,7 +109,7 @@ Section griotte_lang_rules.
     { apply Dregs. set_solver+. }
     { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
     { intros. by econstructor. }
-    { intros. constructor. by eapply BinOp_fail_incrPC. }
+    { intros. apply BinOp_spec_failure; [|done..]. by eapply BinOp_fail_incrPC. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 

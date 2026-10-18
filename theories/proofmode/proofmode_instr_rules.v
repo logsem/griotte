@@ -158,15 +158,15 @@ Ltac dispatch_generic_failure instr cont :=
   lazymatch goal with
   | |- context [ Esnoc _ _ (PC ↦ₚ WCap true ?p ?g ?b ?e ?a @@? ?π)%I ] =>
     lazymatch regs with
-    | [] => cont (fun E => @wp_instr_failed_0 _ _ _ E p g b e a π
+    | [] => cont (fun E => @wp_instr_faulted_0 _ _ _ E p g b e a π
                             (encodeInstrW instr @@? None) instr)
-    | [(?r1, ?w1)] => cont (fun E => @wp_instr_failed_1 _ _ _ E p g b e a π
+    | [(?r1, ?w1)] => cont (fun E => @wp_instr_faulted_1 _ _ _ E p g b e a π
                                      (encodeInstrW instr @@? None) instr r1 w1)
     | [(?r1, ?w1); (?r2, ?w2)] =>
-        cont (fun E => @wp_instr_failed_2 _ _ _ E p g b e a π
+        cont (fun E => @wp_instr_faulted_2 _ _ _ E p g b e a π
                          (encodeInstrW instr @@? None) instr r1 w1 r2 w2)
     | [(?r1, ?w1); (?r2, ?w2); (?r3, ?w3)] =>
-        cont (fun E => @wp_instr_failed_3 _ _ _ E p g b e a π
+        cont (fun E => @wp_instr_faulted_3 _ _ _ E p g b e a π
                          (encodeInstrW instr @@? None) instr r1 w1 r2 w2 r3 w3)
     end
   end.

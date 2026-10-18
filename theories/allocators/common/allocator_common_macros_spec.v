@@ -86,7 +86,7 @@ Section AllocatorMacros.
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     codefrag_pers pc_a code ∗
-    ▷ φ FailedV ∗
+    trap_ok E φ ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          codefrag_pers pc_a code ∗
@@ -100,7 +100,7 @@ Section AllocatorMacros.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra. *)
       iInstr_fail "Hcode".
-      wp_end. iExact "Hfailed". }
+      iTrap. }
     (* Jalr cnull cra. *)
     iInstr "Hcode" with "Hlc".
     iApply "Hφ". iFrame "∗ Hcode".

@@ -39,7 +39,7 @@ Section griotte_lang_rules.
   | Mret_spec_failure :
       lpc' = lpc →
       Mret_failure lpc →
-      Mret_spec lpc sregs lpc' FailedV.
+      Mret_spec lpc sregs lpc' FaultedV.
 
   Lemma wp_Mret Ep pc_p pc_g pc_b pc_e pc_a pc_π w sregs dq :
     decodeInstrW w.(lw) = Mret →

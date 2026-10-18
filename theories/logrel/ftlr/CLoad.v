@@ -480,8 +480,7 @@ Section fundamental.
     2,3: exfalso; destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'];
          pose proof (Hnonmmio _ _ _ _ _ _ Hallow') as Hmmio;
          apply orb_false_iff in Hmmio as [? ?]; congruence.
-    2: { iApply wp_pure_step_later; auto. iNext; iIntros "_".
-         iApply wp_value; auto. }
+    2: { iTrap; auto. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'].
 
     (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)

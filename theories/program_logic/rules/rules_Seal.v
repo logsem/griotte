@@ -67,7 +67,7 @@ Section griotte_lang_rules.
       Seal_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | Seal_spec_failure :
       Seal_failure lpc regs dst src1 src2 lpc' regs' →
-      Seal_spec lpc regs dst src1 src2 lpc' regs' FailedV.
+      Seal_spec lpc regs dst src1 src2 lpc' regs' FaultedV.
 
   (* The sealed word keeps the bounds of its payload and never gains a tag. *)
   Lemma reg_word_ok_seal R C (sb sb' : Sealable) π o :

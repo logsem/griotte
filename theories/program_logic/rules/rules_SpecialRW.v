@@ -66,7 +66,8 @@ Section griotte_lang_rules.
       regs' = regs →
       sregs' = sregs →
       SpecialRW_failure lpc →
-      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' FailedV.
+      lpc' = lpc →
+      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' FaultedV.
 
   (** The physical system registers after the write, and the erasure of the
       new logical ones. *)
@@ -148,7 +149,7 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
-      apply SpecialRW_spec_failure; [done|done|]. by eapply SpecialRW_fail_nonxsr. }
+      apply SpecialRW_spec_failure; [done|done| |done]. by eapply SpecialRW_fail_nonxsr. }
     destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs sr) as (vold & Hvold & Hvold');
       first (rewrite /sregs_of; set_solver).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
@@ -166,7 +167,7 @@ Section griotte_lang_rules.
       { intros φ' Hpc. by rewrite /updatePC /updatePC_gen Hpc Hpca'. }
       rewrite Hfail' in Hstep; last by case_decide.
       instr_fail Hstep.
-      apply SpecialRW_spec_failure; [done|done|]. by apply SpecialRW_fail_incrPC. }
+      apply SpecialRW_spec_failure; [done|done| |done]. by apply SpecialRW_fail_incrPC. }
     (* The ghost system registers *)
     iAssert (|==> sreg_interp lsreg' ∗ [∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)%I
       with "[Hsr Hsmap]" as ">[Hsr Hsmap]".

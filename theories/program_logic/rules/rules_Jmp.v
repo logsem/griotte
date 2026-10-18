@@ -30,7 +30,7 @@ Section griotte_lang_rules.
       Jmp_spec lpc regs rimm lpc' NextIV
   | Jmp_spec_failure:
       Jmp_failure lpc regs rimm →
-      Jmp_spec lpc regs rimm lpc FailedV.
+      Jmp_spec lpc regs rimm lpc FaultedV.
 
   Lemma wp_Jmp Ep pc_p pc_g pc_b pc_e pc_a pc_π w rimm regs dq :
     decodeInstrW w.(lw) = Jmp rimm ->

@@ -65,7 +65,7 @@ Section SO_Check_Blocks_1.
     focus_block (so_block ".Lso_f_checkra") "Hcode_main" of so_main_blocks at pc_a as a_checkra Ha_checkra "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
-    iSplitL; last (iModIntro; iNext; iIntros (?); done).
+    iSplitL; last (iApply trap_ok_intro; iNext; iIntros (?); done).
     iNext; iIntros "H".
     iDestruct "H" as (t p g b e a π) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -74,7 +74,7 @@ Section SO_Check_Blocks_1.
     focus_block (so_block ".Lso_f_check_no_overlap") "Hcode_main" of so_main_blocks at pc_a as a_overlap Ha_overlap "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (check_no_overlap_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto.
-    iSplitL; last (iNext; iIntros (?); done).
+    iSplitL; last (iApply trap_ok_intro; iNext; iIntros (?); done).
     iNext; iIntros "(HPC & Hca0 & Hcsp & Hcs1 & Hcs0 & %Hno_overlap & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ so_label_offset ".Lso_f_checkints")%a.

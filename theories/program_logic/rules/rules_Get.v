@@ -102,7 +102,9 @@ Section griotte_lang_rules.
         Get_spec i lpc regs dst src lpc' regs' NextIV
     | Get_spec_failure:
         Get_failure i lpc regs dst src →
-        Get_spec i lpc regs dst src lpc' regs' FailedV.
+        lpc' = lpc →
+        regs' = regs →
+        Get_spec i lpc regs dst src lpc' regs' FaultedV.
 
   Lemma exec_opt_Get i dst src p (pc : Word) (r : Reg) sr m st (wsrc : Word) :
     is_Get i dst src →
@@ -167,7 +169,7 @@ Section griotte_lang_rules.
       { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
       { intros. eapply Get_spec_success_cleared; eauto.
         apply (reg_phys_tag_strippable R); last done. by rewrite and_tag_false in Hrel. }
-      { intros. constructor. by eapply (Get_fail_overflow_PC _ _ _ _ _ wsrc (Z.b2z (get_tag wsrc.(lw)))). }
+      { intros. apply Get_spec_failure; [|done..]. by eapply (Get_fail_overflow_PC _ _ _ _ _ wsrc (Z.b2z (get_tag wsrc.(lw)))). }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
     assert ((match get_i with
              | GetTag _ _ => Some (Z.b2z (s && get_tag wsrc.(lw)))
@@ -185,7 +187,7 @@ Section griotte_lang_rules.
     { apply Dregs. erewrite regs_of_is_Get; eauto. set_solver+. }
     { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
     { intros. by econstructor. }
-    { intros. constructor. by eapply Get_fail_overflow_PC. }
+    { intros. apply Get_spec_failure; [|done..]. by eapply Get_fail_overflow_PC. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
@@ -220,11 +222,11 @@ Section griotte_lang_rules.
   Qed.
 
   (** A Get whose source denotes and whose PC increments does not fail. *)
-  Lemma Get_spec_not_failed i lpc regs dst src lpc' regs' wsrc lpc0 :
+  Lemma Get_spec_not_faulted i lpc regs dst src lpc' regs' wsrc lpc0 :
     regs !!ₗ src = Some wsrc →
     is_Some (denote i wsrc.(lw)) →
     incrementPC lpc = Some lpc0 →
-    ¬ Get_spec i lpc regs dst src lpc' regs' FailedV.
+    ¬ Get_spec i lpc regs dst src lpc' regs' FaultedV.
   Proof.
     intros Hsrc [z Hz] Hinc Hspec. inversion Hspec as [| | Hfail]; subst.
     destruct Hfail as [w z' Hw Hd Hi]; rewrite Hsrc in Hw; simplify_eq; congruence.
@@ -256,7 +258,7 @@ Section griotte_lang_rules.
     iIntros "!>" (lpc0 regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     rewrite Hdecode in Hspec.
     assert (retv = NextIV) as ->.
-    { inversion Hspec; subst; [done | done |]. exfalso. by eapply Get_spec_not_failed. }
+    { inversion Hspec; subst; [done | done |]. exfalso. by eapply Get_spec_not_faulted. }
     destruct (Get_spec_next _ _ _ _ _ _ _ _ Hsrc Hspec) as (Hinc' & z & Hz & ->).
     rewrite Hinc in Hinc'. simplify_eq. iApply "Hφ". by iFrame.
   Qed.
@@ -435,8 +437,8 @@ Section griotte_lang_rules.
         ⌜ (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
              incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
              regs' = <[dst := WInt z]ₗ> regs) ∨
-          (retv = FailedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
-             regs' = regs) ⌝ ∗
+          (retv = FaultedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
+             regs' = regs ∧ lpc' = WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         deref_witness_res dw ∗
@@ -477,13 +479,13 @@ Section griotte_lang_rules.
          (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
             incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
             regs' = <[dst := WInt z]ₗ> regs) ∨
-         (retv = FailedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
-            regs' = regs))
+         (retv = FaultedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
+            regs' = regs ∧ lpc' = WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π))
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hdw HPr]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
     { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
     { intros lpc' Hi. left. by exists v, (Z.b2z (s && get_tag v.(lw))). }
-    { intros Hi. by right. }
+    { intros Hi. right. by split_and!. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
@@ -519,7 +521,7 @@ Section griotte_lang_rules.
       with "[$HPC $Hpc_a $Hdw $HPr $Hmap]"); eauto.
     { rewrite /regs_of !dom_insert_L. set_solver+. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hdw & HPr & Hmap)".
-    destruct Hspec as [(v & z & -> & Hv & Hres & Hinc & ->) | (-> & Hinc & ->)].
+    destruct Hspec as [(v & z & -> & Hv & Hres & Hinc & ->) | (-> & Hinc & -> & ->)].
     - incrementPC_inv; simplify_map_eq.
       iRegsMap "Hmap"; eauto.
       iApply "Hφ". iFrame. done.

@@ -85,7 +85,8 @@ Section griotte_lang_rules.
   | Store_spec_failure_store :
       mem' = mem -> shadow' = shadow ->
       Store_failure lpc regs r1 r2 imm mem dw ->
-      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw FailedV.
+      lpc' = lpc ->
+      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw FaultedV.
 
   Lemma Store_failure_impossible lpc regs r1 (r2 : Z + RegName) imm mem dw p g b e a ea :
     lw <$> regs !!ₗ r1 = Some (WCap true p g b e a) ->
@@ -217,9 +218,9 @@ Section griotte_lang_rules.
 
 
   (** A failing store leaves memory and the shadow table unchanged. *)
-  Lemma Store_spec_fail lpc regs r1 (r2 : Z + RegName) imm lpc' mem shadow dw :
+  Lemma Store_spec_fail lpc regs r1 (r2 : Z + RegName) imm mem shadow dw :
     Store_failure lpc regs r1 r2 imm mem dw →
-    Store_spec lpc regs r1 r2 imm lpc' mem mem shadow shadow dw FailedV.
+    Store_spec lpc regs r1 r2 imm lpc mem mem shadow shadow dw FaultedV.
   Proof. intros. by apply Store_spec_failure_store. Qed.
 
   (** The status-independent part of [shadow_store_ok]: the cell is unclaimed,
@@ -302,7 +303,7 @@ Section griotte_lang_rules.
      assert (reg_word_ok R C storev) as Hstore_ok by by eapply erasure_lword_of_argument_word.
      destruct (is_cap r1v.(lw)) eqn:Hr1v.
      2: {
-       assert ((Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) = (c, σ2)) as Hstep'.
+       assert ((Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) = (c, σ2)) as Hstep'.
        { unfold is_cap in Hr1v. destruct r1v as [r1v ?]. cbn in *.
          destruct_word r1v; by simplify_pair_eq. }
        instr_fail Hstep'. apply Store_spec_fail. by eapply Store_fail_const.
@@ -981,16 +982,21 @@ Section griotte_lang_rules.
            ∗ ▷ dst ↦ᵣ wdst
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           src ↦ᵣ wstore ∗
+           dst ↦ᵣ wdst }}}.
     Proof.
     iIntros (Hinstr Hvpc Hcap Hsrc φ) "(HPC & Hi & Hs & Hd) Hφ".
-    iApply (wp_instr_failed_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
     { intros r sr m st s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H1 H2 /= (decide_False _ _ Hsrc) /=.
       case_decide; [done|].
       destruct wdst as [wd ?]; cbn in Hcap.
       destruct_word wd; cbn in Hcap; try discriminate; by destruct s2. }
-    iIntros "!> _". by iApply "Hφ".
+    iIntros "!> (HPC & Hs & Hd & Hi)".
+    iApply "Hφ". iFrame.
     Qed.
 
    Lemma wp_store_fail_reg_not_cap_lword E pc_p pc_g pc_b pc_e pc_a pc_π w
@@ -1006,7 +1012,11 @@ Section griotte_lang_rules.
            ∗ ▷ dst ↦ᵣ wdst
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           src ↦ᵣ wstore ∗
+           dst ↦ᵣ wdst }}}.
   Proof.
     intros. eapply wp_store_fail_reg_not_cap_lword_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
@@ -1025,15 +1035,20 @@ Section griotte_lang_rules.
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           src ↦ᵣ w'' ∗
+           dst ↦ᵣ WCap true p g b e a @@? π }}}.
     Proof.
     iIntros (Hinstr Hvpc Hwa Hsrc Hdst φ) "(HPC & Hi & Hs & Hd) Hφ".
-    iApply (wp_instr_failed_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
     { intros r sr m st s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H1 H2 /= !decide_False //.
       destruct s2; cbn; last done.
       destruct (a + imm)%a; cbn; [by rewrite Hwa | done]. }
-    iIntros "!> _". by iApply "Hφ".
+    iIntros "!> (HPC & Hs & Hd & Hi)".
+    iApply "Hφ". iFrame.
     Qed.
 
     Lemma wp_store_fail_z_perm_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π w dst
@@ -1048,15 +1063,19 @@ Section griotte_lang_rules.
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           dst ↦ᵣ WCap true p g b e a @@? π }}}.
     Proof.
     iIntros (Hinstr Hvpc Hwa Hdst φ) "(HPC & Hi & Hd) Hφ".
-    iApply (wp_instr_failed_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
     { intros r sr m st s1 H1.
       rewrite /exec /= /lookup_reg H1 /= !decide_False //.
       destruct s1; cbn; last done.
       destruct (a + imm)%a; cbn; [by rewrite Hwa | done]. }
-    iIntros "!> _". by iApply "Hφ".
+    iIntros "!> (HPC & Hd & Hi)".
+    iApply "Hφ". iFrame.
     Qed.
 
    Lemma wp_store_fail_reg_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π w dst src
@@ -1074,15 +1093,20 @@ Section griotte_lang_rules.
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           src ↦ᵣ w'' ∗
+           dst ↦ᵣ WCap true p g b e a @@? π }}}.
     Proof.
     iIntros (Hinstr Hvpc Hadd Hwb Hsrc Hdst φ) "(HPC & Hi & Hs & Hd) Hφ".
-    iApply (wp_instr_failed_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
     { intros r sr m st s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H1 H2 /= !decide_False //.
       destruct s2; cbn; last done.
       by rewrite Hadd /= Hwb andb_false_r. }
-    iIntros "!> _". by iApply "Hφ".
+    iIntros "!> (HPC & Hs & Hd & Hi)".
+    iApply "Hφ". iFrame.
     Qed.
 
     Lemma wp_store_fail_z_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π w dst
@@ -1098,15 +1122,19 @@ Section griotte_lang_rules.
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           dst ↦ᵣ WCap true p g b e a @@? π }}}.
     Proof.
     iIntros (Hinstr Hvpc Hadd Hwb Hdst φ) "(HPC & Hi & Hd) Hφ".
-    iApply (wp_instr_failed_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
     { intros r sr m st s1 H1.
       rewrite /exec /= /lookup_reg H1 /= !decide_False //.
       destruct s1; cbn; last done.
       by rewrite Hadd /= Hwb andb_false_r. }
-    iIntros "!> _". by iApply "Hφ".
+    iIntros "!> (HPC & Hd & Hi)".
+    iApply "Hφ". iFrame.
     Qed.
 
   Lemma wp_store_fail_tag_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π
@@ -1119,7 +1147,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET FailedV;
+    {{{ RET FaultedV;
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -1129,7 +1157,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
     { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
     instr_fail_close.
@@ -1392,7 +1420,11 @@ Section griotte_lang_rules.
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           src ↦ᵣ w'' ∗
+           dst ↦ᵣ WCap true p g b e a @@? π }}}.
   Proof.
     intros. eapply wp_store_fail_reg_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
@@ -1409,7 +1441,10 @@ Section griotte_lang_rules.
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           dst ↦ᵣ WCap true p g b e a @@? π }}}.
   Proof.
     intros. eapply wp_store_fail_z_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
@@ -1475,15 +1510,20 @@ Lemma wp_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π 
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           src ↦ᵣ w'' ∗
+           dst ↦ᵣ WCap true p g b e a @@? π }}}.
     Proof.
     iIntros (Hinstr Hvpc Hadd Hsrc Hdst φ) "(HPC & Hi & Hs & Hd) Hφ".
-    iApply (wp_instr_failed_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
     { intros r sr m st s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H1 H2 /= !decide_False //.
       destruct s2; cbn; last done.
       by rewrite Hadd. }
-    iIntros "!> _". by iApply "Hφ".
+    iIntros "!> (HPC & Hs & Hd & Hi)".
+    iApply "Hφ". iFrame.
     Qed.
 Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π w dst
          p g b e a z dq :
@@ -1497,15 +1537,19 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
            ∗ ▷ dst ↦ᵣ WCap true p g b e a @@? π
      }}}
        Instr Executable @ E
-       {{{ RET FailedV; True}}}.
+       {{{ RET FaultedV;
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+           pc_a ↦ₐ{dq} w ∗
+           dst ↦ᵣ WCap true p g b e a @@? π }}}.
     Proof.
     iIntros (Hinstr Hvpc Hadd Hdst φ) "(HPC & Hi & Hd) Hφ".
-    iApply (wp_instr_failed_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
     { intros r sr m st s1 H1.
       rewrite /exec /= /lookup_reg H1 /= !decide_False //.
       destruct s1; cbn; last done.
       by rewrite Hadd. }
-    iIntros "!> _". by iApply "Hφ".
+    iIntros "!> (HPC & Hd & Hi)".
+    iApply "Hφ". iFrame.
     Qed.
 
   (** ** The revoker store
@@ -1801,7 +1845,7 @@ Section shadow_store_res.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ RET FailedV;
+    {{{ RET FaultedV;
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -1811,7 +1855,7 @@ Section shadow_store_res.
     iNext; iIntros (r sr m st lreg lsreg lmem Rg Cg c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
     { destruct wa as [ [| [|] | |] ?]; cbn in Hcap; try discriminate.
       all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
     instr_fail_close.

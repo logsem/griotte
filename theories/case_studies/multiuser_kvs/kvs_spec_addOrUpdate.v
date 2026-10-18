@@ -153,7 +153,8 @@ Section KVS_spec_addOrUpdate.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
-      wp_end; by iIntros (?). }
+      iTrap.
+      by iIntros (?). }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -633,7 +634,8 @@ Section KVS_spec_addOrUpdate.
       destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
       { (* jalr cnull cra; *)
         iInstr_fail "Hcode".
-        wp_end; by iIntros (?). }
+        iTrap.
+        by iIntros (?). }
       (* jalr cnull cra; *)
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -669,7 +671,8 @@ Section KVS_spec_addOrUpdate.
       destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
       { (* jalr cnull cra; *)
         iInstr_fail "Hcode".
-        wp_end; by iIntros (?). }
+        iTrap.
+        by iIntros (?). }
       (* jalr cnull cra; *)
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -1069,7 +1072,8 @@ Section KVS_spec_addOrUpdate.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* jalr cnull cra; *)
       iInstr_fail "Hcode".
-      wp_end; by iIntros (?). }
+      iTrap.
+      by iIntros (?). }
     (* jalr cnull cra; *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.

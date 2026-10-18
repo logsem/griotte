@@ -39,8 +39,7 @@ Section fundamental.
       apply elem_of_dom. apply Hsome. }
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [w0 Hsrc Hinc -> | ]; cycle 1.
-    - iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto.
+    - iTrap; auto.
     - incrementPC_inv as (t0 & p0 & g0 & b0 & e0 & a0 & a0' & π0 & HPC0 & Ha0 & ->).
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".

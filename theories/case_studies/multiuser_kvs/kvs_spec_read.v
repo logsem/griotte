@@ -143,17 +143,19 @@ Section KVS_spec_read.
     (* CLoad ca1 cgp 0: the heap shadow can clear the returned tag. *)
     iInstrApply "Hcode" (wp_load_preserve_or_clear _ _ _ _ _ _ _ (a_read ^+ 7)%a)
       with "[$HPC $Hca1 $Hcgp $Hcgp_val]"
-      as (ret) "[-> | (%actual & -> & %Hactual & HPC & Hca1 & Hcgp & Hcgp_val)]".
+      as (ret) "[(-> & HPC & _) | (%actual & -> & %Hactual & HPC & Hca1 & Hcgp & Hcgp_val)]".
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
       rewrite /withinBounds; solve_addr. }
-    { wp_end; iIntros "%Hcontr"; done. }
+    { iTrap.
+      iIntros "%Hcontr"; done. }
     rewrite lload_word_RW in Hactual.
     (* Mov ca1 0 *)
     iInstr "Hcode".
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
-      wp_end; by iIntros (?). }
+      iTrap.
+      by iIntros (?). }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -570,7 +572,8 @@ Section KVS_spec_read.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
-      wp_end; by iIntros (?). }
+      iTrap.
+      by iIntros (?). }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -985,7 +988,8 @@ Section KVS_spec_read.
         destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
         { (* jalr cnull cra *)
           iInstr_fail "Hcode".
-          wp_end; by iIntros (?). }
+          iTrap.
+          by iIntros (?). }
         (* jalr cnull cra *)
         iInstr "Hcode".
         unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -1010,7 +1014,8 @@ Section KVS_spec_read.
         destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
         { (* jalr cnull cra *)
           iInstr_fail "Hcode".
-          wp_end; by iIntros (?). }
+          iTrap.
+          by iIntros (?). }
         (* jalr cnull cra *)
         iInstr "Hcode".
         unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -1338,7 +1343,8 @@ Section KVS_spec_read.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* jalr cnull cra; *)
       iInstr_fail "Hcode".
-      wp_end; by iIntros (?). }
+      iTrap.
+      by iIntros (?). }
     (* jalr cnull cra; *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.

@@ -35,11 +35,11 @@ Section griotte_lang_rules.
     regs !!ₗ rsrc = Some wsrc ->
     jalr_target_ok rdst rsrc wsrc.(lw) = false ->
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc
-      (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FailedV
+      (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FaultedV
   | Jalr_spec_failure :
     (pc_a + 1)%a = None ->
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc
-      (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FailedV.
+      (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FaultedV.
 
   Lemma wp_Jalr Ep pc_p pc_g pc_b pc_e pc_a pc_π w rdst rsrc regs dq :
     decodeInstrW w.(lw) = Jalr rdst rsrc ->
@@ -353,7 +353,7 @@ Section griotte_lang_rules.
         ∗ ▷ rdst ↦ᵣ wdst
     }}}
       Instr Executable @ E
-      {{{ RET FailedV;
+      {{{ RET FaultedV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ rsrc ↦ᵣ wsrc
@@ -361,7 +361,7 @@ Section griotte_lang_rules.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
-    iApply (wp_instr_failed_2 with "[$HPC $Hrsrc $Hrdst $Hpc_a]"); [done | done | | ].
+    iApply (wp_instr_faulted_2 with "[$HPC $Hrsrc $Hrdst $Hpc_a]"); [done | done | | ].
     - intros r sr m st s1 s2 Hr1 _.
       rewrite /exec /= /lookup_reg Hr1 /= jalr_target_checks.
       case_decide; first done.
@@ -379,14 +379,14 @@ Section griotte_lang_rules.
         ∗ ▷ rsrc ↦ᵣ wsrc
     }}}
       Instr Executable @ E
-      {{{ RET FailedV;
+      {{{ RET FaultedV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ rsrc ↦ᵣ wsrc
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hrsrc) Hφ".
-    iApply (wp_instr_failed_1 with "[$HPC $Hrsrc $Hpc_a]"); [done | done | | ].
+    iApply (wp_instr_faulted_1 with "[$HPC $Hrsrc $Hpc_a]"); [done | done | | ].
     - intros rf sr m st s1 Hr1.
       rewrite /exec /= /lookup_reg Hr1 /= jalr_target_checks.
       case_decide; first done.
@@ -404,14 +404,14 @@ Section griotte_lang_rules.
         ∗ ▷ r ↦ᵣ wr
     }}}
       Instr Executable @ E
-      {{{ RET FailedV;
+      {{{ RET FaultedV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r ↦ᵣ wr
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hr) Hφ".
-    iApply (wp_instr_failed_1 with "[$HPC $Hr $Hpc_a]"); [done | done | | ].
+    iApply (wp_instr_faulted_1 with "[$HPC $Hr $Hpc_a]"); [done | done | | ].
     - intros rf sr m st s1 Hr1.
       rewrite /exec /= /lookup_reg Hr1 /= jalr_target_checks.
       case_decide; first done.
