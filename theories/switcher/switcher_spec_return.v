@@ -138,7 +138,7 @@ Section Switcher.
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       rewrite /withinBounds; solve_addr. }
 
-    (* Block 12: pop the trusted stack *)
+    (* Block 13: pop the trusted stack *)
     iApply (switcher_return_blocks_1_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|done|].
     iNext; iIntros (a_tstk1)
@@ -150,7 +150,7 @@ Section Switcher.
       as "(%wastk & %wastk1 & %wastk2 & %wastk3 &
             Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)";eauto.
 
-    (* Blocks 12-15: restore, clear and return *)
+    (* Blocks 13-16: restore, clear and return *)
     assert (csp_b = (a_stk ^+ 4)%a) as Hcsp_b by (subst a_stk; solve_addr+Ha_stk4).
     iEval (rewrite {1}Hcsp_b) in "Hstk".
     iEval (rewrite open_world_interp_empty) in "Hworld_interp".

@@ -51,8 +51,8 @@ Definition kvs_assert_e : Addr := A 432.
 Definition kvs_assert_flag : Addr := A 432.
 Definition kvs_switcher_b : Addr := A 434.
 Definition kvs_switcher_call : Addr := A 435.
-Definition kvs_switcher_return : Addr := A 502.
-Definition kvs_switcher_e : Addr := A 548.
+Definition kvs_switcher_return : Addr := A 505.
+Definition kvs_switcher_e : Addr := A 551.
 Definition kvs_switcher_sealing_type : OType := OT 9.
 Definition kvs_service_sealing_type : OType := OT 10.
 Definition kvs_trusted_stack_b : Addr := A 4096.
@@ -193,7 +193,7 @@ Definition kvs_B_imports : list Word :=
   ; kvs_user_seal_key Global kvs_B_static_sealed_b
   ].
 Definition kvs_B_exports : list Word :=
-  [WInt (encode_entry_point 0 kvs_B_adv_entry)].
+  [WInt (encode_entry_point InterruptEnabled 0 kvs_B_adv_entry)].
 Definition kvs_KVS_imports : list Word :=
   kvs_imports kvs_switcher_b kvs_switcher_e kvs_switcher_call
     kvs_switcher_sealing_type.

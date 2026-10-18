@@ -43,8 +43,8 @@ Definition dle_assert_flag : Addr := A 94.
 
 Definition dle_switcher_b : Addr := A 96.
 Definition dle_switcher_call : Addr := A 97.
-Definition dle_switcher_return : Addr := A 164.
-Definition dle_switcher_e : Addr := A 210.
+Definition dle_switcher_return : Addr := A 167.
+Definition dle_switcher_e : Addr := A 213.
 Definition dle_switcher_sealing_type : OType := OT 9.
 
 Definition dle_trusted_stack_b : Addr := A 4096.
@@ -98,7 +98,7 @@ Definition dle_C_imports : list Word :=
   [WSentry FwdDisable true XSRW_ Local dle_switcher_b dle_switcher_e dle_switcher_call].
 
 Definition dle_C_exports : list Word :=
-  [WInt (encode_entry_point 1 1)].
+  [WInt (encode_entry_point InterruptEnabled 1 1)].
 
 Program Definition dle_concrete_cmptSwitcher : cmptSwitcher.
 Proof.

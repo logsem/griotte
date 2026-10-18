@@ -216,7 +216,7 @@ int __cheri_compartment("known") run()
       (so_main_imports (SCap true RO Global za za za)).
 
   Definition so_exp_tbl_entry_f `{!switcherLayout} `{!assertLayout} :=
-    WInt (encode_entry_point 2
+    WInt (encode_entry_point InterruptEnabled 2
             (length_so_main_imports + (length SO_main_code_run))).
 
   Definition so_entry_f_sb

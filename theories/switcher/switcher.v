@@ -22,6 +22,27 @@ Section Switcher.
   Definition ECOMPARTMENTFAIL : Z := -1.
   Definition ENOTENOUGHTRUSTEDSTACK : Z := -141.
 
+  (** An entry point packs the number of arguments in bits 0-2, the
+      interrupt posture in bits 3-4 and the offset from bit 5, as CHERIoT's
+      export entries do. Bit 4 is set when the callee runs with interrupts
+      disabled; bit 3 (inherited posture) is never set, since export entries
+      cannot inherit. *)
+  Definition entry_point_irq_disabled_mask : Z := 16.
+
+  Definition entry_point_posture (mie : InterruptStatus) : Z :=
+    match mie with
+    | InterruptEnabled => 0
+    | InterruptDisabled => entry_point_irq_disabled_mask
+    end.
+
+  Definition encode_entry_point (mie : InterruptStatus) (nargs entry_point_offset : Z) : Z :=
+    let args := Z.land nargs 7 in
+    let off := Z.shiftl entry_point_offset 5 in
+    (Z.lor off (Z.lor (entry_point_posture mie) args)).
+
+  Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
+    ( Z.land entry_point 7, Z.shiftr entry_point 5).
+
   Definition switcher_call_asm : list (list asm_code) :=
     (* Call *)
     [
@@ -85,7 +106,8 @@ Section Switcher.
         #".Lswitcher_decode_entry";
         load cs0 ct1;
         land ct2 cs0 7;
-        lshiftr cs0 cs0 3
+        land ctp cs0 entry_point_irq_disabled_mask;
+        lshiftr cs0 cs0 5
       ]
       ; (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
       [ #".Lswitcher_prepare_callee";
@@ -101,6 +123,11 @@ Section Switcher.
       ]
       ; (* Clear ununsed arguments registers *)
       (#".Lswitcher_clear_unused_args" :: clear_registers_pre_call_skip_asm)
+      ; (* Enable interrupts, unless the entry point asks for them disabled *)
+      [ #".Lswitcher_enable_interrupts";
+        jnz (".Lswitcher_clear_registers")%asm ctp;
+        csrsi mstatus (Z.shiftl 1 MIE_BIT)
+      ]
       ; (* Clear non-arguments registers  *)
       (#".Lswitcher_clear_registers" :: clear_registers_pre_call_asm)
       ; (* Jump to callee *)
@@ -192,14 +219,6 @@ Section Switcher.
       let blocks_call_asm := length switcher_call_asm in
       concat (firstn blocks_call_asm assembled_switcher).
 
-
-  Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
-    let args := Z.land nargs 7 in
-    let off := Z.shiftl entry_point_offset 3 in
-    (Z.lor off args).
-
-  Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
-    ( Z.land entry_point 7, Z.shiftr entry_point 3).
 
   Class switcherLayoutWf `{!switcherLayout} : Type :=
     mkSwitcherLayoutWf {

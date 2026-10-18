@@ -90,7 +90,7 @@ Section Switcher_KtK_Call.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
-       registers, [switcher_call_blocks_5_spec] executes blocks 16 and 14-15,
+       registers, [switcher_call_blocks_5_spec] executes blocks 17 and 15-16,
        then close the switcher invariant. *)
     iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Hot_bounds)
       "(Hclose_switcher_inv & Hna & Hmtdc & Htstk & #Hstatic & Hcstk_full & Hstk_interp
@@ -127,7 +127,7 @@ Section Switcher_KtK_Call.
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
-    (off_tgt : Z)
+    (off_tgt : Z) (posture_tgt : InterruptStatus)
 
     :
     let a_stk4 := (a_stk ^+ 4)%a in
@@ -174,7 +174,7 @@ Section Switcher_KtK_Call.
     (* Export table of the target compartment *)
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
     ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off_tgt)
+    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) off_tgt)
 
 
     (* PRE-CONDITION *)
@@ -323,7 +323,7 @@ Section Switcher_KtK_Call.
       "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
 
-    (* Blocks 7-11: load the callee and jump to it *)
+    (* Blocks 7-12: load the callee and jump to it *)
     iApply (switcher_call_blocks_4_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
         $Hct2 $Hctp $Hcgp $Hcra $Hargs $Hregs $Hcode]");

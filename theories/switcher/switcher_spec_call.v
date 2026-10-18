@@ -157,7 +157,7 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
-       registers, [switcher_call_blocks_5_spec] executes blocks 16 and 14-15,
+       registers, [switcher_call_blocks_5_spec] executes blocks 17 and 15-16,
        then close the switcher invariant and use the second post-condition. *)
     iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Hot_bounds)
       "(Hclose_switcher_inv & Hna & Hmtdc & Htstk & #Hstatic & Hcstk_full & Hstk_interp
@@ -389,7 +389,7 @@ Section Switcher.
     iNext; iIntros (wsb π)
       "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
     iDestruct ("Hentry_prop" with "[//] [//]")
-      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Heq Htbl Hbtbl Hbtbl1 Hnargs
+      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off posture Heq Htbl Hbtbl Hbtbl1 Hnargs
           Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
            "(#Htbl1 & #Htbl2 & #Htbl3 & #Hentry' & _ & #Hexec)".
     rewrite /lword_of_word in Heq; simplify_eq.
@@ -415,7 +415,7 @@ Section Switcher.
     iSpecialize ("Hexec" $! W' with "[]").
     { iPureIntro. by apply related_sts_pub_priv_world. }
 
-    (* Blocks 7-11: load the callee and jump to it *)
+    (* Blocks 7-12: load the callee and jump to it *)
     iApply (switcher_call_blocks_4_spec W C with
       "[- $Htbl1 $Htbl2 $Htbl3 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcgp $Hcra $Hargs $Hregs $Hcode]");
       [done|done|done|lia|done|done|done|done| |done| |].

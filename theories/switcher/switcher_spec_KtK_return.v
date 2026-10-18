@@ -148,7 +148,7 @@ Section Switcher_KtK_Return.
     iExtract "Hregs" ct1 as "Hct1".
     iExtract "Hregs" ca2 as "Hca2".
 
-    (* Block 12: pop the trusted stack *)
+    (* Block 13: pop the trusted stack *)
     iApply (switcher_return_blocks_1_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done| |].
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
@@ -156,7 +156,7 @@ Section Switcher_KtK_Return.
     iNext; iIntros (a_tstk1)
       "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & _ & _)".
 
-    (* Blocks 12-15: restore, clear and return *)
+    (* Blocks 13-16: restore, clear and return *)
     iAssert (switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller)
       with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
     iApply (switcher_return_blocks_2_spec with

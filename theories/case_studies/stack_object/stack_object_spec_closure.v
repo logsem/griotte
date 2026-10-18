@@ -105,7 +105,7 @@ Section SO.
     ∗ codefrag_pers pc_a so_main_code
     ∗ b_so_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
     ∗ (b_so_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ (b_so_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run)))
+    ∗ (b_so_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 (length (imports ++ SO_main_code_run)))
     ∗ WSealed ot_switcher (SCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
     ∗ WSealed ot_switcher (SCap true RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
     ∗ seal_pred ot_switcher ot_switcher_propC

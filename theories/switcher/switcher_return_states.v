@@ -8,9 +8,9 @@ From griotte Require Export logrel switcher switcher_preamble.
     specification) and [interp_expr_switcher_return] (validity of the return
     entry point) run the same code. They share the block-group lemmas of
     [switcher_return_blocks_n], which only depend on this file:
-    - [switcher_return_blocks_1]: first part of block 12, pop the topmost
+    - [switcher_return_blocks_1]: first part of block 13, pop the topmost
       frame of the trusted stack,
-    - [switcher_return_blocks_2]: second part of block 12 and blocks 13-15,
+    - [switcher_return_blocks_2]: second part of block 13 and blocks 14-16,
       restore the callee-save registers, clear the stack frame and the
       registers, and jump back to the caller.
 
@@ -29,8 +29,8 @@ Section Switcher_Return_States.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** The return entry point is the first address of block 12. *)
-  Lemma switcher_return_block_12 :
+  (** The return entry point is the first address of block 13. *)
+  Lemma switcher_return_block_13 :
     a_switcher_return = (a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call")%a.
   Proof. rewrite switcher_return_offset. by offsets_compute. Qed.
 

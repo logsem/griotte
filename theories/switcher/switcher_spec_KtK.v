@@ -107,7 +107,7 @@ Section Switcher_KtK.
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
-    (off_tgt : Z)
+    (off_tgt : Z) (posture_tgt : InterruptStatus)
     (P : iProp Σ) (Q : LWord -> LWord -> iProp Σ)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
@@ -135,7 +135,7 @@ Section Switcher_KtK.
     ∗ switcher_static
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
     ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off_tgt)
+    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) off_tgt)
     ∗ na_own cerise_nais E
     ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -210,7 +210,7 @@ Section Switcher_KtK.
               Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
               b_stk e_stk a_stk stk_mem arg_rmap rmap cstk nargs E
               btbl_tgt atbl_tgt etbl_tgt
-              bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt);
+              bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt posture_tgt);
       try assumption.
     iFrame "Hswitcher Hstatic Hinv_pcc Hinv_cgp Hinv_entry
             Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1

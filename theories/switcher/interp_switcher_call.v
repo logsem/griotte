@@ -69,7 +69,7 @@ Section fundamental.
     cstack_frag cstk
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    (* Outline of the proof: [switcher_call_block_17_spec] executes block 17,
+    (* Outline of the proof: [switcher_call_block_18_spec] executes block 18,
        then close the switcher invariant and use the validity of the return
        routine ([interp_expr_switcher_return]). *)
     iIntros (Hfull_rmap Hstk Hframe Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Hot_bounds)
@@ -81,7 +81,7 @@ Section fundamental.
     specialize (Hfull_rmap ca1) as HH; destruct HH as [? ?].
     iExtract "Hrmap" ca0 as "Hca0".
     iExtract "Hrmap" ca1 as "Hca1".
-    iApply (switcher_call_block_17_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
+    iApply (switcher_call_block_18_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
     iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
     iMod ("Hclose_switcher_inv" with
       "[$Hna $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
@@ -156,7 +156,7 @@ Section fundamental.
     cstack_frag cstk
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    (* Outline of the proof: [switcher_call_blocks_5_spec] executes blocks 16
+    (* Outline of the proof: [switcher_call_blocks_5_spec] executes blocks 17
        and 14-15, [switcher_call_stk_close] closes the caller's stack frame,
        then close the switcher invariant and [switcher_jump_to_caller_spec]. *)
     iIntros (Hdom Hframe Hstk_bounds Hstk_mmio Hlen_lv Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Hot_bounds)
@@ -347,14 +347,14 @@ Section fundamental.
       apply lookup_replicate in Hk as [-> _]. iApply interp_int. }
 
     iDestruct ("Hentry_prop" with "[//] [//]")
-      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off Heq Htbl Hbtbl Hbtbl1 Hnargs
+      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off posture Heq Htbl Hbtbl Hbtbl1 Hnargs
           Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
            "(#Htbl1 & #Htbl2 & #Htbl3 & #Hentry & _ & #Hexec)".
     rewrite /lword_of_word in Heq; simplify_eq.
     iSpecialize ("Hexec" $! W with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }
 
-    (* Blocks 7-11: load the callee and jump to it *)
+    (* Blocks 7-12: load the callee and jump to it *)
     match goal with |- context [ ([∗ map] k↦y ∈ ?r , k ↦ᵣ y)%I ] => set (rmap' := r) end.
     set (params := dom_arg_rmap 8).
     set (Pf := ((λ '(r,_), r ∈ params) : RegName * LWord → Prop)).

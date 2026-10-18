@@ -136,7 +136,7 @@ int __cheri_compartment("known") run()
       (lse_main_imports (SCap true RO Global za za za)).
 
   Definition lse_exp_tbl_entry_f `{!switcherLayout} `{!assertLayout} :=
-    WInt (encode_entry_point 0
+    WInt (encode_entry_point InterruptEnabled 0
             (length_lse_main_imports + (length LSE_main_code_run))).
 
   Definition lse_entry_f_sb

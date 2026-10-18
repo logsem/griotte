@@ -181,7 +181,7 @@ Defined.
 
 Definition hts_adv_f : Sealable :=
   SCap true RO Global hts_adv_exports_b hts_adv_exports_e (hts_adv_exports_b ^+ 2)%a.
-Definition hts_adv_exports : list Word := [WInt (encode_entry_point 1 4)].
+Definition hts_adv_exports : list Word := [WInt (encode_entry_point InterruptEnabled 1 4)].
 
 Program Definition hts_concrete_main : cmpt.
 Proof.

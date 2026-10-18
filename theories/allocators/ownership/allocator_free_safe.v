@@ -492,7 +492,7 @@ Section Heap_Temporal_Safety_Interp.
     (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off) ∗
+      WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_pcc_off) ∗
     WSealed ot_switcher (allocator_free g_allocator_exp_tbl)
       ↦□ₑ allocator_free_nargs ∗
     WSealed ot_switcher (allocator_free Local)

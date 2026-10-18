@@ -117,7 +117,7 @@ Definition hts_is_initial_memory `{hts_memory_layout} (mem : Mem) :=
   Forall (is_initial_data_word hts_adv_cmpt) (cmpt_data hts_adv_cmpt) ∧
   cmpt_static_sealed hts_adv_cmpt = hts_adv_static_sealed ∧
   cmpt_exp_tbl_entries hts_adv_cmpt =
-    [WInt (encode_entry_point 1 hts_adv_entry_offset)] ∧
+    [WInt (encode_entry_point InterruptEnabled 1 hts_adv_entry_offset)] ∧
   Forall is_z (stack_content hts_switcher_cmpt).
 
 Lemma hts_initial_adv_disjoint `{hts_memory_layout} :
@@ -230,9 +230,9 @@ Section hts_allocator_init.
     allocator_exp_tbl_b ↦ₐ□ WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
     (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off) ∗
+      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off) ∗
     (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off).
+      WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_pcc_off).
   Proof.
     intros Hexports.
     iIntros "Hpcc Hcgp Hentries".
@@ -499,7 +499,7 @@ Section Adequacy.
       as "(Hworld_adv & #Hinterp_pcc_adv & #Hinterp_cgp_adv & #Hinterp_stack & #Hadv_exports)";
       [auto..| | |].
     { (* The exported entry Adv.f satisfies the sealing predicate of the switcher *)
-      iApply (adversary_exports_prop _ _ _ _ [(1, hts_adv_entry_offset)]
+      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, 1, hts_adv_entry_offset)]
                with "Hswitcher Hswitcher_static Hadv_etbl_pcc Hadv_etbl_cgp Hadv_etbl_entries");
         [by rewrite Hadv_exports | by repeat constructor |
          by apply Forall_singleton, hts_adv_entry_valid |].

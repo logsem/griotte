@@ -38,8 +38,8 @@ Definition lse_assert_e : Addr := A 119.
 Definition lse_assert_flag : Addr := A 119.
 Definition lse_switcher_b : Addr := A 121.
 Definition lse_switcher_call : Addr := A 122.
-Definition lse_switcher_return : Addr := A 189.
-Definition lse_switcher_e : Addr := A 235.
+Definition lse_switcher_return : Addr := A 192.
+Definition lse_switcher_e : Addr := A 238.
 Definition lse_switcher_sealing_type : OType := OT 9.
 Definition lse_trusted_stack_b : Addr := A 4096.
 Definition lse_trusted_stack_e : Addr := A 4196.
@@ -158,7 +158,7 @@ Definition lse_C_imports : list Word :=
       (lse_entry_f_sb lse_main_exports_pcc lse_main_exports_entries_e)
   ].
 
-Definition lse_C_exports : list Word := [WInt (encode_entry_point 0 2)].
+Definition lse_C_exports : list Word := [WInt (encode_entry_point InterruptEnabled 0 2)].
 
 Program Definition lse_concrete_main_cmpt : cmpt.
 Proof.
