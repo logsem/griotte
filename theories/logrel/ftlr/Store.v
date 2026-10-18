@@ -520,7 +520,7 @@ Section fundamental.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { exfalso. pose proof (Hnonshadow p0 g0 b0 e0 a0 ea0 Hallow0). congruence. }
-    { iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value; auto.  }
+    { iTrap; auto.  }
     Unshelve. all: auto.
   Qed.
 

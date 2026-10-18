@@ -148,7 +148,8 @@ Section KVS_getFullKey.
       { intros r sr m st s1 Hr.
         rewrite /exec /= /lookup_reg /= Hr /= decide_False //.
         destruct wsealkey as [ [z | sb | t p g b e a | o sb] π0]; try destruct sb; by destruct s1. }
-      wp_end; iIntros "%Hcontr"; done. }
+      iTrap.
+      iIntros "%Hcontr"; done. }
     {
     destruct Hnot_sealed_with_kvs_otype as [Hnot_sealed_with_kvs_otype | Hclear].
     2: { rewrite spec /= Htag in Hclear; done. }
@@ -162,7 +163,8 @@ Section KVS_getFullKey.
     wp_pure.
     iClear "Hi".
     iInstr_fail "Hcode".
-    wp_end; iIntros "%Hcontr"; done.
+    iTrap.
+    iIntros "%Hcontr"; done.
   Qed.
 
 End KVS_getFullKey.

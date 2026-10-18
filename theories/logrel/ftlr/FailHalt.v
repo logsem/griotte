@@ -32,8 +32,7 @@ Section fundamental.
     iDestruct (WorldRes_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
     iApply (wp_fail with "[HPC Ha]"); eauto; iFrame.
     iNext. iIntros "[HPC Ha] /=".
-    iApply wp_pure_step_later; auto; iNext ; iIntros "_".
-    iApply wp_value.
+    iTrap.
     iIntros (Hcontr); inversion Hcontr.
   Qed.
 

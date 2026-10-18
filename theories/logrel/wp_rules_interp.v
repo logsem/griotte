@@ -1168,9 +1168,10 @@ Section wp_interp.
     (* CLoad ca0 cgp imm. *)
     iInstrApply "Hcode" (wp_load_witness_imm_one _ _ _ _ _ _ _ ca0 cgp imm)
       with "[$HPC $Hca0 $Hcgp $Ha $Hwit]"
-      as (retv) "[-> | (%loadv' & -> & %Hload & HPC & Hca0 & Hcgp & Ha)]".
+      as (retv) "[(-> & HPC & _) | (%loadv' & -> & %Hload & HPC & Hca0 & Hcgp & Ha)]".
     { eapply disjoint_from_shadow_not_in; [exact Hshadow|exact Hbounds]. }
-    { wp_end. by iIntros (?). }
+    { iTrap.
+      by iIntros (?). }
     pose proof (load_post_world_load_heap_in_world W RW raw loadv' Hload) as Hloaded.
     rewrite lload_word_RW in Hloaded.
     iApply ("Hpost" $! loadv' with "[//]"). iFrame.

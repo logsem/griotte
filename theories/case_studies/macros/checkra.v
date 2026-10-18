@@ -94,7 +94,7 @@ Section Checkra_spec.
     end
     ; iInstr "Hcode"
     ; iInstr "Hcode"
-    ; by wp_end.
+    ; iTrap.
   #[local] Ltac pass_check_ra :=
     match goal with
     | _ : _ |- context [ WInt (encodePerm ?p - encodePerm ?p') ] =>
@@ -169,7 +169,7 @@ Section Checkra_spec.
       }
       iInstr "Hcode".
       iInstr "Hcode".
-      by wp_end.
+      iTrap.
     }
     destruct_word wsrc; cbn in His_cap_wsrc; try done.
     pose proof (encodeWordType_correct (WCap t c g b e a) wt_cap) as Hwtype ; cbn in Hwtype.

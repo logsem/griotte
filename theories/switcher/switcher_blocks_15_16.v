@@ -51,7 +51,8 @@ Section Switcher_Blocks_15_16.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* --- Jalr cnull cra --- *)
       iInstr_fail "Hcode".
-      wp_end; by iIntros (?). }
+      iTrap.
+      by iIntros (?). }
     (* --- Jalr cnull cra --- *)
     iInstr "Hcode" with "Hlc".
     iApply "Hpost"; iFrame "∗ Hcode".

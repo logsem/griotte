@@ -62,11 +62,12 @@ Section HTS_Reload.
     (* CLoad ca0 csp (-1). *)
     iInstrApply "Hcode" (wp_load_general_shadow_imm_one _ _ _ _ _ _ _ ca0 csp (-1))
       with "[$HPC $Hca0 $Hcsp $Ha $Hwit]"
-      as (retv) "[-> | (%actual & -> & %Hactual & HPC & Hca0 & Hcsp & Ha & Hwit)]".
+      as (retv) "[(-> & HPC & _) | (%actual & -> & %Hactual & HPC & Hca0 & Hcsp & Ha & Hwit)]".
     { solve_addr. }
     { eapply disjoint_from_shadow_not_in; first exact Hshadow.
       apply withinBounds_true_iff; solve_addr. }
-    { wp_end. by iIntros (?). }
+    { iTrap.
+      by iIntros (?). }
     iApply ("Hpost" $! actual with "[//]"). iFrame "∗ Hcode".
   Qed.
 

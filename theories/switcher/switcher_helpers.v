@@ -238,7 +238,9 @@ Section switcher_helper.
         HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc".
       iDestruct (jmp_or_fail_spec with "Hwret") as "Hcont".
       destruct (decide (isCorrectPC (updatePcPerm wret.(lw)))); cycle 1.
-      { iApply "Hcont"; iFrame. by iIntros (?). }
+      { iApply "Hcont"; iFrame.
+        iApply trap_ok_intro.
+        by iIntros "!>" (?). }
 
       iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
       iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".

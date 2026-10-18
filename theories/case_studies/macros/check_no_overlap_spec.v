@@ -73,7 +73,7 @@ Section Check_No_Overlap_spec.
         solve_addr.
       + iInstr "Hprog".
         iInstr "Hprog".
-        wp_end; iApply "Hfailed".
+        iTrap.
     - (* b2 <= b1 *)
       iInstr "Hprog".
       iInstr "Hprog".
@@ -92,7 +92,7 @@ Section Check_No_Overlap_spec.
         solve_addr.
       + iInstr "Hprog".
         iInstr "Hprog".
-        wp_end; iApply "Hfailed".
+        iTrap.
   Qed.
 
 End Check_No_Overlap_spec.

@@ -81,9 +81,9 @@ Section switcher_macros.
 
       (* --- Store r2 0%Z --- *)
       iInstrApply "Hcode" wp_store_interp_z_cap with "[$HPC $Hworld_interp Hr2]"
-        as (v) "[-> | (-> & HPC & Hr2 & Hworld_interp & %Hwa & %Hstorebounds)]".
+        as (v) "[(-> & HPC & _) | (-> & HPC & Hr2 & Hworld_interp & %Hwa & %Hstorebounds)]".
       { iFrame "∗ #". }
-      { wp_end. iFrame. }
+      { iTrap. }
 
       (* --- Lea r2 1 --- *)
       assert (is_Some (csp_a + 1)%a) as [f Ha].

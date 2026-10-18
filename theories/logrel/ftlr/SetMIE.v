@@ -54,8 +54,7 @@ Section fundamental.
 
     iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha)".
     destruct HSpec; cycle 1.
-    - iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto.
+    - iTrap; auto.
     - simplify_eq; congruence.
   Qed.
 

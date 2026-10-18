@@ -122,9 +122,7 @@ Section fundamental.
         iApply "Hreg"; eauto.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
-    { iApply wp_pure_step_later; auto.
-      iNext; iIntros "_".
-      iApply wp_value; auto. }
+    { iTrap; auto. }
   Qed.
 
 End fundamental.

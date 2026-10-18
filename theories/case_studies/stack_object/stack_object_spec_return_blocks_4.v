@@ -104,7 +104,8 @@ Section SO_Return_Blocks_4.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
-      wp_end; by iIntros (?). }
+      iTrap.
+      by iIntros (?). }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

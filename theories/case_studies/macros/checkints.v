@@ -198,9 +198,9 @@ Section Checkints_spec.
     (* CLoad r1 r 0 *)
     iInstrApply "Hcode" (wp_load_preserve_or_clear _ _ _ _ _ _ _ (pc_a ^+ 1)%a)
       with "[$HPC $Hr1 $Hr $Ha]"
-      as (ret) "[-> | (%actualv & -> & %Hactual & HPC & Hr1 & Hr & Ha)]".
+      as (ret) "[(-> & HPC & _) | (%actualv & -> & %Hactual & HPC & Hr1 & Hr & Ha)]".
     { solve_addr. }
-    { wp_end; iExact "Hfailed". }
+    { iTrap. }
     iDestruct ( big_sepL2_cons (λ _ a v, a ↦ₐ v)%I with "[$Ha $Hmem2]") as "Hmem"; auto.
     iDestruct ( big_sepL2_app (λ _ a v, a ↦ₐ v)%I with "[$Hmem1] [$Hmem]") as "Hmem"; auto.
     rewrite -Ha' -Hlw.
@@ -338,7 +338,7 @@ Section Checkints_spec.
     rewrite /checkints_loop_instrs.
     focus_block_0 "Hcode" as "Hcode_loop" "Hcont_loop".
     iInstr_fail "Hcode_loop".
-    wp_end. iApply "Hfailed".
+    iTrap.
   Qed.
 
   Lemma checkints_spec

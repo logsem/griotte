@@ -110,11 +110,12 @@ Section HTS_Spec_Share.
     { (* Empty stack: the store to the stack slot faults. *)
       (* Store csp ca0 0. *)
       iInstrApply "Hcode" (wp_store_fail_reg_imm _ 0 RX Global pc_b pc_e a_store None None _ csp ca0
-        RWL Local csp_b csp_e csp_b csp_b) with "[$HPC $Hca0 $Hcsp]" as "_".
+        RWL Local csp_b csp_e csp_b csp_b) with "[$HPC $Hca0 $Hcsp]" as "(HPC & _)".
       { solve_addr. }
       { destruct (withinBounds csp_b csp_e csp_b) eqn:Hwb; last done.
         apply withinBounds_true_iff in Hwb. solve_addr. }
-      wp_end. by iIntros (?). }
+      iTrap.
+      by iIntros (?). }
     assert (region_addrs_zeroes csp_b csp_e =
       lword_of_word (WInt 0) :: region_addrs_zeroes (csp_b ^+ 1)%a csp_e) as Hzeroes.
     { rewrite (region_addrs_zeroes_split csp_b (csp_b ^+ 1)%a csp_e); last solve_addr.

@@ -58,7 +58,8 @@ Section Switcher_Return_Blocks_1.
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
     {
       iInstr_fail "Hcode".
-      wp_end; by iIntros (?).
+      iTrap.
+      by iIntros (?).
     }
 
     iInstr "Hcode".
@@ -105,9 +106,10 @@ Section Switcher_Return_Blocks_1.
       iInstr "Hcode".
 
       (* --- CLoad cgp csp --- *)
-      iInstrApply "Hcode" (wp_instr_faulted_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "_".
+      iInstrApply "Hcode" (wp_instr_faulted_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "(HPC & _)".
       { intros r sr m st s1 Hr; by rewrite /exec /= /lookup_reg /= Hr. }
-      wp_end; by iIntros (?).
+      iTrap.
+      by iIntros (?).
     }
     assert (is_Some (b_trusted_stack + -1))%a
       as [b_trusted_stack1 Hb_trusted_stack1] by solve_addr+Hb_trusted_stack1'.
@@ -121,9 +123,10 @@ Section Switcher_Return_Blocks_1.
     iInstr "Hcode".
 
     (* --- CLoad cgp csp --- *)
-    iInstrApply "Hcode" (wp_instr_faulted_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "_".
+    iInstrApply "Hcode" (wp_instr_faulted_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "(HPC & _)".
     { intros r sr m st s1 Hr; by rewrite /exec /= /lookup_reg /= Hr. }
-    wp_end; by iIntros (?).
+    iTrap.
+    by iIntros (?).
   Qed.
 
   Lemma switcher_return_block_13_pop_spec

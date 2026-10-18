@@ -47,8 +47,7 @@ Section fundamental.
               regs' = <[dst := WInt z]ₗ> regs) as [-> | (z & -> & Hinc & ->)].
     { destruct HSpec as [wsrc z Hsrc Hz Hinc -> | wsrc Hgt Hsrc Hstrip Hinc -> | ];
         [right; by exists z | right; by exists 0%Z | by left]. }
-    - iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto.
+    - iTrap; auto.
     - incrementPC_inv; simplify_map_eq.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 

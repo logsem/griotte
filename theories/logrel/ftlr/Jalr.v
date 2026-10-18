@@ -41,7 +41,7 @@ Section fundamental.
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [ regs' pc_a' wsrc mie Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
-    1,2: iApply wp_pure_step_later; auto; iNext; iIntros "_"; iApply wp_value; auto.
+    1,2: iTrap; auto.
 
     (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
     iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
@@ -98,16 +98,14 @@ Section fundamental.
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC_tag with "HPC"); first done.
         iNext; iIntros "HPC /=".
-        iApply wp_pure_step_later; auto; iNext; iIntros "_".
-        iApply wp_value; auto.
+        iTrap; auto.
       }
       destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
         iNext; iIntros "HPC /=".
-        iApply wp_pure_step_later; auto; iNext; iIntros "_".
-        iApply wp_value; auto.
+        iTrap; auto.
       }
 
       destruct_word wsrc; try destruct t; cbn in Hwsrc; try discriminate.
@@ -139,8 +137,7 @@ Section fundamental.
     all: iApply (wp_bind (fill [SeqCtx])).
     all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].
     all: iNext; iIntros "HPC /=".
-    all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
-    all: iApply wp_value; auto.
+    all: iTrap; auto.
   Qed.
 
 End fundamental.

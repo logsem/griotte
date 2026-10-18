@@ -74,9 +74,10 @@ Section LSE_F_Blocks_1.
     destruct (decide (csp_b < csp_e)%a) as [Hcsp_size|Hcsp_size]; cycle 1.
     { (* The stack frame is empty: the push fails *)
       (* Store csp cgp 0 *)
-      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcgp $Hcsp]" as "_".
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcgp $Hcsp]" as "(HPC & _)".
       { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      wp_end; iIntros (?); done.
+      iTrap.
+      iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
     rewrite finz_seq_between_length finz_dist_S in Hstklen; last solve_addr+Hcsp_size.

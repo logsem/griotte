@@ -116,7 +116,7 @@ Section Is_WordType_spec.
         destruct w as [| [] | |]; cbn in *; try done; try lia.
       }
       iGo "Hprog".
-      wp_end; iApply "Hfailed".
+      iTrap.
   Qed.
 
   Lemma is_memory_cap_spec
@@ -167,8 +167,8 @@ Section Is_WordType_spec.
           as (z) "(HPC & Hr & Hr1 & %Hz)".
         destruct Hz; destruct_and?; simplify_eq.
         * cbn. iGo "Hprog". iApply "Hφ"; iFrame "∗ Hprog".
-        * iGo "Hprog". wp_end; iApply "Hfailed".
-      + iGo "Hprog". wp_end; iApply "Hfailed".
+        * iGo "Hprog". iTrap.
+      + iGo "Hprog". iTrap.
     - iGo "Hprog".
       { apply nonZero_WInt.
         pose proof (encodeWordType_correct w wt_cap) as Hencode ; cbn in Hencode.
@@ -176,7 +176,7 @@ Section Is_WordType_spec.
         destruct w as [| [] | |]; cbn in *; try done; try lia.
       }
       iGo "Hprog".
-      wp_end; iApply "Hfailed".
+      iTrap.
   Qed.
 
 End Is_WordType_spec.

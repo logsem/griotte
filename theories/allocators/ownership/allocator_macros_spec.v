@@ -202,10 +202,11 @@ Section AllocatorOwnerMacro.
       wp_pure.
       iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
       (* CLoad ctp ctp 0. *)
-      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "_".
+      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & _)".
       { by simplify_map_eq. }
       { by destruct sb. }
-      wp_end; iIntros "%Hcontr"; done.
+      iTrap.
+      iIntros "%Hcontr"; done.
     - (* The word is not sealed: it loses its tag, and the load traps. *)
       simplify_map_eq.
       assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)%a) as Ha3 by solve_addr.
@@ -215,11 +216,13 @@ Section AllocatorOwnerMacro.
       wp_pure.
       iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
       (* CLoad ctp ctp 0. *)
-      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "_".
+      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & _)".
       { by simplify_map_eq. }
       { apply get_tag_clear_tag. }
-      wp_end; iIntros "%Hcontr"; done.
-    - wp_pure; wp_end; iIntros "%Hcontr"; done.
+      iTrap.
+      iIntros "%Hcontr"; done.
+    - iTrap.
+      iIntros "%Hcontr"; done.
   Qed.
 
 End AllocatorOwnerMacro.

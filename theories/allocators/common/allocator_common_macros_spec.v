@@ -100,7 +100,7 @@ Section AllocatorMacros.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra. *)
       iInstr_fail "Hcode".
-      wp_end. iExact "Hfailed". }
+      iTrap. }
     (* Jalr cnull cra. *)
     iInstr "Hcode" with "Hlc".
     iApply "Hφ". iFrame "∗ Hcode".
