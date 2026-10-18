@@ -136,7 +136,7 @@ Section VAE_Main.
       (vae_main_imports (SCap true RO Global za za za)).
 
   Definition vae_exp_tbl_entry_awkward `{!switcherLayout} `{!assertLayout} :=
-    WInt (encode_entry_point 1
+    WInt (encode_entry_point InterruptEnabled 1
             (length_vae_main_imports + (length VAE_main_code_init))).
 
   Definition vae_entry_awkward_sb

@@ -75,7 +75,7 @@ Section helpers_switcher_adequacy.
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (g_etbl : Locality) (a_etbl: Addr)
-    (args off : nat) (Nswitcher : namespace) :
+    (posture : InterruptStatus) (args off : nat) (Nswitcher : namespace) :
     let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
     let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
     let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
@@ -91,7 +91,7 @@ Section helpers_switcher_adequacy.
     ⊢ switcher_static
     -∗ b_etbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc
     -∗ b_etbl1 ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp
-    -∗ a_etbl ↦ₐ□ WInt (encode_entry_point args off)
+    -∗ a_etbl ↦ₐ□ WInt (encode_entry_point posture args off)
     -∗ interp W C (WCap true RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap true RW Global b_cgp e_cgp b_cgp)
     -∗ WSealed ot_switcher (SCap true RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
@@ -101,7 +101,7 @@ Section helpers_switcher_adequacy.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
     iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_entry #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry_borrow".
-    iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off.
+    iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off, posture.
     iFrame "#".
     iSplit ; first (by iPureIntro).
     iSplit.

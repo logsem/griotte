@@ -164,7 +164,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   Forall is_z (cmpt_code B_cmpt) ∧ (* only instructions *)
   Forall (is_initial_data_word B_cmpt) (cmpt_data B_cmpt) ∧
   (cmpt_static_sealed B_cmpt) = [WInt kvs_user_key_B] ∧
-  (cmpt_exp_tbl_entries B_cmpt) = [WInt (encode_entry_point 0 offset_adv_f)] ∧
+  (cmpt_exp_tbl_entries B_cmpt) = [WInt (encode_entry_point InterruptEnabled 0 offset_adv_f)] ∧
 
   (* initial stack *)
   Forall is_z (stack_content switcher_cmpt)
@@ -683,7 +683,7 @@ Section Adequacy.
       as "(Hworld_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hinterp_stack_B & #HB_exports)";
       [auto..| | |].
     { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
-      iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f)]
+      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, 0, offset_adv_f)]
                with "Hswitcher Hswitcher_static HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
         [by rewrite B_exp_tbl | by repeat constructor |
          by apply Forall_singleton, offset_adv_f_valid |].

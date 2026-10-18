@@ -79,9 +79,9 @@ Section Heap_Temporal_Safety_Main.
       ∗ (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
           allocator_cgp_b allocator_cgp_e allocator_cgp_b
       ∗ (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
-          WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off)
+          WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off)
       ∗ (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
-          WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)
+          WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_pcc_off)
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)

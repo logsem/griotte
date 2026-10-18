@@ -38,8 +38,8 @@ Definition so_assert_e : Addr := A 224.
 Definition so_assert_flag : Addr := A 224.
 Definition so_switcher_b : Addr := A 226.
 Definition so_switcher_call : Addr := A 227.
-Definition so_switcher_return : Addr := A 294.
-Definition so_switcher_e : Addr := A 340.
+Definition so_switcher_return : Addr := A 297.
+Definition so_switcher_e : Addr := A 343.
 Definition so_switcher_sealing_type : OType := OT 9.
 Definition so_trusted_stack_b : Addr := A 4096.
 Definition so_trusted_stack_e : Addr := A 4196.
@@ -152,7 +152,7 @@ Definition so_C_imports : list Word :=
   ; WSealed so_switcher_sealing_type so_C_g
   ].
 Definition so_C_exports : list Word :=
-  [WInt (encode_entry_point 0 so_C_adv_entry); WInt (encode_entry_point 2 so_C_g_entry)].
+  [WInt (encode_entry_point InterruptEnabled 0 so_C_adv_entry); WInt (encode_entry_point InterruptEnabled 2 so_C_g_entry)].
 
 Program Definition so_concrete_main_cmpt : cmpt.
 Proof.

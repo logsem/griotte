@@ -118,7 +118,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   ]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 0 offset_adv_f)]
+  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point InterruptEnabled 0 offset_adv_f)]
   ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed C_cmpt)
 
   (* initial stack *)
@@ -332,7 +332,7 @@ Section Adequacy.
       as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)";
       [auto..| | |].
     { (* The exported entry C.f satisfies the sealing predicate of the switcher *)
-      iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f)]
+      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, 0, offset_adv_f)]
                with "Hswitcher Hswitcher_static HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
         [by rewrite C_exp_tbl | by repeat constructor |
          by apply Forall_singleton, offset_adv_f_valid |].

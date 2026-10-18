@@ -6,7 +6,7 @@ From griotte Require Import switcher_call_states.
 (** * Call routine, blocks 0-1: checks on the stack pointer
 
     Blocks 0 and 1 check that [csp] is a [RWL] [Local] capability. When the
-    checks fail, the execution jumps to block 17 (see
+    checks fail, the execution jumps to block 18 (see
     [switcher_call_blocks_6]). *)
 
 Section Switcher_Call_Blocks_1.

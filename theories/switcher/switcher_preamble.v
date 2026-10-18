@@ -35,29 +35,36 @@ Section Switcher_preamble.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma encode_entry_point_eq_nargs nargs off_entry :
-    (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point nargs off_entry) 7)) = nargs.
+  Lemma encode_entry_point_eq_nargs mie nargs off_entry :
+    (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point mie nargs off_entry) 7)) = nargs.
   Proof.
     intros.
-    rewrite /encode_entry_point.
-    bitblast.
-    destruct (decide (nargs = 0)%Z); simplify_eq; first bitblast.
-    destruct (decide (nargs = 1)%Z); simplify_eq; first bitblast.
-    destruct (decide (nargs = 2)%Z); simplify_eq; first bitblast.
-    destruct (decide (nargs = 3)%Z); simplify_eq; first bitblast.
-    destruct (decide (nargs = 4)%Z); simplify_eq; first bitblast.
-    destruct (decide (nargs = 5)%Z); simplify_eq; first bitblast.
-    destruct (decide (nargs = 6)%Z); simplify_eq; first bitblast.
-    destruct (decide (nargs = 7)%Z); simplify_eq; first bitblast.
-    lia.
+    rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+    destruct mie; bitblast.
+    all: destruct (decide (nargs = 0)%Z); simplify_eq; first bitblast.
+    all: destruct (decide (nargs = 1)%Z); simplify_eq; first bitblast.
+    all: destruct (decide (nargs = 2)%Z); simplify_eq; first bitblast.
+    all: destruct (decide (nargs = 3)%Z); simplify_eq; first bitblast.
+    all: destruct (decide (nargs = 4)%Z); simplify_eq; first bitblast.
+    all: destruct (decide (nargs = 5)%Z); simplify_eq; first bitblast.
+    all: destruct (decide (nargs = 6)%Z); simplify_eq; first bitblast.
+    all: destruct (decide (nargs = 7)%Z); simplify_eq; first bitblast.
+    all: lia.
   Qed.
 
-  Lemma encode_entry_point_eq_off nargs off_entry :
-    ( (encode_entry_point nargs off_entry ≫ 3)%Z) = off_entry.
+  Lemma encode_entry_point_eq_posture mie nargs off_entry :
+    Z.land (encode_entry_point mie nargs off_entry) entry_point_irq_disabled_mask =
+    entry_point_posture mie.
   Proof.
-    intros.
-    rewrite /encode_entry_point.
-    bitblast.
+    rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+    destruct mie; bitblast.
+  Qed.
+
+  Lemma encode_entry_point_eq_off mie nargs off_entry :
+    ( (encode_entry_point mie nargs off_entry ≫ 5)%Z) = off_entry.
+  Proof.
+    rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+    destruct mie; bitblast.
   Qed.
 
   (** Property of capability sealed by the switcher's otype *)
@@ -161,8 +168,9 @@ Section Switcher_preamble.
       Operationally, a compartment entry point is a RO-capability pointing to
       an entry in the compartment's export table.
       The compartment's export table always starts with the compartment's PCC and CGP,
-      and then a list of entries of the form [(nargs,offset)],
-      where [nargs] is the number of argument (up-to 7),
+      and then a list of entries of the form [(posture,nargs,offset)],
+      where [posture] is the interrupt posture the callee runs with,
+      [nargs] is the number of argument (up-to 7),
       and [offset] is the offset of the function in the code,
       from the first address of the PCC (i.e., we must take account for the RO global data, like the imports).
 
@@ -182,7 +190,7 @@ Section Switcher_preamble.
        (∃ (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr)
           (bpcc epcc : Addr)
           (bcgp ecgp : Addr)
-          (nargs : nat) (off : Z)
+          (nargs : nat) (off : Z) (posture : InterruptStatus)
          ,
            ⌜ w = WCap true RO g_tbl b_tbl e_tbl a_tbl ⌝
            ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
@@ -197,7 +205,7 @@ Section Switcher_preamble.
            ∗ ⌜ is_heap_address bcgp = false ⌝
            ∗ b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc
            ∗ (b_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp ecgp bcgp
-           ∗ a_tbl ↦ₐ□ WInt (encode_entry_point (Z.of_nat nargs) off)
+           ∗ a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) off)
            ∗ (seal_capability w.(lw) ot_switcher) ↦□ₑ nargs
            ∗ (seal_capability (borrow w.(lw)) ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
@@ -222,7 +230,7 @@ Section Switcher_preamble.
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off posture ->
        Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
@@ -244,7 +252,7 @@ Section Switcher_preamble.
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off posture ->
        Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
     iFrame "#∗%".

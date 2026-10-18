@@ -147,14 +147,14 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   ∧ (cmpt_imports B_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code B_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word B_cmpt) (cmpt_data B_cmpt)
-  ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (encode_entry_point cmdc_B_f_args offset_B_f)]
+  ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (encode_entry_point InterruptEnabled cmdc_B_f_args offset_B_f)]
   ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed B_cmpt)
 
   (* instantiating C *)
   ∧ (cmpt_imports C_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point cmdc_C_g_args offset_C_g)]
+  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point InterruptEnabled cmdc_C_g_args offset_C_g)]
   ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed C_cmpt)
 
   (* initial stack *)
@@ -361,7 +361,7 @@ Section Adequacy.
       as "(Hworld_interp_B & #Hinterp_pcc_B & #Hinterp_cgp_B & Hrevoked_stack_B & #HB_exports)";
       [auto..| | |].
     { (* The exported entry B.f satisfies the sealing predicate of the switcher *)
-      iApply (adversary_exports_prop _ _ _ _ [(cmdc_B_f_args, offset_B_f)]
+      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, cmdc_B_f_args, offset_B_f)]
                with "Hswitcher Hswitcher_static HB_etbl_pcc HB_etbl_cgp HB_etbl_entries");
         [by rewrite B_exp_tbl | by repeat constructor |
          by apply Forall_singleton, offset_B_f_valid |].
@@ -391,7 +391,7 @@ Section Adequacy.
       as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & Hrevoked_stack_C & #HC_exports)";
       [auto..| | |].
     { (* The exported entry C.g satisfies the sealing predicate of the switcher *)
-      iApply (adversary_exports_prop _ _ _ _ [(cmdc_C_g_args, offset_C_g)]
+      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, cmdc_C_g_args, offset_C_g)]
                with "Hswitcher Hswitcher_static HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
         [by rewrite C_exp_tbl | by repeat constructor |
          by apply Forall_singleton, offset_C_g_valid |].

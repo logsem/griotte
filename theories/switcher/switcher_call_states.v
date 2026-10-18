@@ -8,14 +8,14 @@ From griotte Require Export switcher switcher_preamble switcher_macros_spec.
     and [interp_expr_switcher_call] (validity of the call entry point) run the
     same code. They share the block-group lemmas of [switcher_call_blocks_n],
     which only depend on this file:
-    - [switcher_call_blocks_1]: blocks 0-1, checks on [csp] (and block 17,
+    - [switcher_call_blocks_1]: blocks 0-1, checks on [csp] (and block 18,
       the forced unwind when the checks fail),
     - [switcher_call_blocks_2]: blocks 2-3, spill of the callee-save
-      registers and push on the trusted stack (and block 16, when the
+      registers and push on the trusted stack (and block 17, when the
       trusted stack is exhausted),
     - [switcher_call_blocks_3]: blocks 4-7, chop and clear the callee stack,
       load the unsealing capability and unseal the entry point,
-    - [switcher_call_blocks_4]: blocks 7-11, load the callee and jump to it.
+    - [switcher_call_blocks_4]: blocks 7-12, load the callee and jump to it.
 
     The block-group lemmas start and end at labels of the code
     [switcher_instrs], whose offsets are given by [switcher_label_offset] (see

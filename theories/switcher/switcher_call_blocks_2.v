@@ -7,7 +7,7 @@ From griotte Require Import switcher_call_states.
 
     Block 2 spills the callee-save registers on the caller's stack, and
     block 3 pushes the caller's stack pointer on the trusted stack. When the
-    trusted stack is exhausted, the execution jumps to block 16 (see
+    trusted stack is exhausted, the execution jumps to block 17 (see
     [switcher_call_blocks_5]). *)
 
 Section Switcher_Call_Blocks_2.

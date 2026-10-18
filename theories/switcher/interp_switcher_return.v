@@ -168,7 +168,7 @@ Section fundamental.
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       rewrite /withinBounds; solve_addr. }
 
-    (* Block 12: pop the trusted stack *)
+    (* Block 13: pop the trusted stack *)
     iApply (switcher_return_blocks_1_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|done|].
     iNext; iIntros (a_tstk1)
@@ -209,7 +209,7 @@ Section fundamental.
                 with "[$Hinterp_callee_wstk $Hworld_interp]")
       as "(Hworld_interp & (%lv & Hstk & Hres))"; eauto.
 
-    (* Blocks 12-15: restore, clear and return *)
+    (* Blocks 13-16: restore, clear and return *)
     iApply (switcher_return_blocks_2_world_spec W W C _ ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp $Hcells $Hstk
         $Hworld_interp $Hnormal $Hrmap $Hcode]");

@@ -1,12 +1,12 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import register_tactics logrel switcher_load_spec.
-From griotte Require Import switcher_call_states switcher_blocks_14_15.
+From griotte Require Import switcher_call_states switcher_blocks_15_16.
 
-(** * Call routine, block 16 and blocks 14-15: trusted stack exhausted
+(** * Call routine, block 17 and blocks 15-16: trusted stack exhausted
 
-    When the trusted stack is exhausted (block 3), block 16 restores the
-    callee-save registers, and blocks 14-15 clear the registers and jump
+    When the trusted stack is exhausted (block 3), block 17 restores the
+    callee-save registers, and blocks 15-16 clear the registers and jump
     back to the caller. *)
 
 Section Switcher_Call_Blocks_5.
@@ -23,16 +23,16 @@ Section Switcher_Call_Blocks_5.
   (** Exhausting the trusted stack restores the saved registers before
       returning the error code. As on a regular return, each load may
       clear the tag of a saved heap capability. *)
-  Lemma switcher_call_block_16_spec
+  Lemma switcher_call_block_17_spec
     pc_b pc_e pc_a
     wcgp wcra wcs0 wcs1 b_stk e_stk a_stk :
-    let switcher_instrs_16 := (switcher_instrs_n 16) in
-    let len_switcher_16 := length switcher_instrs_16 in
+    let switcher_instrs_17 := (switcher_instrs_n 17) in
+    let len_switcher_17 := length switcher_instrs_17 in
     (* The distance from this block to the block that clears the registers. *)
     let off_dead_zeros :=
       asm_label_offset switcher_asm ".Lswitch_trusted_stack_exhausted" ".Lswitch_callee_dead_zeros" in
     disjoint_from_mmio b_stk e_stk ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_17)%a ->
 
     (pc_a ^+ 10 +
        asm_label_offset switcher_asm ".Lswitch_trusted_stack_exhausted_return"
@@ -54,7 +54,7 @@ Section Switcher_Call_Blocks_5.
     (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
     (a_stk ^+ 2)%a ↦ₐ wcra ∗
     (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-    codefrag_pers pc_a switcher_instrs_16 ∗
+    codefrag_pers pc_a switcher_instrs_17 ∗
     ▷ (∀ rcgp rcra rcs0 rcs1,
         ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
           load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝ -∗
@@ -70,7 +70,7 @@ Section Switcher_Call_Blocks_5.
              (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
              (a_stk ^+ 2)%a ↦ₐ wcra ∗
              (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-    codefrag_pers pc_a switcher_instrs_16 ∗
+    codefrag_pers pc_a switcher_instrs_17 ∗
              £ 1 -∗
              WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
            )
@@ -78,8 +78,8 @@ Section Switcher_Call_Blocks_5.
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_16 len_switcher_16 off_dead_zeros;
-      subst switcher_instrs_16 len_switcher_16 off_dead_zeros.
+    intros switcher_instrs_17 len_switcher_17 off_dead_zeros;
+      subst switcher_instrs_17 len_switcher_17 off_dead_zeros.
     iIntros (Hstk_shadow Hsub_reg Hpca_next Hbstk Hbstk')
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0] & [%wca1 Hca1]
       & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & #Hcode & Hpost)".
@@ -146,17 +146,17 @@ Section Switcher_Call_Blocks_5.
   (** Saved words may become stale if their heap addresses are freed during a
       callback. Each restored register records its actual load result and
       whether that result retains authority in the current world. *)
-  Lemma switcher_call_block_16_world_spec
+  Lemma switcher_call_block_17_world_spec
     W C
     pc_b pc_e pc_a
     wcgp wcra wcs0 wcs1 b_stk e_stk a_stk :
-    let switcher_instrs_16 := (switcher_instrs_n 16) in
-    let len_switcher_16 := length switcher_instrs_16 in
+    let switcher_instrs_17 := (switcher_instrs_n 17) in
+    let len_switcher_17 := length switcher_instrs_17 in
     (* The distance from this block to the block that clears the registers. *)
     let off_dead_zeros :=
       asm_label_offset switcher_asm ".Lswitch_trusted_stack_exhausted" ".Lswitch_callee_dead_zeros" in
     disjoint_from_mmio b_stk e_stk ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_17)%a ->
 
     (pc_a ^+ 10 +
        asm_label_offset switcher_asm ".Lswitch_trusted_stack_exhausted_return"
@@ -179,7 +179,7 @@ Section Switcher_Call_Blocks_5.
     (a_stk ^+ 2)%a ↦ₐ wcra ∗
     (a_stk ^+ 3)%a ↦ₐ wcgp ∗
     world_interp W C ∗
-    codefrag_pers pc_a switcher_instrs_16 ∗
+    codefrag_pers pc_a switcher_instrs_17 ∗
     ▷ (∀ rcgp rcra rcs0 rcs1,
         ⌜load_heap_in_world W wcgp rcgp ∧
           load_heap_in_world W wcra rcra ∧
@@ -198,7 +198,7 @@ Section Switcher_Call_Blocks_5.
              (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
              (a_stk ^+ 2)%a ↦ₐ wcra ∗
              (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-    codefrag_pers pc_a switcher_instrs_16 ∗
+    codefrag_pers pc_a switcher_instrs_17 ∗
              £ 1 -∗
              WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
            )
@@ -206,8 +206,8 @@ Section Switcher_Call_Blocks_5.
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_16 len_switcher_16 off_dead_zeros;
-      subst switcher_instrs_16 len_switcher_16 off_dead_zeros.
+    intros switcher_instrs_17 len_switcher_17 off_dead_zeros;
+      subst switcher_instrs_17 len_switcher_17 off_dead_zeros.
     iIntros (Hstk_shadow Hsub_reg Hpca_next Hbstk Hbstk')
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0] & [%wca1 Hca1]
       & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & Hworld & #Hcode & Hpost)".
@@ -278,7 +278,7 @@ Section Switcher_Call_Blocks_5.
     iApply "Hpost". iFrame "∗ Hcode".
   Qed.
 
-  (** Block 16, then blocks 14-15: the trusted stack is exhausted. Restore
+  (** Block 17, then blocks 15-16: the trusted stack is exhausted. Restore
       the callee-save registers, clear the registers and jump back to the
       caller with the error code [ENOTENOUGHTRUSTEDSTACK]. Each restored
       register is the result of a load, which may clear the tag of a saved
@@ -326,9 +326,9 @@ Section Switcher_Call_Blocks_5.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
 
-    (* Block 16: restore the callee-save registers *)
+    (* Block 17: restore the callee-save registers *)
     switcher_focus_block (switcher_block ".Lswitch_trusted_stack_exhausted") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_call_block_16_spec with
+    iApply (switcher_call_block_17_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]");
       [done|done|offsets_compute; solve_addr|done|done|].
@@ -338,9 +338,9 @@ Section Switcher_Call_Blocks_5.
       & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
-    (* Blocks 14-15: clear the registers and jump to the caller *)
+    (* Blocks 15-16: clear the registers and jump to the caller *)
     switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros").
-    iApply (switcher_blocks_14_15_spec with "[- $HPC $Hcra $Hrmap]"); first done.
+    iApply (switcher_blocks_15_16_spec with "[- $HPC $Hcra $Hrmap]"); first done.
     iSplitR; first iFrame "Hswitcher".
     iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hrmap & _ & Hlc')".
     iCombine "Hlc Hlc'" as "Hlc".
@@ -395,9 +395,9 @@ Section Switcher_Call_Blocks_5.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
 
-    (* Block 16: restore the callee-save registers *)
+    (* Block 17: restore the callee-save registers *)
     switcher_focus_block (switcher_block ".Lswitch_trusted_stack_exhausted") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_call_block_16_world_spec W C with
+    iApply (switcher_call_block_17_world_spec W C with
       "[- $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld $Hcode]");
       [done|done|offsets_compute; solve_addr|done|done|].
@@ -407,9 +407,9 @@ Section Switcher_Call_Blocks_5.
       & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
-    (* Blocks 14-15: clear the registers and jump to the caller *)
+    (* Blocks 15-16: clear the registers and jump to the caller *)
     switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros").
-    iApply (switcher_blocks_14_15_spec with "[- $HPC $Hcra $Hrmap]"); first done.
+    iApply (switcher_blocks_15_16_spec with "[- $HPC $Hcra $Hrmap]"); first done.
     iSplitR; first iFrame "Hswitcher".
     iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hrmap & _ & Hlc')".
     iCombine "Hlc Hlc'" as "Hlc".

@@ -127,7 +127,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   ]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 0 offset_adv_f); WInt (encode_entry_point 0 offset_adv_g)]
+  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point InterruptEnabled 0 offset_adv_f); WInt (encode_entry_point InterruptEnabled 0 offset_adv_g)]
   ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed C_cmpt)
 
   (* initial stack *)
@@ -295,7 +295,7 @@ Section Adequacy.
     pose proof (cmpt_exp_tbl_entries_size main_cmpt) as Hmain_exp_tbl_size.
     rewrite main_exp_tbl /= in Hmain_exp_tbl_size.
     iAssert ((cmpt_exp_tbl_entries_start main_cmpt) ↦ₐ
-               WInt (encode_entry_point 1 (length (cmpt_imports main_cmpt ++ VAE_main_code_init))))%I
+               WInt (encode_entry_point InterruptEnabled 1 (length (cmpt_imports main_cmpt ++ VAE_main_code_init))))%I
       with "[Hmain_etbl_entries]" as "Hmain_etbl_entries".
     { rewrite /region_pointsto
         (finz_seq_between_singleton (cmpt_exp_tbl_entries_start main_cmpt)); last done.
@@ -363,7 +363,7 @@ Section Adequacy.
       as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)";
       [auto..| | |].
     { (* The exported entries C.f and C.g satisfy the sealing predicate of the switcher *)
-      iApply (adversary_exports_prop _ _ _ _ [(0, offset_adv_f); (0, offset_adv_g)]
+      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, 0, offset_adv_f); (InterruptEnabled, 0, offset_adv_g)]
                with "Hswitcher Hswitcher_static HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
         [by rewrite C_exp_tbl | by repeat constructor |
          by apply Forall_cons; split;

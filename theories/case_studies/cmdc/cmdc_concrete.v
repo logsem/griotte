@@ -48,8 +48,8 @@ Definition cmdc_assert_e : Addr := A 129.
 Definition cmdc_assert_flag : Addr := A 129.
 Definition cmdc_switcher_b : Addr := A 131.
 Definition cmdc_switcher_call : Addr := A 132.
-Definition cmdc_switcher_return : Addr := A 199.
-Definition cmdc_switcher_e : Addr := A 245.
+Definition cmdc_switcher_return : Addr := A 202.
+Definition cmdc_switcher_e : Addr := A 248.
 Definition cmdc_switcher_sealing_type : OType := OT 9.
 Definition cmdc_trusted_stack_b : Addr := A 4096.
 Definition cmdc_trusted_stack_e : Addr := A 4196.
@@ -112,8 +112,8 @@ Definition cmdc_B_imports : list Word :=
   [WSentry FwdDisable true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
 Definition cmdc_C_imports : list Word :=
   [WSentry FwdDisable true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
-Definition cmdc_B_exports : list Word := [WInt (encode_entry_point 1 1)].
-Definition cmdc_C_exports : list Word := [WInt (encode_entry_point 1 1)].
+Definition cmdc_B_exports : list Word := [WInt (encode_entry_point InterruptEnabled 1 1)].
+Definition cmdc_C_exports : list Word := [WInt (encode_entry_point InterruptEnabled 1 1)].
 
 Program Definition cmdc_concrete_cmptSwitcher : cmptSwitcher.
 Proof.

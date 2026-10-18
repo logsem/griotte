@@ -1033,8 +1033,8 @@ Section adversary_exports.
       at address [a], satisfies the sealing predicate of the switcher. *)
   Lemma adversary_export_prop
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
-    (i args off : nat) (a : Addr) :
-    cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point args off)) →
+    (posture : InterruptStatus) (i args off : nat) (a : Addr) :
+    cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point posture args off)) →
     (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
@@ -1060,7 +1060,7 @@ Section adversary_exports.
         (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt))) //.
       f_equal; solve_addr. }
     iDestruct (big_sepL2_lookup with "Hentries") as "Hentry_inv"; [done..|].
-    iApply (ot_switcher_interp _ _ _ Global _ args off with
+    iApply (ot_switcher_interp _ _ _ Global _ posture args off with
               "Hswitcher Hswitcher_static Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp Hentry Hentry'");
       [solve_addr|lia|done].
   Qed.
@@ -1085,14 +1085,16 @@ Section adversary_exports.
 
   (** All the entries of the export table of an adversary [C_cmpt] satisfy
       the sealing predicate of the switcher, given its export table as a list
-      of pairs (number of arguments, offset) and the entry-point resources of
-      each entry. This is the premise of [initialise_adversary_world]. *)
+      of triples (interrupt posture, number of arguments, offset) and the
+      entry-point resources of each entry. This is the premise of
+      [initialise_adversary_world]. *)
   Lemma adversary_exports_prop
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
-    (exports : list (nat * nat)) :
-    cmpt_exp_tbl_entries C_cmpt = (λ e : nat * nat, WInt (encode_entry_point e.1 e.2)) <$> exports →
-    Forall (λ e, e.1 < 7) exports →
-    Forall (λ e : nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
+    (exports : list (InterruptStatus * nat * nat)) :
+    cmpt_exp_tbl_entries C_cmpt =
+      (λ e : InterruptStatus * nat * nat, WInt (encode_entry_point e.1.1 e.1.2 e.2)) <$> exports →
+    Forall (λ e, e.1.2 < 7) exports →
+    Forall (λ e : InterruptStatus * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
@@ -1101,9 +1103,9 @@ Section adversary_exports.
        a ↦ₐ□ lword_of_word v) -∗
     ([∗ list] i ↦ e ∈ exports,
        WSealed switcher.ot_switcher
-         (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a) ↦□ₑ e.1 ∗
+         (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a) ↦□ₑ e.1.2 ∗
        WSealed switcher.ot_switcher
-         (borrow_sb (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a)) ↦□ₑ e.1) -∗
+         (borrow_sb (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a)) ↦□ₑ e.1.2) -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W C (cmpt_pcc_cap C_cmpt) -∗
         interp W C (cmpt_cgp_cap C_cmpt) -∗
@@ -1114,9 +1116,9 @@ Section adversary_exports.
       (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
     rewrite Htbl length_fmap in Hi.
-    destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [args offset] He].
+    destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [ [posture args] offset] He].
     iDestruct (big_sepL_lookup with "Hexports") as "[Hentry Hentry']"; first exact He.
-    iApply (adversary_export_prop _ _ _ _ i args offset
+    iApply (adversary_export_prop _ _ _ _ posture i args offset
              with "Hswitcher Hswitcher_static Hpcc Hcgp Hentries Hinterp_pcc Hinterp_cgp Hentry Hentry'").
     - by rewrite Htbl list_lookup_fmap He.
     - done.

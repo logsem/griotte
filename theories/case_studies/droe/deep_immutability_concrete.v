@@ -40,8 +40,8 @@ Definition droe_assert_e : Addr := A 89.
 Definition droe_assert_flag : Addr := A 89.
 Definition droe_switcher_b : Addr := A 91.
 Definition droe_switcher_call : Addr := A 92.
-Definition droe_switcher_return : Addr := A 159.
-Definition droe_switcher_e : Addr := A 205.
+Definition droe_switcher_return : Addr := A 162.
+Definition droe_switcher_e : Addr := A 208.
 Definition droe_stack_b : Addr := A 1024.
 Definition droe_stack_e : Addr := A 1124.
 Definition droe_trusted_stack_b : Addr := A 4096.
@@ -90,7 +90,7 @@ Definition droe_C_imports : list Word :=
   [WSentry FwdDisable true XSRW_ Local droe_switcher_b droe_switcher_e droe_switcher_call].
 
 Definition droe_C_exports : list Word :=
-  [WInt (encode_entry_point 1 1)].
+  [WInt (encode_entry_point InterruptEnabled 1 1)].
 
 Program Definition droe_concrete_cmptSwitcher : cmptSwitcher.
 Proof.

@@ -1,14 +1,14 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import map_simpl register_tactics logrel switcher_load_spec.
-From griotte Require Import switcher_return_states switcher_blocks_14_15.
+From griotte Require Import switcher_return_states switcher_blocks_15_16.
 
-(** * Return routine, end of block 12 and blocks 13-15
+(** * Return routine, end of block 13 and blocks 14-16
 
-    The end of block 12 restores the callee-save registers of the caller,
-    block 13 clears the caller's stack frame, and blocks 14-15 clear the
-    registers and jump back to the caller ([switcher_blocks_14_15_spec], see
-    [switcher_blocks_14_15]). *)
+    The end of block 13 restores the callee-save registers of the caller,
+    block 14 clears the caller's stack frame, and blocks 15-16 clear the
+    registers and jump back to the caller ([switcher_blocks_15_16_spec], see
+    [switcher_blocks_15_16]). *)
 
 Section Switcher_Return_Blocks_2.
   Context
@@ -21,15 +21,15 @@ Section Switcher_Return_Blocks_2.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  Lemma switcher_return_block_12_restore_spec
+  Lemma switcher_return_block_13_restore_spec
     pc_b pc_e pc_a
     b_stk e_stk a_stk a_stk4
     wcgp wcra wcs1 wcs0
     wcgp_old wcra_old wcs1_old wcs0_old wct0 wct1 :
-    let switcher_instrs_12 := switcher_instrs_n 12 in
-    let len_switcher_12 := length switcher_instrs_12 in
+    let switcher_instrs_13 := switcher_instrs_n 13 in
+    let len_switcher_13 := length switcher_instrs_13 in
     disjoint_from_mmio b_stk e_stk ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
@@ -46,7 +46,7 @@ Section Switcher_Return_Blocks_2.
     (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
     (a_stk ^+ 2)%a ↦ₐ wcra ∗
     (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-    codefrag_pers pc_a switcher_instrs_12 ∗
+    codefrag_pers pc_a switcher_instrs_13 ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
         ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧ load_heap wcs1 rcs1 ∧ load_heap wcs0 rcs0⌝ -∗
         PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
@@ -61,15 +61,15 @@ Section Switcher_Return_Blocks_2.
         (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
         (a_stk ^+ 2)%a ↦ₐ wcra ∗
         (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-    codefrag_pers pc_a switcher_instrs_12 ∗
+    codefrag_pers pc_a switcher_instrs_13 ∗
         £ 2 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_12 len_switcher_12.
-    subst switcher_instrs_12 len_switcher_12.
+    intros switcher_instrs_13 len_switcher_13.
+    subst switcher_instrs_13 len_switcher_13.
     iIntros (Hstk_shadow Hsub_reg Ha_stk4 Hb_a4 He_a1)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
       & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & #Hcode & Hpost)".
@@ -134,17 +134,17 @@ Section Switcher_Return_Blocks_2.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done. iFrame "∗ Hcode".
   Qed.
 
-  Lemma switcher_return_block_12_restore_interp_spec
+  Lemma switcher_return_block_13_restore_interp_spec
     Wworld Wval C opened
     pc_b pc_e pc_a
     b_stk e_stk a_stk a_stk4
     wcgp wcra wcs1 wcs0
     wcgp_old wcra_old wcs1_old wcs0_old wct0 wct1 :
-    let switcher_instrs_12 := switcher_instrs_n 12 in
-    let len_switcher_12 := length switcher_instrs_12 in
+    let switcher_instrs_13 := switcher_instrs_n 13 in
+    let len_switcher_13 := length switcher_instrs_13 in
     heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
@@ -166,7 +166,7 @@ Section Switcher_Return_Blocks_2.
     interp_in_mem RWL Wval C wcra ∗
     interp_in_mem RWL Wval C wcs1 ∗
     interp_in_mem RWL Wval C wcs0 ∗
-    codefrag_pers pc_a switcher_instrs_12 ∗
+    codefrag_pers pc_a switcher_instrs_13 ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
         ⌜load_heap_in_world Wval wcgp rcgp ∧
           load_heap_in_world Wval wcra rcra ∧
@@ -189,15 +189,15 @@ Section Switcher_Return_Blocks_2.
         (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
         (a_stk ^+ 2)%a ↦ₐ wcra ∗
         (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-    codefrag_pers pc_a switcher_instrs_12 ∗
+    codefrag_pers pc_a switcher_instrs_13 ∗
         £ 2 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_12 len_switcher_12.
-    subst switcher_instrs_12 len_switcher_12.
+    intros switcher_instrs_13 len_switcher_13.
+    subst switcher_instrs_13 len_switcher_13.
     iIntros (Hheap_eq Hstk_shadow Hsub_reg Ha_stk4 Hb_a4 He_a1)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
       & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hworld & #Hnormal_gp & #Hnormal_ra & #Hnormal_s1 & #Hnormal_s0 & #Hcode & Hpost)".
@@ -264,17 +264,17 @@ Section Switcher_Return_Blocks_2.
     iFrame "Hactual_gp Hactual_ra Hactual_s1 Hactual_s0".
   Qed.
 
-  Lemma switcher_return_block_12_restore_open_cases_spec
+  Lemma switcher_return_block_13_restore_open_cases_spec
     Wworld Wval C opened (ccrel : caller_callee_relation)
     pc_b pc_e pc_a
     b_stk e_stk a_stk a_stk4
     wcgp wcra wcs1 wcs0
     wcgp_old wcra_old wcs1_old wcs0_old wct0 wct1 :
-    let switcher_instrs_12 := switcher_instrs_n 12 in
-    let len_switcher_12 := length switcher_instrs_12 in
+    let switcher_instrs_13 := switcher_instrs_n 13 in
+    let len_switcher_13 := length switcher_instrs_13 in
     heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
@@ -298,7 +298,7 @@ Section Switcher_Return_Blocks_2.
        interp_in_mem RWL Wval C wcs1 ∗
        interp_in_mem RWL Wval C wcs0
      else True) ∗
-    codefrag_pers pc_a switcher_instrs_12 ∗
+    codefrag_pers pc_a switcher_instrs_13 ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
         ⌜load_heap_in_world Wval wcgp rcgp ∧
           load_heap_in_world Wval wcra rcra ∧
@@ -323,21 +323,21 @@ Section Switcher_Return_Blocks_2.
         (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
         (a_stk ^+ 2)%a ↦ₐ wcra ∗
         (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-    codefrag_pers pc_a switcher_instrs_12 ∗
+    codefrag_pers pc_a switcher_instrs_13 ∗
         £ 2 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_12 len_switcher_12.
+    intros switcher_instrs_13 len_switcher_13.
     destruct (is_untrusted_caller ccrel) eqn:Huntrusted.
     - iIntros (Hheap_eq Hstk_shadow Hsub_reg Ha_stk4 Hb_a4 He_a1)
         "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hworld
         & (Hnormal_gp & Hnormal_ra & Hnormal_s1 & Hnormal_s0)
         & #Hcode & Hpost)".
-      iApply (switcher_return_block_12_restore_interp_spec Wworld Wval C opened
+      iApply (switcher_return_block_13_restore_interp_spec Wworld Wval C opened
         with "[$HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld
         $Hnormal_gp $Hnormal_ra $Hnormal_s1 $Hnormal_s0 $Hcode $Hpost]");
@@ -347,7 +347,7 @@ Section Switcher_Return_Blocks_2.
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hworld
         & Hmem & #Hcode & Hpost)".
       iClear "Hmem".
-      subst switcher_instrs_12 len_switcher_12.
+      subst switcher_instrs_13 len_switcher_13.
       codefrag_facts "Hcode". clear H0.
       rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -410,9 +410,9 @@ Section Switcher_Return_Blocks_2.
       iApply "Hpost". iFrame "∗ Hcode".
   Qed.
 
-  (** Blocks 13-15: clear the caller's stack frame [[a, e)], clear the
+  (** Blocks 14-16: clear the caller's stack frame [[a, e)], clear the
       registers and jump back to the caller [wcra]. *)
-  Lemma switcher_return_blocks_13_15_spec
+  Lemma switcher_return_blocks_14_16_spec
     (b e a : Addr) (stk_mem : list LWord)
     (wcs0 wcs1 wcra wcgp : LWord)
     (wcgp' wcra' wcs1' wcs0' wca2 wctp : LWord)
@@ -459,7 +459,7 @@ Section Switcher_Return_Blocks_2.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
 
-    (* Block 13: clear the stack frame *)
+    (* Block 14: clear the stack frame *)
     switcher_focus_block (switcher_block ".Lswitcher_zero_callee_frame") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iDestruct (switcher_stk_cells_region with "Hcells Hstk")
       as "Hstk"; [done|solve_addr|].
@@ -469,13 +469,13 @@ Section Switcher_Return_Blocks_2.
     iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & _ & Hstk)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
-    (* Blocks 14-15 *)
+    (* Blocks 15-16 *)
     iDestruct (big_sepM_insert_2 with "[Hct1] Hrmap") as "Hrmap";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hct0] Hrmap") as "Hrmap";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hca2] Hrmap") as "Hrmap";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hctp] Hrmap") as "Hrmap";[iFrame|].
     switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros").
-    iApply (switcher_blocks_14_15_spec with "[- $HPC $Hcra $Hrmap]").
+    iApply (switcher_blocks_15_16_spec with "[- $HPC $Hcra $Hrmap]").
     { rewrite !dom_insert_L Hdom. set_solver. }
     iSplitR; first iFrame "Hswitcher".
     iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hrmap & _ & Hlc')".
@@ -485,7 +485,7 @@ Section Switcher_Return_Blocks_2.
     iApply ("Hpost" $! rmap'); iFrame "∗ % Hswitcher".
   Qed.
 
-  (** End of block 12 and blocks 13-15: restore the callee-save registers
+  (** End of block 13 and blocks 14-16: restore the callee-save registers
       from the caller's stack frame [[a, e)], clear it, clear the registers
       and jump back to the caller. Each restored register is the result of a
       load, which may clear the tag of a saved heap capability. *)
@@ -538,10 +538,10 @@ Section Switcher_Return_Blocks_2.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
 
-    (* Block 12: restore the callee-save registers *)
+    (* Block 13: restore the callee-save registers *)
     switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call") ^+ 5)%a.
-    iApply (switcher_return_block_12_restore_spec with
+    iApply (switcher_return_block_13_restore_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); [done|done|done|done|solve_addr|].
     iNext; iIntros (rcgp rcra rcs1 rcs0 Hrestored)
@@ -550,10 +550,10 @@ Section Switcher_Return_Blocks_2.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     switcher_change_pc (switcher_label_offset ".Lswitcher_zero_callee_frame").
 
-    (* Blocks 13-15 *)
+    (* Blocks 14-16 *)
     iAssert (switcher_stk_cells a wcs0 wcs1 wcra wcgp)
       with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
-    iApply (switcher_return_blocks_13_15_spec with
+    iApply (switcher_return_blocks_14_16_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
         $Hcells $Hstk $Hrmap]"); [done|done|done|].
     iSplitR; first iFrame "Hswitcher".
@@ -630,10 +630,10 @@ Section Switcher_Return_Blocks_2.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
 
-    (* Block 12: restore the callee-save registers *)
+    (* Block 13: restore the callee-save registers *)
     switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call") ^+ 5)%a.
-    iApply (switcher_return_block_12_restore_open_cases_spec Wworld Wval C opened ccrel with
+    iApply (switcher_return_block_13_restore_open_cases_spec Wworld Wval C opened ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld $Hmem $Hcode]");
       [done|done|done|done|done|solve_addr|].
@@ -643,10 +643,10 @@ Section Switcher_Return_Blocks_2.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     switcher_change_pc (switcher_label_offset ".Lswitcher_zero_callee_frame").
 
-    (* Blocks 13-15 *)
+    (* Blocks 14-16 *)
     iAssert (switcher_stk_cells a wcs0 wcs1 wcra wcgp)
       with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
-    iApply (switcher_return_blocks_13_15_spec with
+    iApply (switcher_return_blocks_14_16_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
         $Hcells $Hstk $Hrmap]"); [done|done|done|].
     iSplitR; first iFrame "Hswitcher".

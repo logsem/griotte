@@ -3,9 +3,9 @@ From griotte Require Import memory_region rules proofmode.
 From griotte Require Import map_simpl register_tactics.
 From griotte Require Import switcher_return_states.
 
-(** * Return routine, first part of block 12: pop the trusted stack
+(** * Return routine, first part of block 13: pop the trusted stack
 
-    Block 12 starts by reading the topmost frame of the trusted stack, which
+    Block 13 starts by reading the topmost frame of the trusted stack, which
     contains the stack pointer of the caller, and pops it. When the trusted
     stack is empty, the execution fails. *)
 
@@ -20,35 +20,35 @@ Section Switcher_Return_Blocks_1.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  Lemma switcher_return_block_12_load_spec
+  Lemma switcher_return_block_13_load_spec
     pc_b pc_e pc_a
     b_trusted_stack e_trusted_stack a_tstk
     wcsp wtstk :
-    let switcher_instrs_12 := switcher_instrs_n 12 in
-    let len_switcher_12 := length switcher_instrs_12 in
+    let switcher_instrs_13 := switcher_instrs_n 13 in
+    let len_switcher_13 := length switcher_instrs_13 in
     disjoint_from_shadow b_trusted_stack e_trusted_stack ->
     is_heap_cap wtstk.(lw) = false ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
     (b_trusted_stack <= a_tstk)%a ->
 
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
     ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     csp ↦ᵣ wcsp ∗
     a_tstk ↦ₐ wtstk ∗
-    codefrag_pers pc_a switcher_instrs_12 ∗
+    codefrag_pers pc_a switcher_instrs_13 ∗
     ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
         ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
         csp ↦ᵣ wtstk ∗
         a_tstk ↦ₐ wtstk ∗
         ⌜ (a_tstk < e_trusted_stack)%a ⌝ ∗
-        codefrag_pers pc_a switcher_instrs_12 -∗
+        codefrag_pers pc_a switcher_instrs_13 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_12 len_switcher_12.
-    subst switcher_instrs_12 len_switcher_12.
+    intros switcher_instrs_13 len_switcher_13.
+    subst switcher_instrs_13 len_switcher_13.
     iIntros (Htstk_shadow Hwtstk_nonheap Hsub_reg Hbounds_tstk_b)
       "(HPC & Hctp & Hcsp & Ha_tstk & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
@@ -69,24 +69,24 @@ Section Switcher_Return_Blocks_1.
     iApply "Hpost"; iFrame "∗ Hcode". iPureIntro; exact Htstk_ae.
   Qed.
 
-  Lemma switcher_return_block_12_empty_spec
+  Lemma switcher_return_block_13_empty_spec
     pc_b pc_e pc_a
     b_trusted_stack e_trusted_stack :
-    let switcher_instrs_12 := switcher_instrs_n 12 in
-    let len_switcher_12 := length switcher_instrs_12 in
+    let switcher_instrs_13 := switcher_instrs_n 13 in
+    let len_switcher_13 := length switcher_instrs_13 in
     is_heap_address b_trusted_stack = false ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
 
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
     ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
     csp ↦ᵣ WInt 0 ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
-    codefrag_pers pc_a switcher_instrs_12
+    codefrag_pers pc_a switcher_instrs_13
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_12 len_switcher_12.
-    subst switcher_instrs_12 len_switcher_12.
+    intros switcher_instrs_13 len_switcher_13.
+    subst switcher_instrs_13 len_switcher_13.
     iIntros (Hts_heap Hsub_reg) "(HPC & Hctp & Hcsp & Hmtdc & #Hcode)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -126,14 +126,14 @@ Section Switcher_Return_Blocks_1.
     wp_end; by iIntros (?).
   Qed.
 
-  Lemma switcher_return_block_12_pop_spec
+  Lemma switcher_return_block_13_pop_spec
     pc_b pc_e pc_a
     b_trusted_stack e_trusted_stack a_tstk
     b_stk e_stk a_stk a_stk4 :
-    let switcher_instrs_12 := switcher_instrs_n 12 in
-    let len_switcher_12 := length switcher_instrs_12 in
+    let switcher_instrs_13 := switcher_instrs_n 13 in
+    let len_switcher_13 := length switcher_instrs_13 in
     is_heap_address b_trusted_stack = false ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
     (b_trusted_stack < a_tstk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
@@ -141,22 +141,22 @@ Section Switcher_Return_Blocks_1.
     ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk4 ∗
     mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    codefrag_pers pc_a switcher_instrs_12 ∗
+    codefrag_pers pc_a switcher_instrs_13 ∗
     ▷ ( (∃ a_tstk1,
             ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
             PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
             ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
             csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
             mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-            codefrag_pers pc_a switcher_instrs_12 ∗
+            codefrag_pers pc_a switcher_instrs_13 ∗
             £ 1)
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_12 len_switcher_12.
-    subst switcher_instrs_12 len_switcher_12.
+    intros switcher_instrs_13 len_switcher_13.
+    subst switcher_instrs_13 len_switcher_13.
     iIntros (Hts_heap Hsub_reg Hnonempty Ha_stk4) "(HPC & Hctp & Hcsp & Hmtdc & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -209,18 +209,18 @@ Section Switcher_Return_Blocks_1.
     iIntros (Hb_tstk Ha4 Hb_heap) "(HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & #Hswitcher & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
-    rewrite switcher_return_block_12.
+    rewrite switcher_return_block_13.
     switcher_unfold_code "Hswitcher".
     switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
-    iApply (switcher_return_block_12_load_spec with
+    iApply (switcher_return_block_13_load_spec with
       "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]");
       [apply trusted_stack_disjoint_from_shadow
       |rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_heap //
       |done|solve_addr+Hb_tstk|].
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & _)".
-    iApply (switcher_return_block_12_pop_spec with
+    iApply (switcher_return_block_13_pop_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [apply trusted_stack_not_heap|done|done|done|].
     iNext; iIntros "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
@@ -241,16 +241,16 @@ Section Switcher_Return_Blocks_1.
     iIntros "(HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & #Hswitcher)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
-    rewrite switcher_return_block_12.
+    rewrite switcher_return_block_13.
     switcher_unfold_code "Hswitcher".
     switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
-    iApply (switcher_return_block_12_load_spec with
+    iApply (switcher_return_block_13_load_spec with
       "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]");
       [apply trusted_stack_disjoint_from_shadow|done|done|solve_addr|].
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & _)".
-    iApply (switcher_return_block_12_empty_spec with
+    iApply (switcher_return_block_13_empty_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [apply trusted_stack_not_heap|done].
   Qed.
 

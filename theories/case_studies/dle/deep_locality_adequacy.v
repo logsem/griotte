@@ -111,7 +111,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   ∧ (cmpt_imports C_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 1 1)]
+  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point InterruptEnabled 1 1)]
   ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed C_cmpt)
 
   (* initial stack *)
@@ -267,7 +267,7 @@ Section Adequacy.
       { exists (cmpt_a_code C_cmpt).
         pose proof (cmpt_import_size C_cmpt) as Himports_size.
         by rewrite C_imports /= in Himports_size. }
-      iApply (adversary_exports_prop _ _ _ _ [(1, 1)]
+      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, 1, 1)]
                with "Hswitcher Hswitcher_static HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
         [by rewrite C_exp_tbl | by repeat constructor | by apply Forall_singleton |].
       rewrite /= finz_add_0_default; iFrame "Hentry_Cf Hentry_Cf'".

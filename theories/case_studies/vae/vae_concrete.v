@@ -38,8 +38,8 @@ Definition vae_assert_e : Addr := A 173.
 Definition vae_assert_flag : Addr := A 173.
 Definition vae_switcher_b : Addr := A 175.
 Definition vae_switcher_call : Addr := A 176.
-Definition vae_switcher_return : Addr := A 243.
-Definition vae_switcher_e : Addr := A 289.
+Definition vae_switcher_return : Addr := A 246.
+Definition vae_switcher_e : Addr := A 292.
 Definition vae_switcher_sealing_type : OType := OT 9.
 Definition vae_trusted_stack_b : Addr := A 4096.
 Definition vae_trusted_stack_e : Addr := A 4196.
@@ -165,7 +165,7 @@ Definition vae_C_imports : list Word :=
   ].
 
 Definition vae_C_exports : list Word :=
-  [WInt (encode_entry_point 0 vae_C_adv_entry); WInt (encode_entry_point 0 vae_C_g_entry)].
+  [WInt (encode_entry_point InterruptEnabled 0 vae_C_adv_entry); WInt (encode_entry_point InterruptEnabled 0 vae_C_g_entry)].
 
 Program Definition vae_concrete_main_cmpt : cmpt.
 Proof.
