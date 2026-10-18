@@ -183,6 +183,34 @@ Proof.
   by rewrite mie_of_mstatus_enc mpie_of_mstatus_enc.
 Qed.
 
+(** A boolean test for [isCorrectPC]. *)
+Definition isCorrectPCb (w: Word): bool :=
+  match w with
+  | WCap true p g b e a =>
+    (b <=? a)%a && (a <? e)%a && executeAllowed p
+  | _ => false
+  end.
+
+Lemma isCorrectPCb_isCorrectPC w :
+  isCorrectPCb w = true ↔ isCorrectPC w.
+Proof.
+  rewrite /isCorrectPCb. destruct_word w.
+  1,3,4,5 : split; try congruence; inversion 1.
+  destruct t; last (split; [congruence | inversion 1]).
+  rewrite !andb_true_iff !Z.leb_le !Z.ltb_lt.
+  split.
+  - intros [? ?]. constructor; [solve_addr | naive_solver].
+  - inversion 1; subst. split; [solve_addr | naive_solver].
+Qed.
+
+Lemma isCorrectPCb_nisCorrectPC w :
+  isCorrectPCb w = false ↔ ¬ isCorrectPC w.
+Proof.
+  destruct (isCorrectPCb w) eqn:HH.
+  - apply isCorrectPCb_isCorrectPC in HH. split; congruence.
+  - split; auto. intros _. intros ?%isCorrectPCb_isCorrectPC. congruence.
+Qed.
+
 Section opsem.
   Context `{MachineParameters}.
   Definition get_shadow_address (a : Addr) : Addr := a.
@@ -303,7 +331,12 @@ Section opsem.
             (* Any store to the revoker sweeps memory; the value is ignored. *)
             updatePC (revoker_sweep φ)
           else
-            updatePC (update_mem φ ea (store_word p tostore))
+            (* A store to an address absent from memory faults, after the
+               capability checks. *)
+            match (mem φ) !! ea with
+            | Some _ => updatePC (update_mem φ ea (store_word p tostore))
+            | None => None
+            end
         else None
       | _ => None
       end
@@ -541,5 +574,137 @@ Section opsem.
         exec i p φ = c →
         step (Executable, φ) (c.1, c.2).
 
+  (** * Trap entry *)
+
+  (** Exception causes, with the names and values of CHERIoT's
+      [sdk/include/priv/riscv.h]. *)
+  Definition MCAUSE_INST_ACCESS_FAULT : Z := 1.
+  Definition MCAUSE_ILLEGAL_INSTRUCTION : Z := 2.
+  Definition MCAUSE_LOAD_ACCESS_FAULT : Z := 5.
+  Definition MCAUSE_STORE_ACCESS_FAULT : Z := 7.
+  Definition MCAUSE_CHERI : Z := 28.
+
+  (** The cause of a fault of [CLoad _ src imm], in cheriot-sail's order of
+      checks: a CHERI fault unless the capability checks pass (tag, sealing,
+      load permission, bounds), and then an access fault if the address is
+      absent from memory or misses the shadow table: a shadow address whose
+      heap address has no shadow entry, or a loaded heap capability whose base
+      has no shadow entry. *)
+  Definition load_cause (φ : ExecConf) (src : RegName) (imm : Z) : Z :=
+    match reg φ !!ᵣ src with
+    | Some (WCap true p _ b e a) =>
+        match (a + imm)%a with
+        | Some ea =>
+            if readAllowed p && withinBounds b e ea then
+              if is_shadow_address ea then
+                match shadow_to_heap ea with
+                | Some heap_a =>
+                    match shadowtbl φ !! heap_a with
+                    | None => MCAUSE_LOAD_ACCESS_FAULT
+                    | Some _ => MCAUSE_CHERI
+                    end
+                | None => MCAUSE_CHERI
+                end
+              else if is_revoker_address ea then MCAUSE_CHERI
+              else
+                match mem φ !! ea with
+                | None => MCAUSE_LOAD_ACCESS_FAULT
+                | Some w =>
+                    match heap_cap_base w with
+                    | Some base =>
+                        match shadowtbl φ !! base with
+                        | None => MCAUSE_LOAD_ACCESS_FAULT
+                        | Some _ => MCAUSE_CHERI
+                        end
+                    | None => MCAUSE_CHERI
+                    end
+                end
+            else MCAUSE_CHERI
+        | None => MCAUSE_CHERI
+        end
+    | _ => MCAUSE_CHERI
+    end.
+
+  (** The cause of a fault of [Store dst ρ imm], in cheriot-sail's order of
+      checks: a CHERI fault unless the capability checks pass (tag, sealing,
+      store permission, bounds), and then an access fault if the address is
+      absent from memory, or if a non-integer is stored to a shadow
+      address. *)
+  Definition store_cause (φ : ExecConf) (dst : RegName) (ρ : Z + RegName) (imm : Z) : Z :=
+    match word_of_argument (reg φ) ρ, reg φ !!ᵣ dst with
+    | Some tostore, Some (WCap true p _ b e a) =>
+        match (a + imm)%a with
+        | Some ea =>
+            if writeAllowed p && withinBounds b e ea then
+              if is_shadow_address ea then
+                match tostore with
+                | WInt _ => MCAUSE_CHERI
+                | _ => MCAUSE_STORE_ACCESS_FAULT
+                end
+              else if is_revoker_address ea then MCAUSE_CHERI
+              else
+                match mem φ !! ea with
+                | None => MCAUSE_STORE_ACCESS_FAULT
+                | Some _ => MCAUSE_CHERI
+                end
+            else MCAUSE_CHERI
+        | None => MCAUSE_CHERI
+        end
+    | _, _ => MCAUSE_CHERI
+    end.
+
+  (** The cause of a fault of the instruction [i]: [Fail] is an illegal
+      instruction, a load or a store may be an access fault, and every other
+      fault is a CHERI fault. *)
+  Definition instr_cause (i : instr) (φ : ExecConf) : Z :=
+    match i with
+    | Fail => MCAUSE_ILLEGAL_INSTRUCTION
+    | CLoad _ src imm => load_cause φ src imm
+    | Store dst ρ imm => store_cause φ dst ρ imm
+    | _ => MCAUSE_CHERI
+    end.
+
+  (** The cause of a fault in the state [φ], from the fetch and the decoded
+      instruction at PC: a fetch that fails the PC checks is a CHERI fault, a
+      fetch from an address absent from memory is an access fault. *)
+  Definition trap_cause (φ : ExecConf) : Z :=
+    match pcc φ with
+    | WCap true _ _ _ _ a =>
+        if isCorrectPCb (pcc φ) then
+          match mem φ !! a with
+          | None => MCAUSE_INST_ACCESS_FAULT
+          | Some wa => instr_cause (decodeInstrW wa) φ
+          end
+        else MCAUSE_CHERI
+    | _ => MCAUSE_CHERI
+    end.
+
+  (** The value of a system register; an absent one reads as [WInt 0]. *)
+  Definition sreg_word (φ : ExecConf) (sr : SRegName) : Word :=
+    default (WInt 0) (sreg φ !! sr).
+
+  (** Exception entry with cause [cv.1] and value [cv.2], as cheriot-sail:
+      MEPCC receives the PC, MPIE receives MIE, MIE is disabled, mcause and
+      mtval receive the cause and the value, and the PC receives MTCC without
+      checks (MTCC is legalised when written). *)
+  Definition enter_exc (cv : Z * Z) (φ : ExecConf) : ExecConf :=
+    let mie := mie_of (get_a (sreg_word φ MSTATUS)) in
+    update_pcc
+      (update_sreg
+         (update_sreg
+            (update_sreg
+               (update_sreg φ MEPCC (pcc φ))
+               MSTATUS (WInt (mstatus_enc InterruptDisabled mie)))
+            MCAUSE (WInt cv.1))
+         MTVAL (WInt cv.2))
+      (sreg_word φ MTCC).
+
+  (** After a fault, the machine stops instead of entering the exception
+      handler when neither the PC nor MTCC is tagged. A fault with an untagged
+      PC is a fetch fault, and cheriot-sail's fetch check stops there, writing
+      nothing, when MTCC is untagged: the entry would install the untagged
+      MTCC in the PC, which would fault again. *)
+  Definition trap_halts (φ : ExecConf) : bool :=
+    negb (get_tag (pcc φ)) && negb (get_tag (sreg_word φ MTCC)).
 
 End opsem.

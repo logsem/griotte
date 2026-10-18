@@ -141,5 +141,6 @@ Proof. by destruct s. Qed.
     cbn in Hheap; cbn in Hshadow; lia);
   revoker_mixin := default_revoker_region;
   revoker_not_heap := eq_refl;
-  revoker_not_shadow := eq_refl
+  revoker_not_shadow := eq_refl;
+  trap_tval := λ _, 0%Z
 |}.

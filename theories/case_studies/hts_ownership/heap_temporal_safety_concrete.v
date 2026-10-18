@@ -36,7 +36,8 @@ Definition hts_shadow_region : ShadowRegion :=
        cbn in Hheap, Hshadow; lia);
      revoker_mixin := @revoker_mixin machine_parameters_instance;
      revoker_not_heap := eq_refl;
-     revoker_not_shadow := eq_refl |}.
+     revoker_not_shadow := eq_refl;
+     trap_tval := @trap_tval machine_parameters_instance |}.
 
 (** The concrete adversary counts calls. Its imports remain exactly those
     allowed by general adequacy; it does not need an assert entry point. *)
