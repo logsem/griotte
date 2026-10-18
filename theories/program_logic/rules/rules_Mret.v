@@ -66,8 +66,7 @@ Section griotte_lang_rules.
     iAssert (⌜sregs ⊆ lsreg⌝)%I as %Hlsregs.
     { iDestruct "Hsr" as "[Hsr _]". iApply (gen_heap_valid_inclSepM with "Hsr Hsmap"). }
     iAssert (⌜∃ vst, lsreg !! MSTATUS = Some vst⌝)%I as %[vst Hvst'].
-    { iDestruct "Hsr" as "[Hsr [%v Hmst]]".
-      iDestruct (gen_heap_valid with "Hsr Hmst") as %?. iPureIntro. by exists v. }
+    { iApply (sreg_interp_mstatus with "Hsr"). }
     rewrite Hinstr /exec in Hstep.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
@@ -88,11 +87,7 @@ Section griotte_lang_rules.
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
     specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
                   ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her MEPCC))).
-    iDestruct "Hsr" as "[Hsr [%v Hmst]]".
-    iMod (gen_heap_update _ _ _ (mret_mstatus vst) with "Hsr Hmst") as "[Hsr Hmst]".
-    iAssert (sreg_interp (<[MSTATUS := mret_mstatus vst]> lsreg))
-      with "[Hsr Hmst]" as "Hsr".
-    { iFrame "Hsr". by iExists _. }
+    iMod (sreg_interp_update_mstatus _ (mret_mstatus vst) with "Hsr") as "Hsr".
     iMod (PC_update _ _ vepcc with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplitR "Hφ HPC Hpc_a Hsmap".
     - iExists vepcc, _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.

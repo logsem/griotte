@@ -97,11 +97,43 @@ Section state_interp.
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ}.
 
-  (** The logical system registers, with the only points-to of mstatus: no
-      client holds mstatus. *)
+  (** The only points-to of the system registers that no client holds:
+      mstatus, the registers trap entry writes (MEPCC, mcause, mtval) and
+      MTCC, which is untagged. *)
+  Definition sreg_reserved : iProp Σ :=
+    "Hmstatus" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MSTATUS (DfracOwn 1) v) ∗
+    "Hmepcc" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MEPCC (DfracOwn 1) v) ∗
+    "Hmcause" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MCAUSE (DfracOwn 1) v) ∗
+    "Hmtval" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MTVAL (DfracOwn 1) v) ∗
+    "Hmtcc" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MTCC (DfracOwn 1) v ∗
+                    ⌜get_tag v.(lw) = false⌝).
+
+  (** The logical system registers, with the reserved points-to. *)
   Definition sreg_interp (lsreg : LSReg) : iProp Σ :=
-    gen_heap_interp lsreg ∗
-    ∃ mstatus_v, pointsto (L:=SRegName) (V:=LWord) MSTATUS (DfracOwn 1) mstatus_v.
+    gen_heap_interp lsreg ∗ sreg_reserved.
+
+  Lemma sreg_interp_update_mstatus lsreg v :
+    sreg_interp lsreg ==∗ sreg_interp (<[MSTATUS := v]> lsreg).
+  Proof.
+    iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmstatus" as (v0) "Hmstatus".
+    iMod (gen_heap_update _ _ _ v with "Hsr Hmstatus") as "[$ Hmstatus]".
+    iModIntro. iFrame.
+  Qed.
+
+  Lemma sreg_interp_mstatus lsreg :
+    sreg_interp lsreg -∗ ⌜∃ v, lsreg !! MSTATUS = Some v⌝.
+  Proof.
+    iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmstatus" as (v) "Hmstatus".
+    iDestruct (gen_heap_valid with "Hsr Hmstatus") as %Hlookup. eauto.
+  Qed.
+
+  (** MTCC is untagged. *)
+  Lemma sreg_interp_mtcc lsreg :
+    sreg_interp lsreg -∗ ⌜∃ v, lsreg !! MTCC = Some v ∧ get_tag v.(lw) = false⌝.
+  Proof.
+    iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmtcc" as (v) "[Hmtcc %Hv]".
+    iDestruct (gen_heap_valid with "Hsr Hmtcc") as %Hlookup. eauto.
+  Qed.
 
   Definition cerise_state_interp (σ : ExecConf) : iProp Σ :=
     ∃ (lpc : LWord) (lreg : LReg) (lsreg : LSReg) (lmem : LMem) (R : RegState)
@@ -182,6 +214,17 @@ Definition ceriseGpreΣ : gFunctors :=
 #[global] Instance subG_ceriseGpreS {Σ} : subG ceriseGpreΣ Σ → ceriseGpreS Σ.
 Proof. solve_inG. Qed.
 
+(** The system registers that the state interpretation reserves. *)
+Definition reserved_sregs : list SRegName := [MSTATUS; MEPCC; MCAUSE; MTVAL; MTCC].
+
+(** The system registers that adequacy hands out: those not reserved. *)
+Definition sregs_handed_out (sr : SReg) : SReg :=
+  delete MTCC (delete MTVAL (delete MCAUSE (delete MEPCC (delete MSTATUS sr)))).
+
+Lemma lookup_sregs_handed_out_mtdc (sr : SReg) w :
+  sr !! MTDC = Some w → sregs_handed_out sr !! MTDC = Some w.
+Proof. intros Hw. by rewrite /sregs_handed_out !lookup_delete_ne. Qed.
+
 Section ghost_init.
   Context `{MP : MachineParameters}.
 
@@ -205,7 +248,8 @@ Section ghost_init.
   (** Every initial word with authority is based on a heap root, heap roots
       are unpainted, [cnull] holds zero, and every tagged executable word
       has closed bounds that avoid the heap; a tagged PC, MTCC or MEPCC is an
-      unsealed executable capability; mstatus exists. *)
+      unsealed executable capability; the system registers that the state
+      interpretation reserves exist, and MTCC is untagged. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -224,7 +268,8 @@ Section ghost_init.
     gi_sregs_exec sr w : sreg σ !! sr = Some w → lword_exec (lword_of_word w);
     gi_pc_ok : pc_ok (pcc σ);
     gi_sregs_pc_ok sr w : is_pc_sreg sr = true → sreg σ !! sr = Some w → pc_ok w;
-    gi_mstatus : is_Some (sreg σ !! MSTATUS);
+    gi_reserved_sregs sr : sr ∈ reserved_sregs → is_Some (sreg σ !! sr);
+    gi_mtcc w : sreg σ !! MTCC = Some w → get_tag w = false;
   }.
 
   Lemma lookup_init_claims H a :
@@ -324,7 +369,7 @@ Section ghost_init.
       cerise_state_interp σ ∗
       PC ↦ₚ lword_of_word (pcc σ) ∗
       ([∗ map] r ↦ w ∈ init_lregs (reg σ), r ↦ᵣ w) ∗
-      ([∗ map] sr ↦ w ∈ delete MSTATUS (sreg σ), sr ↦ₛᵣ lword_of_word w) ∗
+      ([∗ map] sr ↦ w ∈ sregs_handed_out (sreg σ), sr ↦ₛᵣ lword_of_word w) ∗
       ([∗ map] a ↦ w ∈ init_lmem (mem σ), a ↦ₐ w) ∗
       ([∗ map] a ↦ s ∈ shadowtbl σ, a ↦ₛ s) ∗
       ([∗ map] a ↦ c ∈ init_claims H, addr_alloc a c).
@@ -339,10 +384,24 @@ Section ghost_init.
     iMod (addr_alloc_init (init_claims H)) as (ag) "[HC HCs]".
     iModIntro. iExists mg, sg, pg, rg, srg, regg, ag.
     rewrite /init_lsregs big_sepM_fmap.
-    destruct (gi_mstatus _ _ Hinit) as [wst Hwst].
-    iDestruct (big_sepM_delete _ _ MSTATUS with "Hsrs") as "[Hst_m Hsrs]"; first exact Hwst.
-    iAssert (sreg_interp (lword_of_word <$> sreg σ)) with "[Hsr Hst_m]" as "Hsr".
-    { iFrame "Hsr". by iExists _. }
+    destruct (gi_reserved_sregs _ _ Hinit MSTATUS) as [wst Hwst]; first set_solver.
+    destruct (gi_reserved_sregs _ _ Hinit MEPCC) as [wepcc Hwepcc]; first set_solver.
+    destruct (gi_reserved_sregs _ _ Hinit MCAUSE) as [wcause Hwcause]; first set_solver.
+    destruct (gi_reserved_sregs _ _ Hinit MTVAL) as [wtval Hwtval]; first set_solver.
+    destruct (gi_reserved_sregs _ _ Hinit MTCC) as [wtcc Hwtcc]; first set_solver.
+    iDestruct (big_sepM_delete _ _ MSTATUS with "Hsrs") as "[Hmstatus Hsrs]"; first exact Hwst.
+    iDestruct (big_sepM_delete _ _ MEPCC with "Hsrs") as "[Hmepcc Hsrs]";
+      first by rewrite lookup_delete_ne.
+    iDestruct (big_sepM_delete _ _ MCAUSE with "Hsrs") as "[Hmcause Hsrs]";
+      first by rewrite !lookup_delete_ne.
+    iDestruct (big_sepM_delete _ _ MTVAL with "Hsrs") as "[Hmtval Hsrs]";
+      first by rewrite !lookup_delete_ne.
+    iDestruct (big_sepM_delete _ _ MTCC with "Hsrs") as "[Hmtcc Hsrs]";
+      first by rewrite !lookup_delete_ne.
+    iAssert (sreg_interp (lword_of_word <$> sreg σ))
+      with "[Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc]" as "Hsr".
+    { iFrame "Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc". iPureIntro.
+      by apply (gi_mtcc _ _ Hinit). }
     iFrame. iPureIntro. by apply init_erasure.
   Qed.
 

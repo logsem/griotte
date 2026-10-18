@@ -586,11 +586,6 @@ Section griotte_lang_rules.
                                 (match goal with
                                 | H : base_step _ _ _ _ _ _ |- _ => inversion H end).
 
-  (* Not an instance: a fault is closed through [wp_trap] only. *)
-  #[local] Lemma pure_seq_faulted :
-    PureExec True 1 (Seq (Instr Faulted)) (Instr Faulted).
-  Proof. by solve_exec_pure. Qed.
-
   #[global] Instance pure_seq_halted :
     PureExec True 1 (Seq (Instr Halted)) (Instr Halted).
   Proof. by solve_exec_pure. Qed.
@@ -600,6 +595,98 @@ Section griotte_lang_rules.
   Proof. by solve_exec_pure. Qed.
 
   (* ----------------------------------- TRAPS --------------------------------------- *)
+
+  (* Clients close faults with [wp_trap] (through [iTrap]) only; the lemmas
+     below are its proof. *)
+
+  (** After a fault with an untagged PC, the machine stops: MTCC is untagged. *)
+  Lemma wp_trap_halt E Φ w :
+    get_tag w.(lw) = false →
+    PC ↦ₚ w -∗
+    ▷ Φ FaultedV -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros (Hw) "HPC HΦ".
+    iApply wp_lift_atomic_base_step_no_fork; first done.
+    iIntros (σ1 ns κ κs nt) "Hσ /=".
+    iNamed "Hσ".
+    iDestruct (PC_agree with "HPCa HPC") as %->.
+    iDestruct (sreg_interp_mtcc with "Hsr") as %(vtcc & Htcc & Htcc_tag).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
+    assert (trap_halts σ1 = true) as Hhalt.
+    { rewrite /trap_halts /sreg_word (erasure_pc_exact _ _ _ _ _ _ _ Her) Hw Hwtcc /=.
+      destruct (reg_phys_cases _ _ _ Hreltcc) as [-> | ->];
+        by rewrite ?Htcc_tag ?get_tag_clear_tag. }
+    iModIntro. iSplit.
+    { iPureIntro. eexists [], _, _, []. by apply PS_no_fork_trap_halt. }
+    iNext. iIntros (e2 σ2 efs Hstep) "_".
+    inversion Hstep as [| | | σ' Hnh | σ' Hh]; subst; first congruence.
+    iModIntro. iSplit; first done. iFrame. by iPureIntro.
+  Qed.
+
+  (** Trap entry from a tagged PC: MEPCC receives the PC, and the PC receives
+      MTCC, which is untagged. *)
+  Lemma wp_trap_entry E Φ w :
+    get_tag w.(lw) = true →
+    PC ↦ₚ w -∗
+    ▷ (∀ w', ⌜get_tag w'.(lw) = false⌝ -∗ PC ↦ₚ w' -∗ WP Seq (Instr Executable) @ E {{ Φ }}) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros (Hw) "HPC HΦ".
+    iApply wp_lift_base_step; first done.
+    iIntros (σ1 ns κ κs nt) "Hσ /=".
+    iNamed "Hσ".
+    iDestruct (PC_agree with "HPCa HPC") as %->.
+    iDestruct (sreg_interp_mtcc with "Hsr") as %(vtcc & Htcc & Htcc_tag).
+    assert (trap_halts σ1 = false) as Hnh.
+    { by rewrite /trap_halts (erasure_pc_exact _ _ _ _ _ _ _ Her) Hw. }
+    iApply fupd_mask_intro; first set_solver. iIntros "Hclose".
+    iSplit.
+    { iPureIntro. eexists [], _, _, []. by apply PS_no_fork_trap. }
+    iNext. iIntros (e2 σ2 efs Hstep) "_".
+    inversion Hstep as [| | | σ' Hnh' | σ' Hh]; subst; last congruence.
+    iMod "Hclose" as "_".
+    pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) vtcc Her
+                  (erasure_pc_tagged_no_id _ _ _ _ _ _ _ Her Hw) Htcc) as Her'.
+    iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
+    iDestruct "Hmepcc" as (vepcc) "Hmepcc".
+    iDestruct "Hmstatus" as (vst) "Hmstatus".
+    iDestruct "Hmcause" as (vcause) "Hmcause".
+    iDestruct "Hmtval" as (vtval) "Hmtval".
+    iMod (gen_heap_update _ _ _ w with "Hsr Hmepcc") as "[Hsr Hmepcc]".
+    iMod (gen_heap_update _ _ _
+            (lword_of_word (WInt (mstatus_enc InterruptDisabled
+                                    (mie_of (get_a (sreg_word σ1 MSTATUS))))))
+           with "Hsr Hmstatus") as "[Hsr Hmstatus]".
+    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_cause σ1)))
+           with "Hsr Hmcause") as "[Hsr Hmcause]".
+    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_tval σ1)))
+           with "Hsr Hmtval") as "[Hsr Hmtval]".
+    iMod (PC_update _ _ vtcc with "HPCa HPC") as "[HPCa HPC]".
+    iModIntro. iSplitR "HΦ HPC".
+    - iExists vtcc, lreg, (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w lsreg),
+        lmem, R, C.
+      rewrite /lsregs_enter_exc /=. iFrame. by iPureIntro.
+    - iSplitL; last done. by iApply ("HΦ" with "[//] HPC").
+  Qed.
+
+  (** The stop lemma: while MTCC is untagged, a fault stops the machine. With
+      a tagged PC, trap entry installs the untagged MTCC in the PC, the fetch
+      faults, and the machine stops. *)
+  Lemma wp_trap_stop E Φ w :
+    PC ↦ₚ w -∗
+    ▷ Φ FaultedV -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros "HPC HΦ".
+    destruct (get_tag w.(lw)) eqn:Hw; last by iApply (wp_trap_halt with "HPC HΦ").
+    iApply (wp_trap_entry with "HPC"); first done.
+    iIntros "!>" (w' Hw') "HPC".
+    iApply (wp_bind (fill [SeqCtx])).
+    iApply (wp_notCorrectPC_tag with "HPC"); first done.
+    iIntros "!> HPC /=".
+    by iApply (wp_trap_halt with "HPC").
+  Qed.
 
   (* The obligation of a fault: what the thread must provide for the machine
      to take the fault. Sealed, so that clients only introduce it with
@@ -622,10 +709,7 @@ Section griotte_lang_rules.
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
     rewrite trap_ok_unseal /trap_ok_def.
-    iIntros "_ HΦ".
-    iApply (wp_pure_step_later _ _ _ (Instr Faulted) True 1); [apply pure_seq_faulted | done |].
-    iIntros "!> _".
-    by iApply wp_value.
+    iApply wp_trap_stop.
   Qed.
 
   (* A fetch fault: the PC is not a correct PC. *)

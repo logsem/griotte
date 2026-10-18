@@ -332,10 +332,11 @@ Section initial_rootedness.
     (∀ sr w, sreg !! sr = Some w → word_exec_ok w) →
     pc_ok pc →
     (∀ sr w, is_pc_sreg sr = true → sreg !! sr = Some w → pc_ok w) →
-    is_Some (sreg !! MSTATUS) →
+    (∀ sr, sr ∈ reserved_sregs → is_Some (sreg !! sr)) →
+    (∀ w, sreg !! MTCC = Some w → get_tag w = false) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
-    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok Hmstatus.
+    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok Hreserved Hmtcc.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -357,7 +358,8 @@ Section initial_rootedness.
     - exact Hsregx.
     - exact Hpcok.
     - exact Hsregok.
-    - exact Hmstatus.
+    - exact Hreserved.
+    - exact Hmtcc.
   Qed.
 
   (** The initial condition of a layout with heap roots [R]. *)
@@ -398,7 +400,9 @@ Section initial_rootedness.
     - (* MTCC and MEPCC start untagged. *)
       intros sr w Hsr Hw. rewrite Hsreg in Hw. injection Hw as <-.
       by destruct sr; apply pc_ok_untagged.
-    - eexists. apply Hsreg.
+    - intros sr _. eexists. apply Hsreg.
+    - (* MTCC starts untagged. *)
+      intros w Hw. rewrite Hsreg in Hw. by injection Hw as <-.
   Qed.
 
   (** The initial condition of a layout without heap roots. *)
@@ -515,7 +519,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   (∀ (ceriseg : ceriseG Σ),
      PC ↦ₚ lword_of_word pc -∗
      ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) -∗
-     ([∗ map] r↦w ∈ delete MSTATUS sreg, r ↦ₛᵣ lword_of_word w) -∗
+     ([∗ map] r↦w ∈ sregs_handed_out sreg, r ↦ₛᵣ lword_of_word w) -∗
      ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
      ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗

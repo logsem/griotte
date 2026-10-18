@@ -315,7 +315,7 @@ Section Adequacy.
       [done | exact HCNamesNoDup |].
 
     (* 4 - Get initial sregister mtdc *)
-    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first (apply lookup_delete_Some; split; [|exact (Hsreg MTDC)]; done).
+    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first by apply lookup_sregs_handed_out_mtdc, Hsreg.
 
     (* 5 - Separate all compartments *)
     rewrite Hm /mk_initial_memory.

@@ -60,8 +60,7 @@ Section griotte_lang_rules.
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     iAssert (⌜∃ vst, lsreg !! MSTATUS = Some vst⌝)%I as %[vst Hvst'].
-    { iDestruct "Hsr" as "[Hsr [%v Hmst]]".
-      iDestruct (gen_heap_valid with "Hsr Hmst") as %?. iPureIntro. by exists v. }
+    { iApply (sreg_interp_mstatus with "Hsr"). }
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of in Hri, Dregs.
@@ -102,11 +101,7 @@ Section griotte_lang_rules.
         as Her1.
       specialize (Her1 ltac:(apply reg_word_ok_int) eq_refl ltac:(by intros)
                     ltac:(apply reg_phys_lword_of_word)).
-      iDestruct "Hsr" as "[Hsr [%v Hmst]]".
-      iMod (gen_heap_update _ _ _ (WInt z : LWord) with "Hsr Hmst") as "[Hsr Hmst]".
-      iAssert (sreg_interp (<[MSTATUS := (WInt z : LWord)]> lsreg))
-        with "[Hsr Hmst]" as "Hsr".
-      { iFrame "Hsr". by iExists _. }
+      iMod (sreg_interp_update_mstatus _ (WInt z : LWord) with "Hsr") as "Hsr".
       destruct (decide (rdst = cnull)) as [Hnull | Hnull].
       + iApply (instr_close_set_pc (WCap true pc_p pc_g pc_b pc_e pc_a) r
                   (<[MSTATUS := WInt z]> sr) m st _ lreg _ lmem R C _ (lupdatePcPerm wsrc)
