@@ -55,7 +55,7 @@ Section griotte_lang_rules.
       destruct (Hri r0) as [? [? ?]]; first set_solver+. eauto. }
     destruct (lword_of_argument_phys _ _ _ _ _ Hregs Hwsrc) as (s & Hsrc & Hrel).
     assert (exec_opt (Mov dst src) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+              nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
                 (and_tag s wsrc.(lw)))) as HH.
     { cbn. by rewrite Hsrc. }
     rewrite HH in Hstep.

@@ -1030,24 +1030,24 @@ Section erasure_PC.
   Lemma incrementPC_gen_phys R (lpc lpc' : LWord) pc (r : Reg) sr m st n :
     reg_phys R lpc pc →
     incrementPC_gen lpc n = Some lpc' →
-    ∃ pc', updatePC_gen (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
+    ∃ pc', advancePC (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
            reg_phys R lpc' pc'.
   Proof.
     intros Hpc Hi.
     apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
     destruct (reg_phys_and_tag _ _ _ Hpc) as [s ->].
     exists (and_tag s (WCap t p g b e a')). split.
-    - rewrite /updatePC_gen /update_pcc /= Ha'. done.
+    - rewrite /advancePC /update_pcc /= Ha'. done.
     - by apply (reg_phys_derive _ (WCap t p g b e a @@? π)).
   Qed.
 
   Lemma incrementPC_gen_phys_fail R (lpc : LWord) pc (r : Reg) sr m st n :
     reg_phys R lpc pc →
     incrementPC_gen lpc n = None →
-    updatePC_gen (pc, r, sr, m, st) n = None.
+    advancePC (pc, r, sr, m, st) n = None.
   Proof.
     intros Hpc Hi. destruct (reg_phys_and_tag _ _ _ Hpc) as [s ->].
-    rewrite /incrementPC_gen in Hi. rewrite /updatePC_gen /=.
+    rewrite /incrementPC_gen in Hi. rewrite /advancePC /=.
     destruct lpc as [w π]; cbn in *.
     destruct w as [| [? ? ? ? ? a' | ] | |]; cbn; auto.
     destruct (a' + n)%a; auto. congruence.
@@ -1058,7 +1058,7 @@ Section erasure_PC.
   Lemma erasure_incrementPC_gen R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lsreg lmem n :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     incrementPC_gen lpc n = Some lpc' →
-    ∃ pc', updatePC_gen (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
+    ∃ pc', advancePC (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
            erasure R C (pc', r, sr, m, st) lpc' lreg lsreg lmem.
   Proof.
     intros Her Hi.
@@ -1073,14 +1073,14 @@ Section erasure_PC.
   Lemma erasure_incrementPC R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lsreg lmem :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     incrementPC lpc = Some lpc' →
-    ∃ pc', updatePC (pc, r, sr, m, st) = Some (NextI, (pc', r, sr, m, st)) ∧
+    ∃ pc', nextPC (pc, r, sr, m, st) = Some (NextI, (pc', r, sr, m, st)) ∧
            erasure R C (pc', r, sr, m, st) lpc' lreg lsreg lmem.
   Proof. apply erasure_incrementPC_gen. Qed.
 
   Lemma erasure_incrementPC_fail R C (pc : Word) (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem n :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     incrementPC_gen lpc n = None →
-    updatePC_gen (pc, r, sr, m, st) n = None.
+    advancePC (pc, r, sr, m, st) n = None.
   Proof. intros Her. apply incrementPC_gen_phys_fail with R, Her. Qed.
 End erasure_PC.
 
@@ -1215,13 +1215,13 @@ Section instruction_closing.
   Qed.
 
   (** Closes an instruction that only moves the PC by [n], as the physical
-      [updatePC_gen φ n]. The spec [P] holds of the new PC on success, and of
+      [advancePC φ n]. The spec [P] holds of the new PC on success, and of
       the old one on failure. *)
   Lemma instr_close_pc_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) n c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → griotte_lang.val → Prop) :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
-    (match updatePC_gen (pc, r, sr, m, st) n with
+    (match advancePC (pc, r, sr, m, st) n with
      | Some conf => conf | None => (Faulted, (pc, r, sr, m, st)) end) = (c, σ') →
     (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
     (incrementPC_gen lpc n = None → P lpc FaultedV) →
@@ -1248,7 +1248,7 @@ Section instruction_closing.
   Qed.
 
   (** Closes an instruction that writes one register then increments the PC,
-      as the physical [updatePC (update_reg φ dst v)]. The spec [P] holds of
+      as the physical [nextPC (update_reg φ dst v)]. The spec [P] holds of
       the new PC and owned registers on success, and of the old ones on
       failure. *)
   Lemma instr_close_reg_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
@@ -1258,7 +1258,7 @@ Section instruction_closing.
     regs ⊆ lreg →
     dst ∈ dom regs →
     reg_word_ok R C v →
-    (match updatePC (update_reg (pc, r, sr, m, st) dst w) with
+    (match nextPC (update_reg (pc, r, sr, m, st) dst w) with
      | Some conf => conf | None => (Faulted, (pc, r, sr, m, st)) end) = (c, σ') →
     reg_phys R v w →
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
@@ -1287,7 +1287,7 @@ Section instruction_closing.
       + iApply ("Hφ" with "[%] HPC [Hmap]"); first by apply HPs.
         by rewrite /linsert_reg.
     - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
-      rewrite /updatePC Hfail in Hstep.
+      rewrite /nextPC Hfail in Hstep.
       simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
       iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
   Qed.

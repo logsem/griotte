@@ -30,19 +30,40 @@ Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
 Definition update_shadowtbl (φ: ExecConf) (a: Addr) (s: AllocStatus): ExecConf :=
   (pcc φ, reg φ, sreg φ, mem φ, <[a:=s]> (shadowtbl φ)).
 
+(** Field updates, written on the right of the configuration so that a
+    chain of updates reads in order, one per line: [φ .[r :=ᵣ w]] is
+    [update_reg φ r w]. *)
+Notation "φ .[ 'PC' := w ]" := (update_pcc φ w)
+  (at level 2, left associativity, format "φ  '/' .[ 'PC'  :=  w ]").
+Notation "φ .[ r :=ᵣ w ]" := (update_reg φ r w)
+  (at level 2, left associativity, format "φ  '/' .[ r  :=ᵣ  w ]").
+Notation "φ .[ sr :=ₛᵣ w ]" := (update_sreg φ sr w)
+  (at level 2, left associativity, format "φ  '/' .[ sr  :=ₛᵣ  w ]").
+Notation "φ .[ a :=ₐ w ]" := (update_mem φ a w)
+  (at level 2, left associativity, format "φ  '/' .[ a  :=ₐ  w ]").
+Notation "φ .[ a :=ₛ s ]" := (update_shadowtbl φ a s)
+  (at level 2, left associativity, format "φ  '/' .[ a  :=ₛ  s ]").
+
+(** Pipeline: [x |> f] is [f x]. *)
+Notation "x |> f" := (f x) (at level 61, left associativity, only parsing).
+
+(** Check: [when b then X] is [X] if [b] holds, and fails otherwise. *)
+Notation "'when' b 'then' X" := (if b then X else None)
+  (at level 200, X at level 200, only parsing).
+
 (* Note that the `None` values here also undo any previous changes that were tentatively made in the same step. This is more consistent across the board. *)
-Definition updatePC_gen (φ: ExecConf) (imm : Z): option Conf :=
+Definition advancePC (φ: ExecConf) (imm : Z): option Conf :=
   match pcc φ with
   | WCap t p g b e a =>
     match (a + imm)%a with
-    | Some a' => let φ' := (update_pcc φ (WCap t p g b e a')) in
+    | Some a' => let φ' := φ .[PC := WCap t p g b e a'] in
                 Some (NextI, φ')
     | None => None
     end
   | _ => None
   end.
 
-Definition updatePC (φ: ExecConf): option Conf := updatePC_gen φ 1.
+Definition nextPC (φ: ExecConf): option Conf := advancePC φ 1.
 
 
 (* An integer operand reads the address of a register word, as in
@@ -239,13 +260,13 @@ Section opsem.
     | Halt => Some (Halted, φ)
     | Jmp rimm =>
         imm ← z_of_argument (reg φ) rimm;
-        updatePC_gen φ imm
+        advancePC φ imm
     | Jnz rimm rcond =>
         wcond ← (reg φ) !!ᵣ rcond;
         if nonZero wcond
         then imm ← z_of_argument (reg φ) rimm;
-             updatePC_gen φ imm
-        else updatePC φ
+             advancePC φ imm
+        else nextPC φ
     | Jalr rdst rsrc =>
         wrsrc ← (reg φ) !!ᵣ rsrc;
         (* The checks on the target, in the order of cheriot-sail: the tag,
@@ -261,17 +282,17 @@ Section opsem.
         | (WCap t p g b e a) =>
             match (a + 1)%a with
             | Some a' =>
-                let φ_next := (update_pcc φ (updatePcPerm wrsrc)) in
+                let φ_next := φ .[PC := updatePcPerm wrsrc] in
                 (* A [cnull] destination drops the link; the link's kind is
                    taken from MIE before the jump. *)
                 let φ_dst :=
                   if decide (rdst = cnull) then φ_next
-                  else update_reg φ_next rdst
-                         (jalr_link rdst (mie_of (get_a wst)) t p g b e a') in
+                  else φ_next
+                         .[rdst :=ᵣ jalr_link rdst (mie_of (get_a wst)) t p g b e a'] in
                 (* A sentry that sets the interrupt status writes MIE. *)
                 let φ_st :=
                   match jalr_mstatus wrsrc (get_a wst) with
-                  | Some z => update_sreg φ_dst MSTATUS (WInt z)
+                  | Some z => φ_dst .[MSTATUS :=ₛᵣ WInt z]
                   | None => φ_dst
                   end in
                 Some (NextI, φ_st)
@@ -284,16 +305,16 @@ Section opsem.
       match wsrc with
       | WCap true p g b e a =>
         ea ← (a + imm)%a;
-        if readAllowed p && withinBounds b e ea then
+        when readAllowed p && withinBounds b e ea then
           if (is_shadow_address ea)
           then
             heap_a ← shadow_to_heap ea;
             status ← (shadowtbl φ) !! heap_a;
-            updatePC (update_reg φ dst (WInt (encodeAllocStatus status)))
+            φ .[dst :=ᵣ WInt (encodeAllocStatus status)] |> nextPC
           else if (is_revoker_address ea)
           then
             (* The revoker reads as zero. *)
-            updatePC (update_reg φ dst (WInt 0))
+            φ .[dst :=ᵣ WInt 0] |> nextPC
           else
             asrc ← (mem φ) !! ea;
             match heap_cap_base asrc with
@@ -305,10 +326,9 @@ Section opsem.
                   | ShadowQuarantined => clear_tag (load_word p asrc)
                   end
                 in
-                updatePC (update_reg φ dst loaded_word)
-            | _ => updatePC (update_reg φ dst (load_word p asrc))
+                φ .[dst :=ᵣ loaded_word] |> nextPC
+            | _ => φ .[dst :=ᵣ load_word p asrc] |> nextPC
             end
-        else None
       | _ => None
       end
     | Store dst ρ imm =>
@@ -317,49 +337,48 @@ Section opsem.
       match wdst with
       | WCap true p g b e a =>
         ea ← (a + imm)%a;
-        if writeAllowed p && withinBounds b e ea then
+        when writeAllowed p && withinBounds b e ea then
           if (is_shadow_address ea)
           then
             heap_a ← shadow_to_heap ea;
             (* Integer stores decode to an allocation status. *)
             match tostore with
-            | WInt z => updatePC (update_shadowtbl φ heap_a (decodeAllocStatus z))
+            | WInt z => φ .[heap_a :=ₛ decodeAllocStatus z] |> nextPC
             | _ => None
             end
           else if (is_revoker_address ea)
           then
             (* Any store to the revoker sweeps memory; the value is ignored. *)
-            updatePC (revoker_sweep φ)
+            revoker_sweep φ |> nextPC
           else
             (* A store to an address absent from memory faults, after the
                capability checks. *)
             match (mem φ) !! ea with
-            | Some _ => updatePC (update_mem φ ea (store_word p tostore))
+            | Some _ => φ .[ea :=ₐ store_word p tostore] |> nextPC
             | None => None
             end
-        else None
       | _ => None
       end
     | Mov dst ρ =>
       tomov ← word_of_argument (reg φ) ρ;
-      updatePC (update_reg φ dst tomov)
+      φ .[dst :=ᵣ tomov] |> nextPC
     | Lea dst ρ =>
       n ← z_of_argument (reg φ) ρ;
       wdst ← (reg φ) !!ᵣ dst;
       match wdst with
       | WCap t p g b e a =>
           match (a + n)%a with
-          | Some a' => updatePC (update_reg φ dst (WCap t p g b e a'))
-          | None => updatePC (update_reg φ dst (WCap false p g b e a))
+          | Some a' => φ .[dst :=ᵣ WCap t p g b e a'] |> nextPC
+          | None => φ .[dst :=ᵣ WCap false p g b e a] |> nextPC
           end
       | WSealRange t p g b e a =>
          match (a + n)%ot with
-          | Some a' => updatePC (update_reg φ dst (WSealRange t p g b e a'))
-          | None => updatePC (update_reg φ dst (WSealRange false p g b e a))
+          | Some a' => φ .[dst :=ᵣ WSealRange t p g b e a'] |> nextPC
+          | None => φ .[dst :=ᵣ WSealRange false p g b e a] |> nextPC
           end
-      | WInt z => updatePC (update_reg φ dst (WInt (z + n)%Z))
+      | WInt z => φ .[dst :=ᵣ WInt (z + n)%Z] |> nextPC
       (* A sealed word or a sentry loses its tag; its address is unchanged. *)
-      | _ => updatePC (update_reg φ dst (clear_tag wdst))
+      | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
       end
     | Restrict dst ρ =>
       n ← z_of_argument (reg φ) ρ ;
@@ -368,47 +387,47 @@ Section opsem.
       | WCap t p g b e a =>
           let (p',g') := decodePermPair n in
           let new_tag := t && PermFlowsTo p' p && LocalityFlowsTo g' g in
-          updatePC (update_reg φ dst (WCap new_tag p' g' b e a))
+          φ .[dst :=ᵣ WCap new_tag p' g' b e a] |> nextPC
       | WSealRange t p g b e a =>
           let (p',g') := decodeSealPermPair n in
           let new_tag := t && SealPermFlowsTo p' p && LocalityFlowsTo g' g in
-          updatePC (update_reg φ dst (WSealRange new_tag p' g' b e a))
+          φ .[dst :=ᵣ WSealRange new_tag p' g' b e a] |> nextPC
       (* An integer is unchanged; a sealed word or a sentry loses its tag,
          its permissions unchanged. *)
-      | _ => updatePC (update_reg φ dst (clear_tag wdst))
+      | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
       end
     | machine_instructions.Add dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
-    updatePC (update_reg φ dst (WInt (n1 + n2)%Z))
+    φ .[dst :=ᵣ WInt (n1 + n2)%Z] |> nextPC
     | Sub dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
-    updatePC (update_reg φ dst (WInt (n1 - n2)%Z))
+    φ .[dst :=ᵣ WInt (n1 - n2)%Z] |> nextPC
     | Mul dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
-    updatePC (update_reg φ dst (WInt (n1 * n2)%Z))
+    φ .[dst :=ᵣ WInt (n1 * n2)%Z] |> nextPC
     | LAnd dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
-    updatePC (update_reg φ dst (WInt (Z.land n1 n2)))
+    φ .[dst :=ᵣ WInt (Z.land n1 n2)] |> nextPC
     | LOr dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
-    updatePC (update_reg φ dst (WInt (Z.lor n1 n2)))
+    φ .[dst :=ᵣ WInt (Z.lor n1 n2)] |> nextPC
     | LShiftL dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
-    updatePC (update_reg φ dst (WInt (n1 ≪ n2)%Z))
+    φ .[dst :=ᵣ WInt (n1 ≪ n2)%Z] |> nextPC
     | LShiftR dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
-    updatePC (update_reg φ dst (WInt (n1 ≫ n2)%Z))
+    φ .[dst :=ᵣ WInt (n1 ≫ n2)%Z] |> nextPC
     | Lt dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
-    updatePC (update_reg φ dst (WInt (Z.b2z (Z.ltb n1 n2))))
+    φ .[dst :=ᵣ WInt (Z.b2z (Z.ltb n1 n2))] |> nextPC
   | Subseg dst ρ1 ρ2 =>
     wdst ← (reg φ) !!ᵣ dst;
     match wdst with
@@ -418,8 +437,8 @@ Section opsem.
       match z_to_addr n1, z_to_addr n2 with
       | Some a1, Some a2 =>
         let new_tag := t && isWithin a1 a2 b e && (a1 <=? a2)%a in
-        updatePC (update_reg φ dst (WCap new_tag p g a1 a2 a))
-      | _, _ => updatePC (update_reg φ dst (WCap false p g b e a))
+        φ .[dst :=ᵣ WCap new_tag p g a1 a2 a] |> nextPC
+      | _, _ => φ .[dst :=ᵣ WCap false p g b e a] |> nextPC
       end
     | WSealRange t p g b e a =>
       n1 ← z_of_argument (reg φ) ρ1;
@@ -427,47 +446,47 @@ Section opsem.
       match z_to_otype n1, z_to_otype n2 with
       | Some o1, Some o2 =>
         let new_tag := t && isWithin o1 o2 b e in
-        updatePC (update_reg φ dst (WSealRange new_tag p g o1 o2 a))
-      | _, _ => updatePC (update_reg φ dst (WSealRange false p g b e a))
+        φ .[dst :=ᵣ WSealRange new_tag p g o1 o2 a] |> nextPC
+      | _, _ => φ .[dst :=ᵣ WSealRange false p g b e a] |> nextPC
       end
     (* An integer is unchanged; a sealed word or a sentry loses its tag, its
        bounds unchanged. *)
-    | _ => updatePC (update_reg φ dst (clear_tag wdst))
+    | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
     end
   | GetA dst r =>
     wr ← (reg φ) !!ᵣ r;
-    updatePC (update_reg φ dst (WInt (get_a wr)))
+    φ .[dst :=ᵣ WInt (get_a wr)] |> nextPC
   | GetB dst r =>
     wr ← (reg φ) !!ᵣ r;
-    updatePC (update_reg φ dst (WInt (get_b wr)))
+    φ .[dst :=ᵣ WInt (get_b wr)] |> nextPC
   | GetE dst r =>
     wr ← (reg φ) !!ᵣ r;
-    updatePC (update_reg φ dst (WInt (get_e wr)))
+    φ .[dst :=ᵣ WInt (get_e wr)] |> nextPC
   | GetP dst r =>
     wr ← (reg φ) !!ᵣ r;
-    updatePC (update_reg φ dst (WInt (encodePermSum (get_p wr))))
+    φ .[dst :=ᵣ WInt (encodePermSum (get_p wr))] |> nextPC
   | GetL dst r =>
     wr ← (reg φ) !!ᵣ r;
-    updatePC (update_reg φ dst (WInt (encodeLoc (get_l wr))))
+    φ .[dst :=ᵣ WInt (encodeLoc (get_l wr))] |> nextPC
 
   | GetOType dst r =>
     wr ← (reg φ) !!ᵣ r;
     match wr with
-    | WSealed o _ => updatePC (update_reg φ dst (WInt o))
+    | WSealed o _ => φ .[dst :=ᵣ WInt o] |> nextPC
     (* NOTE if not a sealed, return -1 in any other case ? What if not a sealable ? *)
-    | _ => updatePC (update_reg φ dst (WInt (-1)))
+    | _ => φ .[dst :=ᵣ WInt (-1)] |> nextPC
     end
 
   | GetWType dst r =>
-    wr ← (reg φ) !!ᵣ r; updatePC (update_reg φ dst (WInt (encodeWordType wr)))
+    wr ← (reg φ) !!ᵣ r; φ .[dst :=ᵣ WInt (encodeWordType wr)] |> nextPC
 
   | GetTag dst src =>
     wsrc ← (reg φ) !!ᵣ src;
-    updatePC (update_reg φ dst (WInt (Z.b2z (get_tag wsrc))))
+    φ .[dst :=ᵣ WInt (Z.b2z (get_tag wsrc))] |> nextPC
 
   | ClearTag dst src =>
     wsrc ← (reg φ) !!ᵣ src;
-    updatePC (update_reg φ dst (clear_tag wsrc))
+    φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
 
   | Seal dst r1 r2 =>
     wr1 ← (reg φ) !!ᵣ r1;
@@ -476,10 +495,10 @@ Section opsem.
     | WSealRange ta p g b e a, WSealable sb =>
       let new_tag := ta && get_tag_sealable sb && permit_seal p && withinBounds b e a in
       let sb' := if new_tag then sb else clear_tag_sealable sb in
-      updatePC (update_reg φ dst (WSealed a sb'))
+      φ .[dst :=ᵣ WSealed a sb'] |> nextPC
     (* Without a sealing range and a sealable, the sealee loses its tag and is
        not sealed. *)
-    | _, _ => updatePC (update_reg φ dst (clear_tag wr2))
+    | _, _ => φ .[dst :=ᵣ clear_tag wr2] |> nextPC
     end
   | UnSeal dst r1 r2 =>
     wr1 ← (reg φ) !!ᵣ r1;
@@ -488,50 +507,45 @@ Section opsem.
     | WSealRange ta p g b e a, WSealed a' sb =>
       let new_tag := ta && get_tag_sealable sb && permit_unseal p && withinBounds b e a' in
       let sb' := if new_tag then unseal_sb g sb else clear_tag_sealable (unseal_sb g sb) in
-      updatePC (update_reg φ dst (WSealable sb'))
+      φ .[dst :=ᵣ WSealable sb'] |> nextPC
     (* Without a sealing range and a sealed word, the operand loses its tag
        and is not unsealed. *)
-    | _,_ => updatePC (update_reg φ dst (clear_tag wr2))
+    | _,_ => φ .[dst :=ᵣ clear_tag wr2] |> nextPC
     end
   | SpecialRW dst sr src =>
       (* The source is read before [dst] is written, so [dst = src] swaps.
          The source [inr cnull] does not write [sr]; the destination [cnull]
          drops the old value of [sr]. *)
-      if has_sreg_access plevel
-      then
+      when has_sreg_access plevel then
         wold ← (sreg φ) !! sr;
         φ' ← match src with
              | inr r =>
                  if decide (r = cnull) then Some φ
-                 else wsrc ← (reg φ) !!ᵣ r; Some (update_sreg φ sr (legalise sr wsrc))
-             | inl z => Some (update_sreg φ sr (legalise sr (WInt z)))
+                 else wsrc ← (reg φ) !!ᵣ r; Some (φ .[sr :=ₛᵣ legalise sr wsrc])
+             | inl z => Some (φ .[sr :=ₛᵣ legalise sr (WInt z)])
              end;
-        updatePC (if decide (dst = cnull) then φ' else update_reg φ' dst wold)
-      else None
+        (if decide (dst = cnull) then φ' else φ' .[dst :=ᵣ wold]) |> nextPC
   | SetMIE b =>
       (* MIE receives [b]; MPIE is unchanged. *)
-      if has_sreg_access plevel
-      then
+      when has_sreg_access plevel then
         wst ← (sreg φ) !! MSTATUS;
-        updatePC (update_sreg φ MSTATUS (WInt (mstatus_enc b (mpie_of (get_a wst)))))
-      else None
+        φ .[MSTATUS :=ₛᵣ WInt (mstatus_enc b (mpie_of (get_a wst)))] |> nextPC
   | Mret =>
       (* The PC receives MEPCC without checks: MEPCC is legalised when
          written. MIE receives MPIE, and MPIE becomes enabled. *)
-      if has_sreg_access plevel
-      then
+      when has_sreg_access plevel then
         wepcc ← (sreg φ) !! MEPCC;
         wst ← (sreg φ) !! MSTATUS;
-        Some (NextI, update_sreg (update_pcc φ wepcc) MSTATUS
-                       (WInt (mstatus_enc (mpie_of (get_a wst)) InterruptEnabled)))
-      else None
+        Some (NextI,
+          φ .[PC      := wepcc]
+            .[MSTATUS :=ₛᵣ WInt (mstatus_enc (mpie_of (get_a wst)) InterruptEnabled)])
   | Auipcc dst imm =>
       (* As Lea on the PC: the tag is cleared on an address overflow. *)
       match pcc φ with
       | WCap t p g b e a =>
           match (a + imm)%a with
-          | Some a' => updatePC (update_reg φ dst (WCap t p g b e a'))
-          | None => updatePC (update_reg φ dst (WCap false p g b e a))
+          | Some a' => φ .[dst :=ᵣ WCap t p g b e a'] |> nextPC
+          | None => φ .[dst :=ᵣ WCap false p g b e a] |> nextPC
           end
       | _ => None
       end
@@ -689,15 +703,11 @@ Section opsem.
       checks (MTCC is legalised when written). *)
   Definition enter_exc (cv : Z * Z) (φ : ExecConf) : ExecConf :=
     let mie := mie_of (get_a (sreg_word φ MSTATUS)) in
-    update_pcc
-      (update_sreg
-         (update_sreg
-            (update_sreg
-               (update_sreg φ MEPCC (pcc φ))
-               MSTATUS (WInt (mstatus_enc InterruptDisabled mie)))
-            MCAUSE (WInt cv.1))
-         MTVAL (WInt cv.2))
-      (sreg_word φ MTCC).
+    φ .[MEPCC   :=ₛᵣ pcc φ]
+      .[MSTATUS :=ₛᵣ WInt (mstatus_enc InterruptDisabled mie)]
+      .[MCAUSE  :=ₛᵣ WInt cv.1]
+      .[MTVAL   :=ₛᵣ WInt cv.2]
+      .[PC      := sreg_word φ MTCC].
 
   (** After a fault, the machine stops instead of entering the exception
       handler when neither the PC nor MTCC is tagged. A fault with an untagged

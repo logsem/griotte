@@ -197,7 +197,7 @@ Section griotte_lang_rules.
           Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' (<[dst := w']ₗ> regs) NextIV) ∧
         (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
           Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FaultedV) ∧
-        (match updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst pw) with
+        (match nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst pw) with
          | Some conf => conf | None => (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ'))
       as (w' & pw & Hok' & Hpw & Hsuccess & Hfailure & Hupdate).
     { destruct wd as [ | [t p g b e a | t p g b e a] | | ];
@@ -850,7 +850,7 @@ Section griotte_lang_rules.
     pose proof (llookup_reg_phys_int _ _ _ _ _ _ Hregs Hd1) as Hr1'.
     pose proof (llookup_reg_phys_int _ _ _ _ _ _ Hregs Hd2) as Hr2'.
     assert (exec_opt (Subseg dst (inr r1) (inr r2)) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+              nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
                 (WCap sd p g b' e' a))) as HH.
     { rewrite /exec_opt /= Hdst' Hr1' Hr2' /=.
       rewrite Hn1 Hn2 Hwb Hle' /= !andb_true_r. done. }

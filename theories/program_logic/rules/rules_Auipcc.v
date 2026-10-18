@@ -57,7 +57,7 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep.
     set (v := auipcc_word (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm).
     assert (exec_opt (Auipcc dst imm) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst v.(lw)))
+              nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst v.(lw)))
       as HH.
     { rewrite /v /auipcc_word /exec_opt /pcc /=. by destruct (pc_a + imm)%a. }
     rewrite HH in Hstep.

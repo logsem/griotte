@@ -111,7 +111,7 @@ Section griotte_lang_rules.
     lookup_reg src r = Some wsrc →
     exec_opt i p (pc, r, sr, m, st) =
       match denote i wsrc with
-      | Some z => updatePC (update_reg (pc, r, sr, m, st) dst (WInt z))
+      | Some z => nextPC (update_reg (pc, r, sr, m, st) dst (WInt z))
       | None => None
       end.
   Proof.

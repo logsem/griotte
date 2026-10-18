@@ -98,7 +98,7 @@ Section griotte_lang_rules.
     { intros x ->. apply Dregs. rewrite /regs_of_argument. set_solver+. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
 
-    assert (exec_opt i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
+    assert (exec_opt i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
     { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
       all: by rewrite Hn1' Hn2'; cbn. }
     rewrite HH in Hstep.

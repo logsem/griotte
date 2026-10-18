@@ -161,10 +161,10 @@ Section griotte_lang_rules.
       cycle 1.
     { (* The PC increment fails: the state is unchanged. *)
       pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as Hfail.
-      rewrite /updatePC /updatePC_gen /= in Hfail.
+      rewrite /nextPC /advancePC /= in Hfail.
       destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; first done.
-      assert (∀ φ', pcc φ' = WCap true pc_p pc_g pc_b pc_e pc_a → updatePC φ' = None) as Hfail'.
-      { intros φ' Hpc. by rewrite /updatePC /updatePC_gen Hpc Hpca'. }
+      assert (∀ φ', pcc φ' = WCap true pc_p pc_g pc_b pc_e pc_a → nextPC φ' = None) as Hfail'.
+      { intros φ' Hpc. by rewrite /nextPC /advancePC Hpc Hpca'. }
       rewrite Hfail' in Hstep; last by case_decide.
       instr_fail Hstep.
       apply SpecialRW_spec_failure; [done|done| |done]. by apply SpecialRW_fail_incrPC. }
@@ -183,7 +183,7 @@ Section griotte_lang_rules.
         (λ lpc' retv, SpecialRW_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs
            dst sr src lpc' regs sregs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
-      { exact Her1. } { rewrite /updatePC in Hu Hstep. by rewrite Hu in Hstep |- *. }
+      { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
       { intros lpc'' Hi'. rewrite /incrementPC in Hi. simplify_eq.
         eapply SpecialRW_spec_success; eauto.
         all: by rewrite specialrw_regs_cnull. }

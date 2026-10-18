@@ -127,7 +127,7 @@ Ltac solve_instr_failure :=
   | sb : Sealable |- context [clear_tag_sealable ?x] =>
       constr_eq sb x; destruct sb; cbn
   end;
-  try (rewrite /updatePC /updatePC_gen /update_reg /reg /sreg /mem /= /insert_reg;
+  try (rewrite /nextPC /advancePC /update_reg /reg /sreg /mem /= /insert_reg;
        rewrite ?lookup_insert /=; simplify_map_eq; rewrite ?lookup_insert /=);
   repeat first [
     progress (rewrite finz_add_0 /=)

@@ -362,7 +362,7 @@ Section griotte_lang_rules.
     assert (∃ (v : LWord) (pv : Word),
       reg_word_ok R C v ∧
       reg_phys R v pv ∧
-      (match updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) r1 pv) with
+      (match nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) r1 pv) with
        | Some conf => conf | None => (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ2) ∧
       (∀ lpc', incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
          Load_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' (<[r1 := v]ₗ> regs) mem shadow wit dw NextIV) ∧
@@ -396,7 +396,7 @@ Section griotte_lang_rules.
             as (pv & Hpv & Hpvok).
           rewrite Hpv /= in Hstep.
           destruct (load_filter_is_Some R C st p pv Hreg) as [pl Hpl].
-          assert ((match updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) r1 pl) with
+          assert ((match nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) r1 pl) with
                    | Some conf => conf | None => (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ2))
             as Hstep'.
           { rewrite -Hstep /load_filter in Hpl |- *.

@@ -189,16 +189,16 @@ Qed.
     congruence.
   Qed.
 
-  Lemma updatePC_gen_some φ imm c:
-    updatePC_gen φ imm = Some c → ∃ φ', c = (NextI, φ').
+  Lemma advancePC_some φ imm c:
+    advancePC φ imm = Some c → ∃ φ', c = (NextI, φ').
   Proof.
-    rewrite /updatePC_gen; repeat case_match; try congruence. inversion 1. eauto.
+    rewrite /advancePC; repeat case_match; try congruence. inversion 1. eauto.
   Qed.
 
-  Lemma updatePC_some φ c:
-    updatePC φ = Some c → ∃ φ', c = (NextI, φ').
+  Lemma nextPC_some φ c:
+    nextPC φ = Some c → ∃ φ', c = (NextI, φ').
   Proof.
-    rewrite /updatePC; apply updatePC_gen_some.
+    rewrite /nextPC; apply advancePC_some.
   Qed.
 
   Lemma instr_atomic i p φ :
@@ -221,8 +221,8 @@ Qed.
     all: repeat destruct (shadow_to_heap _); cbn in *; repeat case_match.
     all: repeat destruct (shadowtbl _ !! _); cbn in *; repeat case_match.
     all: simplify_eq; try by exfalso.
-    all: try apply updatePC_some in Heqo as [φ' Heqo]; eauto.
-    all: try apply updatePC_gen_some in Heqo as [φ' Heqo]; eauto.
+    all: try apply nextPC_some in Heqo as [φ' Heqo]; eauto.
+    all: try apply advancePC_some in Heqo as [φ' Heqo]; eauto.
   Qed.
 
   (*--- The revoker's sweep ---*)
@@ -317,18 +317,18 @@ Qed.
     sys_pc_ok φ → sys_pc_ok (update_pcc φ w).
   Proof. intros Hsr Hw [Hpc Hsregs]. split; [by eapply Hsregs | done]. Qed.
 
-  Lemma updatePC_gen_sys_pc_ok φ imm c :
-    sys_pc_ok φ → updatePC_gen φ imm = Some c → sys_pc_ok c.2.
+  Lemma advancePC_sys_pc_ok φ imm c :
+    sys_pc_ok φ → advancePC φ imm = Some c → sys_pc_ok c.2.
   Proof.
-    intros [Hpc Hsr]. rewrite /updatePC_gen.
+    intros [Hpc Hsr]. rewrite /advancePC.
     destruct (pcc φ) as [| [] | | ] eqn:Hφ; try done.
     destruct (_ + _)%a; intros; simplify_eq. split; last done.
     cbn. by eapply pc_ok_cap_addr.
   Qed.
 
-  Lemma updatePC_sys_pc_ok φ c :
-    sys_pc_ok φ → updatePC φ = Some c → sys_pc_ok c.2.
-  Proof. apply updatePC_gen_sys_pc_ok. Qed.
+  Lemma nextPC_sys_pc_ok φ c :
+    sys_pc_ok φ → nextPC φ = Some c → sys_pc_ok c.2.
+  Proof. apply advancePC_sys_pc_ok. Qed.
 
   Lemma exec_opt_sys_pc_ok i p φ c :
     sys_pc_ok φ → exec_opt i p φ = Some c → sys_pc_ok c.2.
@@ -336,10 +336,10 @@ Qed.
     intros Hinv Hexec.
     destruct i; cbn in Hexec.
     all: repeat (case_match || simplify_option_eq); simplify_eq/=; try done.
-    (* Every instruction but Jalr and Mret writes the PC through [updatePC_gen]. *)
+    (* Every instruction but Jalr and Mret writes the PC through [advancePC]. *)
     all: try match goal with
-      | Hup : updatePC_gen ?φ' _ = Some _ |- _ => eapply (updatePC_gen_sys_pc_ok φ'); [|exact Hup]
-      | Hup : updatePC ?φ' = Some _ |- _ => eapply (updatePC_sys_pc_ok φ'); [|exact Hup]
+      | Hup : advancePC ?φ' _ = Some _ |- _ => eapply (advancePC_sys_pc_ok φ'); [|exact Hup]
+      | Hup : nextPC ?φ' = Some _ |- _ => eapply (nextPC_sys_pc_ok φ'); [|exact Hup]
       end.
     (* MTCC and MEPCC change only by a legalised write. *)
     all: try (eapply sys_pc_ok_ext; [| |exact Hinv]; done).

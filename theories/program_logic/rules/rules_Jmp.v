@@ -56,7 +56,7 @@ Section griotte_lang_rules.
     { intros x ->. apply Dregs. set_solver+. }
     assert (exec_opt (Jmp rimm) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
               (imm ← lz_of_argument regs rimm;
-               updatePC_gen (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
+               advancePC (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
     { rewrite -(lz_of_argument_phys R regs r rimm Hregs Hdomr). done. }
     rewrite HH in Hstep. clear HH.
     destruct (lz_of_argument_dom regs rimm Hdomr) as [imm Himm].
