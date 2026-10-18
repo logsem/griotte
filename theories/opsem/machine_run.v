@@ -2,14 +2,18 @@ From iris.program_logic Require Import language.
 From griotte Require Import machine_parameters machine_base griotte_lang.
 
 (* The operational semantics as an interpreter: this effectively "runs" the
-   machine until it fails or halts (or we run out of fuel). *)
+   machine until it halts or stops after a fault (or we run out of fuel). A
+   fault enters the exception handler, unless neither the PC nor MTCC is
+   tagged: the machine then stops. *)
 
 Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag :=
   match fuel with
   | 0 => None
   | S fuel =>
     match c with
-    | (Faulted, _) => Some Faulted
+    | (Faulted, φ) =>
+        if trap_halts φ then Some Faulted
+        else machine_run fuel (Executable, enter_exc (trap_cause φ, trap_tval φ) φ)
     | (Halted, _) => Some Halted
     | (NextI, φ) => machine_run fuel (Executable, φ)
     | (Executable, (pc, r, sr, m, st)) =>
@@ -26,17 +30,36 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
                      end
             in
             match m !! a with
-            | None => Some Faulted
+            | None => machine_run fuel (Faulted, (pc, r, sr, m, st))
             | Some wa =>
                 let i := decodeInstrW wa in
                 let c' := exec i p (pc, r, sr, m, st) in
                 machine_run fuel (c'.1,  c'.2)
             end
-          ) else (
-          Some Faulted
-        )
+          ) else machine_run fuel (Faulted, (pc, r, sr, m, st))
     end
   end.
+
+(* One step of the configuration [Seq (Instr cf)], from a base step of
+   [Instr cf] under [Seq]. *)
+Lemma erased_step_seq_instr `{MachineParameters} c c' (φ φ' : ExecConf) :
+  griotte_lang.prim_step (Instr c) φ [] (Instr c') φ' [] →
+  erased_step ([Seq (Instr c)], φ) ([Seq (Instr c')], φ').
+Proof.
+  intros Hstep. exists [].
+  eapply step_atomic with (t1:=[]); [reflexivity|reflexivity|]. cbn.
+  by eapply ectx_language.Ectx_step with (K:=[SeqCtx]).
+Qed.
+
+(* One step of a single-thread configuration, from a base step. *)
+Lemma erased_step_seq `{MachineParameters} e (φ φ' : ExecConf) e' :
+  griotte_lang.prim_step e φ [] e' φ' [] →
+  erased_step ([e], φ) ([e'], φ').
+Proof.
+  intros Hstep. exists [].
+  eapply step_atomic with (t1:=[]); [reflexivity|reflexivity|]. cbn.
+  by eapply ectx_language.Ectx_step with (K:=[]).
+Qed.
 
 Lemma machine_run_correct `{MachineParameters} fuel cf (φ: ExecConf) cf':
   machine_run fuel (cf, φ) = Some cf' →
@@ -44,52 +67,34 @@ Lemma machine_run_correct `{MachineParameters} fuel cf (φ: ExecConf) cf':
             ([Seq (Instr cf)], φ)
             ([Instr cf'], φ').
 Proof.
-  revert cf cf' φ. induction fuel; first (cbn; done).
-  cbn. intros ? ? [[[[wpc r] sr] m] st] Hc.
+  revert cf cf' φ. induction fuel as [|fuel IHfuel]; first (cbn; done).
+  cbn. intros cf cf' [[[[wpc r] sr] m] st] Hc.
   destruct cf; simplify_eq.
-  - destruct (isCorrectPCb wpc) eqn:HPC.
-      * apply isCorrectPCb_isCorrectPC in HPC.
-        destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC]. destruct sb as [t p g b e a | ]; last by inversion HPC.
-        destruct t; last by inversion HPC.
-        destruct (m !! a) as [wa | ] eqn:HeMem.
-        ** eapply IHfuel in Hc as [φ' Hc]. eexists.
-           eapply rtc_l; last eapply Hc.
-           unfold erased_step. exists [].
-           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-           eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity.
-           constructor. eapply step_exec_instr; eauto.
-        ** eexists. eapply rtc_l.
-           *** unfold erased_step. exists [].
-               eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-               eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-               constructor. eapply step_exec_memfail; eauto.
-           *** eapply rtc_once. exists []. simplify_eq.
-               eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-               eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-               constructor.
-      * simplify_eq. apply isCorrectPCb_nisCorrectPC in HPC.
-        eexists. eapply rtc_l.
-        ** unfold erased_step. exists [].
-           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-           eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-           constructor. eapply step_exec_corrfail; eauto.
-        ** eapply rtc_once. exists [].
-           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-           eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-           constructor.
-  - eexists. eapply rtc_once. exists [].
-    eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-    eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-    econstructor.
-  - eexists. eapply rtc_once. exists [].
-    eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-    eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-    econstructor.
-  - apply IHfuel in Hc as [φ' Hc]. eexists.
-    eapply rtc_l.
-    + exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-      econstructor.
-    + cbn. apply Hc.
+  - (* Executable: the fetch and the instruction, then the rest of the run. *)
+    destruct (isCorrectPCb wpc) eqn:HPC.
+    + apply isCorrectPCb_isCorrectPC in HPC.
+      inversion HPC as [p g b e a Hbounds Hx Hwpc]; subst wpc.
+      destruct (m !! a) as [wa | ] eqn:HeMem.
+      * eapply IHfuel in Hc as [φ' Hc]. eexists.
+        eapply rtc_l; last eapply Hc.
+        apply erased_step_seq_instr. constructor. eapply step_exec_instr; eauto.
+      * eapply IHfuel in Hc as [φ' Hc]. eexists.
+        eapply rtc_l; last eapply Hc.
+        apply erased_step_seq_instr. constructor. eapply step_exec_memfail; eauto.
+    + apply isCorrectPCb_nisCorrectPC in HPC.
+      eapply IHfuel in Hc as [φ' Hc]. eexists.
+      eapply rtc_l; last eapply Hc.
+      apply erased_step_seq_instr. constructor. by eapply step_exec_corrfail.
+  - (* Halted *)
+    eexists. eapply rtc_once. apply erased_step_seq. constructor.
+  - (* Faulted: the machine stops, or enters the exception handler. *)
+    destruct (trap_halts _) eqn:Hhalt; simplify_eq.
+    + eexists. eapply rtc_once. apply erased_step_seq. by constructor.
+    + eapply IHfuel in Hc as [φ' Hc]. eexists.
+      eapply rtc_l; last eapply Hc.
+      apply erased_step_seq. by constructor.
+  - (* NextI *)
+    apply IHfuel in Hc as [φ' Hc]. eexists.
+    eapply rtc_l; last eapply Hc.
+    apply erased_step_seq. constructor.
 Qed.
