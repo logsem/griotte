@@ -382,4 +382,32 @@ Qed.
     intros Hinv Hsteps. induction Hsteps; eauto using step_sys_pc_ok.
   Qed.
 
+  (** Trap entry preserves the tagged-PC invariant: the PC receives MTCC and
+      MEPCC receives the PC. *)
+  Lemma enter_exc_sys_pc_ok cv φ :
+    sys_pc_ok φ → sys_pc_ok (enter_exc cv φ).
+  Proof.
+    intros [Hpc Hsr]. rewrite /enter_exc /sreg_word. split.
+    - cbn. destruct (sreg φ !! MTCC) as [w|] eqn:Hmtcc; cbn; last done.
+      by apply (Hsr MTCC).
+    - intros sr w Hsr_pc. cbn. destruct sr; try done.
+      + rewrite !lookup_insert_ne //. by apply Hsr.
+      + rewrite (lookup_insert_ne _ MTVAL) // (lookup_insert_ne _ MCAUSE) //
+          (lookup_insert_ne _ MSTATUS) // lookup_insert_eq.
+        by intros [= <-].
+  Qed.
+
+  (*--- Trap causes ---*)
+
+  (** Every trap cause is one of the named causes, all below 8 but the CHERI
+      cause, so the switcher's exception path hands it to the compartment's
+      error handler. *)
+  Lemma trap_cause_range φ :
+    trap_cause φ ∈ [MCAUSE_INST_ACCESS_FAULT; MCAUSE_ILLEGAL_INSTRUCTION;
+                    MCAUSE_LOAD_ACCESS_FAULT; MCAUSE_CHERI].
+  Proof.
+    rewrite /trap_cause /instr_cause /load_cause.
+    repeat case_match; set_solver.
+  Qed.
+
 End opsem_prop.

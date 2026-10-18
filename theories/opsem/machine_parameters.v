@@ -189,6 +189,10 @@ Class MachineParameters := {
     revoker_mixin :: RevokerRegion;
     revoker_not_heap : withinBounds heap_b heap_e revoker_addr = false;
     revoker_not_shadow : withinBounds shadow_b shadow_e revoker_addr = false;
+    (* The value trap entry writes to mtval, from the machine state (PC,
+       registers, system registers, memory, shadow table): an arbitrary
+       function, of which cheriot-sail's is one instance. *)
+    trap_tval : Word * Reg * SReg * Mem * ShadowTbl → Z;
   }.
 
 (* Region predicates shared by the operational semantics and specifications. *)

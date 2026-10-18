@@ -61,7 +61,15 @@ Section griotte_lang.
       step (Executable, σ) (e', σ') → prim_step (Instr Executable) σ [] (Instr e') σ' []
   | PS_no_fork_seq σ : prim_step (Seq (Instr NextI)) σ [] (Seq (Instr Executable)) σ []
   | PS_no_fork_halt σ : prim_step (Seq (Instr Halted)) σ [] (Instr Halted) σ []
-  | PS_no_fork_fail σ : prim_step (Seq (Instr Faulted)) σ [] (Instr Faulted) σ [].
+  (* After a fault, the machine enters the exception handler, ... *)
+  | PS_no_fork_trap σ :
+      trap_halts σ = false →
+      prim_step (Seq (Instr Faulted)) σ []
+        (Seq (Instr Executable)) (enter_exc (trap_cause σ, trap_tval σ) σ) []
+  (* ... unless neither the PC nor MTCC is tagged: the machine then stops. *)
+  | PS_no_fork_trap_halt σ :
+      trap_halts σ = true →
+      prim_step (Seq (Instr Faulted)) σ [] (Instr Faulted) σ [].
 
   Lemma val_stuck:
     forall e σ o e' σ' efs,
@@ -82,7 +90,7 @@ Section griotte_lang.
     prim_step (Instr Executable) σ1 l1 e2' σ2' efs →
     l1 = [] ∧ e2' = (Instr e2) ∧ σ2' = σ2 ∧ efs = [].
   Proof.
-    intros* Hstep Hpstep. inversion Hpstep as [? ? ? Hstep' | | |]; subst.
+    intros* Hstep Hpstep. inversion Hpstep as [? ? ? Hstep' | | | |]; subst.
     generalize (step_deterministic _ _ _ _ _ _ Hstep Hstep'). intros [-> ->].
     auto.
   Qed.
@@ -92,10 +100,19 @@ Section griotte_lang.
     prim_step e1 σ1 κ' e2' σ2' efs' →
     κ = κ' ∧ e2 = e2' ∧ σ2 = σ2' ∧ efs = efs'.
   Proof.
-    intros Hs1 Hs2. inv Hs1; inv Hs2; auto.
+    intros Hs1 Hs2. inv Hs1; inv Hs2; auto; try congruence.
     match goal with H1 : step _ _, H2 : step _ _ |- _ =>
       destruct (step_deterministic _ _ _ _ _ _ H1 H2) as [-> ->] end.
     auto.
+  Qed.
+
+  (** The language preserves the tagged-PC invariant. *)
+  Lemma prim_step_sys_pc_ok e σ κ e' σ' efs :
+    sys_pc_ok σ → prim_step e σ κ e' σ' efs → sys_pc_ok σ'.
+  Proof.
+    intros Hinv Hstep. destruct Hstep as [σ0 c σ0' Hstep| | | |]; try done.
+    - by apply (step_sys_pc_ok (Executable, σ0) (c, σ0')).
+    - by apply enter_exc_sys_pc_ok.
   Qed.
 
   Lemma fill_item_val Ki e :
@@ -185,6 +202,21 @@ Ltac solve_atomic :=
 
 #[export] Hint Extern 0 (Atomic _ _) => solve_atomic : core.
 #[export] Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.
+
+Lemma erased_step_sys_pc_ok `{MachineParameters} (ρ ρ' : cfg griotte_lang) :
+  sys_pc_ok ρ.2 → erased_step ρ ρ' → sys_pc_ok ρ'.2.
+Proof.
+  intros Hinv [κ Hstep].
+  destruct Hstep as [e1 σ1 e2 σ2 efs t1 t2 -> -> Hprim]; cbn in *.
+  destruct Hprim as [K e1' e2' -> -> Hbase].
+  by eapply prim_step_sys_pc_ok.
+Qed.
+
+Lemma rtc_erased_step_sys_pc_ok `{MachineParameters} (ρ ρ' : cfg griotte_lang) :
+  sys_pc_ok ρ.2 → rtc erased_step ρ ρ' → sys_pc_ok ρ'.2.
+Proof.
+  intros Hinv Hsteps. induction Hsteps; eauto using erased_step_sys_pc_ok.
+Qed.
 
 Lemma base_reducible_from_step `{MachineParameters} σ1 e2 σ2 :
   step (Executable, σ1) (e2, σ2) →
