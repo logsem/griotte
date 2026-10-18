@@ -404,9 +404,10 @@ Qed.
       error handler. *)
   Lemma trap_cause_range φ :
     trap_cause φ ∈ [MCAUSE_INST_ACCESS_FAULT; MCAUSE_ILLEGAL_INSTRUCTION;
-                    MCAUSE_LOAD_ACCESS_FAULT; MCAUSE_CHERI].
+                    MCAUSE_LOAD_ACCESS_FAULT; MCAUSE_STORE_ACCESS_FAULT;
+                    MCAUSE_CHERI].
   Proof.
-    rewrite /trap_cause /instr_cause /load_cause.
+    rewrite /trap_cause /instr_cause /load_cause /store_cause.
     repeat case_match; set_solver.
   Qed.
 

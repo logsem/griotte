@@ -331,7 +331,12 @@ Section opsem.
             (* Any store to the revoker sweeps memory; the value is ignored. *)
             updatePC (revoker_sweep φ)
           else
-            updatePC (update_mem φ ea (store_word p tostore))
+            (* A store to an address absent from memory faults, after the
+               capability checks. *)
+            match (mem φ) !! ea with
+            | Some _ => updatePC (update_mem φ ea (store_word p tostore))
+            | None => None
+            end
         else None
       | _ => None
       end
@@ -576,37 +581,86 @@ Section opsem.
   Definition MCAUSE_INST_ACCESS_FAULT : Z := 1.
   Definition MCAUSE_ILLEGAL_INSTRUCTION : Z := 2.
   Definition MCAUSE_LOAD_ACCESS_FAULT : Z := 5.
+  Definition MCAUSE_STORE_ACCESS_FAULT : Z := 7.
   Definition MCAUSE_CHERI : Z := 28.
 
   (** The cause of a fault of [CLoad _ src imm], in cheriot-sail's order of
       checks: a CHERI fault unless the capability checks pass (tag, sealing,
       load permission, bounds), and then an access fault if the address is
-      absent from memory. *)
+      absent from memory or misses the shadow table: a shadow address whose
+      heap address has no shadow entry, or a loaded heap capability whose base
+      has no shadow entry. *)
   Definition load_cause (φ : ExecConf) (src : RegName) (imm : Z) : Z :=
     match reg φ !!ᵣ src with
     | Some (WCap true p _ b e a) =>
         match (a + imm)%a with
         | Some ea =>
-            if readAllowed p && withinBounds b e ea
-               && negb (is_shadow_address ea) && negb (is_revoker_address ea)
-            then
-              match mem φ !! ea with
-              | None => MCAUSE_LOAD_ACCESS_FAULT
-              | Some _ => MCAUSE_CHERI
-              end
+            if readAllowed p && withinBounds b e ea then
+              if is_shadow_address ea then
+                match shadow_to_heap ea with
+                | Some heap_a =>
+                    match shadowtbl φ !! heap_a with
+                    | None => MCAUSE_LOAD_ACCESS_FAULT
+                    | Some _ => MCAUSE_CHERI
+                    end
+                | None => MCAUSE_CHERI
+                end
+              else if is_revoker_address ea then MCAUSE_CHERI
+              else
+                match mem φ !! ea with
+                | None => MCAUSE_LOAD_ACCESS_FAULT
+                | Some w =>
+                    match heap_cap_base w with
+                    | Some base =>
+                        match shadowtbl φ !! base with
+                        | None => MCAUSE_LOAD_ACCESS_FAULT
+                        | Some _ => MCAUSE_CHERI
+                        end
+                    | None => MCAUSE_CHERI
+                    end
+                end
             else MCAUSE_CHERI
         | None => MCAUSE_CHERI
         end
     | _ => MCAUSE_CHERI
     end.
 
+  (** The cause of a fault of [Store dst ρ imm], in cheriot-sail's order of
+      checks: a CHERI fault unless the capability checks pass (tag, sealing,
+      store permission, bounds), and then an access fault if the address is
+      absent from memory, or if a non-integer is stored to a shadow
+      address. *)
+  Definition store_cause (φ : ExecConf) (dst : RegName) (ρ : Z + RegName) (imm : Z) : Z :=
+    match word_of_argument (reg φ) ρ, reg φ !!ᵣ dst with
+    | Some tostore, Some (WCap true p _ b e a) =>
+        match (a + imm)%a with
+        | Some ea =>
+            if writeAllowed p && withinBounds b e ea then
+              if is_shadow_address ea then
+                match tostore with
+                | WInt _ => MCAUSE_CHERI
+                | _ => MCAUSE_STORE_ACCESS_FAULT
+                end
+              else if is_revoker_address ea then MCAUSE_CHERI
+              else
+                match mem φ !! ea with
+                | None => MCAUSE_STORE_ACCESS_FAULT
+                | Some _ => MCAUSE_CHERI
+                end
+            else MCAUSE_CHERI
+        | None => MCAUSE_CHERI
+        end
+    | _, _ => MCAUSE_CHERI
+    end.
+
   (** The cause of a fault of the instruction [i]: [Fail] is an illegal
-      instruction, a load may be an access fault, and every other fault is a
-      CHERI fault. *)
+      instruction, a load or a store may be an access fault, and every other
+      fault is a CHERI fault. *)
   Definition instr_cause (i : instr) (φ : ExecConf) : Z :=
     match i with
     | Fail => MCAUSE_ILLEGAL_INSTRUCTION
     | CLoad _ src imm => load_cause φ src imm
+    | Store dst ρ imm => store_cause φ dst ρ imm
     | _ => MCAUSE_CHERI
     end.
 

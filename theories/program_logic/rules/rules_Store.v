@@ -57,6 +57,15 @@ Section griotte_lang_rules.
   | Store_fail_revoked p g b e a π :
       regs !!ₗ r1 = Some (WCap true p g b e a @@? π) ->
       π ≠ deref_id dw ->
+      Store_failure lpc regs r1 r2 imm mem dw
+  (* A store to an address absent from memory faults, after the capability
+     checks. *)
+  | Store_fail_unmapped p g b e a ea :
+      lw <$> regs !!ₗ r1 = Some (WCap true p g b e a) ->
+      (a + imm)%a = Some ea ->
+      writeAllowed p = true -> withinBounds b e ea = true ->
+      is_shadow_address ea = false -> is_revoker_address ea = false ->
+      mem !! ea = None ->
       Store_failure lpc regs r1 r2 imm mem dw.
 
   Inductive Store_spec
@@ -94,12 +103,14 @@ Section griotte_lang_rules.
     (a + imm)%a = Some ea ->
     writeAllowed p = true -> withinBounds b e ea = true ->
     is_shadow_address ea = false ->
+    is_Some (mem !! ea) ->
     incrementPC lpc ≠ None ->
     Store_failure lpc regs r1 r2 imm mem dw -> False.
   Proof.
-    intros Hreg Hid Hadd Hwa Hbounds Hshadow Hpc Hfail.
+    intros Hreg Hid Hadd Hwa Hbounds Hshadow Hmem Hpc Hfail.
     destruct Hfail as [w0 Hw0 Hcap| ? ? ? ? ? H | ? ? ? ? ? H H0 | ? ? ? ? ? ? H H0 H1 | H | ? ? ? ? ? ? ? H H0 H1
-                      | ? ? ? ? ? π H H0].
+                      | ? ? ? ? ? π H H0
+                      | p1 g1 b1 e1 a1 ea1 Hreg1 Hadd1 _ _ _ _ Hnone].
     - rewrite Hw0 in Hreg. destruct w0 as [w0 ?]. by simplify_eq/=.
     - rewrite Hreg in H. inversion H.
     - rewrite Hreg in H. inversion H; subst. congruence.
@@ -110,6 +121,8 @@ Section griotte_lang_rules.
     - rewrite Hreg in H. inversion H; subst.
       rewrite Hadd in H0. inversion H0; subst. congruence.
     - by apply H0, (Hid _ H).
+    - rewrite Hreg in Hreg1. simplify_eq.
+      destruct Hmem as [v Hv]. congruence.
   Qed.
 
   (** A shadow store keeps erasure if it stores the cell's current bit, or if
@@ -388,7 +401,7 @@ Section griotte_lang_rules.
      - destruct HaStore as [oldv Hmema].
        assert (lmem !! ea = Some oldv) as Hlmea by by eapply lookup_weaken.
        destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hlmea) as (pwea & Hmea & _).
-       rewrite (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hmea) in Hstep.
+       rewrite (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hmea) Hmea in Hstep.
        rewrite /update_mem /= in Hstep.
        pose proof (erasure_store _ _ _ _ _ _ _ _ _ _ _ ea (lstore_word p storev) _ _ Her Hlmea
          (reg_phys_mem_word_ok _ _ _ _ (reg_word_ok_lstore_word _ _ p _ Hstore_ok)
@@ -687,6 +700,7 @@ Section griotte_lang_rules.
     - by rewrite Hdst' in Hd; simplify_eq.
     - exfalso. eapply (Store_failure_impossible _ _ _ _ _ _ dw p g b e a ea); eauto.
       + intros v Hv. rewrite Hdst in Hv. by simplify_eq.
+      + by simplify_map_eq.
       + congruence.
   Qed.
 
@@ -733,6 +747,7 @@ Section griotte_lang_rules.
     - by rewrite Hdst' in Hd; simplify_eq.
     - exfalso. eapply (Store_failure_impossible _ _ _ _ _ _ dw p g b e a pc_a); eauto.
       + intros v Hv. rewrite Hdst in Hv. by simplify_eq.
+      + by simplify_map_eq.
       + congruence.
   Qed.
 
@@ -1216,7 +1231,8 @@ Section griotte_lang_rules.
         [w0 Hreg0 Hcap0|p0 g0 b0 e0 a0 Hreg0|p0 g0 b0 e0 a0 Hreg0 Hadd0|
          p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 Hbounds0|Hpc0|
          p0 g0 b0 e0 a0 ea0 v0 Hreg0 Hadd0 Hshadow0 Harg0 Hbad0|
-         p0 g0 b0 e0 a0 π0 Hreg0 Hπ0].
+         p0 g0 b0 e0 a0 π0 Hreg0 Hπ0|
+         p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 _ _ Hshadow0 _ _].
       + rewrite Hreg0 in Hdst. by destruct w0; simplify_eq/=.
       + rewrite Hreg0 in Hdst. simplify_eq.
       + rewrite finz_add_0 in Hadd0. discriminate.
@@ -1225,6 +1241,8 @@ Section griotte_lang_rules.
       + congruence.
       + try (rewrite Harg in Harg0; simplify_eq). by apply (Hbad0 _ eq_refl).
       + by apply Hπ0, (Hnoid _ Hreg0).
+      + rewrite Hreg0 in Hdst. simplify_eq.
+        rewrite finz_add_0 in Hadd0. simplify_eq. congruence.
   Qed.
 
    Lemma wp_store_success_same E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z w'
@@ -1826,7 +1844,8 @@ Section shadow_store_res.
     - exfalso. destruct Hfail as
         [w0 Hreg0 Hcap0|p0 g0 b0 e0 a0 Hreg0|p0 g0 b0 e0 a0 Hreg0 Hadd0|
          p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 Hbounds0|Hpc0|
-         p0 g0 b0 e0 a0 ea0 v0 Hreg0 Hadd0 Hshadow0 Harg0 Hbad0|p0 g0 b0 e0 a0 π0 Hreg0 Hπ0];
+         p0 g0 b0 e0 a0 ea0 v0 Hreg0 Hadd0 Hshadow0 Harg0 Hbad0|p0 g0 b0 e0 a0 π0 Hreg0 Hπ0|
+         p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 _ _ Hshadow0 _ _];
         simplify_map_eq; try (rewrite finz_add_0 in Hadd0; simplify_eq); try congruence.
       all: try (destruct Hbounds0; congruence).
       all: try (rewrite /incrementPC /incrementPC_gen in Hpc0; simplify_map_eq).
