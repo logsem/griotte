@@ -41,7 +41,7 @@ Section Check_No_Overlap_spec.
           ∗ codefrag_pers pc_a check_no_overlap
             -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ ▷ φ FaultedV
+    ∗ trap_ok ⊤ φ
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros check_no_overlap a_last ; subst check_no_overlap a_last.

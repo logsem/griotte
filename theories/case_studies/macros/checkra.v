@@ -146,11 +146,11 @@ Section Checkra_spec.
           ∗ codefrag_pers pc_a checkra_ )
             -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ □ (▷ φ FaultedV)
+    ∗ trap_ok ⊤ φ
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkra a_last ; subst checkra a_last.
-    iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >#Hcode & Hpost & #Hfailed)".
+    iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >#Hcode & Hpost & Hfailed)".
     codefrag_facts "Hcode".
     rename H into HcontRegion; clear H0.
     destruct wsrc as [wsrc πsrc].

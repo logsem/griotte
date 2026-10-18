@@ -83,23 +83,24 @@ Section Is_WordType_spec.
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag_pers pc_a is_int
-    ∗ ▷ ( ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
-            ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w.(lw) = WInt z ⌝
-            ∗ r1 ↦ᵣ WInt 0%Z
-            ∗ codefrag_pers pc_a is_int)
-              -∗ WP Seq (Instr Executable) {{ φ }}
-        )
-    ∗ ▷ φ FaultedV
+    ∗ ( ▷ ( ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+              ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w.(lw) = WInt z ⌝
+              ∗ r1 ↦ᵣ WInt 0%Z
+              ∗ codefrag_pers pc_a is_int)
+                -∗ WP Seq (Instr Executable) {{ φ }}
+          ) ∧
+        trap_ok ⊤ φ )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
     iIntros (Hvpc Hcont Hrcnull Hr1cnull)
-      "(>HPC & >Hr & >Hr1 & >#Hprog & Hφ & Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >#Hprog & Hk)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
     destruct w as [w π].
     destruct (is_z w) eqn:Hw_z.
-    - destruct w; cbn in *; try done.
+    - iDestruct "Hk" as "[Hφ _]".
+      destruct w; cbn in *; try done.
       iInstr "Hprog".
       iInstr "Hprog".
       replace (encodeWordType (WInt z) - encodeWordType wt_int)%Z with 0%Z.
@@ -107,7 +108,8 @@ Section Is_WordType_spec.
       iGo "Hprog".
       iApply "Hφ"; iFrame "∗ Hprog".
       iPureIntro; eexists; done.
-    - iGo "Hprog".
+    - iDestruct "Hk" as "[_ Hfailed]".
+      iGo "Hprog".
       { apply nonZero_WInt.
         pose proof (encodeWordType_correct w wt_int) as Hencode ; cbn in Hencode.
         intro H; injection H; intro Hcontra.
@@ -141,7 +143,7 @@ Section Is_WordType_spec.
             ∗ codefrag_pers pc_a is_memory_cap)
               -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ ▷ φ FaultedV
+    ∗ trap_ok ⊤ φ
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.

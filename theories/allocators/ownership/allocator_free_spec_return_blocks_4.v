@@ -21,7 +21,7 @@ Section AllocatorFreeReturnBlocks4.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_free_code ∗
-    ▷ φ FaultedV ∗
+    trap_ok E φ ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗

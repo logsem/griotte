@@ -97,6 +97,8 @@ Section griotte_lang_rules.
       Restrict_spec lpc regs dst src lpc' regs' NextIV
   | Restrict_spec_failure:
       Restrict_failure lpc regs dst src →
+      lpc' = lpc →
+      regs' = regs →
       Restrict_spec lpc regs dst src lpc' regs' FaultedV.
 
   Lemma wp_Restrict Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq :
@@ -136,7 +138,7 @@ Section griotte_lang_rules.
       { rewrite -Hstep. by destruct wdst as [[| [] | | ? []] ?], s. }
       { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
       { intros lpc' Hi. eapply Restrict_spec_untagged; eauto. }
-      { intros Hi. constructor. eapply Restrict_fail_PC_overflow_other; eauto. }
+      { intros Hi. apply Restrict_spec_failure; [|done..]. eapply Restrict_fail_PC_overflow_other; eauto. }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
     destruct wdst as [[ | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
     1,4,5: by exfalso; apply Hk.
@@ -157,7 +159,7 @@ Section griotte_lang_rules.
         destruct (PermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
           rewrite ?andb_true_r ?andb_false_r /= in Hi |- *;
           [eapply Restrict_spec_success_cap; eauto | (eapply Restrict_spec_invalidated_cap; eauto; by rewrite Hp Hl)..]. }
-      { intros Hi. constructor. rewrite /nt in Hi |- *.
+      { intros Hi. apply Restrict_spec_failure; [|done..]. rewrite /nt in Hi |- *.
         destruct (PermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
           rewrite ?andb_true_r ?andb_false_r /= in Hi |- *;
           [eapply Restrict_fail_PC_overflow_cap; eauto | (eapply Restrict_fail_invalidated_PC_cap; eauto; by rewrite Hp Hl)..]. }
@@ -178,7 +180,7 @@ Section griotte_lang_rules.
         destruct (SealPermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
           rewrite ?andb_true_r ?andb_false_r /= in Hi |- *;
           [eapply Restrict_spec_success_sr; eauto | (eapply Restrict_spec_invalidated_sr; eauto; by rewrite Hp Hl)..]. }
-      { intros Hi. constructor. rewrite /nt in Hi |- *.
+      { intros Hi. apply Restrict_spec_failure; [|done..]. rewrite /nt in Hi |- *.
         destruct (SealPermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
           rewrite ?andb_true_r ?andb_false_r /= in Hi |- *;
           [eapply Restrict_fail_PC_overflow_sr; eauto | (eapply Restrict_fail_invalidated_PC_sr; eauto; by rewrite Hp Hl)..]. }

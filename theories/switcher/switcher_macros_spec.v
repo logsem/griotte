@@ -47,7 +47,7 @@ Section switcher_macros.
              ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2))
             ∗ world_interp W C
             -∗ WP Seq (Instr Executable) {{ φ }})
-      ∗ ▷ φ FaultedV
+      ∗ trap_ok ⊤ φ
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.

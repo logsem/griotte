@@ -305,7 +305,7 @@ Section fundamental.
                (⌜w = WCap true p g b e a @@? π ∨ (∃ k, w = WSentry k true p g b e a @@? π)⌝
                 ∗ □ ∀ W', future_world g W W'
                           → ▷ (interp_expr interp (interp_cont interp) W' C) (lupdatePcPerm w)))
-         else φ FaultedV ∗ PC ↦ₚ lupdatePcPerm w
+         else trap_ok ⊤ φ ∗ PC ↦ₚ lupdatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
     iIntros "#Hw".

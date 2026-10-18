@@ -141,12 +141,12 @@ Section Checkints_spec.
          ∗ codefrag_pers pc_a checkints_loop
          -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ □ (▷ (φ FaultedV))
+    ∗ trap_ok ⊤ φ
     ⊢ WP Seq (Instr Executable) {{ v, φ v }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hae Hra Hdisjoint Hall Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hφ & #Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hφ & Hfailed)".
     iLöb as "IH" forall ( a Hae Hall w1 w2).
     iDestruct (big_sepL2_length with "Hmem") as %Hlength_mem.
     codefrag_facts "Hcode_main".
@@ -209,7 +209,7 @@ Section Checkints_spec.
 
     focus_block 1 "Hcode_main" as a_checkint Ha_checkint "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iApply (is_int_spec _ _ _ _ _ _ _ _ _ (WInt 0) with "[- $HPC $Hr1 $Hr2 $Hcode]"); eauto.
-    iSplitR "Hfailed"; last (iNext; iApply "Hfailed").
+    iSplit; last iExact "Hfailed".
     iNext; iIntros "(HPC & Hr1 & %Hz & Hr2 & _)".
     assert (∃ z, w.(lw) = WInt z) as Hraw_int.
     { destruct Hactual as [-> | Hcleared].
@@ -270,7 +270,7 @@ Section Checkints_spec.
       iInstr "Hcode".
       { transitivity (Some pc_a); auto; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      iApply ("IH" with "[] [] [$] [$] [$] [$] [$] [$]"); eauto.
+      iApply ("IH" with "[] [] [$] [$] [$] [$] [$] [$] [$]"); eauto.
       { iPureIntro; solve_addr. }
       { iPureIntro.
         apply Forall_forall.
@@ -311,11 +311,11 @@ Section Checkints_spec.
     ∗ ▷ r ↦ᵣ WCap false p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a (checkints_instrs r r1 r2)
-    ∗ □ (▷ φ FaultedV)
+    ∗ trap_ok ⊤ φ
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     iIntros (Hvpc Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & #Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & Hfailed)".
     codefrag_facts "Hcode_main".
     rename H into HcontRegion; clear H0.
     rewrite /checkints_instrs.
@@ -375,12 +375,12 @@ Section Checkints_spec.
          ∗ £ 2
          -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ □ (▷ φ FaultedV)
+    ∗ trap_ok ⊤ φ
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hra Hdisjoint Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hφ & #Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hφ & Hfailed)".
     destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad].
     2: { destruct t; first (exfalso; apply Hbad; auto).
          iApply (checkints_fail_untagged with "[$HPC $Hr $Hr1 $Hr2 $Hcode_main $Hfailed]"); eauto.
@@ -433,7 +433,7 @@ Section Checkints_spec.
       intros v Hv (k & Hkv & (ka & Hka & Hka_bounds)).
       solve_addr.
     }
-    iSplitR "Hfailed"; last (iModIntro ; iNext ; iApply "Hfailed").
+    iSplitR "Hfailed"; last iExact "Hfailed".
     iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & Hmem & % & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 

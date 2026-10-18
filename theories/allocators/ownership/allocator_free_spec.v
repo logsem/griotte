@@ -67,7 +67,7 @@ Section AllocatorFree.
        ca3 ↦ᵣ - ∗
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
-       ▷ φ FaultedV ∗
+       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           P ∗
           a_owner ↦ₐ WInt o ∗
@@ -225,7 +225,7 @@ Section AllocatorFree.
        ca3 ↦ᵣ - ∗
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
-       ▷ φ FaultedV ∗
+       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -313,7 +313,7 @@ Section AllocatorFree.
        ca3 ↦ᵣ - ∗
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
-       ▷ φ FaultedV ∗
+       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗
@@ -409,7 +409,7 @@ Section AllocatorFree.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
 
-       ▷ φ FaultedV ∗
+       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -503,7 +503,7 @@ Section AllocatorFree.
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
        [[b, e]] ↦ₕ[ι] [[ws]] ∗
 
-       ▷ φ FaultedV ∗
+       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗

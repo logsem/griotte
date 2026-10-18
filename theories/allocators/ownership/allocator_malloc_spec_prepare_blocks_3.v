@@ -187,7 +187,7 @@ Section AllocatorMallocPrepareBlocks3.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ φ FaultedV ∗
+    trap_ok E φ ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
@@ -232,7 +232,7 @@ Section AllocatorMallocPrepareBlocks3.
     ca2 ↦ᵣ wa2 ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ φ FaultedV ∗
+    trap_ok E φ ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗

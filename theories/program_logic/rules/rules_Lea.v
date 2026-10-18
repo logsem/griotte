@@ -96,6 +96,8 @@ Section griotte_lang_rules.
     Lea_spec lpc regs r1 rv lpc' regs' NextIV
   | Lea_spec_failure :
     Lea_failure lpc regs r1 rv ->
+    lpc' = lpc ->
+    regs' = regs ->
     Lea_spec lpc regs r1 rv lpc' regs' FaultedV.
 
    Lemma wp_lea Ep pc_p pc_g pc_b pc_e pc_a pc_π r1 w arg (regs : LReg) dq :
@@ -134,7 +136,7 @@ Section griotte_lang_rules.
        { rewrite -Hstep. by destruct r1v as [[| [] | | ? []] ?], s. }
        { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
        { intros lpc' Hi. eapply Lea_spec_sealed; eauto. }
-       { intros Hi. constructor. eapply Lea_fail_overflow_PC_other; eauto.
+       { intros Hi. apply Lea_spec_failure; [|done..]. eapply Lea_fail_overflow_PC_other; eauto.
          by destruct r1v as [[| [] | | ? []] ?]. }
        iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
      destruct r1v as [[ n | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
@@ -145,7 +147,7 @@ Section griotte_lang_rules.
        { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
        { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_int. }
        { intros lpc' Hi. eapply Lea_spec_int; eauto. }
-       { intros Hi. constructor. eapply Lea_fail_overflow_PC_other; eauto. }
+       { intros Hi. apply Lea_spec_failure; [|done..]. eapply Lea_fail_overflow_PC_other; eauto. }
        iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
      - destruct (a + argz)%a as [a'|] eqn:Hoffset; cbn in Hstep.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WCap t p g b e a' @@? π) _ _ _ _
@@ -156,7 +158,7 @@ Section griotte_lang_rules.
          { exact Hstep. }
          { by apply (reg_phys_derive _ (WCap t p g b e a @@? π) s (WCap t p g b e a')). }
          { intros lpc' Hi. eapply Lea_spec_success_cap; eauto. }
-         { intros Hi. constructor. eapply Lea_fail_overflow_PC_cap; eauto. }
+         { intros Hi. apply Lea_spec_failure; [|done..]. eapply Lea_fail_overflow_PC_cap; eauto. }
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WCap false p g b e a @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
@@ -166,7 +168,7 @@ Section griotte_lang_rules.
          { exact Hstep. }
          { by apply reg_phys_untagged. }
          { intros lpc' Hi. eapply Lea_spec_invalidated_cap; eauto. }
-         { intros Hi. constructor. eapply Lea_fail_overflow_cap; eauto. }
+         { intros Hi. apply Lea_spec_failure; [|done..]. eapply Lea_fail_overflow_cap; eauto. }
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
      - destruct (a + argz)%ot as [a'|] eqn:Hoffset; cbn in Hstep.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WSealRange t p g b e a' @@? π) _ _ _ _
@@ -177,7 +179,7 @@ Section griotte_lang_rules.
          { exact Hstep. }
          { by apply (reg_phys_derive _ (WSealRange t p g b e a @@? π) s (WSealRange t p g b e a')). }
          { intros lpc' Hi. eapply Lea_spec_success_sr; eauto. }
-         { intros Hi. constructor. eapply Lea_fail_overflow_PC_sr; eauto. }
+         { intros Hi. apply Lea_spec_failure; [|done..]. eapply Lea_fail_overflow_PC_sr; eauto. }
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WSealRange false p g b e a @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
@@ -187,7 +189,7 @@ Section griotte_lang_rules.
          { exact Hstep. }
          { by apply reg_phys_untagged. }
          { intros lpc' Hi. eapply Lea_spec_invalidated_sr; eauto. }
-         { intros Hi. constructor. eapply Lea_fail_overflow_sr; eauto. }
+         { intros Hi. apply Lea_spec_failure; [|done..]. eapply Lea_fail_overflow_sr; eauto. }
          iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
    Qed.
 

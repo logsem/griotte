@@ -33,6 +33,8 @@ Section griotte_lang_rules.
       Auipcc_spec lpc regs dst imm lpc' regs' NextIV
   | Auipcc_spec_failure :
       incrementPC lpc = None →
+      lpc' = lpc →
+      regs' = regs →
       Auipcc_spec lpc regs dst imm lpc' regs' FaultedV.
 
   Lemma wp_Auipcc Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst imm regs dq :
