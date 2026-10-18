@@ -62,9 +62,9 @@ Section mem_avoids_mmio.
   Lemma mem_avoids_mmio_empty : mem_avoids_mmio ∅.
   Proof. intros a. rewrite dom_empty_L. set_solver. Qed.
 
-  Lemma updatePC_gen_mem φ imm c :
-    updatePC_gen φ imm = Some c → mem c.2 = mem φ.
-  Proof. rewrite /updatePC_gen. repeat case_match; intros; simplify_eq; done. Qed.
+  Lemma advancePC_mem φ imm c :
+    advancePC φ imm = Some c → mem c.2 = mem φ.
+  Proof. rewrite /advancePC. repeat case_match; intros; simplify_eq; done. Qed.
 
   (* Every instruction preserves the clause: CLoad and Store reach the shadow
      region and the revoker through their own branches, an ordinary store
@@ -80,10 +80,10 @@ Section mem_avoids_mmio.
       | H : (match ?x with _ => _ end) = Some _ |- _ =>
           destruct x eqn:?; cbn in H; try discriminate
       end.
-    all: try (match goal with H : updatePC_gen _ _ = Some _ |- _ =>
-                rewrite (updatePC_gen_mem _ _ _ H) end).
-    all: try (match goal with H : updatePC _ = Some _ |- _ =>
-                rewrite (updatePC_gen_mem _ _ _ H) end).
+    all: try (match goal with H : advancePC _ _ = Some _ |- _ =>
+                rewrite (advancePC_mem _ _ _ H) end).
+    all: try (match goal with H : nextPC _ = Some _ |- _ =>
+                rewrite (advancePC_mem _ _ _ H) end).
     all: try (match goal with H : Some _ = Some _ |- _ => injection H as <- end).
     (* Jalr may write mstatus. *)
     all: try (match goal with |- context [jalr_mstatus ?w ?z] => destruct (jalr_mstatus w z) end).

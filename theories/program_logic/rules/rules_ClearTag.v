@@ -53,7 +53,7 @@ Section griotte_lang_rules.
     destruct (Hri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc' & Hrel).
     assert (exec_opt (ClearTag dst src) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-      updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+      nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
         (clear_tag (and_tag s wsrc.(lw))))) as HH.
     { cbn. by rewrite Hsrc'. }
     rewrite HH in Hstep.

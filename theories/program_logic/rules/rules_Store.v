@@ -379,14 +379,14 @@ Section griotte_lang_rules.
        destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.
        2: {
          pose proof Hregs' as Ha'. eapply incrementPC_None_inv in Ha'; [|reflexivity].
-         unfold updatePC, updatePC_gen in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
+         unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
          instr_fail Hstep. apply Store_spec_fail. by apply Store_fail_invalid_PC. }
        destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
        pose proof Hregs' as Ha'.
        apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
        injection Heq as <- <- <- <- <- <- <-.
-       rewrite /updatePC /updatePC_gen /= Ha'1 in Hu. simplify_eq.
-       unfold updatePC, updatePC_gen in Hstep; cbn in Hstep; rewrite Ha'1 in Hstep.
+       rewrite /nextPC /advancePC /= Ha'1 in Hu. simplify_eq.
+       unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha'1 in Hstep.
        simplify_pair_eq. cbn.
        iDestruct (big_sepM_delete _ _ heap_a with "Hshadow") as "[Ha Hshadow]"; first exact Hshadowa.
        iMod (gen_heap_update with "Hst Ha") as "[Hst Ha]".
@@ -409,14 +409,14 @@ Section griotte_lang_rules.
        destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.
        2: {
          pose proof Hregs' as Ha'. eapply incrementPC_None_inv in Ha'; [|reflexivity].
-         unfold updatePC, updatePC_gen in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
+         unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
          instr_fail Hstep. apply Store_spec_fail. by apply Store_fail_invalid_PC. }
        destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
        pose proof Hregs' as Ha'.
        apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
        injection Heq as <- <- <- <- <- <- <-.
-       rewrite /updatePC /updatePC_gen /= Ha'1 in Hu. simplify_eq.
-       unfold updatePC, updatePC_gen in Hstep; cbn in Hstep; rewrite Ha'1 in Hstep.
+       rewrite /nextPC /advancePC /= Ha'1 in Hu. simplify_eq.
+       unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha'1 in Hstep.
        simplify_pair_eq. cbn.
        iMod ((gen_heap_update_inSepM _ _ ea) with "Hm Hmem") as "[Hm Hmem]"; eauto.
        iMod (PC_update _ _ (WCap true pc_p pc_g pc_b pc_e a'1 @@? pc_π) with "HPCa HPC") as "[HPCa HPC]".
@@ -1729,8 +1729,8 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
               Some (WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π))
       as Hinc by by rewrite /incrementPC /incrementPC_gen Hpca'.
     destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hinc) as (pc'' & Hu & Her2).
-    rewrite /updatePC /updatePC_gen /= Hpca' in Hu. simplify_eq.
-    unfold revoker_sweep, updatePC, updatePC_gen in Hstep; cbn in Hstep.
+    rewrite /nextPC /advancePC /= Hpca' in Hu. simplify_eq.
+    unfold revoker_sweep, nextPC, advancePC in Hstep; cbn in Hstep.
     rewrite Hpca' in Hstep. simplify_eq.
     iMod (PC_update _ _ (WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) with "HPCa HPC")
       as "[HPCa HPC]".

@@ -75,7 +75,7 @@ Section griotte_lang_rules.
     destruct (nonZero wrcond.(lw)) eqn:Hnz.
     - destruct (lz_of_argument_dom regs rimm) as [imm Himm].
       { intros x ->. apply Dregs. set_solver+. }
-      assert (exec_opt (Jnz rimm rcond) pc_p φc = updatePC_gen φc imm) as HH.
+      assert (exec_opt (Jnz rimm rcond) pc_p φc = advancePC φc imm) as HH.
       { cbn. rewrite Hrcond /= Hnz'.
         by rewrite (lz_of_argument_incl R regs r _ imm). }
       rewrite HH in Hstep.
@@ -85,7 +85,7 @@ Section griotte_lang_rules.
       { intros. by eapply Jnz_spec_success_jmp. }
       { intros. constructor. by eapply Jnz_fail_PC_overflow_jmp. }
       iIntros (lpc' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-    - assert (exec_opt (Jnz rimm rcond) pc_p φc = updatePC_gen φc 1) as HH.
+    - assert (exec_opt (Jnz rimm rcond) pc_p φc = advancePC φc 1) as HH.
       { cbn. by rewrite Hrcond /= Hnz'. }
       rewrite HH in Hstep.
       iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _

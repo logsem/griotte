@@ -74,7 +74,7 @@ Section griotte_lang_rules.
       cycle 1.
     { (* The PC increment fails: the state is unchanged. *)
       pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as Hfail.
-      rewrite /updatePC /updatePC_gen /= in Hfail.
+      rewrite /nextPC /advancePC /= in Hfail.
       destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; first done.
       instr_fail Hstep.
       apply SetMIE_spec_failure; first done. by apply SetMIE_fail_incrPC. }
@@ -89,8 +89,8 @@ Section griotte_lang_rules.
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her1. }
     { destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
-      rewrite /updatePC in Hu. rewrite /update_sreg /update_pcc /= in Hstep.
-      rewrite Hu. revert Hstep Hu. rewrite /updatePC_gen /=.
+      rewrite /nextPC in Hu. rewrite /update_sreg /update_pcc /= in Hstep.
+      rewrite Hu. revert Hstep Hu. rewrite /advancePC /=.
       destruct (pc_a + 1)%a; intros Hstep Hu; by simplify_eq. }
     { intros lpc'' Hi'. rewrite /incrementPC in Hi. simplify_eq.
       by eapply SetMIE_spec_success. }
