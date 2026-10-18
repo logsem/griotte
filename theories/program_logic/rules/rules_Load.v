@@ -231,7 +231,7 @@ Section griotte_lang_rules.
 
   | Load_spec_failure :
     Load_failure_spec lpc regs r1 r2 imm mem shadow wit dw ->
-    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw FailedV.
+    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw FaultedV.
 
   (* Own the source location, or its shadow entry; the revoker needs no
      resource. *)
@@ -316,7 +316,7 @@ Section griotte_lang_rules.
 
     destruct (is_cap r2v.(lw)) eqn:Hr2v.
     2: {
-      assert ((Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) = (c, σ2)) as Hstep'.
+      assert ((Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) = (c, σ2)) as Hstep'.
       { unfold is_cap in Hr2v. destruct r2v as [r2v ?]; cbn in *.
         destruct_word r2v; by simplify_pair_eq. }
       instr_fail Hstep'. apply Load_spec_failure. by eapply Load_fail_const. }
@@ -361,11 +361,11 @@ Section griotte_lang_rules.
       reg_word_ok R C v ∧
       reg_phys R v pv ∧
       (match updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) r1 pv) with
-       | Some conf => conf | None => (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ2) ∧
+       | Some conf => conf | None => (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ2) ∧
       (∀ lpc', incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
          Load_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' (<[r1 := v]ₗ> regs) mem shadow wit dw NextIV) ∧
       (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
-         Load_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs mem shadow wit dw FailedV))
+         Load_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs mem shadow wit dw FaultedV))
       as (v & pv & Hok & Hpv & Hstep' & Hsucc & Hfailure).
     {
       destruct (is_shadow_address ea) eqn:Hshadow.
@@ -395,7 +395,7 @@ Section griotte_lang_rules.
           rewrite Hpv /= in Hstep.
           destruct (load_filter_is_Some R C st p pv Hreg) as [pl Hpl].
           assert ((match updatePC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) r1 pl) with
-                   | Some conf => conf | None => (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ2))
+                   | Some conf => conf | None => (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ2))
             as Hstep'.
           { rewrite -Hstep /load_filter in Hpl |- *.
             destruct (heap_cap_base pv) as [base|]; last by simplify_eq.
@@ -435,7 +435,7 @@ Section griotte_lang_rules.
         a ↦ₐ raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
-    {{{ retv, RET retv; ⌜retv = FailedV⌝ ∨
+    {{{ retv, RET retv; ⌜retv = FaultedV⌝ ∨
         ∃ actual, ⌜retv = NextIV⌝ ∗
         ⌜load_post wit p raw actual⌝ ∗
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
@@ -683,7 +683,7 @@ Section griotte_lang_rules.
       mem !! ea = Some loadv ∧
       incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
       regs' = <[r1 := lload_word p loadv]ₗ> regs) ∨
-    (retv = FailedV ∧ ∃ fail : Load_failure_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ LoadPlain dw, True))⌝ ∗
+    (retv = FaultedV ∧ ∃ fail : Load_failure_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ LoadPlain dw, True))⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
          deref_witness_res dw ∗
@@ -739,7 +739,7 @@ Section griotte_lang_rules.
       mem !! ea = Some loadv ∧
       incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
       regs' = <[r1 := lload_word p loadv]ₗ> regs) ∨
-    (retv = FailedV ∧ ∃ fail : Load_failure_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ LoadPlain DerefNoId, True))⌝ ∗
+    (retv = FaultedV ∧ ∃ fail : Load_failure_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ LoadPlain DerefNoId, True))⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦w ∈ mem, a ↦ₐ{dq} w) ∗
          [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
@@ -777,7 +777,7 @@ Section griotte_lang_rules.
         lload_heap (lload_word p loadv) actualv ∧
         incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
         regs' = <[dst := actualv]ₗ> regs
-    | FailedV => True
+    | FaultedV => True
     | _ => False
     end)⌝ ∗
         PC ↦ₚ lpc' ∗
@@ -828,7 +828,7 @@ Section griotte_lang_rules.
         lload_heap (lload_word p loadv) actualv ∧
         incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
         regs' = <[dst := actualv]ₗ> regs
-    | FailedV => True
+    | FaultedV => True
     | _ => False
     end)⌝ ∗
         PC ↦ₚ lpc' ∗
@@ -1197,7 +1197,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET FailedV;
+    {{{ RET FaultedV;
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -1207,7 +1207,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
-    assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
     { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; by simplify_eq. }
     instr_fail_close.
@@ -1225,10 +1225,10 @@ Section griotte_lang_rules.
           ∗ ▷ r2 ↦ᵣ WCap true p g b e a @@? πs
     }}}
        Instr Executable @ E
-       {{{ RET FailedV; True }}}.
+       {{{ RET FaultedV; True }}}.
   Proof.
     iIntros (Hdecode Hvpc Hra Hsrc φ) "(HPC & Hi & Hd & Hs) Hφ".
-    iApply (wp_instr_failed_2 with "[$HPC $Hd $Hs $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_2 with "[$HPC $Hd $Hs $Hi]"); [done | done | | ].
     { intros r sr m st s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H2 /= (decide_False _ _ Hsrc) /=.
       destruct s2; cbn; last done.
@@ -1249,10 +1249,10 @@ Section griotte_lang_rules.
           ∗ ▷ r2 ↦ᵣ WCap true p g b e a @@? πs
     }}}
        Instr Executable @ E
-       {{{ RET FailedV; True }}}.
+       {{{ RET FaultedV; True }}}.
   Proof.
     iIntros (Hdecode Hvpc Hwb Hadd Hsrc φ) "(HPC & Hi & Hd & Hs) Hφ".
-    iApply (wp_instr_failed_2 with "[$HPC $Hd $Hs $Hi]"); [done | done | | ].
+    iApply (wp_instr_faulted_2 with "[$HPC $Hd $Hs $Hi]"); [done | done | | ].
     { intros r sr m st s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H2 /= (decide_False _ _ Hsrc) /=.
       destruct s2; cbn; last done.
@@ -1271,7 +1271,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET FailedV;
+    {{{ RET FaultedV;
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -1282,7 +1282,7 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     rewrite Hwa /= in Hstep. destruct s0; cbn in Hstep; rewrite ?Hadd /= in Hstep.
-    all: assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->] by (by simplify_eq).
+    all: assert (c = Faulted ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->] by (by simplify_eq).
     all: instr_fail_close.
   Qed.
 
@@ -1296,7 +1296,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET FailedV;
+    {{{ RET FaultedV;
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -1306,7 +1306,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
-    assert (c = Failed ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
     { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; by simplify_eq. }
     instr_fail_close.
@@ -1323,7 +1323,7 @@ Section griotte_lang_rules.
           ∗ ▷ r2 ↦ᵣ wsrc
     }}}
        Instr Executable @ E
-       {{{ RET FailedV; True }}}.
+       {{{ RET FaultedV; True }}}.
   Proof.
     iIntros (Hdecode Hvpc Hcap φ) "(>HPC & >Hi & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %]".
@@ -1377,7 +1377,7 @@ Section griotte_lang_rules.
     {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true p g b e a @@? πs ∗ a ↦ₐ raw }}}
       Instr Executable @ E
-    {{{ retv, RET retv; ⌜retv = FailedV⌝ ∨
+    {{{ retv, RET retv; ⌜retv = FaultedV⌝ ∨
         ∃ actual, ⌜retv = NextIV⌝ ∗
         ⌜lload_heap (lload_word p raw) actual⌝ ∗
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} wi ∗
@@ -1623,7 +1623,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET FailedV;
+    {{{ RET FaultedV;
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -1766,7 +1766,7 @@ Section load_exact.
         a ↦ₐ raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
-    {{{ retv, RET retv; ⌜retv = FailedV⌝ ∨
+    {{{ retv, RET retv; ⌜retv = FaultedV⌝ ∨
         ∃ actual, ⌜retv = NextIV⌝ ∗
         ⌜load_post wit p raw actual⌝ ∗
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗

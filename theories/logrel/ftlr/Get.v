@@ -43,7 +43,7 @@ Section fundamental.
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     (* GetTag may return 0 on a word whose tag may have been cleared: either
        way an integer is written. *)
-    assert (retv = FailedV ∨ ∃ z, retv = NextIV ∧ incrementPC (WCap true p g b e a) = Some lpc' ∧
+    assert (retv = FaultedV ∨ ∃ z, retv = NextIV ∧ incrementPC (WCap true p g b e a) = Some lpc' ∧
               regs' = <[dst := WInt z]ₗ> regs) as [-> | (z & -> & Hinc & ->)].
     { destruct HSpec as [wsrc z Hsrc Hz Hinc -> | wsrc Hgt Hsrc Hstrip Hinc -> | ];
         [right; by exists z | right; by exists 0%Z | by left]. }

@@ -86,7 +86,7 @@ Section AllocatorMacros.
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     codefrag_pers pc_a code ∗
-    ▷ φ FailedV ∗
+    ▷ φ FaultedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          codefrag_pers pc_a code ∗

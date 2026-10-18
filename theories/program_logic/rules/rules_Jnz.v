@@ -45,7 +45,7 @@ Section griotte_lang_rules.
       Jnz_spec lpc regs rimm rcond lpc' NextIV
   | Jnz_spec_failure:
       Jnz_failure lpc regs rimm rcond →
-      Jnz_spec lpc regs rimm rcond lpc FailedV.
+      Jnz_spec lpc regs rimm rcond lpc FaultedV.
 
   Lemma wp_Jnz Ep pc_p pc_g pc_b pc_e pc_a pc_π w rimm rcond regs dq :
     decodeInstrW w.(lw) = Jnz rimm rcond ->

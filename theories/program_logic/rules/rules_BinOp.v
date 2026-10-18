@@ -65,7 +65,7 @@ Section griotte_lang_rules.
       BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' NextIV
   | BinOp_spec_failure:
       BinOp_failure i lpc regs dst rv1 rv2 ->
-      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' FailedV.
+      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' FaultedV.
 
   Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →

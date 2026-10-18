@@ -19,7 +19,7 @@ Section AllocatorMallocExitBlocks.
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_exit_block_offset 2)%a ∗
     cra ↦ᵣ wret ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
-    ▷ φ FailedV ∗
+    ▷ φ FaultedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        codefrag_pers pc_a allocator_malloc_exit_code ∗
@@ -53,7 +53,7 @@ Section AllocatorMallocExitBlocks.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
-    ▷ φ FailedV ∗
+    ▷ φ FaultedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
@@ -97,7 +97,7 @@ Section AllocatorMallocExitBlocks.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
-    ▷ φ FailedV ∗
+    ▷ φ FaultedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗

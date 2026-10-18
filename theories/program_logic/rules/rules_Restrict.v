@@ -97,7 +97,7 @@ Section griotte_lang_rules.
       Restrict_spec lpc regs dst src lpc' regs' NextIV
   | Restrict_spec_failure:
       Restrict_failure lpc regs dst src →
-      Restrict_spec lpc regs dst src lpc' regs' FailedV.
+      Restrict_spec lpc regs dst src lpc' regs' FaultedV.
 
   Lemma wp_Restrict Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq :
     decodeInstrW w.(lw) = Restrict dst src ->

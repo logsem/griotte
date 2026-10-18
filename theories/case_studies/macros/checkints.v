@@ -141,7 +141,7 @@ Section Checkints_spec.
          ∗ codefrag_pers pc_a checkints_loop
          -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ □ (▷ (φ FailedV))
+    ∗ □ (▷ (φ FaultedV))
     ⊢ WP Seq (Instr Executable) {{ v, φ v }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
@@ -311,7 +311,7 @@ Section Checkints_spec.
     ∗ ▷ r ↦ᵣ WCap false p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a (checkints_instrs r r1 r2)
-    ∗ □ (▷ φ FailedV)
+    ∗ □ (▷ φ FaultedV)
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     iIntros (Hvpc Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
@@ -375,7 +375,7 @@ Section Checkints_spec.
          ∗ £ 2
          -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ □ (▷ φ FailedV)
+    ∗ □ (▷ φ FaultedV)
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.

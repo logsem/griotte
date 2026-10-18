@@ -27,7 +27,7 @@ Section griotte_lang_rules.
   | Mov_spec_failure w:
       lword_of_argument regs src = Some w →
       incrementPC lpc = None →
-      Mov_spec lpc regs dst src lpc' regs' FailedV.
+      Mov_spec lpc regs dst src lpc' regs' FaultedV.
 
   Lemma wp_Mov Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq :
     decodeInstrW w.(lw) = Mov dst src ->

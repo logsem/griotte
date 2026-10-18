@@ -102,7 +102,7 @@ Section griotte_lang_rules.
         Get_spec i lpc regs dst src lpc' regs' NextIV
     | Get_spec_failure:
         Get_failure i lpc regs dst src →
-        Get_spec i lpc regs dst src lpc' regs' FailedV.
+        Get_spec i lpc regs dst src lpc' regs' FaultedV.
 
   Lemma exec_opt_Get i dst src p (pc : Word) (r : Reg) sr m st (wsrc : Word) :
     is_Get i dst src →
@@ -220,11 +220,11 @@ Section griotte_lang_rules.
   Qed.
 
   (** A Get whose source denotes and whose PC increments does not fail. *)
-  Lemma Get_spec_not_failed i lpc regs dst src lpc' regs' wsrc lpc0 :
+  Lemma Get_spec_not_faulted i lpc regs dst src lpc' regs' wsrc lpc0 :
     regs !!ₗ src = Some wsrc →
     is_Some (denote i wsrc.(lw)) →
     incrementPC lpc = Some lpc0 →
-    ¬ Get_spec i lpc regs dst src lpc' regs' FailedV.
+    ¬ Get_spec i lpc regs dst src lpc' regs' FaultedV.
   Proof.
     intros Hsrc [z Hz] Hinc Hspec. inversion Hspec as [| | Hfail]; subst.
     destruct Hfail as [w z' Hw Hd Hi]; rewrite Hsrc in Hw; simplify_eq; congruence.
@@ -256,7 +256,7 @@ Section griotte_lang_rules.
     iIntros "!>" (lpc0 regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     rewrite Hdecode in Hspec.
     assert (retv = NextIV) as ->.
-    { inversion Hspec; subst; [done | done |]. exfalso. by eapply Get_spec_not_failed. }
+    { inversion Hspec; subst; [done | done |]. exfalso. by eapply Get_spec_not_faulted. }
     destruct (Get_spec_next _ _ _ _ _ _ _ _ Hsrc Hspec) as (Hinc' & z & Hz & ->).
     rewrite Hinc in Hinc'. simplify_eq. iApply "Hφ". by iFrame.
   Qed.
@@ -435,7 +435,7 @@ Section griotte_lang_rules.
         ⌜ (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
              incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
              regs' = <[dst := WInt z]ₗ> regs) ∨
-          (retv = FailedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
+          (retv = FaultedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
              regs' = regs) ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -477,7 +477,7 @@ Section griotte_lang_rules.
          (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
             incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
             regs' = <[dst := WInt z]ₗ> regs) ∨
-         (retv = FailedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
+         (retv = FaultedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
             regs' = regs))
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hdw HPr]").
     { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }

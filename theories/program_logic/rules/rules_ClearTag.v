@@ -29,7 +29,7 @@ Section griotte_lang_rules.
       incrementPC lpc = None →
       lpc' = lpc →
       regs' = regs →
-      ClearTag_spec lpc regs dst src lpc' regs' FailedV.
+      ClearTag_spec lpc regs dst src lpc' regs' FaultedV.
 
   Lemma wp_ClearTag Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq :
     decodeInstrW w.(lw) = ClearTag dst src ->

@@ -96,7 +96,7 @@ Section griotte_lang_rules.
     Lea_spec lpc regs r1 rv lpc' regs' NextIV
   | Lea_spec_failure :
     Lea_failure lpc regs r1 rv ->
-    Lea_spec lpc regs r1 rv lpc' regs' FailedV.
+    Lea_spec lpc regs r1 rv lpc' regs' FaultedV.
 
    Lemma wp_lea Ep pc_p pc_g pc_b pc_e pc_a pc_π r1 w arg (regs : LReg) dq :
      decodeInstrW w.(lw) = Lea r1 arg →

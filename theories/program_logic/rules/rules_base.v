@@ -510,7 +510,7 @@ Section griotte_lang_rules.
       ~ isCorrectPC w.(lw) ->
       {{{ PC ↦ₚ w }}}
          Instr Executable @ E
-        {{{ RET FailedV; PC ↦ₚ w }}}.
+        {{{ RET FaultedV; PC ↦ₚ w }}}.
   Proof.
     intros *. intros Hnpc.
     iIntros (ϕ) "HPC Hϕ".
@@ -533,7 +533,7 @@ Section griotte_lang_rules.
     get_tag w.(lw) = false →
     {{{ PC ↦ₚ w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ₚ w }}}.
+    {{{ RET FaultedV; PC ↦ₚ w }}}.
   Proof.
     iIntros (Htag φ) "HPC Hφ".
     iApply (wp_notCorrectPC with "HPC").
@@ -566,7 +566,7 @@ Section griotte_lang_rules.
 
     {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
+    {{{ RET FaultedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
@@ -586,8 +586,8 @@ Section griotte_lang_rules.
                                 (match goal with
                                 | H : base_step _ _ _ _ _ _ |- _ => inversion H end).
 
-  #[global] Instance pure_seq_failed :
-    PureExec True 1 (Seq (Instr Failed)) (Instr Failed).
+  #[global] Instance pure_seq_faulted :
+    PureExec True 1 (Seq (Instr Faulted)) (Instr Faulted).
   Proof. by solve_exec_pure. Qed.
 
   #[global] Instance pure_seq_halted :
@@ -1049,8 +1049,8 @@ Section instruction_closing.
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ FailedV) ==∗
-    cerise_state_interp (pc, r, sr, m, st) ∗ from_option Φ False (to_val (Instr Failed)).
+    (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ FaultedV) ==∗
+    cerise_state_interp (pc, r, sr, m, st) ∗ from_option Φ False (to_val (Instr Faulted)).
   Proof.
     iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ". iModIntro.
     iSplitR "Hφ HPC Hmap"; last by iApply ("Hφ" with "HPC").
@@ -1065,9 +1065,9 @@ Section instruction_closing.
       (P : LWord → griotte_lang.val → Prop) :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     (match updatePC_gen (pc, r, sr, m, st) n with
-     | Some conf => conf | None => (Failed, (pc, r, sr, m, st)) end) = (c, σ') →
+     | Some conf => conf | None => (Faulted, (pc, r, sr, m, st)) end) = (c, σ') →
     (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
-    (incrementPC_gen lpc n = None → P lpc FailedV) →
+    (incrementPC_gen lpc n = None → P lpc FaultedV) →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
@@ -1102,10 +1102,10 @@ Section instruction_closing.
     dst ∈ dom regs →
     reg_word_ok R C v →
     (match updatePC (update_reg (pc, r, sr, m, st) dst w) with
-     | Some conf => conf | None => (Failed, (pc, r, sr, m, st)) end) = (c, σ') →
+     | Some conf => conf | None => (Faulted, (pc, r, sr, m, st)) end) = (c, σ') →
     reg_phys R v w →
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
-    (incrementPC lpc = None → P lpc regs FailedV) →
+    (incrementPC lpc = None → P lpc regs FaultedV) →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
@@ -1206,8 +1206,8 @@ Ltac instr_fail_close :=
   iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|];
   iIntros "HPC Hmap"; iApply "Hφ"; iFrame; iPureIntro.
 
-(** The same, after substituting the failed configuration given by
-    [Hstep : (Failed, φ) = (c, σ')]. *)
+(** The same, after substituting the faulted configuration given by
+    [Hstep : (Faulted, φ) = (c, σ')]. *)
 Ltac instr_fail Hstep :=
   first [injection Hstep as <- <- | simplify_eq]; instr_fail_close.
 
@@ -1244,17 +1244,17 @@ Section instruction_outcomes.
      about all physical register files that include the erased owned
      registers, so no absent register or memory address can be mistaken for
      evidence of runtime failure. *)
-  #[local] Lemma wp_instr_failed_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
+  #[local] Lemma wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ R r sr m st, lregs_phys R regs r →
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+         (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
-    {{{ RET FailedV;
+    {{{ RET FaultedV;
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -1268,18 +1268,18 @@ Section instruction_outcomes.
   Qed.
 
   (* Failure with PC alone; all resources are returned unchanged. *)
-  Lemma wp_instr_failed_0 E pc_p pc_g pc_b pc_e pc_a pc_π w i dq :
+  Lemma wp_instr_faulted_0 E pc_p pc_g pc_b pc_e pc_a pc_π w i dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st,
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+         (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
+    {{{ RET FaultedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hmem) Hφ".
-    iApply (wp_instr_failed_map _ _ _ _ _ _ _ _ _ ∅ with "[$HPC $Hmem]").
+    iApply (wp_instr_faulted_map _ _ _ _ _ _ _ _ _ ∅ with "[$HPC $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
     - intros R r sr m st _. apply Hfailed.
@@ -1289,19 +1289,19 @@ Section instruction_outcomes.
   Qed.
 
   (* Failure with PC and 1 explicit register; all resources are returned unchanged. *)
-  Lemma wp_instr_failed_1 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 dq :
+  Lemma wp_instr_faulted_1 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st s1, r !! r1 = Some (and_tag s1 w1.(lw)) →
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+         (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ pc_a ↦ₐ{dq} w }}}.
+    {{{ RET FaultedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hmem) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-    iApply (wp_instr_failed_map _ _ _ _ _ _ _ _ _ (<[r1 := w1]> ∅)
+    iApply (wp_instr_faulted_map _ _ _ _ _ _ _ _ _ (<[r1 := w1]> ∅)
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
@@ -1314,20 +1314,20 @@ Section instruction_outcomes.
   Qed.
 
   (* Failure with PC and 2 explicit registers; all resources are returned unchanged. *)
-  Lemma wp_instr_failed_2 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 dq :
+  Lemma wp_instr_faulted_2 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st s1 s2, r !! r1 = Some (and_tag s1 w1.(lw)) →
        r !! r2 = Some (and_tag s2 w2.(lw)) →
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+         (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2 ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ pc_a ↦ₐ{dq} w }}}.
+    {{{ RET FaultedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hr2 & >Hmem) Hφ".
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
-    iApply (wp_instr_failed_map _ _ _ _ _ _ _ _ _ (<[r1 := w1]> (<[r2 := w2]> ∅))
+    iApply (wp_instr_faulted_map _ _ _ _ _ _ _ _ _ (<[r1 := w1]> (<[r2 := w2]> ∅))
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
@@ -1341,21 +1341,21 @@ Section instruction_outcomes.
   Qed.
 
   (* Failure with PC and 3 explicit registers; all resources are returned unchanged. *)
-  Lemma wp_instr_failed_3 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 r3 w3 dq :
+  Lemma wp_instr_faulted_3 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 r3 w3 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st s1 s2 s3, r !! r1 = Some (and_tag s1 w1.(lw)) →
        r !! r2 = Some (and_tag s2 w2.(lw)) →
        r !! r3 = Some (and_tag s3 w3.(lw)) →
        exec i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Failed, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+         (Faulted, (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
           ▷ r1 ↦ᵣ w1 ∗
           ▷ r2 ↦ᵣ w2 ∗
           ▷ r3 ↦ᵣ w3 ∗
           ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET FailedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ RET FaultedV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
           r1 ↦ᵣ w1 ∗
           r2 ↦ᵣ w2 ∗
           r3 ↦ᵣ w3 ∗
@@ -1364,7 +1364,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hr2 & >Hr3 & >Hmem) Hφ".
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap %Hne]".
     destruct Hne as (? & ? & ?).
-    iApply (wp_instr_failed_map _ _ _ _ _ _ _ _ _
+    iApply (wp_instr_faulted_map _ _ _ _ _ _ _ _ _
       (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅)))
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.

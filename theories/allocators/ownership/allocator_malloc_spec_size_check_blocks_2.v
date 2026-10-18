@@ -66,7 +66,7 @@ Section AllocatorMallocSizeCheckBlocks2.
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ φ FailedV ∗
+    ▷ φ FaultedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
@@ -98,7 +98,7 @@ Section AllocatorMallocSizeCheckBlocks2.
     ca1 ↦ᵣ wreq ∗
     ca3 ↦ᵣ wtmp ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ φ FailedV ∗
+    ▷ φ FaultedV ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗

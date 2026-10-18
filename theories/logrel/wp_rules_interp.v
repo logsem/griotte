@@ -52,7 +52,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           ( ∃ p g b e a π ea,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -173,7 +173,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           ( ∃ p g b e a π,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -217,7 +217,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           (∃ ea, ⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
@@ -259,7 +259,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           (⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
@@ -296,7 +296,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           ( ∃ p g b e a π ea,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -411,7 +411,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           ( ∃ p g b e a π,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -451,7 +451,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           (∃ ea, ⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
@@ -489,7 +489,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           (⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
@@ -764,7 +764,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           ( ∃ p g b e a π ea wload,
            ⌜ wsrc = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -917,7 +917,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           ( ∃ p g b e a π wload,
            ⌜ wsrc = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -961,7 +961,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           (∃ ea wload,
               ⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
@@ -1003,7 +1003,7 @@ Section wp_interp.
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
-           ⌜ retv = FailedV ⌝ ∨
+           ⌜ retv = FaultedV ⌝ ∨
           (∃ wload,
               ⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'

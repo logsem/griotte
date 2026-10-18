@@ -68,7 +68,7 @@ Section griotte_lang_rules.
       UnSeal_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | UnSeal_spec_failure :
       UnSeal_failure lpc regs dst src1 src2 lpc' regs' →
-      UnSeal_spec lpc regs dst src1 src2 lpc' regs' FailedV.
+      UnSeal_spec lpc regs dst src1 src2 lpc' regs' FaultedV.
 
   (* The unsealed word keeps the bounds and the permissions of the sealed one
      and never gains a tag. *)

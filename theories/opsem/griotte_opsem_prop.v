@@ -183,7 +183,7 @@ Qed.
   Lemma step_fail_inv (c : ConfFlag) (σ σ': ExecConf) :
     ¬ isCorrectPC (pcc σ) →
     step (Executable, σ) (c, σ') →
-    c = Failed ∧ σ' = σ.
+    c = Faulted ∧ σ' = σ.
   Proof.
     intros HPC Hs. inversion Hs; subst; auto.
     congruence.
@@ -202,7 +202,7 @@ Qed.
   Qed.
 
   Lemma instr_atomic i p φ :
-    ∃ φ', (exec i p φ = (Failed, φ') ) ∨ (exec i p φ = (NextI, φ')) ∨
+    ∃ φ', (exec i p φ = (Faulted, φ') ) ∨ (exec i p φ = (NextI, φ')) ∨
           (exec i p φ = (Halted, φ')).
   Proof.
     unfold exec, exec_opt.

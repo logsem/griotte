@@ -146,7 +146,7 @@ Section Checkra_spec.
           ∗ codefrag_pers pc_a checkra_ )
             -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ □ (▷ φ FailedV)
+    ∗ □ (▷ φ FaultedV)
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkra a_last ; subst checkra a_last.

@@ -105,7 +105,7 @@ Section Switcher_Return_Blocks_1.
       iInstr "Hcode".
 
       (* --- CLoad cgp csp --- *)
-      iInstrApply "Hcode" (wp_instr_failed_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "_".
+      iInstrApply "Hcode" (wp_instr_faulted_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "_".
       { intros r sr m st s1 Hr; by rewrite /exec /= /lookup_reg /= Hr. }
       wp_end; by iIntros (?).
     }
@@ -121,7 +121,7 @@ Section Switcher_Return_Blocks_1.
     iInstr "Hcode".
 
     (* --- CLoad cgp csp --- *)
-    iInstrApply "Hcode" (wp_instr_failed_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "_".
+    iInstrApply "Hcode" (wp_instr_faulted_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "_".
     { intros r sr m st s1 Hr; by rewrite /exec /= /lookup_reg /= Hr. }
     wp_end; by iIntros (?).
   Qed.

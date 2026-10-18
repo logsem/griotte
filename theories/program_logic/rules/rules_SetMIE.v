@@ -41,7 +41,7 @@ Section griotte_lang_rules.
   | SetMIE_spec_failure :
       lpc' = lpc →
       SetMIE_failure lpc →
-      SetMIE_spec lpc lpc' FailedV.
+      SetMIE_spec lpc lpc' FaultedV.
 
   Lemma wp_SetMIE Ep pc_p pc_g pc_b pc_e pc_a pc_π w mie dq :
     decodeInstrW w.(lw) = SetMIE mie →

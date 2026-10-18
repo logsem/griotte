@@ -66,7 +66,7 @@ Section griotte_lang_rules.
       regs' = regs →
       sregs' = sregs →
       SpecialRW_failure lpc →
-      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' FailedV.
+      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' FaultedV.
 
   (** The physical system registers after the write, and the erasure of the
       new logical ones. *)

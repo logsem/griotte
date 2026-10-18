@@ -89,7 +89,7 @@ Section Is_WordType_spec.
             ∗ codefrag_pers pc_a is_int)
               -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ ▷ φ FailedV
+    ∗ ▷ φ FaultedV
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
@@ -141,7 +141,7 @@ Section Is_WordType_spec.
             ∗ codefrag_pers pc_a is_memory_cap)
               -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ ▷ φ FailedV
+    ∗ ▷ φ FaultedV
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
