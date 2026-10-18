@@ -1166,7 +1166,8 @@ Tactic Notation "iInstr" constr(H) := iInstr_success H.
 Tactic Notation "iInstr" constr(H) "with" constr(Hlc) := iInstr_success H with Hlc.
 
 (* Runtime failure of the current instruction: the PC and the operand
-   registers are returned unchanged and the result is [FaultedV]. *)
+   registers are returned unchanged, and the goal is the fault
+   [WP Seq (Instr Faulted) @ E {{ Φ }}], to be closed by [iTrap]. *)
 Tactic Notation "iInstr_fail" constr(H) :=
   instr_using dispatch_instr_failure H "_";
   try solve [instr_auto_solve_failure | by simplify_map_eq].

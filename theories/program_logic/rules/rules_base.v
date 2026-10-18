@@ -1,4 +1,4 @@
-From iris.proofmode Require Import proofmode.
+From iris.proofmode Require Import proofmode environments spec_patterns.
 From iris.base_logic Require Export invariants na_invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth gmap.
@@ -586,7 +586,8 @@ Section griotte_lang_rules.
                                 (match goal with
                                 | H : base_step _ _ _ _ _ _ |- _ => inversion H end).
 
-  #[global] Instance pure_seq_faulted :
+  (* Not an instance: a fault is closed through [wp_trap] only. *)
+  #[local] Lemma pure_seq_faulted :
     PureExec True 1 (Seq (Instr Faulted)) (Instr Faulted).
   Proof. by solve_exec_pure. Qed.
 
@@ -598,7 +599,79 @@ Section griotte_lang_rules.
     PureExec True 1 (Seq (Instr NextI)) (Seq (Instr Executable)).
   Proof. by solve_exec_pure. Qed.
 
+  (* ----------------------------------- TRAPS --------------------------------------- *)
+
+  (* The obligation of a fault: what the thread must provide for the machine
+     to take the fault. Sealed, so that clients only introduce it with
+     [trap_ok_intro] and consume it with [wp_trap]. *)
+  Definition trap_ok_def (E : coPset) (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
+    ▷ Φ FaultedV.
+  #[local] Definition trap_ok_aux : seal (@trap_ok_def). Proof. by eexists. Qed.
+  Definition trap_ok := trap_ok_aux.(unseal).
+  #[local] Definition trap_ok_unseal : @trap_ok = @trap_ok_def := trap_ok_aux.(seal_eq).
+
+  Lemma trap_ok_intro E Φ :
+    ▷ Φ FaultedV -∗
+    trap_ok E Φ.
+  Proof. rewrite trap_ok_unseal. iIntros "HΦ". iExact "HΦ". Qed.
+
+  (* A fault, from the configuration a faulting instruction returns. *)
+  Lemma wp_trap E Φ w :
+    PC ↦ₚ w -∗
+    trap_ok E Φ -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    rewrite trap_ok_unseal /trap_ok_def.
+    iIntros "_ HΦ".
+    iApply (wp_pure_step_later _ _ _ (Instr Faulted) True 1); [apply pure_seq_faulted | done |].
+    iIntros "!> _".
+    by iApply wp_value.
+  Qed.
+
+  (* A fetch fault: the PC is not a correct PC. *)
+  Lemma wp_notCorrectPC_trap E Φ w :
+    ¬ isCorrectPC w.(lw) →
+    PC ↦ₚ w -∗
+    trap_ok E Φ -∗
+    WP Seq (Instr Executable) @ E {{ Φ }}.
+  Proof.
+    iIntros (Hnpc) "HPC Htrap".
+    iApply (wp_bind (fill [SeqCtx])).
+    iApply (wp_notCorrectPC with "HPC"); first done.
+    iIntros "!> HPC /=".
+    iApply (wp_trap with "HPC Htrap").
+  Qed.
+
 End griotte_lang_rules.
+
+(* Closes a fault [WP Seq (Instr Faulted) @ E {{ Φ }}] with [wp_trap], from
+   the PC points-to of the context. The obligation [trap_ok E Φ] is closed by
+   a hypothesis if one matches; otherwise it is introduced with
+   [trap_ok_intro] and [Φ FaultedV] is left to the caller.
+   [iTrap with "H"] closes the obligation by applying ["H"]. *)
+Ltac instr_trap_pc :=
+  lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
+    lazymatch Γs with
+    | context [ Esnoc _ ?hpc (PC ↦ₚ _)%I ] => hpc
+    | _ => fail "iTrap: no PC points-to in the spatial context"
+    end
+  end.
+
+Ltac instr_trap_start :=
+  lazymatch goal with
+  | |- envs_entails _ (wp _ _ (Seq ?e) _) => unify e (Instr Faulted)
+  | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
+  end;
+  let hpc := instr_trap_pc in
+  let pat := constr:(cons (SIdent hpc nil) nil) in
+  iApply (wp_trap with pat).
+
+Tactic Notation "iTrap" :=
+  instr_trap_start;
+  first [ iAssumption | iApply trap_ok_intro; iNext ].
+Tactic Notation "iTrap" "with" constr(H) :=
+  instr_trap_start;
+  iApply H.
 
 (* Splits the points-to of a register map built by inserts into one
    points-to per register; the inserted keys must be provably distinct. *)
