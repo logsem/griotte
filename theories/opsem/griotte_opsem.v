@@ -273,10 +273,9 @@ Section opsem.
            the sealing by the form of the instruction, the execute
            permission. A failed check writes neither the PC, nor the link
            register, nor mstatus. *)
-        if negb (get_tag wrsrc) then None
-        else if negb (jalr_sealing_ok rdst rsrc wrsrc) then None
-        else if negb (executable_word wrsrc) then None
-        else
+        when get_tag wrsrc then
+        when jalr_sealing_ok rdst rsrc wrsrc then
+        when executable_word wrsrc then
         wst ← (sreg φ) !! MSTATUS;
         match pcc φ with
         | (WCap t p g b e a) =>

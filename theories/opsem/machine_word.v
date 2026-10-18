@@ -404,10 +404,11 @@ Definition jalr_target_ok (rdst rsrc : RegName) (w : Word) : bool :=
 
 (** The three checks in the order of cheriot-sail give [jalr_target_ok]. *)
 Lemma jalr_target_checks {A} (rdst rsrc : RegName) (w : Word) (x : option A) :
-  (if negb (get_tag w) then None
-   else if negb (jalr_sealing_ok rdst rsrc w) then None
-   else if negb (executable_word w) then None
-   else x) = (if jalr_target_ok rdst rsrc w then x else None).
+  (if get_tag w then
+     if jalr_sealing_ok rdst rsrc w then
+       if executable_word w then x else None
+     else None
+   else None) = (if jalr_target_ok rdst rsrc w then x else None).
 Proof.
   rewrite /jalr_target_ok.
   by destruct (get_tag w), (jalr_sealing_ok rdst rsrc w), (executable_word w).
