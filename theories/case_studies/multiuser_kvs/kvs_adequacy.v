@@ -17,68 +17,6 @@ From griotte Require Import compartment_layout switcher_adequacy adequacy_helper
 From griotte Require Import allocator_resources heap_region.
 Set Mangle Names.
 
-(** The memory layout of the concrete instance of [kvs_concrete]. *)
-Class memory_layout `{MP: MachineParameters} := {
-
-    (* switcher *)
-    switcher_cmpt : cmptSwitcher;
-
-    (* assert *)
-    assert_cmpt : cmptAssert;
-
-    (* main compartment *)
-    main_cmpt : cmpt ;
-
-    (* kvs compartment *)
-    kvs_cmpt : cmpt ;
-
-    ot_kvs : OType;
-    ot_kvs_size : (ot_kvs < ot_kvs ^+ 1)%ot;
-    ot_kvs_disjoint : ot_kvs ≠ (ot_switcher switcher_cmpt) ;
-
-    kvs_user_key_K : user_key_t;
-    kvs_user_key_B : user_key_t;
-    kvs_user_key_disjoints : kvs_user_key_K ≠ kvs_user_key_B;
-
-    (* adv compartments B *)
-    B_cmpt : cmpt ;
-    offset_adv_f : nat;
-    offset_adv_f_valid :
-      is_Some (cmpt_b_pcc B_cmpt + offset_adv_f%nat)%a;
-
-    (* disjointness *)
-    cmpts_disjoints :
-    main_cmpt ## B_cmpt ∧
-    main_cmpt ## kvs_cmpt ∧
-    kvs_cmpt ## B_cmpt ;
-
-    switcher_cmpt_disjoints :
-    switcher_cmpt_disjoint main_cmpt switcher_cmpt ∧
-    switcher_cmpt_disjoint kvs_cmpt switcher_cmpt ∧
-    switcher_cmpt_disjoint B_cmpt switcher_cmpt ;
-
-    assert_cmpt_disjoints :
-    assert_cmpt_disjoint main_cmpt assert_cmpt ∧
-    assert_cmpt_disjoint kvs_cmpt assert_cmpt ∧
-    assert_cmpt_disjoint B_cmpt assert_cmpt ;
-
-    assert_switcher_disjoints :
-    assert_switcher_disjoint assert_cmpt switcher_cmpt;
-
-  }.
-#[export] Hint Mode memory_layout - : typeclass_instances.
-
-Definition mk_initial_program_memory `{memory_layout} :=
-  mk_initial_switcher switcher_cmpt ∪
-    mk_initial_assert assert_cmpt ∪
-    mk_initial_cmpt main_cmpt ∪
-    mk_initial_cmpt kvs_cmpt ∪
-    mk_initial_cmpt B_cmpt.
-
-(** Initial allocator memory is separate from all compartment resources. *)
-Definition mk_initial_memory `{memory_layout} : Mem :=
-  initial_heap_memory ∪ mk_initial_program_memory.
-
 Section kvs_obligations.
   Context {Σ : gFunctors}.
   Context {kvs_alloc_preg : gen_heapGpreS user_key_t kvs_user_map Σ}.
