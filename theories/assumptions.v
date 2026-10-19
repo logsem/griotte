@@ -10,12 +10,12 @@ From griotte Require
 .
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout
-  kvs kvs_main cmdc deep_locality.
+  kvs kvs_main cmdc deep_locality deep_immutability.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import
   image firmware firmware_ok print
-  kvs_firmware cmdc_firmware dle_firmware
-  kvs_concrete cmdc_concrete deep_locality_concrete.
+  kvs_firmware cmdc_firmware dle_firmware droe_firmware
+  kvs_concrete cmdc_concrete deep_locality_concrete deep_immutability_concrete.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
@@ -119,6 +119,23 @@ End dle_memory_map.
 Goal True. idtac "
 Assumptions of the deep immutability end-to-end theorem:". Abort.
 Print Assumptions deep_immutability_adequacy.droe_adequacy.
+
+Print droe_initial_state_ok.
+
+Section droe_initial_state.
+  Import FwPrintNotations.
+  Open Scope string_scope.
+  Open Scope OType_scope.
+  Open Scope Addr_scope.
+  Ltac2 Eval print_initial_state constr:(@droe_initial_state_ok_annot).
+End droe_initial_state.
+
+Section droe_memory_map.
+  Import FwMapNotations.
+  Open Scope string_scope.
+  Open Scope Z_scope.
+  Ltac2 Eval print_memory_map constr:(droe_demo_image).
+End droe_memory_map.
 *)
 
 (** ** Protection against dangling pointers (LSE downward) *)

@@ -1,4 +1,8 @@
 From iris.proofmode Require Import proofmode.
+(* Imported first: the fields of the layout records of [compartment_layout]
+   and [switcher] shadow those of the image records. *)
+From griotte Require Import image firmware firmware_ok firmware_adequacy firmware_obligations
+  droe_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import deep_immutability deep_immutability_spec.
 From griotte Require Import switcher assert_spec logrel.
@@ -11,341 +15,119 @@ From griotte Require Import disjoint_regions_tactics.
 From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
+Set Mangle Names.
 
-Class memory_layout `{MP: MachineParameters} := {
+Section droe_obligations.
+  Context {Σ : gFunctors}.
+  Context {cname : CmptNameG} {C : CmptName}.
+  Context `{MP : MachineParameters}.
 
-    (* switcher *)
-    switcher_cmpt : cmptSwitcher;
-
-    (* assert *)
-    assert_cmpt : cmptAssert;
-
-    (* main compartment *)
-    main_cmpt : cmpt ;
-
-    (* adv compartments C *)
-    C_cmpt : cmpt ;
-
-    (* disjointness *)
-    cmpts_disjoints :
-    main_cmpt ## C_cmpt ;
-
-    switcher_cmpt_disjoints :
-    switcher_cmpt_disjoint main_cmpt switcher_cmpt
-    ∧ switcher_cmpt_disjoint C_cmpt switcher_cmpt ;
-
-    assert_cmpt_disjoints :
-    assert_cmpt_disjoint main_cmpt assert_cmpt
-    ∧ assert_cmpt_disjoint C_cmpt assert_cmpt ;
-
-    assert_switcher_disjoints :
-    assert_switcher_disjoint assert_cmpt switcher_cmpt;
-  }.
-#[export] Hint Mode memory_layout - : typeclass_instances.
-
-#[local] Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
-Proof.
-  exact (cmptSwitcher_switcherLayout switcher_cmpt).
-Defined.
-
-#[local] Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
-Proof.
-  pose proof (ot_switcher_size switcher_cmpt).
-  pose proof (switcher_size switcher_cmpt).
-  pose proof (switcher_call_entry_point switcher_cmpt).
-  pose proof (switcher_return_entry_point switcher_cmpt).
-  pose proof (trusted_stack_disjoint_from_shadow switcher_cmpt).
-  pose proof (switcher_base_not_shadow switcher_cmpt).
-  pose proof (compartment_layout.switcher_not_heap_range switcher_cmpt).
-  pose proof (compartment_layout.trusted_stack_not_heap switcher_cmpt).
-  pose proof (compartment_layout.trusted_stack_frames_fit switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _ _ _); cbn in *; auto.
-Defined.
-
-#[local] Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
-Proof.
-  exact (cmptAssert_assertLayout assert_cmpt).
-Defined.
-
-Definition mk_initial_program_memory `{memory_layout} :=
-  mk_initial_switcher switcher_cmpt ∪
-    mk_initial_assert assert_cmpt ∪
-    mk_initial_cmpt main_cmpt ∪
-    mk_initial_cmpt C_cmpt.
-
-(** Initial allocator memory is separate from all compartment resources. *)
-Definition mk_initial_memory `{memory_layout} : Mem :=
-  initial_heap_memory ∪ mk_initial_program_memory.
-
-
-Definition is_initial_registers `{memory_layout} := is_initial_registers_of switcher_cmpt main_cmpt.
-
-Definition is_initial_sregisters `{@memory_layout MP} := is_initial_sregisters_of switcher_cmpt.
-
-Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
-  let b_switcher := (b_switcher switcher_cmpt) in
-  let e_switcher := (e_switcher switcher_cmpt) in
-  let a_switcher_call := (a_switcher_call switcher_cmpt) in
-  let ot_switcher := (ot_switcher switcher_cmpt) in
-  let switcher_entry :=
-    WSentry FwdDisable true XSRW_ Local
-      b_switcher
-      e_switcher
-      a_switcher_call
-  in
-  let C_f :=
-    SCap true RO Global
-      (cmpt_exp_tbl_pcc C_cmpt)
-      (cmpt_exp_tbl_entries_end C_cmpt)
-      (cmpt_exp_tbl_entries_start C_cmpt)
-  in
-
-  mem = mk_initial_memory
-  (* instantiating main *)
-  ∧ (cmpt_imports main_cmpt) = droe_main_imports C_f
-  ∧ (cmpt_code main_cmpt) = droe_main_code
-  ∧ (cmpt_data main_cmpt) = droe_main_data
-  ∧ (cmpt_exp_tbl_entries main_cmpt) = []
-  ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed main_cmpt)
-
-  (* instantiating C *)
-  ∧ (cmpt_imports C_cmpt) = [switcher_entry]
-  ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
-  ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point InterruptEnabled 1 1)]
-  ∧ Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) (cmpt_static_sealed C_cmpt)
-
-  (* initial stack *)
-  ∧ Forall is_z (stack_content switcher_cmpt)
-.
-
-Lemma mk_initial_cmpt_C_disjoint `{Layout: @memory_layout MP} (m : Mem) :
-  mk_initial_switcher switcher_cmpt ∪ mk_initial_assert assert_cmpt ∪ mk_initial_cmpt main_cmpt
-    ##ₘ mk_initial_cmpt C_cmpt.
-Proof.
-  pose proof cmpts_disjoints as HmainC.
-  pose proof switcher_cmpt_disjoints as (_ & HswitcherC).
-  pose proof assert_cmpt_disjoints as ( _ & HassertC).
-  do 2 rewrite map_disjoint_union_l.
-  repeat split.
-  - symmetry; apply disjoint_switcher_cmpts_mkinitial; done.
-  - symmetry; apply disjoint_assert_cmpts_mkinitial; done.
-  - apply disjoint_cmpts_mkinitial; done.
-Qed.
-
-Lemma mk_initial_cmpt_main_disjoint `{Layout: @memory_layout MP} (m : Mem) :
-  mk_initial_switcher switcher_cmpt ∪ mk_initial_assert assert_cmpt
-    ##ₘ mk_initial_cmpt main_cmpt.
-Proof.
-  pose proof switcher_cmpt_disjoints as (HswitcherMain & _).
-  pose proof assert_cmpt_disjoints as (HassertMain & _).
-  rewrite map_disjoint_union_l.
-  repeat split.
-  - symmetry; apply disjoint_switcher_cmpts_mkinitial; done.
-  - symmetry; apply disjoint_assert_cmpts_mkinitial; done.
-Qed.
-
-Section Adequacy.
-  Context (Σ: gFunctors).
-  Context {cname : CmptNameG}.
-  Context {C : CmptName}.
-  Context {inv_preg: invGpreS Σ}.
-  Context {cerise_preg : ceriseGpreS Σ}.
-  Context {entry_preg : entryGpreS Σ}.
-  Context {seal_store_preg: sealStorePreG Σ}.
-  Context {na_invg: na_invariants.na_invG Σ}.
-  Context {sts_preg: STS_preG LAddr region_type OType LWord Σ}.
-  Context {cstack_preg: CSTACK_preG Σ }.
-  Context {relpreg: relGpreS Σ}.
-  Context `{MP: MachineParameters}.
-  Context { HCNames : CNames = (list_to_set [C]) }.
-
-  Definition flagN : namespace := nroot .@ "droe" .@ "fail_flag".
-  Definition switcherN : namespace := nroot .@ "droe" .@ "switcher_flag".
-  Definition assertN : namespace := nroot .@ "droe" .@ "assert_flag".
-
-
-  Lemma droe_adequacy' `{Layout: @memory_layout MP}
-    (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
-    (es: list griotte_lang.expr):
-    is_initial_registers pc reg →
-    is_initial_sregisters sreg →
-    is_initial_memory m →
-    sh = initial_heap_shadow →
-    initial_heap_memory ##ₘ mk_initial_program_memory →
-    rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
-    m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
+  (** The obligations of the trusted code of the deep-immutability firmware:
+      the thread runs safely from the export of [main], the untrusted
+      compartment ["C"] being owned by the logical compartment [C]. *)
+  Lemma droe_fw_obligations :
+    fw_obligations Σ droe_firmware.
   Proof.
-    intros Hreg Hsreg Hm Hshadow_initial Hheap_disjoint Hstep.
-    destruct Hm as (Hm
-                    & main_imports & main_code & main_data & main_exp_tbl & main_static
-                    & C_imports & C_code & C_data & C_exp_tbl & C_static
-                    & Hstack
-                   ).
-    set (C_f := cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt)).
+    apply fw_obligations_of; first reflexivity.
+    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
 
-    (* Iris adequacy: the program-logic resources of the initial state *)
-    eapply (cerise_flag_adequacy Σ (ot_switcher switcher_cmpt) [(C_f, 1)]
-              flagN (flag_assert assert_cmpt) ∅);
-      [apply NoDup_singleton | by repeat constructor | | | | exact Hstep].
-    { (* No allocator: the initial configuration has no heap root. *)
-      subst sh m.
-      apply (ghost_init_cond_initial_layout switcher_cmpt assert_cmpt main_cmpt
-             [main_cmpt; C_cmpt]);
-        [done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |
-         | eapply (mem_exec_ok_initial_cmpts switcher_cmpt assert_cmpt);
-             [exact Hheap_disjoint | solve_initial_exec_cmpts] ].
-      repeat constructor.
-      - apply mem_rooted_initial_cmpt.
-        + rewrite main_imports. repeat constructor; apply word_rooted_not_heap_cap.
-          * apply switcher_call_sentry_not_heap.
-          * rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
-            by rewrite (assert_code_nonheap assert_cmpt).
-          * apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap.
-        + rewrite main_code /droe_main_code !Forall_app.
-          repeat split; (apply word_rooted_instrs || apply Forall_nil_2).
-        + rewrite main_data /droe_main_data. repeat constructor; apply word_rooted_int.
-        + apply word_rooted_not_heap_caps.
-          eapply Forall_impl; first done. by intros ? [? _].
-        + rewrite main_exp_tbl. apply Forall_nil_2.
-      - apply mem_rooted_initial_cmpt.
-        + rewrite C_imports. repeat constructor; apply word_rooted_not_heap_cap.
-          exact switcher_call_sentry_not_heap.
-        + by apply word_rooted_ints.
-        + eapply Forall_impl; first exact C_data.
-          intros w Hw. by eapply word_rooted_initial_data.
-        + apply word_rooted_not_heap_caps.
-          eapply Forall_impl; first done. by intros ? [? _].
-        + rewrite C_exp_tbl. repeat constructor; apply word_rooted_int. }
-    { destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
-    iIntros (ceriseg) "HPC Hreg Hsreg Hmem _ _ Hna [[#Hentry_Cf #Hentry_Cf'] _]".
-    iMod (initialise_world [C] {[ ot_switcher switcher_cmpt ]})
-      as (seal_storeg relg stsg cstackg) "(Hseal_store & Hcstk_full & Hcstk_frag & [Hworld_interp_C _])";
-      [done | apply NoDup_singleton |].
+    (* 1 - The contents and the layouts of the compartments *)
+    pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
+    cbv [cmpt_ok section body_ok fc_name fc_body fc_imports fc_static_sealed fw_imap
+      fw_imap_from fw_word_of note addr_off nat_str chunks_words export_word
+      fe_offset fe_nargs fe_posture] in Hok_main.
+    destruct Hok_main as (main_imports & _ & main_code & main_data & _).
+    pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
+    pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HC_l.
+    pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
+    pose proof (fw_cmpts_disjoint_at _ _ _ 0 1 _ _ Hmain_l HC_l Hok ltac:(done) eq_refl eq_refl)
+      as HmainC.
+    pose proof (fw_switcher_cmpt_disjoint_at _ _ _ Hok 0 _ Hmain_l eq_refl) as Hsw_main.
+    cbn [fc_name] in Hmain_l, HC_l, HmainC, Hsw_main.
+    set (main_cmpt := layout_cmpt_of (cmpt_of img "main") Hmain_l) in *.
+    set (C_cmpt := layout_cmpt_of (cmpt_of img "C") HC_l) in *.
+    set (swc := fw_switcher_cmpt _ _ _ Hok) in *.
+    set (swl := fw_switcher_layout img) in *.
+    set (asl := fw_assert_layout img).
 
-    (* Get initial sregister mtdc *)
-    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first by apply lookup_sregs_handed_out_mtdc, Hsreg.
+    (* 2 - The export entry of C, imported by main *)
+    set (C_f := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+                  (cmpt_exp_tbl_entries_start C_cmpt)).
+    assert (cmpt_export_sb (cmpt_of img "C") 0 = C_f) as HsbC.
+    { by rewrite /cmpt_export_sb /C_f /=. }
+    assert (image.cmpt_imports (cmpt_of img "main") = @droe_main_imports swl asl C_f)
+      as main_imports'.
+    { rewrite main_imports /droe_main_imports. done. }
 
-    (* Separate the initial heap from the compartments *)
-    rewrite Hm /mk_initial_memory.
-    iDestruct (big_sepM_union with "Hmem") as "[_ Hmem]"; first exact Hheap_disjoint.
+    (* 3 - The resources of the image *)
+    iIntros "Hres". iNamed "Hres".
+    iEval (cbv [droe_firmware fw_cmpts]) in "Hcmpts".
+    iDestruct "Hcmpts" as "((Hmain & _ & _) & (HC & _ & #HC_pers) & _)".
+    cbn [fc_name].
+    change (fw_entry_cmpt droe_firmware img 0) with (cmpt_of img "main").
+    iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
+      first exact Hmain_l.
+    rewrite main_imports' main_code main_data.
+    iPoseProof "HC_pers" as "(_ & _ & _ & HC_entries)".
+    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name]) in "HC_entries".
+    iEval (rewrite HsbC /=) in "HC_entries".
+    iDestruct "HC_entries" as "([#Hentry_Cf #Hentry_Cf'] & _)".
+    iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
+    { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
-    (* Separate all compartments *)
-    rewrite /mk_initial_program_memory.
-    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_C]".
-    { eapply mk_initial_cmpt_C_disjoint; eauto. }
-    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_main]".
-    { eapply mk_initial_cmpt_main_disjoint; eauto. }
-    iDestruct (big_sepM_union with "Hmem") as "[Hcmpt_switcher Hcmpt_assert]".
-    { pose proof assert_switcher_disjoints; symmetry; eapply disjoint_assert_switcher_mkinitial ; eauto. }
+    (* 4 - Close the world of C: its compartment becomes permanent, and the
+       stack temporary, because main shares it with C; its export is safe
+       to share. *)
+    iMod (fw_close_adv_world _ _ _ 1 (fw_nth 1 (fw_cmpts droe_firmware) default_fw_cmpt) _ _
+            HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; lia) ltac:(done)
+           with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")
+      as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
+    { iIntros "_". iSplit; last done.
+      by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static"). }
+    iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
+    cbn [fc_name fw_nth fw_cmpts droe_firmware]. rewrite HsbC.
+    fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.
 
-    (* Assert *)
-    iMod ( initialise_assert_compartment (Σ := Σ) _ flagN with "Hcmpt_assert" )
-      as "[#Hassert_flag #Hassert]".
-
-    (* Switcher *)
-    rewrite big_sepS_singleton.
-    iMod ( initialise_switcher_compartment (Σ := Σ) _ switcherN with "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc" )
-      as "(#Hsealed_pred_ot_switcher & #Hswitcher & #Hswitcher_static & Hstack)".
-
-    (* CMPT C *)
-    iMod (initialise_adversary_compartment (Σ := Σ) _ with "Hcmpt_C")
-      as "(HC_imports & HC_code & HC_data & _ & #HC_etbl_pcc & #HC_etbl_cgp & #HC_etbl_entries)".
-
-    (* CMPT MAIN *)
-    iMod (initialise_compartment_pers (Σ := Σ) with "Hcmpt_main")
-      as "(#Hmain_imports & #Hmain_code & Hmain_data & _ & _ & _ & _)".
-    rewrite main_imports main_code main_data.
-
-    (* Initialises the world for C *)
-    pose proof switcher_cmpt_disjoints as (Hsw_main & Hsw_C).
-    iMod (initialise_adversary_world _ switcher_cmpt _ C
-           with "Hsealed_pred_ot_switcher HC_imports HC_code HC_data Hstack [] [] Hworld_interp_C")
-      as "(Hworld_interp_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)";
-      [auto..| | |].
-    { (* The exported entry C.f satisfies the sealing predicate of the switcher *)
-      assert (is_Some (cmpt_b_pcc C_cmpt + 1%nat)%a) as Hentry_C.
-      { exists (cmpt_a_code C_cmpt).
-        pose proof (cmpt_import_size C_cmpt) as Himports_size.
-        by rewrite C_imports /= in Himports_size. }
-      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, 1, 1)]
-               with "Hswitcher Hswitcher_static HC_etbl_pcc HC_etbl_cgp HC_etbl_entries");
-        [by rewrite C_exp_tbl | by repeat constructor | by apply Forall_singleton |].
-      rewrite /= finz_add_0_default; iFrame "Hentry_Cf Hentry_Cf'".
-    }
-    { rewrite C_imports.
-      iIntros "_".
-      iSplit; last done.
-      assert (heap_authority_base
-        (WSentry FwdDisable true XSRW_ Local (b_switcher switcher_cmpt)
-          (e_switcher switcher_cmpt) (a_switcher_call switcher_cmpt)) = None) as Hcall_nonheap.
-      { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
-        apply heap_authority_base_heap_cap_base in Hauth.
-        pose proof switcher_call_sentry_not_heap as Hnonheap.
-        unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
-      iEval (cbn); iSplit.
-      { iEval (rewrite /interp_in_mem_pre /=).
-        rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-        iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
-      { iIntros "!>" (W W' Hrel) "H".
-        iEval (rewrite /interp_in_mem_pre /=).
-        rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-        iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
-    }
-    iAssert (interp (adv_world (∅, (∅, ∅), ∅, ∅) switcher_cmpt C_cmpt) C
-               (WSealed (ot_switcher switcher_cmpt) C_f)) as "#Hinterp_C".
-    { iApply (adversary_export_interp _ _ _ 0 with "HC_exports").
-      - solve_addr.
-      - rewrite C_exp_tbl /=; lia.
-    }
-
-    (* Extract registers *)
-    iDestruct (initial_registers_split with "[$HPC $Hreg]")
-      as (rmap) "(HPC & Hcgp & Hcsp & Hrmap & %Hrmap_dom & %Hrmap_zero)"; first exact Hreg.
-    pose proof (main_spec_size_obligations _ _ _ _ main_imports main_code main_data)
+    (* 5 - We can apply the specification! *)
+    pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
-
-    iPoseProof (@droe_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ C
-                  _ _ _ _ _ _ _ _ _ _ [] [] switcherN []
+    iPoseProof (droe_spec (swlayout := swl) (assertlayout := asl) (C := C)
+                  _ _ _ _ _ _ _ _ _ _ [] [] fw_switcherN []
                  with "[ $Hassert $Hswitcher $Hswitcher_static $Hna
-                        $Hworld_interp_C
-                        $HPC $Hcgp $Hcsp $Hrmap
+                        $Hworld_C
+                        $HPC $Hcgp $Hcsp $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data
-                        $Hinterp_C $Hcstk_frag
+                        $Hinterp_C $Hcstk
                         $Hentry_Cf $Hinterp_stack_C
-                        ]") as "Hspec"; eauto.
+                        ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_disjoint_from_mmio main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
-    { rewrite (Hrmap_zero cra) //. rewrite Hrmap_dom; clear; set_solver. }
-    { rewrite (Hrmap_zero cs1) //. rewrite Hrmap_dom; clear; set_solver. }
-    { apply (main_cgp_not_in_adv_world _ _ _ main_cmpt).
-      - apply cmpts_disjoints.
-      - done.
+    { intros r Hr. by rewrite fw_cleared_regs_lookup. }
+    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }
-    { apply (main_cgp_not_in_adv_world _ _ _ main_cmpt).
-      - apply cmpts_disjoints.
-      - done.
+    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { done. }
-
-    iModIntro; iFrame "Hassert_flag".
+    iModIntro.
     iApply (wp_mono with "Hspec"); auto.
   Qed.
-End Adequacy.
+End droe_obligations.
 
-Inductive CmptNames_droe := | B .
+(** We initialise concretely the compartments name typeclass. *)
+
+Inductive CmptNames_droe := | C.
 #[local] Instance CmptNames_droe_eq_dec : EqDecision CmptNames_droe.
-Proof. intros C C'; destruct C,C'; solve_decision. Qed.
+Proof. intros C1 C2; destruct C1, C2; solve_decision. Qed.
 #[local] Instance CmptNames_droe_finite : finite.Finite CmptNames_droe.
 Proof.
-  refine {| finite.enum := [B] |}.
+  refine {| finite.enum := [C] |}.
   + apply NoDup_singleton.
   + intros []; left.
 Defined.
@@ -353,26 +135,23 @@ Defined.
 #[local] Program Instance CmptNames_droe_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_droe; |}.
 
+(** The logical compartment of the adversary. *)
+Definition droe_adv_C : @CmptName CmptNames_droe_CmptNameG := C.
+
+(* The fields of the image records, for the end-to-end statement. *)
+Import image.
+
 (** END-TO-END THEOREM *)
-Theorem droe_adequacy `{Layout: memory_layout}
-  (pc pc' : Word) (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
-  (es: list griotte_lang.expr):
-  is_initial_registers pc reg →
-  is_initial_sregisters sreg →
-  is_initial_memory m →
-    sh = initial_heap_shadow →
-    initial_heap_memory ##ₘ mk_initial_program_memory →
-  rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
-  m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
+Theorem droe_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
+  droe_initial_state_ok flag σ →
+  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  mem σ' !! flag = Some (WInt 0).
 Proof.
-  intros ? ? ? ? ? ?.
-  set ( cnames := CmptNames_droe_CmptNameG ).
-  set (Σ := #[invΣ
-              ; ceriseGpreΣ
-              ; entryPreΣ ; CSTACK_preΣ
-              ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ LAddr region_type OType LWord ; relPreΣ
-              ; savedPredΣ (WorldT * CmptName * LWord)
-      ]).
-  eapply (@droe_adequacy' Σ cnames B); eauto; try typeclasses eauto.
+  intros Hok Hstep.
+  destruct (droe_initial_state_ok_firmware_ok _ _ Hok)
+    as (sw & asrt & t0 & main & C & <- & Hfw).
+  eapply (firmware_adequacy_closed (Cname := CmptNames_droe_CmptNameG) #[]
+            droe_firmware (droe_img sw asrt t0 main C));
+    [| exact Hfw | exact Hstep].
+  apply (droe_fw_obligations (C := droe_adv_C)).
 Qed.
