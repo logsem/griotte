@@ -1,87 +1,30 @@
-From griotte.program_logic Require Import allocator_resources.
-From iris.program_logic Require Import adequacy.
+From stdpp Require Import gmap strings.
+From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
-  registers griotte_lang machine_run switcher assert compartment_layout
-  deep_locality deep_locality_adequacy
-  disjoint_regions_tactics.
-From griotte Require Import adequacy_common.
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  switcher assert allocator_resources compartment_layout
+  deep_locality deep_locality_adequacy.
+(* Imported last: the fields of the image records. *)
+From griotte Require Import image firmware firmware_ok image_state link print dle_firmware.
+Set Mangle Names.
 
 #[export] Existing Instance machine_parameters_instance.
-
 #[local] Transparent MemNum ONum.
+#[local] Open Scope string_scope.
 
-#[local] Notation "'A' z" :=
-  (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-#[local] Notation "'OT' z" :=
-  (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
+(** * A concrete instance of the deep-locality case study
 
-Definition dle_main_pcc_b : Addr := A 9.
-Definition dle_main_code_start : Addr := A 12.
-Definition dle_main_pcc_e : Addr := A 46.
-Definition dle_main_data_b : Addr := A 74.
-Definition dle_main_data_e : Addr := A 76.
-Definition dle_main_exports_pcc : Addr := A 77.
-Definition dle_main_exports_cgp : Addr := A 78.
-Definition dle_main_exports_entries_b : Addr := A 79.
-Definition dle_main_exports_entries_e : Addr := A 79.
+    The deep-locality firmware with a concrete adversary [C], laid out by
+    the linker. Its initial state satisfies [dle_initial_state_ok] by
+    computation, runs to [Halted], and [dle_adequacy] applies to it. *)
 
-Definition dle_C_pcc_b : Addr := A 67.
-Definition dle_C_code_start : Addr := A 68.
-Definition dle_C_pcc_e : Addr := A 74.
-Definition dle_C_data_b : Addr := A 76.
-Definition dle_C_data_e : Addr := A 77.
-Definition dle_C_exports_pcc : Addr := A 79.
-Definition dle_C_exports_cgp : Addr := A 80.
-Definition dle_C_exports_entries_b : Addr := A 81.
-Definition dle_C_exports_entries_e : Addr := A 82.
-
-Definition dle_assert_b : Addr := A 82.
-Definition dle_assert_cap : Addr := A 93.
-Definition dle_assert_e : Addr := A 94.
-Definition dle_assert_flag : Addr := A 94.
-
-Definition dle_switcher_b : Addr := A 96.
-Definition dle_switcher_call : Addr := A 97.
-Definition dle_switcher_return : Addr := A 175.
-Definition dle_switcher_e : Addr := A 233.
-Definition dle_switcher_sealing_type : OType := OT 9.
-
-Definition dle_trusted_stack_b : Addr := A 4096.
-Definition dle_trusted_stack_e : Addr := A 4194.
-Definition dle_stack_b : Addr := A 1024.
-Definition dle_stack_e : Addr := A 1124.
-
-Ltac unfold_dle_addresses :=
-  unfold dle_main_pcc_b, dle_main_code_start, dle_main_pcc_e,
-    dle_main_data_b, dle_main_data_e, dle_main_exports_pcc,
-    dle_main_exports_cgp, dle_main_exports_entries_b,
-    dle_main_exports_entries_e, dle_C_pcc_b, dle_C_code_start,
-    dle_C_pcc_e, dle_C_data_b, dle_C_data_e, dle_C_exports_pcc,
-    dle_C_exports_cgp, dle_C_exports_entries_b,
-    dle_C_exports_entries_e, dle_assert_b, dle_assert_cap,
-    dle_assert_e, dle_assert_flag, dle_switcher_b, dle_switcher_call,
-    dle_switcher_return, dle_switcher_e, dle_switcher_sealing_type,
-    dle_trusted_stack_b, dle_trusted_stack_e, dle_stack_b,
-    dle_stack_e.
-
-Ltac unfold_dle_addresses_in H :=
-  unfold dle_main_pcc_b, dle_main_code_start, dle_main_pcc_e,
-    dle_main_data_b, dle_main_data_e, dle_main_exports_pcc,
-    dle_main_exports_cgp, dle_main_exports_entries_b,
-    dle_main_exports_entries_e, dle_C_pcc_b, dle_C_code_start,
-    dle_C_pcc_e, dle_C_data_b, dle_C_data_e, dle_C_exports_pcc,
-    dle_C_exports_cgp, dle_C_exports_entries_b,
-    dle_C_exports_entries_e, dle_assert_b, dle_assert_cap,
-    dle_assert_e, dle_assert_flag, dle_switcher_b, dle_switcher_call,
-    dle_switcher_return, dle_switcher_e, dle_switcher_sealing_type,
-    dle_trusted_stack_b, dle_trusted_stack_e, dle_stack_b,
-    dle_stack_e in H.
+Definition dle_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
 (** The concrete adversary examines the argument passed in [ca0]. If it is a
     capability, the adversary follows it to the nested capability and attempts
     to overwrite the nested address with [7]; otherwise it simply returns. This
-    instantiates the unknown compartment with a direct attack on deep locality. *)
+    instantiates the unknown compartment with a direct attack on deep locality.
+    It has one zeroed global, and its entry point right after its import. *)
 Definition dle_C_code : list Word :=
   encodeInstrsW [
     GetWType ct0 ca0;
@@ -94,417 +37,65 @@ Definition dle_C_code : list Word :=
 
 Definition dle_C_data : list Word := [WInt 0].
 
-Definition dle_C_imports : list Word :=
-  [WSentry FwdDisable true XSRW_ Local dle_switcher_b dle_switcher_e dle_switcher_call].
+Definition dle_demo_link_cfg : link_cfg :=
+  MkLinkCfg 16 dle_switcher_sealing_type
+    [("C", MkLinkAdv dle_C_code dle_C_data [1])].
 
-Definition dle_C_exports : list Word :=
-  [WInt (encode_entry_point InterruptEnabled 1 1)].
+(** ** The linked image and its initial state *)
 
-Program Definition dle_concrete_cmptSwitcher : cmptSwitcher.
+Definition dle_demo_image : fw_image :=
+  Eval vm_compute in
+    default (place dle_demo_link_cfg dle_firmware).1
+      (link dle_demo_link_cfg dle_firmware).
+
+Lemma dle_demo_linked :
+  link dle_demo_link_cfg dle_firmware = Some dle_demo_image.
+Proof. vm_compute; reflexivity. Qed.
+
+Definition dle_demo_state : ExecConf := img_state dle_firmware dle_demo_image.
+
+Ltac solve_other_registers :=
+  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
+  rewrite !lookup_insert_ne; try set_solver;
+  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
+
+Lemma dle_demo_ok :
+  dle_initial_state_ok (img_sw dle_demo_image) (img_asrt dle_demo_image)
+    (thread_of dle_demo_image 0) (cmpt_of dle_demo_image "main")
+    (cmpt_of dle_demo_image "C") dle_demo_state.
 Proof.
-  refine (@mkCmptSwitcher machine_parameters_instance
-    dle_switcher_b dle_switcher_e
-    dle_switcher_call dle_switcher_return dle_switcher_sealing_type
-    dle_trusted_stack_b dle_trusted_stack_e
-    _ _ _ _
-    (initial_trusted_stack_content (WInt 0) (WInt 0) 24) _ eq_refl
-    ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_words; apply trusted_stack_word_int)
-    dle_stack_b dle_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_dle_addresses.
-    repeat split; unfold disjoint, set_disjoint_instance;
-      intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
-      solve_addr.
-  - solve_disjoint_from_mmio.
-  - reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-Defined.
-
-Program Definition dle_concrete_cmptAssert : cmptAssert.
-Proof.
-  refine (@mkCmptAssert machine_parameters_instance
-    dle_assert_b dle_assert_e dle_assert_cap dle_assert_flag _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; reflexivity.
-  - unfold_dle_addresses.
-    unfold disjoint, set_disjoint_instance.
-    intros x Hx Hx'.
-    rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    solve_addr.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-Defined.
-
-#[local] Instance dle_concrete_switcherLayout : switcherLayout.
-Proof.
-  exact (cmptSwitcher_switcherLayout dle_concrete_cmptSwitcher).
-Defined.
-
-#[local] Instance dle_concrete_assertLayout : assertLayout.
-Proof.
-  exact (cmptAssert_assertLayout dle_concrete_cmptAssert).
-Defined.
-
-Definition dle_C_f : Sealable :=
-  SCap true RO Global dle_C_exports_pcc dle_C_exports_entries_e
-    dle_C_exports_entries_b.
-
-Definition dle_main_imports_concrete : list Word :=
-  dle_main_imports dle_C_f.
-
-Program Definition dle_concrete_main_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance
-    dle_main_pcc_b dle_main_code_start dle_main_pcc_e
-    dle_main_data_b dle_main_data_e dle_main_data_e dle_main_data_e
-    dle_main_exports_pcc dle_main_exports_cgp
-    dle_main_exports_entries_b dle_main_exports_entries_e
-    dle_main_imports_concrete dle_main_code dle_main_data [] []
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_dle_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Program Definition dle_concrete_C_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance
-    dle_C_pcc_b dle_C_code_start dle_C_pcc_e
-    dle_C_data_b dle_C_data_e dle_C_data_e dle_C_data_e
-    dle_C_exports_pcc dle_C_exports_cgp
-    dle_C_exports_entries_b dle_C_exports_entries_e
-    dle_C_imports dle_C_code dle_C_data [] dle_C_exports
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_dle_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-(** All nonempty concrete regions, in increasing address order. The two
-    compartment static-sealed ranges are empty and deliberately omitted. *)
-Definition dle_concrete_region_partition : list (list Addr) :=
-  [ finz.seq_between dle_main_pcc_b dle_main_pcc_e;
-    finz.seq_between dle_C_pcc_b dle_C_pcc_e;
-    finz.seq_between dle_main_data_b dle_main_data_e;
-    finz.seq_between dle_C_data_b dle_C_data_e;
-    finz.seq_between dle_main_exports_pcc dle_main_exports_entries_e;
-    finz.seq_between dle_C_exports_pcc dle_C_exports_entries_e;
-    finz.seq_between dle_assert_b dle_assert_cap;
-    finz.seq_between dle_assert_cap dle_assert_e;
-    finz.seq_between dle_assert_flag (dle_assert_flag ^+ 1)%a;
-    finz.seq_between dle_switcher_b dle_switcher_e;
-    finz.seq_between dle_stack_b dle_stack_e;
-    finz.seq_between dle_trusted_stack_b dle_trusted_stack_e
-  ].
-
-Lemma dle_concrete_region_partition_disjoint :
-  ## dle_concrete_region_partition.
-Proof.
-  rewrite /dle_concrete_region_partition.
-  unfold_dle_addresses.
-  disj_regions.
+  rewrite /dle_initial_state_ok.
+  split_and!.
+  all: try (exists 1%nat; split_and!).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /dle_demo_state /img_state /img_regs; solve_other_registers
+            end).
+  all: solve_concrete_condition.
 Qed.
 
-#[local] Lemma dle_concrete_cmpts_disjoints :
-  dle_concrete_main_cmpt ## dle_concrete_C_cmpt.
-Proof.
-  change
-    ((finz.seq_between dle_main_pcc_b dle_main_pcc_e ∪
-      finz.seq_between dle_main_data_b dle_main_data_e ∪
-      finz.seq_between dle_main_data_e dle_main_data_e ∪
-      finz.seq_between dle_main_exports_pcc dle_main_exports_entries_e)
-       ##
-     (finz.seq_between dle_C_pcc_b dle_C_pcc_e ∪
-      finz.seq_between dle_C_data_b dle_C_data_e ∪
-      finz.seq_between dle_C_data_e dle_C_data_e ∪
-      finz.seq_between dle_C_exports_pcc dle_C_exports_entries_e)).
-  pose proof dle_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty dle_main_data_e dle_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty dle_C_data_e dle_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
-Qed.
+(** ** The run
 
-#[local] Lemma dle_concrete_switcher_cmpt_disjoints :
-  switcher_cmpt_disjoint
-    dle_concrete_main_cmpt dle_concrete_cmptSwitcher
-  ∧ switcher_cmpt_disjoint
-      dle_concrete_C_cmpt dle_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between dle_switcher_b dle_switcher_e ∪
-      finz.seq_between dle_trusted_stack_b dle_trusted_stack_e ∪
-      finz.seq_between dle_stack_b dle_stack_e)
-       ##
-     (finz.seq_between dle_main_pcc_b dle_main_pcc_e ∪
-      finz.seq_between dle_main_data_b dle_main_data_e ∪
-      finz.seq_between dle_main_data_e dle_main_data_e ∪
-      finz.seq_between dle_main_exports_pcc dle_main_exports_entries_e)
-     /\
-     (finz.seq_between dle_switcher_b dle_switcher_e ∪
-      finz.seq_between dle_trusted_stack_b dle_trusted_stack_e ∪
-      finz.seq_between dle_stack_b dle_stack_e)
-       ##
-     (finz.seq_between dle_C_pcc_b dle_C_pcc_e ∪
-      finz.seq_between dle_C_data_b dle_C_data_e ∪
-      finz.seq_between dle_C_data_e dle_C_data_e ∪
-      finz.seq_between dle_C_exports_pcc dle_C_exports_entries_e)).
-  pose proof dle_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty dle_main_data_e dle_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty dle_C_data_e dle_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma dle_concrete_assert_cmpt_disjoints :
-  assert_cmpt_disjoint dle_concrete_main_cmpt dle_concrete_cmptAssert
-  ∧ assert_cmpt_disjoint dle_concrete_C_cmpt dle_concrete_cmptAssert.
-Proof.
-  change
-    ((finz.seq_between dle_assert_b dle_assert_cap ∪
-      finz.seq_between dle_assert_cap dle_assert_e ∪
-      finz.seq_between dle_assert_flag (dle_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between dle_main_pcc_b dle_main_pcc_e ∪
-      finz.seq_between dle_main_data_b dle_main_data_e ∪
-      finz.seq_between dle_main_data_e dle_main_data_e ∪
-      finz.seq_between dle_main_exports_pcc dle_main_exports_entries_e)
-     /\
-     (finz.seq_between dle_assert_b dle_assert_cap ∪
-      finz.seq_between dle_assert_cap dle_assert_e ∪
-      finz.seq_between dle_assert_flag (dle_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between dle_C_pcc_b dle_C_pcc_e ∪
-      finz.seq_between dle_C_data_b dle_C_data_e ∪
-      finz.seq_between dle_C_data_e dle_C_data_e ∪
-      finz.seq_between dle_C_exports_pcc dle_C_exports_entries_e)).
-  pose proof dle_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty dle_main_data_e dle_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty dle_C_data_e dle_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma dle_concrete_assert_switcher_disjoints :
-  assert_switcher_disjoint
-    dle_concrete_cmptAssert dle_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between dle_assert_b dle_assert_cap ∪
-      finz.seq_between dle_assert_cap dle_assert_e ∪
-      finz.seq_between dle_assert_flag (dle_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between dle_switcher_b dle_switcher_e ∪
-      finz.seq_between dle_trusted_stack_b dle_trusted_stack_e ∪
-      finz.seq_between dle_stack_b dle_stack_e)).
-  pose proof dle_concrete_region_partition_disjoint as Hpartition.
-  solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
-Qed.
-
-#[global] Instance dle_concrete_layout : memory_layout.
-Proof.
-  refine
-    (@Build_memory_layout
-       machine_parameters_instance
-       dle_concrete_cmptSwitcher
-       dle_concrete_cmptAssert
-       dle_concrete_main_cmpt
-       dle_concrete_C_cmpt
-       dle_concrete_cmpts_disjoints
-       dle_concrete_switcher_cmpt_disjoints
-       dle_concrete_assert_cmpt_disjoints
-       dle_concrete_assert_switcher_disjoints).
-Defined.
-
-Definition dle_initial_pc : Word :=
-  WCap true RX Global dle_main_pcc_b dle_main_pcc_e dle_main_code_start.
-
-Definition dle_initial_registers : Reg :=
-  (<[cgp := WCap true RW Global dle_main_data_b dle_main_data_e
-      dle_main_data_b]>
-  (<[csp := WCap true RWL Local dle_stack_b dle_stack_e dle_stack_b]>
-    (gset_to_gmap (WInt 0) all_registers_s))).
-
-Definition dle_initial_sregisters : SReg :=
-  initial_sregisters_with
-    (WCap true RWL Global dle_trusted_stack_b dle_trusted_stack_e
-      dle_trusted_stack_b).
-
-Definition dle_initial_memory : Mem := mk_initial_memory.
-
-Lemma dle_initial_registers_correct :
-  is_initial_registers dle_initial_pc dle_initial_registers.
-Proof.
-  rewrite /is_initial_registers /dle_initial_pc /dle_initial_registers.
-  cbn [dle_concrete_layout dle_concrete_main_cmpt].
-  split; [|split; [|split]].
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - intros r Hr; rewrite !lookup_insert_ne; try set_solver.
-    apply lookup_gset_to_gmap_Some; split.
-    + apply all_registers_s_correct.
-    + done.
-Qed.
-
-Lemma dle_initial_sregisters_correct :
-  is_initial_sregisters dle_initial_sregisters.
-Proof.
-  rewrite /is_initial_sregisters /dle_initial_sregisters.
-  cbn [dle_concrete_layout dle_concrete_cmptSwitcher].
-  apply initial_sregisters_with_correct. vm_compute; reflexivity.
-Qed.
-
-Lemma dle_initial_memory_correct :
-  is_initial_memory dle_initial_memory.
-Proof.
-  rewrite /is_initial_memory /dle_initial_memory.
-  repeat split; try reflexivity; try apply Forall_nil_2.
-  - rewrite /dle_C_code /encodeInstrsW;
-      repeat constructor; done.
-  - rewrite /dle_C_data; repeat constructor; done.
-  - apply Forall_replicate; done.
-Qed.
-
-(** The initialized free heap is disjoint from the concrete program. *)
-Lemma dle_initial_heap_disjoint :
-  initial_heap_memory ##ₘ mk_initial_program_memory.
-Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
-
-Lemma dle_concrete_adequacy pc' reg' sreg' mem' sh' es :
-  rtc erased_step
-    ([Seq (Instr Executable)],
-      (dle_initial_pc, dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
-    (es, (pc', reg', sreg', mem', sh')) ->
-  mem' !! dle_assert_flag = Some (WInt 0%Z).
-Proof.
-  intro Hrun.
-  pose proof
-    (@dle_adequacy machine_parameters_instance dle_concrete_layout
-      dle_initial_pc pc' dle_initial_registers reg'
-      dle_initial_sregisters sreg'
-      dle_initial_memory mem' initial_heap_shadow sh' es
-      dle_initial_registers_correct
-      dle_initial_sregisters_correct
-      dle_initial_memory_correct eq_refl dle_initial_heap_disjoint Hrun) as Hadequacy.
-  cbn [dle_concrete_layout dle_concrete_cmptAssert] in Hadequacy.
-  exact Hadequacy.
-Qed.
-
-(** Fuel 3000 is insufficient for this concrete run; 5000 reaches [Halted]. *)
-(** Combining the computed execution with [dle_concrete_adequacy] shows that
-    there is a final machine state such that the exact initial configuration:
-    - executes to [Halted], rather than failing or exhausting the chosen fuel;
-    - finishes with the assertion flag still set to zero.
-    Thus this particular adversarial execution terminates normally without
-    violating the case study's assertion. *)
+    [dle_demo_state] runs to [Halted], and [dle_adequacy] applies to it:
+    the flag of the assert library is still zero. Fuel 3000 does not
+    suffice; 5000 reaches [Halted]. *)
 Theorem dle_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step
-      ([Seq (Instr Executable)],
-        (dle_initial_pc, dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
+    rtc erased_step ([Seq (Instr Executable)], dle_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! dle_assert_flag = Some (WInt 0%Z).
+    ∧ mem' !! flag_assert (img_asrt dle_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof
-    (machine_run_correct 5000 Executable
-      (dle_initial_pc, dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow)
-      Halted) as Hrun.
+  pose proof (machine_run_correct 5000 Executable dle_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
-  exists pc', reg', sreg', mem', sh'. split.
-  - exact Hrun.
-  - eapply dle_concrete_adequacy; exact Hrun.
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (dle_adequacy _ _ _ _ _ _ _ _ dle_demo_ok Hrun).
 Qed.
+
+(** ** The memory map of the linked image *)
+
+From Ltac2 Require Import Ltac2.
+Set Default Proof Mode "Classic".
+Import FwMapNotations.
+#[local] Open Scope Z_scope.
+
+Ltac2 Eval print_memory_map constr:(dle_demo_image).
