@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
-From griotte Require Import image firmware firmware_ok firmware_adequacy dle_firmware.
+From griotte Require Import image firmware firmware_ok firmware_adequacy firmware_obligations
+  dle_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import deep_locality deep_locality_spec.
 From griotte Require Import switcher assert_spec logrel.
@@ -16,46 +17,6 @@ From griotte Require Import compartment_layout switcher_adequacy adequacy_helper
 From griotte Require Import allocator_resources heap_region.
 Set Mangle Names.
 
-Section dle_adv_imports.
-  Context
-    {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
-    `{MP : MachineParameters}.
-
-  (** The imports of the adversary, the switcher call sentry only, are safe
-      to store in its memory. *)
-  Lemma dle_adv_imports_safe {swl : switcherLayout} {swl_wf : switcherLayoutWf}
-      (W : WORLD) (C' : CmptName) :
-    na_inv cerise_nais fw_switcherN switcher_inv -∗
-    switcher_static -∗
-    [∗ list] v ∈ lword_of_word <$>
-      [WSentry FwdDisable true XSRW_ Local switcher.b_switcher switcher.e_switcher
-         switcher.a_switcher_call],
-      interp_in_memC (W, C', v) ∗ future_priv_mono C' interp_in_memC v.
-  Proof.
-    iIntros "#Hswitcher #Hswitcher_static".
-    iSplit; last done.
-    assert (heap_authority_base
-      (WSentry FwdDisable true XSRW_ Local switcher.b_switcher
-        switcher.e_switcher switcher.a_switcher_call) = None) as Hcall_nonheap.
-    { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
-      apply heap_authority_base_heap_cap_base in Hauth.
-      pose proof switcher_call_sentry_not_heap as Hnonheap.
-      unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
-    iEval (cbn); iSplit.
-    { iEval (rewrite /interp_in_mem_pre /=).
-      rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-      iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
-    { iIntros "!>" (W2 W3 Hrel) "H".
-      iEval (rewrite /interp_in_mem_pre /=).
-      rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-      iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
-  Qed.
-End dle_adv_imports.
-
 Section dle_obligations.
   Context {Σ : gFunctors}.
   Context {cname : CmptNameG} {C : CmptName}.
@@ -67,140 +28,69 @@ Section dle_obligations.
   Lemma dle_fw_obligations :
     fw_obligations Σ dle_firmware.
   Proof.
+    apply fw_obligations_of; first reflexivity.
     intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
-    pose proof Hok as (Hcmpts_ok & _ & _ & Hwf).
 
-    (* 1 - The contents of the compartments, from the predicate *)
-    cbv [dle_firmware fw_cmpts fw_map big_and] in Hcmpts_ok.
-    destruct Hcmpts_ok as (Hok_main & Hok_C).
+    (* 1 - The contents and the layouts of the compartments *)
+    pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
     cbv [cmpt_ok section body_ok fc_name fc_body fc_imports fc_static_sealed fw_imap
-      fw_imap_from fw_word_of note addr_off nat_str chunks_words hole_exports export_word
-      fe_offset fe_nargs fe_posture] in Hok_main, Hok_C.
+      fw_imap_from fw_word_of note addr_off nat_str chunks_words export_word
+      fe_offset fe_nargs fe_posture] in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _).
-    destruct Hok_C as (C_imports & _ & _ & _ & off_C & Hoff_C & C_exp_tbl).
-
-    (* 2 - The layouts of the compartments and of the switcher *)
-    pose proof (img_wf_cmpt_layout _ _ _ Hwf (list_elem_of_here _ _)) as Hmain_l.
-    pose proof (img_wf_cmpt_layout _ _ _ Hwf
-                  (list_elem_of_further _ _ _ (list_elem_of_here _ _))) as HC_l.
-    pose proof (cmpt_mem_layout img _ Hmain_l) as Hmem_main_eq.
-    pose proof (fw_adv_cmpt_init (E := ⊤) img _ HC_l) as HC_init.
-    cbn [fc_name] in Hmem_main_eq, HC_init, Hmain_l, HC_l.
+    pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
+    pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HC_l.
+    pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
+    pose proof (fw_cmpts_disjoint_at _ _ _ 0 1 _ _ Hmain_l HC_l Hok ltac:(done) eq_refl eq_refl)
+      as HmainC.
+    pose proof (fw_switcher_cmpt_disjoint_at _ _ _ Hok 0 _ Hmain_l eq_refl) as Hsw_main.
+    cbn [fc_name] in Hmain_l, HC_l, HmainC, Hsw_main.
     set (main_cmpt := layout_cmpt_of (cmpt_of img "main") Hmain_l) in *.
-    set (C_cmpt := layout_cmpt_of (cmpt_of img "C") HC_l).
-    change (image.cmpt_imports (cmpt_of img "main")) with (cmpt_imports main_cmpt) in main_imports.
-    change (image.cmpt_code (cmpt_of img "main")) with (cmpt_code main_cmpt) in main_code.
-    change (image.cmpt_data (cmpt_of img "main")) with (cmpt_data main_cmpt) in main_data.
-
-    assert (fw_threads dle_firmware = [MkFwThread "main" 0 100 24])
-      as Hthreads by reflexivity.
-    pose proof (img_wf_switcher_layout _ _ _ _ Hthreads Hwf) as Hsw.
-    pose proof (img_wf_trusted_stack_layout _ _ _ _ Hthreads Hwf) as Hts.
-    pose proof (fw_switcher_layout_wf img _ _ Hts Hsw) as Hswl_wf.
+    set (C_cmpt := layout_cmpt_of (cmpt_of img "C") HC_l) in *.
+    set (swc := fw_switcher_cmpt _ _ _ Hok) in *.
     set (swl := fw_switcher_layout img) in *.
-    pose (asl := mkAssertLayout (image.b_assert (img_asrt img)) (image.e_assert (img_asrt img))
-                   (image.flag_assert (img_asrt img))).
+    set (asl := fw_assert_layout img).
 
-    (* The disjointness of main from the adversary and from the switcher. *)
-    assert (main_cmpt ## C_cmpt) as HmainC.
-    { apply (img_wf_cmpts_disjoint dle_firmware img 0 1
-               (fw_nth 0 (fw_cmpts dle_firmware) default_fw_cmpt)
-               (fw_nth 1 (fw_cmpts dle_firmware) default_fw_cmpt)); done. }
-    pose proof (img_wf_switcher_cmpt_disjoint dle_firmware img _ _
-                  (fw_nth 0 (fw_cmpts dle_firmware) default_fw_cmpt) _ _ Hmain_l Hts Hsw
-                  Hthreads Hwf (list_elem_of_here _ _)) as Hsw_main.
-    set (swc := layout_switcher_of (img_sw img) (thread_of img 0) _ _ Hts Hsw) in Hsw_main.
-
-    (* 3 - The export entry of C *)
+    (* 2 - The export entry of C, imported by main *)
     set (C_f := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
                   (cmpt_exp_tbl_entries_start C_cmpt)).
     assert (cmpt_export_sb (cmpt_of img "C") 0 = C_f) as HsbC.
     { by rewrite /cmpt_export_sb /C_f /=. }
-
-    (* 4 - The main compartment: its imports, and its entry point *)
-    assert (cmpt_imports main_cmpt = @dle_main_imports swl asl C_f)
+    assert (image.cmpt_imports (cmpt_of img "main") = @dle_main_imports swl asl C_f)
       as main_imports'.
     { rewrite main_imports /dle_main_imports. done. }
-    assert (cmpt_b_pcc main_cmpt ^+ 3 = cmpt_a_code main_cmpt)%a as Hmain_entry.
-    { pose proof (cmpt_import_size main_cmpt) as H.
-      rewrite main_imports in H. cbn in H |- *. solve_addr+H. }
 
-    (* 5 - The resources of the image *)
-    iIntros "Hshared Hthread".
-    iNamed "Hshared". iNamed "Hthread".
-    iDestruct "Hswitcher" as "#Hswitcher".
-    iDestruct "Hswitcher_static" as "#Hswitcher_static".
-    iDestruct "Hseal_switcher" as "#Hseal_switcher".
-    iDestruct "Hassert" as "#Hassert".
+    (* 3 - The resources of the image *)
+    iIntros "Hres". iNamed "Hres".
     iEval (cbv [dle_firmware fw_cmpts]) in "Hcmpts".
-    iDestruct "Hcmpts" as "(Hcmpt_main & Hcmpt_C & _)".
-    iEval (rewrite Hmem_main_eq) in "Hcmpt_main".
-    iEval (cbv [fw_entries fw_flat_map fw_app fc_entries fc_export_nargs fw_imap fw_imap_from
-                fw_map dle_firmware fw_cmpts fc_body fc_name fe_nargs]) in "Hentries".
-    iEval (rewrite HsbC /=) in "Hentries".
-    clear Hmem_main_eq main_imports.
-    iDestruct "Hentries" as "(_ & [#Hentry_Cf #Hentry_Cf'] & _)".
+    iDestruct "Hcmpts" as "((Hmain & _ & _) & (HC & _ & #HC_pers) & _)".
+    cbn [fc_name].
+    change (fw_entry_cmpt dle_firmware img 0) with (cmpt_of img "main").
+    iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
+      first exact Hmain_l.
+    rewrite main_imports' main_code main_data.
+    iPoseProof "HC_pers" as "(_ & _ & _ & HC_entries)".
+    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name]) in "HC_entries".
+    iEval (rewrite HsbC /=) in "HC_entries".
+    iDestruct "HC_entries" as "([#Hentry_Cf #Hentry_Cf'] & _)".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
-    assert (fw_entry_pc dle_firmware img 0 =
-              WCap true RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt)
-                (cmpt_b_pcc main_cmpt ^+ 3)%a) as Hpc_eq by reflexivity.
-    assert (fw_entry_cgp dle_firmware img 0 =
-              WCap true RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt)
-                (cmpt_b_cgp main_cmpt)) as Hcgp_eq by reflexivity.
-    iEval (rewrite Hpc_eq Hmain_entry) in "HPC".
-    iEval (rewrite Hcgp_eq) in "Hcgp".
-    iEval (rewrite /fw_thread_csp) in "Hcsp".
-    iEval (rewrite fw_thread_of_0) in "Hstack".
-    clear Hpc_eq Hcgp_eq.
 
-    (* 5.1 Compartment C *)
-    iMod (HC_init with "Hcmpt_C")
-      as "(HC_imports & HC_code & HC_data & _ & #HC_etbl_pcc & #HC_etbl_cgp & #HC_etbl_entries)".
-
-    (* 5.2 Compartment main *)
-    iMod (initialise_compartment_pers (Σ := Σ) with "Hcmpt_main")
-      as "(#Hmain_imports & #Hmain_code & Hmain_data & _ & _ & _ & _)".
-    rewrite main_imports' main_code main_data.
-
-    (* 6 - Close the world of C: its compartment becomes permanent, and the
-       stack temporary, because main shares it with C. *)
-    iMod (fw_close_adv_world dle_firmware img σ
-            (fw_nth 1 (fw_cmpts dle_firmware) default_fw_cmpt)
-            "C" [1] HC_l fw_world0 C
-           with "Hswitcher Hswitcher_static Hseal_switcher HC_imports HC_code HC_data
-                 HC_etbl_pcc HC_etbl_cgp HC_etbl_entries Hstack [] [] Hworld_C")
-      as "(Hworld_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & #HC_exports)".
-    { exact Hok. }
-    { apply list_elem_of_further, list_elem_of_here. }
-    { done. }
-    { apply Forall_singleton. lia. }
-    { intros a _. done. }
-    { cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name fw_nth
-             fw_cmpts dle_firmware].
-      rewrite HsbC /=. iFrame "Hentry_Cf Hentry_Cf'". }
-    { iIntros "_".
-      change (image.cmpt_imports (cmpt_of img (fc_name _))) with (image.cmpt_imports (cmpt_of img "C")).
-      rewrite C_imports.
-      iApply (dle_adv_imports_safe with "Hswitcher Hswitcher_static"). }
+    (* 4 - Close the world of C: its compartment becomes permanent, and the
+       stack temporary, because main shares it with C; its export is safe
+       to share. *)
+    iMod (fw_close_adv_world _ _ _ 1 (fw_nth 1 (fw_cmpts dle_firmware) default_fw_cmpt) _ _
+            HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; lia) ltac:(done)
+           with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")
+      as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
+    { iIntros "_". iSplit; last done.
+      by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static"). }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
+    cbn [fc_name fw_nth fw_cmpts dle_firmware]. rewrite HsbC.
+    fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.
 
-    (* 7 - The exported entry point of C is safe to share *)
-    iAssert (interp _ C (WSealed switcher.ot_switcher C_f)) as "#Hinterp_C".
-    { iApply (adversary_export_interp _ _ C_cmpt 0 with "HC_exports").
-      - solve_addr.
-      - change (cmpt_exp_tbl_entries C_cmpt) with (image.cmpt_exp_tbl_entries (cmpt_of img "C")).
-        rewrite C_exp_tbl /=; lia.
-    }
-
-    (* 8 - The registers *)
+    (* 5 - We can apply the specification! *)
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
-    assert (dom fw_cleared_regs = all_registers_s ∖ {[cgp; csp]}) as Hrmap_dom.
-    { by rewrite /fw_cleared_regs dom_gset_to_gmap. }
-
-    (* 9 - We can apply the specification! *)
-    clear HC_init.
     iPoseProof (dle_spec (swlayout := swl) (assertlayout := asl) (C := C)
                   _ _ _ _ _ _ _ _ _ _ [] [] fw_switcherN []
                  with "[ $Hassert $Hswitcher $Hswitcher_static $Hna
@@ -209,13 +99,12 @@ Section dle_obligations.
                         $Hmain_imports $Hmain_code $Hmain_data
                         $Hinterp_C $Hcstk
                         $Hentry_Cf $Hinterp_stack_C
-                        ]") as "Hspec"; eauto.
+                        ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_disjoint_from_mmio main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
-    { intros r Hr. rewrite Hrmap_dom in Hr.
-      rewrite /fw_cleared_regs lookup_gset_to_gmap option_guard_True //. }
+    { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.

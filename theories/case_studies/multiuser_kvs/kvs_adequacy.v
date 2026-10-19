@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
-From griotte Require Import image firmware firmware_ok firmware_adequacy kvs_firmware.
+From griotte Require Import image firmware firmware_ok firmware_adequacy firmware_obligations
+  kvs_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import
   kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe kvs_spec_erase_safe.
@@ -34,51 +35,31 @@ Section kvs_obligations.
     key_main ≠ key_B →
     fw_obligations Σ (kvs_firmware ot_kvs key_main key_B).
   Proof.
-    intros Hkeys img σ ceriseg seal_storeg stsg relg cstackg Hok.
-    pose proof Hok as (Hcmpts_ok & _ & _ & Hwf).
+    intros Hkeys. apply fw_obligations_of; first reflexivity.
+    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
 
-    (* 1 - The contents of the compartments, from the predicate *)
-    cbv [kvs_firmware fw_cmpts fw_map big_and] in Hcmpts_ok.
-    destruct Hcmpts_ok as (Hok_main & Hok_kvs & Hok_B).
+    (* 1 - The contents and the layouts of the compartments *)
+    pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
+    pose proof (fw_cmpt_ok_at _ _ _ 1 _ Hok eq_refl) as Hok_kvs.
+    pose proof (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) as Hok_B.
     cbv [cmpt_ok section body_ok fc_name fc_body fc_imports fc_static_sealed fw_imap
-      fw_imap_from fw_word_of note addr_off nat_str chunks_words hole_exports export_word
+      fw_imap_from fw_word_of note addr_off nat_str chunks_words export_word
       fe_offset fe_nargs fe_posture] in Hok_main, Hok_kvs, Hok_B.
-    destruct Hok_main as (main_imports & main_static_sealed & main_code & main_data & main_exp_tbl).
-    destruct Hok_kvs as (kvs_imports & kvs_static_sealed & kvs_code & kvs_data & kvs_exp_tbl).
-    destruct Hok_B as (B_imports & B_static_sealed & _ & _ & off_B & Hoff_B & B_exp_tbl).
-
-    (* 2 - The layouts of the compartments, of the switcher and of the KVS *)
-    pose proof (img_wf_cmpt_layout _ _ _ Hwf (list_elem_of_here _ _)) as Hmain_l.
-    pose proof (img_wf_cmpt_layout _ _ _ Hwf
-                  (list_elem_of_further _ _ _ (list_elem_of_here _ _))) as Hkvs_l.
-    pose proof (img_wf_cmpt_layout _ _ _ Hwf
-                  (list_elem_of_further _ _ _
-                     (list_elem_of_further _ _ _ (list_elem_of_here _ _)))) as HB_l.
-    pose proof (cmpt_mem_layout img _ Hmain_l) as Hmem_main_eq.
-    pose proof (cmpt_mem_layout img _ Hkvs_l) as Hmem_kvs_eq.
-    pose proof (fw_adv_cmpt_init (E := ⊤) img _ HB_l) as HB_init.
-    cbn [fc_name] in Hmem_main_eq, Hmem_kvs_eq, HB_init, Hmain_l, Hkvs_l, HB_l.
-    set (main_cmpt := layout_cmpt_of (cmpt_of img "main") Hmain_l) in *.
-    set (kvs_cmpt := layout_cmpt_of (cmpt_of img "kvs") Hkvs_l) in *.
+    destruct Hok_main as (main_imports & main_static_sealed & main_code & main_data & _).
+    destruct Hok_kvs as (kvs_imports & _ & kvs_code & kvs_data & kvs_exp_tbl).
+    destruct Hok_B as (B_imports & B_static_sealed & _).
+    pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
+    pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as Hkvs_l.
+    pose proof (fw_cmpt_layout_at _ _ _ 2 _ Hok eq_refl) as HB_l.
+    cbn [fc_name] in Hmain_l, Hkvs_l, HB_l.
+    set (main_cmpt := layout_cmpt_of (cmpt_of img "main") Hmain_l).
+    set (kvs_cmpt := layout_cmpt_of (cmpt_of img "kvs") Hkvs_l).
     set (B_cmpt := layout_cmpt_of (cmpt_of img "B") HB_l).
-    change (image.cmpt_imports (cmpt_of img "main")) with (cmpt_imports main_cmpt) in main_imports.
-    change (image.cmpt_static_sealed (cmpt_of img "main")) with (cmpt_static_sealed main_cmpt) in main_static_sealed.
-    change (image.cmpt_code (cmpt_of img "main")) with (cmpt_code main_cmpt) in main_code.
-    change (image.cmpt_data (cmpt_of img "main")) with (cmpt_data main_cmpt) in main_data.
-    change (image.cmpt_exp_tbl_entries (cmpt_of img "main")) with (cmpt_exp_tbl_entries main_cmpt) in main_exp_tbl.
-    change (image.cmpt_imports (cmpt_of img "kvs")) with (cmpt_imports kvs_cmpt) in kvs_imports.
-    change (image.cmpt_static_sealed (cmpt_of img "kvs")) with (cmpt_static_sealed kvs_cmpt) in kvs_static_sealed.
-    change (image.cmpt_code (cmpt_of img "kvs")) with (cmpt_code kvs_cmpt) in kvs_code.
-    change (image.cmpt_data (cmpt_of img "kvs")) with (cmpt_data kvs_cmpt) in kvs_data.
-    change (image.cmpt_exp_tbl_entries (cmpt_of img "kvs")) with (cmpt_exp_tbl_entries kvs_cmpt) in kvs_exp_tbl.
-
-    assert (fw_threads (kvs_firmware ot_kvs key_main key_B) = [MkFwThread "main" 0 100 24])
-      as Hthreads by reflexivity.
-    pose proof (img_wf_switcher_layout _ _ _ _ Hthreads Hwf) as Hsw.
-    pose proof (img_wf_trusted_stack_layout _ _ _ _ Hthreads Hwf) as Hts.
-    pose proof (fw_switcher_layout_wf img _ _ Hts Hsw) as Hswl_wf.
+    fw_fold_cmpt main_cmpt. fw_fold_cmpt kvs_cmpt. fw_fold_cmpt B_cmpt.
+    pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
     set (swl := fw_switcher_layout img) in *.
 
+    (* 2 - The layout of the KVS *)
     pose (kvsl := @mkKvsLayout ot_kvs
             (cmpt_b_pcc kvs_cmpt) (cmpt_a_code kvs_cmpt) (cmpt_e_pcc kvs_cmpt)
             (cmpt_b_cgp kvs_cmpt) (cmpt_e_cgp kvs_cmpt)
@@ -92,11 +73,11 @@ Section kvs_obligations.
       split; try solve_ndisj.
     }
     assert (ot_kvs ≠ switcher.ot_switcher) as Hot_kvs_switcher.
-    { destruct (img_wf_otypes _ _ Hwf) as [Hot_nodup _]. cbn in Hot_nodup.
-      apply NoDup_cons in Hot_nodup as [Hot_notin _]. set_solver+Hot_notin. }
+    { destruct (img_wf_otypes _ _ (proj2 (proj2 (proj2 Hok)))) as [Hot_nodup _].
+      cbn in Hot_nodup. apply NoDup_cons in Hot_nodup as [Hot_notin _]. set_solver+Hot_notin. }
     assert (ot_kvs < ot_kvs ^+ 1)%ot as Hot_kvs_size.
-    { destruct (img_wf_otypes _ _ Hwf) as [_ Hot_valid]. cbn in Hot_valid.
-      rewrite Forall_cons Forall_singleton in Hot_valid. apply Hot_valid. }
+    { destruct (img_wf_otypes _ _ (proj2 (proj2 (proj2 Hok)))) as [_ Hot_valid].
+      cbn in Hot_valid. rewrite Forall_cons Forall_singleton in Hot_valid. apply Hot_valid. }
     assert kvsLayoutWf as kvsLayoutWfg.
     { refine (mkKvsLayoutWf _ _ _ _ _ _ _ _ _ _ _ _); cbn.
       - exact Hot_kvs_size.
@@ -149,7 +130,7 @@ Section kvs_obligations.
     { rewrite /cmpt_export_sb /kvs_addOrUpdate /kvs_read /kvs_erase /B_f /=.
       rewrite -Hkvs_a0 -Hkvs_a1 -Hkvs_a2. done. }
 
-    (* 4 - The main compartment: its imports, and its entry point *)
+    (* 4 - The imports of main and B *)
     assert (cmpt_imports main_cmpt =
               kvs_main_imports (cmpt_b_static_sealed main_cmpt)
                 switcher.b_switcher switcher.e_switcher switcher.a_switcher_call
@@ -159,7 +140,7 @@ Section kvs_obligations.
     { rewrite main_imports /kvs_main_imports /KVS_addOrUpdate /KVS_read /KVS_erase
         /kvs_user_seal_key /kvs_user_seal_key_scap.
       rewrite -Hkvs_a0 -Hkvs_a1 -Hkvs_a2. done. }
-    assert (image.cmpt_imports (cmpt_of img "B") =
+    assert (cmpt_imports B_cmpt =
               [WSentry FwdDisable true XSRW_ Local
                  switcher.b_switcher switcher.e_switcher switcher.a_switcher_call;
                WSealed switcher.ot_switcher kvs_addOrUpdate;
@@ -170,51 +151,41 @@ Section kvs_obligations.
     { rewrite B_imports /kvs_addOrUpdate /kvs_read /kvs_erase /kvs_user_seal_key_scap.
       rewrite -Hkvs_a0 -Hkvs_a1 -Hkvs_a2. done. }
     clear B_imports.
-    assert (cmpt_b_pcc main_cmpt ^+ 7 = cmpt_a_code main_cmpt)%a as Hmain_entry.
-    { pose proof (cmpt_import_size main_cmpt) as H.
-      rewrite main_imports in H. cbn in H |- *. solve_addr+H. }
 
     (* 5 - The resources of the image *)
-    iIntros "Hshared Hthread".
-    iNamed "Hshared". iNamed "Hthread".
-    iDestruct "Hswitcher" as "#Hswitcher".
-    iDestruct "Hswitcher_static" as "#Hswitcher_static".
-    iDestruct "Hseal_switcher" as "#Hseal_switcher".
-    iDestruct "Hassert" as "#Hassert".
+    iIntros "Hres". iNamed "Hres".
     iEval (cbv [kvs_firmware fw_cmpts]) in "Hcmpts".
-    iDestruct "Hcmpts" as "(Hcmpt_main & Hcmpt_kvs & Hcmpt_B & _)".
-    iEval (rewrite Hmem_main_eq) in "Hcmpt_main".
-    iEval (rewrite Hmem_kvs_eq) in "Hcmpt_kvs".
-    iEval (cbv [fw_entries fw_flat_map fw_app fc_entries fc_export_nargs fw_imap fw_imap_from
-                fw_map kvs_firmware fw_cmpts fc_body fc_name fe_nargs replicate]) in "Hentries".
-    iEval (rewrite Hsb0 Hsb1 Hsb2 HsbB /=) in "Hentries".
-    clear Hmem_main_eq Hmem_kvs_eq main_imports Hsb0 Hsb1 Hsb2.
-    iDestruct "Hentries"
-      as "(_ & [#Hentry_kvs_addOrUpdate #Hentry_kvs_addOrUpdate']
-          & [#Hentry_kvs_read #Hentry_kvs_read'] & [#Hentry_kvs_erase #Hentry_kvs_erase']
-          & [#Hentry_Bf #Hentry_Bf'] & _)".
+    iDestruct "Hcmpts"
+      as "((Hmain & Hmain_static_sealed & _) & (Hkvs & _ & #Hkvs_pers) &
+           (HB & HB_static_sealed & #HB_pers) & _)".
+    cbn [fc_name].
+    change (fw_entry_cmpt (kvs_firmware ot_kvs key_main key_B) img 0) with (cmpt_of img "main").
+    iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
+      first exact Hmain_l.
+    iDestruct "Hkvs" as "(Hkvs_imports & Hkvs_code & Hkvs_data)".
+    iDestruct "Hkvs_pers"
+      as "(Hkvs_etbl_pcc & Hkvs_etbl_cgp & Hkvs_etbl_entries & Hkvs_entries)".
+    iPoseProof "HB_pers" as "(_ & _ & _ & HB_entries)".
+    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name fw_map fe_nargs
+                replicate]) in "Hkvs_entries HB_entries".
+    iEval (rewrite Hsb0 Hsb1 Hsb2 /=) in "Hkvs_entries". iEval (rewrite HsbB /=) in "HB_entries".
+    iDestruct "Hkvs_entries"
+      as "([#Hentry_kvs_addOrUpdate #Hentry_kvs_addOrUpdate']
+          & [#Hentry_kvs_read #Hentry_kvs_read'] & [#Hentry_kvs_erase #Hentry_kvs_erase'] & _)".
+    iDestruct "HB_entries" as "([#Hentry_Bf _] & _)".
     iEval (cbv [kvs_firmware fw_otypes]) in "Hotypes".
     iDestruct "Hotypes" as "[Hseal_store_kvs _]".
     iDestruct (big_sepS_elem_of _ _ B with "Hworlds") as "Hworld_B".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     set (W0 := fw_world0).
-    assert (fw_entry_pc (kvs_firmware ot_kvs key_main key_B) img 0 =
-              WCap true RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt)
-                (cmpt_b_pcc main_cmpt ^+ 7)%a) as Hpc_eq by reflexivity.
-    assert (fw_entry_cgp (kvs_firmware ot_kvs key_main key_B) img 0 =
-              WCap true RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt)
-                (cmpt_b_cgp main_cmpt)) as Hcgp_eq by reflexivity.
-    iEval (rewrite Hpc_eq Hmain_entry) in "HPC".
-    iEval (rewrite Hcgp_eq) in "Hcgp".
-    clear Hpc_eq Hcgp_eq.
+    cbn [fc_name]. rewrite /fw_cmpt_static_res.
+    fw_fold_cmpt main_cmpt. fw_fold_cmpt kvs_cmpt. fw_fold_cmpt B_cmpt.
+    rewrite main_imports' main_code main_data main_static_sealed.
+    clear Hsb0 Hsb1 Hsb2 main_imports.
 
     (* 5.1 KVS compartment: initialise the KVS resources *)
-    iMod (initialise_compartment (Σ := Σ) with "Hcmpt_kvs")
-      as "(Hkvs_imports & Hkvs_code & Hkvs_data & _ & Hkvs_etbl_pcc & Hkvs_etbl_cgp & Hkvs_etbl_entries)".
     iEval (rewrite cmpt_code_codefrag) in "Hkvs_code".
-    rewrite kvs_imports kvs_code.
-    rewrite kvs_data.
-
+    rewrite kvs_imports kvs_code kvs_data.
     iMod (user_kvs_init {[ key_main ; key_B ]}
            with "[$Hkvs_imports $Hkvs_code $Hkvs_data]")
       as (γpkvs kvs_logical_heapg γf) "(#Hkvs_static & #Hkvs & #Hkvs_logical & Hlukvs)".
@@ -233,26 +204,18 @@ Section kvs_obligations.
           kvsg _ _ _ B
       ) as Spec.
 
-    (* 5.2 CMPT B *)
-    iMod (HB_init with "Hcmpt_B")
-      as "(HB_imports & HB_code & HB_data & HB_static_sealed & #HB_etbl_pcc & #HB_etbl_cgp & #HB_etbl_entries)".
+    (* 5.2 The static sealed key of B *)
     iEval (rewrite B_static_sealed) in "HB_static_sealed".
     iDestruct (region_pointsto_single with "HB_static_sealed") as "(%&Ha_user_key_B&%Hv_B)";
       try (cbn in Hv_B); simplify_eq.
     {
       pose proof (cmpt_static_sealed_size B_cmpt) as H1.
-      cbn in H1. rewrite B_static_sealed in H1; solve_addr+H1.
+      rewrite B_static_sealed in H1; solve_addr+H1.
     }
     set (user_key_addr_B := cmpt_b_static_sealed B_cmpt).
 
-    (* 5.3 CMPT MAIN *)
-    iMod (initialise_compartment_pers (Σ := Σ) with "Hcmpt_main")
-      as "(#Hmain_imports & #Hmain_code & Hmain_data & Hmain_static_sealed & _ & _ & _)".
-    rewrite main_imports' main_code main_data main_static_sealed.
-
-    (* 5.4 Export table of the KVS *)
+    (* 5.3 Export table of the KVS *)
     rewrite kvs_exp_tbl.
-    iEval (rewrite /region_pointsto) in "Hkvs_etbl_entries".
     rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start kvs_cmpt)).
     2: {
       pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
@@ -276,12 +239,6 @@ Section kvs_obligations.
           & Hkvs_etbl_entries_erase & _)".
 
     iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
-
-    iMod (pointsto_persist with "Hkvs_etbl_pcc") as "#Hkvs_etbl_pcc".
-    iMod (pointsto_persist with "Hkvs_etbl_cgp") as "#Hkvs_etbl_cgp".
-    iMod (pointsto_persist with "Hkvs_etbl_entries_addOrUpdate") as "#Hkvs_etbl_entries_addOrUpdate".
-    iMod (pointsto_persist with "Hkvs_etbl_entries_read") as "#Hkvs_etbl_entries_read".
-    iMod (pointsto_persist with "Hkvs_etbl_entries_erase") as "#Hkvs_etbl_entries_erase".
 
     replace ((cmpt_exp_tbl_entries_start kvs_cmpt ^+ 1) ^+ 1)%a with kvs_erase_exp_tbl_addr; cycle 1.
     { rewrite -Hkvs_a2. pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
@@ -377,17 +334,17 @@ Section kvs_obligations.
       with "[$Hkvs_logical_user_B $Ha_user_key_B HB_lukvs_frag]" as "ot_kvs_user_key_B".
     {
       pose proof (cmpt_static_sealed_size B_cmpt) as H.
-      cbn in H; rewrite B_static_sealed in H.
+      rewrite B_static_sealed in H.
       repeat iSplit.
       - iPureIntro; auto.
       - iPureIntro.
         subst user_key_addr_B.
-        cbn; solve_addr+H.
+        cbn in H |- *; solve_addr+H.
       - iPureIntro. subst user_key_addr_B.
         eapply disjoint_from_shadow_not_in.
         + exact (cmpt_static_sealed_disjoint_from_shadow B_cmpt).
         + apply withinBounds_true_iff.
-          cbn; solve_addr+H.
+          cbn in H |- *; solve_addr+H.
       - iApply (big_sepS_impl with "HB_lukvs_frag").
         iModIntro; iIntros (mk Hmk) "$".
     }
@@ -413,29 +370,22 @@ Section kvs_obligations.
       replace (image.cmpt_b_static_sealed (cmpt_of img "B") ^+ 1)%a
         with (image.cmpt_e_static_sealed (cmpt_of img "B")).
       2: { pose proof (cmpt_static_sealed_size B_cmpt) as Hsize.
-           cbn in Hsize; rewrite B_static_sealed in Hsize; cbn; solve_addr+Hsize. }
+           rewrite B_static_sealed in Hsize; cbn in Hsize |- *; solve_addr+Hsize. }
       apply (cmpt_static_sealed_disjoint_from_heap B_cmpt).
     }
 
     (* 7 - Close the world of B: its compartment becomes permanent, and the
-       stack temporary. *)
-    iEval (rewrite fw_thread_of_0) in "Hstack".
-    iMod (fw_close_adv_world (kvs_firmware ot_kvs key_main key_B) img σ
-            (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt)
-            "B" [0] HB_l W1' B
-           with "Hswitcher Hswitcher_static Hseal_switcher HB_imports HB_code HB_data
-                 HB_etbl_pcc HB_etbl_cgp HB_etbl_entries Hstack [] [] Hworld_B")
-      as "(Hworld_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hinterp_stack_B & #HB_exports)".
-    { exact Hok. }
-    { apply list_elem_of_further, list_elem_of_further, list_elem_of_here. }
-    { done. }
-    { apply Forall_singleton; lia. }
-    { intros a _. done. }
-    { cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name replicate fw_nth
-             fw_cmpts kvs_firmware].
-      rewrite HsbB /=. iFrame "Hentry_Bf Hentry_Bf'". }
+       stack temporary; its export is safe to share. *)
+    iMod (fw_close_adv_world _ _ _ 2
+            (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _ _
+            HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; lia) ltac:(done)
+           with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers Hstack [] Hworld_B")
+      as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
-      change (image.cmpt_imports (cmpt_of img (fc_name _))) with (image.cmpt_imports (cmpt_of img "B")).
+      rewrite -(fw_imports_safe_words _
+                  (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt)
+                  _ _ (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl)).
+      change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).
       rewrite B_imports'.
       set (Winter := std_update_compartment W1' B_cmpt).
       assert (related_sts_priv_world W1' Winter) as Hrelated_W1'_Winter.
@@ -453,21 +403,8 @@ Section kvs_obligations.
       }
       (* Switcher cross-compartment *)
       iApply big_sepL_cons; iSplitL.
-      { assert (heap_authority_base
-          (WSentry FwdDisable true XSRW_ Local switcher.b_switcher
-            switcher.e_switcher switcher.a_switcher_call) = None) as Hcall_nonheap.
-        { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
-          apply heap_authority_base_heap_cap_base in Hauth.
-          pose proof switcher_call_sentry_not_heap as Hnonheap.
-          unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
-        iEval (cbn); iSplit.
-        { iEval (rewrite /interp_in_mem_pre /=).
-          rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-          iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". }
-        { iIntros "!>" (W2 W3 Hrel) "H".
-          iEval (rewrite /interp_in_mem_pre /=).
-          rewrite filter_heap_nonheap; last exact Hcall_nonheap.
-          iApply interp_switcher_call; iFrame "Hswitcher Hswitcher_static". } }
+      { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hswitcher Hswitcher_static").
+        exact Hok. }
 
       (* KVS.addOrUpdate *)
       iApply big_sepL_cons; iSplitL.
@@ -523,29 +460,19 @@ Section kvs_obligations.
       }
       done. }
 
-    (* 8 - The exported entry point of B is safe to share *)
+    cbn [fc_name fw_nth fw_cmpts kvs_firmware]. rewrite HsbB.
+    fw_fold_cmpt B_cmpt.
     set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
                   (cmpt_exp_tbl_entries_start B_cmpt)).
-    iAssert (interp _ B (WSealed switcher.ot_switcher B_f)) as "#Hinterp_B_f".
-    { iApply (adversary_export_interp _ _ B_cmpt 0 with "HB_exports").
-      - solve_addr.
-      - change (cmpt_exp_tbl_entries B_cmpt) with (image.cmpt_exp_tbl_entries (cmpt_of img "B")).
-        rewrite B_exp_tbl /=; lia.
-    }
 
     iDestruct (big_sepS_elem_of _ _ 1%Z with "HK_lukvs_frag") as "HK_lukvs_1".
     { eapply is_uint16_in_kvs_all_map_keys; split; rewrite /UINT16_MIN /UINT16_MAX; lia. }
 
-    (* 9 - The registers *)
+    (* 8 - We can apply the specification! *)
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
-    assert (dom fw_cleared_regs = all_registers_s ∖ {[cgp; csp]}) as Hrmap_dom.
-    { by rewrite /fw_cleared_regs dom_gset_to_gmap. }
-
     replace (cmpt_exp_tbl_cgp kvs_cmpt) with (b_kvs_exp_tbl ^+ 1)%a
       by (pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H; unfold kvsl; cbn in H |- *; solve_addr+H).
-
-    (* 10 - We can apply the specification! *)
     pose proof (cmpt_static_sealed_base_not_heap main_cmpt) as Hstatic_key_nonheap.
     assert (is_heap_cap (WSealed switcher.ot_switcher B_f) = false) as HB_f_nonheap.
     { unfold B_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap B_cmpt). }
@@ -560,7 +487,7 @@ Section kvs_obligations.
                         $HK_lukvs_1
                         $Hworld_B $Hcstk
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
-                        ]") as "Hspec"; eauto.
+                        ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
