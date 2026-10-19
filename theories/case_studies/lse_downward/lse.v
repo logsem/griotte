@@ -139,13 +139,6 @@ int __cheri_compartment("known") run()
     WInt (encode_entry_point InterruptEnabled 0
             (length_lse_main_imports + (length LSE_main_code_run))).
 
-  Definition lse_entry_f_sb
-    b_lse_exp_tbl e_lse_exp_tbl : Sealable :=
-      SCap true RO Global b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+2)%a.
-
-  Definition lse_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
-    [ lse_exp_tbl_entry_f ].
-
 End LSE_Main.
 
 (** The code of the concrete adversary of [lse_concrete], assembled here,

@@ -203,11 +203,6 @@ Section Heap_Temporal_Safety.
 
   Definition hts_main_data : list Word := [WInt 0].
 
-  (** The owner word of the allocator capability. It lives in the static
-      sealed region, outside the heap and the compartment's data, and is
-      only reachable through the sealed capability. *)
-  Definition hts_main_static_sealed : list Word := [WInt hts_main_owner_id].
-
   (** [owner_a] is the address of the owner word, the first address of the
       main compartment's static sealed region. *)
   Definition hts_main_imports `{!switcherLayout} `{!assertLayout}
@@ -215,17 +210,6 @@ Section Heap_Temporal_Safety.
     [WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call;
      WSentry Inherit true RX Global b_assert e_assert b_assert;
      WSealed ot_switcher adv_f;
-     WSealed ot_switcher (allocator_malloc Global);
-     WSealed ot_switcher (allocator_free Global);
-     allocator_capability Global owner_a].
-
-  (** The adversary's owner word, in its own static sealed region. *)
-  Definition hts_adv_static_sealed : list Word := [WInt hts_adv_owner_id].
-
-  (** [owner_a] is the address of the adversary's owner word. *)
-  Definition hts_adv_imports `{!switcherLayout} `{!allocatorLayout}
-      (owner_a : Addr) : list Word :=
-    [WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call;
      WSealed ot_switcher (allocator_malloc Global);
      WSealed ot_switcher (allocator_free Global);
      allocator_capability Global owner_a].

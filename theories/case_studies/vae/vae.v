@@ -131,21 +131,6 @@ Section VAE_Main.
       WSealed ot_switcher B_adv
     ].
 
-  Definition length_vae_main_imports `{!switcherLayout} `{!assertLayout} :=
-    length
-      (vae_main_imports (SCap true RO Global za za za)).
-
-  Definition vae_exp_tbl_entry_awkward `{!switcherLayout} `{!assertLayout} :=
-    WInt (encode_entry_point InterruptEnabled 1
-            (length_vae_main_imports + (length VAE_main_code_init))).
-
-  Definition vae_entry_awkward_sb
-    b_vae_exp_tbl e_vae_exp_tbl : Sealable :=
-      SCap true RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+2)%a.
-
-  Definition vae_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
-    [ vae_exp_tbl_entry_awkward ].
-
 End VAE_Main.
 
 (** The code of the concrete adversary of [vae_concrete], assembled here,

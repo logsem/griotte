@@ -211,19 +211,4 @@ int __cheri_compartment("known") run()
       WSealed ot_switcher B_adv
     ].
 
-  Definition length_so_main_imports `{!switcherLayout} `{!assertLayout} :=
-    length
-      (so_main_imports (SCap true RO Global za za za)).
-
-  Definition so_exp_tbl_entry_f `{!switcherLayout} `{!assertLayout} :=
-    WInt (encode_entry_point InterruptEnabled 2
-            (length_so_main_imports + (length SO_main_code_run))).
-
-  Definition so_entry_f_sb
-    b_so_exp_tbl e_so_exp_tbl : Sealable :=
-      SCap true RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+2)%a.
-
-  Definition so_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
-    [ so_exp_tbl_entry_f ].
-
 End SO_Main.
