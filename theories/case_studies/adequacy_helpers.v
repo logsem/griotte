@@ -74,7 +74,7 @@ Section adequacy_helpers.
       ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ lword_of_word y) -∗
       can_alloc_pred (ot_switcher switcher_cmpt) -∗
       cstack_full [] -∗
-      mtdc ↦ₛᵣ WCap true RWL Local (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
+      mtdc ↦ₛᵣ WCap true RWL Global (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
       na_inv cerise_nais switcherN switcher_inv ∗
@@ -118,19 +118,63 @@ Section adequacy_helpers.
       iAssert ( switcher_preamble.switcher_inv )
         with "[Htrusted_stack Hcstk_full Hmtdc]" as "Hswitcher".
       {
-        rewrite /switcher_inv /region_pointsto.
-        iFrame "∗#".
-        iExists (lword_of_word <$> tl (trusted_stack_content switcher_cmpt)).
-        iSplitR; first (iPureIntro; apply (ot_switcher_size switcher_cmpt)).
-        pose proof (trusted_stack_content_base_zeroed switcher_cmpt) as Htstk_head.
+        pose proof (trusted_stack_content_frameoffset switcher_cmpt) as Hframeoffset.
         pose proof (trusted_stack_size switcher_cmpt) as Htstk_size.
-        destruct (trusted_stack_content switcher_cmpt); cbn in Htstk_head; simplify_eq.
-        rewrite finz_seq_between_cons; last solve_addr+Htstk_size.
-        iDestruct "Htrusted_stack" as "[Hbase_stack Htrusted_stack]".
-        rewrite big_sepL2_fmap_r.
-        iFrame.
-        iSplitL; last (iPureIntro ; by rewrite finz_add_0).
-        iPureIntro; subst swlayout; cbn; solve_addr.
+        pose proof (trusted_stack_frames_fit switcher_cmpt) as [n Hfit].
+        pose proof (ot_switcher_size switcher_cmpt) as Hot.
+        iAssert ([[ b_trusted_stack switcher_cmpt, e_trusted_stack switcher_cmpt ]]
+                   ↦ₐ [[ lword_of_word <$> trusted_stack_content switcher_cmpt ]])%I
+          with "[Htrusted_stack]" as "Htrusted_stack".
+        { rewrite /region_pointsto big_sepL2_fmap_r. iFrame. }
+        set (b := b_trusted_stack switcher_cmpt) in *.
+        set (e := e_trusted_stack switcher_cmpt) in *.
+        set (l := trusted_stack_content switcher_cmpt) in *.
+        set (i_frameoffset := Z.to_nat TrustedStack_offset_frameoffset) in Hframeoffset.
+        set (a_threadID := (b ^+ TrustedStack_offset_threadID)%a).
+        (* The entry frame [frames[0]], and its cells *)
+        set (a_entry := (b ^+ TrustedStack_offset_frames)%a).
+        set (a_export_table := (a_entry ^+ TrustedStackFrame_offset_calleeExportTable)%a).
+        set (a_error_count := (a_entry ^+ TrustedStackFrame_offset_errorHandlerCount)%a).
+        set (a_next := (a_entry ^+ TrustedStackFrame_size)%a).
+        assert (length l = Z.to_nat (tstack_frame_offset (S n))) as Hlen
+          by (tstack_unfold; solve_addr).
+        (* The save area, the header ([frameoffset] and [threadID]), the entry
+           frame and the unused part *)
+        rewrite -(take_drop_middle l i_frameoffset _ Hframeoffset).
+        assert (length (drop (S i_frameoffset) l)
+                = Z.to_nat (TSTACK_HEADER_SZ - 1 + TrustedStackFrame_size * Z.of_nat (S n)))
+          as Hlen_rest
+          by (rewrite length_drop Hlen; subst i_frameoffset; tstack_unfold; lia).
+        destruct (drop (S i_frameoffset) l) as [|w_threadID rest];
+          first (cbn in Hlen_rest; tstack_unfold; lia).
+        destruct rest as [|w_csp rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
+        destruct rest as [|w_export_table rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
+        destruct rest as [|w_error_count rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
+        rewrite fmap_app fmap_cons.
+        iDestruct (region_pointsto_split _ _ (b ^+ TSTACK_REGFRAME_SZ)%a with "Htrusted_stack")
+          as "[Hsave_area Htrusted_stack]".
+        { tstack_unfold; solve_addr. }
+        { rewrite length_fmap length_take /finz.dist; subst i_frameoffset; tstack_unfold; solve_addr. }
+        iDestruct (region_pointsto_cons _ a_threadID with "Htrusted_stack")
+          as "[Hframeoffset Htrusted_stack]"; [subst a_threadID; tstack_unfold; solve_addr..|].
+        iDestruct (region_pointsto_cons _ a_entry with "Htrusted_stack")
+          as "[HthreadID Htrusted_stack]";
+          [subst a_threadID a_entry; tstack_unfold; solve_addr..|].
+        iDestruct (region_pointsto_cons _ a_export_table with "Htrusted_stack")
+          as "[Hcsp Htrusted_stack]";
+          [subst a_entry a_export_table; tstack_unfold; solve_addr..|].
+        iDestruct (region_pointsto_cons _ a_error_count with "Htrusted_stack")
+          as "[Hexport_table Htrusted_stack]";
+          [subst a_entry a_export_table a_error_count; tstack_unfold; solve_addr..|].
+        iDestruct (region_pointsto_cons _ a_next with "Htrusted_stack")
+          as "[Herror_count Htrusted_stack]";
+          [subst a_entry a_error_count a_next; tstack_unfold; solve_addr..|].
+        rewrite /switcher_inv.
+        iExists a_entry, [], _, _.
+        cbn.
+        rewrite /TrustedStackFrame_offset_csp finz_add_0_default.
+        iFrame "∗ #".
+        iPureIntro; split; [done|subst a_entry b e; tstack_unfold; split; solve_addr].
       }
       iMod (na_inv_alloc cerise_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".

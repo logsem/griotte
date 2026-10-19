@@ -109,7 +109,7 @@ Definition hts_switcher_e : Addr := (hts_switcher_call ^+ length switcher_instrs
 Definition hts_stack_b : Addr := A 1024.
 Definition hts_stack_e : Addr := A 1124.
 Definition hts_trusted_stack_b : Addr := A 4096.
-Definition hts_trusted_stack_e : Addr := A 4196.
+Definition hts_trusted_stack_e : Addr := A 4194.
 Definition hts_switcher_otype : OType := OT 9.
 Definition hts_alloc_otype : OType := OT 10.
 
@@ -153,8 +153,9 @@ Proof.
   refine (@mkCmptSwitcher hts_machine_parameters
     hts_switcher_b hts_switcher_e hts_switcher_call hts_switcher_return
     hts_switcher_otype hts_trusted_stack_b hts_trusted_stack_e
-    _ _ _ _ (replicate 100 (WInt 0)) _ eq_refl
-    ltac:(by apply Forall_replicate)
+    _ _ _ _ (initial_trusted_stack_content 24) _ eq_refl
+    ltac:(exists 24; vm_compute; solve_addr)
+    ltac:(apply initial_trusted_stack_content_ints)
     hts_stack_b hts_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
@@ -281,7 +282,7 @@ Definition hts_concrete_registers : Reg :=
     (gset_to_gmap (WInt 0) all_registers_s))).
 Definition hts_concrete_sregisters : SReg :=
   initial_sregisters_with
-    (WCap true RWL Local hts_trusted_stack_b hts_trusted_stack_e
+    (WCap true RWL Global hts_trusted_stack_b hts_trusted_stack_e
     hts_trusted_stack_b).
 Definition hts_concrete_memory : Mem := hts_initial_memory.
 Definition hts_concrete_initial_state : ExecConf :=

@@ -282,29 +282,47 @@ Section Switcher_preamble.
     let b_stk := frm.(b_stk) in
     let a_stk := frm.(a_stk) in
     let e_stk := frm.(e_stk) in
-    a_tstk ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
+    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+    (∃ w, a_export_table ↦ₐ w) ∗
+    (∃ w, a_error_count ↦ₐ w) ∗
     ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
       disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ⌝ ∗
     cframe_stk_own frm%I.
 
-  (** [cstack_interp] interprets a call-stack.
-      It simply interpret the topmost stack frame,
-      as well as the rest of the call-stack.
+  (** [cstack_interp] interprets a call-stack, whose topmost frame is at
+      [a_tstk] in the trusted stack. It interprets the topmost stack frame,
+      as well as the rest of the call-stack, in the frames below. The empty
+      call-stack is the entry frame of the thread, [frames[0]], whose cells
+      are not constrained.
    *)
   Fixpoint cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
     (match cstk with
-    | [] => a_tstk ↦ₐ WInt 0
-    | frm::cstk' => cstack_interp cstk' (a_tstk ^+ -1)%a
-                  ∗ cframe_interp frm a_tstk
+    | [] =>
+        let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
+        let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+        let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+        ∃ w0 w1 w2,
+          a_csp ↦ₐ w0 ∗
+          a_export_table ↦ₐ w1 ∗
+          a_error_count ↦ₐ w2
+    | frm::cstk' =>
+        let a_prev := (a_tstk ^+ - TrustedStackFrame_size)%a in
+        cstack_interp cstk' a_prev ∗ cframe_interp frm a_tstk
     end)%I.
 
   (** [switcher_inv] describes the invariant of the switcher,
       and describe the private state of the switcher.
 
       [mtdc] is the a privileged register, than only the switcher can access.
-      It contains a pointer to the _trusted stack_
-      (also called _physical call stack_ or _switcher's private state_).
-      The trusted stack stores the compartment's stack pointer of all calls.
+      It contains a capability to the base of the _trusted stack_
+      (also called _physical call stack_ or _switcher's private state_),
+      which never changes. The trusted stack starts with the register save
+      area, followed by [frameoffset] (the offset of the next free frame) and
+      the frames. Each frame stores the stack pointer of a caller, the
+      export table of the callee and the number of error handlers invoked.
 
       The _trusted stack_ must be in sync with the logical call stack [cstk],
       for which the switcher's invariant holds the authoritative view [cstack_full].
@@ -316,17 +334,25 @@ Section Switcher_preamble.
       resource [switcher_static].
 
       Finally, the invariant holds the points-to predicates of the trusted stack.
-      The unused part `[a_tstk+1, e_trusted_stack)` contains some unknown values.
-      The used part is contained in the definition of [stack_interp].
+      The topmost frame is at [a_tstk]; the unused part, from the next frame
+      to [e_trusted_stack], and the save area contain some unknown values.
+      The used part is contained in the definition of [cstack_interp].
    *)
   Definition switcher_inv : iProp Σ :=
-    ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
-      "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
+    ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
+      let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+      "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
-      "Htstk" ∷ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
-      "[%Hbounds_tstk_b %Hbounds_tstk_e]" ∷ ⌜(b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a⌝ ∗
+      "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
+      "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+      "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
+      "Htstk" ∷ [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
       "Hcstk_full" ∷ cstack_full cstk' ∗
-      "%Hlen_cstk" ∷ ⌜(b_trusted_stack + length cstk')%a = Some a_tstk⌝ ∗
+      "%Hlen_cstk" ∷ ⌜(b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk
+                      ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
       (* link the topmost frame of cstk' to the state *)
       "Hstk_interp" ∷ cstack_interp cstk' a_tstk ∗
       "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC.
@@ -334,21 +360,80 @@ Section Switcher_preamble.
   (** Opens [switcher_inv] under the later of [na_inv_acc]: the timeless
       conjuncts lose their later, so that [iNamed] can name them. *)
   Lemma switcher_inv_open :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
     ▷ switcher_inv -∗
-    ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
-      "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
+      let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+      "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
-      "Htstk" ∷ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
-      "[%Hbounds_tstk_b %Hbounds_tstk_e]" ∷ ⌜(b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a⌝ ∗
+      "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
+      "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+      "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
+      "Htstk" ∷ [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
       "Hcstk_full" ∷ cstack_full cstk' ∗
-      "%Hlen_cstk" ∷ ⌜(b_trusted_stack + length cstk')%a = Some a_tstk⌝ ∗
+      "%Hlen_cstk" ∷ ⌜(b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk
+                      ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
       "Hstk_interp" ∷ ▷ cstack_interp cstk' a_tstk ∗
       "#Hp_ot_switcher" ∷ ▷ seal_pred ot_switcher ot_switcher_propC.
   Proof.
-    iIntros "Hinv".
-    iDestruct "Hinv" as (a_tstk cstk' tstk_next)
-      "(>Hmtdc & >% & >Htstk & >% & >Hcstk_full & >% & Hstk_interp & #Hp_ot_switcher)".
-    iModIntro. iExists a_tstk, cstk', tstk_next. by iFrame "∗ # %".
+    intros a_frameoffset a_save_end a_threadID; subst a_frameoffset a_save_end a_threadID.
+    iIntros "Hinv". rewrite /switcher_inv /=.
+    iDestruct "Hinv" as (a_tstk cstk' save_area tstk_next)
+      "(>Hmtdc & >% & >Hsave_area & >Hframeoffset & >HthreadID & >Htstk & >Hcstk_full & >% & Hstk_interp
+       & #Hp_ot_switcher)".
+    iModIntro. iExists a_tstk, cstk', save_area, tstk_next. by iFrame "∗ # %".
+  Qed.
+
+  (** Close [switcher_inv] after popping the topmost frame, at [a_tstk],
+      of the trusted stack: its cells go back to the unused part. *)
+  Lemma switcher_inv_pop_frame
+    (a_tstk : Addr) (cstk : CSTK) (save_area tstk_next : list LWord) (w0 w1 w2 : LWord) :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_prev := (a_tstk ^+ - TrustedStackFrame_size)%a in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
+    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    (b_trusted_stack + tstack_frame_offset (S (length cstk)))%a = Some a_tstk ->
+    (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
+    (ot_switcher < ot_switcher ^+ 1)%ot ->
+
+    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk)) -∗
+    (∃ w, a_threadID ↦ₐ w) -∗
+    a_csp ↦ₐ w0 -∗
+    a_export_table ↦ₐ w1 -∗
+    a_error_count ↦ₐ w2 -∗
+    [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
+    cstack_full cstk -∗
+    cstack_interp cstk a_prev -∗
+    seal_pred ot_switcher ot_switcher_propC -∗
+    switcher_inv.
+  Proof.
+    intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
+    subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
+    iIntros (Hlen_cstk Ha_tstk_e Hot)
+      "Hmtdc Hsave_area Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full Hstk_interp #Hp_ot_switcher".
+    iExists (a_tstk ^+ - TrustedStackFrame_size)%a, cstk, save_area, (w0 :: w1 :: w2 :: tstk_next).
+    iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Hcstk_full Hstk_interp Hp_ot_switcher".
+    replace ((a_tstk ^+ - TrustedStackFrame_size) ^+ TrustedStackFrame_size)%a with a_tstk
+      by (tstack_unfold; solve_addr).
+    iSplit; first done.
+    iSplitL "Hw0 Hw1 Hw2 Htstk".
+    { iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_size)%a
+                   with "[$Hw2 $Htstk]") as "Htstk"; [tstack_unfold; solve_addr..|].
+      iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a
+                   with "[$Hw1 $Htstk]") as "Htstk"; [tstack_unfold; solve_addr..|].
+      iEval (rewrite /TrustedStackFrame_offset_csp finz_add_0_default) in "Hw0".
+      iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a
+                   with "[$Hw0 $Htstk]") as "Htstk"; [tstack_unfold; solve_addr..|].
+      iFrame "Htstk". }
+    iPureIntro; tstack_unfold; split; solve_addr.
   Qed.
 
   (** [switcher_static] holds the read-only memory of the switcher: its code,
@@ -394,6 +479,11 @@ Ltac switcher_unfold_code h :=
   iEval (rewrite /switcher_instrs /assembled_switcher) in h;
   repeat (iEval (cbn [fmap list_fmap]) in h);
   repeat (iEval (cbn [concat]) in h).
+
+(** A trusted-stack address is not a shadow-table address, when [H] states
+    that the trusted stack is disjoint from the shadow table. *)
+Ltac tstk_not_shadow H :=
+  eapply disjoint_from_shadow_not_in; [exact H | rewrite /withinBounds; tstack_unfold; solve_addr].
 
 (** Change the PC to [a_switcher_call ^+ off]. *)
 Ltac switcher_change_pc off := change_pc_to (a_switcher_call ^+ off)%a.

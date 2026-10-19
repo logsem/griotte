@@ -35,7 +35,7 @@ Section initial_capabilities.
   Definition stack_cap (sw : cmptSwitcher) : Word :=
     WCap true RWL Local (b_stack sw) (e_stack sw) (b_stack sw).
   Definition trusted_stack_cap (sw : cmptSwitcher) : Word :=
-    WCap true RWL Local (b_trusted_stack sw) (e_trusted_stack sw) (b_trusted_stack sw).
+    WCap true RWL Global (b_trusted_stack sw) (e_trusted_stack sw) (b_trusted_stack sw).
 
   (** The (unsealed) export-table capability for the entry at address [a]. *)
   Definition cmpt_export (C_cmpt : cmpt) (a : Addr) : Sealable :=

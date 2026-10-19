@@ -27,46 +27,63 @@ Section Switcher_Call_Blocks_4.
      because the guarantees we have about the entry point come from the world. *)
   Lemma switcher_call_block_7_after_unseal_spec
     pc_b pc_e pc_a
-    wcs0 wct2 wctp
+    wcs0 wct2 a_frame wtbl
     (g : Locality)
     btbl_tgt etbl_tgt atbl_tgt
     posture nargs off_tgt :
+    let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     let switcher_instrs_7 := switcher_instrs_n 7 in
     let len_switcher_7 := length switcher_instrs_7 in
     is_shadow_address atbl_tgt = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_7)%a ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     0 ≤ nargs ≤ 7 ->
+    (b_trusted_stack <= a_frame)%a ->
+    (a_export_table < e_trusted_stack)%a ->
 
     atbl_tgt ↦ₐ□ WInt (encode_entry_point posture nargs off_tgt) ∗
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
     cs0 ↦ᵣ wcs0 ∗
     ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
     ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ wctp ∗
+    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
+    a_export_table ↦ₐ wtbl ∗
     codefrag_pers pc_a switcher_instrs_7 ∗
     ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
         ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
         ct2 ↦ᵣ WInt nargs ∗
         ctp ↦ᵣ WInt (entry_point_posture posture) ∗
+        a_export_table ↦ₐ
+          WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
         codefrag_pers pc_a switcher_instrs_7 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
+    intros a_export_table; subst a_export_table.
     intros switcher_instrs_7 len_switcher_7.
     subst switcher_instrs_7 len_switcher_7.
-    iIntros (Hatbl_shadow Hsub_reg atbl_tgt_inbounds Hnargs)
-      "(#Ha_tbl & HPC & Hcs0 & Hct1 & Hct2 & Hctp & #Hcode & Hpost)".
+    iIntros (Hatbl_shadow Hsub_reg atbl_tgt_inbounds Hnargs Ha_frame_b Ha_frame_e)
+      "(#Ha_tbl & HPC & Hcs0 & Hct1 & Hct2 & Hctp & Ha_export_table & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
+    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
+    assert ((a_frame + TrustedStackFrame_offset_calleeExportTable)%a
+            = Some (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a) as Ha_export_table
+      by (tstack_unfold; solve_addr).
 
     (* CLoad cs0 ct1 0. *)
     iInstr "Hcode".
     { done. }
     { split; auto. rewrite /withinBounds. solve_addr. }
+
+    (* Store ctp ct1 1 *)
+    iInstr "Hcode".
+    { tstk_not_shadow Hts_shadow. }
+    { rewrite /withinBounds; tstack_unfold; solve_addr. }
+    rewrite lstore_word_isWL; last reflexivity.
 
     (* --- LAnd ct2 cs0 7 --- *)
     iInstr "Hcode".
@@ -175,9 +192,10 @@ Section Switcher_Call_Blocks_4.
   (** Blocks 7-8: read the entry of the export table and load the PCC and
       CGP of the callee. *)
   Lemma switcher_call_blocks_7_8_spec
-    (wcs0 wcs1 wct2 wctp wcgp wcra : LWord)
+    (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
     (posture : InterruptStatus) (nargs : nat) (off : Z) :
+    let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     (b_tbl <= a_tbl < e_tbl)%a ->
     (b_tbl ^+ 1 < a_tbl)%a ->
     is_Some (bpcc + off)%a ->
@@ -187,6 +205,8 @@ Section Switcher_Call_Blocks_4.
     is_shadow_address (b_tbl ^+ 1)%a = false ->
     is_heap_address bpcc = false ->
     is_heap_cap wcgp_tgt = false ->
+    (b_trusted_stack <= a_frame)%a ->
+    (a_export_table < e_trusted_stack)%a ->
 
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
@@ -196,7 +216,8 @@ Section Switcher_Call_Blocks_4.
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ wctp ∗
+    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
+    a_export_table ↦ₐ wtbl ∗
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
     switcher_code ∗
@@ -206,15 +227,19 @@ Section Switcher_Call_Blocks_4.
         ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl (b_tbl ^+ 1)%a ∗
         ct2 ↦ᵣ WInt (Z.of_nat nargs + 1) ∗
         ctp ↦ᵣ WInt (entry_point_posture posture) ∗
+        a_export_table ↦ₐ
+          WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
         cgp ↦ᵣ wcgp_tgt ∗
         cra ↦ᵣ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         switcher_code -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Htbl Htbl1 Hentry Hnargs Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hwcgp_heap)
+    intros a_export_table; subst a_export_table.
+    iIntros (Htbl Htbl1 Hentry Hnargs Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hwcgp_heap
+               Ha_frame_b Ha_frame_e)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2
-      & Hctp & Hcgp & Hcra & #Hswitcher & Hpost)".
+      & Hctp & Ha_export_table & Hcgp & Hcra & #Hswitcher & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
@@ -223,8 +248,9 @@ Section Switcher_Call_Blocks_4.
     switcher_focus_block (switcher_block ".Lswitcher_unseal_entry") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_unseal_entry") ^+ 1)%a.
     iApply (switcher_call_block_7_after_unseal_spec with
-      "[- $Htbl_entry $HPC $Hcs0 $Hct1 $Hct2 $Hctp $Hcode]"); [done|done|done|lia|].
-    iNext; iIntros "(HPC & Hcs0 & Hct1 & Hct2 & Hctp & _)".
+      "[- $Htbl_entry $HPC $Hcs0 $Hct1 $Hct2 $Hctp $Ha_export_table $Hcode]");
+      [done|done|done|lia|done|done|].
+    iNext; iIntros "(HPC & Hcs0 & Hct1 & Hct2 & Hctp & Ha_export_table & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 8: load the PCC and CGP of the callee *)
@@ -338,10 +364,11 @@ Section Switcher_Call_Blocks_4.
       enable interrupts, clear the registers and jump to the callee. *)
   Lemma switcher_call_blocks_4_spec
     (W : WORLD) (C : CmptName)
-    (wcs0 wcs1 wct2 wctp wcgp wcra : LWord)
+    (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
     (posture : InterruptStatus) (nargs : nat) (off : Z)
     (arg_rmap rmap : LReg) :
+    let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     (b_tbl <= a_tbl < e_tbl)%a ->
     (b_tbl ^+ 1 < a_tbl)%a ->
     is_Some (bpcc + off)%a ->
@@ -351,6 +378,8 @@ Section Switcher_Call_Blocks_4.
     is_shadow_address (b_tbl ^+ 1)%a = false ->
     is_heap_address bpcc = false ->
     is_heap_cap wcgp_tgt = false ->
+    (b_trusted_stack <= a_frame)%a ->
+    (a_export_table < e_trusted_stack)%a ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
@@ -362,7 +391,8 @@ Section Switcher_Call_Blocks_4.
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ wctp ∗
+    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
+    a_export_table ↦ₐ wtbl ∗
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
     ( [∗ map] r↦w ∈ arg_rmap,
@@ -375,6 +405,8 @@ Section Switcher_Call_Blocks_4.
         PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
         cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        a_export_table ↦ₐ
+          WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
@@ -382,15 +414,18 @@ Section Switcher_Call_Blocks_4.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Htbl Htbl1 Hentry Hnargs Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hwcgp_heap Hargs Hdom)
+    intros a_export_table; subst a_export_table.
+    iIntros (Htbl Htbl1 Hentry Hnargs Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hwcgp_heap
+               Ha_frame_b Ha_frame_e Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
-      & Hcgp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
+      & Ha_export_table & Hcgp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
 
     (* Blocks 7-8: load the callee *)
     iApply (switcher_call_blocks_7_8_spec with
-      "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcgp $Hcra $Hswitcher]");
+      "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Ha_export_table
+          $Hcgp $Hcra $Hswitcher]");
       [done..|].
-    iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcgp & Hcra & _)".
+    iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Ha_export_table & Hcgp & Hcra & _)".
 
     (* Block 9: clear the unused argument registers *)
     pose proof switcher_SubBounds as Hsub.
@@ -419,10 +454,11 @@ Section Switcher_Call_Blocks_4.
       arguments are not required to be valid: the argument registers that
       are not cleared keep their initial values. *)
   Lemma switcher_call_blocks_4_known_spec
-    (wcs0 wcs1 wct2 wctp wcgp wcra : LWord)
+    (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
     (posture : InterruptStatus) (nargs : nat) (off : Z)
     (arg_rmap rmap : LReg) :
+    let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     (b_tbl <= a_tbl < e_tbl)%a ->
     (b_tbl ^+ 1 < a_tbl)%a ->
     is_Some (bpcc + off)%a ->
@@ -432,6 +468,8 @@ Section Switcher_Call_Blocks_4.
     is_shadow_address (b_tbl ^+ 1)%a = false ->
     is_heap_address bpcc = false ->
     is_heap_cap wcgp_tgt = false ->
+    (b_trusted_stack <= a_frame)%a ->
+    (a_export_table < e_trusted_stack)%a ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
@@ -443,7 +481,8 @@ Section Switcher_Call_Blocks_4.
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ wctp ∗
+    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
+    a_export_table ↦ₐ wtbl ∗
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
     ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ w ) ∗
@@ -455,6 +494,8 @@ Section Switcher_Call_Blocks_4.
         PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
         cgp ↦ᵣ wcgp_tgt ∗
         cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        a_export_table ↦ₐ
+          WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs)
                      then ⌜ arg_rmap !! r = Some w ⌝
@@ -464,15 +505,18 @@ Section Switcher_Call_Blocks_4.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Htbl Htbl1 Hentry Hnargs Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hwcgp_heap Hargs Hdom)
+    intros a_export_table; subst a_export_table.
+    iIntros (Htbl Htbl1 Hentry Hnargs Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hwcgp_heap
+               Ha_frame_b Ha_frame_e Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
-      & Hcgp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
+      & Ha_export_table & Hcgp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
 
     (* Blocks 7-8: load the callee *)
     iApply (switcher_call_blocks_7_8_spec with
-      "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcgp $Hcra $Hswitcher]");
+      "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Ha_export_table
+          $Hcgp $Hcra $Hswitcher]");
       [done..|].
-    iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcgp & Hcra & _)".
+    iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Ha_export_table & Hcgp & Hcra & _)".
 
     (* Block 9: clear the unused argument registers *)
     pose proof switcher_SubBounds as Hsub.

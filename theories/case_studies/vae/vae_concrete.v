@@ -38,11 +38,11 @@ Definition vae_assert_e : Addr := A 173.
 Definition vae_assert_flag : Addr := A 173.
 Definition vae_switcher_b : Addr := A 175.
 Definition vae_switcher_call : Addr := A 176.
-Definition vae_switcher_return : Addr := A 246.
-Definition vae_switcher_e : Addr := A 292.
+Definition vae_switcher_return : Addr := A 254.
+Definition vae_switcher_e : Addr := A 309.
 Definition vae_switcher_sealing_type : OType := OT 9.
 Definition vae_trusted_stack_b : Addr := A 4096.
-Definition vae_trusted_stack_e : Addr := A 4196.
+Definition vae_trusted_stack_e : Addr := A 4194.
 Definition vae_stack_b : Addr := A 1024.
 Definition vae_stack_e : Addr := A 1124.
 
@@ -90,8 +90,9 @@ Proof.
     vae_switcher_call vae_switcher_return vae_switcher_sealing_type
     vae_trusted_stack_b vae_trusted_stack_e
     _ _ _ _
-    (replicate 100 (WInt 0)) _ eq_refl
-    ltac:(by apply Forall_replicate)
+    (initial_trusted_stack_content 24) _ eq_refl
+    ltac:(exists 24; vm_compute; solve_addr)
+    ltac:(apply initial_trusted_stack_content_ints)
     vae_stack_b vae_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -116,7 +117,11 @@ Proof.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - solve_disjoint_from_mmio.
   - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition vae_concrete_cmptAssert : cmptAssert.
@@ -399,7 +404,7 @@ Definition vae_initial_registers : Reg :=
 
 Definition vae_initial_sregisters : SReg :=
   initial_sregisters_with
-    (WCap true RWL Local vae_trusted_stack_b vae_trusted_stack_e
+    (WCap true RWL Global vae_trusted_stack_b vae_trusted_stack_e
       vae_trusted_stack_b).
 
 Definition vae_initial_memory : Mem := mk_initial_memory.

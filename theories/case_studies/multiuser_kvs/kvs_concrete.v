@@ -51,12 +51,12 @@ Definition kvs_assert_e : Addr := A 432.
 Definition kvs_assert_flag : Addr := A 432.
 Definition kvs_switcher_b : Addr := A 434.
 Definition kvs_switcher_call : Addr := A 435.
-Definition kvs_switcher_return : Addr := A 505.
-Definition kvs_switcher_e : Addr := A 551.
+Definition kvs_switcher_return : Addr := A 513.
+Definition kvs_switcher_e : Addr := A 568.
 Definition kvs_switcher_sealing_type : OType := OT 9.
 Definition kvs_service_sealing_type : OType := OT 10.
 Definition kvs_trusted_stack_b : Addr := A 4096.
-Definition kvs_trusted_stack_e : Addr := A 4196.
+Definition kvs_trusted_stack_e : Addr := A 4194.
 Definition kvs_stack_b : Addr := A 1024.
 Definition kvs_stack_e : Addr := A 1124.
 
@@ -121,8 +121,9 @@ Proof.
     kvs_switcher_b kvs_switcher_e kvs_switcher_call
     kvs_switcher_return kvs_switcher_sealing_type
     kvs_trusted_stack_b kvs_trusted_stack_e _ _ _ _
-    (replicate 100 (WInt 0)) _ eq_refl
-    ltac:(by apply Forall_replicate) kvs_stack_b kvs_stack_e
+    (initial_trusted_stack_content 24) _ eq_refl
+    ltac:(exists 24; vm_compute; solve_addr)
+    ltac:(apply initial_trusted_stack_content_ints) kvs_stack_b kvs_stack_e
     (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -147,7 +148,11 @@ Proof.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - solve_disjoint_from_mmio.
   - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition kvs_concrete_cmptAssert : cmptAssert.
@@ -487,7 +492,7 @@ Definition kvs_initial_registers : Reg :=
 
 Definition kvs_initial_sregisters : SReg :=
   initial_sregisters_with
-    (WCap true RWL Local kvs_trusted_stack_b kvs_trusted_stack_e
+    (WCap true RWL Global kvs_trusted_stack_b kvs_trusted_stack_e
       kvs_trusted_stack_b).
 
 Definition kvs_initial_memory : Mem := mk_initial_memory.

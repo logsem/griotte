@@ -138,6 +138,22 @@ Section CmptLayout.
     cmpt_static_sealed_mregion C ∪
     cmpt_exp_tbl_mregion C.
 
+  (** The initial contents of a trusted stack with room for the entry frame
+      and [n] frames: a zeroed register save area, [frameoffset] pointing
+      after the entry frame, a zeroed [threadID], and zeroed frames. *)
+  Definition initial_trusted_stack_content (n : nat) : list Word :=
+    replicate (Z.to_nat TSTACK_REGFRAME_SZ) (WInt 0) ++
+    [WInt (tstack_frameoffset 0); WInt 0] ++
+    replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat (S n))) (WInt 0).
+
+  Lemma initial_trusted_stack_content_ints (n : nat) :
+    Forall is_z (initial_trusted_stack_content n).
+  Proof.
+    rewrite /initial_trusted_stack_content.
+    repeat apply Forall_app_2; try apply Forall_replicate; try done.
+    by repeat constructor.
+  Qed.
+
   Record cmptSwitcher : Type :=
     mkCmptSwitcher {
         b_switcher : Addr ;
@@ -167,8 +183,15 @@ Section CmptLayout.
         trusted_stack_size :
         (b_trusted_stack + length trusted_stack_content)%a = Some e_trusted_stack ;
 
-        trusted_stack_content_base_zeroed :
-        head trusted_stack_content = Some (WInt 0);
+        (* [frameoffset] points after the entry frame of the thread. *)
+        trusted_stack_content_frameoffset :
+        trusted_stack_content !! Z.to_nat TrustedStack_offset_frameoffset
+        = Some (WInt (tstack_frameoffset 0));
+        (* The trusted stack holds its header, the entry frame and a whole
+           number of frames. *)
+        trusted_stack_frames_fit :
+        ∃ n : nat,
+          (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack;
         trusted_stack_content_ints :
         Forall is_z trusted_stack_content;
 
@@ -198,8 +221,9 @@ Section CmptLayout.
         (* The switcher's sentries are executable: their closed bounds avoid
            the heap. *)
         switcher_end_not_heap : is_heap_address e_switcher = false;
-        (* The trusted stack is not in the heap. *)
-        trusted_stack_not_heap : is_heap_address b_trusted_stack = false;
+        (* The register save area of the trusted stack is not in the heap. *)
+        trusted_stack_not_heap :
+        not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a;
       }.
 
   Definition trusted_stack_disjoint_from_shadow (C : cmptSwitcher) :

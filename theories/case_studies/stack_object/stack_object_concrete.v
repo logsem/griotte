@@ -38,11 +38,11 @@ Definition so_assert_e : Addr := A 224.
 Definition so_assert_flag : Addr := A 224.
 Definition so_switcher_b : Addr := A 226.
 Definition so_switcher_call : Addr := A 227.
-Definition so_switcher_return : Addr := A 297.
-Definition so_switcher_e : Addr := A 343.
+Definition so_switcher_return : Addr := A 305.
+Definition so_switcher_e : Addr := A 360.
 Definition so_switcher_sealing_type : OType := OT 9.
 Definition so_trusted_stack_b : Addr := A 4096.
-Definition so_trusted_stack_e : Addr := A 4196.
+Definition so_trusted_stack_e : Addr := A 4194.
 Definition so_stack_b : Addr := A 1024.
 Definition so_stack_e : Addr := A 1124.
 
@@ -89,8 +89,9 @@ Proof.
   refine (@mkCmptSwitcher machine_parameters_instance
     so_switcher_b so_switcher_e so_switcher_call so_switcher_return
     so_switcher_sealing_type so_trusted_stack_b so_trusted_stack_e
-    _ _ _ _ (replicate 100 (WInt 0)) _ eq_refl
-    ltac:(by apply Forall_replicate)
+    _ _ _ _ (initial_trusted_stack_content 24) _ eq_refl
+    ltac:(exists 24; vm_compute; solve_addr)
+    ltac:(apply initial_trusted_stack_content_ints)
     so_stack_b so_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -114,7 +115,11 @@ Proof.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - solve_disjoint_from_mmio.
   - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition so_concrete_cmptAssert : cmptAssert.
@@ -384,7 +389,7 @@ Definition so_initial_registers : Reg :=
     (gset_to_gmap (WInt 0) all_registers_s))).
 Definition so_initial_sregisters : SReg :=
   initial_sregisters_with
-    (WCap true RWL Local so_trusted_stack_b so_trusted_stack_e
+    (WCap true RWL Global so_trusted_stack_b so_trusted_stack_e
       so_trusted_stack_b).
 Definition so_initial_memory : Mem := mk_initial_memory.
 

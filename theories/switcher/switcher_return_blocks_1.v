@@ -5,9 +5,10 @@ From griotte Require Import switcher_return_states.
 
 (** * Return routine, first part of block 13: pop the trusted stack
 
-    Block 13 starts by reading the topmost frame of the trusted stack, which
-    contains the stack pointer of the caller, and pops it. When the trusted
-    stack is empty, the execution fails. *)
+    Block 13 starts by reading [frameoffset] in the trusted stack. When the
+    frame to pop is the entry frame of the thread, the thread exits (block
+    19). Otherwise, it reads the topmost frame of the trusted stack, which
+    contains the stack pointer of the caller, and pops it. *)
 
 Section Switcher_Return_Blocks_1.
   Context
@@ -20,241 +21,298 @@ Section Switcher_Return_Blocks_1.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
+  (** The test of the empty call-stack, with [d] frames: the thread exits
+      when the frame to pop is the entry frame, i.e. when [d = 0]. *)
   Lemma switcher_return_block_13_load_spec
-    pc_b pc_e pc_a
-    b_trusted_stack e_trusted_stack a_tstk
-    wcsp wtstk :
+    (E : coPset) (Φ : griotte_lang.val → iProp Σ)
+    pc_b pc_e pc_a (d : nat)
+    wctp wct0 wct2 :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let switcher_instrs_13 := switcher_instrs_n 13 in
     let len_switcher_13 := length switcher_instrs_13 in
-    disjoint_from_shadow b_trusted_stack e_trusted_stack ->
-    is_heap_cap wtstk.(lw) = false ->
+    (* The distance from this block to the exit of the thread. *)
+    let off_exit :=
+      asm_label_offset switcher_asm ".Lswitcher_after_compartment_call"
+        ".Lcommon_defer_irqs_and_thread_exit" in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
-    (b_trusted_stack <= a_tstk)%a ->
+    (pc_a ^+ 6 + (off_exit - 6))%a = Some (pc_a ^+ off_exit)%a ->
 
-    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
-    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    csp ↦ᵣ wcsp ∗
-    a_tstk ↦ₐ wtstk ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    ctp ↦ᵣ wctp ∗
+    ct0 ↦ᵣ wct0 ∗
+    ct2 ↦ᵣ wct2 ∗
+    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     codefrag_pers pc_a switcher_instrs_13 ∗
-    ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-        ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-        csp ↦ᵣ wtstk ∗
-        a_tstk ↦ₐ wtstk ∗
-        ⌜ (a_tstk < e_trusted_stack)%a ⌝ ∗
+    ▷ ( ( ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 7)%a ∗
+              ⌜ (0 < d)%nat ⌝ ∗
+              ct0 ↦ᵣ WInt 1 )
+            ∨
+            ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ off_exit)%a ∗
+              ⌜ d = 0 ⌝ ∗
+              ct0 ↦ᵣ WInt 0 ) ) ∗
+        ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        ct2 ↦ᵣ WInt (tstack_frame_offset d) ∗
+        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         codefrag_pers pc_a switcher_instrs_13 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+        WP Seq (Instr Executable) @ E {{ Φ }}
       )
-    ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @ E {{ Φ }}.
   Proof.
-    intros switcher_instrs_13 len_switcher_13.
-    subst switcher_instrs_13 len_switcher_13.
-    iIntros (Htstk_shadow Hwtstk_nonheap Hsub_reg Hbounds_tstk_b)
-      "(HPC & Hctp & Hcsp & Ha_tstk & #Hcode & Hpost)".
+    intros a_frameoffset; subst a_frameoffset.
+    intros switcher_instrs_13 len_switcher_13 off_exit.
+    subst switcher_instrs_13 len_switcher_13 off_exit.
+    iIntros (Hsub_reg Hpc_exit)
+      "(HPC & Hctp & Hct0 & Hct2 & Hmtdc & Hframeoffset & #Hcode & Hpost)".
+    (* Compute the distance to the exit of the thread. *)
+    offsets_compute.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
+    pose proof trusted_stack_frames_fit as [n Hfit].
+    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
+    assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a
+            = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
+      by (tstack_unfold; solve_addr).
 
-    (* --- CLoad csp ctp --- *)
-    destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
-    {
-      iInstr_fail "Hcode".
-      iTrap.
-      by iIntros (?).
-    }
-
+    (* ReadSR ctp mtdc *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Htstk_shadow.
-      rewrite /withinBounds; solve_addr. }
-    { split; auto. rewrite /withinBounds. solve_addr. }
+
+    (* CLoad ct2 ctp 15 *)
+    iInstr "Hcode".
+    { tstk_not_shadow Hts_shadow. }
+    { done. }
+    { split; auto. rewrite /withinBounds. tstack_unfold; solve_addr. }
     rewrite lload_word_RWL.
-    iApply "Hpost"; iFrame "∗ Hcode". iPureIntro; exact Htstk_ae.
+
+    (* Mov ct0 16 *)
+    iInstr "Hcode".
+
+    (* Add ct2 ct2 (-3) *)
+    iInstr "Hcode".
+
+    (* Lt ct0 ct0 ct2 *)
+    iInstr "Hcode".
+    replace (tstack_frameoffset d + _)%Z with (tstack_frame_offset d) by (tstack_unfold; lia).
+    destruct (_ <? tstack_frame_offset d)%Z eqn:Hnonempty; iEval (cbn) in "Hct0";
+      destruct (decide (ct0 = cnull)) as [Hct0_null|_] in Hnonempty; [done| |done|].
+    - assert (0 < d)%nat as Hd
+        by (apply Z.ltb_lt in Hnonempty; tstack_unfold; lia).
+      (* Jnz 2 ct0 *)
+      iInstr "Hcode".
+      iApply "Hpost"; iFrame "∗ Hcode".
+      iLeft; iFrame; done.
+    - assert (d = 0) as ->
+        by (apply Z.ltb_ge in Hnonempty; tstack_unfold; lia).
+      (* Jnz 2 ct0 *)
+      iInstr "Hcode".
+      (* Jmp .Lcommon_defer_irqs_and_thread_exit *)
+      iInstr "Hcode".
+      iApply "Hpost"; iFrame "∗ Hcode".
+      iRight; iFrame; done.
   Qed.
 
-  Lemma switcher_return_block_13_empty_spec
-    pc_b pc_e pc_a
-    b_trusted_stack e_trusted_stack :
-    let switcher_instrs_13 := switcher_instrs_n 13 in
-    let len_switcher_13 := length switcher_instrs_13 in
-    is_heap_address b_trusted_stack = false ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
-
-    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
-    csp ↦ᵣ WInt 0 ∗
-    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
-    codefrag_pers pc_a switcher_instrs_13
-    ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    intros switcher_instrs_13 len_switcher_13.
-    subst switcher_instrs_13 len_switcher_13.
-    iIntros (Hts_heap Hsub_reg) "(HPC & Hctp & Hcsp & Hmtdc & #Hcode)".
-    codefrag_facts "Hcode". clear H0.
-    rewrite /switcher_instrs_n /assembled_switcher_n.
-
-    (* --- Lea ctp (-1)%Z --- *)
-    destruct (decide (b_trusted_stack <= (b_trusted_stack ^+ -1))%a)
-      as [Hb_trusted_stack1'|Hb_trusted_stack1'].
-    {
-      assert ((b_trusted_stack + -1) = None)%a by solve_addr+Hb_trusted_stack1'.
-      iInstr_invalidate "Hcode".
-
-      (* --- WriteSR mtdc ctp --- *)
-      iInstr "Hcode".
-
-      (* --- Lea csp (-1)%Z --- *)
-      iInstr "Hcode".
-
-      (* --- CLoad cgp csp --- *)
-      iInstrApply "Hcode" (wp_instr_faulted_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "(HPC & _)".
-      { intros r sr m st s1 Hr; by rewrite /exec /= /lookup_reg /= Hr. }
-      iTrap.
-      by iIntros (?).
-    }
-    assert (is_Some (b_trusted_stack + -1))%a
-      as [b_trusted_stack1 Hb_trusted_stack1] by solve_addr+Hb_trusted_stack1'.
-    clear Hb_trusted_stack1'.
-    iInstr "Hcode".
-
-    (* --- WriteSR mtdc ctp --- *)
-    iInstr "Hcode".
-
-    (* --- Lea csp (-1)%Z --- *)
-    iInstr "Hcode".
-
-    (* --- CLoad cgp csp --- *)
-    iInstrApply "Hcode" (wp_instr_faulted_1 _ _ _ _ _ _ _ _ _ csp) with "[$HPC $Hcsp]" as "(HPC & _)".
-    { intros r sr m st s1 Hr; by rewrite /exec /= /lookup_reg /= Hr. }
-    iTrap.
-    by iIntros (?).
-  Qed.
-
+  (** Pop the topmost frame, at [a_tstk]: load the stack pointer of the
+      caller, and decrement [frameoffset]. *)
   Lemma switcher_return_block_13_pop_spec
     pc_b pc_e pc_a
-    b_trusted_stack e_trusted_stack a_tstk
+    (d : nat) a_tstk
+    wct1 wcsp
     b_stk e_stk a_stk a_stk4 :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
     let switcher_instrs_13 := switcher_instrs_n 13 in
     let len_switcher_13 := length switcher_instrs_13 in
-    is_heap_address b_trusted_stack = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
-    (b_trusted_stack < a_tstk)%a ->
+    (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
+    (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (a_stk + 4)%a = Some a_stk4 ->
+    is_heap_address b_stk = false ->
 
-    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk4 ∗
-    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 7)%a ∗
+    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ct1 ↦ᵣ wct1 ∗
+    ct2 ↦ᵣ WInt (tstack_frame_offset (S d)) ∗
+    csp ↦ᵣ wcsp ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
+    a_csp ↦ₐ WCap true RWL Local b_stk e_stk a_stk4 ∗
     codefrag_pers pc_a switcher_instrs_13 ∗
-    ▷ ( (∃ a_tstk1,
-            ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
-            PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
-            ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-            csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
-            mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-            codefrag_pers pc_a switcher_instrs_13 ∗
-            £ 1)
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 12)%a ∗
+        ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        ct1 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+        ct2 ↦ᵣ WInt (tstack_frame_offset (S d)) ∗
+        csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
+        a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+        a_csp ↦ₐ WCap true RWL Local b_stk e_stk a_stk4 ∗
+        codefrag_pers pc_a switcher_instrs_13 ∗
+        £ 1
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
+    intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     intros switcher_instrs_13 len_switcher_13.
     subst switcher_instrs_13 len_switcher_13.
-    iIntros (Hts_heap Hsub_reg Hnonempty Ha_stk4) "(HPC & Hctp & Hcsp & Hmtdc & #Hcode & Hpost)".
+    iIntros (Hsub_reg Ha_tstk Ha_tstk_e Ha_stk4 Hb_stk_heap)
+      "(HPC & Hctp & Hct1 & Hct2 & Hcsp & Hframeoffset & Ha_tstk & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
+    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
+    iEval (rewrite /TrustedStackFrame_offset_csp finz_add_0_default) in "Ha_tstk Hpost".
+    assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a
+            = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
+      by (tstack_unfold; solve_addr).
+    assert (is_heap_cap (WCap true RWL Local b_stk e_stk a_stk4) = false) as Hwtstk_nonheap.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_stk_heap //. }
 
-    (* --- Lea ctp (-1)%Z --- *)
-    assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1]
-      by solve_addr+Hnonempty.
+    (* Mov ct1 ctp *)
     iInstr "Hcode".
-    replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
 
-    (* --- WriteSR mtdc ctp --- *)
+    (* Lea ct1 ct2 *)
     iInstr "Hcode".
 
-    (* --- Lea csp (-1)%Z --- *)
+    (* CLoad csp ct1 0 *)
+    iInstr "Hcode".
+    { tstk_not_shadow Hts_shadow. }
+    { split; auto. rewrite /withinBounds. tstack_unfold; solve_addr. }
+    rewrite lload_word_RWL.
+
+    (* Store ctp ct2 15 *)
+    iInstr "Hcode".
+    { tstk_not_shadow Hts_shadow. }
+    { rewrite /withinBounds; tstack_unfold; solve_addr. }
+    rewrite lstore_word_isWL; last reflexivity.
+
+    (* Lea csp (-1)%Z *)
     iInstr "Hcode" with "Hlc".
     { transitivity (Some (a_stk ^+ 3)%a); solve_addr+Ha_stk4. }
 
-    iApply "Hpost". iExists a_tstk1. iFrame "∗ Hcode".
-    iPureIntro; exact Ha_tstk1.
+    assert (tstack_frame_offset (S d) = tstack_frameoffset d) as Hpopped
+      by (tstack_unfold; lia).
+    iEval (rewrite Hpopped) in "Hframeoffset".
+    iApply "Hpost". iFrame "∗ Hcode".
   Qed.
 
-
-  (** Pop the topmost frame of the trusted stack, which contains the stack
-      pointer [WCap true RWL Local b e (a ^+ 4)] of the caller. *)
+  (** Pop the topmost frame of the trusted stack, at [a_tstk], which
+      contains the stack pointer [WCap true RWL Local b e (a ^+ 4)] of the
+      caller, above [d] frames. *)
   Lemma switcher_return_blocks_1_spec
-    (a_tstk b e a : Addr) (wctp wcsp : LWord) :
-    (b_trusted_stack < a_tstk)%a ->
+    (d : nat) (a_tstk b e a : Addr) (wctp wct0 wct1 wct2 wcsp : LWord) :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
+    (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
+    (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (a + 4)%a = Some (a ^+ 4)%a ->
     is_heap_address b = false ->
 
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ wctp ∗
+    ct0 ↦ᵣ wct0 ∗
+    ct1 ↦ᵣ wct1 ∗
+    ct2 ↦ᵣ wct2 ∗
     csp ↦ᵣ wcsp ∗
-    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    a_tstk ↦ₐ WCap true RWL Local b e (a ^+ 4)%a ∗
+    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
+    a_csp ↦ₐ WCap true RWL Local b e (a ^+ 4)%a ∗
     switcher_code ∗
-    ▷ ( ∀ a_tstk1,
-        ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
-        ⌜ (a_tstk < e_trusted_stack)%a ⌝ ∗
-        PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_restore_cgp") ∗
-        ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+    ▷ ( PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_restore_cgp") ∗
+        ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        ct0 ↦ᵣ WInt 1 ∗
+        ct1 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+        ct2 ↦ᵣ WInt (tstack_frame_offset (S d)) ∗
         csp ↦ᵣ WCap true RWL Local b e (a ^+ 3)%a ∗
-        mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-        a_tstk ↦ₐ WCap true RWL Local b e (a ^+ 4)%a ∗
+        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+        a_csp ↦ₐ WCap true RWL Local b e (a ^+ 4)%a ∗
         switcher_code ∗
         £ 1 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hb_tstk Ha4 Hb_heap) "(HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & #Hswitcher & Hpost)".
+    intros a_frameoffset a_csp; subst a_frameoffset a_csp.
+    iIntros (Ha_tstk Ha_tstk_e Ha4 Hb_heap)
+      "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_tstk
+      & #Hswitcher & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     rewrite switcher_return_block_13.
     switcher_unfold_code "Hswitcher".
     switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    (* ReadSR ctp mtdc *)
-    iInstr "Hcode".
     iApply (switcher_return_block_13_load_spec with
-      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]");
-      [apply trusted_stack_disjoint_from_shadow
-      |rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_heap //
-      |done|solve_addr+Hb_tstk|].
-    iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & _)".
+      "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode]");
+      [done|offsets_compute; solve_addr|].
+    iNext; iIntros "([(HPC & _ & Hct0) | (_ & %Hcontra & _)]
+                    & Hctp & Hct2 & Hmtdc & Hframeoffset & _)"; last done.
     iApply (switcher_return_block_13_pop_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [apply trusted_stack_not_heap|done|done|done|].
-    iNext; iIntros "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & _ & Hlc)".
+      "[- $HPC $Hctp $Hct1 $Hct2 $Hcsp $Hframeoffset $Ha_tstk $Hcode]");
+      [done|done|done|done|done|].
+    iNext; iIntros "(HPC & Hctp & Hct1 & Hct2 & Hcsp & Hframeoffset & Ha_tstk & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     switcher_change_pc (switcher_label_offset ".Lswitcher_restore_cgp").
-    iApply "Hpost"; iFrame "∗ Hswitcher"; done.
+    iApply "Hpost"; iFrame "∗ Hswitcher".
   Qed.
 
-  (** When the trusted stack is empty, the execution fails. *)
-  Lemma switcher_return_blocks_1_empty_spec (wctp wcsp : LWord) :
+  (** Block 19: the thread exits, with interrupts disabled. *)
+  Lemma switcher_exit_block_spec (E : coPset) (Φ : griotte_lang.val → iProp Σ) :
+    PC ↦ₚ switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
+    switcher_code ∗
+    ▷ ( PC ↦ₚ switcher_label_pc ".Lcommon_thread_exit"
+        ={E}=∗
+        Φ HaltedV )
+    ⊢ WP Seq (Instr Executable) @ E {{ Φ }}.
+  Proof.
+    iIntros "(HPC & #Hswitcher & Hpost)".
+    pose proof switcher_SubBounds as Hsub.
+    pose proof switcher_size. pose proof switcher_call_entry_point.
+    switcher_unfold_code "Hswitcher".
+    switcher_focus_block (switcher_block ".Lcommon_defer_irqs_and_thread_exit") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    codefrag_facts "Hcode".
+    (* SetMIE InterruptDisabled *)
+    iInstr "Hcode".
+    (* Halt *)
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+    switcher_change_pc (switcher_label_offset ".Lcommon_thread_exit").
+    iApply wp_value_fupd.
+    by iMod ("Hpost" with "HPC").
+  Qed.
+
+  (** When the frame to pop is the entry frame, the thread exits. *)
+  Lemma switcher_return_blocks_1_exit_spec
+    (E : coPset) (Φ : griotte_lang.val → iProp Σ) (wctp wct0 wct2 : LWord) :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ wctp ∗
-    csp ↦ᵣ wcsp ∗
-    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
-    b_trusted_stack ↦ₐ WInt 0 ∗
-    switcher_code
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ct0 ↦ᵣ wct0 ∗
+    ct2 ↦ᵣ wct2 ∗
+    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
+    switcher_code ∗
+    ▷ ( mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        a_frameoffset ↦ₐ WInt (tstack_frameoffset 0)
+        ={E}=∗
+        Φ HaltedV )
+    ⊢ WP Seq (Instr Executable) @ E {{ Φ }}.
   Proof.
-    iIntros "(HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & #Hswitcher)".
+    intros a_frameoffset; subst a_frameoffset.
+    iIntros "(HPC & Hctp & Hct0 & Hct2 & Hmtdc & Hframeoffset & #Hswitcher & Hpost)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     rewrite switcher_return_block_13.
+    iAssert switcher_code as "Hswitcher_code"; first iFrame "Hswitcher".
     switcher_unfold_code "Hswitcher".
     switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    (* ReadSR ctp mtdc *)
-    iInstr "Hcode".
     iApply (switcher_return_block_13_load_spec with
-      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]");
-      [apply trusted_stack_disjoint_from_shadow|done|done|solve_addr|].
-    iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & _)".
-    iApply (switcher_return_block_13_empty_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); [apply trusted_stack_not_heap|done].
+      "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode]");
+      [done|offsets_compute; solve_addr|].
+    iNext; iIntros "([(_ & %Hcontra & _) | (HPC & _ & Hct0)]
+                    & Hctp & Hct2 & Hmtdc & Hframeoffset & _)"; first lia.
+    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+    switcher_change_pc (switcher_label_offset ".Lcommon_defer_irqs_and_thread_exit").
+    iApply (switcher_exit_block_spec with "[$HPC $Hswitcher_code Hpost Hmtdc Hframeoffset]").
+    iIntros "!> _".
+    iApply ("Hpost" with "[$Hmtdc $Hframeoffset]").
   Qed.
 
 End Switcher_Return_Blocks_1.
