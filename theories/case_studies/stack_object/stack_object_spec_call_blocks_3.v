@@ -39,7 +39,7 @@ Section SO_Call_Blocks_3.
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     pc_b ↦ₐ□ so_switcher_entry ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (∀ mie a_stk1 a_stk2 stk_mem',
+    ( ▷ (∀ mie a_stk1 a_stk2 stk_mem',
         ⌜(csp_b + 1)%a = Some a_stk1⌝ ∗
         ⌜(a_stk1 + 1)%a = Some a_stk2⌝ ∗
         ⌜(a_stk2 <= csp_e)%a⌝ ∗
@@ -56,7 +56,19 @@ Section SO_Call_Blocks_3.
         [[a_stk2, csp_e]] ↦ₐ [[stk_mem']] ∗
         pc_b ↦ₐ□ so_switcher_entry ∗
         codefrag_pers pc_a so_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+    (∀ a_f,
+        ⌜(pc_a ^+ so_label_offset ".Lso_f_alloc" <= a_f < pc_a ^+ so_label_offset ".Lso_f_after_call")%a⌝ -∗
+        (∃ a_csp, csp ↦ᵣ WCap true RWL Local csp_b csp_e a_csp) ∗
+        ca1 ↦ᵣ - ∗
+        ct0 ↦ᵣ wct0 ∗
+        ct1 ↦ᵣ wct1 ∗
+        cs0 ↦ᵣ - ∗
+        cs1 ↦ᵣ - ∗
+        cra ↦ᵣ wcra ∗
+        (∃ stk_mem', [[csp_b, csp_e]] ↦ₐ [[stk_mem']]) -∗
+        trap_safe (WCap true RX Global pc_b pc_e a_f) ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap)
@@ -72,10 +84,11 @@ Section SO_Call_Blocks_3.
     destruct (decide ((csp_b < csp_e)%a)) as [Hcsp_size|Hcsp_size]; cycle 1.
     { (* The stack frame is empty: the first store fails *)
       (* Store csp so_secret 0 *)
-      iInstrApply "Hcode" wp_store_fail_z with "[$HPC $Hcsp]" as "(HPC & _)".
+      iInstrApply "Hcode" wp_store_fail_z with "[$HPC $Hcsp]" as "(HPC & Hcsp)".
       { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      iTrap.
-      iIntros (?); done.
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed".
+      offsets_compute; solve_addr.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
     rewrite finz_seq_between_length in Hstklen.
@@ -105,14 +118,18 @@ Section SO_Call_Blocks_3.
         { rewrite /isWithin; solve_addr. }
         (* Store ca1 0%Z 0 *)
         iInstr_fail "Hcode".
-        iTrap.
-        iIntros (?); done.
+        iDestruct (region_pointsto_cons with "[$Hastk0 $Hstk]") as "Hstk"; [done | solve_addr |].
+        iDestruct "Hpost" as "[_ Hfailed]".
+        iTrap with "Hfailed".
+        offsets_compute; solve_addr.
       - (* Subseg ca1 cs0 cs1 *)
         iInstr_invalidate "Hcode".
         (* Store ca1 0%Z 0 *)
         iInstr_fail "Hcode".
-        iTrap.
-        iIntros (?); done.
+        iDestruct (region_pointsto_cons with "[$Hastk0 $Hstk]") as "Hstk"; [done | solve_addr |].
+        iDestruct "Hpost" as "[_ Hfailed]".
+        iTrap with "Hfailed".
+        offsets_compute; solve_addr.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     rewrite finz_seq_between_length in Hstklen'.
@@ -165,6 +182,7 @@ Section SO_Call_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_call ^+ 3)%a = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
       by (offsets_compute; solve_addr).
+    iDestruct "Hpost" as "[Hpost _]".
     iApply ("Hpost" $! mie a_stk1 a_stk2 stk_mem); iFrame "∗ Hcode_main".
     iPureIntro; repeat split; solve_addr.
   Qed.

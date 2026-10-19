@@ -82,11 +82,11 @@ Section AllocatorMacros.
     let code := encodeInstrsW [Jalr cnull cra] in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
     disjoint_from_shadow pc_b pc_e ->
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     codefrag_pers pc_a code ∗
-    trap_ok E φ ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          codefrag_pers pc_a code ∗
@@ -94,13 +94,9 @@ Section AllocatorMacros.
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros code Hpc Hdisjoint; subst code.
-    iIntros "(HPC & Hcra & #Hcode & Hfailed & Hφ)".
+    intros code Hpc Hdisjoint Htgt; subst code.
+    iIntros "(HPC & Hcra & #Hcode & Hφ)".
     codefrag_facts "Hcode".
-    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
-    { (* Jalr cnull cra. *)
-      iInstr_fail "Hcode".
-      iTrap. }
     (* Jalr cnull cra. *)
     iInstr "Hcode" with "Hlc".
     iApply "Hφ". iFrame "∗ Hcode".

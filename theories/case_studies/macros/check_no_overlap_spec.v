@@ -32,21 +32,26 @@ Section Check_No_Overlap_spec.
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a check_no_overlap
-    ∗ ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
-          ∗ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
-          ∗ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
-          ∗ r1 ↦ᵣ WInt 0%Z
-          ∗ r2 ↦ᵣ WInt 0%Z
-          ∗ ⌜ (finz.seq_between b1 e1) ## (finz.seq_between b2 e2) ⌝
-          ∗ codefrag_pers pc_a check_no_overlap
-            -∗ WP Seq (Instr Executable) {{ φ }}
-        )
-    ∗ trap_ok ⊤ φ
+    ∗ ( ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+            ∗ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
+            ∗ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
+            ∗ r1 ↦ᵣ WInt 0%Z
+            ∗ r2 ↦ᵣ WInt 0%Z
+            ∗ ⌜ (finz.seq_between b1 e1) ## (finz.seq_between b2 e2) ⌝
+            ∗ codefrag_pers pc_a check_no_overlap
+              -∗ WP Seq (Instr Executable) {{ φ }}
+          ) ∧
+        ( ∀ a, ⌜(pc_a <= a < a_last)%a⌝ -∗
+          rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1) ∗
+          rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2) ∗
+          r1 ↦ᵣ - ∗
+          r2 ↦ᵣ - -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e a) ⊤ φ ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros check_no_overlap a_last ; subst check_no_overlap a_last.
     iIntros (Hvpc Hcont Hrsrc1_cnull Hrsrc2_cnull Hr1_cnull Hr2_cnull)
-      "(>HPC & >Hrsrc1 & >Hrsrc2 & >Hr1 & >Hr2 & >#Hprog & Hφ & Hfailed)".
+      "(>HPC & >Hrsrc1 & >Hrsrc2 & >Hr1 & >Hr2 & >#Hprog & Hk)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
     cbn.
@@ -66,6 +71,7 @@ Section Check_No_Overlap_spec.
         iInstr "Hprog".
         iInstr "Hprog".
         iInstr "Hprog".
+        iDestruct "Hk" as "[Hφ _]".
         iApply "Hφ"; iFrame "∗ Hprog".
         iPureIntro.
         intros a Ha Ha'.
@@ -73,7 +79,8 @@ Section Check_No_Overlap_spec.
         solve_addr.
       + iInstr "Hprog".
         iInstr "Hprog".
-        iTrap.
+        iDestruct "Hk" as "[_ Hfailed]".
+        iTrap with "Hfailed".
     - (* b2 <= b1 *)
       iInstr "Hprog".
       iInstr "Hprog".
@@ -85,6 +92,7 @@ Section Check_No_Overlap_spec.
         iInstr "Hprog".
         iInstr "Hprog".
         iInstr "Hprog".
+        iDestruct "Hk" as "[Hφ _]".
         iApply "Hφ"; iFrame "∗ Hprog".
         iPureIntro.
         intros a Ha Ha'.
@@ -92,7 +100,8 @@ Section Check_No_Overlap_spec.
         solve_addr.
       + iInstr "Hprog".
         iInstr "Hprog".
-        iTrap.
+        iDestruct "Hk" as "[_ Hfailed]".
+        iTrap with "Hfailed".
   Qed.
 
 End Check_No_Overlap_spec.

@@ -190,6 +190,10 @@ Section SO.
            [|rewrite length_app; offsets_compute; cbn in Hso_imports |- *; solve_addr]) in "HPC".
     iApply (so_check_blocks_1_spec with
              "[- $HPC $Hca0 $Hca1 $Hct1 $Hcs0 $Hcs1 $Hcsp $Hcode_main]"); first done.
+    iSplit; cycle 1.
+    { iIntros (a_f Ha_f) "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros (t p g b e a π)
       "(%Hp & -> & %Hno_overlap & HPC & Hca0 & Hca1 & Hct1 & Hcs0 & Hcs1 & Hcsp
       & _ & Hlc)".
@@ -197,7 +201,10 @@ Section SO.
     { (* Block 6 fails on an untagged, non-empty object *)
       destruct t; first (exfalso; apply Hbad; auto).
       iApply (so_checkints_blocks_2_untagged_spec with
-               "[$HPC $Hca0 $Hcs0 $Hcs1 $Hcode_main]"); [done|solve_addr]. }
+               "[$HPC $Hca0 $Hcs0 $Hcs1 $Hcode_main]"); [done|solve_addr|].
+      iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
 
     iAssert (⌜disjoint_from_shadow b e⌝)%I as "%Hobject_shadow".
     { destruct Htag_or_empty as [-> | Hempty].
@@ -217,6 +224,10 @@ Section SO.
     (* Block 6: [in] only contains integers *)
     iApply (so_checkints_blocks_2_spec with
              "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hobject $Hcode_main]"); [done..|].
+    iSplit; cycle 1.
+    { iIntros (a_f Ha_f) "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & [Hlc Hlc'])".
 
     (* Close the region of [in] *)
@@ -239,6 +250,10 @@ Section SO.
     iApply (so_call_blocks_3_spec with
              "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Himport_switcher
               $Hcode_main]"); [done..|].
+    iSplit; cycle 1.
+    { iIntros (a_f Ha_f) "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros (mie a_stk1 a_stk2 stk_tail)
       "(%Hastk1 & %Hastk2 & %Hastk2_csp_e & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
       & Hcra & Hsecret & Hastk1 & Hstk & _ & _)".
@@ -291,6 +306,10 @@ Section SO.
              "[- $Hassert $HPC $Hcsp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
               $Hcs0 $Hca0 $Hca1 $Hsecret $Himport_assert $Hcode_main]");
       [done|done|solve_addr|solve_addr|].
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
                     & Hcs0 & Hca0 & Hca1 & Hsecret & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

@@ -113,13 +113,18 @@ Section KVS_getFullKey.
 
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
 
-      codefrag_pers pc_a instrs
+      codefrag_pers pc_a instrs ∗
+
+      ( rdst ↦ᵣ - ∗
+        rsealkey ↦ᵣ wsealkey -∗
+        trap_safe (WCap true RX Global pc_b pc_e (pc_a ^+ 3)%a) ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (Hunsealing_shadow HsubBounds Hoff Hnot_sealed_with_kvs_otype Hrsealkey Hdst)
       "(HPC & [%wdst Hrdst] & Hrsealkey
-      & #Ha_unsealing & #Hcode)".
+      & #Ha_unsealing & #Hcode & Hfailed)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -148,8 +153,7 @@ Section KVS_getFullKey.
       { intros r sr m st s1 Hr.
         rewrite /exec /= /lookup_reg /= Hr /= decide_False //.
         destruct wsealkey as [ [z | sb | t p g b e a | o sb] π0]; try destruct sb; by destruct s1. }
-      iTrap.
-      iIntros "%Hcontr"; done. }
+      iTrap with "Hfailed". }
     {
     destruct Hnot_sealed_with_kvs_otype as [Hnot_sealed_with_kvs_otype | Hclear].
     2: { rewrite spec /= Htag in Hclear; done. }
@@ -162,9 +166,9 @@ Section KVS_getFullKey.
     }
     wp_pure.
     iClear "Hi".
+    (* CLoad rdst rdst 0. *)
     iInstr_fail "Hcode".
-    iTrap.
-    iIntros "%Hcontr"; done.
+    iTrap with "Hfailed".
   Qed.
 
 End KVS_getFullKey.

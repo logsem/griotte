@@ -34,7 +34,7 @@ Section SO_Checkints_Blocks_2.
     cs1 ↦ᵣ wcs1 ∗
     ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (⌜Forall (λ w, ∃ z, w.(lw) = WInt z) ws⌝ ∗
+    ( ▷ (⌜Forall (λ w, ∃ z, w.(lw) = WInt z) ws⌝ ∗
         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
         ca0 ↦ᵣ WCap t p g b e (finz.max b e) @@? π ∗
         cs0 ↦ᵣ WInt 0 ∗
@@ -42,7 +42,15 @@ Section SO_Checkints_Blocks_2.
         ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
         codefrag_pers pc_a so_main_code ∗
         £ 2
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+    (∀ a_f,
+        ⌜(pc_a ^+ so_label_offset ".Lso_f_checkints" <= a_f < pc_a ^+ so_label_offset ".Lso_f_alloc")%a⌝ -∗
+        (∃ a_r, ca0 ↦ᵣ WCap t p g b e a_r @@? π) ∗
+        cs0 ↦ᵣ - ∗
+        cs1 ↦ᵣ - ∗
+        ([∗ list] a;v ∈ l;ws, a ↦ₐ v) -∗
+        trap_safe (WCap true RX Global pc_b pc_e a_f) ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hp Hshadow Hl)
@@ -54,10 +62,15 @@ Section SO_Checkints_Blocks_2.
     focus_block (so_block ".Lso_f_checkints") "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hobject $Hcode]"); eauto.
-    iSplitL; last (iApply trap_ok_intro; iNext; iIntros (?); done).
+    iSplit; cycle 1.
+    { iIntros (a_f Ha_f) "(Hca0 & Hcs0 & Hcs1 & Hobject)".
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iApply ("Hfailed" with "[%] [$]").
+      offsets_compute; solve_addr. }
     iNext; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hobject & %Hints & _ & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ so_label_offset ".Lso_f_alloc")%a.
+    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗% Hcode_main".
   Qed.
 
@@ -73,18 +86,27 @@ Section SO_Checkints_Blocks_2.
     ca0 ↦ᵣ WCap false p g b e a @@? π ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    codefrag_pers pc_a so_main_code
+    codefrag_pers pc_a so_main_code ∗
+    ( ca0 ↦ᵣ WCap false p g b e b @@? π ∗
+      cs0 ↦ᵣ - ∗
+      cs1 ↦ᵣ - -∗
+      trap_safe
+        (WCap true RX Global pc_b pc_e
+           ((pc_a ^+ so_label_offset ".Lso_f_checkints") ^+ checkints_loop_offset)%a) ⊤
+        (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hbe)
-      "(HPC & Hca0 & Hcs0 & Hcs1 & Hcode_main)".
+      "(HPC & Hca0 & Hcs0 & Hcs1 & Hcode_main & Hfailed)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
 
     (* Block 6: [checkints] fails on the untagged object *)
     focus_block (so_block ".Lso_f_checkints") "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
+    replace a_checkints with (pc_a ^+ so_label_offset ".Lso_f_checkints")%a
+      by (offsets_compute; solve_addr).
     iApply (checkints_fail_untagged with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
-    iApply trap_ok_intro; iNext; iIntros (?); done.
+    offsets_compute; solve_addr.
   Qed.
 
 End SO_Checkints_Blocks_2.

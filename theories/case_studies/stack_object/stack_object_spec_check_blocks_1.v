@@ -33,7 +33,7 @@ Section SO_Check_Blocks_1.
     cs1 ↦ᵣ wcs1 ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (∀ t p g b e a π,
+    ( ▷ (∀ t p g b e a π,
         ⌜readAllowed p = true⌝ ∗
         ⌜wca0 = WCap t p g b e a @@? π⌝ ∗
         ⌜finz.seq_between b e ## finz.seq_between csp_b csp_e⌝ ∗
@@ -46,7 +46,17 @@ Section SO_Check_Blocks_1.
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         codefrag_pers pc_a so_main_code ∗
         £ 1
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+    (∀ a_f,
+        ⌜(pc_a ^+ so_label_offset ".Lso_f" <= a_f < pc_a ^+ so_label_offset ".Lso_f_checkints")%a⌝ -∗
+        ca0 ↦ᵣ wca0 ∗
+        ca1 ↦ᵣ wca1 ∗
+        ct1 ↦ᵣ wca1 ∗
+        cs0 ↦ᵣ - ∗
+        cs1 ↦ᵣ - ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b -∗
+        trap_safe (WCap true RX Global pc_b pc_e a_f) ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
@@ -65,7 +75,11 @@ Section SO_Check_Blocks_1.
     focus_block (so_block ".Lso_f_checkra") "Hcode_main" of so_main_blocks at pc_a as a_checkra Ha_checkra "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
-    iSplitL; last (iApply trap_ok_intro; iNext; iIntros (?); done).
+    iSplit; cycle 1.
+    { iIntros (a_f Ha_f) "(Hca0 & Hcs0 & Hcs1)".
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iApply ("Hfailed" with "[%] [$]").
+      offsets_compute; solve_addr. }
     iNext; iIntros "H".
     iDestruct "H" as (t p g b e a π) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -74,10 +88,15 @@ Section SO_Check_Blocks_1.
     focus_block (so_block ".Lso_f_check_no_overlap") "Hcode_main" of so_main_blocks at pc_a as a_overlap Ha_overlap "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (check_no_overlap_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto.
-    iSplitL; last (iApply trap_ok_intro; iNext; iIntros (?); done).
+    iSplit; cycle 1.
+    { iIntros (a_f Ha_f) "(Hca0 & Hcsp & Hcs0 & Hcs1)".
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iApply ("Hfailed" with "[%] [$]").
+      offsets_compute; solve_addr. }
     iNext; iIntros "(HPC & Hca0 & Hcsp & Hcs1 & Hcs0 & %Hno_overlap & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     change_pc_to (pc_a ^+ so_label_offset ".Lso_f_checkints")%a.
+    iDestruct "Hpost" as "[Hpost _]".
     iApply ("Hpost" $! t p g b e a π); iFrame "∗% Hcode_main"; done.
   Qed.
 

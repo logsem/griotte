@@ -44,7 +44,7 @@ Section Switcher_Call_Blocks_2.
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     [[a_stk,e_stk]]↦ₐ[[stk_mem]] ∗
     codefrag_pers pc_a switcher_instrs_2 ∗
-    ▷ ( ∀ stk_mem',
+    ( ▷ ( ∀ stk_mem',
           ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_2)%a ∗
             cs0 ↦ᵣ wcs0 ∗
             cs1 ↦ᵣ wcs1 ∗
@@ -61,7 +61,16 @@ Section Switcher_Call_Blocks_2.
             codefrag_pers pc_a switcher_instrs_2 -∗
             WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
           )
-      )
+      ) ∧
+      ( ∀ a, ⌜(pc_a <= a < pc_a ^+ len_switcher_2)%a⌝ -∗
+        cs0 ↦ᵣ wcs0 ∗
+        cs1 ↦ᵣ wcs1 ∗
+        cra ↦ᵣ wcra ∗
+        cgp ↦ᵣ wcgp ∗
+        (∃ a_csp, csp ↦ᵣ WCap true RWL Local b_stk e_stk a_csp) ∗
+        (∃ stk_mem', [[a_stk,e_stk]]↦ₐ[[stk_mem']]) -∗
+        trap_safe (WCap true XSRW_ Local pc_b pc_e a) ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -76,10 +85,10 @@ Section Switcher_Call_Blocks_2.
     destruct (decide (b_stk <= a_stk < e_stk)%a) as [Hastk_inbounds|Hastk_inbounds]; cycle 1.
     {
       (* Store csp cs0 0 *)
-      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs0 $Hcsp]" as "(HPC & _)".
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs0 $Hcsp]" as "(HPC & Hcs0 & Hcsp)".
       { rewrite /withinBounds; solve_addr. }
-      iTrap.
-      iIntros "%Hcontr";done.
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed".
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk_inbounds.
     destruct stk_mem as [|w0 stk_mem]; simplify_eq.
@@ -99,10 +108,11 @@ Section Switcher_Call_Blocks_2.
     destruct (decide (b_stk <= (a_stk ^+ 1)%a < e_stk)%a) as [Hastk1_inbounds|Hastk1_inbounds]; cycle 1.
     {
       (* Store csp cs1 0 *)
-      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs1 $Hcsp]" as "(HPC & _)".
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs1 $Hcsp]" as "(HPC & Hcs1 & Hcsp)".
       { rewrite /withinBounds; solve_addr. }
-      iTrap.
-      iIntros "%Hcontr";done.
+      iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk"; [done | solve_addr |].
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed".
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk1_inbounds.
     destruct stk_mem as [|w1 stk_mem]; simplify_eq.
@@ -121,10 +131,12 @@ Section Switcher_Call_Blocks_2.
     destruct (decide (b_stk <= (a_stk ^+ 2)%a < e_stk)%a) as [Hastk2_inbounds|Hastk2_inbounds]; cycle 1.
     {
       (* Store csp cra 0 *)
-      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcra $Hcsp]" as "(HPC & _)".
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcra $Hcsp]" as "(HPC & Hcra & Hcsp)".
       { rewrite /withinBounds; solve_addr. }
-      iTrap.
-      iIntros "%Hcontr";done.
+      iDestruct (region_pointsto_cons with "[$Ha_stk1 $Hstk]") as "Hstk"; [done | solve_addr |].
+      iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk"; [done | solve_addr |].
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed".
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk2_inbounds.
     destruct stk_mem as [|w2 stk_mem]; simplify_eq.
@@ -143,10 +155,13 @@ Section Switcher_Call_Blocks_2.
     destruct (decide (b_stk <= (a_stk ^+ 3)%a < e_stk)%a) as [Hastk3_inbounds|Hastk3_inbounds]; cycle 1.
     {
       (* Store csp cgp 0 *)
-      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcgp $Hcsp]" as "(HPC & _)".
+      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcgp $Hcsp]" as "(HPC & Hcgp & Hcsp)".
       { rewrite /withinBounds; solve_addr. }
-      iTrap.
-      iIntros "%Hcontr";done.
+      iDestruct (region_pointsto_cons with "[$Ha_stk2 $Hstk]") as "Hstk"; [done | solve_addr |].
+      iDestruct (region_pointsto_cons with "[$Ha_stk1 $Hstk]") as "Hstk"; [done | solve_addr |].
+      iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk"; [done | solve_addr |].
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed".
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk3_inbounds.
     destruct stk_mem as [|w3 stk_mem]; simplify_eq.
@@ -167,6 +182,7 @@ Section Switcher_Call_Blocks_2.
     replace (a_stk3) with (a_stk ^+3)%a by solve_addr.
     replace (a_stk4) with (a_stk ^+4)%a by solve_addr.
     repeat rewrite lstore_word_isWL; try reflexivity.
+    iDestruct "Hpost" as "[Hpost _]".
     iApply ("Hpost" $! stk_mem). iFrame "∗ Hcode".
     iPureIntro; repeat split; solve_addr.
   Qed.
@@ -454,6 +470,10 @@ Section Switcher_Call_Blocks_2.
     switcher_focus_block (switcher_block ".Lswitcher_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_2_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hcode]"); [done|done|].
+    iSplit; cycle 1.
+    { iIntros (a_f Ha_f) "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros (stk_mem')
       "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp
       & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hstk & %Hbounds & -> & _)".
@@ -491,10 +511,14 @@ Section Switcher_Call_Blocks_2.
     PC ↦ₚ switcher_label_pc ".Lswitcher_entry_first_spill" ∗
     csp ↦ᵣ wcsp ∗
     cs0 ↦ᵣ wcs0 ∗
-    switcher_code
+    switcher_code ∗
+    ( csp ↦ᵣ wcsp ∗
+      cs0 ↦ᵣ wcs0 -∗
+      trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
+        (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hchecked Hnot_stk) "(HPC & Hcsp & Hcs0 & #Hswitcher)".
+    iIntros (Hchecked Hnot_stk) "(HPC & Hcsp & Hcs0 & #Hswitcher & Hfailed)".
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
@@ -502,23 +526,20 @@ Section Switcher_Call_Blocks_2.
     (* Store csp cs0 *)
     destruct (is_cap wcsp.(lw)) eqn:Hcap; cycle 1.
     { (* Store csp cs0 *)
-      iInstrApply "Hcode" wp_store_fail_reg_not_cap_lword with "[$HPC $Hcs0 $Hcsp]" as "(HPC & _)".
-      iTrap.
-      iIntros "%Hcontr"; done. }
+      iInstrApply "Hcode" wp_store_fail_reg_not_cap_lword with "[$HPC $Hcs0 $Hcsp]" as "(HPC & Hcs0 & Hcsp)".
+      iTrap with "Hfailed". }
     destruct wcsp as [ [| [t p g b e a|] | | ] π]; cbn in Hcap; try discriminate.
     destruct t.
     2: {
       (* Store csp cs0 *)
       iInstr_fail "Hcode".
-      iTrap.
-      iIntros "%Hcontr"; done. }
+      iTrap with "Hfailed". }
     destruct (switcher_csp_checked_cap _ _ _ _ _ _ Hchecked) as [-> ->].
     specialize (Hnot_stk b e a eq_refl).
     (* Store csp cs0 *)
-    iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs0 $Hcsp]" as "(HPC & _)".
+    iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs0 $Hcsp]" as "(HPC & Hcs0 & Hcsp)".
     { destruct Hnot_stk; rewrite /withinBounds; solve_addr. }
-    iTrap.
-    iIntros "%Hcontr"; done.
+    iTrap with "Hfailed".
   Qed.
 
 End Switcher_Call_Blocks_2.

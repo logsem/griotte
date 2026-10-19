@@ -60,7 +60,10 @@ Section AllocatorMallocOwnerBlocks1.
   Qed.
 
   Lemma allocator_malloc_owner_invalid_spec
-    (E : coPset) (pc_b pc_e pc_a : Addr) (wsealed wtp : LWord) (P : iProp Σ) :
+    (Nswitcher : namespace) (E : coPset) (pc_b pc_e pc_a : Addr) (wsealed wtp : LWord)
+    (P : iProp Σ) :
+    let a_owner_end := (pc_a ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0))%a in
+    ↑Nswitcher ⊆ E ->
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     (pc_b + allocator_malloc_pcc_off)%a = Some pc_a ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
@@ -68,18 +71,23 @@ Section AllocatorMallocOwnerBlocks1.
     ctp ↦ᵣ wtp ∗
     ca0 ↦ᵣ wsealed ∗
     (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ□ allocator_unsealing_key ∗
-    codefrag_pers pc_a allocator_malloc_code
+    codefrag_pers pc_a allocator_malloc_code ∗
+    (∀ a, ⌜(pc_a <= a < a_owner_end)%a⌝ -∗
+      ctp ↦ᵣ - ∗
+      ca0 ↦ᵣ wsealed -∗
+      trap_safe (WCap true RX Global pc_b pc_e a) E (λ v, ⌜v = HaltedV⌝ → P)%I)
     ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
-    intros (Hpc & Hpc_shadow & _) Hpcc Hwsealed.
-    iIntros "(HPC & Hctp & Hca0 & #Hkey & #Hcode_main)".
+    intros a_owner_end HEswitcher (Hpc & Hpc_shadow & _) Hpcc Hwsealed.
+    subst a_owner_end.
+    iIntros "(HPC & Hctp & Hca0 & #Hkey & #Hcode_main & Hfailed)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
 
     (* Block 0: the unsealing or the load of the owner identifier traps *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iApply (allocator_owner_invalid_spec with
-      "[$HPC $Hctp $Hca0 $Hkey $Hcode]"); try done.
+      "[$HPC $Hctp $Hca0 $Hkey $Hcode Hfailed]"); try done.
     { rewrite /allocator_unsealing_key_import_off.
       rewrite /allocator_malloc_pcc_off in Hpcc.
       let v := eval vm_compute in allocator_malloc_owner_off in

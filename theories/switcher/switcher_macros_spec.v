@@ -41,18 +41,22 @@ Section switcher_macros.
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
       ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2)
       ∗ world_interp W C
-      ∗ ▷ ( (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
-             ∗ csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
-             ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_e
-             ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2))
-            ∗ world_interp W C
-            -∗ WP Seq (Instr Executable) {{ φ }})
-      ∗ trap_ok ⊤ φ
+      ∗ ( ▷ ( (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
+               ∗ csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a
+               ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_e
+               ∗ codefrag_pers pc_a (clear_stack_instrs r1 r2))
+              ∗ world_interp W C
+              -∗ WP Seq (Instr Executable) {{ φ }}) ∧
+          ( csp ↦ᵣ WCap true csp_p csp_g csp_b csp_e csp_a ∗
+            r1 ↦ᵣ - ∗
+            r2 ↦ᵣ - ∗
+            world_interp W C -∗
+            trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 4)%a) ⊤ φ ) )
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
     iIntros (Hpc_exec Hbounds Hr1cnull Hr2cnull)
-      "(HPC & Hcsp & Hinterp & Hr1 & Hr2 & #Hcode & Hworld_interp & Hφ & Hfailed)".
+      "(HPC & Hcsp & Hinterp & Hr1 & Hr2 & #Hcode & Hworld_interp & Hk)".
     codefrag_facts "Hcode". clear H0.
 
     (* --- Sub r1 r2 r1 --- *)
@@ -62,7 +66,7 @@ Section switcher_macros.
     iInstr "Hcode".
 
     remember (WCap true csp_p csp_g csp_b csp_e csp_a) as sp.
-    rewrite{1 3} Heqsp. clear Heqsp.
+    rewrite{1 4} Heqsp. clear Heqsp.
     iLöb as "IH" forall (csp_a).
     iDestruct "Hinterp" as "#Hinterp".
 
@@ -73,6 +77,7 @@ Section switcher_macros.
       iInstr "Hcode".
       (* --- Jmp 5 ---- *)
       iInstr "Hcode".
+      iDestruct "Hk" as "[Hφ _]".
       iApply "Hφ". subst. iFrame "∗ #".
     - (* csp_a ≠ csp_2 ==> another iteration (or failure) *)
       (* --- Jnz 2 r1 --- *)
@@ -81,9 +86,10 @@ Section switcher_macros.
 
       (* --- Store r2 0%Z --- *)
       iInstrApply "Hcode" wp_store_interp_z_cap with "[$HPC $Hworld_interp Hr2]"
-        as (v) "[(-> & HPC & _) | (-> & HPC & Hr2 & Hworld_interp & %Hwa & %Hstorebounds)]".
+        as (v) "[(-> & HPC & Hr2 & Hworld_interp) | (-> & HPC & Hr2 & Hworld_interp & %Hwa & %Hstorebounds)]".
       { iFrame "∗ #". }
-      { iTrap. }
+      { iDestruct "Hk" as "[_ Hfailed]".
+        iTrap with "Hfailed". }
 
       (* --- Lea r2 1 --- *)
       assert (is_Some (csp_a + 1)%a) as [f Ha].
@@ -99,7 +105,7 @@ Section switcher_macros.
 
       (* IH *)
       replace (csp_a - csp_e + 1)%Z with (f - csp_e)%Z by solve_addr.
-      iApply ("IH" $! f with "[] Hworld_interp Hφ Hfailed Hct2 HPC Hr2 Hcsp").
+      iApply ("IH" $! f with "[] Hworld_interp Hk Hct2 HPC Hr2 Hcsp").
       iApply interp_lea;eauto.
       destruct csp_p,rx,w;auto. done.
   Qed.

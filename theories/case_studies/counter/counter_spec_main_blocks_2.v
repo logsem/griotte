@@ -30,14 +30,22 @@ Section Counter_Main_Blocks_2.
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a counter_main_code ∗
-    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
+    ( ▷ (PC ↦ₚ lupdatePcPerm wret ∗
         cra ↦ᵣ wret ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
         ca0 ↦ᵣ WInt 0 ∗
         ca1 ↦ᵣ WInt 0 ∗
         codefrag_pers pc_a counter_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+    (cra ↦ᵣ wret ∗
+        cs0 ↦ᵣ WInt 0 ∗
+        cs1 ↦ᵣ WInt 0 ∗
+        ca0 ↦ᵣ WInt 0 ∗
+        ca1 ↦ᵣ WInt 0 -∗
+        trap_safe
+          (WCap true RX Global pc_b pc_e ((pc_a ^+ counter_label_offset ".Lcounter_return") ^+ 5)%a) ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap))
@@ -62,11 +70,13 @@ Section Counter_Main_Blocks_2.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
-      iTrap.
-      by iIntros (?). }
+      change_pc_to ((pc_a ^+ counter_label_offset ".Lcounter_return") ^+ 5)%a.
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed". }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

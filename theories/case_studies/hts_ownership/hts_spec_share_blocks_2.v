@@ -50,8 +50,36 @@ Section HTS_Spec_Share.
     heap_std W_init_C = ∅ ->
     hts_ctx ∗
     malloc_ret ∗
-    (adv1_ret -∗
-     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+    ((adv1_ret -∗
+      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+     ((∃ (ι : AId) (b : Addr),
+         ⌜hts_buffer_bounds b⌝ ∗
+         na_own cerise_nais ⊤ ∗
+         (∃ mie, cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+                          (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a) ∗
+         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+         (∃ w, cs0 ↦ᵣ w) ∗
+         (∃ w, cs1 ↦ᵣ w) ∗
+         ca0 ↦ᵣ hts_buffer b @@ ι ∗
+         ca1 ↦ᵣ WInt 0 ∗
+         ct0 ↦ᵣ - ∗
+         (∃ rmap : LReg,
+            ⌜dom rmap = all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1; ct0 ]}⌝ ∗
+            ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)) ∗
+         cstack_frag cstk ∗
+         cgp_b ↦ₐ WInt 0 ∗
+         owner_a ↦ₐ WInt hts_main_owner_id ∗
+         [[csp_b, csp_e]] ↦ₐ [[region_addrs_zeroes csp_b csp_e]] ∗
+         world_interp (revoke W_init_C) C ∗
+         StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e) ∗
+         interp_continuation cstk Ws Cs ∗
+         allocator_owner_id hts_main_owner_id {[ι]} ∗
+         alloc_obj ι b (b ^+ 1)%a ∗
+         free_right ι ∗
+         b ↦ₕ[ι] WInt 0) -∗
+      trap_safe (WCap true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_share")%a) ⊤
+        (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I))
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap
@@ -110,12 +138,17 @@ Section HTS_Spec_Share.
     { (* Empty stack: the store to the stack slot faults. *)
       (* Store csp ca0 0. *)
       iInstrApply "Hcode" (wp_store_fail_reg_imm _ 0 RX Global pc_b pc_e a_store None None _ csp ca0
-        RWL Local csp_b csp_e csp_b csp_b) with "[$HPC $Hca0 $Hcsp]" as "(HPC & _)".
+        RWL Local csp_b csp_e csp_b csp_b) with "[$HPC $Hca0 $Hcsp]" as "(HPC & Hca0 & Hcsp)".
       { solve_addr. }
       { destruct (withinBounds csp_b csp_e csp_b) eqn:Hwb; last done.
         apply withinBounds_true_iff in Hwb. solve_addr. }
-      iTrap.
-      by iIntros (?). }
+      iDestruct ("Hdw_close" with "Hdw") as "Hb_share".
+      change_pc_to (pc_a ^+ hts_label_offset ".Lhts_share")%a.
+      iDestruct "Hcontinue" as "[_ Hfailed]".
+      iTrap with "Hfailed".
+      iFrame "#".
+      iSplit; first done.
+      iPureIntro. rewrite dom_delete_L Hdom_rmap. set_solver. }
     assert (region_addrs_zeroes csp_b csp_e =
       lword_of_word (WInt 0) :: region_addrs_zeroes (csp_b ^+ 1)%a csp_e) as Hzeroes.
     { rewrite (region_addrs_zeroes_split csp_b (csp_b ^+ 1)%a csp_e); last solve_addr.
@@ -266,6 +299,7 @@ Section HTS_Spec_Share.
            Hpc_nonheap /=. reflexivity. }
     subst rcgp rcra.
     iEval (cbn) in "HPC".
+    iDestruct "Hcontinue" as "[Hcontinue _]".
     iApply "Hcontinue".
     iExists ι, b, Wret.
     iFrame "∗#%".

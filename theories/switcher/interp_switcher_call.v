@@ -300,7 +300,10 @@ Section fundamental.
           iPureIntro; left; eauto.
         + iPureIntro; right; intros ??? Heq; inversion Heq; subst; solve_addr.
       - iPureIntro; right; intros ??? Heq; inversion Heq; subst; tauto. }
-    2: { iApply (switcher_call_blocks_2_fail_spec with "[$HPC $Hcsp $Hcs0 $Hcode]"); done. }
+    2: { iApply (switcher_call_blocks_2_fail_spec with "[$HPC $Hcsp $Hcs0 $Hcode]"); [done | done |].
+         iIntros "_".
+         iApply trap_safe_intro.
+         by iIntros "!> %Hcontr". }
     iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_mmio Hstk_heap]; first done.
     iDestruct (switcher_entry_point_prop with "Hp_ot_switcher [] Hworld_interp")
       as "[Hworld_interp Hentry_prop]".

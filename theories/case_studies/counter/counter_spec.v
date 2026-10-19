@@ -192,6 +192,10 @@ Section Counter.
     iExtractList "Hrmap" [cnull] as ["Hcnull"].
     iApply (counter_main_blocks_2_spec with
              "[- $HPC $Hcra $Hcs0 $Hcs1 $Hca0 $Hca1 $Hcode_main]"); first done.
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros "(HPC & Hcra & Hcs0 & Hcs1 & Hca0 & Hca1 & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iInsertRegs "Hrmap" ["Hcnull"; "Hcs0"; "Hcs1"; "Hcgp"; "Hcra"].

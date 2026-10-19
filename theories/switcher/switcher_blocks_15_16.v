@@ -32,13 +32,17 @@ Section Switcher_Blocks_15_16.
     cra ↦ᵣ wret ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
     codefrag_pers pc_a switcher_instrs_16 ∗
-    ▷ ( PC ↦ₚ lupdatePcPerm wret ∗
+    ( ▷ ( PC ↦ₚ lupdatePcPerm wret ∗
         cra ↦ᵣ wret ∗
         ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
         codefrag_pers pc_a switcher_instrs_16 ∗
         £ 1 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-      )
+      ) ∧
+    ( cra ↦ᵣ wret ∗
+      ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) -∗
+      trap_safe (WCap true XSRW_ Local pc_b pc_e pc_a) ⊤
+        (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -51,10 +55,11 @@ Section Switcher_Blocks_15_16.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* --- Jalr cnull cra --- *)
       iInstr_fail "Hcode".
-      iTrap.
-      by iIntros (?). }
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed". }
     (* --- Jalr cnull cra --- *)
     iInstr "Hcode" with "Hlc".
+    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode".
   Qed.
 
@@ -92,6 +97,10 @@ Section Switcher_Blocks_15_16.
     switcher_focus_block (switcher_block ".Lswitcher_return_to_caller") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_return_block_16_spec with "[- $HPC $Hcra $Hrmap $Hcode]").
     { done. }
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros "(HPC & Hcra & Hrmap & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     iApply ("Hpost" $! rmap'); iFrame "∗ Hswitcher"; done.

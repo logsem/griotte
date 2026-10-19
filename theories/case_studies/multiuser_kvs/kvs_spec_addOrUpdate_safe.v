@@ -77,9 +77,15 @@ Section KVS_spec_addOrUpdate_safe.
     (* Destruct validity map key *)
     destruct (decide (word_is_uint16 wca1.(lw))) as [Hwca1_uint16|Hwca1_uint16]; cycle 1.
     { (* the map key argument is not a uint16 *)
-      iApply KVS_addOrUpdate_spec_not_uint16_map_key; eauto; iFrame "∗#".
-      iNext; iIntros "(Hna & HPC & Hcra & Hca0 & Hca1 & Hct1)".
-      iApply "Hpost"; iFrame.
+      iApply (KVS_addOrUpdate_spec_not_uint16_map_key with
+               "[- $Hkvs_static $Hkvs_inv $Hna $HPC $Hcra $Hca0 $Hca1 $Hct1]");
+        [exact Hnkvs_E | exact Hwca1_uint16 |].
+      iSplit.
+      - iNext; iIntros "(Hna & HPC & Hcra & Hca0 & Hca1 & Hct1)".
+        iApply "Hpost"; iFrame.
+      - iIntros "_".
+        iApply trap_safe_intro.
+        by iIntros "!> %Hcontr".
     }
     destruct wca1 as [ [nkey| | | ] πnkey]; cbn in Hwca1_uint16; try done.
 

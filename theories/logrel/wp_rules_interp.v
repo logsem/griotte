@@ -1149,14 +1149,21 @@ Section wp_interp.
      cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ w0 ∗
      a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (CLoad ca0 cgp imm)] ∗
      region W C ∗
-     ▷ (∀ actual,
-       ⌜load_heap_in_world W raw actual⌝ -∗
-       PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a ∗
-       cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ actual ∗
-       a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (CLoad ca0 cgp imm)] ∗
+     (▷ (∀ actual,
+         ⌜load_heap_in_world W raw actual⌝ -∗
+         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a ∗
+         cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ actual ∗
+         a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (CLoad ca0 cgp imm)] ∗
+         region W C -∗
+         WP Seq (Instr Executable)
+           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+      (cgp ↦ᵣ WCap true RW Global p e p ∗
+       ca0 ↦ᵣ w0 ∗
+       a ↦ₐ raw ∗
+       codefrag pc_a [encodeInstrW (CLoad ca0 cgp imm)] ∗
        region W C -∗
-       WP Seq (Instr Executable)
-         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+       trap_safe (WCap true RX Global pc_b pc_e pc_a) ⊤
+         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I))
      ⊢ WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -1168,12 +1175,13 @@ Section wp_interp.
     (* CLoad ca0 cgp imm. *)
     iInstrApply "Hcode" (wp_load_witness_imm_one _ _ _ _ _ _ _ ca0 cgp imm)
       with "[$HPC $Hca0 $Hcgp $Ha $Hwit]"
-      as (retv) "[(-> & HPC & _) | (%loadv' & -> & %Hload & HPC & Hca0 & Hcgp & Ha)]".
+      as (retv) "[(-> & HPC & Hca0 & Hcgp & Ha) | (%loadv' & -> & %Hload & HPC & Hca0 & Hcgp & Ha)]".
     { eapply disjoint_from_shadow_not_in; [exact Hshadow|exact Hbounds]. }
-    { iTrap.
-      by iIntros (?). }
+    { iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed". }
     pose proof (load_post_world_load_heap_in_world W RW raw loadv' Hload) as Hloaded.
     rewrite lload_word_RW in Hloaded.
+    iDestruct "Hpost" as "[Hpost _]".
     iApply ("Hpost" $! loadv' with "[//]"). iFrame.
   Qed.
 

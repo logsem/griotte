@@ -152,6 +152,10 @@ Section Heap_Temporal_Safety_Main.
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f owner_a W_init_C Ws Cs Nswitcher cstk
       with "[$Hctx $Hmalloc_ret]"); try done.
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e

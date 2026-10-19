@@ -536,6 +536,13 @@ Section Switcher_Code.
     solve_addr.
   Qed.
 
+  (** A return through the switcher's return sentry passes the checks of
+      [Jalr cnull cra]. *)
+  Lemma jalr_target_ok_switcher_return_sentry mie :
+    jalr_target_ok cnull cra
+      (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
+  Proof. by destruct mie. Qed.
+
   (** The callee-save area of the caller's stack frame. *)
   Definition switcher_stk_cells (a : Addr) (w0 w1 w2 w3 : LWord) : iProp Σ :=
     a ↦ₐ w0 ∗
