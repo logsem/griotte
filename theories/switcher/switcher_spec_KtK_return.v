@@ -139,7 +139,8 @@ Section Switcher_KtK_Return.
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     rewrite /frame /cframe_interp; iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "(>Ha_tstk & >%HWF & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
+    iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl Ha_tstk_tbl] & >[%wcnt Ha_tstk_cnt] & >%HWF
+                                    & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
     destruct HWF as (Hb_a4 & He_a1 & Ha_stk4 & _ & _).
     pose proof (switcher_stk_bounds_frame b_stk e_stk a_stk Hb_a4 He_a1 Ha_stk4) as Hstk_bounds.
     pose proof Hstk_bounds as (_ & _ & Ha4).
@@ -147,14 +148,18 @@ Section Switcher_KtK_Return.
     iExtract "Hregs" ct0 as "Hct0".
     iExtract "Hregs" ct1 as "Hct1".
     iExtract "Hregs" ca2 as "Hca2".
+    iExtract "Hregs" ct2 as "Hct2".
 
     (* Block 13: pop the trusted stack *)
+    destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done| |].
+      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Ha_tstk $Hcode]");
+      [done|done|done| |].
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       rewrite /withinBounds; solve_addr. }
-    iNext; iIntros (a_tstk1)
-      "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & _ & _)".
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_tstk
+                    & _ & _)".
+    iInsertRegs "Hregs" ["Hct2"].
 
     (* Blocks 13-16: restore, clear and return *)
     iAssert (switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller)
@@ -162,7 +167,7 @@ Section Switcher_KtK_Return.
     iApply (switcher_return_blocks_2_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
         $Hcells $Hstk $Hregs $Hcode]"); [done|done| |].
-    { repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }
+    { rewrite dom_insert_L. repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }
     iNext; iIntros (rmap' rcgp rcra rcs1 rcs0)
       "(%Hrestored & %Hrmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hregs & _ & _)".
     iDestruct (region_pointsto_split a_stk e_stk (a_stk ^+ 4)%a with "[$Hstk' $Hstk]") as "Hstk";
@@ -174,19 +179,14 @@ Section Switcher_KtK_Return.
 
     (* Pop the frame and close the switcher invariant *)
     iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
-    iDestruct (region_pointsto_cons with "[$Ha_tstk $Htstk]") as "Htstk"; [solve_addr| solve_addr| ].
     iMod ("Hclose_switcher_inv"
-           with "[Hstk_interp_next $Hna $Hmtdc Htstk $Hcstk_full $Hp_ot_switcher]")
+           with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+                  Hcstk_full Hstk_interp_next]")
       as "Hna".
-    {
-      replace (a_tstk1 ^+ 1)%a with a_tstk by solve_addr.
-      replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
-      iFrame.
-      iNext.
-      iSplit; first (iPureIntro; done).
-      iSplit; first (iPureIntro; solve_addr+Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Ha_tstk1).
-      iPureIntro; solve_addr+Hbounds_tstk_b  Hlen_cstk Ha_tstk1.
-    }
+    { iNext.
+      iApply (switcher_inv_pop_frame with
+               "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+                Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
 
     iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1); iFrame.
     iPureIntro; split; first naive_solver. rewrite Hrmap'; set_solver.

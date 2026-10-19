@@ -40,12 +40,12 @@ Definition droe_assert_e : Addr := A 89.
 Definition droe_assert_flag : Addr := A 89.
 Definition droe_switcher_b : Addr := A 91.
 Definition droe_switcher_call : Addr := A 92.
-Definition droe_switcher_return : Addr := A 162.
-Definition droe_switcher_e : Addr := A 208.
+Definition droe_switcher_return : Addr := A 170.
+Definition droe_switcher_e : Addr := A 225.
 Definition droe_stack_b : Addr := A 1024.
 Definition droe_stack_e : Addr := A 1124.
 Definition droe_trusted_stack_b : Addr := A 4096.
-Definition droe_trusted_stack_e : Addr := A 4196.
+Definition droe_trusted_stack_e : Addr := A 4194.
 Definition droe_switcher_otype : OType := OT 9.
 
 Ltac unfold_droe_addresses :=
@@ -99,8 +99,9 @@ Proof.
     droe_switcher_call droe_switcher_return droe_switcher_otype
     droe_trusted_stack_b droe_trusted_stack_e
     _ _ _ _
-    (replicate 100 (WInt 0)) _ eq_refl
-    ltac:(by apply Forall_replicate)
+    (initial_trusted_stack_content 24) _ eq_refl
+    ltac:(exists 24; vm_compute; solve_addr)
+    ltac:(apply initial_trusted_stack_content_ints)
     droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -125,7 +126,11 @@ Proof.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - solve_disjoint_from_mmio.
   - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition droe_concrete_cmptAssert : cmptAssert.
@@ -404,7 +409,7 @@ Definition droe_initial_registers : Reg :=
 
 Definition droe_initial_sregisters : SReg :=
   initial_sregisters_with
-    (WCap true RWL Local droe_trusted_stack_b droe_trusted_stack_e
+    (WCap true RWL Global droe_trusted_stack_b droe_trusted_stack_e
       droe_trusted_stack_b).
 
 Definition droe_initial_memory : Mem := mk_initial_memory.

@@ -48,11 +48,11 @@ Definition cmdc_assert_e : Addr := A 129.
 Definition cmdc_assert_flag : Addr := A 129.
 Definition cmdc_switcher_b : Addr := A 131.
 Definition cmdc_switcher_call : Addr := A 132.
-Definition cmdc_switcher_return : Addr := A 202.
-Definition cmdc_switcher_e : Addr := A 248.
+Definition cmdc_switcher_return : Addr := A 210.
+Definition cmdc_switcher_e : Addr := A 265.
 Definition cmdc_switcher_sealing_type : OType := OT 9.
 Definition cmdc_trusted_stack_b : Addr := A 4096.
-Definition cmdc_trusted_stack_e : Addr := A 4196.
+Definition cmdc_trusted_stack_e : Addr := A 4194.
 Definition cmdc_stack_b : Addr := A 1024.
 Definition cmdc_stack_e : Addr := A 1124.
 
@@ -121,8 +121,9 @@ Proof.
     cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call
     cmdc_switcher_return cmdc_switcher_sealing_type
     cmdc_trusted_stack_b cmdc_trusted_stack_e _ _ _ _
-    (replicate 100 (WInt 0)) _ eq_refl
-    ltac:(by apply Forall_replicate) cmdc_stack_b cmdc_stack_e
+    (initial_trusted_stack_content 24) _ eq_refl
+    ltac:(exists 24; vm_compute; solve_addr)
+    ltac:(apply initial_trusted_stack_content_ints) cmdc_stack_b cmdc_stack_e
     (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -147,7 +148,11 @@ Proof.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - solve_disjoint_from_mmio.
   - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition cmdc_concrete_cmptAssert : cmptAssert.
@@ -538,7 +543,7 @@ Definition cmdc_initial_registers : Reg :=
 
 Definition cmdc_initial_sregisters : SReg :=
   initial_sregisters_with
-    (WCap true RWL Local cmdc_trusted_stack_b cmdc_trusted_stack_e
+    (WCap true RWL Global cmdc_trusted_stack_b cmdc_trusted_stack_e
       cmdc_trusted_stack_b).
 
 Definition cmdc_initial_memory : Mem := mk_initial_memory.

@@ -61,7 +61,8 @@ Proof.
   pose proof (switcher_base_not_shadow switcher_cmpt).
   pose proof (compartment_layout.switcher_not_heap_range switcher_cmpt).
   pose proof (compartment_layout.trusted_stack_not_heap switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _ _); cbn in *; auto.
+  pose proof (compartment_layout.trusted_stack_frames_fit switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 #[local] Instance memory_layout_assertLayout `{memory_layout} : assertLayout.

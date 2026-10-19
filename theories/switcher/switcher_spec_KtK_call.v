@@ -38,27 +38,33 @@ Section Switcher_KtK_Call.
     (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk cstk' : CSTK)
-    (a_tstk : Addr) (tstk_next : list LWord) :
+    (a_tstk : Addr) (save_area tstk_next : list LWord) :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     disjoint_from_mmio b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     switcher_stk_bounds b_stk e_stk a_stk ->
-    (b_trusted_stack <= a_tstk)%a ->
-    (a_tstk <= e_trusted_stack)%a ->
-    (b_trusted_stack + length cstk')%a = Some a_tstk ->
+    (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
+    (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
     (▷ switcher_inv ∗ na_own cerise_nais (E ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais E) ∗
     na_own cerise_nais (E ∖ ↑Nswitcher) ∗
-    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    [[ (a_tstk ^+ 1)%a , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
+    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+    (∃ w, a_threadID ↦ₐ w) ∗
+    [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_static ∗
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
     PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0, cs0 ↦ᵣ wcs0) ∗
-    cs1 ↦ᵣ wcs1_caller ∗
+    (∃ wcs1, cs1 ↦ᵣ wcs1) ∗
     cgp ↦ᵣ wcgp_caller ∗
     cra ↦ᵣ wcra_caller ∗
     ctp ↦ᵣ wctp ∗
@@ -89,11 +95,13 @@ Section Switcher_KtK_Call.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
+    intros a_frameoffset a_save_end a_threadID a_next.
+    subst a_frameoffset a_save_end a_threadID a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
        registers, [switcher_call_blocks_5_spec] executes blocks 17 and 15-16,
        then close the switcher invariant. *)
-    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Hot_bounds)
-      "(Hclose_switcher_inv & Hna & Hmtdc & Htstk & #Hstatic & Hcstk_full & Hstk_interp
+    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds)
+      "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hframeoffset & HthreadID & Htstk & #Hstatic & Hcstk_full & Hstk_interp
       & #Hp_ot_switcher & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk
       & Hargs & Hregs & Hcstk & Hpost)".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -105,10 +113,9 @@ Section Switcher_KtK_Call.
       [done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
       "(%Hrestored & %Hrmap' & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hrmap & _ & _)".
-    iMod ("Hclose_switcher_inv" with "[$Hna $Hcstk_full Hmtdc Htstk Hstk_interp]") as "Hna".
-    { iNext. iExists _,_. iFrame "∗ # %".
-      iPureIntro; split; auto.
-    }
+    iMod ("Hclose_switcher_inv" with
+      "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
+    { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; [done|solve_addr|].
     iApply "Hpost"; iFrame.
     iPureIntro; split; last done. rewrite Hrmap'; set_solver.
@@ -294,6 +301,7 @@ Section Switcher_KtK_Call.
     iModNamed switcher_inv_open "Hswitcher_inv".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
+    destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
 
     (* Blocks 0-1: checks on the stack pointer *)
     iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
@@ -302,15 +310,17 @@ Section Switcher_KtK_Call.
 
     (* Blocks 2-3: spill and push on the trusted stack *)
     iApply (switcher_call_blocks_2_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Htstk $Hcode]");
+      "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
       [done|done|done|].
-    iNext; iIntros "(%Hstk_bounds & Hcs1 & Hcra & Hcgp & Hcsp & Hcells & Hstk & _ & Hbranch)".
+    iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     iDestruct "Hbranch" as
-      "[(%Ha_tstk2 & %Ha_tstk1_bound & HPC & Hcs0 & Hctp & Hct2 & Hmtdc & Ha_tstk1 & Htstk & _)
-       | (HPC & Hcs0 & Hctp & Hct2 & Hmtdc & Htstk)]"; cycle 1.
+      "[(%Ha_frame & %Ha_frame_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset
+         & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & _)
+       | (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset & Htstk)]"; cycle 1.
     { (* The trusted stack is exhausted *)
       iApply (switcher_cc_spec_tstack_exhausted_known_to_known with
-        "[$Hclose_switcher_inv $Hna $Hmtdc $Htstk $Hstatic $Hcstk_full $Hstk_interp
+        "[$Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID $Htstk $Hstatic
+          $Hcstk_full $Hstk_interp
           $Hp_ot_switcher $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk
           $Hargs $Hregs $Hcstk Hpost]"); [done..|].
       iNext; iIntros "H"; iApply "Hpost"; iRight; iExact "H".
@@ -326,18 +336,21 @@ Section Switcher_KtK_Call.
     (* Blocks 7-12: load the callee and jump to it *)
     iApply (switcher_call_blocks_4_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
-        $Hct2 $Hctp $Hcgp $Hcra $Hargs $Hregs $Hcode]");
-      [done|done|done|lia|done|done|done|done| |done| |].
+        $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hargs $Hregs $Hcode]");
+      [done|done|done|lia|done|done|done|done| | | |done| |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
+    { tstack_unfold; solve_addr. }
+    { tstack_unfold; solve_addr. }
     { rewrite !dom_delete_L Hdom. set_solver. }
     iNext; iIntros (mie arg_rmap' rmap')
-      "(%Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hargs & Hregs & _)".
+      "(%Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hframe_tbl & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)
     iMod (switcher_inv_push_frame frame cstk with
-           "Hcstk_full Hcstk Hmtdc Ha_tstk1 Htstk Hstk_interp [Hcells] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done|done|done|done|done|exact Hstk_bounds|done|done| |].
+           "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
+            Hstk_interp [Hcells] Hp_ot_switcher")
+      as "[Hinv Hcstk]"; [done|done|done|done|exact Hstk_bounds|done|done| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
     iApply "Hpost"; iLeft; iFrame "∗ %".

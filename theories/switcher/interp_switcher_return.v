@@ -56,11 +56,9 @@ Section fundamental.
       - the 4 addresses of the callee-save registers area in the compartment's stack.
 
       We can distinguish 2 cases.
-      1) The call-stack is empty.
-         We know it's a case that should no be possible,
-         because empty call-stack means that main tries to return,
-         but it doesn't have access to the return-to-switcher.
-         It's not a problem though, because the code will fail.
+      1) The call-stack is empty: the frame to pop is the entry frame of
+         the thread. The switcher exits the thread, and we close the
+         invariant of the switcher, which gives back [na_own cerise_nais ⊤].
       2) The call-stack is not empty,
          in which case we can derive information about the top-most frame
          with [cframe_interp].
@@ -98,7 +96,8 @@ Section fundamental.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;
-       - when the call-stack is empty: [switcher_return_blocks_1_empty_spec];
+       - when the frame to pop is the entry frame, the thread exits:
+         [switcher_return_blocks_1_exit_spec];
        - [switcher_return_blocks_1_spec]: pop the trusted stack;
        - [open_world_interp_cframe], [open_world_interp_callee_stack]: obtain
          the caller's stack frame;
@@ -116,16 +115,16 @@ Section fundamental.
     (* --- Extract scratch registers ct2 ctp --- *)
     cbn in Hfull_rmap.
 
-    getRegValList [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1].
-    iExtractList "Hrmap" [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1]
-      as ["Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1"].
+    getRegValList [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1;ct2].
+    iExtractList "Hrmap" [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1;ct2]
+      as ["Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1";"Hct2"].
     iAssert (interp W C wcsp) as "#Hinterp_wcsp".
     { iApply "Hrmap_interp"; eauto; done. }
     iAssert (interp W C wca0) as "#Hinterp_wca0".
     { iApply "Hrmap_interp"; eauto; done. }
     iAssert (interp W C wca1) as "#Hinterp_wca1".
     { iApply "Hrmap_interp"; eauto; done. }
-    set (rmap0 := delete ct1 _).
+    set (rmap0 := delete ct2 _).
 
     (* Open the switcher invariant *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
@@ -136,11 +135,16 @@ Section fundamental.
     iDestruct (cstack_agree with "[$] [$]") as "%"; simplify_eq.
 
     destruct cstk as [|frm cstk]; iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
-    { (* No caller: the return fails *)
-      replace a_tstk with (b_trusted_stack)%a by solve_addr.
-      iMod "Hstk_interp".
-      iApply (switcher_return_blocks_1_empty_spec with
-        "[$HPC $Hctp $Hcsp $Hmtdc $Hstk_interp $Hcode]").
+    { (* No caller: the frame to pop is the entry frame, the thread exits *)
+      iApply (switcher_return_blocks_1_exit_spec with
+        "[$HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode
+          Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]").
+      iIntros "!> [Hmtdc Hframeoffset]".
+      subst hclose_switcher_inv.
+      iMod ("Hclose_switcher_inv" with
+             "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp]") as "Hna".
+      { iNext. iExists a_tstk, [], save_area, tstk_next. iFrame "∗ # %". }
+      iModIntro; iIntros (_); iFrame.
     }
 
     (* Non empty call-stack *)
@@ -150,7 +154,8 @@ Section fundamental.
     destruct frm.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "[>Ha_tstk (>%HWF & Hcframe_interp)]".
+    iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl Ha_tstk_tbl] & >[%wcnt Ha_tstk_cnt]
+                                    & >%HWF & Hcframe_interp)".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap).
     simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hccrel_known_to_known & Hfreq).
     pose proof (switcher_stk_bounds_frame b_stk e_stk a_stk Hb_a4 He_a1 (ex_intro _ _ Ha_stk4))
@@ -169,10 +174,13 @@ Section fundamental.
       rewrite /withinBounds; solve_addr. }
 
     (* Block 13: pop the trusted stack *)
+    destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hcsp $Hmtdc $Ha_tstk $Hcode]"); [solve_addr+Hlen_cstk Hbounds_tstk_b|done|done|].
-    iNext; iIntros (a_tstk1)
-      "(%Ha_tstk1 & %Htstk_ae & HPC & Hctp & Hcsp & Hmtdc & Ha_tstk & _ & Hlc)".
+      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Ha_tstk $Hcode]");
+      [done|done|done|done|].
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_tstk
+                    & _ & Hlc)".
+    iInsertRegs "Hrmap" ["Hct2"].
 
     (* Obtain the caller's stack frame *)
     iDestruct (open_world_interp_cframe with "[$Hcframe_interp $Hworld_interp]")
@@ -216,6 +224,7 @@ Section fundamental.
       [done|done|done| |].
     { subst rmap0.
       clear -Hfull_rmap.
+      rewrite dom_insert_L.
       repeat (rewrite dom_delete_L).
       apply lregmap_full_dom in Hfull_rmap.
       rewrite Hfull_rmap.
@@ -230,19 +239,14 @@ Section fundamental.
     (* Update the call-stack: depop the topmost frame *)
     iDestruct (cstack_update _ _ cstk with "[$] [$]") as ">[Hcstk_full Hcstk_frag]".
     (* Close the switcher's invariant *)
-    iDestruct (region_pointsto_cons with "[$Ha_tstk $Htstk]") as "Htstk"; [solve_addr| solve_addr| ].
     iMod ("Hclose_switcher_inv"
-           with "[Hstk_interp_next $Hna $Hmtdc Htstk $Hcstk_full $Hp_ot_switcher]")
+           with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+                  Hcstk_full Hstk_interp_next]")
       as "Hna".
-    {
-      replace (a_tstk1 ^+ 1)%a with a_tstk by solve_addr.
-      replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
-      iFrame.
-      iNext.
-      iSplit; first (iPureIntro; done).
-      iSplit; first (iPureIntro; solve_addr+Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Ha_tstk1).
-      iPureIntro; solve_addr+Hbounds_tstk_b  Hlen_cstk Ha_tstk1.
-    }
+    { iNext.
+      iApply (switcher_inv_pop_frame with
+               "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+                Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
 
     set (lv' := region_addrs_zeroes (a_stk ^+ 4)%a e_stk).
     assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
