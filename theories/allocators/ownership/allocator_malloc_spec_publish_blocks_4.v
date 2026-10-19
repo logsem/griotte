@@ -21,6 +21,7 @@ Section AllocatorMallocPublishBlocks4.
     (next + allocator_header_words)%a = Some b ->
     (b + n)%a = Some finish ->
     (heap_b < next /\ b < finish /\ finish <= heap_e)%a ->
+    jalr_target_ok cnull cra wret.(lw) = true ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 4)%a ∗
     cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
@@ -30,7 +31,6 @@ Section AllocatorMallocPublishBlocks4.
     ca1 ↦ᵣ WInt n @@? πn ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    trap_ok E φ ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
@@ -44,8 +44,8 @@ Section AllocatorMallocPublishBlocks4.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros Hbounds Hbase Hfinish Hrange. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
-    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hslot & #Hcode_main & Hfailed & Hφ)".
+    intros Hbounds Hbase Hfinish Hrange Htgt. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
+    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hslot & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     unfold allocator_header_words in Hbase.
@@ -78,8 +78,7 @@ Section AllocatorMallocPublishBlocks4.
       ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 2)%a.
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcode]");
-      first by apply allocator_malloc_exit_bounds.
-    iFrame "Hfailed".
+      [by apply allocator_malloc_exit_bounds | done |].
     iNext. iIntros "(HPC & Hcra & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.

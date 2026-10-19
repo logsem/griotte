@@ -41,7 +41,7 @@ Section HTS_Reload.
      s ↦ₐ raw ∗
      codefrag_pers pc_a hts_reload_buffer_instrs ∗
      load_witness_res wit ∗
-     ▷ (∀ actual,
+     ( ▷ (∀ actual,
        ⌜load_post wit RWL raw actual⌝ -∗
        PC ↦ₚ WCap true RX Global pc_b pc_e
          (pc_a ^+ length hts_reload_buffer_instrs)%a ∗
@@ -51,7 +51,13 @@ Section HTS_Reload.
        codefrag_pers pc_a hts_reload_buffer_instrs ∗
        load_witness_res wit -∗
        WP Seq (Instr Executable)
-         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+     (csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
+       ca0 ↦ᵣ w0 ∗
+       s ↦ₐ raw ∗
+       load_witness_res wit -∗
+       trap_safe (WCap true RX Global pc_b pc_e pc_a) ⊤
+         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
      ⊢ WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -62,12 +68,14 @@ Section HTS_Reload.
     (* CLoad ca0 csp (-1). *)
     iInstrApply "Hcode" (wp_load_general_shadow_imm_one _ _ _ _ _ _ _ ca0 csp (-1))
       with "[$HPC $Hca0 $Hcsp $Ha $Hwit]"
-      as (retv) "[(-> & HPC & _) | (%actual & -> & %Hactual & HPC & Hca0 & Hcsp & Ha & Hwit)]".
+      as (retv) "[(-> & HPC & Hca0 & Hcsp & Ha & Hwit)
+                 | (%actual & -> & %Hactual & HPC & Hca0 & Hcsp & Ha & Hwit)]".
     { solve_addr. }
     { eapply disjoint_from_shadow_not_in; first exact Hshadow.
       apply withinBounds_true_iff; solve_addr. }
-    { iTrap.
-      by iIntros (?). }
+    { iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed". }
+    iDestruct "Hpost" as "[Hpost _]".
     iApply ("Hpost" $! actual with "[//]"). iFrame "∗ Hcode".
   Qed.
 
@@ -157,6 +165,10 @@ Section HTS_Spec_Free.
     { solve_addr. }
     { exact Hstk_nonempty. }
     { solve_addr. }
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext. iIntros (actual (_ & _ & _ & Hlivepost))
       "(HPC & Hcsp & Hca0 & Hslot & _ & Hright)".
     rewrite (Hlivepost eq_refl); last first.

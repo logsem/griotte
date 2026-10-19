@@ -27,6 +27,7 @@ Section AllocatorMalloc.
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     ¬ allocator_positive_size wreq.(lw) ->
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ⊢ (
 
@@ -51,7 +52,6 @@ Section AllocatorMalloc.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
 
-       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -71,9 +71,9 @@ Section AllocatorMalloc.
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
-    intros HEservice Hshadow_a Hbounds_a Hinvalid.
+    intros HEservice Hshadow_a Hbounds_a Hinvalid Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 &
-      Hct2 & Hct3 & Hct4 & Hctp & Hfailed & Hpost)".
+      Hct2 & Hct3 & Hct4 & Hctp & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">Hdata".
@@ -95,8 +95,7 @@ Section AllocatorMalloc.
     (* Blocks 1 and 5: the size check rejects the request. *)
     iApply (allocator_malloc_size_check_invalid_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hct3 $Hmalloc_code]");
-      [apply allocator_malloc_entry_bounds|done|].
-    iFrame "Hfailed".
+      [apply allocator_malloc_entry_bounds|done|done|].
     iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct3 & _ & _)".
     (* Close the service invariant. *)
     iMod ("Hclose" with "[$Hna $Hdata]") as "Hna".
@@ -120,6 +119,7 @@ Section AllocatorMalloc.
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     (0 < n)%Z ->
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ⊢ (
 
@@ -145,7 +145,6 @@ Section AllocatorMalloc.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
 
-       trap_ok E φ ∗
        ▷ (na_own cerise_nais E ∗
           a_owner ↦ₐ WInt id ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -178,9 +177,9 @@ Section AllocatorMalloc.
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
-    intros HEservice Hshadow_a Hbounds_a Hpositive.
+    intros HEservice Hshadow_a Hbounds_a Hpositive Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 &
-      Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hfailed & Hpost)".
+      Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">@".
@@ -253,8 +252,7 @@ Section AllocatorMalloc.
       (* Blocks 4 and 5: publish the bump cursor and return. *)
       iApply (allocator_malloc_publish_spec with
         "[- $HPC $Hcgp $Hcra $Hct0 $Hct4 $Hca0 $Hca1 $Hslot $Hmalloc_code]");
-        [done|done|done|solve_addr|].
-      iFrame "Hfailed".
+        [done|done|done|solve_addr|done|].
       iNext. iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hslot &
         _ & _)".
       (* Publish the entry of [ι], record it for its owner, and close the
@@ -274,8 +272,7 @@ Section AllocatorMalloc.
     - (* Blocks 2 and 5: the heap is exhausted. *)
       iApply (allocator_malloc_prepare_oom_spec with
         "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hslot
-            $Hmalloc_code]"); [done|done|done|lia|].
-      iFrame "Hfailed".
+            $Hmalloc_code]"); [done|done|done|lia|done|].
       iNext. iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 &
         Hslot & _)".
       (* Close the service invariant. *)
@@ -287,8 +284,9 @@ Section AllocatorMalloc.
   (** A malformed allocator capability in [ca0] traps in the owner block. *)
 
   Lemma allocator_malloc_invalid_capability_spec
-    (E : coPset) (wsealed : LWord) (P : iProp Σ) :
+    (Nswitcher : namespace) (E : coPset) (wsealed : LWord) (P : iProp Σ) :
 
+    ↑Nswitcher ⊆ E ->
     ↑Nallocator_service ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
 
@@ -300,11 +298,21 @@ Section AllocatorMalloc.
     ca0 ↦ᵣ wsealed ∗
     ctp ↦ᵣ - ∗
     ca3 ↦ᵣ - ∗
-    ca4 ↦ᵣ -
+    ca4 ↦ᵣ - ∗
+    (∀ a, ⌜(allocator_malloc_pcc_addr <= a <
+            allocator_malloc_pcc_addr
+              ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0))%a⌝ -∗
+      na_own cerise_nais (E ∖ ↑Nallocator_service) ∗
+      ctp ↦ᵣ - ∗
+      ca0 ↦ᵣ wsealed ∗
+      ca3 ↦ᵣ - ∗
+      ca4 ↦ᵣ - -∗
+      trap_safe (WCap true RX Global allocator_pcc_b allocator_pcc_e a) E
+        (λ v, ⌜v = HaltedV⌝ → P)%I)
     ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
-    iIntros (HEservice Hwsealed)
-      "(#Hservice & #Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4])".
+    iIntros (HEswitcher HEservice Hwsealed)
+      "(#Hservice & #Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".
     (* Open the service invariant and focus on the code of [malloc]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
     iDestruct "Hinv" as ">Hdata".
@@ -315,9 +323,12 @@ Section AllocatorMalloc.
     iDestruct (allocator_imports_split_pers with "Himports")
       as "(_ & #Hkey & _)".
     (* Block 0: the owner block traps. *)
-    iApply (allocator_malloc_owner_invalid_spec with
-      "[$HPC $Hctp $Hca0 $Hkey $Hmalloc_code]");
-      [apply allocator_malloc_entry_bounds|apply allocator_malloc_pcc_addr_off|done].
+    iApply (allocator_malloc_owner_invalid_spec Nswitcher with
+      "[$HPC $Hctp $Hca0 $Hkey $Hmalloc_code Hfailed Hna Hct3 Hct4]");
+      [exact HEswitcher | apply allocator_malloc_entry_bounds | apply allocator_malloc_pcc_addr_off
+      | done |].
+    iIntros (a Ha) "[Hctp Hca0]".
+    iApply ("Hfailed" with "[//] [$]").
   Qed.
 
 End AllocatorMalloc.

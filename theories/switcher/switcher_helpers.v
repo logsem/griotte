@@ -239,7 +239,7 @@ Section switcher_helper.
       iDestruct (jmp_or_fail_spec with "Hwret") as "Hcont".
       destruct (decide (isCorrectPC (updatePcPerm wret.(lw)))); cycle 1.
       { iApply "Hcont"; iFrame.
-        iApply trap_ok_intro.
+        iApply trap_safe_intro.
         by iIntros "!>" (?). }
 
       iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".

@@ -16,12 +16,12 @@ Section AllocatorFreeReturnBlocks4.
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_free_code_bounds pc_b pc_e pc_a ->
+    jalr_target_ok cnull cra wret.(lw) = true ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset)%a ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_free_code ∗
-    trap_ok E φ ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
@@ -31,16 +31,15 @@ Section AllocatorFreeReturnBlocks4.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros Hbounds. pose proof Hbounds as (Hpc & _ & _).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hfailed & Hφ)".
+    intros Hbounds Htgt. pose proof Hbounds as (Hpc & _ & _).
+    iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hφ)".
     iDestruct (allocator_free_tail_acc with "Hcode_main") as "#Hcode".
     assert ((pc_a ^+ allocator_free_invalid_offset)%a =
       ((pc_a ^+ allocator_free_block_offset 5) ^+ allocator_free_tail_block_offset 5)%a)
       as -> by (cbn in Hpc; offsets_compute; solve_addr).
     iApply (allocator_free_tail_invalid_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hcode]");
-      first by apply allocator_free_tail_bounds.
-    iFrame "Hfailed".
+      [by apply allocator_free_tail_bounds | done |].
     iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.

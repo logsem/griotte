@@ -147,10 +147,11 @@ Section AllocatorOwnerMacro.
       clears the tag of the result and the following [load] fails. *)
 
   Lemma allocator_owner_invalid_spec
-    (E : coPset) (pc_b pc_e pc_a : Addr) (off : Z) (wsealed wtp : LWord)
+    (Nswitcher : namespace) (E : coPset) (pc_b pc_e pc_a : Addr) (off : Z) (wsealed wtp : LWord)
     (P : iProp Σ) :
 
     let code := allocator_owner_instrs off ctp ca0 in
+    ↑Nswitcher ⊆ E ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
     (pc_a + off)%a = Some (pc_b ^+ allocator_unsealing_key_import_off)%a ->
     disjoint_from_shadow pc_b pc_e ->
@@ -161,12 +162,16 @@ Section AllocatorOwnerMacro.
     ctp ↦ᵣ wtp ∗
     ca0 ↦ᵣ wsealed ∗
     (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ□ allocator_unsealing_key ∗
-    codefrag_pers pc_a code
+    codefrag_pers pc_a code ∗
+    (∀ a, ⌜(pc_a <= a < pc_a ^+ length code)%a⌝ -∗
+      ctp ↦ᵣ - ∗
+      ca0 ↦ᵣ wsealed -∗
+      trap_safe (WCap true RX Global pc_b pc_e a) E (λ v, ⌜v = HaltedV⌝ → P)%I)
     ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
     intros code; subst code.
-    iIntros (Hpc Hoff Hdisjoint Hkey Hwsealed)
-      "(HPC & Hctp & Hca0 & #Hkey & #Hcode)".
+    iIntros (HEswitcher Hpc Hoff Hdisjoint Hkey Hwsealed)
+      "(HPC & Hctp & Hca0 & #Hkey & #Hcode & Hfailed)".
     codefrag_facts "Hcode".
     pose proof allocator_otype_size as Hotype.
     assert (is_shadow_address (pc_b ^+ allocator_unsealing_key_import_off)%a = false)
@@ -202,11 +207,11 @@ Section AllocatorOwnerMacro.
       wp_pure.
       iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
       (* CLoad ctp ctp 0. *)
-      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & _)".
+      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & Hmap)".
       { by simplify_map_eq. }
       { by destruct sb. }
-      iTrap.
-      iIntros "%Hcontr"; done.
+      iDestruct (regs_of_map_1 with "Hmap") as "Hctp".
+      iTrap with "Hfailed".
     - (* The word is not sealed: it loses its tag, and the load traps. *)
       simplify_map_eq.
       assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)%a) as Ha3 by solve_addr.
@@ -216,13 +221,15 @@ Section AllocatorOwnerMacro.
       wp_pure.
       iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
       (* CLoad ctp ctp 0. *)
-      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & _)".
+      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & Hmap)".
       { by simplify_map_eq. }
       { apply get_tag_clear_tag. }
-      iTrap.
-      iIntros "%Hcontr"; done.
-    - iTrap.
-      iIntros "%Hcontr"; done.
+      iDestruct (regs_of_map_1 with "Hmap") as "Hctp".
+      iTrap with "Hfailed".
+    - (* UnSeal ctp ctp ca0 fails: the registers are unchanged. *)
+      inversion Hfail; subst;
+        (iDestruct (regs_of_map_2 with "Hmap") as "(Hctp & Hca0)"; first done);
+        iTrap with "Hfailed".
   Qed.
 
 End AllocatorOwnerMacro.

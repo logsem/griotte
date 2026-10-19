@@ -689,27 +689,28 @@ Section griotte_lang_rules.
     by iApply (wp_trap_halt with "HPC").
   Qed.
 
-  (* The obligation of a fault: what the thread must provide for the machine
-     to take the fault. Sealed, so that clients only introduce it with
-     [trap_ok_intro] and consume it with [wp_trap]. *)
-  Definition trap_ok_def (E : coPset) (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
+  (* The obligation of a fault from the PC [w]: what the thread must provide
+     for the machine to take the fault. Sealed, so that clients only
+     introduce it with [trap_safe_intro] and consume it with [wp_trap]. The
+     faulting PC [w] is not used yet. *)
+  Definition trap_safe_def (w : LWord) (E : coPset) (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
     ▷ Φ FaultedV.
-  #[local] Definition trap_ok_aux : seal (@trap_ok_def). Proof. by eexists. Qed.
-  Definition trap_ok := trap_ok_aux.(unseal).
-  #[local] Definition trap_ok_unseal : @trap_ok = @trap_ok_def := trap_ok_aux.(seal_eq).
+  #[local] Definition trap_safe_aux : seal (@trap_safe_def). Proof. by eexists. Qed.
+  Definition trap_safe := trap_safe_aux.(unseal).
+  #[local] Definition trap_safe_unseal : @trap_safe = @trap_safe_def := trap_safe_aux.(seal_eq).
 
-  Lemma trap_ok_intro E Φ :
+  Lemma trap_safe_intro w E Φ :
     ▷ Φ FaultedV -∗
-    trap_ok E Φ.
-  Proof. rewrite trap_ok_unseal. iIntros "HΦ". iExact "HΦ". Qed.
+    trap_safe w E Φ.
+  Proof. rewrite trap_safe_unseal. iIntros "HΦ". iExact "HΦ". Qed.
 
   (* A fault, from the configuration a faulting instruction returns. *)
   Lemma wp_trap E Φ w :
     PC ↦ₚ w -∗
-    trap_ok E Φ -∗
+    trap_safe w E Φ -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
-    rewrite trap_ok_unseal /trap_ok_def.
+    rewrite trap_safe_unseal /trap_safe_def.
     iApply wp_trap_stop.
   Qed.
 
@@ -717,7 +718,7 @@ Section griotte_lang_rules.
   Lemma wp_notCorrectPC_trap E Φ w :
     ¬ isCorrectPC w.(lw) →
     PC ↦ₚ w -∗
-    trap_ok E Φ -∗
+    trap_safe w E Φ -∗
     WP Seq (Instr Executable) @ E {{ Φ }}.
   Proof.
     iIntros (Hnpc) "HPC Htrap".
@@ -730,10 +731,15 @@ Section griotte_lang_rules.
 End griotte_lang_rules.
 
 (* Closes a fault [WP Seq (Instr Faulted) @ E {{ Φ }}] with [wp_trap], from
-   the PC points-to of the context. The obligation [trap_ok E Φ] is closed by
-   a hypothesis if one matches; otherwise it is introduced with
-   [trap_ok_intro] and [Φ FaultedV] is left to the caller.
-   [iTrap with "H"] closes the obligation by applying ["H"]. *)
+   the PC points-to [PC ↦ₚ w] of the context. The obligation
+   [trap_safe w E Φ] is closed by a hypothesis if one matches; otherwise it
+   is introduced with [trap_safe_intro] and [Φ FaultedV] is left to the
+   caller.
+   [iTrap with "H"] closes the obligation by applying a fault premise ["H"]
+   of the form [∀ a, ⌜range⌝ -∗ R -∗ trap_safe (WCap … a) E Φ] (or
+   [R -∗ trap_safe w E Φ]): the range side condition is solved with
+   [solve_addr], or left to the caller as a pure goal, and the resources
+   [R] are framed from the context. *)
 Ltac instr_trap_pc :=
   lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
     lazymatch Γs with
@@ -753,10 +759,12 @@ Ltac instr_trap_start :=
 
 Tactic Notation "iTrap" :=
   instr_trap_start;
-  first [ iAssumption | iApply trap_ok_intro; iNext ].
+  first [ iAssumption | iApply trap_safe_intro; iNext ].
 Tactic Notation "iTrap" "with" constr(H) :=
   instr_trap_start;
-  iApply H.
+  iApply H;
+  [ try (iPureIntro; try solve_addr) .. ];
+  try iFrame.
 
 (* Splits the points-to of a register map built by inserts into one
    points-to per register; the inserted keys must be provably distinct. *)

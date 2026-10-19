@@ -132,21 +132,26 @@ Section Checkints_spec.
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a checkints_loop
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-    ∗ ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
-         ∗ r ↦ᵣ WCap true p g b e (finz.max b e) @@? π
-         ∗ r1 ↦ᵣ WInt 0%Z
-         ∗ r2 ↦ᵣ WInt e%Z
-         ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-         ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
-         ∗ codefrag_pers pc_a checkints_loop
-         -∗ WP Seq (Instr Executable) {{ φ }}
-        )
-    ∗ trap_ok ⊤ φ
+    ∗ ( ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+           ∗ r ↦ᵣ WCap true p g b e (finz.max b e) @@? π
+           ∗ r1 ↦ᵣ WInt 0%Z
+           ∗ r2 ↦ᵣ WInt e%Z
+           ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
+           ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
+           ∗ codefrag_pers pc_a checkints_loop
+           -∗ WP Seq (Instr Executable) {{ φ }}
+          ) ∧
+        ( ∀ a_f, ⌜(pc_a <= a_f < a_last)%a⌝ -∗
+          (∃ a_r, r ↦ᵣ WCap true p g b e a_r @@? π) ∗
+          r1 ↦ᵣ - ∗
+          r2 ↦ᵣ - ∗
+          ( [∗ list] a;v ∈ l;ws, a ↦ₐ v ) -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e a_f) ⊤ φ ) )
     ⊢ WP Seq (Instr Executable) {{ v, φ v }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hae Hra Hdisjoint Hall Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hφ & Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hk)".
     iLöb as "IH" forall ( a Hae Hall w1 w2).
     iDestruct (big_sepL2_length with "Hmem") as %Hlength_mem.
     codefrag_facts "Hcode_main".
@@ -198,9 +203,13 @@ Section Checkints_spec.
     (* CLoad r1 r 0 *)
     iInstrApply "Hcode" (wp_load_preserve_or_clear _ _ _ _ _ _ _ (pc_a ^+ 1)%a)
       with "[$HPC $Hr1 $Hr $Ha]"
-      as (ret) "[(-> & HPC & _) | (%actualv & -> & %Hactual & HPC & Hr1 & Hr & Ha)]".
+      as (ret) "[(-> & HPC & Hr1 & Hr & Ha) | (%actualv & -> & %Hactual & HPC & Hr1 & Hr & Ha)]".
     { solve_addr. }
-    { iTrap. }
+    { iDestruct ( big_sepL2_cons (λ _ a v, a ↦ₐ v)%I with "[$Ha $Hmem2]") as "Hmem"; auto.
+      iDestruct ( big_sepL2_app (λ _ a v, a ↦ₐ v)%I with "[$Hmem1] [$Hmem]") as "Hmem"; auto.
+      rewrite -Ha' -Hlw.
+      iDestruct "Hk" as "[_ Hfailed]".
+      iTrap with "Hfailed". }
     iDestruct ( big_sepL2_cons (λ _ a v, a ↦ₐ v)%I with "[$Ha $Hmem2]") as "Hmem"; auto.
     iDestruct ( big_sepL2_app (λ _ a v, a ↦ₐ v)%I with "[$Hmem1] [$Hmem]") as "Hmem"; auto.
     rewrite -Ha' -Hlw.
@@ -209,7 +218,11 @@ Section Checkints_spec.
 
     focus_block 1 "Hcode_main" as a_checkint Ha_checkint "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iApply (is_int_spec _ _ _ _ _ _ _ _ _ (WInt 0) with "[- $HPC $Hr1 $Hr2 $Hcode]"); eauto.
-    iSplit; last iExact "Hfailed".
+    iSplit; cycle 1.
+    { iIntros "[Hr1 Hr2]".
+      iDestruct "Hk" as "[_ Hfailed]".
+      iApply ("Hfailed" with "[%] [$Hr $Hr1 $Hr2 $Hmem]").
+      solve_addr. }
     iNext; iIntros "(HPC & Hr1 & %Hz & Hr2 & _)".
     assert (∃ z, w.(lw) = WInt z) as Hraw_int.
     { destruct Hactual as [-> | Hcleared].
@@ -232,6 +245,7 @@ Section Checkints_spec.
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       replace (finz.max b e) with e by solve_addr.
       replace (a_cond ^+ 5)%a with (pc_a ^+ length (checkints_loop_instrs r r1 r2))%a by solve_addr.
+      iDestruct "Hk" as "[Hφ _]".
       iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
       iPureIntro.
       apply Forall_forall.
@@ -270,8 +284,11 @@ Section Checkints_spec.
       iInstr "Hcode".
       { transitivity (Some pc_a); auto; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      iApply ("IH" with "[] [] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+      iApply ("IH" with "[] [] [$] [$] [$] [$] [$] [Hk]"); eauto.
       { iPureIntro; solve_addr. }
+      (* The earlier [iNext] stripped the later of the success side; the
+         IH expects it back. *)
+      2: { iSplit; [iDestruct "Hk" as "[Hk _]"; by iNext | by iDestruct "Hk" as "[_ Hk]"]. }
       { iPureIntro.
         apply Forall_forall.
         rewrite Forall_forall in Hall.
@@ -311,7 +328,10 @@ Section Checkints_spec.
     ∗ ▷ r ↦ᵣ WCap false p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a (checkints_instrs r r1 r2)
-    ∗ trap_ok ⊤ φ
+    ∗ ( r ↦ᵣ WCap false p g b e b @@? π ∗
+        r1 ↦ᵣ - ∗
+        r2 ↦ᵣ - -∗
+        trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ checkints_loop_offset)%a) ⊤ φ )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     iIntros (Hvpc Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
@@ -337,8 +357,11 @@ Section Checkints_spec.
     focus_block 2 "Hcode_main" as a_loop Ha_loop "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     rewrite /checkints_loop_instrs.
     focus_block_0 "Hcode" as "Hcode_loop" "Hcont_loop".
+    (* CLoad r1 r 0. *)
     iInstr_fail "Hcode_loop".
-    iTrap.
+    replace a_loop with (pc_a ^+ checkints_loop_offset)%a
+      by (rewrite /checkints_loop_offset; cbn in Ha_loop; solve_addr).
+    iTrap with "Hfailed".
   Qed.
 
   Lemma checkints_spec
@@ -365,30 +388,40 @@ Section Checkints_spec.
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a checkints
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-    ∗ ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
-         ∗ r ↦ᵣ WCap t p g b e (finz.max b e) @@? π
-         ∗ r1 ↦ᵣ WInt 0%Z
-         ∗ r2 ↦ᵣ WInt 0%Z
-         ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-         ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
-         ∗ codefrag_pers pc_a checkints
-         ∗ £ 2
-         -∗ WP Seq (Instr Executable) {{ φ }}
-        )
-    ∗ trap_ok ⊤ φ
+    ∗ ( ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+           ∗ r ↦ᵣ WCap t p g b e (finz.max b e) @@? π
+           ∗ r1 ↦ᵣ WInt 0%Z
+           ∗ r2 ↦ᵣ WInt 0%Z
+           ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
+           ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
+           ∗ codefrag_pers pc_a checkints
+           ∗ £ 2
+           -∗ WP Seq (Instr Executable) {{ φ }}
+          ) ∧
+        ( ∀ a_f, ⌜(pc_a <= a_f < a_last)%a⌝ -∗
+          (∃ a_r, r ↦ᵣ WCap t p g b e a_r @@? π) ∗
+          r1 ↦ᵣ - ∗
+          r2 ↦ᵣ - ∗
+          ( [∗ list] a;v ∈ l;ws, a ↦ₐ v ) -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e a_f) ⊤ φ ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hra Hdisjoint Hrcnull Hr1cnull Hr2cnull)
-      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hφ & Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hk)".
+    codefrag_facts "Hcode_main".
+    rename H into HcontRegion; clear H0.
     destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad].
     2: { destruct t; first (exfalso; apply Hbad; auto).
-         iApply (checkints_fail_untagged with "[$HPC $Hr $Hr1 $Hr2 $Hcode_main $Hfailed]"); eauto.
+         iApply (checkints_fail_untagged with "[$HPC $Hr $Hr1 $Hr2 $Hcode_main Hk Hmem]"); eauto.
+         { solve_addr. }
+         iIntros "(Hr & Hr1 & Hr2)".
+         iDestruct "Hk" as "[_ Hfailed]".
+         iApply ("Hfailed" with "[%] [$Hr $Hr1 $Hr2 $Hmem]").
+         rewrite /checkints_loop_offset /= in HcontRegion |- *.
          solve_addr. }
     iDestruct (big_sepL2_length with "Hmem") as %Hlength_mem
     ; setoid_rewrite Hl in Hlength_mem.
-    codefrag_facts "Hcode_main".
-    rename H into HcontRegion; clear H0.
     rewrite /checkints_instrs.
 
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
@@ -414,6 +447,7 @@ Section Checkints_spec.
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       replace (a_end ^+ 2)%a with (pc_a ^+ 24%nat)%a by solve_addr.
       replace (finz.max b e) with b by solve_addr.
+      iDestruct "Hk" as "[Hφ _]".
       iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
       rewrite finz_seq_between_length finz_dist_0 in Hlength_mem; last solve_addr.
       symmetry in Hlength_mem. apply nil_length_inv in Hlength_mem; simplify_eq.
@@ -433,7 +467,12 @@ Section Checkints_spec.
       intros v Hv (k & Hkv & (ka & Hka & Hka_bounds)).
       solve_addr.
     }
-    iSplitR "Hfailed"; last iExact "Hfailed".
+    iSplit; cycle 1.
+    { iIntros (a_f Ha_f) "(Hr & Hr1 & Hr2 & Hmem)".
+      iDestruct "Hk" as "[_ Hfailed]".
+      iApply ("Hfailed" with "[%] [$Hr $Hr1 $Hr2 $Hmem]").
+      solve_addr. }
+    iDestruct "Hk" as "[Hφ _]".
     iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & Hmem & % & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 

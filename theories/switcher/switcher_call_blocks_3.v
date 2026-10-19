@@ -119,7 +119,7 @@ Section Switcher_Call_Blocks_3.
     cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     ct1 ↦ᵣ wct1 ∗
     codefrag_pers pc_a switcher_instrs_7 ∗
-    ▷ ( ∀ wsb π,
+    ( ▷ ( ∀ wsb π,
         ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ ∗
         ⌜ get_tag_sealable wsb = true ⌝ ∗
         PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 1)%a ∗
@@ -127,7 +127,11 @@ Section Switcher_Call_Blocks_3.
         ct1 ↦ᵣ WSealable wsb @@? π ∗
         codefrag_pers pc_a switcher_instrs_7 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-      )
+      ) ∧
+    ( cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+      ct1 ↦ᵣ - -∗
+      trap_safe (WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 1)%a) ⊤
+        (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -155,8 +159,8 @@ Section Switcher_Call_Blocks_3.
       { intros r sr m st s1 s2 _ Hr.
         rewrite /exec /= /lookup_reg /= Hr.
         destruct wct1 as [w0 π0]. destruct_word w0; by destruct s2. }
-      iTrap.
-      iIntros "%Hcontr"; done. }
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed". }
     2: {
       (* The unsealed entry point is invalid: the next CLoad fails. *)
       simplify_eq.
@@ -164,14 +168,15 @@ Section Switcher_Call_Blocks_3.
       iClear "Hi".
       (* --- CLoad cs0 ct1 --- *)
       iInstr_fail "Hcode".
-      iTrap.
-      iIntros "%Hcontr"; done. }
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed". }
     simplify_eq.
     apply withinBounds_le_addr in Hrange.
     assert (o = ot_switcher) as -> by solve_addr.
     iEval (rewrite unseal_global) in "Hct1".
     wp_pure.
     iClear "Hi".
+    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode"; done.
   Qed.
 
@@ -248,6 +253,10 @@ Section Switcher_Call_Blocks_3.
     switcher_focus_block (switcher_block ".Lswitcher_unseal_entry") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_7_unseal_spec with
       "[- $HPC $Hcs0 $Hct1 $Hcode]"); first done.
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & Hct1 & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     switcher_change_pc (switcher_label_offset ".Lswitcher_decode_entry").

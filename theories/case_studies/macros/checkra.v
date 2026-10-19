@@ -94,7 +94,8 @@ Section Checkra_spec.
     end
     ; iInstr "Hcode"
     ; iInstr "Hcode"
-    ; iTrap.
+    ; iDestruct "Hk" as "[_ Hfailed]"
+    ; iTrap with "Hfailed".
   #[local] Ltac pass_check_ra :=
     match goal with
     | _ : _ |- context [ WInt (encodePerm ?p - encodePerm ?p') ] =>
@@ -137,20 +138,24 @@ Section Checkra_spec.
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a checkra_
-    ∗ ▷ ( (∃ t p g b e a π,
-          ⌜ readAllowed p = true ∧ wsrc = WCap t p g b e a @@? π⌝
-          ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
-          ∗ rsrc ↦ᵣ WCap t p g b e a @@? π
-          ∗ r1 ↦ᵣ WInt 0%Z
-          ∗ r2 ↦ᵣ WInt 0%Z
-          ∗ codefrag_pers pc_a checkra_ )
-            -∗ WP Seq (Instr Executable) {{ φ }}
-        )
-    ∗ trap_ok ⊤ φ
+    ∗ ( ▷ ( (∃ t p g b e a π,
+            ⌜ readAllowed p = true ∧ wsrc = WCap t p g b e a @@? π⌝
+            ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+            ∗ rsrc ↦ᵣ WCap t p g b e a @@? π
+            ∗ r1 ↦ᵣ WInt 0%Z
+            ∗ r2 ↦ᵣ WInt 0%Z
+            ∗ codefrag_pers pc_a checkra_ )
+              -∗ WP Seq (Instr Executable) {{ φ }}
+          ) ∧
+        ( ∀ a, ⌜(pc_a <= a < a_last)%a⌝ -∗
+          rsrc ↦ᵣ wsrc ∗
+          r1 ↦ᵣ - ∗
+          r2 ↦ᵣ - -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e a) ⊤ φ ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkra a_last ; subst checkra a_last.
-    iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >#Hcode & Hpost & Hfailed)".
+    iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >#Hcode & Hk)".
     codefrag_facts "Hcode".
     rename H into HcontRegion; clear H0.
     destruct wsrc as [wsrc πsrc].
@@ -169,7 +174,8 @@ Section Checkra_spec.
       }
       iInstr "Hcode".
       iInstr "Hcode".
-      iTrap.
+      iDestruct "Hk" as "[_ Hfailed]".
+      iTrap with "Hfailed".
     }
     destruct_word wsrc; cbn in His_cap_wsrc; try done.
     pose proof (encodeWordType_correct (WCap t c g b e a) wt_cap) as Hwtype ; cbn in Hwtype.
@@ -180,6 +186,7 @@ Section Checkra_spec.
     iInstr "Hcode".
     do 12 check_ra.
     iInstr "Hcode".
+    iDestruct "Hk" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode".
     iPureIntro; split; last done.
     destruct_perm c; auto.

@@ -319,6 +319,10 @@ Section VAE.
              "[- $HawkN $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
               $Hct0 $Hct1 $Hct2 $Hca2 $Himport_assert $Hcode_main]");
       [done|done|done|exact Hloc_i_W7|].
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
                     & Hct0 & Hct1 & Hct2 & Hca2 & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

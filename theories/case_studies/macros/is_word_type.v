@@ -89,7 +89,9 @@ Section Is_WordType_spec.
               ∗ codefrag_pers pc_a is_int)
                 -∗ WP Seq (Instr Executable) {{ φ }}
           ) ∧
-        trap_ok ⊤ φ )
+        ( r ↦ᵣ w ∗
+          r1 ↦ᵣ - -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 4)%a) ⊤ φ ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
@@ -116,7 +118,7 @@ Section Is_WordType_spec.
         destruct w as [| [] | |]; cbn in *; try done; try lia.
       }
       iGo "Hprog".
-      iTrap.
+      iTrap with "Hfailed".
   Qed.
 
   Lemma is_memory_cap_spec
@@ -136,19 +138,22 @@ Section Is_WordType_spec.
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag_pers pc_a is_memory_cap
-    ∗ ▷ ( (∃ p g b e a,
-            PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
-            ∗ r ↦ᵣ WCap true p g b e a
-            ∗ r1 ↦ᵣ WInt 0%Z
-            ∗ codefrag_pers pc_a is_memory_cap)
-              -∗ WP Seq (Instr Executable) {{ φ }}
-        )
-    ∗ trap_ok ⊤ φ
+    ∗ ( ▷ ( (∃ p g b e a,
+              PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+              ∗ r ↦ᵣ WCap true p g b e a
+              ∗ r1 ↦ᵣ WInt 0%Z
+              ∗ codefrag_pers pc_a is_memory_cap)
+                -∗ WP Seq (Instr Executable) {{ φ }}
+          ) ∧
+        ( ∀ a, ⌜(pc_a <= a < a_last)%a⌝ -∗
+          r ↦ᵣ w ∗
+          r1 ↦ᵣ - -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e a) ⊤ φ ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
     iIntros (Hvpc Hcont Hrcnull Hr1cnull)
-      "(>HPC & >Hr & >Hr1 & >#Hprog & Hφ & Hfailed)".
+      "(>HPC & >Hr & >Hr1 & >#Hprog & Hk)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
     destruct (is_cap w) eqn:Hw_cap.
@@ -166,17 +171,21 @@ Section Is_WordType_spec.
         iInstrApply "Hprog" wp_gettag_lax with "[$HPC $Hr $Hr1]"
           as (z) "(HPC & Hr & Hr1 & %Hz)".
         destruct Hz; destruct_and?; simplify_eq.
-        * cbn. iGo "Hprog". iApply "Hφ"; iFrame "∗ Hprog".
-        * iGo "Hprog". iTrap.
-      + iGo "Hprog". iTrap.
-    - iGo "Hprog".
+        * iDestruct "Hk" as "[Hφ _]".
+          cbn. iGo "Hprog". iApply "Hφ"; iFrame "∗ Hprog".
+        * iDestruct "Hk" as "[_ Hfailed]".
+          iGo "Hprog". iTrap with "Hfailed".
+      + iDestruct "Hk" as "[_ Hfailed]".
+        iGo "Hprog". iTrap with "Hfailed".
+    - iDestruct "Hk" as "[_ Hfailed]".
+      iGo "Hprog".
       { apply nonZero_WInt.
         pose proof (encodeWordType_correct w wt_cap) as Hencode ; cbn in Hencode.
         intro H; injection H; intro Hcontra.
         destruct w as [| [] | |]; cbn in *; try done; try lia.
       }
       iGo "Hprog".
-      iTrap.
+      iTrap with "Hfailed".
   Qed.
 
 End Is_WordType_spec.

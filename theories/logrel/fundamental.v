@@ -65,7 +65,7 @@ Section fundamental.
   Proof.
     iIntros (HnPC) "HPC".
     iApply (wp_notCorrectPC_trap with "HPC"); first done.
-    iApply trap_ok_intro.
+    iApply trap_safe_intro.
     iIntros "!>" (Hcontr); inversion Hcontr.
   Qed.
 
@@ -231,7 +231,7 @@ Section fundamental.
     all: iIntros (????) "(? & HPC & ?)"; unfold interp_conf.
     all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
     all: iApply (wp_notCorrectPC_trap with "HPC"); first by inversion 1.
-    all: iApply trap_ok_intro.
+    all: iApply trap_safe_intro.
     all: iIntros "!>" (Hhalted); congruence.
   Qed.
 
@@ -300,7 +300,7 @@ Section fundamental.
                (⌜w = WCap true p g b e a @@? π ∨ (∃ k, w = WSentry k true p g b e a @@? π)⌝
                 ∗ □ ∀ W', future_world g W W'
                           → ▷ (interp_expr interp (interp_cont interp) W' C) (lupdatePcPerm w)))
-         else trap_ok ⊤ φ ∗ PC ↦ₚ lupdatePcPerm w
+         else trap_safe (lupdatePcPerm w) ⊤ φ ∗ PC ↦ₚ lupdatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
     iIntros "#Hw".

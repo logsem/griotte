@@ -55,9 +55,14 @@ Section Heap_Temporal_Safety_Interp.
     (* A malformed allocator capability traps in the owner block. *)
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
-    { iApply (allocator_malloc_invalid_capability_spec ⊤ wca0
-        with "[$Hservice $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]"); first solve_ndisj.
-      apply andb_false_iff in Hcap_valid as [?|?]; auto. }
+    { iApply (allocator_malloc_invalid_capability_spec Nswitcher ⊤ wca0
+        with "[$Hservice $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
+        [ solve_ndisj | solve_ndisj
+        | apply andb_false_iff in Hcap_valid as [Hnot_tagged|Hnot_sealed];
+          [right; exact Hnot_tagged | left; exact Hnot_sealed] |].
+      iIntros (a Ha) "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     apply andb_true_iff in Hcap_valid as [Hwca0_tag Hwca0_sealed].
     iDestruct ("Hargs" $! ca0 wca0 with "[] []") as "#Hinterp_ca0".
     { iPureIntro. rewrite /allocator_malloc_nargs /dom_arg_rmap. set_solver. }
@@ -88,10 +93,11 @@ Section Heap_Temporal_Safety_Interp.
     2: { (* Reject an invalid size and return ALLOC_INVALID. *)
       iApply (allocator_malloc_invalid_correct ⊤ g_owner a_owner id wca1
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        with "[-]"); try solve_ndisj; try exact Hinvalid; try assumption.
+        with "[-]");
+        [ solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hinvalid
+        | apply jalr_target_ok_switcher_return_sentry |].
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
-      iSplitR; first (iApply trap_ok_intro; iNext; by iIntros (?)).
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the sealing predicate of the allocator capability. *)
@@ -136,10 +142,11 @@ Section Heap_Temporal_Safety_Interp.
       iApply (allocator_malloc_valid_correct
         (dom (heap_std (revoke W))) ⊤ g_owner a_owner id Ω n π1
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        with "[-]"); try solve_ndisj; try exact Hpositive; try assumption.
+        with "[-]");
+        [ solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hpositive
+        | apply jalr_target_ok_switcher_return_sentry |].
       iFrame "Hservice Hstatic Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0".
       iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
-      iSplitR; first (iApply trap_ok_intro; iNext; by iIntros (?)).
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hresult)".
       iDestruct "Hresult" as "[Hoom|Hsuccess]".

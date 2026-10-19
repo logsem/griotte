@@ -41,7 +41,7 @@ Section SO_Return_Blocks_4.
     csp_b ↦ₐ WInt so_secret ∗
     (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
+    ( ▷ (PC ↦ₚ lupdatePcPerm wret ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
@@ -54,7 +54,19 @@ Section SO_Return_Blocks_4.
         csp_b ↦ₐ WInt so_secret ∗
         (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
         codefrag_pers pc_a so_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+    (csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+        ct0 ↦ᵣ - ∗
+        ct1 ↦ᵣ - ∗
+        ct2 ↦ᵣ - ∗
+        ca2 ↦ᵣ - ∗
+        cra ↦ᵣ wret ∗
+        cs0 ↦ᵣ wret ∗
+        ca0 ↦ᵣ WInt 0 ∗
+        ca1 ↦ᵣ WInt 0 ∗
+        csp_b ↦ₐ WInt so_secret -∗
+        trap_safe (WCap true RX Global pc_b pc_e ((pc_a ^+ so_label_offset ".Lso_f_return") ^+ 3)%a) ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow
@@ -104,11 +116,13 @@ Section SO_Return_Blocks_4.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* Jalr cnull cra *)
       iInstr_fail "Hcode".
-      iTrap.
-      by iIntros (?). }
+      change_pc_to ((pc_a ^+ so_label_offset ".Lso_f_return") ^+ 3)%a.
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iTrap with "Hfailed". }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

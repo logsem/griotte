@@ -139,6 +139,10 @@ Section LSE.
              "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hcode_main]");
       [done|done|done|done| |].
     { by eapply switcher_disjoint_subseg; [| |split; eassumption]; solve_addr. }
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros (stk_mem' wcs0' wcs1')
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & _)".
 
@@ -146,6 +150,10 @@ Section LSE.
     iApply (lse_f_blocks_2_spec with
              "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hca0 $Hca1
               $Himport_assert $Hcode_main]"); [done|].
+    iSplit; cycle 1.
+    { iIntros "_".
+      iApply trap_safe_intro.
+      by iIntros "!> %Hcontr". }
     iNext; iIntros "(HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
                     & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
