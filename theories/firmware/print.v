@@ -10,7 +10,7 @@ Set Mangle Names.
 
 (** * Printers for firmware predicates and concrete images
 
-    [print_initial_state name] prints a goal made of a predicate with
+    [print_initial_state constr:(@name_annot)] prints a predicate with
     [section] and [note] markers, with headings, indexed lists and
     right-hand comments. [print_memory_map img] prints a concrete image as
     a table of its regions. Both are reading aids only: [Print] of the
@@ -488,15 +488,15 @@ Ltac2 rec group_binders (hs : (ident * constr option * constr) list) : (string l
       end
   end.
 
-(** The header: the predicate [name] applied to the hypotheses of the goal
-    (the machine parameters excepted), and the existential binders. *)
-Ltac2 header (name : string) : pline list :=
-  let hs := List.filter (fun h => let (_, _, t) := h in
-                          Bool.neg (Constr.equal t constr:(MachineParameters)))
-              (Control.hyps ()) in
+(** The header: the predicate [name] applied to its binders [hs] (the
+    machine parameters excepted), and the existential binders of its body
+    [p]. *)
+Ltac2 header (name : string) (hs : (ident * constr) list) (p : constr) : pline list :=
+  let hs := List.filter (fun h => let (_, t) := h in
+                          Bool.neg (Constr.equal t constr:(MachineParameters))) hs in
   let args := List.map (fun g => let (xs, t) := g in
                           String.concat "" ["("; String.concat " " xs; " : "; pp_type t; ")"])
-                (group_binders hs) in
+                (group_binders (List.map (fun h => let (x, t) := h in (x, None, t)) hs)) in
   (* the binders, as many per line as fit *)
   let rec fill line args acc :=
     match args with
@@ -508,19 +508,62 @@ Ltac2 header (name : string) : pline list :=
     end in
   List.append
     (List.map (fun l => PText "" l None) (fill name args []))
-    (exists_of "" (Control.goal ())).
+    (exists_of "" p).
 
-Ltac2 initial_state_lines (name : string) : string list :=
-  List.append (layout (header name)) (layout (walk "" (Control.goal ()))).
+(** Runs [k] on the binders of the λ-abstractions heading [body] and on
+    their body, each binder brought into the context under its name. *)
+Ltac2 rec under_binders (hs : (ident * constr) list) (body : constr)
+    (k : (ident * constr) list -> constr -> unit) : unit :=
+  match Constr.Unsafe.kind body with
+  | Constr.Unsafe.Lambda b bd =>
+      let x := match Constr.Binder.name b with Some x => x | None => @x end in
+      let t := Constr.Binder.type b in
+      let _ := Constr.in_context x t (fun () =>
+                 under_binders ((x, t) :: hs)
+                   (Constr.Unsafe.substnl [Constr.Unsafe.make (Constr.Unsafe.Var x)] 0 bd) k) in
+      ()
+  | _ => k (List.rev hs) body
+  end.
 
-(** Prints the conclusion of the goal. *)
-Ltac2 print_initial_state_goal (_ : unit) : unit :=
-  print_lines (layout (walk "" (Control.goal ()))).
+(** Runs [tac] on a fresh goal: [Constr.in_context] needs one, and a
+    top-level command has none. *)
+Ltac2 with_goal (tac : unit -> unit) : unit :=
+  let no_evar () := Control.throw (Invalid_argument None) in
+  match Constr.Unsafe.kind open_constr:(_ : True) with
+  | Constr.Unsafe.Cast e _ _ =>
+      match Constr.Unsafe.kind e with
+      | Constr.Unsafe.Evar ev _ => Control.new_goal ev; Control.focus 1 1 tac
+      | _ => no_evar ()
+      end
+  | _ => no_evar ()
+  end.
 
-(** Prints the conclusion of the goal, as the body of [name] applied to the
-    hypotheses. *)
-Ltac2 print_initial_state (name : string) : unit :=
-  print_lines (initial_state_lines name).
+Ltac2 strip_annot (s : string) : string :=
+  let n := String.length s in
+  if Int.ge n 6 then
+    if String.equal (String.sub s (Int.sub n 6) 6) "_annot" then String.sub s 0 (Int.sub n 6) else s
+  else s.
+
+(** The lines of the annotated predicate [c], a constant: its body, headed
+    by its name without the suffix [_annot] applied to its binders. *)
+Ltac2 initial_state_lines (c : constr) : string list :=
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.Constant cst _ =>
+      let name := strip_annot (Ident.to_string (List.last (Env.path (Std.ConstRef cst)))) in
+      let body := Std.eval_cbv
+        { Std.rBeta := true; Std.rMatch := false; Std.rFix := false; Std.rCofix := false;
+          Std.rZeta := false; Std.rDelta := false; Std.rConst := [Std.ConstRef cst];
+          Std.rStrength := Std.Norm } c in
+      let r := { contents := [] } in
+      with_goal (fun () => under_binders [] body (fun hs p =>
+        r.(contents) := List.append (layout (header name hs p)) (layout (walk "" p))));
+      r.(contents)
+  | _ => Control.throw (Invalid_argument (Some (Message.of_string "print_initial_state: not a constant")))
+  end.
+
+(** Prints the annotated predicate [c], given as [constr:(@name_annot)]. *)
+Ltac2 print_initial_state (c : constr) : unit :=
+  print_lines (initial_state_lines c).
 
 Ltac2 rec take_lines (n : int) (l : string list) : string list :=
   if Int.le n 0 then [] else
@@ -531,8 +574,8 @@ Ltac2 rec drop_lines (n : int) (l : string list) : string list :=
   match l with [] => [] | _ :: xs => drop_lines (Int.sub n 1) xs end.
 
 (** Prints [n] lines from line [from] only. *)
-Ltac2 print_initial_state_part (name : string) (from : int) (n : int) : unit :=
-  print_lines (take_lines n (drop_lines from (initial_state_lines name))).
+Ltac2 print_initial_state_part (c : constr) (from : int) (n : int) : unit :=
+  print_lines (take_lines n (drop_lines from (initial_state_lines c))).
 
 (** ** The memory-map printer *)
 

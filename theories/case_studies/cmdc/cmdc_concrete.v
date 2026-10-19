@@ -5,7 +5,7 @@ From griotte Require Import
   switcher assert allocator_resources compartment_layout
   cmdc cmdc_adequacy.
 (* Imported last: the fields of the image records. *)
-From griotte Require Import image firmware firmware_ok image_state link print cmdc_firmware.
+From griotte Require Import image firmware firmware_ok image_state link cmdc_firmware.
 Set Mangle Names.
 
 #[export] Existing Instance machine_parameters_instance.
@@ -94,12 +94,3 @@ Proof.
   exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
   exact (cmdc_adequacy _ _ _ _ _ _ _ _ _ cmdc_demo_ok Hrun).
 Qed.
-
-(** ** The memory map of the linked image *)
-
-From Ltac2 Require Import Ltac2.
-Set Default Proof Mode "Classic".
-Import FwMapNotations.
-#[local] Open Scope Z_scope.
-
-Ltac2 Eval print_memory_map constr:(cmdc_demo_image).

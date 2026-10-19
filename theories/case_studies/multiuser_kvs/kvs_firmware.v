@@ -1,6 +1,6 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import machine_base griotte_opsem switcher assert allocator_resources compartment_layout kvs kvs_main.
-From griotte Require Import image firmware firmware_ok print.
+From griotte Require Import image firmware firmware_ok.
 Set Mangle Names.
 
 #[local] Open Scope string_scope.
@@ -80,23 +80,3 @@ Lemma kvs_initial_state_ok_firmware_ok `{MP : MachineParameters}
   key_main ≠ key_B ∧
   firmware_ok (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) σ.
 Proof. intros Hok. exact Hok. Qed.
-
-(** ** Printing *)
-
-(* The binders of the predicate print with their names. *)
-Unset Mangle Names.
-Import FwPrintNotations.
-#[local] Open Scope OType_scope.
-#[local] Open Scope Addr_scope.
-From Ltac2 Require Import Ltac2.
-Set Default Proof Mode "Classic".
-
-Goal ∀ (MP : MachineParameters) sw asrt t0 main kvs B ot_kvs key_main key_B σ,
-  @kvs_initial_state_ok_annot MP sw asrt t0 main kvs B ot_kvs key_main key_B σ.
-Proof.
-  intros MP sw asrt t0 main kvs B ot_kvs key_main key_B σ.
-  cbv beta delta [kvs_initial_state_ok_annot].
-  ltac2:(print_initial_state "kvs_initial_state_ok").
-Abort.
-
-Print kvs_initial_state_ok.
