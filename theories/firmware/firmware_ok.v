@@ -1,0 +1,386 @@
+From stdpp Require Import gmap strings.
+From griotte Require Import machine_base griotte_opsem.
+From griotte Require Import switcher assert allocator_resources compartment_layout.
+(* Imported last: the fields of the image records shadow the fields of the
+   layout records of [compartment_layout] and [switcher]. *)
+From griotte Require Import image firmware.
+Set Mangle Names.
+
+#[local] Open Scope string_scope.
+
+(** * The translation of a firmware into a condition on an image and a state
+
+    [firmware_ok fw img σ] holds when [σ] is the machine state that the
+    loader builds for the firmware [fw] laid out as [img], and [img] is a
+    well-formed layout ([img_wf]). It is not trusted: a case study reduces
+    it on its firmware ([reduce_firmware_ok]) and the reduced predicate is
+    what is read. The translation therefore uses its own list functions,
+    unfolded by the reduction, and only applies them to the lists of the
+    firmware, which are concrete. *)
+
+(** ** List functions unfolded by the reduction *)
+
+Fixpoint fw_map {A B} (f : A → B) (l : list A) : list B :=
+  match l with [] => [] | x :: l => f x :: fw_map f l end.
+
+Fixpoint fw_imap_from {A B} (f : nat → A → B) (k : nat) (l : list A) : list B :=
+  match l with [] => [] | x :: l => f k x :: fw_imap_from f (S k) l end.
+
+Definition fw_imap {A B} (f : nat → A → B) (l : list A) : list B := fw_imap_from f 0 l.
+
+Fixpoint fw_app {A} (l1 l2 : list A) : list A :=
+  match l1 with [] => l2 | x :: l1 => x :: fw_app l1 l2 end.
+
+Fixpoint fw_flat_map {A B} (f : A → list B) (l : list A) : list B :=
+  match l with [] => [] | x :: l => fw_app (f x) (fw_flat_map f l) end.
+
+(** The conjunction and the union of a list, without a trailing [True] or
+    [∅]. *)
+Fixpoint big_and (ps : list Prop) : Prop :=
+  match ps with [] => True | [p] => p | p :: ps => p ∧ big_and ps end.
+
+Fixpoint big_union (ms : list Mem) : Mem :=
+  match ms with [] => ∅ | [m] => m | m :: ms => m ∪ big_union ms end.
+
+(** The set of a list of addresses, without a trailing [∅]. *)
+Fixpoint fw_set (l : list Addr) : gset Addr :=
+  match l with [] => ∅ | [a] => {[a]} | a :: l => {[a]} ∪ fw_set l end.
+
+(** Small numbers, for the comments. *)
+Definition nat_str (k : nat) : string :=
+  match k with
+  | 0 => "0" | 1 => "1" | 2 => "2" | 3 => "3" | 4 => "4" | 5 => "5"
+  | 6 => "6" | 7 => "7" | 8 => "8" | 9 => "9" | 10 => "10" | 11 => "11"
+  | 12 => "12" | 13 => "13" | 14 => "14" | 15 => "15" | _ => "15+"
+  end.
+
+(** [a ^+ k], with a literal offset when [k] is small, so that the reduced
+    predicate reads [a ^+ 2] rather than [a ^+ Z.of_nat 2]. *)
+Definition addr_off (a : Addr) (k : nat) : Addr :=
+  match k with
+  | 0 => a | 1 => (a ^+ 1)%a | 2 => (a ^+ 2)%a | 3 => (a ^+ 3)%a
+  | 4 => (a ^+ 4)%a | 5 => (a ^+ 5)%a | 6 => (a ^+ 6)%a | 7 => (a ^+ 7)%a
+  | 8 => (a ^+ 8)%a | 9 => (a ^+ 9)%a | 10 => (a ^+ 10)%a | 11 => (a ^+ 11)%a
+  | 12 => (a ^+ 12)%a | 13 => (a ^+ 13)%a | 14 => (a ^+ 14)%a | 15 => (a ^+ 15)%a
+  | _ => (a ^+ Z.of_nat k)%a
+  end.
+
+Definition default_export : fw_export := MkFwExport 0 0 InterruptDisabled.
+
+Definition body_str (b : fw_body) : string :=
+  match b with
+  | TrustedBody _ _ _ => " (trusted)"
+  | UntrustedBody C _ => " (untrusted, " ++ C ++ ")"
+  end.
+
+(** The export entry word of an export. *)
+Definition export_word (e : fw_export) : Word :=
+  WInt (encode_entry_point (fe_posture e) (Z.of_nat (fe_nargs e)) (Z.of_nat (fe_offset e))).
+
+Section translation.
+  Context `{MP : MachineParameters}.
+  Context (fw : firmware) (img : fw_image).
+
+  (** *** The words the loader writes *)
+
+  (** The word for [w] in the compartment [c]. *)
+  Definition fw_word_of (c : img_cmpt) (w : fw_word) : Word :=
+    match w with
+    | FW w => w
+    | ISwitcherCall =>
+        note "switcher call"
+          (WSentry FwdDisable true XSRW_ Local
+             (b_switcher (img_sw img)) (e_switcher (img_sw img))
+             (a_switcher_call (img_sw img)))
+    | IAssert =>
+        note "assert"
+          (WSentry Inherit true RX Global
+             (b_assert (img_asrt img)) (e_assert (img_asrt img)) (b_assert (img_asrt img)))
+    | IExport n k =>
+        let x := cmpt_of img n in
+        note (n ++ ", export " ++ nat_str k)
+          (WSealed (ot_switcher (img_sw img))
+             (SCap true RO Global (cmpt_exp_tbl_pcc x) (cmpt_exp_tbl_entries_end x)
+                (addr_off (cmpt_exp_tbl_entries_start x) k)))
+    | ISealedStatic o k =>
+        let a := addr_off (cmpt_b_static_sealed c) k in
+        note ("own static sealed " ++ nat_str k)
+          (WSealed o (SCap true RO Global a (a ^+ 1)%a a))
+    end.
+
+  (** The words of a list of chunks. *)
+  Fixpoint chunks_words (c : img_cmpt) (ds : list fw_chunk) : list Word :=
+    match ds with
+    | [] => []
+    | [FWs ws] => ws
+    | FWs ws :: ds => (ws ++ chunks_words c ds)%list
+    | FWord w :: ds => fw_word_of c w :: chunks_words c ds
+    end.
+
+  (** *** Compartments *)
+
+  (** The export entries of an untrusted compartment: [n] entries with
+      arbitrary offsets inside the PCC range, no argument, and interrupts
+      enabled. *)
+  Fixpoint hole_exports (c : img_cmpt) (n : nat) (k : list Word → Prop) : Prop :=
+    match n with
+    | 0 => k []
+    | S n =>
+        ∃ off : nat,
+          (Z.of_nat off < cmpt_e_pcc c - cmpt_b_pcc c)%Z ∧
+          hole_exports c n (λ ws, k (export_word (MkFwExport off 0 InterruptEnabled) :: ws))
+    end.
+
+  Definition body_ok (c : img_cmpt) (b : fw_body) : Prop :=
+    match b with
+    | TrustedBody code data exps =>
+        cmpt_code c = code ∧
+        cmpt_data c = chunks_words c data ∧
+        cmpt_exp_tbl_entries c =
+          fw_imap (λ k e, note ("export " ++ nat_str k) (export_word e)) exps
+    | UntrustedBody _ n =>
+        note "arbitrary, any length" (Forall is_int (cmpt_code c)) ∧
+        note "arbitrary, any length"
+          (Forall (initial_data_word (cmpt_b_cgp c) (cmpt_e_cgp c)) (cmpt_data c)) ∧
+        note "arbitrary offsets, inside the PCC range" (hole_exports c n (λ ws, cmpt_exp_tbl_entries c = ws))
+    end.
+
+  Definition cmpt_ok (fc : fw_cmpt) : Prop :=
+    let c := cmpt_of img (fc_name fc) in
+    section (fc_name fc ++ body_str (fc_body fc))
+      (cmpt_imports c = fw_imap (λ _ w, fw_word_of c w) (fc_imports fc) ∧
+       cmpt_static_sealed c = fc_static_sealed fc ∧
+       body_ok c (fc_body fc)).
+
+  (** *** Memory *)
+
+  Definition switcher_mem : Mem :=
+    let sw := img_sw img in
+    mem_region (b_switcher sw)
+      (WSealRange true (true, true) Global (ot_switcher sw) (ot_switcher sw ^+ 1)%ot
+         (ot_switcher sw) :: switcher_instrs).
+
+  Definition assert_code_mem : Mem :=
+    let asrt := img_asrt img in
+    mem_region (b_assert asrt)
+      (assert_subroutine_instrs ++
+         [WCap true RW Global (flag_assert asrt) (flag_assert asrt ^+ 1)%a (flag_assert asrt)])%list.
+
+  Definition assert_flag_mem : Mem := mem_region (flag_assert (img_asrt img)) [WInt 0].
+
+  Definition cmpt_mem (fc : fw_cmpt) : Mem :=
+    let n := fc_name fc in
+    let c := cmpt_of img n in
+    note (n ++ ", PCC range") (mem_region (cmpt_b_pcc c) (cmpt_imports c ++ cmpt_code c)%list) ∪
+    note (n ++ ", CGP range") (mem_region (cmpt_b_cgp c) (cmpt_data c)) ∪
+    note (n ++ ", static sealed") (mem_region (cmpt_b_static_sealed c) (cmpt_static_sealed c)) ∪
+    note (n ++ ", export table")
+      (mem_region (cmpt_exp_tbl_pcc c)
+         (WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ::
+          WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ::
+          cmpt_exp_tbl_entries c)).
+
+  (** The trusted stack holds a zeroed register save area, the header and
+      zeroed frames, the entry frame included; the stack is zeroed. *)
+  Definition thread_mem (i : nat) (ft : fw_thread) : Mem :=
+    let t := thread_of img i in
+    note ("thread " ++ nat_str i ++ ", trusted stack")
+      (mem_region (b_trusted_stack t) (initial_trusted_stack_content (ft_tstack_frames ft))) ∪
+    note ("thread " ++ nat_str i ++ ", stack")
+      (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))).
+
+  Definition mem_ok (σ : ExecConf) : Prop :=
+    mem σ =
+      note "heap, zeroed" initial_heap_memory ∪
+      note "switcher" switcher_mem ∪
+      note "assert, code and flag capability" assert_code_mem ∪
+      note "assert, flag" assert_flag_mem ∪
+      big_union (fw_map cmpt_mem (fw_cmpts fw)) ∪
+      big_union (fw_imap thread_mem (fw_threads fw)) ∧
+    note "every heap address live" (shadowtbl σ = initial_heap_shadow).
+
+  (** *** Registers
+
+      The first thread starts at an export of a trusted compartment, with
+      interrupts disabled. *)
+
+  Definition regs_ok (σ : ExecConf) : Prop :=
+    match fw_threads fw with
+    | [] => note "no thread" False
+    | ft :: _ =>
+        let fc := fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft) in
+        let m := cmpt_of img (ft_cmpt ft) in
+        let t := thread_of img 0 in
+        match fc_body fc with
+        | UntrustedBody _ _ => note "threads start in trusted compartments" False
+        | TrustedBody _ _ exps =>
+            note (ft_cmpt ft ++ ", export " ++ nat_str (ft_entry ft))
+              (pcc σ = WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
+                         (addr_off (cmpt_b_pcc m)
+                            (fe_offset (fw_nth (ft_entry ft) exps default_export)))) ∧
+            reg σ !! cgp = Some (WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
+            reg σ !! csp = Some (WCap true RWL Local (b_stack t) (e_stack t) (b_stack t)) ∧
+            note "every other register cleared"
+              (∀ r, r ∉ ({[cgp; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
+            sreg σ !! MTDC =
+              Some (WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
+            note "interrupts disabled (the posture of the export is not used yet)"
+              (sreg σ !! MSTATUS = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))) ∧
+            sreg σ !! MTCC = Some (WInt 0) ∧
+            sreg σ !! MEPCC = Some (WInt 0) ∧
+            sreg σ !! MCAUSE = Some (WInt 0) ∧
+            sreg σ !! MTVAL = Some (WInt 0)
+        end
+    end.
+
+  (** *** Layout conditions *)
+
+  (** Outside the heap, the shadow region and the revoker
+      ([disjoint_from_mmio], unfolded). *)
+  Definition range_ok (b e : Addr) : Prop :=
+    not_heap_range b e ∧ disjoint_from_shadow b e ∧ revoker_addr ∉ finz.seq_between b e.
+
+  (** The regions of a compartment, named. *)
+  Definition cmpt_ranges (fc : fw_cmpt) : list (string * Addr * Addr) :=
+    let n := fc_name fc in
+    let c := cmpt_of img n in
+    [(n ++ ", PCC range", cmpt_b_pcc c, cmpt_e_pcc c);
+     (n ++ ", CGP range", cmpt_b_cgp c, cmpt_e_cgp c);
+     (n ++ ", static sealed", cmpt_b_static_sealed c, cmpt_e_static_sealed c);
+     (n ++ ", export table", cmpt_exp_tbl_pcc c, cmpt_exp_tbl_entries_end c)].
+
+  Definition thread_ranges (i : nat) (ft : fw_thread) : list (string * Addr * Addr) :=
+    let t := thread_of img i in
+    [("thread " ++ nat_str i ++ ", trusted stack", b_trusted_stack t, e_trusted_stack t);
+     ("thread " ++ nat_str i ++ ", stack", b_stack t, e_stack t)].
+
+  Definition ranges_ok (rs : list (string * Addr * Addr)) : Prop :=
+    big_and (fw_map (λ '(s, b, e), note s (range_ok b e)) rs).
+
+  (** Every region of the image. *)
+  Definition all_ranges : list (Addr * Addr) :=
+    let sw := img_sw img in
+    let asrt := img_asrt img in
+    fw_map (λ '(s, b, e), note s (b, e))
+      (("switcher", b_switcher sw, e_switcher sw) ::
+       ("assert", b_assert asrt, e_assert asrt) ::
+       ("assert flag", flag_assert asrt, (flag_assert asrt ^+ 1)%a) ::
+       fw_app (fw_flat_map cmpt_ranges (fw_cmpts fw))
+         (fw_flat_map (λ x, x) (fw_imap thread_ranges (fw_threads fw)))).
+
+  (** The words of a compartment that the loader placed. *)
+  Definition img_cmpt_words (c : img_cmpt) : list Word :=
+    (cmpt_imports c ++ cmpt_code c ++ cmpt_data c ++ cmpt_static_sealed c ++
+     cmpt_exp_tbl_entries c)%list.
+
+  Definition export_in_pcc (c : img_cmpt) (k : nat) (e : fw_export) : Prop :=
+    note ("export " ++ nat_str k ++ " inside the PCC range")
+      (Z.of_nat (fe_offset e) < cmpt_e_pcc c - cmpt_b_pcc c)%Z.
+
+  Definition cmpt_wf (fc : fw_cmpt) : Prop :=
+    let n := fc_name fc in
+    let c := cmpt_of img n in
+    section (n ++ ", layout")
+      (big_and
+        (fw_app
+          [(cmpt_b_pcc c + Z.of_nat (length (cmpt_imports c)))%a = Some (cmpt_a_code c);
+           (cmpt_a_code c + Z.of_nat (length (cmpt_code c)))%a = Some (cmpt_e_pcc c);
+           (cmpt_b_cgp c + Z.of_nat (length (cmpt_data c)))%a = Some (cmpt_e_cgp c);
+           (cmpt_b_static_sealed c + Z.of_nat (length (cmpt_static_sealed c)))%a =
+             Some (cmpt_e_static_sealed c);
+           (cmpt_exp_tbl_pcc c + 1)%a = Some (cmpt_exp_tbl_cgp c);
+           (cmpt_exp_tbl_cgp c + 1)%a = Some (cmpt_exp_tbl_entries_start c);
+           (cmpt_exp_tbl_entries_start c + Z.of_nat (length (cmpt_exp_tbl_entries c)))%a =
+             Some (cmpt_exp_tbl_entries_end c);
+           ranges_ok (cmpt_ranges fc);
+           note "closed PCC bounds outside the heap" (is_heap_address (cmpt_e_pcc c) = false)]
+          (fw_app
+            (match fc_body fc with
+             | TrustedBody _ _ exps => fw_imap (export_in_pcc c) exps
+             | UntrustedBody _ _ => []
+             end)
+            [note
+               (match fw_heap_roots fw with
+                | [] => "no heap capability (no heap root)"
+                | _ => "heap capabilities based on the heap roots"
+                end)
+               (Forall (word_rooted (fw_set (fw_heap_roots fw))) (img_cmpt_words c));
+             note "executable words outside the heap"
+               (Forall word_exec_ok (img_cmpt_words c))]))).
+
+  Definition switcher_wf : Prop :=
+    let sw := img_sw img in
+    section "switcher, layout"
+      ((b_switcher sw + 1)%a = Some (a_switcher_call sw) ∧
+       (a_switcher_call sw + Z.of_nat (length switcher_instrs))%a = Some (e_switcher sw) ∧
+       (b_switcher sw + (1 + Z.of_nat (length switcher_call_instrs)))%a =
+         Some (a_switcher_return sw) ∧
+       range_ok (b_switcher sw) (e_switcher sw) ∧
+       note "closed bounds outside the heap" (is_heap_address (e_switcher sw) = false)).
+
+  Definition assert_wf : Prop :=
+    let asrt := img_asrt img in
+    section "assert, layout"
+      ((b_assert asrt + Z.of_nat (length assert_subroutine_instrs))%a = Some (cap_assert asrt) ∧
+       (cap_assert asrt + 1)%a = Some (e_assert asrt) ∧
+       note "the flag is not the last address" (is_Some (flag_assert asrt + 1)%a) ∧
+       range_ok (b_assert asrt) (e_assert asrt) ∧
+       note "closed bounds outside the heap" (is_heap_address (e_assert asrt) = false) ∧
+       note "flag" (range_ok (flag_assert asrt) (flag_assert asrt ^+ 1)%a)).
+
+  Definition thread_wf (i : nat) (ft : fw_thread) : Prop :=
+    let t := thread_of img i in
+    section ("thread " ++ nat_str i ++ ", layout")
+      ((b_stack t + Z.of_nat (ft_stack_size ft))%a = Some (e_stack t) ∧
+       (b_trusted_stack t +
+          Z.of_nat (length (initial_trusted_stack_content (ft_tstack_frames ft))))%a =
+         Some (e_trusted_stack t) ∧
+       note "stack" (range_ok (b_stack t) (e_stack t)) ∧
+       note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t))).
+
+  Definition img_wf : Prop :=
+    switcher_wf ∧
+    assert_wf ∧
+    big_and (fw_map cmpt_wf (fw_cmpts fw)) ∧
+    big_and (fw_imap thread_wf (fw_threads fw)) ∧
+    section "image, layout"
+      (big_and
+        (fw_app
+          [note "pairwise disjoint" (ranges_disjoint all_ranges);
+           note "sealing types distinct" (NoDup (ot_switcher (img_sw img) :: fw_otypes fw));
+           note "sealing types valid"
+             (Forall otype_valid (ot_switcher (img_sw img) :: fw_otypes fw))]
+          (fw_map (λ a, note "heap root in the heap" (is_heap_address a = true))
+             (fw_heap_roots fw)))).
+End translation.
+
+Definition firmware_ok `{MP : MachineParameters}
+    (fw : firmware) (img : fw_image) (σ : ExecConf) : Prop :=
+  big_and (fw_map (cmpt_ok img) (fw_cmpts fw)) ∧
+  section "Memory" (mem_ok fw img σ) ∧
+  section "Registers" (regs_ok fw img σ) ∧
+  img_wf fw img.
+
+(** ** Reduction on a concrete firmware
+
+    [reduce_firmware_ok t] unfolds the translation in [t], and only the
+    translation: the code, [mem_region], [length], address arithmetic and the
+    words stay folded. The firmware and the image-building functions of the
+    case study must be unfolded first. *)
+Ltac reduce_firmware_ok t :=
+  eval cbv beta iota zeta delta [
+    firmware_ok mem_ok regs_ok img_wf cmpt_ok body_ok fw_word_of chunks_words
+    hole_exports export_word switcher_mem assert_code_mem assert_flag_mem
+    cmpt_mem thread_mem range_ok ranges_ok cmpt_ranges thread_ranges all_ranges
+    img_cmpt_words
+    export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf
+    fw_map fw_imap fw_imap_from fw_app fw_flat_map big_and big_union nat_str
+    addr_off default_export body_str fw_set
+    cmpt_of thread_of assoc fw_nth fw_cmpt_of
+    fw_cmpts fw_threads fw_otypes fw_heap_roots
+    fc_name fc_imports fc_static_sealed fc_body
+    fe_offset fe_nargs fe_posture
+    ft_cmpt ft_entry ft_stack_size ft_tstack_frames
+    img_sw img_asrt img_cmpts img_threads
+    String.append String.eqb Ascii.eqb Bool.eqb andb]
+  in t.
