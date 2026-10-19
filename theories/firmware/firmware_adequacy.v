@@ -1,0 +1,1760 @@
+From iris.proofmode Require Import proofmode.
+From iris.program_logic Require Import adequacy.
+From iris.base_logic Require Import invariants.
+From griotte Require Import logrel monotone interp_weakening.
+From griotte Require Import switcher assert_spec.
+From griotte Require Import
+  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import stack_world_resources mkregion_helpers disjoint_regions_tactics.
+From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
+From griotte Require Import allocator_resources heap_region.
+From griotte Require Import firmware_ok.
+(* Imported last: the fields of the image records shadow the fields of the
+   layout records of [compartment_layout] and of [switcherLayout]. *)
+From griotte Require Import image firmware.
+Set Mangle Names.
+
+(** * The generic adequacy theorem of firmware images
+
+    [firmware_adequacy] proves the assert flag of every machine run from a
+    state satisfying [firmware_ok fw img σ], given the obligations
+    [fw_obligations fw] of the trusted code of [fw]. The obligations
+    receive the resources the loader's image provides once the switcher
+    and the assert library are initialised ([fw_shared_res]) and those of
+    the thread ([fw_thread_res]).
+
+    The layout records of the program logic ([cmpt], [cmptSwitcher],
+    [cmptAssert]) carry their well-formedness proofs. The bridges
+    [layout_cmpt_of], [layout_switcher_of] and [layout_assert_of] build them
+    from an image record and its layout conditions, stated by the records
+    [img_cmpt_layout], [img_switcher_layout] (with [trusted_stack_layout])
+    and [img_assert_layout]; the lemmas [img_wf_*_layout] derive these from
+    [img_wf]. *)
+
+(** ** Lists of the translation *)
+
+Lemma fw_app_eq {A} (l1 l2 : list A) : fw_app l1 l2 = l1 ++ l2.
+Proof. induction l1 as [|x l1 IH]; cbn; [done | by rewrite IH]. Qed.
+
+Lemma fw_map_eq {A B} (f : A → B) (l : list A) : fw_map f l = f <$> l.
+Proof. induction l as [|x l IH]; cbn; [done | by rewrite IH]. Qed.
+
+Lemma fw_flat_map_cons {A B} (f : A → list B) (x : A) (l : list A) :
+  fw_flat_map f (x :: l) = f x ++ fw_flat_map f l.
+Proof. by rewrite /= fw_app_eq. Qed.
+
+Lemma big_union_cons (m : Mem) (ms : list Mem) : big_union (m :: ms) = m ∪ big_union ms.
+Proof. destruct ms as [|m' ms]; cbn; [by rewrite right_id_L | done]. Qed.
+
+Lemma big_and_cons (p : Prop) (ps : list Prop) : big_and (p :: ps) ↔ p ∧ big_and ps.
+Proof. destruct ps as [|p' ps]; cbn; [tauto | done]. Qed.
+
+Lemma big_and_fw_map {A} (P : A → Prop) (l : list A) : big_and (fw_map P l) → Forall P l.
+Proof.
+  induction l as [|x l IH]; intros Hl; first by constructor.
+  apply big_and_cons in Hl as [Hx Hl]. constructor; [exact Hx | by apply IH].
+Qed.
+
+Lemma big_and_fw_app (ps qs : list Prop) : big_and (fw_app ps qs) → big_and ps ∧ big_and qs.
+Proof.
+  induction ps as [|p ps IH]; cbn [fw_app]; intros Hpq; first done.
+  apply big_and_cons in Hpq as [Hp Hpq]. apply IH in Hpq as [Hps Hqs].
+  split; last done. by apply big_and_cons.
+Qed.
+
+(** ** Disjoint lists of address ranges *)
+
+Lemma disjoint_list_elem_of (X Y : list Addr) (Xs : list (list Addr)) :
+  ## (X :: Xs) → Y ∈ Xs → X ## Y.
+Proof.
+  rewrite disjoint_list_cons. intros [HX _] HY a Ha1 Ha2.
+  apply (HX a Ha1). apply elem_of_union_list. by exists Y.
+Qed.
+
+Lemma disjoint_list_app_cross (Xs Ys : list (list Addr)) (X Y : list Addr) :
+  ## (Xs ++ Ys) → X ∈ Xs → Y ∈ Ys → X ## Y.
+Proof.
+  induction Xs as [|X0 Xs IH]; intros Hd HX HY; first by apply not_elem_of_nil in HX.
+  rewrite -app_comm_cons in Hd.
+  apply elem_of_cons in HX as [->|HX].
+  - eapply disjoint_list_elem_of; first exact Hd. apply elem_of_app; by right.
+  - apply IH; [|done|done]. by apply disjoint_list_cons in Hd as [_ Hd].
+Qed.
+
+Lemma disjoint_list_sublist (Xs Ys : list (list Addr)) :
+  Xs `sublist_of` Ys → ## Ys → ## Xs.
+Proof.
+  induction 1 as [|X Xs Ys Hsub IH|X Xs Ys Hsub IH]; intros HYs.
+  - constructor.
+  - apply disjoint_list_cons in HYs as [HX HYs].
+    apply disjoint_list_cons; split; last by apply IH.
+    intros a Ha1 Ha2. apply (HX a Ha1).
+    apply elem_of_union_list in Ha2 as (Z & HZ & Ha2).
+    apply elem_of_union_list. exists Z; split; last done.
+    by eapply sublist_subseteq.
+  - apply disjoint_list_cons in HYs as [_ HYs]. by apply IH.
+Qed.
+
+Section regions.
+  Context `{MP : MachineParameters}.
+
+  (** The addresses of a named range of the translation. *)
+  Definition rng_addrs (t : string * Addr * Addr) : list Addr := finz.seq_between t.1.2 t.2.
+
+  Definition rngs_disjoint (ts : list (string * Addr * Addr)) : Prop := ## (rng_addrs <$> ts).
+
+  Lemma rngs_disjoint_sublist ts1 ts2 :
+    ts1 `sublist_of` ts2 → rngs_disjoint ts2 → rngs_disjoint ts1.
+  Proof. intros Hsub. apply disjoint_list_sublist. by apply fmap_sublist. Qed.
+
+  Lemma rngs_disjoint_app_cross ts1 ts2 t1 t2 :
+    rngs_disjoint (ts1 ++ ts2) → t1 ∈ ts1 → t2 ∈ ts2 → rng_addrs t1 ## rng_addrs t2.
+  Proof.
+    rewrite /rngs_disjoint fmap_app. intros Hd H1 H2.
+    eapply disjoint_list_app_cross; [exact Hd | |]; apply list_elem_of_fmap; eauto.
+  Qed.
+
+  (** The domain of [m] is covered by the ranges [ts]. *)
+  Definition mem_in (m : Mem) (ts : list (string * Addr * Addr)) : Prop :=
+    ∀ a, a ∈ dom m → ∃ t, t ∈ ts ∧ a ∈ rng_addrs t.
+
+  Lemma mem_in_union m1 m2 ts1 ts2 :
+    mem_in m1 ts1 → mem_in m2 ts2 → mem_in (m1 ∪ m2) (ts1 ++ ts2).
+  Proof.
+    intros H1 H2 a Ha. rewrite dom_union_L elem_of_union in Ha.
+    destruct Ha as [Ha|Ha];
+      [destruct (H1 a Ha) as (t & Ht & Hat) | destruct (H2 a Ha) as (t & Ht & Hat)];
+      exists t; (split; last done); apply elem_of_app; auto.
+  Qed.
+
+  Lemma mem_in_mono m ts1 ts2 : ts1 ⊆ ts2 → mem_in m ts1 → mem_in m ts2.
+  Proof.
+    intros Hsub H1 a Ha. destruct (H1 a Ha) as (t & Ht & Hat).
+    exists t. split; [by apply Hsub | done].
+  Qed.
+
+  Lemma mem_in_empty ts : mem_in ∅ ts.
+  Proof. intros a Ha. by rewrite dom_empty_L in Ha. Qed.
+
+  Lemma mem_in_disjoint m1 m2 ts1 ts2 :
+    mem_in m1 ts1 →
+    mem_in m2 ts2 →
+    (∀ t1 t2, t1 ∈ ts1 → t2 ∈ ts2 → rng_addrs t1 ## rng_addrs t2) →
+    m1 ##ₘ m2.
+  Proof.
+    intros H1 H2 Hd. apply map_disjoint_spec. intros a w1 w2 Ha1 Ha2.
+    destruct (H1 a (elem_of_dom_2 _ _ _ Ha1)) as (t1 & Ht1 & Hat1).
+    destruct (H2 a (elem_of_dom_2 _ _ _ Ha2)) as (t2 & Ht2 & Hat2).
+    by apply (Hd t1 t2 Ht1 Ht2 a).
+  Qed.
+
+  Lemma mem_in_heap_disjoint m ts :
+    mem_in m ts →
+    Forall (λ t, range_ok t.1.2 t.2) ts →
+    initial_heap_memory ##ₘ m.
+  Proof.
+    intros Hm Hts. apply map_disjoint_spec. intros a w1 w2 Ha1 Ha2.
+    destruct (Hm a (elem_of_dom_2 _ _ _ Ha2)) as (t & Ht & Hat).
+    rewrite Forall_forall in Hts. destruct (Hts t Ht) as [ [_ Hheap] _].
+    apply (Hheap a Hat).
+    rewrite /initial_heap_memory lookup_gset_to_gmap_Some /heap_addresses
+      elem_of_list_to_set in Ha1.
+    by destruct Ha1.
+  Qed.
+
+  Lemma mem_region_mkregion (b e : Addr) (ws : list Word) :
+    (b + length ws)%a = Some e → mem_region b ws = mkregion b e ws.
+  Proof.
+    intros Hbe. rewrite /mem_region /mkregion /finz.seq_between.
+    by apply finz_incr_iff_dist in Hbe as [_ ->].
+  Qed.
+
+  Lemma mkregion_app (b a e : Addr) (ws1 ws2 : list Word) :
+    (b + length ws1)%a = Some a →
+    (a + length ws2)%a = Some e →
+    mkregion b e (ws1 ++ ws2) = mkregion b a ws1 ∪ mkregion a e ws2.
+  Proof.
+    intros Hba Hae.
+    rewrite /mkregion (finz_seq_between_split b a e); last solve_addr.
+    rewrite zip_with_app; first apply list_to_map_app.
+    rewrite finz_seq_between_length. by apply finz_incr_iff_dist in Hba as [_ Hdist].
+  Qed.
+
+  Lemma mem_in_mem_region s (b e : Addr) (ws : list Word) :
+    (b + length ws)%a = Some e → mem_in (mem_region b ws) [(s, b, e)].
+  Proof.
+    intros Hbe a Ha. exists (s, b, e). split; first by apply list_elem_of_singleton.
+    rewrite (mem_region_mkregion b e) // in Ha.
+    by apply dom_mkregion_incl, elem_of_list_to_set in Ha.
+  Qed.
+End regions.
+
+(** ** Bridges to the layout records of the program logic *)
+Section layout_bridges.
+  Context `{MP : MachineParameters}.
+
+  (** *** Compartments *)
+
+  (** The proof fields of [compartment_layout.cmpt], for a compartment of an
+      image. *)
+  Record img_cmpt_layout (c : img_cmpt) : Prop := MkImgCmptLayout {
+    icl_import_size :
+      (cmpt_b_pcc c + length (cmpt_imports c))%a = Some (cmpt_a_code c);
+    icl_code_size :
+      (cmpt_a_code c + length (cmpt_code c))%a = Some (cmpt_e_pcc c);
+    icl_data_size :
+      (cmpt_b_cgp c + length (cmpt_data c))%a = Some (cmpt_e_cgp c);
+    icl_static_sealed_size :
+      (cmpt_b_static_sealed c + length (cmpt_static_sealed c))%a = Some (cmpt_e_static_sealed c);
+    icl_exp_tbl_pcc_size :
+      (cmpt_exp_tbl_pcc c + 1)%a = Some (cmpt_exp_tbl_cgp c);
+    icl_exp_tbl_cgp_size :
+      (cmpt_exp_tbl_cgp c + 1)%a = Some (cmpt_exp_tbl_entries_start c);
+    icl_exp_tbl_entries_size :
+      (cmpt_exp_tbl_entries_start c + length (cmpt_exp_tbl_entries c))%a =
+        Some (cmpt_exp_tbl_entries_end c);
+    icl_disjointness :
+      ## [finz.seq_between (cmpt_b_pcc c) (cmpt_e_pcc c);
+          finz.seq_between (cmpt_b_cgp c) (cmpt_e_cgp c);
+          finz.seq_between (cmpt_b_static_sealed c) (cmpt_e_static_sealed c);
+          finz.seq_between (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)];
+    icl_pcc_mmio : disjoint_from_mmio (cmpt_b_pcc c) (cmpt_e_pcc c);
+    icl_pcc_not_heap : not_heap_range (cmpt_b_pcc c) (cmpt_e_pcc c);
+    icl_cgp_mmio : disjoint_from_mmio (cmpt_b_cgp c) (cmpt_e_cgp c);
+    icl_cgp_not_heap : not_heap_range (cmpt_b_cgp c) (cmpt_e_cgp c);
+    icl_exp_tbl_mmio : disjoint_from_mmio (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c);
+    icl_static_sealed_mmio :
+      disjoint_from_mmio (cmpt_b_static_sealed c) (cmpt_e_static_sealed c);
+    icl_exp_tbl_not_heap : not_heap_range (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c);
+    icl_static_sealed_not_heap :
+      not_heap_range (cmpt_b_static_sealed c) (cmpt_e_static_sealed c);
+    icl_pcc_end_not_heap : is_heap_address (cmpt_e_pcc c) = false;
+  }.
+
+  Definition layout_cmpt_of (c : img_cmpt) (Hc : img_cmpt_layout c) : cmpt :=
+    mkCmpt
+      (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c)
+      (cmpt_b_cgp c) (cmpt_e_cgp c)
+      (cmpt_b_static_sealed c) (cmpt_e_static_sealed c)
+      (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_cgp c)
+      (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c)
+      (cmpt_imports c) (cmpt_code c) (cmpt_data c)
+      (cmpt_static_sealed c) (cmpt_exp_tbl_entries c)
+      (icl_import_size _ Hc) (icl_code_size _ Hc) (icl_data_size _ Hc)
+      (icl_static_sealed_size _ Hc) (icl_exp_tbl_pcc_size _ Hc) (icl_exp_tbl_cgp_size _ Hc)
+      (icl_exp_tbl_entries_size _ Hc) (icl_disjointness _ Hc)
+      (icl_pcc_mmio _ Hc) (icl_pcc_not_heap _ Hc) (icl_cgp_mmio _ Hc) (icl_cgp_not_heap _ Hc)
+      (icl_exp_tbl_mmio _ Hc) (icl_static_sealed_mmio _ Hc) (icl_exp_tbl_not_heap _ Hc)
+      (icl_static_sealed_not_heap _ Hc) (icl_pcc_end_not_heap _ Hc).
+
+  (** *** The switcher and the thread's stacks
+
+      The conditions on the contents of the trusted stack are kept apart:
+      they change with the contents the loader writes there. *)
+
+  Record trusted_stack_layout (b e : Addr) (ts : list Word) : Prop := MkTrustedStackLayout {
+    tsl_size : (b + length ts)%a = Some e;
+    tsl_frameoffset :
+      ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
+    tsl_frames_fit : ∃ n : nat, (b + tstack_frame_offset (S n))%a = Some e;
+    tsl_ints : Forall is_z ts;
+  }.
+
+  Record img_switcher_layout (sw : img_switcher) (t : img_thread) (ss : list Word) : Prop :=
+    MkImgSwitcherLayout {
+    isl_switcher_size :
+      (a_switcher_call sw + length switcher_instrs)%a = Some (e_switcher sw);
+    isl_call_entry_point : (b_switcher sw + 1)%a = Some (a_switcher_call sw);
+    isl_return_entry_point :
+      (b_switcher sw + (1 + length switcher_call_instrs))%a = Some (a_switcher_return sw);
+    isl_ot_switcher_size : (ot_switcher sw < ot_switcher sw ^+ 1)%ot;
+    isl_stack_size : (b_stack t + length ss)%a = Some (e_stack t);
+    isl_disjointness :
+      finz.seq_between (b_switcher sw) (e_switcher sw) ##
+        finz.seq_between (b_trusted_stack t) (e_trusted_stack t) ∧
+      finz.seq_between (b_switcher sw) (e_switcher sw) ##
+        finz.seq_between (b_stack t) (e_stack t) ∧
+      finz.seq_between (b_trusted_stack t) (e_trusted_stack t) ##
+        finz.seq_between (b_stack t) (e_stack t);
+    isl_trusted_stack_mmio : disjoint_from_mmio (b_trusted_stack t) (e_trusted_stack t);
+    isl_switcher_base_not_shadow : is_shadow_address (b_switcher sw) = false;
+    isl_switcher_not_heap : not_heap_range (b_switcher sw) (e_switcher sw);
+    isl_stack_mmio : disjoint_from_mmio (b_stack t) (e_stack t);
+    isl_stack_not_heap : disjoint_from_heap (b_stack t) (e_stack t);
+    isl_switcher_mmio : disjoint_from_mmio (b_switcher sw) (e_switcher sw);
+    isl_switcher_end_not_heap : is_heap_address (e_switcher sw) = false;
+    isl_trusted_stack_not_heap :
+      not_heap_range (b_trusted_stack t) (b_trusted_stack t ^+ TSTACK_REGFRAME_SZ)%a;
+  }.
+
+  Definition layout_switcher_of (sw : img_switcher) (t : img_thread) (ts ss : list Word)
+      (Hts : trusted_stack_layout (b_trusted_stack t) (e_trusted_stack t) ts)
+      (Hsw : img_switcher_layout sw t ss) : cmptSwitcher :=
+    mkCmptSwitcher
+      (b_switcher sw) (e_switcher sw) (a_switcher_call sw) (a_switcher_return sw)
+      (ot_switcher sw) (b_trusted_stack t) (e_trusted_stack t)
+      (isl_switcher_size _ _ _ Hsw) (isl_call_entry_point _ _ _ Hsw) (isl_return_entry_point _ _ _ Hsw)
+      (isl_ot_switcher_size _ _ _ Hsw)
+      ts (tsl_size _ _ _ Hts) (tsl_frameoffset _ _ _ Hts) (tsl_frames_fit _ _ _ Hts) (tsl_ints _ _ _ Hts)
+      (b_stack t) (e_stack t) ss (isl_stack_size _ _ _ Hsw) (isl_disjointness _ _ _ Hsw)
+      (isl_trusted_stack_mmio _ _ _ Hsw) (isl_switcher_base_not_shadow _ _ _ Hsw)
+      (isl_switcher_not_heap _ _ _ Hsw) (isl_stack_mmio _ _ _ Hsw) (isl_stack_not_heap _ _ _ Hsw)
+      (isl_switcher_mmio _ _ _ Hsw) (isl_switcher_end_not_heap _ _ _ Hsw)
+      (isl_trusted_stack_not_heap _ _ _ Hsw).
+
+  (** *** The assert library *)
+
+  Record img_assert_layout (asrt : img_assert) : Prop := MkImgAssertLayout {
+    ial_code_size :
+      (b_assert asrt + length assert_subroutine_instrs)%a = Some (cap_assert asrt);
+    ial_cap_size : (cap_assert asrt + 1)%a = Some (e_assert asrt);
+    ial_flag_size : (flag_assert asrt + 1)%a = Some (flag_assert asrt ^+ 1)%a;
+    ial_code_not_heap : is_heap_address (b_assert asrt) = false;
+    ial_flag_disjoint :
+      finz.seq_between (b_assert asrt) (e_assert asrt) ##
+        finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)%a;
+    ial_mmio : disjoint_from_mmio (b_assert asrt) (e_assert asrt);
+    ial_flag_mmio : disjoint_from_mmio (flag_assert asrt) (flag_assert asrt ^+ 1)%a;
+    ial_end_not_heap : is_heap_address (e_assert asrt) = false;
+  }.
+
+  Definition layout_assert_of (asrt : img_assert) (Ha : img_assert_layout asrt) : cmptAssert :=
+    mkCmptAssert
+      (b_assert asrt) (e_assert asrt) (cap_assert asrt) (flag_assert asrt)
+      (ial_code_size _ Ha) (ial_cap_size _ Ha) (ial_flag_size _ Ha) (ial_code_not_heap _ Ha)
+      (ial_flag_disjoint _ Ha) (ial_mmio _ Ha) (ial_flag_mmio _ Ha) (ial_end_not_heap _ Ha).
+End layout_bridges.
+
+(** ** The memory of an image, as the layout records' initial memories *)
+Section layout_memory.
+  Context `{MP : MachineParameters}.
+
+  Lemma mem_region_app (b a e : Addr) (ws1 ws2 : list Word) :
+    (b + length ws1)%a = Some a →
+    (a + length ws2)%a = Some e →
+    mem_region b (ws1 ++ ws2) = mkregion b a ws1 ∪ mkregion a e ws2.
+  Proof.
+    intros Hba Hae.
+    rewrite (mem_region_mkregion b e); first by apply mkregion_app.
+    rewrite length_app. solve_addr.
+  Qed.
+
+  Lemma cmpt_mem_layout (img : fw_image) (fc : fw_cmpt)
+      (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) :
+    cmpt_mem img fc = mk_initial_cmpt (layout_cmpt_of _ Hc).
+  Proof.
+    generalize dependent Hc. rewrite /cmpt_mem /note.
+    generalize (cmpt_of img (fc_name fc)). intros c Hc.
+    rewrite /mk_initial_cmpt /cmpt_pcc_mregion /cmpt_cgp_mregion
+      /cmpt_static_sealed_mregion /cmpt_exp_tbl_mregion /=.
+    pose proof (icl_import_size _ Hc). pose proof (icl_code_size _ Hc).
+    pose proof (icl_data_size _ Hc). pose proof (icl_static_sealed_size _ Hc).
+    pose proof (icl_exp_tbl_pcc_size _ Hc). pose proof (icl_exp_tbl_cgp_size _ Hc).
+    pose proof (icl_exp_tbl_entries_size _ Hc).
+    rewrite (mem_region_app (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c)) //.
+    rewrite (mem_region_mkregion (cmpt_b_cgp c) (cmpt_e_cgp c)) //.
+    rewrite (mem_region_mkregion (cmpt_b_static_sealed c) (cmpt_e_static_sealed c)) //.
+    rewrite (mem_region_mkregion (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c));
+      last (cbn; solve_addr).
+    change (?w1 :: ?w2 :: cmpt_exp_tbl_entries c) with ([w1] ++ [w2] ++ cmpt_exp_tbl_entries c).
+    rewrite (mkregion_app (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_cgp c)) //;
+      last (rewrite length_app; cbn; solve_addr).
+    rewrite (mkregion_app (cmpt_exp_tbl_cgp c) (cmpt_exp_tbl_entries_start c)) //.
+    by rewrite assoc_L.
+  Qed.
+
+  Lemma switcher_mem_layout (img : fw_image) (t : img_thread) (ts ss : list Word)
+      (Hts : trusted_stack_layout (b_trusted_stack t) (e_trusted_stack t) ts)
+      (Hsw : img_switcher_layout (img_sw img) t ss) :
+    switcher_mem img = cmpt_switcher_code_mregion (layout_switcher_of _ _ _ _ Hts Hsw).
+  Proof.
+    rewrite /switcher_mem /cmpt_switcher_code_mregion /=.
+    pose proof (isl_switcher_size _ _ _ Hsw). pose proof (isl_call_entry_point _ _ _ Hsw).
+    change (?w :: switcher_instrs) with ([w] ++ switcher_instrs).
+    by apply mem_region_app.
+  Qed.
+
+  (** The memory of the first thread: its trusted stack and its stack. *)
+  Lemma thread_mem_layout (img : fw_image) (ft : fw_thread)
+      (Hts : trusted_stack_layout (b_trusted_stack (thread_of img 0))
+               (e_trusted_stack (thread_of img 0))
+               (initial_trusted_stack_content (ft_tstack_frames ft)))
+      (Hsw : img_switcher_layout (img_sw img) (thread_of img 0)
+               (replicate (ft_stack_size ft) (WInt 0))) :
+    thread_mem img 0 ft =
+      cmpt_switcher_trusted_stack_mregion (layout_switcher_of _ _ _ _ Hts Hsw) ∪
+      cmpt_switcher_stack_mregion (layout_switcher_of _ _ _ _ Hts Hsw).
+  Proof.
+    rewrite /thread_mem /note /cmpt_switcher_trusted_stack_mregion
+      /cmpt_switcher_stack_mregion /=.
+    rewrite (mem_region_mkregion _ (e_trusted_stack (thread_of img 0)));
+      last exact (tsl_size _ _ _ Hts).
+    by rewrite (mem_region_mkregion _ (e_stack (thread_of img 0)));
+      last exact (isl_stack_size _ _ _ Hsw).
+  Qed.
+
+  Lemma assert_mem_layout (img : fw_image) (Ha : img_assert_layout (img_asrt img)) :
+    assert_code_mem img ∪ assert_flag_mem img = mk_initial_assert (layout_assert_of _ Ha).
+  Proof.
+    pose proof (ial_code_size _ Ha). pose proof (ial_cap_size _ Ha).
+    rewrite /assert_code_mem /assert_flag_mem.
+    rewrite (mem_region_app (b_assert (img_asrt img)) (cap_assert (img_asrt img))
+               (e_assert (img_asrt img))) //.
+    by rewrite (mem_region_mkregion _ (flag_assert (img_asrt img) ^+ 1)%a);
+      last exact (ial_flag_size _ Ha).
+  Qed.
+End layout_memory.
+
+(** ** The layout conditions of an image, from [img_wf] *)
+Section layout_of_img_wf.
+  Context `{MP : MachineParameters}.
+
+  (** The ranges of [all_ranges], with their names. *)
+  Definition fw_ranges (fw : firmware) (img : fw_image) : list (string * Addr * Addr) :=
+    let sw := img_sw img in
+    let asrt := img_asrt img in
+    ("switcher", b_switcher sw, e_switcher sw) ::
+    ("assert", b_assert asrt, e_assert asrt) ::
+    ("assert flag", flag_assert asrt, (flag_assert asrt ^+ 1)%a) ::
+    (fw_flat_map (cmpt_ranges img) (fw_cmpts fw) ++
+     fw_flat_map (λ x, x) (fw_imap (thread_ranges img) (fw_threads fw))).
+
+  Lemma img_wf_rngs_disjoint fw img : img_wf fw img → rngs_disjoint (fw_ranges fw img).
+  Proof.
+    intros (_ & _ & _ & _ & Himg).
+    rewrite /section in Himg. apply big_and_fw_app in Himg as [Himg _].
+    apply big_and_cons in Himg as [Hdisj _].
+    rewrite /note /ranges_disjoint /all_ranges fw_map_eq -list_fmap_compose in Hdisj.
+    rewrite /rngs_disjoint /fw_ranges -fw_app_eq.
+    erewrite list_fmap_ext; first exact Hdisj.
+    by intros _ [ [s b] e] _.
+  Qed.
+
+  Lemma range_ok_mmio b e : range_ok b e → disjoint_from_mmio b e.
+  Proof. intros (_ & Hsh & Hrev). by split. Qed.
+
+  Lemma range_ok_not_heap b e : range_ok b e → not_heap_range b e.
+  Proof. by intros [Hnh _]. Qed.
+
+  Lemma disjoint_from_heap_shrink b e e' :
+    (e' <= e)%a → disjoint_from_heap b e → disjoint_from_heap b e'.
+  Proof.
+    intros He Hdisj a Ha1 Ha2. apply (Hdisj a); last done.
+    rewrite elem_of_finz_seq_between in Ha1. apply elem_of_finz_seq_between. solve_addr.
+  Qed.
+
+  Lemma initial_trusted_stack_content_length n :
+    Z.of_nat (length (initial_trusted_stack_content n)) = tstack_frame_offset (S n).
+  Proof.
+    rewrite /initial_trusted_stack_content !length_app !length_replicate /=.
+    rewrite /tstack_frame_offset /TrustedStack_offset_frames /TSTACK_REGFRAME_SZ
+      /TSTACK_HEADER_SZ /TrustedStackFrame_size.
+    lia.
+  Qed.
+
+  Lemma initial_trusted_stack_layout b e n :
+    (b + length (initial_trusted_stack_content n))%a = Some e →
+    trusted_stack_layout b e (initial_trusted_stack_content n).
+  Proof.
+    intros Hsize. split.
+    - exact Hsize.
+    - reflexivity.
+    - exists n. by rewrite -initial_trusted_stack_content_length.
+    - apply initial_trusted_stack_content_ints.
+  Qed.
+
+  Lemma img_wf_otypes fw img :
+    img_wf fw img →
+    NoDup (ot_switcher (img_sw img) :: fw_otypes fw) ∧
+    Forall otype_valid (ot_switcher (img_sw img) :: fw_otypes fw).
+  Proof.
+    intros (_ & _ & _ & _ & Himg).
+    rewrite /section in Himg. apply big_and_fw_app in Himg as [Himg _].
+    apply big_and_cons in Himg as [_ Himg]. apply big_and_cons in Himg as [Hnodup Hvalid].
+    split; [exact Hnodup | exact Hvalid].
+  Qed.
+
+  Lemma img_wf_heap_roots fw img :
+    img_wf fw img → ∀ a, a ∈ fw_set (fw_heap_roots fw) → is_heap_address a = true.
+  Proof.
+    intros (_ & _ & _ & _ & Himg) a Ha.
+    rewrite /section in Himg. apply big_and_fw_app in Himg as [_ Hroots].
+    apply big_and_fw_map in Hroots. rewrite Forall_forall in Hroots. apply Hroots.
+    assert (∀ l : list Addr, fw_set l = list_to_set l) as Hset.
+    { intros l. induction l as [|x l IH]; first done.
+      destruct l as [|y l]; cbn; first set_solver.
+      cbn in IH. by rewrite IH. }
+    by rewrite Hset elem_of_list_to_set in Ha.
+  Qed.
+
+  Lemma img_wf_assert_layout fw img : img_wf fw img → img_assert_layout (img_asrt img).
+  Proof.
+    intros Hwf. pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+    destruct Hwf as (_ & Hasrt & _).
+    destruct Hasrt as (Hcode & Hcap & [flag' Hflag] & Hrange & Hend & Hrange_flag).
+    split.
+    - exact Hcode.
+    - exact Hcap.
+    - rewrite Hflag. f_equal. solve_addr.
+    - apply (proj1 (range_ok_not_heap _ _ Hrange)).
+    - apply (addr_disjoint_list_lookup _ 1 2 _ _ Hdisj); [done | done | lia].
+    - by apply range_ok_mmio.
+    - by apply range_ok_mmio.
+    - exact Hend.
+  Qed.
+
+  Lemma img_wf_trusted_stack_layout fw img ft fts :
+    fw_threads fw = ft :: fts →
+    img_wf fw img →
+    trusted_stack_layout (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0))
+      (initial_trusted_stack_content (ft_tstack_frames ft)).
+  Proof.
+    intros Hthreads (_ & _ & _ & Hthread & _).
+    rewrite Hthreads in Hthread. apply big_and_cons in Hthread as [Hthread _].
+    destruct Hthread as (_ & Htstack & _).
+    by apply initial_trusted_stack_layout.
+  Qed.
+
+  Lemma img_wf_switcher_layout fw img ft fts :
+    fw_threads fw = ft :: fts →
+    img_wf fw img →
+    img_switcher_layout (img_sw img) (thread_of img 0) (replicate (ft_stack_size ft) (WInt 0)).
+  Proof.
+    intros Hthreads Hwf.
+    pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+    destruct (img_wf_otypes _ _ Hwf) as [_ Hvalid].
+    destruct Hwf as (Hsw & _ & _ & Hthread & _).
+    rewrite Hthreads in Hthread. apply big_and_cons in Hthread as [Hthread _].
+    destruct Hsw as (Hcall & Hsize & Hret & Hrange & Hend).
+    destruct Hthread as (Hstack & Htstack & Hrange_stack & Hrange_tstack).
+    assert (rngs_disjoint
+      [("switcher", b_switcher (img_sw img), e_switcher (img_sw img));
+       ("thread 0, trusted stack",
+         b_trusted_stack (thread_of img 0), e_trusted_stack (thread_of img 0));
+       ("thread 0, stack", b_stack (thread_of img 0), e_stack (thread_of img 0))])
+      as Hdisj3.
+    { eapply rngs_disjoint_sublist; last exact Hdisj.
+      rewrite /fw_ranges Hthreads /=.
+      apply sublist_skip, sublist_cons, sublist_cons, sublist_inserts_l. cbn.
+      apply sublist_skip, sublist_skip, sublist_nil_l. }
+    split.
+    - exact Hsize.
+    - exact Hcall.
+    - exact Hret.
+    - exact (Forall_inv Hvalid).
+    - by rewrite length_replicate.
+    - split_and!;
+        [ apply (addr_disjoint_list_lookup _ 0 1 _ _ Hdisj3)
+        | apply (addr_disjoint_list_lookup _ 0 2 _ _ Hdisj3)
+        | apply (addr_disjoint_list_lookup _ 1 2 _ _ Hdisj3)]; try done; lia.
+    - by apply range_ok_mmio.
+    - apply (disjoint_from_shadow_not_in (b_switcher (img_sw img)) (e_switcher (img_sw img))).
+      + by destruct Hrange as (_ & Hsh & _).
+      + apply withinBounds_true_iff. solve_addr.
+    - by apply range_ok_not_heap.
+    - by apply range_ok_mmio.
+    - by destruct Hrange_stack as [ [_ Hheap] _].
+    - by apply range_ok_mmio.
+    - exact Hend.
+    - destruct Hrange_tstack as [ [Hbase Hheap] _]. split; first done.
+      eapply disjoint_from_heap_shrink; last exact Hheap.
+      pose proof (initial_trusted_stack_content_length (ft_tstack_frames ft)) as Hlen.
+      rewrite /tstack_frame_offset /TrustedStack_offset_frames /TrustedStackFrame_size
+        /TSTACK_REGFRAME_SZ /TSTACK_HEADER_SZ in Hlen.
+      rewrite /TSTACK_REGFRAME_SZ. solve_addr.
+  Qed.
+
+  (** The ranges of the compartments. *)
+  Lemma cmpt_ranges_sublist img (fc : fw_cmpt) (fcs : list fw_cmpt) :
+    fc ∈ fcs → cmpt_ranges img fc `sublist_of` fw_flat_map (cmpt_ranges img) fcs.
+  Proof.
+    induction fcs as [|fc' fcs IH]; intros Hin; first by apply not_elem_of_nil in Hin.
+    rewrite fw_flat_map_cons. apply elem_of_cons in Hin as [->|Hin].
+    - by apply sublist_inserts_r.
+    - apply sublist_inserts_l. by apply IH.
+  Qed.
+
+  Lemma cmpt_wf_split fw img fc :
+    cmpt_wf fw img fc →
+    let c := cmpt_of img (fc_name fc) in
+    (cmpt_b_pcc c + length (cmpt_imports c))%a = Some (cmpt_a_code c) ∧
+    (cmpt_a_code c + length (cmpt_code c))%a = Some (cmpt_e_pcc c) ∧
+    (cmpt_b_cgp c + length (cmpt_data c))%a = Some (cmpt_e_cgp c) ∧
+    (cmpt_b_static_sealed c + length (cmpt_static_sealed c))%a = Some (cmpt_e_static_sealed c) ∧
+    (cmpt_exp_tbl_pcc c + 1)%a = Some (cmpt_exp_tbl_cgp c) ∧
+    (cmpt_exp_tbl_cgp c + 1)%a = Some (cmpt_exp_tbl_entries_start c) ∧
+    (cmpt_exp_tbl_entries_start c + length (cmpt_exp_tbl_entries c))%a =
+      Some (cmpt_exp_tbl_entries_end c) ∧
+    Forall (λ t, range_ok t.1.2 t.2) (cmpt_ranges img fc) ∧
+    is_heap_address (cmpt_e_pcc c) = false ∧
+    Forall (word_rooted (fw_set (fw_heap_roots fw))) (img_cmpt_words c) ∧
+    Forall word_exec_ok (img_cmpt_words c).
+  Proof.
+    rewrite /cmpt_wf /section. intros Hwf.
+    apply big_and_fw_app in Hwf as [Hlayout Hrest].
+    apply big_and_fw_app in Hrest as [_ [Hrooted Hexec] ].
+    destruct Hlayout as (H1 & H2 & H3 & H4 & H5 & H6 & H7 & Hranges & Hend).
+    split_and!; try done.
+    destruct Hranges as (Hr1 & Hr2 & Hr3 & Hr4).
+    apply Forall_cons; split; first exact Hr1. apply Forall_cons; split; first exact Hr2.
+    apply Forall_cons; split; first exact Hr3. apply Forall_cons; split; first exact Hr4.
+    constructor.
+  Qed.
+
+  Lemma img_wf_cmpt_layout fw img fc :
+    img_wf fw img → fc ∈ fw_cmpts fw → img_cmpt_layout (cmpt_of img (fc_name fc)).
+  Proof.
+    intros Hwf Hin. pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+    destruct Hwf as (_ & _ & Hcmpts & _).
+    apply big_and_fw_map in Hcmpts. rewrite Forall_forall in Hcmpts.
+    destruct (cmpt_wf_split _ _ _ (Hcmpts fc Hin))
+      as (H1 & H2 & H3 & H4 & H5 & H6 & H7 & Hranges & Hend & _).
+    assert (rngs_disjoint (cmpt_ranges img fc)) as Hdisj4.
+    { eapply rngs_disjoint_sublist; last exact Hdisj.
+      rewrite /fw_ranges. do 3 apply sublist_cons.
+      apply sublist_inserts_r. by apply cmpt_ranges_sublist. }
+    rewrite /cmpt_ranges Forall_cons Forall_cons Forall_cons Forall_singleton in Hranges.
+    destruct Hranges as (Hr1 & Hr2 & Hr3 & Hr4).
+    split; try done.
+    all: first [ by apply range_ok_mmio | by apply range_ok_not_heap ].
+  Qed.
+End layout_of_img_wf.
+
+(** ** The threads and their initial registers *)
+Section entry.
+  Context `{MP : MachineParameters}.
+
+  Definition fw_thread0 (fw : firmware) : fw_thread :=
+    match fw_threads fw with [] => MkFwThread "" 0 0 0 | ft :: _ => ft end.
+
+  (** The thread [i] of a firmware. *)
+  Definition fw_thread_of (fw : firmware) (i : nat) : fw_thread :=
+    fw_nth i (fw_threads fw) (MkFwThread "" 0 0 0).
+
+  Lemma fw_thread_of_0 fw : fw_thread_of fw 0 = fw_thread0 fw.
+  Proof. rewrite /fw_thread_of /fw_thread0. by destruct (fw_threads fw). Qed.
+
+  (** The compartment the thread [i] starts in. *)
+  Definition fw_entry_fc (fw : firmware) (i : nat) : fw_cmpt :=
+    fw_cmpt_of (fw_cmpts fw) (ft_cmpt (fw_thread_of fw i)).
+
+  Definition fw_entry_offset (fw : firmware) (i : nat) : nat :=
+    match fc_body (fw_entry_fc fw i) with
+    | TrustedBody _ _ exps =>
+        fe_offset (fw_nth (ft_entry (fw_thread_of fw i)) exps default_export)
+    | UntrustedBody _ _ => 0
+    end.
+
+  Definition fw_entry_cmpt (fw : firmware) (img : fw_image) (i : nat) : img_cmpt :=
+    cmpt_of img (ft_cmpt (fw_thread_of fw i)).
+
+  Definition fw_entry_pc (fw : firmware) (img : fw_image) (i : nat) : Word :=
+    let m := fw_entry_cmpt fw img i in
+    WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
+      (addr_off (cmpt_b_pcc m) (fw_entry_offset fw i)).
+
+  Definition fw_entry_cgp (fw : firmware) (img : fw_image) (i : nat) : Word :=
+    let m := fw_entry_cmpt fw img i in
+    WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m).
+
+  Definition fw_thread_csp (img : fw_image) (i : nat) : Word :=
+    let t := thread_of img i in
+    WCap true RWL Local (b_stack t) (e_stack t) (b_stack t).
+
+  Definition fw_thread_mtdc (img : fw_image) : Word :=
+    let t := thread_of img 0 in
+    WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t).
+
+  Definition fw_initial_sreg (img : fw_image) (sr : SRegName) : Word :=
+    match sr with
+    | MTDC => fw_thread_mtdc img
+    | MSTATUS => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
+    | MTCC | MEPCC | MCAUSE | MTVAL => WInt 0
+    end.
+
+  Lemma fw_cmpt_of_trusted (l : list fw_cmpt) (n : string) code data exps :
+    fc_body (fw_cmpt_of l n) = TrustedBody code data exps →
+    fw_cmpt_of l n ∈ l ∧ fc_name (fw_cmpt_of l n) = n.
+  Proof.
+    induction l as [|fc l IH]; cbn; first done.
+    destruct (String.eqb_spec n (fc_name fc)) as [->|Hne]; intros Hbody.
+    - split; [apply list_elem_of_here | done].
+    - destruct (IH Hbody) as [Hin Hname]. split; [by apply list_elem_of_further | done].
+  Qed.
+
+  Lemma regs_ok_inv fw img σ :
+    regs_ok fw img σ →
+    (∃ fts, fw_threads fw = fw_thread0 fw :: fts) ∧
+    fw_entry_fc fw 0 ∈ fw_cmpts fw ∧
+    fc_name (fw_entry_fc fw 0) = ft_cmpt (fw_thread0 fw) ∧
+    pcc σ = fw_entry_pc fw img 0 ∧
+    reg σ !! cgp = Some (fw_entry_cgp fw img 0) ∧
+    reg σ !! csp = Some (fw_thread_csp img 0) ∧
+    (∀ r, r ∉ ({[cgp; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
+    (∀ sr, sreg σ !! sr = Some (fw_initial_sreg img sr)).
+  Proof.
+    rewrite /regs_ok /note /fw_entry_pc /fw_entry_cgp /fw_entry_offset /fw_entry_fc
+      /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
+    destruct (fw_threads fw) as [|ft fts]; first done.
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [code data exps|] eqn:Hbody;
+      last done.
+    intros (Hpc & Hcgp & Hcsp & Hregs & Hmtdc & Hmstatus & Hmtcc & Hmepcc & Hmcause & Hmtval).
+    destruct (fw_cmpt_of_trusted _ _ _ _ _ Hbody) as [Hin Hname].
+    split_and!; [by exists fts | done..|].
+    intros sr. by destruct sr.
+  Qed.
+End entry.
+
+(** ** The initial memory of an image *)
+Section initial_memory.
+  Context `{MP : MachineParameters}.
+
+  Lemma mem_rooted_mem_region H b ws :
+    Forall (word_rooted H) ws → mem_rooted H (mem_region b ws).
+  Proof.
+    intros Hws a w Ha. apply elem_of_list_to_map_2, elem_of_zip_r in Ha.
+    by eapply Forall_forall.
+  Qed.
+
+  Lemma mem_exec_ok_mem_region b ws :
+    Forall word_exec_ok ws → mem_exec_ok (mem_region b ws).
+  Proof.
+    intros Hws a w Ha. apply elem_of_list_to_map_2, elem_of_zip_r in Ha.
+    by eapply Forall_forall.
+  Qed.
+
+  Lemma mem_in_avoids_mmio m ts :
+    mem_in m ts → Forall (λ t, range_ok t.1.2 t.2) ts → mem_avoids_mmio m.
+  Proof.
+    intros Hm Hts a Ha. destruct (Hm a Ha) as (t & Ht & Hat).
+    rewrite Forall_forall in Hts. destruct (Hts t Ht) as (_ & Hsh & Hrev).
+    apply (disjoint_from_mmio_not_in t.1.2 t.2); first by split.
+    by apply withinBounds_true_iff, elem_of_finz_seq_between.
+  Qed.
+
+  Lemma mem_in_disjoint_sub m1 m2 ts1 ts2 ts :
+    mem_in m1 ts1 →
+    mem_in m2 ts2 →
+    (ts1 ++ ts2) `sublist_of` ts →
+    rngs_disjoint ts →
+    m1 ##ₘ m2.
+  Proof.
+    intros H1 H2 Hsub Hdisj. eapply mem_in_disjoint; [exact H1 | exact H2 |].
+    intros t1 t2 Ht1 Ht2. eapply rngs_disjoint_app_cross; [|exact Ht1|exact Ht2].
+    by eapply rngs_disjoint_sublist.
+  Qed.
+
+  (** *** The memory of each part of an image lies in its ranges *)
+
+  Lemma switcher_mem_in img :
+    switcher_wf img →
+    mem_in (switcher_mem img) [("switcher", b_switcher (img_sw img), e_switcher (img_sw img))].
+  Proof.
+    intros (Hcall & Hsize & _). apply mem_in_mem_region.
+    change (length (?w :: ?ws)) with (S (length ws)). solve_addr.
+  Qed.
+
+  Lemma assert_code_mem_in img :
+    assert_wf img →
+    mem_in (assert_code_mem img) [("assert", b_assert (img_asrt img), e_assert (img_asrt img))].
+  Proof.
+    intros (Hcode & Hcap & _). apply mem_in_mem_region.
+    rewrite length_app /=. solve_addr.
+  Qed.
+
+  Lemma assert_flag_mem_in img :
+    assert_wf img →
+    mem_in (assert_flag_mem img)
+      [("assert flag", flag_assert (img_asrt img), (flag_assert (img_asrt img) ^+ 1)%a)].
+  Proof.
+    intros (_ & _ & [flag' Hflag] & _). apply mem_in_mem_region.
+    cbn. rewrite Hflag. f_equal. solve_addr.
+  Qed.
+
+  Lemma cmpt_mem_in fw img fc :
+    cmpt_wf fw img fc → mem_in (cmpt_mem img fc) (cmpt_ranges img fc).
+  Proof.
+    intros Hwf. destruct (cmpt_wf_split _ _ _ Hwf) as (H1 & H2 & H3 & H4 & H5 & H6 & H7 & _).
+    rewrite /cmpt_mem /cmpt_ranges /note.
+    change [?t1; ?t2; ?t3; ?t4] with ((([t1] ++ [t2]) ++ [t3]) ++ [t4]).
+    repeat apply mem_in_union; apply mem_in_mem_region.
+    - rewrite length_app. solve_addr.
+    - done.
+    - done.
+    - change (length (?w1 :: ?w2 :: ?ws)) with (S (S (length ws))). solve_addr.
+  Qed.
+
+  Lemma cmpts_mem_in fw img (fcs : list fw_cmpt) :
+    Forall (cmpt_wf fw img) fcs →
+    mem_in (big_union (fw_map (cmpt_mem img) fcs)) (fw_flat_map (cmpt_ranges img) fcs).
+  Proof.
+    induction fcs as [|fc fcs IH]; intros Hwf; first apply mem_in_empty.
+    apply Forall_cons in Hwf as [Hfc Hwf].
+    rewrite fw_flat_map_cons. cbn [fw_map]. rewrite big_union_cons.
+    apply mem_in_union; [by eapply cmpt_mem_in | by apply IH].
+  Qed.
+
+  Lemma thread_mem_in img i ft :
+    thread_wf img i ft → mem_in (thread_mem img i ft) (thread_ranges img i ft).
+  Proof.
+    intros (Hstack & Htstack & _). rewrite /thread_mem /thread_ranges /note.
+    change [?t1; ?t2] with ([t1] ++ [t2]).
+    apply mem_in_union; apply mem_in_mem_region; [done | by rewrite length_replicate].
+  Qed.
+
+  Lemma threads_mem_in img k (fts : list fw_thread) :
+    big_and (fw_imap_from (thread_wf img) k fts) →
+    mem_in (big_union (fw_imap_from (thread_mem img) k fts))
+      (fw_flat_map (λ x, x) (fw_imap_from (thread_ranges img) k fts)).
+  Proof.
+    revert k. induction fts as [|ft fts IH]; intros k Hwf; first apply mem_in_empty.
+    cbn [fw_imap_from]. apply big_and_cons in Hwf as [Hft Hwf].
+    rewrite fw_flat_map_cons big_union_cons.
+    apply mem_in_union; [by apply thread_mem_in | by apply IH].
+  Qed.
+End initial_memory.
+
+Section initial_memory_wf.
+  Context `{MP : MachineParameters}.
+
+  Lemma Forall_fw_flat_map {A B} (P : B → Prop) (f : A → list B) (l : list A) :
+    Forall (λ x, Forall P (f x)) l → Forall P (fw_flat_map f l).
+  Proof.
+    induction l as [|x l IH]; intros Hl; first constructor.
+    apply Forall_cons in Hl as [Hx Hl]. rewrite fw_flat_map_cons.
+    apply Forall_app; split; [done | by apply IH].
+  Qed.
+
+  Lemma threads_ranges_ok img k (fts : list fw_thread) :
+    big_and (fw_imap_from (thread_wf img) k fts) →
+    Forall (λ t, range_ok t.1.2 t.2)
+      (fw_flat_map (λ x, x) (fw_imap_from (thread_ranges img) k fts)).
+  Proof.
+    revert k. induction fts as [|ft fts IH]; intros k Hwf; first constructor.
+    cbn [fw_imap_from]. apply big_and_cons in Hwf as [Hft Hwf].
+    rewrite fw_flat_map_cons. apply Forall_app; split; last by apply IH.
+    destruct Hft as (_ & _ & Hstack & Htstack). rewrite /thread_ranges.
+    apply Forall_cons; split; first exact Htstack. apply Forall_singleton. exact Hstack.
+  Qed.
+
+  Lemma img_wf_ranges_ok fw img :
+    img_wf fw img → Forall (λ t, range_ok t.1.2 t.2) (fw_ranges fw img).
+  Proof.
+    intros (Hsw & Hasrt & Hcmpts & Hthreads & _).
+    destruct Hsw as (_ & _ & _ & Hsw & _).
+    destruct Hasrt as (_ & _ & _ & Hasrt & _ & Hflag).
+    repeat apply Forall_cons_2; [done..|].
+    apply Forall_app; split.
+    - apply Forall_fw_flat_map. apply big_and_fw_map in Hcmpts.
+      eapply Forall_impl; first exact Hcmpts.
+      intros fc Hfc. by destruct (cmpt_wf_split _ _ _ Hfc) as (_ & _ & _ & _ & _ & _ & _ & Hok & _).
+    - by apply threads_ranges_ok.
+  Qed.
+End initial_memory_wf.
+
+(** ** The initial condition of the ghost state *)
+Section ghost_init.
+  Context `{MP : MachineParameters}.
+
+  Lemma mem_rooted_big_union H (ms : list Mem) :
+    Forall (mem_rooted H) ms → mem_rooted H (big_union ms).
+  Proof.
+    induction ms as [|m ms IH]; intros Hms.
+    - intros a w Ha. by rewrite lookup_empty in Ha.
+    - apply Forall_cons in Hms as [Hm Hms]. rewrite big_union_cons.
+      apply mem_rooted_union; [done | by apply IH].
+  Qed.
+
+  Lemma mem_exec_ok_big_union (ms : list Mem) :
+    Forall mem_exec_ok ms → mem_exec_ok (big_union ms).
+  Proof.
+    induction ms as [|m ms IH]; intros Hms.
+    - intros a w Ha. by rewrite lookup_empty in Ha.
+    - apply Forall_cons in Hms as [Hm Hms]. rewrite big_union_cons.
+      apply mem_exec_ok_union; [done | by apply IH].
+  Qed.
+
+  Lemma cmpt_mem_rooted_exec_ok fw img fc :
+    cmpt_wf fw img fc →
+    mem_rooted (fw_set (fw_heap_roots fw)) (cmpt_mem img fc) ∧ mem_exec_ok (cmpt_mem img fc).
+  Proof.
+    intros Hwf.
+    destruct (cmpt_wf_split _ _ _ Hwf) as (_ & _ & _ & _ & _ & _ & _ & Hranges & Hend & Hrooted & Hexec).
+    rewrite /cmpt_ranges Forall_cons Forall_cons Forall_cons Forall_singleton in Hranges.
+    destruct Hranges as ([ [Hpcc Hpcc_heap] _] & [ [Hcgp _] _] & _ & _).
+    rewrite /img_cmpt_words !Forall_app in Hrooted Hexec.
+    destruct Hrooted as (Hr1 & Hr2 & Hr3 & Hr4 & Hr5).
+    destruct Hexec as (He1 & He2 & He3 & He4 & He5).
+    rewrite /cmpt_mem /note. split.
+    - repeat apply mem_rooted_union; apply mem_rooted_mem_region; try done.
+      + by apply Forall_app.
+      + apply Forall_cons; split; first by apply word_rooted_cap_nonheap.
+        apply Forall_cons; split; [by apply word_rooted_cap_nonheap | done].
+    - repeat apply mem_exec_ok_union; apply mem_exec_ok_mem_region; try done.
+      + by apply Forall_app.
+      + apply Forall_cons; split.
+        { eapply word_exec_ok_closed; [done | by split | done]. }
+        apply Forall_cons; split; [by apply word_exec_ok_not_executable | done].
+  Qed.
+
+  Lemma thread_mem_rooted_exec_ok H img i ft :
+    mem_rooted H (thread_mem img i ft) ∧ mem_exec_ok (thread_mem img i ft).
+  Proof.
+    pose proof (initial_trusted_stack_content_ints (ft_tstack_frames ft)) as Hts.
+    assert (Forall is_z (replicate (ft_stack_size ft) (WInt 0))) as Hs.
+    { by apply Forall_replicate. }
+    rewrite /thread_mem /note. split.
+    - apply mem_rooted_union; apply mem_rooted_mem_region; by apply word_rooted_ints.
+    - apply mem_exec_ok_union; apply mem_exec_ok_mem_region; by apply word_exec_ok_ints.
+  Qed.
+
+  Lemma threads_mem_rooted_exec_ok H img k (fts : list fw_thread) :
+    mem_rooted H (big_union (fw_imap_from (thread_mem img) k fts)) ∧
+    mem_exec_ok (big_union (fw_imap_from (thread_mem img) k fts)).
+  Proof.
+    revert k. induction fts as [|ft fts IH]; intros k.
+    - split; intros a w Ha; by rewrite lookup_empty in Ha.
+    - cbn [fw_imap_from]. rewrite big_union_cons.
+      destruct (thread_mem_rooted_exec_ok H img k ft) as [Hr He].
+      destruct (IH (S k)) as [Hr' He'].
+      split; [by apply mem_rooted_union | by apply mem_exec_ok_union].
+  Qed.
+
+  (** The memory of an image, in the order of [mem_ok], and the ranges of
+      its parts. *)
+  Lemma firmware_ok_mem_in fw img σ :
+    firmware_ok fw img σ →
+    mem_in (switcher_mem img ∪ assert_code_mem img ∪ assert_flag_mem img ∪
+            big_union (fw_map (cmpt_mem img) (fw_cmpts fw)) ∪
+            big_union (fw_imap (thread_mem img) (fw_threads fw)))
+      (fw_ranges fw img).
+  Proof.
+    intros (_ & _ & _ & Hwf).
+    destruct Hwf as (Hsw & Hasrt & Hcmpts & Hthreads & _).
+    apply big_and_fw_map in Hcmpts.
+    eapply mem_in_mono; last first.
+    { repeat apply mem_in_union.
+      - by apply switcher_mem_in.
+      - by apply assert_code_mem_in.
+      - by apply assert_flag_mem_in.
+      - by apply (cmpts_mem_in fw).
+      - by apply threads_mem_in. }
+    rewrite /fw_ranges. intros t. rewrite !elem_of_app !elem_of_cons. naive_solver.
+  Qed.
+
+  Lemma firmware_ok_ghost_init_cond fw img w_pc regs sregs m sh :
+    firmware_ok fw img (w_pc, regs, sregs, m, sh) →
+    ghost_init_cond (w_pc, regs, sregs, m, sh) (fw_set (fw_heap_roots fw)) ∧
+    regs !! cnull = Some (WInt 0).
+  Proof.
+    intros Hok.
+    pose proof (firmware_ok_mem_in _ _ _ Hok) as Hmem_in.
+    destruct Hok as (_ & [Hmem Hsh] & Hregs & Hwf).
+    change (mem (w_pc, regs, sregs, m, sh)) with m in Hmem.
+    change (shadowtbl (w_pc, regs, sregs, m, sh)) with sh in Hsh.
+    rewrite /note in Hmem Hsh. subst m sh.
+    destruct (regs_ok_inv _ _ _ Hregs)
+      as ([fts Hthreads] & Hentry & Hname & Hpc & Hcgp & Hcsp & Hzero & Hsreg).
+    clear Hregs.
+    change (pcc (w_pc, regs, sregs, _, _)) with w_pc in Hpc.
+    change (reg (w_pc, regs, sregs, _, _)) with regs in Hcgp, Hcsp, Hzero.
+    change (sreg (w_pc, regs, sregs, _, _)) with sregs in Hsreg.
+    subst w_pc.
+    pose proof (img_wf_cmpt_layout _ _ _ Hwf Hentry) as Hm. rewrite Hname in Hm.
+    pose proof (img_wf_switcher_layout _ _ _ _ Hthreads Hwf) as Hsw.
+    pose proof (img_wf_heap_roots _ _ Hwf) as Hroots.
+    assert (cnull ∉ ({[cgp; csp]} : gset RegName)) as Hcnull by set_solver+.
+    split; last by apply Hzero.
+    pose proof Hwf as (Hsw_wf & Hasrt_wf & Hcmpts_wf & Hthreads_wf & _).
+    apply big_and_fw_map in Hcmpts_wf.
+    apply ghost_init_cond_roots; first done.
+    - (* The memory is rooted. *)
+      assert (is_heap_address (flag_assert (img_asrt img)) = false) as Hflag_heap.
+      { destruct Hasrt_wf as (_ & _ & [flag' Hflag] & _ & _ & ([_ Hheap] & _)).
+        apply (disjoint_from_heap_not_in _ _ _ Hheap), withinBounds_true_iff. solve_addr. }
+      apply mem_rooted_union; last apply threads_mem_rooted_exec_ok.
+      apply mem_rooted_union.
+      2: { apply mem_rooted_big_union. rewrite fw_map_eq. apply Forall_fmap.
+           eapply Forall_impl; first exact Hcmpts_wf.
+           intros fc Hfc. by destruct (cmpt_mem_rooted_exec_ok _ _ _ Hfc). }
+      apply mem_rooted_union.
+      2: { apply mem_rooted_mem_region. apply Forall_singleton. apply word_rooted_int. }
+      apply mem_rooted_union.
+      2: { apply mem_rooted_mem_region. apply Forall_app; split; first apply word_rooted_instrs.
+           apply Forall_singleton. by apply word_rooted_cap_nonheap. }
+      apply mem_rooted_union; first apply mem_rooted_initial_heap.
+      apply mem_rooted_mem_region. apply Forall_cons; split; first by apply word_rooted_nonheap.
+      rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
+      intros l. apply word_rooted_instrs.
+    - apply word_rooted_cap_nonheap. exact (proj1 (icl_pcc_not_heap _ Hm)).
+    - intros r w Hr.
+      destruct (decide (r = cgp)) as [->|Hne1].
+      { rewrite Hcgp in Hr. injection Hr as <-.
+        apply word_rooted_cap_nonheap. exact (proj1 (icl_cgp_not_heap _ Hm)). }
+      destruct (decide (r = csp)) as [->|Hne2].
+      { rewrite Hcsp in Hr. injection Hr as <-.
+        apply word_rooted_cap_disjoint. exact (isl_stack_not_heap _ _ _ Hsw). }
+      rewrite Hzero in Hr; last set_solver+Hne1 Hne2. injection Hr as <-. apply word_rooted_int.
+    - assert (disjoint_from_heap (b_trusted_stack (thread_of img 0))
+                (e_trusted_stack (thread_of img 0))) as Hts_heap.
+      { rewrite Hthreads in Hthreads_wf.
+        apply big_and_cons in Hthreads_wf as [(_ & _ & _ & [ [_ Hheap] _]) _].
+        exact Hheap. }
+      intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      destruct sr; try apply word_rooted_int. by apply word_rooted_cap_disjoint.
+    - (* The memory avoids the memory-mapped devices. *)
+      match goal with |- mem_avoids_mmio (?H ∪ ?S ∪ ?AC ∪ ?AF ∪ ?CM ∪ ?TM) =>
+        replace (H ∪ S ∪ AC ∪ AF ∪ CM ∪ TM) with (H ∪ (S ∪ AC ∪ AF ∪ CM ∪ TM))
+          by (by rewrite !(assoc_L (∪)))
+      end.
+      apply mem_avoids_mmio_union; first apply mem_avoids_mmio_initial_heap.
+      eapply mem_in_avoids_mmio; first exact Hmem_in.
+      by apply img_wf_ranges_ok.
+    - by apply Hzero.
+    - (* The executable words of the memory avoid the heap. *)
+      apply mem_exec_ok_union; last exact (proj2 (threads_mem_rooted_exec_ok ∅ img 0 _)).
+      apply mem_exec_ok_union.
+      2: { apply mem_exec_ok_big_union. rewrite fw_map_eq. apply Forall_fmap.
+           eapply Forall_impl; first exact Hcmpts_wf.
+           intros fc Hfc. by destruct (cmpt_mem_rooted_exec_ok _ _ _ Hfc). }
+      apply mem_exec_ok_union.
+      2: { apply mem_exec_ok_mem_region. apply Forall_singleton. apply word_exec_ok_int. }
+      apply mem_exec_ok_union.
+      2: { apply mem_exec_ok_mem_region. apply Forall_app; split; first apply word_exec_ok_instrs.
+           apply Forall_singleton. by apply word_exec_ok_not_executable. }
+      apply mem_exec_ok_union; first apply mem_exec_ok_initial_heap.
+      apply mem_exec_ok_mem_region.
+      apply Forall_cons; split; first by apply word_exec_ok_not_executable.
+      rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
+      intros l. apply word_exec_ok_instrs.
+    - eapply word_exec_ok_closed;
+        [done | exact (icl_pcc_not_heap _ Hm) | exact (icl_pcc_end_not_heap _ Hm)].
+    - intros r w Hr.
+      destruct (decide (r = cgp)) as [->|Hne1].
+      { rewrite Hcgp in Hr. injection Hr as <-. by apply word_exec_ok_not_executable. }
+      destruct (decide (r = csp)) as [->|Hne2].
+      { rewrite Hcsp in Hr. injection Hr as <-. by apply word_exec_ok_not_executable. }
+      rewrite Hzero in Hr; last set_solver+Hne1 Hne2. injection Hr as <-. apply word_exec_ok_int.
+    - intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      by destruct sr; apply word_exec_ok_not_executable.
+    - by intros _.
+    - intros sr w Hsr Hw. rewrite Hsreg in Hw. injection Hw as <-.
+      by destruct sr; apply pc_ok_untagged.
+    - intros sr _. eexists. apply Hsreg.
+    - intros w Hw. rewrite Hsreg in Hw. by injection Hw as <-.
+  Qed.
+End ghost_init.
+
+(** ** The sealed export entries of an image *)
+Section entries.
+  Context `{MP : MachineParameters}.
+
+  (** The number of arguments of the exports of a compartment. The exports
+      of an untrusted compartment take no argument. *)
+  Definition fc_export_nargs (fc : fw_cmpt) : list nat :=
+    match fc_body fc with
+    | TrustedBody _ _ exps => fw_map fe_nargs exps
+    | UntrustedBody _ n => replicate n 0
+    end.
+
+  (** The unsealed capability of export [k] of [c], as in the imports
+      ([IExport]). *)
+  Definition cmpt_export_sb (c : img_cmpt) (k : nat) : Sealable :=
+    SCap true RO Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
+      (addr_off (cmpt_exp_tbl_entries_start c) k).
+
+  Definition fc_entries (img : fw_image) (fc : fw_cmpt) : list (Sealable * nat) :=
+    fw_imap (λ k n, (cmpt_export_sb (cmpt_of img (fc_name fc)) k, n)) (fc_export_nargs fc).
+
+  (** Every export entry of the image, all sealed by the switcher. *)
+  Definition fw_entries (fw : firmware) (img : fw_image) : list (Sealable * nat) :=
+    fw_flat_map (fc_entries img) (fw_cmpts fw).
+End entries.
+
+Section entries_facts.
+  Context `{MP : MachineParameters}.
+
+  Lemma addr_off_eq (a : Addr) (k : nat) : addr_off a k = (a ^+ Z.of_nat k)%a.
+  Proof.
+    rewrite /addr_off.
+    destruct k as [|k]; first (symmetry; apply finz_add_0_default).
+    do 15 (destruct k as [|k]; first reflexivity).
+    reflexivity.
+  Qed.
+
+  Lemma length_fw_imap_from {A B} (f : nat → A → B) k (l : list A) :
+    length (fw_imap_from f k l) = length l.
+  Proof. revert k. induction l as [|x l IH]; intros k; cbn; [done | by rewrite IH]. Qed.
+
+  Lemma elem_of_fw_imap_from {A B} (f : nat → A → B) j (l : list A) (y : B) :
+    y ∈ fw_imap_from f j l → ∃ k x, l !! k = Some x ∧ y = f (j + k) x.
+  Proof.
+    revert j. induction l as [|x l IH]; intros j Hy; cbn in Hy.
+    - by apply not_elem_of_nil in Hy.
+    - apply elem_of_cons in Hy as [->|Hy].
+      + exists 0, x. by rewrite Nat.add_0_r.
+      + destruct (IH (S j) Hy) as (k & x' & Hk & ->).
+        exists (S k), x'. split; first done. by rewrite Nat.add_succ_r.
+  Qed.
+
+  Lemma elem_of_fw_flat_map {A B} (f : A → list B) (l : list A) (y : B) :
+    y ∈ fw_flat_map f l → ∃ x, x ∈ l ∧ y ∈ f x.
+  Proof.
+    induction l as [|x l IH]; intros Hy; first by apply not_elem_of_nil in Hy.
+    rewrite fw_flat_map_cons elem_of_app in Hy. destruct Hy as [Hy|Hy].
+    - exists x. split; [apply list_elem_of_here | done].
+    - destruct (IH Hy) as (x' & Hx' & Hy'). exists x'. split; [by apply list_elem_of_further | done].
+  Qed.
+
+  Lemma hole_exports_length (c : img_cmpt) (n : nat) (k : list Word → Prop) :
+    hole_exports c n k → ∃ ws, length ws = n ∧ k ws.
+  Proof.
+    revert k. induction n as [|n IH]; intros k Hk; cbn in Hk.
+    - by exists [].
+    - destruct Hk as (off & _ & Hk). destruct (IH _ Hk) as (ws & Hlen & Hws).
+      exists (export_word (MkFwExport off 0 InterruptEnabled) :: ws). by rewrite /= Hlen.
+  Qed.
+
+  Lemma fc_export_nargs_length img fc :
+    cmpt_ok img fc →
+    length (fc_export_nargs fc) = length (cmpt_exp_tbl_entries (cmpt_of img (fc_name fc))).
+  Proof.
+    rewrite /cmpt_ok /section /fc_export_nargs. intros (_ & _ & Hbody).
+    destruct (fc_body fc) as [code data exps|owner n].
+    - destruct Hbody as (_ & _ & ->). by rewrite fw_map_eq length_fmap /fw_imap length_fw_imap_from.
+    - destruct Hbody as (_ & _ & Hexp). rewrite /note in Hexp.
+      destruct (hole_exports_length _ _ _ Hexp) as (ws & Hlen & ->).
+      by rewrite length_replicate.
+  Qed.
+
+  Lemma fw_entries_global fw img :
+    Forall (λ sb, isGlobalSealable sb = true) (fw_entries fw img).*1.
+  Proof.
+    apply Forall_forall. intros sb Hsb.
+    apply list_elem_of_fmap in Hsb as ([sb' n] & -> & Hin).
+    apply elem_of_fw_flat_map in Hin as (fc & _ & Hin).
+    apply elem_of_fw_imap_from in Hin as (k & x & _ & Heq).
+    by injection Heq as -> ->.
+  Qed.
+
+  Lemma NoDup_fw_imap_from {A B} (g : nat → B) j (l : list A) :
+    (∀ k1 k2, j ≤ k1 < j + length l → j ≤ k2 < j + length l → g k1 = g k2 → k1 = k2) →
+    NoDup (fw_imap_from (λ k _, g k) j l).
+  Proof.
+    revert j. induction l as [|x l IH]; intros j Hinj; cbn; first constructor.
+    constructor.
+    - intros Hin. apply elem_of_fw_imap_from in Hin as (k & y & Hk & Heq).
+      apply lookup_lt_Some in Hk. cbn in Hinj.
+      assert (j = S j + k) by (apply Hinj; [lia | lia | done]). lia.
+    - apply IH. intros k1 k2 H1 H2. apply Hinj; cbn; lia.
+  Qed.
+
+  Lemma fmap_fw_imap_from {A B C} (h : B → C) (f : nat → A → B) j (l : list A) :
+    h <$> fw_imap_from f j l = fw_imap_from (λ k x, h (f k x)) j l.
+  Proof. revert j. induction l as [|x l IH]; intros j; cbn; [done | by rewrite IH]. Qed.
+
+  Lemma cmpt_ok_wf_export_sizes fw img fc :
+    cmpt_ok img fc →
+    cmpt_wf fw img fc →
+    let c := cmpt_of img (fc_name fc) in
+    (cmpt_exp_tbl_pcc c < cmpt_exp_tbl_entries_end c)%a ∧
+    (cmpt_exp_tbl_entries_start c + length (fc_export_nargs fc))%a =
+      Some (cmpt_exp_tbl_entries_end c).
+  Proof.
+    intros Hok Hwf. destruct (cmpt_wf_split _ _ _ Hwf) as (_ & _ & _ & _ & H5 & H6 & H7 & _).
+    rewrite (fc_export_nargs_length _ _ Hok). split; [solve_addr | done].
+  Qed.
+
+  (** The entries of the compartments of [fcs] are distinct, given their
+      layout and the disjointness of their ranges. *)
+  Lemma fc_entries_NoDup fw img (fcs : list fw_cmpt) :
+    Forall (λ fc, cmpt_ok img fc ∧ cmpt_wf fw img fc) fcs →
+    rngs_disjoint (fw_flat_map (cmpt_ranges img) fcs) →
+    NoDup (fw_flat_map (fc_entries img) fcs).*1.
+  Proof.
+    induction fcs as [|fc fcs IH]; intros Hfcs Hdisj; first constructor.
+    apply Forall_cons in Hfcs as [ [Hok Hwf] Hfcs].
+    rewrite fw_flat_map_cons in Hdisj.
+    rewrite fw_flat_map_cons fmap_app. apply NoDup_app.
+    destruct (cmpt_ok_wf_export_sizes _ _ _ Hok Hwf) as [Hlt Hsize].
+    split_and!.
+    - rewrite /fc_entries /fw_imap fmap_fw_imap_from /=.
+      apply NoDup_fw_imap_from. intros k1 k2 Hk1 Hk2 Heq.
+      rewrite /cmpt_export_sb !addr_off_eq in Heq. injection Heq as Heq.
+      rewrite Nat.add_0_l in Hk1 Hk2. solve_addr.
+    - (* Entries of different compartments are in disjoint export tables. *)
+      intros sb Hsb Hsb'.
+      apply list_elem_of_fmap in Hsb as ([sb1 n1] & -> & Hin1).
+      apply list_elem_of_fmap in Hsb' as ([sb2 n2] & Heq & Hin2). cbn in Heq.
+      apply elem_of_fw_imap_from in Hin1 as (k1 & x1 & _ & Heq1).
+      apply elem_of_fw_flat_map in Hin2 as (fc' & Hfc' & Hin2).
+      apply elem_of_fw_imap_from in Hin2 as (k2 & x2 & _ & Heq2).
+      injection Heq1 as -> ->. injection Heq2 as -> ->.
+      rewrite /cmpt_export_sb in Heq. injection Heq as Hpcc Hend _.
+      rewrite Forall_forall in Hfcs. destruct (Hfcs fc' Hfc') as [Hok' Hwf'].
+      destruct (cmpt_ok_wf_export_sizes _ _ _ Hok' Hwf') as [Hlt' _].
+      eapply (rngs_disjoint_app_cross _ _
+        (fc_name fc ++ ", export table", cmpt_exp_tbl_pcc (cmpt_of img (fc_name fc)),
+           cmpt_exp_tbl_entries_end (cmpt_of img (fc_name fc)))%string
+        (fc_name fc' ++ ", export table", cmpt_exp_tbl_pcc (cmpt_of img (fc_name fc')),
+           cmpt_exp_tbl_entries_end (cmpt_of img (fc_name fc')))%string Hdisj).
+      + rewrite /cmpt_ranges. set_solver+.
+      + eapply sublist_subseteq; first by apply cmpt_ranges_sublist.
+        rewrite /cmpt_ranges. set_solver+.
+      + apply elem_of_finz_seq_between. cbn. split; [done | exact Hlt].
+      + rewrite /rng_addrs /= -Hpcc -Hend. apply elem_of_finz_seq_between.
+        split; [done | exact Hlt].
+    - by apply IH; last by eapply rngs_disjoint_sublist; first apply sublist_inserts_l.
+  Qed.
+
+  Lemma fw_entries_NoDup fw img σ :
+    firmware_ok fw img σ → NoDup (fw_entries fw img).*1.
+  Proof.
+    intros (Hok & _ & _ & Hwf). pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+    destruct Hwf as (_ & _ & Hcmpts & _).
+    apply big_and_fw_map in Hok, Hcmpts.
+    apply (fc_entries_NoDup fw); first by apply Forall_and.
+    eapply rngs_disjoint_sublist; last exact Hdisj.
+    rewrite /fw_ranges. do 3 apply sublist_cons. by apply sublist_inserts_r.
+  Qed.
+End entries_facts.
+
+(** ** The resources handed to the trusted code *)
+
+Definition fw_switcherN : namespace := nroot .@ "firmware" .@ "switcher".
+Definition fw_flagN : namespace := nroot .@ "firmware" .@ "assert_flag".
+
+(** The layout of the switcher of an image, with the trusted stack of the
+    first thread. *)
+Definition fw_switcher_layout (img : fw_image) : switcherLayout :=
+  mkSwitcherLayout
+    (b_switcher (img_sw img)) (e_switcher (img_sw img))
+    (a_switcher_call (img_sw img)) (a_switcher_return (img_sw img))
+    (ot_switcher (img_sw img))
+    (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0)).
+
+(** The registers other than [cgp] and [csp], cleared. *)
+Definition fw_cleared_regs : LReg :=
+  gset_to_gmap (lword_of_word (WInt 0)) (all_registers_s ∖ {[cgp; csp]}).
+
+Section resources.
+  Context
+    {Σ : gFunctors}
+    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP : MachineParameters}.
+
+  (** The empty world. *)
+  Definition fw_world0 : WORLD := (∅, (∅, ∅), ∅, ∅).
+
+  (** The resources shared by the threads: the invariants of the switcher
+      and of the assert library, the sealed export entries, the memory of
+      every compartment (trusted or not), the sealing types handed to the
+      trusted code, the world of each logical compartment, and the heap. *)
+  Definition fw_shared_res (fw : firmware) (img : fw_image) : iProp Σ :=
+    let sw := img_sw img in
+    let asrt := img_asrt img in
+    "Hswitcher" ∷
+      na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+    "Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
+    "Hseal_switcher" ∷
+      seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
+    "Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
+    "Hentries" ∷
+      ([∗ list] e ∈ fw_entries fw img,
+         WSealed (ot_switcher sw) e.1 ↦□ₑ e.2 ∗
+         WSealed (ot_switcher sw) (borrow_sb e.1) ↦□ₑ e.2) ∗
+    "Hcmpts" ∷
+      ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
+    "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
+    "Hworlds" ∷ ([∗ set] C ∈ CNames, world_interp fw_world0 C) ∗
+    "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
+    "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
+    "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c).
+
+  (** The resources of the thread [i]: its registers, its stack, its call
+      stack and the non-atomic token. *)
+  Definition fw_thread_res (fw : firmware) (img : fw_image) (i : nat) : iProp Σ :=
+    let t := thread_of img i in
+    "HPC" ∷ PC ↦ₚ fw_entry_pc fw img i ∗
+    "Hcgp" ∷ cgp ↦ᵣ fw_entry_cgp fw img i ∗
+    "Hcsp" ∷ csp ↦ᵣ fw_thread_csp img i ∗
+    "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ w) ∗
+    "Hstack" ∷
+      [[ b_stack t, e_stack t ]] ↦ₐ
+        [[ lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0) ]] ∗
+    "Hcstk" ∷ cstack_frag [] ∗
+    "Hna" ∷ na_own cerise_nais ⊤.
+End resources.
+
+(** ** Splitting the initial memory *)
+Section memory_split.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
+
+  Lemma cmpts_mem_split fw img (fcs : list fw_cmpt) :
+    Forall (cmpt_wf fw img) fcs →
+    rngs_disjoint (fw_flat_map (cmpt_ranges img) fcs) →
+    ([∗ map] a↦w ∈ big_union (fw_map (cmpt_mem img) fcs), a ↦ₐ lword_of_word w) ⊢
+    [∗ list] fc ∈ fcs, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w.
+  Proof.
+    induction fcs as [|fc fcs IH]; intros Hwf Hdisj; first by iIntros "_".
+    apply Forall_cons in Hwf as [Hfc Hwf]. rewrite fw_flat_map_cons in Hdisj.
+    cbn [fw_map]. rewrite big_union_cons big_sepL_cons.
+    iIntros "Hmem". iDestruct (big_sepM_union with "Hmem") as "[$ Hmem]".
+    { eapply mem_in_disjoint_sub; [by eapply cmpt_mem_in | by apply (cmpts_mem_in fw) | done | done]. }
+    iApply (IH with "Hmem"); first done.
+    eapply rngs_disjoint_sublist; last exact Hdisj. by apply sublist_inserts_l.
+  Qed.
+
+  (** The memory of a state satisfying [firmware_ok], by part. *)
+  Lemma firmware_ok_mem_split fw img σ :
+    firmware_ok fw img σ →
+    ([∗ map] a↦w ∈ mem σ, a ↦ₐ lword_of_word w) ⊢
+    ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
+    ([∗ map] a↦w ∈ switcher_mem img, a ↦ₐ lword_of_word w) ∗
+    ([∗ map] a↦w ∈ assert_code_mem img ∪ assert_flag_mem img, a ↦ₐ lword_of_word w) ∗
+    ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
+    ([∗ map] a↦w ∈ thread_mem img 0 (fw_thread0 fw), a ↦ₐ lword_of_word w).
+  Proof.
+    intros Hok.
+    pose proof (firmware_ok_mem_in _ _ _ Hok) as Hmem_in.
+    destruct Hok as (_ & [Hmem _] & Hregs & Hwf).
+    destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _). clear Hregs.
+    pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+    pose proof (img_wf_ranges_ok _ _ Hwf) as Hrok.
+    pose proof Hwf as (Hsw & Hasrt & Hcmpts & Hthr & _). apply big_and_fw_map in Hcmpts.
+    pose proof (switcher_mem_in _ Hsw) as HS.
+    pose proof (assert_code_mem_in _ Hasrt) as HAC.
+    pose proof (assert_flag_mem_in _ Hasrt) as HAF.
+    pose proof (cmpts_mem_in fw _ _ Hcmpts) as HCM.
+    pose proof (threads_mem_in _ 0 _ Hthr) as HTM.
+    rewrite /note in Hmem. rewrite Hmem.
+    match goal with |- context [ ?H ∪ ?S ∪ ?AC ∪ ?AF ∪ ?CM ∪ ?TM ] =>
+      replace (H ∪ S ∪ AC ∪ AF ∪ CM ∪ TM) with (H ∪ (S ∪ AC ∪ AF ∪ CM ∪ TM))
+        by (by rewrite !(assoc_L (∪)))
+    end.
+    iIntros "Hmem". iDestruct (big_sepM_union with "Hmem") as "[$ Hmem]".
+    { eapply mem_in_heap_disjoint; [exact Hmem_in | exact Hrok]. }
+    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hthreads]".
+    { eapply mem_in_disjoint_sub;
+        [ exact (mem_in_union _ _ _ _ (mem_in_union _ _ _ _ (mem_in_union _ _ _ _ HS HAC) HAF) HCM)
+        | exact HTM | | exact Hdisj].
+      rewrite /fw_ranges -!app_assoc. reflexivity. }
+    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpts]".
+    { eapply mem_in_disjoint_sub;
+        [ exact (mem_in_union _ _ _ _ (mem_in_union _ _ _ _ HS HAC) HAF) | exact HCM | | exact Hdisj].
+      rewrite /fw_ranges -!app_assoc. cbn. do 3 apply sublist_skip. by apply sublist_inserts_r. }
+    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hflag]".
+    { eapply mem_in_disjoint_sub; [exact (mem_in_union _ _ _ _ HS HAC) | exact HAF | | exact Hdisj].
+      rewrite /fw_ranges. cbn. do 3 apply sublist_skip. apply sublist_nil_l. }
+    iDestruct (big_sepM_union with "Hmem") as "[$ Hassert]".
+    { eapply mem_in_disjoint_sub; [exact HS | exact HAC | | exact Hdisj].
+      rewrite /fw_ranges. cbn. do 2 apply sublist_skip. apply sublist_nil_l. }
+    iSplitL "Hassert Hflag".
+    { iApply big_sepM_union; last iFrame.
+      eapply mem_in_disjoint_sub; [exact HAC | exact HAF | | exact Hdisj].
+      rewrite /fw_ranges. cbn. apply sublist_cons. do 2 apply sublist_skip. apply sublist_nil_l. }
+    iSplitL "Hcmpts".
+    { iApply (cmpts_mem_split with "Hcmpts"); first done.
+      eapply rngs_disjoint_sublist; last exact Hdisj.
+      rewrite /fw_ranges. do 3 apply sublist_cons. by apply sublist_inserts_r. }
+    rewrite Hthreads in Hthr. apply big_and_cons in Hthr as [Hthr0 Hthr].
+    rewrite Hthreads /fw_imap. cbn [fw_imap_from]. rewrite big_union_cons.
+    iDestruct (big_sepM_union with "Hthreads") as "[$ _]".
+    eapply mem_in_disjoint_sub;
+      [by apply thread_mem_in | by apply threads_mem_in | | exact Hdisj].
+    rewrite /fw_ranges Hthreads /fw_imap. cbn [fw_imap_from]. rewrite fw_flat_map_cons.
+    do 3 apply sublist_cons. by apply sublist_inserts_l.
+  Qed.
+
+  (** The registers of a state satisfying [firmware_ok]. *)
+  Lemma firmware_ok_regs_split fw img σ :
+    firmware_ok fw img σ →
+    PC ↦ₚ lword_of_word (pcc σ) ∗
+    ([∗ map] r↦w ∈ lword_of_word <$> reg σ, r ↦ᵣ w) ⊢
+    PC ↦ₚ fw_entry_pc fw img 0 ∗
+    cgp ↦ᵣ fw_entry_cgp fw img 0 ∗
+    csp ↦ᵣ fw_thread_csp img 0 ∗
+    [∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ w.
+  Proof.
+    intros (_ & _ & Hregs & _).
+    destruct (regs_ok_inv _ _ _ Hregs) as (_ & _ & _ & Hpc & Hcgp & Hcsp & Hzero & _).
+    rewrite Hpc. iIntros "[$ Hreg]".
+    iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[$ Hreg]";
+      first by rewrite lookup_fmap Hcgp.
+    iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[$ Hreg]";
+      first by rewrite lookup_delete_ne // lookup_fmap Hcsp.
+    assert (delete csp (delete cgp (lword_of_word <$> reg σ)) = fw_cleared_regs) as ->;
+      last done.
+    apply map_eq. intros r. rewrite /fw_cleared_regs lookup_gset_to_gmap.
+    destruct (decide (r = csp)) as [->|Hne2].
+    { rewrite lookup_delete option_guard_False //. }
+    destruct (decide (r = cgp)) as [->|Hne1].
+    { rewrite lookup_delete_ne // lookup_delete option_guard_False //. }
+    rewrite !lookup_delete_ne // lookup_fmap Hzero; last set_solver+Hne1 Hne2.
+    rewrite option_guard_True //. pose proof (all_registers_s_correct r). set_solver+Hne1 Hne2.
+  Qed.
+End memory_split.
+
+(** The obligations of the trusted code of a firmware, for the ghost state
+    [Σ]: for every image and initial state satisfying [firmware_ok], the
+    first thread runs safely from the resources of the image. A case study
+    with its own ghost state proves them for every [Σ] with its [subG]
+    assumptions, and allocates its ghost state inside the proof. *)
+Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParameters}
+    (fw : firmware) : Prop :=
+  ∀ (img : fw_image) (σ : ExecConf)
+    (ceriseg : ceriseG Σ) (sealsg : sealStoreG Σ)
+    (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
+    (cstackg : CSTACKG Σ),
+    firmware_ok fw img σ →
+    ⊢ fw_shared_res fw img -∗
+      fw_thread_res fw img 0
+      ={⊤}=∗
+      WP Seq (Instr Executable) {{ _, True }}.
+
+Theorem firmware_adequacy (Σ : gFunctors)
+    {inv_preg : invGpreS Σ}
+    {cerise_preg : ceriseGpreS Σ}
+    {entry_preg : entryGpreS Σ}
+    {na_invg : na_invariants.na_invG Σ}
+    {seal_store_preg : sealStorePreG Σ}
+    {sts_preg : STS_preG LAddr region_type OType LWord Σ}
+    {cstack_preg : CSTACK_preG Σ}
+    {Cname : CmptNameG}
+    {relpreg : relGpreS Σ}
+    `{MP : MachineParameters}
+    (fw : firmware) (img : fw_image) (σ σ' : ExecConf) (es : list griotte_lang.expr) :
+  fw_obligations Σ fw →
+  firmware_ok fw img σ →
+  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
+Proof.
+  intros Hobl Hok Hstep.
+  destruct σ as [ [ [ [w_pc regs] sregs] m] sh].
+  destruct σ' as [ [ [ [w_pc' regs'] sregs'] m'] sh'].
+  pose proof Hok as (_ & [_ Hsh] & Hregs & Hwf).
+  change (shadowtbl (w_pc, regs, sregs, m, sh)) with sh in Hsh. rewrite /note in Hsh.
+  destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _ & _ & _ & _ & _ & _ & Hsreg).
+  clear Hregs.
+  change (sreg (w_pc, regs, sregs, m, sh)) with sregs in Hsreg.
+  pose proof (img_wf_switcher_layout _ _ _ _ Hthreads Hwf) as Hsw.
+  pose proof (img_wf_trusted_stack_layout _ _ _ _ Hthreads Hwf) as Hts.
+  pose proof (img_wf_assert_layout _ _ Hwf) as Hasrt.
+  destruct (img_wf_otypes _ _ Hwf) as [Hot_nodup _].
+  apply NoDup_cons in Hot_nodup as [Hot_notin Hot_nodup].
+  destruct (firmware_ok_ghost_init_cond _ _ _ _ _ _ _ Hok) as [Hinit Hnull].
+  (* The program-logic resources of the initial state; the entries are all
+     sealed by the switcher's sealing type. *)
+  eapply (cerise_flag_adequacy Σ (ot_switcher (img_sw img)) (fw_entries fw img)
+            fw_flagN (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
+    [ by eapply fw_entries_NoDup | apply fw_entries_global | exact Hinit | exact Hnull
+    | | exact Hstep].
+  iIntros (ceriseg) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries".
+  (* The seal store, the call stack and the worlds. *)
+  iMod (initialise_world (finite.enum CmptName)
+          ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)))
+    as (sealsg relg stsg cstackg) "(Hseal_store & Hcstk_full & Hcstk_frag & Hworlds)";
+    [done | apply finite.NoDup_enum |].
+  rewrite big_sepS_union; last (apply disjoint_singleton_l; by rewrite elem_of_list_to_set).
+  rewrite big_sepS_singleton big_sepS_list_to_set //.
+  iDestruct "Hseal_store" as "[Hseal_switcher Hotypes]".
+  iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc";
+    first by apply lookup_sregs_handed_out_mtdc, Hsreg.
+  (* The memory and the registers, by part. *)
+  iDestruct (firmware_ok_mem_split fw img (w_pc, regs, sregs, m, sh) Hok with "Hmem")
+    as "(Hheap & Hsw_code & Hasrt & Hcmpts & Hthread)".
+  iDestruct (firmware_ok_regs_split fw img (w_pc, regs, sregs, m, sh) Hok with "[$HPC $Hreg]")
+    as "(HPC & Hcgp & Hcsp & Hregs)".
+  subst sh.
+  (* The assert library. *)
+  rewrite (assert_mem_layout _ Hasrt).
+  iMod (initialise_assert_compartment _ fw_flagN with "Hasrt") as "[#Hflag #Hassert]".
+  (* The switcher, with the trusted stack and the stack of the thread. *)
+  rewrite (switcher_mem_layout _ _ _ _ Hts Hsw) (thread_mem_layout _ _ Hts Hsw).
+  set (swc := layout_switcher_of (img_sw img) (thread_of img 0) _ _ Hts Hsw).
+  iAssert ([∗ map] a↦w ∈ mk_initial_switcher swc, a ↦ₐ lword_of_word w)%I
+    with "[Hsw_code Hthread]" as "Hswitcher".
+  { rewrite /mk_initial_switcher -assoc_L. iApply (big_sepM_union with "[$Hsw_code $Hthread]").
+    pose proof (cmpt_switcher_stack_mregion_disjoint swc) as Hd1.
+    pose proof (cmpt_switcher_trusted_stack_mregion_disjoint swc) as Hd2.
+    apply map_disjoint_union_l in Hd1 as [Hd1 _].
+    by apply map_disjoint_union_r. }
+  iMod (initialise_switcher_compartment swc fw_switcherN
+         with "Hswitcher Hseal_switcher Hcstk_full Hmtdc")
+    as "(#Hseal_pred & #Hswitcher & #Hswitcher_static & Hstack)".
+  (* The obligations of the trusted code. *)
+  iPoseProof (Hobl img _ ceriseg sealsg stsg relg cstackg Hok) as "Hobl".
+  iMod ("Hobl" with "[-HPC Hcgp Hcsp Hregs Hstack Hcstk_frag Hna]
+                     [$HPC $Hcgp $Hcsp $Hregs $Hstack $Hcstk_frag $Hna]") as "Hwp".
+  { rewrite /fw_shared_res /CNames big_sepS_list_to_set; last apply finite.NoDup_enum.
+    iFrame "Hentries Hotypes Hheap Hshadow Hclaims Hcmpts Hworlds". iFrame "#". }
+  iModIntro. iFrame "Hwp Hflag".
+Qed.
+
+(** The ghost state of the template. A case study with ghost state [Σcs]
+    proves [∀ Σ, subG Σcs Σ → fw_obligations Σ fw] in a section whose
+    context derives its pre-instances from [subG], and concludes with
+    [firmware_adequacy_closed] at [Σcs]. *)
+Definition firmwarePreΣ {Cname : CmptNameG} : gFunctors :=
+  #[invΣ; ceriseGpreΣ; entryPreΣ; CSTACK_preΣ; na_invΣ; sealStorePreΣ;
+    STS_preΣ LAddr region_type OType LWord; relPreΣ;
+    savedPredΣ (WorldT * CmptName * LWord)].
+
+Theorem firmware_adequacy_closed (Σcs : gFunctors) {Cname : CmptNameG}
+    `{MP : MachineParameters}
+    (fw : firmware) (img : fw_image) (σ σ' : ExecConf) (es : list griotte_lang.expr) :
+  fw_obligations #[firmwarePreΣ; Σcs] fw →
+  firmware_ok fw img σ →
+  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
+Proof.
+  intros Hobl Hok Hstep.
+  eapply (firmware_adequacy #[firmwarePreΣ; Σcs]); eauto; typeclasses eauto.
+Qed.
+
+(** ** Layout facts for the obligations *)
+Section obligation_layouts.
+  Context `{MP : MachineParameters}.
+
+  Lemma rngs_cross_elem ts1 ts2 s1 b1 e1 s2 b2 e2 (a : Addr) :
+    rngs_disjoint (ts1 ++ ts2) →
+    (s1, b1, e1) ∈ ts1 →
+    (s2, b2, e2) ∈ ts2 →
+    a ∈ finz.seq_between b1 e1 →
+    a ∈ finz.seq_between b2 e2 →
+    False.
+  Proof.
+    intros Hd H1 H2 Ha1 Ha2.
+    by apply (rngs_disjoint_app_cross _ _ _ _ Hd H1 H2 a).
+  Qed.
+
+  Lemma cmpt_ranges_pair_sublist img (fcs : list fw_cmpt) i j fci fcj :
+    i < j →
+    fcs !! i = Some fci →
+    fcs !! j = Some fcj →
+    (cmpt_ranges img fci ++ cmpt_ranges img fcj) `sublist_of` fw_flat_map (cmpt_ranges img) fcs.
+  Proof.
+    revert i j. induction fcs as [|fc fcs IH]; intros i j Hij Hi Hj; first done.
+    rewrite fw_flat_map_cons.
+    destruct i as [|i]; cbn in Hi.
+    - injection Hi as <-. destruct j as [|j]; first lia. cbn in Hj.
+      apply sublist_app; first done.
+      apply cmpt_ranges_sublist. by eapply list_elem_of_lookup_2.
+    - destruct j as [|j]; first lia. cbn in Hj.
+      apply sublist_inserts_l. apply (IH i j); [lia | done | done].
+  Qed.
+
+  Lemma layout_cmpts_disjoint_of_rngs img X Y
+      (HX : img_cmpt_layout (cmpt_of img (fc_name X)))
+      (HY : img_cmpt_layout (cmpt_of img (fc_name Y))) :
+    rngs_disjoint (cmpt_ranges img X ++ cmpt_ranges img Y) →
+    layout_cmpt_of _ HX ## layout_cmpt_of _ HY.
+  Proof.
+    intros HdXY a HaX HaY.
+    rewrite /cmpt_region /cmpt_pcc_region /cmpt_cgp_region /cmpt_static_sealed_region
+      /cmpt_exp_tbl_region /= in HaX HaY.
+    rewrite !elem_of_union in HaX HaY.
+    destruct HaX as [ [ [HaX|HaX]|HaX]|HaX]; destruct HaY as [ [ [HaY|HaY]|HaY]|HaY];
+      (eapply (rngs_cross_elem _ _ _ _ _ _ _ _ a HdXY); [ | | exact HaX | exact HaY]);
+      rewrite /cmpt_ranges; repeat first [apply list_elem_of_here | apply list_elem_of_further].
+  Qed.
+
+  (** Compartments at different positions of the firmware are disjoint. *)
+  Lemma img_wf_cmpts_disjoint fw img i j fci fcj
+      (Hci : img_cmpt_layout (cmpt_of img (fc_name fci)))
+      (Hcj : img_cmpt_layout (cmpt_of img (fc_name fcj))) :
+    img_wf fw img →
+    i ≠ j →
+    fw_cmpts fw !! i = Some fci →
+    fw_cmpts fw !! j = Some fcj →
+    layout_cmpt_of _ Hci ## layout_cmpt_of _ Hcj.
+  Proof.
+    intros Hwf Hij Hi Hj. pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+    assert (∀ i' j' fci' fcj', i' < j' →
+              fw_cmpts fw !! i' = Some fci' →
+              fw_cmpts fw !! j' = Some fcj' →
+              rngs_disjoint (cmpt_ranges img fci' ++ cmpt_ranges img fcj')) as Hpair.
+    { intros i' j' fci' fcj' Hlt Hi' Hj'. eapply rngs_disjoint_sublist; last exact Hdisj.
+      rewrite /fw_ranges. do 3 apply sublist_cons. apply sublist_inserts_r.
+      by eapply cmpt_ranges_pair_sublist. }
+    destruct (decide (i < j)) as [Hlt|Hge].
+    - apply layout_cmpts_disjoint_of_rngs. by apply (Hpair i j).
+    - pose proof (layout_cmpts_disjoint_of_rngs img fcj fci Hcj Hci
+                    (Hpair j i fcj fci ltac:(lia) Hj Hi)) as Hd.
+      rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt in Hd |- *. by symmetry.
+  Qed.
+
+  (** A compartment is disjoint from the switcher and the stacks of the
+      first thread. *)
+  Lemma img_wf_switcher_cmpt_disjoint fw img ft fts fc ts ss
+      (Hc : img_cmpt_layout (cmpt_of img (fc_name fc)))
+      (Hts : trusted_stack_layout (b_trusted_stack (thread_of img 0))
+               (e_trusted_stack (thread_of img 0)) ts)
+      (Hsw : img_switcher_layout (img_sw img) (thread_of img 0) ss) :
+    fw_threads fw = ft :: fts →
+    img_wf fw img →
+    fc ∈ fw_cmpts fw →
+    switcher_cmpt_disjoint (layout_cmpt_of _ Hc) (layout_switcher_of _ _ _ _ Hts Hsw).
+  Proof.
+    intros Hthreads Hwf Hin. pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+    assert (rngs_disjoint ([("switcher", b_switcher (img_sw img), e_switcher (img_sw img))] ++
+                           cmpt_ranges img fc)) as H1.
+    { eapply rngs_disjoint_sublist; last exact Hdisj.
+      rewrite /fw_ranges. apply sublist_skip. do 2 apply sublist_cons.
+      apply sublist_inserts_r. by apply cmpt_ranges_sublist. }
+    assert (rngs_disjoint (cmpt_ranges img fc ++ thread_ranges img 0 ft)) as H2.
+    { eapply rngs_disjoint_sublist; last exact Hdisj.
+      rewrite /fw_ranges Hthreads /fw_imap. cbn [fw_imap_from]. rewrite fw_flat_map_cons.
+      do 3 apply sublist_cons. apply sublist_app; first by apply cmpt_ranges_sublist.
+      by apply sublist_inserts_r. }
+    intros a Ha_sw Ha_c.
+    rewrite /cmpt_switcher_region /cmpt_switcher_code_region /cmpt_switcher_trusted_stack_region
+      /cmpt_switcher_stack_region /= in Ha_sw.
+    rewrite /cmpt_region /cmpt_pcc_region /cmpt_cgp_region /cmpt_static_sealed_region
+      /cmpt_exp_tbl_region /= in Ha_c.
+    rewrite !elem_of_union in Ha_sw Ha_c.
+    destruct Ha_sw as [ [Ha_sw|Ha_sw]|Ha_sw].
+    - destruct Ha_c as [ [ [Ha_c|Ha_c]|Ha_c]|Ha_c];
+        (eapply (rngs_cross_elem _ _ _ _ _ _ _ _ a H1); [ | | exact Ha_sw | exact Ha_c]);
+        rewrite /cmpt_ranges; repeat first [apply list_elem_of_here | apply list_elem_of_further].
+    - destruct Ha_c as [ [ [Ha_c|Ha_c]|Ha_c]|Ha_c];
+        (eapply (rngs_cross_elem _ _ _ _ _ _ _ _ a H2); [ | | exact Ha_c | exact Ha_sw]);
+        rewrite /cmpt_ranges /thread_ranges;
+        repeat first [apply list_elem_of_here | apply list_elem_of_further].
+    - destruct Ha_c as [ [ [Ha_c|Ha_c]|Ha_c]|Ha_c];
+        (eapply (rngs_cross_elem _ _ _ _ _ _ _ _ a H2); [ | | exact Ha_c | exact Ha_sw]);
+        rewrite /cmpt_ranges /thread_ranges;
+        repeat first [apply list_elem_of_here | apply list_elem_of_further].
+  Qed.
+End obligation_layouts.
+
+(** ** The switcher layout of an image is well formed *)
+Definition fw_switcher_layout_wf `{MP : MachineParameters} (img : fw_image) (ts ss : list Word)
+    (Hts : trusted_stack_layout (b_trusted_stack (thread_of img 0))
+             (e_trusted_stack (thread_of img 0)) ts)
+    (Hsw : img_switcher_layout (img_sw img) (thread_of img 0) ss) :
+    @switcherLayoutWf MP (fw_switcher_layout img) :=
+  mkSwitcherLayoutWf (fw_switcher_layout img)
+    (isl_switcher_size _ _ _ Hsw) (isl_call_entry_point _ _ _ Hsw)
+    (isl_return_entry_point _ _ _ Hsw) (isl_ot_switcher_size _ _ _ Hsw)
+    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_switcher_base_not_shadow _ _ _ Hsw)
+    (isl_switcher_not_heap _ _ _ Hsw) (isl_trusted_stack_not_heap _ _ _ Hsw)
+    (tsl_frames_fit _ _ _ Hts).
+
+(** ** Closing the world of an untrusted compartment *)
+Section adversary.
+  Context
+    {Σ : gFunctors}
+    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP : MachineParameters}.
+
+  Lemma hole_exports_spec (c : img_cmpt) (n : nat) (k : list Word → Prop) :
+    hole_exports c n k →
+    ∃ offs : list nat,
+      length offs = n ∧
+      Forall (λ off, (Z.of_nat off < cmpt_e_pcc c - cmpt_b_pcc c)%Z) offs ∧
+      k ((λ off, export_word (MkFwExport off 0 InterruptEnabled)) <$> offs).
+  Proof.
+    revert k. induction n as [|n IH]; intros k Hk; cbn in Hk.
+    - by exists [].
+    - destruct Hk as (off & Hoff & Hk). destruct (IH _ Hk) as (offs & Hlen & Hoffs & Hws).
+      exists (off :: offs). split_and!; [by rewrite /= Hlen | by constructor | exact Hws].
+  Qed.
+
+  Lemma big_sepL_fw_imap_from {A B} (Φ : B → iProp Σ) (f : nat → A → B) j (l : list A) :
+    ([∗ list] y ∈ fw_imap_from f j l, Φ y) ⊣⊢ [∗ list] k ↦ x ∈ l, Φ (f (j + k) x).
+  Proof.
+    revert j. induction l as [|x l IH]; intros j; cbn; first done.
+    rewrite IH Nat.add_0_r. f_equiv. apply big_sepL_proper.
+    intros k y _. by rewrite Nat.add_succ_r.
+  Qed.
+
+  (** The world of an untrusted compartment [fc], owned by the logical
+      compartment [C], once its compartment and the stack of the first
+      thread are allocated in it: the compartment's imports, code and
+      globals become permanent, its export entries sealed, and the stack
+      temporary. The case study proves that the imports are safe. *)
+  Lemma fw_close_adv_world {E : coPset} fw img σ fc owner n
+      (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
+    let swl := fw_switcher_layout img in
+    let c := cmpt_of img (fc_name fc) in
+    let C_cmpt := layout_cmpt_of c Hc in
+    let t := thread_of img 0 in
+    let W' := std_update_compartment W C_cmpt in
+    let Wadv := std_update_multiple W' (finz.seq_between (b_stack t) (e_stack t)) Temporary in
+    firmware_ok fw img σ →
+    fc ∈ fw_cmpts fw →
+    fc_body fc = UntrustedBody owner n →
+    (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
+          std W !! LNonHeap a = None) →
+    na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := swl)) -∗
+    switcher_static (swlayout := swl) -∗
+    seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
+    ([∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) -∗
+    [[ b_stack t, e_stack t ]] ↦ₐ
+      [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] -∗
+    ([∗ list] e ∈ fc_entries img fc,
+       WSealed (ot_switcher (img_sw img)) e.1 ↦□ₑ e.2 ∗
+       WSealed (ot_switcher (img_sw img)) (borrow_sb e.1) ↦□ₑ e.2) -∗
+    ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
+      interp W' C (cmpt_cgp_cap C_cmpt) ∗
+      ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
+     [∗ list] v ∈ lword_of_word <$> cmpt_imports c,
+       interp_in_memC (W', C, v) ∗ future_priv_mono C interp_in_memC v) -∗
+    world_interp W C
+    ={E}=∗
+    world_interp Wadv C ∗
+    interp Wadv C (cmpt_pcc_cap C_cmpt) ∗
+    interp Wadv C (cmpt_cgp_cap C_cmpt) ∗
+    interp Wadv C (fw_thread_csp img 0) ∗
+    [∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp Wadv C v.
+  Proof.
+    intros swl c C_cmpt t W' Wadv Hok Hin Hbody Hfree.
+    iIntros "#Hswitcher #Hstatic #Hseal Hmem Hstack #Hentries Himports Hworld".
+    pose proof Hok as (Hcmpts_ok & _ & Hregs & Hwf).
+    destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _). clear Hregs.
+    pose proof (img_wf_switcher_layout _ _ _ _ Hthreads Hwf) as Hsw.
+    pose proof (img_wf_trusted_stack_layout _ _ _ _ Hthreads Hwf) as Hts.
+    set (swc := layout_switcher_of (img_sw img) (thread_of img 0) _ _ Hts Hsw).
+    pose proof (fw_switcher_layout_wf img _ _ Hts Hsw) as Hswl_wf.
+    apply big_and_fw_map in Hcmpts_ok. rewrite Forall_forall in Hcmpts_ok.
+    pose proof (Hcmpts_ok fc Hin) as Hfc_ok.
+    rewrite /cmpt_ok /section Hbody in Hfc_ok.
+    destruct Hfc_ok as (_ & _ & Hcode & Hdata & Hexps). rewrite /note in Hcode Hdata Hexps.
+    destruct (hole_exports_spec _ _ _ Hexps) as (offs & Hlen & Hoffs & Hentries_eq).
+    rewrite (cmpt_mem_layout img fc Hc).
+    iMod (initialise_adversary_compartment with "Hmem")
+      as "(Himp & Hcode & Hdata & _ & #Hpcc & #Hcgp & #Hetbl)".
+    iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
+           with "Hseal Himp Hcode Hdata Hstack [] Himports Hworld")
+      as "($ & $ & $ & $ & $)".
+    - by eapply img_wf_switcher_cmpt_disjoint.
+    - exact Hfree.
+    - exact Hcode.
+    - exact Hdata.
+    - by apply Forall_replicate.
+    - (* The export entries of an untrusted compartment take no argument. *)
+      iApply (adversary_exports_prop W' C C_cmpt fw_switcherN
+                ((λ off, (InterruptEnabled, 0, off)) <$> offs)
+               with "Hswitcher Hstatic Hpcc Hcgp Hetbl").
+      + rewrite /= Hentries_eq -list_fmap_compose. reflexivity.
+      + apply Forall_fmap, Forall_true. intros off. cbn. lia.
+      + apply Forall_fmap. eapply Forall_impl; first exact Hoffs. intros off Hoff. cbn in Hoff |- *.
+        pose proof (icl_import_size _ Hc). pose proof (icl_code_size _ Hc).
+        rewrite /c. destruct (cmpt_b_pcc (cmpt_of img (fc_name fc)) + off)%a eqn:Hoff_eq;
+          first done.
+        exfalso. solve_addr.
+      + rewrite /fc_entries /fc_export_nargs Hbody /fw_imap big_sepL_fw_imap_from big_sepL_fmap.
+        rewrite -Hlen -(const_fmap (λ _ : nat, 0) offs 0) // big_sepL_fmap.
+        iApply (big_sepL_mono with "Hentries"). intros k off _. cbn.
+        by rewrite /cmpt_export_sb addr_off_eq.
+    - done.
+  Qed.
+End adversary.
