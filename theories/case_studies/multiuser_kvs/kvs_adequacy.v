@@ -47,7 +47,7 @@ Section kvs_obligations.
       fe_offset fe_nargs fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts kvs_firmware
-      fe_name ue_name ub_exports String.eqb Ascii.eqb Bool.eqb andb] in Hok_main, Hok_kvs, Hok_B.
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb] in Hok_main, Hok_kvs, Hok_B.
     destruct Hok_main as (main_imports & main_static_sealed & main_code & main_data & _).
     destruct Hok_kvs as (kvs_imports & _ & kvs_code & kvs_data & kvs_exp_tbl).
     destruct Hok_B as (B_imports & B_static_sealed & _).

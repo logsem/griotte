@@ -46,7 +46,7 @@ Section hts_obligations.
       fe_offset fe_nargs fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts hts_firmware
-      fe_name ue_name ub_exports String.eqb Ascii.eqb Bool.eqb andb]
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb]
       in Hok_main, Hok_alloc, Hok_B.
     destruct Hok_main as (main_imports & main_static & main_code & main_data & _).
     destruct Hok_alloc as (alloc_imports & _ & alloc_code & alloc_data & alloc_exp_tbl).

@@ -16,9 +16,9 @@ Inductive fw_word : Type :=
 | ISwitcherCall                       (* the switcher call sentry *)
 | IAssert                             (* the assert sentry *)
 | IExport (c : string) (e : string)   (* the entry of the export [e] of [c], sealed *)
-| ISealedStatic (o : OType) (k : nat).
-    (* the [k]-th static sealed object of the compartment itself, sealed
-       with [o]; a compartment only refers to its own static sealed
+| ISealedStatic (o : OType) (s : string).
+    (* the static sealed object named [s] of the compartment itself,
+       sealed with [o]; a compartment only refers to its own static sealed
        objects *)
 
 (** The globals of a trusted compartment, by chunks: literal words, or a
@@ -64,10 +64,17 @@ Inductive fw_body : Type :=
 | TrustedBody (b : fw_trusted)
 | UntrustedBody (b : fw_untrusted).
 
+(** A static sealed object: its name and its word. Imports refer to the
+    static sealed objects of their compartment by name. *)
+Record fw_static : Type := MkFwStatic {
+  ss_name : string;
+  ss_word : Word;
+}.
+
 Record fw_cmpt : Type := MkFwCmpt {
   fc_name : string;
   fc_imports : list fw_word;
-  fc_static_sealed : list Word;
+  fc_static_sealed : list fw_static;
   fc_body : fw_body;
 }.
 

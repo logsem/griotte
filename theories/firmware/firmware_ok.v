@@ -87,8 +87,9 @@ Section translation.
 
   (** *** The words the loader writes *)
 
-  (** The word for [w] in the compartment [c]. *)
-  Definition fw_word_of (c : img_cmpt) (w : fw_word) : Word :=
+  (** The word for [w] in the compartment [c], whose static sealed objects
+      are [ss]. *)
+  Definition fw_word_of (ss : list fw_static) (c : img_cmpt) (w : fw_word) : Word :=
     match w with
     | FW w => w
     | ISwitcherCall =>
@@ -107,41 +108,51 @@ Section translation.
           (WSealed (ot_switcher (img_sw img))
              (SCap true RO Global (cmpt_exp_tbl_pcc x) (cmpt_exp_tbl_entries_end x)
                 (addr_off (cmpt_exp_tbl_entries_start x) k)))
-    | ISealedStatic o k =>
+    | ISealedStatic o s =>
+        let k := match fw_index_of ss_name s ss with Some k => k | None => 0 end in
         let a := addr_off (cmpt_b_static_sealed c) k in
-        note ("own static sealed " ++ nat_str k)
+        note ("own static " ++ s)
           (WSealed o (SCap true RO Global a (a ^+ 1)%a a))
     end.
 
   (** The words of a list of chunks. *)
-  Fixpoint chunks_words (c : img_cmpt) (ds : list fw_chunk) : list Word :=
+  Fixpoint chunks_words (ss : list fw_static) (c : img_cmpt) (ds : list fw_chunk) : list Word :=
     match ds with
     | [] => []
     | [FWs ws] => ws
-    | FWs ws :: ds => (ws ++ chunks_words c ds)%list
-    | FWord w :: ds => fw_word_of c w :: chunks_words c ds
+    | FWs ws :: ds => (ws ++ chunks_words ss c ds)%list
+    | FWord w :: ds => fw_word_of ss c w :: chunks_words ss c ds
     end.
 
   (** The first import or global of a compartment naming an unknown
-      export, if any. *)
-  Definition fw_word_unknown (w : fw_word) : option string :=
+      export or an unknown static sealed object of its own, if any. *)
+  Definition fw_word_unknown (ss : list fw_static) (w : fw_word) : option string :=
     match w with
     | IExport n e =>
-        match fw_export_index fw n e with Some _ => None | None => Some (e ++ " of " ++ n) end
+        match fw_export_index fw n e with
+        | Some _ => None
+        | None => Some ("export " ++ e ++ " of " ++ n)
+        end
+    | ISealedStatic _ s =>
+        match fw_index_of ss_name s ss with
+        | Some _ => None
+        | None => Some ("static sealed object " ++ s)
+        end
     | _ => None
     end.
 
-  Fixpoint fw_words_unknown (ws : list fw_word) : option string :=
+  Fixpoint fw_words_unknown (ss : list fw_static) (ws : list fw_word) : option string :=
     match ws with
     | [] => None
-    | w :: ws => match fw_word_unknown w with Some s => Some s | None => fw_words_unknown ws end
+    | w :: ws =>
+        match fw_word_unknown ss w with Some s => Some s | None => fw_words_unknown ss ws end
     end.
 
   Definition chunks_fw_words (ds : list fw_chunk) : list fw_word :=
     fw_flat_map (λ d, match d with FWs _ => [] | FWord w => [w] end) ds.
 
   Definition fc_unknown_export (fc : fw_cmpt) : option string :=
-    fw_words_unknown
+    fw_words_unknown (fc_static_sealed fc)
       (fw_app (fc_imports fc)
          (match fc_body fc with
           | TrustedBody b => chunks_fw_words (tb_data b)
@@ -162,11 +173,11 @@ Section translation.
           hole_exports c ns (λ ws, k (export_word (MkFwExport "" off n InterruptEnabled) :: ws))
     end.
 
-  Definition body_ok (c : img_cmpt) (b : fw_body) : Prop :=
+  Definition body_ok (ss : list fw_static) (c : img_cmpt) (b : fw_body) : Prop :=
     match b with
     | TrustedBody b =>
         cmpt_code c = tb_code b ∧
-        cmpt_data c = chunks_words c (tb_data b) ∧
+        cmpt_data c = chunks_words ss c (tb_data b) ∧
         cmpt_exp_tbl_entries c =
           fw_imap (λ _ e, note ("export " ++ fe_name e) (export_word e)) (tb_exports b)
     | UntrustedBody b =>
@@ -180,11 +191,11 @@ Section translation.
     let c := cmpt_of img (fc_name fc) in
     section (fc_name fc ++ body_str (fc_body fc))
       (match fc_unknown_export fc with
-       | Some s => note ("unknown export " ++ s) False
+       | Some s => note ("unknown " ++ s) False
        | None =>
-           cmpt_imports c = fw_imap (λ _ w, fw_word_of c w) (fc_imports fc) ∧
-           cmpt_static_sealed c = fc_static_sealed fc ∧
-           body_ok c (fc_body fc)
+           cmpt_imports c = fw_imap (λ _ w, fw_word_of (fc_static_sealed fc) c w) (fc_imports fc) ∧
+           cmpt_static_sealed c = fw_map ss_word (fc_static_sealed fc) ∧
+           body_ok (fc_static_sealed fc) c (fc_body fc)
        end).
 
   (** *** Memory *)
@@ -447,7 +458,7 @@ Ltac reduce_firmware_ok t :=
     fw_index_of fw_body_export_index fw_export_index fw_find_export
     cmpt_of thread_of assoc fw_nth fw_cmpt_of
     fw_cmpts fw_threads fw_otypes fw_heap_roots
-    fc_name fc_imports fc_static_sealed fc_body
+    fc_name fc_imports fc_static_sealed fc_body ss_name ss_word
     tb_code tb_data tb_exports ub_owner ub_exports
     fe_name fe_offset fe_nargs fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames

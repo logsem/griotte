@@ -162,7 +162,7 @@ Section obligation_facts.
   Lemma cmpt_ok_imports fw img fc :
     cmpt_ok fw img fc →
     let c := cmpt_of img (fc_name fc) in
-    cmpt_imports c = fw_word_of fw img c <$> fc_imports fc.
+    cmpt_imports c = fw_word_of fw img (fc_static_sealed fc) c <$> fc_imports fc.
   Proof. intros (_ & Himports & _)%cmpt_ok_inv. by rewrite /= Himports /fw_imap fw_imap_const. Qed.
 
   Lemma fw_entry_pc_code fw img σ :
@@ -391,7 +391,7 @@ Section adversary.
     let c := cmpt_of img (fc_name fc) in
     ([∗ list] v ∈ lword_of_word <$> cmpt_imports c,
        interp_in_memC (W, C, v) ∗ future_priv_mono C interp_in_memC v) ⊣⊢
-    [∗ list] w ∈ fc_imports fc, fw_import_safe W C (fw_word_of fw img c w).
+    [∗ list] w ∈ fc_imports fc, fw_import_safe W C (fw_word_of fw img (fc_static_sealed fc) c w).
   Proof.
     intros Hok c. rewrite (cmpt_ok_imports _ _ _ Hok) -list_fmap_compose big_sepL_fmap //.
   Qed.
@@ -401,7 +401,7 @@ Section adversary.
     firmware_ok fw img σ →
     na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := fw_switcher_layout img)) -∗
     switcher_static (swlayout := fw_switcher_layout img) -∗
-    fw_import_safe W C (fw_word_of fw img c ISwitcherCall).
+    fw_import_safe W C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
     intros Hok. destruct (fw_switcher_layouts _ _ _ Hok) as [_ Hsw].
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
@@ -559,7 +559,7 @@ Section adversary.
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
-     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of fw img c w)) -∗
+     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
@@ -612,7 +612,7 @@ Section adversary.
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
-     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of fw img c w)) -∗
+     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗

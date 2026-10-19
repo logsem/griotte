@@ -1228,9 +1228,9 @@ Section entries_facts.
     cmpt_ok fw img fc →
     let c := cmpt_of img (fc_name fc) in
     fc_unknown_export fw fc = None ∧
-    cmpt_imports c = fw_imap (λ _ w, fw_word_of fw img c w) (fc_imports fc) ∧
-    cmpt_static_sealed c = fc_static_sealed fc ∧
-    body_ok fw img c (fc_body fc).
+    cmpt_imports c = fw_imap (λ _ w, fw_word_of fw img (fc_static_sealed fc) c w) (fc_imports fc) ∧
+    cmpt_static_sealed c = fw_map ss_word (fc_static_sealed fc) ∧
+    body_ok fw img (fc_static_sealed fc) c (fc_body fc).
   Proof. rewrite /cmpt_ok /section. by destruct (fc_unknown_export fw fc). Qed.
 
   Lemma fc_export_nargs_length fw img fc :

@@ -18,8 +18,8 @@ Definition kvs_firmware `{MP : MachineParameters}
     {| fc_name          := "main";
        fc_imports       := [ISwitcherCall; IAssert; IExport "B" "f";
                             IExport "kvs" "addOrUpdate"; IExport "kvs" "read";
-                            IExport "kvs" "erase"; ISealedStatic ot_kvs 0];
-       fc_static_sealed := kvs_main_static_sealed key_main;
+                            IExport "kvs" "erase"; ISealedStatic ot_kvs "user_key"];
+       fc_static_sealed := [ {| ss_name := "user_key"; ss_word := WInt key_main |} ];
        fc_body          :=
          TrustedBody {|
            tb_code    := kvs_main_code;
@@ -50,8 +50,8 @@ Definition kvs_firmware `{MP : MachineParameters}
                               fe_posture := InterruptEnabled |} ] |} |};
     {| fc_name          := "B";
        fc_imports       := [ISwitcherCall; IExport "kvs" "addOrUpdate"; IExport "kvs" "read";
-                            IExport "kvs" "erase"; ISealedStatic ot_kvs 0];
-       fc_static_sealed := [WInt key_B];
+                            IExport "kvs" "erase"; ISealedStatic ot_kvs "user_key"];
+       fc_static_sealed := [ {| ss_name := "user_key"; ss_word := WInt key_B |} ];
        fc_body          :=
          UntrustedBody {|
            ub_owner   := "B";

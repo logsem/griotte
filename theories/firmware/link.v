@@ -107,11 +107,12 @@ Section link.
   Definition fill_cmpt (fw : firmware) (img : fw_image) (fc : fw_cmpt) : string * img_cmpt :=
     let n := fc_name fc in
     let c := cmpt_of img n in
-    let imports := map (fw_word_of fw img c) (fc_imports fc) in
+    let ss := fc_static_sealed fc in
+    let imports := map (fw_word_of fw img ss c) (fc_imports fc) in
     let '(code, data, entries) :=
       match fc_body fc with
       | TrustedBody b =>
-          (tb_code b, chunks_words fw img c (tb_data b), map export_word (tb_exports b))
+          (tb_code b, chunks_words fw img ss c (tb_data b), map export_word (tb_exports b))
       | UntrustedBody b =>
           let a := adv_of n in
           (la_code a, la_data a,
@@ -121,7 +122,7 @@ Section link.
     (n, MkImgCmpt (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c) (cmpt_b_cgp c) (cmpt_e_cgp c)
           (cmpt_b_static_sealed c) (cmpt_e_static_sealed c) (cmpt_exp_tbl_pcc c)
           (cmpt_exp_tbl_cgp c) (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c)
-          imports code data (fc_static_sealed fc) entries).
+          imports code data (map ss_word ss) entries).
 
   (** The linked image, if it fits in memory. *)
   Definition link (fw : firmware) : option fw_image :=

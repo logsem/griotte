@@ -41,7 +41,7 @@ Section lse_obligations.
       fe_offset fe_nargs fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts lse_firmware
-      fe_name ue_name ub_exports String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & main_exp_tbl).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HC_l.

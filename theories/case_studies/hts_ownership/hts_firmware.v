@@ -17,8 +17,8 @@ Set Mangle Names.
     and the revoker, its global is the capability on the whole heap, based
     at the heap root [heap_b], and it exports [malloc] and [free], each
     taking two arguments. Main and [B] each import [malloc], [free] and
-    their own allocator capability: their first static sealed object (the
-    owner identifier), sealed with [ot_alloc]. [B] exports one entry
+    their own allocator capability: their static sealed object
+    [allocator_capability] (the owner identifier), sealed with [ot_alloc]. [B] exports one entry
     [adv], taking one argument. The thread starts at the export [entry] of
     [main], after its six imports. *)
 Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware := {|
@@ -26,8 +26,8 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
     {| fc_name          := "main";
        fc_imports       := [ISwitcherCall; IAssert; IExport "B" "adv";
                             IExport "allocator" "malloc"; IExport "allocator" "free";
-                            ISealedStatic ot_alloc 0];
-       fc_static_sealed := hts_main_static_sealed;
+                            ISealedStatic ot_alloc "allocator_capability"];
+       fc_static_sealed := [ {| ss_name := "allocator_capability"; ss_word := WInt hts_main_owner_id |} ];
        fc_body          :=
          TrustedBody {|
            tb_code    := hts_main_code;
@@ -55,8 +55,8 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
                               fe_posture := InterruptEnabled |} ] |} |};
     {| fc_name          := "B";
        fc_imports       := [ISwitcherCall; IExport "allocator" "malloc";
-                            IExport "allocator" "free"; ISealedStatic ot_alloc 0];
-       fc_static_sealed := hts_adv_static_sealed;
+                            IExport "allocator" "free"; ISealedStatic ot_alloc "allocator_capability"];
+       fc_static_sealed := [ {| ss_name := "allocator_capability"; ss_word := WInt hts_adv_owner_id |} ];
        fc_body          :=
          UntrustedBody {|
            ub_owner   := "B";
