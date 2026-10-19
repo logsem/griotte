@@ -80,7 +80,7 @@ Section link.
     match fts with
     | [] => ([], a)
     | ft :: fts =>
-        let ets := (a + Z.of_nat (length (initial_trusted_stack_content (ft_tstack_frames ft))))%Z in
+        let ets := (a + tstack_frame_offset (S (ft_tstack_frames ft)))%Z in
         let est := (ets + Z.of_nat (ft_stack_size ft))%Z in
         let '(ts, a') := place_threads est fts in
         (MkImgThread (mk_addr ets) (mk_addr est) (mk_addr a) (mk_addr ets) :: ts, a')

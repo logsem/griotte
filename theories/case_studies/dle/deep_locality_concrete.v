@@ -107,9 +107,9 @@ Proof.
     dle_switcher_call dle_switcher_return dle_switcher_sealing_type
     dle_trusted_stack_b dle_trusted_stack_e
     _ _ _ _
-    (initial_trusted_stack_content 24) _ eq_refl
+    (initial_trusted_stack_content (WInt 0) (WInt 0) 24) _ eq_refl
     ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_ints)
+    ltac:(apply initial_trusted_stack_content_words; apply trusted_stack_word_int)
     dle_stack_b dle_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

@@ -121,9 +121,9 @@ Proof.
     cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call
     cmdc_switcher_return cmdc_switcher_sealing_type
     cmdc_trusted_stack_b cmdc_trusted_stack_e _ _ _ _
-    (initial_trusted_stack_content 24) _ eq_refl
+    (initial_trusted_stack_content (WInt 0) (WInt 0) 24) _ eq_refl
     ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_ints) cmdc_stack_b cmdc_stack_e
+    ltac:(apply initial_trusted_stack_content_words; apply trusted_stack_word_int) cmdc_stack_b cmdc_stack_e
     (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

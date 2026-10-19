@@ -138,20 +138,36 @@ Section CmptLayout.
     cmpt_static_sealed_mregion C ∪
     cmpt_exp_tbl_mregion C.
 
+  (** A word of an initial trusted stack: it has no authority over the heap
+      and is not executable. *)
+  Definition trusted_stack_word (w : Word) : Prop :=
+    heap_authority_base w = None ∧ executable_word w = false.
+
+  Lemma trusted_stack_word_int z : trusted_stack_word (WInt z).
+  Proof. by split. Qed.
+
   (** The initial contents of a trusted stack with room for the entry frame
       and [n] frames: a zeroed register save area, [frameoffset] pointing
-      after the entry frame, a zeroed [threadID], and zeroed frames. *)
-  Definition initial_trusted_stack_content (n : nat) : list Word :=
+      after the entry frame, a zeroed [threadID], the entry frame, and
+      zeroed frames. The entry frame holds the stack pointer [w_csp] of the
+      thread, the export table [w_export_table] of the compartment it starts
+      in, and no error handler invocation. *)
+  Definition initial_trusted_stack_content (w_csp w_export_table : Word) (n : nat) : list Word :=
     replicate (Z.to_nat TSTACK_REGFRAME_SZ) (WInt 0) ++
     [WInt (tstack_frameoffset 0); WInt 0] ++
-    replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat (S n))) (WInt 0).
+    [w_csp; w_export_table; WInt 0] ++
+    replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat n)) (WInt 0).
 
-  Lemma initial_trusted_stack_content_ints (n : nat) :
-    Forall is_z (initial_trusted_stack_content n).
+  Lemma initial_trusted_stack_content_words (w_csp w_export_table : Word) (n : nat) :
+    trusted_stack_word w_csp →
+    trusted_stack_word w_export_table →
+    Forall trusted_stack_word (initial_trusted_stack_content w_csp w_export_table n).
   Proof.
-    rewrite /initial_trusted_stack_content.
-    repeat apply Forall_app_2; try apply Forall_replicate; try done.
-    by repeat constructor.
+    intros Hcsp Hexport_table. rewrite /initial_trusted_stack_content.
+    pose proof (trusted_stack_word_int 0) as Hzero.
+    repeat apply Forall_app_2; try by apply Forall_replicate.
+    - by apply Forall_cons_2; [apply trusted_stack_word_int | apply Forall_singleton].
+    - by apply Forall_cons_2; [| apply Forall_cons_2; [| apply Forall_singleton] ].
   Qed.
 
   Record cmptSwitcher : Type :=
@@ -192,8 +208,10 @@ Section CmptLayout.
         trusted_stack_frames_fit :
         ∃ n : nat,
           (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack;
-        trusted_stack_content_ints :
-        Forall is_z trusted_stack_content;
+        (* The trusted stack has no authority over the heap and no
+           executable word. *)
+        trusted_stack_content_words :
+        Forall trusted_stack_word trusted_stack_content;
 
         (* compartment's stack *)
         b_stack : Addr;
@@ -968,6 +986,9 @@ Section CmptLayout.
     apply withinBounds_true_iff. solve_addr.
   Qed.
 
+  Lemma word_rooted_trusted_stack_word H w : trusted_stack_word w → word_rooted H w.
+  Proof. intros [Hw _] b _ Hb. congruence. Qed.
+
   Lemma word_rooted_ints H (ws : list Word) :
     Forall is_z ws → Forall (word_rooted H) ws.
   Proof.
@@ -1041,7 +1062,9 @@ Section CmptLayout.
     mem_rooted H (mk_initial_switcher C).
   Proof.
     intros Hstack.
-    pose proof (word_rooted_ints H _ (trusted_stack_content_ints C)) as Htrusted.
+    assert (Forall (word_rooted H) (trusted_stack_content C)) as Htrusted.
+    { eapply Forall_impl; first exact (trusted_stack_content_words C).
+      apply word_rooted_trusted_stack_word. }
     rewrite /mk_initial_switcher /cmpt_switcher_code_mregion
       /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
     repeat apply mem_rooted_union; apply mem_rooted_mkregion; try done.
@@ -1077,6 +1100,9 @@ Section CmptLayout.
 
   Lemma word_exec_ok_int z : word_exec_ok (WInt z).
   Proof. by apply word_exec_ok_not_executable. Qed.
+
+  Lemma word_exec_ok_trusted_stack_word w : trusted_stack_word w → word_exec_ok w.
+  Proof. intros [_ Hw]. by apply word_exec_ok_not_executable. Qed.
 
   Lemma word_exec_ok_ints (ws : list Word) :
     Forall is_z ws → Forall word_exec_ok ws.
@@ -1168,7 +1194,9 @@ Section CmptLayout.
     mem_exec_ok (mk_initial_switcher C).
   Proof.
     intros Hstack.
-    pose proof (word_exec_ok_ints _ (trusted_stack_content_ints C)) as Htrusted.
+    assert (Forall word_exec_ok (trusted_stack_content C)) as Htrusted.
+    { eapply Forall_impl; first exact (trusted_stack_content_words C).
+      apply word_exec_ok_trusted_stack_word. }
     rewrite /mk_initial_switcher /cmpt_switcher_code_mregion
       /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
     repeat apply mem_exec_ok_union; apply mem_exec_ok_mkregion; try done.

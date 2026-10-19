@@ -180,12 +180,21 @@ Section translation.
           WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ::
           cmpt_exp_tbl_entries c)).
 
-  (** The trusted stack holds a zeroed register save area, the header and
-      zeroed frames, the entry frame included; the stack is zeroed. *)
+  (** The trusted stack holds a zeroed register save area, the header, the
+      entry frame and zeroed frames. As the loader does, the entry frame
+      holds the stack pointer of the thread (its initial [csp]) and the
+      export table of the compartment the thread starts in, read-write and
+      global, as the loader writes it. The stack is zeroed. *)
   Definition thread_mem (i : nat) (ft : fw_thread) : Mem :=
     let t := thread_of img i in
-    note ("thread " ++ nat_str i ++ ", trusted stack")
-      (mem_region (b_trusted_stack t) (initial_trusted_stack_content (ft_tstack_frames ft))) ∪
+    let c := cmpt_of img (ft_cmpt ft) in
+    note ("thread " ++ nat_str i ++ ", trusted stack, entry frame in " ++ ft_cmpt ft)
+      (mem_region (b_trusted_stack t)
+         (initial_trusted_stack_content
+            (WCap true RWL Local (b_stack t) (e_stack t) (b_stack t))
+            (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
+               (cmpt_exp_tbl_pcc c))
+            (ft_tstack_frames ft))) ∪
     note ("thread " ++ nat_str i ++ ", stack")
       (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))).
 
@@ -328,15 +337,20 @@ Section translation.
        note "closed bounds outside the heap" (is_heap_address (e_assert asrt) = false) ∧
        note "flag" (range_ok (flag_assert asrt) (flag_assert asrt ^+ 1)%a)).
 
+  (** The trusted stack has room for the entry frame and [ft_tstack_frames]
+      frames, [tstack_frame_offset] giving the offset of a frame. *)
   Definition thread_wf (i : nat) (ft : fw_thread) : Prop :=
     let t := thread_of img i in
     section ("thread " ++ nat_str i ++ ", layout")
-      ((b_stack t + Z.of_nat (ft_stack_size ft))%a = Some (e_stack t) ∧
-       (b_trusted_stack t +
-          Z.of_nat (length (initial_trusted_stack_content (ft_tstack_frames ft))))%a =
-         Some (e_trusted_stack t) ∧
-       note "stack" (range_ok (b_stack t) (e_stack t)) ∧
-       note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t))).
+      (match fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft)) with
+       | UntrustedBody _ _ => note "threads start in trusted compartments" False
+       | TrustedBody _ _ _ =>
+           (b_stack t + Z.of_nat (ft_stack_size ft))%a = Some (e_stack t) ∧
+           (b_trusted_stack t + tstack_frame_offset (S (ft_tstack_frames ft)))%a =
+             Some (e_trusted_stack t) ∧
+           note "stack" (range_ok (b_stack t) (e_stack t)) ∧
+           note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t))
+       end).
 
   Definition img_wf : Prop :=
     switcher_wf ∧

@@ -60,12 +60,15 @@ Definition kvs_head_B : img_cmpt :=
     kvs_B_imports kvs_B_code kvs_B_data kvs_B_static_sealed kvs_B_exports.
 
 (** The initial state of [kvs_concrete], with the export table of [main]
-    moved and holding the entry. *)
+    moved and holding the entry, and the entry frame of the trusted stack
+    ([[4119, 4122)]) holding the stack and the export table of [main]. *)
 Definition kvs_head_memory : Mem :=
-  <[A 109 := WCap true RX Global kvs_main_pcc_b kvs_main_pcc_e kvs_main_pcc_b]>
-    (<[A 110 := WCap true RW Global kvs_main_data_b kvs_main_data_e kvs_main_data_b]>
-       (<[A 111 := kvs_head_main_entry]>
-          (delete (A 113) (delete (A 114) kvs_initial_memory)))).
+  <[A 4119 := WCap true RWL Local kvs_stack_b kvs_stack_e kvs_stack_b]>
+    (<[A 4120 := WCap true RW Global (A 109) (A 112) (A 109)]>
+       (<[A 109 := WCap true RX Global kvs_main_pcc_b kvs_main_pcc_e kvs_main_pcc_b]>
+          (<[A 110 := WCap true RW Global kvs_main_data_b kvs_main_data_e kvs_main_data_b]>
+             (<[A 111 := kvs_head_main_entry]>
+                (delete (A 113) (delete (A 114) kvs_initial_memory)))))).
 
 Definition kvs_head_state : ExecConf :=
   (kvs_initial_pc, kvs_initial_registers, kvs_initial_sregisters, kvs_head_memory,

@@ -153,9 +153,9 @@ Proof.
   refine (@mkCmptSwitcher hts_machine_parameters
     hts_switcher_b hts_switcher_e hts_switcher_call hts_switcher_return
     hts_switcher_otype hts_trusted_stack_b hts_trusted_stack_e
-    _ _ _ _ (initial_trusted_stack_content 24) _ eq_refl
+    _ _ _ _ (initial_trusted_stack_content (WInt 0) (WInt 0) 24) _ eq_refl
     ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_ints)
+    ltac:(apply initial_trusted_stack_content_words; apply trusted_stack_word_int)
     hts_stack_b hts_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
