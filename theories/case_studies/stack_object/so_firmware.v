@@ -19,35 +19,38 @@ Set Mangle Names.
 Definition so_firmware `{MP : MachineParameters} : firmware := {|
   fw_cmpts      := [
     {| fc_name          := "main";
-       fc_imports       := [ISwitcherCall; IAssert; IExport "C" "adv"];
+       fc_imports       := [
+         ISwitcherCall;
+         IAssert;
+         IExport "C" "adv"
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         TrustedBody {|
-           tb_code    := so_main_code;
-           tb_data    := [FWs so_main_data];
-           tb_exports := [ {| fe_name    := "f";
-                              fe_offset  := 9;
-                              fe_nargs   := 2;
-                              fe_posture := InterruptEnabled |};
-                           {| fe_name    := "entry";
-                              fe_offset  := 3;
-                              fe_nargs   := 0;
-                              fe_posture := InterruptEnabled |} ] |} |};
+       fc_body          := TrustedBody {|
+         tb_code    := so_main_code;
+         tb_data    := [
+           FWs so_main_data
+         ];
+         tb_exports := [
+           {| fe_name := "f";     fe_offset := 9; fe_nargs := 2; fe_posture := InterruptEnabled |};  (* after the 3 imports and the 6 words of [run] *)
+           {| fe_name := "entry"; fe_offset := 3; fe_nargs := 0; fe_posture := InterruptEnabled |}   (* after the 3 imports *)
+         ] |} |};
     {| fc_name          := "C";
-       fc_imports       := [ISwitcherCall; IExport "main" "f"; IExport "C" "g"];
+       fc_imports       := [
+         ISwitcherCall;
+         IExport "main" "f";
+         IExport "C" "g"
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         UntrustedBody {|
-           ub_owner   := "C";
-           ub_exports := [ {| ue_name  := "adv";
-                              ue_nargs := 0 |};
-                           {| ue_name  := "g";
-                              ue_nargs := 2 |} ] |} |}
+       fc_body          := UntrustedBody {|
+         ub_owner   := "C";
+         ub_exports := [
+           {| ue_name := "adv"; ue_nargs := 0 |};
+           {| ue_name := "g";   ue_nargs := 2 |}
+         ] |} |}
   ];
-  fw_threads    := [ {| ft_cmpt          := "main";
-                        ft_entry         := "entry";
-                        ft_stack_size    := 100;
-                        ft_tstack_frames := 24 |} ];
+  fw_threads    := [
+    {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
+  ];
   fw_otypes     := [];
   fw_heap_roots := []
 |}.

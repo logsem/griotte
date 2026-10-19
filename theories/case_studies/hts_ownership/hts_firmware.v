@@ -24,51 +24,66 @@ Set Mangle Names.
 Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware := {|
   fw_cmpts      := [
     {| fc_name          := "main";
-       fc_imports       := [ISwitcherCall; IAssert; IExport "B" "adv";
-                            IExport "allocator" "malloc"; IExport "allocator" "free";
-                            ISealedStatic ot_alloc "allocator_capability"];
-       fc_static_sealed := [ {| ss_name := "allocator_capability"; ss_word := WInt hts_main_owner_id |} ];
-       fc_body          :=
-         TrustedBody {|
-           tb_code    := hts_main_code;
-           tb_data    := [FWs hts_main_data];
-           tb_exports := [ {| fe_name    := "entry";
-                              fe_offset  := 6;
-                              fe_nargs   := 0;
-                              fe_posture := InterruptEnabled |} ] |} |};
+       fc_imports       := [
+         ISwitcherCall;
+         IAssert;
+         IExport "B" "adv";
+         IExport "allocator" "malloc";
+         IExport "allocator" "free";
+         ISealedStatic ot_alloc "allocator_capability"
+       ];
+       fc_static_sealed := [
+         {| ss_name := "allocator_capability"; ss_word := WInt hts_main_owner_id |}
+       ];
+       fc_body          := TrustedBody {|
+         tb_code    := hts_main_code;
+         tb_data    := [
+           FWs hts_main_data
+         ];
+         tb_exports := [
+           {| fe_name := "entry"; fe_offset := 6; fe_nargs := 0; fe_posture := InterruptEnabled |}  (* after the 6 imports *)
+         ] |} |};
     {| fc_name          := "allocator";
-       fc_imports       := [FW (WCap true RW Global shadow_b shadow_e shadow_b);
-                            FW (WSealRange true (false, true) Global ot_alloc (ot_alloc ^+ 1)%ot ot_alloc);
-                            FW (WCap true RW Global revoker_addr (revoker_addr ^+ 1)%a revoker_addr)];
+       fc_imports       := [
+         FW (WCap true RW Global shadow_b shadow_e shadow_b);                             (* the shadow table *)
+         FW (WSealRange true (false, true) Global ot_alloc (ot_alloc ^+ 1)%ot ot_alloc);  (* unseal-only key of [ot_alloc] *)
+         FW (WCap true RW Global revoker_addr (revoker_addr ^+ 1)%a revoker_addr)         (* the revoker *)
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         TrustedBody {|
-           tb_code    := allocator_code;
-           tb_data    := [FWs [WCap true RW Global heap_b heap_e (heap_b ^+ 1)%a]];
-           tb_exports := [ {| fe_name    := "malloc";
-                              fe_offset  := allocator_malloc_pcc_off;
-                              fe_nargs   := allocator_malloc_nargs;
-                              fe_posture := InterruptEnabled |};
-                           {| fe_name    := "free";
-                              fe_offset  := allocator_free_pcc_off;
-                              fe_nargs   := allocator_free_nargs;
-                              fe_posture := InterruptEnabled |} ] |} |};
+       fc_body          := TrustedBody {|
+         tb_code    := allocator_code;
+         tb_data    := [
+           FWs [WCap true RW Global heap_b heap_e (heap_b ^+ 1)%a]  (* the whole heap *)
+         ];
+         tb_exports := [
+           {| fe_name := "malloc"; fe_offset := allocator_malloc_pcc_off; fe_nargs := allocator_malloc_nargs; fe_posture := InterruptEnabled |};
+           {| fe_name := "free";   fe_offset := allocator_free_pcc_off;   fe_nargs := allocator_free_nargs;   fe_posture := InterruptEnabled |}
+         ] |} |};
     {| fc_name          := "B";
-       fc_imports       := [ISwitcherCall; IExport "allocator" "malloc";
-                            IExport "allocator" "free"; ISealedStatic ot_alloc "allocator_capability"];
-       fc_static_sealed := [ {| ss_name := "allocator_capability"; ss_word := WInt hts_adv_owner_id |} ];
-       fc_body          :=
-         UntrustedBody {|
-           ub_owner   := "B";
-           ub_exports := [ {| ue_name  := "adv";
-                              ue_nargs := 1 |} ] |} |}
+       fc_imports       := [
+         ISwitcherCall;
+         IExport "allocator" "malloc";
+         IExport "allocator" "free";
+         ISealedStatic ot_alloc "allocator_capability"
+       ];
+       fc_static_sealed := [
+         {| ss_name := "allocator_capability"; ss_word := WInt hts_adv_owner_id |}
+       ];
+       fc_body          := UntrustedBody {|
+         ub_owner   := "B";
+         ub_exports := [
+           {| ue_name := "adv"; ue_nargs := 1 |}
+         ] |} |}
   ];
-  fw_threads    := [ {| ft_cmpt          := "main";
-                        ft_entry         := "entry";
-                        ft_stack_size    := 100;
-                        ft_tstack_frames := 24 |} ];
-  fw_otypes     := [ot_alloc];
-  fw_heap_roots := [heap_b]
+  fw_threads    := [
+    {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
+  ];
+  fw_otypes     := [
+    ot_alloc
+  ];
+  fw_heap_roots := [
+    heap_b
+  ]
 |}.
 
 (** The image of the heap temporal safety firmware, from the records of its

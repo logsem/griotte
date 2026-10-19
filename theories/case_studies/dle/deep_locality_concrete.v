@@ -40,9 +40,13 @@ Definition dle_C_data : list Word := [WInt 0].
 Definition dle_demo_link_cfg : link_cfg := {|
   lk_base        := 16;
   lk_ot_switcher := dle_switcher_sealing_type;
-  lk_adv         := [("C", {| la_code    := dle_C_code;
-                              la_data    := dle_C_data;
-                              la_exports := [1] |})]
+  lk_adv         := [
+    ("C", {| la_code    := dle_C_code;
+             la_data    := dle_C_data;
+             la_exports := [
+               1  (* after the import *)
+             ] |})
+  ]
 |}.
 
 (** ** The linked image and its initial state *)

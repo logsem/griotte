@@ -32,9 +32,13 @@ Definition lse_C_data : list Word := [WInt 0].
 Definition lse_demo_link_cfg : link_cfg := {|
   lk_base        := 16;
   lk_ot_switcher := lse_switcher_sealing_type;
-  lk_adv         := [("C", {| la_code    := lse_C_code;
-                              la_data    := lse_C_data;
-                              la_exports := [2] |})]
+  lk_adv         := [
+    ("C", {| la_code    := lse_C_code;
+             la_data    := lse_C_data;
+             la_exports := [
+               2  (* after the 2 imports *)
+             ] |})
+  ]
 |}.
 
 (** ** The linked image and its initial state *)

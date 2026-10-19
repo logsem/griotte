@@ -16,37 +16,45 @@ Set Mangle Names.
 Definition cmdc_firmware `{MP : MachineParameters} : firmware := {|
   fw_cmpts      := [
     {| fc_name          := "main";
-       fc_imports       := [ISwitcherCall; IAssert; IExport "B" "f"; IExport "C" "g"];
+       fc_imports       := [
+         ISwitcherCall;
+         IAssert;
+         IExport "B" "f";
+         IExport "C" "g"
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         TrustedBody {|
-           tb_code    := cmdc_main_code;
-           tb_data    := [FWs cmdc_main_data];
-           tb_exports := [ {| fe_name    := "entry";
-                              fe_offset  := 4;
-                              fe_nargs   := 0;
-                              fe_posture := InterruptEnabled |} ] |} |};
+       fc_body          := TrustedBody {|
+         tb_code    := cmdc_main_code;
+         tb_data    := [
+           FWs cmdc_main_data
+         ];
+         tb_exports := [
+           {| fe_name := "entry"; fe_offset := 4; fe_nargs := 0; fe_posture := InterruptEnabled |}  (* after the 4 imports *)
+         ] |} |};
     {| fc_name          := "B";
-       fc_imports       := [ISwitcherCall];
+       fc_imports       := [
+         ISwitcherCall
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         UntrustedBody {|
-           ub_owner   := "B";
-           ub_exports := [ {| ue_name  := "f";
-                              ue_nargs := cmdc_B_f_args |} ] |} |};
+       fc_body          := UntrustedBody {|
+         ub_owner   := "B";
+         ub_exports := [
+           {| ue_name := "f"; ue_nargs := cmdc_B_f_args |}
+         ] |} |};
     {| fc_name          := "C";
-       fc_imports       := [ISwitcherCall];
+       fc_imports       := [
+         ISwitcherCall
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         UntrustedBody {|
-           ub_owner   := "C";
-           ub_exports := [ {| ue_name  := "g";
-                              ue_nargs := cmdc_C_g_args |} ] |} |}
+       fc_body          := UntrustedBody {|
+         ub_owner   := "C";
+         ub_exports := [
+           {| ue_name := "g"; ue_nargs := cmdc_C_g_args |}
+         ] |} |}
   ];
-  fw_threads    := [ {| ft_cmpt          := "main";
-                        ft_entry         := "entry";
-                        ft_stack_size    := 100;
-                        ft_tstack_frames := 24 |} ];
+  fw_threads    := [
+    {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
+  ];
   fw_otypes     := [];
   fw_heap_roots := []
 |}.

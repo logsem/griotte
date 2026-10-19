@@ -17,35 +17,38 @@ Set Mangle Names.
 Definition vae_firmware `{MP : MachineParameters} : firmware := {|
   fw_cmpts      := [
     {| fc_name          := "main";
-       fc_imports       := [ISwitcherCall; IAssert; IExport "C" "adv"];
+       fc_imports       := [
+         ISwitcherCall;
+         IAssert;
+         IExport "C" "adv"
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         TrustedBody {|
-           tb_code    := vae_main_code;
-           tb_data    := [FWs vae_main_data];
-           tb_exports := [ {| fe_name    := "awkward";
-                              fe_offset  := 10;
-                              fe_nargs   := 1;
-                              fe_posture := InterruptEnabled |};
-                           {| fe_name    := "entry";
-                              fe_offset  := 3;
-                              fe_nargs   := 0;
-                              fe_posture := InterruptEnabled |} ] |} |};
+       fc_body          := TrustedBody {|
+         tb_code    := vae_main_code;
+         tb_data    := [
+           FWs vae_main_data
+         ];
+         tb_exports := [
+           {| fe_name := "awkward"; fe_offset := 10; fe_nargs := 1; fe_posture := InterruptEnabled |};  (* after the 3 imports and the 7 words of [init] *)
+           {| fe_name := "entry";   fe_offset := 3;  fe_nargs := 0; fe_posture := InterruptEnabled |}   (* after the 3 imports *)
+         ] |} |};
     {| fc_name          := "C";
-       fc_imports       := [ISwitcherCall; IExport "main" "awkward"; IExport "C" "g"];
+       fc_imports       := [
+         ISwitcherCall;
+         IExport "main" "awkward";
+         IExport "C" "g"
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         UntrustedBody {|
-           ub_owner   := "C";
-           ub_exports := [ {| ue_name  := "adv";
-                              ue_nargs := 0 |};
-                           {| ue_name  := "g";
-                              ue_nargs := 0 |} ] |} |}
+       fc_body          := UntrustedBody {|
+         ub_owner   := "C";
+         ub_exports := [
+           {| ue_name := "adv"; ue_nargs := 0 |};
+           {| ue_name := "g";   ue_nargs := 0 |}
+         ] |} |}
   ];
-  fw_threads    := [ {| ft_cmpt          := "main";
-                        ft_entry         := "entry";
-                        ft_stack_size    := 100;
-                        ft_tstack_frames := 24 |} ];
+  fw_threads    := [
+    {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
+  ];
   fw_otypes     := [];
   fw_heap_roots := []
 |}.

@@ -94,9 +94,13 @@ Definition hts_demo_firmware : firmware := hts_firmware hts_alloc_sealing_type.
 Definition hts_demo_link_cfg : link_cfg := {|
   lk_base        := 16;
   lk_ot_switcher := hts_switcher_sealing_type;
-  lk_adv         := [("B", {| la_code    := hts_adv_code;
-                              la_data    := hts_adv_data;
-                              la_exports := [4] |})]
+  lk_adv         := [
+    ("B", {| la_code    := hts_adv_code;
+             la_data    := hts_adv_data;
+             la_exports := [
+               4  (* after the 4 imports *)
+             ] |})
+  ]
 |}.
 
 (** ** The linked image and its initial state *)

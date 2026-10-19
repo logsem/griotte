@@ -34,9 +34,14 @@ Definition so_C_data : list Word := [WInt 0].
 Definition so_demo_link_cfg : link_cfg := {|
   lk_base        := 16;
   lk_ot_switcher := so_switcher_sealing_type;
-  lk_adv         := [("C", {| la_code    := so_C_code;
-                              la_data    := so_C_data;
-                              la_exports := [so_C_adv_entry; so_C_g_entry] |})]
+  lk_adv         := [
+    ("C", {| la_code    := so_C_code;
+             la_data    := so_C_data;
+             la_exports := [
+               so_C_adv_entry;
+               so_C_g_entry
+             ] |})
+  ]
 |}.
 
 (** ** The linked image and its initial state *)

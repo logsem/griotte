@@ -32,9 +32,14 @@ Definition vae_C_data : list Word := [WInt 0].
 Definition vae_demo_link_cfg : link_cfg := {|
   lk_base        := 16;
   lk_ot_switcher := vae_switcher_sealing_type;
-  lk_adv         := [("C", {| la_code    := vae_C_code;
-                              la_data    := vae_C_data;
-                              la_exports := [vae_C_adv_entry; vae_C_g_entry] |})]
+  lk_adv         := [
+    ("C", {| la_code    := vae_C_code;
+             la_data    := vae_C_data;
+             la_exports := [
+               vae_C_adv_entry;
+               vae_C_g_entry
+             ] |})
+  ]
 |}.
 
 (** ** The linked image and its initial state *)

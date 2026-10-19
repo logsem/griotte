@@ -16,53 +16,65 @@ Definition kvs_firmware `{MP : MachineParameters}
     (ot_kvs : OType) (key_main key_B : Z) : firmware := {|
   fw_cmpts      := [
     {| fc_name          := "main";
-       fc_imports       := [ISwitcherCall; IAssert; IExport "B" "f";
-                            IExport "kvs" "addOrUpdate"; IExport "kvs" "read";
-                            IExport "kvs" "erase"; ISealedStatic ot_kvs "user_key"];
-       fc_static_sealed := [ {| ss_name := "user_key"; ss_word := WInt key_main |} ];
-       fc_body          :=
-         TrustedBody {|
-           tb_code    := kvs_main_code;
-           tb_data    := [FWs kvs_main_data];
-           tb_exports := [ {| fe_name    := "entry";
-                              fe_offset  := 7;
-                              fe_nargs   := 0;
-                              fe_posture := InterruptEnabled |} ] |} |};
+       fc_imports       := [
+         ISwitcherCall;
+         IAssert;
+         IExport "B" "f";
+         IExport "kvs" "addOrUpdate";
+         IExport "kvs" "read";
+         IExport "kvs" "erase";
+         ISealedStatic ot_kvs "user_key"
+       ];
+       fc_static_sealed := [
+         {| ss_name := "user_key"; ss_word := WInt key_main |}
+       ];
+       fc_body          := TrustedBody {|
+         tb_code    := kvs_main_code;
+         tb_data    := [
+           FWs kvs_main_data
+         ];
+         tb_exports := [
+           {| fe_name := "entry"; fe_offset := 7; fe_nargs := 0; fe_posture := InterruptEnabled |}  (* after the 7 imports *)
+         ] |} |};
     {| fc_name          := "kvs";
-       fc_imports       := [ISwitcherCall;
-                            FW (WSealRange true (false, true) Global ot_kvs (ot_kvs ^+ 1)%ot ot_kvs)];
+       fc_imports       := [
+         ISwitcherCall;
+         FW (WSealRange true (false, true) Global ot_kvs (ot_kvs ^+ 1)%ot ot_kvs)  (* unseal-only key of [ot_kvs] *)
+       ];
        fc_static_sealed := [];
-       fc_body          :=
-         TrustedBody {|
-           tb_code    := kvs_service_instrs;
-           tb_data    := [FWs kvs_data];
-           tb_exports := [ {| fe_name    := "addOrUpdate";
-                              fe_offset  := kvs_addOrUpdate_pcc_off;
-                              fe_nargs   := kvs_addOrUpdate_nargs;
-                              fe_posture := InterruptEnabled |};
-                           {| fe_name    := "read";
-                              fe_offset  := kvs_read_pcc_off;
-                              fe_nargs   := kvs_read_nargs;
-                              fe_posture := InterruptEnabled |};
-                           {| fe_name    := "erase";
-                              fe_offset  := kvs_erase_pcc_off;
-                              fe_nargs   := kvs_erase_nargs;
-                              fe_posture := InterruptEnabled |} ] |} |};
+       fc_body          := TrustedBody {|
+         tb_code    := kvs_service_instrs;
+         tb_data    := [
+           FWs kvs_data
+         ];
+         tb_exports := [
+           {| fe_name := "addOrUpdate"; fe_offset := kvs_addOrUpdate_pcc_off; fe_nargs := kvs_addOrUpdate_nargs; fe_posture := InterruptEnabled |};
+           {| fe_name := "read";        fe_offset := kvs_read_pcc_off;        fe_nargs := kvs_read_nargs;        fe_posture := InterruptEnabled |};
+           {| fe_name := "erase";       fe_offset := kvs_erase_pcc_off;       fe_nargs := kvs_erase_nargs;       fe_posture := InterruptEnabled |}
+         ] |} |};
     {| fc_name          := "B";
-       fc_imports       := [ISwitcherCall; IExport "kvs" "addOrUpdate"; IExport "kvs" "read";
-                            IExport "kvs" "erase"; ISealedStatic ot_kvs "user_key"];
-       fc_static_sealed := [ {| ss_name := "user_key"; ss_word := WInt key_B |} ];
-       fc_body          :=
-         UntrustedBody {|
-           ub_owner   := "B";
-           ub_exports := [ {| ue_name  := "f";
-                              ue_nargs := 0 |} ] |} |}
+       fc_imports       := [
+         ISwitcherCall;
+         IExport "kvs" "addOrUpdate";
+         IExport "kvs" "read";
+         IExport "kvs" "erase";
+         ISealedStatic ot_kvs "user_key"
+       ];
+       fc_static_sealed := [
+         {| ss_name := "user_key"; ss_word := WInt key_B |}
+       ];
+       fc_body          := UntrustedBody {|
+         ub_owner   := "B";
+         ub_exports := [
+           {| ue_name := "f"; ue_nargs := 0 |}
+         ] |} |}
   ];
-  fw_threads    := [ {| ft_cmpt          := "main";
-                        ft_entry         := "entry";
-                        ft_stack_size    := 100;
-                        ft_tstack_frames := 24 |} ];
-  fw_otypes     := [ot_kvs];
+  fw_threads    := [
+    {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
+  ];
+  fw_otypes     := [
+    ot_kvs
+  ];
   fw_heap_roots := []
 |}.
 
