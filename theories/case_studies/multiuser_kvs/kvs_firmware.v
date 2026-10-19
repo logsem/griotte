@@ -34,7 +34,7 @@ Definition kvs_firmware `{MP : MachineParameters}
        fc_imports := [ISwitcherCall; IExport "kvs" 0; IExport "kvs" 1; IExport "kvs" 2;
                       ISealedStatic ot_kvs 0];
        fc_static_sealed := [WInt key_B];
-       fc_body := UntrustedBody "B" 1 |}
+       fc_body := UntrustedBody "B" [0] |}
   ];
   fw_threads := [MkFwThread "main" 0 100 24];
   fw_otypes := [ot_kvs];
@@ -83,6 +83,8 @@ Proof. intros Hok. exact Hok. Qed.
 
 (** ** Printing *)
 
+(* The binders of the predicate print with their names. *)
+Unset Mangle Names.
 Import FwPrintNotations.
 #[local] Open Scope OType_scope.
 #[local] Open Scope Addr_scope.

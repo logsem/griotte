@@ -422,13 +422,14 @@ Section kvs_obligations.
     iEval (rewrite fw_thread_of_0) in "Hstack".
     iMod (fw_close_adv_world (kvs_firmware ot_kvs key_main key_B) img σ
             (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt)
-            "B" 1 HB_l W1' B
+            "B" [0] HB_l W1' B
            with "Hswitcher Hswitcher_static Hseal_switcher HB_imports HB_code HB_data
                  HB_etbl_pcc HB_etbl_cgp HB_etbl_entries Hstack [] [] Hworld_B")
       as "(Hworld_B & #Hinterp_pcc_B & #Hinterp_cgp_B & #Hinterp_stack_B & #HB_exports)".
     { exact Hok. }
     { apply list_elem_of_further, list_elem_of_further, list_elem_of_here. }
     { done. }
+    { apply Forall_singleton; lia. }
     { intros a _. done. }
     { cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name replicate fw_nth
              fw_cmpts kvs_firmware].

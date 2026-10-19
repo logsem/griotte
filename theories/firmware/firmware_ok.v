@@ -119,16 +119,16 @@ Section translation.
 
   (** *** Compartments *)
 
-  (** The export entries of an untrusted compartment: [n] entries with
-      arbitrary offsets inside the PCC range, no argument, and interrupts
-      enabled. *)
-  Fixpoint hole_exports (c : img_cmpt) (n : nat) (k : list Word → Prop) : Prop :=
-    match n with
-    | 0 => k []
-    | S n =>
+  (** The export entries of an untrusted compartment: one entry per number
+      of arguments in [ns], with an arbitrary offset inside the PCC range,
+      that number of arguments, and interrupts enabled. *)
+  Fixpoint hole_exports (c : img_cmpt) (ns : list nat) (k : list Word → Prop) : Prop :=
+    match ns with
+    | [] => k []
+    | n :: ns =>
         ∃ off : nat,
           (Z.of_nat off < cmpt_e_pcc c - cmpt_b_pcc c)%Z ∧
-          hole_exports c n (λ ws, k (export_word (MkFwExport off 0 InterruptEnabled) :: ws))
+          hole_exports c ns (λ ws, k (export_word (MkFwExport off n InterruptEnabled) :: ws))
     end.
 
   Definition body_ok (c : img_cmpt) (b : fw_body) : Prop :=
@@ -138,11 +138,11 @@ Section translation.
         cmpt_data c = chunks_words c data ∧
         cmpt_exp_tbl_entries c =
           fw_imap (λ k e, note ("export " ++ nat_str k) (export_word e)) exps
-    | UntrustedBody _ n =>
+    | UntrustedBody _ ns =>
         note "arbitrary, any length" (Forall is_int (cmpt_code c)) ∧
         note "arbitrary, any length"
           (Forall (initial_data_word (cmpt_b_cgp c) (cmpt_e_cgp c)) (cmpt_data c)) ∧
-        note "arbitrary offsets, inside the PCC range" (hole_exports c n (λ ws, cmpt_exp_tbl_entries c = ws))
+        note "arbitrary offsets, inside the PCC range" (hole_exports c ns (λ ws, cmpt_exp_tbl_entries c = ws))
     end.
 
   Definition cmpt_ok (fc : fw_cmpt) : Prop :=

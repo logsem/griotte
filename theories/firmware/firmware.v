@@ -38,10 +38,11 @@ Record fw_export : Type := MkFwExport {
 (** The contents of a compartment. A trusted compartment has known code,
     globals and exports. The code, the globals and the export offsets of an
     untrusted compartment are arbitrary; [owner] names the logical
-    compartment it belongs to. *)
+    compartment it belongs to, and [exports_nargs] gives the number of
+    arguments of each of its exports. *)
 Inductive fw_body : Type :=
 | TrustedBody (code : list Word) (data : list fw_chunk) (exports : list fw_export)
-| UntrustedBody (owner : string) (nexports : nat).
+| UntrustedBody (owner : string) (exports_nargs : list nat).
 
 Record fw_cmpt : Type := MkFwCmpt {
   fc_name : string;
@@ -108,7 +109,7 @@ Definition initial_data_word (b e : Addr) (w : Word) : Prop :=
 
 (** ** Lookups in a firmware *)
 
-Definition default_fw_cmpt : fw_cmpt := MkFwCmpt "" [] [] (UntrustedBody "" 0).
+Definition default_fw_cmpt : fw_cmpt := MkFwCmpt "" [] [] (UntrustedBody "" []).
 
 Fixpoint fw_cmpt_of (l : list fw_cmpt) (n : string) : fw_cmpt :=
   match l with

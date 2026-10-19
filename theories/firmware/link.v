@@ -110,10 +110,10 @@ Section link.
     let '(code, data, entries) :=
       match fc_body fc with
       | TrustedBody code data exps => (code, chunks_words img c data, map export_word exps)
-      | UntrustedBody _ _ =>
+      | UntrustedBody _ ns =>
           let a := adv_of n in
           (la_code a, la_data a,
-           map (λ off, WInt (encode_entry_point InterruptEnabled 0 (Z.of_nat off))) (la_exports a))
+           zip_with (λ off k, export_word (MkFwExport off k InterruptEnabled)) (la_exports a) ns)
       end in
     (n, MkImgCmpt (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c) (cmpt_b_cgp c) (cmpt_e_cgp c)
           (cmpt_b_static_sealed c) (cmpt_e_static_sealed c) (cmpt_exp_tbl_pcc c)

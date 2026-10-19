@@ -1,100 +1,31 @@
-From griotte.program_logic Require Import allocator_resources.
-From iris.program_logic Require Import adequacy.
+From stdpp Require Import gmap strings.
+From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
-  registers griotte_lang machine_run switcher assert compartment_layout
-  cmdc cmdc_adequacy disjoint_regions_tactics.
-From griotte Require Import adequacy_common.
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  switcher assert allocator_resources compartment_layout
+  cmdc cmdc_adequacy.
+(* Imported last: the fields of the image records. *)
+From griotte Require Import image firmware firmware_ok image_state link print cmdc_firmware.
+Set Mangle Names.
 
 #[export] Existing Instance machine_parameters_instance.
-
 #[local] Transparent MemNum ONum.
+#[local] Open Scope string_scope.
 
-#[local] Notation "'A' z" :=
-  (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-#[local] Notation "'OT' z" :=
-  (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
+(** * A concrete instance of the CMDC case study
 
-Definition cmdc_main_pcc_b : Addr := A 9.
-Definition cmdc_main_code_start : Addr := A 13.
-Definition cmdc_main_pcc_e : Addr := A 56.
-Definition cmdc_B_pcc_b : Addr := A 98.
-Definition cmdc_B_code_start : Addr := A 99.
-Definition cmdc_B_pcc_e : Addr := A 102.
-Definition cmdc_C_pcc_b : Addr := A 102.
-Definition cmdc_C_code_start : Addr := A 103.
-Definition cmdc_C_pcc_e : Addr := A 105.
-Definition cmdc_main_data_b : Addr := A 105.
-Definition cmdc_main_data_e : Addr := A 107.
-Definition cmdc_B_data_b : Addr := A 107.
-Definition cmdc_B_data_e : Addr := A 108.
-Definition cmdc_C_data_b : Addr := A 108.
-Definition cmdc_C_data_e : Addr := A 109.
-Definition cmdc_main_exports_pcc : Addr := A 109.
-Definition cmdc_main_exports_cgp : Addr := A 110.
-Definition cmdc_main_exports_entries_b : Addr := A 111.
-Definition cmdc_main_exports_entries_e : Addr := A 111.
-Definition cmdc_B_exports_pcc : Addr := A 111.
-Definition cmdc_B_exports_cgp : Addr := A 112.
-Definition cmdc_B_exports_entries_b : Addr := A 113.
-Definition cmdc_B_exports_entries_e : Addr := A 114.
-Definition cmdc_C_exports_pcc : Addr := A 114.
-Definition cmdc_C_exports_cgp : Addr := A 115.
-Definition cmdc_C_exports_entries_b : Addr := A 116.
-Definition cmdc_C_exports_entries_e : Addr := A 117.
-Definition cmdc_assert_b : Addr := A 117.
-Definition cmdc_assert_cap : Addr := A 128.
-Definition cmdc_assert_e : Addr := A 129.
-Definition cmdc_assert_flag : Addr := A 129.
-Definition cmdc_switcher_b : Addr := A 131.
-Definition cmdc_switcher_call : Addr := A 132.
-Definition cmdc_switcher_return : Addr := A 210.
-Definition cmdc_switcher_e : Addr := A 268.
-Definition cmdc_switcher_sealing_type : OType := OT 9.
-Definition cmdc_trusted_stack_b : Addr := A 4096.
-Definition cmdc_trusted_stack_e : Addr := A 4194.
-Definition cmdc_stack_b : Addr := A 1024.
-Definition cmdc_stack_e : Addr := A 1124.
+    The CMDC firmware with two concrete adversaries [B] and [C], laid out
+    by the linker. Its initial state satisfies [cmdc_initial_state_ok] by
+    computation, runs to [Halted], and [cmdc_adequacy] applies to it. *)
 
-Ltac unfold_cmdc_addresses :=
-  unfold cmdc_main_pcc_b, cmdc_main_code_start, cmdc_main_pcc_e,
-    cmdc_B_pcc_b, cmdc_B_code_start, cmdc_B_pcc_e,
-    cmdc_C_pcc_b, cmdc_C_code_start, cmdc_C_pcc_e,
-    cmdc_main_data_b, cmdc_main_data_e, cmdc_B_data_b,
-    cmdc_B_data_e, cmdc_C_data_b, cmdc_C_data_e,
-    cmdc_main_exports_pcc, cmdc_main_exports_cgp,
-    cmdc_main_exports_entries_b, cmdc_main_exports_entries_e,
-    cmdc_B_exports_pcc, cmdc_B_exports_cgp, cmdc_B_exports_entries_b,
-    cmdc_B_exports_entries_e, cmdc_C_exports_pcc, cmdc_C_exports_cgp,
-    cmdc_C_exports_entries_b, cmdc_C_exports_entries_e,
-    cmdc_assert_b, cmdc_assert_cap, cmdc_assert_e, cmdc_assert_flag,
-    cmdc_switcher_b, cmdc_switcher_call, cmdc_switcher_return,
-    cmdc_switcher_e, cmdc_switcher_sealing_type,
-    cmdc_trusted_stack_b, cmdc_trusted_stack_e,
-    cmdc_stack_b, cmdc_stack_e.
-
-Ltac unfold_cmdc_addresses_in H :=
-  unfold cmdc_main_pcc_b, cmdc_main_code_start, cmdc_main_pcc_e,
-    cmdc_B_pcc_b, cmdc_B_code_start, cmdc_B_pcc_e,
-    cmdc_C_pcc_b, cmdc_C_code_start, cmdc_C_pcc_e,
-    cmdc_main_data_b, cmdc_main_data_e, cmdc_B_data_b,
-    cmdc_B_data_e, cmdc_C_data_b, cmdc_C_data_e,
-    cmdc_main_exports_pcc, cmdc_main_exports_cgp,
-    cmdc_main_exports_entries_b, cmdc_main_exports_entries_e,
-    cmdc_B_exports_pcc, cmdc_B_exports_cgp, cmdc_B_exports_entries_b,
-    cmdc_B_exports_entries_e, cmdc_C_exports_pcc, cmdc_C_exports_cgp,
-    cmdc_C_exports_entries_b, cmdc_C_exports_entries_e,
-    cmdc_assert_b, cmdc_assert_cap, cmdc_assert_e, cmdc_assert_flag,
-    cmdc_switcher_b, cmdc_switcher_call, cmdc_switcher_return,
-    cmdc_switcher_e, cmdc_switcher_sealing_type,
-    cmdc_trusted_stack_b, cmdc_trusted_stack_e,
-    cmdc_stack_b, cmdc_stack_e in H.
+Definition cmdc_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
 (** The concrete adversary consists of two unknown compartments. Compartment
     [B] writes [7] through the capability it receives and also saves that
     capability on its stack; compartment [C] writes [9] through its received
     capability. Together they exercise the main program's cross-compartment
-    capability discipline. *)
+    capability discipline. Each has one zeroed global, and its entry point
+    right after its import. *)
 Definition cmdc_B_code : list Word :=
   encodeInstrsW [
     Store ca0 7%Z 0;
@@ -108,527 +39,67 @@ Definition cmdc_C_code : list Word :=
   ].
 Definition cmdc_B_data : list Word := [WInt 0].
 Definition cmdc_C_data : list Word := [WInt 0].
-Definition cmdc_B_imports : list Word :=
-  [WSentry FwdDisable true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
-Definition cmdc_C_imports : list Word :=
-  [WSentry FwdDisable true XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
-Definition cmdc_B_exports : list Word := [WInt (encode_entry_point InterruptEnabled 1 1)].
-Definition cmdc_C_exports : list Word := [WInt (encode_entry_point InterruptEnabled 1 1)].
 
-Program Definition cmdc_concrete_cmptSwitcher : cmptSwitcher.
+Definition cmdc_demo_link_cfg : link_cfg :=
+  MkLinkCfg 16 cmdc_switcher_sealing_type
+    [("B", MkLinkAdv cmdc_B_code cmdc_B_data [1]);
+     ("C", MkLinkAdv cmdc_C_code cmdc_C_data [1])].
+
+(** ** The linked image and its initial state *)
+
+Definition cmdc_demo_image : fw_image :=
+  Eval vm_compute in
+    default (place cmdc_demo_link_cfg cmdc_firmware).1
+      (link cmdc_demo_link_cfg cmdc_firmware).
+
+Lemma cmdc_demo_linked :
+  link cmdc_demo_link_cfg cmdc_firmware = Some cmdc_demo_image.
+Proof. vm_compute; reflexivity. Qed.
+
+Definition cmdc_demo_state : ExecConf := img_state cmdc_firmware cmdc_demo_image.
+
+Ltac solve_other_registers :=
+  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
+  rewrite !lookup_insert_ne; try set_solver;
+  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
+
+Lemma cmdc_demo_ok :
+  cmdc_initial_state_ok (img_sw cmdc_demo_image) (img_asrt cmdc_demo_image)
+    (thread_of cmdc_demo_image 0) (cmpt_of cmdc_demo_image "main")
+    (cmpt_of cmdc_demo_image "B") (cmpt_of cmdc_demo_image "C")
+    cmdc_demo_state.
 Proof.
-  refine (@mkCmptSwitcher machine_parameters_instance
-    cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call
-    cmdc_switcher_return cmdc_switcher_sealing_type
-    cmdc_trusted_stack_b cmdc_trusted_stack_e _ _ _ _
-    (initial_trusted_stack_content (WInt 0) (WInt 0) 24) _ eq_refl
-    ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_words; apply trusted_stack_word_int) cmdc_stack_b cmdc_stack_e
-    (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_cmdc_addresses.
-    repeat split; unfold disjoint, set_disjoint_instance;
-      intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
-      solve_addr.
-  - solve_disjoint_from_mmio.
-  - reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-Defined.
-
-Program Definition cmdc_concrete_cmptAssert : cmptAssert.
-Proof.
-  refine (@mkCmptAssert machine_parameters_instance cmdc_assert_b
-    cmdc_assert_e cmdc_assert_cap cmdc_assert_flag _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; reflexivity.
-  - unfold_cmdc_addresses.
-    unfold disjoint, set_disjoint_instance.
-    intros x Hx Hx'.
-    rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    solve_addr.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-Defined.
-
-#[local] Instance cmdc_concrete_switcherLayout : switcherLayout.
-Proof.
-  exact (cmptSwitcher_switcherLayout cmdc_concrete_cmptSwitcher).
-Defined.
-
-#[local] Instance cmdc_concrete_assertLayout : assertLayout.
-Proof.
-  exact (cmptAssert_assertLayout cmdc_concrete_cmptAssert).
-Defined.
-
-Definition cmdc_B_f : Sealable :=
-  SCap true RO Global cmdc_B_exports_pcc cmdc_B_exports_entries_e
-    cmdc_B_exports_entries_b.
-Definition cmdc_C_g : Sealable :=
-  SCap true RO Global cmdc_C_exports_pcc cmdc_C_exports_entries_e
-    cmdc_C_exports_entries_b.
-Definition cmdc_main_imports_concrete : list Word :=
-  cmdc_main_imports cmdc_B_f cmdc_C_g.
-
-Program Definition cmdc_concrete_main_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance cmdc_main_pcc_b cmdc_main_code_start cmdc_main_pcc_e
-    cmdc_main_data_b cmdc_main_data_e cmdc_main_data_e cmdc_main_data_e
-    cmdc_main_exports_pcc
-    cmdc_main_exports_cgp cmdc_main_exports_entries_b
-    cmdc_main_exports_entries_e cmdc_main_imports_concrete cmdc_main_code
-    cmdc_main_data [] [] _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_cmdc_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Program Definition cmdc_concrete_B_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance cmdc_B_pcc_b cmdc_B_code_start cmdc_B_pcc_e
-    cmdc_B_data_b cmdc_B_data_e cmdc_B_data_e cmdc_B_data_e
-    cmdc_B_exports_pcc cmdc_B_exports_cgp
-    cmdc_B_exports_entries_b cmdc_B_exports_entries_e cmdc_B_imports
-    cmdc_B_code cmdc_B_data [] cmdc_B_exports _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_cmdc_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Program Definition cmdc_concrete_C_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance cmdc_C_pcc_b cmdc_C_code_start cmdc_C_pcc_e
-    cmdc_C_data_b cmdc_C_data_e cmdc_C_data_e cmdc_C_data_e
-    cmdc_C_exports_pcc cmdc_C_exports_cgp
-    cmdc_C_exports_entries_b cmdc_C_exports_entries_e cmdc_C_imports
-    cmdc_C_code cmdc_C_data [] cmdc_C_exports _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_cmdc_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-(** All nonempty concrete regions, ordered by their addresses. The three
-    compartment static-sealed ranges are empty and are deliberately omitted.
-    Keeping this definition transparent makes the ordering auditable and lets
-    the four layout fields reuse one checked disjointness certificate. *)
-Definition cmdc_concrete_region_partition : list (list Addr) :=
-  [ finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e;
-    finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e;
-    finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e;
-    finz.seq_between cmdc_main_data_b cmdc_main_data_e;
-    finz.seq_between cmdc_B_data_b cmdc_B_data_e;
-    finz.seq_between cmdc_C_data_b cmdc_C_data_e;
-    finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e;
-    finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e;
-    finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e;
-    finz.seq_between cmdc_assert_b cmdc_assert_cap;
-    finz.seq_between cmdc_assert_cap cmdc_assert_e;
-    finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a;
-    finz.seq_between cmdc_switcher_b cmdc_switcher_e;
-    finz.seq_between cmdc_stack_b cmdc_stack_e;
-    finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e
-  ].
-
-Lemma cmdc_concrete_region_partition_disjoint :
-  ## cmdc_concrete_region_partition.
-Proof.
-  rewrite /cmdc_concrete_region_partition.
-  unfold_cmdc_addresses.
-  disj_regions.
+  rewrite /cmdc_initial_state_ok.
+  split_and!.
+  all: try (exists 1%nat; split_and!).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /cmdc_demo_state /img_state /img_regs; solve_other_registers
+            end).
+  all: solve_concrete_condition.
 Qed.
 
-(** These four opaque projections are the proof fields of [memory_layout].
-    Their explicit region forms avoid reducing the large transparent concrete
-    records; the empty static-sealed ranges are removed before selecting
-    pairwise facts from the shared certificate. *)
-#[local] Lemma cmdc_concrete_cmpts_disjoints :
-  cmdc_concrete_main_cmpt ## cmdc_concrete_B_cmpt
-  ∧ cmdc_concrete_main_cmpt ## cmdc_concrete_C_cmpt
-  ∧ cmdc_concrete_B_cmpt ## cmdc_concrete_C_cmpt.
-Proof.
-  change
-    ((finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e ∪
-      finz.seq_between cmdc_main_data_b cmdc_main_data_e ∪
-      finz.seq_between cmdc_main_data_e cmdc_main_data_e ∪
-      finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e)
-       ##
-     (finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e ∪
-      finz.seq_between cmdc_B_data_b cmdc_B_data_e ∪
-      finz.seq_between cmdc_B_data_e cmdc_B_data_e ∪
-      finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e)
-     /\
-     (finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e ∪
-      finz.seq_between cmdc_main_data_b cmdc_main_data_e ∪
-      finz.seq_between cmdc_main_data_e cmdc_main_data_e ∪
-      finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e)
-       ##
-     (finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e ∪
-      finz.seq_between cmdc_C_data_b cmdc_C_data_e ∪
-      finz.seq_between cmdc_C_data_e cmdc_C_data_e ∪
-      finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e)
-     /\
-     (finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e ∪
-      finz.seq_between cmdc_B_data_b cmdc_B_data_e ∪
-      finz.seq_between cmdc_B_data_e cmdc_B_data_e ∪
-      finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e)
-       ##
-     (finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e ∪
-      finz.seq_between cmdc_C_data_b cmdc_C_data_e ∪
-      finz.seq_between cmdc_C_data_e cmdc_C_data_e ∪
-      finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e)).
-  pose proof cmdc_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty cmdc_main_data_e cmdc_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty cmdc_B_data_e cmdc_B_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty cmdc_C_data_e cmdc_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
-Qed.
+(** ** The run
 
-#[local] Lemma cmdc_concrete_switcher_cmpt_disjoints :
-  switcher_cmpt_disjoint
-    cmdc_concrete_main_cmpt cmdc_concrete_cmptSwitcher
-  ∧ switcher_cmpt_disjoint
-      cmdc_concrete_B_cmpt cmdc_concrete_cmptSwitcher
-  ∧ switcher_cmpt_disjoint
-      cmdc_concrete_C_cmpt cmdc_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between cmdc_switcher_b cmdc_switcher_e ∪
-      finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e ∪
-      finz.seq_between cmdc_stack_b cmdc_stack_e)
-       ##
-     (finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e ∪
-      finz.seq_between cmdc_main_data_b cmdc_main_data_e ∪
-      finz.seq_between cmdc_main_data_e cmdc_main_data_e ∪
-      finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e)
-     /\
-     (finz.seq_between cmdc_switcher_b cmdc_switcher_e ∪
-      finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e ∪
-      finz.seq_between cmdc_stack_b cmdc_stack_e)
-       ##
-     (finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e ∪
-      finz.seq_between cmdc_B_data_b cmdc_B_data_e ∪
-      finz.seq_between cmdc_B_data_e cmdc_B_data_e ∪
-      finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e)
-     /\
-     (finz.seq_between cmdc_switcher_b cmdc_switcher_e ∪
-      finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e ∪
-      finz.seq_between cmdc_stack_b cmdc_stack_e)
-       ##
-     (finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e ∪
-      finz.seq_between cmdc_C_data_b cmdc_C_data_e ∪
-      finz.seq_between cmdc_C_data_e cmdc_C_data_e ∪
-      finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e)).
-  pose proof cmdc_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty cmdc_main_data_e cmdc_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty cmdc_B_data_e cmdc_B_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty cmdc_C_data_e cmdc_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma cmdc_concrete_assert_cmpt_disjoints :
-  assert_cmpt_disjoint
-    cmdc_concrete_main_cmpt cmdc_concrete_cmptAssert
-  ∧ assert_cmpt_disjoint
-      cmdc_concrete_B_cmpt cmdc_concrete_cmptAssert
-  ∧ assert_cmpt_disjoint
-      cmdc_concrete_C_cmpt cmdc_concrete_cmptAssert.
-Proof.
-  change
-    ((finz.seq_between cmdc_assert_b cmdc_assert_cap ∪
-      finz.seq_between cmdc_assert_cap cmdc_assert_e ∪
-      finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e ∪
-      finz.seq_between cmdc_main_data_b cmdc_main_data_e ∪
-      finz.seq_between cmdc_main_data_e cmdc_main_data_e ∪
-      finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e)
-     /\
-     (finz.seq_between cmdc_assert_b cmdc_assert_cap ∪
-      finz.seq_between cmdc_assert_cap cmdc_assert_e ∪
-      finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e ∪
-      finz.seq_between cmdc_B_data_b cmdc_B_data_e ∪
-      finz.seq_between cmdc_B_data_e cmdc_B_data_e ∪
-      finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e)
-     /\
-     (finz.seq_between cmdc_assert_b cmdc_assert_cap ∪
-      finz.seq_between cmdc_assert_cap cmdc_assert_e ∪
-      finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e ∪
-      finz.seq_between cmdc_C_data_b cmdc_C_data_e ∪
-      finz.seq_between cmdc_C_data_e cmdc_C_data_e ∪
-      finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e)).
-  pose proof cmdc_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty cmdc_main_data_e cmdc_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty cmdc_B_data_e cmdc_B_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty cmdc_C_data_e cmdc_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma cmdc_concrete_assert_switcher_disjoints :
-  assert_switcher_disjoint
-    cmdc_concrete_cmptAssert cmdc_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between cmdc_assert_b cmdc_assert_cap ∪
-      finz.seq_between cmdc_assert_cap cmdc_assert_e ∪
-      finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between cmdc_switcher_b cmdc_switcher_e ∪
-      finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e ∪
-      finz.seq_between cmdc_stack_b cmdc_stack_e)).
-  pose proof cmdc_concrete_region_partition_disjoint as Hpartition.
-  solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
-Qed.
-
-#[global] Instance cmdc_concrete_layout : memory_layout.
-Proof.
-  refine
-    (@Build_memory_layout
-       machine_parameters_instance
-       cmdc_concrete_cmptSwitcher
-       cmdc_concrete_cmptAssert
-       cmdc_concrete_main_cmpt
-       cmdc_concrete_B_cmpt
-       1
-       _
-       cmdc_concrete_C_cmpt
-       1
-       _
-       cmdc_concrete_cmpts_disjoints
-       cmdc_concrete_switcher_cmpt_disjoints
-       cmdc_concrete_assert_cmpt_disjoints
-       cmdc_concrete_assert_switcher_disjoints).
-  all: vm_compute; eauto; reflexivity.
-Defined.
-
-Definition cmdc_initial_pc : Word :=
-  WCap true RX Global cmdc_main_pcc_b cmdc_main_pcc_e
-      cmdc_main_code_start.
-
-Definition cmdc_initial_registers : Reg :=
-  (<[cgp := WCap true RW Global cmdc_main_data_b cmdc_main_data_e
-      cmdc_main_data_b]>
-  (<[csp := WCap true RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
-    (gset_to_gmap (WInt 0) all_registers_s))).
-
-Definition cmdc_initial_sregisters : SReg :=
-  initial_sregisters_with
-    (WCap true RWL Global cmdc_trusted_stack_b cmdc_trusted_stack_e
-      cmdc_trusted_stack_b).
-
-Definition cmdc_initial_memory : Mem := mk_initial_memory.
-
-Lemma cmdc_initial_registers_correct :
-  is_initial_registers cmdc_initial_pc cmdc_initial_registers.
-Proof.
-  rewrite /is_initial_registers /cmdc_initial_pc /cmdc_initial_registers.
-  cbn [cmdc_concrete_layout cmdc_concrete_main_cmpt].
-  split; [|split; [|split]].
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - intros r Hr; rewrite !lookup_insert_ne; try set_solver.
-    apply lookup_gset_to_gmap_Some; split.
-    + apply all_registers_s_correct.
-    + done.
-Qed.
-
-Lemma cmdc_initial_sregisters_correct :
-  is_initial_sregisters cmdc_initial_sregisters.
-Proof.
-  rewrite /is_initial_sregisters /cmdc_initial_sregisters.
-  cbn [cmdc_concrete_layout cmdc_concrete_cmptSwitcher].
-  apply initial_sregisters_with_correct. vm_compute; reflexivity.
-Qed.
-
-Lemma cmdc_initial_memory_correct :
-  is_initial_memory cmdc_initial_memory.
-Proof.
-  rewrite /is_initial_memory /cmdc_initial_memory.
-  repeat split; try reflexivity; try apply Forall_nil_2.
-  - rewrite /cmdc_B_code /encodeInstrsW; repeat constructor; done.
-  - rewrite /cmdc_B_data; repeat constructor; done.
-  - rewrite /cmdc_C_code /encodeInstrsW; repeat constructor; done.
-  - rewrite /cmdc_C_data; repeat constructor; done.
-  - by apply Forall_replicate.
-Qed.
-
-(** The initialized free heap is disjoint from the concrete program. *)
-Lemma cmdc_initial_heap_disjoint :
-  initial_heap_memory ##ₘ mk_initial_program_memory.
-Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
-
-Lemma cmdc_concrete_adequacy pc' reg' sreg' mem' sh' es :
-  rtc erased_step
-    ([Seq (Instr Executable)],
-      (cmdc_initial_pc, cmdc_initial_registers, cmdc_initial_sregisters, cmdc_initial_memory, initial_heap_shadow))
-    (es, (pc', reg', sreg', mem', sh')) ->
-  mem' !! cmdc_assert_flag = Some (WInt 0%Z).
-Proof.
-  intro Hrun.
-  pose proof
-    (@cmdc_adequacy machine_parameters_instance cmdc_concrete_layout
-      cmdc_initial_pc pc' cmdc_initial_registers reg' cmdc_initial_sregisters sreg'
-      cmdc_initial_memory mem' initial_heap_shadow sh' es cmdc_initial_registers_correct
-      cmdc_initial_sregisters_correct cmdc_initial_memory_correct eq_refl cmdc_initial_heap_disjoint Hrun)
-    as Hadequacy.
-  cbn [cmdc_concrete_layout cmdc_concrete_cmptAssert] in Hadequacy.
-  exact Hadequacy.
-Qed.
-
-(** Combining the computed execution with [cmdc_concrete_adequacy] shows that
-    there is a final machine state such that the exact initial configuration:
-    - executes to [Halted], rather than failing or exhausting the chosen fuel;
-    - finishes with the assertion flag still set to zero.
-    Thus this particular adversarial execution terminates normally without
-    violating the case study's assertion. *)
+    [cmdc_demo_state] runs to [Halted], and [cmdc_adequacy] applies to it:
+    the flag of the assert library is still zero. *)
 Theorem cmdc_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step
-      ([Seq (Instr Executable)],
-        (cmdc_initial_pc, cmdc_initial_registers, cmdc_initial_sregisters,
-         cmdc_initial_memory, initial_heap_shadow))
+    rtc erased_step ([Seq (Instr Executable)], cmdc_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! cmdc_assert_flag = Some (WInt 0%Z).
+    ∧ mem' !! flag_assert (img_asrt cmdc_demo_image) = Some (WInt 0%Z).
 Proof.
-  edestruct (
-    machine_run_correct (N.to_nat (10000%N)) Executable
-      (cmdc_initial_pc, cmdc_initial_registers, cmdc_initial_sregisters,
-       cmdc_initial_memory, initial_heap_shadow)
-      Halted
-  ) as [[[[[pc' reg'] sreg'] mem'] sh'] Hsteps].
-  { vm_compute; reflexivity. }
-  exists pc', reg', sreg', mem', sh'. split.
-  - exact Hsteps.
-  - eapply cmdc_concrete_adequacy. exact Hsteps.
+  pose proof (machine_run_correct (N.to_nat 10000%N) Executable cmdc_demo_state Halted) as Hrun.
+  specialize (Hrun ltac:(vm_compute; reflexivity)).
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (cmdc_adequacy _ _ _ _ _ _ _ _ _ cmdc_demo_ok Hrun).
 Qed.
+
+(** ** The memory map of the linked image *)
+
+From Ltac2 Require Import Ltac2.
+Set Default Proof Mode "Classic".
+Import FwMapNotations.
+#[local] Open Scope Z_scope.
+
+Ltac2 Eval print_memory_map constr:(cmdc_demo_image).
