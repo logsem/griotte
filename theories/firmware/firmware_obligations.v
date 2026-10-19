@@ -131,6 +131,15 @@ Section obligation_facts.
     by eapply list_elem_of_lookup_2.
   Qed.
 
+  (** The conditions on the machine of a firmware with heap roots, for its
+      allocator. *)
+  Lemma fw_heap_machine fw img σ :
+    firmware_ok fw img σ →
+    fw_heap_roots fw ≠ [] →
+    (∀ a, heap_to_shadow a = translate_region heap_b heap_e shadow_b a) ∧
+    (revoker_addr < revoker_addr ^+ 1)%a.
+  Proof. intros (_ & _ & _ & Hwf). exact (img_wf_heap_machine _ _ Hwf). Qed.
+
   Lemma fw_cleared_regs_dom : dom fw_cleared_regs = all_registers_s ∖ {[cgp; csp]}.
   Proof. by rewrite /fw_cleared_regs dom_gset_to_gmap. Qed.
 

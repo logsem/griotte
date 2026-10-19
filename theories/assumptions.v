@@ -7,6 +7,7 @@ From griotte Require
   lse_adequacy
   stack_object_adequacy
   vae_adequacy
+  heap_temporal_safety_adequacy
 .
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout
@@ -15,8 +16,9 @@ From griotte Require Import
 From griotte Require Import
   image firmware firmware_ok print
   kvs_firmware cmdc_firmware dle_firmware droe_firmware lse_firmware so_firmware vae_firmware
+  hts_firmware
   kvs_concrete cmdc_concrete deep_locality_concrete deep_immutability_concrete lse_concrete
-  stack_object_concrete vae_concrete.
+  stack_object_concrete vae_concrete heap_temporal_safety_concrete.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
@@ -212,4 +214,29 @@ Section vae_memory_map.
   Open Scope Z_scope.
   Ltac2 Eval print_memory_map constr:(vae_demo_image).
 End vae_memory_map.
+*)
+
+(** ** Heap temporal safety (HTS) *)
+
+(*
+Goal True. idtac "
+Assumptions of the 'heap temporal safety' end-to-end theorem:". Abort.
+Print Assumptions heap_temporal_safety_adequacy.hts_adequacy.
+
+Print hts_initial_state_ok.
+
+Section hts_initial_state.
+  Import FwPrintNotations.
+  Open Scope string_scope.
+  Open Scope OType_scope.
+  Open Scope Addr_scope.
+  Ltac2 Eval print_initial_state constr:(@hts_initial_state_ok_annot).
+End hts_initial_state.
+
+Section hts_memory_map.
+  Import FwMapNotations.
+  Open Scope string_scope.
+  Open Scope Z_scope.
+  Ltac2 Eval print_memory_map constr:(hts_demo_image).
+End hts_memory_map.
 *)

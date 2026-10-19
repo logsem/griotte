@@ -208,25 +208,37 @@ Section checks.
       apply orb_true_iff in Hrev as [Hrev|Hrev]; apply bool_decide_eq_true in Hrev; solve_addr.
   Qed.
 
+  (** A word that is not executable, or whose bounds are outside the heap. *)
   Definition word_exec_okb (w : Word) : bool :=
-    match memory_cap_bounds w with
-    | Some (b, e) => closed_outside_heap b e
-    | None => true
-    end.
+    if executable_word w then
+      match memory_cap_bounds w with
+      | Some (b, e) => closed_outside_heap b e
+      | None => true
+      end
+    else true.
 
   Lemma word_exec_okb_sound w : word_exec_okb w = true → word_exec_ok w.
   Proof.
     rewrite /word_exec_okb /word_exec_ok /lword_exec /lword_of_word /=.
-    intros Hw _ _. split; first done.
+    intros Hw _ Hx. rewrite Hx in Hw. split; first done.
     intros b e Hbe. rewrite Hbe in Hw. split.
     - apply (closed_outside_heap_spec b e b Hw). by left.
     - intros y Hy. apply (closed_outside_heap_spec b e y Hw). by right.
   Qed.
 
-  Definition word_rootedb (w : Word) : bool := bool_decide (heap_authority_base w = None).
+  (** A word without heap authority, or with heap authority based at one of
+      the heap roots [H]. *)
+  Definition word_rootedb (H : gset Addr) (w : Word) : bool :=
+    match heap_authority_base w with
+    | None => true
+    | Some b => bool_decide (b ∈ H)
+    end.
 
-  Lemma word_rootedb_sound H w : word_rootedb w = true → word_rooted H w.
-  Proof. intros Hw. apply bool_decide_eq_true in Hw. intros b _ Hb. congruence. Qed.
+  Lemma word_rootedb_sound H w : word_rootedb H w = true → word_rooted H w.
+  Proof.
+    rewrite /word_rootedb. intros Hw b _ Hb. rewrite Hb in Hw.
+    by apply bool_decide_eq_true in Hw.
+  Qed.
 End checks.
 
 Fixpoint ranges_apart (rs : list (Addr * Addr)) : bool :=
@@ -264,8 +276,8 @@ Ltac solve_concrete_condition :=
       apply (Forall_check is_z); [intros ? Hz; by rewrite /is_int Hz | vm_compute; reflexivity]
   | |- Forall (initial_data_word _ _) _ =>
       apply (Forall_check is_z); [intros ? Hz; left; by rewrite Hz | vm_compute; reflexivity]
-  | |- Forall (word_rooted _) _ =>
-      apply (Forall_check word_rootedb); [apply word_rootedb_sound | vm_compute; reflexivity]
+  | |- Forall (word_rooted ?H) _ =>
+      apply (Forall_check (word_rootedb H)); [apply word_rootedb_sound | vm_compute; reflexivity]
   | |- Forall word_exec_ok _ =>
       apply (Forall_check word_exec_okb); [apply word_exec_okb_sound | vm_compute; reflexivity]
   | |- Forall otype_valid _ =>

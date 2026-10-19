@@ -605,12 +605,27 @@ Section layout_of_img_wf.
   Proof.
     intros (_ & _ & _ & _ & Himg) a Ha.
     rewrite /section in Himg. apply big_and_fw_app in Himg as [_ Hroots].
+    apply big_and_fw_app in Hroots as [Hroots _].
     apply big_and_fw_map in Hroots. rewrite Forall_forall in Hroots. apply Hroots.
     assert (∀ l : list Addr, fw_set l = list_to_set l) as Hset.
     { intros l. induction l as [|x l IH]; first done.
       destruct l as [|y l]; cbn; first set_solver.
       cbn in IH. by rewrite IH. }
     by rewrite Hset elem_of_list_to_set in Ha.
+  Qed.
+
+  (** The conditions on the machine of a firmware with heap roots. *)
+  Lemma img_wf_heap_machine fw img :
+    img_wf fw img →
+    fw_heap_roots fw ≠ [] →
+    (∀ a, heap_to_shadow a = translate_region heap_b heap_e shadow_b a) ∧
+    (revoker_addr < revoker_addr ^+ 1)%a.
+  Proof.
+    intros (_ & _ & _ & _ & Himg) Hroots.
+    rewrite /section in Himg. apply big_and_fw_app in Himg as [_ Hm].
+    apply big_and_fw_app in Hm as [_ Hm].
+    destruct (fw_heap_roots fw) as [|r rs]; first done.
+    exact Hm.
   Qed.
 
   Lemma img_wf_assert_layout fw img : img_wf fw img → img_assert_layout (img_asrt img).

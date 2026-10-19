@@ -391,6 +391,15 @@ Section translation.
            end
        end).
 
+  (** The conditions on the machine that the use of the heap and of the
+      revoker needs, when the firmware hands out heap authority: the shadow
+      table translates the heap by a constant offset, and the revoker is
+      not the last address. *)
+  Definition heap_machine_ok : Prop :=
+    note "the shadow table translates the heap by a constant offset"
+      (∀ a, heap_to_shadow a = translate_region heap_b heap_e shadow_b a) ∧
+    note "the revoker is not the last address" (revoker_addr < revoker_addr ^+ 1)%a.
+
   Definition img_wf : Prop :=
     switcher_wf ∧
     assert_wf ∧
@@ -403,8 +412,13 @@ Section translation.
            note "sealing types distinct" (NoDup (ot_switcher (img_sw img) :: fw_otypes fw));
            note "sealing types valid"
              (Forall otype_valid (ot_switcher (img_sw img) :: fw_otypes fw))]
-          (fw_map (λ a, note "heap root in the heap" (is_heap_address a = true))
-             (fw_heap_roots fw)))).
+          (fw_app
+             (fw_map (λ a, note "heap root in the heap" (is_heap_address a = true))
+                (fw_heap_roots fw))
+             (match fw_heap_roots fw with
+              | [] => []
+              | _ => [section "Machine (heap and revoker)" heap_machine_ok]
+              end)))).
 End translation.
 
 Definition firmware_ok `{MP : MachineParameters}
@@ -426,7 +440,7 @@ Ltac reduce_firmware_ok t :=
     hole_exports export_word switcher_mem assert_code_mem assert_flag_mem
     cmpt_mem thread_mem range_ok ranges_ok cmpt_ranges thread_ranges all_ranges
     img_cmpt_words
-    export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf
+    export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf heap_machine_ok
     fw_map fw_imap fw_imap_from fw_app fw_flat_map big_and big_union nat_str
     addr_off default_export fw_export_named body_str fw_set
     fw_word_unknown fw_words_unknown chunks_fw_words fc_unknown_export
