@@ -1768,11 +1768,34 @@ Section adversary.
     intros k y _. by rewrite Nat.add_succ_r.
   Qed.
 
+  (** The memory of a compartment, initialised: the export table becomes
+      persistent. *)
+  Lemma fw_adv_cmpt_init {E : coPset} img fc (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) :
+    let c := cmpt_of img (fc_name fc) in
+    ([∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w)
+    ={E}=∗
+    [[ cmpt_b_pcc c, cmpt_a_code c ]] ↦ₐ [[ lword_of_word <$> cmpt_imports c ]] ∗
+    [[ cmpt_a_code c, cmpt_e_pcc c ]] ↦ₐ [[ lword_of_word <$> cmpt_code c ]] ∗
+    [[ cmpt_b_cgp c, cmpt_e_cgp c ]] ↦ₐ [[ lword_of_word <$> cmpt_data c ]] ∗
+    [[ cmpt_b_static_sealed c, cmpt_e_static_sealed c ]] ↦ₐ
+      [[ lword_of_word <$> cmpt_static_sealed c ]] ∗
+    cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
+    cmpt_exp_tbl_cgp c ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
+    ([∗ list] a;v ∈ finz.seq_between (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c);
+                    cmpt_exp_tbl_entries c, a ↦ₐ□ lword_of_word v).
+  Proof.
+    intros c. rewrite (cmpt_mem_layout img fc Hc). iIntros "Hmem".
+    by iMod (initialise_adversary_compartment with "Hmem") as "($ & $ & $ & $ & $ & $ & $)".
+  Qed.
+
   (** The world of an untrusted compartment [fc], owned by the logical
       compartment [C], once its compartment and the stack of the first
       thread are allocated in it: the compartment's imports, code and
       globals become permanent, its export entries sealed, and the stack
-      temporary. The case study proves that the imports are safe. *)
+      temporary. The case study proves that the imports are safe. It
+      receives the memory of the compartment initialised
+      ([fw_adv_cmpt_init]), so that it keeps the static sealed objects, which
+      the safety of the imports may need before the world is closed. *)
   Lemma fw_close_adv_world {E : coPset} fw img σ fc owner n
       (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
     let swl := fw_switcher_layout img in
@@ -1789,7 +1812,13 @@ Section adversary.
     na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
-    ([∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) -∗
+    [[ cmpt_b_pcc c, cmpt_a_code c ]] ↦ₐ [[ lword_of_word <$> cmpt_imports c ]] -∗
+    [[ cmpt_a_code c, cmpt_e_pcc c ]] ↦ₐ [[ lword_of_word <$> cmpt_code c ]] -∗
+    [[ cmpt_b_cgp c, cmpt_e_cgp c ]] ↦ₐ [[ lword_of_word <$> cmpt_data c ]] -∗
+    cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) -∗
+    cmpt_exp_tbl_cgp c ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) -∗
+    ([∗ list] a;v ∈ finz.seq_between (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c);
+                    cmpt_exp_tbl_entries c, a ↦ₐ□ lword_of_word v) -∗
     [[ b_stack t, e_stack t ]] ↦ₐ
       [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] -∗
     ([∗ list] e ∈ fc_entries img fc,
@@ -1809,7 +1838,8 @@ Section adversary.
     [∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp Wadv C v.
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hin Hbody Hfree.
-    iIntros "#Hswitcher #Hstatic #Hseal Hmem Hstack #Hentries Himports Hworld".
+    iIntros "#Hswitcher #Hstatic #Hseal Himp Hcode Hdata #Hpcc #Hcgp #Hetbl Hstack #Hentries
+             Himports Hworld".
     pose proof Hok as (Hcmpts_ok & _ & Hregs & Hwf).
     destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _). clear Hregs.
     pose proof (img_wf_switcher_layout _ _ _ _ Hthreads Hwf) as Hsw.
@@ -1821,9 +1851,6 @@ Section adversary.
     rewrite /cmpt_ok /section Hbody in Hfc_ok.
     destruct Hfc_ok as (_ & _ & Hcode & Hdata & Hexps). rewrite /note in Hcode Hdata Hexps.
     destruct (hole_exports_spec _ _ _ Hexps) as (offs & Hlen & Hoffs & Hentries_eq).
-    rewrite (cmpt_mem_layout img fc Hc).
-    iMod (initialise_adversary_compartment with "Hmem")
-      as "(Himp & Hcode & Hdata & _ & #Hpcc & #Hcgp & #Hetbl)".
     iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
            with "Hseal Himp Hcode Hdata Hstack [] Himports Hworld")
       as "($ & $ & $ & $ & $)".

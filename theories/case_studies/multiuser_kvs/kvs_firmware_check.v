@@ -1,6 +1,7 @@
 From stdpp Require Import gmap strings.
+From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_base machine_parameters machine_parameters_instance griotte_opsem
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
   switcher assert allocator_resources compartment_layout
   kvs kvs_main kvs_adequacy kvs_concrete.
 From griotte Require Import image firmware firmware_ok image_state link print kvs_firmware.
@@ -90,6 +91,21 @@ Proof.
             | |- ∀ r, _ => rewrite /kvs_head_state /kvs_initial_registers; solve_other_registers
             end).
   all: solve_concrete_condition.
+Qed.
+
+(** [kvs_head_state] runs to [Halted], and [kvs_adequacy] applies to it:
+    the flag of the assert library is still zero. *)
+Theorem kvs_runs_and_gracefully_halts :
+  ∃ pc' reg' sreg' mem' sh',
+    rtc erased_step ([Seq (Instr Executable)], kvs_head_state)
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
+    ∧ mem' !! kvs_assert_flag = Some (WInt 0%Z).
+Proof.
+  pose proof (machine_run_correct (N.to_nat 15000%N) Executable kvs_head_state Halted) as Hrun.
+  specialize (Hrun ltac:(vm_compute; reflexivity)).
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (kvs_adequacy _ _ _ _ _ _ _ _ _ _ _ _ kvs_head_state_ok Hrun).
 Qed.
 
 (** The state of the image, as the loader builds it, is the same. *)
