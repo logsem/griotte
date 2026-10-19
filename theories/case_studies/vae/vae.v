@@ -104,7 +104,7 @@ Section VAE_Main.
     vae_main_instrs_n 2 ++
     vae_main_instrs_n 3.
 
-  Definition VAE_main_code_f (ot_switcher : OType) : list Word :=
+  Definition VAE_main_code_f : list Word :=
     vae_main_instrs_n 4 ++
     vae_main_instrs_n 5 ++
     vae_main_instrs_n 6 ++
@@ -117,8 +117,8 @@ Section VAE_Main.
   #[local] Close Scope Z_scope.
   #[local] Coercion Z.of_nat : nat >-> Z.
 
-  Definition vae_main_code `{!switcherLayout} : list Word
-    := VAE_main_code_init ++ (VAE_main_code_f ot_switcher).
+  Definition vae_main_code : list Word
+    := VAE_main_code_init ++ VAE_main_code_f.
 
   Definition vae_main_data : list Word := [WInt 0].
 

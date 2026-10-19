@@ -36,7 +36,7 @@ Section VAE_Code.
   (** The blocks of [vae_main_code], as focused by [focus_block]. *)
   Definition vae_main_blocks : list (list Word) :=
     ltac:(code_blocks_of VAE_main_code_init)
-    ++ ltac:(code_blocks_of (VAE_main_code_f ot_switcher)).
+    ++ ltac:(code_blocks_of VAE_main_code_f).
 
   Lemma vae_main_code_blocks : vae_main_code = concat vae_main_blocks.
   Proof. reflexivity. Qed.
