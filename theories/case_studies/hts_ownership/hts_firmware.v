@@ -2,7 +2,7 @@ From stdpp Require Import gmap strings.
 From griotte Require Import machine_base griotte_opsem switcher assert allocator_resources compartment_layout.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety.
 From griotte.allocators.ownership Require Import allocator.
-From griotte Require Import image firmware firmware_ok.
+From griotte Require Import image firmware firmware_ok initial_state.
 Set Mangle Names.
 
 #[local] Open Scope string_scope.
@@ -77,38 +77,25 @@ Definition hts_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main allocator B : img_cmpt) : fw_image :=
   MkFwImage sw asrt [("main", main); ("allocator", allocator); ("B", B)] [t0].
 
-(** The predicate, computed from the firmware, with its comments: some
-    layout and sealing type, with the flag of the assert library at
-    [flag], satisfy the translation of the firmware. *)
+(** The start of the firmware: some layout and sealing type, with the flag of the
+    assert library at [flag], such that [σ] is the state the loader
+    builds. *)
+Definition hts_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
+  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+    (main allocator B : img_cmpt) (ot_alloc : OType),
+    fw_start (hts_firmware ot_alloc) (hts_img sw asrt t0 main allocator B) flag σ.
+
+(** The predicate, computed from [hts_start], with its comments. *)
 Definition hts_initial_state_ok_annot `{MP : MachineParameters} :
     Addr → ExecConf → Prop :=
-  ltac:(let t := eval cbv beta delta [hts_firmware hts_img] in
-          (λ (flag : Addr) (σ : ExecConf),
-             ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-               (main allocator B : img_cmpt) (ot_alloc : OType),
-               note "the flag of the assert library" (flag_assert asrt = flag) ∧
-               firmware_ok (hts_firmware ot_alloc) (hts_img sw asrt t0 main allocator B) σ)
-        in
-        let t := reduce_firmware_ok t in
-        exact t).
+  ltac:(compute_initial_state (@hts_start MP) [hts_firmware; hts_img]).
 
 (** The initial-state predicate of the heap temporal safety case study: the
     annotated one without its comments. *)
 Definition hts_initial_state_ok `{MP : MachineParameters} :
     Addr → ExecConf → Prop :=
-  Eval cbv beta delta [section note hts_initial_state_ok_annot] in
-    @hts_initial_state_ok_annot MP.
+  ltac:(erase_annot (@hts_initial_state_ok_annot MP)).
 
-Lemma hts_initial_state_ok_erase `{MP : MachineParameters} flag σ :
-  hts_initial_state_ok_annot flag σ ↔ hts_initial_state_ok flag σ.
-Proof. reflexivity. Qed.
-
-(** The predicate is the generic translation on the heap temporal safety
-    firmware. *)
-Lemma hts_initial_state_ok_firmware_ok `{MP : MachineParameters} flag σ :
-  hts_initial_state_ok flag σ →
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-    (main allocator B : img_cmpt) (ot_alloc : OType),
-    flag_assert asrt = flag ∧
-    firmware_ok (hts_firmware ot_alloc) (hts_img sw asrt t0 main allocator B) σ.
-Proof. intros Hok. exact Hok. Qed.
+Lemma hts_initial_state_ok_start `{MP : MachineParameters} flag σ :
+  hts_initial_state_ok flag σ → hts_start flag σ.
+Proof. initial_state_conv. Qed.

@@ -244,7 +244,7 @@ Theorem lse_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.
-  destruct (lse_initial_state_ok_firmware_ok _ _ Hok)
+  destruct (lse_initial_state_ok_start _ _ Hok)
     as (sw & asrt & t0 & main & C & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_lse_CmptNameG) #[]
             lse_firmware (lse_img sw asrt t0 main C));

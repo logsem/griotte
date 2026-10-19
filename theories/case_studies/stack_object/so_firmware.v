@@ -1,6 +1,6 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import machine_base griotte_opsem switcher assert allocator_resources compartment_layout stack_object.
-From griotte Require Import image firmware firmware_ok.
+From griotte Require Import image firmware firmware_ok initial_state.
 Set Mangle Names.
 
 #[local] Open Scope string_scope.
@@ -58,37 +58,24 @@ Definition so_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main C : img_cmpt) : fw_image :=
   MkFwImage sw asrt [("main", main); ("C", C)] [t0].
 
-(** The predicate, computed from the firmware, with its comments: some
-    layout, with the flag of the assert library at [flag], satisfies the
-    translation of the firmware. *)
+(** The start of the firmware: some layout, with the flag of the assert
+    library at [flag], such that [σ] is the state the loader builds. *)
+Definition so_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
+  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+    (main C : img_cmpt),
+    fw_start so_firmware (so_img sw asrt t0 main C) flag σ.
+
+(** The predicate, computed from [so_start], with its comments. *)
 Definition so_initial_state_ok_annot `{MP : MachineParameters} :
     Addr → ExecConf → Prop :=
-  ltac:(let t := eval cbv beta delta [so_firmware so_img] in
-          (λ (flag : Addr) (σ : ExecConf),
-             ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-               (main C : img_cmpt),
-               note "the flag of the assert library" (flag_assert asrt = flag) ∧
-               firmware_ok so_firmware (so_img sw asrt t0 main C) σ)
-        in
-        let t := reduce_firmware_ok t in
-        exact t).
+  ltac:(compute_initial_state (@so_start MP) [so_firmware; so_img]).
 
 (** The initial-state predicate of the stack object case study: the
     annotated one without its comments. *)
 Definition so_initial_state_ok `{MP : MachineParameters} :
     Addr → ExecConf → Prop :=
-  Eval cbv beta delta [section note so_initial_state_ok_annot] in
-    @so_initial_state_ok_annot MP.
+  ltac:(erase_annot (@so_initial_state_ok_annot MP)).
 
-Lemma so_initial_state_ok_erase `{MP : MachineParameters} flag σ :
-  so_initial_state_ok_annot flag σ ↔ so_initial_state_ok flag σ.
-Proof. reflexivity. Qed.
-
-(** The predicate is the generic translation on the stack object
-    firmware. *)
-Lemma so_initial_state_ok_firmware_ok `{MP : MachineParameters} flag σ :
-  so_initial_state_ok flag σ →
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread) (main C : img_cmpt),
-    flag_assert asrt = flag ∧
-    firmware_ok so_firmware (so_img sw asrt t0 main C) σ.
-Proof. intros Hok. exact Hok. Qed.
+Lemma so_initial_state_ok_start `{MP : MachineParameters} flag σ :
+  so_initial_state_ok flag σ → so_start flag σ.
+Proof. initial_state_conv. Qed.

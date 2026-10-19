@@ -1,6 +1,6 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import machine_base griotte_opsem switcher assert allocator_resources compartment_layout cmdc.
-From griotte Require Import image firmware firmware_ok.
+From griotte Require Import image firmware firmware_ok initial_state.
 Set Mangle Names.
 
 #[local] Open Scope string_scope.
@@ -56,36 +56,24 @@ Definition cmdc_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main B C : img_cmpt) : fw_image :=
   MkFwImage sw asrt [("main", main); ("B", B); ("C", C)] [t0].
 
-(** The predicate, computed from the firmware, with its comments: some
-    layout, with the flag of the assert library at [flag], satisfies the
-    translation of the firmware. *)
+(** The start of the firmware: some layout, with the flag of the assert
+    library at [flag], such that [σ] is the state the loader builds. *)
+Definition cmdc_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
+  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+    (main B C : img_cmpt),
+    fw_start cmdc_firmware (cmdc_img sw asrt t0 main B C) flag σ.
+
+(** The predicate, computed from [cmdc_start], with its comments. *)
 Definition cmdc_initial_state_ok_annot `{MP : MachineParameters} :
     Addr → ExecConf → Prop :=
-  ltac:(let t := eval cbv beta delta [cmdc_firmware cmdc_img] in
-          (λ (flag : Addr) (σ : ExecConf),
-             ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-               (main B C : img_cmpt),
-               note "the flag of the assert library" (flag_assert asrt = flag) ∧
-               firmware_ok cmdc_firmware (cmdc_img sw asrt t0 main B C) σ)
-        in
-        let t := reduce_firmware_ok t in
-        exact t).
+  ltac:(compute_initial_state (@cmdc_start MP) [cmdc_firmware; cmdc_img]).
 
 (** The initial-state predicate of the CMDC case study: the annotated one
     without its comments. *)
 Definition cmdc_initial_state_ok `{MP : MachineParameters} :
     Addr → ExecConf → Prop :=
-  Eval cbv beta delta [section note cmdc_initial_state_ok_annot] in
-    @cmdc_initial_state_ok_annot MP.
+  ltac:(erase_annot (@cmdc_initial_state_ok_annot MP)).
 
-Lemma cmdc_initial_state_ok_erase `{MP : MachineParameters} flag σ :
-  cmdc_initial_state_ok_annot flag σ ↔ cmdc_initial_state_ok flag σ.
-Proof. reflexivity. Qed.
-
-(** The predicate is the generic translation on the CMDC firmware. *)
-Lemma cmdc_initial_state_ok_firmware_ok `{MP : MachineParameters} flag σ :
-  cmdc_initial_state_ok flag σ →
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread) (main B C : img_cmpt),
-    flag_assert asrt = flag ∧
-    firmware_ok cmdc_firmware (cmdc_img sw asrt t0 main B C) σ.
-Proof. intros Hok. exact Hok. Qed.
+Lemma cmdc_initial_state_ok_start `{MP : MachineParameters} flag σ :
+  cmdc_initial_state_ok flag σ → cmdc_start flag σ.
+Proof. initial_state_conv. Qed.

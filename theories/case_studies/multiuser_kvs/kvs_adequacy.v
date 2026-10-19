@@ -539,8 +539,8 @@ Theorem kvs_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.
-  destruct (kvs_initial_state_ok_firmware_ok _ _ Hok)
-    as (sw & asrt & t0 & main & kvs & B & ot_kvs & key_main & key_B & <- & Hkeys & Hfw).
+  destruct (kvs_initial_state_ok_start _ _ Hok)
+    as (sw & asrt & t0 & main & kvs & B & ot_kvs & key_main & key_B & Hkeys & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_kvs_CmptNameG)
             #[gen_heapΣ user_key_t kvs_user_map; ghost_mapΣ user_key_t (option LWord);
               ghost_varΣ kvs_physical_map]

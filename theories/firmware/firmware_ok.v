@@ -439,6 +439,14 @@ Definition firmware_ok `{MP : MachineParameters}
   section "Registers" (regs_ok fw img σ) ∧
   img_wf fw img.
 
+(** The start of a firmware: the flag of the assert library at [flag],
+    and the machine state [σ] built by the loader for [fw] laid out as
+    [img]. *)
+Definition fw_start `{MP : MachineParameters}
+    (fw : firmware) (img : fw_image) (flag : Addr) (σ : ExecConf) : Prop :=
+  note "the flag of the assert library" (flag_assert (img_asrt img) = flag) ∧
+  firmware_ok fw img σ.
+
 (** ** Reduction on a concrete firmware
 
     [reduce_firmware_ok t] unfolds the translation in [t], and only the
@@ -447,7 +455,7 @@ Definition firmware_ok `{MP : MachineParameters}
     case study must be unfolded first. *)
 Ltac reduce_firmware_ok t :=
   eval cbv beta iota zeta delta [
-    firmware_ok mem_ok regs_ok img_wf cmpt_ok body_ok fw_word_of chunks_words
+    fw_start firmware_ok mem_ok regs_ok img_wf cmpt_ok body_ok fw_word_of chunks_words
     hole_exports export_word switcher_mem assert_code_mem assert_flag_mem
     cmpt_mem thread_mem range_ok ranges_ok cmpt_ranges thread_ranges all_ranges
     img_cmpt_words

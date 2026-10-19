@@ -152,7 +152,7 @@ Theorem dle_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.
-  destruct (dle_initial_state_ok_firmware_ok _ _ Hok)
+  destruct (dle_initial_state_ok_start _ _ Hok)
     as (sw & asrt & t0 & main & C & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_dle_CmptNameG) #[]
             dle_firmware (dle_img sw asrt t0 main C));

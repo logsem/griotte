@@ -1,6 +1,6 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import machine_base griotte_opsem switcher assert allocator_resources compartment_layout kvs kvs_main.
-From griotte Require Import image firmware firmware_ok.
+From griotte Require Import image firmware firmware_ok initial_state.
 Set Mangle Names.
 
 #[local] Open Scope string_scope.
@@ -71,39 +71,26 @@ Definition kvs_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main kvs B : img_cmpt) : fw_image :=
   MkFwImage sw asrt [("main", main); ("kvs", kvs); ("B", B)] [t0].
 
-(** The predicate, computed from the firmware, with its comments: some
-    layout and parameters, with the flag of the assert library at [flag],
-    satisfy the translation of the firmware. *)
+(** The start of the firmware: some layout and parameters, with the flag of the
+    assert library at [flag], such that [σ] is the state the loader
+    builds. *)
+Definition kvs_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
+  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+    (main kvs B : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
+    section "Parameters" (key_main ≠ key_B) ∧
+    fw_start (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) flag σ.
+
+(** The predicate, computed from [kvs_start], with its comments. *)
 Definition kvs_initial_state_ok_annot `{MP : MachineParameters} :
     Addr → ExecConf → Prop :=
-  ltac:(let t := eval cbv beta delta [kvs_firmware kvs_img] in
-          (λ (flag : Addr) (σ : ExecConf),
-             ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-               (main kvs B : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
-               note "the flag of the assert library" (flag_assert asrt = flag) ∧
-               section "Parameters" (key_main ≠ key_B) ∧
-               firmware_ok (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) σ)
-        in
-        let t := reduce_firmware_ok t in
-        exact t).
+  ltac:(compute_initial_state (@kvs_start MP) [kvs_firmware; kvs_img]).
 
 (** The initial-state predicate of the KVS case study: the annotated one
     without its comments. *)
 Definition kvs_initial_state_ok `{MP : MachineParameters} :
     Addr → ExecConf → Prop :=
-  Eval cbv beta delta [section note kvs_initial_state_ok_annot] in
-    @kvs_initial_state_ok_annot MP.
+  ltac:(erase_annot (@kvs_initial_state_ok_annot MP)).
 
-Lemma kvs_initial_state_ok_erase `{MP : MachineParameters} flag σ :
-  kvs_initial_state_ok_annot flag σ ↔ kvs_initial_state_ok flag σ.
-Proof. reflexivity. Qed.
-
-(** The predicate is the generic translation on the KVS firmware. *)
-Lemma kvs_initial_state_ok_firmware_ok `{MP : MachineParameters} flag σ :
-  kvs_initial_state_ok flag σ →
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-    (main kvs B : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
-    flag_assert asrt = flag ∧
-    key_main ≠ key_B ∧
-    firmware_ok (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) σ.
-Proof. intros Hok. exact Hok. Qed.
+Lemma kvs_initial_state_ok_start `{MP : MachineParameters} flag σ :
+  kvs_initial_state_ok flag σ → kvs_start flag σ.
+Proof. initial_state_conv. Qed.
