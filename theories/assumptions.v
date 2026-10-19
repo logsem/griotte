@@ -226,6 +226,7 @@ Print Assumptions heap_temporal_safety_adequacy.hts_adequacy.
 Print hts_initial_state_ok.
 
 Section hts_initial_state.
+  Import heap_temporal_safety allocator allocator_common_code.
   Import FwPrintNotations.
   Open Scope string_scope.
   Open Scope OType_scope.

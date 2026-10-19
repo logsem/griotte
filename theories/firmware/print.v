@@ -396,15 +396,52 @@ Ltac2 rec align_eqs (ls : pline list) : pline list :=
       end
   end.
 
+(** The position of the first comma at the outer level of [s]. *)
+Ltac2 outer_comma (s : string) : int option :=
+  let n := String.length s in
+  let rec go i depth :=
+    if Int.equal i n then None
+    else
+      let c := Char.to_int (String.get s i) in
+      if is_open c then go (Int.add i 1) (Int.add depth 1)
+      else if is_close c then go (Int.add i 1) (Int.sub depth 1)
+      else if Bool.and (Int.equal c 44) (Int.equal depth 0) then Some i
+      else go (Int.add i 1) depth in
+  go 0 0.
+
+(** A comment without its trailing parenthetical remark [" (…)"], if any. *)
+Ltac2 drop_remark (c : string) : string :=
+  let n := String.length c in
+  let rec go i :=
+    if Int.lt i 0 then c
+    else if sub_is c i " (" then String.sub c 0 i
+    else go (Int.sub i 1) in
+  if Bool.and (Int.ge n 1) (Int.equal (Char.to_int (String.get c (Int.sub n 1))) 41)
+  then go (Int.sub n 2) else c.
+
 (** A section: equations aligned, long lines broken (earlier when they
     carry a comment), comments on one column; a comment whose line is
-    still longer than the column goes on the next line, at the column. *)
+    still longer than the column goes on the next line, at the column. A
+    [∀ x, P] that does not fit with its comment is broken after [∀ x,]; a
+    comment that does not fit after the column loses its trailing
+    parenthetical remark. *)
 Ltac2 layout_section (ls : pline list) : string list :=
   (* a line with a comment is broken earlier, to leave room for it *)
   let limit c := match c with None => max_width () | Some _ => comment_cap () end in
+  let forall_lines i x c :=
+    let fits := match c with
+                | None => true
+                | Some c => Int.le (Int.add (Int.add (width i) (width x)) (Int.add (width c) 5)) (max_width ())
+                end in
+    match (if Bool.or fits (Bool.neg (sub_is x 0 "∀ ")) then None else outer_comma x) with
+    | Some k =>
+        String.app i (String.sub x 0 (Int.add k 1)) ::
+        wrap (limit c) (String.app i "  ") (String.sub x (Int.add k 2) (Int.sub (String.length x) (Int.add k 2)))
+    | None => wrap (limit c) i x
+    end in
   let items := List.map (fun l =>
                  match l with
-                 | PText i x c => (wrap (limit c) i x, c)
+                 | PText i x c => (forall_lines i x c, c)
                  | PEq i a b c => (wrap (limit c) i (String.concat "" [a; " = "; b]), c)
                  | PHead h => ([h], None)
                  end) (align_eqs ls) in
@@ -426,6 +463,7 @@ Ltac2 layout_section (ls : pline list) : string list :=
     match c with
     | None => lines
     | Some c =>
+        let c := if Int.le (Int.add (Int.add col 3) (width c)) (max_width ()) then c else drop_remark c in
         match lines with
         | [] => []
         | l :: rest =>
@@ -453,26 +491,155 @@ Ltac2 pp_type (t : constr) : string :=
   else if Constr.equal t constr:(Addr) then "Addr"
   else pp t.
 
-(** The existential binders of the predicate, outside the words, with the
-    section they appear in. *)
-Ltac2 rec exists_of (sec : string) (p : constr) : pline list :=
-  lazy_match! p with
-  | section ?t ?q => exists_of (str t) q
-  | ?a ∧ ?b => List.append (exists_of sec a) (exists_of sec b)
-  | note _ ?q => exists_of sec q
-  | @ex ?a ?f =>
-      let x :=
-        match Constr.Unsafe.kind f with
-        | Constr.Unsafe.Lambda b _ =>
-            match Constr.Binder.name b with
-            | Some x => Ident.to_string x
-            | None => "_"
-            end
-        | _ => "_"
-        end in
-      [PText "  " (String.concat "" ["∃ "; x; " : "; pp_type a]) (Some (String.app "in " sec))]
-  | _ => []
+(** *** The existential offsets of the untrusted exports
+
+    The [k]-th existential [off] in the section of a compartment [X] is the
+    offset of its [k]-th export. It is renamed [off_X_e] after the name [e]
+    of that export, read from the comments [X, export e] of the sealed
+    imports of the export table of [X] at [cmpt_exp_tbl_entries_start X ^+
+    k], or [off_X_k] if no compartment imports it. *)
+
+(** The position of [t] in [s], if any. *)
+Ltac2 find_sub (s : string) (t : string) : int option :=
+  let n := String.length s in
+  let m := String.length t in
+  let rec go i :=
+    if Int.gt (Int.add i m) n then None
+    else if sub_is s i t then Some i
+    else go (Int.add i 1) in
+  go 0.
+
+(** The integer written by the digits at the start of [s]. *)
+Ltac2 leading_int (s : string) : int :=
+  let n := String.length s in
+  let rec go i acc :=
+    if Int.equal i n then acc
+    else
+      let c := Char.to_int (String.get s i) in
+      if Bool.and (Int.ge c 48) (Int.le c 57)
+      then go (Int.add i 1) (Int.add (Int.mul acc 10) (Int.sub c 48))
+      else acc in
+  go 0 0.
+
+(** [s] up to its first space. *)
+Ltac2 first_word (s : string) : string :=
+  match find_sub s " " with Some i => String.sub s 0 i | None => s end.
+
+(** [s] with the characters not allowed in an identifier replaced by [_]. *)
+Ltac2 ident_chars (s : string) : string :=
+  let ok c := Bool.or (Bool.or (Bool.and (Int.ge c 48) (Int.le c 57)) (Int.equal c 95))
+                (Bool.or (Bool.and (Int.ge c 65) (Int.le c 90)) (Bool.and (Int.ge c 97) (Int.le c 122))) in
+  String.concat "" (List.map (fun i =>
+    let c := Char.to_int (String.get s i) in
+    String.make 1 (Char.of_int (if ok c then c else 95))) (List.init (String.length s) (fun i => i))).
+
+(** The application [f args] when [f] is [g]. *)
+Ltac2 app_of (g : constr) (p : constr) : constr array option :=
+  match Constr.Unsafe.kind p with
+  | Constr.Unsafe.App f args => if Constr.equal f g then Some args else None
+  | _ => None
   end.
+
+(** The names of the exports imported somewhere: [(X, k, e)] for a
+    comment [X, export e] on a sealed word at an address [_ ^+ k] (or
+    [k = 0]). *)
+Ltac2 rec export_names (p : constr) : (string * int * string) list :=
+  let here :=
+    match app_of constr:(@note) p with
+    | Some args =>
+        if Int.equal (Array.length args) 3 then
+          let c := str (Array.get args 1) in
+          match find_sub c ", export " with
+          | Some i =>
+              let x := String.sub c 0 i in
+              let e := String.sub c (Int.add i 9) (Int.sub (String.length c) (Int.add i 9)) in
+              Control.plus (fun () =>
+                lazy_match! (Array.get args 2) with
+                | WSealed _ (SCap _ _ _ _ _ ?a) =>
+                    let k := lazy_match! a with
+                             | finz.incr_default _ ?k => leading_int (pp k)
+                             | _ => 0
+                             end in
+                    [(x, k, e)]
+                end) (fun _ => [])
+          | None => []
+          end
+        else []
+    | None => []
+    end in
+  let sub :=
+    match Constr.Unsafe.kind p with
+    | Constr.Unsafe.App f args =>
+        List.append (export_names f) (List.flat_map export_names (Array.to_list args))
+    | Constr.Unsafe.Lambda _ b => export_names b
+    | Constr.Unsafe.Prod _ b => export_names b
+    | _ => []
+    end in
+  List.append here sub.
+
+Ltac2 rec lookup_export (x : string) (k : int) (ns : (string * int * string) list) : string :=
+  match ns with
+  | [] => int_str k
+  | n :: rest =>
+      let (y, j, e) := n in
+      if Bool.and (String.equal x y) (Int.equal j k) then e else lookup_export x k rest
+  end.
+
+Ltac2 rebuild_app (f : constr) (args : constr array) (i : int) (a : constr) : constr :=
+  let args := Array.copy args in
+  Array.set args i a;
+  Constr.Unsafe.make (Constr.Unsafe.App f args).
+
+Ltac2 starts_with (s : string) (t : string) : bool := sub_is s 0 t.
+
+(** [p] with its existential offsets renamed, and the renamed binders with
+    their type and the title of their section. *)
+Ltac2 rename_offsets (p : constr) : constr * (ident * constr * string) list :=
+  let names := export_names p in
+  let title := { contents := "" } in
+  let k := { contents := 0 } in
+  let out := { contents := [] } in
+  let rec go p :=
+    match app_of constr:(@section) p with
+    | Some args =>
+        title.(contents) := str (Array.get args 0);
+        k.(contents) := 0;
+        rebuild_app constr:(@section) args 1 (go (Array.get args 1))
+    | None =>
+    match app_of constr:(@and) p with
+    | Some args =>
+        let a := go (Array.get args 0) in
+        let b := go (Array.get args 1) in
+        Constr.Unsafe.make (Constr.Unsafe.App constr:(@and) (Array.of_list [a; b]))
+    | None =>
+    match app_of constr:(@note) p with
+    | Some args =>
+        if Int.equal (Array.length args) 3 then rebuild_app constr:(@note) args 2 (go (Array.get args 2)) else p
+    | None =>
+    match app_of constr:(@ex) p with
+    | Some args =>
+        match Constr.Unsafe.kind (Array.get args 1) with
+        | Constr.Unsafe.Lambda b bd =>
+            let old := match Constr.Binder.name b with Some x => Ident.to_string x | None => "" end in
+            let b :=
+              if starts_with old "off" then
+                let cmpt := first_word (title.(contents)) in
+                let e := lookup_export cmpt (k.(contents)) names in
+                k.(contents) := Int.add (k.(contents)) 1;
+                match Ident.of_string (String.concat "" ["off_"; ident_chars cmpt; "_"; ident_chars e]) with
+                | Some x =>
+                    out.(contents) := (x, Constr.Binder.type b, title.(contents)) :: out.(contents);
+                    Constr.Binder.make (Some x) (Constr.Binder.type b)
+                | None => b
+                end
+              else b in
+            rebuild_app constr:(@ex) args 1 (Constr.Unsafe.make (Constr.Unsafe.Lambda b (go bd)))
+        | _ => p
+        end
+    | None => p
+    end end end end in
+  let p := go p in
+  (p, List.rev (out.(contents))).
 
 Ltac2 rec group_binders (hs : (ident * constr option * constr) list) : (string list * constr) list :=
   match hs with
@@ -507,11 +674,25 @@ Ltac2 fill_binders (first : string) (cont : string) (last : string)
     end in
   fill first true args [].
 
+(** The binders [offs] grouped by section, in order. *)
+Ltac2 rec by_section (offs : (ident * constr * string) list) : (string * (ident * constr) list) list :=
+  match offs with
+  | [] => []
+  | o :: rest =>
+      let (x, t, s) := o in
+      match by_section rest with
+      | [] => [(s, [(x, t)])]
+      | g :: gs =>
+          let (s', xs) := g in
+          if String.equal s s' then (s, (x, t) :: xs) :: gs else (s, [(x, t)]) :: g :: gs
+      end
+  end.
+
 (** The header: the predicate [name] applied to its binders [hs] (the
     machine parameters excepted), its leading existential binders [es], and
-    the existential binders of its body [p]. *)
+    a summary of the existential binders [offs] of its body. *)
 Ltac2 header (name : string) (hs : (ident * constr) list) (es : (ident * constr) list)
-    (p : constr) : pline list :=
+    (offs : (ident * constr * string) list) : pline list :=
   let hs := List.filter (fun h => let (_, t) := h in
                           Bool.neg (Constr.equal t constr:(MachineParameters))) hs in
   let lines :=
@@ -521,7 +702,12 @@ Ltac2 header (name : string) (hs : (ident * constr) list) (es : (ident * constr)
        | [] => []
        | _ => fill_binders "  ∃ " "      " "," es
        end) in
-  List.append (List.map (fun l => PText "" l None) lines) (exists_of "" p).
+  let summary :=
+    List.flat_map (fun g =>
+      let (s, xs) := g in
+      fill_binders (String.concat "" ["  -- also, in section "; s; ": ∃ "]) "       " "" xs)
+      (by_section offs) in
+  List.map (fun l => PText "" l None) (List.append lines summary).
 
 (** Runs [k] on the binders of the λ-abstractions heading [body], on the
     binders of the existentials heading their body, and on the body of
@@ -583,7 +769,8 @@ Ltac2 initial_state_lines (c : constr) : string list :=
           Std.rStrength := Std.Norm } c in
       let r := { contents := [] } in
       with_goal (fun () => under_binders [] [] body (fun hs es p =>
-        r.(contents) := List.append (layout (header name hs es p)) (layout (walk "  " p))));
+        let (p, offs) := rename_offsets p in
+        r.(contents) := List.append (layout (header name hs es offs)) (layout (walk "  " p))));
       r.(contents)
   | _ => Control.throw (Invalid_argument (Some (Message.of_string "print_initial_state: not a constant")))
   end.
