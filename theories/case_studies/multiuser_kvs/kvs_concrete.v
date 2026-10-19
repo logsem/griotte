@@ -30,9 +30,13 @@ Definition kvs_demo_firmware : firmware := kvs_firmware kvs_service_sealing_type
 Definition kvs_B_code : list Word := encodeInstrsW kvs_B_instrs.
 Definition kvs_B_data : list Word := [WInt 0].
 
-Definition kvs_demo_link_cfg : link_cfg :=
-  MkLinkCfg 16 kvs_switcher_sealing_type
-    [("B", MkLinkAdv kvs_B_code kvs_B_data [kvs_B_adv_entry])].
+Definition kvs_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := kvs_switcher_sealing_type;
+  lk_adv         := [("B", {| la_code    := kvs_B_code;
+                              la_data    := kvs_B_data;
+                              la_exports := [kvs_B_adv_entry] |})]
+|}.
 
 (** ** The linked image and its initial state *)
 

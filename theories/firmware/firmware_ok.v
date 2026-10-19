@@ -65,12 +65,16 @@ Definition addr_off (a : Addr) (k : nat) : Addr :=
   | _ => (a ^+ Z.of_nat k)%a
   end.
 
-Definition default_export : fw_export := MkFwExport 0 0 InterruptDisabled.
+Definition default_export : fw_export := MkFwExport "" 0 0 InterruptDisabled.
+
+(** The export named [e] of a trusted compartment, if any. *)
+Definition fw_export_named (e : string) (exps : list fw_export) : fw_export :=
+  match fw_find_export e exps with Some x => x | None => default_export end.
 
 Definition body_str (b : fw_body) : string :=
   match b with
-  | TrustedBody _ _ _ => " (trusted)"
-  | UntrustedBody C _ => " (untrusted, " ++ C ++ ")"
+  | TrustedBody _ => " (trusted)"
+  | UntrustedBody b => " (untrusted, " ++ ub_owner b ++ ")"
   end.
 
 (** The export entry word of an export. *)
@@ -96,9 +100,10 @@ Section translation.
         note "assert"
           (WSentry Inherit true RX Global
              (b_assert (img_asrt img)) (e_assert (img_asrt img)) (b_assert (img_asrt img)))
-    | IExport n k =>
+    | IExport n e =>
         let x := cmpt_of img n in
-        note (n ++ ", export " ++ nat_str k)
+        let k := match fw_export_index fw n e with Some k => k | None => 0 end in
+        note (n ++ ", export " ++ e)
           (WSealed (ot_switcher (img_sw img))
              (SCap true RO Global (cmpt_exp_tbl_pcc x) (cmpt_exp_tbl_entries_end x)
                 (addr_off (cmpt_exp_tbl_entries_start x) k)))
@@ -117,6 +122,32 @@ Section translation.
     | FWord w :: ds => fw_word_of c w :: chunks_words c ds
     end.
 
+  (** The first import or global of a compartment naming an unknown
+      export, if any. *)
+  Definition fw_word_unknown (w : fw_word) : option string :=
+    match w with
+    | IExport n e =>
+        match fw_export_index fw n e with Some _ => None | None => Some (e ++ " of " ++ n) end
+    | _ => None
+    end.
+
+  Fixpoint fw_words_unknown (ws : list fw_word) : option string :=
+    match ws with
+    | [] => None
+    | w :: ws => match fw_word_unknown w with Some s => Some s | None => fw_words_unknown ws end
+    end.
+
+  Definition chunks_fw_words (ds : list fw_chunk) : list fw_word :=
+    fw_flat_map (λ d, match d with FWs _ => [] | FWord w => [w] end) ds.
+
+  Definition fc_unknown_export (fc : fw_cmpt) : option string :=
+    fw_words_unknown
+      (fw_app (fc_imports fc)
+         (match fc_body fc with
+          | TrustedBody b => chunks_fw_words (tb_data b)
+          | UntrustedBody _ => []
+          end)).
+
   (** *** Compartments *)
 
   (** The export entries of an untrusted compartment: one entry per number
@@ -128,29 +159,33 @@ Section translation.
     | n :: ns =>
         ∃ off : nat,
           (Z.of_nat off < cmpt_e_pcc c - cmpt_b_pcc c)%Z ∧
-          hole_exports c ns (λ ws, k (export_word (MkFwExport off n InterruptEnabled) :: ws))
+          hole_exports c ns (λ ws, k (export_word (MkFwExport "" off n InterruptEnabled) :: ws))
     end.
 
   Definition body_ok (c : img_cmpt) (b : fw_body) : Prop :=
     match b with
-    | TrustedBody code data exps =>
-        cmpt_code c = code ∧
-        cmpt_data c = chunks_words c data ∧
+    | TrustedBody b =>
+        cmpt_code c = tb_code b ∧
+        cmpt_data c = chunks_words c (tb_data b) ∧
         cmpt_exp_tbl_entries c =
-          fw_imap (λ k e, note ("export " ++ nat_str k) (export_word e)) exps
-    | UntrustedBody _ ns =>
+          fw_imap (λ _ e, note ("export " ++ fe_name e) (export_word e)) (tb_exports b)
+    | UntrustedBody b =>
         note "arbitrary, any length" (Forall is_int (cmpt_code c)) ∧
         note "arbitrary, any length"
           (Forall (initial_data_word (cmpt_b_cgp c) (cmpt_e_cgp c)) (cmpt_data c)) ∧
-        note "arbitrary offsets, inside the PCC range" (hole_exports c ns (λ ws, cmpt_exp_tbl_entries c = ws))
+        note "arbitrary offsets, inside the PCC range" (hole_exports c (fw_map ue_nargs (ub_exports b)) (λ ws, cmpt_exp_tbl_entries c = ws))
     end.
 
   Definition cmpt_ok (fc : fw_cmpt) : Prop :=
     let c := cmpt_of img (fc_name fc) in
     section (fc_name fc ++ body_str (fc_body fc))
-      (cmpt_imports c = fw_imap (λ _ w, fw_word_of c w) (fc_imports fc) ∧
-       cmpt_static_sealed c = fc_static_sealed fc ∧
-       body_ok c (fc_body fc)).
+      (match fc_unknown_export fc with
+       | Some s => note ("unknown export " ++ s) False
+       | None =>
+           cmpt_imports c = fw_imap (λ _ w, fw_word_of c w) (fc_imports fc) ∧
+           cmpt_static_sealed c = fc_static_sealed fc ∧
+           body_ok c (fc_body fc)
+       end).
 
   (** *** Memory *)
 
@@ -221,12 +256,12 @@ Section translation.
         let m := cmpt_of img (ft_cmpt ft) in
         let t := thread_of img 0 in
         match fc_body fc with
-        | UntrustedBody _ _ => note "threads start in trusted compartments" False
-        | TrustedBody _ _ exps =>
-            note (ft_cmpt ft ++ ", export " ++ nat_str (ft_entry ft))
+        | UntrustedBody _ => note "threads start in trusted compartments" False
+        | TrustedBody b =>
+            note (ft_cmpt ft ++ ", export " ++ ft_entry ft)
               (pcc σ = WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
                          (addr_off (cmpt_b_pcc m)
-                            (fe_offset (fw_nth (ft_entry ft) exps default_export)))) ∧
+                            (fe_offset (fw_export_named (ft_entry ft) (tb_exports b))))) ∧
             reg σ !! cgp = Some (WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
             reg σ !! csp = Some (WCap true RWL Local (b_stack t) (e_stack t) (b_stack t)) ∧
             note "every other register cleared"
@@ -283,7 +318,7 @@ Section translation.
      cmpt_exp_tbl_entries c)%list.
 
   Definition export_in_pcc (c : img_cmpt) (k : nat) (e : fw_export) : Prop :=
-    note ("export " ++ nat_str k ++ " inside the PCC range")
+    note ("export " ++ fe_name e ++ " inside the PCC range")
       (Z.of_nat (fe_offset e) < cmpt_e_pcc c - cmpt_b_pcc c)%Z.
 
   Definition cmpt_wf (fc : fw_cmpt) : Prop :=
@@ -305,8 +340,8 @@ Section translation.
            note "closed PCC bounds outside the heap" (is_heap_address (cmpt_e_pcc c) = false)]
           (fw_app
             (match fc_body fc with
-             | TrustedBody _ _ exps => fw_imap (export_in_pcc c) exps
-             | UntrustedBody _ _ => []
+             | TrustedBody b => fw_imap (export_in_pcc c) (tb_exports b)
+             | UntrustedBody _ => []
              end)
             [note
                (match fw_heap_roots fw with
@@ -343,13 +378,17 @@ Section translation.
     let t := thread_of img i in
     section ("thread " ++ nat_str i ++ ", layout")
       (match fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft)) with
-       | UntrustedBody _ _ => note "threads start in trusted compartments" False
-       | TrustedBody _ _ _ =>
-           (b_stack t + Z.of_nat (ft_stack_size ft))%a = Some (e_stack t) ∧
-           (b_trusted_stack t + tstack_frame_offset (S (ft_tstack_frames ft)))%a =
-             Some (e_trusted_stack t) ∧
-           note "stack" (range_ok (b_stack t) (e_stack t)) ∧
-           note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t))
+       | UntrustedBody _ => note "threads start in trusted compartments" False
+       | TrustedBody b =>
+           match fw_find_export (ft_entry ft) (tb_exports b) with
+           | None => note ("unknown export " ++ ft_entry ft ++ " of " ++ ft_cmpt ft) False
+           | Some _ =>
+               (b_stack t + Z.of_nat (ft_stack_size ft))%a = Some (e_stack t) ∧
+               (b_trusted_stack t + tstack_frame_offset (S (ft_tstack_frames ft)))%a =
+                 Some (e_trusted_stack t) ∧
+               note "stack" (range_ok (b_stack t) (e_stack t)) ∧
+               note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t))
+           end
        end).
 
   Definition img_wf : Prop :=
@@ -370,7 +409,7 @@ End translation.
 
 Definition firmware_ok `{MP : MachineParameters}
     (fw : firmware) (img : fw_image) (σ : ExecConf) : Prop :=
-  big_and (fw_map (cmpt_ok img) (fw_cmpts fw)) ∧
+  big_and (fw_map (cmpt_ok fw img) (fw_cmpts fw)) ∧
   section "Memory" (mem_ok fw img σ) ∧
   section "Registers" (regs_ok fw img σ) ∧
   img_wf fw img.
@@ -389,11 +428,14 @@ Ltac reduce_firmware_ok t :=
     img_cmpt_words
     export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf
     fw_map fw_imap fw_imap_from fw_app fw_flat_map big_and big_union nat_str
-    addr_off default_export body_str fw_set
+    addr_off default_export fw_export_named body_str fw_set
+    fw_word_unknown fw_words_unknown chunks_fw_words fc_unknown_export
+    fw_index_of fw_body_export_index fw_export_index fw_find_export
     cmpt_of thread_of assoc fw_nth fw_cmpt_of
     fw_cmpts fw_threads fw_otypes fw_heap_roots
     fc_name fc_imports fc_static_sealed fc_body
-    fe_offset fe_nargs fe_posture
+    tb_code tb_data tb_exports ub_owner ub_exports
+    fe_name fe_offset fe_nargs fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames
     img_sw img_asrt img_cmpts img_threads
     String.append String.eqb Ascii.eqb Bool.eqb andb]

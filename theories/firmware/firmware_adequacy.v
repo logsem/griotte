@@ -526,8 +526,8 @@ Section layout_of_img_wf.
     apply withinBounds_true_iff. solve_addr.
   Qed.
 
-  Lemma fw_cmpt_of_trusted (l : list fw_cmpt) (n : string) code data exps :
-    fc_body (fw_cmpt_of l n) = TrustedBody code data exps →
+  Lemma fw_cmpt_of_trusted (l : list fw_cmpt) (n : string) tb :
+    fc_body (fw_cmpt_of l n) = TrustedBody tb →
     fw_cmpt_of l n ∈ l ∧ fc_name (fw_cmpt_of l n) = n.
   Proof.
     induction l as [|fc l IH]; cbn; first done.
@@ -549,10 +549,11 @@ Section layout_of_img_wf.
     range_ok (b_trusted_stack (thread_of img i)) (e_trusted_stack (thread_of img i)).
   Proof.
     rewrite /thread_wf /section /note.
-    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [code data exps|] eqn:Hbody;
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|] eqn:Hbody;
       last done.
+    destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
     intros (Hstack & Htstack & Hrange_stack & Hrange_tstack).
-    destruct (fw_cmpt_of_trusted _ _ _ _ _ Hbody) as [Hin Hname].
+    destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
     by split_and!.
   Qed.
 
@@ -715,11 +716,11 @@ Section entry.
   Context `{MP : MachineParameters}.
 
   Definition fw_thread0 (fw : firmware) : fw_thread :=
-    match fw_threads fw with [] => MkFwThread "" 0 0 0 | ft :: _ => ft end.
+    match fw_threads fw with [] => MkFwThread "" "" 0 0 | ft :: _ => ft end.
 
   (** The thread [i] of a firmware. *)
   Definition fw_thread_of (fw : firmware) (i : nat) : fw_thread :=
-    fw_nth i (fw_threads fw) (MkFwThread "" 0 0 0).
+    fw_nth i (fw_threads fw) (MkFwThread "" "" 0 0).
 
   Lemma fw_thread_of_0 fw : fw_thread_of fw 0 = fw_thread0 fw.
   Proof. rewrite /fw_thread_of /fw_thread0. by destruct (fw_threads fw). Qed.
@@ -730,9 +731,8 @@ Section entry.
 
   Definition fw_entry_offset (fw : firmware) (i : nat) : nat :=
     match fc_body (fw_entry_fc fw i) with
-    | TrustedBody _ _ exps =>
-        fe_offset (fw_nth (ft_entry (fw_thread_of fw i)) exps default_export)
-    | UntrustedBody _ _ => 0
+    | TrustedBody b => fe_offset (fw_export_named (ft_entry (fw_thread_of fw i)) (tb_exports b))
+    | UntrustedBody _ => 0
     end.
 
   Definition fw_entry_cmpt (fw : firmware) (img : fw_image) (i : nat) : img_cmpt :=
@@ -776,10 +776,10 @@ Section entry.
     rewrite /regs_ok /note /fw_entry_pc /fw_entry_cgp /fw_entry_offset /fw_entry_fc
       /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
     destruct (fw_threads fw) as [|ft fts]; first done.
-    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [code data exps|] eqn:Hbody;
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|] eqn:Hbody;
       last done.
     intros (Hpc & Hcgp & Hcsp & Hregs & Hmtdc & Hmstatus & Hmtcc & Hmepcc & Hmcause & Hmtval).
-    destruct (fw_cmpt_of_trusted _ _ _ _ _ Hbody) as [Hin Hname].
+    destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
     split_and!; [by exists fts | done..|].
     intros sr. by destruct sr.
   Qed.
@@ -1145,8 +1145,8 @@ Section entries.
   (** The number of arguments of the exports of a compartment. *)
   Definition fc_export_nargs (fc : fw_cmpt) : list nat :=
     match fc_body fc with
-    | TrustedBody _ _ exps => fw_map fe_nargs exps
-    | UntrustedBody _ ns => ns
+    | TrustedBody b => fw_map fe_nargs (tb_exports b)
+    | UntrustedBody b => fw_map ue_nargs (ub_exports b)
     end.
 
   (** The unsealed capability of export [k] of [c], as in the imports
@@ -1204,15 +1204,26 @@ Section entries_facts.
     revert k. induction ns as [|n ns IH]; intros k Hk; cbn in Hk.
     - by exists [].
     - destruct Hk as (off & _ & Hk). destruct (IH _ Hk) as (ws & Hlen & Hws).
-      exists (export_word (MkFwExport off n InterruptEnabled) :: ws). by rewrite /= Hlen.
+      exists (export_word (MkFwExport "" off n InterruptEnabled) :: ws). by rewrite /= Hlen.
   Qed.
 
-  Lemma fc_export_nargs_length img fc :
-    cmpt_ok img fc →
+  (** The conditions on a compartment whose imports and globals name known
+      exports. *)
+  Lemma cmpt_ok_inv fw img fc :
+    cmpt_ok fw img fc →
+    let c := cmpt_of img (fc_name fc) in
+    fc_unknown_export fw fc = None ∧
+    cmpt_imports c = fw_imap (λ _ w, fw_word_of fw img c w) (fc_imports fc) ∧
+    cmpt_static_sealed c = fc_static_sealed fc ∧
+    body_ok fw img c (fc_body fc).
+  Proof. rewrite /cmpt_ok /section. by destruct (fc_unknown_export fw fc). Qed.
+
+  Lemma fc_export_nargs_length fw img fc :
+    cmpt_ok fw img fc →
     length (fc_export_nargs fc) = length (cmpt_exp_tbl_entries (cmpt_of img (fc_name fc))).
   Proof.
-    rewrite /cmpt_ok /section /fc_export_nargs. intros (_ & _ & Hbody).
-    destruct (fc_body fc) as [code data exps|owner ns].
+    rewrite /fc_export_nargs. intros (_ & _ & _ & Hbody)%cmpt_ok_inv.
+    destruct (fc_body fc) as [tb|ub].
     - destruct Hbody as (_ & _ & ->). by rewrite fw_map_eq length_fmap /fw_imap length_fw_imap_from.
     - destruct Hbody as (_ & _ & Hexp). rewrite /note in Hexp.
       destruct (hole_exports_length _ _ _ Hexp) as (ws & Hlen & ->).
@@ -1246,7 +1257,7 @@ Section entries_facts.
   Proof. revert j. induction l as [|x l IH]; intros j; cbn; [done | by rewrite IH]. Qed.
 
   Lemma cmpt_ok_wf_export_sizes fw img fc :
-    cmpt_ok img fc →
+    cmpt_ok fw img fc →
     cmpt_wf fw img fc →
     let c := cmpt_of img (fc_name fc) in
     (cmpt_exp_tbl_pcc c < cmpt_exp_tbl_entries_end c)%a ∧
@@ -1254,13 +1265,13 @@ Section entries_facts.
       Some (cmpt_exp_tbl_entries_end c).
   Proof.
     intros Hok Hwf. destruct (cmpt_wf_split _ _ _ Hwf) as (_ & _ & _ & _ & H5 & H6 & H7 & _).
-    rewrite (fc_export_nargs_length _ _ Hok). split; [solve_addr | done].
+    rewrite (fc_export_nargs_length _ _ _ Hok). split; [solve_addr | done].
   Qed.
 
   (** The entries of the compartments of [fcs] are distinct, given their
       layout and the disjointness of their ranges. *)
   Lemma fc_entries_NoDup fw img (fcs : list fw_cmpt) :
-    Forall (λ fc, cmpt_ok img fc ∧ cmpt_wf fw img fc) fcs →
+    Forall (λ fc, cmpt_ok fw img fc ∧ cmpt_wf fw img fc) fcs →
     rngs_disjoint (fw_flat_map (cmpt_ranges img) fcs) →
     NoDup (fw_flat_map (fc_entries img) fcs).*1.
   Proof.

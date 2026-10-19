@@ -40,10 +40,16 @@ Definition cmdc_C_code : list Word :=
 Definition cmdc_B_data : list Word := [WInt 0].
 Definition cmdc_C_data : list Word := [WInt 0].
 
-Definition cmdc_demo_link_cfg : link_cfg :=
-  MkLinkCfg 16 cmdc_switcher_sealing_type
-    [("B", MkLinkAdv cmdc_B_code cmdc_B_data [1]);
-     ("C", MkLinkAdv cmdc_C_code cmdc_C_data [1])].
+Definition cmdc_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := cmdc_switcher_sealing_type;
+  lk_adv         := [("B", {| la_code    := cmdc_B_code;
+                              la_data    := cmdc_B_data;
+                              la_exports := [1] |});
+                     ("C", {| la_code    := cmdc_C_code;
+                              la_data    := cmdc_C_data;
+                              la_exports := [1] |})]
+|}.
 
 (** ** The linked image and its initial state *)
 

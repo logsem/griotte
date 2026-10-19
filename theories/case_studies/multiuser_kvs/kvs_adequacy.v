@@ -44,7 +44,10 @@ Section kvs_obligations.
     pose proof (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) as Hok_B.
     cbv [cmpt_ok section body_ok fc_name fc_body fc_imports fc_static_sealed fw_imap
       fw_imap_from fw_word_of note addr_off nat_str chunks_words export_word
-      fe_offset fe_nargs fe_posture] in Hok_main, Hok_kvs, Hok_B.
+      fe_offset fe_nargs fe_posture tb_code tb_data tb_exports
+      fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
+      fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts kvs_firmware
+      fe_name ue_name ub_exports String.eqb Ascii.eqb Bool.eqb andb] in Hok_main, Hok_kvs, Hok_B.
     destruct Hok_main as (main_imports & main_static_sealed & main_code & main_data & _).
     destruct Hok_kvs as (kvs_imports & _ & kvs_code & kvs_data & kvs_exp_tbl).
     destruct Hok_B as (B_imports & B_static_sealed & _).
@@ -167,6 +170,7 @@ Section kvs_obligations.
       as "(Hkvs_etbl_pcc & Hkvs_etbl_cgp & Hkvs_etbl_entries & Hkvs_entries)".
     iPoseProof "HB_pers" as "(_ & _ & _ & HB_entries)".
     iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name fw_map fe_nargs
+                tb_exports ub_exports ue_nargs
                 replicate]) in "Hkvs_entries HB_entries".
     iEval (rewrite Hsb0 Hsb1 Hsb2 /=) in "Hkvs_entries". iEval (rewrite HsbB /=) in "HB_entries".
     iDestruct "Hkvs_entries"
@@ -377,12 +381,12 @@ Section kvs_obligations.
     (* 7 - Close the world of B: its compartment becomes permanent, and the
        stack temporary; its export is safe to share. *)
     iMod (fw_close_adv_world _ _ _ 2
-            (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _ _
-            HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; lia) ltac:(done)
+            (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _
+            HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers Hstack [] Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
-      rewrite -(fw_imports_safe_words _
+      rewrite -(fw_imports_safe_words _ _
                   (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt)
                   _ _ (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl)).
       change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).

@@ -12,22 +12,36 @@ Set Mangle Names.
     globals, which holds a capability to the other global, then, after
     writing [42] to the other global, passing it nothing; it then checks
     that the other global still holds [42]. [C] exports
-    one entry, taking one argument, and imports the switcher only. The
-    thread starts at the export of [main], after its three imports. *)
+    one entry [f], taking one argument, and imports the switcher only. The
+    thread starts at the export [entry] of [main], after its three
+    imports. *)
 Definition dle_firmware `{MP : MachineParameters} : firmware := {|
-  fw_cmpts := [
-    {| fc_name := "main";
-       fc_imports := [ISwitcherCall; IAssert; IExport "C" 0];
+  fw_cmpts      := [
+    {| fc_name          := "main";
+       fc_imports       := [ISwitcherCall; IAssert; IExport "C" "f"];
        fc_static_sealed := [];
-       fc_body := TrustedBody dle_main_code [FWs dle_main_data]
-                    [MkFwExport 3 0 InterruptEnabled] |};
-    {| fc_name := "C";
-       fc_imports := [ISwitcherCall];
+       fc_body          :=
+         TrustedBody {|
+           tb_code    := dle_main_code;
+           tb_data    := [FWs dle_main_data];
+           tb_exports := [ {| fe_name    := "entry";
+                              fe_offset  := 3;
+                              fe_nargs   := 0;
+                              fe_posture := InterruptEnabled |} ] |} |};
+    {| fc_name          := "C";
+       fc_imports       := [ISwitcherCall];
        fc_static_sealed := [];
-       fc_body := UntrustedBody "C" [1] |}
+       fc_body          :=
+         UntrustedBody {|
+           ub_owner   := "C";
+           ub_exports := [ {| ue_name  := "f";
+                              ue_nargs := 1 |} ] |} |}
   ];
-  fw_threads := [MkFwThread "main" 0 100 24];
-  fw_otypes := [];
+  fw_threads    := [ {| ft_cmpt          := "main";
+                        ft_entry         := "entry";
+                        ft_stack_size    := 100;
+                        ft_tstack_frames := 24 |} ];
+  fw_otypes     := [];
   fw_heap_roots := []
 |}.
 

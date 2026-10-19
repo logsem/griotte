@@ -35,9 +35,13 @@ Definition droe_C_code : list Word :=
 
 Definition droe_C_data : list Word := [WInt 0].
 
-Definition droe_demo_link_cfg : link_cfg :=
-  MkLinkCfg 16 droe_switcher_sealing_type
-    [("C", MkLinkAdv droe_C_code droe_C_data [1])].
+Definition droe_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := droe_switcher_sealing_type;
+  lk_adv         := [("C", {| la_code    := droe_C_code;
+                              la_data    := droe_C_data;
+                              la_exports := [1] |})]
+|}.
 
 (** ** The linked image and its initial state *)
 

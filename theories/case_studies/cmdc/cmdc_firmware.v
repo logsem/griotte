@@ -10,26 +10,44 @@ Set Mangle Names.
 (** The main compartment calls the adversary [B], then the adversary [C],
     passing each a capability to one of its globals, and checks after each
     call that the other global was not modified. [B] and [C] each export
-    one entry, taking one argument, and import the switcher only. The
-    thread starts at the export of [main], after its four imports. *)
+    one entry ([f] and [g]), taking one argument, and import the switcher
+    only. The thread starts at the export [entry] of [main], after its four
+    imports. *)
 Definition cmdc_firmware `{MP : MachineParameters} : firmware := {|
-  fw_cmpts := [
-    {| fc_name := "main";
-       fc_imports := [ISwitcherCall; IAssert; IExport "B" 0; IExport "C" 0];
+  fw_cmpts      := [
+    {| fc_name          := "main";
+       fc_imports       := [ISwitcherCall; IAssert; IExport "B" "f"; IExport "C" "g"];
        fc_static_sealed := [];
-       fc_body := TrustedBody cmdc_main_code [FWs cmdc_main_data]
-                    [MkFwExport 4 0 InterruptEnabled] |};
-    {| fc_name := "B";
-       fc_imports := [ISwitcherCall];
+       fc_body          :=
+         TrustedBody {|
+           tb_code    := cmdc_main_code;
+           tb_data    := [FWs cmdc_main_data];
+           tb_exports := [ {| fe_name    := "entry";
+                              fe_offset  := 4;
+                              fe_nargs   := 0;
+                              fe_posture := InterruptEnabled |} ] |} |};
+    {| fc_name          := "B";
+       fc_imports       := [ISwitcherCall];
        fc_static_sealed := [];
-       fc_body := UntrustedBody "B" [cmdc_B_f_args] |};
-    {| fc_name := "C";
-       fc_imports := [ISwitcherCall];
+       fc_body          :=
+         UntrustedBody {|
+           ub_owner   := "B";
+           ub_exports := [ {| ue_name  := "f";
+                              ue_nargs := cmdc_B_f_args |} ] |} |};
+    {| fc_name          := "C";
+       fc_imports       := [ISwitcherCall];
        fc_static_sealed := [];
-       fc_body := UntrustedBody "C" [cmdc_C_g_args] |}
+       fc_body          :=
+         UntrustedBody {|
+           ub_owner   := "C";
+           ub_exports := [ {| ue_name  := "g";
+                              ue_nargs := cmdc_C_g_args |} ] |} |}
   ];
-  fw_threads := [MkFwThread "main" 0 100 24];
-  fw_otypes := [];
+  fw_threads    := [ {| ft_cmpt          := "main";
+                        ft_entry         := "entry";
+                        ft_stack_size    := 100;
+                        ft_tstack_frames := 24 |} ];
+  fw_otypes     := [];
   fw_heap_roots := []
 |}.
 

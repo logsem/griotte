@@ -15,7 +15,8 @@ Set Mangle Names.
     The linker is not trusted: its result is checked against the
     predicate. *)
 
-(** The contents of an untrusted compartment: code, globals, export offsets. *)
+(** The contents of an untrusted compartment: code, globals, and the
+    offsets of its exports, in the order of its exports. *)
 Record link_adv : Type := MkLinkAdv {
   la_code : list Word;
   la_data : list Word;
@@ -45,8 +46,8 @@ Section link.
   (** The lengths of the code, the globals and the export table. *)
   Definition cmpt_lengths (fc : fw_cmpt) : nat * nat * nat :=
     match fc_body fc with
-    | TrustedBody code data exps => (length code, chunks_len data, length exps)
-    | UntrustedBody _ _ =>
+    | TrustedBody b => (length (tb_code b), chunks_len (tb_data b), length (tb_exports b))
+    | UntrustedBody _ =>
         let a := adv_of (fc_name fc) in
         (length (la_code a), length (la_data a), length (la_exports a))
     end.
@@ -103,17 +104,19 @@ Section link.
      a').
 
   (** The contents of a compartment, given the addresses of the image. *)
-  Definition fill_cmpt (img : fw_image) (fc : fw_cmpt) : string * img_cmpt :=
+  Definition fill_cmpt (fw : firmware) (img : fw_image) (fc : fw_cmpt) : string * img_cmpt :=
     let n := fc_name fc in
     let c := cmpt_of img n in
-    let imports := map (fw_word_of img c) (fc_imports fc) in
+    let imports := map (fw_word_of fw img c) (fc_imports fc) in
     let '(code, data, entries) :=
       match fc_body fc with
-      | TrustedBody code data exps => (code, chunks_words img c data, map export_word exps)
-      | UntrustedBody _ ns =>
+      | TrustedBody b =>
+          (tb_code b, chunks_words fw img c (tb_data b), map export_word (tb_exports b))
+      | UntrustedBody b =>
           let a := adv_of n in
           (la_code a, la_data a,
-           zip_with (λ off k, export_word (MkFwExport off k InterruptEnabled)) (la_exports a) ns)
+           zip_with (λ off e, export_word (MkFwExport "" off (ue_nargs e) InterruptEnabled))
+             (la_exports a) (ub_exports b))
       end in
     (n, MkImgCmpt (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c) (cmpt_b_cgp c) (cmpt_e_cgp c)
           (cmpt_b_static_sealed c) (cmpt_e_static_sealed c) (cmpt_exp_tbl_pcc c)
@@ -125,7 +128,7 @@ Section link.
     let '(img, a) := place fw in
     match (finz.of_z a : option Addr) with
     | Some _ =>
-        Some (MkFwImage (img_sw img) (img_asrt img) (map (fill_cmpt img) (fw_cmpts fw))
+        Some (MkFwImage (img_sw img) (img_asrt img) (map (fill_cmpt fw img) (fw_cmpts fw))
                 (img_threads img))
     | None => None
     end.

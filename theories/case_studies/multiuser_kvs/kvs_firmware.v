@@ -10,34 +10,59 @@ Set Mangle Names.
 (** The main compartment calls the KVS service, then the adversary [B],
     then reads back its value; [B] can use the service with its own key.
     The sealing type [ot_kvs] of the user keys and the two user keys are
-    parameters. The thread starts at the export of [main], after its seven
-    imports. *)
+    parameters. The thread starts at the export [entry] of [main], after
+    its seven imports. *)
 Definition kvs_firmware `{MP : MachineParameters}
     (ot_kvs : OType) (key_main key_B : Z) : firmware := {|
-  fw_cmpts := [
-    {| fc_name := "main";
-       fc_imports := [ISwitcherCall; IAssert; IExport "B" 0;
-                      IExport "kvs" 0; IExport "kvs" 1; IExport "kvs" 2;
-                      ISealedStatic ot_kvs 0];
+  fw_cmpts      := [
+    {| fc_name          := "main";
+       fc_imports       := [ISwitcherCall; IAssert; IExport "B" "f";
+                            IExport "kvs" "addOrUpdate"; IExport "kvs" "read";
+                            IExport "kvs" "erase"; ISealedStatic ot_kvs 0];
        fc_static_sealed := kvs_main_static_sealed key_main;
-       fc_body := TrustedBody kvs_main_code [FWs kvs_main_data]
-                    [MkFwExport 7 0 InterruptEnabled] |};
-    {| fc_name := "kvs";
-       fc_imports := [ISwitcherCall;
-                      FW (WSealRange true (false, true) Global ot_kvs (ot_kvs ^+ 1)%ot ot_kvs)];
+       fc_body          :=
+         TrustedBody {|
+           tb_code    := kvs_main_code;
+           tb_data    := [FWs kvs_main_data];
+           tb_exports := [ {| fe_name    := "entry";
+                              fe_offset  := 7;
+                              fe_nargs   := 0;
+                              fe_posture := InterruptEnabled |} ] |} |};
+    {| fc_name          := "kvs";
+       fc_imports       := [ISwitcherCall;
+                            FW (WSealRange true (false, true) Global ot_kvs (ot_kvs ^+ 1)%ot ot_kvs)];
        fc_static_sealed := [];
-       fc_body := TrustedBody kvs_service_instrs [FWs kvs_data]
-                    [MkFwExport kvs_addOrUpdate_pcc_off kvs_addOrUpdate_nargs InterruptEnabled;
-                     MkFwExport kvs_read_pcc_off kvs_read_nargs InterruptEnabled;
-                     MkFwExport kvs_erase_pcc_off kvs_erase_nargs InterruptEnabled] |};
-    {| fc_name := "B";
-       fc_imports := [ISwitcherCall; IExport "kvs" 0; IExport "kvs" 1; IExport "kvs" 2;
-                      ISealedStatic ot_kvs 0];
+       fc_body          :=
+         TrustedBody {|
+           tb_code    := kvs_service_instrs;
+           tb_data    := [FWs kvs_data];
+           tb_exports := [ {| fe_name    := "addOrUpdate";
+                              fe_offset  := kvs_addOrUpdate_pcc_off;
+                              fe_nargs   := kvs_addOrUpdate_nargs;
+                              fe_posture := InterruptEnabled |};
+                           {| fe_name    := "read";
+                              fe_offset  := kvs_read_pcc_off;
+                              fe_nargs   := kvs_read_nargs;
+                              fe_posture := InterruptEnabled |};
+                           {| fe_name    := "erase";
+                              fe_offset  := kvs_erase_pcc_off;
+                              fe_nargs   := kvs_erase_nargs;
+                              fe_posture := InterruptEnabled |} ] |} |};
+    {| fc_name          := "B";
+       fc_imports       := [ISwitcherCall; IExport "kvs" "addOrUpdate"; IExport "kvs" "read";
+                            IExport "kvs" "erase"; ISealedStatic ot_kvs 0];
        fc_static_sealed := [WInt key_B];
-       fc_body := UntrustedBody "B" [0] |}
+       fc_body          :=
+         UntrustedBody {|
+           ub_owner   := "B";
+           ub_exports := [ {| ue_name  := "f";
+                              ue_nargs := 0 |} ] |} |}
   ];
-  fw_threads := [MkFwThread "main" 0 100 24];
-  fw_otypes := [ot_kvs];
+  fw_threads    := [ {| ft_cmpt          := "main";
+                        ft_entry         := "entry";
+                        ft_stack_size    := 100;
+                        ft_tstack_frames := 24 |} ];
+  fw_otypes     := [ot_kvs];
   fw_heap_roots := []
 |}.
 

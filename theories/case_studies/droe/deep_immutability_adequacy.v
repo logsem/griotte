@@ -35,7 +35,10 @@ Section droe_obligations.
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
     cbv [cmpt_ok section body_ok fc_name fc_body fc_imports fc_static_sealed fw_imap
       fw_imap_from fw_word_of note addr_off nat_str chunks_words export_word
-      fe_offset fe_nargs fe_posture] in Hok_main.
+      fe_offset fe_nargs fe_posture tb_code tb_data tb_exports
+      fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
+      fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts droe_firmware
+      fe_name ue_name ub_exports String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HC_l.
@@ -69,7 +72,8 @@ Section droe_obligations.
       first exact Hmain_l.
     rewrite main_imports' main_code main_data.
     iPoseProof "HC_pers" as "(_ & _ & _ & HC_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name]) in "HC_entries".
+    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
+                fw_map ub_exports ue_nargs]) in "HC_entries".
     iEval (rewrite HsbC /=) in "HC_entries".
     iDestruct "HC_entries" as "([#Hentry_Cf #Hentry_Cf'] & _)".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
@@ -78,8 +82,8 @@ Section droe_obligations.
     (* 4 - Close the world of C: its compartment becomes permanent, and the
        stack temporary, because main shares it with C; its export is safe
        to share. *)
-    iMod (fw_close_adv_world _ _ _ 1 (fw_nth 1 (fw_cmpts droe_firmware) default_fw_cmpt) _ _
-            HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; lia) ltac:(done)
+    iMod (fw_close_adv_world _ _ _ 1 (fw_nth 1 (fw_cmpts droe_firmware) default_fw_cmpt) _
+            HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.

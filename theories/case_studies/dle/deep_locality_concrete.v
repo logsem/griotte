@@ -37,9 +37,13 @@ Definition dle_C_code : list Word :=
 
 Definition dle_C_data : list Word := [WInt 0].
 
-Definition dle_demo_link_cfg : link_cfg :=
-  MkLinkCfg 16 dle_switcher_sealing_type
-    [("C", MkLinkAdv dle_C_code dle_C_data [1])].
+Definition dle_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := dle_switcher_sealing_type;
+  lk_adv         := [("C", {| la_code    := dle_C_code;
+                              la_data    := dle_C_data;
+                              la_exports := [1] |})]
+|}.
 
 (** ** The linked image and its initial state *)
 

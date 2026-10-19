@@ -25,8 +25,8 @@ Section img_state.
     | ft :: _ =>
         let off :=
           match fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft)) with
-          | TrustedBody _ _ exps => fe_offset (fw_nth (ft_entry ft) exps default_export)
-          | UntrustedBody _ _ => 0
+          | TrustedBody b => fe_offset (fw_export_named (ft_entry ft) (tb_exports b))
+          | UntrustedBody _ => 0
           end in
         (ft_cmpt ft, off)
     end.

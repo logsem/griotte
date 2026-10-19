@@ -37,7 +37,10 @@ Section cmdc_obligations.
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
     cbv [cmpt_ok section body_ok fc_name fc_body fc_imports fc_static_sealed fw_imap
       fw_imap_from fw_word_of note addr_off nat_str chunks_words export_word
-      fe_offset fe_nargs fe_posture] in Hok_main.
+      fe_offset fe_nargs fe_posture tb_code tb_data tb_exports
+      fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
+      fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts cmdc_firmware
+      fe_name ue_name ub_exports String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HB_l.
@@ -79,7 +82,8 @@ Section cmdc_obligations.
     rewrite main_imports' main_code main_data.
     iPoseProof "HB_pers" as "(_ & _ & _ & HB_entries)".
     iPoseProof "HC_pers" as "(_ & _ & _ & HC_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name]) in
+    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
+                fw_map ub_exports ue_nargs]) in
       "HB_entries HC_entries".
     iEval (rewrite HsbB /=) in "HB_entries". iEval (rewrite HsbC /=) in "HC_entries".
     iDestruct "HB_entries" as "([#Hentry_Bf _] & _)".
@@ -94,15 +98,15 @@ Section cmdc_obligations.
        and the stack is revoked, because main keeps it; their exports are
        safe to share. *)
     iMod (fw_close_adv_world_revoked _ _ _ 1 (fw_nth 1 (fw_cmpts cmdc_firmware) default_fw_cmpt)
-            _ _ HB_l fw_world0 B Hok eq_refl eq_refl
-            ltac:(apply Forall_singleton; rewrite /cmdc_B_f_args; lia) ltac:(done)
+            _ HB_l fw_world0 B Hok eq_refl eq_refl
+            ltac:(apply Forall_singleton; cbn; rewrite /cmdc_B_f_args; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers [] Hworld_B")
       as "(Hworld_B & Hrevoked_stack_B & [#Hinterp_B _])".
     { iIntros "_". iSplit; last done.
       by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static"). }
     iMod (fw_close_adv_world_revoked _ _ _ 2 (fw_nth 2 (fw_cmpts cmdc_firmware) default_fw_cmpt)
-            _ _ HC_l fw_world0 C Hok eq_refl eq_refl
-            ltac:(apply Forall_singleton; rewrite /cmdc_C_g_args; lia) ltac:(done)
+            _ HC_l fw_world0 C Hok eq_refl eq_refl
+            ltac:(apply Forall_singleton; cbn; rewrite /cmdc_C_g_args; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers [] Hworld_C")
       as "(Hworld_C & Hrevoked_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.

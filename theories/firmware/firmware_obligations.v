@@ -64,7 +64,7 @@ Section obligation_facts.
   Context `{MP : MachineParameters}.
 
   Lemma fw_cmpt_ok_at fw img σ i fc :
-    firmware_ok fw img σ → fw_cmpts fw !! i = Some fc → cmpt_ok img fc.
+    firmware_ok fw img σ → fw_cmpts fw !! i = Some fc → cmpt_ok fw img fc.
   Proof.
     intros (Hok & _) Hi. apply big_and_fw_map in Hok.
     by eapply Forall_lookup_1.
@@ -150,11 +150,11 @@ Section obligation_facts.
     fw_imap_from (λ _ x, g x) k l = g <$> l.
   Proof. revert k. induction l as [|x l IH]; intros k; cbn; [done | by rewrite IH]. Qed.
 
-  Lemma cmpt_ok_imports img fc :
-    cmpt_ok img fc →
+  Lemma cmpt_ok_imports fw img fc :
+    cmpt_ok fw img fc →
     let c := cmpt_of img (fc_name fc) in
-    cmpt_imports c = fw_word_of img c <$> fc_imports fc.
-  Proof. rewrite /cmpt_ok /section /fw_imap fw_imap_const. by intros (Himports & _). Qed.
+    cmpt_imports c = fw_word_of fw img c <$> fc_imports fc.
+  Proof. intros (_ & Himports & _)%cmpt_ok_inv. by rewrite /= Himports /fw_imap fw_imap_const. Qed.
 
   Lemma fw_entry_pc_code fw img σ :
     fw_entry_at_code fw →
@@ -166,7 +166,7 @@ Section obligation_facts.
     destruct (regs_ok_inv _ _ _ Hregs) as (_ & Hin & Hname & _).
     pose proof (img_wf_cmpt_layout _ _ _ Hwf Hin) as Hc.
     apply big_and_fw_map in Hcmpts. rewrite Forall_forall in Hcmpts.
-    pose proof (cmpt_ok_imports _ _ (Hcmpts _ Hin)) as Himports.
+    pose proof (cmpt_ok_imports _ _ _ (Hcmpts _ Hin)) as Himports.
     pose proof (icl_import_size _ Hc) as Hsize.
     rewrite Himports length_fmap -Hentry Hname -fw_thread_of_0 in Hsize.
     rewrite /m /fw_entry_pc /fw_entry_cmpt addr_off_eq. cbv zeta.
@@ -377,14 +377,14 @@ Section adversary.
     interp_in_memC (W, C, lword_of_word w) ∗ future_priv_mono C interp_in_memC (lword_of_word w).
 
   (** The imports of a compartment, as the words of the firmware. *)
-  Lemma fw_imports_safe_words img fc W C :
-    cmpt_ok img fc →
+  Lemma fw_imports_safe_words fw img fc W C :
+    cmpt_ok fw img fc →
     let c := cmpt_of img (fc_name fc) in
     ([∗ list] v ∈ lword_of_word <$> cmpt_imports c,
        interp_in_memC (W, C, v) ∗ future_priv_mono C interp_in_memC v) ⊣⊢
-    [∗ list] w ∈ fc_imports fc, fw_import_safe W C (fw_word_of img c w).
+    [∗ list] w ∈ fc_imports fc, fw_import_safe W C (fw_word_of fw img c w).
   Proof.
-    intros Hok c. rewrite (cmpt_ok_imports _ _ Hok) -list_fmap_compose big_sepL_fmap //.
+    intros Hok c. rewrite (cmpt_ok_imports _ _ _ Hok) -list_fmap_compose big_sepL_fmap //.
   Qed.
 
   (** The switcher call sentry is safe to import. *)
@@ -392,7 +392,7 @@ Section adversary.
     firmware_ok fw img σ →
     na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := fw_switcher_layout img)) -∗
     switcher_static (swlayout := fw_switcher_layout img) -∗
-    fw_import_safe W C (fw_word_of img c ISwitcherCall).
+    fw_import_safe W C (fw_word_of fw img c ISwitcherCall).
   Proof.
     intros Hok. destruct (fw_switcher_layouts _ _ _ Hok) as [_ Hsw].
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
@@ -410,7 +410,7 @@ Section adversary.
     ∃ offs : list nat,
       length offs = length ns ∧
       Forall (λ off, (Z.of_nat off < cmpt_e_pcc c - cmpt_b_pcc c)%Z) offs ∧
-      k (zip_with (λ off n, export_word (MkFwExport off n InterruptEnabled)) offs ns).
+      k (zip_with (λ off n, export_word (MkFwExport "" off n InterruptEnabled)) offs ns).
   Proof.
     revert k. induction ns as [|n ns IH]; intros k Hk; cbn in Hk.
     - by exists [].
@@ -442,15 +442,15 @@ Section adversary.
   (** The facts about an untrusted compartment [fc] of a firmware that the
       allocation of its world needs: the contents of its code and globals,
       and the sealing predicate of the switcher for its export entries. *)
-  Lemma fw_adv_cmpt_facts fw img σ fc owner ns
+  Lemma fw_adv_cmpt_facts fw img σ fc ub
       (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
     let swl := fw_switcher_layout img in
     let c := cmpt_of img (fc_name fc) in
     let C_cmpt := layout_cmpt_of c Hc in
     firmware_ok fw img σ →
     fc ∈ fw_cmpts fw →
-    fc_body fc = UntrustedBody owner ns →
-    Forall (λ n, n < 7) ns →
+    fc_body fc = UntrustedBody ub →
+    Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     Forall is_z (compartment_layout.cmpt_code C_cmpt) ∧
     Forall (is_initial_data_word C_cmpt) (compartment_layout.cmpt_data C_cmpt) ∧
     (na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := swl)) -∗
@@ -466,8 +466,10 @@ Section adversary.
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
     apply big_and_fw_map in Hcmpts_ok. rewrite Forall_forall in Hcmpts_ok.
     pose proof (Hcmpts_ok fc Hin) as Hfc_ok.
-    rewrite /cmpt_ok /section Hbody in Hfc_ok.
-    destruct Hfc_ok as (_ & _ & Hcode & Hdata & Hexps). rewrite /note in Hcode Hdata Hexps.
+    destruct (cmpt_ok_inv _ _ _ Hfc_ok) as (_ & _ & _ & Hbody_ok).
+    rewrite Hbody in Hbody_ok.
+    destruct Hbody_ok as (Hcode & Hdata & Hexps). rewrite /note in Hcode Hdata Hexps.
+    remember (fw_map ue_nargs (ub_exports ub)) as ns eqn:Hns.
     destruct (hole_exports_spec _ _ _ Hexps) as (offs & Hlen & Hoffs & Hentries_eq).
     split; first exact Hcode. split; first exact Hdata.
     iIntros "#Hswitcher #Hstatic #(Hpcc & Hcgp & Hetbl & Hentries)".
@@ -491,24 +493,25 @@ Section adversary.
       induction offs as [|off offs IH]; intros [|n ns] Hlen; cbn in *; try constructor.
       + apply Forall_cons in Hsome as [Hs _]. exact Hs.
       + apply Forall_cons in Hsome as [_ Hsome]. apply IH; [exact Hsome | lia].
-    - rewrite /fc_entries /fc_export_nargs Hbody /fw_imap big_sepL_fw_imap_from.
+    - rewrite /fc_entries /fc_export_nargs Hbody -Hns /fw_imap big_sepL_fw_imap_from.
       iApply (big_sepL_zip_with_exports with "Hentries"); last done.
       intros k off n. cbn. by rewrite /cmpt_export_sb addr_off_eq.
   Qed.
 
   (** The exports of an untrusted compartment are safe to share, given the
       safety of its sealed export entries. *)
-  Lemma fw_adv_exports_interp img fc owner ns
+  Lemma fw_adv_exports_interp fw img fc ub
       (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
-    cmpt_ok img fc →
-    fc_body fc = UntrustedBody owner ns →
+    cmpt_ok fw img fc →
+    fc_body fc = UntrustedBody ub →
     ([∗ set] v ∈ exported_entries_sealed (swlayout := fw_switcher_layout img)
                    (layout_cmpt_of _ Hc), interp W C v) -∗
-    [∗ list] k ↦ _ ∈ ns,
+    [∗ list] k ↦ _ ∈ ub_exports ub,
       interp W C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb (cmpt_of img (fc_name fc)) k)).
   Proof.
     intros Hok Hbody. iIntros "#Hexp".
-    pose proof (fc_export_nargs_length _ _ Hok) as Hlen. rewrite /fc_export_nargs Hbody in Hlen.
+    pose proof (fc_export_nargs_length _ _ _ Hok) as Hlen.
+    rewrite /fc_export_nargs Hbody fw_map_eq length_fmap in Hlen.
     iApply big_sepL_intro. iIntros "!>" (k n Hk).
     apply lookup_lt_Some in Hk.
     rewrite /cmpt_export_sb addr_off_eq.
@@ -523,7 +526,7 @@ Section adversary.
       export entries sealed, and the stack temporary. The case study proves
       that the imports are safe. The static sealed objects of [fc] are not
       used: the case study may have moved them into an invariant. *)
-  Lemma fw_close_adv_world {E : coPset} fw img σ i fc owner ns
+  Lemma fw_close_adv_world {E : coPset} fw img σ i fc ub
       (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
     let swl := fw_switcher_layout img in
     let c := cmpt_of img (fc_name fc) in
@@ -533,8 +536,8 @@ Section adversary.
     let Wadv := std_update_multiple W' (finz.seq_between (b_stack t) (e_stack t)) Temporary in
     firmware_ok fw img σ →
     fw_cmpts fw !! i = Some fc →
-    fc_body fc = UntrustedBody owner ns →
-    Forall (λ n, n < 7) ns →
+    fc_body fc = UntrustedBody ub →
+    Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
     na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := swl)) -∗
@@ -547,12 +550,12 @@ Section adversary.
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
-     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of img c w)) -∗
+     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of fw img c w)) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
     interp Wadv C (fw_thread_csp img 0) ∗
-    [∗ list] k ↦ _ ∈ ns, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
+    [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
     iIntros "#Hswitcher #Hstatic #Hseal (Himp & Hcode & Hdata) #Hpers Hstack Himports Hworld".
@@ -560,7 +563,7 @@ Section adversary.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
     set (swc := fw_switcher_cmpt fw img σ Hok).
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
-    destruct (fw_adv_cmpt_facts fw img σ fc owner ns Hc W' C Hok Hin Hbody Hnargs)
+    destruct (fw_adv_cmpt_facts fw img σ fc ub Hc W' C Hok Hin Hbody Hnargs)
       as (Hcode & Hdata & Hexports).
     iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
            with "Hseal Himp Hcode Hdata Hstack [] [Himports] Hworld")
@@ -578,7 +581,7 @@ Section adversary.
   (** The same, with the stack of the first thread revoked in the world of
       [C] rather than temporary: the trusted code keeps the stack, and
       receives the revoked-stack resources of [C]. *)
-  Lemma fw_close_adv_world_revoked {E : coPset} fw img σ i fc owner ns
+  Lemma fw_close_adv_world_revoked {E : coPset} fw img σ i fc ub
       (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
     let swl := fw_switcher_layout img in
     let c := cmpt_of img (fc_name fc) in
@@ -588,8 +591,8 @@ Section adversary.
     let Wadv := std_update_multiple W' (finz.seq_between (b_stack t) (e_stack t)) Revoked in
     firmware_ok fw img σ →
     fw_cmpts fw !! i = Some fc →
-    fc_body fc = UntrustedBody owner ns →
-    Forall (λ n, n < 7) ns →
+    fc_body fc = UntrustedBody ub →
+    Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
     na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := swl)) -∗
@@ -600,12 +603,12 @@ Section adversary.
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
-     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of img c w)) -∗
+     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of fw img c w)) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
     StackRevokedResources Wadv C (finz.seq_between (b_stack t) (e_stack t)) ∗
-    [∗ list] k ↦ _ ∈ ns, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
+    [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
     iIntros "#Hswitcher #Hstatic #Hseal (Himp & Hcode & Hdata) #Hpers Himports Hworld".
@@ -613,7 +616,7 @@ Section adversary.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
     set (swc := fw_switcher_cmpt fw img σ Hok).
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
-    destruct (fw_adv_cmpt_facts fw img σ fc owner ns Hc W' C Hok Hin Hbody Hnargs)
+    destruct (fw_adv_cmpt_facts fw img σ fc ub Hc W' C Hok Hin Hbody Hnargs)
       as (Hcode & Hdata & Hexports).
     iMod (initialise_adversary_world_revoked (swlayout := swl) W swc C_cmpt C
            with "Hseal Himp Hcode Hdata [] [Himports] Hworld")
