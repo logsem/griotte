@@ -10,12 +10,13 @@ From griotte Require
 .
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout
-  kvs kvs_main cmdc deep_locality deep_immutability lse.
+  kvs kvs_main cmdc deep_locality deep_immutability lse stack_object.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import
   image firmware firmware_ok print
-  kvs_firmware cmdc_firmware dle_firmware droe_firmware lse_firmware
-  kvs_concrete cmdc_concrete deep_locality_concrete deep_immutability_concrete lse_concrete.
+  kvs_firmware cmdc_firmware dle_firmware droe_firmware lse_firmware so_firmware
+  kvs_concrete cmdc_concrete deep_locality_concrete deep_immutability_concrete lse_concrete
+  stack_object_concrete.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
@@ -169,6 +170,23 @@ End lse_memory_map.
 Goal True. idtac "
 Assumptions of the 'stack object' end-to-end theorem:". Abort.
 Print Assumptions stack_object_adequacy.so_adequacy.
+
+Print so_initial_state_ok.
+
+Section so_initial_state.
+  Import FwPrintNotations.
+  Open Scope string_scope.
+  Open Scope OType_scope.
+  Open Scope Addr_scope.
+  Ltac2 Eval print_initial_state constr:(@so_initial_state_ok_annot).
+End so_initial_state.
+
+Section so_memory_map.
+  Import FwMapNotations.
+  Open Scope string_scope.
+  Open Scope Z_scope.
+  Ltac2 Eval print_memory_map constr:(so_demo_image).
+End so_memory_map.
 *)
 
 (** ** Very Awkward Example (VAE) *)

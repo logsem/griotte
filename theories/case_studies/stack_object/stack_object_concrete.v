@@ -1,470 +1,90 @@
-From griotte.program_logic Require Import allocator_resources.
-From iris.program_logic Require Import adequacy.
+From stdpp Require Import gmap strings.
+From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
-  registers griotte_lang machine_run switcher assert compartment_layout
-  stack_object stack_object_adequacy disjoint_regions_tactics.
-From griotte Require Import adequacy_common.
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  switcher assert allocator_resources compartment_layout
+  stack_object stack_object_adequacy.
+(* Imported last: the fields of the image records. *)
+From griotte Require Import image firmware firmware_ok image_state link so_firmware.
+Set Mangle Names.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
+#[local] Open Scope string_scope.
 
-#[local] Notation "'A' z" :=
-  (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-#[local] Notation "'OT' z" :=
-  (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
+(** * A concrete instance of the stack object case study
 
-Definition so_main_pcc_b : Addr := A 9.
-Definition so_main_code_start : Addr := A 12.
-Definition so_main_pcc_e : Addr := A 132.
-Definition so_C_pcc_b : Addr := A 160.
-Definition so_C_code_start : Addr := A 163.
-Definition so_C_pcc_e : Addr := A 194.
-Definition so_main_data_b : Addr := A 204.
-Definition so_main_data_e : Addr := A 204.
-Definition so_C_data_b : Addr := A 204.
-Definition so_C_data_e : Addr := A 205.
-Definition so_main_exports_pcc : Addr := A 205.
-Definition so_main_exports_cgp : Addr := A 206.
-Definition so_main_exports_entries_b : Addr := A 207.
-Definition so_main_exports_entries_e : Addr := A 208.
-Definition so_C_exports_pcc : Addr := A 208.
-Definition so_C_exports_cgp : Addr := A 209.
-Definition so_C_exports_entries_b : Addr := A 210.
-Definition so_C_exports_entries_e : Addr := A 212.
-Definition so_assert_b : Addr := A 212.
-Definition so_assert_cap : Addr := A 223.
-Definition so_assert_e : Addr := A 224.
-Definition so_assert_flag : Addr := A 224.
-Definition so_switcher_b : Addr := A 226.
-Definition so_switcher_call : Addr := A 227.
-Definition so_switcher_return : Addr := A 305.
-Definition so_switcher_e : Addr := A 363.
-Definition so_switcher_sealing_type : OType := OT 9.
-Definition so_trusted_stack_b : Addr := A 4096.
-Definition so_trusted_stack_e : Addr := A 4194.
-Definition so_stack_b : Addr := A 1024.
-Definition so_stack_e : Addr := A 1124.
+    The stack object firmware with a concrete adversary [C], laid out by
+    the linker. Its initial state satisfies [so_initial_state_ok] by
+    computation, runs to [Halted], and [so_adequacy] applies to it. *)
 
-Ltac unfold_so_addresses :=
-  unfold so_main_pcc_b, so_main_code_start, so_main_pcc_e,
-    so_C_pcc_b, so_C_code_start, so_C_pcc_e,
-    so_main_data_b, so_main_data_e, so_C_data_b, so_C_data_e,
-    so_main_exports_pcc, so_main_exports_cgp,
-    so_main_exports_entries_b, so_main_exports_entries_e,
-    so_C_exports_pcc, so_C_exports_cgp,
-    so_C_exports_entries_b, so_C_exports_entries_e,
-    so_assert_b, so_assert_cap, so_assert_e, so_assert_flag,
-    so_switcher_b, so_switcher_call, so_switcher_return,
-    so_switcher_e, so_switcher_sealing_type,
-    so_trusted_stack_b, so_trusted_stack_e,
-    so_stack_b, so_stack_e.
-
-Ltac unfold_so_addresses_in H :=
-  unfold so_main_pcc_b, so_main_code_start, so_main_pcc_e,
-    so_C_pcc_b, so_C_code_start, so_C_pcc_e,
-    so_main_data_b, so_main_data_e, so_C_data_b, so_C_data_e,
-    so_main_exports_pcc, so_main_exports_cgp,
-    so_main_exports_entries_b, so_main_exports_entries_e,
-    so_C_exports_pcc, so_C_exports_cgp,
-    so_C_exports_entries_b, so_C_exports_entries_e,
-    so_assert_b, so_assert_cap, so_assert_e, so_assert_flag,
-    so_switcher_b, so_switcher_call, so_switcher_return,
-    so_switcher_e, so_switcher_sealing_type,
-    so_trusted_stack_b, so_trusted_stack_e,
-    so_stack_b, so_stack_e in H.
+Definition so_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
 (** The concrete adversary allocates and initializes a one-word public object
     on its stack, then calls the main function with that object and callback
     [g]. The main function allocates a second public stack object and passes
     both capabilities to [g], which attempts to overwrite them with [7] and
     [9]. After the call, the adversary restores its stack and return capability
-    before returning to the main program. *)
+    before returning to the main program. It has one zeroed global, and its
+    entry points [adv_entry] and [g_entry]. *)
 Definition so_C_code : list Word := encodeInstrsW so_C_instrs.
 
 Definition so_C_data : list Word := [WInt 0].
 
-Program Definition so_concrete_cmptSwitcher : cmptSwitcher.
+Definition so_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := so_switcher_sealing_type;
+  lk_adv         := [("C", {| la_code    := so_C_code;
+                              la_data    := so_C_data;
+                              la_exports := [so_C_adv_entry; so_C_g_entry] |})]
+|}.
+
+(** ** The linked image and its initial state *)
+
+Definition so_demo_image : fw_image :=
+  Eval vm_compute in
+    default (place so_demo_link_cfg so_firmware).1
+      (link so_demo_link_cfg so_firmware).
+
+Lemma so_demo_linked :
+  link so_demo_link_cfg so_firmware = Some so_demo_image.
+Proof. vm_compute; reflexivity. Qed.
+
+Definition so_demo_state : ExecConf := img_state so_firmware so_demo_image.
+
+Ltac solve_other_registers :=
+  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
+  rewrite !lookup_insert_ne; try set_solver;
+  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
+
+Lemma so_demo_ok :
+  so_initial_state_ok (flag_assert (img_asrt so_demo_image)) so_demo_state.
 Proof.
-  refine (@mkCmptSwitcher machine_parameters_instance
-    so_switcher_b so_switcher_e so_switcher_call so_switcher_return
-    so_switcher_sealing_type so_trusted_stack_b so_trusted_stack_e
-    _ _ _ _ (initial_trusted_stack_content (WInt 0) (WInt 0) 24) _ eq_refl
-    ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_words; apply trusted_stack_word_int)
-    so_stack_b so_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_so_addresses.
-    repeat split; unfold disjoint, set_disjoint_instance;
-      intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx'; solve_addr.
-  - solve_disjoint_from_mmio.
-  - reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-Defined.
-
-Program Definition so_concrete_cmptAssert : cmptAssert.
-Proof.
-  refine (@mkCmptAssert machine_parameters_instance
-    so_assert_b so_assert_e so_assert_cap so_assert_flag _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; reflexivity.
-  - unfold_so_addresses; unfold disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'. solve_addr.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-Defined.
-
-#[local] Instance so_concrete_switcherLayout : switcherLayout.
-Proof. exact (cmptSwitcher_switcherLayout so_concrete_cmptSwitcher). Defined.
-
-#[local] Instance so_concrete_assertLayout : assertLayout.
-Proof. exact (cmptAssert_assertLayout so_concrete_cmptAssert). Defined.
-
-Definition so_C_f : Sealable :=
-  SCap true RO Global so_C_exports_pcc so_C_exports_entries_e
-    so_C_exports_entries_b.
-Definition so_C_g : Sealable :=
-  SCap true RO Global so_C_exports_pcc so_C_exports_entries_e
-    (so_C_exports_entries_b ^+ 1)%a.
-Definition so_main_imports_concrete : list Word := so_main_imports so_C_f.
-Definition so_C_imports : list Word :=
-  [ WSentry FwdDisable true XSRW_ Local so_switcher_b so_switcher_e so_switcher_call
-  ; WSealed so_switcher_sealing_type
-      (so_entry_f_sb so_main_exports_pcc so_main_exports_entries_e)
-  ; WSealed so_switcher_sealing_type so_C_g
-  ].
-Definition so_C_exports : list Word :=
-  [WInt (encode_entry_point InterruptEnabled 0 so_C_adv_entry); WInt (encode_entry_point InterruptEnabled 2 so_C_g_entry)].
-
-Program Definition so_concrete_main_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance so_main_pcc_b so_main_code_start so_main_pcc_e
-    so_main_data_b so_main_data_e so_main_data_e so_main_data_e
-    so_main_exports_pcc so_main_exports_cgp
-    so_main_exports_entries_b so_main_exports_entries_e
-    so_main_imports_concrete so_main_code so_main_data [] so_export_table_entries
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_so_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Program Definition so_concrete_C_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance so_C_pcc_b so_C_code_start so_C_pcc_e
-    so_C_data_b so_C_data_e so_C_data_e so_C_data_e
-    so_C_exports_pcc so_C_exports_cgp
-    so_C_exports_entries_b so_C_exports_entries_e
-    so_C_imports so_C_code so_C_data [] so_C_exports _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_so_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-(** All nonempty concrete regions, in increasing address order. The empty
-    main data region and both empty static-sealed ranges are omitted. *)
-Definition so_concrete_region_partition : list (list Addr) :=
-  [ finz.seq_between so_main_pcc_b so_main_pcc_e;
-    finz.seq_between so_C_pcc_b so_C_pcc_e;
-    finz.seq_between so_C_data_b so_C_data_e;
-    finz.seq_between so_main_exports_pcc so_main_exports_entries_e;
-    finz.seq_between so_C_exports_pcc so_C_exports_entries_e;
-    finz.seq_between so_assert_b so_assert_cap;
-    finz.seq_between so_assert_cap so_assert_e;
-    finz.seq_between so_assert_flag (so_assert_flag ^+ 1)%a;
-    finz.seq_between so_switcher_b so_switcher_e;
-    finz.seq_between so_stack_b so_stack_e;
-    finz.seq_between so_trusted_stack_b so_trusted_stack_e
-  ].
-
-Lemma so_concrete_region_partition_disjoint :
-  ## so_concrete_region_partition.
-Proof.
-  rewrite /so_concrete_region_partition.
-  unfold_so_addresses.
-  disj_regions.
+  rewrite /so_initial_state_ok.
+  exists (img_sw so_demo_image), (img_asrt so_demo_image), (thread_of so_demo_image 0),
+    (cmpt_of so_demo_image "main"), (cmpt_of so_demo_image "C").
+  split; first done.
+  split_and!.
+  all: try (exists so_C_adv_entry; split; [|exists so_C_g_entry; split_and!]).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /so_demo_state /img_state /img_regs; solve_other_registers
+            end).
+  all: solve_concrete_condition.
 Qed.
 
-#[local] Lemma so_main_data_region_empty :
-  finz.seq_between so_main_data_b so_main_data_e = [].
-Proof.
-  apply finz_seq_between_empty.
-  unfold_so_addresses; solve_addr.
-Qed.
+(** ** The run
 
-#[local] Lemma so_C_static_region_empty :
-  finz.seq_between so_C_data_e so_C_data_e = [].
-Proof.
-  apply finz_seq_between_empty.
-  unfold_so_addresses; solve_addr.
-Qed.
-
-#[local] Lemma so_concrete_cmpts_disjoints :
-  so_concrete_main_cmpt ## so_concrete_C_cmpt.
-Proof.
-  change
-    ((finz.seq_between so_main_pcc_b so_main_pcc_e ∪
-      finz.seq_between so_main_data_b so_main_data_e ∪
-      finz.seq_between so_main_data_e so_main_data_e ∪
-      finz.seq_between so_main_exports_pcc so_main_exports_entries_e) ##
-     (finz.seq_between so_C_pcc_b so_C_pcc_e ∪
-      finz.seq_between so_C_data_b so_C_data_e ∪
-      finz.seq_between so_C_data_e so_C_data_e ∪
-      finz.seq_between so_C_exports_pcc so_C_exports_entries_e)).
-  pose proof so_concrete_region_partition_disjoint as Hpartition.
-  rewrite so_main_data_region_empty so_C_static_region_empty.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma so_concrete_switcher_cmpt_disjoints :
-  switcher_cmpt_disjoint so_concrete_main_cmpt so_concrete_cmptSwitcher
-  ∧ switcher_cmpt_disjoint so_concrete_C_cmpt so_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between so_switcher_b so_switcher_e ∪
-      finz.seq_between so_trusted_stack_b so_trusted_stack_e ∪
-      finz.seq_between so_stack_b so_stack_e) ##
-     (finz.seq_between so_main_pcc_b so_main_pcc_e ∪
-      finz.seq_between so_main_data_b so_main_data_e ∪
-      finz.seq_between so_main_data_e so_main_data_e ∪
-      finz.seq_between so_main_exports_pcc so_main_exports_entries_e) /\
-     (finz.seq_between so_switcher_b so_switcher_e ∪
-      finz.seq_between so_trusted_stack_b so_trusted_stack_e ∪
-      finz.seq_between so_stack_b so_stack_e) ##
-     (finz.seq_between so_C_pcc_b so_C_pcc_e ∪
-      finz.seq_between so_C_data_b so_C_data_e ∪
-      finz.seq_between so_C_data_e so_C_data_e ∪
-      finz.seq_between so_C_exports_pcc so_C_exports_entries_e)).
-  pose proof so_concrete_region_partition_disjoint as Hpartition.
-  rewrite so_main_data_region_empty so_C_static_region_empty.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma so_concrete_assert_cmpt_disjoints :
-  assert_cmpt_disjoint so_concrete_main_cmpt so_concrete_cmptAssert
-  ∧ assert_cmpt_disjoint so_concrete_C_cmpt so_concrete_cmptAssert.
-Proof.
-  change
-    ((finz.seq_between so_assert_b so_assert_cap ∪
-      finz.seq_between so_assert_cap so_assert_e ∪
-      finz.seq_between so_assert_flag (so_assert_flag ^+ 1)%a) ##
-     (finz.seq_between so_main_pcc_b so_main_pcc_e ∪
-      finz.seq_between so_main_data_b so_main_data_e ∪
-      finz.seq_between so_main_data_e so_main_data_e ∪
-      finz.seq_between so_main_exports_pcc so_main_exports_entries_e) /\
-     (finz.seq_between so_assert_b so_assert_cap ∪
-      finz.seq_between so_assert_cap so_assert_e ∪
-      finz.seq_between so_assert_flag (so_assert_flag ^+ 1)%a) ##
-     (finz.seq_between so_C_pcc_b so_C_pcc_e ∪
-      finz.seq_between so_C_data_b so_C_data_e ∪
-      finz.seq_between so_C_data_e so_C_data_e ∪
-      finz.seq_between so_C_exports_pcc so_C_exports_entries_e)).
-  pose proof so_concrete_region_partition_disjoint as Hpartition.
-  rewrite so_main_data_region_empty so_C_static_region_empty.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma so_concrete_assert_switcher_disjoints :
-  assert_switcher_disjoint so_concrete_cmptAssert so_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between so_assert_b so_assert_cap ∪
-      finz.seq_between so_assert_cap so_assert_e ∪
-      finz.seq_between so_assert_flag (so_assert_flag ^+ 1)%a) ##
-     (finz.seq_between so_switcher_b so_switcher_e ∪
-      finz.seq_between so_trusted_stack_b so_trusted_stack_e ∪
-      finz.seq_between so_stack_b so_stack_e)).
-  pose proof so_concrete_region_partition_disjoint as Hpartition.
-  solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
-Qed.
-
-#[global] Instance so_concrete_layout : memory_layout.
-Proof.
-  refine
-    (@Build_memory_layout machine_parameters_instance
-       so_concrete_cmptSwitcher so_concrete_cmptAssert
-       so_concrete_main_cmpt so_concrete_C_cmpt so_C_adv_entry so_C_g_entry
-       _ _
-       so_concrete_cmpts_disjoints
-       so_concrete_switcher_cmpt_disjoints
-       so_concrete_assert_cmpt_disjoints
-       so_concrete_assert_switcher_disjoints).
-  all: vm_compute; eauto.
-Defined.
-
-Definition so_initial_pc : Word :=
-  WCap true RX Global so_main_pcc_b so_main_pcc_e so_main_code_start.
-
-Definition so_initial_registers : Reg :=
-  (<[cgp := WCap true RW Global so_main_data_b so_main_data_e so_main_data_b]>
-  (<[csp := WCap true RWL Local so_stack_b so_stack_e so_stack_b]>
-    (gset_to_gmap (WInt 0) all_registers_s))).
-Definition so_initial_sregisters : SReg :=
-  initial_sregisters_with
-    (WCap true RWL Global so_trusted_stack_b so_trusted_stack_e
-      so_trusted_stack_b).
-Definition so_initial_memory : Mem := mk_initial_memory.
-
-Lemma so_initial_registers_correct : is_initial_registers so_initial_pc so_initial_registers.
-Proof.
-  rewrite /is_initial_registers /so_initial_pc /so_initial_registers.
-  cbn [so_concrete_layout so_concrete_main_cmpt].
-  split; [|split; [|split]].
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - intros r Hr; rewrite !lookup_insert_ne; try set_solver.
-    apply lookup_gset_to_gmap_Some; split.
-    + apply all_registers_s_correct.
-    + done.
-Qed.
-
-Lemma so_initial_sregisters_correct :
-  is_initial_sregisters so_initial_sregisters.
-Proof.
-  rewrite /is_initial_sregisters /so_initial_sregisters.
-  cbn [so_concrete_layout so_concrete_cmptSwitcher].
-  apply initial_sregisters_with_correct. vm_compute; reflexivity.
-Qed.
-
-Lemma so_initial_memory_correct : is_initial_memory so_initial_memory.
-Proof.
-  rewrite /is_initial_memory /so_initial_memory.
-  repeat split; try reflexivity; try apply Forall_nil_2.
-  - rewrite /so_C_code /encodeInstrsW; repeat constructor; done.
-  - rewrite /so_C_data; repeat constructor; done.
-  - apply Forall_replicate; done.
-Qed.
-
-(** The initialized free heap is disjoint from the concrete program. *)
-Lemma so_initial_heap_disjoint :
-  initial_heap_memory ##ₘ mk_initial_program_memory.
-Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
-
-Lemma so_concrete_adequacy pc' reg' sreg' mem' sh' es :
-  rtc erased_step
-    ([Seq (Instr Executable)],
-      (so_initial_pc, so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow))
-    (es, (pc', reg', sreg', mem', sh')) ->
-  mem' !! so_assert_flag = Some (WInt 0%Z).
-Proof.
-  intro Hrun.
-  pose proof (@so_adequacy machine_parameters_instance so_concrete_layout
-    so_initial_pc pc' so_initial_registers reg' so_initial_sregisters sreg'
-    so_initial_memory mem' initial_heap_shadow sh' es so_initial_registers_correct
-    so_initial_sregisters_correct so_initial_memory_correct eq_refl so_initial_heap_disjoint Hrun) as Hadequacy.
-  cbn [so_concrete_layout so_concrete_cmptAssert] in Hadequacy.
-  exact Hadequacy.
-Qed.
-
-(** Combining the computed execution with [so_concrete_adequacy] shows that
-    there is a final machine state such that the exact initial configuration:
-    - executes to [Halted], rather than failing or exhausting the chosen fuel;
-    - finishes with the assertion flag still set to zero.
-    Thus this particular adversarial execution terminates normally without
-    violating the case study's assertion. *)
+    [so_demo_state] runs to [Halted], and [so_adequacy] applies to it:
+    the flag of the assert library is still zero. *)
 Theorem so_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step
-      ([Seq (Instr Executable)],
-        (so_initial_pc, so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow))
+    rtc erased_step ([Seq (Instr Executable)], so_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! so_assert_flag = Some (WInt 0%Z).
+    ∧ mem' !! flag_assert (img_asrt so_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof (machine_run_correct (N.to_nat (7000%N)) Executable
-    (so_initial_pc, so_initial_registers, so_initial_sregisters, so_initial_memory, initial_heap_shadow)
-    Halted) as Hrun.
+  pose proof (machine_run_correct 7000 Executable so_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
-  exists pc', reg', sreg', mem', sh'. split.
-  - exact Hrun.
-  - eapply so_concrete_adequacy; exact Hrun.
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (so_adequacy _ _ _ _ so_demo_ok Hrun).
 Qed.
