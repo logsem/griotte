@@ -35,25 +35,24 @@ Section fundamental.
   Implicit Types interp : (V).
 
   (** Failure path of [interp_expr_switcher_call]: the checks on the stack
-      pointer fail, and the call is unwound by the return routine. *)
+      pointer fail, and the call is unwound by the return routine. Block 18
+      sets the return values, so no register needs to be safe. *)
   Lemma interp_switcher_call_force_unwind
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (regs : LReg) (wcsp : LWord) (zct2 zctp : Z)
+    (regs : LReg)
     (a_tstk : Addr) (save_area tstk_next : list LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     (∀ r, is_Some (regs !! r)) ->
-    regs !! csp = Some wcsp ->
     frame_match Ws Cs cstk W C ->
     (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) ∗
     (▷ switcher_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
@@ -66,10 +65,7 @@ Section fundamental.
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
     PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-    csp ↦ᵣ wcsp ∗
-    ct2 ↦ᵣ WInt zct2 ∗
-    ctp ↦ᵣ WInt zctp ∗
-    ( [∗ map] k↦y ∈ delete ctp (delete ct2 (delete csp regs)), k ↦ᵣ y ) ∗
+    registers_pointsto regs ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     cstack_frag cstk
@@ -78,42 +74,29 @@ Section fundamental.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
     (* Outline of the proof: [switcher_call_block_18_spec] executes block 18,
-       then close the switcher invariant and use the validity of the return
-       routine ([interp_expr_switcher_return]). *)
-    iIntros (Hfull_rmap Hstk Hframe Hlen_cstk Ha_tstk_e Hot_bounds)
-      "(#Hinv_switcher & #Hreg & Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hframeoffset & HthreadID
+       then close the switcher invariant and run the return routine
+       ([switcher_return_unwind]) with the integer return values. *)
+    iIntros (Hfull_rmap Hframe Hlen_cstk Ha_tstk_e Hot_bounds)
+      "(#Hinv_switcher & Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hframeoffset & HthreadID
       & Htstk & #Hstatic
-      & Hcstk_full & Hstk_interp & #Hp_ot_switcher & HPC & Hcsp & Hct2 & Hctp & Hrmap
+      & Hcstk_full & Hstk_interp & #Hp_ot_switcher & HPC & Hrmap
       & Hworld_interp & Hcont & Hcstk)".
     iPoseProof "Hstatic" as "[#Hcode _]".
-    specialize (Hfull_rmap ca0) as HH; destruct HH as [? ?].
-    specialize (Hfull_rmap ca1) as HH; destruct HH as [? ?].
-    iExtract "Hrmap" ca0 as "Hca0".
-    iExtract "Hrmap" ca1 as "Hca1".
+    rewrite /registers_pointsto.
+    getRegValList [ca0;ca1].
+    iExtractList "Hrmap" [ca0;ca1] as ["Hca0";"Hca1"].
     iApply (switcher_call_block_18_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
     iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
     iMod ("Hclose_switcher_inv" with
-      "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "HH".
+      "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
     { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
 
-    iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1].
-    iApply (interp_expr_switcher_return with "[$Hinv_switcher $Hstatic]"); iFrame "∗%#".
-    rewrite /interp_reg /=.
-    iSplit.
-    + rewrite /full_map.
-      iIntros (r); iPureIntro.
-      destruct (decide (r = ca1)); first by simplify_map_eq.
-      destruct (decide (r = ca0)); first by simplify_map_eq.
-      destruct (decide (r = ct2)); first by simplify_map_eq.
-      destruct (decide (r = ctp)); first by simplify_map_eq.
-      destruct (decide (r = csp)); first by simplify_map_eq.
-      simplify_map_eq. apply Hfull_rmap.
-    + iIntros (r w Hr). iApply interp_filter_heap.
-      destruct (decide (r = ca1)); first (simplify_map_eq; iApply interp_int).
-      destruct (decide (r = ca0)); first (simplify_map_eq; iApply interp_int).
-      destruct (decide (r = ct2)); first (simplify_map_eq; iApply interp_int).
-      destruct (decide (r = ctp)); first (simplify_map_eq; iApply interp_int).
-      destruct (decide (r = csp)); simplify_map_eq; iApply "Hreg"; eauto.
+    iInsertList "Hrmap" [ca0;ca1].
+    iApply (switcher_return_unwind with
+             "[$HPC $Hrmap $Hinv_switcher $Hstatic $Hworld_interp $Hcont $Hna $Hcstk]");
+      [|by simplify_map_eq|by simplify_map_eq|done|].
+    { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+    iSplit; iApply interp_int.
   Qed.
 
   (** Failure path of [interp_expr_switcher_call]: the trusted stack is
@@ -272,14 +255,16 @@ Section fundamental.
     (* Blocks 0-1: checks on the stack pointer *)
     iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
     iNext; iIntros "[(%Hchecked & HPC & Hcsp & Hct2 & Hctp & _)
-                    | (_ & %zct2 & %zctp & HPC & Hcsp & Hct2 & Hctp & _)]";
+                    | (_ & % & % & HPC & Hcsp & Hct2 & Hctp & _)]";
       cycle 1.
     { (* The checks fail: force the unwinding of the call *)
+      iInsertList "Hrmap" [csp;ct2;ctp].
       iApply (interp_switcher_call_force_unwind with
-        "[$Hinv_switcher $Hreg $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID $Htstk
+        "[$Hinv_switcher $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID $Htstk
           $Hstatic
-          $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hcsp $Hct2 $Hctp $Hrmap
-          $Hworld_interp $Hcont $Hcstk]"); done.
+          $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hrmap
+          $Hworld_interp $Hcont $Hcstk]"); [|done..].
+      intros r. rewrite !lookup_insert_is_Some'. naive_solver.
     }
 
     specialize (Hfull_rmap cs0) as HH; destruct HH as [wcs0 Hwcs0].

@@ -1080,6 +1080,68 @@ Section logrel.
     interp_expr interp interp_continuation.
   Definition interp_registers : R := interp_reg interp.
 
+  (** The trivial register interpretation: every word is accepted. *)
+  Program Definition interp_any : V := λne _ _ _, True%I.
+  Solve All Obligations with solve_proper.
+
+  (** The trap vector [wvec] is safe: in every world and compartment,
+      execution from [wvec] is safe whatever the registers hold. *)
+  Definition trap_vector_safe (wvec : LWord) : iProp Σ :=
+    □ ∀ W C, interp_expr interp_any interp_continuation W C wvec.
+
+  #[global] Instance trap_vector_safe_persistent wvec :
+    Persistent (trap_vector_safe wvec).
+  Proof. rewrite /trap_vector_safe. apply _. Qed.
+
+  (** The explicit form of [trap_vector_safe]: from [wvec], with a full
+      register file, the world, the caller's continuation and the call
+      stack, execution is safe. *)
+  Lemma trap_vector_safe_unfold (wvec : LWord) :
+    trap_vector_safe wvec ⊣⊢
+    □ ∀ (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+        (regs : LReg),
+      ⌜∀ r, is_Some (regs !! r)⌝ -∗
+      ⌜frame_match Ws Cs cstk W C⌝ -∗
+      PC ↦ₚ wvec -∗
+      registers_pointsto regs -∗
+      world_interp W C -∗
+      interp_continuation cstk Ws Cs -∗
+      na_own cerise_nais ⊤ -∗
+      cstack_frag cstk -∗
+      interp_conf W C.
+  Proof.
+    rewrite /trap_vector_safe /interp_expr /interp_reg /full_map /=.
+    iSplit; iIntros "#Hsafe !>".
+    - iIntros (W C cstk Ws Cs regs Hfull Hframe) "HPC Hregs Hworld Hcont Hna Hcstk".
+      iApply ("Hsafe" $! W C cstk Ws Cs regs); iFrame "∗ %".
+      by iIntros.
+    - iIntros (W C cstk Ws Cs regs)
+        "([Hfull _] & HPC & Hregs & Hworld & Hcont & Hna & Hcstk & %Hframe)".
+      iDestruct "Hfull" as %Hfull.
+      iApply ("Hsafe" with "[//] [//] HPC Hregs Hworld Hcont Hna Hcstk").
+  Qed.
+
+  (** A fault closes through a safe trap vector: after exception entry, the
+      PC holds the trap vector and execution is safe. No register needs to be
+      safe. *)
+  Lemma interp_trap
+    (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (regs : LReg) (wvec : LWord) :
+    (∀ r, is_Some (regs !! r)) ->
+    frame_match Ws Cs cstk W C ->
+    trap_vector_safe wvec -∗
+    registers_pointsto regs -∗
+    world_interp W C -∗
+    interp_continuation cstk Ws Cs -∗
+    na_own cerise_nais ⊤ -∗
+    cstack_frag cstk -∗
+    (PC ↦ₚ wvec -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}).
+  Proof.
+    iIntros (Hfull Hframe) "Hsafe Hregs Hworld Hcont Hna Hcstk HPC".
+    rewrite trap_vector_safe_unfold.
+    iApply ("Hsafe" with "[//] [//] HPC Hregs Hworld Hcont Hna Hcstk").
+  Qed.
+
   Lemma interp_untagged_eq W C w :
     get_tag w.(lw) = false → interp W C w ≡ True%I.
   Proof.

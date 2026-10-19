@@ -624,8 +624,9 @@ Section griotte_lang_rules.
     iModIntro. iSplit; first done. iFrame. by iPureIntro.
   Qed.
 
-  (** Trap entry from a tagged PC: MEPCC receives the PC, and the PC receives
-      MTCC, which is untagged. *)
+  (** Trap entry from a tagged PC: MEPCC receives the PC, untagged if it is
+      not a correct PC ([lmepcc_of_pc]), and the PC receives MTCC, which is
+      untagged. *)
   Lemma wp_trap_entry E Φ w :
     get_tag w.(lw) = true →
     PC ↦ₚ w -∗
@@ -653,7 +654,7 @@ Section griotte_lang_rules.
     iDestruct "Hmstatus" as (vst) "Hmstatus".
     iDestruct "Hmcause" as (vcause) "Hmcause".
     iDestruct "Hmtval" as (vtval) "Hmtval".
-    iMod (gen_heap_update _ _ _ w with "Hsr Hmepcc") as "[Hsr Hmepcc]".
+    iMod (gen_heap_update _ _ _ (lmepcc_of_pc w) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
     iMod (gen_heap_update _ _ _
             (lword_of_word (WInt (mstatus_enc InterruptDisabled
                                     (mie_of (get_a (sreg_word σ1 MSTATUS))))))

@@ -232,6 +232,12 @@ Proof.
   - split; auto. intros _. intros ?%isCorrectPCb_isCorrectPC. congruence.
 Qed.
 
+(** The word MEPCC receives on exception entry from the PC [w], as
+    cheriot-sail: a tagged PC that is not a correct PC (a fetch fault) loses
+    its tag; any other PC is kept as it is. *)
+Definition mepcc_of_pc (w : Word) : Word :=
+  if get_tag w && negb (isCorrectPCb w) then clear_tag w else w.
+
 Section opsem.
   Context `{MachineParameters}.
   Definition get_shadow_address (a : Addr) : Addr := a.
@@ -697,12 +703,13 @@ Section opsem.
     default (WInt 0) (sreg φ !! sr).
 
   (** Exception entry with cause [cv.1] and value [cv.2], as cheriot-sail:
-      MEPCC receives the PC, MPIE receives MIE, MIE is disabled, mcause and
-      mtval receive the cause and the value, and the PC receives MTCC without
-      checks (MTCC is legalised when written). *)
+      MEPCC receives the PC, untagged if it is not a correct PC
+      ([mepcc_of_pc]), MPIE receives MIE, MIE is disabled, mcause and mtval
+      receive the cause and the value, and the PC receives MTCC without checks
+      (MTCC is legalised when written). *)
   Definition enter_exc (cv : Z * Z) (φ : ExecConf) : ExecConf :=
     let mie := mie_of (get_a (sreg_word φ MSTATUS)) in
-    φ .[MEPCC   :=ₛᵣ pcc φ]
+    φ .[MEPCC   :=ₛᵣ mepcc_of_pc (pcc φ)]
       .[MSTATUS :=ₛᵣ WInt (mstatus_enc InterruptDisabled mie)]
       .[MCAUSE  :=ₛᵣ WInt cv.1]
       .[MTVAL   :=ₛᵣ WInt cv.2]

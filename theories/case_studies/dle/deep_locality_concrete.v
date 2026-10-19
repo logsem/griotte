@@ -44,7 +44,7 @@ Definition dle_assert_flag : Addr := A 94.
 Definition dle_switcher_b : Addr := A 96.
 Definition dle_switcher_call : Addr := A 97.
 Definition dle_switcher_return : Addr := A 175.
-Definition dle_switcher_e : Addr := A 230.
+Definition dle_switcher_e : Addr := A 233.
 Definition dle_switcher_sealing_type : OType := OT 9.
 
 Definition dle_trusted_stack_b : Addr := A 4096.

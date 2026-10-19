@@ -40,9 +40,10 @@ Section fundamental.
       with a PC pointing to the the switcher's return address [a_switcher_return].
       We also have some call-stack [cstk] with the fragmental view [cstack_frag cstk].
 
-      We extract the registers used in the code out of the map into individual resources,
-      and we derive [interp] of their content
-      (because safe-to-exec means that all registers are safe-to-share).
+      We extract the registers used in the code out of the map into individual resources.
+      Only the return values [ca0] and [ca1] must be safe-to-share: this is all
+      [switcher_return_unwind] asks of the register file, and safe-to-exec
+      provides it, since all registers are then safe-to-share.
       We open the switcher's invariant, giving the points-to of the code region,
       allowing us to execute through the code.
       We obtain the authoritative view of the call-stack [cstack_full cstk'],
@@ -89,10 +90,30 @@ Section fundamental.
 
    *)
 
-  Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
+  (** The return routine, from its entry point: from a full register file
+      whose return values [ca0] and [ca1] are safe, the switcher pops the
+      caller's frame and returns to it, or exits the thread when the frame to
+      pop is the entry frame. No other register is read. *)
+  Lemma switcher_return_unwind
+    (W : WORLD) (C : CmptName) (Nswitcher : namespace)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (rmap : LReg) (wca0 wca1 : LWord) :
+    (∀ r, is_Some (rmap !! r)) ->
+    rmap !! ca0 = Some wca0 ->
+    rmap !! ca1 = Some wca1 ->
+    frame_match Ws Cs cstk W C ->
+
+    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    registers_pointsto rmap ∗
+    interp W C wca0 ∗
+    interp W C wca1 ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    switcher_static
-    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
+    switcher_static ∗
+    world_interp W C ∗
+    interp_cont interp cstk Ws Cs ∗
+    na_own cerise_nais ⊤ ∗
+    cstack_frag cstk
+    ⊢ interp_conf W C.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;
@@ -107,23 +128,14 @@ Section fundamental.
        - when the caller is trusted, use the continuation relation;
        - when the caller is untrusted, close the world and
          [switcher_jump_to_caller_spec]. *)
-    iIntros "[#Hinv_switcher #[Hcode _]] %cstk %Ws %Cs %rmap0 [Hregs (HPC & Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
-    iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
-    iIntros (rmap) "%Hfull_rmap #Hrmap_interp Hrmap Hworld_interp". clear rmap0.
+    iIntros (Hfull_rmap Hwca0 Hwca1 Hfreq)
+      "(HPC & Hrmap & #Hinterp_wca0 & #Hinterp_wca1 & #Hinv_switcher & #[Hcode _]
+        & Hworld_interp & Hcont_K & Hna & Hcstk)".
     rewrite /registers_pointsto.
 
-    (* --- Extract scratch registers ct2 ctp --- *)
-    cbn in Hfull_rmap.
-
-    getRegValList [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1;ct2].
+    getRegValList [cra;csp;cgp;ctp;ca2;cs1;cs0;ct0;ct1;ct2].
     iExtractList "Hrmap" [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1;ct2]
       as ["Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1";"Hct2"].
-    iAssert (interp W C wcsp) as "#Hinterp_wcsp".
-    { iApply "Hrmap_interp"; eauto; done. }
-    iAssert (interp W C wca0) as "#Hinterp_wca0".
-    { iApply "Hrmap_interp"; eauto; done. }
-    iAssert (interp W C wca1) as "#Hinterp_wca1".
-    { iApply "Hrmap_interp"; eauto; done. }
     set (rmap0 := delete ct2 _).
 
     (* Open the switcher invariant *)
@@ -307,6 +319,25 @@ Section fundamental.
                "Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk
                 Hinterp_wca0 Hinterp_wca1 HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
                 Hrmap Hworld_interp Hcont_K Hcstk_frag Hna Hlc"); done.
+  Qed.
+
+  (** The return-to-switcher entry point is safe to execute: the registers
+      are re-filtered, then the return routine runs ([switcher_return_unwind]). *)
+  Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static
+    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
+  Proof.
+    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %rmap0
+             [Hregs (HPC & Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
+    iIntros (rmap) "%Hfull_rmap #Hrmap_interp Hrmap Hworld_interp". clear rmap0.
+    cbn in Hfull_rmap.
+    getRegValList [ca0;ca1].
+    iApply (switcher_return_unwind with
+             "[$HPC $Hrmap $Hinv_switcher $Hstatic $Hworld_interp $Hcont_K $Hna $Hcstk]");
+      [done|done|done|done|].
+    iSplit; iApply "Hrmap_interp"; done.
   Qed.
 
   Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace)
