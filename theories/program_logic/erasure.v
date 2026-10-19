@@ -1082,16 +1082,30 @@ Section erasure.
     inversion Hcorr; by cbn.
   Qed.
 
+  (** The logical word MEPCC receives on exception entry from the logical PC,
+      as [mepcc_of_pc]: untagged on a fetch fault. *)
+  Definition lmepcc_of_pc : LWord → LWord := lift_word mepcc_of_pc.
+
+  Lemma lmepcc_of_pc_cases v :
+    lmepcc_of_pc v =
+      if get_tag v.(lw) && negb (isCorrectPCb v.(lw)) then lclear_tag v else v.
+  Proof.
+    destruct v as [w π].
+    rewrite /lmepcc_of_pc /lift_word /mepcc_of_pc /=.
+    by case_match.
+  Qed.
+
   (** The logical system registers after trap entry with cause [c] and value
-      [v]: MEPCC receives the logical PC, and mstatus, mcause and mtval
-      receive the integers that the machine writes. *)
+      [v]: MEPCC receives the logical PC, untagged on a fetch fault
+      ([lmepcc_of_pc]), and mstatus, mcause and mtval receive the integers
+      that the machine writes. *)
   Definition lsregs_enter_exc (cv : Z * Z) (σ : ExecConf) (lpc : LWord) (lsreg : LSReg) : LSReg :=
     <[MTVAL := lword_of_word (WInt cv.2)]>
       (<[MCAUSE := lword_of_word (WInt cv.1)]>
          (<[MSTATUS := lword_of_word
                          (WInt (mstatus_enc InterruptDisabled
                                   (mie_of (get_a (sreg_word σ MSTATUS)))))]>
-            (<[MEPCC := lpc]> lsreg))).
+            (<[MEPCC := lmepcc_of_pc lpc]> lsreg))).
 
   (** Trap entry from a PC without identifier: the PC receives MTCC. A
       tagged PC has no identifier ([erasure_pc_tagged_no_id]). *)
@@ -1115,15 +1129,23 @@ Section erasure.
       - done.
       - by rewrite Hx.
       - apply reg_phys_lword_of_word. }
-    rewrite /enter_exc /lsregs_enter_exc /update_sreg /update_pcc /sreg_word /=.
+    rewrite /enter_exc /lsregs_enter_exc lmepcc_of_pc_cases /mepcc_of_pc
+      /update_sreg /update_pcc /sreg_word /=.
     rewrite Hwtcc /=.
     apply (erasure_set_pc R C pc _ _ _ _ lpc _ _ _ vtcc wtcc).
     - apply Hint; first done. apply Hint; first done. apply Hint; first done.
-      apply erasure_insert_sreg; first done.
-      + apply (er_pc_word _ _ _ _ _ _ _ Her).
-      + done.
-      + intros _. apply (er_pc_ok _ _ _ _ _ _ _ Her).
-      + rewrite Hpc. by apply reg_phys_no_id.
+      change (pcc (pc, r, sr, m, st)) with pc.
+      destruct (get_tag pc && negb (isCorrectPCb pc)) eqn:Htest; rewrite -Hpc Htest.
+      + apply erasure_insert_sreg; first done.
+        * apply reg_word_ok_lclear_tag.
+        * by rewrite lprov_lclear_tag.
+        * intros _. rewrite lw_lclear_tag. apply pc_ok_untagged, get_tag_clear_tag.
+        * rewrite Hpc. apply reg_phys_lclear_tag. by apply reg_phys_no_id.
+      + apply erasure_insert_sreg; first done.
+        * apply (er_pc_word _ _ _ _ _ _ _ Her).
+        * done.
+        * intros _. apply (er_pc_ok _ _ _ _ _ _ _ Her).
+        * rewrite Hpc. by apply reg_phys_no_id.
     - by apply (er_sreg_words _ _ _ _ _ _ _ Her MTCC).
     - done.
     - by apply (er_sreg_pc_ok _ _ _ _ _ _ _ Her MTCC).

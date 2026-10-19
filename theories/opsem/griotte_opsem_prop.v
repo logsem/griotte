@@ -381,7 +381,7 @@ Qed.
   Qed.
 
   (** Trap entry preserves the tagged-PC invariant: the PC receives MTCC and
-      MEPCC receives the PC. *)
+      MEPCC receives the PC, untagged on a fetch fault. *)
   Lemma enter_exc_sys_pc_ok cv φ :
     sys_pc_ok φ → sys_pc_ok (enter_exc cv φ).
   Proof.
@@ -392,7 +392,9 @@ Qed.
       + rewrite !lookup_insert_ne //. by apply Hsr.
       + rewrite (lookup_insert_ne _ MTVAL) // (lookup_insert_ne _ MCAUSE) //
           (lookup_insert_ne _ MSTATUS) // lookup_insert_eq.
-        by intros [= <-].
+        intros [= <-]. rewrite /mepcc_of_pc.
+        case_match; last done.
+        apply pc_ok_untagged, get_tag_clear_tag.
   Qed.
 
   (*--- Trap causes ---*)

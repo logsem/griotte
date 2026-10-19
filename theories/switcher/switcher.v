@@ -274,6 +274,17 @@ Section Switcher.
         #".Lcommon_thread_exit";
         halt
       ]
+      ; (* Exception entry: the faulting compartment's call is unwound as
+           by the forced unwind. The error code is returned in ca0, ca1 is
+           cleared, and the return routine pops the top trusted-stack frame
+           (or exits the thread at the entry frame). No register of the
+           faulting compartment is read. *)
+      [ #"exception_entry_asm";
+        mov ca0 ECOMPARTMENTFAIL;
+        mov ca1 0;
+        #".Lexception_entry_return";
+        jmp (".Lswitcher_after_compartment_call")%asm
+      ]
     ].
 
   Definition switcher_asm : list (list asm_code) :=
