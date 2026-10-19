@@ -46,15 +46,18 @@ Definition kvs_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main kvs B : img_cmpt) : fw_image :=
   MkFwImage sw asrt [("main", main); ("kvs", kvs); ("B", B)] [t0].
 
-(** The predicate, computed from the firmware, with its comments. *)
+(** The predicate, computed from the firmware, with its comments: some
+    layout and parameters, with the flag of the assert library at [flag],
+    satisfy the translation of the firmware. *)
 Definition kvs_initial_state_ok_annot `{MP : MachineParameters} :
-    img_switcher → img_assert → img_thread → img_cmpt → img_cmpt → img_cmpt →
-    OType → Z → Z → ExecConf → Prop :=
+    Addr → ExecConf → Prop :=
   ltac:(let t := eval cbv beta delta [kvs_firmware kvs_img] in
-          (λ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-             (main kvs B : img_cmpt) (ot_kvs : OType) (key_main key_B : Z) (σ : ExecConf),
-             section "Parameters" (key_main ≠ key_B) ∧
-             firmware_ok (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) σ)
+          (λ (flag : Addr) (σ : ExecConf),
+             ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+               (main kvs B : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
+               note "the flag of the assert library" (flag_assert asrt = flag) ∧
+               section "Parameters" (key_main ≠ key_B) ∧
+               firmware_ok (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) σ)
         in
         let t := reduce_firmware_ok t in
         exact t).
@@ -62,21 +65,20 @@ Definition kvs_initial_state_ok_annot `{MP : MachineParameters} :
 (** The initial-state predicate of the KVS case study: the annotated one
     without its comments. *)
 Definition kvs_initial_state_ok `{MP : MachineParameters} :
-    img_switcher → img_assert → img_thread → img_cmpt → img_cmpt → img_cmpt →
-    OType → Z → Z → ExecConf → Prop :=
+    Addr → ExecConf → Prop :=
   Eval cbv beta delta [section note kvs_initial_state_ok_annot] in
     @kvs_initial_state_ok_annot MP.
 
-Lemma kvs_initial_state_ok_erase `{MP : MachineParameters}
-    sw asrt t0 main kvs B ot_kvs key_main key_B σ :
-  kvs_initial_state_ok_annot sw asrt t0 main kvs B ot_kvs key_main key_B σ ↔
-  kvs_initial_state_ok sw asrt t0 main kvs B ot_kvs key_main key_B σ.
+Lemma kvs_initial_state_ok_erase `{MP : MachineParameters} flag σ :
+  kvs_initial_state_ok_annot flag σ ↔ kvs_initial_state_ok flag σ.
 Proof. reflexivity. Qed.
 
 (** The predicate is the generic translation on the KVS firmware. *)
-Lemma kvs_initial_state_ok_firmware_ok `{MP : MachineParameters}
-    sw asrt t0 main kvs B ot_kvs key_main key_B σ :
-  kvs_initial_state_ok sw asrt t0 main kvs B ot_kvs key_main key_B σ →
-  key_main ≠ key_B ∧
-  firmware_ok (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) σ.
+Lemma kvs_initial_state_ok_firmware_ok `{MP : MachineParameters} flag σ :
+  kvs_initial_state_ok flag σ →
+  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+    (main kvs B : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
+    flag_assert asrt = flag ∧
+    key_main ≠ key_B ∧
+    firmware_ok (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) σ.
 Proof. intros Hok. exact Hok. Qed.

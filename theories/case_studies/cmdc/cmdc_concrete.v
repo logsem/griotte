@@ -64,12 +64,12 @@ Ltac solve_other_registers :=
   apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
 
 Lemma cmdc_demo_ok :
-  cmdc_initial_state_ok (img_sw cmdc_demo_image) (img_asrt cmdc_demo_image)
-    (thread_of cmdc_demo_image 0) (cmpt_of cmdc_demo_image "main")
-    (cmpt_of cmdc_demo_image "B") (cmpt_of cmdc_demo_image "C")
-    cmdc_demo_state.
+  cmdc_initial_state_ok (flag_assert (img_asrt cmdc_demo_image)) cmdc_demo_state.
 Proof.
   rewrite /cmdc_initial_state_ok.
+  exists (img_sw cmdc_demo_image), (img_asrt cmdc_demo_image), (thread_of cmdc_demo_image 0),
+    (cmpt_of cmdc_demo_image "main"), (cmpt_of cmdc_demo_image "B"), (cmpt_of cmdc_demo_image "C").
+  split; first done.
   split_and!.
   all: try (exists 1%nat; split_and!).
   all: try (lazymatch goal with
@@ -92,5 +92,5 @@ Proof.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
   exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
-  exact (cmdc_adequacy _ _ _ _ _ _ _ _ _ cmdc_demo_ok Hrun).
+  exact (cmdc_adequacy _ _ _ _ cmdc_demo_ok Hrun).
 Qed.

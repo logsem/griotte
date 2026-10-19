@@ -488,41 +488,68 @@ Ltac2 rec group_binders (hs : (ident * constr option * constr) list) : (string l
       end
   end.
 
-(** The header: the predicate [name] applied to its binders [hs] (the
-    machine parameters excepted), and the existential binders of its body
-    [p]. *)
-Ltac2 header (name : string) (hs : (ident * constr) list) (p : constr) : pline list :=
-  let hs := List.filter (fun h => let (_, t) := h in
-                          Bool.neg (Constr.equal t constr:(MachineParameters))) hs in
+(** Binder groups [(x y : T)], as many per line as fit: the first line
+    starts with [first], the next ones with [cont], the last one ends with
+    [last]. *)
+Ltac2 fill_binders (first : string) (cont : string) (last : string)
+    (hs : (ident * constr) list) : string list :=
   let args := List.map (fun g => let (xs, t) := g in
                           String.concat "" ["("; String.concat " " xs; " : "; pp_type t; ")"])
                 (group_binders (List.map (fun h => let (x, t) := h in (x, None, t)) hs)) in
-  (* the binders, as many per line as fit *)
-  let rec fill line args acc :=
+  let rec fill line fresh args acc :=
     match args with
-    | [] => List.rev (String.app line " :=" :: acc)
+    | [] => List.rev (String.app line last :: acc)
     | a :: rest =>
-        if Int.le (Int.add (Int.add (width line) (width a)) 4) (max_width ())
-        then fill (String.concat "" [line; " "; a]) rest acc
-        else fill (String.app "    " a) rest (line :: acc)
+        if fresh then fill (String.app line a) false rest acc
+        else if Int.le (Int.add (Int.add (width line) (width a)) 4) (max_width ())
+        then fill (String.concat "" [line; " "; a]) false rest acc
+        else fill (String.app cont a) false rest (line :: acc)
     end in
-  List.append
-    (List.map (fun l => PText "" l None) (fill name args []))
-    (exists_of "" p).
+  fill first true args [].
 
-(** Runs [k] on the binders of the λ-abstractions heading [body] and on
-    their body, each binder brought into the context under its name. *)
-Ltac2 rec under_binders (hs : (ident * constr) list) (body : constr)
-    (k : (ident * constr) list -> constr -> unit) : unit :=
+(** The header: the predicate [name] applied to its binders [hs] (the
+    machine parameters excepted), its leading existential binders [es], and
+    the existential binders of its body [p]. *)
+Ltac2 header (name : string) (hs : (ident * constr) list) (es : (ident * constr) list)
+    (p : constr) : pline list :=
+  let hs := List.filter (fun h => let (_, t) := h in
+                          Bool.neg (Constr.equal t constr:(MachineParameters))) hs in
+  let lines :=
+    List.append
+      (fill_binders (String.app name " ") "    " " :=" hs)
+      (match es with
+       | [] => []
+       | _ => fill_binders "  ∃ " "      " "," es
+       end) in
+  List.append (List.map (fun l => PText "" l None) lines) (exists_of "" p).
+
+(** Runs [k] on the binders of the λ-abstractions heading [body], on the
+    binders of the existentials heading their body, and on the body of
+    these, each binder brought into the context under its name. *)
+Ltac2 rec under_binders (hs : (ident * constr) list) (es : (ident * constr) list)
+    (body : constr)
+    (k : (ident * constr) list -> (ident * constr) list -> constr -> unit) : unit :=
+  let enter b bd (next : ident * constr -> constr -> unit) :=
+    let x := match Constr.Binder.name b with Some x => x | None => @x end in
+    let t := Constr.Binder.type b in
+    let _ := Constr.in_context x t (fun () =>
+               next (x, t) (Constr.Unsafe.substnl [Constr.Unsafe.make (Constr.Unsafe.Var x)] 0 bd)) in
+    () in
   match Constr.Unsafe.kind body with
   | Constr.Unsafe.Lambda b bd =>
-      let x := match Constr.Binder.name b with Some x => x | None => @x end in
-      let t := Constr.Binder.type b in
-      let _ := Constr.in_context x t (fun () =>
-                 under_binders ((x, t) :: hs)
-                   (Constr.Unsafe.substnl [Constr.Unsafe.make (Constr.Unsafe.Var x)] 0 bd) k) in
-      ()
-  | _ => k (List.rev hs) body
+      match es with
+      | [] => enter b bd (fun h bd => under_binders (h :: hs) [] bd k)
+      | _ => k (List.rev hs) (List.rev es) body
+      end
+  | _ =>
+      lazy_match! body with
+      | @ex _ ?f =>
+          match Constr.Unsafe.kind f with
+          | Constr.Unsafe.Lambda b bd => enter b bd (fun e bd => under_binders hs (e :: es) bd k)
+          | _ => k (List.rev hs) (List.rev es) body
+          end
+      | _ => k (List.rev hs) (List.rev es) body
+      end
   end.
 
 (** Runs [tac] on a fresh goal: [Constr.in_context] needs one, and a
@@ -555,8 +582,8 @@ Ltac2 initial_state_lines (c : constr) : string list :=
           Std.rZeta := false; Std.rDelta := false; Std.rConst := [Std.ConstRef cst];
           Std.rStrength := Std.Norm } c in
       let r := { contents := [] } in
-      with_goal (fun () => under_binders [] body (fun hs p =>
-        r.(contents) := List.append (layout (header name hs p)) (layout (walk "" p))));
+      with_goal (fun () => under_binders [] [] body (fun hs es p =>
+        r.(contents) := List.append (layout (header name hs es p)) (layout (walk "  " p))));
       r.(contents)
   | _ => Control.throw (Invalid_argument (Some (Message.of_string "print_initial_state: not a constant")))
   end.

@@ -53,12 +53,13 @@ Ltac solve_other_registers :=
   apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
 
 Lemma kvs_demo_ok :
-  kvs_initial_state_ok (img_sw kvs_demo_image) (img_asrt kvs_demo_image)
-    (thread_of kvs_demo_image 0) (cmpt_of kvs_demo_image "main")
-    (cmpt_of kvs_demo_image "kvs") (cmpt_of kvs_demo_image "B")
-    kvs_service_sealing_type 1 2 kvs_demo_state.
+  kvs_initial_state_ok (flag_assert (img_asrt kvs_demo_image)) kvs_demo_state.
 Proof.
   rewrite /kvs_initial_state_ok.
+  exists (img_sw kvs_demo_image), (img_asrt kvs_demo_image), (thread_of kvs_demo_image 0),
+    (cmpt_of kvs_demo_image "main"), (cmpt_of kvs_demo_image "kvs"), (cmpt_of kvs_demo_image "B"),
+    kvs_service_sealing_type, 1%Z, 2%Z.
+  split; first done.
   split_and!.
   all: try (exists kvs_B_adv_entry; split_and!).
   all: try (lazymatch goal with
@@ -81,5 +82,5 @@ Proof.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
   exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
-  exact (kvs_adequacy _ _ _ _ _ _ _ _ _ _ _ _ kvs_demo_ok Hrun).
+  exact (kvs_adequacy _ _ _ _ kvs_demo_ok Hrun).
 Qed.

@@ -529,14 +529,14 @@ Definition kvs_adv_name : @CmptName CmptNames_kvs_CmptNameG := B.
 Import image.
 
 (** END-TO-END THEOREM *)
-Theorem kvs_adequacy `{MP : MachineParameters} sw asrt t0 main kvs B ot_kvs key_main key_B
-    (σ σ' : ExecConf) es :
-  kvs_initial_state_ok sw asrt t0 main kvs B ot_kvs key_main key_B σ →
+Theorem kvs_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
+  kvs_initial_state_ok flag σ →
   rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
-  mem σ' !! flag_assert asrt = Some (WInt 0).
+  mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.
-  destruct (kvs_initial_state_ok_firmware_ok _ _ _ _ _ _ _ _ _ _ Hok) as [Hkeys Hfw].
+  destruct (kvs_initial_state_ok_firmware_ok _ _ Hok)
+    as (sw & asrt & t0 & main & kvs & B & ot_kvs & key_main & key_B & <- & Hkeys & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_kvs_CmptNameG)
             #[gen_heapΣ user_key_t kvs_user_map; ghost_mapΣ user_key_t (option LWord);
               ghost_varΣ kvs_physical_map]

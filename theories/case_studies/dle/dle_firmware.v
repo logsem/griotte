@@ -37,14 +37,17 @@ Definition dle_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main C : img_cmpt) : fw_image :=
   MkFwImage sw asrt [("main", main); ("C", C)] [t0].
 
-(** The predicate, computed from the firmware, with its comments. *)
+(** The predicate, computed from the firmware, with its comments: some
+    layout, with the flag of the assert library at [flag], satisfies the
+    translation of the firmware. *)
 Definition dle_initial_state_ok_annot `{MP : MachineParameters} :
-    img_switcher → img_assert → img_thread → img_cmpt → img_cmpt →
-    ExecConf → Prop :=
+    Addr → ExecConf → Prop :=
   ltac:(let t := eval cbv beta delta [dle_firmware dle_img] in
-          (λ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-             (main C : img_cmpt) (σ : ExecConf),
-             firmware_ok dle_firmware (dle_img sw asrt t0 main C) σ)
+          (λ (flag : Addr) (σ : ExecConf),
+             ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+               (main C : img_cmpt),
+               note "the flag of the assert library" (flag_assert asrt = flag) ∧
+               firmware_ok dle_firmware (dle_img sw asrt t0 main C) σ)
         in
         let t := reduce_firmware_ok t in
         exact t).
@@ -52,19 +55,19 @@ Definition dle_initial_state_ok_annot `{MP : MachineParameters} :
 (** The initial-state predicate of the deep-locality case study: the
     annotated one without its comments. *)
 Definition dle_initial_state_ok `{MP : MachineParameters} :
-    img_switcher → img_assert → img_thread → img_cmpt → img_cmpt →
-    ExecConf → Prop :=
+    Addr → ExecConf → Prop :=
   Eval cbv beta delta [section note dle_initial_state_ok_annot] in
     @dle_initial_state_ok_annot MP.
 
-Lemma dle_initial_state_ok_erase `{MP : MachineParameters} sw asrt t0 main C σ :
-  dle_initial_state_ok_annot sw asrt t0 main C σ ↔
-  dle_initial_state_ok sw asrt t0 main C σ.
+Lemma dle_initial_state_ok_erase `{MP : MachineParameters} flag σ :
+  dle_initial_state_ok_annot flag σ ↔ dle_initial_state_ok flag σ.
 Proof. reflexivity. Qed.
 
 (** The predicate is the generic translation on the deep-locality
     firmware. *)
-Lemma dle_initial_state_ok_firmware_ok `{MP : MachineParameters} sw asrt t0 main C σ :
-  dle_initial_state_ok sw asrt t0 main C σ →
-  firmware_ok dle_firmware (dle_img sw asrt t0 main C) σ.
+Lemma dle_initial_state_ok_firmware_ok `{MP : MachineParameters} flag σ :
+  dle_initial_state_ok flag σ →
+  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread) (main C : img_cmpt),
+    flag_assert asrt = flag ∧
+    firmware_ok dle_firmware (dle_img sw asrt t0 main C) σ.
 Proof. intros Hok. exact Hok. Qed.

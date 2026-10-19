@@ -194,14 +194,14 @@ Definition cmdc_adv_C : @CmptName CmptNames_CMDC_CmptNameG := C.
 Import image.
 
 (** END-TO-END THEOREM *)
-Theorem cmdc_adequacy `{MP : MachineParameters} sw asrt t0 main B C
-    (σ σ' : ExecConf) es :
-  cmdc_initial_state_ok sw asrt t0 main B C σ →
+Theorem cmdc_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
+  cmdc_initial_state_ok flag σ →
   rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
-  mem σ' !! flag_assert asrt = Some (WInt 0).
+  mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.
-  pose proof (cmdc_initial_state_ok_firmware_ok _ _ _ _ _ _ _ Hok) as Hfw.
+  destruct (cmdc_initial_state_ok_firmware_ok _ _ Hok)
+    as (sw & asrt & t0 & main & B & C & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_CMDC_CmptNameG) #[]
             cmdc_firmware (cmdc_img sw asrt t0 main B C));
     [| exact Hfw | exact Hstep].
