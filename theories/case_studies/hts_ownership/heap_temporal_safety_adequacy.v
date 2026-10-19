@@ -1,476 +1,193 @@
-From iris.program_logic Require Import adequacy.
 From iris.proofmode Require Import proofmode.
-From griotte Require Import griotte_lang logrel interp_weakening monotone.
-From griotte Require Import compartment_layout adequacy_helpers adequacy_common switcher assert assert_spec.
-From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble heap_temporal_safety_spec.
-From griotte.allocators.ownership Require Import allocator_malloc_safe allocator_free_safe.
-From griotte Require Import mkregion_helpers disjoint_regions_tactics
-  region_invariants_revocation region_invariants_allocation
-  world_interp_allocation_compartments switcher_preamble
-  interp_switcher_call interp_switcher_return switcher_adequacy.
-From griotte.allocators.ownership Require Import allocator allocator_preamble allocator_resource_spec.
+(* Imported first: the fields of the layout records of [compartment_layout]
+   and [switcher] shadow those of the image records. *)
+From griotte Require Import image firmware firmware_ok firmware_adequacy firmware_obligations.
+From griotte.case_studies.hts_ownership Require Import hts_firmware.
+From griotte Require Import logrel interp_weakening monotone.
+From griotte Require Import switcher assert_spec.
+From griotte Require Import mkregion_helpers.
+From griotte Require Import
+  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+From iris.program_logic Require Import adequacy.
+From iris.base_logic Require Import invariants.
+From griotte Require Import disjoint_regions_tactics.
+From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
+From griotte Require Import allocator_resources heap_region.
+From griotte.case_studies.hts_ownership Require Import
+  heap_temporal_safety heap_temporal_safety_preamble heap_temporal_safety_spec.
+From griotte.allocators.ownership Require Import
+  allocator allocator_preamble allocator_resource_spec allocator_malloc_safe allocator_free_safe
+  allocator_adequacy.
+Set Mangle Names.
 
-(** The allocator is an ordinary switcher compartment. Its special authority
-    is in its imports (shadow) and data (heap root), not a new calling ABI. *)
-Definition hts_cmpt_allocator_layout `{MP : MachineParameters} (C : cmpt)
-    (otype : OType)
-    : allocatorLayout :=
-  {| AllocOtype := otype;
-     allocator_pcc_b := cmpt_b_pcc C;
-     allocator_code_b := cmpt_a_code C;
-     allocator_pcc_e := cmpt_e_pcc C;
-     allocator_cgp_b := cmpt_b_cgp C;
-     allocator_cgp_e := cmpt_e_cgp C;
-     allocator_exp_tbl_b := cmpt_exp_tbl_pcc C;
-     allocator_exp_tbl_e := cmpt_exp_tbl_entries_end C |}.
-
-Class hts_memory_layout `{MP : MachineParameters} := {
-    hts_switcher_cmpt : cmptSwitcher;
-    hts_assert_cmpt : cmptAssert;
-    hts_main_cmpt : cmpt;
-    hts_adv_cmpt : cmpt;
-    hts_allocator_cmpt : cmpt;
-    hts_allocator_otype : OType;
-    hts_allocator_otype_disjoint :
-      hts_allocator_otype ≠ compartment_layout.ot_switcher hts_switcher_cmpt;
-    hts_adv_entry_offset : nat;
-    hts_adv_entry_valid :
-      is_Some (cmpt_b_pcc hts_adv_cmpt + hts_adv_entry_offset)%a;
-    hts_allocator_wf :
-      @allocatorLayoutWf MP (hts_cmpt_allocator_layout hts_allocator_cmpt hts_allocator_otype);
-    hts_regions_disjoint :
-      ## [cmpt_region hts_main_cmpt; cmpt_region hts_adv_cmpt;
-          cmpt_region hts_allocator_cmpt; cmpt_switcher_region hts_switcher_cmpt;
-          cmpt_assert_region hts_assert_cmpt;
-          finz.seq_between heap_b heap_e; finz.seq_between shadow_b shadow_e]
-  }.
-#[export] Hint Mode hts_memory_layout - : typeclass_instances.
-
-#[local] Instance hts_memory_switcher_layout `{hts_memory_layout} : switcherLayout :=
-  cmptSwitcher_switcherLayout hts_switcher_cmpt.
-#[local] Instance hts_memory_assert_layout `{hts_memory_layout} : assertLayout :=
-  cmptAssert_assertLayout hts_assert_cmpt.
-#[local] Instance hts_memory_allocator_layout `{hts_memory_layout} : allocatorLayout :=
-  hts_cmpt_allocator_layout hts_allocator_cmpt hts_allocator_otype.
-
-#[local] Instance hts_memory_allocator_wf `{hts_memory_layout} : allocatorLayoutWf :=
-  hts_allocator_wf.
-
-#[local] Instance hts_memory_switcher_wf `{hts_memory_layout} : switcherLayoutWf.
-Proof.
-  pose proof (compartment_layout.ot_switcher_size hts_switcher_cmpt).
-  pose proof (compartment_layout.switcher_size hts_switcher_cmpt).
-  pose proof (compartment_layout.switcher_call_entry_point hts_switcher_cmpt).
-  pose proof (compartment_layout.switcher_return_entry_point hts_switcher_cmpt).
-  pose proof (compartment_layout.trusted_stack_disjoint_from_shadow hts_switcher_cmpt).
-  pose proof (compartment_layout.switcher_base_not_shadow hts_switcher_cmpt).
-  pose proof (compartment_layout.switcher_not_heap_range hts_switcher_cmpt).
-  pose proof (compartment_layout.trusted_stack_not_heap hts_switcher_cmpt).
-  pose proof (compartment_layout.trusted_stack_frames_fit hts_switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _ _ _); cbn in *; auto.
-Defined.
-
-Definition hts_initial_program_memory `{hts_memory_layout} : Mem :=
-  mk_initial_switcher hts_switcher_cmpt ∪
-  mk_initial_assert hts_assert_cmpt ∪
-  mk_initial_cmpt hts_main_cmpt ∪
-  mk_initial_cmpt hts_allocator_cmpt ∪
-  mk_initial_cmpt hts_adv_cmpt.
-
-Definition hts_initial_memory `{hts_memory_layout} : Mem :=
-  initial_heap_memory ∪ hts_initial_program_memory.
-
-Definition hts_is_initial_registers `{hts_memory_layout} (pc : Word) (reg : Reg) :=
-  pc = (WCap true RX Global
-    (cmpt_b_pcc hts_main_cmpt) (cmpt_e_pcc hts_main_cmpt) (cmpt_a_code hts_main_cmpt)) ∧
-  reg !! cgp = Some (WCap true RW Global
-    (cmpt_b_cgp hts_main_cmpt) (cmpt_e_cgp hts_main_cmpt) (cmpt_b_cgp hts_main_cmpt)) ∧
-  reg !! csp = Some (WCap true RWL Local
-    (b_stack hts_switcher_cmpt) (e_stack hts_switcher_cmpt) (b_stack hts_switcher_cmpt)) ∧
-  (∀ r, r ∉ ({[ cgp; csp]} : gset RegName) -> reg !! r = Some (WInt 0)).
-
-Definition hts_is_initial_sregisters `{hts_memory_layout} (sreg : SReg) :=
-  is_initial_sregisters_of hts_switcher_cmpt sreg.
-
-Definition hts_is_initial_memory `{hts_memory_layout} (mem : Mem) :=
-  let adv_f := SCap true RO Global
-    (cmpt_exp_tbl_pcc hts_adv_cmpt) (cmpt_exp_tbl_entries_end hts_adv_cmpt)
-    (cmpt_exp_tbl_entries_start hts_adv_cmpt) in
-  mem = hts_initial_memory ∧
-  (* The allocator capability of main points to its static sealed region,
-     which holds its owner identifier. *)
-  cmpt_imports hts_main_cmpt =
-    hts_main_imports (cmpt_b_static_sealed hts_main_cmpt) adv_f ∧
-  cmpt_code hts_main_cmpt = hts_main_code ∧
-  cmpt_data hts_main_cmpt = hts_main_data ∧
-  cmpt_static_sealed hts_main_cmpt = hts_main_static_sealed ∧
-  cmpt_exp_tbl_entries hts_main_cmpt = [] ∧
-  cmpt_imports hts_allocator_cmpt = allocator_imports ∧
-  cmpt_code hts_allocator_cmpt = allocator_code ∧
-  cmpt_data hts_allocator_cmpt = allocator_data ∧
-  cmpt_static_sealed hts_allocator_cmpt = [] ∧
-  cmpt_exp_tbl_entries hts_allocator_cmpt = allocator_export_table_entries ∧
-  (* The adversary is arbitrary and may call malloc and free with its own
-     allocator capability, whose owner differs from main's. *)
-  cmpt_imports hts_adv_cmpt =
-    hts_adv_imports (cmpt_b_static_sealed hts_adv_cmpt) ∧
-  Forall is_z (cmpt_code hts_adv_cmpt) ∧
-  Forall (is_initial_data_word hts_adv_cmpt) (cmpt_data hts_adv_cmpt) ∧
-  cmpt_static_sealed hts_adv_cmpt = hts_adv_static_sealed ∧
-  cmpt_exp_tbl_entries hts_adv_cmpt =
-    [WInt (encode_entry_point InterruptEnabled 1 hts_adv_entry_offset)] ∧
-  Forall is_z (stack_content hts_switcher_cmpt).
-
-Lemma hts_initial_adv_disjoint `{hts_memory_layout} :
-  mk_initial_switcher hts_switcher_cmpt ∪
-  mk_initial_assert hts_assert_cmpt ∪
-  mk_initial_cmpt hts_main_cmpt ∪
-  mk_initial_cmpt hts_allocator_cmpt ##ₘ
-  mk_initial_cmpt hts_adv_cmpt.
-Proof.
-  do 3 rewrite map_disjoint_union_l.
-  repeat split.
-  - symmetry. apply disjoint_switcher_cmpts_mkinitial.
-    unfold switcher_cmpt_disjoint.
-    eapply (addr_disjoint_list_lookup _ 3 1); [exact hts_regions_disjoint|reflexivity..|lia].
-  - symmetry. apply disjoint_assert_cmpts_mkinitial.
-    unfold assert_cmpt_disjoint.
-    eapply (addr_disjoint_list_lookup _ 4 1); [exact hts_regions_disjoint|reflexivity..|lia].
-  - apply disjoint_cmpts_mkinitial.
-    eapply (addr_disjoint_list_lookup _ 0 1); [exact hts_regions_disjoint|reflexivity..|lia].
-  - apply disjoint_cmpts_mkinitial.
-    eapply (addr_disjoint_list_lookup _ 2 1); [exact hts_regions_disjoint|reflexivity..|lia].
-Qed.
-
-Lemma hts_initial_allocator_disjoint `{hts_memory_layout} :
-  mk_initial_switcher hts_switcher_cmpt ∪
-  mk_initial_assert hts_assert_cmpt ∪
-  mk_initial_cmpt hts_main_cmpt ##ₘ
-  mk_initial_cmpt hts_allocator_cmpt.
-Proof.
-  do 2 rewrite map_disjoint_union_l.
-  repeat split.
-  - symmetry. apply disjoint_switcher_cmpts_mkinitial.
-    unfold switcher_cmpt_disjoint.
-    eapply (addr_disjoint_list_lookup _ 3 2); [exact hts_regions_disjoint|reflexivity..|lia].
-  - symmetry. apply disjoint_assert_cmpts_mkinitial.
-    unfold assert_cmpt_disjoint.
-    eapply (addr_disjoint_list_lookup _ 4 2); [exact hts_regions_disjoint|reflexivity..|lia].
-  - apply disjoint_cmpts_mkinitial.
-    eapply (addr_disjoint_list_lookup _ 0 2); [exact hts_regions_disjoint|reflexivity..|lia].
-Qed.
-
-Lemma hts_initial_main_disjoint `{hts_memory_layout} :
-  mk_initial_switcher hts_switcher_cmpt ∪
-  mk_initial_assert hts_assert_cmpt ##ₘ
-  mk_initial_cmpt hts_main_cmpt.
-Proof.
-  rewrite map_disjoint_union_l. split.
-  - symmetry. apply disjoint_switcher_cmpts_mkinitial.
-    unfold switcher_cmpt_disjoint.
-    eapply (addr_disjoint_list_lookup _ 3 0); [exact hts_regions_disjoint|reflexivity..|lia].
-  - symmetry. apply disjoint_assert_cmpts_mkinitial.
-    unfold assert_cmpt_disjoint.
-    eapply (addr_disjoint_list_lookup _ 4 0); [exact hts_regions_disjoint|reflexivity..|lia].
-Qed.
-
-Lemma hts_initial_assert_switcher_disjoint `{hts_memory_layout} :
-  mk_initial_switcher hts_switcher_cmpt ##ₘ
-  mk_initial_assert hts_assert_cmpt.
-Proof.
-  symmetry. apply disjoint_assert_switcher_mkinitial.
-  unfold assert_switcher_disjoint.
-  eapply (addr_disjoint_list_lookup _ 4 3); [exact hts_regions_disjoint|reflexivity..|lia].
-Qed.
-
-(** ** Initialisation of the allocator compartment *)
-Section hts_allocator_init.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
-    {allocator_ownerg : allocatorOwnerG Σ}
-    `{MP : MachineParameters} {Layout : hts_memory_layout}.
-
-  (** The imports, code and data of the allocator, together with the heap
-      (its memory, unpainted shadow entries and claims) and the owner map of
-      the owner identifiers [ids], form the allocator service invariant. *)
-  Lemma hts_allocator_service_init (E : coPset) (ids : gset Z) :
-    cmpt_imports hts_allocator_cmpt = allocator_imports →
-    cmpt_code hts_allocator_cmpt = allocator_code →
-    cmpt_data hts_allocator_cmpt = allocator_data →
-    [[ cmpt_b_pcc hts_allocator_cmpt, cmpt_a_code hts_allocator_cmpt ]]
-      ↦ₐ [[ lword_of_word <$> cmpt_imports hts_allocator_cmpt ]] -∗
-    [[ cmpt_a_code hts_allocator_cmpt, cmpt_e_pcc hts_allocator_cmpt ]]
-      ↦ₐ [[ lword_of_word <$> cmpt_code hts_allocator_cmpt ]] -∗
-    [[ cmpt_b_cgp hts_allocator_cmpt, cmpt_e_cgp hts_allocator_cmpt ]]
-      ↦ₐ [[ lword_of_word <$> cmpt_data hts_allocator_cmpt ]] -∗
-    allocator_owners (gset_to_gmap ∅ ids) -∗
-    ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) -∗
-    ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) -∗
-    ([∗ map] a↦c ∈ init_claims {[heap_b]}, addr_alloc a c)
-    ={E}=∗
-    allocator_service_ctx ∗
-    allocator_service_static.
-  Proof.
-    intros Himports Hcode Hdata.
-    iIntros "Himports Hcode Hdata Howners Hheap Hshadow Hclaims".
-    iEval (rewrite cmpt_code_codefrag) in "Hcode".
-    rewrite Himports Hcode Hdata.
-    iDestruct (initial_heap_resources with "Hheap Hshadow") as "Hheap".
-    iApply (allocator_service_init_correct E (lword_of_word <$> initial_heap_memory) ids
-             with "[$Himports $Hcode $Hdata] Howners Hheap Hclaims").
-    by rewrite dom_fmap_L /initial_heap_memory dom_gset_to_gmap.
-  Qed.
-
-  (** The export table of the allocator becomes invariant. *)
-  Lemma hts_allocator_exports_init (E : coPset) :
-    cmpt_exp_tbl_entries hts_allocator_cmpt = allocator_export_table_entries →
-    cmpt_exp_tbl_pcc hts_allocator_cmpt ↦ₐ cmpt_pcc_cap hts_allocator_cmpt -∗
-    cmpt_exp_tbl_cgp hts_allocator_cmpt ↦ₐ cmpt_cgp_cap hts_allocator_cmpt -∗
-    [[ cmpt_exp_tbl_entries_start hts_allocator_cmpt, cmpt_exp_tbl_entries_end hts_allocator_cmpt ]]
-      ↦ₐ [[ lword_of_word <$> cmpt_exp_tbl_entries hts_allocator_cmpt ]]
-    ={E}=∗
-    allocator_exp_tbl_b ↦ₐ□ WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
-    (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-    (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off) ∗
-    (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_pcc_off).
-  Proof.
-    intros Hexports.
-    iIntros "Hpcc Hcgp Hentries".
-    pose proof (cmpt_exp_tbl_entries_size hts_allocator_cmpt) as Hsize.
-    rewrite Hexports in Hsize.
-    rewrite Hexports /region_pointsto
-      (finz_seq_between_cons (cmpt_exp_tbl_entries_start hts_allocator_cmpt));
-      last solve_addr+Hsize.
-    rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start hts_allocator_cmpt ^+ 1)%a);
-      last solve_addr+Hsize.
-    iDestruct "Hentries" as "(Hmalloc & Hfree & _)".
-    rewrite cmpt_exp_tbl_cgp_eq cmpt_exp_tbl_entries_start_eq.
-    replace (cmpt_exp_tbl_pcc hts_allocator_cmpt ^+ 2 ^+ 1)%a
-      with (cmpt_exp_tbl_pcc hts_allocator_cmpt ^+ 3)%a by solve_addr+Hsize.
-    iMod (pointsto_persist with "Hpcc") as "$".
-    iMod (pointsto_persist with "Hcgp") as "$".
-    iMod (pointsto_persist with "Hmalloc") as "$".
-    iMod (pointsto_persist with "Hfree") as "$".
-    done.
-  Qed.
-
-End hts_allocator_init.
-
-Section Adequacy.
-  Context (Σ : gFunctors).
-  Context {cname : CmptNameG} {Adv : CmptName}.
-  Context {inv_preg : invGpreS Σ}.
-  Context {cerise_preg : ceriseGpreS Σ}.
-  Context {entry_preg : entryGpreS Σ}.
-  Context {seal_store_preg : sealStorePreG Σ}.
-  Context {na_invg : na_invariants.na_invG Σ}.
-  Context {sts_preg : STS_preG LAddr region_type OType LWord Σ}.
-  Context {cstack_preg : CSTACK_preG Σ}.
-  Context {relpreg : relGpreS Σ}.
+Section hts_obligations.
+  Context {Σ : gFunctors}.
   Context {allocator_owner_preg : allocatorOwnerPreG Σ}.
-  Context `{MP : MachineParameters} {Layout : hts_memory_layout}.
+  Context {cname : CmptNameG} {B : CmptName}.
+  Context `{MP : MachineParameters}.
 
-  Lemma hts_adequacy'
-      (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (mem mem' : Mem)
-      (sh sh' : ShadowTbl) (es : list griotte_lang.expr) :
-    CNames = list_to_set [Adv] ->
-    hts_is_initial_registers pc reg ->
-    hts_is_initial_sregisters sreg ->
-    hts_is_initial_memory mem ->
-    sh = initial_heap_shadow ->
-    initial_heap_memory ##ₘ hts_initial_program_memory ->
-    rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, mem, sh))
-      (es, (pc', reg', sreg', mem', sh')) ->
-    mem' !! flag_assert hts_assert_cmpt = Some (WInt 0).
+  (** The obligations of the trusted code of the heap temporal safety
+      firmware: the thread runs safely from the export [entry] of [main],
+      the untrusted compartment ["B"] being owned by the logical compartment
+      [B]. *)
+  Lemma hts_fw_obligations (ot_alloc : OType) :
+    fw_obligations Σ (hts_firmware ot_alloc).
   Proof.
-    intros HCNames Hreg Hsreg Hmem Hshadow Hheap_disjoint Hstep.
-    destruct Hmem as (Hmem & Hmain_imports & Hmain_code & Hmain_data
-      & Hmain_static & Hmain_exports & Halloc_imports & Halloc_code
-      & Halloc_data & Halloc_static & Halloc_exports & Hadv_imports
-      & Hadv_code & Hadv_data & Hadv_static & Hadv_exports & Hstack).
-    pose proof hts_regions_disjoint as Hdisj.
-    assert (hts_adv_cmpt ## hts_allocator_cmpt) as Hadv_alloc.
-    { eapply (addr_disjoint_list_lookup _ 1 2); [exact Hdisj|reflexivity..|lia]. }
-    set (adv_f := cmpt_export hts_adv_cmpt (cmpt_exp_tbl_entries_start hts_adv_cmpt)).
+    apply fw_obligations_of; first reflexivity.
+    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+
+    (* 1 - The contents and the layouts of the compartments *)
+    pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
+    pose proof (fw_cmpt_ok_at _ _ _ 1 _ Hok eq_refl) as Hok_alloc.
+    pose proof (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) as Hok_B.
+    cbv [cmpt_ok section body_ok fc_name fc_body fc_imports fc_static_sealed fw_imap
+      fw_imap_from fw_word_of note addr_off nat_str chunks_words export_word
+      fe_offset fe_nargs fe_posture tb_code tb_data tb_exports
+      fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
+      fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts hts_firmware
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb]
+      in Hok_main, Hok_alloc, Hok_B.
+    destruct Hok_main as (main_imports & main_static & main_code & main_data & _).
+    destruct Hok_alloc as (alloc_imports & _ & alloc_code & alloc_data & alloc_exp_tbl).
+    destruct Hok_B as (B_imports & B_static & _).
+    pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
+    pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as Halloc_l.
+    pose proof (fw_cmpt_layout_at _ _ _ 2 _ Hok eq_refl) as HB_l.
+    pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
+    pose proof (fw_cmpts_disjoint_at _ _ _ 0 2 _ _ Hmain_l HB_l Hok ltac:(done) eq_refl eq_refl)
+      as HmainB.
+    pose proof (fw_switcher_cmpt_disjoint_at _ _ _ Hok 0 _ Hmain_l eq_refl) as Hsw_main.
+    cbn [fc_name] in Hmain_l, Halloc_l, HB_l, HmainB, Hsw_main.
+    set (main_cmpt := layout_cmpt_of (cmpt_of img "main") Hmain_l) in *.
+    set (alloc_cmpt := layout_cmpt_of (cmpt_of img "allocator") Halloc_l) in *.
+    set (B_cmpt := layout_cmpt_of (cmpt_of img "B") HB_l) in *.
+    set (swc := fw_switcher_cmpt _ _ _ Hok) in *.
+    set (swl := fw_switcher_layout img) in *.
+    set (asl := fw_assert_layout img).
+
+    (* 2 - The layout of the allocator *)
+    assert (ot_alloc ≠ switcher.ot_switcher) as Hot_alloc_switcher.
+    { destruct (img_wf_otypes _ _ (proj2 (proj2 (proj2 Hok)))) as [Hot_nodup _].
+      cbn in Hot_nodup. apply NoDup_cons in Hot_nodup as [Hot_notin _]. set_solver+Hot_notin. }
+    assert (ot_alloc < ot_alloc ^+ 1)%ot as Hot_alloc_size.
+    { destruct (img_wf_otypes _ _ (proj2 (proj2 (proj2 Hok)))) as [_ Hot_valid].
+      cbn in Hot_valid. rewrite Forall_cons Forall_singleton in Hot_valid. apply Hot_valid. }
+    destruct (fw_heap_machine _ _ _ Hok ltac:(by cbn)) as [Haffine Hrevoker].
+    pose (alloclayout := img_allocator_layout (cmpt_of img "allocator") ot_alloc).
+    assert (image.cmpt_imports (cmpt_of img "allocator") = img_allocator_imports ot_alloc)
+      as alloc_imports'.
+    { by rewrite alloc_imports. }
+    assert allocatorLayoutWf as allocwf.
+    { by apply img_allocator_layout_wf. }
+    fw_fold_cmpt main_cmpt. fw_fold_cmpt alloc_cmpt. fw_fold_cmpt B_cmpt.
+    pose proof (cmpt_exp_tbl_entries_start_eq alloc_cmpt) as Halloc_start.
+
+    (* 3 - The export entries, imported by main and B *)
+    set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
+                  (cmpt_exp_tbl_entries_start B_cmpt)).
     set (malloc_f := allocator_malloc Global).
     set (free_f := allocator_free Global).
+    assert (cmpt_export_sb (cmpt_of img "B") 0 = B_f ∧
+            cmpt_export_sb (cmpt_of img "allocator") 0 = malloc_f ∧
+            cmpt_export_sb (cmpt_of img "allocator") 1 = free_f) as (HsbB & Hsb0 & Hsb1).
+    { rewrite /cmpt_export_sb /B_f /malloc_f /free_f /allocator_malloc /allocator_free
+        /allocator_malloc_exp_tbl_off /allocator_free_exp_tbl_off /=.
+      fw_fold_cmpt alloc_cmpt. rewrite Halloc_start.
+      pose proof (cmpt_exp_tbl_entries_size alloc_cmpt) as Hsize.
+      rewrite alloc_exp_tbl in Hsize. cbn in Hsize.
+      split_and!; try done; f_equal; solve_addr+Hsize Halloc_start. }
+    assert (cmpt_imports main_cmpt = hts_main_imports (cmpt_b_static_sealed main_cmpt) B_f)
+      as main_imports'.
+    { rewrite main_imports /hts_main_imports.
+      pose proof (cmpt_exp_tbl_entries_size alloc_cmpt) as Hsize.
+      rewrite alloc_exp_tbl in Hsize. cbn [length] in Hsize.
+      rewrite Halloc_start.
+      rewrite (_ : (cmpt_exp_tbl_pcc alloc_cmpt ^+ 2 ^+ 1)%a = (cmpt_exp_tbl_pcc alloc_cmpt ^+ 3)%a);
+        [reflexivity | solve_addr+Hsize Halloc_start]. }
 
-    (* Iris adequacy: the program-logic resources of the initial state *)
-    eapply (cerise_flag_adequacy Σ ot_switcher
-              [(adv_f, 1); (malloc_f, allocator_malloc_nargs); (free_f, allocator_free_nargs)]
-              (htsN .@ "flag") (flag_assert hts_assert_cmpt) {[heap_b]});
-      [| by repeat constructor | | | | exact Hstep].
-    { assert (adv_f ≠ malloc_f) by apply cmpt_export_disjoint, Hadv_alloc.
-      assert (adv_f ≠ free_f) by apply cmpt_export_disjoint, Hadv_alloc.
-      assert (malloc_f ≠ free_f).
-      { pose proof (cmpt_exp_tbl_entries_size hts_allocator_cmpt) as Hsize.
-        pose proof (cmpt_exp_tbl_pcc_size hts_allocator_cmpt).
-        pose proof (cmpt_exp_tbl_cgp_size hts_allocator_cmpt).
-        rewrite Halloc_exports in Hsize.
-        rewrite /malloc_f /free_f /allocator_malloc /allocator_free
-          /allocator_malloc_exp_tbl_off /allocator_free_exp_tbl_off.
-        cbn in *. intros Heq; simplify_eq; solve_addr. }
-      cbn; repeat (apply NoDup_cons; split); try apply NoDup_nil; set_solver. }
-    { (* The allocator holds the root of the heap. *)
-      subst sh mem.
-      apply (ghost_init_cond_initial_layout_roots {[heap_b]} hts_switcher_cmpt hts_assert_cmpt
-             hts_main_cmpt [hts_main_cmpt; hts_allocator_cmpt; hts_adv_cmpt]);
-        [| done | exact Hheap_disjoint | exact Hreg | exact Hsreg | exact Hstack |
-         | eapply (mem_exec_ok_initial_cmpts hts_switcher_cmpt hts_assert_cmpt);
-             [exact Hheap_disjoint | solve_initial_exec_cmpts] ].
-      { intros a ->%elem_of_singleton. apply withinBounds_true_iff.
-        pose proof heap_valid. solve_addr. }
-      repeat constructor.
-      - apply mem_rooted_initial_cmpt.
-        + rewrite Hmain_imports /hts_main_imports.
-          repeat constructor; try apply word_rooted_int.
-          all: apply word_rooted_not_heap_cap.
-          all: first [ apply switcher_call_sentry_not_heap
-                     | apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap
-                     | apply sealed_cap_nonheap, cmpt_static_sealed_base_not_heap
-                     | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=;
-                       by rewrite (assert_code_nonheap hts_assert_cmpt) ].
-        + rewrite Hmain_code hts_main_code_assembled. apply word_rooted_code.
-        + rewrite Hmain_data. repeat constructor. apply word_rooted_int.
-        + rewrite Hmain_static. repeat constructor. apply word_rooted_int.
-        + by rewrite Hmain_exports.
-      - apply mem_rooted_initial_cmpt.
-        + rewrite Halloc_imports /allocator_imports.
-          repeat constructor.
-          * apply word_rooted_cap_disjoint. rewrite /disjoint_from_heap.
-            symmetry. apply heap_shadow_disjoint.
-          * by apply word_rooted_nonheap.
-          * apply word_rooted_cap_nonheap, revoker_not_heap_address.
-        + rewrite Halloc_code /allocator_code. apply Forall_app.
-          split; apply word_rooted_code.
-        + (* The heap root, based at [heap_b]. *)
-          rewrite Halloc_data /allocator_data. repeat constructor.
-          intros b _ Hb. rewrite /heap_authority_base decide_True in Hb;
-            last (pose proof heap_valid; solve_addr).
-          rewrite /heap_cap_base /= in Hb.
-          destruct (is_heap_address heap_b); simplify_eq; set_solver.
-        + by rewrite Halloc_static.
-        + rewrite Halloc_exports /allocator_export_table_entries.
-          repeat constructor; apply word_rooted_int.
-      - apply mem_rooted_initial_cmpt.
-        + rewrite Hadv_imports /hts_adv_imports.
-          repeat constructor; apply word_rooted_not_heap_cap.
-          all: first [ apply switcher_call_sentry_not_heap
-                     | apply sealed_cap_nonheap, (cmpt_exp_tbl_base_not_heap hts_allocator_cmpt)
-                     | apply sealed_cap_nonheap, cmpt_static_sealed_base_not_heap ].
-        + by apply word_rooted_ints.
-        + eapply Forall_impl; first exact Hadv_data.
-          intros w. apply word_rooted_initial_data.
-        + rewrite Hadv_static. repeat constructor. apply word_rooted_int.
-        + rewrite Hadv_exports. repeat constructor. apply word_rooted_int. }
-    { destruct Hreg as (_&_&_&Hr). apply Hr. set_solver. }
-    subst sh.
-    iIntros (ceriseg) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna
-      ([#Hentry_adv #Hentry_adv'] & [#Hentry_malloc #Hentry_malloc']
-       & [#Hentry_free #Hentry_free'] & _)".
-    pose FA := @free_auth_owner Σ _.
-    (* One owner identifier for main, one for the adversary *)
+    (* 4 - The resources of the image *)
+    iIntros "Hres". iNamed "Hres".
+    iEval (cbv [hts_firmware fw_cmpts]) in "Hcmpts".
+    iDestruct "Hcmpts"
+      as "((Hmain & Hmain_static & _) & (Halloc & _ & #Halloc_pers) & (HB & HB_static & #HB_pers) & _)".
+    cbn [fc_name].
+    change (fw_entry_cmpt (hts_firmware ot_alloc) img 0) with (cmpt_of img "main").
+    iEval (cbv [hts_firmware fw_otypes]) in "Hotypes".
+    iDestruct "Hotypes" as "[Hseal_store_alloc _]".
+    iEval (cbv [hts_firmware fw_heap_roots fw_set]) in "Hclaims".
+
+    (* 5 - Ghost state: one owner identifier for main, one for B *)
+    pose (FA := (free_auth_owner : FreeAuth Σ)).
     iMod (allocator_owners_init {[hts_main_owner_id; hts_adv_owner_id]})
       as (allocator_ownerg) "[Howners Hids]".
     iDestruct (big_sepS_insert with "Hids") as "[Hid_main Hid_adv]".
     { rewrite /hts_main_owner_id /hts_adv_owner_id. set_solver. }
     iEval (rewrite big_sepS_singleton) in "Hid_adv".
-    iMod (initialise_world [Adv] {[ ot_switcher; AllocOtype ]})
-      as (seal_storeg relg stsg cstackg) "(Hseal_store & Hcstk_full & Hcstk_frag & [Hworld_adv _])";
-      [done | apply NoDup_singleton |].
-
-    (* Get initial sregister mtdc *)
-    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first by apply lookup_sregs_handed_out_mtdc, Hsreg.
-
-    (* Separate the initial heap from the compartments *)
-    rewrite Hmem /hts_initial_memory.
-    iDestruct (big_sepM_union with "Hmem") as "[Hheap Hmem]"; first exact Hheap_disjoint.
-
-    (* Separate all compartments *)
-    rewrite /hts_initial_program_memory.
-    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_adv]";
-      first exact hts_initial_adv_disjoint.
-    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_allocator]";
-      first exact hts_initial_allocator_disjoint.
-    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_main]";
-      first exact hts_initial_main_disjoint.
-    iDestruct (big_sepM_union with "Hmem") as "[Hcmpt_switcher Hcmpt_assert]";
-      first exact hts_initial_assert_switcher_disjoint.
-
-    (* Assert *)
-    iMod (initialise_assert_compartment (Σ := Σ) _ (htsN .@ "flag")
-           with "Hcmpt_assert")
-      as "[#Hassert_flag #Hassert]".
-
-    (* Switcher *)
-    pose proof hts_allocator_otype_disjoint as Hotype_disjoint.
-    iDestruct (big_sepS_insert with "Hseal_store") as "[Hseal_store Hseal_store_alloc]".
-    { apply not_elem_of_singleton. intros Heq. by apply Hotype_disjoint. }
-    iEval (rewrite big_sepS_singleton) in "Hseal_store_alloc".
-    iMod (initialise_switcher_compartment (Σ := Σ) _ hts_switcherN
-           with "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc")
-      as "(#Hsealed_pred_ot_switcher & #Hswitcher & #Hswitcher_static & Hstack)".
     iMod (seal_store_update_alloc AllocOtype allocator_otype_propC with "Hseal_store_alloc")
       as "#Hsealed_pred_alloc".
 
-    (* Allocator: its service invariant owns the heap *)
-    iMod (initialise_compartment (Σ := Σ) with "Hcmpt_allocator")
-      as "(Halloc_imports & Halloc_code & Halloc_data & _
-           & Halloc_etbl_pcc & Halloc_etbl_cgp & Halloc_etbl_entries)".
-    iMod (hts_allocator_service_init with
-           "Halloc_imports Halloc_code Halloc_data Howners Hheap Hshadow Hclaims")
-      as "[#Hservice #Hservice_static]"; [done..|].
-    iMod (hts_allocator_exports_init with
-           "Halloc_etbl_pcc Halloc_etbl_cgp Halloc_etbl_entries")
-      as "#(Hexport_pcc & Hexport_cgp & Hexport_malloc & Hexport_free)"; first done.
+    (* 6 - The allocator: its service invariant owns the heap *)
+    iMod (allocator_init img (fw_nth 1 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt)
+            ot_alloc {[hts_main_owner_id; hts_adv_owner_id]} Halloc_l allocwf
+            alloc_imports' alloc_code alloc_data alloc_exp_tbl
+           with "Halloc Halloc_pers Howners Hheap Hshadow Hclaims")
+      as "(#Hservice & #Hservice_static & #Halloc_etbl_pcc & #Halloc_etbl_cgp
+           & #Hexport_malloc & #Hexport_free)".
+    cbn [fc_name fw_nth fw_cmpts hts_firmware].
+    fw_fold_cmpt main_cmpt. fw_fold_cmpt alloc_cmpt. fw_fold_cmpt B_cmpt.
+    iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
+      first exact Hmain_l.
+    fw_fold_cmpt main_cmpt.
+    rewrite main_imports' main_code main_data.
+    iPoseProof "HB_pers" as "(_ & _ & _ & HB_entries)".
+    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
+                fw_map ub_exports ue_nargs]) in "HB_entries".
+    iEval (rewrite HsbB /=) in "HB_entries".
+    iDestruct "HB_entries" as "([#Hentry_Bf #Hentry_Bf'] & _)".
+    iPoseProof "Halloc_pers" as "(_ & _ & _ & Halloc_entries)".
+    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
+                fw_map tb_exports fe_nargs]) in "Halloc_entries".
+    iEval (rewrite Hsb0 Hsb1 /=) in "Halloc_entries".
+    iDestruct "Halloc_entries" as "([#Hentry_malloc #Hentry_malloc'] & [#Hentry_free #Hentry_free'] & _)".
+    iDestruct (big_sepS_elem_of_acc _ _ B with "Hworlds") as "[Hworld_B _]".
+    { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
-    (* CMPT Adv *)
-    iMod (initialise_adversary_compartment (Σ := Σ) _ with "Hcmpt_adv")
-      as "(Hadv_imports & Hadv_code & Hadv_data & Hadv_static
-           & #Hadv_etbl_pcc & #Hadv_etbl_cgp & #Hadv_etbl_entries)".
-
-    (* CMPT MAIN *)
-    iMod (initialise_compartment_pers (Σ := Σ) with "Hcmpt_main")
-      as "(#Hmain_imports & #Hmain_code & Hmain_data & Hmain_static & _ & _ & _)".
-    rewrite Hmain_imports Hmain_code Hmain_data.
-
-    (* The owner words, in the static sealed regions *)
-    set (adv_owner_a := cmpt_b_static_sealed hts_adv_cmpt).
-    set (main_owner_a := cmpt_b_static_sealed hts_main_cmpt).
-    assert ((adv_owner_a + 1)%a = Some (cmpt_e_static_sealed hts_adv_cmpt))
-      as Hadv_owner_size.
-    { pose proof (cmpt_static_sealed_size hts_adv_cmpt) as Hsize.
-      by rewrite Hadv_static in Hsize. }
-    assert ((main_owner_a + 1)%a = Some (cmpt_e_static_sealed hts_main_cmpt))
-      as Hmain_owner_size.
-    { pose proof (cmpt_static_sealed_size hts_main_cmpt) as Hsize.
-      by rewrite Hmain_static in Hsize. }
-    iEval (rewrite Hadv_static) in "Hadv_static".
-    iDestruct (region_pointsto_single with "Hadv_static")
+    (* 7 - The owner words, in the static sealed regions *)
+    set (adv_owner_a := cmpt_b_static_sealed B_cmpt).
+    set (main_owner_a := cmpt_b_static_sealed main_cmpt).
+    assert ((adv_owner_a + 1)%a = Some (cmpt_e_static_sealed B_cmpt)) as Hadv_owner_size.
+    { pose proof (cmpt_static_sealed_size B_cmpt) as Hsize.
+      by rewrite B_static in Hsize. }
+    assert ((main_owner_a + 1)%a = Some (cmpt_e_static_sealed main_cmpt)) as Hmain_owner_size.
+    { pose proof (cmpt_static_sealed_size main_cmpt) as Hsize.
+      by rewrite main_static in Hsize. }
+    rewrite /fw_cmpt_static_res. fw_fold_cmpt main_cmpt. fw_fold_cmpt B_cmpt.
+    iEval (rewrite B_static) in "HB_static".
+    iDestruct (region_pointsto_single with "HB_static")
       as (w_adv_owner) "[Hadv_owner %Hw_adv_owner]"; first exact Hadv_owner_size.
     injection Hw_adv_owner as <-.
-    iEval (rewrite Hmain_static) in "Hmain_static".
+    iEval (rewrite main_static) in "Hmain_static".
     iDestruct (region_pointsto_single with "Hmain_static")
       as (w_main_owner) "[Hmain_owner %Hw_main_owner]"; first exact Hmain_owner_size.
     injection Hw_main_owner as <-.
 
-    (* Seal the exported entries of the allocator in the world of Adv *)
-    iMod (seal_service_exports _ Adv [malloc_f; free_f]
-           with "Hsealed_pred_ot_switcher [] Hworld_adv")
-      as "(Hworld_adv & #Hseal_alloc)"; [by repeat constructor | done | |].
+    (* 8 - Seal the exported entries of the allocator in the world of B *)
+    iMod (seal_service_exports fw_world0 B [malloc_f; free_f]
+           with "Hseal_switcher [] Hworld_B")
+      as "(Hworld_B & #Hseal_alloc)"; [by repeat constructor | done | |].
     { iModIntro. iSplit; last iSplit; last done.
-      - iApply (malloc_entry_point_spec Global _ Adv hts_switcherN); iFrame "#".
-      - iApply (free_entry_point_spec Global _ Adv hts_switcherN); iFrame "#". }
-    set (W1 := <o[ ot_switcher := exports_words [malloc_f; free_f] ]o> (∅, (∅, ∅), ∅, ∅)).
+      - iApply (malloc_entry_point_spec Global _ B fw_switcherN); iFrame "#".
+      - iApply (free_entry_point_spec Global _ B fw_switcherN); iFrame "#". }
+    set (W1 := <o[ switcher.ot_switcher := exports_words [malloc_f; free_f] ]o> fw_world0).
 
-    (* Seal the allocator capability of Adv, with its owner identifier *)
+    (* 9 - Seal the allocator capability of B, with its owner identifier *)
     set (adv_alloc_sb := allocator_capability_scap Global adv_owner_a).
     set (adv_alloc_words :=
       ({[lword_of_word (WSealable adv_alloc_sb);
          lword_of_word (borrow (WSealable adv_alloc_sb))]} : gset LWord)).
     set (W1' := <o[AllocOtype := adv_alloc_words]o> W1).
-    iAssert (allocator_otype_propC (W1', Adv, lword_of_word (WSealable adv_alloc_sb)))
+    iAssert (allocator_otype_propC (W1', B, lword_of_word (WSealable adv_alloc_sb)))
       with "[Hadv_owner Hid_adv]" as "Hadv_alloc_prop".
     { iExists hts_adv_owner_id, adv_owner_a, ∅. iFrame "Hadv_owner Hid_adv".
       rewrite /allocator_owned_rights big_sepS_empty.
@@ -478,107 +195,95 @@ Section Adequacy.
       - apply withinBounds_true_iff. solve_addr+Hadv_owner_size.
       - split; last done.
         eapply disjoint_from_shadow_not_in.
-        + exact (cmpt_static_sealed_disjoint_from_shadow hts_adv_cmpt).
+        + exact (cmpt_static_sealed_disjoint_from_shadow B_cmpt).
         + apply withinBounds_true_iff. subst adv_owner_a.
           solve_addr+Hadv_owner_size. }
     assert (AllocOtype ∉ dom (seal_std W1)) as Halloc_fresh.
     { subst W1. rewrite dom_insert_L dom_empty_L.
       apply not_elem_of_union. split; last set_solver+.
-      apply not_elem_of_singleton. intros Heq. by apply Hotype_disjoint. }
-    iMod (world_interp_salloc W1 Adv allocator_otype_propC AllocOtype adv_alloc_words
-           with "[$Hsealed_pred_alloc] [] [Hadv_alloc_prop] [$Hworld_adv]")
-      as "(Hworld_adv & #Hseal_alloc_adv)"; first exact Halloc_fresh.
+      apply not_elem_of_singleton. intros Heq. by apply Hot_alloc_switcher. }
+    iMod (world_interp_salloc W1 B allocator_otype_propC AllocOtype adv_alloc_words
+           with "[$Hsealed_pred_alloc] [] [Hadv_alloc_prop] [$Hworld_B]")
+      as "(Hworld_B & #Hseal_alloc_adv)"; first exact Halloc_fresh.
     { iIntros (w); iApply mono_priv_ot_allocator. }
     { rewrite normalise_sealed_words_borrow big_sepS_singleton.
       iNext. iExact "Hadv_alloc_prop". }
 
-    (* Initialise the world of Adv *)
-    assert (switcher_cmpt_disjoint hts_adv_cmpt hts_switcher_cmpt) as Hsw_adv.
-    { eapply (addr_disjoint_list_lookup _ 3 1); [exact Hdisj|reflexivity..|lia]. }
-    iMod (initialise_adversary_world W1' hts_switcher_cmpt _ Adv
-           with "Hsealed_pred_ot_switcher Hadv_imports Hadv_code Hadv_data Hstack [] [] Hworld_adv")
-      as "(Hworld_adv & #Hinterp_pcc_adv & #Hinterp_cgp_adv & #Hinterp_stack & #Hadv_exports)";
-      [auto..| | |].
-    { (* The exported entry Adv.f satisfies the sealing predicate of the switcher *)
-      iApply (adversary_exports_prop _ _ _ _ [(InterruptEnabled, 1, hts_adv_entry_offset)]
-               with "Hswitcher Hswitcher_static Hadv_etbl_pcc Hadv_etbl_cgp Hadv_etbl_entries");
-        [by rewrite Hadv_exports | by repeat constructor |
-         by apply Forall_singleton, hts_adv_entry_valid |].
-      rewrite /= finz_add_0_default; iFrame "Hentry_adv Hentry_adv'". }
-    { (* The imports of Adv: the switcher, malloc, free and its allocator capability *)
-      rewrite Hadv_imports /hts_adv_imports.
-      iIntros "_".
-      iSplit; first by iApply (switcher_call_import_safe with "Hswitcher Hswitcher_static").
+    (* 10 - Close the world of B: its compartment becomes permanent, and the
+       stack temporary, because main shares it with B; the imports of B are
+       safe; its export is safe to share. *)
+    iMod (fw_close_adv_world _ _ _ 2 (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt) _
+            HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
+           with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers Hstack [] Hworld_B")
+      as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
+    { iIntros "_".
+      rewrite -(fw_imports_safe_words _ _
+                  (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt)
+                  _ _ (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl)).
+      change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).
+      rewrite B_imports.
+      iSplit; first by iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B")
+                                 with "Hswitcher Hswitcher_static").
       iSplit.
       { iApply (sealed_import_safe with "Hseal_alloc"); [done | |].
-        - apply exports_words_elem_of; set_solver.
+        - rewrite -Hsb0 /cmpt_export_sb /=. apply exports_words_elem_of. set_solver.
         - intros ? ? ? ? ? Heq; injection Heq; intros; subst.
-          apply cmpt_exp_tbl_disjoint_from_heap. }
+          apply (cmpt_exp_tbl_disjoint_from_heap alloc_cmpt). }
       iSplit.
       { iApply (sealed_import_safe with "Hseal_alloc"); [done | |].
-        - apply exports_words_elem_of; set_solver.
+        - rewrite -Hsb1 /cmpt_export_sb /=. apply exports_words_elem_of. set_solver.
         - intros ? ? ? ? ? Heq; injection Heq; intros; subst.
-          apply cmpt_exp_tbl_disjoint_from_heap. }
+          apply (cmpt_exp_tbl_disjoint_from_heap alloc_cmpt). }
       iSplit; last done.
       iApply (sealed_import_safe with "Hseal_alloc_adv"); [done | done |].
       intros ? ? ? ? ? Heq; injection Heq; intros; subst.
-      replace (cmpt_b_static_sealed hts_adv_cmpt ^+ 1)%a with (cmpt_e_static_sealed hts_adv_cmpt)
+      fw_fold_cmpt B_cmpt.
+      replace (cmpt_b_static_sealed B_cmpt ^+ 1)%a with (cmpt_e_static_sealed B_cmpt)
         by (rewrite /adv_owner_a in Hadv_owner_size; solve_addr+Hadv_owner_size).
       apply cmpt_static_sealed_disjoint_from_heap. }
-    iAssert (interp (adv_world W1' hts_switcher_cmpt hts_adv_cmpt) Adv
-               (WSealed ot_switcher adv_f)) as "#Hinterp_adv".
-    { iApply (adversary_export_interp _ _ _ 0 with "Hadv_exports").
-      - solve_addr.
-      - rewrite Hadv_exports /=; lia. }
+    iEval (rewrite /fw_thread_csp) in "Hinterp_stack_B".
+    cbn [fc_name fw_nth fw_cmpts hts_firmware]. rewrite HsbB.
+    fw_fold_cmpt main_cmpt. fw_fold_cmpt B_cmpt.
 
-    (* Extract registers *)
-    iDestruct (initial_registers_split with "[$HPC $Hreg]")
-      as (rmap) "(HPC & Hcgp & Hcsp & Hrmap & %Hrmap_dom & %Hrmap_zero)"; first exact Hreg.
-    pose proof (main_spec_size_obligations _ _ _ _ Hmain_imports Hmain_code Hmain_data)
+    (* 11 - We can apply the specification! *)
+    pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
-
-    iPoseProof (hts_main_spec _ _ _ _ _ _ _ _ adv_f main_owner_a
-                  (adv_world W1' hts_switcher_cmpt hts_adv_cmpt)
-                  [] [] hts_switcherN []
+    iPoseProof (hts_main_spec (swlayout := swl) (assertlayout := asl) (alloclayout := alloclayout)
+                  (C := B) _ _ _ _ _ _ _ _ B_f main_owner_a _ [] [] fw_switcherN []
                  with "[$Hassert $Hservice $Hservice_static $Hswitcher $Hswitcher_static
-                        $Hexport_pcc $Hexport_cgp $Hexport_malloc $Hexport_free
-                        $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hrmap
+                        $Halloc_etbl_pcc $Halloc_etbl_cgp $Hexport_malloc $Hexport_free
+                        $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data
-                        $Hworld_adv $Hcstk_frag
-                        $Hinterp_adv $Hentry_adv $Hinterp_stack]")
-      as "Hspec".
+                        $Hworld_B $Hcstk
+                        $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B]")
+      as "Hspec"; eauto using fw_cleared_regs_dom.
     { eapply disjoint_from_shadow_not_in.
-      - exact (cmpt_static_sealed_disjoint_from_shadow hts_main_cmpt).
+      - exact (cmpt_static_sealed_disjoint_from_shadow main_cmpt).
       - apply withinBounds_true_iff. subst main_owner_a. solve_addr+Hmain_owner_size. }
     { apply withinBounds_true_iff. solve_addr+Hmain_owner_size. }
-    { exact (proj1 (cmpt_static_sealed_not_heap_range hts_main_cmpt)). }
-    { exact (cmpt_pcc_disjoint_from_shadow hts_main_cmpt). }
-    { exact (cmpt_pcc_base_not_heap hts_main_cmpt). }
+    { exact (proj1 (cmpt_static_sealed_not_heap_range main_cmpt)). }
+    { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
+    { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
-    { exact (cmpt_cgp_disjoint_from_shadow hts_main_cmpt). }
-    { exact (cmpt_cgp_not_heap_range hts_main_cmpt). }
-    { solve_ndisj. }
-    { exact Hrmap_dom. }
-    { intros r Hr. rewrite (Hrmap_zero r Hr). by eexists. }
-    { exact Hmain_bounds. }
-    { exact Hmain_data_size. }
-    { exact Hmain_imports_size. }
-    { apply (main_cgp_not_in_adv_world _ _ _ hts_main_cmpt).
-      - eapply (addr_disjoint_list_lookup _ 0 1); [exact Hdisj|reflexivity..|lia].
-      - eapply (addr_disjoint_list_lookup _ 3 0); [exact Hdisj|reflexivity..|lia].
+    { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
+    { exact (cmpt_cgp_not_heap_range main_cmpt). }
+    { rewrite /fw_switcherN /Nallocator_service; solve_ndisj. }
+    { intros r Hr. by rewrite fw_cleared_regs_lookup. }
+    { apply (main_cgp_not_in_adv_world Temporary W1' swc main_cmpt B_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size. }
-    { by rewrite adv_world_with_heap. }
+    { by rewrite (adv_world_with_heap Temporary W1' swc B_cmpt). }
     { done. }
-
-    iModIntro; iFrame "Hassert_flag".
+    iModIntro.
     iApply (wp_mono with "Hspec"); auto.
   Qed.
-End Adequacy.
+End hts_obligations.
 
-Inductive CmptNames_hts := | B .
+(** We initialise concretely the compartments name typeclass. *)
+
+Inductive CmptNames_hts := | B.
 #[local] Instance CmptNames_hts_eq_dec : EqDecision CmptNames_hts.
-Proof. intros C C'; destruct C,C'; solve_decision. Qed.
+Proof. intros C1 C2; destruct C1, C2; solve_decision. Qed.
 #[local] Instance CmptNames_hts_finite : finite.Finite CmptNames_hts.
 Proof.
   refine {| finite.enum := [B] |}.
@@ -589,26 +294,23 @@ Defined.
 #[local] Program Instance CmptNames_hts_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_hts; |}.
 
+(** The logical compartment of the adversary. *)
+Definition hts_adv_B : @CmptName CmptNames_hts_CmptNameG := B.
+
+(* The fields of the image records, for the end-to-end statement. *)
+Import image.
+
 (** END-TO-END THEOREM *)
-Theorem hts_adequacy `{hts_memory_layout}
-    (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (mem mem' : Mem)
-    (sh sh' : ShadowTbl) (es : list griotte_lang.expr) :
-  hts_is_initial_registers pc reg ->
-  hts_is_initial_sregisters sreg ->
-  hts_is_initial_memory mem ->
-  sh = initial_heap_shadow ->
-  initial_heap_memory ##ₘ hts_initial_program_memory ->
-  rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, mem, sh))
-    (es, (pc', reg', sreg', mem', sh')) ->
-  mem' !! flag_assert hts_assert_cmpt = Some (WInt 0).
+Theorem hts_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
+  hts_initial_state_ok flag σ →
+  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  mem σ' !! flag = Some (WInt 0).
 Proof.
-  intros ? ? ? ? ? ?.
-  set (cnames := CmptNames_hts_CmptNameG).
-  set (Σ := #[invΣ; ceriseGpreΣ
-              ; entryPreΣ; CSTACK_preΣ; allocator_ownerΣ
-              ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ LAddr region_type OType LWord; relPreΣ
-              ; savedPredΣ (WorldT * CmptName * LWord)
-      ]).
-  eapply (@hts_adequacy' Σ cnames B); eauto; try typeclasses eauto.
+  intros Hok Hstep.
+  destruct (hts_initial_state_ok_start _ _ Hok)
+    as (sw & asrt & t0 & main & allocator & B & ot_alloc & <- & Hfw).
+  eapply (firmware_adequacy_closed (Cname := CmptNames_hts_CmptNameG) allocator_ownerΣ
+            (hts_firmware ot_alloc) (hts_img sw asrt t0 main allocator B));
+    [| exact Hfw | exact Hstep].
+  apply (hts_fw_obligations (B := hts_adv_B)).
 Qed.

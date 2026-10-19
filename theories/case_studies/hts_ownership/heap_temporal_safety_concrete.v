@@ -1,22 +1,37 @@
-From iris.program_logic Require Import adequacy.
-From griotte Require Import machine_parameters machine_parameters_instance machine_run assembler rules proofmode switcher assert compartment_layout disjoint_regions_tactics.
+From stdpp Require Import gmap strings.
+From iris.program_logic Require Import language.
+From griotte Require Import
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  assembler switcher assert allocator_resources compartment_layout.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_adequacy.
-From griotte.allocators.ownership Require Import allocator allocator_preamble.
-From griotte Require Import adequacy_common.
+From griotte.allocators.ownership Require Import allocator.
+(* Imported last: the fields of the image records. *)
+From griotte Require Import image firmware firmware_ok image_state link.
+From griotte.case_studies.hts_ownership Require Import hts_firmware.
+Set Mangle Names.
 
 #[local] Transparent MemNum ONum.
-#[local] Notation "'A' z" :=
-  (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-#[local] Notation "'OT' z" :=
-  (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
+#[local] Open Scope string_scope.
 
-(** The default machine instance has only the allocator's reserved heap address.
-    This example adds three header addresses and one payload address, with a matching
-    shadow region. All instruction and permission encodings are reused. *)
+(** * A concrete instance of the heap temporal safety case study
+
+    The heap temporal safety firmware with a concrete adversary [B], laid
+    out by the linker, on a machine whose heap has room for one allocation.
+    Its initial state satisfies [hts_initial_state_ok] by computation, runs
+    to [Halted], and [hts_adequacy] applies to it. *)
+
+(** The default machine instance has only the allocator's reserved heap
+    address. This one adds three header addresses and one payload address,
+    with a matching shadow region. All instruction and permission encodings
+    are reused. *)
 Definition hts_heap_region : HeapRegion :=
-  {| heap_b := A 8192; heap_e := A 8197; heap_valid := ltac:(solve_addr) |}.
+  {| heap_b := @finz.FinZ MemNum 8192 eq_refl eq_refl;
+     heap_e := @finz.FinZ MemNum 8197 eq_refl eq_refl;
+     heap_valid := ltac:(solve_addr) |}.
 Definition hts_shadow_region : ShadowRegion :=
-  {| shadow_b := A 12288; shadow_e := A 12293; shadow_valid := ltac:(solve_addr) |}.
+  {| shadow_b := @finz.FinZ MemNum 12288 eq_refl eq_refl;
+     shadow_e := @finz.FinZ MemNum 12293 eq_refl eq_refl;
+     shadow_valid := ltac:(solve_addr) |}.
 
 #[local] Instance hts_machine_parameters : MachineParameters :=
   {| instruction_encoding_mixin := @instruction_encoding_mixin machine_parameters_instance;
@@ -39,8 +54,12 @@ Definition hts_shadow_region : ShadowRegion :=
      revoker_not_shadow := eq_refl;
      trap_tval := @trap_tval machine_parameters_instance |}.
 
-(** The concrete adversary counts calls. Its imports remain exactly those
-    allowed by general adequacy; it does not need an assert entry point. *)
+Definition hts_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
+Definition hts_alloc_sealing_type : OType := @finz.FinZ ONum 10 eq_refl eq_refl.
+
+(** The concrete adversary counts its calls. On the first, it saves the
+    buffer it receives; on the second, it checks that the saved buffer has
+    lost its tag. Its entry point is right after its four imports. *)
 (* The explicit assembly injectors below avoid ambiguous sum coercions. *)
 Import Asm_Griotte.
 Definition hts_adv_asm : list (list Asm_Griotte.asm_code) :=
@@ -70,308 +89,69 @@ Lemma hts_adv_assembles :
 Proof. asm_check. Qed.
 Definition hts_adv_data : list Word := [WInt 0; WInt 0; WInt (-1)].
 
-(** Regions are adjacent, with boundaries derived from the actual code.
-    The ordinary and trusted stacks are kept away from code, heap and shadow. *)
-Definition hts_main_pcc_b : Addr := A 9.
-Definition hts_main_code_a : Addr := (hts_main_pcc_b ^+ 6)%a.
-Definition hts_main_pcc_e : Addr := (hts_main_code_a ^+ length hts_main_code)%a.
-Definition hts_adv_pcc_b : Addr := hts_main_pcc_e.
-Definition hts_adv_code_a : Addr := (hts_adv_pcc_b ^+ 4)%a.
-Definition hts_adv_pcc_e : Addr := (hts_adv_code_a ^+ length hts_adv_code)%a.
-Definition hts_alloc_pcc_b : Addr := hts_adv_pcc_e.
-Definition hts_alloc_code_a : Addr := (hts_alloc_pcc_b ^+ allocator_malloc_pcc_off)%a.
-Definition hts_alloc_pcc_e : Addr := (hts_alloc_code_a ^+ length allocator_code)%a.
-Definition hts_main_cgp_b : Addr := hts_alloc_pcc_e.
-Definition hts_main_cgp_e : Addr := (hts_main_cgp_b ^+ 1)%a.
-Definition hts_main_static_sealed_b : Addr := hts_main_cgp_e.
-Definition hts_main_static_sealed_e : Addr := (hts_main_static_sealed_b ^+ 1)%a.
-Definition hts_adv_cgp_b : Addr := hts_main_static_sealed_e.
-Definition hts_adv_cgp_e : Addr := (hts_adv_cgp_b ^+ 3)%a.
-Definition hts_adv_static_sealed_b : Addr := hts_adv_cgp_e.
-Definition hts_adv_static_sealed_e : Addr := (hts_adv_static_sealed_b ^+ 1)%a.
-Definition hts_alloc_cgp_b : Addr := hts_adv_static_sealed_e.
-Definition hts_alloc_cgp_e : Addr := (hts_alloc_cgp_b ^+ 1)%a.
-Definition hts_main_exports_b : Addr := hts_alloc_cgp_e.
-Definition hts_main_exports_e : Addr := (hts_main_exports_b ^+ 2)%a.
-Definition hts_adv_exports_b : Addr := hts_main_exports_e.
-Definition hts_adv_exports_e : Addr := (hts_adv_exports_b ^+ 3)%a.
-Definition hts_alloc_exports_b : Addr := hts_adv_exports_e.
-Definition hts_alloc_exports_e : Addr := (hts_alloc_exports_b ^+ 4)%a.
-Definition hts_assert_b : Addr := hts_alloc_exports_e.
-Definition hts_assert_cap : Addr := (hts_assert_b ^+ length assert_subroutine_instrs)%a.
-Definition hts_assert_e : Addr := (hts_assert_cap ^+ 1)%a.
-Definition hts_assert_flag : Addr := hts_assert_e.
-Definition hts_switcher_b : Addr := (hts_assert_flag ^+ 1)%a.
-Definition hts_switcher_call : Addr := (hts_switcher_b ^+ 1)%a.
-Definition hts_switcher_return : Addr :=
-  (hts_switcher_call ^+ length switcher_call_instrs)%a.
-Definition hts_switcher_e : Addr := (hts_switcher_call ^+ length switcher_instrs)%a.
-Definition hts_stack_b : Addr := A 1024.
-Definition hts_stack_e : Addr := A 1124.
-Definition hts_trusted_stack_b : Addr := A 4096.
-Definition hts_trusted_stack_e : Addr := A 4194.
-Definition hts_switcher_otype : OType := OT 9.
-Definition hts_alloc_otype : OType := OT 10.
+Definition hts_demo_firmware : firmware := hts_firmware hts_alloc_sealing_type.
 
-(** These are finite, closed layout obligations; the decision procedures
-    produce ordinary kernel-checked proofs. *)
-Ltac hts_compute_layout :=
-  first [
-    lazymatch goal with
-    | |- disjoint_from_mmio ?b ?e =>
-        split; [hts_compute_layout
-               | let r := eval vm_compute in (revoker_addr : Addr) in
-                 let b' := eval vm_compute in b in
-                 let e' := eval vm_compute in e in
-                 change revoker_addr with r; change b with b'; change e with e';
-                 rewrite elem_of_finz_seq_between; unfold finz.le_lt; cbn; lia]
-    end |
-    reflexivity | apply (bool_decide_unpack _); vm_compute; reflexivity |
-    match goal with
-    | |- not_heap_range _ _ =>
-        unfold not_heap_range; split;
-          [vm_compute; reflexivity | hts_compute_layout]
-    end |
-    unfold disjoint_from_shadow, disjoint_from_heap;
-    repeat match goal with
-    | |- context [finz.seq_between ?b ?e] =>
-        let b' := eval vm_compute in b in
-        let e' := eval vm_compute in e in
-        progress (change b with b'; change e with e')
-    end;
-    rewrite ?disjoint_list_cons;
-    cbn [union_list foldr];
-    repeat split;
-    try apply disjoint_nil_l; try apply disjoint_nil_r;
-    try apply addr_disjoint_list_empty;
-    intros x Hx Hy;
-    rewrite ?elem_of_union ?elem_of_finz_seq_between ?elem_of_nil in Hx, Hy;
-    unfold finz.le_lt in Hx, Hy; cbn in Hx, Hy; lia].
+Definition hts_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := hts_switcher_sealing_type;
+  lk_adv         := [
+    ("B", {| la_code    := hts_adv_code;
+             la_data    := hts_adv_data;
+             la_exports := [
+               4  (* after the 4 imports *)
+             ] |})
+  ]
+|}.
 
-Program Definition hts_concrete_switcher : cmptSwitcher.
+(** ** The linked image and its initial state *)
+
+Definition hts_demo_image : fw_image :=
+  Eval vm_compute in
+    default (place hts_demo_link_cfg hts_demo_firmware).1
+      (link hts_demo_link_cfg hts_demo_firmware).
+
+Lemma hts_demo_linked :
+  link hts_demo_link_cfg hts_demo_firmware = Some hts_demo_image.
+Proof. vm_compute; reflexivity. Qed.
+
+Definition hts_demo_state : ExecConf := img_state hts_demo_firmware hts_demo_image.
+
+Ltac solve_other_registers :=
+  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
+  rewrite !lookup_insert_ne; try set_solver;
+  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
+
+Lemma hts_demo_ok :
+  hts_initial_state_ok (flag_assert (img_asrt hts_demo_image)) hts_demo_state.
 Proof.
-  refine (@mkCmptSwitcher hts_machine_parameters
-    hts_switcher_b hts_switcher_e hts_switcher_call hts_switcher_return
-    hts_switcher_otype hts_trusted_stack_b hts_trusted_stack_e
-    _ _ _ _ (initial_trusted_stack_content 24) _ eq_refl
-    ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_ints)
-    hts_stack_b hts_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
-  all: hts_compute_layout.
-Defined.
-
-Program Definition hts_concrete_assert : cmptAssert.
-Proof.
-  refine (@mkCmptAssert hts_machine_parameters
-    hts_assert_b hts_assert_e hts_assert_cap hts_assert_flag _ _ _ _ _ _ _ _).
-  all: hts_compute_layout.
-Defined.
-
-#[local] Instance hts_concrete_switcher_layout : switcherLayout :=
-  cmptSwitcher_switcherLayout hts_concrete_switcher.
-#[local] Instance hts_concrete_assert_layout : assertLayout :=
-  cmptAssert_assertLayout hts_concrete_assert.
-#[local] Instance hts_concrete_allocator_layout : allocatorLayout :=
-  {| AllocOtype := hts_alloc_otype;
-     allocator_pcc_b := hts_alloc_pcc_b;
-     allocator_code_b := hts_alloc_code_a;
-     allocator_pcc_e := hts_alloc_pcc_e;
-     allocator_cgp_b := hts_alloc_cgp_b;
-     allocator_cgp_e := hts_alloc_cgp_e;
-     allocator_exp_tbl_b := hts_alloc_exports_b;
-     allocator_exp_tbl_e := hts_alloc_exports_e |}.
-
-Definition hts_adv_f : Sealable :=
-  SCap true RO Global hts_adv_exports_b hts_adv_exports_e (hts_adv_exports_b ^+ 2)%a.
-Definition hts_adv_exports : list Word := [WInt (encode_entry_point InterruptEnabled 1 4)].
-
-Program Definition hts_concrete_main : cmpt.
-Proof.
-  refine (@mkCmpt hts_machine_parameters
-    hts_main_pcc_b hts_main_code_a hts_main_pcc_e
-    hts_main_cgp_b hts_main_cgp_e hts_main_static_sealed_b hts_main_static_sealed_e
-    hts_main_exports_b (hts_main_exports_b ^+ 1)%a
-    (hts_main_exports_b ^+ 2)%a hts_main_exports_e
-    (hts_main_imports hts_main_static_sealed_b hts_adv_f) hts_main_code
-    hts_main_data hts_main_static_sealed []
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-  all: hts_compute_layout.
-Defined.
-
-Program Definition hts_concrete_adv : cmpt.
-Proof.
-  refine (@mkCmpt hts_machine_parameters
-    hts_adv_pcc_b hts_adv_code_a hts_adv_pcc_e
-    hts_adv_cgp_b hts_adv_cgp_e hts_adv_static_sealed_b hts_adv_static_sealed_e
-    hts_adv_exports_b (hts_adv_exports_b ^+ 1)%a
-    (hts_adv_exports_b ^+ 2)%a hts_adv_exports_e
-    (hts_adv_imports hts_adv_static_sealed_b) hts_adv_code hts_adv_data
-    hts_adv_static_sealed hts_adv_exports
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-  all: hts_compute_layout.
-Defined.
-
-Program Definition hts_concrete_alloc : cmpt.
-Proof.
-  refine (@mkCmpt hts_machine_parameters
-    hts_alloc_pcc_b hts_alloc_code_a hts_alloc_pcc_e
-    hts_alloc_cgp_b hts_alloc_cgp_e hts_alloc_cgp_e hts_alloc_cgp_e
-    hts_alloc_exports_b (hts_alloc_exports_b ^+ 1)%a
-    (hts_alloc_exports_b ^+ 2)%a hts_alloc_exports_e
-    allocator_imports allocator_code allocator_data [] allocator_export_table_entries
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-  all: hts_compute_layout.
-Defined.
-
-#[local] Instance hts_concrete_allocator_wf : allocatorLayoutWf.
-Proof.
-  constructor.
+  rewrite /hts_initial_state_ok.
+  exists (img_sw hts_demo_image), (img_asrt hts_demo_image), (thread_of hts_demo_image 0),
+    (cmpt_of hts_demo_image "main"), (cmpt_of hts_demo_image "allocator"),
+    (cmpt_of hts_demo_image "B"), hts_alloc_sealing_type.
+  split; first done.
+  split_and!.
+  all: try (exists 4%nat; split_and!).
+  (* The shadow table of this machine translates the heap by a constant offset. *)
   all: try (intros a; reflexivity).
-  all: hts_compute_layout.
-Defined.
-
-(** Split unions structurally, then decide only the endpoint inequalities.
-    Keeping the interval lemma opaque avoids reducing large address lists. *)
-#[local] Lemma hts_interval_disjoint (b e b' e' : Addr) :
-  (e <= b' \/ e' <= b \/ e <= b \/ e' <= b')%a ->
-  finz.seq_between b e ## finz.seq_between b' e'.
-Proof.
-  intros H x Hx Hy. apply elem_of_finz_seq_between in Hx, Hy. solve_addr.
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /hts_demo_state /img_state /img_regs; solve_other_registers
+            end).
+  all: solve_concrete_condition.
 Qed.
 
-Ltac hts_disjoint_regions :=
-  lazymatch goal with
-  | |- _ /\ _ => split; hts_disjoint_regions
-  | |- ?l ∪ ?k ## ?m =>
-      apply (proj2 (disjoint_union_l l k m)); split; hts_disjoint_regions
-  | |- ?l ## ?k ∪ ?m =>
-      apply (proj2 (disjoint_union_r l k m)); split; hts_disjoint_regions
-  | |- finz.seq_between _ _ ## finz.seq_between _ _ =>
-      apply hts_interval_disjoint;
-      apply (bool_decide_unpack _); vm_compute; reflexivity
-  | |- _ ## ∅ => apply disjoint_empty_r
-  | |- ## [] => apply addr_disjoint_list_empty
-  end.
+(** ** The run
 
-#[local] Instance hts_concrete_layout : hts_memory_layout.
-Proof.
-  refine {| hts_switcher_cmpt := hts_concrete_switcher;
-            hts_assert_cmpt := hts_concrete_assert;
-            hts_main_cmpt := hts_concrete_main;
-            hts_adv_cmpt := hts_concrete_adv;
-            hts_allocator_cmpt := hts_concrete_alloc;
-            hts_allocator_otype := hts_alloc_otype;
-            hts_adv_entry_offset := 4 |}.
-  - done.
-  - eexists. reflexivity.
-  - unfold cmpt_region, cmpt_pcc_region, cmpt_cgp_region,
-      cmpt_static_sealed_region, cmpt_exp_tbl_region, cmpt_switcher_region,
-      cmpt_switcher_code_region, cmpt_switcher_trusted_stack_region,
-      cmpt_switcher_stack_region, cmpt_assert_region,
-      cmpt_assert_code_region, cmpt_assert_cap_region, cmpt_assert_flag_region.
-    rewrite ?disjoint_list_cons. cbn [union_list foldr].
-    hts_disjoint_regions.
-Defined.
-
-
-Definition hts_concrete_pc : Word :=
-  WCap true RX Global hts_main_pcc_b hts_main_pcc_e hts_main_code_a.
-Definition hts_concrete_registers : Reg :=
-  (<[cgp := WCap true RW Global hts_main_cgp_b hts_main_cgp_e hts_main_cgp_b]>
-  (<[csp := WCap true RWL Local hts_stack_b hts_stack_e hts_stack_b]>
-    (gset_to_gmap (WInt 0) all_registers_s))).
-Definition hts_concrete_sregisters : SReg :=
-  initial_sregisters_with
-    (WCap true RWL Global hts_trusted_stack_b hts_trusted_stack_e
-    hts_trusted_stack_b).
-Definition hts_concrete_memory : Mem := hts_initial_memory.
-Definition hts_concrete_initial_state : ExecConf :=
-  (hts_concrete_pc, hts_concrete_registers, hts_concrete_sregisters, hts_concrete_memory, initial_heap_shadow).
-
-Lemma hts_concrete_registers_correct :
-  hts_is_initial_registers hts_concrete_pc hts_concrete_registers.
-Proof.
-  rewrite /hts_is_initial_registers /hts_concrete_pc /hts_concrete_registers.
-  split; [reflexivity|]. split.
-  - rewrite lookup_insert.
-    case_decide; last done.
-    cbn [hts_main_cmpt hts_concrete_layout cmpt_b_cgp cmpt_e_cgp hts_concrete_main].
-    reflexivity.
-  - split.
-    + rewrite lookup_insert_ne; last done. rewrite lookup_insert.
-      cbn [hts_switcher_cmpt hts_concrete_layout b_stack e_stack hts_concrete_switcher].
-      reflexivity.
-    + intros r Hr. rewrite !lookup_insert_ne; try set_solver.
-      apply lookup_gset_to_gmap_Some. split; [apply all_registers_s_correct|done].
-Qed.
-
-Lemma hts_concrete_sregisters_correct : hts_is_initial_sregisters hts_concrete_sregisters.
-Proof. apply initial_sregisters_with_correct. reflexivity. Qed.
-
-Lemma hts_concrete_memory_correct : hts_is_initial_memory hts_concrete_memory.
-Proof.
-  unfold hts_is_initial_memory.
-  cbn [hts_main_cmpt hts_allocator_cmpt hts_adv_cmpt hts_switcher_cmpt
-    hts_concrete_layout cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end
-    cmpt_exp_tbl_entries_start cmpt_imports cmpt_code cmpt_data
-    cmpt_static_sealed cmpt_exp_tbl_entries stack_content
-    hts_concrete_main hts_concrete_alloc hts_concrete_adv hts_concrete_switcher].
-  repeat match goal with |- _ /\ _ => split end.
-  { exact eq_refl. }
-  { assert (Hadv : hts_adv_f =
-        SCap true RO Global hts_adv_exports_b hts_adv_exports_e
-          (hts_adv_exports_b ^+ 2)%a) by reflexivity.
-    rewrite Hadv. exact eq_refl. }
-  1-9: exact eq_refl.
-  - exact eq_refl.
-  - vm_compute. repeat constructor.
-  - rewrite /hts_adv_data. repeat constructor; done.
-  - exact eq_refl.
-  - exact eq_refl.
-  - apply Forall_replicate. done.
-Qed.
-
-Lemma hts_concrete_heap_disjoint : initial_heap_memory ##ₘ hts_initial_program_memory.
-Proof. hts_compute_layout. Qed.
-
-(** The concrete initial state satisfies the general safety theorem. *)
-Lemma hts_concrete_adequacy pc' reg' sreg' mem' sh' es :
-  rtc erased_step
-    ([Seq (Instr Executable)], hts_concrete_initial_state)
-    (es, (pc', reg', sreg', mem', sh')) ->
-  mem' !! hts_assert_flag = Some (WInt 0).
-Proof.
-  intro Hrun.
-  pose proof
-    (@hts_adequacy hts_machine_parameters hts_concrete_layout
-      hts_concrete_pc pc' hts_concrete_registers reg' hts_concrete_sregisters sreg'
-      hts_concrete_memory mem' initial_heap_shadow sh' es
-      hts_concrete_registers_correct hts_concrete_sregisters_correct
-      hts_concrete_memory_correct eq_refl hts_concrete_heap_disjoint Hrun)
-    as Hadequacy.
-  assert (Hflag_addr : flag_assert hts_assert_cmpt = hts_assert_flag)
-    by reflexivity.
-  rewrite <- Hflag_addr.
-  exact Hadequacy.
-Qed.
-
-(** The concrete execution halts, and adequacy preserves the assertion flag. *)
+    [hts_demo_state] runs to [Halted], and [hts_adequacy] applies to it:
+    the flag of the assert library is still zero. *)
 Theorem hts_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Seq (Instr Executable)], hts_concrete_initial_state)
-      ([Instr Halted], (pc', reg', sreg', mem', sh')) ∧
-    mem' !! hts_assert_flag = Some (WInt 0).
+    rtc erased_step ([Seq (Instr Executable)], hts_demo_state)
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
+    ∧ mem' !! flag_assert (img_asrt hts_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof
-    (machine_run_correct (N.to_nat (10000%N)) Executable
-      hts_concrete_initial_state Halted) as Hrun.
+  pose proof (machine_run_correct 10000 Executable hts_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [state Hrun].
-  destruct state as [state sh_final].
-  destruct state as [state mem_final].
-  destruct state as [state sreg_final].
-  destruct state as [pc_final reg_final].
-  exists pc_final, reg_final, sreg_final, mem_final, sh_final. split.
-  - exact Hrun.
-  - eapply hts_concrete_adequacy; exact Hrun.
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (hts_adequacy _ _ _ _ hts_demo_ok Hrun).
 Qed.

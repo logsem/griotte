@@ -21,10 +21,6 @@ From griotte Require Import allocator_resources heap_region.
 Section initial_capabilities.
   Context `{MP: MachineParameters}.
 
-  (** Initial PC of a compartment: its PCC, pointing to the start of the code. *)
-  Definition cmpt_entry_pc (C_cmpt : cmpt) : Word :=
-    WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_a_code C_cmpt).
-
   (** PCC and CGP of a compartment, as stored in its export table. *)
   Definition cmpt_pcc_cap (C_cmpt : cmpt) : Word :=
     WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt).
@@ -34,8 +30,6 @@ Section initial_capabilities.
   (** Stack and trusted-stack capabilities of the switcher. *)
   Definition stack_cap (sw : cmptSwitcher) : Word :=
     WCap true RWL Local (b_stack sw) (e_stack sw) (b_stack sw).
-  Definition trusted_stack_cap (sw : cmptSwitcher) : Word :=
-    WCap true RWL Global (b_trusted_stack sw) (e_trusted_stack sw) (b_trusted_stack sw).
 
   (** The (unsealed) export-table capability for the entry at address [a]. *)
   Definition cmpt_export (C_cmpt : cmpt) (a : Addr) : Sealable :=
@@ -75,247 +69,13 @@ Section initial_capabilities.
 
 End initial_capabilities.
 
-(** ** Initial register files *)
-Definition is_initial_registers_of `{MP: MachineParameters}
-  (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :=
-  pc = cmpt_entry_pc main ∧
-  reg !! cgp = Some (cmpt_cgp_cap main) ∧
-  reg !! csp = Some (stack_cap sw) ∧
-  (∀ (r : RegName), r ∉ ({[ cgp; csp ]} : gset RegName) → reg !! r = Some (WInt 0)).
-
-(** The initial system registers: MTDC holds the trusted stack, mstatus has
-    interrupts disabled, and the others hold zero (MTCC is untagged). *)
-Definition initial_sreg `{MP: MachineParameters} (sw : cmptSwitcher) (sr : SRegName) : Word :=
-  match sr with
-  | MTDC => trusted_stack_cap sw
-  | MSTATUS => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
-  | MTCC | MEPCC | MCAUSE | MTVAL => WInt 0
-  end.
-
-Definition is_initial_sregisters_of `{MP: MachineParameters}
-  (sw : cmptSwitcher) (sreg : SReg) :=
-  ∀ sr, sreg !! sr = Some (initial_sreg sw sr).
-
-(** A concrete initial system-register file, with [w] in MTDC. *)
-Definition initial_sregisters_with (w : Word) : SReg :=
-  <[MTCC := WInt 0]> (<[MTDC := w]> (<[MEPCC := WInt 0]>
-    (<[MSTATUS := WInt (mstatus_enc InterruptDisabled InterruptDisabled)]>
-    (<[MCAUSE := WInt 0]> (<[MTVAL := WInt 0]> ∅))))).
-
-Lemma initial_sregisters_with_correct `{MP: MachineParameters} (sw : cmptSwitcher) w :
-  w = trusted_stack_cap sw → is_initial_sregisters_of sw (initial_sregisters_with w).
-Proof. intros -> sr. by destruct sr; rewrite /initial_sregisters_with; simplify_map_eq. Qed.
-
-Section registers.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP: MachineParameters}.
-
-  Lemma initial_registers_split (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
-    is_initial_registers_of sw main pc reg →
-    PC ↦ₚ lword_of_word pc ∗
-    ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) ⊢
-    ∃ (rmap : LReg),
-      PC ↦ₚ cmpt_entry_pc main ∗
-      cgp ↦ᵣ cmpt_cgp_cap main ∗
-      csp ↦ᵣ stack_cap sw ∗
-      ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-      ⌜dom rmap = all_registers_s ∖ {[ cgp; csp ]}⌝ ∗
-      ⌜∀ r, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))⌝.
-  Proof.
-    intros (-> & Hcgp & Hcsp & Hzero).
-    iIntros "[HPC Hreg]".
-    iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[Hcgp Hreg]";
-      first by rewrite lookup_fmap Hcgp.
-    iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]";
-      first by rewrite !lookup_delete_ne // lookup_fmap Hcsp.
-    iExists _; iFrame.
-    iPureIntro; split.
-    - rewrite !dom_delete_L lregmap_full_dom; first done.
-      intros r.
-      destruct (decide (r ∈ ({[ cgp; csp ]} : gset RegName))) as [Hr|Hr].
-      + rewrite !elem_of_union !elem_of_singleton in Hr.
-        destruct Hr as [ -> | -> ]; rewrite lookup_fmap ?Hcgp ?Hcsp; eauto.
-      + rewrite lookup_fmap Hzero //.
-    - intros r Hr.
-      rewrite !dom_delete_L !elem_of_difference !elem_of_singleton in Hr.
-      destruct Hr as [ [_ Hrcgp] Hrcsp].
-      rewrite !lookup_delete_ne // lookup_fmap Hzero //; set_solver.
-  Qed.
-
-End registers.
-
 (** ** Rootedness of the initial configuration
 
-    The lemmas below discharge the [ghost_init_cond] side condition of
-    [cerise_flag_adequacy] for a layout made of the switcher, the assert
-    compartment and a list of compartments, with a set [R] of heap roots
-    held by the compartments (an allocator holds the root of the heap;
-    without an allocator, [R] is empty). Each case study only proves that
-    the memory of its compartments is rooted in [R]. *)
+    The [ghost_init_cond] side condition of [cerise_flag_adequacy], with a
+    set [R] of heap roots held by the compartments (an allocator holds the
+    root of the heap; without an allocator, [R] is empty). *)
 Section initial_rootedness.
   Context `{MP: MachineParameters}.
-
-  (** The program memory of a layout: the switcher, the assert compartment,
-      then the compartments, in this order. *)
-  Definition initial_program_memory
-    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) : Mem :=
-    foldl (λ m C, m ∪ mk_initial_cmpt C)
-      (mk_initial_switcher sw ∪ mk_initial_assert Cassert) cmpts.
-
-  Lemma dom_foldl_initial_cmpt (m : Mem) (cmpts : list cmpt) :
-    dom m ⊆ dom (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
-  Proof.
-    revert m; induction cmpts as [|C cmpts IH]; intros m; cbn; first done.
-    etrans; last apply IH. rewrite dom_union_L. set_solver.
-  Qed.
-
-  Lemma mem_rooted_foldl_initial_cmpt (H : gset Addr) (m : Mem) (cmpts : list cmpt) :
-    mem_rooted H m →
-    Forall (λ C, mem_rooted H (mk_initial_cmpt C)) cmpts →
-    mem_rooted H (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
-  Proof.
-    revert m; induction cmpts as [|C cmpts IH]; intros m Hm Hcmpts; cbn; first done.
-    apply Forall_cons in Hcmpts as [HC Hcmpts].
-    apply IH; last done. by apply mem_rooted_union.
-  Qed.
-
-  Lemma mem_exec_ok_foldl_initial_cmpt (m : Mem) (cmpts : list cmpt) :
-    mem_exec_ok m →
-    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts →
-    mem_exec_ok (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
-  Proof.
-    revert m; induction cmpts as [|C cmpts IH]; intros m Hm Hcmpts; cbn; first done.
-    apply Forall_cons in Hcmpts as [HC Hcmpts].
-    apply IH; last done. by apply mem_exec_ok_union.
-  Qed.
-
-  Lemma mem_avoids_mmio_foldl_initial_cmpt (m : Mem) (cmpts : list cmpt) :
-    mem_avoids_mmio m →
-    mem_avoids_mmio (foldl (λ m C, m ∪ mk_initial_cmpt C) m cmpts).
-  Proof.
-    revert m; induction cmpts as [|C cmpts IH]; intros m Hm; cbn; first done.
-    apply IH, mem_avoids_mmio_union; [done|apply mem_avoids_mmio_initial_cmpt].
-  Qed.
-
-  Lemma dom_initial_program_memory_switcher_assert
-    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
-    dom (mk_initial_switcher sw) ∪ dom (mk_initial_assert Cassert)
-      ⊆ dom (initial_program_memory sw Cassert cmpts).
-  Proof.
-    rewrite -dom_union_L. apply dom_foldl_initial_cmpt.
-  Qed.
-
-  (** The initial memory is rooted in [R], provided that each compartment is. *)
-  Lemma mem_rooted_initial_memory_roots (R : gset Addr)
-    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
-    initial_heap_memory ##ₘ initial_program_memory sw Cassert cmpts →
-    Forall is_z (stack_content sw) →
-    Forall (λ C, mem_rooted R (mk_initial_cmpt C)) cmpts →
-    mem_rooted R (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
-  Proof.
-    intros Hheap Hstack Hcmpts.
-    pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
-    apply mem_rooted_union; first apply mem_rooted_initial_heap.
-    apply mem_rooted_foldl_initial_cmpt; last done.
-    apply mem_rooted_union.
-    - apply mem_rooted_initial_switcher. by apply word_rooted_ints.
-    - (* The assert flag is in the program memory, hence outside the heap. *)
-      apply mem_rooted_initial_assert.
-      apply (assert_flag_not_heap_of_disjoint_dom _ _ Hheap). set_solver.
-  Qed.
-
-  (** The executable words of the initial memory avoid the heap, provided
-      that those of each compartment do. *)
-  Lemma mem_exec_ok_initial_memory
-    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
-    Forall is_z (stack_content sw) →
-    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts →
-    mem_exec_ok (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
-  Proof.
-    intros Hstack Hcmpts.
-    apply mem_exec_ok_union; first apply mem_exec_ok_initial_heap.
-    apply mem_exec_ok_foldl_initial_cmpt; last done.
-    apply mem_exec_ok_union.
-    - apply mem_exec_ok_initial_switcher. by apply word_exec_ok_ints.
-    - apply mem_exec_ok_initial_assert.
-  Qed.
-
-  (** The compartments' executable words avoid the heap, provided that each
-      compartment's words are non-executable or switcher or assert sentries. *)
-  Lemma mem_exec_ok_initial_cmpts
-    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
-    initial_heap_memory ##ₘ initial_program_memory sw Cassert cmpts →
-    Forall (λ C, Forall (initial_exec_word sw Cassert) (cmpt_words C)) cmpts →
-    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts.
-  Proof.
-    intros Hheap Hcmpts.
-    pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
-    pose proof (assert_disjoint_from_heap_of_disjoint_dom Cassert _ Hheap
-      ltac:(set_solver)) as Hassert.
-    eapply Forall_impl; first exact Hcmpts.
-    intros C. by apply mem_exec_ok_initial_cmpt_words.
-  Qed.
-
-  Lemma mem_rooted_initial_memory
-    (sw : cmptSwitcher) (Cassert : cmptAssert) (cmpts : list cmpt) :
-    initial_heap_memory ##ₘ initial_program_memory sw Cassert cmpts →
-    Forall is_z (stack_content sw) →
-    Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
-    mem_rooted ∅ (initial_heap_memory ∪ initial_program_memory sw Cassert cmpts).
-  Proof. apply mem_rooted_initial_memory_roots. Qed.
-
-  (** The initial registers are rooted: cgp and csp are capabilities
-      outside the heap, and the other registers hold integers. *)
-  Lemma initial_pc_rooted_roots (R : gset Addr)
-    (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
-    is_initial_registers_of sw main pc reg →
-    word_rooted R pc.
-  Proof.
-    intros (-> & _).
-    apply word_rooted_cap_nonheap, cmpt_pcc_base_not_heap.
-  Qed.
-
-  Lemma initial_registers_rooted_roots (R : gset Addr)
-    (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
-    is_initial_registers_of sw main pc reg →
-    ∀ r w, reg !! r = Some w → word_rooted R w.
-  Proof.
-    intros (_ & Hcgp & Hcsp & Hr) r w Hw.
-    destruct (decide (r = cgp)) as [->|]; [rewrite Hcgp in Hw; injection Hw as <-;
-      apply word_rooted_cap_nonheap, cmpt_cgp_base_not_heap|].
-    destruct (decide (r = csp)) as [->|]; [rewrite Hcsp in Hw; injection Hw as <-;
-      apply word_rooted_cap_disjoint, stack_disjoint_from_heap|].
-    rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_rooted_int.
-  Qed.
-
-  (** The initial PC is the PCC of [main]; the other initial registers hold
-      non-executable capabilities and integers. *)
-  Lemma initial_pc_exec_ok (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
-    is_initial_registers_of sw main pc reg →
-    word_exec_ok pc.
-  Proof. intros (-> & _). apply word_exec_ok_pcc. Qed.
-
-  (** The initial PC is an unsealed executable capability. *)
-  Lemma initial_pc_ok (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
-    is_initial_registers_of sw main pc reg →
-    pc_ok pc.
-  Proof. intros (-> & _) _. done. Qed.
-
-  Lemma initial_registers_exec_ok (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
-    is_initial_registers_of sw main pc reg →
-    ∀ r w, reg !! r = Some w → word_exec_ok w.
-  Proof.
-    intros (_ & Hcgp & Hcsp & Hr) r w Hw.
-    destruct (decide (r = cgp)) as [->|]; [rewrite Hcgp in Hw; injection Hw as <-;
-      by apply word_exec_ok_not_executable|].
-    destruct (decide (r = csp)) as [->|]; [rewrite Hcsp in Hw; injection Hw as <-;
-      by apply word_exec_ok_not_executable|].
-    rewrite Hr in Hw; last set_solver. injection Hw as <-. apply word_exec_ok_int.
-  Qed.
-
-  Lemma initial_registers_rooted (sw : cmptSwitcher) (main : cmpt) (pc : Word) (reg : Reg) :
-    is_initial_registers_of sw main pc reg →
-    ∀ r w, reg !! r = Some w → word_rooted ∅ w.
-  Proof. apply initial_registers_rooted_roots. Qed.
 
   (** The initial condition, with heap roots [R]. *)
   Lemma ghost_init_cond_roots (R : gset Addr) (pc : Word) (reg : Reg) (sreg : SReg) (m : Mem) :
@@ -361,63 +121,6 @@ Section initial_rootedness.
     - exact Hreserved.
     - exact Hmtcc.
   Qed.
-
-  (** The initial condition of a layout with heap roots [R]. *)
-  Lemma ghost_init_cond_initial_layout_roots (R : gset Addr)
-    (sw : cmptSwitcher) (Cassert : cmptAssert) (main : cmpt) (cmpts : list cmpt)
-    (pm : Mem) (pc : Word) (reg : Reg) (sreg : SReg) :
-    (∀ a, a ∈ R → is_heap_address a = true) →
-    pm = initial_program_memory sw Cassert cmpts →
-    initial_heap_memory ##ₘ pm →
-    is_initial_registers_of sw main pc reg →
-    is_initial_sregisters_of sw sreg →
-    Forall is_z (stack_content sw) →
-    Forall (λ C, mem_rooted R (mk_initial_cmpt C)) cmpts →
-    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts →
-    ghost_init_cond (pc, reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) R.
-  Proof.
-    intros HR -> Hheap Hreg Hsreg Hstack Hcmpts Hcmpts_exec.
-    pose proof (dom_initial_program_memory_switcher_assert sw Cassert cmpts) as Hdom.
-    apply ghost_init_cond_roots; first done.
-    - by apply mem_rooted_initial_memory_roots.
-    - by eapply initial_pc_rooted_roots.
-    - by eapply initial_registers_rooted_roots.
-    - (* The trusted stack is in the program memory, hence outside the heap. *)
-      intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
-      destruct sr; try apply word_rooted_int.
-      apply word_rooted_cap_disjoint.
-      apply (trusted_stack_disjoint_from_heap_of_disjoint_dom _ _ Hheap). set_solver.
-    - apply mem_avoids_mmio_union; first apply mem_avoids_mmio_initial_heap.
-      apply mem_avoids_mmio_foldl_initial_cmpt, mem_avoids_mmio_union;
-        [apply mem_avoids_mmio_initial_switcher|apply mem_avoids_mmio_initial_assert].
-    - destruct Hreg as (_&_&_&Hr). apply Hr. set_solver.
-    - by apply mem_exec_ok_initial_memory.
-    - by eapply initial_pc_exec_ok.
-    - by eapply initial_registers_exec_ok.
-    - intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
-      by destruct sr; apply word_exec_ok_not_executable.
-    - by eapply initial_pc_ok.
-    - (* MTCC and MEPCC start untagged. *)
-      intros sr w Hsr Hw. rewrite Hsreg in Hw. injection Hw as <-.
-      by destruct sr; apply pc_ok_untagged.
-    - intros sr _. eexists. apply Hsreg.
-    - (* MTCC starts untagged. *)
-      intros w Hw. rewrite Hsreg in Hw. by injection Hw as <-.
-  Qed.
-
-  (** The initial condition of a layout without heap roots. *)
-  Lemma ghost_init_cond_initial_layout
-    (sw : cmptSwitcher) (Cassert : cmptAssert) (main : cmpt) (cmpts : list cmpt)
-    (pm : Mem) (pc : Word) (reg : Reg) (sreg : SReg) :
-    pm = initial_program_memory sw Cassert cmpts →
-    initial_heap_memory ##ₘ pm →
-    is_initial_registers_of sw main pc reg →
-    is_initial_sregisters_of sw sreg →
-    Forall is_z (stack_content sw) →
-    Forall (λ C, mem_rooted ∅ (mk_initial_cmpt C)) cmpts →
-    Forall (λ C, mem_exec_ok (mk_initial_cmpt C)) cmpts →
-    ghost_init_cond (pc, reg, sreg, initial_heap_memory ∪ pm, initial_heap_shadow) ∅.
-  Proof. apply ghost_init_cond_initial_layout_roots. set_solver. Qed.
 
 End initial_rootedness.
 
@@ -1361,16 +1064,6 @@ Section main_sizes.
     pose proof (cmpt_data_size main).
     rewrite /SubBounds.
     split; [solve_addr|split; done].
-  Qed.
-
-  (** Exported entries of disjoint compartments are distinct
-      (for the [NoDup] premise of [cerise_flag_adequacy]). *)
-  Lemma cmpt_export_disjoint (C1 C2 : cmpt) (a1 a2 : Addr) :
-    C1 ## C2 → cmpt_export C1 a1 ≠ cmpt_export C2 a2.
-  Proof.
-    intros Hdis Heq.
-    apply (exported_entry_point_disjoint C1 C2 true true RO RO Global Global a1 a2 Hdis).
-    rewrite /cmpt_export in Heq; by rewrite Heq.
   Qed.
 
   Lemma cmpt_exp_tbl_cgp_eq (C_cmpt : cmpt) :

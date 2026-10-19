@@ -108,9 +108,9 @@ Proof. destruct w as [| [] | | ? []]; cbn; intros; subst; done. Qed.
 (* EqDecision instances *)
 
 #[global] Instance sealb_eq_dec : EqDecision Sealable.
-Proof. solve_decision. Qed.
+Proof. solve_decision. Defined.
 #[global] Instance word_eq_dec : EqDecision Word.
-Proof. solve_decision. Qed.
+Proof. solve_decision. Defined.
 
 Ltac destruct_word w :=
   let z := fresh "z" in
@@ -1066,7 +1066,7 @@ Proof.
       end ).
   refine (inj_countable' enc dec _).
   intros i. destruct i; simpl; done.
-Qed.
+Defined.
 
 #[global] Instance word_inhabited: Inhabited Word := populate (WInt 0).
 

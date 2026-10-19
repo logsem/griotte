@@ -138,20 +138,36 @@ Section CmptLayout.
     cmpt_static_sealed_mregion C ∪
     cmpt_exp_tbl_mregion C.
 
+  (** A word of an initial trusted stack: it has no authority over the heap
+      and is not executable. *)
+  Definition trusted_stack_word (w : Word) : Prop :=
+    heap_authority_base w = None ∧ executable_word w = false.
+
+  Lemma trusted_stack_word_int z : trusted_stack_word (WInt z).
+  Proof. by split. Qed.
+
   (** The initial contents of a trusted stack with room for the entry frame
       and [n] frames: a zeroed register save area, [frameoffset] pointing
-      after the entry frame, a zeroed [threadID], and zeroed frames. *)
-  Definition initial_trusted_stack_content (n : nat) : list Word :=
+      after the entry frame, a zeroed [threadID], the entry frame, and
+      zeroed frames. The entry frame holds the stack pointer [w_csp] of the
+      thread, the export table [w_export_table] of the compartment it starts
+      in, and no error handler invocation. *)
+  Definition initial_trusted_stack_content (w_csp w_export_table : Word) (n : nat) : list Word :=
     replicate (Z.to_nat TSTACK_REGFRAME_SZ) (WInt 0) ++
     [WInt (tstack_frameoffset 0); WInt 0] ++
-    replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat (S n))) (WInt 0).
+    [w_csp; w_export_table; WInt 0] ++
+    replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat n)) (WInt 0).
 
-  Lemma initial_trusted_stack_content_ints (n : nat) :
-    Forall is_z (initial_trusted_stack_content n).
+  Lemma initial_trusted_stack_content_words (w_csp w_export_table : Word) (n : nat) :
+    trusted_stack_word w_csp →
+    trusted_stack_word w_export_table →
+    Forall trusted_stack_word (initial_trusted_stack_content w_csp w_export_table n).
   Proof.
-    rewrite /initial_trusted_stack_content.
-    repeat apply Forall_app_2; try apply Forall_replicate; try done.
-    by repeat constructor.
+    intros Hcsp Hexport_table. rewrite /initial_trusted_stack_content.
+    pose proof (trusted_stack_word_int 0) as Hzero.
+    repeat apply Forall_app_2; try by apply Forall_replicate.
+    - by apply Forall_cons_2; [apply trusted_stack_word_int | apply Forall_singleton].
+    - by apply Forall_cons_2; [| apply Forall_cons_2; [| apply Forall_singleton] ].
   Qed.
 
   Record cmptSwitcher : Type :=
@@ -192,8 +208,10 @@ Section CmptLayout.
         trusted_stack_frames_fit :
         ∃ n : nat,
           (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack;
-        trusted_stack_content_ints :
-        Forall is_z trusted_stack_content;
+        (* The trusted stack has no authority over the heap and no
+           executable word. *)
+        trusted_stack_content_words :
+        Forall trusted_stack_word trusted_stack_content;
 
         (* compartment's stack *)
         b_stack : Addr;
@@ -229,9 +247,6 @@ Section CmptLayout.
   Definition trusted_stack_disjoint_from_shadow (C : cmptSwitcher) :
     disjoint_from_shadow (b_trusted_stack C) (e_trusted_stack C) :=
     disjoint_from_mmio_shadow _ _ (trusted_stack_disjoint_from_mmio C).
-  Definition stack_disjoint_from_shadow (C : cmptSwitcher) :
-    disjoint_from_shadow (b_stack C) (e_stack C) :=
-    disjoint_from_mmio_shadow _ _ (stack_disjoint_from_mmio C).
 
   Definition switcher_base_not_heap (C : cmptSwitcher) :
     is_heap_address (b_switcher C) = false :=
@@ -327,17 +342,6 @@ Section CmptLayout.
            ).
   Defined.
 
-  Definition cmpt_assert_code_region (Cassert : cmptAssert) :=
-    (finz.seq_between (b_assert Cassert) (cap_assert Cassert)).
-  Definition cmpt_assert_cap_region (Cassert : cmptAssert) :=
-    (finz.seq_between (cap_assert Cassert) (e_assert Cassert)).
-  Definition cmpt_assert_flag_region (Cassert : cmptAssert) :=
-    (finz.seq_between (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a).
-  Definition cmpt_assert_region (Cassert : cmptAssert) : list Addr :=
-    (cmpt_assert_code_region Cassert) ∪
-    (cmpt_assert_cap_region Cassert) ∪
-    (cmpt_assert_flag_region Cassert).
-
   Definition cmpt_assert_code_mregion (Cassert : cmptAssert) :=
     mkregion (b_assert Cassert) (cap_assert Cassert) assert_subroutine_instrs.
   Definition cmpt_assert_cap_mregion (Cassert : cmptAssert) :=
@@ -350,14 +354,6 @@ Section CmptLayout.
     cmpt_assert_code_mregion Cassert ∪
     cmpt_assert_cap_mregion Cassert ∪
     cmpt_assert_flag_mregion Cassert.
-
-  Definition assert_cmpt_disjoint
-    (C : cmpt) (Cassert : cmptAssert) : Prop :=
-    (cmpt_assert_region Cassert) ## (cmpt_region C).
-
-  Definition assert_switcher_disjoint
-    (Cassert : cmptAssert) (Cswitcher : cmptSwitcher) : Prop :=
-    (cmpt_assert_region Cassert) ## (cmpt_switcher_region Cswitcher).
 
   Lemma dom_cmpt_pcc_mregion (A_cmpt : cmpt) :
     dom (cmpt_pcc_mregion A_cmpt) = list_to_set (cmpt_pcc_region A_cmpt).
@@ -380,168 +376,6 @@ Section CmptLayout.
     pose proof (cmpt_data_size A_cmpt).
     rewrite /cmpt_cgp_mregion /cmpt_cgp_region.
     repeat rewrite dom_mkregion_eq; try solve_addr.
-  Qed.
-  Lemma dom_cmpt_static_sealed_mregion (A_cmpt : cmpt) :
-    dom (cmpt_static_sealed_mregion A_cmpt) = list_to_set (cmpt_static_sealed_region A_cmpt).
-  Proof.
-    pose proof (cmpt_static_sealed_size A_cmpt).
-    rewrite /cmpt_static_sealed_mregion /cmpt_static_sealed_region.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-  Qed.
-  Lemma dom_cmpt_exp_tbl_mregion (A_cmpt : cmpt) :
-    dom (cmpt_exp_tbl_mregion A_cmpt) = list_to_set (cmpt_exp_tbl_region A_cmpt).
-  Proof.
-    pose proof (cmpt_exp_tbl_pcc_size A_cmpt).
-    pose proof (cmpt_exp_tbl_cgp_size A_cmpt).
-    pose proof (cmpt_exp_tbl_entries_size A_cmpt).
-    rewrite /cmpt_exp_tbl_mregion /cmpt_exp_tbl_region.
-    rewrite !dom_union_L.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-    rewrite (finz_seq_between_split
-               (cmpt_exp_tbl_pcc A_cmpt)
-               (cmpt_exp_tbl_cgp A_cmpt)
-               (cmpt_exp_tbl_entries_end A_cmpt)); last solve_addr.
-    rewrite (finz_seq_between_split
-               (cmpt_exp_tbl_cgp A_cmpt)
-               (cmpt_exp_tbl_entries_start A_cmpt)
-               (cmpt_exp_tbl_entries_end A_cmpt)); last solve_addr.
-    set_solver.
-  Qed.
-
-  Lemma disjoint_cmpts_mkinitial (A_cmpt B_cmpt : cmpt) :
-    A_cmpt ## B_cmpt -> (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_cmpt B_cmpt).
-  Proof.
-    intros Hdis.
-    apply map_disjoint_dom_2.
-    rewrite /mk_initial_cmpt.
-    rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdis.
-    apply stdpp_extra.list_to_set_disj in Hdis.
-    repeat rewrite list_to_set_app_L in Hdis.
-    do 6 rewrite dom_union_L.
-    rewrite !dom_cmpt_pcc_mregion.
-    rewrite !dom_cmpt_cgp_mregion.
-    rewrite !dom_cmpt_static_sealed_mregion.
-    rewrite !dom_cmpt_exp_tbl_mregion.
-    done.
-  Qed.
-
-  Lemma dom_switcher_code_mregion (switcher_cmpt : cmptSwitcher) :
-    dom (cmpt_switcher_code_mregion switcher_cmpt) =
-    list_to_set (cmpt_switcher_code_region switcher_cmpt).
-  Proof.
-    pose proof (switcher_size switcher_cmpt).
-    pose proof (switcher_call_entry_point switcher_cmpt).
-    rewrite /cmpt_switcher_code_mregion /cmpt_switcher_code_region.
-    rewrite !dom_union_L.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-    rewrite (finz_seq_between_split
-               (b_switcher switcher_cmpt)
-               (a_switcher_call switcher_cmpt)
-               (e_switcher switcher_cmpt)); last solve_addr.
-    set_solver.
-  Qed.
-  Lemma dom_switcher_trusted_stack_mregion (switcher_cmpt : cmptSwitcher) :
-    dom (cmpt_switcher_trusted_stack_mregion switcher_cmpt) =
-    list_to_set (cmpt_switcher_trusted_stack_region switcher_cmpt).
-  Proof.
-    pose proof (trusted_stack_size switcher_cmpt).
-    rewrite /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_trusted_stack_region.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-  Qed.
-
-  Lemma dom_switcher_stack_mregion (switcher_cmpt : cmptSwitcher) :
-    dom (cmpt_switcher_stack_mregion switcher_cmpt) =
-    list_to_set (cmpt_switcher_stack_region switcher_cmpt).
-  Proof.
-    pose proof (stack_size switcher_cmpt).
-    rewrite /cmpt_switcher_stack_mregion /cmpt_switcher_stack_region.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-  Qed.
-
-  Lemma dom_assert_code_mregion (assert_cmpt : cmptAssert) :
-    dom (cmpt_assert_code_mregion assert_cmpt) = list_to_set (cmpt_assert_code_region assert_cmpt).
-  Proof.
-    pose proof (assert_code_size assert_cmpt).
-    rewrite /cmpt_assert_code_mregion /cmpt_assert_code_region.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-  Qed.
-  Lemma dom_assert_cap_mregion (assert_cmpt : cmptAssert) :
-    dom (cmpt_assert_cap_mregion assert_cmpt) = list_to_set (cmpt_assert_cap_region assert_cmpt).
-  Proof.
-    pose proof (assert_cap_size assert_cmpt).
-    rewrite /cmpt_assert_cap_mregion /cmpt_assert_cap_region.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-  Qed.
-  Lemma dom_assert_flag_mregion (assert_cmpt : cmptAssert) :
-    dom (cmpt_assert_flag_mregion assert_cmpt) = list_to_set (cmpt_assert_flag_region assert_cmpt).
-  Proof.
-    pose proof (assert_flag_size assert_cmpt).
-    rewrite /cmpt_assert_flag_mregion /cmpt_assert_flag_region.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-  Qed.
-
-  Lemma disjoint_switcher_cmpts_mkinitial (A_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) :
-    switcher_cmpt_disjoint A_cmpt switcher_cmpt ->
-    (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
-  Proof.
-    intros Hdis.
-    apply map_disjoint_dom_2.
-    rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdis.
-    apply stdpp_extra.list_to_set_disj in Hdis.
-    repeat rewrite list_to_set_app_L in Hdis.
-    rewrite /mk_initial_cmpt /mk_initial_switcher.
-    do 5 rewrite dom_union_L.
-    rewrite !dom_cmpt_pcc_mregion.
-    rewrite !dom_cmpt_cgp_mregion.
-    rewrite !dom_cmpt_static_sealed_mregion.
-    rewrite !dom_cmpt_exp_tbl_mregion.
-    rewrite !dom_switcher_code_mregion.
-    rewrite !dom_switcher_trusted_stack_mregion.
-    rewrite !dom_switcher_stack_mregion.
-    set_solver.
-  Qed.
-
-  Lemma disjoint_assert_cmpts_mkinitial (A_cmpt : cmpt) (assert_cmpt : cmptAssert) :
-    assert_cmpt_disjoint A_cmpt assert_cmpt ->
-    (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_assert assert_cmpt).
-  Proof.
-    intros Hdis.
-    apply map_disjoint_dom_2.
-    rewrite /assert_cmpt_disjoint /cmpt_assert_region /cmpt_region in Hdis.
-    apply stdpp_extra.list_to_set_disj in Hdis.
-    repeat rewrite list_to_set_app_L in Hdis.
-
-    rewrite /mk_initial_cmpt /mk_initial_assert.
-    do 5 rewrite dom_union_L.
-    rewrite !dom_cmpt_pcc_mregion.
-    rewrite !dom_cmpt_cgp_mregion.
-    rewrite !dom_cmpt_static_sealed_mregion.
-    rewrite !dom_cmpt_exp_tbl_mregion.
-    rewrite !dom_assert_code_mregion.
-    rewrite !dom_assert_cap_mregion.
-    rewrite !dom_assert_flag_mregion.
-    set_solver.
-  Qed.
-
-  Lemma disjoint_assert_switcher_mkinitial (assert_cmpt : cmptAssert) (switcher_cmpt : cmptSwitcher) :
-    assert_switcher_disjoint assert_cmpt (switcher_cmpt : cmptSwitcher) ->
-    (mk_initial_assert assert_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
-  Proof.
-    intros Hdis.
-    apply map_disjoint_dom_2.
-    rewrite /assert_switcher_disjoint /cmpt_assert_region /cmpt_switcher_region in Hdis.
-    apply stdpp_extra.list_to_set_disj in Hdis.
-    repeat rewrite list_to_set_app_L in Hdis.
-
-    rewrite /mk_initial_switcher /mk_initial_assert.
-    do 4 rewrite dom_union_L.
-    rewrite !dom_assert_code_mregion.
-    rewrite !dom_assert_cap_mregion.
-    rewrite !dom_assert_flag_mregion.
-    rewrite !dom_switcher_code_mregion.
-    rewrite !dom_switcher_trusted_stack_mregion.
-    rewrite !dom_switcher_stack_mregion.
-    set_solver.
   Qed.
 
   Lemma cmpt_assert_flag_mregion_disjoint (assert_cmpt : cmptAssert) :
@@ -828,33 +662,6 @@ Section CmptLayout.
   Definition is_initial_data_word (B_cmpt : cmpt) :=
     (fun w => is_z w ∨ in_region w (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)).
 
-  Lemma exported_entry_point_disjoint
-    (C1_cmpt C2_cmpt : cmpt) (t1 t2 : bool) (p1 p2 : Perm) (g1 g2 : Locality) (a1 a2 : Addr):
-    C1_cmpt ## C2_cmpt ->
-    (WCap t1 p1 g1 (cmpt_exp_tbl_pcc C1_cmpt) (cmpt_exp_tbl_entries_end C1_cmpt) a1)
-      ≠
-      (WCap t2 p2 g2 (cmpt_exp_tbl_pcc C2_cmpt) (cmpt_exp_tbl_entries_end C2_cmpt) a2).
-  Proof.
-    intros Hdisjoint H ; simplify_eq.
-    rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdisjoint.
-    assert (
-        cmpt_exp_tbl_region C1_cmpt  ## cmpt_exp_tbl_region C2_cmpt
-      ) as Hdis by set_solver+Hdisjoint.
-    rewrite /cmpt_exp_tbl_region in Hdis.
-    apply stdpp_extra.list_to_set_disj in Hdis.
-    rewrite H2 H3 in Hdis.
-    assert (
-        list_to_set
-          (finz.seq_between (cmpt_exp_tbl_pcc C2_cmpt) (cmpt_exp_tbl_entries_end C2_cmpt))
-          ≠ (∅ : gset Addr)
-      ) as Hemp; last set_solver.
-    pose proof (cmpt_exp_tbl_pcc_size C2_cmpt) as Hc.
-    pose proof (cmpt_exp_tbl_cgp_size C2_cmpt) as Hc'.
-    pose proof (cmpt_exp_tbl_entries_size C2_cmpt) as Hc''.
-    rewrite finz_seq_between_cons ; last (solve_addr+ Hc Hc' Hc'').
-    set_solver+.
-  Qed.
-
   (** Initial memory never covers a memory-mapped address. *)
   Lemma mem_avoids_mmio_region (m : Mem) (b e : Addr) :
     disjoint_from_mmio b e →
@@ -879,52 +686,6 @@ Section CmptLayout.
     - apply bool_decide_eq_false. intros ->.
       apply elem_of_finz_seq_between, withinBounds_true_iff in Ha.
       by rewrite revoker_not_heap in Ha.
-  Qed.
-
-  Lemma mem_avoids_mmio_initial_cmpt (C : cmpt) :
-    mem_avoids_mmio (mk_initial_cmpt C).
-  Proof.
-    rewrite /mk_initial_cmpt.
-    apply mem_avoids_mmio_union; [apply mem_avoids_mmio_union;
-      [apply mem_avoids_mmio_union|]|].
-    - eapply mem_avoids_mmio_region; first exact (cmpt_pcc_disjoint_from_mmio C).
-      by rewrite dom_cmpt_pcc_mregion.
-    - eapply mem_avoids_mmio_region; first exact (cmpt_cgp_disjoint_from_mmio C).
-      by rewrite dom_cmpt_cgp_mregion.
-    - eapply mem_avoids_mmio_region; first exact (cmpt_static_sealed_disjoint_from_mmio C).
-      by rewrite dom_cmpt_static_sealed_mregion.
-    - eapply mem_avoids_mmio_region; first exact (cmpt_exp_tbl_disjoint_from_mmio C).
-      by rewrite dom_cmpt_exp_tbl_mregion.
-  Qed.
-
-  Lemma mem_avoids_mmio_initial_switcher (C : cmptSwitcher) :
-    mem_avoids_mmio (mk_initial_switcher C).
-  Proof.
-    rewrite /mk_initial_switcher.
-    apply mem_avoids_mmio_union; [apply mem_avoids_mmio_union|].
-    - eapply mem_avoids_mmio_region; first exact (switcher_disjoint_from_mmio C).
-      by rewrite dom_switcher_code_mregion.
-    - eapply mem_avoids_mmio_region; first exact (trusted_stack_disjoint_from_mmio C).
-      by rewrite dom_switcher_trusted_stack_mregion.
-    - eapply mem_avoids_mmio_region; first exact (stack_disjoint_from_mmio C).
-      by rewrite dom_switcher_stack_mregion.
-  Qed.
-
-  Lemma mem_avoids_mmio_initial_assert (C : cmptAssert) :
-    mem_avoids_mmio (mk_initial_assert C).
-  Proof.
-    pose proof (assert_code_size C).
-    pose proof (assert_cap_size C).
-    rewrite /mk_initial_assert.
-    apply mem_avoids_mmio_union; [apply mem_avoids_mmio_union|].
-    - eapply mem_avoids_mmio_region; first exact (assert_disjoint_from_mmio C).
-      rewrite dom_assert_code_mregion /cmpt_assert_code_region.
-      intros a. rewrite !elem_of_list_to_set !elem_of_finz_seq_between. solve_addr.
-    - eapply mem_avoids_mmio_region; first exact (assert_disjoint_from_mmio C).
-      rewrite dom_assert_cap_mregion /cmpt_assert_cap_region.
-      intros a. rewrite !elem_of_list_to_set !elem_of_finz_seq_between. solve_addr.
-    - eapply mem_avoids_mmio_region; first exact (assert_flag_disjoint_from_mmio C).
-      by rewrite dom_assert_flag_mregion.
   Qed.
 
   (** ** Heap roots of the initial memory
@@ -968,31 +729,14 @@ Section CmptLayout.
     apply withinBounds_true_iff. solve_addr.
   Qed.
 
+  Lemma word_rooted_trusted_stack_word H w : trusted_stack_word w → word_rooted H w.
+  Proof. intros [Hw _] b _ Hb. congruence. Qed.
+
   Lemma word_rooted_ints H (ws : list Word) :
     Forall is_z ws → Forall (word_rooted H) ws.
   Proof.
     intros Hws. eapply Forall_impl; first exact Hws.
     intros [] Hz; try done; apply word_rooted_int.
-  Qed.
-
-  (** An initial data word is an integer or a capability inside the data
-      region, which is outside the heap. *)
-  Lemma word_rooted_initial_data H (C : cmpt) w :
-    is_initial_data_word C w → word_rooted H w.
-  Proof.
-    intros [Hz|Hin].
-    - destruct w; try done; apply word_rooted_int.
-    - intros b Ht Hb.
-      destruct w as [z|[t p g b' e' a|t p g b' e' a]|k t p g b' e' a|o sb];
-        cbn in Hin; try done.
-      destruct g; try done. destruct Hin as (_ & Hlo & Hhi).
-      rewrite /heap_authority_base in Hb. case_decide as Hlt; last done.
-      rewrite /heap_cap_base /= in Hb.
-      destruct (is_heap_address b') eqn:Hheap; last done. exfalso.
-      pose proof (cmpt_cgp_disjoint_from_heap C) as Hdisj.
-      rewrite /disjoint_from_heap elem_of_disjoint in Hdisj.
-      apply (Hdisj b'); apply elem_of_finz_seq_between;
-        [solve_addr|by apply withinBounds_true_iff].
   Qed.
 
   Lemma word_rooted_instrs H (l : list instr) :
@@ -1020,49 +764,6 @@ Section CmptLayout.
     destruct Ha as [_ <-]. apply word_rooted_int.
   Qed.
 
-  Lemma mem_rooted_initial_cmpt H (C : cmpt) :
-    Forall (word_rooted H) (cmpt_imports C) →
-    Forall (word_rooted H) (cmpt_code C) →
-    Forall (word_rooted H) (cmpt_data C) →
-    Forall (word_rooted H) (cmpt_static_sealed C) →
-    Forall (word_rooted H) (cmpt_exp_tbl_entries C) →
-    mem_rooted H (mk_initial_cmpt C).
-  Proof.
-    intros Himports Hcode Hdata Hstatic Hentries.
-    rewrite /mk_initial_cmpt /cmpt_pcc_mregion /cmpt_cgp_mregion
-      /cmpt_static_sealed_mregion /cmpt_exp_tbl_mregion.
-    repeat apply mem_rooted_union; apply mem_rooted_mkregion; try done.
-    - repeat constructor. apply word_rooted_cap_nonheap, cmpt_pcc_base_not_heap.
-    - repeat constructor. apply word_rooted_cap_nonheap, cmpt_cgp_not_heap_range.
-  Qed.
-
-  Lemma mem_rooted_initial_switcher H (C : cmptSwitcher) :
-    Forall (word_rooted H) (stack_content C) →
-    mem_rooted H (mk_initial_switcher C).
-  Proof.
-    intros Hstack.
-    pose proof (word_rooted_ints H _ (trusted_stack_content_ints C)) as Htrusted.
-    rewrite /mk_initial_switcher /cmpt_switcher_code_mregion
-      /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
-    repeat apply mem_rooted_union; apply mem_rooted_mkregion; try done.
-    - repeat constructor. by apply word_rooted_nonheap.
-    - rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
-      intros l. apply word_rooted_instrs.
-  Qed.
-
-  Lemma mem_rooted_initial_assert H (C : cmptAssert) :
-    is_heap_address (flag_assert C) = false →
-    mem_rooted H (mk_initial_assert C).
-  Proof.
-    intros Hflag.
-    rewrite /mk_initial_assert /cmpt_assert_code_mregion
-      /cmpt_assert_cap_mregion /cmpt_assert_flag_mregion.
-    repeat apply mem_rooted_union; apply mem_rooted_mkregion.
-    - apply word_rooted_instrs.
-    - repeat constructor. by apply word_rooted_cap_nonheap.
-    - repeat constructor. apply word_rooted_int.
-  Qed.
-
   (** ** Executable words of the initial memory
 
       Every tagged executable word of an initial memory has closed bounds
@@ -1077,6 +778,9 @@ Section CmptLayout.
 
   Lemma word_exec_ok_int z : word_exec_ok (WInt z).
   Proof. by apply word_exec_ok_not_executable. Qed.
+
+  Lemma word_exec_ok_trusted_stack_word w : trusted_stack_word w → word_exec_ok w.
+  Proof. intros [_ Hw]. by apply word_exec_ok_not_executable. Qed.
 
   Lemma word_exec_ok_ints (ws : list Word) :
     Forall is_z ws → Forall word_exec_ok ws.
@@ -1100,24 +804,6 @@ Section CmptLayout.
     apply withinBounds_true_iff. solve_addr.
   Qed.
 
-  (** The switcher's sentries. *)
-  Lemma word_exec_ok_switcher_sentry (C : cmptSwitcher) k t p g a :
-    word_exec_ok (WSentry k t p g (b_switcher C) (e_switcher C) a).
-  Proof.
-    eapply word_exec_ok_closed;
-      [done | apply switcher_not_heap_range | apply switcher_end_not_heap].
-  Qed.
-
-  (** The assert sentry, when the assert code lies outside the heap. *)
-  Lemma word_exec_ok_assert_sentry (C : cmptAssert) k t p g a :
-    disjoint_from_heap (b_assert C) (e_assert C) →
-    word_exec_ok (WSentry k t p g (b_assert C) (e_assert C) a).
-  Proof.
-    intros Hdisj. eapply word_exec_ok_closed; first done.
-    - split; [apply assert_code_nonheap | done].
-    - apply assert_end_not_heap.
-  Qed.
-
   Lemma word_exec_ok_instrs (l : list instr) :
     Forall word_exec_ok (encodeInstrsW l).
   Proof. apply Forall_fmap, Forall_true. intros i. apply word_exec_ok_int. Qed.
@@ -1139,170 +825,4 @@ Section CmptLayout.
     destruct Ha as [_ <-]. apply word_exec_ok_int.
   Qed.
 
-  (** The PCC of a compartment. *)
-  Lemma word_exec_ok_pcc (C : cmpt) t p g a :
-    word_exec_ok (WCap t p g (cmpt_b_pcc C) (cmpt_e_pcc C) a).
-  Proof.
-    eapply word_exec_ok_closed;
-      [done | apply cmpt_pcc_not_heap_range | apply cmpt_pcc_end_not_heap].
-  Qed.
-
-  Lemma mem_exec_ok_initial_cmpt (C : cmpt) :
-    Forall word_exec_ok (cmpt_imports C) →
-    Forall word_exec_ok (cmpt_code C) →
-    Forall word_exec_ok (cmpt_data C) →
-    Forall word_exec_ok (cmpt_static_sealed C) →
-    Forall word_exec_ok (cmpt_exp_tbl_entries C) →
-    mem_exec_ok (mk_initial_cmpt C).
-  Proof.
-    intros Himports Hcode Hdata Hstatic Hentries.
-    rewrite /mk_initial_cmpt /cmpt_pcc_mregion /cmpt_cgp_mregion
-      /cmpt_static_sealed_mregion /cmpt_exp_tbl_mregion.
-    repeat apply mem_exec_ok_union; apply mem_exec_ok_mkregion; try done.
-    - apply Forall_singleton, word_exec_ok_pcc.
-    - apply Forall_singleton. by apply word_exec_ok_not_executable.
-  Qed.
-
-  Lemma mem_exec_ok_initial_switcher (C : cmptSwitcher) :
-    Forall word_exec_ok (stack_content C) →
-    mem_exec_ok (mk_initial_switcher C).
-  Proof.
-    intros Hstack.
-    pose proof (word_exec_ok_ints _ (trusted_stack_content_ints C)) as Htrusted.
-    rewrite /mk_initial_switcher /cmpt_switcher_code_mregion
-      /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
-    repeat apply mem_exec_ok_union; apply mem_exec_ok_mkregion; try done.
-    - apply Forall_singleton. by apply word_exec_ok_not_executable.
-    - rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
-      intros l. apply word_exec_ok_instrs.
-  Qed.
-
-  Lemma mem_exec_ok_initial_assert (C : cmptAssert) :
-    mem_exec_ok (mk_initial_assert C).
-  Proof.
-    rewrite /mk_initial_assert /cmpt_assert_code_mregion
-      /cmpt_assert_cap_mregion /cmpt_assert_flag_mregion.
-    repeat apply mem_exec_ok_union; apply mem_exec_ok_mkregion.
-    - apply word_exec_ok_instrs.
-    - apply Forall_singleton. by apply word_exec_ok_not_executable.
-    - apply Forall_singleton, word_exec_ok_int.
-  Qed.
-
-  (** ** The words of an initial compartment
-
-      The words a compartment brings to the initial memory, and the shape
-      every initial executable word has: a word without the execute
-      permission, a sentry of the switcher, or the assert sentry. *)
-  Definition cmpt_words (C : cmpt) : list Word :=
-    cmpt_imports C ++ cmpt_code C ++ cmpt_data C ++ cmpt_static_sealed C ++
-    cmpt_exp_tbl_entries C.
-
-  Definition initial_exec_word (sw : cmptSwitcher) (Ca : cmptAssert) (w : Word) : Prop :=
-    executable_word w = false ∨
-    (∃ k t p g a, w = WSentry k t p g (b_switcher sw) (e_switcher sw) a) ∨
-    (∃ k t p g a, w = WSentry k t p g (b_assert Ca) (e_assert Ca) a).
-
-  Lemma Forall_initial_exec_word_ints sw Ca (ws : list Word) :
-    Forall is_z ws → Forall (initial_exec_word sw Ca) ws.
-  Proof.
-    intros Hws. eapply Forall_impl; first exact Hws. intros [] Hz; try done. by left.
-  Qed.
-
-  Lemma Forall_initial_exec_word_data sw Ca (C : cmpt) (ws : list Word) :
-    Forall (is_initial_data_word C) ws → Forall (initial_exec_word sw Ca) ws.
-  Proof.
-    intros Hws. eapply Forall_impl; first exact Hws. intros w [Hz|Hin]; left.
-    - by destruct w.
-    - destruct w as [z|[t p g b' e' a|t p g b' e' a]|k t p g b' e' a|o sb];
-        cbn in Hin |- *; try done.
-      destruct g; try done. destruct Hin as (Hfl & _).
-      by eapply notexecuteAllowed_flowsfrom.
-  Qed.
-
-  Lemma Forall_initial_exec_word_static sw Ca (ws : list Word) :
-    Forall (λ w, is_heap_cap w = false ∧ executable_word w = false) ws →
-    Forall (initial_exec_word sw Ca) ws.
-  Proof. intros Hws. eapply Forall_impl; first exact Hws. intros w [_ Hx]. by left. Qed.
-
-  (** A list of words checked by computation to have no execute permission,
-      such as assembled code. *)
-  Lemma Forall_initial_exec_word_check sw Ca (ws : list Word) :
-    forallb (λ w, negb (executable_word w)) ws = true →
-    Forall (initial_exec_word sw Ca) ws.
-  Proof.
-    intros Hws. apply Forall_forall. intros w Hw. left.
-    rewrite forallb_forall in Hws. specialize (Hws w).
-    apply list_elem_of_In in Hw. specialize (Hws Hw).
-    by destruct (executable_word w).
-  Qed.
-
-  Lemma mem_exec_ok_initial_cmpt_words sw Ca (C : cmpt) :
-    disjoint_from_heap (b_assert Ca) (e_assert Ca) →
-    Forall (initial_exec_word sw Ca) (cmpt_words C) →
-    mem_exec_ok (mk_initial_cmpt C).
-  Proof.
-    intros Hassert Hws. rewrite /cmpt_words !Forall_app in Hws.
-    destruct Hws as (Himports & Hcode & Hdata & Hstatic & Hentries).
-    assert (∀ w, initial_exec_word sw Ca w → word_exec_ok w) as Hok.
-    { intros w [Hx | [(k & t & p & g & a & ->) | (k & t & p & g & a & ->) ] ].
-      - by apply word_exec_ok_not_executable.
-      - apply word_exec_ok_switcher_sentry.
-      - by apply word_exec_ok_assert_sentry. }
-    apply mem_exec_ok_initial_cmpt; by eapply Forall_impl.
-  Qed.
-
 End CmptLayout.
-
-(* Discharges [disjoint_from_mmio] for concrete address ranges. *)
-(* The revoker address and the bounds are computed first, so that [cbn] never
-   unfolds the machine-parameter instance. *)
-Ltac solve_disjoint_from_mmio :=
-  lazymatch goal with
-  | |- disjoint_from_mmio ?b ?e =>
-      let r := eval vm_compute in (revoker_addr : Addr) in
-      let b' := eval vm_compute in b in
-      let e' := eval vm_compute in e in
-      change revoker_addr with r; change b with b'; change e with e';
-      split;
-      [ unfold disjoint_from_shadow, disjoint, set_disjoint_instance;
-        intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
-        unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia
-      | rewrite elem_of_finz_seq_between; unfold finz.le_lt; cbn; lia ]
-  end.
-
-(* Discharges [mem_avoids_mmio] for an initial memory built from the layout's
-   regions. Matching is syntactic, so no region map is ever unfolded. *)
-Ltac solve_mem_avoids_mmio_initial :=
-  repeat lazymatch goal with
-  | |- mem_avoids_mmio (_ ∪ _) => apply mem_avoids_mmio_union
-  | |- mem_avoids_mmio initial_heap_memory => apply mem_avoids_mmio_initial_heap
-  | |- mem_avoids_mmio (mk_initial_cmpt _) => apply mem_avoids_mmio_initial_cmpt
-  | |- mem_avoids_mmio (mk_initial_switcher _) => apply mem_avoids_mmio_initial_switcher
-  | |- mem_avoids_mmio (mk_initial_assert _) => apply mem_avoids_mmio_initial_assert
-  end.
-
-(* Discharges [Forall (initial_exec_word sw Ca) (cmpt_words C)] for one
-   compartment. It rewrites the compartment's fields with the equations in
-   the context, uses the hypotheses on adversarial code, data and static
-   sealed words, checks concrete lists by computation, and otherwise
-   classifies each word: without the execute permission, a switcher sentry
-   or the assert sentry. The goals it cannot solve are left. *)
-Ltac solve_initial_exec_words :=
-  cbv beta; rewrite /cmpt_words ?Forall_app; split_and!;
-  try (match goal with
-       | H : ?f ?C = _ |- Forall _ (?f ?C) => rewrite H
-       end);
-  try (by apply Forall_initial_exec_word_ints);
-  try (by eapply Forall_initial_exec_word_data);
-  try (by apply Forall_initial_exec_word_static);
-  try (apply Forall_initial_exec_word_check; vm_compute; reflexivity);
-  repeat apply Forall_cons_2; try apply Forall_nil_2;
-  try (by left);
-  try (by right; left; do 5 eexists);
-  try (by right; right; do 5 eexists).
-
-(* Discharges [Forall (λ C, Forall (initial_exec_word sw Ca) (cmpt_words C))]
-   for a concrete list of compartments. *)
-Ltac solve_initial_exec_cmpts :=
-  repeat apply Forall_cons_2; try apply Forall_nil_2;
-  solve_initial_exec_words.

@@ -1,1 +1,1 @@
-(dirs :standard \ hts_no_ownership)
+(dirs :standard \ hts_no_ownership counter)

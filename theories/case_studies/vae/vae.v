@@ -104,7 +104,7 @@ Section VAE_Main.
     vae_main_instrs_n 2 ++
     vae_main_instrs_n 3.
 
-  Definition VAE_main_code_f (ot_switcher : OType) : list Word :=
+  Definition VAE_main_code_f : list Word :=
     vae_main_instrs_n 4 ++
     vae_main_instrs_n 5 ++
     vae_main_instrs_n 6 ++
@@ -117,8 +117,8 @@ Section VAE_Main.
   #[local] Close Scope Z_scope.
   #[local] Coercion Z.of_nat : nat >-> Z.
 
-  Definition vae_main_code `{!switcherLayout} : list Word
-    := VAE_main_code_init ++ (VAE_main_code_f ot_switcher).
+  Definition vae_main_code : list Word
+    := VAE_main_code_init ++ VAE_main_code_f.
 
   Definition vae_main_data : list Word := [WInt 0].
 
@@ -130,21 +130,6 @@ Section VAE_Main.
       WSentry Inherit true RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_adv
     ].
-
-  Definition length_vae_main_imports `{!switcherLayout} `{!assertLayout} :=
-    length
-      (vae_main_imports (SCap true RO Global za za za)).
-
-  Definition vae_exp_tbl_entry_awkward `{!switcherLayout} `{!assertLayout} :=
-    WInt (encode_entry_point InterruptEnabled 1
-            (length_vae_main_imports + (length VAE_main_code_init))).
-
-  Definition vae_entry_awkward_sb
-    b_vae_exp_tbl e_vae_exp_tbl : Sealable :=
-      SCap true RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+2)%a.
-
-  Definition vae_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
-    [ vae_exp_tbl_entry_awkward ].
 
 End VAE_Main.
 

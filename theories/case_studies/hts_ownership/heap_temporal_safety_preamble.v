@@ -3,10 +3,6 @@ From griotte Require Import logrel memory_region switcher assert region_keys.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety.
 From griotte.allocators.ownership Require Export allocator_preamble.
 
-Definition htsN : namespace := nroot .@ "heap_temporal_safety".
-Definition hts_assertN : namespace := htsN .@ "assert".
-Definition hts_switcherN : namespace := htsN .@ "switcher".
-
 Section Heap_Temporal_Safety_Resources.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
 
@@ -29,10 +25,6 @@ End Heap_Temporal_Safety_Resources.
 Section Heap_Temporal_Safety_Imports.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}
     `{!switcherLayout} `{!assertLayout} `{!allocatorLayout}.
-
-  Lemma hts_main_imports_length owner_a adv_f :
-    length (hts_main_imports owner_a adv_f) = 6.
-  Proof. reflexivity. Qed.
 
   Lemma hts_main_imports_pointsto_pers b e owner_a adv_f :
     (b + 6)%a = Some e ->

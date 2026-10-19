@@ -1,497 +1,92 @@
-From griotte.program_logic Require Import allocator_resources.
-From iris.program_logic Require Import adequacy.
+From stdpp Require Import gmap strings.
+From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
-  registers griotte_lang machine_run switcher assert compartment_layout
-  lse lse_adequacy disjoint_regions_tactics.
-From griotte Require Import adequacy_common.
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  switcher assert allocator_resources compartment_layout
+  lse lse_adequacy.
+(* Imported last: the fields of the image records. *)
+From griotte Require Import image firmware firmware_ok image_state link lse_firmware.
+Set Mangle Names.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
+#[local] Open Scope string_scope.
 
-#[local] Notation "'A' z" :=
-  (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-#[local] Notation "'OT' z" :=
-  (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
+(** * A concrete instance of the LSE downward case study
 
-Definition lse_main_pcc_b : Addr := A 9.
-Definition lse_main_code_start : Addr := A 12.
-Definition lse_main_pcc_e : Addr := A 35.
-Definition lse_C_pcc_b : Addr := A 56.
-Definition lse_C_code_start : Addr := A 58.
-Definition lse_C_pcc_e : Addr := A 75.
-Definition lse_main_data_b : Addr := A 99.
-Definition lse_main_data_e : Addr := A 100.
-Definition lse_C_data_b : Addr := A 100.
-Definition lse_C_data_e : Addr := A 101.
-Definition lse_main_exports_pcc : Addr := A 101.
-Definition lse_main_exports_cgp : Addr := A 102.
-Definition lse_main_exports_entries_b : Addr := A 103.
-Definition lse_main_exports_entries_e : Addr := A 104.
-Definition lse_C_exports_pcc : Addr := A 104.
-Definition lse_C_exports_cgp : Addr := A 105.
-Definition lse_C_exports_entries_b : Addr := A 106.
-Definition lse_C_exports_entries_e : Addr := A 107.
-Definition lse_assert_b : Addr := A 107.
-Definition lse_assert_cap : Addr := A 118.
-Definition lse_assert_e : Addr := A 119.
-Definition lse_assert_flag : Addr := A 119.
-Definition lse_switcher_b : Addr := A 121.
-Definition lse_switcher_call : Addr := A 122.
-Definition lse_switcher_return : Addr := A 200.
-Definition lse_switcher_e : Addr := A 258.
-Definition lse_switcher_sealing_type : OType := OT 9.
-Definition lse_trusted_stack_b : Addr := A 4096.
-Definition lse_trusted_stack_e : Addr := A 4194.
-Definition lse_stack_b : Addr := A 1024.
-Definition lse_stack_e : Addr := A 1124.
+    The LSE downward firmware with a concrete adversary [C], laid out by
+    the linker. Its initial state satisfies [lse_initial_state_ok] by
+    computation, runs to [Halted], and [lse_adequacy] applies to it. *)
 
-Ltac unfold_lse_addresses :=
-  unfold lse_main_pcc_b, lse_main_code_start, lse_main_pcc_e,
-    lse_C_pcc_b, lse_C_code_start, lse_C_pcc_e,
-    lse_main_data_b, lse_main_data_e, lse_C_data_b, lse_C_data_e,
-    lse_main_exports_pcc, lse_main_exports_cgp,
-    lse_main_exports_entries_b, lse_main_exports_entries_e,
-    lse_C_exports_pcc, lse_C_exports_cgp,
-    lse_C_exports_entries_b, lse_C_exports_entries_e,
-    lse_assert_b, lse_assert_cap, lse_assert_e, lse_assert_flag,
-    lse_switcher_b, lse_switcher_call, lse_switcher_return,
-    lse_switcher_e, lse_switcher_sealing_type,
-    lse_trusted_stack_b, lse_trusted_stack_e,
-    lse_stack_b, lse_stack_e.
-
-Ltac unfold_lse_addresses_in H :=
-  unfold lse_main_pcc_b, lse_main_code_start, lse_main_pcc_e,
-    lse_C_pcc_b, lse_C_code_start, lse_C_pcc_e,
-    lse_main_data_b, lse_main_data_e, lse_C_data_b, lse_C_data_e,
-    lse_main_exports_pcc, lse_main_exports_cgp,
-    lse_main_exports_entries_b, lse_main_exports_entries_e,
-    lse_C_exports_pcc, lse_C_exports_cgp,
-    lse_C_exports_entries_b, lse_C_exports_entries_e,
-    lse_assert_b, lse_assert_cap, lse_assert_e, lse_assert_flag,
-    lse_switcher_b, lse_switcher_call, lse_switcher_return,
-    lse_switcher_e, lse_switcher_sealing_type,
-    lse_trusted_stack_b, lse_trusted_stack_e,
-    lse_stack_b, lse_stack_e in H.
+Definition lse_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
 (** The concrete adversary saves its outer return capability, fetches the
     switcher and the exported main function, and calls the function twice. It
     deliberately fetches both imports again before the second call, then
-    restores its return capability and returns to the caller. *)
+    restores its return capability and returns to the caller. It has one
+    zeroed global, and its entry point right after its two imports. *)
 Definition lse_C_code : list Word := encodeInstrsW lse_C_instrs.
 
 Definition lse_C_data : list Word := [WInt 0].
 
-Program Definition lse_concrete_cmptSwitcher : cmptSwitcher.
+Definition lse_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := lse_switcher_sealing_type;
+  lk_adv         := [
+    ("C", {| la_code    := lse_C_code;
+             la_data    := lse_C_data;
+             la_exports := [
+               2  (* after the 2 imports *)
+             ] |})
+  ]
+|}.
+
+(** ** The linked image and its initial state *)
+
+Definition lse_demo_image : fw_image :=
+  Eval vm_compute in
+    default (place lse_demo_link_cfg lse_firmware).1
+      (link lse_demo_link_cfg lse_firmware).
+
+Lemma lse_demo_linked :
+  link lse_demo_link_cfg lse_firmware = Some lse_demo_image.
+Proof. vm_compute; reflexivity. Qed.
+
+Definition lse_demo_state : ExecConf := img_state lse_firmware lse_demo_image.
+
+Ltac solve_other_registers :=
+  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
+  rewrite !lookup_insert_ne; try set_solver;
+  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
+
+Lemma lse_demo_ok :
+  lse_initial_state_ok (flag_assert (img_asrt lse_demo_image)) lse_demo_state.
 Proof.
-  refine (@mkCmptSwitcher machine_parameters_instance
-    lse_switcher_b lse_switcher_e
-    lse_switcher_call lse_switcher_return lse_switcher_sealing_type
-    lse_trusted_stack_b lse_trusted_stack_e
-    _ _ _ _
-    (initial_trusted_stack_content 24) _ eq_refl
-    ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_ints)
-    lse_stack_b lse_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_lse_addresses.
-    repeat split; unfold disjoint, set_disjoint_instance;
-      intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
-      solve_addr.
-  - solve_disjoint_from_mmio.
-  - reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-Defined.
-
-Program Definition lse_concrete_cmptAssert : cmptAssert.
-Proof.
-  refine (@mkCmptAssert machine_parameters_instance
-    lse_assert_b lse_assert_e lse_assert_cap lse_assert_flag _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; reflexivity.
-  - unfold_lse_addresses.
-    unfold disjoint, set_disjoint_instance.
-    intros x Hx Hx'.
-    rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    solve_addr.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-Defined.
-
-#[local] Instance lse_concrete_switcherLayout : switcherLayout.
-Proof.
-  exact (cmptSwitcher_switcherLayout lse_concrete_cmptSwitcher).
-Defined.
-
-#[local] Instance lse_concrete_assertLayout : assertLayout.
-Proof.
-  exact (cmptAssert_assertLayout lse_concrete_cmptAssert).
-Defined.
-
-Definition lse_C_f : Sealable :=
-  SCap true RO Global lse_C_exports_pcc lse_C_exports_entries_e
-    lse_C_exports_entries_b.
-
-Definition lse_main_imports_concrete : list Word := lse_main_imports lse_C_f.
-
-Definition lse_C_imports : list Word :=
-  [ WSentry FwdDisable true XSRW_ Local lse_switcher_b lse_switcher_e lse_switcher_call
-  ; WSealed lse_switcher_sealing_type
-      (lse_entry_f_sb lse_main_exports_pcc lse_main_exports_entries_e)
-  ].
-
-Definition lse_C_exports : list Word := [WInt (encode_entry_point InterruptEnabled 0 2)].
-
-Program Definition lse_concrete_main_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance
-    lse_main_pcc_b lse_main_code_start lse_main_pcc_e
-    lse_main_data_b lse_main_data_e lse_main_data_e lse_main_data_e
-    lse_main_exports_pcc lse_main_exports_cgp
-    lse_main_exports_entries_b lse_main_exports_entries_e
-    lse_main_imports_concrete lse_main_code lse_main_data [] lse_export_table_entries
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_lse_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Program Definition lse_concrete_C_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance
-    lse_C_pcc_b lse_C_code_start lse_C_pcc_e
-    lse_C_data_b lse_C_data_e lse_C_data_e lse_C_data_e
-    lse_C_exports_pcc lse_C_exports_cgp
-    lse_C_exports_entries_b lse_C_exports_entries_e
-    lse_C_imports lse_C_code lse_C_data [] lse_C_exports
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_lse_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-(** All nonempty concrete regions, in increasing address order. The two
-    compartment static-sealed ranges are empty and deliberately omitted. *)
-Definition lse_concrete_region_partition : list (list Addr) :=
-  [ finz.seq_between lse_main_pcc_b lse_main_pcc_e;
-    finz.seq_between lse_C_pcc_b lse_C_pcc_e;
-    finz.seq_between lse_main_data_b lse_main_data_e;
-    finz.seq_between lse_C_data_b lse_C_data_e;
-    finz.seq_between lse_main_exports_pcc lse_main_exports_entries_e;
-    finz.seq_between lse_C_exports_pcc lse_C_exports_entries_e;
-    finz.seq_between lse_assert_b lse_assert_cap;
-    finz.seq_between lse_assert_cap lse_assert_e;
-    finz.seq_between lse_assert_flag (lse_assert_flag ^+ 1)%a;
-    finz.seq_between lse_switcher_b lse_switcher_e;
-    finz.seq_between lse_stack_b lse_stack_e;
-    finz.seq_between lse_trusted_stack_b lse_trusted_stack_e
-  ].
-
-Lemma lse_concrete_region_partition_disjoint :
-  ## lse_concrete_region_partition.
-Proof.
-  rewrite /lse_concrete_region_partition.
-  unfold_lse_addresses.
-  disj_regions.
+  rewrite /lse_initial_state_ok.
+  exists (img_sw lse_demo_image), (img_asrt lse_demo_image), (thread_of lse_demo_image 0),
+    (cmpt_of lse_demo_image "main"), (cmpt_of lse_demo_image "C").
+  split; first done.
+  split_and!.
+  all: try (exists 2%nat; split_and!).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /lse_demo_state /img_state /img_regs; solve_other_registers
+            end).
+  all: solve_concrete_condition.
 Qed.
 
-#[local] Lemma lse_concrete_cmpts_disjoints :
-  lse_concrete_main_cmpt ## lse_concrete_C_cmpt.
-Proof.
-  change
-    ((finz.seq_between lse_main_pcc_b lse_main_pcc_e ∪
-      finz.seq_between lse_main_data_b lse_main_data_e ∪
-      finz.seq_between lse_main_data_e lse_main_data_e ∪
-      finz.seq_between lse_main_exports_pcc lse_main_exports_entries_e)
-       ##
-     (finz.seq_between lse_C_pcc_b lse_C_pcc_e ∪
-      finz.seq_between lse_C_data_b lse_C_data_e ∪
-      finz.seq_between lse_C_data_e lse_C_data_e ∪
-      finz.seq_between lse_C_exports_pcc lse_C_exports_entries_e)).
-  pose proof lse_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty lse_main_data_e lse_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty lse_C_data_e lse_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint lse_concrete_region_partition Hpartition.
-Qed.
+(** ** The run
 
-#[local] Lemma lse_concrete_switcher_cmpt_disjoints :
-  switcher_cmpt_disjoint
-    lse_concrete_main_cmpt lse_concrete_cmptSwitcher
-  ∧ switcher_cmpt_disjoint
-      lse_concrete_C_cmpt lse_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between lse_switcher_b lse_switcher_e ∪
-      finz.seq_between lse_trusted_stack_b lse_trusted_stack_e ∪
-      finz.seq_between lse_stack_b lse_stack_e)
-       ##
-     (finz.seq_between lse_main_pcc_b lse_main_pcc_e ∪
-      finz.seq_between lse_main_data_b lse_main_data_e ∪
-      finz.seq_between lse_main_data_e lse_main_data_e ∪
-      finz.seq_between lse_main_exports_pcc lse_main_exports_entries_e)
-     /\
-     (finz.seq_between lse_switcher_b lse_switcher_e ∪
-      finz.seq_between lse_trusted_stack_b lse_trusted_stack_e ∪
-      finz.seq_between lse_stack_b lse_stack_e)
-       ##
-     (finz.seq_between lse_C_pcc_b lse_C_pcc_e ∪
-      finz.seq_between lse_C_data_b lse_C_data_e ∪
-      finz.seq_between lse_C_data_e lse_C_data_e ∪
-      finz.seq_between lse_C_exports_pcc lse_C_exports_entries_e)).
-  pose proof lse_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty lse_main_data_e lse_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty lse_C_data_e lse_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint lse_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma lse_concrete_assert_cmpt_disjoints :
-  assert_cmpt_disjoint lse_concrete_main_cmpt lse_concrete_cmptAssert
-  ∧ assert_cmpt_disjoint lse_concrete_C_cmpt lse_concrete_cmptAssert.
-Proof.
-  change
-    ((finz.seq_between lse_assert_b lse_assert_cap ∪
-      finz.seq_between lse_assert_cap lse_assert_e ∪
-      finz.seq_between lse_assert_flag (lse_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between lse_main_pcc_b lse_main_pcc_e ∪
-      finz.seq_between lse_main_data_b lse_main_data_e ∪
-      finz.seq_between lse_main_data_e lse_main_data_e ∪
-      finz.seq_between lse_main_exports_pcc lse_main_exports_entries_e)
-     /\
-     (finz.seq_between lse_assert_b lse_assert_cap ∪
-      finz.seq_between lse_assert_cap lse_assert_e ∪
-      finz.seq_between lse_assert_flag (lse_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between lse_C_pcc_b lse_C_pcc_e ∪
-      finz.seq_between lse_C_data_b lse_C_data_e ∪
-      finz.seq_between lse_C_data_e lse_C_data_e ∪
-      finz.seq_between lse_C_exports_pcc lse_C_exports_entries_e)).
-  pose proof lse_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty lse_main_data_e lse_main_data_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty lse_C_data_e lse_C_data_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint lse_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma lse_concrete_assert_switcher_disjoints :
-  assert_switcher_disjoint
-    lse_concrete_cmptAssert lse_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between lse_assert_b lse_assert_cap ∪
-      finz.seq_between lse_assert_cap lse_assert_e ∪
-      finz.seq_between lse_assert_flag (lse_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between lse_switcher_b lse_switcher_e ∪
-      finz.seq_between lse_trusted_stack_b lse_trusted_stack_e ∪
-      finz.seq_between lse_stack_b lse_stack_e)).
-  pose proof lse_concrete_region_partition_disjoint as Hpartition.
-  solve_addr_partition_disjoint lse_concrete_region_partition Hpartition.
-Qed.
-
-#[global] Instance lse_concrete_layout : memory_layout.
-Proof.
-  refine
-    (@Build_memory_layout
-       machine_parameters_instance
-       lse_concrete_cmptSwitcher
-       lse_concrete_cmptAssert
-       lse_concrete_main_cmpt
-       lse_concrete_C_cmpt
-       2
-       _
-       lse_concrete_cmpts_disjoints
-       lse_concrete_switcher_cmpt_disjoints
-       lse_concrete_assert_cmpt_disjoints
-       lse_concrete_assert_switcher_disjoints).
-  vm_compute; eauto.
-Defined.
-
-Definition lse_initial_pc : Word :=
-  WCap true RX Global lse_main_pcc_b lse_main_pcc_e lse_main_code_start.
-
-Definition lse_initial_registers : Reg :=
-  (<[cgp := WCap true RW Global lse_main_data_b lse_main_data_e
-      lse_main_data_b]>
-  (<[csp := WCap true RWL Local lse_stack_b lse_stack_e lse_stack_b]>
-    (gset_to_gmap (WInt 0) all_registers_s))).
-
-Definition lse_initial_sregisters : SReg :=
-  initial_sregisters_with
-    (WCap true RWL Global lse_trusted_stack_b lse_trusted_stack_e
-      lse_trusted_stack_b).
-
-Definition lse_initial_memory : Mem := mk_initial_memory.
-
-Lemma lse_initial_registers_correct :
-  is_initial_registers lse_initial_pc lse_initial_registers.
-Proof.
-  rewrite /is_initial_registers /lse_initial_pc /lse_initial_registers.
-  cbn [lse_concrete_layout lse_concrete_main_cmpt].
-  split; [|split; [|split]].
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - intros r Hr; rewrite !lookup_insert_ne; try set_solver.
-    apply lookup_gset_to_gmap_Some; split.
-    + apply all_registers_s_correct.
-    + done.
-Qed.
-
-Lemma lse_initial_sregisters_correct :
-  is_initial_sregisters lse_initial_sregisters.
-Proof.
-  rewrite /is_initial_sregisters /lse_initial_sregisters.
-  cbn [lse_concrete_layout lse_concrete_cmptSwitcher].
-  apply initial_sregisters_with_correct. vm_compute; reflexivity.
-Qed.
-
-Lemma lse_initial_memory_correct : is_initial_memory lse_initial_memory.
-Proof.
-  rewrite /is_initial_memory /lse_initial_memory.
-  repeat split; try reflexivity; try apply Forall_nil_2.
-  - rewrite /lse_C_code /encodeInstrsW; repeat constructor; done.
-  - rewrite /lse_C_data; repeat constructor; done.
-  - apply Forall_replicate; done.
-Qed.
-
-(** The initialized free heap is disjoint from the concrete program. *)
-Lemma lse_initial_heap_disjoint :
-  initial_heap_memory ##ₘ mk_initial_program_memory.
-Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
-
-Lemma lse_concrete_adequacy pc' reg' sreg' mem' sh' es :
-  rtc erased_step
-    ([Seq (Instr Executable)],
-      (lse_initial_pc, lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow))
-    (es, (pc', reg', sreg', mem', sh')) ->
-  mem' !! lse_assert_flag = Some (WInt 0%Z).
-Proof.
-  intro Hrun.
-  pose proof
-    (@lse_adequacy machine_parameters_instance lse_concrete_layout
-      lse_initial_pc pc' lse_initial_registers reg' lse_initial_sregisters sreg'
-      lse_initial_memory mem' initial_heap_shadow sh' es
-      lse_initial_registers_correct lse_initial_sregisters_correct
-      lse_initial_memory_correct eq_refl lse_initial_heap_disjoint Hrun) as Hadequacy.
-  cbn [lse_concrete_layout lse_concrete_cmptAssert] in Hadequacy.
-  exact Hadequacy.
-Qed.
-
-(** Combining the computed execution with [lse_concrete_adequacy] shows that
-    there is a final machine state such that the exact initial configuration:
-    - executes to [Halted], rather than failing or exhausting the chosen fuel;
-    - finishes with the assertion flag still set to zero.
-    Thus this particular adversarial execution terminates normally without
-    violating the case study's assertion. *)
+    [lse_demo_state] runs to [Halted], and [lse_adequacy] applies to it:
+    the flag of the assert library is still zero. *)
 Theorem lse_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step
-      ([Seq (Instr Executable)],
-        (lse_initial_pc, lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow))
+    rtc erased_step ([Seq (Instr Executable)], lse_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! lse_assert_flag = Some (WInt 0%Z).
+    ∧ mem' !! flag_assert (img_asrt lse_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof
-    (machine_run_correct (N.to_nat (7500%N)) Executable
-      (lse_initial_pc, lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow)
-      Halted) as Hrun.
+  pose proof (machine_run_correct 7500 Executable lse_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
-  exists pc', reg', sreg', mem', sh'. split.
-  - exact Hrun.
-  - eapply lse_concrete_adequacy; exact Hrun.
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (lse_adequacy _ _ _ _ lse_demo_ok Hrun).
 Qed.

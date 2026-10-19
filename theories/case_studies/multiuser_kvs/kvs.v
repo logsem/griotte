@@ -605,14 +605,6 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Definition KVS_erase {KVS : kvsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
 
-  (* Export table of KVS service *)
-  Definition kvs_export_table_entries : list Word :=
-    [ kvs_exp_tbl_entry_addOrUpdate;
-      kvs_exp_tbl_entry_read;
-      kvs_exp_tbl_entry_erase
-    ].
-
-
   Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
     WSealRange true (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
   Definition kvs_imports {KVS : kvsLayout} (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType) :=

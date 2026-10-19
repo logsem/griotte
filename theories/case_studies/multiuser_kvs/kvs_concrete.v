@@ -1,584 +1,94 @@
-From griotte.program_logic Require Import allocator_resources.
-From iris.program_logic Require Import adequacy.
+From stdpp Require Import gmap strings.
+From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
-  registers griotte_lang machine_run switcher assert compartment_layout
-  kvs kvs_main kvs_adequacy disjoint_regions_tactics.
-From griotte Require Import adequacy_common.
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  switcher assert allocator_resources compartment_layout
+  kvs kvs_main kvs_adequacy.
+(* Imported last: the fields of the image records. *)
+From griotte Require Import image firmware firmware_ok image_state link kvs_firmware.
+Set Mangle Names.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
+#[local] Open Scope string_scope.
 
-#[local] Notation "'A' z" :=
-  (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-#[local] Notation "'OT' z" :=
-  (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
+(** * A concrete instance of the KVS case study
 
-Definition kvs_main_pcc_b : Addr := A 9.
-Definition kvs_main_code_start : Addr := A 16.
-Definition kvs_main_pcc_e : Addr := A 56.
-Definition kvs_B_pcc_b : Addr := A 115.
-Definition kvs_B_code_start : Addr := A 120.
-Definition kvs_B_pcc_e : Addr := A 143.
-Definition kvs_KVS_pcc_b : Addr := A 183.
-Definition kvs_KVS_code_start : Addr := A 185.
-Definition kvs_KVS_pcc_e : Addr := A 361.
-Definition kvs_main_static_sealed_b : Addr := A 112.
-Definition kvs_main_static_sealed_e : Addr := A 113.
-Definition kvs_main_data_b : Addr := A 113.
-Definition kvs_main_data_e : Addr := A 113.
-Definition kvs_B_static_sealed_b : Addr := A 178.
-Definition kvs_B_static_sealed_e : Addr := A 179.
-Definition kvs_B_data_b : Addr := A 179.
-Definition kvs_B_data_e : Addr := A 180.
-Definition kvs_KVS_data_b : Addr := A 367.
-Definition kvs_KVS_data_e : Addr := A 415.
-Definition kvs_main_exports_pcc : Addr := A 113.
-Definition kvs_main_exports_cgp : Addr := A 114.
-Definition kvs_main_exports_entries_b : Addr := A 115.
-Definition kvs_main_exports_entries_e : Addr := A 115.
-Definition kvs_B_exports_pcc : Addr := A 180.
-Definition kvs_B_exports_cgp : Addr := A 181.
-Definition kvs_B_exports_entries_b : Addr := A 182.
-Definition kvs_B_exports_entries_e : Addr := A 183.
-Definition kvs_KVS_exports_pcc : Addr := A 415.
-Definition kvs_KVS_exports_cgp : Addr := A 416.
-Definition kvs_KVS_exports_entries_b : Addr := A 417.
-Definition kvs_KVS_exports_entries_e : Addr := A 420.
-Definition kvs_assert_b : Addr := A 420.
-Definition kvs_assert_cap : Addr := A 431.
-Definition kvs_assert_e : Addr := A 432.
-Definition kvs_assert_flag : Addr := A 432.
-Definition kvs_switcher_b : Addr := A 434.
-Definition kvs_switcher_call : Addr := A 435.
-Definition kvs_switcher_return : Addr := A 513.
-Definition kvs_switcher_e : Addr := A 571.
-Definition kvs_switcher_sealing_type : OType := OT 9.
-Definition kvs_service_sealing_type : OType := OT 10.
-Definition kvs_trusted_stack_b : Addr := A 4096.
-Definition kvs_trusted_stack_e : Addr := A 4194.
-Definition kvs_stack_b : Addr := A 1024.
-Definition kvs_stack_e : Addr := A 1124.
+    The KVS firmware with concrete sealing types and user keys, and a
+    concrete adversary [B], laid out by the linker. Its initial state
+    satisfies [kvs_initial_state_ok] by computation, runs to [Halted], and
+    [kvs_adequacy] applies to it. *)
 
-Ltac unfold_kvs_addresses :=
-  unfold kvs_main_pcc_b, kvs_main_code_start, kvs_main_pcc_e,
-    kvs_B_pcc_b, kvs_B_code_start, kvs_B_pcc_e,
-    kvs_KVS_pcc_b, kvs_KVS_code_start, kvs_KVS_pcc_e,
-    kvs_main_static_sealed_b, kvs_main_static_sealed_e,
-    kvs_main_data_b, kvs_main_data_e,
-    kvs_B_static_sealed_b, kvs_B_static_sealed_e,
-    kvs_B_data_b, kvs_B_data_e, kvs_KVS_data_b, kvs_KVS_data_e,
-    kvs_main_exports_pcc, kvs_main_exports_cgp,
-    kvs_main_exports_entries_b, kvs_main_exports_entries_e,
-    kvs_B_exports_pcc, kvs_B_exports_cgp,
-    kvs_B_exports_entries_b, kvs_B_exports_entries_e,
-    kvs_KVS_exports_pcc, kvs_KVS_exports_cgp,
-    kvs_KVS_exports_entries_b, kvs_KVS_exports_entries_e,
-    kvs_assert_b, kvs_assert_cap, kvs_assert_e, kvs_assert_flag,
-    kvs_switcher_b, kvs_switcher_call, kvs_switcher_return,
-    kvs_switcher_e, kvs_switcher_sealing_type,
-    kvs_service_sealing_type,
-    kvs_trusted_stack_b, kvs_trusted_stack_e,
-    kvs_stack_b, kvs_stack_e.
+Definition kvs_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
+Definition kvs_service_sealing_type : OType := @finz.FinZ ONum 10 eq_refl eq_refl.
 
-Ltac unfold_kvs_addresses_in H :=
-  unfold kvs_main_pcc_b, kvs_main_code_start, kvs_main_pcc_e,
-    kvs_B_pcc_b, kvs_B_code_start, kvs_B_pcc_e,
-    kvs_KVS_pcc_b, kvs_KVS_code_start, kvs_KVS_pcc_e,
-    kvs_main_static_sealed_b, kvs_main_static_sealed_e,
-    kvs_main_data_b, kvs_main_data_e,
-    kvs_B_static_sealed_b, kvs_B_static_sealed_e,
-    kvs_B_data_b, kvs_B_data_e, kvs_KVS_data_b, kvs_KVS_data_e,
-    kvs_main_exports_pcc, kvs_main_exports_cgp,
-    kvs_main_exports_entries_b, kvs_main_exports_entries_e,
-    kvs_B_exports_pcc, kvs_B_exports_cgp,
-    kvs_B_exports_entries_b, kvs_B_exports_entries_e,
-    kvs_KVS_exports_pcc, kvs_KVS_exports_cgp,
-    kvs_KVS_exports_entries_b, kvs_KVS_exports_entries_e,
-    kvs_assert_b, kvs_assert_cap, kvs_assert_e, kvs_assert_flag,
-    kvs_switcher_b, kvs_switcher_call, kvs_switcher_return,
-    kvs_switcher_e, kvs_switcher_sealing_type,
-    kvs_service_sealing_type,
-    kvs_trusted_stack_b, kvs_trusted_stack_e,
-    kvs_stack_b, kvs_stack_e in H.
+(** The firmware, with the user keys [1] (main) and [2] (B). *)
+Definition kvs_demo_firmware : firmware := kvs_firmware kvs_service_sealing_type 1 2.
 
-#[local] Instance kvs_concrete_kvsLayout : kvsLayout :=
-  @mkKvsLayout kvs_service_sealing_type
-    kvs_KVS_pcc_b kvs_KVS_code_start kvs_KVS_pcc_e
-    kvs_KVS_data_b kvs_KVS_data_e
-    kvs_KVS_exports_pcc kvs_KVS_exports_entries_e.
-
-(** The concrete adversary, [kvs_B_asm] in [kvs_main]. *)
+(** The adversary [B]: the code of [kvs_B_asm], one zeroed global, and its
+    entry point. *)
 Definition kvs_B_code : list Word := encodeInstrsW kvs_B_instrs.
-
 Definition kvs_B_data : list Word := [WInt 0].
-Definition kvs_main_static_sealed_concrete : list Word := [WInt 1].
-Definition kvs_B_static_sealed : list Word := [WInt 2].
 
-Program Definition kvs_concrete_cmptSwitcher : cmptSwitcher.
+Definition kvs_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := kvs_switcher_sealing_type;
+  lk_adv         := [
+    ("B", {| la_code    := kvs_B_code;
+             la_data    := kvs_B_data;
+             la_exports := [
+               kvs_B_adv_entry
+             ] |})
+  ]
+|}.
+
+(** ** The linked image and its initial state *)
+
+Definition kvs_demo_image : fw_image :=
+  Eval vm_compute in
+    default (place kvs_demo_link_cfg kvs_demo_firmware).1
+      (link kvs_demo_link_cfg kvs_demo_firmware).
+
+Lemma kvs_demo_linked :
+  link kvs_demo_link_cfg kvs_demo_firmware = Some kvs_demo_image.
+Proof. vm_compute; reflexivity. Qed.
+
+Definition kvs_demo_state : ExecConf := img_state kvs_demo_firmware kvs_demo_image.
+
+Ltac solve_other_registers :=
+  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
+  rewrite !lookup_insert_ne; try set_solver;
+  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
+
+Lemma kvs_demo_ok :
+  kvs_initial_state_ok (flag_assert (img_asrt kvs_demo_image)) kvs_demo_state.
 Proof.
-  refine (@mkCmptSwitcher machine_parameters_instance
-    kvs_switcher_b kvs_switcher_e kvs_switcher_call
-    kvs_switcher_return kvs_switcher_sealing_type
-    kvs_trusted_stack_b kvs_trusted_stack_e _ _ _ _
-    (initial_trusted_stack_content 24) _ eq_refl
-    ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_ints) kvs_stack_b kvs_stack_e
-    (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_kvs_addresses.
-    repeat split; unfold disjoint, set_disjoint_instance;
-      intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
-      solve_addr.
-  - solve_disjoint_from_mmio.
-  - reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-Defined.
-
-Program Definition kvs_concrete_cmptAssert : cmptAssert.
-Proof.
-  refine (@mkCmptAssert machine_parameters_instance kvs_assert_b
-    kvs_assert_e kvs_assert_cap kvs_assert_flag _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; reflexivity.
-  - unfold_kvs_addresses.
-    unfold disjoint, set_disjoint_instance.
-    intros x Hx Hx'.
-    rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    solve_addr.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-Defined.
-
-#[local] Instance kvs_concrete_switcherLayout : switcherLayout.
-Proof.
-  exact (cmptSwitcher_switcherLayout kvs_concrete_cmptSwitcher).
-Defined.
-
-#[local] Instance kvs_concrete_assertLayout : assertLayout.
-Proof.
-  exact (cmptAssert_assertLayout kvs_concrete_cmptAssert).
-Defined.
-
-Definition kvs_B_f : Sealable :=
-  SCap true RO Global kvs_B_exports_pcc kvs_B_exports_entries_e
-    kvs_B_exports_entries_b.
-Definition kvs_main_imports_concrete : list Word :=
-  kvs_main_imports kvs_main_static_sealed_b
-    kvs_switcher_b kvs_switcher_e kvs_switcher_call
-    kvs_switcher_sealing_type kvs_assert_b kvs_assert_e kvs_B_f.
-Definition kvs_B_imports : list Word :=
-  [ WSentry FwdDisable true XSRW_ Local kvs_switcher_b kvs_switcher_e kvs_switcher_call
-  ; WSealed kvs_switcher_sealing_type (KVS_addOrUpdate Global)
-  ; WSealed kvs_switcher_sealing_type (KVS_read Global)
-  ; WSealed kvs_switcher_sealing_type (KVS_erase Global)
-  ; kvs_user_seal_key Global kvs_B_static_sealed_b
-  ].
-Definition kvs_B_exports : list Word :=
-  [WInt (encode_entry_point InterruptEnabled 0 kvs_B_adv_entry)].
-Definition kvs_KVS_imports : list Word :=
-  kvs_imports kvs_switcher_b kvs_switcher_e kvs_switcher_call
-    kvs_switcher_sealing_type.
-
-Program Definition kvs_concrete_main_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance kvs_main_pcc_b kvs_main_code_start kvs_main_pcc_e
-    kvs_main_data_b kvs_main_data_e
-    kvs_main_static_sealed_b kvs_main_static_sealed_e
-    kvs_main_exports_pcc kvs_main_exports_cgp
-    kvs_main_exports_entries_b kvs_main_exports_entries_e
-    kvs_main_imports_concrete kvs_main_code kvs_main_data
-    kvs_main_static_sealed_concrete [] _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_kvs_addresses.
-    rewrite (finz_seq_between_empty (A 113) (A 113)); last solve_addr.
-    rewrite !disjoint_list_cons.
-    repeat split.
-    + unfold disjoint, set_disjoint_instance.
-      intros x Hx Hx'.
-      rewrite elem_of_finz_seq_between in Hx.
-      repeat (rewrite elem_of_app in Hx' ||
-              rewrite elem_of_finz_seq_between in Hx').
-      cbn in Hx'.
-      destruct Hx' as [Hx' | [Hx' | [Hx' | Hx']]];
-        [set_solver | solve_addr | solve_addr | set_solver].
-    + set_solver.
-    + disj_regions.
-    + disj_regions.
-    + constructor.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Program Definition kvs_concrete_B_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance kvs_B_pcc_b kvs_B_code_start kvs_B_pcc_e
-    kvs_B_data_b kvs_B_data_e
-    kvs_B_static_sealed_b kvs_B_static_sealed_e
-    kvs_B_exports_pcc kvs_B_exports_cgp
-    kvs_B_exports_entries_b kvs_B_exports_entries_e
-    kvs_B_imports kvs_B_code kvs_B_data
-    kvs_B_static_sealed kvs_B_exports _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_kvs_addresses.
-    rewrite !disjoint_list_cons.
-    repeat split.
-    + disj_regions.
-    + unfold disjoint, set_disjoint_instance.
-      intros x Hx Hx'.
-      rewrite elem_of_finz_seq_between in Hx.
-      repeat (rewrite elem_of_app in Hx' ||
-              rewrite elem_of_finz_seq_between in Hx').
-      cbn in Hx'.
-      destruct Hx' as [Hx' | [Hx' | Hx']].
-      * solve_addr.
-      * solve_addr.
-      * set_solver.
-    + disj_regions.
-    + disj_regions.
-    + constructor.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Program Definition kvs_concrete_KVS_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance kvs_KVS_pcc_b kvs_KVS_code_start kvs_KVS_pcc_e
-    kvs_KVS_data_b kvs_KVS_data_e kvs_KVS_data_e kvs_KVS_data_e
-    kvs_KVS_exports_pcc kvs_KVS_exports_cgp
-    kvs_KVS_exports_entries_b kvs_KVS_exports_entries_e
-    kvs_KVS_imports kvs_service_instrs kvs_data []
-    kvs_export_table_entries _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_kvs_addresses.
-    rewrite (finz_seq_between_empty (A 415) (A 415)); last solve_addr.
-    rewrite !disjoint_list_cons.
-    repeat split.
-    + unfold disjoint, set_disjoint_instance.
-      intros x Hx Hx'.
-      rewrite elem_of_finz_seq_between in Hx.
-      repeat (rewrite elem_of_app in Hx' ||
-              rewrite elem_of_finz_seq_between in Hx').
-      cbn in Hx'.
-      destruct Hx' as [Hx' | [Hx' | [Hx' | Hx']]];
-        [solve_addr | set_solver | solve_addr | set_solver].
-    + unfold disjoint, set_disjoint_instance.
-      intros x Hx Hx'.
-      rewrite elem_of_finz_seq_between in Hx.
-      repeat (rewrite elem_of_app in Hx' ||
-              rewrite elem_of_finz_seq_between in Hx').
-      cbn in Hx'.
-      destruct Hx' as [Hx' | [Hx' | Hx']];
-        [set_solver | solve_addr | set_solver].
-    + set_solver.
-    + disj_regions.
-    + constructor.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Ltac solve_kvs_cmpt_disjoint :=
-  unfold disjoint, Cmpt_Disjoint, disjoint_cmpt,
-    cmpt_region, cmpt_pcc_region, cmpt_cgp_region,
-    cmpt_static_sealed_region, cmpt_exp_tbl_region;
-  unfold kvs_concrete_main_cmpt, kvs_concrete_B_cmpt,
-    kvs_concrete_KVS_cmpt;
-  cbn;
-  intros x Hx Hx';
-  repeat (rewrite elem_of_app in Hx || rewrite elem_of_app in Hx');
-  repeat (rewrite elem_of_finz_seq_between in Hx ||
-          rewrite elem_of_finz_seq_between in Hx');
-  unfold_kvs_addresses_in Hx;
-  unfold_kvs_addresses_in Hx';
-  destruct Hx as [[[Hx | Hx] | Hx] | Hx];
-  destruct Hx' as [[[Hx' | Hx'] | Hx'] | Hx'];
-  try set_solver; solve_addr.
-
-Ltac solve_kvs_switcher_disjoint :=
-  unfold switcher_cmpt_disjoint, cmpt_switcher_region,
-    cmpt_switcher_code_region, cmpt_switcher_trusted_stack_region,
-    cmpt_switcher_stack_region, cmpt_region, cmpt_pcc_region,
-    cmpt_cgp_region, cmpt_static_sealed_region, cmpt_exp_tbl_region;
-  unfold kvs_concrete_cmptSwitcher, kvs_concrete_main_cmpt,
-    kvs_concrete_B_cmpt, kvs_concrete_KVS_cmpt;
-  cbn;
-  unfold disjoint, set_disjoint_instance;
-  intros x Hx Hx';
-  repeat (rewrite elem_of_app in Hx || rewrite elem_of_app in Hx');
-  repeat (rewrite elem_of_finz_seq_between in Hx ||
-          rewrite elem_of_finz_seq_between in Hx');
-  unfold_kvs_addresses_in Hx;
-  unfold_kvs_addresses_in Hx';
-  destruct Hx as [[Hx | Hx] | Hx];
-  destruct Hx' as [[[Hx' | Hx'] | Hx'] | Hx'];
-  try set_solver; solve_addr.
-
-Ltac solve_kvs_assert_disjoint :=
-  unfold assert_cmpt_disjoint, cmpt_assert_region,
-    cmpt_assert_code_region, cmpt_assert_cap_region,
-    cmpt_assert_flag_region, cmpt_region, cmpt_pcc_region,
-    cmpt_cgp_region, cmpt_static_sealed_region, cmpt_exp_tbl_region;
-  unfold kvs_concrete_cmptAssert, kvs_concrete_main_cmpt,
-    kvs_concrete_B_cmpt, kvs_concrete_KVS_cmpt;
-  cbn;
-  unfold disjoint, set_disjoint_instance;
-  intros x Hx Hx';
-  repeat (rewrite elem_of_app in Hx || rewrite elem_of_app in Hx');
-  repeat (rewrite elem_of_finz_seq_between in Hx ||
-          rewrite elem_of_finz_seq_between in Hx');
-  unfold_kvs_addresses_in Hx;
-  unfold_kvs_addresses_in Hx';
-  destruct Hx as [[Hx | Hx] | Hx];
-  destruct Hx' as [[[Hx' | Hx'] | Hx'] | Hx'];
-  try set_solver; solve_addr.
-
-Ltac solve_kvs_assert_switcher_disjoint :=
-  unfold assert_switcher_disjoint, cmpt_assert_region,
-    cmpt_assert_code_region, cmpt_assert_cap_region,
-    cmpt_assert_flag_region, cmpt_switcher_region,
-    cmpt_switcher_code_region, cmpt_switcher_trusted_stack_region,
-    cmpt_switcher_stack_region;
-  unfold kvs_concrete_cmptAssert, kvs_concrete_cmptSwitcher;
-  cbn;
-  unfold disjoint, set_disjoint_instance;
-  intros x Hx Hx';
-  repeat (rewrite elem_of_app in Hx || rewrite elem_of_app in Hx');
-  repeat (rewrite elem_of_finz_seq_between in Hx ||
-          rewrite elem_of_finz_seq_between in Hx');
-  unfold_kvs_addresses_in Hx;
-  unfold_kvs_addresses_in Hx';
-  destruct Hx as [[Hx | Hx] | Hx];
-  destruct Hx' as [[Hx' | Hx'] | Hx'];
-  solve_addr.
-
-#[global] Instance kvs_concrete_layout : memory_layout.
-Proof.
-  refine (@Build_memory_layout machine_parameters_instance
-    kvs_concrete_cmptSwitcher kvs_concrete_cmptAssert
-    kvs_concrete_main_cmpt kvs_concrete_KVS_cmpt
-    kvs_service_sealing_type _ _ 1 2 _ kvs_concrete_B_cmpt 5
-    _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - lia.
-  - vm_compute; eauto.
-  - repeat split; solve_kvs_cmpt_disjoint.
-  - repeat split; solve_kvs_switcher_disjoint.
-  - repeat split; solve_kvs_assert_disjoint.
-  - solve_kvs_assert_switcher_disjoint.
-Defined.
-
-Definition kvs_initial_pc : Word :=
-  WCap true RX Global kvs_main_pcc_b kvs_main_pcc_e kvs_main_code_start.
-
-Definition kvs_initial_registers : Reg :=
-  (<[cgp := WCap true RW Global kvs_main_data_b kvs_main_data_e
-      kvs_main_data_b]>
-  (<[csp := WCap true RWL Local kvs_stack_b kvs_stack_e kvs_stack_b]>
-    (gset_to_gmap (WInt 0) all_registers_s))).
-
-Definition kvs_initial_sregisters : SReg :=
-  initial_sregisters_with
-    (WCap true RWL Global kvs_trusted_stack_b kvs_trusted_stack_e
-      kvs_trusted_stack_b).
-
-Definition kvs_initial_memory : Mem := mk_initial_memory.
-
-Lemma kvs_initial_registers_correct :
-  is_initial_registers kvs_initial_pc kvs_initial_registers.
-Proof.
-  rewrite /is_initial_registers /kvs_initial_pc /kvs_initial_registers.
-  cbn [kvs_concrete_layout kvs_concrete_main_cmpt].
-  split; [|split; [|split]].
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - intros r Hr; rewrite !lookup_insert_ne; try set_solver.
-    apply lookup_gset_to_gmap_Some; split.
-    + apply all_registers_s_correct.
-    + done.
+  rewrite /kvs_initial_state_ok.
+  exists (img_sw kvs_demo_image), (img_asrt kvs_demo_image), (thread_of kvs_demo_image 0),
+    (cmpt_of kvs_demo_image "main"), (cmpt_of kvs_demo_image "kvs"), (cmpt_of kvs_demo_image "B"),
+    kvs_service_sealing_type, 1%Z, 2%Z.
+  split; first done.
+  split_and!.
+  all: try (exists kvs_B_adv_entry; split_and!).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /kvs_demo_state /img_state /img_regs; solve_other_registers
+            end).
+  all: solve_concrete_condition.
 Qed.
 
-Lemma kvs_initial_sregisters_correct :
-  is_initial_sregisters kvs_initial_sregisters.
-Proof.
-  rewrite /is_initial_sregisters /kvs_initial_sregisters.
-  cbn [kvs_concrete_layout kvs_concrete_cmptSwitcher].
-  apply initial_sregisters_with_correct. vm_compute; reflexivity.
-Qed.
+(** ** The run
 
-Lemma kvs_initial_memory_correct :
-  is_initial_memory kvs_initial_memory.
-Proof.
-  rewrite /is_initial_memory /kvs_initial_memory.
-  cbn [kvs_concrete_layout kvs_concrete_main_cmpt
-       kvs_concrete_KVS_cmpt kvs_concrete_B_cmpt
-       kvs_concrete_cmptSwitcher kvs_concrete_cmptAssert
-       kvs_concrete_kvsLayout].
-  repeat split; try reflexivity.
-  - rewrite /kvs_B_code /encodeInstrsW; repeat constructor; done.
-  - rewrite /kvs_B_data; repeat constructor; done.
-  - apply Forall_replicate; done.
-Qed.
-
-(** The initialized free heap is disjoint from the concrete program. *)
-Lemma kvs_initial_heap_disjoint :
-  initial_heap_memory ##ₘ mk_initial_program_memory.
-Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
-
-Lemma kvs_concrete_adequacy pc' reg' sreg' mem' sh' es :
-  rtc erased_step
-    ([Seq (Instr Executable)],
-      (kvs_initial_pc, kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow))
-    (es, (pc', reg', sreg', mem', sh')) ->
-  mem' !! kvs_assert_flag = Some (WInt 0%Z).
-Proof.
-  intro Hrun.
-  pose proof
-    (@kvs_adequacy machine_parameters_instance kvs_concrete_layout
-      kvs_initial_pc pc' kvs_initial_registers reg' kvs_initial_sregisters sreg'
-      kvs_initial_memory mem' initial_heap_shadow sh' es kvs_initial_registers_correct
-      kvs_initial_sregisters_correct kvs_initial_memory_correct eq_refl kvs_initial_heap_disjoint Hrun)
-    as Hadequacy.
-  cbn [kvs_concrete_layout kvs_concrete_cmptAssert] in Hadequacy.
-  exact Hadequacy.
-Qed.
-
-(** Combining the computed execution with [kvs_concrete_adequacy] shows that
-    there is a final machine state such that the exact initial configuration:
-    - executes to [Halted], rather than failing or exhausting the chosen fuel;
-    - finishes with the assertion flag still set to zero.
-    Thus this particular adversarial execution terminates normally without
-    violating the case study's assertion. *)
+    [kvs_demo_state] runs to [Halted], and [kvs_adequacy] applies to it:
+    the flag of the assert library is still zero. *)
 Theorem kvs_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step
-      ([Seq (Instr Executable)],
-        (kvs_initial_pc, kvs_initial_registers, kvs_initial_sregisters,
-         kvs_initial_memory, initial_heap_shadow))
+    rtc erased_step ([Seq (Instr Executable)], kvs_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! kvs_assert_flag = Some (WInt 0%Z).
+    ∧ mem' !! flag_assert (img_asrt kvs_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof
-    (machine_run_correct (N.to_nat (15000%N)) Executable
-      (kvs_initial_pc, kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow)
-      Halted) as Hrun.
+  pose proof (machine_run_correct (N.to_nat 15000%N) Executable kvs_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
-  exists pc', reg', sreg', mem', sh'. split.
-  - exact Hrun.
-  - eapply kvs_concrete_adequacy; exact Hrun.
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (kvs_adequacy _ _ _ _ kvs_demo_ok Hrun).
 Qed.

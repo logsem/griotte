@@ -248,36 +248,6 @@ Section adequacy_helpers.
       done.
     Qed.
 
-    (** The memory of a compartment, with its read-only parts persistent:
-        its import table, its code and its export table. *)
-    Lemma initialise_compartment_pers ( C_cmpt : cmpt ) :
-      let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
-      let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
-      ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
-      ==∗
-      [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ□ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗
-      codefrag_pers (cmpt_a_code C_cmpt) (cmpt_code C_cmpt) ∗
-      [[ (cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] ∗
-      [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_static_sealed C_cmpt ]] ∗
-      cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ PCC ∗
-      cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ CGP ∗
-      [[ (cmpt_exp_tbl_entries_start C_cmpt), (cmpt_exp_tbl_entries_end C_cmpt) ]] ↦ₐ□ [[ lword_of_word <$> cmpt_exp_tbl_entries C_cmpt ]].
-    Proof.
-      intros PCC CGP.
-      iIntros "Hcmpt_C".
-      iMod (initialise_compartment with "Hcmpt_C")
-        as "(HC_imports & HC_code & $ & $ & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
-      iMod (region_pointsto_persist with "HC_imports") as "$".
-      iMod (pointsto_persist with "HC_etbl_pcc") as "$".
-      iMod (pointsto_persist with "HC_etbl_cgp") as "$".
-      iMod (region_pointsto_persist with "HC_etbl_entries") as "$".
-      iApply codefrag_persist.
-      rewrite /codefrag.
-      replace (cmpt_a_code C_cmpt ^+ length (cmpt_code C_cmpt))%a with (cmpt_e_pcc C_cmpt).
-      { iExact "HC_code". }
-      pose proof (cmpt_code_size C_cmpt); solve_addr.
-    Qed.
-
     Lemma initialise_adversary_compartment ( C_cmpt : cmpt ) :
       let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
       let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
@@ -363,72 +333,4 @@ Section adequacy_ghost_init.
     - exact Hmtcc.
   Qed.
 
-  (** Program memory disjoint from the initial heap holds no heap address. *)
-  Lemma not_heap_of_disjoint_dom (pm : Mem) a :
-    initial_heap_memory ##ₘ pm → a ∈ dom pm → is_heap_address a = false.
-  Proof.
-    intros Hdisj Ha. apply not_true_is_false. intros Hheap.
-    apply elem_of_dom in Ha as [w Hw].
-    eapply map_disjoint_spec; [exact Hdisj| |exact Hw].
-    rewrite /initial_heap_memory lookup_gset_to_gmap option_guard_True //.
-    by apply elem_of_heap_addresses.
-  Qed.
-
-  Lemma disjoint_from_heap_of_disjoint_dom (pm : Mem) b e :
-    initial_heap_memory ##ₘ pm →
-    list_to_set (finz.seq_between b e) ⊆ dom pm →
-    disjoint_from_heap b e.
-  Proof.
-    intros Hdisj Hdom. rewrite /disjoint_from_heap elem_of_disjoint.
-    intros x Hx Hheap.
-    assert (x ∈ dom pm) as Hx_dom by (apply Hdom; set_solver).
-    pose proof (not_heap_of_disjoint_dom pm x Hdisj Hx_dom) as Hnot.
-    apply elem_of_finz_seq_between in Hheap.
-    assert (is_heap_address x = true) as Hyes by (apply withinBounds_true_iff; solve_addr).
-    congruence.
-  Qed.
-
-  (** The switcher's trusted stack lies outside the heap. *)
-  Lemma trusted_stack_disjoint_from_heap_of_disjoint_dom
-    (Cswitcher : cmptSwitcher) (pm : Mem) :
-    initial_heap_memory ##ₘ pm →
-    dom (mk_initial_switcher Cswitcher) ⊆ dom pm →
-    disjoint_from_heap (b_trusted_stack Cswitcher) (e_trusted_stack Cswitcher).
-  Proof.
-    intros Hdisj Hdom. apply (disjoint_from_heap_of_disjoint_dom pm); first done.
-    etrans; last exact Hdom.
-    rewrite /mk_initial_switcher !dom_union_L dom_switcher_trusted_stack_mregion.
-    set_solver.
-  Qed.
-
-  (** The assert code lies outside the heap. *)
-  Lemma assert_disjoint_from_heap_of_disjoint_dom (Cassert : cmptAssert) (pm : Mem) :
-    initial_heap_memory ##ₘ pm →
-    dom (mk_initial_assert Cassert) ⊆ dom pm →
-    disjoint_from_heap (b_assert Cassert) (e_assert Cassert).
-  Proof.
-    intros Hdisj Hdom. apply (disjoint_from_heap_of_disjoint_dom pm); first done.
-    etrans; last exact Hdom.
-    rewrite /mk_initial_assert !dom_union_L dom_assert_code_mregion dom_assert_cap_mregion
-      /cmpt_assert_code_region /cmpt_assert_cap_region.
-    pose proof (assert_code_size Cassert). pose proof (assert_cap_size Cassert).
-    rewrite (finz_seq_between_split (b_assert Cassert) (cap_assert Cassert) (e_assert Cassert));
-      last solve_addr.
-    rewrite list_to_set_app_L. set_solver.
-  Qed.
-
-  (** The assert flag lies outside the heap. *)
-  Lemma assert_flag_not_heap_of_disjoint_dom (Cassert : cmptAssert) (pm : Mem) :
-    initial_heap_memory ##ₘ pm →
-    dom (mk_initial_assert Cassert) ⊆ dom pm →
-    is_heap_address (flag_assert Cassert) = false.
-  Proof.
-    intros Hdisj Hdom. apply (not_heap_of_disjoint_dom pm); first done.
-    apply Hdom.
-    rewrite /mk_initial_assert !dom_union_L dom_assert_flag_mregion
-      /cmpt_assert_flag_region.
-    pose proof (assert_flag_size Cassert).
-    rewrite (finz_seq_between_singleton (flag_assert Cassert)); last solve_addr.
-    set_solver.
-  Qed.
 End adequacy_ghost_init.

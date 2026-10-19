@@ -1,81 +1,30 @@
-From griotte.program_logic Require Import allocator_resources.
-From iris.program_logic Require Import adequacy.
+From stdpp Require Import gmap strings.
+From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
-  registers griotte_lang machine_run switcher assert compartment_layout
-  deep_immutability deep_immutability_adequacy
-  disjoint_regions_tactics.
-From griotte Require Import adequacy_common.
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  switcher assert allocator_resources compartment_layout
+  deep_immutability deep_immutability_adequacy.
+(* Imported last: the fields of the image records. *)
+From griotte Require Import image firmware firmware_ok image_state link droe_firmware.
+Set Mangle Names.
 
 #[export] Existing Instance machine_parameters_instance.
-
 #[local] Transparent MemNum ONum.
+#[local] Open Scope string_scope.
 
-#[local] Notation "'A' z" :=
-  (@finz.FinZ MemNum z%Z eq_refl eq_refl) (at level 10).
-#[local] Notation "'OT' z" :=
-  (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
+(** * A concrete instance of the deep-immutability case study
 
-Definition droe_main_pcc_b : Addr := A 9.
-Definition droe_main_code_a : Addr := A 12.
-Definition droe_main_pcc_e : Addr := A 43.
-Definition droe_C_pcc_b : Addr := A 64.
-Definition droe_C_code_a : Addr := A 65.
-Definition droe_C_pcc_e : Addr := A 69.
-Definition droe_main_cgp_b : Addr := A 69.
-Definition droe_main_cgp_e : Addr := A 71.
-Definition droe_C_cgp_b : Addr := A 71.
-Definition droe_C_cgp_e : Addr := A 72.
-Definition droe_main_exp_pcc : Addr := A 72.
-Definition droe_main_exp_cgp : Addr := A 73.
-Definition droe_main_exp_entries_b : Addr := A 74.
-Definition droe_main_exp_entries_e : Addr := A 74.
-Definition droe_C_exp_pcc : Addr := A 74.
-Definition droe_C_exp_cgp : Addr := A 75.
-Definition droe_C_exp_entries_b : Addr := A 76.
-Definition droe_C_exp_entries_e : Addr := A 77.
-Definition droe_assert_b : Addr := A 77.
-Definition droe_assert_cap : Addr := A 88.
-Definition droe_assert_e : Addr := A 89.
-Definition droe_assert_flag : Addr := A 89.
-Definition droe_switcher_b : Addr := A 91.
-Definition droe_switcher_call : Addr := A 92.
-Definition droe_switcher_return : Addr := A 170.
-Definition droe_switcher_e : Addr := A 228.
-Definition droe_stack_b : Addr := A 1024.
-Definition droe_stack_e : Addr := A 1124.
-Definition droe_trusted_stack_b : Addr := A 4096.
-Definition droe_trusted_stack_e : Addr := A 4194.
-Definition droe_switcher_otype : OType := OT 9.
+    The deep-immutability firmware with a concrete adversary [C], laid out by
+    the linker. Its initial state satisfies [droe_initial_state_ok] by
+    computation, runs to [Halted], and [droe_adequacy] applies to it. *)
 
-Ltac unfold_droe_addresses :=
-  unfold droe_main_pcc_b, droe_main_code_a, droe_main_pcc_e,
-    droe_C_pcc_b, droe_C_code_a, droe_C_pcc_e,
-    droe_main_cgp_b, droe_main_cgp_e, droe_C_cgp_b, droe_C_cgp_e,
-    droe_main_exp_pcc, droe_main_exp_cgp, droe_main_exp_entries_b,
-    droe_main_exp_entries_e, droe_C_exp_pcc, droe_C_exp_cgp,
-    droe_C_exp_entries_b, droe_C_exp_entries_e, droe_assert_b,
-    droe_assert_cap, droe_assert_e, droe_assert_flag, droe_switcher_b,
-    droe_switcher_call, droe_switcher_return, droe_switcher_e,
-    droe_stack_b, droe_stack_e, droe_trusted_stack_b,
-    droe_trusted_stack_e, droe_switcher_otype.
-
-Ltac unfold_droe_addresses_in H :=
-  unfold droe_main_pcc_b, droe_main_code_a, droe_main_pcc_e,
-    droe_C_pcc_b, droe_C_code_a, droe_C_pcc_e,
-    droe_main_cgp_b, droe_main_cgp_e, droe_C_cgp_b, droe_C_cgp_e,
-    droe_main_exp_pcc, droe_main_exp_cgp, droe_main_exp_entries_b,
-    droe_main_exp_entries_e, droe_C_exp_pcc, droe_C_exp_cgp,
-    droe_C_exp_entries_b, droe_C_exp_entries_e, droe_assert_b,
-    droe_assert_cap, droe_assert_e, droe_assert_flag, droe_switcher_b,
-    droe_switcher_call, droe_switcher_return, droe_switcher_e,
-    droe_stack_b, droe_stack_e, droe_trusted_stack_b,
-    droe_trusted_stack_e, droe_switcher_otype in H.
+Definition droe_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
 (** The concrete adversary follows the outer read-only capability in [ca0],
     reads through the nested capability, and stores the observed word in its
     own data address before returning. It therefore directly tests whether the
-    supposedly deeply immutable value can be observed through the nesting. *)
+    supposedly deeply immutable value can be observed through the nesting.
+    It has one zeroed global, and its entry point right after its import. *)
 Definition droe_C_code : list Word :=
   encodeInstrsW [
     CLoad ct0 ca0 0;
@@ -86,415 +35,65 @@ Definition droe_C_code : list Word :=
 
 Definition droe_C_data : list Word := [WInt 0].
 
-Definition droe_C_imports : list Word :=
-  [WSentry FwdDisable true XSRW_ Local droe_switcher_b droe_switcher_e droe_switcher_call].
+Definition droe_demo_link_cfg : link_cfg := {|
+  lk_base        := 16;
+  lk_ot_switcher := droe_switcher_sealing_type;
+  lk_adv         := [
+    ("C", {| la_code    := droe_C_code;
+             la_data    := droe_C_data;
+             la_exports := [
+               1  (* after the import *)
+             ] |})
+  ]
+|}.
 
-Definition droe_C_exports : list Word :=
-  [WInt (encode_entry_point InterruptEnabled 1 1)].
+(** ** The linked image and its initial state *)
 
-Program Definition droe_concrete_cmptSwitcher : cmptSwitcher.
+Definition droe_demo_image : fw_image :=
+  Eval vm_compute in
+    default (place droe_demo_link_cfg droe_firmware).1
+      (link droe_demo_link_cfg droe_firmware).
+
+Lemma droe_demo_linked :
+  link droe_demo_link_cfg droe_firmware = Some droe_demo_image.
+Proof. vm_compute; reflexivity. Qed.
+
+Definition droe_demo_state : ExecConf := img_state droe_firmware droe_demo_image.
+
+Ltac solve_other_registers :=
+  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
+  rewrite !lookup_insert_ne; try set_solver;
+  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
+
+Lemma droe_demo_ok :
+  droe_initial_state_ok (flag_assert (img_asrt droe_demo_image)) droe_demo_state.
 Proof.
-  refine (@mkCmptSwitcher machine_parameters_instance
-    droe_switcher_b droe_switcher_e
-    droe_switcher_call droe_switcher_return droe_switcher_otype
-    droe_trusted_stack_b droe_trusted_stack_e
-    _ _ _ _
-    (initial_trusted_stack_content 24) _ eq_refl
-    ltac:(exists 24; vm_compute; solve_addr)
-    ltac:(apply initial_trusted_stack_content_ints)
-    droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_droe_addresses.
-    repeat split; unfold disjoint, set_disjoint_instance;
-      intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
-      solve_addr.
-  - solve_disjoint_from_mmio.
-  - reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-Defined.
-
-Program Definition droe_concrete_cmptAssert : cmptAssert.
-Proof.
-  refine (@mkCmptAssert machine_parameters_instance
-    droe_assert_b droe_assert_e droe_assert_cap droe_assert_flag _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; reflexivity.
-  - unfold_droe_addresses.
-    unfold disjoint, set_disjoint_instance.
-    intros x Hx Hx'.
-    rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    solve_addr.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - vm_compute; reflexivity.
-Defined.
-
-#[local] Instance droe_concrete_switcherLayout : switcherLayout.
-Proof.
-  exact (cmptSwitcher_switcherLayout droe_concrete_cmptSwitcher).
-Defined.
-
-#[local] Instance droe_concrete_assertLayout : assertLayout.
-Proof.
-  exact (cmptAssert_assertLayout droe_concrete_cmptAssert).
-Defined.
-
-Definition droe_C_f : Sealable :=
-  SCap true RO Global droe_C_exp_pcc droe_C_exp_entries_e droe_C_exp_entries_b.
-
-Definition droe_main_imports_concrete : list Word :=
-  droe_main_imports droe_C_f.
-
-Program Definition droe_concrete_main_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance
-    droe_main_pcc_b droe_main_code_a droe_main_pcc_e
-    droe_main_cgp_b droe_main_cgp_e droe_main_cgp_e droe_main_cgp_e
-    droe_main_exp_pcc droe_main_exp_cgp
-    droe_main_exp_entries_b droe_main_exp_entries_e
-    droe_main_imports_concrete droe_main_code droe_main_data [] []
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_droe_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-Program Definition droe_concrete_C_cmpt : cmpt.
-Proof.
-  refine (@mkCmpt machine_parameters_instance
-    droe_C_pcc_b droe_C_code_a droe_C_pcc_e
-    droe_C_cgp_b droe_C_cgp_e droe_C_cgp_e droe_C_cgp_e
-    droe_C_exp_pcc droe_C_exp_cgp
-    droe_C_exp_entries_b droe_C_exp_entries_e
-    droe_C_imports droe_C_code droe_C_data [] droe_C_exports
-    _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _).
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - vm_compute; solve_addr.
-  - unfold_droe_addresses; disj_regions.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - solve_disjoint_from_mmio.
-  - solve_disjoint_from_mmio.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold not_heap_range; split.
-    + vm_compute; reflexivity.
-    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-Defined.
-
-(** All nonempty concrete regions, in increasing address order. The two
-    compartment static-sealed ranges are empty and deliberately omitted. *)
-Definition droe_concrete_region_partition : list (list Addr) :=
-  [ finz.seq_between droe_main_pcc_b droe_main_pcc_e;
-    finz.seq_between droe_C_pcc_b droe_C_pcc_e;
-    finz.seq_between droe_main_cgp_b droe_main_cgp_e;
-    finz.seq_between droe_C_cgp_b droe_C_cgp_e;
-    finz.seq_between droe_main_exp_pcc droe_main_exp_entries_e;
-    finz.seq_between droe_C_exp_pcc droe_C_exp_entries_e;
-    finz.seq_between droe_assert_b droe_assert_cap;
-    finz.seq_between droe_assert_cap droe_assert_e;
-    finz.seq_between droe_assert_flag (droe_assert_flag ^+ 1)%a;
-    finz.seq_between droe_switcher_b droe_switcher_e;
-    finz.seq_between droe_stack_b droe_stack_e;
-    finz.seq_between droe_trusted_stack_b droe_trusted_stack_e
-  ].
-
-Lemma droe_concrete_region_partition_disjoint :
-  ## droe_concrete_region_partition.
-Proof.
-  rewrite /droe_concrete_region_partition.
-  unfold_droe_addresses.
-  disj_regions.
+  rewrite /droe_initial_state_ok.
+  exists (img_sw droe_demo_image), (img_asrt droe_demo_image), (thread_of droe_demo_image 0),
+    (cmpt_of droe_demo_image "main"), (cmpt_of droe_demo_image "C").
+  split; first done.
+  split_and!.
+  all: try (exists 1%nat; split_and!).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /droe_demo_state /img_state /img_regs; solve_other_registers
+            end).
+  all: solve_concrete_condition.
 Qed.
 
-#[local] Lemma droe_concrete_cmpts_disjoints :
-  droe_concrete_main_cmpt ## droe_concrete_C_cmpt.
-Proof.
-  change
-    ((finz.seq_between droe_main_pcc_b droe_main_pcc_e ∪
-      finz.seq_between droe_main_cgp_b droe_main_cgp_e ∪
-      finz.seq_between droe_main_cgp_e droe_main_cgp_e ∪
-      finz.seq_between droe_main_exp_pcc droe_main_exp_entries_e)
-       ##
-     (finz.seq_between droe_C_pcc_b droe_C_pcc_e ∪
-      finz.seq_between droe_C_cgp_b droe_C_cgp_e ∪
-      finz.seq_between droe_C_cgp_e droe_C_cgp_e ∪
-      finz.seq_between droe_C_exp_pcc droe_C_exp_entries_e)).
-  pose proof droe_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty droe_main_cgp_e droe_main_cgp_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty droe_C_cgp_e droe_C_cgp_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint droe_concrete_region_partition Hpartition.
-Qed.
+(** ** The run
 
-#[local] Lemma droe_concrete_switcher_cmpt_disjoints :
-  switcher_cmpt_disjoint
-    droe_concrete_main_cmpt droe_concrete_cmptSwitcher
-  ∧ switcher_cmpt_disjoint
-      droe_concrete_C_cmpt droe_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between droe_switcher_b droe_switcher_e ∪
-      finz.seq_between droe_trusted_stack_b droe_trusted_stack_e ∪
-      finz.seq_between droe_stack_b droe_stack_e)
-       ##
-     (finz.seq_between droe_main_pcc_b droe_main_pcc_e ∪
-      finz.seq_between droe_main_cgp_b droe_main_cgp_e ∪
-      finz.seq_between droe_main_cgp_e droe_main_cgp_e ∪
-      finz.seq_between droe_main_exp_pcc droe_main_exp_entries_e)
-     /\
-     (finz.seq_between droe_switcher_b droe_switcher_e ∪
-      finz.seq_between droe_trusted_stack_b droe_trusted_stack_e ∪
-      finz.seq_between droe_stack_b droe_stack_e)
-       ##
-     (finz.seq_between droe_C_pcc_b droe_C_pcc_e ∪
-      finz.seq_between droe_C_cgp_b droe_C_cgp_e ∪
-      finz.seq_between droe_C_cgp_e droe_C_cgp_e ∪
-      finz.seq_between droe_C_exp_pcc droe_C_exp_entries_e)).
-  pose proof droe_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty droe_main_cgp_e droe_main_cgp_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty droe_C_cgp_e droe_C_cgp_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint droe_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma droe_concrete_assert_cmpt_disjoints :
-  assert_cmpt_disjoint droe_concrete_main_cmpt droe_concrete_cmptAssert
-  ∧ assert_cmpt_disjoint droe_concrete_C_cmpt droe_concrete_cmptAssert.
-Proof.
-  change
-    ((finz.seq_between droe_assert_b droe_assert_cap ∪
-      finz.seq_between droe_assert_cap droe_assert_e ∪
-      finz.seq_between droe_assert_flag (droe_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between droe_main_pcc_b droe_main_pcc_e ∪
-      finz.seq_between droe_main_cgp_b droe_main_cgp_e ∪
-      finz.seq_between droe_main_cgp_e droe_main_cgp_e ∪
-      finz.seq_between droe_main_exp_pcc droe_main_exp_entries_e)
-     /\
-     (finz.seq_between droe_assert_b droe_assert_cap ∪
-      finz.seq_between droe_assert_cap droe_assert_e ∪
-      finz.seq_between droe_assert_flag (droe_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between droe_C_pcc_b droe_C_pcc_e ∪
-      finz.seq_between droe_C_cgp_b droe_C_cgp_e ∪
-      finz.seq_between droe_C_cgp_e droe_C_cgp_e ∪
-      finz.seq_between droe_C_exp_pcc droe_C_exp_entries_e)).
-  pose proof droe_concrete_region_partition_disjoint as Hpartition.
-  rewrite (finz_seq_between_empty droe_main_cgp_e droe_main_cgp_e);
-    last solve_addr.
-  rewrite (finz_seq_between_empty droe_C_cgp_e droe_C_cgp_e);
-    last solve_addr.
-  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
-  solve_addr_partition_disjoint droe_concrete_region_partition Hpartition.
-Qed.
-
-#[local] Lemma droe_concrete_assert_switcher_disjoints :
-  assert_switcher_disjoint
-    droe_concrete_cmptAssert droe_concrete_cmptSwitcher.
-Proof.
-  change
-    ((finz.seq_between droe_assert_b droe_assert_cap ∪
-      finz.seq_between droe_assert_cap droe_assert_e ∪
-      finz.seq_between droe_assert_flag (droe_assert_flag ^+ 1)%a)
-       ##
-     (finz.seq_between droe_switcher_b droe_switcher_e ∪
-      finz.seq_between droe_trusted_stack_b droe_trusted_stack_e ∪
-      finz.seq_between droe_stack_b droe_stack_e)).
-  pose proof droe_concrete_region_partition_disjoint as Hpartition.
-  solve_addr_partition_disjoint droe_concrete_region_partition Hpartition.
-Qed.
-
-#[global] Instance droe_concrete_layout : memory_layout.
-Proof.
-  refine
-    (@Build_memory_layout
-       machine_parameters_instance
-       droe_concrete_cmptSwitcher
-       droe_concrete_cmptAssert
-       droe_concrete_main_cmpt
-       droe_concrete_C_cmpt
-       droe_concrete_cmpts_disjoints
-       droe_concrete_switcher_cmpt_disjoints
-       droe_concrete_assert_cmpt_disjoints
-       droe_concrete_assert_switcher_disjoints).
-Defined.
-
-Definition droe_initial_pc : Word :=
-  WCap true RX Global droe_main_pcc_b droe_main_pcc_e droe_main_code_a.
-
-Definition droe_initial_registers : Reg :=
-  (<[cgp := WCap true RW Global droe_main_cgp_b droe_main_cgp_e droe_main_cgp_b]>
-  (<[csp := WCap true RWL Local droe_stack_b droe_stack_e droe_stack_b]>
-    (gset_to_gmap (WInt 0) all_registers_s))).
-
-Definition droe_initial_sregisters : SReg :=
-  initial_sregisters_with
-    (WCap true RWL Global droe_trusted_stack_b droe_trusted_stack_e
-      droe_trusted_stack_b).
-
-Definition droe_initial_memory : Mem := mk_initial_memory.
-
-Lemma droe_initial_registers_correct :
-  is_initial_registers droe_initial_pc droe_initial_registers.
-Proof.
-  rewrite /is_initial_registers /droe_initial_pc /droe_initial_registers.
-  cbn [droe_concrete_layout droe_concrete_main_cmpt].
-  split; [|split; [|split]].
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
-  - intros r Hr; rewrite !lookup_insert_ne; try set_solver.
-    apply lookup_gset_to_gmap_Some; split.
-    + apply all_registers_s_correct.
-    + done.
-Qed.
-
-Lemma droe_initial_sregisters_correct :
-  is_initial_sregisters droe_initial_sregisters.
-Proof.
-  rewrite /is_initial_sregisters /droe_initial_sregisters.
-  cbn [droe_concrete_layout droe_concrete_cmptSwitcher].
-  apply initial_sregisters_with_correct. vm_compute; reflexivity.
-Qed.
-
-Lemma droe_initial_memory_correct :
-  is_initial_memory droe_initial_memory.
-Proof.
-  rewrite /is_initial_memory /droe_initial_memory.
-  repeat split; try reflexivity; try apply Forall_nil_2.
-  - rewrite /droe_C_code /encodeInstrsW;
-      repeat constructor; done.
-  - rewrite /droe_C_data; repeat constructor; done.
-  - apply Forall_replicate; done.
-Qed.
-
-(** The initialized free heap is disjoint from the concrete program. *)
-Lemma droe_initial_heap_disjoint :
-  initial_heap_memory ##ₘ mk_initial_program_memory.
-Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
-
-Lemma droe_concrete_adequacy pc' reg' sreg' mem' sh' es :
-  rtc erased_step
-    ([Seq (Instr Executable)],
-      (droe_initial_pc, droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow))
-    (es, (pc', reg', sreg', mem', sh')) ->
-  mem' !! droe_assert_flag = Some (WInt 0%Z).
-Proof.
-  intro Hrun.
-  pose proof
-    (@droe_adequacy machine_parameters_instance droe_concrete_layout
-      droe_initial_pc pc' droe_initial_registers reg'
-      droe_initial_sregisters sreg'
-      droe_initial_memory mem' initial_heap_shadow sh' es
-      droe_initial_registers_correct
-      droe_initial_sregisters_correct
-      droe_initial_memory_correct eq_refl droe_initial_heap_disjoint Hrun) as Hadequacy.
-  cbn [droe_concrete_layout droe_concrete_cmptAssert] in Hadequacy.
-  exact Hadequacy.
-Qed.
-
-(** Fuel 2000 is insufficient for this concrete run; 3000 reaches [Halted]. *)
-(** Combining the computed execution with [droe_concrete_adequacy] shows that
-    there is a final machine state such that the exact initial configuration:
-    - executes to [Halted], rather than failing or exhausting the chosen fuel;
-    - finishes with the assertion flag still set to zero.
-    Thus this particular adversarial execution terminates normally without
-    violating the case study's assertion. *)
+    [droe_demo_state] runs to [Halted], and [droe_adequacy] applies to it:
+    the flag of the assert library is still zero. Fuel 2000 does not
+    suffice; 3000 reaches [Halted]. *)
 Theorem droe_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step
-      ([Seq (Instr Executable)],
-        (droe_initial_pc, droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow))
+    rtc erased_step ([Seq (Instr Executable)], droe_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! droe_assert_flag = Some (WInt 0%Z).
+    ∧ mem' !! flag_assert (img_asrt droe_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof
-    (machine_run_correct 3000 Executable
-      (droe_initial_pc, droe_initial_registers, droe_initial_sregisters, droe_initial_memory, initial_heap_shadow)
-      Halted) as Hrun.
+  pose proof (machine_run_correct 3000 Executable droe_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
-  exists pc', reg', sreg', mem', sh'. split.
-  - exact Hrun.
-  - eapply droe_concrete_adequacy; exact Hrun.
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (droe_adequacy _ _ _ _ droe_demo_ok Hrun).
 Qed.
