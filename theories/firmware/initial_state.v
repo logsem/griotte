@@ -6,7 +6,8 @@ Set Mangle Names.
 (** * Defining the initial-state predicate of a case study
 
     A case study states its start as [<cs>_start flag σ], an [∃] over its
-    layout and parameters of [fw_start] on its firmware and image. Then
+    layout and parameters of [fw_start] on the conditions on its
+    parameters, its firmware and its image. Then
 
     - [compute_initial_state (@<cs>_start MP) [<cs>_firmware; <cs>_img]]
       computes the annotated predicate: it unfolds [<cs>_start] and the

@@ -66,7 +66,7 @@ Definition so_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
 Definition so_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main C : img_cmpt),
-    fw_start so_firmware (so_img sw asrt t0 main C) flag σ.
+    fw_start [] so_firmware (so_img sw asrt t0 main C) flag σ.
 
 (** The predicate, computed from [so_start], with its comments. *)
 Definition so_initial_state_ok_annot `{MP : MachineParameters} :

@@ -98,7 +98,7 @@ Definition hts_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
 Definition hts_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main allocator B : img_cmpt) (ot_alloc : OType),
-    fw_start (hts_firmware ot_alloc) (hts_img sw asrt t0 main allocator B) flag σ.
+    fw_start [] (hts_firmware ot_alloc) (hts_img sw asrt t0 main allocator B) flag σ.
 
 (** The predicate, computed from [hts_start], with its comments. *)
 Definition hts_initial_state_ok_annot `{MP : MachineParameters} :

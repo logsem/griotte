@@ -64,7 +64,7 @@ Definition vae_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
 Definition vae_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main C : img_cmpt),
-    fw_start vae_firmware (vae_img sw asrt t0 main C) flag σ.
+    fw_start [] vae_firmware (vae_img sw asrt t0 main C) flag σ.
 
 (** The predicate, computed from [vae_start], with its comments. *)
 Definition vae_initial_state_ok_annot `{MP : MachineParameters} :

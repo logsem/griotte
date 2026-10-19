@@ -69,7 +69,7 @@ Definition cmdc_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
 Definition cmdc_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main B C : img_cmpt),
-    fw_start cmdc_firmware (cmdc_img sw asrt t0 main B C) flag σ.
+    fw_start [] cmdc_firmware (cmdc_img sw asrt t0 main B C) flag σ.
 
 (** The predicate, computed from [cmdc_start], with its comments. *)
 Definition cmdc_initial_state_ok_annot `{MP : MachineParameters} :

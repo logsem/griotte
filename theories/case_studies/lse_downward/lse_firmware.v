@@ -62,7 +62,7 @@ Definition lse_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
 Definition lse_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main C : img_cmpt),
-    fw_start lse_firmware (lse_img sw asrt t0 main C) flag σ.
+    fw_start [] lse_firmware (lse_img sw asrt t0 main C) flag σ.
 
 (** The predicate, computed from [lse_start], with its comments. *)
 Definition lse_initial_state_ok_annot `{MP : MachineParameters} :

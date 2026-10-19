@@ -440,12 +440,16 @@ Definition firmware_ok `{MP : MachineParameters}
   img_wf fw img.
 
 (** The start of a firmware: the flag of the assert library at [flag],
-    and the machine state [σ] built by the loader for [fw] laid out as
-    [img]. *)
-Definition fw_start `{MP : MachineParameters}
+    the conditions [params] on the parameters of the firmware, and the
+    machine state [σ] built by the loader for [fw] laid out as [img].
+    Without parameter conditions, there is no section for them. *)
+Definition fw_start `{MP : MachineParameters} (params : list Prop)
     (fw : firmware) (img : fw_image) (flag : Addr) (σ : ExecConf) : Prop :=
   note "the flag of the assert library" (flag_assert (img_asrt img) = flag) ∧
-  firmware_ok fw img σ.
+  match params with
+  | [] => firmware_ok fw img σ
+  | _ => section "Parameters" (big_and params) ∧ firmware_ok fw img σ
+  end.
 
 (** ** Reduction on a concrete firmware
 

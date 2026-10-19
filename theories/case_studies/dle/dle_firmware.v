@@ -61,7 +61,7 @@ Definition dle_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
 Definition dle_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main C : img_cmpt),
-    fw_start dle_firmware (dle_img sw asrt t0 main C) flag σ.
+    fw_start [] dle_firmware (dle_img sw asrt t0 main C) flag σ.
 
 (** The predicate, computed from [dle_start], with its comments. *)
 Definition dle_initial_state_ok_annot `{MP : MachineParameters} :

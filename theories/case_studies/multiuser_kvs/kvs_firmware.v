@@ -89,8 +89,8 @@ Definition kvs_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
 Definition kvs_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (main kvs B : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
-    section "Parameters" (key_main ≠ key_B) ∧
-    fw_start (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) flag σ.
+    fw_start [key_main ≠ key_B]
+      (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) flag σ.
 
 (** The predicate, computed from [kvs_start], with its comments. *)
 Definition kvs_initial_state_ok_annot `{MP : MachineParameters} :
