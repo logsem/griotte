@@ -67,7 +67,7 @@ Section Switcher_Call_Blocks_2.
           )
       ) ∧
       ( ∀ a stk_mem',
-        ⌜ (a = pc_a ∧ stk_mem' = stk_mem) ∨
+        ⌜ (a = pc_a ∧ stk_mem' = stk_mem ∧ (a_stk + 3 < b_stk ∨ e_stk <= a_stk + 3)%Z) ∨
           ((a_stk < b_stk)%a ∧ a = (pc_a ^+ 1)%a ∧ stk_mem' = <[3 := wcgp]> stk_mem) ⌝ -∗
         cs0 ↦ᵣ wcs0 ∗
         cs1 ↦ᵣ wcs1 ∗
@@ -93,14 +93,18 @@ Section Switcher_Call_Blocks_2.
     { iDestruct "Hpost" as "[_ Hfailed]".
       destruct (a_stk + 3)%a as [a_stk3|] eqn:Hastk3.
       - (* Store csp cgp 3 *)
+        assert (¬ (b_stk <= a_stk3 < e_stk)%a) as Hastk3_out'
+          by (intros ?; apply Hastk3_out; split; [solve_addr|f_equal; solve_addr]).
         iInstrApply "Hcode" wp_store_fail_reg_imm with "[$HPC $Hcgp $Hcsp]" as "(HPC & Hcgp & Hcsp)".
-        { assert (¬ (b_stk <= a_stk3 < e_stk)%a) as Hastk3_out'
-            by (intros ?; apply Hastk3_out; split; [solve_addr|f_equal; solve_addr]).
-          rewrite /withinBounds; solve_addr. }
+        { rewrite /withinBounds; solve_addr+Hastk3_out'. }
         iTrap with "Hfailed".
+        left; split; first done; split; first done.
+        solve_addr+Hastk3 Hastk3_out'.
       - (* Store csp cgp 3 *)
         iInstrApply "Hcode" wp_store_fail_reg_overflow_imm with "[$HPC $Hcgp $Hcsp]" as "(HPC & Hcgp & Hcsp)".
-        iTrap with "Hfailed". }
+        iTrap with "Hfailed".
+        left; split; first done; split; first done.
+        right; solve_addr+Hastk3. }
 
     (* Split the four cells off the stack *)
     destruct stk_mem as [|w0 [|w1 [|w2 [|w3 stk_mem] ] ] ];
@@ -430,7 +434,7 @@ Section Switcher_Call_Blocks_2.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
     ( ∀ a_f stk_mem',
         ⌜ (a_f = (a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill")%a ∧
-           stk_mem' = stk_mem) ∨
+           stk_mem' = stk_mem ∧ (a + 3 < b ∨ e <= a + 3)%Z) ∨
           ((a < b)%a ∧
            a_f = (a_switcher_call ^+ (switcher_label_offset ".Lswitcher_entry_first_spill" + 1))%a ∧
            stk_mem' = <[3 := wcgp]> stk_mem) ⌝ -∗
@@ -467,7 +471,8 @@ Section Switcher_Call_Blocks_2.
       iDestruct "Hpost" as "[_ Hfailed]".
       iApply ("Hfailed" with "[] [$]").
       iPureIntro; offsets_compute.
-      destruct Ha_f as [ [-> ->] | (? & -> & ->) ]; [left | right]; repeat split; solve_addr. }
+      destruct Ha_f as [ (-> & -> & ?) | (? & -> & ->) ]; [left | right]; repeat split;
+        try solve_addr; done. }
     iDestruct "Hpost" as "[Hpost _]".
     iNext; iIntros (stk_mem')
       "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp

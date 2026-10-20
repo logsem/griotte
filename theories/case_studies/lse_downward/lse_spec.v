@@ -60,6 +60,8 @@ Section LSE.
 
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
     (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher call *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs [] W0 C ->
@@ -109,7 +111,7 @@ Section LSE.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexp_tbl_shadow Hpc_nonheap
                HNswitcher_lse Hsize_lse_exp_tbl
                Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hsealed_nonheap Hframe_match
+               Hcgp_contiguous Himports_contiguous Hstk_min Hsealed_nonheap Hframe_match
             )
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
@@ -173,17 +175,8 @@ Section LSE.
       reflexivity. }
     iSplit; first done.
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault /switcher_cc_fault_res.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                      & (%rmap'' & %Hdom'' & Hrmap) & _ & _ & _ & Hcstk & _)".
-      iDestruct (switcher_cc_fault_full_regs arg_rmap rmap' rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [exact Harg_rmap | exact Hrmap'_dom | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem.
     iIntros (W2 rmap' stk_mem l' rcgp rcra rcs0 rcs1)

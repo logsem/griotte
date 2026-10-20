@@ -23,92 +23,6 @@ Section HTS_Reload.
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     `{MP: MachineParameters}.
 
-  (* TODO: move to rules_Load.v *)
-  (** [wp_load_general_shadow_imm_one] for a readable source capability
-      without an identifier, in bounds: the load cannot fault. *)
-  #[local] Lemma hts_load_witness_imm_one E pc_p pc_g pc_b pc_e pc_a pc_a' dst src
-      (imm : Z) (wi wd : LWord) dq p g b e a_src a (raw : LWord) wit :
-    decodeInstrW wi.(lw) = CLoad dst src imm →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (a_src + imm)%a = Some a →
-    is_shadow_address a = false →
-    readAllowed p = true →
-    withinBounds b e a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    dst ≠ cnull →
-    src ≠ cnull →
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
-        pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗
-        src ↦ᵣ WCap true p g b e a_src ∗
-        a ↦ₐ raw ∗
-        load_witness_res wit }}}
-      Instr Executable @ E
-    {{{ actual, RET NextIV;
-        ⌜load_post wit p raw actual⌝ ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
-        pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ actual ∗
-        src ↦ᵣ WCap true p g b e a_src ∗
-        a ↦ₐ raw ∗
-        load_witness_res wit }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hea Hnot_shadow Hread Hbounds Hpca' Hdst Hsrc Φ)
-      "(HPC & Hi & Hdst & Hsrc & Ha & Hwit) HΦ".
-    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
-    iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
-    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
-      as "Hshadow".
-    { by rewrite big_sepM_empty. }
-    iApply (wp_load_general_shadow_imm E pc_p pc_g pc_b pc_e pc_a None dst src imm wi
-      (<[pc_a:=wi]> (<[a:=raw]> ∅)) _ _ ∅ DfracDiscarded wit DerefNoId
-      with "[$HPC $Hmem $Hshadow $Hmap $Hwit //]").
-    { exact Hinstr. }
-    { exact Hvpc. }
-    { by rewrite !dom_insert; set_solver+. }
-    { by simplify_map_eq. }
-    { intros p0 g0 b0 e0 ea0 Hallow.
-      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
-      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite Hea in Haddr. injection Haddr as <-.
-      rewrite Hnot_shadow.
-      case_match; first done.
-      eexists. by simplify_map_eq. }
-    { by rewrite !dom_insert_L. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
-                      |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
-                      |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
-                      |Hfail -> ->].
-    - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
-      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite Hea in Haddr. injection Haddr as <-.
-      rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
-      injection Hlookup as <-.
-      rewrite linsert_reg_not_cnull //.
-      apply incrementPC_Some_inv in Hinc
-        as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
-      injection HPC as <- <- <- <- <- <- <-.
-      rewrite Hpca' in Hapc. injection Hapc as <-.
-      rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
-      iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
-      iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
-      iApply "HΦ". by iFrame.
-    - exfalso. by rewrite lookup_empty in Hlookup.
-    - exfalso.
-      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
-      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite Hea in Haddr. injection Haddr as <-.
-      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
-    - exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ _ p g b e a_src a);
-        eauto; try by simplify_map_eq.
-      all: try (by intros ? Hv; rewrite llookup_reg_not_cnull // in Hv; simplify_map_eq).
-      all: rewrite llookup_reg_not_cnull //; by simplify_map_eq.
-  Qed.
-
   Definition hts_reload_buffer_instrs : list Word :=
     hts_main_instrs_n 10.
 
@@ -146,7 +60,7 @@ Section HTS_Reload.
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_reload_buffer_instrs.
     (* CLoad ca0 csp (-1). *)
-    iInstrApply "Hcode" (hts_load_witness_imm_one _ _ _ _ _ _ _ ca0 csp (-1))
+    iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds _ _ _ _ _ _ _ ca0 csp (-1))
       with "[$HPC $Hca0 $Hcsp $Ha $Hwit]"
       as (actual) "(%Hactual & HPC & Hca0 & Hcsp & Ha & Hwit)".
     { solve_addr. }
@@ -193,6 +107,7 @@ Section HTS_Spec_Free.
     not_heap_range cgp_b cgp_e ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (csp_b + 5 <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
@@ -201,7 +116,7 @@ Section HTS_Spec_Free.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap HsubBounds
+    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min HsubBounds
       Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -397,7 +312,7 @@ Section HTS_Spec_Free.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other []
-      allocator_free_nargs ⊤
+      allocator_free_nargs allocator_free_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
@@ -426,6 +341,7 @@ Section HTS_Spec_Free.
       rewrite /allocator_code length_app in Hcode_size.
       rewrite -allocator_imports_length.
       solve_addr+ Himports_size Hcode_size. }
+    { rewrite /allocator_free_min_stack. solve_addr+Hstk_min. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie; reflexivity. }
@@ -434,17 +350,8 @@ Section HTS_Spec_Free.
     iFrame "Hobj Hright Hfree_mem Howner Howner_word".
     iSplitR; first (iPureIntro; set_solver+).
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault_known_to_known /switcher_cc_fault_res_known_to_known.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "[(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                       & (%rmap'' & %Hdom'' & Hrmap) & _ & Hcstk) _]".
-      iDestruct (switcher_cc_fault_full_regs free_arg free_other rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [exact Hargs_rmap | exact Hdom_other | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".

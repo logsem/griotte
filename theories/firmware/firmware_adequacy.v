@@ -552,7 +552,7 @@ Section layout_of_img_wf.
     destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|] eqn:Hbody;
       last done.
     destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
-    intros (Hstack & Htstack & Hrange_stack & Hrange_tstack).
+    intros (Hstack & Htstack & Hrange_stack & Hrange_tstack & _).
     destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
     by split_and!.
   Qed.
@@ -749,6 +749,27 @@ Section entry.
     | TrustedBody b => fe_offset (fw_export_named (ft_entry (fw_thread_of fw i)) (tb_exports b))
     | UntrustedBody _ => 0
     end.
+
+  (** The minimum stack size of the export the thread [i] starts at. *)
+  Definition fw_entry_min_stack (fw : firmware) (i : nat) : nat :=
+    match fc_body (fw_entry_fc fw i) with
+    | TrustedBody b => fe_min_stack (fw_export_named (ft_entry (fw_thread_of fw i)) (tb_exports b))
+    | UntrustedBody _ => 0
+    end.
+
+  (** The stack of a thread holds the minimum stack size of its entry. *)
+  Lemma thread_wf_min_stack fw img i :
+    thread_wf fw img i (fw_thread_of fw i) →
+    (b_stack (thread_of img i) + Z.of_nat (fw_entry_min_stack fw i) <= e_stack (thread_of img i))%Z.
+  Proof.
+    rewrite /thread_wf /fw_entry_min_stack /fw_entry_fc /section /note.
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt (fw_thread_of fw i)))) as [tb|];
+      last done.
+    rewrite /fw_export_named.
+    destruct (fw_find_export (ft_entry (fw_thread_of fw i)) (tb_exports tb)) as [e|]; last done.
+    intros (Hstack & _ & _ & _ & Hmin).
+    solve_addr+Hstack Hmin.
+  Qed.
 
   Definition fw_entry_cmpt (fw : firmware) (img : fw_image) (i : nat) : img_cmpt :=
     cmpt_of img (ft_cmpt (fw_thread_of fw i)).
@@ -1237,8 +1258,8 @@ Section entries_facts.
   Proof.
     revert k. induction ns as [|n ns IH]; intros k Hk; cbn in Hk.
     - by exists [].
-    - destruct Hk as (off & _ & Hk). destruct (IH _ Hk) as (ws & Hlen & Hws).
-      exists (export_word (MkFwExport "" off n InterruptEnabled) :: ws). by rewrite /= Hlen.
+    - destruct Hk as (off & minstk & _ & Hk). destruct (IH _ Hk) as (ws & Hlen & Hws).
+      exists (export_word (MkFwExport "" off n minstk InterruptEnabled) :: ws). by rewrite /= Hlen.
   Qed.
 
   (** The conditions on a compartment whose imports and globals name known

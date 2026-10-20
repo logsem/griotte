@@ -18,93 +18,6 @@ Section KVS_spec_read.
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
-
-
-
-  (* TODO: move to rules_Load.v *)
-  (** [wp_load_preserve_or_clear] for a source capability without an
-      identifier: the load cannot fault. *)
-  #[local] Lemma kvs_load_preserve_or_clear E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
-    dst src (wi wd : LWord) p g b e a (raw : LWord) dq :
-    readAllowed p = true ->
-    is_shadow_address a = false ->
-    decodeInstrW wi.(lw) = CLoad dst src 0 ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
-    withinBounds b e a = true ->
-    (pc_a + 1)%a = Some pc_a' ->
-    dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗
-        src ↦ᵣ WCap true p g b e a ∗
-        a ↦ₐ raw }}}
-      Instr Executable @ E
-    {{{ actual, RET NextIV;
-        ⌜lload_heap (lload_word p raw) actual⌝ ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-        pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ actual ∗
-        src ↦ᵣ WCap true p g b e a ∗
-        a ↦ₐ raw }}}.
-  Proof.
-    iIntros (Hread Hshadow Hinstr Hvpc Hbounds Hpc' Hdst Hsrc φ)
-      "(HPC & Hi & Hdst & Hsrc & Ha) Hφ".
-    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
-    iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
-    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
-      as "Hshadow".
-    { by rewrite big_sepM_empty. }
-    iApply (wp_load_general_shadow_imm E pc_p pc_g pc_b pc_e pc_a pc_π dst src 0 wi
-      (<[pc_a:=wi]> (<[a:=raw]> ∅)) _ _ ∅ DfracDiscarded LoadPlain DerefNoId
-      with "[$HPC $Hmem $Hshadow $Hmap //]").
-    { exact Hinstr. }
-    { exact Hvpc. }
-    { by rewrite !dom_insert; set_solver+. }
-    { by simplify_map_eq. }
-    { intros p0 g0 b0 e0 ea0 Hallow.
-      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
-      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite finz_add_0 in Haddr. injection Haddr as <-.
-      rewrite Hshadow.
-      case_match; first done.
-      eexists. by simplify_map_eq. }
-    { by rewrite !dom_insert_L. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & _ & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hlookup Hpost Hinc ->
-                      |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
-                      |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
-                      |Hfail -> ->].
-    - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
-      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite finz_add_0 in Haddr. injection Haddr as <-.
-      rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
-      injection Hlookup as <-.
-      rewrite linsert_reg_not_cnull //.
-      apply incrementPC_Some_inv in Hinc
-        as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
-      injection HPC as <- <- <- <- <- <- <-.
-      rewrite Hpc' in Hapc. injection Hapc as <-.
-      rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
-      iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
-      iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
-      iApply "Hφ". iFrame.
-      iPureIntro; by destruct Hpost.
-    - exfalso. by rewrite lookup_empty in Hlookup.
-    - exfalso.
-      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
-      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
-      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
-      rewrite finz_add_0 in Haddr. injection Haddr as <-.
-      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
-    - exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ _ p g b e a a);
-        eauto; try by simplify_map_eq.
-      all: try by rewrite finz_add_0.
-      all: try (by intros ? Hv; rewrite llookup_reg_not_cnull // in Hv; simplify_map_eq).
-      all: rewrite llookup_reg_not_cnull //; by simplify_map_eq.
-  Qed.
-
   (*** KVS READ: Read key in the KVS *)
   (** A successful read returns the stored word or, for a heap capability,
       its tag-cleared form. The physical and logical KVS entries keep the
@@ -227,7 +140,7 @@ Section KVS_spec_read.
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx. }
     (* CLoad ca1 cgp 0: the heap shadow can clear the returned tag. *)
-    iInstrApply "Hcode" (kvs_load_preserve_or_clear _ _ _ _ _ _ _ (a_read ^+ 7)%a)
+    iInstrApply "Hcode" (wp_load_preserve_or_clear_noid _ _ _ _ _ _ _ (a_read ^+ 7)%a)
       with "[$HPC $Hca1 $Hcgp $Hcgp_val]"
       as (actual) "(%Hactual & HPC & Hca1 & Hcgp & Hcgp_val)".
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
@@ -1577,13 +1490,11 @@ Section KVS_spec_read.
     :
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
 
     is_uint16 nkey ->
     (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
 
       (* initial register file *)
@@ -1611,8 +1522,8 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (Hunsealing_shadow HE Hnkey_is_uint16 Hwca0)
-      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hfailed)".
+    iIntros (Hunsealing_shadow Hnkey_is_uint16 Hwca0)
+      "(#Hkvs_static & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hfailed)".
 
     iDestruct (kvs_static_unsealing_key with "Hkvs_static") as "#Ha_unsealing".
     iDestruct "Hkvs_static" as "[_ #Hcode_main]".
@@ -1670,14 +1581,14 @@ Section KVS_spec_read.
          ⌜ wca0 = WInt ASM_TRUE ⌝ ∗
          ⌜ wca1 = w ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
-      b_stk e_stk a_stk arg_rmap cstk kvs_read_nargs E
+      b_stk e_stk a_stk arg_rmap cstk kvs_read_nargs kvs_read_min_stack E
       KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_read_pcc_off.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "(#Hkvs_static & #Hkvs & #Hkvs_logical)" (mie arg_rmap' rmap')
-      "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
+      "(_ & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hcstk
        & (Huser_key & Huser_kvs & Hkey)
        & Hpost)".

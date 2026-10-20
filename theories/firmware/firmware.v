@@ -28,17 +28,19 @@ Inductive fw_chunk : Type :=
 | FWord (w : fw_word).
 
 (** An export of a trusted compartment: its name, its offset from the base
-    of the PCC, its number of arguments and its interrupt posture. Imports
-    and threads refer to exports by name. *)
+    of the PCC, its number of arguments, its minimum stack size (in words)
+    and its interrupt posture. Imports and threads refer to exports by
+    name. *)
 Record fw_export : Type := MkFwExport {
   fe_name : string;
   fe_offset : nat;
   fe_nargs : nat;
+  fe_min_stack : nat;
   fe_posture : InterruptStatus;
 }.
 
 (** An export of an untrusted compartment: its name and its number of
-    arguments; its offset is arbitrary. *)
+    arguments; its offset and its minimum stack size are arbitrary. *)
 Record fw_untrusted_export : Type := MkFwUntrustedExport {
   ue_name : string;
   ue_nargs : nat;

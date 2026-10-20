@@ -62,14 +62,14 @@ Section AllocatorSwitcherSpec.
       (allocator_owner_id id Ω ∗
        a_owner ↦ₐ WInt id)
       (allocator_malloc_result S a_owner id Ω n) wcgp wcra wcs0 wcs1
-      b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs ⊤
+      b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_malloc_pcc_off.
   Proof.
     iIntros (Hn Hshadow_owner Hbounds_owner Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (mie arg_rmap' rmap')
-      "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
+      "(_ & %Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
         & Hargs & Hrmap & Hstk & Hcstk & (Hid & Ha_owner) & Hpost)".
     iEval (cbn) in "HPC".
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as
@@ -164,14 +164,14 @@ Section AllocatorSwitcherSpec.
        free_right ι ∗
        [[b,e]] ↦ₕ[ι] [[ws]])
       (allocator_free_result a_owner id Ω ι) wcgp wcra wcs0 wcs1
-      b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs ⊤
+      b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs allocator_free_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_free_pcc_off%I.
   Proof.
     iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (mie arg_rmap' rmap')
-      "(%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
+      "(_ & %Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
         & Hargs & Hrmap & Hstk & Hcstk
         & (Hid & %HιΩ & Ha_owner & #Hobj & Hheld & Hmem) & Hpost)".
     iEval (cbn) in "HPC".

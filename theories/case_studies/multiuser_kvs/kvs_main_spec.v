@@ -65,6 +65,8 @@ Section KVS_main_spec.
     (static_sealed_b + length (kvs_main_static_sealed KVS_USER_KEY_MAIN))%a = Some static_sealed_e ->
     (cgp_b + length (kvs_main_data))%a = Some cgp_e ->
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher calls *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     frame_match Ws Cs [] W0 B ->
@@ -110,7 +112,8 @@ Section KVS_main_spec.
   Proof.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
-               Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous HB_f_nonheap Hframe_match
+               Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
+               Hframe_match
             )
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Hkvs_static & #Hkvs & #Hkvs_logical
@@ -242,7 +245,8 @@ Section KVS_main_spec.
              wcs0 (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e csp_b B_f stk_mem_B rmap_B Ws Cs
              ).
-    all: [> exact Hstk_shadow | exact Hstk_heap | solve_addr | destruct mie; reflexivity
+    all: [> exact Hstk_shadow | exact Hstk_heap | solve_addr | solve_addr+Hstk_min
+         | destruct mie; reflexivity
          | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
          | subst rmap_B;
            repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L);

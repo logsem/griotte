@@ -51,6 +51,7 @@ Section HTS_Spec_Malloc.
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (csp_b + 5 <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
@@ -71,7 +72,7 @@ Section HTS_Spec_Malloc.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
-      Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hrmap_dom HsubBounds
+      Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hstk_min Hrmap_dom HsubBounds
       Himports_contiguous)
       "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hrmap & Hstatic & Howner & Hworld
        & #Hinterp_csp & HK & Hcstk & Hcontinue)".
@@ -223,7 +224,7 @@ Section HTS_Spec_Malloc.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other []
-      allocator_malloc_nargs ⊤
+      allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
@@ -248,6 +249,7 @@ Section HTS_Spec_Malloc.
     { exists allocator_code_b.
       rewrite /allocator_malloc_pcc_off -allocator_imports_length.
       exact allocator_size_imports. }
+    { rewrite /allocator_malloc_min_stack. solve_addr+Hstk_min. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie; reflexivity. }
@@ -255,17 +257,8 @@ Section HTS_Spec_Malloc.
       reflexivity. }
     iFrame "Howner Howner_word".
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault_known_to_known /switcher_cc_fault_res_known_to_known.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "[(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                       & (%rmap'' & %Hdom'' & Hrmap) & _ & Hcstk) _]".
-      iDestruct (switcher_cc_fault_full_regs rmap_arg rmap_other rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [exact Hargs_rmap | exact Hdom_other | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".

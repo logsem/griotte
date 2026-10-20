@@ -35,12 +35,12 @@ Section Heap_Temporal_Safety_Interp.
     execute_entry_point
       (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
       (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
-      allocator_malloc_nargs W C.
+      allocator_malloc_nargs allocator_malloc_min_stack W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
-      "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
+      "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
     rewrite /interp_conf.
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & [%mie %Hcra] & %Hcsp & #Hinterp_csp & Hregs)".
@@ -56,8 +56,8 @@ Section Heap_Temporal_Safety_Interp.
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
     { iApply (allocator_malloc_invalid_capability_spec Nswitcher ⊤ wca0
-        with "[- $Hservice $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
-        [ solve_ndisj | solve_ndisj
+        with "[- $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
+        [ solve_ndisj
         | apply andb_false_iff in Hcap_valid as [Hnot_tagged|Hnot_sealed];
           [right; exact Hnot_tagged | left; exact Hnot_sealed] |].
       iIntros (a Ha) "(Hna & [%wctp' Hctp] & Hca0 & [%wct3' Hct3] & [%wct4' Hct4])".
@@ -357,7 +357,8 @@ Section Heap_Temporal_Safety_Interp.
     (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off) ∗
+      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+        allocator_malloc_pcc_off) ∗
     WSealed ot_switcher (allocator_malloc g_allocator_exp_tbl)
       ↦□ₑ allocator_malloc_nargs ∗
     WSealed ot_switcher (allocator_malloc Local)
@@ -371,7 +372,7 @@ Section Heap_Temporal_Safety_Interp.
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a,
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
-      allocator_malloc_nargs, allocator_malloc_pcc_off.
+      allocator_malloc_nargs, allocator_malloc_min_stack, allocator_malloc_pcc_off.
     iFrame "#".
     iSplit; first done.
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
@@ -383,6 +384,7 @@ Section Heap_Temporal_Safety_Interp.
       pose proof allocator_size_exports as Hsize;
       rewrite /allocator_export_table_entries in Hsize; solve_addr).
     iSplit; first (iPureIntro; rewrite /allocator_malloc_nargs; lia).
+    iSplit; first (iPureIntro; rewrite /allocator_malloc_min_stack; lia).
     iSplit; first (iPureIntro; pose proof allocator_size_imports as Himports;
       rewrite /allocator_malloc_pcc_off -allocator_imports_length; eauto).
 

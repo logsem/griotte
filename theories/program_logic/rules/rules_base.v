@@ -680,8 +680,8 @@ Section griotte_lang_rules.
      and either the continuation from the trap vector [mtcc_vec], or the
      postcondition of a stopped machine. Sealed: clients consume it with
      [wp_trap] and produce it through the closing lemmas [interp_trap_safe]
-     (logical relation) and [trap_safe_unwind] (trusted code, switcher);
-     [trap_safe_entry_intro] is used only by those two lemmas. *)
+     (logical relation) and those of the exception entry of the switcher
+     (trusted code); [trap_safe_entry_intro] is used only by those lemmas. *)
   Definition trap_safe_def (w : LWord) (E : coPset) (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
     trap_entry_res ∗
     ((▷ (trap_entry_out w -∗

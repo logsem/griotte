@@ -239,6 +239,7 @@ Section KVS_Main_Blocks.
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     (b_stk <= a_stk)%a ->
+    (a_stk + 4 <= e_stk)%Z ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
     is_heap_cap wcra.(lw) = false ->
     dom rmap =
@@ -301,7 +302,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hstk_shadow Hstk_heap Hb_a Hwcra_jalr Hwcra_heap Hrmap)
+    iIntros (Hstk_shadow Hstk_heap Hb_a Hstk_spill Hwcra_jalr Hwcra_heap Hrmap)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0
@@ -324,16 +325,8 @@ Section KVS_Main_Blocks.
       iFrame. }
     iSplitR; first done.
     iSplit; first iExact "Hpost".
-    (* The spill faults: the thread exits *)
-    rewrite /switcher_cc_fault /switcher_cc_fault_res.
-    iIntros "Hres".
-    iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-    iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                    & (%rmap' & %Hdom' & Hrmap) & _ & _ & _ & Hcstk & _)".
-    iDestruct (switcher_cc_fault_full_regs with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-      as (regs Hregs) "Hregs";
-      [apply kvs_main_adversary_arg_rmap_is_arg | exact Hrmap | exact Hdom' |].
-    iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done.
+    (* The spill cannot fault: the stack holds it *)
+    iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_spill.
   Qed.
 
   Lemma kvs_main_add_phase_spec
@@ -345,6 +338,7 @@ Section KVS_Main_Blocks.
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (csp_b + 4 <= csp_e)%Z ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
@@ -411,7 +405,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds Himports_contiguous Hstatic_sealed_b)
+    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds Himports_contiguous Hstatic_sealed_b)
       "(#Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
        & #Hkvs_exp_tbl_addOrUpdate
@@ -532,7 +526,7 @@ Section KVS_Main_Blocks.
               (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e csp_b stk_mem rmap_arg rmap' []
-              kvs_addOrUpdate_nargs ⊤
+              kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack ⊤
               b_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr e_kvs_exp_tbl
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
               kvs_addOrUpdate_pcc_off _ false
@@ -552,6 +546,7 @@ Section KVS_Main_Blocks.
       | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
       | rewrite /kvs_addOrUpdate_nargs; lia
       | exists KVS_pcc_b'; exact KVS_size_imports
+      | rewrite /kvs_addOrUpdate_min_stack; solve_addr+Hstk_min
       | subst rmap'; rewrite dom_insert_L; repeat (rewrite dom_delete_L);
         rewrite Hrmap_dom /dom_arg_rmap /=; set_solver+
       | apply kvs_main_add_arg_rmap_is_arg
@@ -560,20 +555,8 @@ Section KVS_Main_Blocks.
       | ].
     iSplitL "Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault_known_to_known /switcher_cc_fault_res_known_to_known.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "[(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                       & (%rmap'' & %Hdom'' & Hrmap) & _ & Hcstk) _]".
-      iDestruct (switcher_cc_fault_full_regs rmap_arg rmap' rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [ apply kvs_main_add_arg_rmap_is_arg
-        | subst rmap'; rewrite dom_insert_L; repeat (rewrite dom_delete_L);
-          rewrite Hrmap_dom /dom_arg_rmap /=; set_solver+
-        | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.
@@ -658,6 +641,7 @@ Section KVS_Main_Blocks.
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (csp_b + 4 <= csp_e)%Z ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
@@ -703,7 +687,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hdom_rmap HsubBounds Himports_contiguous Hstatic_sealed_b)
+    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hdom_rmap HsubBounds Himports_contiguous Hstatic_sealed_b)
       "(#Hassert & #Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
        & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
@@ -816,7 +800,7 @@ Section KVS_Main_Blocks.
               (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call []
-              kvs_read_nargs ⊤
+              kvs_read_nargs kvs_read_min_stack ⊤
               b_kvs_exp_tbl kvs_read_exp_tbl_addr e_kvs_exp_tbl
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
               kvs_read_pcc_off _ false
@@ -839,6 +823,7 @@ Section KVS_Main_Blocks.
         pose proof KVS_size_code as Hcode;
         rewrite /kvs_service_instrs !length_app in Hcode;
         rewrite kvs_read_pcc_off_eq; solve_addr
+      | rewrite /kvs_read_min_stack; solve_addr+Hstk_min
       | subst rmap_read_call; rewrite dom_insert_L; repeat (rewrite dom_delete_L);
         rewrite Hdom_rmap /dom_arg_rmap /=; set_solver+
       | apply kvs_main_read_arg_rmap_is_arg
@@ -847,20 +832,8 @@ Section KVS_Main_Blocks.
       | ].
     iSplitL "Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault_known_to_known /switcher_cc_fault_res_known_to_known.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "[(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                       & (%rmap'' & %Hdom'' & Hrmap) & _ & Hcstk) _]".
-      iDestruct (switcher_cc_fault_full_regs rmap_arg_read rmap_read_call rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [ apply kvs_main_read_arg_rmap_is_arg
-        | subst rmap_read_call; rewrite dom_insert_L; repeat (rewrite dom_delete_L);
-          rewrite Hdom_rmap /dom_arg_rmap /=; set_solver+
-        | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.

@@ -61,6 +61,8 @@ Section CMDC.
 
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher calls *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
     LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
@@ -136,7 +138,7 @@ Section CMDC.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
+               Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
@@ -204,17 +206,8 @@ Section CMDC.
       reflexivity. }
     iSplit; first done.
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault /switcher_cc_fault_res.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                      & (%rmap'' & %Hdom'' & Hrmap) & _ & _ & _ & Hcstk & _)".
-      iDestruct (switcher_cc_fault_full_regs arg_rmap rmap' rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [exact Harg_rmap | exact Hrmap'_dom | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap.
     iIntros (W_ret_B rmap stk_mem l rcgp rcra rcs0 rcs1)
@@ -290,17 +283,8 @@ Section CMDC.
       reflexivity. }
     iSplit; first done.
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault /switcher_cc_fault_res.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                      & (%rmap'' & %Hdom'' & Hrmap) & _ & _ & _ & Hcstk & _)".
-      iDestruct (switcher_cc_fault_full_regs arg_rmap rmap' rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [exact Harg_rmap | exact Hrmap'_dom | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap stk_mem.
     iIntros (W_ret_C rmap stk_mem l' rcgp rcra rcs0 rcs1)
@@ -368,6 +352,8 @@ Section CMDC.
 
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher calls *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
     LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
@@ -420,7 +406,7 @@ Section CMDC.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
+               Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna

@@ -562,6 +562,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about addOrUpdate entry point *)
   Definition kvs_addOrUpdate_nargs : nat := 3.
+  (** [addOrUpdate] does not use its stack. *)
+  Definition kvs_addOrUpdate_min_stack : nat := 0.
   (** The offset of the entry [.LaddOrUpdate] from the start of the PCC. *)
   Definition kvs_addOrUpdate_pcc_off : nat :=
     Eval vm_compute in label_offset (concat kvs_service_asm) ".LaddOrUpdate".
@@ -569,7 +571,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Proof. reflexivity. Qed.
   Definition kvs_addOrUpdate_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_addOrUpdate_pcc_off)%a.
   Definition kvs_exp_tbl_entry_addOrUpdate :=
-    WInt (encode_entry_point InterruptEnabled kvs_addOrUpdate_nargs kvs_addOrUpdate_pcc_off).
+    WInt (encode_entry_point InterruptEnabled kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack
+            kvs_addOrUpdate_pcc_off).
   Definition kvs_addOrUpdate_exp_tbl_off : nat := 2.
   Definition kvs_addOrUpdate_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_addOrUpdate_exp_tbl_off)%a.
   Definition KVS_addOrUpdate {KVS : kvsLayout} (g : Locality) : Sealable :=
@@ -577,6 +580,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about read entry point *)
   Definition kvs_read_nargs : nat := 2.
+  (** [read] does not use its stack. *)
+  Definition kvs_read_min_stack : nat := 0.
   (** The offset of the entry [.Lread] from the start of the PCC. *)
   Definition kvs_read_pcc_off : nat :=
     Eval vm_compute in label_offset (concat kvs_service_asm) ".Lread".
@@ -584,7 +589,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Proof. reflexivity. Qed.
   Definition kvs_read_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_read_pcc_off)%a.
   Definition kvs_exp_tbl_entry_read :=
-    WInt (encode_entry_point InterruptEnabled kvs_read_nargs kvs_read_pcc_off).
+    WInt (encode_entry_point InterruptEnabled kvs_read_nargs kvs_read_min_stack
+            kvs_read_pcc_off).
   Definition kvs_read_exp_tbl_off : nat := 3.
   Definition kvs_read_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_read_exp_tbl_off)%a.
   Definition KVS_read {KVS : kvsLayout} (g : Locality) : Sealable :=
@@ -592,6 +598,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   (* Meta information about erase entry point *)
   Definition kvs_erase_nargs : nat := 2.
+  (** [erase] does not use its stack. *)
+  Definition kvs_erase_min_stack : nat := 0.
   (** The offset of the entry [.Lerase] from the start of the PCC. *)
   Definition kvs_erase_pcc_off : nat :=
     Eval vm_compute in label_offset (concat kvs_service_asm) ".Lerase".
@@ -599,7 +607,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Proof. reflexivity. Qed.
   Definition kvs_erase_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_erase_pcc_off)%a.
   Definition kvs_exp_tbl_entry_erase :=
-    WInt (encode_entry_point InterruptEnabled kvs_erase_nargs kvs_erase_pcc_off).
+    WInt (encode_entry_point InterruptEnabled kvs_erase_nargs kvs_erase_min_stack
+            kvs_erase_pcc_off).
   Definition kvs_erase_exp_tbl_off : nat := 4.
   Definition kvs_erase_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_erase_exp_tbl_off)%a.
   Definition KVS_erase {KVS : kvsLayout} (g : Locality) : Sealable :=

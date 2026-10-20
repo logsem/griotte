@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel interp_weakening monotone.
-From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
+From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return switcher_exception_stub.
 From griotte Require Import vae vae_helper.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
@@ -65,7 +65,7 @@ Section VAE.
     ∗ codefrag_pers pc_a vae_main_code
     ∗ b_vae_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
     ∗ (b_vae_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ (b_vae_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 (length (imports ++ VAE_main_code_init)))
+    ∗ (b_vae_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
     ∗ WSealed ot_switcher (SCap true RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
     ∗ WSealed ot_switcher (SCap true RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
     ∗ seal_pred ot_switcher ot_switcher_propC
@@ -100,7 +100,9 @@ Section VAE.
          [true], and the world can be repaired;
        - [vae_awkward_blocks_3_spec]: blocks 9-11, assert that the flag is
          [1], and return;
-       - [switcher_ret_specification]: return to the caller of [awkward]. *)
+       - [switcher_ret_specification]: return to the caller of [awkward].
+       The stack of [awkward] holds its minimum stack size, so the spills of
+       the calls to [g] do not fault. *)
     intros imports.
     iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
                Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hloc_i_W Hrel_i_W)
@@ -113,12 +115,13 @@ Section VAE.
       & #Hot_switcher
       & [%awkN #HawkN] & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl, (b_vae_exp_tbl ^+ 2)%a,
-    pc_b, pc_e, cgp_b, cgp_e, 1, _.
+    pc_b, pc_e, cgp_b, cgp_e, 1, 4, _.
     iFrame "#".
     iSplit; first done.
     iSplit; first solve_addr.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
+    iSplit; first (iPureIntro; lia).
     iSplit; first (iPureIntro; lia).
     iSplit; first done.
     iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
@@ -130,7 +133,7 @@ Section VAE.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
@@ -203,8 +206,19 @@ Section VAE.
              "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2q $Hcstk
-              $Hinterp_W2q_wca0 $HK]"); [done..|apply vae_call_adv_arg_rmap_is_arg|].
+              $Hinterp_W2q_wca0 $HK]").
+    { exact Hstk_mmio. }
+    { exact Hstk_heap. }
+    { solve_addr+. }
+    { exact Hrmap1_dom. }
+    { apply vae_call_adv_arg_rmap_is_arg. }
+    { destruct mie; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
+      reflexivity. }
     iSplit; first done.
+    iSplit; cycle 1.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; subst csp_b; solve_addr+Hstk_min. }
     iNext.
     clear dependent rmap1 stk_mem.
     iIntros (W3 rmap3 stk_mem l1 rcgp rcra rcs0 callback1)
@@ -278,8 +292,19 @@ Section VAE.
              "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5q $Hcstk
-              $Hinterp_W5q_wca0 $HK]"); [done..|apply vae_call_adv_arg_rmap_is_arg|].
+              $Hinterp_W5q_wca0 $HK]").
+    { exact Hstk_mmio. }
+    { exact Hstk_heap. }
+    { solve_addr+. }
+    { exact Hrmap5_dom. }
+    { apply vae_call_adv_arg_rmap_is_arg. }
+    { destruct mie'; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
+      reflexivity. }
     iSplit; first done.
+    iSplit; cycle 1.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; subst csp_b; solve_addr+Hstk_min. }
     iNext.
     iIntros (W6 rmap6 stk_mem6 l2 rcgp rcra rcs0 rcs1)
       "(%Hl2_unk & Hrevoked_l2 & %Hl2_revoked_W7 & %Hpub_ext_W6 & _ & %Hrmap6_dom & _
@@ -318,11 +343,7 @@ Section VAE.
     iApply (vae_awkward_blocks_3_spec with
              "[- $HawkN $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
               $Hct0 $Hct1 $Hct2 $Hca2 $Himport_assert $Hcode_main]");
-      [done|done|done|exact Hloc_i_W7|].
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+      [done|done|done|exact Hloc_i_W7|exact (jalr_target_ok_switcher_return_sentry mie_ret)|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
                     & Hct0 & Hct1 & Hct2 & Hca2 & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

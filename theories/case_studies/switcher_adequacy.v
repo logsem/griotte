@@ -18,7 +18,7 @@ Section helpers_switcher_adequacy.
 
   Lemma fundamental_execute_entry_point
     (W : WORLD) (C : CmptName) ( b_pcc e_pcc b_cgp e_cgp : Addr )
-    (args off : nat) (Nswitcher : namespace) :
+    (args minstk off : nat) (Nswitcher : namespace) :
     disjoint_from_heap b_cgp e_cgp ->
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ switcher_static -∗
@@ -27,7 +27,7 @@ Section helpers_switcher_adequacy.
     □ ∀ (W' : WORLD),
     ⌜related_sts_priv_world W W'⌝
     → ▷ execute_entry_point (WCap true RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap true RW Global b_cgp e_cgp b_cgp)
-        args W' C.
+        args minstk W' C.
   Proof.
     intros Hcgp_heap.
     iIntros "#Hinv_switcher #Hswitcher_static #Hinterp_pcc #Hinterp_cgp".
@@ -46,7 +46,7 @@ Section helpers_switcher_adequacy.
     iIntros (cstk Ws Cs ???)
       "( Hcont & %Hfreq & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
-                     & Hrmap & Hworld_interp & %Hcsp_sync & Htframe & Hna)".
+                     & Hrmap & Hworld_interp & %Hcsp_sync & _ & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental with "Htrap Hinterp_PCC") as "H_jmp".
     iSpecialize ("H_jmp" $! cstk Ws Cs regs).
@@ -77,7 +77,7 @@ Section helpers_switcher_adequacy.
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (g_etbl : Locality) (a_etbl: Addr)
-    (posture : InterruptStatus) (args off : nat) (Nswitcher : namespace) :
+    (posture : InterruptStatus) (args minstk off : nat) (Nswitcher : namespace) :
     let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
     let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
     let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
@@ -93,7 +93,7 @@ Section helpers_switcher_adequacy.
     ⊢ switcher_static
     -∗ b_etbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc
     -∗ b_etbl1 ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp
-    -∗ a_etbl ↦ₐ□ WInt (encode_entry_point posture args off)
+    -∗ a_etbl ↦ₐ□ WInt (encode_entry_point posture args minstk off)
     -∗ interp W C (WCap true RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap true RW Global b_cgp e_cgp b_cgp)
     -∗ WSealed ot_switcher (SCap true RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
@@ -103,7 +103,15 @@ Section helpers_switcher_adequacy.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
     iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_entry #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry_borrow".
-    iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off, posture.
+    (* Only the low byte of the minimum stack size is encoded *)
+    set (minstk8 := Z.to_nat (Z.of_nat minstk `mod` 256)).
+    assert (Z.land (Z.of_nat minstk) 255 = Z.of_nat minstk8) as Hminstk8.
+    { subst minstk8. change 255%Z with (Z.ones 8).
+      rewrite Z.land_ones // Z2Nat.id //. apply Z.mod_pos_bound; lia. }
+    assert (Z.of_nat minstk8 < 256)%Z as Hminstk8_lt.
+    { subst minstk8. rewrite Z2Nat.id; [apply Z.mod_pos_bound; lia|]. apply Z.mod_pos_bound; lia. }
+    iEval (rewrite encode_entry_point_minstk_land Hminstk8) in "Hetbl_entry".
+    iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, minstk8, off, posture.
     iFrame "#".
     iSplit ; first (by iPureIntro).
     iSplit.
@@ -125,6 +133,7 @@ Section helpers_switcher_adequacy.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       solve_addr.
     }
+    iSplit; first (iPureIntro ; lia).
     iSplit; first (iPureIntro ; lia).
     iSplit; first (iPureIntro; exact Hentry).
     pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as Htbl_pcc.

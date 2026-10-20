@@ -29,7 +29,8 @@ Definition droe_firmware `{MP : MachineParameters} : firmware := {|
            FWs droe_main_data
          ];
          tb_exports := [
-           {| fe_name := "entry"; fe_offset := 3; fe_nargs := 0; fe_posture := InterruptEnabled |}  (* after the 3 imports *)
+           (* after the 3 imports; the stack holds the spill of the switcher calls *)
+           {| fe_name := "entry"; fe_offset := 3; fe_nargs := 0; fe_min_stack := 4; fe_posture := InterruptEnabled |}
          ] |} |};
     {| fc_name          := "C";
        fc_imports       := [

@@ -18,6 +18,22 @@ Section Switcher_KtK.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
+  (** The spill of a caller whose stack holds it does not fault. *)
+  Lemma switcher_cc_fault_known_to_known_stack_fits
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
+    (arg_rmap rmap : LReg)
+    (cstk : CSTK) (E : coPset) (R : iProp Σ) :
+    (a_stk + 4 <= e_stk)%Z ->
+    ⊢ switcher_cc_fault_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
+        wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E R.
+  Proof.
+    iIntros (Hfits) "Hres".
+    iApply trap_safe_absurd.
+    iMod "Hres" as "[(%Hspill & _) _]".
+    exfalso; solve_addr+Hspill Hfits.
+  Qed.
+
   (** Shape of the higher-order specification for entry points
       in the case of known-to-known cross-compartment calls.
       [P] is the precondition of the callee,
@@ -25,6 +41,7 @@ Section Switcher_KtK.
       When [may_fault] holds, the callee may fault: its continuation also
       covers the exception entry of the switcher, which returns
       ECOMPARTMENTFAIL to the caller.
+      The callee's stack is at least its minimum stack size [minstk].
 
       The machine frame records only the saved words. The allocator owns all
       shadow entries; their states may change between the call and return.
@@ -36,7 +53,7 @@ Section Switcher_KtK.
     (b_stk e_stk a_stk : Addr)
     (arg_rmap : LReg)
     (cstk : CSTK)
-    (nargs : nat)
+    (nargs minstk : nat)
     (E : coPset)
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
@@ -97,7 +114,8 @@ Section Switcher_KtK.
          trap_safe wpc ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤))%I
     in
     (∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
-       ⌜ is_arg_rmap arg_rmap' 8 ⌝
+       ⌜ (Z.of_nat minstk <= e_stk - a_stk4)%Z ⌝
+       ∗ ⌜ is_arg_rmap arg_rmap' 8 ⌝
        ∗ ⌜ dom rmap' =
              all_registers_s ∖
                ({[ cgp ; cra ; csp ]} ∪ dom_arg_rmap 8) ⌝
@@ -141,7 +159,7 @@ Section Switcher_KtK.
     (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK)
-    (nargs : nat)
+    (nargs minstk_tgt : nat)
     (E : coPset)
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
     (bpcc_tgt epcc_tgt : Addr)
@@ -235,6 +253,8 @@ Section Switcher_KtK.
     ((btbl_tgt ^+ 1) < atbl_tgt)%a ->
     (0 <= nargs <= 7)%nat ->
     is_Some (bpcc_tgt + off_tgt)%a ->
+    (* The callee's stack is at least its minimum stack size *)
+    (a_stk + 4 + minstk_tgt <= e_stk)%Z ->
     dom rmap =
       all_registers_s ∖
         ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
@@ -247,7 +267,7 @@ Section Switcher_KtK.
     ∗ switcher_static
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
     ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) off_tgt)
+    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) (Z.of_nat minstk_tgt) off_tgt)
     ∗ na_own cerise_nais E
     ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -263,7 +283,7 @@ Section Switcher_KtK.
     ∗ P
     ∗ switcher_cc_specification_known_to_known_function
         may_fault P Q wcgp_caller wcra_caller wcs0_caller wcs1_caller
-        b_stk e_stk a_stk arg_rmap cstk nargs E
+        b_stk e_stk a_stk arg_rmap cstk nargs minstk_tgt E
         bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt
     ∗ ( ▷ ((if may_fault
             then returned ∨ stack_exhausted ∨ callee_faulted
@@ -281,14 +301,14 @@ Section Switcher_KtK.
     intros a_stk4 wct1_caller returned stack_exhausted callee_faulted.
     subst returned stack_exhausted callee_faulted.
     iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
-             HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap Hret_jalr Hret_heap)
+             HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".
 
     iApply (switcher_cc_specification_known_to_known
               Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
-              b_stk e_stk a_stk stk_mem arg_rmap rmap cstk nargs E
+              b_stk e_stk a_stk stk_mem arg_rmap rmap cstk nargs minstk_tgt E
               btbl_tgt atbl_tgt etbl_tgt
               bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt posture_tgt);
       try assumption.
@@ -314,6 +334,7 @@ Section Switcher_KtK.
       ]".
     - iApply ("Hf" $! mie arg_rmap' rmap').
       iFrame "Hna HPC Hcgp Hcra Hcsp Hargs Hregs Hstk Hcstk HP".
+      iSplit; first (iPureIntro; solve_addr+Hminstk).
       iSplit; first done.
       iSplit; first (iPureIntro; rewrite Hrmap' Hdom; set_solver).
       iApply if_and_intro.

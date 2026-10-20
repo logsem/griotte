@@ -31,8 +31,11 @@ Definition so_firmware `{MP : MachineParameters} : firmware := {|
            FWs so_main_data
          ];
          tb_exports := [
-           {| fe_name := "f";     fe_offset := 9; fe_nargs := 2; fe_posture := InterruptEnabled |};  (* after the 3 imports and the 6 words of [run] *)
-           {| fe_name := "entry"; fe_offset := 3; fe_nargs := 0; fe_posture := InterruptEnabled |}   (* after the 3 imports *)
+           (* after the 3 imports and the 6 words of [run]; the stack holds the
+              secret, [z] and the spill of the call to [g] *)
+           {| fe_name := "f";     fe_offset := 9; fe_nargs := 2; fe_min_stack := 6; fe_posture := InterruptEnabled |};
+           (* after the 3 imports; the stack holds the spill of the switcher call *)
+           {| fe_name := "entry"; fe_offset := 3; fe_nargs := 0; fe_min_stack := 4; fe_posture := InterruptEnabled |}
          ] |} |};
     {| fc_name          := "C";
        fc_imports       := [

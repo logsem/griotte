@@ -44,6 +44,7 @@ Section HTS_Spec_Dangling.
     not_heap_range cgp_b cgp_e ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (csp_b + 5 <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
@@ -52,7 +53,7 @@ Section HTS_Spec_Dangling.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap
+    iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
       HsubBounds Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -215,17 +216,8 @@ Section HTS_Spec_Dangling.
       reflexivity. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_free).
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault /switcher_cc_fault_res.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                      & (%rmap'' & %Hdom'' & Hrmap) & _ & _ & _ & Hcstk & _)".
-      iDestruct (switcher_cc_fault_full_regs adv_arg adv_other rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [exact Hargs_rmap | exact Hdom_other | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros (Wret2 rmap_after2 stk_after2 lret2 rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & _ & _ & %Hdom_rmap_after2 & _ & _

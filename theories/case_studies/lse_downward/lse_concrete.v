@@ -67,7 +67,7 @@ Proof.
     (cmpt_of lse_demo_image "main"), (cmpt_of lse_demo_image "C").
   split; first done.
   split_and!.
-  all: try (exists 2%nat; split_and!).
+  all: try (exists 2%nat, 0%nat; split_and!).
   all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /lse_demo_state /img_state /img_regs; solve_other_registers
             end).

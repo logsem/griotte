@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel.
-From griotte Require Import assert_spec switcher_spec_call switcher_exception_stub.
+From griotte Require Import assert_spec switcher_spec_call.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte Require Import world_interp_stack.
@@ -63,6 +63,8 @@ Section Heap_Temporal_Safety_Main.
 
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
+    (* The stack holds the saved buffer and the spill of the switcher calls *)
+    (csp_b + 5 <= csp_e)%Z ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     heap_std W_init_C = ∅ ->
@@ -77,9 +79,11 @@ Section Heap_Temporal_Safety_Main.
       ∗ (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
           allocator_cgp_b allocator_cgp_e allocator_cgp_b
       ∗ (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
-          WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off)
+          WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+            allocator_malloc_pcc_off)
       ∗ (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
-          WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_pcc_off)
+          WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
+            allocator_free_pcc_off)
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -122,7 +126,7 @@ Section Heap_Temporal_Safety_Main.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       HNswitcher_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
-      Himports_contiguous Hp_fresh Hheap_empty Hframe_match)
+      Himports_contiguous Hstk_min Hp_fresh Hheap_empty Hframe_match)
       "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hrmap & Himports & Hcode & Hdata
@@ -150,16 +154,6 @@ Section Heap_Temporal_Safety_Main.
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f owner_a W_init_C Ws Cs Nswitcher
       with "[$Hctx $Hmalloc_ret]"); try done.
-    iSplit; cycle 1.
-    { (* Store csp ca0 0 on an empty stack faults: the thread exits *)
-      iIntros "(%ι & %b & _ & Hna & [%mie Hcra] & Hcgp & Hcsp & [%wcs0 Hcs0]
-        & [%wcs1 Hcs1] & Hca0 & Hca1 & [%wct0 Hct0] & (%rmap' & %Hdom' & Hrmap)
-        & Hcstk & _)".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iDestruct (hts_share_fault_regs rmap'
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hct0 Hrmap")
-        as (regs Hregs) "Hregs"; first exact Hdom'.
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e

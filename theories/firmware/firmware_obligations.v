@@ -38,8 +38,9 @@ Set Mangle Names.
       the assert library, the compartments ["Hcmpts"] (a list, destructed
       after [cbv] of the firmware), the registers in the form of the main
       specifications (cleared registers: [fw_cleared_regs_dom] and
-      [fw_cleared_regs_lookup]), the stack, the worlds and the sealing types
-      of the firmware.
+      [fw_cleared_regs_lookup]), the stack and the fact that it holds the
+      minimum stack size of the entry of the first thread (["%Hstack_min"]),
+      the worlds and the sealing types of the firmware.
     - A compartment splits into its imports, code and globals
       ([fw_cmpt_mem_res]; [fw_cmpt_mem_persist] for trusted code run in
       place), its static sealed objects ([fw_cmpt_static_res]) and the
@@ -148,6 +149,21 @@ Section obligation_facts.
   Proof.
     rewrite fw_cleared_regs_dom. intros Hr.
     by rewrite /fw_cleared_regs lookup_gset_to_gmap option_guard_True.
+  Qed.
+
+  (** The stack of the first thread holds the minimum stack size of the
+      export it starts at. *)
+  Lemma fw_entry_min_stack_ok fw img σ :
+    firmware_ok fw img σ →
+    (b_stack (thread_of img 0) + Z.of_nat (fw_entry_min_stack fw 0) <=
+       e_stack (thread_of img 0))%Z.
+  Proof.
+    intros Hok. pose proof Hok as (_ & _ & Hregs & Hwf).
+    destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _).
+    pose proof Hwf as (_ & _ & _ & Hthreads_wf & _).
+    rewrite Hthreads in Hthreads_wf.
+    apply big_and_cons in Hthreads_wf as [Hthread0 _].
+    apply thread_wf_min_stack. by rewrite fw_thread_of_0.
   Qed.
 
   (** The first thread starts at the end of the imports of its
@@ -277,6 +293,8 @@ Section prepared.
     "Hstack" ∷
       [[ b_stack t, e_stack t ]] ↦ₐ
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] ∗
+    "%Hstack_min" ∷
+      ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) <= e_stack t)%Z ⌝ ∗
     "Hcstk" ∷ cstack_frag [] ∗
     "Hna" ∷ na_own cerise_nais ⊤.
 
@@ -366,8 +384,9 @@ Proof.
   iMod (fw_cmpts_init with "Hcmpts Hentries") as "Hcmpts"; first exact Hok.
   iEval (rewrite (fw_entry_pc_code fw img σ Hentry Hok)) in "HPC".
   iEval (rewrite fw_thread_of_0) in "Hstack".
+  pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
   iApply (Hprep img σ ceriseg sealsg stsg relg cstackg Hok).
-  iFrame "∗ #".
+  iFrame "∗ # %".
 Qed.
 
 (** ** Closing the world of an untrusted compartment *)
@@ -416,15 +435,15 @@ Section adversary.
 
   Lemma hole_exports_spec (c : img_cmpt) (ns : list nat) (k : list Word → Prop) :
     hole_exports c ns k →
-    ∃ offs : list nat,
-      length offs = length ns ∧
-      Forall (λ off, (Z.of_nat off < cmpt_e_pcc c - cmpt_b_pcc c)%Z) offs ∧
-      k (zip_with (λ off n, export_word (MkFwExport "" off n InterruptEnabled)) offs ns).
+    ∃ ps : list (nat * nat),
+      length ps = length ns ∧
+      Forall (λ p, (Z.of_nat p.1 < cmpt_e_pcc c - cmpt_b_pcc c)%Z) ps ∧
+      k (zip_with (λ p n, export_word (MkFwExport "" p.1 n p.2 InterruptEnabled)) ps ns).
   Proof.
     revert k. induction ns as [|n ns IH]; intros k Hk; cbn in Hk.
     - by exists [].
-    - destruct Hk as (off & Hoff & Hk). destruct (IH _ Hk) as (offs & Hlen & Hoffs & Hws).
-      exists (off :: offs). split_and!; [by rewrite /= Hlen | by constructor | exact Hws].
+    - destruct Hk as (off & minstk & Hoff & Hk). destruct (IH _ Hk) as (ps & Hlen & Hps & Hws).
+      exists ((off, minstk) :: ps). split_and!; [by rewrite /= Hlen | by constructor | exact Hws].
   Qed.
 
   Lemma big_sepL_fw_imap_from {A B} (Φ : B → iProp Σ) (f : nat → A → B) j (l : list A) :
@@ -436,16 +455,17 @@ Section adversary.
   Qed.
 
   Lemma big_sepL_zip_with_exports (Φ : nat → nat → iProp Σ)
-      (Ψ : nat → InterruptStatus * nat * nat → iProp Σ) (p : InterruptStatus) (offs ns : list nat) :
-    (∀ k off n, Φ k n ⊢ Ψ k (p, n, off)) →
-    length offs = length ns →
+      (Ψ : nat → InterruptStatus * nat * nat * nat → iProp Σ) (p0 : InterruptStatus)
+      (ps : list (nat * nat)) (ns : list nat) :
+    (∀ k p n, Φ k n ⊢ Ψ k (p0, n, p.2, p.1)) →
+    length ps = length ns →
     ([∗ list] k ↦ n ∈ ns, Φ k n) ⊢
-    [∗ list] k ↦ e ∈ zip_with (λ off n, (p, n, off)) offs ns, Ψ k e.
+    [∗ list] k ↦ e ∈ zip_with (λ p n, (p0, n, p.2, p.1)) ps ns, Ψ k e.
   Proof.
-    revert offs Φ Ψ. induction ns as [|n ns IH]; intros [|off offs] Φ Ψ HΦ Hlen;
+    revert ps Φ Ψ. induction ns as [|n ns IH]; intros [|p ps] Φ Ψ HΦ Hlen;
       cbn in *; try done; try lia.
     rewrite HΦ. iIntros "[$ H]". iApply (IH with "H"); last lia.
-    intros k off' n'. apply HΦ.
+    intros k p' n'. apply HΦ.
   Qed.
 
   (** The facts about an untrusted compartment [fc] of a firmware that the
@@ -479,32 +499,32 @@ Section adversary.
     rewrite Hbody in Hbody_ok.
     destruct Hbody_ok as (Hcode & Hdata & Hexps). rewrite /note in Hcode Hdata Hexps.
     remember (fw_map ue_nargs (ub_exports ub)) as ns eqn:Hns.
-    destruct (hole_exports_spec _ _ _ Hexps) as (offs & Hlen & Hoffs & Hentries_eq).
+    destruct (hole_exports_spec _ _ _ Hexps) as (ps & Hlen & Hps & Hentries_eq).
     split; first exact Hcode. split; first exact Hdata.
     iIntros "#Hswitcher #Hstatic #(Hpcc & Hcgp & Hetbl & Hentries)".
     iApply (adversary_exports_prop W C C_cmpt fw_switcherN
-              (zip_with (λ off n, (InterruptEnabled, n, off)) offs ns)
+              (zip_with (λ p n, (InterruptEnabled, n, p.2, p.1)) ps ns)
              with "Hswitcher Hstatic Hpcc Hcgp Hetbl").
     - rewrite /= Hentries_eq. clear -Hlen. revert ns Hlen.
-      induction offs as [|off offs IH]; intros [|n ns] Hlen; cbn in *; try done.
+      induction ps as [|p ps IH]; intros [|n ns] Hlen; cbn in *; try done.
       by rewrite IH; last lia.
     - clear -Hlen Hnargs. revert ns Hlen Hnargs.
-      induction offs as [|off offs IH]; intros [|n ns] Hlen Hnargs; cbn in *; try constructor.
+      induction ps as [|p ps IH]; intros [|n ns] Hlen Hnargs; cbn in *; try constructor.
       + apply Forall_cons in Hnargs as [Hn _]. exact Hn.
       + apply Forall_cons in Hnargs as [_ Hnargs]. apply IH; [lia | exact Hnargs].
-    - assert (Forall (λ off : nat, is_Some (cmpt_b_pcc c + Z.of_nat off)%a) offs) as Hsome.
-      { eapply Forall_impl; first exact Hoffs. intros off Hoff. cbn in Hoff |- *.
+    - assert (Forall (λ p : nat * nat, is_Some (cmpt_b_pcc c + Z.of_nat p.1)%a) ps) as Hsome.
+      { eapply Forall_impl; first exact Hps. intros p Hp. cbn in Hp |- *.
         pose proof (icl_import_size _ Hc). pose proof (icl_code_size _ Hc).
-        rewrite /c. destruct (cmpt_b_pcc (cmpt_of img (fc_name fc)) + off)%a eqn:Hoff_eq;
+        rewrite /c. destruct (cmpt_b_pcc (cmpt_of img (fc_name fc)) + p.1)%a eqn:Hoff_eq;
           first done.
         exfalso. solve_addr. }
       clear -Hlen Hsome. revert ns Hlen.
-      induction offs as [|off offs IH]; intros [|n ns] Hlen; cbn in *; try constructor.
+      induction ps as [|p ps IH]; intros [|n ns] Hlen; cbn in *; try constructor.
       + apply Forall_cons in Hsome as [Hs _]. exact Hs.
       + apply Forall_cons in Hsome as [_ Hsome]. apply IH; [exact Hsome | lia].
     - rewrite /fc_entries /fc_export_nargs Hbody -Hns /fw_imap big_sepL_fw_imap_from.
       iApply (big_sepL_zip_with_exports with "Hentries"); last done.
-      intros k off n. cbn. by rewrite /cmpt_export_sb addr_off_eq.
+      intros k p n. cbn. by rewrite /cmpt_export_sb addr_off_eq.
   Qed.
 
   (** The exports of an untrusted compartment are safe to share, given the

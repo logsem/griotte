@@ -70,7 +70,7 @@ Proof.
     (cmpt_of so_demo_image "main"), (cmpt_of so_demo_image "C").
   split; first done.
   split_and!.
-  all: try (exists so_C_adv_entry; split; [|exists so_C_g_entry; split_and!]).
+  all: try (exists so_C_adv_entry, 0%nat; split; [|exists so_C_g_entry, 0%nat; split_and!]).
   all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /so_demo_state /img_state /img_regs; solve_other_registers
             end).

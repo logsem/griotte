@@ -629,10 +629,8 @@ Section AllocatorFree.
     (Nswitcher : namespace) (E : coPset) (wsealed : LWord) (P : iProp Σ) :
 
     ↑Nswitcher ⊆ E ->
-    ↑Nallocator_service ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
 
-    allocator_service_ctx ∗
     allocator_service_static ∗
     na_own cerise_nais E ∗
     PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
@@ -652,8 +650,8 @@ Section AllocatorFree.
         (λ v, ⌜v = HaltedV⌝ → P)%I)
     ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
-    iIntros (HEswitcher HEservice Hwsealed)
-      "(#Hservice & #Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".
+    iIntros (HEswitcher Hwsealed)
+      "(#Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".
     (* Focus on the code of [free]. *)
     iDestruct "Hstatic" as "[#Himports #Hcode]".
     iEval (rewrite /allocator_code) in "Hcode".

@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import register_tactics map_simpl.
 From griotte Require Import logrel switcher_preamble switcher_return_blocks_1 interp_switcher_return.
+From griotte Require Import switcher_call_blocks_6.
 
 (** * Exception entry of the switcher
 
@@ -11,7 +12,7 @@ From griotte Require Import logrel switcher_preamble switcher_return_blocks_1 in
     compartment, so its safety needs no validity of the register file.
 
     It is a safe trap vector ([switcher_trap_vector_safe]), which closes the
-    faults of trusted code ([trap_safe_unwind], [trap_safe_exit]). The file
+    faults of trusted code ([trap_safe_unwind], [trap_safe_absurd]). The file
     also hosts the safety of the return-to-switcher entry point
     ([interp_expr_switcher_return], [interp_switcher_return]), which needs
     the trap vector and would otherwise form an import cycle. *)
@@ -159,6 +160,43 @@ Section Switcher_Exception_Stub.
     iApply (switcher_trap_vector_safe with "[$Hinv_switcher $Hstatic]").
   Qed.
 
+  (** The callee's stack is smaller than the minimum stack size of the
+      entry point: block 21 sets the return values, and the return routine
+      pops the frame already pushed. No register needs to be safe. *)
+  Lemma switcher_call_stack_too_small_unwind
+    (W : WORLD) (C : CmptName) (Nswitcher : namespace)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (rmap : LReg) :
+    (∀ r, is_Some (rmap !! r)) ->
+    frame_match Ws Cs cstk W C ->
+
+    PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
+    registers_pointsto rmap ∗
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ∗
+    world_interp W C ∗
+    interp_cont interp cstk Ws Cs ∗
+    na_own cerise_nais ⊤ ∗
+    cstack_frag cstk
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros (Hfull_rmap Hframe)
+      "(HPC & Hrmap & #Hinv_switcher & #Hstatic & Hworld_interp & Hcont & Hna & Hcstk)".
+    iPoseProof "Hstatic" as "[#Hcode _]".
+    iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hstatic]") as "#Htrap".
+    rewrite /registers_pointsto.
+    getRegValList [ca0;ca1].
+    iExtractList "Hrmap" [ca0;ca1] as ["Hca0";"Hca1"].
+    iApply (switcher_call_block_21_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
+    iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
+    iInsertList "Hrmap" [ca0;ca1].
+    iApply (switcher_return_unwind with
+             "[$HPC $Hrmap $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna $Hcstk]");
+      [|by simplify_map_eq|by simplify_map_eq|done|].
+    { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+    iSplit; iApply interp_int.
+  Qed.
+
   (** A fault closes through the exception entry of the switcher: after
       exception entry, the exception entry block sets the return values and
       jumps to the return routine, which must then be safe. The resources are
@@ -213,42 +251,17 @@ Section Switcher_Exception_Stub.
     iApply (interp_trap_safe with "Htrap Hres"); done.
   Qed.
 
-  (** A fault at depth 0 is safe: the exception entry runs the return
-      routine, whose frame to pop is the entry frame, and the thread exits.
-      No world, continuation, or register validity is needed. *)
-  Lemma trap_safe_exit (Nswitcher : namespace) (w : LWord) :
-    na_inv cerise_nais Nswitcher switcher_inv -∗
-    switcher_static -∗
-    (|={⊤}=>
-       ∃ rmap,
-         ⌜∀ r, is_Some (rmap !! r)⌝ ∗
-         registers_pointsto rmap ∗
-         cstack_frag [] ∗
-         na_own cerise_nais ⊤) -∗
+  (** A fault that cannot happen is safe: the update yields a contradiction,
+      which is eliminated after trap entry. *)
+  Lemma trap_safe_absurd (w : LWord) :
+    (|={⊤}=> False) -∗
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
-    iIntros "#Hinv_switcher #Hstatic Hres".
-    iPoseProof "Hstatic" as "[#Hcode _]".
-    iApply (trap_safe_exception_entry with "Hstatic").
-    iMod "Hres" as (rmap Hfull_rmap) "(Hrmap & Hcstk & Hna)".
-    rewrite /registers_pointsto.
-    getRegValList [ca0;ca1;ctp;ct0;ct2].
-    iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct2] as ["Hca0";"Hca1";"Hctp";"Hct0";"Hct2"].
-    iModIntro; iFrame "Hca0 Hca1".
-    iIntros "(HPC & _ & _)".
-    iMod (na_inv_acc with "Hinv_switcher Hna")
-      as "(Hswitcher_inv & Hna & Hclose_switcher_inv)"; auto.
-    iModNamed switcher_inv_open "Hswitcher_inv".
-    iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq; subst cstk'.
-    iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
-    iApply (switcher_return_blocks_1_exit_spec with
-      "[$HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode
-        Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]").
-    iIntros "!> [Hmtdc Hframeoffset]".
-    iMod ("Hclose_switcher_inv" with
-           "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp]") as "Hna".
-    { iNext. iExists a_tstk, [], save_area, tstk_next. iFrame "∗ # %". }
-    iModIntro; iIntros (_); iFrame.
+    iIntros "Hfalse".
+    iApply (trap_safe_entry_intro with "[]"); first iApply trap_entry_res_intro.
+    iSplit; last by iIntros "!> %Hv".
+    iIntros "!> _ _".
+    by iMod "Hfalse".
   Qed.
 
   (** The return-to-switcher entry point is safe to execute: the registers

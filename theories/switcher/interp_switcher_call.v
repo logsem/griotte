@@ -234,7 +234,9 @@ Section fundamental.
        - [switcher_call_stk_close]: close the caller's stack frame;
        - [switcher_entry_point_prop]: the entry point satisfies the sealing
          predicate of the switcher;
-       - [switcher_call_blocks_4_spec]: load the callee and jump to it;
+       - [switcher_call_blocks_4_spec]: check the size of the callee's
+         stack, load the callee and jump to it; when the stack is too small,
+         push the frame and [switcher_call_stack_too_small_unwind];
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
     iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs0 [Hregs (HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
@@ -422,7 +424,7 @@ Section fundamental.
          stack frame and the switcher invariant, and unwind the call *)
       iIntros (a_f stk_mem' Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp
         & Hstk & Hmtdc & Hframeoffset & Htstk)".
-      destruct Ha_f as [ [-> ->] | (Hcontra & _) ]; last (exfalso; solve_addr).
+      destruct Ha_f as [ (-> & -> & _) | (Hcontra & _) ]; last (exfalso; solve_addr).
       subst hclose_switcher_inv hinv_switcher.
       iDestruct (switcher_call_stk_close _ _ _ _ lv with "Hstk_opened Hstk []")
         as "Hworld_interp"; first done.
@@ -523,8 +525,8 @@ Section fundamental.
     iDestruct "Hlc" as "[Hlc _]".
     iMod (lc_fupd_elim_later with "Hlc Hentry_prop") as "Hentry_prop".
     iDestruct ("Hentry_prop" with "[//] [//]")
-      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off posture Heq Htbl Hbtbl Hbtbl1 Hnargs
-          Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
+      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture Heq Htbl Hbtbl Hbtbl1
+          Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
            "(#Htbl1 & #Htbl2 & #Htbl3 & #Hentry & _ & #Hexec)".
     rewrite /lword_of_word in Heq; simplify_eq.
     iSpecialize ("Hexec" $! W with "[]").
@@ -550,9 +552,9 @@ Section fundamental.
       repeat (apply lookup_delete_Some in Hin as [_ Hin]); auto.
     }
     iApply (switcher_call_blocks_4_spec W C with
-      "[- $Htbl1 $Htbl2 $Htbl3 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra
+      "[- $Htbl1 $Htbl2 $Htbl3 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
           $Hparams $Hrest $Hcode]");
-      [done|done|done|lia|done|done|done|done| | | | | |].
+      [done|done|done|lia|lia|done|done|done|done| | | | | |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }
@@ -574,10 +576,6 @@ Section fundamental.
         specialize (Hfull_rmap i) as [x Hx]. eauto.
       - intros [? [? ?] ]. apply elem_of_difference.
         split;auto. apply all_registers_s_correct. }
-    iNext; iIntros (mie arg_rmap' rmap'')
-      "(%Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hframe_tbl & Hargs & Hregs & _)".
-
-    (* Push the frame and close the switcher invariant *)
     set (frame :=
            {| wret := WInt 0;
               wcgp := WInt 0;
@@ -588,6 +586,35 @@ Section fundamental.
               e_stk := e ;
               ccrel := Unknown_to_Unknown
            |}).
+    iNext; iSplit; cycle 1.
+    { (* The callee's stack is too small: push the frame, close the switcher
+         invariant, and return to the caller through the return routine *)
+      iIntros "(_ & HPC & [%wcs0' Hcs0] & [%wcs1'' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2]
+        & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hparams & Hrest & _)".
+      iMod (switcher_inv_push_frame frame cstk with
+             "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
+              Htstk Hstk_interp [] Hp_ot_switcher")
+        as "[Hinv Hcstk]"; [done..|].
+      iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
+      iDestruct (big_sepM_sep with "Hparams") as "[Hparams _]".
+      iDestruct (big_sepM_union with "[$Hparams $Hrest]") as "Hrmap".
+      { apply map_disjoint_filter_complement. }
+      rewrite map_filter_union_complement.
+      subst rmap'.
+      iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
+      iApply (switcher_call_stack_too_small_unwind _ _ _ (frame :: cstk) (W :: Ws) (C :: Cs)
+               with "[$HPC $Hrmap $Hinv_switcher $Hstatic $Hworld_interp $Hna $Hcstk Hcont]").
+      { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+      { simpl. split; [apply related_sts_pub_refl_world|done]. }
+      iFrame "Hcont".
+      simpl.
+      iSplit; last done.
+      iSplit; first (iPureIntro; exact Hstk_heap).
+      iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
+    iIntros (mie arg_rmap' rmap'')
+      "(%Hbig & %Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
+
+    (* Push the frame and close the switcher invariant *)
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [] Hp_ot_switcher")
@@ -610,7 +637,7 @@ Section fundamental.
     iSplit.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
-    iPureIntro; split; [split; reflexivity | solve_addr].
+    iPureIntro; split; [split; [split; reflexivity | solve_addr] | exact Hbig].
   Qed.
 
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :

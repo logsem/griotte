@@ -91,12 +91,13 @@ Section LSE.
       & #Hentry_LSE & #Hentry_LSE_borrow
       & #Hot_switcher)".
     iExists g_lse_exp_tbl, b_lse_exp_tbl, e_lse_exp_tbl, (b_lse_exp_tbl ^+ 2)%a,
-    pc_b, pc_e, cgp_b, cgp_e, 0, _.
+    pc_b, pc_e, cgp_b, cgp_e, 0, 1, _.
     iFrame "#".
     iSplit; first done.
     iSplit; first solve_addr.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
+    iSplit; first (iPureIntro; lia).
     iSplit; first (iPureIntro; lia).
     iSplit; first done.
     iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
@@ -108,7 +109,7 @@ Section LSE.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & _ & _)".
     rewrite /interp_conf /registers_pointsto.
@@ -137,29 +138,8 @@ Section LSE.
     change_pc_to (pc_a ^+ lse_label_offset ".Llse_f")%a.
     iApply (lse_f_blocks_1_spec with
              "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hcode_main]");
-      [done|done|done|done| |].
+      [done|done|done|done| |subst csp_b; solve_addr+Hstk_min|].
     { by eapply switcher_disjoint_subseg; [| |split; eassumption]; solve_addr. }
-    iSplit; cycle 1.
-    { (* The stack frame is empty: the push faults, [f] returns to its
-         caller through the switcher *)
-      iNext; iIntros "(Hcgp & Hcsp & Hct0 & Hct1 & [%wcs0' Hcs0] & [%wcs1' Hcs1] & Hcgp_b & Hstk)".
-      iInsertRegs "Hrmap" ["Hcnull";"Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].
-      iDestruct (RevokedResources_mono_pub W0 _ C l l Hpub_W0_Wfixed with "Hrevoked_l")
-        as "Hrevoked_l".
-      iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs
-               with "Hswitcher Hswitcher_static [-]").
-      7: { iMod ("Hlse_code_close" with "[$Hna $Hcgp_b]") as "Hna".
-           iModIntro; iFrame. }
-      { exact Hpub_W0_Wfixed. }
-      { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
-      { exact Hframe_match. }
-      { subst csp_b.
-        destruct Hsync_csp as [Hcsp_sync Hcsp_base].
-        rewrite -Hcsp_base; exact Hcsp_sync. }
-      { destruct Hextract as [Hnodup _]; exact Hnodup. }
-      { intros a Ha; destruct Hextract as [_ Htemp].
-        destruct (Htemp a) as [Hin _]; exact (Hin Ha). }
-    }
     iNext; iIntros (stk_mem' wcs0' wcs1')
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & _)".
 

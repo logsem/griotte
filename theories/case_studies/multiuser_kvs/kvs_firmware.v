@@ -34,7 +34,8 @@ Definition kvs_firmware `{MP : MachineParameters}
            FWs kvs_main_data
          ];
          tb_exports := [
-           {| fe_name := "entry"; fe_offset := 7; fe_nargs := 0; fe_posture := InterruptEnabled |}  (* after the 7 imports *)
+           (* after the 7 imports; the stack holds the spill of the switcher calls *)
+           {| fe_name := "entry"; fe_offset := 7; fe_nargs := 0; fe_min_stack := 4; fe_posture := InterruptEnabled |}
          ] |} |};
     {| fc_name          := "kvs";
        fc_imports       := [
@@ -48,9 +49,9 @@ Definition kvs_firmware `{MP : MachineParameters}
            FWs kvs_data
          ];
          tb_exports := [
-           {| fe_name := "addOrUpdate"; fe_offset := kvs_addOrUpdate_pcc_off; fe_nargs := kvs_addOrUpdate_nargs; fe_posture := InterruptEnabled |};
-           {| fe_name := "read";        fe_offset := kvs_read_pcc_off;        fe_nargs := kvs_read_nargs;        fe_posture := InterruptEnabled |};
-           {| fe_name := "erase";       fe_offset := kvs_erase_pcc_off;       fe_nargs := kvs_erase_nargs;       fe_posture := InterruptEnabled |}
+           {| fe_name := "addOrUpdate"; fe_offset := kvs_addOrUpdate_pcc_off; fe_nargs := kvs_addOrUpdate_nargs; fe_min_stack := kvs_addOrUpdate_min_stack; fe_posture := InterruptEnabled |};
+           {| fe_name := "read";        fe_offset := kvs_read_pcc_off;        fe_nargs := kvs_read_nargs;        fe_min_stack := kvs_read_min_stack;        fe_posture := InterruptEnabled |};
+           {| fe_name := "erase";       fe_offset := kvs_erase_pcc_off;       fe_nargs := kvs_erase_nargs;       fe_min_stack := kvs_erase_min_stack;       fe_posture := InterruptEnabled |}
          ] |} |};
     {| fc_name          := "B";
        fc_imports       := [

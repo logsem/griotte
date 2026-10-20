@@ -103,9 +103,9 @@ Section KVS_spec_addOrUpdate_safe.
     (* Untagged user keys fail at UnSeal, before opening seal resources. *)
     destruct (get_tag wca0.(lw)) eqn:Hwca0_tag; cycle 1.
     { iApply (KVS_addOrUpdate_spec_invalid_sealed_user_key
-               with "[$Hkvs_static $Hkvs_inv $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp
+               with "[$Hkvs_static $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp
                       Hworld Hpost Hca2]");
-        [exact Hunsealing_shadow | exact Hnkvs_E | exact Hwca1_uint16
+        [exact Hunsealing_shadow | exact Hwca1_uint16
         | right; exact Hwca0_tag |].
       iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
       iDestruct "Hpost" as "[_ Hfailed]".
@@ -115,9 +115,9 @@ Section KVS_spec_addOrUpdate_safe.
     destruct ( is_sealed_with_o wca0.(lw) KVS_OTYPE ) eqn:Hwca0_sealed_with_kvs_ot; cycle 1.
     { (* the user key argument is not a valid sealed user key *)
       iApply (KVS_addOrUpdate_spec_invalid_sealed_user_key
-               with "[$Hkvs_static $Hkvs_inv $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp
+               with "[$Hkvs_static $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp
                       Hworld Hpost Hca2]");
-        [exact Hunsealing_shadow | exact Hnkvs_E | exact Hwca1_uint16
+        [exact Hunsealing_shadow | exact Hwca1_uint16
         | left; exact Hwca0_sealed_with_kvs_ot |].
       iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
       iDestruct "Hpost" as "[_ Hfailed]".
@@ -260,7 +260,7 @@ Section KVS_spec_addOrUpdate_safe.
       )".
 
     iExists g_kvs_exp_tbl, b_kvs_exp_tbl, e_kvs_exp_tbl, kvs_addOrUpdate_exp_tbl_addr,
-    KVS_pcc_b, KVS_pcc_e, KVS_cgp_b, KVS_cgp_e, kvs_addOrUpdate_nargs, _.
+    KVS_pcc_b, KVS_pcc_e, KVS_cgp_b, KVS_cgp_e, kvs_addOrUpdate_nargs, kvs_addOrUpdate_min_stack, _.
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iFrame "#".
@@ -269,6 +269,7 @@ Section KVS_spec_addOrUpdate_safe.
     iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr).
     iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_addOrUpdate_nargs; lia).
+    iSplit; first (iPureIntro; rewrite /kvs_addOrUpdate_min_stack; lia).
     iSplit; first (iPureIntro; exists KVS_pcc_b'; exact KVS_size_imports).
     iSplit.
     { iPureIntro. eapply disjoint_from_shadow_not_in.
@@ -286,7 +287,7 @@ Section KVS_spec_addOrUpdate_safe.
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & _ & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.

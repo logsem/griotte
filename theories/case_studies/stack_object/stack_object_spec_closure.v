@@ -105,7 +105,7 @@ Section SO.
     ∗ codefrag_pers pc_a so_main_code
     ∗ b_so_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
     ∗ (b_so_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ (b_so_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 (length (imports ++ SO_main_code_run)))
+    ∗ (b_so_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 6 (length (imports ++ SO_main_code_run)))
     ∗ WSealed ot_switcher (SCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
     ∗ WSealed ot_switcher (SCap true RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
     ∗ seal_pred ot_switcher ot_switcher_propC
@@ -134,8 +134,8 @@ Section SO.
        A fault before the revocation unwinds [f] ([trap_safe_unwind]). A
        fault after it returns to the caller of [f] through the switcher:
        [checkints] puts [in] back unchanged (second closing of
-       [so_world_open_object]); the later faults revoke the world again
-       ([so_world_fault]). *)
+       [so_world_open_object]). The stack of [f] holds its minimum stack
+       size, so neither block 7 nor the spill of the call to [g] faults. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap
                Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some)
@@ -147,12 +147,13 @@ Section SO.
       & #Hentry_SO & #Hentry_SO_borrow
       & #Hot_switcher)".
     iExists g_so_exp_tbl, b_so_exp_tbl, e_so_exp_tbl, (b_so_exp_tbl ^+ 2)%a,
-    pc_b, pc_e, cgp_b, cgp_e, 2, _.
+    pc_b, pc_e, cgp_b, cgp_e, 2, 6, _.
     iFrame "#".
     iSplit; first done.
     iSplit; first solve_addr.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
+    iSplit; first (iPureIntro; lia).
     iSplit; first (iPureIntro; lia).
     iSplit; first done.
     iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
@@ -164,7 +165,7 @@ Section SO.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
@@ -269,7 +270,7 @@ Section SO.
       { destruct Hextract as [Hnodup _]; exact Hnodup. }
       { intros a' Ha'; destruct Hextract as [_ Htemp].
         destruct (Htemp a') as [Hin _]; exact (Hin Ha'). } }
-    iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & [Hlc Hlc'])".
+    iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & [_ Hlc'])".
 
     (* Close the region of [in] *)
     iDestruct "Hclose_object" as "[Hclose_object _]".
@@ -288,55 +289,10 @@ Section SO.
       rewrite Forall_forall in Hl0_quarantined.
       specialize (Hl0_quarantined _ Hx). discriminate. }
 
-    (* The world after the checks of [in], and the world fixed by the return
-       path if [f] faults before the call to [g] *)
-    destruct (so_world_after_checks W0 π b e (csp_b' ^+ 4)%a csp_e l_revoked l0_live
-                l0_quarantined Hextract Hno_overlap Hl0_partition)
-      as (Hextract_W2q & Hrevoked_W2q & Hlive_sub & Hl0_cover & Hlive_nodup & Hpriv_W0_W2q).
-    assert ([] ⊆ LNonHeap <$> finz.seq_between (csp_b' ^+ 4)%a csp_e) as Hnil_stack
-      by set_solver+.
-    destruct (so_world_fault_facts W0
-                (close_list l0_quarantined
-                   (close_list (addr_key π <$> so_object_temporaries W0 π b e) (revoke W0)))
-                (csp_b' ^+ 4)%a csp_e l_revoked l0_live
-                ((addr_key π <$> so_object_temporaries W0 π b e) ++ l0_quarantined) []
-                Hextract Hextract_W2q Hrevoked_W2q Hlive_sub Hl0_cover Hlive_nodup
-                Hnil_stack (NoDup_nil_2) Hpriv_W0_W2q eq_refl eq_refl eq_refl)
-      as (_ & Hpub_W0_W3f & _ & Hnodup_W3f & Hcover_W3f).
-
     (* Blocks 7-9: push the secret, allocate [z], jump to the switcher *)
     iApply (so_call_blocks_3_spec with
              "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Himport_switcher
-              $Hcode_main]"); [done..|].
-    iSplit; cycle 1.
-    { (* The stack frame cannot hold the secret and [z]: the world is revoked
-         again, and [f] returns to its caller through the switcher *)
-      iIntros (a_f Ha_f)
-        "([%a_csp Hcsp] & [%wca1' Hca1] & Hct0 & Hct1 & [%wcs0' Hcs0] & [%wcs1' Hcs1] & Hcra
-         & [%stk_mem' Hstk])".
-      iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hcra";"Hcgp"].
-      iEval (rewrite -(close_list_empty (close_list l0_quarantined
-                (close_list (addr_key π <$> so_object_temporaries W0 π b e) (revoke W0)))))
-        in "Hworld_interp_C".
-      iApply (trap_safe_return _ W0
-                (revoke (close_list [] (close_list l0_quarantined
-                   (close_list (addr_key π <$> so_object_temporaries W0 π b e) (revoke W0)))))
-                C _ csp_e (csp_b' ^+ 4)%a
-                (l0_live ++ ((addr_key π <$> so_object_temporaries W0 π b e) ++ l0_quarantined))
-                stk_mem' cstk Ws Cs with "Hswitcher Hswitcher_static [-]").
-      7: { iMod (so_world_fault W0 _ C (csp_b' ^+ 4)%a csp_e l_revoked l0_live _ []
-                  Hextract Hextract_W2q Hrevoked_W2q Hlive_sub Hl0_cover Hlive_nodup
-                  Hnil_stack (NoDup_nil_2) Hpriv_W0_W2q eq_refl eq_refl eq_refl
-                  with "[$Hworld_interp_C $Hl0_live $Hlc']")
-             as "(Hworld_interp_C & Hrevoked & _)".
-           iModIntro; iFrame. }
-      { exact Hpub_W0_W3f. }
-      { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
-      { exact Hframe_match. }
-      { destruct Hsync_csp as [Hcsp_sync Hcsp_base].
-        rewrite -Hcsp_base; exact Hcsp_sync. }
-      { exact Hnodup_W3f. }
-      { exact Hcover_W3f. } }
+              $Hcode_main]"); [done|done|done|solve_addr+Hstk_min|].
     iNext; iIntros (mie a_stk1 a_stk2 stk_tail)
       "(%Hastk1 & %Hastk2 & %Hastk2_csp_e & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
       & Hcra & Hsecret & Hastk1 & Hstk & _ & _)".
@@ -370,75 +326,8 @@ Section SO.
       reflexivity. }
     iSplit; first done.
     iSplit; cycle 1.
-    { (* The spill of the call to [g] faults: [z] is revoked again, and [f]
-         returns to its caller through the switcher *)
-      assert ([LNonHeap a_stk1] ⊆ LNonHeap <$> finz.seq_between (csp_b' ^+ 4)%a csp_e)
-        as Hz_stack.
-      { intros x Hx. apply list_elem_of_singleton in Hx as ->.
-        apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between.
-        solve_addr+ Hastk1 Hastk2 Hastk2_csp_e. }
-      destruct (so_world_fault_facts W0
-                  (close_list l0_quarantined
-                     (close_list (addr_key π <$> so_object_temporaries W0 π b e) (revoke W0)))
-                  (csp_b' ^+ 4)%a csp_e l_revoked l0_live
-                  ((addr_key π <$> so_object_temporaries W0 π b e) ++ l0_quarantined)
-                  [LNonHeap a_stk1]
-                  Hextract Hextract_W2q Hrevoked_W2q Hlive_sub Hl0_cover Hlive_nodup
-                  Hz_stack (NoDup_singleton _) Hpriv_W0_W2q eq_refl eq_refl eq_refl)
-        as (_ & Hpub_W0_W4f & _ & Hnodup_W4f & Hcover_W4f).
-      rewrite /switcher_cc_fault /switcher_cc_fault_res.
-      iIntros "Hres".
-      (* The contents of [z] are only known after its revocation, hence the
-         exception entry and the return routine of the switcher, rather than
-         [trap_safe_return] *)
-      iApply (trap_safe_exception_entry with "Hswitcher_static").
-      iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                      & (%rmap'' & %Hdom'' & Hrmap) & Hstk & Hworld_interp_C & _ & Hcstk & HK)".
-      iEval (rewrite /reinstate) in "Hworld_interp_C".
-      iMod (so_world_fault W0 _ C (csp_b' ^+ 4)%a csp_e l_revoked l0_live _ [LNonHeap a_stk1]
-              Hextract Hextract_W2q Hrevoked_W2q Hlive_sub Hl0_cover Hlive_nodup
-              Hz_stack (NoDup_singleton _) Hpriv_W0_W2q eq_refl eq_refl eq_refl
-              with "[$Hworld_interp_C $Hl0_live $Hlc]")
-        as "(Hworld_interp_C & Hrevoked & Hz)".
-      iEval (rewrite /RevokedResources /=) in "Hz".
-      iDestruct "Hz" as "[Hz _]".
-      iDestruct "Hz" as (pz Pz) "(_ & _ & Hz)".
-      iDestruct "Hz" as (vz) "(_ & Hz & _)".
-      iIntros "!>".
-      iDestruct (switcher_cc_fault_full_regs arg_rmap rmap' rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [exact Harg_rmap | exact Hrmap'_dom | exact Hdom'' |].
-      rewrite /registers_pointsto.
-      pose proof (lregmap_full_dom _ Hregs) as Hregs_dom.
-      destruct (Hregs csp) as [wcsp' Hwcsp'].
-      destruct (Hregs ca0) as [wca0' Hwca0'].
-      destruct (Hregs ca1) as [wca1' Hwca1'].
-      iDestruct (big_sepM_delete _ _ csp with "Hregs") as "[Hcsp Hregs]"; first exact Hwcsp'.
-      iDestruct (big_sepM_delete _ _ ca0 with "Hregs") as "[Hca0 Hregs]".
-      { rewrite lookup_delete_ne; [exact Hwca0'|done]. }
-      iDestruct (big_sepM_delete _ _ ca1 with "Hregs") as "[Hca1 Hregs]".
-      { rewrite !lookup_delete_ne; [exact Hwca1'|done|done]. }
-      iDestruct (region_pointsto_cons a_stk1 a_stk2 csp_e with "[$Hz $Hstk]") as "Hstk";
-        [exact Hastk2|exact Hastk2_csp_e|].
-      iDestruct (region_pointsto_cons (csp_b' ^+ 4)%a a_stk1 csp_e with "[$Hsecret $Hstk]")
-        as "Hstk"; [exact Hastk1|solve_addr+ Hastk2 Hastk2_csp_e|].
-      iFrame "Hca0 Hca1".
-      iIntros "(HPC & Hca0 & Hca1)".
-      iApply (switcher_ret_specification _ W0 _ C _ csp_e (csp_b' ^+ 4)%a
-                (l0_live ++ ((addr_key π <$> so_object_temporaries W0 π b e) ++ l0_quarantined))
-                _ cstk Ws Cs with
-               "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC
-                 $Hrevoked $Hregs $Hca0 $Hca1 $Hcsp]").
-      { exact Hpub_W0_W4f. }
-      { rewrite !dom_delete_L Hregs_dom; set_solver+. }
-      { exact Hframe_match. }
-      { destruct Hsync_csp as [Hcsp_sync Hcsp_base].
-        rewrite -Hcsp_base; exact Hcsp_sync. }
-      { exact Hnodup_W4f. }
-      { exact Hcover_W4f. }
-      iSplit; iApply interp_int.
-    }
+    { (* The spill of the call to [g] cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min Hastk1 Hastk2. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem.
     iIntros (W4 rmap'' stk_mem l4 rcgp rcra rcs0 callback)

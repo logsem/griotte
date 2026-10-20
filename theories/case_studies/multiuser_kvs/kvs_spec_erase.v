@@ -1063,13 +1063,11 @@ Section KVS_spec_erase.
     :
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
 
     is_uint16 nkey ->
     (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_own cerise_nais E ∗
 
       (* initial register file *)
@@ -1097,8 +1095,8 @@ Section KVS_spec_erase.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (Hunsealing_shadow HE Hnkey_is_uint16 Hwca0)
-      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hfailed)".
+    iIntros (Hunsealing_shadow Hnkey_is_uint16 Hwca0)
+      "(#Hkvs_static & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hfailed)".
     iDestruct (kvs_static_unsealing_key with "Hkvs_static") as "#Ha_unsealing".
     iDestruct "Hkvs_static" as "[_ #Hcode_main]".
     pose proof (Hcgp_continuous := KVS_size_data).
@@ -1154,14 +1152,14 @@ Section KVS_spec_erase.
          ⌜ wca0 = WInt 0 ⌝ ∗
          ⌜ wca1 = WInt 0 ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
-      b_stk e_stk a_stk arg_rmap cstk kvs_erase_nargs E
+      b_stk e_stk a_stk arg_rmap cstk kvs_erase_nargs kvs_erase_min_stack E
       KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "(#Hkvs_static & #Hkvs & #Hkvs_logical)" (mie arg_rmap' rmap')
-       "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
+       "(_ & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hcstk
        & (Huser_key & Huser_kvs & [%wold Hkey])
        & Hpost)".

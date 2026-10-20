@@ -60,6 +60,8 @@ Section SO.
 
     (cgp_b + length so_main_data)%a = Some cgp_e ->
     (pc_b + so_label ".Lso_run")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher call *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     frame_match Ws Cs [] W0 C ->
     (
@@ -70,7 +72,7 @@ Section SO.
       ∗ codefrag_pers pc_a so_main_code
       ∗ b_so_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
       ∗ (b_so_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ (b_so_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 (length (imports ++ SO_main_code_run)))
+      ∗ (b_so_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 6 (length (imports ++ SO_main_code_run)))
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -106,7 +108,7 @@ Section SO.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap
                Hsize_so_exp_tbl Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hframe_match)
+               Hcgp_contiguous Himports_contiguous Hstk_min Hframe_match)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hso_exp_tbl_PCC
@@ -162,17 +164,8 @@ Section SO.
       reflexivity. }
     iSplit; first done.
     iSplit; last first.
-    { (* The spill faults: the thread exits *)
-      rewrite /switcher_cc_fault /switcher_cc_fault_res.
-      iIntros "Hres".
-      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
-      iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
-                      & (%rmap'' & %Hdom'' & Hrmap) & _ & _ & _ & Hcstk & _)".
-      iDestruct (switcher_cc_fault_full_regs arg_rmap rmap' rmap''
-                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
-        as (regs Hregs) "Hregs";
-        [exact Harg_rmap | exact Hrmap'_dom | exact Hdom'' |].
-      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & _ & _ & _ & _ & _ & Hna & _ & _ & _ & HPC
