@@ -2,7 +2,8 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel memory_region rules proofmode.
 From griotte Require Export switcher switcher_preamble.
 From griotte Require Import
-  switcher_spec_KtK_call switcher_spec_KtK_return switcher_load_spec.
+  switcher_spec_KtK_call switcher_spec_KtK_return switcher_load_spec
+  switcher_exception_stub.
 From griotte Require Import map_simpl register_tactics.
 
 
@@ -69,34 +70,57 @@ Section Switcher_KtK.
            [[ region_addrs_zeroes a_stk4 e_stk ]]
        ∗ cstack_frag (frame :: cstk)
        ∗ P
-       ∗ ▷ (∀ (wca0 wca1 : LWord) (rmap_ret : LReg)
-                (stk_mem_ret : list LWord),
-              ⌜ dom rmap_ret =
-                    all_registers_s ∖
-                      {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-              ∗ na_own cerise_nais E
-              ∗ PC ↦ₚ WCap true XSRW_ Local
-                          b_switcher e_switcher a_switcher_return
-              ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
-              ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
-              ∗ ca0 ↦ᵣ wca0
-              ∗ ca1 ↦ᵣ wca1
-              ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w)
-              ∗ [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem_ret ]]
-              ∗ cstack_frag (frame :: cstk)
-              ∗ Q wca0 wca1
-                -∗ WP Seq (Instr Executable)
-                      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+       ∗ ( ▷ (∀ (wca0 wca1 : LWord) (rmap_ret : LReg)
+                  (stk_mem_ret : list LWord),
+                ⌜ dom rmap_ret =
+                      all_registers_s ∖
+                        {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
+                ∗ na_own cerise_nais E
+                ∗ PC ↦ₚ WCap true XSRW_ Local
+                            b_switcher e_switcher a_switcher_return
+                ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
+                ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
+                ∗ ca0 ↦ᵣ wca0
+                ∗ ca1 ↦ᵣ wca1
+                ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w)
+                ∗ [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem_ret ]]
+                ∗ cstack_frag (frame :: cstk)
+                ∗ Q wca0 wca1
+                  -∗ WP Seq (Instr Executable)
+                        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+           ∧
+           (* FAULT --- the callee faults; the exception entry of the switcher
+              returns ECOMPARTMENTFAIL to the caller *)
+           (∀ (wpc : LWord),
+              (|={⊤}=>
+                 ∃ (rmap_ret : LReg) (stk_mem_ret : list LWord),
+                   ⌜ dom rmap_ret =
+                       all_registers_s ∖
+                         {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+                   na_own cerise_nais E ∗
+                   cgp ↦ᵣ - ∗
+                   cra ↦ᵣ - ∗
+                   cs0 ↦ᵣ - ∗
+                   cs1 ↦ᵣ - ∗
+                   csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4 ∗
+                   ca0 ↦ᵣ - ∗
+                   ca1 ↦ᵣ - ∗
+                   ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w) ∗
+                   [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem_ret ]] ∗
+                   cstack_frag (frame :: cstk)) -∗
+              trap_safe wpc ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)) )
        -∗ WP Seq (Instr Executable)
              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
 
 
   (** Specification of the switcher for known-to-known cross compartment call,
       with higher-order specification of the callee. *)
-  (** Both a successful return and trusted-stack exhaustion restore the four
-      saved registers according to [load_heap]. When the spill of the
-      callee-save registers faults, the caller gets back its resources and
-      [P], and must be safely unwound. *)
+  (** A successful return, trusted-stack exhaustion, and a fault of the
+      callee all restore the four saved registers according to [load_heap].
+      When the callee faults, the caller gets ECOMPARTMENTFAIL back, and
+      neither [P] nor [Q]. When the spill of the callee-save registers
+      faults, the caller gets back its resources and [P], and must be safely
+      unwound. *)
   Lemma switcher_cc_specification_known_to_known_end_to_end
     (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
@@ -199,6 +223,27 @@ Section Switcher_KtK.
            ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
            ∗ "HP" ∷ P)
+        ∨
+        (* The callee faulted: the exception entry of the switcher returned
+           ECOMPARTMENTFAIL *)
+        (∃ (rmap_ret : LReg) (stk_mem' : list LWord) rcgp rcra rcs0 rcs1,
+           "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
+                 all_registers_s ∖
+                   {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
+           ∗ "Hna" ∷ na_own cerise_nais E
+           ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
+           ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
+           ∗ "Hcra" ∷ cra ↦ᵣ rcra
+           ∗ "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+           ∗ "Hcs0" ∷ cs0 ↦ᵣ rcs0
+           ∗ "Hcs1" ∷ cs1 ↦ᵣ rcs1
+           ∗ "Hca0" ∷ ca0 ↦ᵣ WInt ECOMPARTMENTFAIL
+           ∗ "Hca1" ∷ ca1 ↦ᵣ WInt 0
+           ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
+           ∗ "Hstk" ∷ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem' ]]
+           ∗ "Hcstk" ∷ cstack_frag cstk
+           ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
+               load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝)
           -∗ WP Seq (Instr Executable)
                 {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
         ∧
@@ -242,35 +287,13 @@ Section Switcher_KtK.
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hregs & Hstk & Hcstk & %Hrestored)
       ]".
-    - iAssert (
-        ▷ (∀ (wca0 wca1 : LWord) (rmap_ret : LReg)
-               (stk_mem_ret : list LWord),
-             ⌜ dom rmap_ret =
-                   all_registers_s ∖
-                     {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-             ∗ na_own cerise_nais E
-             ∗ PC ↦ₚ WCap true XSRW_ Local
-                         b_switcher e_switcher a_switcher_return
-             ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
-             ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
-             ∗ ca0 ↦ᵣ wca0
-             ∗ ca1 ↦ᵣ wca1
-             ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w)
-             ∗ [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem_ret ]]
-             ∗ cstack_frag
-                 ({| wret := wcra_caller;
-                     wcgp := wcgp_caller;
-                     wcs0 := wcs0_caller;
-                     wcs1 := wcs1_caller;
-                     b_stk := b_stk;
-                     a_stk := a_stk;
-                     e_stk := e_stk;
-                     ccrel := Known_to_Known |} :: cstk)
-             ∗ Q wca0 wca1
-               -∗ WP Seq (Instr Executable)
-                     {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}))%I
-        with "[Hpost]" as "Hfpost".
-      { iNext.
+    - iApply ("Hf" $! mie arg_rmap' rmap').
+      iFrame "Hna HPC Hcgp Hcra Hcsp Hargs Hregs Hstk Hcstk HP".
+      iSplit; first done.
+      iSplit; first (iPureIntro; rewrite Hrmap' Hdom; set_solver).
+      iSplit.
+      { (* The callee returns *)
+        iNext.
         iIntros (wca0 wca1 rmap_ret stk_mem_ret)
           "(%Hrmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
            & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & HQ)".
@@ -318,12 +341,30 @@ Section Switcher_KtK.
         { exact HE. }
         { exact Hrmap_ret. }
       }
-      iApply ("Hf" $! mie arg_rmap' rmap').
-      iFrame "∗#".
-      iSplit; first done.
-      iPureIntro. rewrite Hrmap' Hdom. set_solver.
+      (* The callee faults: the exception entry returns ECOMPARTMENTFAIL *)
+      iIntros (wpc) "Hres".
+      iApply (trap_safe_exception_entry with "Hstatic").
+      iMod "Hres" as "(%rmap_ret & %stk_mem_ret & %Hrmap_ret & Hna & Hcgp & Hcra & Hcs0 & Hcs1
+                       & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk)".
+      iModIntro; iFrame "Hca0 Hca1".
+      iIntros "(HPC & Hca0 & Hca1)".
+      iApply (switcher_cc_specification_return_known_to_known
+                Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
+                (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret rmap_ret cstk E
+                with
+                "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
+                  $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk Hpost]");
+        [exact Hstk_heap|exact Hstk_shadow|exact HE|exact Hrmap_ret|].
+      iNext.
+      iIntros (rmap_final rcgp rcra rcs0 rcs1)
+        "(%Hrestored & %Hrmap_final & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
+         & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk)".
+      iApply "Hpost".
+      iRight; iRight.
+      iExists rmap_final, (region_addrs_zeroes a_stk e_stk), rcgp, rcra, rcs0, rcs1.
+      iFrame "∗%".
     - iApply "Hpost".
-      iRight.
+      iRight; iLeft.
       iExists rmap', stk_mem', rcgp, rcra, rcs0, rcs1.
       iFrame "∗#%".
   Qed.

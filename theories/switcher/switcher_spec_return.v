@@ -269,4 +269,57 @@ Section Switcher.
       Unshelve. all: exact Wcur.
   Qed.
 
+  (** A fault in a trusted callee is safe: the exception entry sets the
+      return values to integers, then the return routine returns to the
+      caller as in [switcher_ret_specification]. The return values need no
+      validity. The resources are only needed after the exception entry,
+      hence under an update (for instance, to close an invariant). *)
+  Lemma trap_safe_return
+    (Nswitcher : namespace)
+    (W0 Wcur : WORLD)
+    (C : CmptName)
+    (rmap : LReg)
+    (csp_e csp_b: Addr)
+    (l : list LAddr)
+    (stk_mem : list LWord)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (w : LWord)
+    :
+    let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
+    related_sts_pub_world W0 Wfixed ->
+    dom rmap = all_registers_s ∖ ({[ csp ; ca0 ; ca1 ]} ) ->
+    frame_match Ws Cs cstk W0 C ->
+    csp_sync cstk (csp_b ^+ -4)%a csp_e ->
+    NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+
+    na_inv cerise_nais Nswitcher switcher_inv -∗
+    switcher_static -∗
+    (|={⊤}=>
+       [[csp_b,csp_e]]↦ₐ[[stk_mem]] ∗
+       cstack_frag cstk ∗
+       interp_continuation cstk Ws Cs ∗
+       world_interp Wcur C ∗
+       na_own cerise_nais ⊤ ∗
+       RevokedResources Wfixed C l ∗
+       ([∗ map] k↦y ∈ rmap, k ↦ᵣ y) ∗
+       ca0 ↦ᵣ - ∗
+       ca1 ↦ᵣ - ∗
+       csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b) -∗
+    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+  Proof.
+    intros Wfixed.
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
+      "#Hswitcher #Hstatic Hres".
+    iApply (trap_safe_exception_entry with "Hstatic").
+    iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
+                     & Hca0 & Hca1 & Hcsp)".
+    iModIntro; iFrame "Hca0 Hca1".
+    iIntros "(HPC & Hca0 & Hca1)".
+    iApply (switcher_ret_specification with
+             "[$Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
+               $Hclose_list_res $Hrmap $Hca0 $Hca1 $Hcsp]"); try done.
+    iSplit; iApply interp_int.
+  Qed.
+
 End Switcher.
