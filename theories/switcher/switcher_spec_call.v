@@ -100,11 +100,11 @@ Section Switcher.
   (** The resources returned to the caller of [switcher_cc_specification_gen]
       when the spill of its callee-save registers faults, because they do not
       fit on its stack: the switcher invariant is closed, and the caller holds
-      its registers, its stack with unknown contents, and its world. *)
+      its registers, its unchanged stack, and its world. *)
   Definition switcher_cc_fault_res
     (W : WORLD) (C : CmptName)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
-    (b_stk e_stk a_stk : Addr)
+    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : iProp Σ :=
     na_own cerise_nais ⊤ ∗
@@ -116,29 +116,26 @@ Section Switcher.
     ct1 ↦ᵣ wct1_caller ∗
     ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
     (∃ rmap', ⌜ dom rmap' = dom rmap ⌝ ∗ [∗ map] r↦w ∈ rmap', r ↦ᵣ w) ∗
-    (∃ stk_mem, [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]) ∗
+    [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
     world_interp W C ∗
     StackRevokedResources W C (finz.seq_between a_stk e_stk) ∗
     cstack_frag cstk ∗
     interp_continuation cstk Ws Cs.
 
-  (** The fault case of [switcher_cc_specification_gen]: the spill faults at
-      one of its instructions, and the caller must be safely unwound from
-      there, given the fault resources once the switcher invariant is closed. *)
+  (** The fault case of [switcher_cc_specification_gen]: the first store of
+      the spill faults, and the caller must be safely unwound from there,
+      given the fault resources once the switcher invariant is closed. *)
   Definition switcher_cc_fault
     (W : WORLD) (C : CmptName)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
-    (b_stk e_stk a_stk : Addr)
+    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : iProp Σ :=
-    ∀ (a : Addr),
-      ⌜ (a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill" <= a <
-         a_switcher_call ^+ switcher_label_offset ".Lswitcher_trusted_stack_push")%a ⌝ -∗
-      (|={⊤}=>
-         switcher_cc_fault_res W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-           b_stk e_stk a_stk arg_rmap rmap cstk Ws Cs) -∗
-      trap_safe (WCap true XSRW_ Local b_switcher e_switcher a) ⊤
-        (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    (|={⊤}=>
+       switcher_cc_fault_res W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
+         b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs) -∗
+    trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
+      (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
 
   (** The full register file, from the registers left by
       [switcher_cc_exhausted_regs]. *)
@@ -301,6 +298,8 @@ Section Switcher.
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
+    (* The caller's stack pointer is not below the base of its stack *)
+    (b_stk <= a_stk)%a ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -414,7 +413,7 @@ Section Switcher.
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-          b_stk e_stk a_stk arg_rmap rmap cstk Ws Cs )
+          b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -436,7 +435,7 @@ Section Switcher.
        - [switcher_call_blocks_4_spec]: load the callee and jump to it;
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & Hstk_val & %Hstk_revoked & Hcstk & Hcont & Hpost)".
     subst a_stk4 callee_stk_region.
@@ -475,10 +474,11 @@ Section Switcher.
     iSplit; cycle 1.
     { (* The callee-save registers do not fit on the caller's stack: close
          the switcher invariant, and return the fault resources *)
-      iIntros (a_f Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & (%k & _ & Hstk)
+      iIntros (a_f stk_mem' Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & Hstk
         & Hmtdc & Hframeoffset & Htstk)".
+      destruct Ha_f as [ [-> ->] | (Hcontra & _) ]; last (exfalso; solve_addr).
       iDestruct "Hpost" as "[_ Hfault]".
-      iApply ("Hfault" $! a_f Ha_f with "[-]").
+      iApply ("Hfault" with "[-]").
       subst hclose_switcher_inv.
       iMod ("Hclose_switcher_inv" with
         "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
@@ -684,6 +684,8 @@ Section Switcher.
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
+    (* The caller's stack pointer is not below the base of its stack *)
+    (b_stk <= a_stk)%a ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -767,7 +769,7 @@ Section Switcher.
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-          b_stk e_stk a_stk arg_rmap rmap cstk Ws Cs )
+          b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
 
     ⊢ WP Seq (Instr Executable)
@@ -777,7 +779,7 @@ Section Switcher.
        revoke the world in the post-condition, with
        [switcher_cc_revoke_returned] when the callee returned, and with
        [switcher_cc_revoke_exhausted] when the trusted stack was exhausted. *)
-    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont & Hpost)".
     subst a_stk4.
@@ -837,6 +839,8 @@ Section Switcher.
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
+    (* The caller's stack pointer is not below the base of its stack *)
+    (b_stk <= a_stk)%a ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -911,18 +915,18 @@ Section Switcher.
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-          b_stk e_stk a_stk arg_rmap rmap cstk Ws Cs )
+          b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_revoked Nswitcher W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller target
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true).
-    1-6: eauto.
+    1-7: eauto.
     iFrame "Hswitcher Hstatic Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
       Hstk Hworld_interp Hstk_val Hcstk Hcont".
     iFrame "Hentry".
@@ -963,6 +967,8 @@ Section Switcher.
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
+    (* The caller's stack pointer is not below the base of its stack *)
+    (b_stk <= a_stk)%a ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -1036,18 +1042,18 @@ Section Switcher.
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-          b_stk e_stk a_stk arg_rmap rmap cstk Ws Cs )
+          b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_revoked Nswitcher W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false).
-    1-6: eauto.
+    1-7: eauto.
     iFrame "Hswitcher Hstatic Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
       Hstk Hworld_interp Hstk_val Hcstk Hcont Hpost".
     iFrame "Htarget_v".

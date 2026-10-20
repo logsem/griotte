@@ -209,28 +209,6 @@ Section fundamental.
     by iFrame.
   Qed.
 
-  (** The words of the caller's stack after a partial spill: a prefix of the
-      spilled registers, then the previous contents. *)
-  #[local] Lemma switcher_spill_prefix_safe W C (lv : list LWord) (k : nat)
-    (wcs0 wcs1 wcra wcgp : LWord) :
-    k ≤ 3 ->
-    interp W C wcs0 -∗
-    interp W C wcs1 -∗
-    interp W C wcra -∗
-    interp W C wcgp -∗
-    [∗ list] i ↦ w ∈ take k [wcs0; wcs1; wcra; wcgp] ++ drop k lv,
-      ⌜ lv !! i = Some w ⌝ ∨ interp W C w.
-  Proof.
-    iIntros (Hk) "#Hcs0 #Hcs1 #Hcra #Hcgp".
-    iApply big_sepL_app; iSplit.
-    - iApply big_sepL_intro; iIntros "!>" (i w Hi); iRight.
-      apply lookup_take_Some in Hi as [Hi _].
-      destruct i as [|[|[|[|i] ] ] ]; simplify_eq/=; done.
-    - iApply big_sepL_intro; iIntros "!>" (i w Hi); iLeft; iPureIntro.
-      rewrite lookup_drop in Hi.
-      rewrite length_take /= -Hi; f_equal; lia.
-  Qed.
-
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static
@@ -240,7 +218,9 @@ Section fundamental.
        - open the switcher invariant;
        - [switcher_call_stk_open]: open the caller's stack frame in the world
          (when the stack pointer is not a valid stack capability,
-         [switcher_call_blocks_2_fail_spec]);
+         [switcher_call_blocks_2_fail_spec] or, when it is below the base
+         and the furthest cell of the spill within bounds,
+         [switcher_call_blocks_2_below_spec], and [trap_safe_unwind]);
        - [switcher_call_blocks_1_spec]: checks on the stack pointer;
          when they fail, [interp_switcher_call_force_unwind];
        - [switcher_call_blocks_2_spec]: spill the callee-save registers and
@@ -314,12 +294,69 @@ Section fundamental.
           iPureIntro; left; eauto.
         + iPureIntro; right; intros ??? Heq; inversion Heq; subst; solve_addr.
       - iPureIntro; right; intros ??? Heq; inversion Heq; subst; tauto. }
-    2: { (* Blocks 0-1: checks on the stack pointer *)
+    2: { (* The stack pointer is not a valid stack capability: the spill
+            faults. Is the furthest cell of the spill within its bounds? *)
+         iAssert (⌜(∃ b e a, wcsp = WCap true RWL Local b e a ∧
+                              (a + 3)%a = Some (a ^+ 3)%a ∧ (b <= a ^+ 3 < e)%a)
+                 ∨ (∀ b e a a3, wcsp.(lw) = WCap true RWL Local b e a →
+                                (a + 3)%a = Some a3 → (a3 < b)%a ∨ (e <= a3)%a)⌝)%I
+           as %[(b & e & a & -> & Ha3 & Ha3_in) | Hfirst].
+         { destruct wcsp as [ [| [t p g b e a|] | |] π]; try (iPureIntro; right; intros; discriminate).
+           destruct t; [|iPureIntro; right; intros; discriminate].
+           destruct (decide (p = RWL ∧ g = Local)) as [ [-> ->] | Hpg]; cycle 1.
+           { iPureIntro; right; intros ???? Heq; inversion Heq; subst; tauto. }
+           destruct (a + 3)%a as [a3|] eqn:Ha3; cycle 1.
+           { iPureIntro; right; intros ???? Heq Ha3'; inversion Heq; subst; congruence. }
+           destruct (decide (b <= a3 < e)%a) as [Ha3_in|Ha3_out]; cycle 1.
+           { iPureIntro; right; intros ???? Heq Ha3'; inversion Heq; subst.
+             rewrite Ha3 in Ha3'; simplify_eq; solve_addr. }
+           iDestruct (interp_wl_noid with "Hspv") as %->; [done|solve_addr|].
+           iPureIntro; left; exists b, e, a; split; first done.
+           split; solve_addr. }
+         2: {
+           (* Blocks 0-1: checks on the stack pointer *)
+           iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
+           iNext; iIntros "[(%Hchecked & HPC & Hcsp & Hct2 & Hctp & _)
+                           | (_ & % & % & HPC & Hcsp & Hct2 & Hctp & _)]";
+             cycle 1.
+           { (* The checks fail: force the unwinding of the call *)
+             iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
+             iApply (interp_switcher_call_force_unwind with
+               "[$Hinv_switcher $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID
+                 $Htstk $Hstatic
+                 $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hrmap
+                 $Hworld_interp $Hcont $Hcstk]"); [|done..].
+             intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+           (* The first store faults, and nothing is written: close the
+              switcher invariant, and unwind the call *)
+           subst hclose_switcher_inv hinv_switcher.
+           iMod ("Hclose_switcher_inv" with
+             "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
+           { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
+           iApply (switcher_call_blocks_2_fail_spec with "[- $HPC $Hcsp $Hcgp $Hcode]"); [done | done |].
+           iIntros "[Hcsp Hcgp]".
+           iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
+           iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [|done|by iFrame].
+           intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+         (* The cursor is below the base, and the furthest cell within
+            bounds: open the caller's stack from that cell *)
+         destruct (Hnot_stk b e a eq_refl) as [Hab|Hea]; last solve_addr.
+         iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_mmio _]; first done.
+         iPoseProof (interp_lea _ _ _ _ _ _ _ _ (a ^+ 3)%a with "Hspv") as "Hspv3"; first done.
+         iDestruct (switcher_call_stk_open with "Hspv3 Hworld_interp")
+           as (lv) "(Hstk & Hstk_opened)"; first solve_addr.
+         iDestruct (big_sepL2_length with "Hstk") as %Hlen_lv.
+
+         (* Blocks 0-1: checks on the stack pointer *)
          iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
-         iNext; iIntros "[(%Hchecked & HPC & Hcsp & Hct2 & Hctp & _)
+         iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp & _)
                          | (_ & % & % & HPC & Hcsp & Hct2 & Hctp & _)]";
            cycle 1.
-         { (* The checks fail: force the unwinding of the call *)
+         { (* The checks fail: close the caller's stack, and force the
+              unwinding of the call *)
+           iDestruct (switcher_call_stk_close _ _ _ _ lv with "Hstk_opened Hstk []")
+             as "Hworld_interp"; first done.
+           { iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
            iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
            iApply (interp_switcher_call_force_unwind with
              "[$Hinv_switcher $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID
@@ -327,15 +364,25 @@ Section fundamental.
                $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hrmap
                $Hworld_interp $Hcont $Hcstk]"); [|done..].
            intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
-         (* The stack pointer is not a valid stack capability: the spill
-            faults, and nothing is written. Close the switcher invariant
-            first. *)
+         (* The first store writes [cgp] in the caller's stack, and the
+            second one faults: close the switcher invariant and the caller's
+            stack, and unwind the call *)
          subst hclose_switcher_inv hinv_switcher.
          iMod ("Hclose_switcher_inv" with
            "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
          { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
-         iApply (switcher_call_blocks_2_fail_spec with "[- $HPC $Hcsp $Hcs0 $Hcode]"); [done | done |].
-         iIntros "[Hcsp Hcs0]".
+         destruct lv as [|w3 lv];
+           first (exfalso; rewrite finz_seq_between_length /finz.dist /= in Hlen_lv; solve_addr).
+         iDestruct (region_pointsto_cons _ ((a ^+ 3) ^+ 1)%a with "Hstk") as "[Ha3 Hstk]";
+           [solve_addr..|].
+         iApply (switcher_call_blocks_2_below_spec with "[- $HPC $Hcsp $Hcs0 $Hcgp $Ha3 $Hcode]");
+           [done..|].
+         iIntros "(Hcsp & Hcs0 & Hcgp & Ha3)".
+         iDestruct (region_pointsto_cons with "[$Ha3 $Hstk]") as "Hstk"; [solve_addr..|].
+         iDestruct (switcher_call_stk_close _ _ _ _ (w3 :: lv) with "Hstk_opened Hstk []")
+           as "Hworld_interp"; first done.
+         { iApply big_sepL_cons; iSplitR; first (iRight; iExact "Hcgpv").
+           iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
          iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
          iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [|done|by iFrame].
          intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
@@ -373,13 +420,13 @@ Section fundamental.
     iSplit; cycle 1.
     { (* The spill does not fit on the caller's stack: close the caller's
          stack frame and the switcher invariant, and unwind the call *)
-      iIntros (a_f Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & [%a_csp Hcsp]
-        & (%k & %Hk & Hstk) & Hmtdc & Hframeoffset & Htstk)".
+      iIntros (a_f stk_mem' Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp
+        & Hstk & Hmtdc & Hframeoffset & Htstk)".
+      destruct Ha_f as [ [-> ->] | (Hcontra & _) ]; last (exfalso; solve_addr).
       subst hclose_switcher_inv hinv_switcher.
-      iDestruct (big_sepL2_length with "Hstk") as %Hlen_stk.
       iDestruct (switcher_call_stk_close _ _ _ _ lv with "Hstk_opened Hstk []")
-        as "Hworld_interp"; first lia.
-      { iApply (switcher_spill_prefix_safe with "Hcs0v Hcs1v Hcrav Hcgpv"); done. }
+        as "Hworld_interp"; first done.
+      { iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
       iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [|done|]; cycle 1.
       { iMod ("Hclose_switcher_inv" with

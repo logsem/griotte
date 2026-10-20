@@ -114,16 +114,16 @@ Section Switcher.
         sub ct2 ct2 ctp;
         jnz (".Lcommon_force_unwind")%asm ct2
       ]
-      ; (* Save the callee registers *)
+      ; (* Save the callee registers. The first spill goes to the cell
+           furthest from the cursor: if it fits, the stack is long enough
+           for the others. A cursor below the base can still make a later
+           store fault. *)
       [ #".Lswitcher_entry_first_spill";
-        store csp cs0;
-        lea csp 1;
-        store csp cs1;
-        lea csp 1;
-        store csp cra;
-        lea csp 1;
-        store csp cgp;
-        lea csp 1
+        store_imm csp cgp 3;
+        store_imm csp cs0 0;
+        store_imm csp cs1 1;
+        store_imm csp cra 2;
+        lea csp 4
       ]
       ; (* Check that the trusted stack has room for a frame, and push it *)
       [ #".Lswitcher_trusted_stack_push";

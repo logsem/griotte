@@ -141,6 +141,8 @@ Section Switcher_KtK.
       WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     disjoint_from_heap b_stk e_stk ->
     disjoint_from_mmio b_stk e_stk ->
+    (* The caller's stack pointer is not below the base of its stack *)
+    (b_stk <= a_stk)%a ->
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
     is_shadow_address (btbl_tgt ^+ 1)%a = false ->
@@ -226,7 +228,7 @@ Section Switcher_KtK.
         ∨
         (* The callee faulted: the exception entry of the switcher returned
            ECOMPARTMENTFAIL *)
-        (∃ (rmap_ret : LReg) (stk_mem' : list LWord) rcgp rcra rcs0 rcs1,
+        (∃ (rmap_ret : LReg) rcgp rcra rcs0 rcs1,
            "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                  all_registers_s ∖
                    {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
@@ -240,7 +242,8 @@ Section Switcher_KtK.
            ∗ "Hca0" ∷ ca0 ↦ᵣ WInt ECOMPARTMENTFAIL
            ∗ "Hca1" ∷ ca1 ↦ᵣ WInt 0
            ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
-           ∗ "Hstk" ∷ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem' ]]
+           ∗ "Hstk" ∷ [[ a_stk , e_stk ]] ↦ₐ
+               [[ region_addrs_zeroes a_stk e_stk ]]
            ∗ "Hcstk" ∷ cstack_frag cstk
            ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝)
@@ -250,12 +253,12 @@ Section Switcher_KtK.
         (* FAULT --- the callee-save registers do not fit on the caller's
            stack; the callee did not run *)
         switcher_cc_fault_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
-          wct1_caller b_stk e_stk a_stk arg_rmap rmap cstk E P )
+          wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E P )
     ⊢ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_stk4 wct1_caller.
-    iIntros (Hstk_heap Hstk_shadow Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
+    iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
              HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
@@ -273,8 +276,8 @@ Section Switcher_KtK.
     iSplit; cycle 1.
     { (* The spill faults: the callee did not run, return [P] *)
       iDestruct "Hpost" as "[_ Hfault]".
-      iIntros (a Ha) "Hres".
-      iApply ("Hfault" $! a Ha).
+      iIntros "Hres".
+      iApply "Hfault".
       iMod "Hres" as "[Hres _]".
       by iFrame. }
     iDestruct "Hpost" as "[Hpost _]".
@@ -361,7 +364,7 @@ Section Switcher_KtK.
          & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk)".
       iApply "Hpost".
       iRight; iRight.
-      iExists rmap_final, (region_addrs_zeroes a_stk e_stk), rcgp, rcra, rcs0, rcs1.
+      iExists rmap_final, rcgp, rcra, rcs0, rcs1.
       iFrame "∗%".
     - iApply "Hpost".
       iRight; iLeft.

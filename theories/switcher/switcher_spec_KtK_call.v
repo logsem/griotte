@@ -33,10 +33,10 @@ Section Switcher_KtK_Call.
       [switcher_cc_specification_known_to_known] when the spill of its
       callee-save registers faults, because they do not fit on its stack:
       the switcher invariant is closed, and the caller holds its registers and
-      its stack with unknown contents. *)
+      its unchanged stack. *)
   Definition switcher_cc_fault_res_known_to_known
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
-    (b_stk e_stk a_stk : Addr)
+    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (E : coPset) : iProp Σ :=
     na_own cerise_nais E ∗
@@ -48,27 +48,24 @@ Section Switcher_KtK_Call.
     ct1 ↦ᵣ wct1_caller ∗
     ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
     (∃ rmap', ⌜ dom rmap' = dom rmap ⌝ ∗ [∗ map] r↦w ∈ rmap', r ↦ᵣ w) ∗
-    (∃ stk_mem, [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]) ∗
+    [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
     cstack_frag cstk.
 
   (** The fault case of [switcher_cc_specification_known_to_known]: the
-      spill faults at one of its instructions, and the caller must be safely
-      unwound from there, given the fault resources and [R] once the switcher
+      first store of the spill faults, and the caller must be safely unwound
+      from there, given the fault resources and [R] once the switcher
       invariant is closed. *)
   Definition switcher_cc_fault_known_to_known
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
-    (b_stk e_stk a_stk : Addr)
+    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (E : coPset) (R : iProp Σ) : iProp Σ :=
-    ∀ (a : Addr),
-      ⌜ (a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill" <= a <
-         a_switcher_call ^+ switcher_label_offset ".Lswitcher_trusted_stack_push")%a ⌝ -∗
-      (|={⊤}=>
-         switcher_cc_fault_res_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
-           wct1_caller b_stk e_stk a_stk arg_rmap rmap cstk E ∗
-         R) -∗
-      trap_safe (WCap true XSRW_ Local b_switcher e_switcher a) ⊤
-        (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    (|={⊤}=>
+       switcher_cc_fault_res_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
+         wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E ∗
+       R) -∗
+    trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
+      (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
 
   (** Failure path of [switcher_cc_specification_known_to_known]: the
       trusted stack is exhausted. *)
@@ -212,6 +209,8 @@ Section Switcher_KtK_Call.
 
     (* (* NA mask *) *)
     disjoint_from_heap b_stk e_stk ->
+    (* The caller's stack pointer is not below the base of its stack *)
+    (b_stk <= a_stk)%a ->
     ↑Nswitcher ⊆ E ->
 
     (* Well formed entry point *)
@@ -316,7 +315,7 @@ Section Switcher_KtK_Call.
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
-          wct1_caller b_stk e_stk a_stk arg_rmap rmap cstk E True )
+          wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E True )
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -336,7 +335,7 @@ Section Switcher_KtK_Call.
          invariant. *)
     intros astk4 wct1_caller callee_stk_region frame.
     iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
-             HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hdom Harg_rmap Hret_jalr Hret_heap)
+             Hb_a HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hdom Harg_rmap Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
 
@@ -374,10 +373,11 @@ Section Switcher_KtK_Call.
     iSplit; cycle 1.
     { (* The callee-save registers do not fit on the caller's stack: close
          the switcher invariant, and return the fault resources *)
-      iIntros (a_f Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & (%k & _ & Hstk)
+      iIntros (a_f stk_mem' Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & Hstk
         & Hmtdc & Hframeoffset & Htstk)".
+      destruct Ha_f as [ [-> ->] | (Hcontra & _) ]; last (exfalso; solve_addr).
       iDestruct "Hpost" as "[_ Hfault]".
-      iApply ("Hfault" $! a_f Ha_f with "[-]").
+      iApply ("Hfault" with "[-]").
       subst hclose_switcher_inv.
       iMod ("Hclose_switcher_inv" with
         "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
