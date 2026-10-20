@@ -75,7 +75,7 @@ End initial_capabilities.
     set [R] of heap roots held by the compartments (an allocator holds the
     root of the heap; without an allocator, [R] is empty). *)
 Section initial_rootedness.
-  Context `{MP: MachineParameters}.
+  Context `{MP: MachineParameters} {TV : trapVector}.
 
   (** The initial condition, with heap roots [R]. *)
   Lemma ghost_init_cond_roots (R : gset Addr) (pc : Word) (reg : Reg) (sreg : SReg) (m : Mem) :
@@ -93,7 +93,7 @@ Section initial_rootedness.
     pc_ok pc →
     (∀ sr w, is_pc_sreg sr = true → sreg !! sr = Some w → pc_ok w) →
     (∀ sr, sr ∈ reserved_sregs → is_Some (sreg !! sr)) →
-    (∀ w, sreg !! MTCC = Some w → get_tag w = false) →
+    sreg !! MTCC = Some mtcc_vec →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
     intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok Hreserved Hmtcc.
@@ -210,7 +210,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   {cerise_preg : ceriseGpreS Σ}
   {entry_preg : entryGpreS Σ}
   {na_invg : na_invariants.na_invG Σ}
-  `{MP: MachineParameters}
+  `{MP: MachineParameters} {TV : trapVector}
   (ot : OType) (entries : list (Sealable * nat))
   (flagN : namespace) (flag : Addr) (H : gset Addr)
   (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
@@ -220,6 +220,8 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   ghost_init_cond (pc, reg, sreg, m, sh) H →
   reg !! cnull = Some (WInt 0) →
   (∀ (ceriseg : ceriseG Σ),
+     (* the trap vector of [ceriseg] is the one of the initial state *)
+     @mtcc_vec (@cerise_trapVector Σ ceriseg) = @mtcc_vec TV →
      PC ↦ₚ lword_of_word pc -∗
      ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) -∗
      ([∗ map] r↦w ∈ sregs_handed_out sreg, r ↦ₛᵣ lword_of_word w) -∗
@@ -259,9 +261,10 @@ Proof.
     sreg_gen_regG := sreg_heapg;
     entryG := entry_g;
     cerise_registryG := registryg;
-    cerise_addr_allocG := addr_allocg |}.
+    cerise_addr_allocG := addr_allocg;
+    cerise_trapVector := TV |}.
   iDestruct (entries_split with "Hentries") as "Hentries"; [done..|].
-  iMod (Hwp ceriseg with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries") as "[Hwp #Hflag]".
+  iMod (Hwp ceriseg eq_refl with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries") as "[Hwp #Hflag]".
   iModIntro.
   iExists (fun σ _ _ => cerise_state_interp σ)%I.
   iExists (fun _ => True)%I. cbn. iFrame "Hσ".
@@ -740,8 +743,8 @@ Section adversary_exports.
       at address [a], satisfies the sealing predicate of the switcher. *)
   Lemma adversary_export_prop
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
-    (posture : InterruptStatus) (i args off : nat) (a : Addr) :
-    cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point posture args off)) →
+    (posture : InterruptStatus) (i args minstk off : nat) (a : Addr) :
+    cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point posture args minstk off)) →
     (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
@@ -767,7 +770,7 @@ Section adversary_exports.
         (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt))) //.
       f_equal; solve_addr. }
     iDestruct (big_sepL2_lookup with "Hentries") as "Hentry_inv"; [done..|].
-    iApply (ot_switcher_interp _ _ _ Global _ posture args off with
+    iApply (ot_switcher_interp _ _ _ Global _ posture args minstk off with
               "Hswitcher Hswitcher_static Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp Hentry Hentry'");
       [solve_addr|lia|done].
   Qed.
@@ -792,16 +795,17 @@ Section adversary_exports.
 
   (** All the entries of the export table of an adversary [C_cmpt] satisfy
       the sealing predicate of the switcher, given its export table as a list
-      of triples (interrupt posture, number of arguments, offset) and the
-      entry-point resources of each entry. This is the premise of
-      [initialise_adversary_world]. *)
+      of quadruples (interrupt posture, number of arguments, minimum stack
+      size, offset) and the entry-point resources of each entry. This is the
+      premise of [initialise_adversary_world]. *)
   Lemma adversary_exports_prop
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
-    (exports : list (InterruptStatus * nat * nat)) :
+    (exports : list (InterruptStatus * nat * nat * nat)) :
     cmpt_exp_tbl_entries C_cmpt =
-      (λ e : InterruptStatus * nat * nat, WInt (encode_entry_point e.1.1 e.1.2 e.2)) <$> exports →
-    Forall (λ e, e.1.2 < 7) exports →
-    Forall (λ e : InterruptStatus * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
+      (λ e : InterruptStatus * nat * nat * nat,
+         WInt (encode_entry_point e.1.1.1 e.1.1.2 e.1.2 e.2)) <$> exports →
+    Forall (λ e, e.1.1.2 < 7) exports →
+    Forall (λ e : InterruptStatus * nat * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
@@ -810,9 +814,9 @@ Section adversary_exports.
        a ↦ₐ□ lword_of_word v) -∗
     ([∗ list] i ↦ e ∈ exports,
        WSealed switcher.ot_switcher
-         (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a) ↦□ₑ e.1.2 ∗
+         (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a) ↦□ₑ e.1.1.2 ∗
        WSealed switcher.ot_switcher
-         (borrow_sb (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a)) ↦□ₑ e.1.2) -∗
+         (borrow_sb (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a)) ↦□ₑ e.1.1.2) -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W C (cmpt_pcc_cap C_cmpt) -∗
         interp W C (cmpt_cgp_cap C_cmpt) -∗
@@ -823,9 +827,9 @@ Section adversary_exports.
       (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
     rewrite Htbl length_fmap in Hi.
-    destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [ [posture args] offset] He].
+    destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [ [ [posture args] minstk] offset] He].
     iDestruct (big_sepL_lookup with "Hexports") as "[Hentry Hentry']"; first exact He.
-    iApply (adversary_export_prop _ _ _ _ posture i args offset
+    iApply (adversary_export_prop _ _ _ _ posture i args minstk offset
              with "Hswitcher Hswitcher_static Hpcc Hcgp Hentries Hinterp_pcc Hinterp_cgp Hentry Hentry'").
     - by rewrite Htbl list_lookup_fmap He.
     - done.

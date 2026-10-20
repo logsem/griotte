@@ -23,6 +23,7 @@ Section LSE_F_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wcgp wcs0 wcra wca0 wca1 : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
+    jalr_target_ok cnull cra wcra.(lw) = true ->
     assert_static b_assert e_assert a_flag ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
     cgp ↦ᵣ wcgp ∗
@@ -34,7 +35,7 @@ Section LSE_F_Blocks_2.
     ca1 ↦ᵣ wca1 ∗
     (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
     codefrag_pers pc_a lse_main_code ∗
-    ( ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
         cgp ↦ᵣ WInt 0 ∗
         cs0 ↦ᵣ WInt 0 ∗
         ct0 ↦ᵣ WInt 0 ∗
@@ -44,19 +45,10 @@ Section LSE_F_Blocks_2.
         ca1 ↦ᵣ WInt 0 ∗
         (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
         codefrag_pers pc_a lse_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
-    (cgp ↦ᵣ WInt 0 ∗
-        cs0 ↦ᵣ WInt 0 ∗
-        ct0 ↦ᵣ WInt 0 ∗
-        ct1 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ wcra ∗
-        ca0 ↦ᵣ WInt 0 ∗
-        ca1 ↦ᵣ WInt 0 -∗
-        trap_safe (WCap true RX Global pc_b pc_e ((pc_a ^+ lse_label_offset ".Llse_f_return") ^+ 2)%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Htgt)
       "(#Hassert & HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra
       & Hca0 & Hca1 & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -82,16 +74,9 @@ Section LSE_F_Blocks_2.
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
-    destruct (jalr_target_ok cnull cra wcra.(lw)) eqn:Htgt; cycle 1.
-    { (* Jalr cnull cra *)
-      iInstr_fail "Hcode".
-      change_pc_to ((pc_a ^+ lse_label_offset ".Llse_f_return") ^+ 2)%a.
-      iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

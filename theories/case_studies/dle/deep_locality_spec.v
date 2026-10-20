@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call deep_locality.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception_stub deep_locality.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
 From griotte Require Import dle_spec_states dle_spec_world
@@ -39,8 +39,6 @@ Section DLE.
     (Cs : list CmptName)
 
     (Nswitcher : namespace)
-
-    (cstk : CSTK)
     :
 
     let imports := dle_main_imports C_f in
@@ -56,12 +54,14 @@ Section DLE.
 
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     (pc_b + dle_label ".Ldle_init")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher calls *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W0) ->
     LNonHeap (cgp_b ^+1 )%a ∉ dom (std W0) ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
-    frame_match Ws Cs cstk W0 C ->
+    frame_match Ws Cs [] W0 C ->
     (
       assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
@@ -81,9 +81,9 @@ Section DLE.
 
       ∗ world_interp W0 C
 
-      ∗ interp_continuation cstk Ws Cs
+      ∗ interp_continuation [] Ws Cs
 
-      ∗ cstack_frag cstk
+      ∗ cstack_frag []
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
@@ -105,7 +105,7 @@ Section DLE.
          and halt. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hrmap_dom Hrmap_init
-               HsubBounds Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap
+               HsubBounds Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap
                Hframe_match
             )
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
@@ -160,8 +160,19 @@ Section DLE.
              "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
-              $Hinterp_W3_C_f $HentryC_f $HK]"); [done|done|done|done|].
+              $Hinterp_W3_C_f $HentryC_f $HK]").
+    { exact Hstk_mmio. }
+    { exact Hstk_heap. }
+    { solve_addr+. }
+    { exact Hrmap'_dom. }
+    { exact Harg_rmap. }
+    { destruct mie; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     iSplit; first done.
+    iSplit; last first.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem rmap.
     iIntros (W4 rmap stk_mem l' rcgp rcra rcs0 rcs1)
@@ -206,8 +217,19 @@ Section DLE.
              "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
-              $Hinterp_W5_C_f $HentryC_f $HK]"); [done|done|done|done|].
+              $Hinterp_W5_C_f $HentryC_f $HK]").
+    { exact Hstk_mmio. }
+    { exact Hstk_heap. }
+    { solve_addr+. }
+    { exact Hrmap'_dom. }
+    { exact Harg_rmap. }
+    { destruct mie'; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     iSplit; first done.
+    iSplit; last first.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem rmap.
     iIntros (W6 rmap stk_mem l0 rcgp rcra rcs0 rcs1)

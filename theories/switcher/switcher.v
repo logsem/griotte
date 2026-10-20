@@ -20,6 +20,7 @@ Section Switcher.
   #[local] Coercion Z.of_nat : nat >-> Z.
 
   Definition ECOMPARTMENTFAIL : Z := -1.
+  Definition ENOTENOUGHSTACK : Z := -140.
   Definition ENOTENOUGHTRUSTEDSTACK : Z := -141.
 
   (** The layout of the trusted stack, with CHERIoT's names (with
@@ -74,11 +75,13 @@ Section Switcher.
   Definition tstack_frameoffset (d : nat) : Z :=
     TrustedStack_offset_frames + TrustedStackFrame_size * (Z.of_nat d + 1).
 
-  (** An entry point packs the number of arguments in bits 0-2, the
-      interrupt posture in bits 3-4 and the offset from bit 5, as CHERIoT's
-      export entries do. Bit 4 is set when the callee runs with interrupts
-      disabled; bit 3 (inherited posture) is never set, since export entries
-      cannot inherit. *)
+  (** An entry point packs, as CHERIoT's export entries do, the flags in
+      bits 0-7, the minimum stack size of the callee in bits 8-15 and the
+      offset from bit 16. The flags hold the number of arguments in bits 0-2
+      and the interrupt posture in bits 3-4. Bit 4 is set when the callee runs
+      with interrupts disabled; bit 3 (inherited posture) is never set, since
+      export entries cannot inherit. The minimum stack size is counted in
+      words, one word being one CHERIoT stack slot of 8 bytes. *)
   Definition entry_point_irq_disabled_mask : Z := 16.
 
   Definition entry_point_posture (mie : InterruptStatus) : Z :=
@@ -87,13 +90,12 @@ Section Switcher.
     | InterruptDisabled => entry_point_irq_disabled_mask
     end.
 
-  Definition encode_entry_point (mie : InterruptStatus) (nargs entry_point_offset : Z) : Z :=
+  Definition encode_entry_point
+    (mie : InterruptStatus) (nargs minstk entry_point_offset : Z) : Z :=
     let args := Z.land nargs 7 in
-    let off := Z.shiftl entry_point_offset 5 in
-    (Z.lor off (Z.lor (entry_point_posture mie) args)).
-
-  Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
-    ( Z.land entry_point 7, Z.shiftr entry_point 5).
+    let stk := Z.shiftl (Z.land minstk 255) 8 in
+    let off := Z.shiftl entry_point_offset 16 in
+    (Z.lor off (Z.lor stk (Z.lor (entry_point_posture mie) args))).
 
   Definition switcher_call_asm : list (list asm_code) :=
     (* Call *)
@@ -114,16 +116,16 @@ Section Switcher.
         sub ct2 ct2 ctp;
         jnz (".Lcommon_force_unwind")%asm ct2
       ]
-      ; (* Save the callee registers *)
+      ; (* Save the callee registers. The first spill goes to the cell
+           furthest from the cursor: if it fits, the stack is long enough
+           for the others. A cursor below the base can still make a later
+           store fault. *)
       [ #".Lswitcher_entry_first_spill";
-        store csp cs0;
-        lea csp 1;
-        store csp cs1;
-        lea csp 1;
-        store csp cra;
-        lea csp 1;
-        store csp cgp;
-        lea csp 1
+        store_imm csp cgp 3;
+        store_imm csp cs0 0;
+        store_imm csp cs1 1;
+        store_imm csp cra 2;
+        lea csp 4
       ]
       ; (* Check that the trusted stack has room for a frame, and push it *)
       [ #".Lswitcher_trusted_stack_push";
@@ -162,7 +164,8 @@ Section Switcher.
         auipcc cs0 (".Lswitcher_unseal_key")%asm;
         load cs0 cs0
       ]
-      ; (* CLoad and decode entry point nargs and offset *)
+      ; (* CLoad and decode entry point nargs, minimum stack size and offset;
+           check the size of the callee's stack *)
       [ #".Lswitcher_unseal_entry";
         unseal ct1 cs0 ct1;
         #".Lswitcher_decode_entry";
@@ -171,7 +174,19 @@ Section Switcher.
         store_imm ctp ct1 TrustedStackFrame_offset_calleeExportTable;
         land ct2 cs0 7;
         land ctp cs0 entry_point_irq_disabled_mask;
-        lshiftr cs0 cs0 5
+        (* Check that the callee's stack, already truncated, is at least
+           the minimum stack size of the entry point. CHERIoT also requires
+           room for the unwind state of error handlers, which is not
+           modelled. *)
+        lshiftr cs1 cs0 8;
+        land cs1 cs1 255;
+        gete cgp csp;
+        getb cra csp;
+        sub cgp cgp cra;
+        lt cra cgp cs1;
+        #".Lswitch_stack_too_small_branch";
+        jnz (".Lswitch_stack_too_small")%asm cra;
+        lshiftr cs0 cs0 16
       ]
       ; (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
       [ #".Lswitcher_prepare_callee";
@@ -283,6 +298,15 @@ Section Switcher.
         mov ca0 ECOMPARTMENTFAIL;
         mov ca1 0;
         #".Lexception_entry_return";
+        jmp (".Lswitcher_after_compartment_call")%asm
+      ]
+      ; (* The callee's stack is smaller than the minimum stack size of the
+           entry point: the frame is already pushed, so the return routine
+           pops it and returns to the caller. *)
+      [ #".Lswitch_stack_too_small";
+        mov ca0 ENOTENOUGHSTACK;
+        mov ca1 0;
+        #".Lswitch_stack_too_small_return";
         jmp (".Lswitcher_after_compartment_call")%asm
       ]
     ].

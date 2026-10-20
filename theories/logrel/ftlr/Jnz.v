@@ -40,9 +40,10 @@ Section fundamental.
 
     iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [ lpc' wcond Hrcond Hnz Hincr | lpc' imm wcond Hrcond Hnz Hrimm HincrPC | ]; cycle 2.
-    {
-      iTrap; auto.
-    }
+    { iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
 
     {
       incrementPC_inv; simplify_map_eq.

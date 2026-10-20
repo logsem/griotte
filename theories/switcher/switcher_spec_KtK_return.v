@@ -121,7 +121,8 @@ Section Switcher_KtK_Return.
        - [switcher_return_blocks_1_spec]: pop the trusted stack;
        - [switcher_return_blocks_2_spec]: restore the callee-save registers,
          clear the stack frame and the registers, and jump back to the
-         caller;
+         caller; the frame records that the return address is a valid
+         target, so the jump does not fault;
        - pop the frame and close the switcher invariant. *)
     intros astk4 frame; subst astk4.
     iIntros (Hstk_heap Hstk_mmio HE Hdom)
@@ -141,7 +142,7 @@ Section Switcher_KtK_Return.
     rewrite /frame /cframe_interp; iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl Ha_tstk_tbl] & >[%wcnt Ha_tstk_cnt] & >%HWF
                                     & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
-    destruct HWF as (Hb_a4 & He_a1 & Ha_stk4 & _ & _).
+    destruct HWF as (Hb_a4 & He_a1 & Ha_stk4 & _ & _ & Hret_ok).
     pose proof (switcher_stk_bounds_frame b_stk e_stk a_stk Hb_a4 He_a1 Ha_stk4) as Hstk_bounds.
     pose proof Hstk_bounds as (_ & _ & Ha4).
     iExtract "Hregs" ctp as "Hctp".
@@ -169,7 +170,15 @@ Section Switcher_KtK_Return.
         $Hcells $Hstk $Hregs $Hcode]"); [done|done| |].
     { rewrite dom_insert_L. repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }
     iNext; iIntros (rmap' rcgp rcra rcs1 rcs0)
-      "(%Hrestored & %Hrmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hregs & _ & _)".
+      "(%Hrestored & %Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hregs & _ & _)".
+    iSplit; cycle 1.
+    { (* The return address of the caller is a valid target *)
+      iIntros "%Hjalr".
+      specialize (Hret_ok eq_refl) as [Hret_jalr Hret_heap].
+      destruct Hrestored as (_ & Hra & _ & _).
+      apply load_heap_nonheap in Hra; last done.
+      subst rcra; congruence. }
+    iIntros "[HPC _]".
     iDestruct (region_pointsto_split a_stk e_stk (a_stk ^+ 4)%a with "[$Hstk' $Hstk]") as "Hstk";
       [solve_addr | by rewrite /region_addrs_zeroes length_replicate |].
     assert (region_addrs_zeroes a_stk e_stk =

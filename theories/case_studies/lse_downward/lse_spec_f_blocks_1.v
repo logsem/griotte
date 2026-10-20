@@ -5,8 +5,8 @@ From griotte Require Import lse_spec_states.
 (** * LSE [f], block 4: push the capability of [a], load [a]
 
     Block 4 restricts [cgp] to the capability of [a] (at [cgp_b]), pushes
-    it on top of the stack frame, loads [a] in [ct0] and [2] in [ct1]. When
-    the stack frame is empty, the push fails, and so does the machine. *)
+    it on top of the stack frame, loads [a] in [ct0] and [2] in [ct1]. The
+    stack frame holds the pushed capability. *)
 
 Section LSE_F_Blocks_1.
   Context
@@ -28,6 +28,8 @@ Section LSE_F_Blocks_1.
     is_shadow_address cgp_b = false ->
     is_heap_address cgp_b = false ->
     disjoint_from_mmio csp_b csp_e ->
+    (* The stack frame holds the pushed capability *)
+    (csp_b < csp_e)%a ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
@@ -38,7 +40,7 @@ Section LSE_F_Blocks_1.
     cgp_b ↦ₐ WInt 2 ∗
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     codefrag_pers pc_a lse_main_code ∗
-    ( ▷ (∀ stk_mem' wcs0' wcs1',
+    ▷ (∀ stk_mem' wcs0' wcs1',
         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
         cgp ↦ᵣ lse_a_cap cgp_b ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
@@ -49,20 +51,10 @@ Section LSE_F_Blocks_1.
         cgp_b ↦ₐ WInt 2 ∗
         [[csp_b, csp_e]] ↦ₐ [[stk_mem']] ∗
         codefrag_pers pc_a lse_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
-    (cgp ↦ᵣ lse_a_cap cgp_b ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
-        ct0 ↦ᵣ wct0 ∗
-        ct1 ↦ᵣ wct1 ∗
-        cs0 ↦ᵣ - ∗
-        cs1 ↦ᵣ - ∗
-        cgp_b ↦ₐ WInt 2 ∗
-        [[csp_b, csp_e]] ↦ₐ [[stk_mem]] -∗
-        trap_safe (WCap true RX Global pc_b pc_e ((pc_a ^+ lse_label_offset ".Llse_f") ^+ 3)%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hcgp_nonheap Hstk_mmio)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hcgp_nonheap Hstk_mmio Hcsp_size)
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1
       & Hcgp_b & Hstk & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -81,15 +73,6 @@ Section LSE_F_Blocks_1.
     { transitivity (Some (cgp_b ^+ 1%nat)%a); [solve_addr+Hcgp_bounds|reflexivity]. }
     { solve_addr+Hcgp_bounds. }
     { solve_addr+Hcgp_bounds. }
-    destruct (decide (csp_b < csp_e)%a) as [Hcsp_size|Hcsp_size]; cycle 1.
-    { (* The stack frame is empty: the push fails *)
-      (* Store csp cgp 0 *)
-      iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcgp $Hcsp]" as "(HPC & Hcgp & Hcsp)".
-      { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      change_pc_to ((pc_a ^+ lse_label_offset ".Llse_f") ^+ 3)%a.
-      iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed".
-    }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
     rewrite finz_seq_between_length finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
     destruct stk_mem as [|w0 stk_mem]; simplify_eq.
@@ -112,7 +95,6 @@ Section LSE_F_Blocks_1.
     { solve_addr+Hcsp_size. }
     assert ((a_f ^+ 6)%a = (pc_a ^+ lse_label_offset ".Llse_f_assert")%a) as ->
       by (offsets_compute; solve_addr).
-    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

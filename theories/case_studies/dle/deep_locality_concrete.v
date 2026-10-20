@@ -75,7 +75,7 @@ Proof.
     (cmpt_of dle_demo_image "main"), (cmpt_of dle_demo_image "C").
   split; first done.
   split_and!.
-  all: try (exists 1%nat; split_and!).
+  all: try (exists 1%nat, 0%nat; split_and!).
   all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /dle_demo_state /img_state /img_regs; solve_other_registers
             end).

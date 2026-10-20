@@ -43,11 +43,15 @@ Section fundamental.
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     (* GetTag may return 0 on a word whose tag may have been cleared: either
        way an integer is written. *)
-    assert (retv = FaultedV ∨ ∃ z, retv = NextIV ∧ incrementPC (WCap true p g b e a) = Some lpc' ∧
-              regs' = <[dst := WInt z]ₗ> regs) as [-> | (z & -> & Hinc & ->)].
-    { destruct HSpec as [wsrc z Hsrc Hz Hinc -> | wsrc Hgt Hsrc Hstrip Hinc -> | ];
-        [right; by exists z | right; by exists 0%Z | by left]. }
-    - iTrap; auto.
+    assert ((retv = FaultedV ∧ regs' = regs) ∨
+            ∃ z, retv = NextIV ∧ incrementPC (WCap true p g b e a) = Some lpc' ∧
+              regs' = <[dst := WInt z]ₗ> regs) as [(-> & ->) | (z & -> & Hinc & ->)].
+    { destruct HSpec as [wsrc z Hsrc Hz Hinc -> | wsrc Hgt Hsrc Hstrip Hinc -> | Hfail Hlpc Hregs];
+        [right; by exists z | right; by exists 0%Z | left; by split]. }
+    - iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
     - incrementPC_inv; simplify_map_eq.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 

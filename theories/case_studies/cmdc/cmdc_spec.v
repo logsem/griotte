@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel rules monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call cmdc.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception_stub cmdc.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
 From griotte Require Import cmdc_spec_states cmdc_spec_world
@@ -42,8 +42,6 @@ Section CMDC.
 
     (φ : language.val griotte_lang -> iProp Σ)
     (Nswitcher : namespace)
-
-    (cstk : CSTK)
     :
 
     let imports := cmdc_main_imports B_f C_g in
@@ -63,6 +61,8 @@ Section CMDC.
 
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher calls *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
     LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
@@ -98,9 +98,9 @@ Section CMDC.
       ∗ world_interp W_init_B B
       ∗ world_interp W_init_C C
 
-      ∗ interp_continuation cstk Ws Cs
+      ∗ interp_continuation [] Ws Cs
 
-      ∗ cstack_frag cstk
+      ∗ cstack_frag []
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -138,7 +138,7 @@ Section CMDC.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
+               Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
@@ -195,8 +195,19 @@ Section CMDC.
              "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B $Hcstk_frag
-              $Hinterp_B_f $HentryB_f $HK]"); [done..|].
+              $Hinterp_B_f $HentryB_f $HK]").
+    { exact Hstk_shadow. }
+    { exact Hstk_heap. }
+    { solve_addr+. }
+    { exact Hrmap'_dom. }
+    { exact Harg_rmap. }
+    { destruct mie; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     iSplit; first done.
+    iSplit; last first.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap.
     iIntros (W_ret_B rmap stk_mem l rcgp rcra rcs0 rcs1)
@@ -261,8 +272,19 @@ Section CMDC.
              "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $Hworld_interp_C $Hstack_revoked_C $Hcstk_frag
-              $Hinterp_C_g $HentryC_g $HK]"); [done..|].
+              $Hinterp_C_g $HentryC_g $HK]").
+    { exact Hstk_shadow. }
+    { exact Hstk_heap. }
+    { solve_addr+. }
+    { exact Hrmap'_dom. }
+    { exact Harg_rmap. }
+    { destruct mie'; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     iSplit; first done.
+    iSplit; last first.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap stk_mem.
     iIntros (W_ret_C rmap stk_mem l' rcgp rcra rcs0 rcs1)
@@ -311,8 +333,6 @@ Section CMDC.
 
     (φ : language.val griotte_lang -> iProp Σ)
     (Nswitcher : namespace)
-
-    (cstk : CSTK)
     :
 
     let imports := cmdc_main_imports B_f C_g in
@@ -332,6 +352,8 @@ Section CMDC.
 
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher calls *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
     LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
@@ -363,9 +385,9 @@ Section CMDC.
       ∗ world_interp W_init_B B
       ∗ world_interp W_init_C C
 
-      ∗ interp_continuation cstk Ws Cs
+      ∗ interp_continuation [] Ws Cs
 
-      ∗ cstack_frag cstk
+      ∗ cstack_frag []
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -384,7 +406,7 @@ Section CMDC.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
+               Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
@@ -402,7 +424,7 @@ Section CMDC.
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
                 B_f C_g W_init_B W_init_C
-               Ws Cs csp_content φ Nswitcher cstk); eauto; iFrame "#∗".
+               Ws Cs csp_content φ Nswitcher); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

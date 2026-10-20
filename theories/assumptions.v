@@ -52,6 +52,7 @@ Print kvs_initial_state_ok.
 
 Section kvs_initial_state.
   Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
   Open Scope string_scope.
   Open Scope OType_scope.
   Open Scope Addr_scope.
@@ -77,6 +78,7 @@ Print cmdc_initial_state_ok.
 
 Section cmdc_initial_state.
   Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
   Open Scope string_scope.
   Open Scope OType_scope.
   Open Scope Addr_scope.
@@ -102,6 +104,7 @@ Print dle_initial_state_ok.
 
 Section dle_initial_state.
   Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
   Open Scope string_scope.
   Open Scope OType_scope.
   Open Scope Addr_scope.
@@ -127,6 +130,7 @@ Print droe_initial_state_ok.
 
 Section droe_initial_state.
   Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
   Open Scope string_scope.
   Open Scope OType_scope.
   Open Scope Addr_scope.
@@ -152,6 +156,7 @@ Print lse_initial_state_ok.
 
 Section lse_initial_state.
   Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
   Open Scope string_scope.
   Open Scope OType_scope.
   Open Scope Addr_scope.
@@ -177,6 +182,7 @@ Print so_initial_state_ok.
 
 Section so_initial_state.
   Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
   Open Scope string_scope.
   Open Scope OType_scope.
   Open Scope Addr_scope.
@@ -202,6 +208,7 @@ Print vae_initial_state_ok.
 
 Section vae_initial_state.
   Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
   Open Scope string_scope.
   Open Scope OType_scope.
   Open Scope Addr_scope.
@@ -228,6 +235,7 @@ Print hts_initial_state_ok.
 Section hts_initial_state.
   Import heap_temporal_safety allocator allocator_common_code.
   Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
   Open Scope string_scope.
   Open Scope OType_scope.
   Open Scope Addr_scope.

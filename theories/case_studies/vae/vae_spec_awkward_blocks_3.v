@@ -30,6 +30,7 @@ Section VAE_Awkward_Blocks_3.
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     loc W !! i = Some (encode true) ->
+    jalr_target_ok cnull cra wret.(lw) = true ->
     inv N (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     assert_static b_assert e_assert a_flag ∗
@@ -45,7 +46,7 @@ Section VAE_Awkward_Blocks_3.
     ca2 ↦ᵣ wca2 ∗
     (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
     codefrag_pers pc_a vae_main_code ∗
-    ( ▷ (world_interp W C ∗
+    ▷ (world_interp W C ∗
         PC ↦ₚ lupdatePcPerm wret ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ wret ∗
@@ -58,24 +59,11 @@ Section VAE_Awkward_Blocks_3.
         ca2 ↦ᵣ WInt 0 ∗
         (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
         codefrag_pers pc_a vae_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
-    (world_interp W C ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        cra ↦ᵣ wret ∗
-        cs0 ↦ᵣ wret ∗
-        ca0 ↦ᵣ WInt 0 ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        ct0 ↦ᵣ WInt 0 ∗
-        ct1 ↦ᵣ WInt 0 ∗
-        ct2 ↦ᵣ WInt 0 ∗
-        ca2 ↦ᵣ WInt 0 -∗
-        trap_safe
-          (WCap true RX Global pc_b pc_e ((pc_a ^+ vae_label_offset ".Lvae_awkward_return") ^+ 3)%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hloc)
+               Hcgp_shadow Hloc Htgt)
       "(#Hawk & Hworld & #Hassert & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
       & Hct0 & Hct1 & Hct2 & Hca2
       & Himport_assert & Hcode_main & Hpost)".
@@ -126,16 +114,9 @@ Section VAE_Awkward_Blocks_3.
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
-    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
-    { (* Jalr cnull cra *)
-      iInstr_fail "Hcode".
-      change_pc_to ((pc_a ^+ vae_label_offset ".Lvae_awkward_return") ^+ 3)%a.
-      iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

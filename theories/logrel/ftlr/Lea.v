@@ -177,7 +177,11 @@ Section fundamental.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
-    { iTrap; auto. }
+    { subst regs'.
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
   Qed.
 
 End fundamental.

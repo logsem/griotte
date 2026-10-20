@@ -552,7 +552,7 @@ Section layout_of_img_wf.
     destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|] eqn:Hbody;
       last done.
     destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
-    intros (Hstack & Htstack & Hrange_stack & Hrange_tstack).
+    intros (Hstack & Htstack & Hrange_stack & Hrange_tstack & _).
     destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
     by split_and!.
   Qed.
@@ -750,6 +750,27 @@ Section entry.
     | UntrustedBody _ => 0
     end.
 
+  (** The minimum stack size of the export the thread [i] starts at. *)
+  Definition fw_entry_min_stack (fw : firmware) (i : nat) : nat :=
+    match fc_body (fw_entry_fc fw i) with
+    | TrustedBody b => fe_min_stack (fw_export_named (ft_entry (fw_thread_of fw i)) (tb_exports b))
+    | UntrustedBody _ => 0
+    end.
+
+  (** The stack of a thread holds the minimum stack size of its entry. *)
+  Lemma thread_wf_min_stack fw img i :
+    thread_wf fw img i (fw_thread_of fw i) →
+    (b_stack (thread_of img i) + Z.of_nat (fw_entry_min_stack fw i) <= e_stack (thread_of img i))%Z.
+  Proof.
+    rewrite /thread_wf /fw_entry_min_stack /fw_entry_fc /section /note.
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt (fw_thread_of fw i)))) as [tb|];
+      last done.
+    rewrite /fw_export_named.
+    destruct (fw_find_export (ft_entry (fw_thread_of fw i)) (tb_exports tb)) as [e|]; last done.
+    intros (Hstack & _ & _ & _ & Hmin).
+    solve_addr+Hstack Hmin.
+  Qed.
+
   Definition fw_entry_cmpt (fw : firmware) (img : fw_image) (i : nat) : img_cmpt :=
     cmpt_of img (ft_cmpt (fw_thread_of fw i)).
 
@@ -770,11 +791,23 @@ Section entry.
     let t := thread_of img 0 in
     WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t).
 
+  (** The trap vector: the exception entry of the switcher. *)
+  Definition fw_mtcc (img : fw_image) : Word :=
+    let sw := img_sw img in
+    WCap true XSRW_ Local (b_switcher sw) (e_switcher sw)
+      (a_switcher_call sw ^+
+         assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+           ".Lswitcher_csp_check_perm" "exception_entry_asm")%a.
+
+  Definition fw_trap_vector (img : fw_image) : trapVector :=
+    {| mtcc_vec := fw_mtcc img; mtcc_vec_tagged := eq_refl |}.
+
   Definition fw_initial_sreg (img : fw_image) (sr : SRegName) : Word :=
     match sr with
     | MTDC => fw_thread_mtdc img
     | MSTATUS => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
-    | MTCC | MEPCC | MCAUSE | MTVAL => WInt 0
+    | MTCC => fw_mtcc img
+    | MEPCC | MCAUSE | MTVAL => WInt 0
     end.
 
   Lemma regs_ok_inv fw img σ :
@@ -1050,7 +1083,7 @@ Section ghost_init.
 
   Lemma firmware_ok_ghost_init_cond fw img w_pc regs sregs m sh :
     firmware_ok fw img (w_pc, regs, sregs, m, sh) →
-    ghost_init_cond (w_pc, regs, sregs, m, sh) (fw_set (fw_heap_roots fw)) ∧
+    ghost_init_cond (TV := fw_trap_vector img) (w_pc, regs, sregs, m, sh) (fw_set (fw_heap_roots fw)) ∧
     regs !! cnull = Some (WInt 0).
   Proof.
     intros Hok.
@@ -1072,6 +1105,7 @@ Section ghost_init.
     assert (cnull ∉ ({[cgp; csp]} : gset RegName)) as Hcnull by set_solver+.
     split; last by apply Hzero.
     pose proof Hwf as (Hsw_wf & Hasrt_wf & Hcmpts_wf & Hthreads_wf & _).
+    pose proof Hsw_wf as (_ & _ & _ & [Hsw_not_heap _] & Hsw_end).
     apply big_and_fw_map in Hcmpts_wf.
     apply ghost_init_cond_roots; first done.
     - (* The memory is rooted. *)
@@ -1108,7 +1142,10 @@ Section ghost_init.
         destruct (thread_wf_inv _ _ _ _ Hthread0) as (_ & _ & _ & _ & _ & [ [_ Hheap] _]).
         exact Hheap. }
       intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
-      destruct sr; try apply word_rooted_int. by apply word_rooted_cap_disjoint.
+      destruct sr; try apply word_rooted_int.
+      + (* MTCC: the switcher's capability, outside the heap *)
+        apply word_rooted_cap_nonheap. exact (proj1 Hsw_not_heap).
+      + by apply word_rooted_cap_disjoint.
     - (* The memory avoids the memory-mapped devices. *)
       match goal with |- mem_avoids_mmio (?H ∪ ?S ∪ ?AC ∪ ?AF ∪ ?CM ∪ ?TM) =>
         replace (H ∪ S ∪ AC ∪ AF ∪ CM ∪ TM) with (H ∪ (S ∪ AC ∪ AF ∪ CM ∪ TM))
@@ -1144,12 +1181,15 @@ Section ghost_init.
       { rewrite Hcsp in Hr. injection Hr as <-. by apply word_exec_ok_not_executable. }
       rewrite Hzero in Hr; last set_solver+Hne1 Hne2. injection Hr as <-. apply word_exec_ok_int.
     - intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
-      by destruct sr; apply word_exec_ok_not_executable.
+      destruct sr; try by apply word_exec_ok_not_executable.
+      (* MTCC: the switcher's capability, with closed bounds outside the heap *)
+      eapply word_exec_ok_closed; [reflexivity | exact Hsw_not_heap | exact Hsw_end].
     - by intros _.
     - intros sr w Hsr Hw. rewrite Hsreg in Hw. injection Hw as <-.
-      by destruct sr; apply pc_ok_untagged.
+      (* MTCC is an unsealed executable capability *)
+      destruct sr; try done; by apply pc_ok_untagged.
     - intros sr _. eexists. apply Hsreg.
-    - intros w Hw. rewrite Hsreg in Hw. by injection Hw as <-.
+    - exact (Hsreg MTCC).
   Qed.
 End ghost_init.
 
@@ -1218,8 +1258,8 @@ Section entries_facts.
   Proof.
     revert k. induction ns as [|n ns IH]; intros k Hk; cbn in Hk.
     - by exists [].
-    - destruct Hk as (off & _ & Hk). destruct (IH _ Hk) as (ws & Hlen & Hws).
-      exists (export_word (MkFwExport "" off n InterruptEnabled) :: ws). by rewrite /= Hlen.
+    - destruct Hk as (off & minstk & _ & Hk). destruct (IH _ Hk) as (ws & Hlen & Hws).
+      exists (export_word (MkFwExport "" off n minstk InterruptEnabled) :: ws). by rewrite /= Hlen.
   Qed.
 
   (** The conditions on a compartment whose imports and globals name known
@@ -1566,11 +1606,11 @@ Proof.
   destruct (firmware_ok_ghost_init_cond _ _ _ _ _ _ _ Hok) as [Hinit Hnull].
   (* The program-logic resources of the initial state; the entries are all
      sealed by the switcher's sealing type. *)
-  eapply (cerise_flag_adequacy Σ (ot_switcher (img_sw img)) (fw_entries fw img)
+  eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img) (ot_switcher (img_sw img)) (fw_entries fw img)
             fw_flagN (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
     [ by eapply fw_entries_NoDup | apply fw_entries_global | exact Hinit | exact Hnull
     | | exact Hstep].
-  iIntros (ceriseg) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries".
+  iIntros (ceriseg Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries".
   (* The seal store, the call stack and the worlds. *)
   iMod (initialise_world (finite.enum CmptName)
           ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)))
@@ -1600,7 +1640,7 @@ Proof.
     pose proof (cmpt_switcher_trusted_stack_mregion_disjoint swc) as Hd2.
     apply map_disjoint_union_l in Hd1 as [Hd1 _].
     by apply map_disjoint_union_r. }
-  iMod (initialise_switcher_compartment swc fw_switcherN
+  iMod (initialise_switcher_compartment swc fw_switcherN Hmtcc
          with "Hswitcher Hseal_switcher Hcstk_full Hmtdc")
     as "(#Hseal_pred & #Hswitcher & #Hswitcher_static & Hstack)".
   (* The obligations of the trusted code. *)

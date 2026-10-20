@@ -4,7 +4,8 @@ From griotte Require Import
   memory_region region_invariants_revocation wp_rules_interp interp_weakening.
 From griotte Require Import assert_spec fetch_spec.
 From griotte Require Import
-  switcher switcher_preamble switcher_spec_call switcher_spec_KtK switcher_load_spec.
+  switcher switcher_preamble switcher_spec_call switcher_spec_KtK switcher_spec_KtK_call
+  switcher_load_spec switcher_exception_stub.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
 From griotte Require Import map_simpl register_tactics proofmode.
@@ -234,9 +235,13 @@ Section KVS_Main_Blocks.
       (wcgp wcra wcs0 wcs1 : LWord)
       (b_stk e_stk a_stk : Addr) (target : Sealable)
       (stk_mem : list LWord) (rmap : LReg)
-      (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+      (Ws : list WORLD) (Cs : list CmptName) :
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
+    (b_stk <= a_stk)%a ->
+    (a_stk + 4 <= e_stk)%Z ->
+    jalr_target_ok cnull cra wcra.(lw) = true ->
+    is_heap_cap wcra.(lw) = false ->
     dom rmap =
       all_registers_s ∖
         ({[ cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
@@ -258,8 +263,8 @@ Section KVS_Main_Blocks.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
     ∗ ⌜revoked_addresses W (finz.seq_between a_stk e_stk)⌝
-    ∗ cstack_frag cstk
-    ∗ interp_continuation cstk Ws Cs
+    ∗ cstack_frag []
+    ∗ interp_continuation [] Ws Cs
     ∗ ▷ (∀ (W2 : WORLD) (rmap' : LReg) (stk_mem' : list LWord) l' rcgp rcra rcs0 rcs1,
         ⌜extract_temporaries_condition
           W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk))⌝
@@ -280,7 +285,7 @@ Section KVS_Main_Blocks.
              ∧ (a_stk ^+ 4)%a <= e_stk
              ∧ (a_stk + 4)%a = Some (a_stk ^+ 4)%a)%a⌝
         ∗ world_interp (revoke W2) C
-        ∗ cstack_frag cstk
+        ∗ cstack_frag []
         ∗ PC ↦ₚ lupdatePcPerm (rcra)
         ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra
         ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
@@ -289,7 +294,7 @@ Section KVS_Main_Blocks.
         ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
         ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
         ∗ [[a_stk, e_stk]] ↦ₐ [[stk_mem']]
-        ∗ interp_continuation cstk Ws Cs
+        ∗ interp_continuation [] Ws Cs
         ∗ ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
              load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝
         -∗ WP Seq (Instr Executable)
@@ -297,40 +302,43 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hstk_shadow Hstk_heap Hrmap)
+    iIntros (Hstk_shadow Hstk_heap Hb_a Hstk_spill Hwcra_jalr Hwcra_heap Hrmap)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0
        & Hrmap & Hstk & Hworld & Hrevoked & %Hrevoked
        & Hcstk & HK & Hpost)".
+    iPoseProof (kvs_main_adversary_arg_rmap_resources W C with
+      "[$Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0]") as "Hargs".
     iApply (switcher_cc_specification Nswitcher W C wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk target stk_mem kvs_main_adversary_arg_rmap
-      rmap cstk Ws Cs 0 with
-      "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
-       $Hcs0 $Hcs1  $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
-       $Htarget $Hentry $Hpost]").
-    - exact Hstk_shadow.
-    - exact Hstk_heap.
-    - exact Hrmap.
-    - apply kvs_main_adversary_arg_rmap_is_arg.
-    - iSplitL "Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0".
-      + iPoseProof (kvs_main_adversary_arg_rmap_resources W C with
-          "[$Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0]") as "Hargs".
-        iApply (big_sepM_impl with "Hargs").
-        iModIntro. iIntros (r w Hr) "[Hr _]".
-        iFrame.
-      + iFrame "∗#%".
+      rmap [] Ws Cs 0 with
+      "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
+       $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
+       $Htarget Hargs Hpost]");
+      [exact Hstk_shadow | exact Hstk_heap | exact Hb_a | exact Hrmap
+      | apply kvs_main_adversary_arg_rmap_is_arg | exact Hwcra_jalr | exact Hwcra_heap |].
+    iSplitR; first iExact "Hentry".
+    iSplitL "Hargs".
+    { iApply (big_sepM_impl with "Hargs").
+      iModIntro. iIntros (r w Hr) "[Hr _]".
+      iFrame. }
+    iSplitR; first done.
+    iSplit; first iExact "Hpost".
+    (* The spill cannot fault: the stack holds it *)
+    iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_spill.
   Qed.
 
   Lemma kvs_main_add_phase_spec
       (pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e : Addr)
       (rmap : LReg) (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert : Addr) (B_f : Sealable)
-      (Nswitcher : namespace) (stk_mem : list LWord) (cstk : CSTK) :
+      (Nswitcher : namespace) (stk_mem : list LWord) :
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (csp_b + 4 <= csp_e)%Z ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
@@ -365,7 +373,7 @@ Section KVS_Main_Blocks.
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
-    ∗ cstack_frag cstk
+    ∗ cstack_frag []
     ∗ ▷ (∀ (rmap_ret : LReg),
         ⌜dom rmap_ret =
           all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝
@@ -381,7 +389,7 @@ Section KVS_Main_Blocks.
         ∗ ([∗ map] r ↦ w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
         ∗ [[csp_b, csp_e]] ↦ₐ
             [[region_addrs_zeroes csp_b csp_e]]
-        ∗ cstack_frag cstk
+        ∗ cstack_frag []
         ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
         ∗ user_kvs_inv KVS_USER_KEY_MAIN
         ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
@@ -397,7 +405,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds Himports_contiguous Hstatic_sealed_b)
+    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds Himports_contiguous Hstatic_sealed_b)
       "(#Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
        & #Hkvs_exp_tbl_addOrUpdate
@@ -507,7 +515,7 @@ Section KVS_Main_Blocks.
                   (WCap true RW Global cgp_b cgp_e cgp_b)
                   (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
                   wcs0 (kvs_user_seal_key Global static_sealed_b)
-                  csp_b csp_e csp_b rmap_arg cstk ⊤
+                  csp_b csp_e csp_b rmap_arg [] ⊤
                   KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
                  with "[$Hkvs_static $Hkvs $Hkvs_logical]") as "HKVS_f"; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
@@ -517,32 +525,38 @@ Section KVS_Main_Blocks.
               (WCap true RW Global cgp_b cgp_e cgp_b)
               (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
-              csp_b csp_e csp_b stk_mem rmap_arg rmap' cstk
-              kvs_addOrUpdate_nargs ⊤
+              csp_b csp_e csp_b stk_mem rmap_arg rmap' []
+              kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack ⊤
               b_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr e_kvs_exp_tbl
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
-              kvs_addOrUpdate_pcc_off
+              kvs_addOrUpdate_pcc_off _ false
              with
-             "[- $Hswitcher $Hswitcher_static $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
+             "[$Hswitcher $Hswitcher_static $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-                 $Hstk $Hcstk_frag
-                 $HKVS_f
-                 ]"); auto using KVS_pcc_base_not_heap, KVS_cgp_base_not_heap;
-      try (apply Hexport_shadow; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off
-        /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr).
-    { rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
-    { solve_addr+Hkvs_exp_tbl_size. }
-    { rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
-    { rewrite /kvs_addOrUpdate_nargs; lia. }
-    { exists KVS_pcc_b'; exact KVS_size_imports. }
-    {  subst rmap'.
-       rewrite dom_insert_L.
-       repeat (rewrite dom_delete_L).
-       rewrite Hrmap_dom /dom_arg_rmap /=.
-       set_solver+.
-    }
-    { apply kvs_main_add_arg_rmap_is_arg. }
-    iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
+                 $Hstk $Hcstk_frag $HKVS_f
+                 Hstatic_sealed_b HLUKVS Hkvs_1 Hpost]").
+    all: [> exact Hstk_heap | exact Hstk_shadow | solve_addr
+      | apply Hexport_shadow; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off;
+        solve_addr+Hkvs_exp_tbl_size
+      | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
+      | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
+      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj
+      | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
+      | solve_addr+Hkvs_exp_tbl_size
+      | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
+      | rewrite /kvs_addOrUpdate_nargs; lia
+      | exists KVS_pcc_b'; exact KVS_size_imports
+      | rewrite /kvs_addOrUpdate_min_stack; solve_addr+Hstk_min
+      | subst rmap'; rewrite dom_insert_L; repeat (rewrite dom_delete_L);
+        rewrite Hrmap_dom /dom_arg_rmap /=; set_solver+
+      | apply kvs_main_add_arg_rmap_is_arg
+      | destruct mie; reflexivity
+      | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
+      | ].
+    iSplitL "Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
+    iSplit; last first.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.
@@ -622,11 +636,12 @@ Section KVS_Main_Blocks.
       (rmap : LReg) (wca0 wca1 wcra wcs0 : LWord)
       (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert a_flag : Addr) (Nswitcher : namespace)
-      (stk_mem : list LWord) (cstk : CSTK) :
+      (stk_mem : list LWord) :
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (csp_b + 4 <= csp_e)%Z ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
@@ -658,7 +673,7 @@ Section KVS_Main_Blocks.
     ∗ ca0 ↦ᵣ wca0 ∗ ca1 ↦ᵣ wca1
     ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
-    ∗ cstack_frag cstk
+    ∗ cstack_frag []
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
@@ -672,7 +687,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hdom_rmap HsubBounds Himports_contiguous Hstatic_sealed_b)
+    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hdom_rmap HsubBounds Himports_contiguous Hstatic_sealed_b)
       "(#Hassert & #Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
        & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
@@ -774,7 +789,7 @@ Section KVS_Main_Blocks.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
       wcs0 (kvs_user_seal_key Global static_sealed_b)
-      csp_b csp_e csp_b rmap_arg_read cstk ⊤
+      csp_b csp_e csp_b rmap_arg_read [] ⊤
       KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
       with "[$Hkvs_static $Hkvs $Hkvs_logical]") as "HKVS_f"; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
@@ -784,36 +799,41 @@ Section KVS_Main_Blocks.
               (WCap true RW Global cgp_b cgp_e cgp_b)
               (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
-              csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call cstk
-              kvs_read_nargs ⊤
+              csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call []
+              kvs_read_nargs kvs_read_min_stack ⊤
               b_kvs_exp_tbl kvs_read_exp_tbl_addr e_kvs_exp_tbl
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
-              kvs_read_pcc_off
+              kvs_read_pcc_off _ false
              with
-             "[- $Hswitcher $Hswitcher_static $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
+             "[$Hswitcher $Hswitcher_static $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
-                 $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag
-                 $HKVS_f
-                 ]"); auto using KVS_pcc_base_not_heap, KVS_cgp_base_not_heap;
-      try (apply Hexport_shadow; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off
-        /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr).
-    { rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
-    { solve_addr+Hkvs_exp_tbl_size. }
-    { rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
-    { rewrite /kvs_read_nargs; lia. }
-    { pose proof KVS_size_imports as Himports.
-      pose proof KVS_size_code as Hcode.
-      rewrite /kvs_service_instrs !length_app in Hcode.
-      rewrite kvs_read_pcc_off_eq; solve_addr.
-    }
-    {  subst rmap_read_call.
-       rewrite dom_insert_L.
-       repeat (rewrite dom_delete_L).
-       rewrite Hdom_rmap /dom_arg_rmap /=.
-       set_solver+.
-    }
-    { apply kvs_main_read_arg_rmap_is_arg. }
-    iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
+                 $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag $HKVS_f
+                 Hstatic_sealed_b HLUKVS Hkvs_1]").
+    all: [> exact Hstk_heap | exact Hstk_shadow | solve_addr
+      | apply Hexport_shadow; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off;
+        solve_addr+Hkvs_exp_tbl_size
+      | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
+      | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
+      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj
+      | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
+      | solve_addr+Hkvs_exp_tbl_size
+      | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
+      | rewrite /kvs_read_nargs; lia
+      | pose proof KVS_size_imports as Himports;
+        pose proof KVS_size_code as Hcode;
+        rewrite /kvs_service_instrs !length_app in Hcode;
+        rewrite kvs_read_pcc_off_eq; solve_addr
+      | rewrite /kvs_read_min_stack; solve_addr+Hstk_min
+      | subst rmap_read_call; rewrite dom_insert_L; repeat (rewrite dom_delete_L);
+        rewrite Hdom_rmap /dom_arg_rmap /=; set_solver+
+      | apply kvs_main_read_arg_rmap_is_arg
+      | destruct mie; reflexivity
+      | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
+      | ].
+    iSplitL "Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
+    iSplit; last first.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.

@@ -8,7 +8,7 @@ From griotte Require Export switcher switcher_preamble.
 From griotte Require Import switcher_return_states switcher_return_blocks_1 switcher_return_blocks_2.
 From stdpp Require Import base.
 From griotte Require Import map_simpl register_tactics proofmode.
-From griotte Require Import switcher_load_spec.
+From griotte Require Import switcher_load_spec switcher_exception_stub.
 From griotte Require Export world_ghost_theory world_interp_stack switcher_helpers.
 
 
@@ -35,7 +35,7 @@ Section Switcher.
     (l : list LAddr)
     (stk_mem : list LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (wca0 wca1 : LWord)
+    (wca0 wca1 wcsp : LWord)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -61,7 +61,7 @@ Section Switcher.
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
-    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+    ∗ csp ↦ᵣ wcsp
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -76,11 +76,13 @@ Section Switcher.
        - close the switcher invariant and fix the world
          ([world_interp_stack_fixing]);
        - when the caller is trusted, use the continuation;
-       - when the caller is untrusted, [switcher_jump_to_caller_spec]. *)
+       - when the caller is untrusted, [switcher_jump_to_caller_cases_spec]. *)
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hswitcher & #[Hcode _] & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
+      "(#Hswitcher & #Hstatic & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
     & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
+    iPoseProof "Hstatic" as "[#Hcode _]".
+    iPoseProof (switcher_mtcc_vec_safe with "[$Hswitcher $Hstatic]") as "#Htrap".
 
     (* Open the switcher invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -131,7 +133,7 @@ Section Switcher.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl Ha_tstk_tbl] & >[%wcnt Ha_tstk_cnt]
                                     & >%HWF & Hcframe_interp)".
-    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap).
+    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap & Hret_ok).
     cbn in Hcsp_sync; destruct Hcsp_sync as [ Ha He ]; simplify_eq.
     set (a_stk := (csp_b ^+ -4)%a).
     pose proof (switcher_stk_bounds_frame b_stk csp_e a_stk Hb_a4 He_a1 (ex_intro _ _ Ha_stk4))
@@ -179,28 +181,37 @@ Section Switcher.
       iFrame "Hw3 Hw2 Hw1 Hw0". }
     iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
       "((%Hr3 & %Hr2 & %Hr1 & %Hr0) & Hworld_interp & Hinterp_loaded & %Harg_rmap'
-      & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _ & Hlc)".
+      & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _ & Hlc)".
     iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
-    iDestruct "Hlc" as "(Hlc & Hlc'' & _)".
+    iDestruct "Hlc" as "(Hlc & Hlc'')".
     assert ((a_stk ^+ 4)%a = a_stk4) as Ha_stk4_eq by (subst a_stk; solve_addr+Ha_stk4).
     iEval (rewrite Ha_stk4_eq) in "Hstk' Hstk".
 
-    (* Update the call-stack: depop the topmost frame *)
-    iDestruct (cstack_update _ _ cstk with "[$] [$]") as ">[Hcstk_full Hcstk_frag]".
-
-    (* Close the switcher's invariant *)
-    iMod ("Hclose_switcher_inv"
-           with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
-                  Hcstk_full Hstk_interp_next]")
-      as "Hna".
-    { iNext.
-      iApply (switcher_inv_pop_frame with
-               "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
-                Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
-
-    (* Fix the world *)
-    iMod (world_interp_stack_fixing with "Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
-      "(Hworld_interp & Hstk')"; eauto.
+    (* Depop the topmost frame of the call-stack, close the switcher's
+       invariant and fix the world, after the jump or the exception entry *)
+    iAssert (|={⊤}=>
+               na_own cerise_nais ⊤ ∗
+               cstack_frag cstk ∗
+               world_interp Wfixed C ∗
+               (if is_untrusted_caller ccrel
+                then True
+                else [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]]))%I
+      with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+             Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv
+             Hworld_interp Hstk' Hstk Hrevoked Hlc'']" as "Hupd".
+    { iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk_frag]".
+      iMod ("Hclose_switcher_inv"
+             with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+                    Hcstk_full Hstk_interp_next]")
+        as "Hna".
+      { iNext.
+        iApply (switcher_inv_pop_frame with
+                 "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+                  Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
+      iMod (world_interp_stack_fixing with
+             "Htrap Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
+        "(Hworld_interp & Hstk')"; eauto.
+      by iFrame. }
 
     iDestruct (interp_monotone_cap_nonheap with "Hinterp_callee_wstk")
       as "Hinterp_callee_wstk'";
@@ -208,9 +219,17 @@ Section Switcher.
 
     rewrite /is_untrusted_caller_frm /=
     ; rewrite /is_untrusted_caller_frm /= in Hframe
-    ; destruct (is_untrusted_caller ccrel); cycle 1.
+    ; destruct (is_untrusted_caller ccrel) eqn:Hccrel; cycle 1.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
+      iSplit; cycle 1.
+      { (* The return address of a trusted caller is a valid target *)
+        iIntros "%Hjalr".
+        destruct (Hret_ok Hccrel) as [Hret_jalr Hret_heap].
+        apply load_heap_in_world_nonheap in Hr2; last done.
+        subst rstk2; congruence. }
+      iIntros "[HPC _]".
+      iMod "Hupd" as "(Hna & Hcstk_frag & Hworld_interp & Hstk')".
 
       iEval (rewrite open_world_interp_empty -(fmap_nil LNonHeap)) in "Hworld_interp".
       iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
@@ -240,12 +259,67 @@ Section Switcher.
     - (* Case where caller is untrusted, we jump to the return address *)
       iDestruct "Hinterp_loaded" as
         "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
-      iApply (switcher_jump_to_caller_spec with
-               "Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk'
-                Hinterp_Wfixed_wca0 Hinterp_Wfixed_wca1 HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
-                Hrmap Hworld_interp Hcont_K Hcstk_frag Hna Hlc"); first done.
-      eapply frame_match_mono; eauto.
+      iApply (switcher_jump_to_caller_cases_spec with
+               "Htrap Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk'
+                Hinterp_Wfixed_wca0 Hinterp_Wfixed_wca1 Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
+                Hrmap Hcont_K [Hupd]"); first done.
+      { eapply frame_match_mono; eauto. }
+      iMod "Hupd" as "(Hna & Hcstk_frag & Hworld_interp & _)".
+      by iFrame.
       Unshelve. all: exact Wcur.
+  Qed.
+
+  (** A fault in a trusted callee is safe: the exception entry sets the
+      return values to integers, then the return routine returns to the
+      caller as in [switcher_ret_specification]. The return values need no
+      validity. The resources are only needed after the exception entry,
+      hence under an update (for instance, to close an invariant). *)
+  Lemma trap_safe_return
+    (Nswitcher : namespace)
+    (W0 Wcur : WORLD)
+    (C : CmptName)
+    (rmap : LReg)
+    (csp_e csp_b: Addr)
+    (l : list LAddr)
+    (stk_mem : list LWord)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (w : LWord)
+    :
+    let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
+    related_sts_pub_world W0 Wfixed ->
+    dom rmap = all_registers_s ∖ ({[ csp ; ca0 ; ca1 ]} ) ->
+    frame_match Ws Cs cstk W0 C ->
+    csp_sync cstk (csp_b ^+ -4)%a csp_e ->
+    NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+
+    na_inv cerise_nais Nswitcher switcher_inv -∗
+    switcher_static -∗
+    (|={⊤}=>
+       [[csp_b,csp_e]]↦ₐ[[stk_mem]] ∗
+       cstack_frag cstk ∗
+       interp_continuation cstk Ws Cs ∗
+       world_interp Wcur C ∗
+       na_own cerise_nais ⊤ ∗
+       RevokedResources Wfixed C l ∗
+       ([∗ map] k↦y ∈ rmap, k ↦ᵣ y) ∗
+       ca0 ↦ᵣ - ∗
+       ca1 ↦ᵣ - ∗
+       csp ↦ᵣ -) -∗
+    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+  Proof.
+    intros Wfixed.
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
+      "#Hswitcher #Hstatic Hres".
+    iApply (trap_safe_exception_entry with "Hstatic").
+    iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
+                     & Hca0 & Hca1 & [%wcsp Hcsp])".
+    iModIntro; iFrame "Hca0 Hca1".
+    iIntros "(HPC & Hca0 & Hca1)".
+    iApply (switcher_ret_specification with
+             "[$Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
+               $Hclose_list_res $Hrmap $Hca0 $Hca1 $Hcsp]"); try done.
+    iSplit; iApply interp_int.
   Qed.
 
 End Switcher.

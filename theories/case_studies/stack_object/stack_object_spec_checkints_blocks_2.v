@@ -43,7 +43,7 @@ Section SO_Checkints_Blocks_2.
         codefrag_pers pc_a so_main_code ∗
         £ 2
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
-    (∀ a_f,
+    ▷ (∀ a_f,
         ⌜(pc_a ^+ so_label_offset ".Lso_f_checkints" <= a_f < pc_a ^+ so_label_offset ".Lso_f_alloc")%a⌝ -∗
         (∃ a_r, ca0 ↦ᵣ WCap t p g b e a_r @@? π) ∗
         cs0 ↦ᵣ - ∗
@@ -63,7 +63,7 @@ Section SO_Checkints_Blocks_2.
     iHide "Hcont" as hcont.
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hobject $Hcode]"); eauto.
     iSplit; cycle 1.
-    { iIntros (a_f Ha_f) "(Hca0 & Hcs0 & Hcs1 & Hobject)".
+    { iNext; iIntros (a_f Ha_f) "(Hca0 & Hcs0 & Hcs1 & Hobject)".
       iDestruct "Hpost" as "[_ Hfailed]".
       iApply ("Hfailed" with "[%] [$]").
       offsets_compute; solve_addr. }

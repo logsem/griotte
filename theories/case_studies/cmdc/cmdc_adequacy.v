@@ -37,7 +37,7 @@ Section cmdc_obligations.
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
     cbv [cmpt_ok section body_ok fc_name fc_body fc_imports fc_static_sealed fw_imap
       fw_imap_from fw_word_of note addr_off nat_str chunks_words export_word
-      fe_offset fe_nargs fe_posture tb_code tb_data tb_exports
+      fe_offset fe_nargs fe_min_stack fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts cmdc_firmware
       fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
@@ -73,6 +73,8 @@ Section cmdc_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
+    change (fw_entry_min_stack cmdc_firmware 0) with 4 in Hstack_min.
     iEval (cbv [cmdc_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts" as "((Hmain & _ & _) & (HB & _ & #HB_pers) & (HC & _ & #HC_pers) & _)".
     cbn [fc_name].
@@ -138,7 +140,7 @@ Section cmdc_obligations.
     iApply (cmdc_spec_full (swlayout := swl) (assertlayout := asl) (B := B) (C := C)
               _ _ _ _ _ _ _
               _ _ _ _ _
-              [] [] _ (fun _ => True)%I fw_switcherN []
+              [] [] _ (fun _ => True)%I fw_switcherN
               (cmpt_pcc_disjoint_from_shadow main_cmpt)
               (cmpt_pcc_base_not_heap main_cmpt)
               Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)

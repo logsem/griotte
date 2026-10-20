@@ -44,7 +44,6 @@ Section KVS_main_spec.
     (W0 : WORLD)
     (Ws : list WORLD)
     (Cs : list CmptName)
-    (cstk : CSTK)
 
     (Nswitcher : namespace)
     :
@@ -66,9 +65,11 @@ Section KVS_main_spec.
     (static_sealed_b + length (kvs_main_static_sealed KVS_USER_KEY_MAIN))%a = Some static_sealed_e ->
     (cgp_b + length (kvs_main_data))%a = Some cgp_e ->
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
+    (* The stack holds the spill of the switcher calls *)
+    (csp_b + 4 <= csp_e)%Z ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
-    frame_match Ws Cs cstk W0 B ->
+    frame_match Ws Cs [] W0 B ->
     (
       assert_static b_assert e_assert a_flag ∗
       na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -100,8 +101,8 @@ Section KVS_main_spec.
       (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥ ∗
 
       world_interp W0 B ∗
-      interp_continuation cstk Ws Cs ∗
-      cstack_frag cstk ∗
+      interp_continuation [] Ws Cs ∗
+      cstack_frag [] ∗
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       (WSealed ot_switcher B_f) ↦□ₑ 0 ∗
@@ -111,7 +112,8 @@ Section KVS_main_spec.
   Proof.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
-               Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous HB_f_nonheap Hframe_match
+               Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
+               Hframe_match
             )
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Hkvs_static & #Hkvs & #Hkvs_logical
@@ -154,7 +156,7 @@ Section KVS_main_spec.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iApply (kvs_main_add_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
-      rmap KVS_USER_KEY_MAIN b_assert e_assert B_f Nswitcher stk_mem cstk
+      rmap KVS_USER_KEY_MAIN b_assert e_assert B_f Nswitcher stk_mem
       with
       "[- $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
@@ -241,11 +243,15 @@ Section KVS_main_spec.
              (WCap true RW Global cgp_b cgp_e cgp_b)
              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
              wcs0 (kvs_user_seal_key Global static_sealed_b)
-             csp_b csp_e csp_b B_f stk_mem_B rmap_B cstk Ws Cs
-             ); try assumption.
-    { subst rmap_B.
-      repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap_ret; set_solver. }
+             csp_b csp_e csp_b B_f stk_mem_B rmap_B Ws Cs
+             ).
+    all: [> exact Hstk_shadow | exact Hstk_heap | solve_addr | solve_addr+Hstk_min
+         | destruct mie; reflexivity
+         | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
+         | subst rmap_B;
+           repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L);
+           rewrite Hdom_rmap_ret; set_solver+
+         | ].
     iFrame "Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
       Hstack_revoked_W1 Hinterp_W1_B_f HentryB_f HK".
@@ -289,7 +295,7 @@ Section KVS_main_spec.
       rmap warg0 warg1
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a) rcs0
       KVS_USER_KEY_MAIN b_assert e_assert a_flag Nswitcher
-      stk_mem cstk with
+      stk_mem with
       "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
        $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1

@@ -91,12 +91,13 @@ Section LSE.
       & #Hentry_LSE & #Hentry_LSE_borrow
       & #Hot_switcher)".
     iExists g_lse_exp_tbl, b_lse_exp_tbl, e_lse_exp_tbl, (b_lse_exp_tbl ^+ 2)%a,
-    pc_b, pc_e, cgp_b, cgp_e, 0, _.
+    pc_b, pc_e, cgp_b, cgp_e, 0, 1, _.
     iFrame "#".
     iSplit; first done.
     iSplit; first solve_addr.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
+    iSplit; first (iPureIntro; lia).
     iSplit; first (iPureIntro; lia).
     iSplit; first done.
     iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
@@ -108,7 +109,7 @@ Section LSE.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & _ & _)".
     rewrite /interp_conf /registers_pointsto.
@@ -137,23 +138,15 @@ Section LSE.
     change_pc_to (pc_a ^+ lse_label_offset ".Llse_f")%a.
     iApply (lse_f_blocks_1_spec with
              "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hcode_main]");
-      [done|done|done|done| |].
+      [done|done|done|done| |subst csp_b; solve_addr+Hstk_min|].
     { by eapply switcher_disjoint_subseg; [| |split; eassumption]; solve_addr. }
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
     iNext; iIntros (stk_mem' wcs0' wcs1')
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & _)".
 
     (* Blocks 5-6: assert that [a] contains [2], and return *)
     iApply (lse_f_blocks_2_spec with
              "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hca0 $Hca1
-              $Himport_assert $Hcode_main]"); [done|].
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+              $Himport_assert $Hcode_main]"); [done|exact (jalr_target_ok_switcher_return_sentry mie_ret)|].
     iNext; iIntros "(HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
                     & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

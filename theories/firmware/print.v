@@ -52,8 +52,9 @@ Module FwPrintNotations.
      format "( 'E-' k  p ,  g ,  b ,  e ,  a )").
   Notation "{ o , sb }" := (WSealed o sb)
     (only printing, format "{  o ,  sb  }").
-  Notation "'entry' m n off" := (WInt (encode_entry_point m (Z.of_nat n) (Z.of_nat off)))
-    (only printing, at level 10, m at level 0, n at level 0, off at level 0).
+  Notation "'entry' m n stk off" :=
+    (WInt (encode_entry_point m (Z.of_nat n) (Z.of_nat stk) (Z.of_nat off)))
+    (only printing, at level 10, m at level 0, n at level 0, stk at level 0, off at level 0).
 End FwPrintNotations.
 
 (** Notations for the leaves of a concrete memory map: canonical
@@ -261,7 +262,31 @@ Ltac2 set_comment (c : string) (ls : pline list) : pline list :=
       end
   end.
 
+Ltac2 quote (s : string) : string :=
+  let q := String.make 1 (Char.of_int 34) in String.concat "" [q; s; q].
+
+(** An equation [l = Some c] where [c] is a capability at a label [s] of
+    the switcher, printed [(p, g, b, e, a ^+ label "s")]: [label "s"] is
+    [label_offset_from (concat switcher_asm) ".Lswitcher_csp_check_perm" s].
+    The exception stub gets its comment. *)
+Ltac2 label_eq (ind : string) (p : constr) : pline option :=
+  Control.plus (fun () =>
+    lazy_match! p with
+    | ?l = Some (WSealable (SCap true ?p ?g ?b ?e
+                  (finz.incr_default ?a
+                     (assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+                        ".Lswitcher_csp_check_perm" ?s)))) =>
+        let s := str s in
+        let c := if String.equal s "exception_entry_asm" then Some "exception stub" else None in
+        Some (PEq ind (pp l)
+                (String.concat "" ["Some ("; pp p; ", "; pp g; ", "; pp b; ", "; pp e; ", ";
+                                   pp a; " ^+ label "; quote s; ")"]) c)
+    end) (fun _ => None).
+
 Ltac2 rec walk (ind : string) (p : constr) : pline list :=
+  match label_eq ind p with
+  | Some l => [l]
+  | None =>
   lazy_match! p with
   | section ?t ?q => PHead (heading t) :: walk "  " q
   | ?a ∧ ?b => List.append (walk ind a) (walk ind b)
@@ -279,6 +304,7 @@ Ltac2 rec walk (ind : string) (p : constr) : pline list :=
       | _ => [PEq ind (pp l) (pp r) None]
       end
   | _ => [PText ind (pp p) None]
+  end
   end.
 
 (** *** Layout *)
@@ -357,6 +383,11 @@ Ltac2 wrap (limit : int) (prefix : string) (s : string) : string list :=
       end in
   List.map (fun l => let (i, t) := l in String.app i t) (go 0 0 [] base prefix []).
 
+Ltac2 contains (s : string) (t : string) : bool :=
+  let rec go i := if Int.gt (Int.add i (String.length t)) (String.length s) then false
+                  else if sub_is s i t then true else go (Int.add i 1) in
+  go 0.
+
 Ltac2 rec take_eqs (ls : pline list) : pline list * pline list :=
   match ls with
   | [] => ([], [])
@@ -385,9 +416,10 @@ Ltac2 rec align_eqs (ls : pline list) : pline list :=
             (List.map (fun l =>
                          match l with
                          | PEq i a b c =>
-                             (* pad as far as the line fits *)
+                             (* pad as far as the line fits; a capability at a label of
+                                the switcher stays on one line anyway *)
                              let room := Int.sub (Int.sub (max_width ()) 3) (width b) in
-                             let w' := if Int.lt room w then room else w in
+                             let w' := if Int.lt room w then (if contains b " ^+ label " then w else room) else w in
                              PText i (String.concat "" [pad a (Int.sub w' (width i)); " = "; b]) c
                          | _ => l
                          end) blk)
@@ -441,7 +473,9 @@ Ltac2 layout_section (ls : pline list) : string list :=
     end in
   let items := List.map (fun l =>
                  match l with
-                 | PText i x c => (forall_lines i x c, c)
+                 | PText i x c =>
+                     (* a capability at a label of the switcher stays on one line *)
+                     ((if contains x " ^+ label " then [String.app i x] else forall_lines i x c), c)
                  | PEq i a b c => (wrap (limit c) i (String.concat "" [a; " = "; b]), c)
                  | PHead h => ([h], None)
                  end) (align_eqs ls) in
@@ -497,7 +531,8 @@ Ltac2 pp_type (t : constr) : string :=
     offset of its [k]-th export. It is renamed [off_X_e] after the name [e]
     of that export, read from the comments [X, export e] of the sealed
     imports of the export table of [X] at [cmpt_exp_tbl_entries_start X ^+
-    k], or [off_X_k] if no compartment imports it. *)
+    k], or [off_X_k] if no compartment imports it. The minimum stack size
+    [minstk] that follows it is renamed [min_X_e] likewise. *)
 
 (** The position of [t] in [s], if any. *)
 Ltac2 find_sub (s : string) (t : string) : int option :=
@@ -592,12 +627,13 @@ Ltac2 rebuild_app (f : constr) (args : constr array) (i : int) (a : constr) : co
 
 Ltac2 starts_with (s : string) (t : string) : bool := sub_is s 0 t.
 
-(** [p] with its existential offsets renamed, and the renamed binders with
-    their type and the title of their section. *)
+(** [p] with its existential offsets and minimum stack sizes renamed, and
+    the renamed binders with their type and the title of their section. *)
 Ltac2 rename_offsets (p : constr) : constr * (ident * constr * string) list :=
   let names := export_names p in
   let title := { contents := "" } in
   let k := { contents := 0 } in
+  let last := { contents := "" } in
   let out := { contents := [] } in
   let rec go p :=
     match app_of constr:(@section) p with
@@ -621,17 +657,20 @@ Ltac2 rename_offsets (p : constr) : constr * (ident * constr * string) list :=
         match Constr.Unsafe.kind (Array.get args 1) with
         | Constr.Unsafe.Lambda b bd =>
             let old := match Constr.Binder.name b with Some x => Ident.to_string x | None => "" end in
+            let rename pre e :=
+              match Ident.of_string (String.concat "" [pre; ident_chars (first_word (title.(contents))); "_"; ident_chars e]) with
+              | Some x =>
+                  out.(contents) := (x, Constr.Binder.type b, title.(contents)) :: out.(contents);
+                  Constr.Binder.make (Some x) (Constr.Binder.type b)
+              | None => b
+              end in
             let b :=
               if starts_with old "off" then
-                let cmpt := first_word (title.(contents)) in
-                let e := lookup_export cmpt (k.(contents)) names in
+                let e := lookup_export (first_word (title.(contents))) (k.(contents)) names in
                 k.(contents) := Int.add (k.(contents)) 1;
-                match Ident.of_string (String.concat "" ["off_"; ident_chars cmpt; "_"; ident_chars e]) with
-                | Some x =>
-                    out.(contents) := (x, Constr.Binder.type b, title.(contents)) :: out.(contents);
-                    Constr.Binder.make (Some x) (Constr.Binder.type b)
-                | None => b
-                end
+                last.(contents) := e;
+                rename "off_" e
+              else if starts_with old "minstk" then rename "min_" (last.(contents))
               else b in
             rebuild_app constr:(@ex) args 1 (Constr.Unsafe.make (Constr.Unsafe.Lambda b (go bd)))
         | _ => p
@@ -964,11 +1003,11 @@ Definition word_text (w : Word) : option string :=
   end.
 
 (** An export entry, decoded as in the predicate: posture, number of
-    arguments, offset. *)
+    arguments, minimum stack size, offset. *)
 Definition entry_text (z : Z) : string :=
   strs ["entry ";
         if (Z.land z 16 =? 16)%Z then "InterruptDisabled" else "InterruptEnabled"; " ";
-        dec (Z.land z 7); " "; dec (Z.shiftr z 5)].
+        dec (Z.land z 7); " "; dec (Z.land (Z.shiftr z 8) 255); " "; dec (Z.shiftr z 16)].
 
 Definition entry_cell (w : Word) : cell :=
   match w with WInt z => CText (entry_text z) | _ => CWord w end.

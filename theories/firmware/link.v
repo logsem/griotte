@@ -16,7 +16,8 @@ Set Mangle Names.
     predicate. *)
 
 (** The contents of an untrusted compartment: code, globals, and the
-    offsets of its exports, in the order of its exports. *)
+    offsets of its exports, in the order of its exports. Its exports declare
+    a minimum stack size of 0. *)
 Record link_adv : Type := MkLinkAdv {
   la_code : list Word;
   la_data : list Word;
@@ -116,7 +117,7 @@ Section link.
       | UntrustedBody b =>
           let a := adv_of n in
           (la_code a, la_data a,
-           zip_with (λ off e, export_word (MkFwExport "" off (ue_nargs e) InterruptEnabled))
+           zip_with (λ off e, export_word (MkFwExport "" off (ue_nargs e) 0 InterruptEnabled))
              (la_exports a) (ub_exports b))
       end in
     (n, MkImgCmpt (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c) (cmpt_b_cgp c) (cmpt_e_cgp c)

@@ -57,18 +57,6 @@ Section fundamental.
   #[local] Ltac by_get_case :=
     eapply get_case; rewrite /is_Get; eauto 10.
 
-  (** Execution fails when the PC is not a correct PC. *)
-  Lemma wp_notCorrectPC_halted (w : LWord) (φ : iProp Σ) :
-    ¬ isCorrectPC w.(lw) →
-    PC ↦ₚ w -∗
-    WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → φ }}.
-  Proof.
-    iIntros (HnPC) "HPC".
-    iApply (wp_notCorrectPC_trap with "HPC"); first done.
-    iApply trap_safe_intro.
-    iIntros "!>" (Hcontr); inversion Hcontr.
-  Qed.
-
   (** A safe, correct PC has a valid PC permission. *)
   Lemma interp_validPCperm W C p g b e a :
     isCorrectPC (WCap true p g b e a) →
@@ -125,14 +113,18 @@ Section fundamental.
     iApply (interp_in_registers with "[Hreg] [H]"); eauto.
   Qed.
 
+  (* The premise [trap_vector_safe (lword_of_word mtcc_vec)] is discharged in
+     the switcher by [switcher_trap_vector_safe]
+     (switcher/switcher_exception_stub.v). *)
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)
     (b e a : Addr) (π : option AId) :
-    ⊢ interp W C (WCap true p g b e a @@? π) →
+    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+      interp W C (WCap true p g b e a @@? π) →
       interp_expression W C (WCap true p g b e a @@? π).
   Proof.
-    iIntros "#Hinv_interp".
+    iIntros "#Htrap #Hinv_interp".
     iIntros (cstk Ws Cs regs0) "[Hregs [HPC [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]]".
     (* The registers are replaced by their filtered words, which are safe. *)
     iApply (interp_reg_refilter with "Hregs Hmreg Hworld_interp").
@@ -141,8 +133,10 @@ Section fundamental.
     destruct (readAllowed p) eqn:Hread_p; cycle 1.
     { (* if p not readable, then execution will fail *)
       apply notreadAllowed_is_notexecuteAllowed in Hread_p.
-      iApply (wp_notCorrectPC_halted with "HPC").
-      intro Hcontra ; destruct p ; inv Hcontra; congruence.
+      iApply (wp_notCorrectPC_trap with "HPC").
+      { intro Hcontra ; destruct p ; inv Hcontra; congruence. }
+      iDestruct "Hfull" as %Hfull.
+      iApply (interp_trap_safe with "Htrap [$Hmreg $Hworld_interp $Hcont $Hown $Hframe]"); done.
     }
     clear Hread_p.
 
@@ -159,7 +153,8 @@ Section fundamental.
     rewrite /registers_pointsto.
     destruct (decide (isCorrectPC (WCap true p g b e a))) as [HcorrectPC|] ; cycle 1.
     { (* Not correct PC *)
-      by iApply (wp_notCorrectPC_halted with "HPC").
+      iApply (wp_notCorrectPC_trap with "HPC"); first done.
+      iApply (interp_trap_safe with "Htrap [$Hmreg $Hworld_interp $Hcont $Hown $Hframe]"); done.
     }
 
     (* Correct PC *)
@@ -182,7 +177,7 @@ Section fundamental.
 
     iApply (wp_bind (fill [SeqCtx])).
     iApply (ftlr_instr_dispatch W C regs p p'' g b e a w ρ P'' cstk Ws Cs with
-             "[$IH $Hinv_interp $Hreg $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
+             "[$IH $Htrap $Hinv_interp $Hreg $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
                $Hcont $Hworld_interp $Hown $Hframe $Hstate $HPC $Hmreg //]")
     ; [| eauto..].
     (* proof by cases on each instruction *)
@@ -224,23 +219,26 @@ Section fundamental.
   Qed.
 
   Theorem fundamental W C w :
-    ⊢ interp W C w -∗ interp_expression W C w.
+    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+      interp W C w -∗
+      interp_expression W C w.
   Proof.
-    iIntros "Hw"; destruct w as [ [| [ [] p g b e a | ] | | ] π].
-    2: { iApply fundamental_cap; done. }
-    all: iIntros (????) "(? & HPC & ?)"; unfold interp_conf.
-    all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
+    iIntros "#Htrap Hw"; destruct w as [ [| [ [] p g b e a | ] | | ] π].
+    2: { iApply (fundamental_cap with "Htrap"); done. }
+    all: iIntros (cstk Ws Cs regs)
+           "([%Hfull _] & HPC & Hregs & Hworld_interp & Hcont & Hown & Hframe & %Hframe)".
     all: iApply (wp_notCorrectPC_trap with "HPC"); first by inversion 1.
-    all: iApply trap_safe_intro.
-    all: iIntros "!>" (Hhalted); congruence.
+    all: iApply (interp_trap_safe with "Htrap [$Hregs $Hworld_interp $Hcont $Hown $Hframe]"); done.
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
   Lemma interp_exec_cond W C p g b e a π :
     executeAllowed p = true ->
-    ⊢ interp W C (WCap true p g b e a @@? π) -∗ exec_cond W C p g b e π interp.
+    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+      interp W C (WCap true p g b e a @@? π) -∗
+      exec_cond W C p g b e π interp.
   Proof.
-    iIntros (Hp) "#Hw".
+    iIntros (Hp) "#Htrap #Hw".
     destruct (decide (b < e)%a) as [Hbe|Hbe]; cycle 1.
     { iIntros (a0 W' Hin). exfalso. rewrite /in_range in Hin. solve_addr. }
     iDestruct (interp_exec_noid with "Hw") as %->; [done|done|].
@@ -251,12 +249,12 @@ Section fundamental.
     - iDestruct "Hfuture" as %Hrelated.
       iDestruct (interp_monotone_nl_cap_nonheap with "Hw") as "Hw'";
         [exact Hdisjoint|exact Hrelated|done|].
-      iApply (fundamental W');eauto.
+      iApply (fundamental W' with "Htrap"); eauto.
       iApply interp_lea; eauto.
     - iDestruct "Hfuture" as %Hrelated.
       iDestruct (interp_monotone_cap_nonheap with "Hw") as "Hw'";
         [exact Hdisjoint|exact Hrelated|].
-      iApply (fundamental W');eauto.
+      iApply (fundamental W' with "Htrap"); eauto.
       iApply interp_lea; eauto.
   Qed.
 
@@ -282,17 +280,19 @@ Section fundamental.
   Qed.
 
   Lemma fundamental_ih :
-    ⊢ ftlr_IH.
+    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+      ftlr_IH.
   Proof.
+    iIntros "#Htrap".
     iModIntro; iNext.
     iIntros (????????????) "? #Hregs ???????#Hv".
-    iDestruct (fundamental with "Hv") as "Hcont".
+    iDestruct (fundamental with "Htrap Hv") as "Hcont".
     iApply "Hcont"; iFrame "∗#".
     iIntros (r v Hv). iApply interp_filter_heap. by iApply "Hregs".
   Qed.
 
   Lemma jmp_or_fail_spec W C (w : LWord) φ :
-    ⊢
+    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
     (interp W C w
      -∗ (if decide (isCorrectPC (updatePcPerm w.(lw)))
          then
@@ -303,7 +303,7 @@ Section fundamental.
          else trap_safe (lupdatePcPerm w) ⊤ φ ∗ PC ↦ₚ lupdatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
-    iIntros "#Hw".
+    iIntros "#Htrap #Hw".
     destruct (decide (isCorrectPC (updatePcPerm w.(lw)))).
     - inversion i.
       destruct w as [w π]; cbn in H.
@@ -311,7 +311,7 @@ Section fundamental.
       + destruct p; cbn in * ; simplify_eq.
         iExists _,_,_,_,_,_.
         iSplit;[eauto|]. iModIntro.
-        iDestruct (interp_exec_cond with "[$Hw]") as "Hexec";[auto|].
+        iDestruct (interp_exec_cond with "Htrap Hw") as "Hexec";[auto|].
         iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
         iExists _,_,_,_,_,_.

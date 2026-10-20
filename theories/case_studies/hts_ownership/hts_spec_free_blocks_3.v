@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules logrel monotone interp_weakening.
+From griotte Require Import rules logrel monotone interp_weakening wp_rules_interp.
 From griotte Require Import fetch_spec assert_spec switcher_spec_call.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
-From griotte Require Import switcher_spec_KtK.
+From griotte Require Import switcher_spec_KtK switcher_spec_KtK_call switcher_exception_stub.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
@@ -41,7 +41,7 @@ Section HTS_Reload.
      s ↦ₐ raw ∗
      codefrag_pers pc_a hts_reload_buffer_instrs ∗
      load_witness_res wit ∗
-     ( ▷ (∀ actual,
+     ▷ (∀ actual,
        ⌜load_post wit RWL raw actual⌝ -∗
        PC ↦ₚ WCap true RX Global pc_b pc_e
          (pc_a ^+ length hts_reload_buffer_instrs)%a ∗
@@ -51,13 +51,7 @@ Section HTS_Reload.
        codefrag_pers pc_a hts_reload_buffer_instrs ∗
        load_witness_res wit -∗
        WP Seq (Instr Executable)
-         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
-     (csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
-       ca0 ↦ᵣ w0 ∗
-       s ↦ₐ raw ∗
-       load_witness_res wit -∗
-       trap_safe (WCap true RX Global pc_b pc_e pc_a) ⊤
-         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
+         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
      ⊢ WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -66,16 +60,13 @@ Section HTS_Reload.
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_reload_buffer_instrs.
     (* CLoad ca0 csp (-1). *)
-    iInstrApply "Hcode" (wp_load_general_shadow_imm_one _ _ _ _ _ _ _ ca0 csp (-1))
+    iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds _ _ _ _ _ _ _ ca0 csp (-1))
       with "[$HPC $Hca0 $Hcsp $Ha $Hwit]"
-      as (retv) "[(-> & HPC & Hca0 & Hcsp & Ha & Hwit)
-                 | (%actual & -> & %Hactual & HPC & Hca0 & Hcsp & Ha & Hwit)]".
+      as (actual) "(%Hactual & HPC & Hca0 & Hcsp & Ha & Hwit)".
     { solve_addr. }
     { eapply disjoint_from_shadow_not_in; first exact Hshadow.
       apply withinBounds_true_iff; solve_addr. }
-    { iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
-    iDestruct "Hpost" as "[Hpost _]".
+    { apply withinBounds_true_iff; solve_addr. }
     iApply ("Hpost" $! actual with "[//]"). iFrame "∗ Hcode".
   Qed.
 
@@ -99,13 +90,13 @@ Section HTS_Spec_Free.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (Nswitcher : namespace).
 
   #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   #[local] Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
+    csp_b csp_e C_f owner_a W_init_C Ws Cs []).
   #[local] Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a Ws Cs cstk).
+    csp_b csp_e C_f owner_a Ws Cs []).
 
   Lemma hts_spec_free :
     is_shadow_address owner_a = false ->
@@ -116,6 +107,7 @@ Section HTS_Spec_Free.
     not_heap_range cgp_b cgp_e ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (csp_b + 5 <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
@@ -124,7 +116,7 @@ Section HTS_Spec_Free.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap HsubBounds
+    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min HsubBounds
       Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -165,10 +157,6 @@ Section HTS_Spec_Free.
     { solve_addr. }
     { exact Hstk_nonempty. }
     { solve_addr. }
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
     iNext. iIntros (actual (_ & _ & _ & Hlivepost))
       "(HPC & Hcsp & Hca0 & Hslot & _ & Hright)".
     rewrite (Hlivepost eq_refl); last first.
@@ -296,7 +284,7 @@ Section HTS_Spec_Free.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a b (b ^+ 1)%a b
-      free_arg cstk RW Global ι
+      free_arg [] RW Global ι
       [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
       Global owner_a hts_main_owner_id {[ι]}
       with "[$Hservice $Hservice_static]") as "Hfree_fun".
@@ -307,23 +295,34 @@ Section HTS_Spec_Free.
       reflexivity. }
     { subst free_arg. reflexivity. }
     { subst free_arg. reflexivity. }
+    assert (dom free_other =
+      all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8))
+      as Hdom_other.
+    { subst free_other.
+      repeat (rewrite dom_insert_L).
+      repeat (rewrite dom_delete_L).
+      rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
+    assert (is_arg_rmap free_arg 8) as Hargs_rmap.
+    { subst free_arg. rewrite /is_arg_rmap /dom_arg_rmap /=.
+      reflexivity. }
     pose proof allocator_size_exports as Hsize.
     rewrite /allocator_export_table_entries in Hsize.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
-      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other cstk
-      allocator_free_nargs ⊤
+      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other []
+      allocator_free_nargs allocator_free_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
-      allocator_cgp_b allocator_cgp_e allocator_free_pcc_off
+      allocator_cgp_b allocator_cgp_e allocator_free_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_free
         $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
         $Hfree_arg $Hrmap $Hstk $Hcstk $Hfree_fun]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
+    { solve_addr. }
     { apply hts_export_tbl_not_shadow.
       rewrite /allocator_free_exp_tbl_off. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
@@ -340,15 +339,19 @@ Section HTS_Spec_Free.
       pose proof allocator_size_imports as Himports_size.
       pose proof allocator_size_code as Hcode_size.
       rewrite /allocator_code length_app in Hcode_size.
-      solve_addr. }
-    { subst free_other.
-      repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
-    { subst free_arg. rewrite /is_arg_rmap /dom_arg_rmap /=.
+      rewrite -allocator_imports_length.
+      solve_addr+ Himports_size Hcode_size. }
+    { rewrite /allocator_free_min_stack. solve_addr+Hstk_min. }
+    { exact Hdom_other. }
+    { exact Hargs_rmap. }
+    { destruct mie; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iFrame "Hobj Hright Hfree_mem Howner Howner_word".
     iSplitR; first (iPureIntro; set_solver+).
+    iSplit; last first.
+    { (* The spill cannot fault: the stack holds it *)
+      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".

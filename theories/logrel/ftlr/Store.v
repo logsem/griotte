@@ -108,6 +108,7 @@ Section fundamental.
         ∗ if_later_P
             has_later
             (monotonicity_guarantees_region C (safeC P) p v ρ )
+        ∗ if_later_P has_later (φ (W,C,v))
         ∗ if_later_P has_later (key_share k)
         ∗ rel C k p φ)%I.
 
@@ -387,7 +388,7 @@ Section fundamental.
       iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP' Hne) "(#Hzcond' & #Hwcond' & #Hrcond' & #HmonoR' & -> & HStoreRes)".
       rewrite lookup_insert_eq in Ha0; inversion Ha0; clear Ha0; subst.
-      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & %Hlive & Hworld_interp & #HmonoV & Hshare & Hrel')".
+      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & %Hlive & Hworld_interp & #HmonoV & _ & Hshare & Hrel')".
       rewrite insert_insert_eq memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iDestruct (addr_key_pointsto_join with "Ha1 Hshare") as "Ha1".
@@ -406,6 +407,41 @@ Section fundamental.
           destruct rx, rx0, w, w0 ; cbn in *; try done. }
         rewrite mono_invariant_monotonicity_guarantees_region; eauto. }
    Qed.
+
+  (** On a fault, memory is unchanged: the regions opened for the store close
+      with their original contents. *)
+  #[local] Lemma mem_map_recover_res_fault (imm : Z)
+    (W : WORLD) (C : CmptName) (regs : LReg)
+    (pc_w : LWord) (r1 : RegName) (r2 : Z + RegName) (pc_p' : Perm) (pc_a : Addr) (mem0 : LMem) :
+    allow_store_mem imm W C r1 r2 regs pc_a pc_p' pc_w mem0 false -∗
+    ([∗ map] a0↦w0 ∈ mem0, a0 ↦ₐ w0) -∗
+    world_interp_open W C [LNonHeap pc_a] ∗ pc_a ↦ₐ pc_w.
+  Proof.
+    iIntros "HStoreMem Hmem".
+    iDestruct "HStoreMem" as (t1 p1 g1 b1 e1 a1 π1 storev1) "(%Hread & %Hπ & %Harg & HStoreRes)".
+    destruct (a1 + imm)%a as [ea1|] eqn:Hea.
+    2: { iDestruct "HStoreRes" as "[-> $]". rewrite -memMap_resource_1. iFrame. }
+    case_decide as Hallows.
+    2: { iDestruct "HStoreRes" as "[-> $]". rewrite -memMap_resource_1. iFrame. }
+    case_decide as Hkey.
+    - iDestruct "HStoreRes" as "(-> & $ & _)". rewrite -memMap_resource_1. iFrame.
+    - iDestruct "HStoreRes"
+        as (p' P' w' Hflp' HpersP' Hne) "(_ & _ & _ & _ & -> & HStoreRes)".
+      iDestruct "HStoreRes"
+        as (ρ1) "(Hstate' & %Hstd1 & %Hnotrevoked1 & %Hlive & Hworld_interp & #HmonoV & HV & Hshare & Hrel')".
+      rewrite memMap_resource_2ne; last auto.
+      iDestruct "Hmem" as "[Ha1 $]".
+      iDestruct (addr_key_pointsto_join with "Ha1 Hshare") as "Ha1".
+      rewrite /persistent_cond in HpersP'.
+      iApply (close_world_interp_next with "Hworld_interp Hstate' Hrel' [Ha1 HV]"); eauto.
+      { apply not_elem_of_cons; split; last apply not_elem_of_nil. done. }
+      { destruct ρ1; simplify_eq; naive_solver. }
+      { iFrame "∗#%".
+        rewrite mono_invariant_monotonicity_guarantees_region; eauto.
+        iSplit; last iExact "HmonoV".
+        iPureIntro. destruct Hallows as (_ & _ & Hwa & _).
+        eapply writeAllowed_nonO, writeAllowed_flowsto; eauto. }
+  Qed.
 
   Lemma allow_store_mem_later (imm : Z)
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
@@ -520,7 +556,12 @@ Section fundamental.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { exfalso. pose proof (Hnonshadow p0 g0 b0 e0 a0 ea0 Hallow0). congruence. }
-    { iTrap; auto.  }
+    { subst mem'.
+      iDestruct (mem_map_recover_res_fault imm with "HStoreMem Hmem") as "[Hworld_interp Ha]".
+      iDestruct ("WorldRes" with "[$Ha $Hinterp $HmonoV]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
     Unshelve. all: auto.
   Qed.
 

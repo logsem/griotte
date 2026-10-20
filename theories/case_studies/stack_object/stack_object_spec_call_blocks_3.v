@@ -28,6 +28,8 @@ Section SO_Call_Blocks_3.
     so_code_bounds pc_b pc_e pc_a C_f ->
     disjoint_from_shadow csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
+    (* The stack frame holds the secret and [z] *)
+    (csp_b + 2 <= csp_e)%Z ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
     ca1 ↦ᵣ wca1 ∗
@@ -39,7 +41,7 @@ Section SO_Call_Blocks_3.
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     pc_b ↦ₐ□ so_switcher_entry ∗
     codefrag_pers pc_a so_main_code ∗
-    ( ▷ (∀ mie a_stk1 a_stk2 stk_mem',
+    ▷ (∀ mie a_stk1 a_stk2 stk_mem',
         ⌜(csp_b + 1)%a = Some a_stk1⌝ ∗
         ⌜(a_stk1 + 1)%a = Some a_stk2⌝ ∗
         ⌜(a_stk2 <= csp_e)%a⌝ ∗
@@ -56,22 +58,10 @@ Section SO_Call_Blocks_3.
         [[a_stk2, csp_e]] ↦ₐ [[stk_mem']] ∗
         pc_b ↦ₐ□ so_switcher_entry ∗
         codefrag_pers pc_a so_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
-    (∀ a_f,
-        ⌜(pc_a ^+ so_label_offset ".Lso_f_alloc" <= a_f < pc_a ^+ so_label_offset ".Lso_f_after_call")%a⌝ -∗
-        (∃ a_csp, csp ↦ᵣ WCap true RWL Local csp_b csp_e a_csp) ∗
-        ca1 ↦ᵣ - ∗
-        ct0 ↦ᵣ wct0 ∗
-        ct1 ↦ᵣ wct1 ∗
-        cs0 ↦ᵣ - ∗
-        cs1 ↦ᵣ - ∗
-        cra ↦ᵣ wcra ∗
-        (∃ stk_mem', [[csp_b, csp_e]] ↦ₐ [[stk_mem']]) -∗
-        trap_safe (WCap true RX Global pc_b pc_e a_f) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap Hstk_size)
       "(HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hstk & Himport_switcher
       & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -81,15 +71,7 @@ Section SO_Call_Blocks_3.
     (* Block 7: push the secret and allocate the stack object [z] *)
     focus_block (so_block ".Lso_f_alloc") "Hcode_main" of so_main_blocks at pc_a as a_alloc Ha_alloc "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    destruct (decide ((csp_b < csp_e)%a)) as [Hcsp_size|Hcsp_size]; cycle 1.
-    { (* The stack frame is empty: the first store fails *)
-      (* Store csp so_secret 0 *)
-      iInstrApply "Hcode" wp_store_fail_z with "[$HPC $Hcsp]" as "(HPC & Hcsp)".
-      { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed".
-      offsets_compute; solve_addr.
-    }
+    assert (csp_b < csp_e)%a as Hcsp_size by solve_addr+Hstk_size.
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
     rewrite finz_seq_between_length in Hstklen.
     rewrite finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
@@ -109,28 +91,7 @@ Section SO_Call_Blocks_3.
     iInstr "Hcode".
     (* Add cs1 cs0 1 *)
     iInstr "Hcode".
-    destruct (decide ((a_stk1 < csp_e)%a)) as [Hcsp_size'|Hcsp_size']; cycle 1.
-    { (* The stack frame has only one cell: the subseg clears the tag of
-         [ca1], and the store fails *)
-      destruct (z_to_addr (a_stk1 + 1))%a as [a_stk2|] eqn:Hastk2.
-      - (* Subseg ca1 cs0 cs1 *)
-        iInstr_invalidate "Hcode".
-        { rewrite /isWithin; solve_addr. }
-        (* Store ca1 0%Z 0 *)
-        iInstr_fail "Hcode".
-        iDestruct (region_pointsto_cons with "[$Hastk0 $Hstk]") as "Hstk"; [done | solve_addr |].
-        iDestruct "Hpost" as "[_ Hfailed]".
-        iTrap with "Hfailed".
-        offsets_compute; solve_addr.
-      - (* Subseg ca1 cs0 cs1 *)
-        iInstr_invalidate "Hcode".
-        (* Store ca1 0%Z 0 *)
-        iInstr_fail "Hcode".
-        iDestruct (region_pointsto_cons with "[$Hastk0 $Hstk]") as "Hstk"; [done | solve_addr |].
-        iDestruct "Hpost" as "[_ Hfailed]".
-        iTrap with "Hfailed".
-        offsets_compute; solve_addr.
-    }
+    assert (a_stk1 < csp_e)%a as Hcsp_size' by solve_addr+Hstk_size Hastk1.
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     rewrite finz_seq_between_length in Hstklen'.
     rewrite finz_dist_S in Hstklen'; last solve_addr+Hcsp_size'.
@@ -182,7 +143,6 @@ Section SO_Call_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_call ^+ 3)%a = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
       by (offsets_compute; solve_addr).
-    iDestruct "Hpost" as "[Hpost _]".
     iApply ("Hpost" $! mie a_stk1 a_stk2 stk_mem); iFrame "∗ Hcode_main".
     iPureIntro; repeat split; solve_addr.
   Qed.

@@ -41,7 +41,10 @@ Section fundamental.
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [ regs' pc_a' wsrc mie Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
-    1,2: iTrap; auto.
+    1,2: assert (ρ = Temporary ∨ ρ = Permanent) as Hρ by (destruct ρ; auto; contradiction);
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto;
+      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
 
     (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
     iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
@@ -98,14 +101,14 @@ Section fundamental.
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC_tag with "HPC"); first done.
         iNext; iIntros "HPC /=".
-        iTrap; auto.
+        iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
       }
       destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
         iNext; iIntros "HPC /=".
-        iTrap; auto.
+        iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
       }
 
       destruct_word wsrc; try destruct t; cbn in Hwsrc; try discriminate.
@@ -137,7 +140,7 @@ Section fundamental.
     all: iApply (wp_bind (fill [SeqCtx])).
     all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].
     all: iNext; iIntros "HPC /=".
-    all: iTrap; auto.
+    all: iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
   Qed.
 
 End fundamental.

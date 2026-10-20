@@ -82,7 +82,7 @@ Section fundamental.
                       | * Hdst Hz1 Hz2 Hunrep HincrPC Hregs'
                       | t p0 g0 b0 e0 a0 π n1 n2 a1 a2 Hdst Hz1 Hz2 Hoo1 Hoo2 HincrPC Hregs'
                       | * Hdst Hz1 Hz2 Hunrep HincrPC Hregs'
-                      | * Hdst Hk HincrPC Hregs' | ].
+                      | * Hdst Hk HincrPC Hregs' | Hfail ].
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -204,7 +204,11 @@ Section fundamental.
         iApply "Hreg"; eauto.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
-    { iTrap; auto. }
+    { assert (regs' = regs) as -> by (destruct Hfail; done).
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
   Qed.
 
 End fundamental.

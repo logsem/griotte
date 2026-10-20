@@ -1082,17 +1082,36 @@ Section erasure.
     inversion Hcorr; by cbn.
   Qed.
 
-  (** The logical word MEPCC receives on exception entry from the logical PC,
-      as [mepcc_of_pc]: untagged on a fetch fault. *)
-  Definition lmepcc_of_pc : LWord → LWord := lift_word mepcc_of_pc.
-
-  Lemma lmepcc_of_pc_cases v :
-    lmepcc_of_pc v =
-      if get_tag v.(lw) && negb (isCorrectPCb v.(lw)) then lclear_tag v else v.
+  (** A tagged logical PC has no identifier: it is executable. *)
+  Lemma erasure_pc_tagged_no_id R C σ lpc lreg lsreg lmem :
+    erasure R C σ lpc lreg lsreg lmem → get_tag lpc.(lw) = true → lpc.(lprov) = None.
   Proof.
-    destruct v as [w π].
-    rewrite /lmepcc_of_pc /lift_word /mepcc_of_pc /=.
-    by case_match.
+    intros Her Ht. destruct (er_pc_word _ _ _ _ _ _ _ Her) as (_ & _ & Hexec).
+    destruct (er_pc_ok _ _ _ _ _ _ _ Her Ht) as [_ Hx].
+    by apply Hexec.
+  Qed.
+
+  (** The logical word MEPCC receives on exception entry from the logical PC:
+      the physical word [mepcc_of_pc] (untagged on a fetch fault), without
+      identifier. A tagged PC has no identifier, so only an untagged PC loses
+      one. *)
+  Definition lmepcc_of_pc (v : LWord) : LWord := lword_of_word (mepcc_of_pc v.(lw)).
+
+  (** The MEPCC word of the logical PC of an erasure is a valid system
+      register word. *)
+  Lemma erasure_lmepcc_of_pc R C σ lpc lreg lsreg lmem :
+    erasure R C σ lpc lreg lsreg lmem →
+    reg_word_ok R C (lmepcc_of_pc lpc) ∧ pc_ok (lmepcc_of_pc lpc).(lw).
+  Proof.
+    intros Her. rewrite /lmepcc_of_pc /mepcc_of_pc /=.
+    destruct (get_tag lpc.(lw)) eqn:Ht; cbn.
+    - destruct (isCorrectPCb lpc.(lw)); cbn.
+      + pose proof (erasure_pc_tagged_no_id _ _ _ _ _ _ _ Her Ht) as Hπ.
+        destruct lpc as [w π]; cbn in *; subst π. split.
+        * apply (er_pc_word _ _ _ _ _ _ _ Her).
+        * apply (er_pc_ok _ _ _ _ _ _ _ Her).
+      + split; [apply reg_word_ok_untagged | apply pc_ok_untagged]; apply get_tag_clear_tag.
+    - split; [by apply reg_word_ok_untagged | by apply pc_ok_untagged].
   Qed.
 
   (** The logical system registers after trap entry with cause [c] and value
@@ -1107,15 +1126,14 @@ Section erasure.
                                   (mie_of (get_a (sreg_word σ MSTATUS)))))]>
             (<[MEPCC := lmepcc_of_pc lpc]> lsreg))).
 
-  (** Trap entry from a PC without identifier: the PC receives MTCC. A
-      tagged PC has no identifier ([erasure_pc_tagged_no_id]). *)
+  (** Trap entry: the PC receives MTCC. *)
   Lemma erasure_enter_exc R C σ lpc lreg lsreg lmem cv vtcc :
     erasure R C σ lpc lreg lsreg lmem →
-    lpc.(lprov) = None →
     lsreg !! MTCC = Some vtcc →
     erasure R C (enter_exc cv σ) vtcc lreg (lsregs_enter_exc cv σ lpc lsreg) lmem.
   Proof.
-    intros Her Hπ Htcc.
+    intros Her Htcc.
+    destruct (erasure_lmepcc_of_pc _ _ _ _ _ _ _ Her) as [Hepcc_ok Hepcc_pc].
     destruct σ as [[[[pc r] sr] m] st].
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
     pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc.
@@ -1129,35 +1147,16 @@ Section erasure.
       - done.
       - by rewrite Hx.
       - apply reg_phys_lword_of_word. }
-    rewrite /enter_exc /lsregs_enter_exc lmepcc_of_pc_cases /mepcc_of_pc
-      /update_sreg /update_pcc /sreg_word /=.
+    rewrite /enter_exc /lsregs_enter_exc /update_sreg /update_pcc /sreg_word /=.
     rewrite Hwtcc /=.
     apply (erasure_set_pc R C pc _ _ _ _ lpc _ _ _ vtcc wtcc).
     - apply Hint; first done. apply Hint; first done. apply Hint; first done.
       change (pcc (pc, r, sr, m, st)) with pc.
-      destruct (get_tag pc && negb (isCorrectPCb pc)) eqn:Htest; rewrite -Hpc Htest.
-      + apply erasure_insert_sreg; first done.
-        * apply reg_word_ok_lclear_tag.
-        * by rewrite lprov_lclear_tag.
-        * intros _. rewrite lw_lclear_tag. apply pc_ok_untagged, get_tag_clear_tag.
-        * rewrite Hpc. apply reg_phys_lclear_tag. by apply reg_phys_no_id.
-      + apply erasure_insert_sreg; first done.
-        * apply (er_pc_word _ _ _ _ _ _ _ Her).
-        * done.
-        * intros _. apply (er_pc_ok _ _ _ _ _ _ _ Her).
-        * rewrite Hpc. by apply reg_phys_no_id.
+      apply erasure_insert_sreg; [done | done | done | by intros _ |].
+      rewrite Hpc. apply reg_phys_lword_of_word.
     - by apply (er_sreg_words _ _ _ _ _ _ _ Her MTCC).
     - done.
     - by apply (er_sreg_pc_ok _ _ _ _ _ _ _ Her MTCC).
-  Qed.
-
-  (** A tagged logical PC has no identifier: it is executable. *)
-  Lemma erasure_pc_tagged_no_id R C σ lpc lreg lsreg lmem :
-    erasure R C σ lpc lreg lsreg lmem → get_tag lpc.(lw) = true → lpc.(lprov) = None.
-  Proof.
-    intros Her Ht. destruct (er_pc_word _ _ _ _ _ _ _ Her) as (_ & _ & Hexec).
-    destruct (er_pc_ok _ _ _ _ _ _ _ Her Ht) as [_ Hx].
-    by apply Hexec.
   Qed.
 
   (** A logical PC that is not correct has a physical copy that is not

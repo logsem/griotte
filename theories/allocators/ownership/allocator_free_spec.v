@@ -629,10 +629,8 @@ Section AllocatorFree.
     (Nswitcher : namespace) (E : coPset) (wsealed : LWord) (P : iProp Σ) :
 
     ↑Nswitcher ⊆ E ->
-    ↑Nallocator_service ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
 
-    allocator_service_ctx ∗
     allocator_service_static ∗
     na_own cerise_nais E ∗
     PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
@@ -643,7 +641,7 @@ Section AllocatorFree.
     ca4 ↦ᵣ - ∗
     (∀ a, ⌜(allocator_free_pcc_addr <= a <
             allocator_free_pcc_addr ^+ length (allocator_owner_instrs allocator_free_owner_off ctp ca0))%a⌝ -∗
-      na_own cerise_nais (E ∖ ↑Nallocator_service) ∗
+      na_own cerise_nais E ∗
       ctp ↦ᵣ - ∗
       ca0 ↦ᵣ wsealed ∗
       ca3 ↦ᵣ - ∗
@@ -652,11 +650,9 @@ Section AllocatorFree.
         (λ v, ⌜v = HaltedV⌝ → P)%I)
     ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
-    iIntros (HEswitcher HEservice Hwsealed)
-      "(#Hservice & #Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".
-    (* Open the service invariant and focus on the code of [free]. *)
-    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
-    iDestruct "Hinv" as ">Hdata".
+    iIntros (HEswitcher Hwsealed)
+      "(#Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".
+    (* Focus on the code of [free]. *)
     iDestruct "Hstatic" as "[#Himports #Hcode]".
     iEval (rewrite /allocator_code) in "Hcode".
     focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfree_code" "Hcode_cont".

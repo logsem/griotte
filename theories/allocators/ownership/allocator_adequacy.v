@@ -131,9 +131,11 @@ Section allocator_init.
     cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
     (cmpt_exp_tbl_pcc c ^+ 1)%a ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
     (cmpt_exp_tbl_pcc c ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off) ∗
+      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+        allocator_malloc_pcc_off) ∗
     (cmpt_exp_tbl_pcc c ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_pcc_off).
+      WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
+        allocator_free_pcc_off).
   Proof.
     intros c alloclayout Hc Hwf Himports Hcode Hdata Hexports.
     iIntros "(Himports & Hcode & Hdata) (#Hpcc & #Hcgp & #Hetbl & _) Howners Hheap Hshadow Hclaims".

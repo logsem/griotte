@@ -324,6 +324,12 @@ Section Allocator.
 
   Definition allocator_free_nargs : nat := 2.
 
+  (** The minimum stack sizes of [malloc] and [free]: neither uses its
+      stack. *)
+  Definition allocator_malloc_min_stack : nat := 0.
+
+  Definition allocator_free_min_stack : nat := 0.
+
   (** The offset of the entry of [free] from the start of the PCC. *)
   Definition allocator_free_pcc_off : nat :=
     Eval vm_compute in label_offset (concat allocator_asm) ".Lfree_owner".
@@ -333,8 +339,10 @@ Section Allocator.
   Proof. reflexivity. Qed.
 
   Definition allocator_export_table_entries : list Word :=
-    [WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off);
-     WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_pcc_off)].
+    [WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+             allocator_malloc_pcc_off);
+     WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
+             allocator_free_pcc_off)].
 
   (** This executable implementation uses affine translation, without
       restricting other instances of the parameterized machine model.

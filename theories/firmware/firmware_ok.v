@@ -65,7 +65,7 @@ Definition addr_off (a : Addr) (k : nat) : Addr :=
   | _ => (a ^+ Z.of_nat k)%a
   end.
 
-Definition default_export : fw_export := MkFwExport "" 0 0 InterruptDisabled.
+Definition default_export : fw_export := MkFwExport "" 0 0 0 InterruptDisabled.
 
 (** The export named [e] of a trusted compartment, if any. *)
 Definition fw_export_named (e : string) (exps : list fw_export) : fw_export :=
@@ -79,7 +79,8 @@ Definition body_str (b : fw_body) : string :=
 
 (** The export entry word of an export. *)
 Definition export_word (e : fw_export) : Word :=
-  WInt (encode_entry_point (fe_posture e) (Z.of_nat (fe_nargs e)) (Z.of_nat (fe_offset e))).
+  WInt (encode_entry_point (fe_posture e) (Z.of_nat (fe_nargs e)) (Z.of_nat (fe_min_stack e))
+          (Z.of_nat (fe_offset e))).
 
 Section translation.
   Context `{MP : MachineParameters}.
@@ -163,14 +164,16 @@ Section translation.
 
   (** The export entries of an untrusted compartment: one entry per number
       of arguments in [ns], with an arbitrary offset inside the PCC range,
-      that number of arguments, and interrupts enabled. *)
+      that number of arguments, an arbitrary minimum stack size, and
+      interrupts enabled. *)
   Fixpoint hole_exports (c : img_cmpt) (ns : list nat) (k : list Word → Prop) : Prop :=
     match ns with
     | [] => k []
     | n :: ns =>
-        ∃ off : nat,
+        ∃ off minstk : nat,
           (Z.of_nat off < cmpt_e_pcc c - cmpt_b_pcc c)%Z ∧
-          hole_exports c ns (λ ws, k (export_word (MkFwExport "" off n InterruptEnabled) :: ws))
+          hole_exports c ns
+            (λ ws, k (export_word (MkFwExport "" off n minstk InterruptEnabled) :: ws))
     end.
 
   Definition body_ok (ss : list fw_static) (c : img_cmpt) (b : fw_body) : Prop :=
@@ -184,7 +187,7 @@ Section translation.
         note "arbitrary, any length" (Forall is_int (cmpt_code c)) ∧
         note "arbitrary, any length"
           (Forall (initial_data_word (cmpt_b_cgp c) (cmpt_e_cgp c)) (cmpt_data c)) ∧
-        note "arbitrary offsets, inside the PCC range" (hole_exports c (fw_map ue_nargs (ub_exports b)) (λ ws, cmpt_exp_tbl_entries c = ws))
+        note "arbitrary offsets, inside the PCC range, and minimum stack sizes" (hole_exports c (fw_map ue_nargs (ub_exports b)) (λ ws, cmpt_exp_tbl_entries c = ws))
     end.
 
   Definition cmpt_ok (fc : fw_cmpt) : Prop :=
@@ -281,7 +284,11 @@ Section translation.
               Some (WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
             note "interrupts disabled (the posture of the export is not used yet)"
               (sreg σ !! MSTATUS = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))) ∧
-            sreg σ !! MTCC = Some (WInt 0) ∧
+            sreg σ !! MTCC =
+              Some (WCap true XSRW_ Local (b_switcher (img_sw img)) (e_switcher (img_sw img))
+                      (a_switcher_call (img_sw img) ^+
+                         assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+                           ".Lswitcher_csp_check_perm" "exception_entry_asm")%a) ∧
             sreg σ !! MEPCC = Some (WInt 0) ∧
             sreg σ !! MCAUSE = Some (WInt 0) ∧
             sreg σ !! MTVAL = Some (WInt 0)
@@ -384,7 +391,8 @@ Section translation.
        note "flag" (range_ok (flag_assert asrt) (flag_assert asrt ^+ 1)%a)).
 
   (** The trusted stack has room for the entry frame and [ft_tstack_frames]
-      frames, [tstack_frame_offset] giving the offset of a frame. *)
+      frames, [tstack_frame_offset] giving the offset of a frame. The stack
+      holds at least the minimum stack size of the entry. *)
   Definition thread_wf (i : nat) (ft : fw_thread) : Prop :=
     let t := thread_of img i in
     section ("thread " ++ nat_str i ++ ", layout")
@@ -393,12 +401,13 @@ Section translation.
        | TrustedBody b =>
            match fw_find_export (ft_entry ft) (tb_exports b) with
            | None => note ("unknown export " ++ ft_entry ft ++ " of " ++ ft_cmpt ft) False
-           | Some _ =>
+           | Some e =>
                (b_stack t + Z.of_nat (ft_stack_size ft))%a = Some (e_stack t) ∧
                (b_trusted_stack t + tstack_frame_offset (S (ft_tstack_frames ft)))%a =
                  Some (e_trusted_stack t) ∧
                note "stack" (range_ok (b_stack t) (e_stack t)) ∧
-               note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t))
+               note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t)) ∧
+               note "minimum stack size of the entry" (fe_min_stack e <= ft_stack_size ft)%nat
            end
        end).
 
@@ -472,7 +481,7 @@ Ltac reduce_firmware_ok t :=
     fw_cmpts fw_threads fw_otypes fw_heap_roots
     fc_name fc_imports fc_static_sealed fc_body ss_name ss_word
     tb_code tb_data tb_exports ub_owner ub_exports
-    fe_name fe_offset fe_nargs fe_posture ue_name ue_nargs
+    fe_name fe_offset fe_nargs fe_min_stack fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames
     img_sw img_asrt img_cmpts img_threads
     String.append String.eqb Ascii.eqb Bool.eqb andb]

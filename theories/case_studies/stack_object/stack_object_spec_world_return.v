@@ -9,9 +9,9 @@ From griotte Require Import stack_object_spec_states.
 
 (** * Repair of the world before the return of [f]
 
-    The lemma of this file does not execute code. It is used after the
-    block group [stack_object_spec_return_blocks_4], before the return to
-    the switcher, in the proof of [stack_object_f_spec]. *)
+    The lemmas of this file do not execute code. In the proof of
+    [stack_object_f_spec], [so_world_return] is used after the block group
+    [stack_object_spec_return_blocks_4], before the return to the switcher. *)
 
 Section SO_World_Return.
   Context

@@ -1142,6 +1142,33 @@ Section logrel.
     iApply ("Hsafe" with "[//] [//] HPC Hregs Hworld Hcont Hna Hcstk").
   Qed.
 
+  (** The fault obligation from a safe trap vector [mtcc_vec]: trap entry
+      leads to the trap vector, where execution is safe. The resources are
+      only needed after the exception entry, hence under an update (for
+      instance, to close an invariant). *)
+  Lemma interp_trap_safe
+    (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (regs : LReg) (w : LWord) :
+    (∀ r, is_Some (regs !! r)) ->
+    frame_match Ws Cs cstk W C ->
+    trap_vector_safe (lword_of_word mtcc_vec) -∗
+    (|={⊤}=>
+       registers_pointsto regs ∗
+       world_interp W C ∗
+       interp_continuation cstk Ws Cs ∗
+       na_own cerise_nais ⊤ ∗
+       cstack_frag cstk) -∗
+    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+  Proof.
+    iIntros (Hfull Hframe) "Hsafe Hres".
+    iApply (trap_safe_entry_intro with "[]"); first iApply trap_entry_res_intro.
+    iSplit.
+    - iIntros "!> _ HPC".
+      iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk)".
+      by iApply (interp_trap with "Hsafe Hregs Hworld Hcont Hna Hcstk HPC").
+    - by iIntros "!> %Hv".
+  Qed.
+
   Lemma interp_untagged_eq W C w :
     get_tag w.(lw) = false → interp W C w ≡ True%I.
   Proof.

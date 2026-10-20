@@ -29,6 +29,46 @@ Section Switcher_KtK_Call.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
+  (** The resources returned to the caller of
+      [switcher_cc_specification_known_to_known] when the spill of its
+      callee-save registers faults, because they do not fit on its stack:
+      the switcher invariant is closed, and the caller holds its registers and
+      its unchanged stack. The four cells of the spill do not fit below
+      [e_stk]. *)
+  Definition switcher_cc_fault_res_known_to_known
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
+    (arg_rmap rmap : LReg)
+    (cstk : CSTK) (E : coPset) : iProp Σ :=
+    ⌜ (e_stk < a_stk + 4)%Z ⌝ ∗
+    na_own cerise_nais E ∗
+    cgp ↦ᵣ wcgp_caller ∗
+    cra ↦ᵣ wcra_caller ∗
+    cs0 ↦ᵣ wcs0_caller ∗
+    cs1 ↦ᵣ wcs1_caller ∗
+    (∃ a_csp, csp ↦ᵣ WCap true RWL Local b_stk e_stk a_csp) ∗
+    ct1 ↦ᵣ wct1_caller ∗
+    ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
+    (∃ rmap', ⌜ dom rmap' = dom rmap ⌝ ∗ [∗ map] r↦w ∈ rmap', r ↦ᵣ w) ∗
+    [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
+    cstack_frag cstk.
+
+  (** The fault case of [switcher_cc_specification_known_to_known]: the
+      first store of the spill faults, and the caller must be safely unwound
+      from there, given the fault resources and [R] once the switcher
+      invariant is closed. *)
+  Definition switcher_cc_fault_known_to_known
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
+    (arg_rmap rmap : LReg)
+    (cstk : CSTK) (E : coPset) (R : iProp Σ) : iProp Σ :=
+    (|={⊤}=>
+       switcher_cc_fault_res_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
+         wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E ∗
+       R) -∗
+    trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
+      (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+
   (** Failure path of [switcher_cc_specification_known_to_known]: the
       trusted stack is exhausted. *)
   Lemma switcher_cc_spec_tstack_exhausted_known_to_known
@@ -50,6 +90,8 @@ Section Switcher_KtK_Call.
     (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
+    jalr_target_ok cnull cra wcra_caller.(lw) = true ->
+    is_heap_cap wcra_caller.(lw) = false ->
 
     (▷ switcher_inv ∗ na_own cerise_nais (E ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais E) ∗
     na_own cerise_nais (E ∖ ↑Nswitcher) ∗
@@ -99,8 +141,9 @@ Section Switcher_KtK_Call.
     subst a_frameoffset a_save_end a_threadID a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
        registers, [switcher_call_blocks_5_spec] executes blocks 17 and 15-16,
-       then close the switcher invariant. *)
-    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds)
+       then close the switcher invariant. The return address is a valid
+       target, so the jump back does not fault. *)
+    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds Hret_jalr Hret_heap)
       "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hframeoffset & HthreadID & Htstk & #Hstatic & Hcstk_full & Hstk_interp
       & #Hp_ot_switcher & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk
       & Hargs & Hregs & Hcstk & Hpost)".
@@ -112,7 +155,14 @@ Section Switcher_KtK_Call.
       "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1]");
       [done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
-      "(%Hrestored & %Hrmap' & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hrmap & _ & _)".
+      "(%Hrestored & %Hrmap' & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hrmap & _ & _)".
+    iSplit; cycle 1.
+    { (* The return address of the caller is a valid target *)
+      iIntros "%Hjalr".
+      destruct Hrestored as (_ & Hra & _ & _).
+      apply load_heap_nonheap in Hra; last done.
+      subst rcra; congruence. }
+    iIntros "[HPC _]".
     iMod ("Hclose_switcher_inv" with
       "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
     { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
@@ -128,7 +178,7 @@ Section Switcher_KtK_Call.
     (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK)
-    (nargs : nat)
+    (nargs minstk_tgt : nat)
     (E : coPset)
 
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
@@ -161,6 +211,8 @@ Section Switcher_KtK_Call.
 
     (* (* NA mask *) *)
     disjoint_from_heap b_stk e_stk ->
+    (* The caller's stack pointer is not below the base of its stack *)
+    (b_stk <= a_stk)%a ->
     ↑Nswitcher ⊆ E ->
 
     (* Well formed entry point *)
@@ -169,10 +221,15 @@ Section Switcher_KtK_Call.
     ((btbl_tgt ^+1) < atbl_tgt)%a  →
     (0 <= nargs <= 7 )%nat →
     is_Some (bpcc_tgt + off_tgt)%a →
+    (* The callee's stack is at least its minimum stack size *)
+    (a_stk + 4 + minstk_tgt <= e_stk)%Z →
 
     (* Well formed register map *)
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
+    (* The caller returns to a valid target, outside the heap *)
+    jalr_target_ok cnull cra wcra_caller.(lw) = true ->
+    is_heap_cap wcra_caller.(lw) = false ->
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
@@ -181,7 +238,7 @@ Section Switcher_KtK_Call.
     (* Export table of the target compartment *)
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
     ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) off_tgt)
+    ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) (Z.of_nat minstk_tgt) off_tgt)
 
 
     (* PRE-CONDITION *)
@@ -207,7 +264,7 @@ Section Switcher_KtK_Call.
     ∗ cstack_frag cstk
 
 
-    ∗ ▷ ( (∃ mie arg_rmap' rmap',
+    ∗ ( ▷ ( (∃ mie arg_rmap' rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais E
@@ -259,6 +316,10 @@ Section Switcher_KtK_Call.
             )
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
+        ∧
+        (* FAULT --- the callee-save registers do not fit on the caller's stack *)
+        switcher_cc_fault_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
+          wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E True )
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -267,17 +328,20 @@ Section Switcher_KtK_Call.
        - [switcher_call_blocks_1_spec]: the checks on the stack pointer
          succeed;
        - [switcher_call_blocks_2_spec]: spill the callee-save registers and
-         push the stack pointer on the trusted stack;
+         push the stack pointer on the trusted stack; when the spill faults,
+         close the switcher invariant and use the fault case;
        - when the trusted stack is exhausted:
          [switcher_cc_spec_tstack_exhausted_known_to_known];
        - [switcher_call_blocks_3_spec]: clear the callee's stack frame and
-         unseal the entry point;
+         unseal the entry point, which is sealed by the switcher;
        - [switcher_call_blocks_4_known_spec]: load the callee and jump to it;
+         its stack is at least its minimum stack size, so the check passes;
        - [switcher_inv_push_frame]: push the frame and close the switcher
          invariant. *)
     intros astk4 wct1_caller callee_stk_region frame.
     iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
-             HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hdom Harg_rmap)
+             Hb_a HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hminstk Hdom Harg_rmap
+             Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
 
@@ -295,7 +359,7 @@ Section Switcher_KtK_Call.
     iDestruct (big_sepM_delete _ _ ctp with "Hregs") as "[Hctp Hregs]"; first by simplify_map_eq.
 
     (* Open the switcher invariant *)
-    iPoseProof "Hstatic" as "[#Hcode #Hb_switcher]".
+    iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _)".
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed switcher_inv_open "Hswitcher_inv".
@@ -312,6 +376,31 @@ Section Switcher_KtK_Call.
     iApply (switcher_call_blocks_2_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
       [done|done|done|].
+    iSplit; cycle 1.
+    { (* The callee-save registers do not fit on the caller's stack: close
+         the switcher invariant, and return the fault resources *)
+      iIntros (a_f stk_mem' Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & Hstk
+        & Hmtdc & Hframeoffset & Htstk)".
+      destruct Ha_f as [ (-> & -> & Hspill) | (Hcontra & _) ]; last (exfalso; solve_addr).
+      iDestruct "Hpost" as "[_ Hfault]".
+      iApply ("Hfault" with "[-]").
+      subst hclose_switcher_inv.
+      iMod ("Hclose_switcher_inv" with
+        "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
+      { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
+      iModIntro.
+      iDestruct (big_sepM_insert_2 _ _ ctp with "[Hctp] Hregs") as "Hregs"; [iFrame|].
+      iDestruct (big_sepM_insert_2 _ _ ct2 with "[Hct2] Hregs") as "Hregs"; [iFrame|].
+      rewrite /switcher_cc_fault_res_known_to_known.
+      assert (e_stk < a_stk + 4)%Z as Hspill' by solve_addr+Hspill Hb_a.
+      iFrame "∗ %".
+      iPureIntro.
+      apply elem_of_dom_2 in Hwr0, Hwr1.
+      rewrite !dom_insert_L !dom_delete_L.
+      revert Hwr0 Hwr1; generalize (dom rmap); clear; intros X H0 H1.
+      apply set_eq; intros r.
+      destruct (decide (r = ct2)); destruct (decide (r = ctp)); set_solver. }
+    iDestruct "Hpost" as "[Hpost _]".
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     iDestruct "Hbranch" as
       "[(%Ha_frame & %Ha_frame_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset
@@ -329,28 +418,50 @@ Section Switcher_KtK_Call.
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
     iApply (switcher_call_blocks_3_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
+    iSplit; cycle 1.
+    { (* The entry point is sealed by the switcher: the unsealing does not
+         fault *)
+      iIntros "%Hnot_entry"; exfalso.
+      apply Hnot_entry; subst wct1_caller.
+      by eexists _, None. }
     iNext; iIntros (wsb π)
       "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
 
-    (* Blocks 7-12: load the callee and jump to it *)
+    (* Blocks 7-12: load the callee and jump to it; only the low byte of the
+       minimum stack size is encoded *)
+    assert (Z.land (Z.of_nat minstk_tgt) 255 = Z.of_nat minstk_tgt `mod` 256)%Z as Hland.
+    { change 255%Z with (Z.ones 8). rewrite Z.land_ones //. }
+    set (minstk8 := Z.to_nat (Z.of_nat minstk_tgt `mod` 256)).
+    assert (Z.land (Z.of_nat minstk_tgt) 255 = Z.of_nat minstk8) as Hminstk8.
+    { subst minstk8. rewrite Hland Z2Nat.id //. apply Z.mod_pos_bound; lia. }
+    assert (Z.of_nat minstk8 <= Z.of_nat minstk_tgt)%Z as Hminstk8_le.
+    { rewrite -Hminstk8 Hland. apply Z.mod_le; lia. }
+    assert (Z.of_nat minstk8 < 256)%Z as Hminstk8_lt.
+    { rewrite -Hminstk8 Hland. apply Z.mod_pos_bound; lia. }
+    iEval (rewrite encode_entry_point_minstk_land Hminstk8) in "Hinv_exp_tbl_entry".
     iApply (switcher_call_blocks_4_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
-        $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hargs $Hregs $Hcode]");
-      [done|done|done|lia|done|done|done|done| | | |done| |].
+        $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hargs $Hregs $Hcode]");
+      [done|done|done|lia|lia|done|done|done|done| | | |done| |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }
     { tstack_unfold; solve_addr. }
     { rewrite !dom_delete_L Hdom. set_solver. }
-    iNext; iIntros (mie arg_rmap' rmap')
-      "(%Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hframe_tbl & Hargs & Hregs & _)".
+    iNext; iSplit; cycle 1.
+    { (* The callee's stack is at least its minimum stack size *)
+      iIntros "(%Hsmall & _)"; exfalso.
+      pose proof Hstk_bounds as (_ & _ & Ha4).
+      solve_addr+Hsmall Hminstk Hminstk8_le Ha4. }
+    iIntros (mie arg_rmap' rmap')
+      "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done|done|done|done|exact Hstk_bounds|done|done| |].
+      as "[Hinv Hcstk]"; [done|done|done|done|exact Hstk_bounds|done|done|by intros _| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
     iApply "Hpost"; iLeft; iFrame "∗ %".

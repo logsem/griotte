@@ -43,8 +43,6 @@ Section Heap_Temporal_Safety_Main.
     (Cs : list CmptName)
 
     (Nswitcher : namespace)
-
-    (cstk : CSTK)
     :
 
     let imports := hts_main_imports owner_a C_f in
@@ -65,11 +63,13 @@ Section Heap_Temporal_Safety_Main.
 
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
+    (* The stack holds the saved buffer and the spill of the switcher calls *)
+    (csp_b + 5 <= csp_e)%Z ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     heap_std W_init_C = ∅ ->
 
-    frame_match Ws Cs cstk W_init_C C ->
+    frame_match Ws Cs [] W_init_C C ->
     (
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
@@ -79,9 +79,11 @@ Section Heap_Temporal_Safety_Main.
       ∗ (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
           allocator_cgp_b allocator_cgp_e allocator_cgp_b
       ∗ (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
-          WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off)
+          WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+            allocator_malloc_pcc_off)
       ∗ (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
-          WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_pcc_off)
+          WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
+            allocator_free_pcc_off)
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -99,9 +101,9 @@ Section Heap_Temporal_Safety_Main.
 
       ∗ world_interp W_init_C C
 
-      ∗ interp_continuation cstk Ws Cs
+      ∗ interp_continuation [] Ws Cs
 
-      ∗ cstack_frag cstk
+      ∗ cstack_frag []
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
@@ -124,7 +126,7 @@ Section Heap_Temporal_Safety_Main.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       HNswitcher_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
-      Himports_contiguous Hp_fresh Hheap_empty Hframe_match)
+      Himports_contiguous Hstk_min Hp_fresh Hheap_empty Hframe_match)
       "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hrmap & Himports & Hcode & Hdata
@@ -142,7 +144,7 @@ Section Heap_Temporal_Safety_Main.
     { iFrame "#". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk rmap
+      C_f owner_a W_init_C Ws Cs Nswitcher rmap
       with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hrmap $Howner $Hworld
         $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
         $Himport_adv $Himport_malloc $Himport_free $Himport_alloc_cap
@@ -150,26 +152,22 @@ Section Heap_Temporal_Safety_Main.
     iIntros "Hmalloc_ret".
     (* (b) *)
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher
       with "[$Hctx $Hmalloc_ret]"); try done.
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher
       with "[$Hctx $Hadv1_ret]"); try done.
     iIntros "Hfree_ret".
     (* (d) *)
     iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher
       with "[$Hctx $Hfree_ret]"); try done.
     iIntros "Hadv2_ret".
     (* (e) *)
     iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Nswitcher cstk
+      C_f owner_a W_init_C Nswitcher []
       with "[$Hctx $Hadv2_ret]"); done.
   Qed.
 End Heap_Temporal_Safety_Main.

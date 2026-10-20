@@ -35,33 +35,50 @@ Section Switcher_preamble.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma encode_entry_point_eq_nargs mie nargs off_entry :
-    (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point mie nargs off_entry) 7)) = nargs.
+  Lemma encode_entry_point_eq_nargs mie nargs minstk off_entry :
+    (0 ≤ nargs ≤ 7)%Z ->
+    Z.land (encode_entry_point mie nargs minstk off_entry) 7 = nargs.
   Proof.
-    intros.
-    rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
-    destruct mie; bitblast.
-    all: destruct (decide (nargs = 0)%Z); simplify_eq; first bitblast.
-    all: destruct (decide (nargs = 1)%Z); simplify_eq; first bitblast.
-    all: destruct (decide (nargs = 2)%Z); simplify_eq; first bitblast.
-    all: destruct (decide (nargs = 3)%Z); simplify_eq; first bitblast.
-    all: destruct (decide (nargs = 4)%Z); simplify_eq; first bitblast.
-    all: destruct (decide (nargs = 5)%Z); simplify_eq; first bitblast.
-    all: destruct (decide (nargs = 6)%Z); simplify_eq; first bitblast.
-    all: destruct (decide (nargs = 7)%Z); simplify_eq; first bitblast.
-    all: lia.
+    intros Hnargs.
+    transitivity (Z.land nargs 7).
+    { rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+      destruct mie; bitblast. }
+    change 7%Z with (Z.ones 3).
+    rewrite Z.land_ones; last lia.
+    apply Z.mod_small; lia.
   Qed.
 
-  Lemma encode_entry_point_eq_posture mie nargs off_entry :
-    Z.land (encode_entry_point mie nargs off_entry) entry_point_irq_disabled_mask =
+  Lemma encode_entry_point_eq_posture mie nargs minstk off_entry :
+    Z.land (encode_entry_point mie nargs minstk off_entry) entry_point_irq_disabled_mask =
     entry_point_posture mie.
   Proof.
     rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
     destruct mie; bitblast.
   Qed.
 
-  Lemma encode_entry_point_eq_off mie nargs off_entry :
-    ( (encode_entry_point mie nargs off_entry ≫ 5)%Z) = off_entry.
+  Lemma encode_entry_point_eq_minstk mie nargs minstk off_entry :
+    (0 ≤ minstk ≤ 255)%Z ->
+    Z.land (encode_entry_point mie nargs minstk off_entry ≫ 8) 255 = minstk.
+  Proof.
+    intros Hminstk.
+    transitivity (Z.land minstk 255).
+    { rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+      destruct mie; bitblast. }
+    change 255%Z with (Z.ones 8).
+    rewrite Z.land_ones; last lia.
+    apply Z.mod_small; lia.
+  Qed.
+
+  (** Only the low byte of the minimum stack size is encoded. *)
+  Lemma encode_entry_point_minstk_land mie nargs minstk off_entry :
+    encode_entry_point mie nargs minstk off_entry =
+    encode_entry_point mie nargs (Z.land minstk 255) off_entry.
+  Proof.
+    rewrite /encode_entry_point -Z.land_assoc Z.land_diag //.
+  Qed.
+
+  Lemma encode_entry_point_eq_off mie nargs minstk off_entry :
+    (encode_entry_point mie nargs minstk off_entry ≫ 16)%Z = off_entry.
   Proof.
     rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
     destruct mie; bitblast.
@@ -141,7 +158,7 @@ Section Switcher_preamble.
       to re-instate validity of the caller's stack.
       This will become clearer in the proof of [switcher_ret_specification].
    *)
-  Program Definition execute_entry_point (wpcc wcgp : LWord) (nargs : nat) :
+  Program Definition execute_entry_point (wpcc wcgp : LWord) (nargs minstk : nat) :
     (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
       ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) regs a_stk e_stk,
@@ -155,6 +172,9 @@ Section Switcher_preamble.
          (* The 2nd condition [a_stk = (a_stk4 ^+ -4)%a] is necessary,
             because ((a_stk ^+4)%a ^+ -4)%a is not necessarily [a_stk] due to finite integers. *)
          ∗ ⌜csp_sync cstk a_stk e_stk ∧ a_stk = (a_stk4 ^+ -4)%a⌝
+         (* The switcher checked that the callee's stack is at least the
+            minimum stack size of the entry point. *)
+         ∗ ⌜(Z.of_nat minstk <= e_stk - a_stk4)%Z⌝
          ∗ cstack_frag cstk
          ∗ na_own cerise_nais ⊤
            -∗ interp_conf W C)
@@ -168,9 +188,10 @@ Section Switcher_preamble.
       Operationally, a compartment entry point is a RO-capability pointing to
       an entry in the compartment's export table.
       The compartment's export table always starts with the compartment's PCC and CGP,
-      and then a list of entries of the form [(posture,nargs,offset)],
+      and then a list of entries of the form [(posture,nargs,minstk,offset)],
       where [posture] is the interrupt posture the callee runs with,
       [nargs] is the number of argument (up-to 7),
+      [minstk] is the minimum size of the callee's stack, in words (up-to 255),
       and [offset] is the offset of the function in the code,
       from the first address of the PCC (i.e., we must take account for the RO global data, like the imports).
 
@@ -180,7 +201,8 @@ Section Switcher_preamble.
       It's a [Persistent] knowledge, and is used by the functional spec of the switcher's call
       for requiring the caller to only show [interp] of the actual arguments.
 
-      Finally, [execute_entry_point] is called, with [PCC+off] in the [PC].
+      Finally, [execute_entry_point] is called, with [PCC+off] in the [PC],
+      and the callee knows that its stack has at least [minstk] words.
       It is guarded by a □-modality, because the entry point can be invoked at any time.
       Similarly, [related_sts_priv_world].
    *)
@@ -190,13 +212,14 @@ Section Switcher_preamble.
        (∃ (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr)
           (bpcc epcc : Addr)
           (bcgp ecgp : Addr)
-          (nargs : nat) (off : Z) (posture : InterruptStatus)
+          (nargs minstk : nat) (off : Z) (posture : InterruptStatus)
          ,
            ⌜ w = WCap true RO g_tbl b_tbl e_tbl a_tbl ⌝
            ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
            ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
            ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
            ∗ ⌜ (0 <= nargs <= 7 )%nat ⌝
+           ∗ ⌜ (minstk <= 255)%nat ⌝
            ∗ ⌜ is_Some (bpcc + off)%a ⌝
            ∗ ⌜ is_shadow_address a_tbl = false ⌝
            ∗ ⌜ is_shadow_address b_tbl = false ⌝
@@ -205,14 +228,14 @@ Section Switcher_preamble.
            ∗ ⌜ is_heap_address bcgp = false ⌝
            ∗ b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc
            ∗ (b_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp ecgp bcgp
-           ∗ a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) off)
+           ∗ a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off)
            ∗ (seal_capability w.(lw) ot_switcher) ↦□ₑ nargs
            ∗ (seal_capability (borrow w.(lw)) ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap true RX Global bpcc epcc (bpcc ^+ off)%a)
                             (WCap true RW Global bcgp ecgp bcgp)
-                            nargs
+                            nargs minstk
                             W' C))
       )%I.
   Solve All Obligations with solve_proper.
@@ -230,8 +253,8 @@ Section Switcher_preamble.
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off posture ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture ->
+       Hatbl Hbtbl Hbtbl1 Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
     iExists _,_.
@@ -252,8 +275,8 @@ Section Switcher_preamble.
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off posture ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture ->
+       Hatbl Hbtbl Hbtbl1 Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
     iFrame "#∗%".
     iExists Local; iPureIntro; done.
@@ -289,7 +312,10 @@ Section Switcher_preamble.
     (∃ w, a_export_table ↦ₐ w) ∗
     (∃ w, a_error_count ↦ₐ w) ∗
     ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
-      disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ⌝ ∗
+      disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
+      (* a trusted caller returns to a valid target, outside the heap *)
+      (is_untrusted_caller_frm frm = false →
+       jalr_target_ok cnull cra frm.(wret).(lw) = true ∧ is_heap_cap frm.(wret).(lw) = false) ⌝ ∗
     cframe_stk_own frm%I.
 
   (** [cstack_interp] interprets a call-stack, whose topmost frame is at
@@ -437,10 +463,15 @@ Section Switcher_preamble.
   Qed.
 
   (** [switcher_static] holds the read-only memory of the switcher: its code,
-      and the unsealing capability of the switcher's otype. *)
+      and the unsealing capability of the switcher's otype; and the fact that
+      the trap vector is the exception entry of the switcher. *)
   Definition switcher_static : iProp Σ :=
     codefrag_pers a_switcher_call switcher_instrs ∗
-    b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher.
+    b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher ∗
+    ⌜mtcc_vec =
+       WCap true XSRW_ Local b_switcher e_switcher
+         (a_switcher_call ^+
+            asm_label_offset switcher_asm ".Lswitcher_csp_check_perm" "exception_entry_asm")%a⌝.
 
   #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.

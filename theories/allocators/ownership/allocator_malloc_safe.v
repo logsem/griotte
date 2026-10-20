@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel proofmode switcher switcher_preamble.
 From griotte Require Import switcher_spec_KtK register_tactics map_simpl.
-From griotte Require Import world_interp_stack switcher_spec_return.
+From griotte Require Import world_interp_stack switcher_spec_return switcher_exception_stub.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.allocators.ownership Require Import allocator_header_spec.
 From griotte.allocators.ownership Require Export allocator_malloc_spec allocator_free_spec
@@ -35,12 +35,12 @@ Section Heap_Temporal_Safety_Interp.
     execute_entry_point
       (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
       (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
-      allocator_malloc_nargs W C.
+      allocator_malloc_nargs allocator_malloc_min_stack W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
-      "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
+      "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
     rewrite /interp_conf.
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & [%mie %Hcra] & %Hcsp & #Hinterp_csp & Hregs)".
@@ -56,13 +56,22 @@ Section Heap_Temporal_Safety_Interp.
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
     { iApply (allocator_malloc_invalid_capability_spec Nswitcher ⊤ wca0
-        with "[$Hservice $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
-        [ solve_ndisj | solve_ndisj
+        with "[- $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
+        [ solve_ndisj
         | apply andb_false_iff in Hcap_valid as [Hnot_tagged|Hnot_sealed];
           [right; exact Hnot_tagged | left; exact Hnot_sealed] |].
-      iIntros (a Ha) "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+      iIntros (a Ha) "(Hna & [%wctp' Hctp] & Hca0 & [%wct3' Hct3] & [%wct4' Hct4])".
+      (* Unwind to the caller: nothing was revoked or changed yet. *)
+      iInsertRegs "Hrmap" ["Hcgpr";"Hcrar";"Hcspr";"Hca0";"Hca1";"Hca2";
+                           "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
+      iApply (trap_safe_unwind with "Hswitcher Hswitcher_static [-]");
+        [|exact Hframe|]; cycle 1.
+      { iModIntro. iFrame. }
+      intros r. destruct (Hfull_rmap r) as [wr Hwr].
+      rewrite !lookup_insert_is_Some' !lookup_delete_is_Some.
+      repeat (match goal with |- ?r' = r ∨ _ =>
+        destruct (decide (r' = r)); [by left | right] end).
+      repeat split; by eauto. }
     apply andb_true_iff in Hcap_valid as [Hwca0_tag Hwca0_sealed].
     iDestruct ("Hargs" $! ca0 wca0 with "[] []") as "#Hinterp_ca0".
     { iPureIntro. rewrite /allocator_malloc_nargs /dom_arg_rmap. set_solver. }
@@ -348,7 +357,8 @@ Section Heap_Temporal_Safety_Interp.
     (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_pcc_off) ∗
+      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+        allocator_malloc_pcc_off) ∗
     WSealed ot_switcher (allocator_malloc g_allocator_exp_tbl)
       ↦□ₑ allocator_malloc_nargs ∗
     WSealed ot_switcher (allocator_malloc Local)
@@ -362,7 +372,7 @@ Section Heap_Temporal_Safety_Interp.
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a,
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
-      allocator_malloc_nargs, allocator_malloc_pcc_off.
+      allocator_malloc_nargs, allocator_malloc_min_stack, allocator_malloc_pcc_off.
     iFrame "#".
     iSplit; first done.
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
@@ -374,6 +384,7 @@ Section Heap_Temporal_Safety_Interp.
       pose proof allocator_size_exports as Hsize;
       rewrite /allocator_export_table_entries in Hsize; solve_addr).
     iSplit; first (iPureIntro; rewrite /allocator_malloc_nargs; lia).
+    iSplit; first (iPureIntro; rewrite /allocator_malloc_min_stack; lia).
     iSplit; first (iPureIntro; pose proof allocator_size_imports as Himports;
       rewrite /allocator_malloc_pcc_off -allocator_imports_length; eauto).
 

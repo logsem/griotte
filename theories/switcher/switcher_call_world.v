@@ -194,7 +194,7 @@ Section Switcher_Call_World.
     iNext; iIntros (wsb π Hwsb _); simplify_eq.
     destruct wsb as [t p g b e a | t sp g b e a]; cycle 1.
     { iEval (cbn) in "HP".
-      iDestruct "HP" as (??????????? Heq) "_".
+      iDestruct "HP" as (???????????? Heq) "_".
       rewrite /lforce_global /lift_word /lword_of_word /= in Heq; discriminate. }
     cbn in Htag; subst t.
     destruct g; first done.
@@ -308,6 +308,8 @@ Section Switcher_Call_World.
     switcher_stk_bounds frm.(b_stk) frm.(e_stk) frm.(a_stk) ->
     disjoint_from_mmio frm.(b_stk) frm.(e_stk) ->
     disjoint_from_heap frm.(b_stk) frm.(e_stk) ->
+    (is_untrusted_caller_frm frm = false →
+     jalr_target_ok cnull cra frm.(wret).(lw) = true ∧ is_heap_cap frm.(wret).(lw) = false) ->
 
     cstack_full cstk' -∗
     cstack_frag cstk -∗
@@ -329,7 +331,7 @@ Section Switcher_Call_World.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
-    iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
+    iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret)
       "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
        Htstk Hstk_interp Hframe #Hp_ot_switcher".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
@@ -342,7 +344,7 @@ Section Switcher_Call_World.
       by (tstack_unfold; solve_addr).
     iFrame.
     iPureIntro.
-    repeat split; try done; try solve_addr; by destruct Hstk_mmio.
+    repeat split; try done; try solve_addr; try (by destruct Hstk_mmio); naive_solver.
   Qed.
 
   (** ** Functional specification *)
