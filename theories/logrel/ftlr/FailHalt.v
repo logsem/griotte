@@ -30,10 +30,12 @@ Section fundamental.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
     iDestruct (WorldRes_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
-    iApply (wp_fail with "[HPC Ha]"); eauto; iFrame.
+    iApply (wp_fail with "[$HPC $Ha]"); eauto.
     iNext. iIntros "[HPC Ha] /=".
-    iTrap.
-    iIntros (Hcontr); inversion Hcontr.
+    iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+    iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+    { destruct ρ; auto; contradiction. }
+    iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
   Qed.
 
   Lemma halt_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)

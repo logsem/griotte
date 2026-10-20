@@ -70,6 +70,15 @@ Proof.
   iModIntro. iExists (PcG _ _ γ). iFrame.
 Qed.
 
+(** The trap vector: the word that MTCC holds in every state, the
+    capability of the exception entry stub. It is tagged, so a fault never
+    stops the machine. *)
+Class trapVector := {
+  mtcc_vec : Word;
+  mtcc_vec_tagged : get_tag mtcc_vec = true;
+}.
+(* No [Hint Mode]: the class has no parameter, hence no input position. *)
+
 (* CMRA for Cerise. The PC, registers, system registers and memory hold
    logical words. *)
 Class ceriseG Σ :=
@@ -83,7 +92,8 @@ Class ceriseG Σ :=
       sreg_gen_regG :: gen_heapGS SRegName LWord Σ; (* system register *)
       entryG :: entryGS Σ; (* entry point *)
       cerise_registryG :: allocRegistryG Σ; (* allocation registry *)
-      cerise_addr_allocG :: addrAllocG Σ (* address claims *)
+      cerise_addr_allocG :: addrAllocG Σ; (* address claims *)
+      cerise_trapVector :: trapVector (* trap vector *)
     }.
 #[export] Hint Mode ceriseG - : typeclass_instances.
 
@@ -95,18 +105,17 @@ Section state_interp.
   Context `{!pcG Σ,
             !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName LWord Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
-            !allocRegistryG Σ, !addrAllocG Σ}.
+            !allocRegistryG Σ, !addrAllocG Σ, !trapVector}.
 
   (** The only points-to of the system registers that no client holds:
       mstatus, the registers trap entry writes (MEPCC, mcause, mtval) and
-      MTCC, which is untagged. *)
+      MTCC, which holds the trap vector [mtcc_vec]. *)
   Definition sreg_reserved : iProp Σ :=
     "Hmstatus" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MSTATUS (DfracOwn 1) v) ∗
     "Hmepcc" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MEPCC (DfracOwn 1) v) ∗
     "Hmcause" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MCAUSE (DfracOwn 1) v) ∗
     "Hmtval" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MTVAL (DfracOwn 1) v) ∗
-    "Hmtcc" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MTCC (DfracOwn 1) v ∗
-                    ⌜get_tag v.(lw) = false⌝).
+    "Hmtcc" ∷ pointsto (L:=SRegName) (V:=LWord) MTCC (DfracOwn 1) (lword_of_word mtcc_vec).
 
   (** The logical system registers, with the reserved points-to. *)
   Definition sreg_interp (lsreg : LSReg) : iProp Σ :=
@@ -127,11 +136,11 @@ Section state_interp.
     iDestruct (gen_heap_valid with "Hsr Hmstatus") as %Hlookup. eauto.
   Qed.
 
-  (** MTCC is untagged. *)
+  (** MTCC holds the trap vector. *)
   Lemma sreg_interp_mtcc lsreg :
-    sreg_interp lsreg -∗ ⌜∃ v, lsreg !! MTCC = Some v ∧ get_tag v.(lw) = false⌝.
+    sreg_interp lsreg -∗ ⌜lsreg !! MTCC = Some (lword_of_word mtcc_vec)⌝.
   Proof.
-    iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmtcc" as (v) "[Hmtcc %Hv]".
+    iIntros "[Hsr Hres]". iNamed "Hres".
     iDestruct (gen_heap_valid with "Hsr Hmtcc") as %Hlookup. eauto.
   Qed.
 
@@ -226,7 +235,7 @@ Lemma lookup_sregs_handed_out_mtdc (sr : SReg) w :
 Proof. intros Hw. by rewrite /sregs_handed_out !lookup_delete_ne. Qed.
 
 Section ghost_init.
-  Context `{MP : MachineParameters}.
+  Context `{MP : MachineParameters, TV : !trapVector}.
 
   (** The initial logical registers: the physical ones without identifiers,
       and [lnull] at [cnull]. *)
@@ -249,7 +258,7 @@ Section ghost_init.
       are unpainted, [cnull] holds zero, and every tagged executable word
       has closed bounds that avoid the heap; a tagged PC, MTCC or MEPCC is an
       unsealed executable capability; the system registers that the state
-      interpretation reserves exist, and MTCC is untagged. *)
+      interpretation reserves exist, and MTCC holds the trap vector. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -269,7 +278,7 @@ Section ghost_init.
     gi_pc_ok : pc_ok (pcc σ);
     gi_sregs_pc_ok sr w : is_pc_sreg sr = true → sreg σ !! sr = Some w → pc_ok w;
     gi_reserved_sregs sr : sr ∈ reserved_sregs → is_Some (sreg σ !! sr);
-    gi_mtcc w : sreg σ !! MTCC = Some w → get_tag w = false;
+    gi_mtcc : sreg σ !! MTCC = Some mtcc_vec;
   }.
 
   Lemma lookup_init_claims H a :
@@ -388,7 +397,7 @@ Section ghost_init.
     destruct (gi_reserved_sregs _ _ Hinit MEPCC) as [wepcc Hwepcc]; first set_solver.
     destruct (gi_reserved_sregs _ _ Hinit MCAUSE) as [wcause Hwcause]; first set_solver.
     destruct (gi_reserved_sregs _ _ Hinit MTVAL) as [wtval Hwtval]; first set_solver.
-    destruct (gi_reserved_sregs _ _ Hinit MTCC) as [wtcc Hwtcc]; first set_solver.
+    pose proof (gi_mtcc _ _ Hinit) as Hwtcc.
     iDestruct (big_sepM_delete _ _ MSTATUS with "Hsrs") as "[Hmstatus Hsrs]"; first exact Hwst.
     iDestruct (big_sepM_delete _ _ MEPCC with "Hsrs") as "[Hmepcc Hsrs]";
       first by rewrite lookup_delete_ne.
@@ -400,8 +409,7 @@ Section ghost_init.
       first by rewrite !lookup_delete_ne.
     iAssert (sreg_interp (lword_of_word <$> sreg σ))
       with "[Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc]" as "Hsr".
-    { iFrame "Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc". iPureIntro.
-      by apply (gi_mtcc _ _ Hinit). }
+    { iFrame "Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc". }
     iFrame. iPureIntro. by apply init_erasure.
   Qed.
 

@@ -54,7 +54,10 @@ Section fundamental.
 
     iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha)".
     destruct HSpec; cycle 1.
-    - iTrap; auto.
+    - iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
     - simplify_eq; congruence.
   Qed.
 

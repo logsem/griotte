@@ -397,6 +397,42 @@ Section fundamental.
       iExact "HV'".
   Qed.
 
+  (** On a fault, memory is unchanged: the regions opened for the load close
+      with their original contents. *)
+  #[local] Lemma mem_map_recover_res_fault (imm : Z)
+    (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
+    (pc_w : LWord) (src : RegName) (p_pc' : Perm) (a_pc : Addr) (mem0 : LMem) :
+    ([∗ map] a1↦w0 ∈ mem0, a1 ↦ₐ w0) -∗
+    allow_load_mem imm W C src regs a_pc p_pc' pc_w mem0 false -∗
+    world_interp_open W C [LNonHeap a_pc] ∗ a_pc ↦ₐ pc_w.
+  Proof.
+    iIntros "Hmem HLoadMem".
+    iDestruct "HLoadMem" as (t1 p1 g1 b1 e1 a1 π1) "(%Hread & %Hπ & HLoadRes)".
+    destruct (a1 + imm)%a as [ea|] eqn:Hadd.
+    2: { iDestruct "HLoadRes" as "[-> $]". rewrite -memMap_resource_1. iFrame. }
+    case_decide as Hallows.
+    2: { iDestruct "HLoadRes" as "[-> $]". rewrite -memMap_resource_1. iFrame. }
+    case_decide as Hkey.
+    - iDestruct "HLoadRes" as "(-> & $ & _)". rewrite -memMap_resource_1. iFrame.
+    - destruct Hallows as (Hrinr & Hadd' & Hwa & Hwb).
+      iDestruct "HLoadRes" as (w p' P' Hflp'' HpersP' Hne) "(-> & HLoadRes & _)".
+      rewrite memMap_resource_2ne; last auto.
+      iDestruct "Hmem" as "[Ha Hapc]"; iFrame "Hapc".
+      rewrite /persistent_cond in HpersP'.
+      iDestruct "HLoadRes"
+        as (ρ1) "(Hstate' & %Hnotrevoked & %Hlive & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
+      ; cbn.
+      iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
+      assert (isO p' = false) as HpO'.
+      { eapply readAllowed_flowsto, readAllowed_nonO in Hflp''; auto. }
+      iApply (close_world_interp_next with "Hworld_interp Hstate' Hrel' [Ha Hfuture]"); eauto.
+      { apply not_elem_of_cons; split; last apply not_elem_of_nil. done. }
+      { destruct ρ1; simplify_eq; naive_solver. }
+      { iFrame "∗#%".
+        rewrite mono_invariant_monotonicity_guarantees_region; eauto.
+      }
+  Qed.
+
   Lemma load_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_type) (dst src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
@@ -480,7 +516,12 @@ Section fundamental.
     2,3: exfalso; destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'];
          pose proof (Hnonmmio _ _ _ _ _ _ Hallow') as Hmmio;
          apply orb_false_iff in Hmmio as [? ?]; congruence.
-    2: { iTrap; auto. }
+    2: { subst regs'.
+         iDestruct (mem_map_recover_res_fault with "Hmem HLoadMem") as "[Hworld_interp Ha]".
+         iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
+         iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+         { destruct ρ; auto; contradiction. }
+         iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'].
 
     (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)

@@ -41,7 +41,7 @@ Section fundamental.
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [ * Hr1 Hr2 Htag Hseal Hwb HincrPC Hregs'
                       | * Hr1 Hr2 Hvalid HincrPC Hregs'
-                      | * Hr1 Hr2 Hk HincrPC Hregs' | ].
+                      | * Hr1 Hr2 Hk HincrPC Hregs' | Hfail ].
     - apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
       assert (r1 ≠ cnull) as Hr1null.
@@ -121,7 +121,11 @@ Section fundamental.
         iApply "Hreg"; eauto.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
-    - iTrap; auto.
+    - assert (regs' = regs) as -> by (destruct Hfail; done).
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
   Qed.
 
 End fundamental.
