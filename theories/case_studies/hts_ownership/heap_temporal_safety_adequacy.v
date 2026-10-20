@@ -142,16 +142,10 @@ Section hts_obligations.
       first exact Hmain_l.
     fw_fold_cmpt main_cmpt.
     rewrite main_imports' main_code main_data.
-    iPoseProof "HB_pers" as "(_ & _ & _ & HB_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
-                fw_map ub_exports ue_nargs]) in "HB_entries".
-    iEval (rewrite HsbB /=) in "HB_entries".
-    iDestruct "HB_entries" as "([#Hentry_Bf #Hentry_Bf'] & _)".
-    iPoseProof "Halloc_pers" as "(_ & _ & _ & Halloc_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
-                fw_map tb_exports fe_nargs]) in "Halloc_entries".
-    iEval (rewrite Hsb0 Hsb1 /=) in "Halloc_entries".
-    iDestruct "Halloc_entries" as "([#Hentry_malloc #Hentry_malloc'] & [#Hentry_free #Hentry_free'] & _)".
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 1
+                 (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) with "HB_pers")
+      as "#Hentry_Bf"; [done|lia|].
+    iEval (rewrite HsbB) in "Hentry_Bf".
     iDestruct (big_sepS_elem_of_acc _ _ B with "Hworlds") as "[Hworld_B _]".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 

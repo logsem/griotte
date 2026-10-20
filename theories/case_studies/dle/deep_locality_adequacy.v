@@ -73,11 +73,10 @@ Section dle_obligations.
     iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
       first exact Hmain_l.
     rewrite main_imports' main_code main_data.
-    iPoseProof "HC_pers" as "(_ & _ & _ & HC_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
-                fw_map ub_exports ue_nargs]) in "HC_entries".
-    iEval (rewrite HsbC /=) in "HC_entries".
-    iDestruct "HC_entries" as "([#Hentry_Cf #Hentry_Cf'] & _)".
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 1
+                 (fw_cmpt_ok_at _ _ _ 1 _ Hok eq_refl) with "HC_pers")
+      as "#Hentry_Cf"; [done|lia|].
+    iEval (rewrite HsbC) in "Hentry_Cf".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 

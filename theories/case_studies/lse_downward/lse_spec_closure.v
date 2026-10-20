@@ -63,8 +63,6 @@ Section LSE.
     ∗ b_lse_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
     ∗ (b_lse_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
     ∗ (b_lse_exp_tbl ^+ 2)%a ↦ₐ□ lse_exp_tbl_entry_f
-    ∗ WSealed ot_switcher (SCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
-    ∗ WSealed ot_switcher (SCap true RO Local b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
     ot_switcher_prop W C (WCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a).
@@ -88,7 +86,6 @@ Section LSE.
       & #Hlse_exp_PCC
       & #Hlse_exp_CGP
       & #Hlse_exp_f
-      & #Hentry_LSE & #Hentry_LSE_borrow
       & #Hot_switcher)".
     iExists g_lse_exp_tbl, b_lse_exp_tbl, e_lse_exp_tbl, (b_lse_exp_tbl ^+ 2)%a,
     pc_b, pc_e, cgp_b, cgp_e, 0, 1, _.

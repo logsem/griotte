@@ -253,7 +253,7 @@ Section KVS_Main_Blocks.
     ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     ∗ ct1 ↦ᵣ WSealed ot_switcher target
     ∗ interp W C (WSealed ot_switcher target)
-    ∗ (WSealed ot_switcher target) ↦□ₑ 0
+    ∗ target ↦ₑ□{nargs} 0
     ∗ cs0 ↦ᵣ wcs0 ∗ cs1 ↦ᵣ wcs1
     ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0 ∗ ca2 ↦ᵣ WInt 0
     ∗ ca3 ↦ᵣ WInt 0 ∗ ca4 ↦ᵣ WInt 0 ∗ ca5 ↦ᵣ WInt 0
@@ -554,9 +554,6 @@ Section KVS_Main_Blocks.
       | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
       | ].
     iSplitL "Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
-    iSplit; last first.
-    { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.
@@ -831,9 +828,6 @@ Section KVS_Main_Blocks.
       | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
       | ].
     iSplitL "Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
-    iSplit; last first.
-    { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[@|@]"; iEval (cbn) in "HPC"
     ; cycle 1.

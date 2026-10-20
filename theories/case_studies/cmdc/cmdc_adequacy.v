@@ -82,14 +82,14 @@ Section cmdc_obligations.
     iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
       first exact Hmain_l.
     rewrite main_imports' main_code main_data.
-    iPoseProof "HB_pers" as "(_ & _ & _ & HB_entries)".
-    iPoseProof "HC_pers" as "(_ & _ & _ & HC_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
-                fw_map ub_exports ue_nargs]) in
-      "HB_entries HC_entries".
-    iEval (rewrite HsbB /=) in "HB_entries". iEval (rewrite HsbC /=) in "HC_entries".
-    iDestruct "HB_entries" as "([#Hentry_Bf _] & _)".
-    iDestruct "HC_entries" as "([#Hentry_Cg _] & _)".
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 cmdc_B_f_args
+                 (fw_cmpt_ok_at _ _ _ 1 _ Hok eq_refl) with "HB_pers")
+      as "#Hentry_Bf"; [done|cbv; lia|].
+    iEval (rewrite HsbB) in "Hentry_Bf".
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 cmdc_C_g_args
+                 (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) with "HC_pers")
+      as "#Hentry_Cg"; [done|cbv; lia|].
+    iEval (rewrite HsbC) in "Hentry_Cg".
     iDestruct (big_sepS_delete _ _ B with "Hworlds") as "[Hworld_B Hworlds]".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     iDestruct (big_sepS_delete _ _ C with "Hworlds") as "[Hworld_C _]".

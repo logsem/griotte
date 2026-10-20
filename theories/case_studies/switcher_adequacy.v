@@ -96,13 +96,11 @@ Section helpers_switcher_adequacy.
     -∗ a_etbl ↦ₐ□ WInt (encode_entry_point posture args minstk off)
     -∗ interp W C (WCap true RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap true RW Global b_cgp e_cgp b_cgp)
-    -∗ WSealed ot_switcher (SCap true RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
-    -∗ WSealed ot_switcher (SCap true RO Local b_etbl e_etbl a_etbl) ↦□ₑ args
     -∗ ot_switcher_prop W C (WCap true RO g_etbl b_etbl e_etbl a_etbl).
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
-    iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_entry #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry_borrow".
+    iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_entry #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
     set (minstk8 := Z.to_nat (Z.of_nat minstk `mod` 256)).
     assert (Z.land (Z.of_nat minstk) 255 = Z.of_nat minstk8) as Hminstk8.

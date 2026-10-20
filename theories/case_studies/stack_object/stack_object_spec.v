@@ -89,11 +89,9 @@ Section SO.
       ∗ cstack_frag []
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
-      ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
+      ∗ C_f ↦ₑ□{nargs} 0
       ∗ interp W0 C (WCap true RWL Local csp_b csp_e csp_b)
 
-      ∗ WSealed ot_switcher (SCap true RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
-      ∗ WSealed ot_switcher (SCap true RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
       ∗ seal_pred ot_switcher ot_switcher_propC
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
@@ -122,7 +120,6 @@ Section SO.
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
-      & #Hentry_f & #Hentry_f'
       & #Hot_switcher
       )".
     assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds

@@ -1193,7 +1193,7 @@ Section ghost_init.
   Qed.
 End ghost_init.
 
-(** ** The sealed export entries of an image *)
+(** ** The export entries of an image *)
 Section entries.
   Context `{MP : MachineParameters}.
 
@@ -1209,13 +1209,6 @@ Section entries.
   Definition cmpt_export_sb (c : img_cmpt) (k : nat) : Sealable :=
     SCap true RO Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
       (addr_off (cmpt_exp_tbl_entries_start c) k).
-
-  Definition fc_entries (img : fw_image) (fc : fw_cmpt) : list (Sealable * nat) :=
-    fw_imap (λ k n, (cmpt_export_sb (cmpt_of img (fc_name fc)) k, n)) (fc_export_nargs fc).
-
-  (** Every export entry of the image, all sealed by the switcher. *)
-  Definition fw_entries (fw : firmware) (img : fw_image) : list (Sealable * nat) :=
-    fw_flat_map (fc_entries img) (fw_cmpts fw).
 End entries.
 
 Section entries_facts.
@@ -1232,26 +1225,6 @@ Section entries_facts.
   Lemma length_fw_imap_from {A B} (f : nat → A → B) k (l : list A) :
     length (fw_imap_from f k l) = length l.
   Proof. revert k. induction l as [|x l IH]; intros k; cbn; [done | by rewrite IH]. Qed.
-
-  Lemma elem_of_fw_imap_from {A B} (f : nat → A → B) j (l : list A) (y : B) :
-    y ∈ fw_imap_from f j l → ∃ k x, l !! k = Some x ∧ y = f (j + k) x.
-  Proof.
-    revert j. induction l as [|x l IH]; intros j Hy; cbn in Hy.
-    - by apply not_elem_of_nil in Hy.
-    - apply elem_of_cons in Hy as [->|Hy].
-      + exists 0, x. by rewrite Nat.add_0_r.
-      + destruct (IH (S j) Hy) as (k & x' & Hk & ->).
-        exists (S k), x'. split; first done. by rewrite Nat.add_succ_r.
-  Qed.
-
-  Lemma elem_of_fw_flat_map {A B} (f : A → list B) (l : list A) (y : B) :
-    y ∈ fw_flat_map f l → ∃ x, x ∈ l ∧ y ∈ f x.
-  Proof.
-    induction l as [|x l IH]; intros Hy; first by apply not_elem_of_nil in Hy.
-    rewrite fw_flat_map_cons elem_of_app in Hy. destruct Hy as [Hy|Hy].
-    - exists x. split; [apply list_elem_of_here | done].
-    - destruct (IH Hy) as (x' & Hx' & Hy'). exists x'. split; [by apply list_elem_of_further | done].
-  Qed.
 
   Lemma hole_exports_length (c : img_cmpt) (ns : list nat) (k : list Word → Prop) :
     hole_exports c ns k → ∃ ws, length ws = length ns ∧ k ws.
@@ -1285,96 +1258,6 @@ Section entries_facts.
       done.
   Qed.
 
-  Lemma fw_entries_global fw img :
-    Forall (λ sb, isGlobalSealable sb = true) (fw_entries fw img).*1.
-  Proof.
-    apply Forall_forall. intros sb Hsb.
-    apply list_elem_of_fmap in Hsb as ([sb' n] & -> & Hin).
-    apply elem_of_fw_flat_map in Hin as (fc & _ & Hin).
-    apply elem_of_fw_imap_from in Hin as (k & x & _ & Heq).
-    by injection Heq as -> ->.
-  Qed.
-
-  Lemma NoDup_fw_imap_from {A B} (g : nat → B) j (l : list A) :
-    (∀ k1 k2, j ≤ k1 < j + length l → j ≤ k2 < j + length l → g k1 = g k2 → k1 = k2) →
-    NoDup (fw_imap_from (λ k _, g k) j l).
-  Proof.
-    revert j. induction l as [|x l IH]; intros j Hinj; cbn; first constructor.
-    constructor.
-    - intros Hin. apply elem_of_fw_imap_from in Hin as (k & y & Hk & Heq).
-      apply lookup_lt_Some in Hk. cbn in Hinj.
-      assert (j = S j + k) by (apply Hinj; [lia | lia | done]). lia.
-    - apply IH. intros k1 k2 H1 H2. apply Hinj; cbn; lia.
-  Qed.
-
-  Lemma fmap_fw_imap_from {A B C} (h : B → C) (f : nat → A → B) j (l : list A) :
-    h <$> fw_imap_from f j l = fw_imap_from (λ k x, h (f k x)) j l.
-  Proof. revert j. induction l as [|x l IH]; intros j; cbn; [done | by rewrite IH]. Qed.
-
-  Lemma cmpt_ok_wf_export_sizes fw img fc :
-    cmpt_ok fw img fc →
-    cmpt_wf fw img fc →
-    let c := cmpt_of img (fc_name fc) in
-    (cmpt_exp_tbl_pcc c < cmpt_exp_tbl_entries_end c)%a ∧
-    (cmpt_exp_tbl_entries_start c + length (fc_export_nargs fc))%a =
-      Some (cmpt_exp_tbl_entries_end c).
-  Proof.
-    intros Hok Hwf. destruct (cmpt_wf_split _ _ _ Hwf) as (_ & _ & _ & _ & H5 & H6 & H7 & _).
-    rewrite (fc_export_nargs_length _ _ _ Hok). split; [solve_addr | done].
-  Qed.
-
-  (** The entries of the compartments of [fcs] are distinct, given their
-      layout and the disjointness of their ranges. *)
-  Lemma fc_entries_NoDup fw img (fcs : list fw_cmpt) :
-    Forall (λ fc, cmpt_ok fw img fc ∧ cmpt_wf fw img fc) fcs →
-    rngs_disjoint (fw_flat_map (cmpt_ranges img) fcs) →
-    NoDup (fw_flat_map (fc_entries img) fcs).*1.
-  Proof.
-    induction fcs as [|fc fcs IH]; intros Hfcs Hdisj; first constructor.
-    apply Forall_cons in Hfcs as [ [Hok Hwf] Hfcs].
-    rewrite fw_flat_map_cons in Hdisj.
-    rewrite fw_flat_map_cons fmap_app. apply NoDup_app.
-    destruct (cmpt_ok_wf_export_sizes _ _ _ Hok Hwf) as [Hlt Hsize].
-    split_and!.
-    - rewrite /fc_entries /fw_imap fmap_fw_imap_from /=.
-      apply NoDup_fw_imap_from. intros k1 k2 Hk1 Hk2 Heq.
-      rewrite /cmpt_export_sb !addr_off_eq in Heq. injection Heq as Heq.
-      rewrite Nat.add_0_l in Hk1 Hk2. solve_addr.
-    - (* Entries of different compartments are in disjoint export tables. *)
-      intros sb Hsb Hsb'.
-      apply list_elem_of_fmap in Hsb as ([sb1 n1] & -> & Hin1).
-      apply list_elem_of_fmap in Hsb' as ([sb2 n2] & Heq & Hin2). cbn in Heq.
-      apply elem_of_fw_imap_from in Hin1 as (k1 & x1 & _ & Heq1).
-      apply elem_of_fw_flat_map in Hin2 as (fc' & Hfc' & Hin2).
-      apply elem_of_fw_imap_from in Hin2 as (k2 & x2 & _ & Heq2).
-      injection Heq1 as -> ->. injection Heq2 as -> ->.
-      rewrite /cmpt_export_sb in Heq. injection Heq as Hpcc Hend _.
-      rewrite Forall_forall in Hfcs. destruct (Hfcs fc' Hfc') as [Hok' Hwf'].
-      destruct (cmpt_ok_wf_export_sizes _ _ _ Hok' Hwf') as [Hlt' _].
-      eapply (rngs_disjoint_app_cross _ _
-        (fc_name fc ++ ", export table", cmpt_exp_tbl_pcc (cmpt_of img (fc_name fc)),
-           cmpt_exp_tbl_entries_end (cmpt_of img (fc_name fc)))%string
-        (fc_name fc' ++ ", export table", cmpt_exp_tbl_pcc (cmpt_of img (fc_name fc')),
-           cmpt_exp_tbl_entries_end (cmpt_of img (fc_name fc')))%string Hdisj).
-      + rewrite /cmpt_ranges. set_solver+.
-      + eapply sublist_subseteq; first by apply cmpt_ranges_sublist.
-        rewrite /cmpt_ranges. set_solver+.
-      + apply elem_of_finz_seq_between. cbn. split; [done | exact Hlt].
-      + rewrite /rng_addrs /= -Hpcc -Hend. apply elem_of_finz_seq_between.
-        split; [done | exact Hlt].
-    - by apply IH; last by eapply rngs_disjoint_sublist; first apply sublist_inserts_l.
-  Qed.
-
-  Lemma fw_entries_NoDup fw img σ :
-    firmware_ok fw img σ → NoDup (fw_entries fw img).*1.
-  Proof.
-    intros (Hok & _ & _ & Hwf). pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
-    destruct Hwf as (_ & _ & Hcmpts & _).
-    apply big_and_fw_map in Hok, Hcmpts.
-    apply (fc_entries_NoDup fw); first by apply Forall_and.
-    eapply rngs_disjoint_sublist; last exact Hdisj.
-    rewrite /fw_ranges. do 3 apply sublist_cons. by apply sublist_inserts_r.
-  Qed.
 End entries_facts.
 
 (** ** The resources handed to the trusted code *)
@@ -1408,9 +1291,9 @@ Section resources.
   Definition fw_world0 : WORLD := (∅, (∅, ∅), ∅, ∅).
 
   (** The resources shared by the threads: the invariants of the switcher
-      and of the assert library, the sealed export entries, the memory of
-      every compartment (trusted or not), the sealing types handed to the
-      trusted code, the world of each logical compartment, and the heap. *)
+      and of the assert library, the memory of every compartment (trusted or
+      not), the sealing types handed to the trusted code, the world of each
+      logical compartment, and the heap. *)
   Definition fw_shared_res (fw : firmware) (img : fw_image) : iProp Σ :=
     let sw := img_sw img in
     let asrt := img_asrt img in
@@ -1420,10 +1303,6 @@ Section resources.
     "Hseal_switcher" ∷
       seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
     "Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
-    "Hentries" ∷
-      ([∗ list] e ∈ fw_entries fw img,
-         WSealed (ot_switcher sw) e.1 ↦□ₑ e.2 ∗
-         WSealed (ot_switcher sw) (borrow_sb e.1) ↦□ₑ e.2) ∗
     "Hcmpts" ∷
       ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
@@ -1576,7 +1455,6 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
 Theorem firmware_adequacy (Σ : gFunctors)
     {inv_preg : invGpreS Σ}
     {cerise_preg : ceriseGpreS Σ}
-    {entry_preg : entryGpreS Σ}
     {na_invg : na_invariants.na_invG Σ}
     {seal_store_preg : sealStorePreG Σ}
     {sts_preg : STS_preG LAddr region_type OType LWord Σ}
@@ -1604,13 +1482,11 @@ Proof.
   destruct (img_wf_otypes _ _ Hwf) as [Hot_nodup _].
   apply NoDup_cons in Hot_nodup as [Hot_notin Hot_nodup].
   destruct (firmware_ok_ghost_init_cond _ _ _ _ _ _ _ Hok) as [Hinit Hnull].
-  (* The program-logic resources of the initial state; the entries are all
-     sealed by the switcher's sealing type. *)
-  eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img) (ot_switcher (img_sw img)) (fw_entries fw img)
+  (* The program-logic resources of the initial state. *)
+  eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
             fw_flagN (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
-    [ by eapply fw_entries_NoDup | apply fw_entries_global | exact Hinit | exact Hnull
-    | | exact Hstep].
-  iIntros (ceriseg Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries".
+    [exact Hinit | exact Hnull | | exact Hstep].
+  iIntros (ceriseg Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna".
   (* The seal store, the call stack and the worlds. *)
   iMod (initialise_world (finite.enum CmptName)
           ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)))
@@ -1648,7 +1524,7 @@ Proof.
   iMod ("Hobl" with "[-HPC Hcgp Hcsp Hregs Hstack Hcstk_frag Hna]
                      [$HPC $Hcgp $Hcsp $Hregs $Hstack $Hcstk_frag $Hna]") as "Hwp".
   { rewrite /fw_shared_res /CNames big_sepS_list_to_set; last apply finite.NoDup_enum.
-    iFrame "Hentries Hotypes Hheap Hshadow Hclaims Hcmpts Hworlds". iFrame "#". }
+    iFrame "Hotypes Hheap Hshadow Hclaims Hcmpts Hworlds". iFrame "#". }
   iModIntro. iFrame "Hwp Hflag".
 Qed.
 
@@ -1657,7 +1533,7 @@ Qed.
     context derives its pre-instances from [subG], and concludes with
     [firmware_adequacy_closed] at [Σcs]. *)
 Definition firmwarePreΣ {Cname : CmptNameG} : gFunctors :=
-  #[invΣ; ceriseGpreΣ; entryPreΣ; CSTACK_preΣ; na_invΣ; sealStorePreΣ;
+  #[invΣ; ceriseGpreΣ; CSTACK_preΣ; na_invΣ; sealStorePreΣ;
     STS_preΣ LAddr region_type OType LWord; relPreΣ;
     savedPredΣ (WorldT * CmptName * LWord)].
 

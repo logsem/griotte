@@ -105,7 +105,7 @@ Section KVS_main_spec.
       cstack_frag [] ∗
 
       interp W0 B (WSealed ot_switcher B_f) ∗
-      (WSealed ot_switcher B_f) ↦□ₑ 0 ∗
+      B_f ↦ₑ□{nargs} 0 ∗
       interp W0 B (WCap true RWL Local csp_b csp_e csp_b)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.

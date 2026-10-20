@@ -126,12 +126,8 @@ Section kvs_obligations.
     set (kvs_read' := SCap true RO Local b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr).
     set (kvs_erase := SCap true RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr).
     set (kvs_erase' := SCap true RO Local b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr).
-    assert (cmpt_export_sb (cmpt_of img "kvs") 0 = kvs_addOrUpdate ∧
-            cmpt_export_sb (cmpt_of img "kvs") 1 = kvs_read ∧
-            cmpt_export_sb (cmpt_of img "kvs") 2 = kvs_erase ∧
-            cmpt_export_sb (cmpt_of img "B") 0 = B_f) as (Hsb0 & Hsb1 & Hsb2 & HsbB).
-    { rewrite /cmpt_export_sb /kvs_addOrUpdate /kvs_read /kvs_erase /B_f /=.
-      rewrite -Hkvs_a0 -Hkvs_a1 -Hkvs_a2. done. }
+    assert (cmpt_export_sb (cmpt_of img "B") 0 = B_f) as HsbB.
+    { rewrite /cmpt_export_sb /B_f /=. done. }
 
     (* 4 - The imports of main and B *)
     assert (cmpt_imports main_cmpt =
@@ -168,17 +164,11 @@ Section kvs_obligations.
     iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
       first exact Hmain_l.
     iDestruct "Hkvs" as "(Hkvs_imports & Hkvs_code & Hkvs_data)".
-    iDestruct "Hkvs_pers"
-      as "(Hkvs_etbl_pcc & Hkvs_etbl_cgp & Hkvs_etbl_entries & Hkvs_entries)".
-    iPoseProof "HB_pers" as "(_ & _ & _ & HB_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name fw_map fe_nargs
-                tb_exports ub_exports ue_nargs
-                replicate]) in "Hkvs_entries HB_entries".
-    iEval (rewrite Hsb0 Hsb1 Hsb2 /=) in "Hkvs_entries". iEval (rewrite HsbB /=) in "HB_entries".
-    iDestruct "Hkvs_entries"
-      as "([#Hentry_kvs_addOrUpdate #Hentry_kvs_addOrUpdate']
-          & [#Hentry_kvs_read #Hentry_kvs_read'] & [#Hentry_kvs_erase #Hentry_kvs_erase'] & _)".
-    iDestruct "HB_entries" as "([#Hentry_Bf _] & _)".
+    iDestruct "Hkvs_pers" as "(Hkvs_etbl_pcc & Hkvs_etbl_cgp & Hkvs_etbl_entries)".
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 0
+                 (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) with "HB_pers")
+      as "#Hentry_Bf"; [done|lia|].
+    iEval (rewrite HsbB) in "Hentry_Bf".
     iEval (cbv [kvs_firmware fw_otypes]) in "Hotypes".
     iDestruct "Hotypes" as "[Hseal_store_kvs _]".
     iDestruct (big_sepS_elem_of _ _ B with "Hworlds") as "Hworld_B".
@@ -187,7 +177,7 @@ Section kvs_obligations.
     cbn [fc_name]. rewrite /fw_cmpt_static_res.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt kvs_cmpt. fw_fold_cmpt B_cmpt.
     rewrite main_imports' main_code main_data main_static_sealed.
-    clear Hsb0 Hsb1 Hsb2 main_imports.
+    clear main_imports.
 
     (* 5.1 KVS compartment: initialise the KVS resources *)
     iEval (rewrite cmpt_code_codefrag) in "Hkvs_code".
@@ -270,8 +260,7 @@ Section kvs_obligations.
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
       iApply kvs_addOrUpdate_entry_point_spec.
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
-        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_addOrUpdate
-        Hentry_kvs_addOrUpdate Hentry_kvs_addOrUpdate'".
+        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_addOrUpdate".
     }
 
     iAssert (ot_switcher_prop W1 B (WSealable kvs_read)) as "#ot_switcher_kvs_read".
@@ -281,8 +270,7 @@ Section kvs_obligations.
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
       iApply kvs_read_entry_point_spec.
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
-        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_read
-        Hentry_kvs_read Hentry_kvs_read'".
+        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_read".
     }
 
     iAssert (ot_switcher_prop W1 B (WSealable kvs_erase)) as "#ot_switcher_kvs_erase".
@@ -292,8 +280,7 @@ Section kvs_obligations.
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
       iApply kvs_erase_entry_point_spec.
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
-        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_erase
-        Hentry_kvs_erase Hentry_kvs_erase'".
+        Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_entries_erase".
     }
 
     assert (switcher.ot_switcher ∉ dom (seal_std W0)) as Hot_notin_W0.
