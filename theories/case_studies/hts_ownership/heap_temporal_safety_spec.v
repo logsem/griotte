@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel.
-From griotte Require Import assert_spec switcher_spec_call.
+From griotte Require Import assert_spec switcher_spec_call switcher_exception_stub.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte Require Import world_interp_stack.
@@ -43,8 +43,6 @@ Section Heap_Temporal_Safety_Main.
     (Cs : list CmptName)
 
     (Nswitcher : namespace)
-
-    (cstk : CSTK)
     :
 
     let imports := hts_main_imports owner_a C_f in
@@ -69,7 +67,7 @@ Section Heap_Temporal_Safety_Main.
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     heap_std W_init_C = ∅ ->
 
-    frame_match Ws Cs cstk W_init_C C ->
+    frame_match Ws Cs [] W_init_C C ->
     (
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
@@ -99,9 +97,9 @@ Section Heap_Temporal_Safety_Main.
 
       ∗ world_interp W_init_C C
 
-      ∗ interp_continuation cstk Ws Cs
+      ∗ interp_continuation [] Ws Cs
 
-      ∗ cstack_frag cstk
+      ∗ cstack_frag []
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
@@ -142,7 +140,7 @@ Section Heap_Temporal_Safety_Main.
     { iFrame "#". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk rmap
+      C_f owner_a W_init_C Ws Cs Nswitcher rmap
       with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hrmap $Howner $Hworld
         $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
         $Himport_adv $Himport_malloc $Himport_free $Himport_alloc_cap
@@ -150,26 +148,32 @@ Section Heap_Temporal_Safety_Main.
     iIntros "Hmalloc_ret".
     (* (b) *)
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher
       with "[$Hctx $Hmalloc_ret]"); try done.
     iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+    { (* Store csp ca0 0 on an empty stack faults: the thread exits *)
+      iIntros "(%ι & %b & _ & Hna & [%mie Hcra] & Hcgp & Hcsp & [%wcs0 Hcs0]
+        & [%wcs1 Hcs1] & Hca0 & Hca1 & [%wct0 Hct0] & (%rmap' & %Hdom' & Hrmap)
+        & Hcstk & _)".
+      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
+      iDestruct (hts_share_fault_regs rmap'
+                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hct0 Hrmap")
+        as (regs Hregs) "Hregs"; first exact Hdom'.
+      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher
       with "[$Hctx $Hadv1_ret]"); try done.
     iIntros "Hfree_ret".
     (* (d) *)
     iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk
+      C_f owner_a W_init_C Ws Cs Nswitcher
       with "[$Hctx $Hfree_ret]"); try done.
     iIntros "Hadv2_ret".
     (* (e) *)
     iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Nswitcher cstk
+      C_f owner_a W_init_C Nswitcher []
       with "[$Hctx $Hadv2_ret]"); done.
   Qed.
 End Heap_Temporal_Safety_Main.

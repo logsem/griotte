@@ -334,4 +334,40 @@ Section HTS_States.
     hts_frame (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a (csp_b ^+ 1)%a ∗
     hts_zero_regs.
 
+  (** The full register file at the fault of the store of the buffer on an
+      empty stack. *)
+  Lemma hts_share_fault_regs (rmap : LReg)
+    (wcgp wcra wcs0 wcs1 wcsp wca0 wca1 wct0 : LWord) :
+    dom rmap = all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1; ct0 ]} ->
+    cgp ↦ᵣ wcgp -∗
+    cra ↦ᵣ wcra -∗
+    cs0 ↦ᵣ wcs0 -∗
+    cs1 ↦ᵣ wcs1 -∗
+    csp ↦ᵣ wcsp -∗
+    ca0 ↦ᵣ wca0 -∗
+    ca1 ↦ᵣ wca1 -∗
+    ct0 ↦ᵣ wct0 -∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝) -∗
+    ∃ regs, ⌜∀ r, is_Some (regs !! r)⌝ ∗ registers_pointsto regs.
+  Proof.
+    iIntros (Hdom) "Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hct0 Hrmap".
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+    iDestruct (big_sepM_insert_2 _ _ cgp wcgp with "[Hcgp] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cra wcra with "[Hcra] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cs0 wcs0 with "[Hcs0] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cs1 wcs1 with "[Hcs1] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ csp wcsp with "[Hcsp] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ ca0 wca0 with "[Hca0] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ ca1 wca1 with "[Hca1] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ ct0 wct0 with "[Hct0] Hrmap") as "Hrmap"; [iFrame|].
+    iExists _; iFrame "Hrmap"; iPureIntro.
+    intros r; apply elem_of_dom.
+    rewrite !dom_insert_L Hdom.
+    destruct (decide (r ∈ ({[ csp; cgp; cra; cs0; cs1; ca0; ca1; ct0 ]} : gset RegName)))
+      as [Hin|Hnin].
+    - set_solver+ Hin.
+    - pose proof (all_registers_s_correct r) as Hall.
+      set_solver+ Hnin Hall.
+  Qed.
+
 End HTS_States.

@@ -27,6 +27,7 @@ Section SO_Return_Blocks_4.
     disjoint_from_shadow csp_b csp_e ->
     (csp_b + 2)%a = Some a_stk2 ->
     (csp_b < csp_e)%a ->
+    jalr_target_ok cnull cra wret.(lw) = true ->
     assert_static b_assert e_assert a_flag ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
@@ -41,7 +42,7 @@ Section SO_Return_Blocks_4.
     csp_b ↦ₐ WInt so_secret ∗
     (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
     codefrag_pers pc_a so_main_code ∗
-    ( ▷ (PC ↦ₚ lupdatePcPerm wret ∗
+    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
@@ -54,23 +55,11 @@ Section SO_Return_Blocks_4.
         csp_b ↦ₐ WInt so_secret ∗
         (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
         codefrag_pers pc_a so_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
-    (csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
-        ct0 ↦ᵣ - ∗
-        ct1 ↦ᵣ - ∗
-        ct2 ↦ᵣ - ∗
-        ca2 ↦ᵣ - ∗
-        cra ↦ᵣ wret ∗
-        cs0 ↦ᵣ wret ∗
-        ca0 ↦ᵣ WInt 0 ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        csp_b ↦ₐ WInt so_secret -∗
-        trap_safe (WCap true RX Global pc_b pc_e ((pc_a ^+ so_label_offset ".Lso_f_return") ^+ 3)%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
+        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow
-               Hastk2 Hcsp_size)
+               Hastk2 Hcsp_size Htgt)
       "(#Hassert & HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
       & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -113,16 +102,9 @@ Section SO_Return_Blocks_4.
     iInstr "Hcode".
     (* Mov ca1 0%Z *)
     iInstr "Hcode".
-    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
-    { (* Jalr cnull cra *)
-      iInstr_fail "Hcode".
-      change_pc_to ((pc_a ^+ so_label_offset ".Lso_f_return") ^+ 3)%a.
-      iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
     (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 

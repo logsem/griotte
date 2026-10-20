@@ -35,7 +35,7 @@ Section Switcher.
     (l : list LAddr)
     (stk_mem : list LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (wca0 wca1 : LWord)
+    (wca0 wca1 wcsp : LWord)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -61,7 +61,7 @@ Section Switcher.
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
-    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+    ∗ csp ↦ᵣ wcsp
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -305,7 +305,7 @@ Section Switcher.
        ([∗ map] k↦y ∈ rmap, k ↦ᵣ y) ∗
        ca0 ↦ᵣ - ∗
        ca1 ↦ᵣ - ∗
-       csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b) -∗
+       csp ↦ᵣ -) -∗
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
     intros Wfixed.
@@ -313,7 +313,7 @@ Section Switcher.
       "#Hswitcher #Hstatic Hres".
     iApply (trap_safe_exception_entry with "Hstatic").
     iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
-                     & Hca0 & Hca1 & Hcsp)".
+                     & Hca0 & Hca1 & [%wcsp Hcsp])".
     iModIntro; iFrame "Hca0 Hca1".
     iIntros "(HPC & Hca0 & Hca1)".
     iApply (switcher_ret_specification with

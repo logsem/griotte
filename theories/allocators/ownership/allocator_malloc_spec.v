@@ -302,7 +302,7 @@ Section AllocatorMalloc.
     (∀ a, ⌜(allocator_malloc_pcc_addr <= a <
             allocator_malloc_pcc_addr
               ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0))%a⌝ -∗
-      na_own cerise_nais (E ∖ ↑Nallocator_service) ∗
+      na_own cerise_nais E ∗
       ctp ↦ᵣ - ∗
       ca0 ↦ᵣ wsealed ∗
       ca3 ↦ᵣ - ∗
@@ -313,9 +313,7 @@ Section AllocatorMalloc.
   Proof.
     iIntros (HEswitcher HEservice Hwsealed)
       "(#Hservice & #Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".
-    (* Open the service invariant and focus on the code of [malloc]. *)
-    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
-    iDestruct "Hinv" as ">Hdata".
+    (* Focus on the code of [malloc]. *)
     iDestruct "Hstatic" as "[#Himports #Hcode]".
     iEval (rewrite /allocator_code allocator_code_b_malloc) in "Hcode".
     focus_block_0 "Hcode" as "Hmalloc_code" "Hcode_cont".

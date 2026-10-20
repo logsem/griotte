@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From griotte Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
-From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
+From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return switcher_exception_stub.
 From griotte Require Import vae vae_helper.
 From griotte Require Import proofmode.
 From griotte Require Import vae_spec_states vae_spec_world_call
@@ -42,7 +42,6 @@ Section VAE.
 
     (Nswitcher : namespace)
 
-    (cstk : CSTK)
     (i : positive)
     :
 
@@ -65,7 +64,7 @@ Section VAE.
     (pc_b + vae_label ".Lvae_init")%a = Some pc_a ->
 
     loc W0 !! i = Some (encode false) ->
-    frame_match Ws Cs cstk W0 C ->
+    frame_match Ws Cs [] W0 C ->
     (
       assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
@@ -88,9 +87,9 @@ Section VAE.
       (* initial memory layout *)
       ∗ world_interp W0 C
 
-      ∗ interp_continuation cstk Ws Cs
+      ∗ interp_continuation [] Ws Cs
 
-      ∗ cstack_frag cstk
+      ∗ cstack_frag []
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
@@ -161,8 +160,28 @@ Section VAE.
              "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
-              $Hinterp_W1_C_f $HK]"); [done..|].
+              $Hinterp_W1_C_f $HK]").
+    { exact Hstk_mmio. }
+    { exact Hstk_heap. }
+    { solve_addr+. }
+    { exact Hrmap'_dom. }
+    { exact Harg_rmap. }
+    { destruct mie; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     iSplit; first done.
+    iSplit; last first.
+    { (* The spill faults: the thread exits *)
+      rewrite /switcher_cc_fault /switcher_cc_fault_res.
+      iIntros "Hres".
+      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
+      iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
+                      & (%rmap'' & %Hdom'' & Hrmap) & _ & _ & _ & Hcstk & _)".
+      iDestruct (switcher_cc_fault_full_regs arg_rmap rmap' rmap''
+                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
+        as (regs Hregs) "Hregs";
+        [exact Harg_rmap | exact Hrmap'_dom | exact Hdom'' |].
+      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
     iNext.
     iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & _ & _ & _ & _ & _ & Hna & _ & _ & _ & HPC

@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception_stub.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
@@ -30,13 +30,13 @@ Section HTS_Spec_Share.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (Nswitcher : namespace).
 
   #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   #[local] Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
+    csp_b csp_e C_f owner_a W_init_C Ws Cs []).
   #[local] Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
+    csp_b csp_e C_f owner_a W_init_C Ws Cs []).
 
   Lemma hts_spec_share :
     disjoint_from_shadow pc_b pc_e ->
@@ -67,13 +67,13 @@ Section HTS_Spec_Share.
          (∃ rmap : LReg,
             ⌜dom rmap = all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1; ct0 ]}⌝ ∗
             ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)) ∗
-         cstack_frag cstk ∗
+         cstack_frag [] ∗
          cgp_b ↦ₐ WInt 0 ∗
          owner_a ↦ₐ WInt hts_main_owner_id ∗
          [[csp_b, csp_e]] ↦ₐ [[region_addrs_zeroes csp_b csp_e]] ∗
          world_interp (revoke W_init_C) C ∗
          StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e) ∗
-         interp_continuation cstk Ws Cs ∗
+         interp_continuation [] Ws Cs ∗
          allocator_owner_id hts_main_owner_id {[ι]} ∗
          alloc_obj ι b (b ^+ 1)%a ∗
          free_right ι ∗
@@ -265,22 +265,44 @@ Section HTS_Spec_Share.
       <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap))))))).
+    assert (dom adv_other =
+      all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8))
+      as Hdom_other.
+    { subst adv_other. repeat (rewrite dom_insert_L).
+      repeat (rewrite dom_delete_L).
+      rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
+    assert (is_arg_rmap adv_arg 8) as Hargs_rmap.
+    { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
     iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C ι b) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
       (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
-      adv_arg adv_other cstk Ws Cs 1
+      adv_arg adv_other [] Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
         $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { subst adv_other. repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
-    { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
+    { solve_addr. }
+    { exact Hdom_other. }
+    { exact Hargs_rmap. }
+    { destruct mie; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_share).
+    iSplit; last first.
+    { (* The spill faults: the thread exits *)
+      rewrite /switcher_cc_fault /switcher_cc_fault_res.
+      iIntros "Hres".
+      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
+      iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
+                      & (%rmap'' & %Hdom'' & Hrmap) & _ & _ & _ & Hcstk & _)".
+      iDestruct (switcher_cc_fault_full_regs adv_arg adv_other rmap''
+                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
+        as (regs Hregs) "Hregs";
+        [exact Hargs_rmap | exact Hdom_other | exact Hdom'' |].
+      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
     iNext.
     iIntros (Wret rmap_after stk_after lret rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & %Hrelated_share_ret & _ & %Hdom_rmap_after

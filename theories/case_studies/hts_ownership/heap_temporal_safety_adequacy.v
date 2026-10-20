@@ -249,7 +249,7 @@ Section hts_obligations.
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     iPoseProof (hts_main_spec (swlayout := swl) (assertlayout := asl) (alloclayout := alloclayout)
-                  (C := B) _ _ _ _ _ _ _ _ B_f main_owner_a _ [] [] fw_switcherN []
+                  (C := B) _ _ _ _ _ _ _ _ B_f main_owner_a _ [] [] fw_switcherN
                  with "[$Hassert $Hservice $Hservice_static $Hswitcher $Hswitcher_static
                         $Halloc_etbl_pcc $Halloc_etbl_cgp $Hexport_malloc $Hexport_free
                         $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hregs

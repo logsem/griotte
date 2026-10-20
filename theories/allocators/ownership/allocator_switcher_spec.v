@@ -58,7 +58,7 @@ Section AllocatorSwitcherSpec.
     arg_rmap !! ca1 = Some (lword_of_word (WInt n)) ->
     allocator_service_ctx ∗
     allocator_service_static ⊢
-    switcher_cc_specification_known_to_known_function
+    switcher_cc_specification_known_to_known_function false
       (allocator_owner_id id Ω ∗
        a_owner ↦ₐ WInt id)
       (allocator_malloc_result S a_owner id Ω n) wcgp wcra wcs0 wcs1
@@ -156,7 +156,7 @@ Section AllocatorSwitcherSpec.
     arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
     allocator_service_ctx ∗
     allocator_service_static ⊢
-    switcher_cc_specification_known_to_known_function
+    switcher_cc_specification_known_to_known_function false
       (allocator_owner_id id Ω ∗
        ⌜ι ∈ Ω⌝ ∗
        a_owner ↦ₐ WInt id ∗

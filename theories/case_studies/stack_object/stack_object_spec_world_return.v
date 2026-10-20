@@ -9,9 +9,11 @@ From griotte Require Import stack_object_spec_states.
 
 (** * Repair of the world before the return of [f]
 
-    The lemma of this file does not execute code. It is used after the
-    block group [stack_object_spec_return_blocks_4], before the return to
-    the switcher, in the proof of [stack_object_f_spec]. *)
+    The lemmas of this file do not execute code. In the proof of
+    [stack_object_f_spec], [so_world_return] is used after the block group
+    [stack_object_spec_return_blocks_4], before the return to the switcher,
+    and [so_world_fault] at the faults of [f] after the checks of [in],
+    before the return path of the switcher. *)
 
 Section SO_World_Return.
   Context
@@ -760,6 +762,331 @@ Section SO_World_Return.
       l0 l0_live l0_quarantined l4 stk_head0 stk_tail
       with "[$Hworld $Hl0_live $Hl4 $Hhead0 $Htail]") as (stk_head1) "H"; [done..|].
     iModIntro. iExists stk_head1. iFrame.
+  Qed.
+
+  (** [close_list l (revoke Wx)] is a public future of [W] when [Wx] keeps
+      the domain and the permanent addresses of [W] and its other states,
+      and [l] contains the temporary addresses of [W] and is revoked in
+      [revoke Wx]. *)
+  Lemma so_close_revoke_pub (W Wx : WORLD) (l : list LAddr) :
+    dom (std W) ⊆ dom (std Wx) ->
+    (∀ x, std W !! x = Some Permanent → std Wx !! x = Some Permanent) ->
+    (∀ x, std W !! x = Some Temporary → x ∈ l) ->
+    (∀ x, x ∈ l → std (revoke Wx) !! x = Some Revoked) ->
+    cus Wx = cus W ->
+    seal_std Wx = seal_std W ->
+    heap_std Wx = heap_std W ->
+    related_sts_pub_world W (close_list l (revoke Wx)).
+  Proof.
+    intros Hdom Hperm Htemp Hrev Hcus Hseals Hheap.
+    destruct (related_sts_pub_refl_world W) as (_ & Hcus_refl & Hseals_refl & Hheap_refl).
+    refine (conj _ (conj _ (conj _ _))).
+    - split.
+      + rewrite /close_list /revoke /=.
+        rewrite -close_list_dom_eq -revoke_dom_eq. exact Hdom.
+      + intros x ρ ρ' Hx Hx'.
+        rewrite /close_list /revoke /= in Hx'.
+        destruct ρ.
+        * pose proof (Htemp x Hx) as Hxl.
+          pose proof (Hrev x Hxl) as Hxr.
+          rewrite /revoke /= in Hxr.
+          rewrite (close_list_std_sta_revoked _ _ _ Hxl Hxr) in Hx'.
+          simplify_eq; apply rtc_refl.
+        * pose proof (Hperm x Hx) as HxP.
+          apply revoke_lookup_Perm in HxP.
+          rewrite -close_list_std_sta_same_alt in Hx'; last (rewrite HxP; done).
+          rewrite HxP in Hx'; simplify_eq; apply rtc_refl.
+        * destruct ρ'; try apply rtc_refl; apply rtc_once; econstructor.
+    - rewrite /close_list /revoke /= Hcus. exact Hcus_refl.
+    - rewrite /close_list /revoke /= Hseals. exact Hseals_refl.
+    - rewrite /close_list /revoke /= Hheap. exact Hheap_refl.
+  Qed.
+
+  (** A fault of [f] after the checks of [in], in a world [Wx]: [Wx] is the
+      world [Wq] where the addresses [sstk] of the stack frame
+      [[csp_b, csp_e)] are reinstated, the stack frame and the live
+      addresses [l0_live] revoked by [f] are revoked in [Wq], and [sx] are
+      the temporary addresses of [Wq]. Once [Wx] is revoked, the return path
+      of the switcher closes [l0_live], [sx] and the stack frame, which
+      gives a public future of [W0] and of [Wx]. *)
+  Lemma so_world_fault_facts
+      (W0 Wq : WORLD) (csp_b csp_e : Addr)
+      (l0 l0_live sx sstk : list LAddr) :
+    let stack := LNonHeap <$> finz.seq_between csp_b csp_e in
+    let Wx := close_list sstk Wq in
+    let closing := (l0_live ++ sx) ++ stack in
+    extract_temporaries_condition W0 (l0 ++ stack) ->
+    extract_temporaries_condition Wq sx ->
+    Forall (λ a, std Wq !! a = Some Revoked) (l0_live ++ stack) ->
+    l0_live ⊆ l0 ->
+    l0 ⊆ l0_live ++ sx ->
+    NoDup l0_live ->
+    sstk ⊆ stack ->
+    NoDup sstk ->
+    related_sts_priv_world W0 Wq ->
+    cus Wq = cus W0 ->
+    seal_std Wq = seal_std W0 ->
+    heap_std Wq = heap_std W0 ->
+    extract_temporaries_condition Wx (sx ++ sstk) ∧
+    related_sts_pub_world W0 (close_list closing (revoke Wx)) ∧
+    related_sts_pub_world Wx (close_list closing (revoke Wx)) ∧
+    NoDup closing ∧
+    (∀ a, std W0 !! a = Some Temporary → a ∈ closing).
+  Proof.
+    intros stack Wx closing.
+    intros [Hl0_nodup Hl0_temps] [Hsx_nodup Hsx_temps] Hrevoked_Wq Hlive_l0 Hl0_cover
+      Hlive_nodup Hsstk_stack Hsstk_nodup Hpriv Hcus Hseals Hheap.
+    apply Forall_app in Hrevoked_Wq as [Hlive_Wq Hstack_Wq].
+    rewrite !Forall_forall in Hlive_Wq Hstack_Wq.
+
+    (* The temporary addresses of [Wx] are [sx] and [sstk] *)
+    assert (∀ x, x ∈ sx → x ∉ sstk) as Hsx_sstk.
+    { intros x Hx1 Hx2.
+      apply Hsx_temps in Hx1.
+      rewrite (Hstack_Wq x (Hsstk_stack x Hx2)) in Hx1.
+      discriminate. }
+    assert (extract_temporaries_condition Wx (sx ++ sstk)) as Hextract_Wx.
+    { split.
+      - apply NoDup_app; split; [exact Hsx_nodup|split; [exact Hsx_sstk|exact Hsstk_nodup] ].
+      - intros x; split.
+        + intros Hx. apply elem_of_app.
+          destruct (decide (x ∈ sstk)) as [Hin|Hnin]; first by right.
+          left. apply Hsx_temps.
+          subst Wx. rewrite close_list_lookup_not_in in Hx; done.
+        + intros Hx. apply elem_of_app in Hx as [Hx|Hx].
+          * apply Hsx_temps in Hx. subst Wx.
+            rewrite /close_list /= -close_list_std_sta_same_alt; [exact Hx | rewrite Hx; done].
+          * subst Wx. apply close_list_lookup_in; last done.
+            apply Hstack_Wq, Hsstk_stack, Hx. }
+    assert (∀ x, std Wq !! x = Some Revoked ∨ std Wq !! x = Some Temporary →
+                 std (revoke Wx) !! x = Some Revoked) as Hrev_Wx.
+    { intros x Hx. rewrite /revoke /=.
+      subst Wx.
+      destruct (decide (x ∈ sstk)) as [Hin|Hnin].
+      - apply revoke_lookup_Monotemp.
+        destruct Hx as [Hx|Hx].
+        + by apply close_list_lookup_in.
+        + rewrite /close_list /= -close_list_std_sta_same_alt; [exact Hx | rewrite Hx; done].
+      - destruct Hx as [Hx|Hx].
+        + apply revoke_lookup_Revoked. rewrite close_list_lookup_not_in; done.
+        + apply revoke_lookup_Monotemp. rewrite close_list_lookup_not_in; done. }
+    assert (∀ x, x ∈ closing → std (revoke Wx) !! x = Some Revoked) as Hclosing_rev.
+    { intros x Hx. apply Hrev_Wx.
+      subst closing. rewrite !elem_of_app in Hx.
+      destruct Hx as [ [Hx|Hx] |Hx].
+      - left; by apply Hlive_Wq.
+      - right; by apply Hsx_temps.
+      - left; by apply Hstack_Wq. }
+
+    (* The world fixed by the return path is a public future of [W0] and
+       of [Wx] *)
+    assert (related_sts_priv_world W0 Wx) as Hpriv_x.
+    { eapply related_sts_priv_pub_trans_world; first exact Hpriv.
+      apply close_list_related_sts_pub. }
+    split; [exact Hextract_Wx|split; [|split; [|split] ] ].
+    - apply so_close_revoke_pub.
+      + destruct Hpriv_x as [ [Hdom _] _]. exact Hdom.
+      + intros x Hx. exact (region_state_priv_perm W0 Wx x Hpriv_x Hx).
+      + intros x Hx. apply Hl0_temps in Hx.
+        subst closing. apply elem_of_app in Hx as [Hx|Hx].
+        * apply elem_of_app; left. by apply Hl0_cover.
+        * apply elem_of_app; by right.
+      + exact Hclosing_rev.
+      + exact Hcus.
+      + exact Hseals.
+      + exact Hheap.
+    - apply so_close_revoke_pub.
+      + done.
+      + done.
+      + intros x Hx. apply Hextract_Wx in Hx.
+        subst closing. apply elem_of_app in Hx as [Hx|Hx].
+        * apply elem_of_app; left; apply elem_of_app; by right.
+        * apply elem_of_app; right. by apply Hsstk_stack.
+      + exact Hclosing_rev.
+      + done.
+      + done.
+      + done.
+    - subst closing. apply NoDup_app; split; [|split].
+      + apply NoDup_app; split; [exact Hlive_nodup|split; [|exact Hsx_nodup] ].
+        intros x Hx1 Hx2.
+        apply Hsx_temps in Hx2. rewrite (Hlive_Wq x Hx1) in Hx2. discriminate.
+      + intros x Hx Hx_stack. apply elem_of_app in Hx as [Hx|Hx].
+        * apply NoDup_app in Hl0_nodup as (_ & Hdisj & _).
+          exact (Hdisj x (Hlive_l0 x Hx) Hx_stack).
+        * apply Hsx_temps in Hx. rewrite (Hstack_Wq x Hx_stack) in Hx. discriminate.
+      + apply NoDup_LNonHeap_fmap, finz_seq_between_NoDup.
+    - intros x Hx. apply Hl0_temps in Hx.
+      subst closing. apply elem_of_app in Hx as [Hx|Hx].
+      + apply elem_of_app; left. by apply Hl0_cover.
+      + apply elem_of_app; by right.
+  Qed.
+
+  (** The revocation of [Wx] at a fault of [f] after the checks of [in]
+      (see [so_world_fault_facts]): [sstk] gives back the memory of the
+      reinstated addresses of the stack frame. *)
+  Lemma so_world_fault
+      (W0 Wq : WORLD) (C : CmptName) (csp_b csp_e : Addr)
+      (l0 l0_live sx sstk : list LAddr) :
+    let stack := LNonHeap <$> finz.seq_between csp_b csp_e in
+    let Wx := close_list sstk Wq in
+    let closing := (l0_live ++ sx) ++ stack in
+    extract_temporaries_condition W0 (l0 ++ stack) ->
+    extract_temporaries_condition Wq sx ->
+    Forall (λ a, std Wq !! a = Some Revoked) (l0_live ++ stack) ->
+    l0_live ⊆ l0 ->
+    l0 ⊆ l0_live ++ sx ->
+    NoDup l0_live ->
+    sstk ⊆ stack ->
+    NoDup sstk ->
+    related_sts_priv_world W0 Wq ->
+    cus Wq = cus W0 ->
+    seal_std Wq = seal_std W0 ->
+    heap_std Wq = heap_std W0 ->
+    world_interp Wx C ∗
+    RevokedResources W0 C l0_live ∗
+    £ 1
+    ={⊤}=∗
+    world_interp (revoke Wx) C ∗
+    RevokedResources (close_list closing (revoke Wx)) C (l0_live ++ sx) ∗
+    RevokedResources Wx C sstk.
+  Proof.
+    intros stack Wx closing.
+    intros Hextract0 Hextract_Wq Hrevoked_Wq Hlive_l0 Hl0_cover
+      Hlive_nodup Hsstk_stack Hsstk_nodup Hpriv Hcus Hseals Hheap.
+    destruct (so_world_fault_facts W0 Wq csp_b csp_e l0 l0_live sx sstk
+                Hextract0 Hextract_Wq Hrevoked_Wq Hlive_l0 Hl0_cover
+                Hlive_nodup Hsstk_stack Hsstk_nodup Hpriv Hcus Hseals Hheap)
+      as (Hextract_Wx & Hpub0 & Hpubx & _ & _).
+    iIntros "(Hworld & Hl0_live & Hlc)".
+    iMod (world_interp_revoke Wx C (sx ++ sstk) Hextract_Wx with "Hworld")
+      as "(Hworld & Hrevoked & _)".
+    iMod (lc_fupd_elim_later with "Hlc Hrevoked") as "Hrevoked".
+    iEval (rewrite RevokedResources_app) in "Hrevoked".
+    iDestruct "Hrevoked" as "[Hsx Hsstk]".
+    iModIntro.
+    iFrame "Hworld Hsstk".
+    rewrite RevokedResources_app.
+    iSplitL "Hl0_live".
+    - iApply (RevokedResources_mono_pub W0 _ C l0_live [] Hpub0 with "Hl0_live").
+    - iApply (RevokedResources_mono_pub Wx _ C sx [] Hpubx with "Hsx").
+  Qed.
+
+  (** The world after the checks of [in]: the temporary addresses of [in]
+      and the quarantined revoked keys [l0_q] are reinstated in the revoked
+      world. They are its temporary addresses, and the other revoked
+      addresses [l0_live] and the stack frame stay revoked. *)
+  Lemma so_world_after_checks
+      (W0 : WORLD) (π : option AId) (object_b object_e csp_b csp_e : Addr)
+      (l0 l0_live l0_q : list LAddr) :
+    let stack := LNonHeap <$> finz.seq_between csp_b csp_e in
+    let objtemps := addr_key π <$> so_object_temporaries W0 π object_b object_e in
+    let W2q := close_list l0_q (close_list objtemps (revoke W0)) in
+    extract_temporaries_condition W0 (l0 ++ stack) ->
+    so_object_addresses object_b object_e ## finz.seq_between csp_b csp_e ->
+    Permutation (so_revoked_without_object W0 π object_b object_e l0) (l0_live ++ l0_q) ->
+    extract_temporaries_condition W2q (objtemps ++ l0_q) ∧
+    Forall (λ a, std W2q !! a = Some Revoked) (l0_live ++ stack) ∧
+    l0_live ⊆ l0 ∧
+    l0 ⊆ l0_live ++ (objtemps ++ l0_q) ∧
+    NoDup l0_live ∧
+    related_sts_priv_world W0 W2q.
+  Proof.
+    intros stack objtemps W2q Hextract0 Hobject_stack Hrest_partition.
+    pose proof Hextract0 as [Hl0_nodup Hl0_temporaries].
+    set (l0_rest := so_revoked_without_object W0 π object_b object_e l0) in *.
+
+    (* Split [l0] between the temporary addresses of [in] and the others *)
+    assert (objtemps ⊆ l0) as Htemps_l0.
+    { intros x Hx.
+      subst objtemps.
+      apply list_elem_of_fmap in Hx as [x' [-> Hx] ].
+      apply list_elem_of_filter in Hx as [Hx_temp Hx_object].
+      apply Hl0_temporaries in Hx_temp.
+      apply elem_of_app in Hx_temp as [Hx_temp|Hx_temp]; first done.
+      apply list_elem_of_fmap in Hx_temp as [x'' [Heq Hx''] ].
+      assert (x' = x'') as <-.
+      { by apply addr_key_LNonHeap_eq in Heq. }
+      rewrite elem_of_disjoint in Hobject_stack.
+      exfalso; eapply Hobject_stack; eauto.
+    }
+    assert (objtemps ≡ₚ filter (fun a => a ∈ objtemps) l0) as Htemps_filter.
+    { apply NoDup_subset_filter_membership.
+      - apply NoDup_addr_key_fmap, so_object_temporaries_NoDup.
+      - apply NoDup_app in Hl0_nodup as [? _]. done.
+      - exact Htemps_l0.
+    }
+    assert (l0 ≡ₚ objtemps ++ l0_live ++ l0_q) as Hl0_perm.
+    { rewrite -Hrest_partition.
+      subst l0_rest.
+      rewrite {1}Htemps_filter.
+      apply filter_complement_list.
+    }
+    assert (NoDup (objtemps ++ l0_live ++ l0_q)) as Hnodup_all.
+    { rewrite -Hl0_perm. apply NoDup_app in Hl0_nodup as [? _]; done. }
+    apply NoDup_app in Hnodup_all as (Hobj_nodup & Hobj_disj & Hrest_nodup).
+    apply NoDup_app in Hrest_nodup as (Hlive_nodup & Hlive_q_disj & Hq_nodup).
+    assert (∀ x, x ∈ l0 → std (revoke W0) !! x = Some Revoked) as Hl0_rev.
+    { intros x Hx. apply revoke_lookup_Monotemp, Hl0_temporaries, elem_of_app; by left. }
+    assert (∀ x, x ∈ objtemps → x ∈ l0) as Hobj_l0.
+    { intros x Hx. rewrite Hl0_perm. apply elem_of_app; by left. }
+    assert (∀ x, x ∈ l0_live → x ∈ l0) as Hlive_l0.
+    { intros x Hx. rewrite Hl0_perm. apply elem_of_app; right; apply elem_of_app; by left. }
+    assert (∀ x, x ∈ l0_q → x ∈ l0) as Hq_l0.
+    { intros x Hx. rewrite Hl0_perm. apply elem_of_app; right; apply elem_of_app; by right. }
+    assert (∀ x, x ∈ stack → x ∉ l0) as Hstack_l0.
+    { intros x Hx Hx0.
+      apply NoDup_app in Hl0_nodup as (_ & Hdisj & _).
+      exact (Hdisj x Hx0 Hx). }
+
+    split; [|split; [|split; [|split; [|split] ] ] ].
+    - (* The temporary addresses of [W2q] *)
+      split.
+      + apply NoDup_app; split; [exact Hobj_nodup|split; [|exact Hq_nodup] ].
+        intros x Hx1 Hx2. apply (Hobj_disj x Hx1). apply elem_of_app; by right.
+      + intros x; split.
+        * intros Hx. apply elem_of_app.
+          destruct (decide (x ∈ l0_q)) as [Hq|Hq]; first by right.
+          left. subst W2q.
+          rewrite close_list_lookup_not_in in Hx; last done.
+          destruct (decide (x ∈ objtemps)) as [Ho|Ho]; first done.
+          rewrite close_list_lookup_not_in in Hx; last done.
+          exfalso; exact (revoke_lookup_non_temp W0 x Temporary Hx eq_refl).
+        * intros Hx. subst W2q. apply elem_of_app in Hx as [Hx|Hx].
+          -- assert (x ∉ l0_q) as Hxq.
+             { intros Hxq. apply (Hobj_disj x Hx). apply elem_of_app; by right. }
+             rewrite close_list_lookup_not_in; last done.
+             apply close_list_lookup_in; last done.
+             by apply Hl0_rev, Hobj_l0.
+          -- assert (x ∉ objtemps) as Hxo.
+             { intros Hxo. apply (Hobj_disj x Hxo). apply elem_of_app; by right. }
+             apply close_list_lookup_in; last done.
+             rewrite close_list_lookup_not_in; last done.
+             by apply Hl0_rev, Hq_l0.
+    - (* [l0_live] and the stack frame are revoked in [W2q] *)
+      apply Forall_app; split; apply Forall_forall; intros x Hx; subst W2q.
+      + assert (x ∉ l0_q) as Hxq by exact (Hlive_q_disj x Hx).
+        assert (x ∉ objtemps) as Hxo.
+        { intros Hxo. apply (Hobj_disj x Hxo). apply elem_of_app; by left. }
+        rewrite close_list_lookup_not_in; last done.
+        rewrite close_list_lookup_not_in; last done.
+        by apply Hl0_rev, Hlive_l0.
+      + assert (x ∉ l0_q) as Hxq.
+        { intros Hxq. exact (Hstack_l0 x Hx (Hq_l0 x Hxq)). }
+        assert (x ∉ objtemps) as Hxo.
+        { intros Hxo. exact (Hstack_l0 x Hx (Hobj_l0 x Hxo)). }
+        rewrite close_list_lookup_not_in; last done.
+        rewrite close_list_lookup_not_in; last done.
+        apply revoke_lookup_Monotemp, Hl0_temporaries, elem_of_app; by right.
+    - exact Hlive_l0.
+    - intros x Hx. rewrite Hl0_perm in Hx.
+      apply elem_of_app in Hx as [Hx|Hx].
+      + apply elem_of_app; right; apply elem_of_app; by left.
+      + apply elem_of_app in Hx as [Hx|Hx].
+        * apply elem_of_app; by left.
+        * apply elem_of_app; right; apply elem_of_app; by right.
+    - exact Hlive_nodup.
+    - eapply related_sts_priv_pub_trans_world; first apply revoke_related_sts_priv_world.
+      eapply related_sts_pub_trans_world; apply close_list_related_sts_pub.
   Qed.
 
 End SO_World_Return.

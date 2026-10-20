@@ -33,6 +33,7 @@ Section KVS_spec_addOrUpdate_safe.
     ↑Nkvs_otype ⊆ E ->
 
     related_sts_priv_world Wca W ->
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( seal_pred KVS_OTYPE kvs_otype_propC ∗
       kvs_static ∗
@@ -53,52 +54,77 @@ Section KVS_spec_addOrUpdate_safe.
 
       world_interp W C ∗
 
-      ▷ (na_own cerise_nais E ∗
-         PC ↦ₚ lupdatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         (ca0 ↦ᵣ WInt ASM_TRUE ∨ ca0 ↦ᵣ WInt ASM_FALSE) ∗
-         ca1 ↦ᵣ WInt 0 ∗
-         ca2 ↦ᵣ - ∗
-         ctp ↦ᵣ - ∗ (* scratch *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
+      ( ▷ (na_own cerise_nais E ∗
+           PC ↦ₚ lupdatePcPerm wret ∗
+           cgp ↦ᵣ - ∗
+           cra ↦ᵣ - ∗
+           (ca0 ↦ᵣ WInt ASM_TRUE ∨ ca0 ↦ᵣ WInt ASM_FALSE) ∗
+           ca1 ↦ᵣ WInt 0 ∗
+           ca2 ↦ᵣ - ∗
+           ctp ↦ᵣ - ∗ (* scratch *)
+           ct1 ↦ᵣ - ∗ (* scratch *)
+           ct2 ↦ᵣ - ∗ (* scratch *)
 
-         world_interp W C
+           world_interp W C
 
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        )
+           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+        ) ∧
+        (* The load after the failed unsealing of the user key faults *)
+        ▷ ( ∀ w,
+            na_own cerise_nais E ∗
+            cgp ↦ᵣ - ∗
+            cra ↦ᵣ - ∗
+            ca0 ↦ᵣ - ∗
+            ca1 ↦ᵣ - ∗
+            ca2 ↦ᵣ - ∗
+            ctp ↦ᵣ - ∗
+            ct1 ↦ᵣ - ∗
+            ct2 ↦ᵣ - ∗
+            world_interp W C -∗
+            trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W)
+    iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W Htgt)
       "(#Hspred & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
       & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hworld & Hpost)".
 
     (* Destruct validity map key *)
     destruct (decide (word_is_uint16 wca1.(lw))) as [Hwca1_uint16|Hwca1_uint16]; cycle 1.
     { (* the map key argument is not a uint16 *)
+      iDestruct "Hpost" as "[Hpost _]".
       iApply (KVS_addOrUpdate_spec_not_uint16_map_key with
                "[- $Hkvs_static $Hkvs_inv $Hna $HPC $Hcra $Hca0 $Hca1 $Hct1]");
-        [exact Hnkvs_E | exact Hwca1_uint16 |].
-      iSplit.
-      - iNext; iIntros "(Hna & HPC & Hcra & Hca0 & Hca1 & Hct1)".
-        iApply "Hpost"; iFrame.
-      - iIntros "_".
-        iApply trap_safe_intro.
-        by iIntros "!> %Hcontr".
+        [exact Hnkvs_E | exact Hwca1_uint16 | exact Htgt |].
+      iNext; iIntros "(Hna & HPC & Hcra & Hca0 & Hca1 & Hct1)".
+      iApply "Hpost"; iFrame.
     }
     destruct wca1 as [ [nkey| | | ] πnkey]; cbn in Hwca1_uint16; try done.
 
     (* Untagged user keys fail at UnSeal, before opening seal resources. *)
     destruct (get_tag wca0.(lw)) eqn:Hwca0_tag; cycle 1.
-    { iApply KVS_addOrUpdate_spec_invalid_sealed_user_key; eauto; iFrame "∗#". }
+    { iApply (KVS_addOrUpdate_spec_invalid_sealed_user_key
+               with "[$Hkvs_static $Hkvs_inv $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp
+                      Hworld Hpost Hca2]");
+        [exact Hunsealing_shadow | exact Hnkvs_E | exact Hwca1_uint16
+        | right; exact Hwca0_tag |].
+      iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iApply ("Hfailed" with "[$]"). }
 
     (* Destruct validity user key *)
     destruct ( is_sealed_with_o wca0.(lw) KVS_OTYPE ) eqn:Hwca0_sealed_with_kvs_ot; cycle 1.
     { (* the user key argument is not a valid sealed user key *)
-      iApply KVS_addOrUpdate_spec_invalid_sealed_user_key; eauto; iFrame "∗#".
+      iApply (KVS_addOrUpdate_spec_invalid_sealed_user_key
+               with "[$Hkvs_static $Hkvs_inv $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp
+                      Hworld Hpost Hca2]");
+        [exact Hunsealing_shadow | exact Hnkvs_E | exact Hwca1_uint16
+        | left; exact Hwca0_sealed_with_kvs_ot |].
+      iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iApply ("Hfailed" with "[$]").
     }
     (* The inputs are valid. *)
+    iDestruct "Hpost" as "[Hpost _]".
     rewrite /is_sealed_with_o in Hwca0_sealed_with_kvs_ot.
     destruct wca0 as [ [ | | | ot wsb ] π0]; try done.
     rewrite Z.eqb_eq in Hwca0_sealed_with_kvs_ot.
@@ -299,50 +325,83 @@ Section KVS_spec_addOrUpdate_safe.
       pose proof KVS_size_code as Hcode_size.
       rewrite /length_kvs_imports in Himports.
       rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr+Himports Hcode_size. }
-    iApply (KVS_addOrupdate_spec_safe W0 (revoke W0) _ _ _ _ _ _ Hunsealing_shadow);
-      try solve_ndisj; iFrame "∗#".
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
-    iAssert (∃ zca0, ca0 ↦ᵣ WInt zca0)%I with "[Hca0]" as "[%zca0 Hca0]".
-    { iDestruct "Hca0" as "[$|$]". }
-
-
-    iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
-    iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
-    iDestruct "Hct2" as "[% Hct2]"; iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
-    iDestruct "Hct1" as "[% Hct1]"; iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
-    iDestruct "Hctp" as "[% Hctp]"; iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
-    iDestruct "Hcra" as "[% Hcra]"; iDestruct (big_sepM_insert _ _ cra with "[$Hrmap $Hcra]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
-    iDestruct "Hcgp" as "[% Hcgp]"; iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
-    map_simpl "Hrmap".
-
+    (* The world fixed by the return through the switcher *)
+    set (Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) (revoke W0))).
     destruct Hl_unk as [ Hnodup Htemps ]; auto.
-    set (Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) (revoke W0)).
     assert (related_sts_pub_world W0 Wfixed) as Hrelated_pub_W0_Wfixed.
     { subst Wfixed. apply related_pub_revoke_close_list; exact Htemps. }
     iDestruct (RevokedResources_mono_pub W0 Wfixed C l l
       Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
-    clear Hrelated_pub_W0_Wfixed.
+    iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap".
+    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
 
-    iApply (switcher_ret_specification _ W0 (revoke W0)
-             with
-             "[ $Hstk $Hcstk $HK $Hworld_C $Hna $HPC $Hrevoked_l
-             $Hrmap $Hca0 $Hca1 $Hcsp]"
-           ) ; eauto; last iFrame "∗#".
-    { apply related_pub_revoke_close_list; eauto. }
-    { apply lregmap_full_dom in Hrmap_init.
-      repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hrmap_init. set_solver+. }
-    { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; eauto. }
-    { intros a Ha; apply Htemps; done. }
-    { iSplit; iApply interp_int. }
+    iApply (KVS_addOrupdate_spec_safe W0 (revoke W0) C
+              (WSentry (ret_kind mie_ret) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+              wca0 wca1 wca2 ⊤ Hunsealing_shadow
+             with "[$Hspred $Hkvs_static $Hinv_kvs $Hinv_kvs_logical $Hna $HPC $Hcgp $Hcra
+                    $Hca0 $Hinterp_wca0 $Hca1 $Hca2 $Hinterp_wca2 $Hctp $Hct1 $Hct2 $Hworld_C
+                    Hrmap Hcsp Hstk Hcstk HK Hrevoked_l]");
+      [solve_ndisj | solve_ndisj | solve_ndisj | exact Hrelared_priv_W0_W1
+      | apply jalr_target_ok_switcher_return_sentry |].
+    iSplit.
+    - iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
+      iAssert (∃ zca0, ca0 ↦ᵣ WInt zca0)%I with "[Hca0]" as "[%zca0 Hca0]".
+      { iDestruct "Hca0" as "[$|$]". }
+      iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hct2" as "[% Hct2]"; iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hct1" as "[% Hct1]"; iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hctp" as "[% Hctp]"; iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hcra" as "[% Hcra]"; iDestruct (big_sepM_insert _ _ cra with "[$Hrmap $Hcra]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hcgp" as "[% Hcgp]"; iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      map_simpl "Hrmap".
+      iApply (switcher_ret_specification _ W0 (revoke W0)
+               with
+               "[ $Hstk $Hcstk $HK $Hworld_C $Hna $HPC $Hrevoked_l
+               $Hrmap $Hca0 $Hca1 $Hcsp]"
+             ); last iFrame "∗#".
+      { exact Hrelated_pub_W0_Wfixed. }
+      { apply lregmap_full_dom in Hrmap_init.
+        repeat (rewrite dom_insert_L).
+        repeat (rewrite dom_delete_L).
+        rewrite Hrmap_init. set_solver+. }
+      { exact Hframe_match. }
+      { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; exact Hsync_csp. }
+      { exact Hnodup. }
+      { intros a Ha; apply Htemps; done. }
+      { iSplit; iApply interp_int. }
+    - (* The invalid user key faults: return ECOMPARTMENTFAIL to the caller *)
+      iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
+      iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hct2" as "[% Hct2]"; iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hct1" as "[% Hct1]"; iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hctp" as "[% Hctp]"; iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hcra" as "[% Hcra]"; iDestruct (big_sepM_insert _ _ cra with "[$Hrmap $Hcra]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      iDestruct "Hcgp" as "[% Hcgp]"; iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
+      { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
+      map_simpl "Hrmap".
+      iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs w
+               with "Hinv_switcher Hswitcher_static [-]");
+        last (iModIntro; iFrame).
+      { exact Hrelated_pub_W0_Wfixed. }
+      { apply lregmap_full_dom in Hrmap_init.
+        repeat (rewrite dom_insert_L).
+        repeat (rewrite dom_delete_L).
+        rewrite Hrmap_init. set_solver+. }
+      { exact Hframe_match. }
+      { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; exact Hsync_csp. }
+      { exact Hnodup. }
+      { intros a Ha; apply Htemps; done. }
   Qed.
 
 End KVS_spec_addOrUpdate_safe.

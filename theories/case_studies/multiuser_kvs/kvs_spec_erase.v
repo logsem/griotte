@@ -40,6 +40,8 @@ Section KVS_spec_erase.
 
     pkvs !! idx = Some (Some (kvs_full_key user_key nkey, wnkey)) ->
 
+    jalr_target_ok cnull cra wret.(lw) = true ->
+
     ((* initial register file *)
 
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -75,25 +77,12 @@ Section KVS_spec_erase.
           is_physical_kvs KVS_cgp_b (<[idx := None]> pkvs)
 
           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        ) ∧
-      ( cgp ↦ᵣ - ∗
-        cra ↦ᵣ wret ∗
-        ca0 ↦ᵣ WInt ASM_TRUE ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        ctp ↦ᵣ - ∗
-        ct1 ↦ᵣ - ∗
-        ct2 ↦ᵣ - ∗
-        user_key_addr ↦ₐ WInt user_key ∗
-        is_physical_kvs KVS_cgp_b (<[idx := None]> pkvs) -∗
-        trap_safe
-          (WCap true RX Global KVS_pcc_b KVS_pcc_e
-             ((kvs_erase_pcc_addr ^+ length kvs_erase_instrs) ^+ -1)%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
+        ) )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx Htgt)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -157,17 +146,10 @@ Section KVS_spec_erase.
     iDestruct (kvs_physical_map_close_delete with "[$HPKVS] [Hcgp_opt Hcgp_key Hcgp_val]")
       as "HPKVS"; eauto.
     { iApply destruct_physical_kvs_entry; first solve_addr; iFrame. }
-    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
-    { (* jalr cnull cra *)
-      iInstr_fail "Hcode".
-      change_pc_to ((kvs_erase_pcc_addr ^+ length kvs_erase_instrs) ^+ -1)%a.
-      iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
     (* jalr cnull cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗% Hcode_main Ha_unsealing"; done.
   Qed.
 
@@ -188,6 +170,8 @@ Section KVS_spec_erase.
     is_uint16 nkey ->
 
     is_Some (m !! nkey) ->
+
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -232,7 +216,7 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey [wnkey Hm_nkey])
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey [wnkey Hm_nkey] Htgt)
       "(#Hkvs_static & #Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key
@@ -273,10 +257,6 @@ Section KVS_spec_erase.
              "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
                      & _ & _ & Ha_user_key
                      & HPKVS )".
@@ -313,6 +293,8 @@ Section KVS_spec_erase.
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
     is_Some (m !! nkey) ->
+
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -353,7 +335,7 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey Htgt)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & Hm & Hpost)".
@@ -390,6 +372,8 @@ Section KVS_spec_erase.
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -432,7 +416,7 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Htgt)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & [%wk >Hk] & Hpost)".
@@ -473,6 +457,8 @@ Section KVS_spec_erase.
 
     fkey ∉ kvs_keys pkvs ->
 
+    jalr_target_ok cnull cra wret.(lw) = true ->
+
     ((* initial register file *)
 
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -508,25 +494,12 @@ Section KVS_spec_erase.
           is_physical_kvs KVS_cgp_b pkvs
 
           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        ) ∧
-      ( cgp ↦ᵣ - ∗
-        cra ↦ᵣ wret ∗
-        ca0 ↦ᵣ WInt ASM_TRUE ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        ctp ↦ᵣ - ∗
-        ct1 ↦ᵣ - ∗
-        ct2 ↦ᵣ - ∗
-        user_key_addr ↦ₐ WInt user_key ∗
-        is_physical_kvs KVS_cgp_b pkvs -∗
-        trap_safe
-          (WCap true RX Global KVS_pcc_b KVS_pcc_e
-             ((kvs_erase_pcc_addr ^+ length kvs_erase_instrs) ^+ -1)%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
+        ) )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx Htgt)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -592,16 +565,9 @@ Section KVS_spec_erase.
       iInstr "Hcode".
       iDestruct (kvs_physical_map_close with "[$HPKVS] [Hcgp_opt Hcgp_key Hcgp_val]") as "HPKVS";eauto.
       { iApply destruct_physical_kvs_entry; first solve_addr; iFrame. }
-      destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
-      { (* jalr cnull cra *)
-        iInstr_fail "Hcode".
-        change_pc_to ((kvs_erase_pcc_addr ^+ length kvs_erase_instrs) ^+ -1)%a.
-        iDestruct "Hpost" as "[_ Hfailed]".
-        iTrap with "Hfailed". }
       (* jalr cnull cra *)
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      iDestruct "Hpost" as "[Hpost _]".
       iApply "Hpost"; iFrame "∗% Hcode_main Ha_unsealing"; done.
 
     + (* Empty found, but it does not matter here *)
@@ -617,17 +583,9 @@ Section KVS_spec_erase.
       iInstr "Hcode".
       (* jmp (".read_key_ret")%asm; *)
       iInstr "Hcode".
-      destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
-      { (* jalr cnull cra *)
-        iInstr_fail "Hcode".
-        change_pc_to ((kvs_erase_pcc_addr ^+ length kvs_erase_instrs) ^+ -1)%a.
-        iDestruct "Hpost" as "[_ Hfailed]".
-        iTrap with "Hfailed". }
       (* jalr cnull cra *)
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-
-      iDestruct "Hpost" as "[Hpost _]".
       iApply "Hpost"; iFrame "∗% Hcode_main Ha_unsealing"; done.
   Qed.
 
@@ -648,6 +606,8 @@ Section KVS_spec_erase.
     is_uint16 nkey ->
 
     m !! nkey = None  ->
+
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -691,7 +651,7 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey Htgt)
       "(#Hkvs_static & #Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key
@@ -729,10 +689,6 @@ Section KVS_spec_erase.
              "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
                      & _ & _ & Ha_user_key
                      & HPKVS )".
@@ -760,6 +716,8 @@ Section KVS_spec_erase.
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
     m !! nkey = None ->
+
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -799,7 +757,7 @@ Section KVS_spec_erase.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey Htgt)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_logical_inv Hna")
@@ -834,6 +792,8 @@ Section KVS_spec_erase.
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -875,7 +835,7 @@ Section KVS_spec_erase.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Htgt)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
@@ -905,6 +865,8 @@ Section KVS_spec_erase.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_erase_instrs)%a ->
     ¬ word_is_uint16 wca1.(lw) ->
 
+    jalr_target_ok cnull cra wret.(lw) = true ->
+
     (
       (* initial register file *)
       PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
@@ -923,18 +885,11 @@ Section KVS_spec_erase.
          ct1 ↦ᵣ - ∗ (* scratch *)
          codefrag_pers pc_a kvs_erase_instrs
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        ) ∧
-      ( cra ↦ᵣ wret ∗
-        ca0 ↦ᵣ - ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        ct1 ↦ᵣ - -∗
-        trap_safe
-          (WCap true RX Global pc_b pc_e (pc_a ^+ (length (kvs_check_uint16 ca1 ct1) + 4))%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
+        ) )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (HsubBounds Hnkey_is_uint16)
+    iIntros (HsubBounds Hnkey_is_uint16 Htgt)
       "(HPC & Hcra & [%wca0 Hca0] & Hca1 & Hct1 & #Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
@@ -959,17 +914,10 @@ Section KVS_spec_erase.
     iInstr "Hcode".
     (* mov ca1 0; *)
     iInstr "Hcode".
-    destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
-    { (* jalr cnull cra; *)
-      iInstr_fail "Hcode".
-      change_pc_to (pc_a ^+ (length (kvs_check_uint16 ca1 ct1) + 4))%a.
-      iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
     (* jalr cnull cra; *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
-    iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
 
@@ -982,6 +930,8 @@ Section KVS_spec_erase.
     ↑(Nkvs.@"physical") ⊆ E ->
 
     ¬ word_is_uint16 wca1.(lw) ->
+
+    jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -1001,20 +951,11 @@ Section KVS_spec_erase.
          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
          ct1 ↦ᵣ - (* scratch *)
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        ) ∧
-      ( na_own cerise_nais E ∗
-        cra ↦ᵣ wret ∗
-        ca0 ↦ᵣ - ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        ct1 ↦ᵣ - -∗
-        trap_safe
-          (WCap true RX Global KVS_pcc_b KVS_pcc_e
-             (kvs_erase_pcc_addr ^+ (length (kvs_check_uint16 ca1 ct1) + 4))%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
+        ) )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (HE Hnkey_is_uint16)
+    iIntros (HE Hnkey_is_uint16 Htgt)
       "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hpost)".
     iDestruct (kvs_static_unsealing_key with "Hkvs_static") as "#Ha_unsealing".
     iDestruct "Hkvs_static" as "[_ #Hcode_main]".
@@ -1030,13 +971,8 @@ Section KVS_spec_erase.
     assert (a_erase = kvs_erase_pcc_addr) as -> by (rewrite /kvs_erase_pcc_addr kvs_erase_pcc_off_eq ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_erase).
     iApply (KVS_erase_spec_not_uint16_map_key_pre with
               "[$HPC $Hcra $Hca0 $Hca1 $Hct1 $Hcode Hna Hpost]"); eauto.
-    iSplit.
-    - iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & _)".
-      iDestruct "Hpost" as "[Hpost _]".
-      iApply "Hpost"; iFrame.
-    - iIntros "(Hcra & Hca0 & Hca1 & Hct1)".
-      iDestruct "Hpost" as "[_ Hfailed]".
-      iApply ("Hfailed" with "[$]").
+    iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & _)".
+    iApply "Hpost"; iFrame.
   Qed.
 
   Lemma KVS_erase_spec_invalid_sealed_user_key_pre
@@ -1068,14 +1004,25 @@ Section KVS_spec_erase.
 
       (* initial memory layout *)
       codefrag_pers pc_a kvs_erase_instrs ∗
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+
+      (* The load after the failed unsealing of the user key faults *)
+      ▷ ( ∀ w,
+          cgp ↦ᵣ - ∗
+          cra ↦ᵣ - ∗
+          ca0 ↦ᵣ - ∗
+          ca1 ↦ᵣ - ∗
+          ct1 ↦ᵣ - ∗
+          ct2 ↦ᵣ - ∗
+          ctp ↦ᵣ - -∗
+          trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow HsubBounds Hpc_a Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp
-      & #Hcode_main & #Ha_unsealing)".
+      & #Hcode_main & #Ha_unsealing & Hfailed)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
 
@@ -1104,9 +1051,8 @@ Section KVS_spec_erase.
     ; clear dependent Ha_check_uint.
     iApply (KVS_getFullKey_spec_invalid_sealed_user_key with "[- $HPC $Hctp $Hca0 $Ha_unsealing $Hcode]") ; eauto.
     { kvs_getFullKey_offset. }
-    iIntros "_".
-    iApply trap_safe_intro.
-    by iIntros "!> %Hcontr".
+    iIntros "[Hctp Hca0]".
+    iApply ("Hfailed" with "[$Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp]").
   Qed.
 
   Lemma KVS_erase_spec_invalid_sealed_user_key
@@ -1134,15 +1080,25 @@ Section KVS_spec_erase.
       ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to erase *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
-      ctp ↦ᵣ - (* scratch *)
+      ctp ↦ᵣ - ∗ (* scratch *)
+
+      (* The load after the failed unsealing of the user key faults *)
+      ▷ ( ∀ w,
+          na_own cerise_nais E ∗
+          cgp ↦ᵣ - ∗
+          cra ↦ᵣ - ∗
+          ca0 ↦ᵣ - ∗
+          ca1 ↦ᵣ - ∗
+          ct1 ↦ᵣ - ∗
+          ct2 ↦ᵣ - ∗
+          ctp ↦ᵣ - -∗
+          trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow HE Hnkey_is_uint16 Hwca0)
-      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
-    iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( HKVS & Hna & Hkvs_inv_close)"; eauto.
+      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hfailed)".
     iDestruct (kvs_static_unsealing_key with "Hkvs_static") as "#Ha_unsealing".
     iDestruct "Hkvs_static" as "[_ #Hcode_main]".
     pose proof (Hcgp_continuous := KVS_size_data).
@@ -1162,7 +1118,11 @@ Section KVS_spec_erase.
     assert (a_erase = kvs_erase_pcc_addr) as -> by (rewrite /kvs_erase_pcc_addr kvs_erase_pcc_off_eq ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_erase).
     assert ((KVS_pcc_b + kvs_erase_pcc_off)%a = Some kvs_erase_pcc_addr) as Herase_off
       by (rewrite /kvs_erase_pcc_addr kvs_erase_pcc_off_eq; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b').
-    iApply ( KVS_erase_spec_invalid_sealed_user_key_pre ); eauto; iFrame "∗ Hcode Ha_unsealing".
+    iApply (KVS_erase_spec_invalid_sealed_user_key_pre
+             with "[$HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcode $Ha_unsealing Hna Hfailed]");
+      eauto.
+    iNext; iIntros (w) "Hregs".
+    iApply ("Hfailed" with "[$Hna $Hregs]").
   Qed.
 
   Lemma KVS_erase_spec_known_to_known
@@ -1183,7 +1143,7 @@ Section KVS_spec_erase.
     na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
     na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ⊢
-    switcher_cc_specification_known_to_known_function
+    switcher_cc_specification_known_to_known_function false
       (user_key_addr ↦ₐ WInt user_key ∗
        user_kvs_inv user_key ∗
        (user_key, nkey) ↦(KVS) -)
@@ -1234,6 +1194,7 @@ Section KVS_spec_erase.
       "[- $Hkvs_static $Hkvs $Hkvs_logical $Hna $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hctp $Hct1 $Hct2
        $Huser_key $Huser_kvs $Hkey]"); auto.
+    { apply jalr_target_ok_switcher_return_sentry. }
     iNext.
     iIntros "(Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra]
               & Hca0 & Hca1 & [%wctp Hctp] & [%wct1 Hct1]

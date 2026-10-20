@@ -40,7 +40,7 @@ Section Heap_Temporal_Safety_Allocator.
     arg_rmap !! ca1 = Some (lword_of_word (WInt 1)) ->
     allocator_service_ctx ∗
     allocator_service_static ⊢
-    switcher_cc_specification_known_to_known_function
+    switcher_cc_specification_known_to_known_function false
       (allocator_owner_id id Ω ∗
        a_owner ↦ₐ WInt id)
       (hts_malloc_result a_owner id Ω) wcgp wcra wcs0 wcs1
@@ -69,7 +69,7 @@ Section Heap_Temporal_Safety_Allocator.
     arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
     allocator_service_ctx ∗
     allocator_service_static ⊢
-    switcher_cc_specification_known_to_known_function
+    switcher_cc_specification_known_to_known_function false
       (allocator_owner_id id Ω ∗
        ⌜ι ∈ Ω⌝ ∗
        a_owner ↦ₐ WInt id ∗

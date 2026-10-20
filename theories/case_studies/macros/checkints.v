@@ -328,10 +328,10 @@ Section Checkints_spec.
     ∗ ▷ r ↦ᵣ WCap false p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a (checkints_instrs r r1 r2)
-    ∗ ( r ↦ᵣ WCap false p g b e b @@? π ∗
-        r1 ↦ᵣ - ∗
-        r2 ↦ᵣ - -∗
-        trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ checkints_loop_offset)%a) ⊤ φ )
+    ∗ ▷ ( r ↦ᵣ WCap false p g b e b @@? π ∗
+          r1 ↦ᵣ - ∗
+          r2 ↦ᵣ - -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ checkints_loop_offset)%a) ⊤ φ )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     iIntros (Hvpc Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
@@ -398,7 +398,7 @@ Section Checkints_spec.
            ∗ £ 2
            -∗ WP Seq (Instr Executable) {{ φ }}
           ) ∧
-        ( ∀ a_f, ⌜(pc_a <= a_f < a_last)%a⌝ -∗
+        ▷ ( ∀ a_f, ⌜(pc_a <= a_f < a_last)%a⌝ -∗
           (∃ a_r, r ↦ᵣ WCap t p g b e a_r @@? π) ∗
           r1 ↦ᵣ - ∗
           r2 ↦ᵣ - ∗
@@ -415,7 +415,7 @@ Section Checkints_spec.
     2: { destruct t; first (exfalso; apply Hbad; auto).
          iApply (checkints_fail_untagged with "[$HPC $Hr $Hr1 $Hr2 $Hcode_main Hk Hmem]"); eauto.
          { solve_addr. }
-         iIntros "(Hr & Hr1 & Hr2)".
+         iNext; iIntros "(Hr & Hr1 & Hr2)".
          iDestruct "Hk" as "[_ Hfailed]".
          iApply ("Hfailed" with "[%] [$Hr $Hr1 $Hr2 $Hmem]").
          rewrite /checkints_loop_offset /= in HcontRegion |- *.

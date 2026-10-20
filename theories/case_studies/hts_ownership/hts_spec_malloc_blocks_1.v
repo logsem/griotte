@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
 From griotte Require Import fetch_spec assert_spec switcher_spec_call.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
-From griotte Require Import switcher_spec_KtK.
+From griotte Require Import switcher_spec_KtK switcher_spec_KtK_call switcher_exception_stub.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
@@ -33,12 +33,12 @@ Section HTS_Spec_Malloc.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (Nswitcher : namespace).
 
   #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   #[local] Notation hts_static := (hts_static_mem pc_b pc_a cgp_b C_f owner_a).
   #[local] Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
+    csp_b csp_e C_f owner_a W_init_C Ws Cs []).
 
   Lemma hts_spec_malloc (rmap : LReg) :
     is_shadow_address owner_a = false ->
@@ -64,8 +64,8 @@ Section HTS_Spec_Malloc.
     allocator_owner_id hts_main_owner_id ∅ ∗
     world_interp W_init_C C ∗
     interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b) ∗
-    interp_continuation cstk Ws Cs ∗
-    cstack_frag cstk ∗
+    interp_continuation [] Ws Cs ∗
+    cstack_frag [] ∗
     (malloc_ret -∗
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -199,30 +199,41 @@ Section HTS_Spec_Malloc.
     iPoseProof (hts_malloc_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e csp_b rmap_arg cstk
+      wcs0 wcs1 csp_b csp_e csp_b rmap_arg []
       Global owner_a hts_main_owner_id ∅
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
     { exact Howner_shadow. }
     { exact Howner_bounds. }
     { subst rmap_arg. reflexivity. }
     { subst rmap_arg. reflexivity. }
+    assert (dom rmap_other =
+      all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8))
+      as Hdom_other.
+    { subst rmap_other.
+      repeat (rewrite dom_insert_L).
+      repeat (rewrite dom_delete_L).
+      rewrite Hrmap_dom /dom_arg_rmap /=.
+      set_solver+. }
+    assert (is_arg_rmap rmap_arg 8) as Hargs_rmap.
+    { subst rmap_arg. by rewrite /is_arg_rmap /dom_arg_rmap /=. }
     pose proof allocator_size_exports as Hsize.
     rewrite /allocator_export_table_entries in Hsize.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other cstk
+      wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other []
       allocator_malloc_nargs ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
-      allocator_cgp_b allocator_cgp_e allocator_malloc_pcc_off
+      allocator_cgp_b allocator_cgp_e allocator_malloc_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_malloc
          $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
          $Hstk $Hcstk $Hmalloc_fun]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
+    { solve_addr. }
     { apply hts_export_tbl_not_shadow.
       rewrite /allocator_malloc_exp_tbl_off. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
@@ -237,13 +248,24 @@ Section HTS_Spec_Malloc.
     { exists allocator_code_b.
       rewrite /allocator_malloc_pcc_off -allocator_imports_length.
       exact allocator_size_imports. }
-    { subst rmap_other.
-      repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom /dom_arg_rmap /=.
-      set_solver+. }
-    { subst rmap_arg. by rewrite /is_arg_rmap /dom_arg_rmap /=. }
+    { exact Hdom_other. }
+    { exact Hargs_rmap. }
+    { destruct mie; reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     iFrame "Howner Howner_word".
+    iSplit; last first.
+    { (* The spill faults: the thread exits *)
+      rewrite /switcher_cc_fault_known_to_known /switcher_cc_fault_res_known_to_known.
+      iIntros "Hres".
+      iApply (trap_safe_exit with "Hswitcher Hswitcher_static").
+      iMod "Hres" as "[(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & [%a_csp Hcsp] & Hct1 & Hargs
+                       & (%rmap'' & %Hdom'' & Hrmap) & _ & Hcstk) _]".
+      iDestruct (switcher_cc_fault_full_regs rmap_arg rmap_other rmap''
+                   with "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap")
+        as (regs Hregs) "Hregs";
+        [exact Hargs_rmap | exact Hdom_other | exact Hdom'' |].
+      iModIntro; iExists regs; iFrame "Hregs Hcstk Hna"; done. }
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".

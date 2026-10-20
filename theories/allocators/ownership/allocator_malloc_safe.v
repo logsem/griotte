@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel proofmode switcher switcher_preamble.
 From griotte Require Import switcher_spec_KtK register_tactics map_simpl.
-From griotte Require Import world_interp_stack switcher_spec_return.
+From griotte Require Import world_interp_stack switcher_spec_return switcher_exception_stub.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.allocators.ownership Require Import allocator_header_spec.
 From griotte.allocators.ownership Require Export allocator_malloc_spec allocator_free_spec
@@ -56,13 +56,22 @@ Section Heap_Temporal_Safety_Interp.
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
     { iApply (allocator_malloc_invalid_capability_spec Nswitcher ⊤ wca0
-        with "[$Hservice $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
+        with "[- $Hservice $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
         [ solve_ndisj | solve_ndisj
         | apply andb_false_iff in Hcap_valid as [Hnot_tagged|Hnot_sealed];
           [right; exact Hnot_tagged | left; exact Hnot_sealed] |].
-      iIntros (a Ha) "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+      iIntros (a Ha) "(Hna & [%wctp' Hctp] & Hca0 & [%wct3' Hct3] & [%wct4' Hct4])".
+      (* Unwind to the caller: nothing was revoked or changed yet. *)
+      iInsertRegs "Hrmap" ["Hcgpr";"Hcrar";"Hcspr";"Hca0";"Hca1";"Hca2";
+                           "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
+      iApply (trap_safe_unwind with "Hswitcher Hswitcher_static [-]");
+        [|exact Hframe|]; cycle 1.
+      { iModIntro. iFrame. }
+      intros r. destruct (Hfull_rmap r) as [wr Hwr].
+      rewrite !lookup_insert_is_Some' !lookup_delete_is_Some.
+      repeat (match goal with |- ?r' = r ∨ _ =>
+        destruct (decide (r' = r)); [by left | right] end).
+      repeat split; by eauto. }
     apply andb_true_iff in Hcap_valid as [Hwca0_tag Hwca0_sealed].
     iDestruct ("Hargs" $! ca0 wca0 with "[] []") as "#Hinterp_ca0".
     { iPureIntro. rewrite /allocator_malloc_nargs /dom_arg_rmap. set_solver. }

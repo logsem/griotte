@@ -137,6 +137,44 @@ Section Switcher.
     trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
       (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
 
+  (** The full register file at a fault of a switcher call, from the
+      registers in the fault resources ([switcher_cc_fault_res] and its
+      known-to-known analogue). *)
+  Lemma switcher_cc_fault_full_regs (arg_rmap rmap rmap' : LReg)
+    (wcgp wcra wcs0 wcs1 wcsp wct1 : LWord) :
+    is_arg_rmap arg_rmap 8 ->
+    dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    dom rmap' = dom rmap ->
+    cgp ↦ᵣ wcgp -∗
+    cra ↦ᵣ wcra -∗
+    cs0 ↦ᵣ wcs0 -∗
+    cs1 ↦ᵣ wcs1 -∗
+    csp ↦ᵣ wcsp -∗
+    ct1 ↦ᵣ wct1 -∗
+    ([∗ map] r↦w ∈ arg_rmap, r ↦ᵣ w) -∗
+    ([∗ map] r↦w ∈ rmap', r ↦ᵣ w) -∗
+    ∃ regs, ⌜∀ r, is_Some (regs !! r)⌝ ∗ registers_pointsto regs.
+  Proof.
+    iIntros (Harg Hdom Hdom') "Hcgp Hcra Hcs0 Hcs1 Hcsp Hct1 Hargs Hrmap".
+    assert (arg_rmap ##ₘ rmap') as Hdisj.
+    { apply map_disjoint_dom_2. rewrite Harg Hdom' Hdom. set_solver+. }
+    iDestruct (big_sepM_union with "[$Hargs $Hrmap]") as "Hrmap"; first exact Hdisj.
+    iDestruct (big_sepM_insert_2 _ _ cgp wcgp with "[Hcgp] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cra wcra with "[Hcra] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cs0 wcs0 with "[Hcs0] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cs1 wcs1 with "[Hcs1] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ csp wcsp with "[Hcsp] Hrmap") as "Hrmap"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ ct1 wct1 with "[Hct1] Hrmap") as "Hrmap"; [iFrame|].
+    iExists _; iFrame "Hrmap"; iPureIntro.
+    intros r; apply elem_of_dom.
+    rewrite !dom_insert_L dom_union_L Harg Hdom' Hdom.
+    destruct (decide (r ∈ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8 : gset RegName)))
+      as [Hin|Hnin].
+    - set_solver+ Hin.
+    - pose proof (all_registers_s_correct r) as Hall.
+      set_solver+ Hnin Hall.
+  Qed.
+
   (** The full register file, from the registers left by
       [switcher_cc_exhausted_regs]. *)
   #[local] Lemma switcher_cc_full_regs (rmap0 : LReg)

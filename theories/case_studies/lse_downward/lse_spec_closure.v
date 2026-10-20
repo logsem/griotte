@@ -140,20 +140,33 @@ Section LSE.
       [done|done|done|done| |].
     { by eapply switcher_disjoint_subseg; [| |split; eassumption]; solve_addr. }
     iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+    { (* The stack frame is empty: the push faults, [f] returns to its
+         caller through the switcher *)
+      iNext; iIntros "(Hcgp & Hcsp & Hct0 & Hct1 & [%wcs0' Hcs0] & [%wcs1' Hcs1] & Hcgp_b & Hstk)".
+      iInsertRegs "Hrmap" ["Hcnull";"Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].
+      iDestruct (RevokedResources_mono_pub W0 _ C l l Hpub_W0_Wfixed with "Hrevoked_l")
+        as "Hrevoked_l".
+      iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs
+               with "Hswitcher Hswitcher_static [-]").
+      7: { iMod ("Hlse_code_close" with "[$Hna $Hcgp_b]") as "Hna".
+           iModIntro; iFrame. }
+      { exact Hpub_W0_Wfixed. }
+      { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
+      { exact Hframe_match. }
+      { subst csp_b.
+        destruct Hsync_csp as [Hcsp_sync Hcsp_base].
+        rewrite -Hcsp_base; exact Hcsp_sync. }
+      { destruct Hextract as [Hnodup _]; exact Hnodup. }
+      { intros a Ha; destruct Hextract as [_ Htemp].
+        destruct (Htemp a) as [Hin _]; exact (Hin Ha). }
+    }
     iNext; iIntros (stk_mem' wcs0' wcs1')
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & _)".
 
     (* Blocks 5-6: assert that [a] contains [2], and return *)
     iApply (lse_f_blocks_2_spec with
              "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hca0 $Hca1
-              $Himport_assert $Hcode_main]"); [done|].
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+              $Himport_assert $Hcode_main]"); [done|exact (jalr_target_ok_switcher_return_sentry mie_ret)|].
     iNext; iIntros "(HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
                     & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

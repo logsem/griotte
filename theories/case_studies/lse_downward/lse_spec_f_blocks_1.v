@@ -50,7 +50,7 @@ Section LSE_F_Blocks_1.
         [[csp_b, csp_e]] ↦ₐ [[stk_mem']] ∗
         codefrag_pers pc_a lse_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
-    (cgp ↦ᵣ lse_a_cap cgp_b ∗
+    ▷ (cgp ↦ᵣ lse_a_cap cgp_b ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
         ct0 ↦ᵣ wct0 ∗
         ct1 ↦ᵣ wct1 ∗
