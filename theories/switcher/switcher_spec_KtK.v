@@ -94,7 +94,9 @@ Section Switcher_KtK.
   (** Specification of the switcher for known-to-known cross compartment call,
       with higher-order specification of the callee. *)
   (** Both a successful return and trusted-stack exhaustion restore the four
-      saved registers according to [load_heap]. *)
+      saved registers according to [load_heap]. When the spill of the
+      callee-save registers faults, the caller gets back its resources and
+      [P], and must be safely unwound. *)
   Lemma switcher_cc_specification_known_to_known_end_to_end
     (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
@@ -130,6 +132,9 @@ Section Switcher_KtK.
       all_registers_s ∖
         ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
+    (* The caller returns to a valid target, outside the heap *)
+    jalr_target_ok cnull cra wcra_caller.(lw) = true ->
+    is_heap_cap wcra_caller.(lw) = false ->
 
     na_inv cerise_nais Nswitcher switcher_inv
     ∗ switcher_static
@@ -153,7 +158,7 @@ Section Switcher_KtK.
         P Q wcgp_caller wcra_caller wcs0_caller wcs1_caller
         b_stk e_stk a_stk arg_rmap cstk nargs E
         bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt
-    ∗ ▷ (
+    ∗ ( ▷ (
         (∃ (rcgp rcra rcs0 rcs1 wca0_ret wca1_ret : LWord) (rmap_ret : LReg),
            "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                  all_registers_s ∖
@@ -196,12 +201,17 @@ Section Switcher_KtK.
            ∗ "HP" ∷ P)
           -∗ WP Seq (Instr Executable)
                 {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+        ∧
+        (* FAULT --- the callee-save registers do not fit on the caller's
+           stack; the callee did not run *)
+        switcher_cc_fault_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
+          wct1_caller b_stk e_stk a_stk arg_rmap rmap cstk E P )
     ⊢ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_stk4 wct1_caller.
     iIntros (Hstk_heap Hstk_shadow Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
-             HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap)
+             HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".
@@ -215,6 +225,14 @@ Section Switcher_KtK.
     iFrame "Hswitcher Hstatic Hinv_pcc Hinv_cgp Hinv_entry
             Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1
             Hargs Hregs Hstk Hcstk".
+    iSplit; cycle 1.
+    { (* The spill faults: the callee did not run, return [P] *)
+      iDestruct "Hpost" as "[_ Hfault]".
+      iIntros (a Ha) "Hres".
+      iApply ("Hfault" $! a Ha).
+      iMod "Hres" as "[Hres _]".
+      by iFrame. }
+    iDestruct "Hpost" as "[Hpost _]".
     iNext.
     iIntros "[
       (%mie & %arg_rmap' & %rmap' & %Harg_rmap' & %Hrmap'

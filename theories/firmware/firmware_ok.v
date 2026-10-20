@@ -281,7 +281,11 @@ Section translation.
               Some (WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
             note "interrupts disabled (the posture of the export is not used yet)"
               (sreg σ !! MSTATUS = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))) ∧
-            sreg σ !! MTCC = Some (WInt 0) ∧
+            sreg σ !! MTCC =
+              Some (WCap true XSRW_ Local (b_switcher (img_sw img)) (e_switcher (img_sw img))
+                      (a_switcher_call (img_sw img) ^+
+                         assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+                           ".Lswitcher_csp_check_perm" "exception_entry_asm")%a) ∧
             sreg σ !! MEPCC = Some (WInt 0) ∧
             sreg σ !! MCAUSE = Some (WInt 0) ∧
             sreg σ !! MTVAL = Some (WInt 0)

@@ -438,7 +438,6 @@ Section Switcher_Return_Blocks_2.
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ₚ lupdatePcPerm wcra' ∗
         cra ↦ᵣ wcra' ∗
         cgp ↦ᵣ wcgp' ∗
         cs0 ↦ᵣ wcs0' ∗
@@ -447,9 +446,13 @@ Section Switcher_Return_Blocks_2.
         [[ a , (a ^+ 4)%a ]] ↦ₐ [[ region_addrs_zeroes a (a ^+ 4)%a ]] ∗
         [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
-        switcher_code ∗
-        £ 1 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+        switcher_code -∗
+        ( PC ↦ₚ lupdatePcPerm wcra' ∗
+          £ 1 -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+        ( ⌜ jalr_target_ok cnull cra wcra'.(lw) = false ⌝ -∗
+          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom)
@@ -478,7 +481,7 @@ Section Switcher_Return_Blocks_2.
     iApply (switcher_blocks_15_16_spec with "[- $HPC $Hcra $Hrmap]").
     { rewrite !dom_insert_L Hdom. set_solver. }
     iSplitR; first iFrame "Hswitcher".
-    iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hrmap & _ & Hlc')".
+    iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap & _)".
     rewrite (region_addrs_zeroes_split a (a ^+ 4)%a e); last solve_addr.
     iDestruct (region_pointsto_split a e (a ^+ 4)%a with "Hstk") as "[Hstk' Hstk]";
       [solve_addr | by rewrite /region_addrs_zeroes length_replicate |].
@@ -517,7 +520,6 @@ Section Switcher_Return_Blocks_2.
         ⌜ load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
           load_heap wcs1 rcs1 ∧ load_heap wcs0 rcs0 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ₚ lupdatePcPerm rcra ∗
         cra ↦ᵣ rcra ∗
         cgp ↦ᵣ rcgp ∗
         cs0 ↦ᵣ rcs0 ∗
@@ -527,8 +529,13 @@ Section Switcher_Return_Blocks_2.
         [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code ∗
-        £ 3 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+        £ 2 -∗
+        ( PC ↦ₚ lupdatePcPerm rcra ∗
+          £ 1 -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+        ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
+          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom)
@@ -557,8 +564,7 @@ Section Switcher_Return_Blocks_2.
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
         $Hcells $Hstk $Hrmap]"); [done|done|done|].
     iSplitR; first iFrame "Hswitcher".
-    iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _ & Hlc')".
-    iCombine "Hlc Hlc'" as "Hlc".
+    iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0); iFrame "∗ % Hswitcher".
   Qed.
 
@@ -609,7 +615,6 @@ Section Switcher_Return_Blocks_2.
            interp Wval C rcs0
          else True) ∗
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ₚ lupdatePcPerm rcra ∗
         cra ↦ᵣ rcra ∗
         cgp ↦ᵣ rcgp ∗
         cs0 ↦ᵣ rcs0 ∗
@@ -619,8 +624,13 @@ Section Switcher_Return_Blocks_2.
         [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
         switcher_code ∗
-        £ 3 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+        £ 2 -∗
+        ( PC ↦ₚ lupdatePcPerm rcra ∗
+          £ 1 -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+        ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
+          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hheap (Hba & Hba3 & Ha4) Hstk_mmio Hdom)
@@ -650,8 +660,7 @@ Section Switcher_Return_Blocks_2.
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
         $Hcells $Hstk $Hrmap]"); [done|done|done|].
     iSplitR; first iFrame "Hswitcher".
-    iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _ & Hlc')".
-    iCombine "Hlc Hlc'" as "Hlc".
+    iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0); iFrame "∗ % Hswitcher".
   Qed.
 

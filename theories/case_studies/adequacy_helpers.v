@@ -71,6 +71,7 @@ Section adequacy_helpers.
     Lemma initialise_switcher_compartment
       {E : coPset} (switcher_cmpt : cmptSwitcher) (switcherN : namespace) :
       let swlayout :=  (cmptSwitcher_switcherLayout switcher_cmpt) in
+      mtcc_vec = switcher_label_pc "exception_entry_asm" ->
       ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ lword_of_word y) -∗
       can_alloc_pred (ot_switcher switcher_cmpt) -∗
       cstack_full [] -∗
@@ -81,7 +82,7 @@ Section adequacy_helpers.
       switcher_static ∗
       [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ [[ lword_of_word <$> stack_content switcher_cmpt ]].
     Proof.
-      intros.
+      intros swlayout Hmtcc.
       iIntros "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc".
       rewrite /mk_initial_switcher.
       iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hswitcher Hstack]".
@@ -180,7 +181,7 @@ Section adequacy_helpers.
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
       iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
       iAssert switcher_static as "#Hswitcher_static".
-      { rewrite /switcher_static. iFrame "Hswitcher_code Hswitcher_sealing". }
+      { rewrite /switcher_static. iFrame "Hswitcher_code Hswitcher_sealing". by iPureIntro. }
       iClear "Hswitcher_code Hswitcher_sealing".
 
       iDestruct (mkregion_prepare with "[Hstack]") as ">Hstack"; auto.
@@ -287,50 +288,6 @@ Section adequacy_ghost_init.
   Proof.
     intros Hnull. rewrite /init_lregs Hnull insert_id //.
     by rewrite lookup_fmap Hnull.
-  Qed.
-
-  (** The initial condition without heap roots, for a system without an
-      allocator: no initial word carries heap authority, and every tagged
-      executable word has closed bounds that avoid the heap. *)
-  Lemma ghost_init_cond_no_roots (pc : Word) (reg : Reg) (sreg : SReg) (m : Mem) :
-    mem_rooted ∅ m →
-    word_rooted ∅ pc →
-    (∀ r w, reg !! r = Some w → word_rooted ∅ w) →
-    (∀ sr w, sreg !! sr = Some w → word_rooted ∅ w) →
-    mem_avoids_mmio m →
-    reg !! cnull = Some (WInt 0) →
-    mem_exec_ok m →
-    word_exec_ok pc →
-    (∀ r w, reg !! r = Some w → word_exec_ok w) →
-    (∀ sr w, sreg !! sr = Some w → word_exec_ok w) →
-    pc_ok pc →
-    (∀ sr w, is_pc_sreg sr = true → sreg !! sr = Some w → pc_ok w) →
-    (∀ sr, sr ∈ reserved_sregs → is_Some (sreg !! sr)) →
-    (∀ w, sreg !! MTCC = Some w → get_tag w = false) →
-    ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) ∅.
-  Proof.
-    intros Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok Hreserved Hmtcc.
-    constructor; cbn.
-    - set_solver.
-    - set_solver.
-    - intros a Ha. eexists.
-      rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
-        lookup_gset_to_gmap option_guard_True //.
-      by apply elem_of_heap_addresses.
-    - intros a w b Ha. by eapply Hm.
-    - intros b. by eapply Hpc.
-    - intros r w b _ Hw. by eapply Hreg.
-    - intros sr w b Hw. by eapply Hsreg.
-    - exact Hmmio.
-    - intros w Hw. rewrite Hnull in Hw. by injection Hw as <-.
-    - exact Hmx.
-    - exact Hpcx.
-    - exact Hregx.
-    - exact Hsregx.
-    - exact Hpcok.
-    - exact Hsregok.
-    - exact Hreserved.
-    - exact Hmtcc.
   Qed.
 
 End adequacy_ghost_init.

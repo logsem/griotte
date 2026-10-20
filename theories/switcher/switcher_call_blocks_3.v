@@ -128,7 +128,8 @@ Section Switcher_Call_Blocks_3.
         codefrag_pers pc_a switcher_instrs_7 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       ) ∧
-    ( cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
+      cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
       ct1 ↦ᵣ - -∗
       trap_safe (WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 1)%a) ⊤
         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
@@ -160,7 +161,8 @@ Section Switcher_Call_Blocks_3.
         rewrite /exec /= /lookup_reg /= Hr.
         destruct wct1 as [w0 π0]. destruct_word w0; by destruct s2. }
       iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
+      iTrap with "Hfailed".
+      iPureIntro; intros (wsb & π & -> & _); done. }
     2: {
       (* The unsealed entry point is invalid: the next CLoad fails. *)
       simplify_eq.
@@ -169,7 +171,10 @@ Section Switcher_Call_Blocks_3.
       (* --- CLoad cs0 ct1 --- *)
       iInstr_fail "Hcode".
       iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
+      iTrap with "Hfailed".
+      iPureIntro; intros (wsb & π0 & Heq & Htag); simplify_eq.
+      rewrite Htag /= in Hinvalid.
+      rewrite /withinBounds in Hinvalid; pose proof ot_switcher_size; solve_addr. }
     simplify_eq.
     apply withinBounds_le_addr in Hrange.
     assert (o = ot_switcher) as -> by solve_addr.
@@ -182,7 +187,8 @@ Section Switcher_Call_Blocks_3.
 
   (** Blocks 4-7: restrict the stack capability to the callee's stack frame
       [[a ^+ 4, e)], clear it, load the unsealing capability, and unseal the
-      entry point [wct1]. *)
+      entry point [wct1]. The block faults when [wct1] is not a valid entry
+      point sealed by the switcher. *)
   Lemma switcher_call_blocks_3_spec
     (b e a : Addr) (stk_mem : list LWord) (wcs0 wcs1 wct1 : LWord) :
     switcher_stk_bounds b e a ->
@@ -208,7 +214,15 @@ Section Switcher_Call_Blocks_3.
         b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
         ct1 ↦ᵣ WSealable wsb @@? π ∗
         switcher_code -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+    ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ -∗
+      cs0 ↦ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+      (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
+      csp ↦ᵣ WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
+      [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
+      ct1 ↦ᵣ - -∗
+      trap_safe (switcher_pc (switcher_label_offset ".Lswitcher_unseal_entry" + 1)) ⊤
+        (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
@@ -254,9 +268,13 @@ Section Switcher_Call_Blocks_3.
     iApply (switcher_call_block_7_unseal_spec with
       "[- $HPC $Hcs0 $Hct1 $Hcode]"); first done.
     iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+    { iIntros "(%Hnot_entry & Hcs0 & Hct1)".
+      iDestruct "Hpost" as "[_ Hfailed]".
+      rewrite (_ : ((a_switcher_call ^+ switcher_block_offset 7) ^+ 1)%a =
+                   (a_switcher_call ^+ (switcher_label_offset ".Lswitcher_unseal_entry" + 1))%a);
+        last (offsets_compute; solve_addr).
+      iApply ("Hfailed" with "[//]"); iFrame. }
+    iDestruct "Hpost" as "[Hpost _]".
     iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & Hct1 & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     switcher_change_pc (switcher_label_offset ".Lswitcher_decode_entry").

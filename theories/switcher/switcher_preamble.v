@@ -289,7 +289,10 @@ Section Switcher_preamble.
     (∃ w, a_export_table ↦ₐ w) ∗
     (∃ w, a_error_count ↦ₐ w) ∗
     ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
-      disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ⌝ ∗
+      disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
+      (* a trusted caller returns to a valid target, outside the heap *)
+      (is_untrusted_caller_frm frm = false →
+       jalr_target_ok cnull cra frm.(wret).(lw) = true ∧ is_heap_cap frm.(wret).(lw) = false) ⌝ ∗
     cframe_stk_own frm%I.
 
   (** [cstack_interp] interprets a call-stack, whose topmost frame is at
@@ -437,10 +440,15 @@ Section Switcher_preamble.
   Qed.
 
   (** [switcher_static] holds the read-only memory of the switcher: its code,
-      and the unsealing capability of the switcher's otype. *)
+      and the unsealing capability of the switcher's otype; and the fact that
+      the trap vector is the exception entry of the switcher. *)
   Definition switcher_static : iProp Σ :=
     codefrag_pers a_switcher_call switcher_instrs ∗
-    b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher.
+    b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher ∗
+    ⌜mtcc_vec =
+       WCap true XSRW_ Local b_switcher e_switcher
+         (a_switcher_call ^+
+            asm_label_offset switcher_asm ".Lswitcher_csp_check_perm" "exception_entry_asm")%a⌝.
 
   #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.

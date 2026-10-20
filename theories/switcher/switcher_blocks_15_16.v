@@ -39,7 +39,8 @@ Section Switcher_Blocks_15_16.
         £ 1 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       ) ∧
-    ( cra ↦ᵣ wret ∗
+    ( ⌜ jalr_target_ok cnull cra wret.(lw) = false ⌝ ∗
+      cra ↦ᵣ wret ∗
       ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) -∗
       trap_safe (WCap true XSRW_ Local pc_b pc_e pc_a) ⊤
         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
@@ -56,14 +57,16 @@ Section Switcher_Blocks_15_16.
     { (* --- Jalr cnull cra --- *)
       iInstr_fail "Hcode".
       iDestruct "Hpost" as "[_ Hfailed]".
-      iTrap with "Hfailed". }
+      iTrap with "Hfailed".
+      done. }
     (* --- Jalr cnull cra --- *)
     iInstr "Hcode" with "Hlc".
     iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost"; iFrame "∗ Hcode".
   Qed.
 
-  (** Blocks 15-16: clear the registers and jump to [wcra]. *)
+  (** Blocks 15-16: clear the registers and jump to [wcra]. The jump faults
+      when [wcra] is not a valid target. *)
   Lemma switcher_blocks_15_16_spec (wcra : LWord) (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
@@ -73,12 +76,15 @@ Section Switcher_Blocks_15_16.
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        PC ↦ₚ lupdatePcPerm wcra ∗
         cra ↦ᵣ wcra ∗
         ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
-        switcher_code ∗
-        £ 1 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+        switcher_code -∗
+        ( PC ↦ₚ lupdatePcPerm wcra ∗
+          £ 1 -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+        ( ⌜ jalr_target_ok cnull cra wcra.(lw) = false ⌝ -∗
+          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hdom) "(HPC & Hcra & Hrmap & #Hswitcher & Hpost)".
@@ -97,13 +103,17 @@ Section Switcher_Blocks_15_16.
     switcher_focus_block (switcher_block ".Lswitcher_return_to_caller") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_return_block_16_spec with "[- $HPC $Hcra $Hrmap $Hcode]").
     { done. }
-    iSplit; cycle 1.
-    { iIntros "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
-    iNext; iIntros "(HPC & Hcra & Hrmap & _ & Hlc)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    iApply ("Hpost" $! rmap'); iFrame "∗ Hswitcher"; done.
+    iSplit.
+    - iNext; iIntros "(HPC & Hcra & Hrmap & _ & Hlc)".
+      iDestruct ("Hpost" $! rmap' with "[$Hcra $Hrmap $Hswitcher //]") as "[Hpost _]".
+      iApply "Hpost"; iFrame.
+    - iIntros "(%Htgt & Hcra & Hrmap)".
+      iDestruct ("Hpost" $! rmap' with "[$Hcra $Hrmap $Hswitcher //]") as "[_ Hfailed]".
+      rewrite (_ : (a_switcher_call ^+ switcher_block_offset 16)%a =
+                   (a_switcher_call ^+ switcher_label_offset ".Lswitcher_return_to_caller")%a);
+        last (offsets_compute; solve_addr).
+      by iApply "Hfailed".
   Qed.
 
 End Switcher_Blocks_15_16.

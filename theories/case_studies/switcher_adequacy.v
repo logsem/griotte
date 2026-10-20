@@ -3,6 +3,7 @@ From griotte Require Import logrel fundamental.
 From iris.base_logic Require Import invariants.
 From griotte Require Import compartment_layout.
 From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_exception_stub.
 
 Section helpers_switcher_adequacy.
   Context
@@ -30,6 +31,7 @@ Section helpers_switcher_adequacy.
   Proof.
     intros Hcgp_heap.
     iIntros "#Hinv_switcher #Hswitcher_static #Hinterp_pcc #Hinterp_cgp".
+    iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]") as "#Htrap".
     iIntros (W' Hrelated).
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     iDestruct (interp_monotone_nl_cap_nonheap W W' C true RX Global
@@ -46,7 +48,7 @@ Section helpers_switcher_adequacy.
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hworld_interp & %Hcsp_sync & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
-    iDestruct (fundamental with "Hinterp_PCC") as "H_jmp".
+    iDestruct (fundamental with "Htrap Hinterp_PCC") as "H_jmp".
     iSpecialize ("H_jmp" $! cstk Ws Cs regs).
     iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
     iApply "H_jmp".

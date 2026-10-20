@@ -45,10 +45,15 @@ Section img_state.
 
   Definition img_sregs (img : fw_image) : SReg :=
     let t := thread_of img 0 in
+    let sw := img_sw img in
     <[MTDC := WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)]>
       (<[MSTATUS := WInt (mstatus_enc InterruptDisabled InterruptDisabled)]>
-         (<[MTCC := WInt 0]> (<[MEPCC := WInt 0]>
-            (<[MCAUSE := WInt 0]> (<[MTVAL := WInt 0]> ∅))))).
+         (<[MTCC := WCap true XSRW_ Local (b_switcher sw) (e_switcher sw)
+                      (a_switcher_call sw ^+
+                         assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+                           ".Lswitcher_csp_check_perm" "exception_entry_asm")%a]>
+            (<[MEPCC := WInt 0]>
+               (<[MCAUSE := WInt 0]> (<[MTVAL := WInt 0]> ∅))))).
 
   (** The memory, built in another order than in [firmware_ok]. *)
   Definition img_mem (fw : firmware) (img : fw_image) : Mem :=

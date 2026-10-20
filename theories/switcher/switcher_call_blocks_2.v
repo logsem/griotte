@@ -68,7 +68,7 @@ Section Switcher_Call_Blocks_2.
         cra ↦ᵣ wcra ∗
         cgp ↦ᵣ wcgp ∗
         (∃ a_csp, csp ↦ᵣ WCap true RWL Local b_stk e_stk a_csp) ∗
-        (∃ stk_mem', [[a_stk,e_stk]]↦ₐ[[stk_mem']]) -∗
+        (∃ k, ⌜k ≤ 3⌝ ∗ [[a_stk,e_stk]]↦ₐ[[take k [wcs0; wcs1; wcra; wcgp] ++ drop k stk_mem]]) -∗
         trap_safe (WCap true XSRW_ Local pc_b pc_e a) ⊤
           (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable)
@@ -89,6 +89,9 @@ Section Switcher_Call_Blocks_2.
       { rewrite /withinBounds; solve_addr. }
       iDestruct "Hpost" as "[_ Hfailed]".
       iTrap with "Hfailed".
+      iExists 0%nat; iSplit; [iPureIntro; lia|]; cbn.
+      repeat rewrite lstore_word_isWL; try reflexivity.
+      iFrame.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk_inbounds.
     destruct stk_mem as [|w0 stk_mem]; simplify_eq.
@@ -113,6 +116,9 @@ Section Switcher_Call_Blocks_2.
       iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk"; [done | solve_addr |].
       iDestruct "Hpost" as "[_ Hfailed]".
       iTrap with "Hfailed".
+      iExists 1%nat; iSplit; [iPureIntro; lia|]; cbn.
+      repeat rewrite lstore_word_isWL; try reflexivity.
+      iFrame.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk1_inbounds.
     destruct stk_mem as [|w1 stk_mem]; simplify_eq.
@@ -137,6 +143,9 @@ Section Switcher_Call_Blocks_2.
       iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk"; [done | solve_addr |].
       iDestruct "Hpost" as "[_ Hfailed]".
       iTrap with "Hfailed".
+      iExists 2%nat; iSplit; [iPureIntro; lia|]; cbn.
+      repeat rewrite lstore_word_isWL; try reflexivity.
+      iFrame.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk2_inbounds.
     destruct stk_mem as [|w2 stk_mem]; simplify_eq.
@@ -162,6 +171,9 @@ Section Switcher_Call_Blocks_2.
       iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk"; [done | solve_addr |].
       iDestruct "Hpost" as "[_ Hfailed]".
       iTrap with "Hfailed".
+      iExists 3%nat; iSplit; [iPureIntro; lia|]; cbn.
+      repeat rewrite lstore_word_isWL; try reflexivity.
+      iFrame.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk3_inbounds.
     destruct stk_mem as [|w3 stk_mem]; simplify_eq.
@@ -394,7 +406,9 @@ Section Switcher_Call_Blocks_2.
 
   (** Blocks 2-3: spill the callee-save registers on the caller's stack
       [[a, e)], and push a frame with the stack pointer on the trusted
-      stack, whose topmost frame is at [a_tstk]. *)
+      stack, whose topmost frame is at [a_tstk]. The spill faults when the
+      four cells do not fit in [[a, e)]: then a prefix of the cells has been
+      written, and nothing else has changed. *)
   Lemma switcher_call_blocks_2_spec
     (b e a : Addr) (stk_mem : list LWord)
     (wcs0 wcs1 wcra wcgp wctp wct2 : LWord)
@@ -454,7 +468,23 @@ Section Switcher_Call_Blocks_2.
             a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
             [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ) )
         -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+    ( ∀ a_f,
+        ⌜ (a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill" <= a_f <
+           a_switcher_call ^+ switcher_label_offset ".Lswitcher_trusted_stack_push")%a ⌝ -∗
+        cs0 ↦ᵣ wcs0 ∗
+        cs1 ↦ᵣ wcs1 ∗
+        cra ↦ᵣ wcra ∗
+        cgp ↦ᵣ wcgp ∗
+        ctp ↦ᵣ wctp ∗
+        ct2 ↦ᵣ wct2 ∗
+        (∃ a_csp, csp ↦ᵣ WCap true RWL Local b e a_csp) ∗
+        (∃ k, ⌜k ≤ 3⌝ ∗ [[ a , e ]] ↦ₐ [[ take k [wcs0; wcs1; wcra; wcgp] ++ drop k stk_mem ]]) ∗
+        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+        [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
+        trap_safe (WCap true XSRW_ Local b_switcher e_switcher a_f) ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
@@ -471,9 +501,11 @@ Section Switcher_Call_Blocks_2.
     iApply (switcher_call_block_2_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hcode]"); [done|done|].
     iSplit; cycle 1.
-    { iIntros (a_f Ha_f) "_".
-      iApply trap_safe_intro.
-      by iIntros "!> %Hcontr". }
+    { iIntros (a_f Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk)".
+      iDestruct "Hpost" as "[_ Hfailed]".
+      iApply ("Hfailed" with "[] [$]").
+      iPureIntro; offsets_compute; solve_addr. }
+    iDestruct "Hpost" as "[Hpost _]".
     iNext; iIntros (stk_mem')
       "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp
       & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hstk & %Hbounds & -> & _)".
