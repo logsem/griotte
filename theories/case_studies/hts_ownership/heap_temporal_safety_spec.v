@@ -106,7 +106,7 @@ Section Heap_Temporal_Safety_Main.
       ∗ cstack_frag []
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
-      ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
+      ∗ C_f ↦ₑ□{nargs} 1
       ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.

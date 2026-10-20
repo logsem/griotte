@@ -358,17 +358,13 @@ Section Heap_Temporal_Safety_Interp.
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
-        allocator_malloc_pcc_off) ∗
-    WSealed ot_switcher (allocator_malloc g_allocator_exp_tbl)
-      ↦□ₑ allocator_malloc_nargs ∗
-    WSealed ot_switcher (allocator_malloc Local)
-      ↦□ₑ allocator_malloc_nargs -∗
+        allocator_malloc_pcc_off) -∗
     ot_switcher_prop W C
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a).
   Proof.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
-      #Hentry & #Hsealed & #Hsealed_local)".
+      #Hentry)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a,
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,

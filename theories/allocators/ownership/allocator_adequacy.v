@@ -138,7 +138,7 @@ Section allocator_init.
         allocator_free_pcc_off).
   Proof.
     intros c alloclayout Hc Hwf Himports Hcode Hdata Hexports.
-    iIntros "(Himports & Hcode & Hdata) (#Hpcc & #Hcgp & #Hetbl & _) Howners Hheap Hshadow Hclaims".
+    iIntros "(Himports & Hcode & Hdata) (#Hpcc & #Hcgp & #Hetbl) Howners Hheap Hshadow Hclaims".
     subst c. set (c := cmpt_of img (fc_name fc)) in *.
     pose proof (allocator_size_code (allocatorLayoutWf := Hwf)) as Hcode_size.
     pose proof (allocator_size_exports (allocatorLayoutWf := Hwf)) as Hexp_size.

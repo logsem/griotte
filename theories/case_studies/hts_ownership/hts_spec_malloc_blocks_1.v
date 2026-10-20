@@ -256,9 +256,6 @@ Section HTS_Spec_Malloc.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iFrame "Howner Howner_word".
-    iSplit; last first.
-    { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".

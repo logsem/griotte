@@ -245,9 +245,7 @@ Section KVS_spec_addOrUpdate_safe.
     switcher_static ∗
     b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
     (b_kvs_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-    kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate ∗
-    WSealed ot_switcher (SCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ↦□ₑ kvs_addOrUpdate_nargs ∗
-    WSealed ot_switcher (SCap true RO Local b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) ↦□ₑ kvs_addOrUpdate_nargs
+    kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate
     -∗
     ot_switcher_prop W C (WCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.
@@ -256,7 +254,6 @@ Section KVS_spec_addOrUpdate_safe.
       & #Hkvs_exp_PCC
       & #Hkvs_exp_CGP
       & #Hkvs_exp_addOrRead
-      & #Hentry_KVS & #Hentry_KVS_borrow
       )".
 
     iExists g_kvs_exp_tbl, b_kvs_exp_tbl, e_kvs_exp_tbl, kvs_addOrUpdate_exp_tbl_addr,

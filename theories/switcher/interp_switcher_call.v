@@ -527,7 +527,7 @@ Section fundamental.
     iDestruct ("Hentry_prop" with "[//] [//]")
       as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture Heq Htbl Hbtbl Hbtbl1
           Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-           "(#Htbl1 & #Htbl2 & #Htbl3 & #Hentry & _ & #Hexec)".
+           "(#Htbl1 & #Htbl2 & #Htbl3 & #Hexec)".
     rewrite /lword_of_word in Heq; simplify_eq.
     iSpecialize ("Hexec" $! W with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }

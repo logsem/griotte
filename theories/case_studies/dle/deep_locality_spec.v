@@ -86,7 +86,7 @@ Section DLE.
       ∗ cstack_frag []
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
-      ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
+      ∗ C_f ↦ₑ□{nargs} 1
       ∗ interp W0 C (WCap true RWL Local csp_b csp_e csp_b)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.

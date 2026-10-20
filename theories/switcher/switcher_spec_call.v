@@ -236,12 +236,14 @@ Section Switcher.
     switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller ∗
     [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ drop 4 stk_mem ]] ∗
     (if is_entry_point_known
-     then ∃ nargs, wct1_caller.(lw) ↦□ₑ nargs
-                   ∗ ( [∗ map] rarg↦warg ∈ arg_rmap,
-                         rarg ↦ᵣ warg
-                         ∗ if decide (rarg ∈ dom_arg_rmap nargs)
-                           then interp W C warg
-                           else True )
+     then ∃ sb nargs,
+            ⌜wct1_caller.(lw) = WSealed ot_switcher sb⌝ ∗
+            sb ↦ₑ□{nargs} nargs ∗
+            ( [∗ map] rarg↦warg ∈ arg_rmap,
+                rarg ↦ᵣ warg
+                ∗ if decide (rarg ∈ dom_arg_rmap nargs)
+                  then interp W C warg
+                  else True )
      else ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
     ) ∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ w ) ∗
@@ -269,7 +271,7 @@ Section Switcher.
     iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I
       with "[Hargs]" as "Hargs".
     { destruct is_entry_point_known.
-      + iDestruct "Hargs" as "(% & _ & Hargs)".
+      + iDestruct "Hargs" as "(% & % & _ & _ & Hargs)".
         iApply (big_sepM_impl with "Hargs"); eauto.
         iIntros (r w Hr) "!> [$ _]".
       + iApply (big_sepM_impl with "Hargs"); eauto.
@@ -341,13 +343,15 @@ Section Switcher.
     ∗ ct1 ↦ᵣ wct1_caller
     ∗ (if is_sealed_with_o wct1_caller.(lw) ot_switcher then interp W C wct1_caller else True)
     ∗ (if is_entry_point_known
-       then ∃ nargs, wct1_caller.(lw) ↦□ₑ nargs
-                     (* Argument registers, need to be safe-to-share *)
-                     ∗ ( [∗ map] rarg↦warg ∈ arg_rmap,
-                           rarg ↦ᵣ warg
-                           ∗ if decide (rarg ∈ dom_arg_rmap nargs)
-                             then interp W C warg
-                             else True )
+       then ∃ sb nargs,
+              ⌜wct1_caller.(lw) = WSealed ot_switcher sb⌝ ∗
+              sb ↦ₑ□{nargs} nargs ∗
+              (* Argument registers, need to be safe-to-share *)
+              ( [∗ map] rarg↦warg ∈ arg_rmap,
+                  rarg ↦ᵣ warg
+                  ∗ if decide (rarg ∈ dom_arg_rmap nargs)
+                    then interp W C warg
+                    else True )
        else ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
       )
     ∗ cs0 ↦ᵣ wcs0_caller
@@ -509,7 +513,7 @@ Section Switcher.
       iModIntro.
       iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I with "[Hargs]" as "Hargs".
       { destruct is_entry_point_known.
-        + iDestruct "Hargs" as "(% & _ & Hargs)".
+        + iDestruct "Hargs" as "(% & % & _ & _ & Hargs)".
           iApply (big_sepM_impl with "Hargs"); eauto.
           iIntros (r w Hr) "!> [$ _]".
         + iApply (big_sepM_impl with "Hargs"); eauto.
@@ -603,7 +607,7 @@ Section Switcher.
       subst hclose_switcher_inv hinv_switcher.
       iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I with "[Hargs]" as "Hargs".
       { destruct is_entry_point_known.
-        + iDestruct "Hargs" as "(% & _ & Hargs)".
+        + iDestruct "Hargs" as "(% & % & _ & _ & Hargs)".
           iApply (big_sepM_impl with "Hargs"); eauto.
           iIntros (r w Hr) "!> [$ _]".
         + iApply (big_sepM_impl with "Hargs"); eauto.
@@ -632,15 +636,15 @@ Section Switcher.
     iDestruct ("Hentry_prop" with "[//] [//]")
       as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture Heq Htbl Hbtbl Hbtbl1
           Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-           "(#Htbl1 & #Htbl2 & #Htbl3 & #Hentry' & _ & #Hexec)".
+           "(#Htbl1 & #Htbl2 & #Htbl3 & #Hexec)".
     rewrite /lword_of_word in Heq; simplify_eq.
     iAssert ([∗ map] r↦w ∈ arg_rmap,
                r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True)%I
       with "[Hargs]" as "Hargs".
     { destruct is_entry_point_known.
-      + iDestruct "Hargs" as "(%nargs0 & Hentry & Hargs)".
-        iEval (cbn) in "Hentry'".
-        iDestruct (entry_agree _ nargs nargs0 with "Hentry' Hentry") as "<-".
+      + iDestruct "Hargs" as "(%sb & %nargs0 & %Hwct1 & (%g & %b & %e & %a & -> & Hentry) & Hargs)".
+        cbn in Hwct1; simplify_eq.
+        iDestruct (entry_nargs_agree_raw with "Hentry Htbl3") as %->; first lia.
         iFrame.
       + iApply (big_sepM_impl with "Hargs").
         iIntros "!> %k %w' _ [$ Hinterp]".
@@ -756,13 +760,15 @@ Section Switcher.
     ∗ ct1 ↦ᵣ wct1_caller
     ∗ (if is_sealed_with_o wct1_caller.(lw) ot_switcher then interp W C wct1_caller else True)
     ∗ (if is_entry_point_known
-       then ∃ nargs, wct1_caller.(lw) ↦□ₑ nargs
-                     (* Argument registers, need to be safe-to-share *)
-                     ∗ ( [∗ map] rarg↦warg ∈ arg_rmap,
-                           rarg ↦ᵣ warg
-                           ∗ if decide (rarg ∈ dom_arg_rmap nargs)
-                             then interp W C warg
-                             else True )
+       then ∃ sb nargs,
+              ⌜wct1_caller.(lw) = WSealed ot_switcher sb⌝ ∗
+              sb ↦ₑ□{nargs} nargs ∗
+              (* Argument registers, need to be safe-to-share *)
+              ( [∗ map] rarg↦warg ∈ arg_rmap,
+                  rarg ↦ᵣ warg
+                  ∗ if decide (rarg ∈ dom_arg_rmap nargs)
+                    then interp W C warg
+                    else True )
        else ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
       )
     ∗ cs0 ↦ᵣ wcs0_caller
@@ -908,7 +914,8 @@ Section Switcher.
     (* Stack register *)
     ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
-    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller ∗ wct1_caller.(lw) ↦□ₑ nargs
+    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller
+    ∗ w_entry_point ↦ₑ□{nargs} nargs
     ∗ cs0 ↦ᵣ wcs0_caller
     ∗ cs1 ↦ᵣ wcs1_caller
     (* Argument registers, need to be safe-to-share *)
@@ -982,6 +989,7 @@ Section Switcher.
     iSplitR.
     { subst target; cbn.
       destruct ((ot_switcher =? ot_switcher)%Z); eauto. }
+    iSplitR; first done.
     iSplit; last by iDestruct "Hpost" as "[_ $]".
     iDestruct "Hpost" as "[Hpost _]".
     iNext.

@@ -197,6 +197,19 @@ Section obligation_facts.
     rewrite /m /fw_entry_pc /fw_entry_cmpt addr_off_eq. cbv zeta.
     do 2 f_equal. solve_addr.
   Qed.
+
+  Lemma hole_exports_spec (c : img_cmpt) (ns : list nat) (k : list Word → Prop) :
+    hole_exports c ns k →
+    ∃ ps : list (nat * nat),
+      length ps = length ns ∧
+      Forall (λ p, (Z.of_nat p.1 < cmpt_e_pcc c - cmpt_b_pcc c)%Z) ps ∧
+      k (zip_with (λ p n, export_word (MkFwExport "" p.1 n p.2 InterruptEnabled)) ps ns).
+  Proof.
+    revert k. induction ns as [|n ns IH]; intros k Hk; cbn in Hk.
+    - by exists [].
+    - destruct Hk as (off & minstk & Hoff & Hk). destruct (IH _ Hk) as (ps & Hlen & Hps & Hws).
+      exists ((off, minstk) :: ps). split_and!; [by rewrite /= Hlen | by constructor | exact Hws].
+  Qed.
 End obligation_facts.
 
 (** [fw_fold_cmpt X], for a local definition [X := layout_cmpt_of c Hc],
@@ -247,19 +260,67 @@ Section prepared.
     [[ cmpt_b_static_sealed c, cmpt_e_static_sealed c ]] ↦ₐ
       [[ lword_of_word <$> cmpt_static_sealed c ]].
 
-  (** The export table of a compartment, and its sealed export entries. *)
+  (** The export table of a compartment. *)
   Definition fw_cmpt_pers_res (img : fw_image) (fc : fw_cmpt) : iProp Σ :=
     let c := cmpt_of img (fc_name fc) in
     cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
     cmpt_exp_tbl_cgp c ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
     ([∗ list] a;v ∈ finz.seq_between (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c);
-                    cmpt_exp_tbl_entries c, a ↦ₐ□ lword_of_word v) ∗
-    ([∗ list] e ∈ fc_entries img fc,
-       WSealed (ot_switcher (img_sw img)) e.1 ↦□ₑ e.2 ∗
-       WSealed (ot_switcher (img_sw img)) (borrow_sb e.1) ↦□ₑ e.2).
+                    cmpt_exp_tbl_entries c, a ↦ₐ□ lword_of_word v).
 
   #[global] Instance fw_cmpt_pers_res_persistent img fc : Persistent (fw_cmpt_pers_res img fc).
   Proof. rewrite /fw_cmpt_pers_res. apply _. Qed.
+
+  (** The number of arguments of export [k] of a compartment, read off its
+      export table, at the address of [cmpt_export_sb]. *)
+  Lemma fw_cmpt_pers_res_entry_nargs fw img fc k n :
+    let c := cmpt_of img (fc_name fc) in
+    cmpt_ok fw img fc →
+    fc_export_nargs fc !! k = Some n →
+    n ≤ 7 →
+    fw_cmpt_pers_res img fc ⊢ addr_off (cmpt_exp_tbl_entries_start c) k ↦ₑ□{nargs} n.
+  Proof.
+    intros c Hok Hk Hn.
+    assert (∃ ie (m off : nat),
+               cmpt_exp_tbl_entries c !! k = Some (WInt (encode_entry_point ie n m off)))
+      as (ie & m & off & Hentry).
+    { destruct (cmpt_ok_inv _ _ _ Hok) as (_ & _ & _ & Hbody).
+      rewrite /fc_export_nargs in Hk.
+      destruct (fc_body fc) as [tb|ub].
+      - destruct Hbody as (_ & _ & Hexp).
+        rewrite fw_map_eq list_lookup_fmap in Hk.
+        destruct (tb_exports tb !! k) as [e|] eqn:He; simplify_eq/=.
+        rewrite /c Hexp /fw_imap fw_imap_const list_lookup_fmap He /=.
+        by eexists _, _, _.
+      - destruct Hbody as (_ & _ & Hexp). rewrite /note in Hexp.
+        destruct (hole_exports_spec _ _ _ Hexp) as (ps & Hlen & _ & Hws).
+        destruct (lookup_lt_is_Some_2 ps k) as [p Hp].
+        { rewrite Hlen. by eapply lookup_lt_Some. }
+        rewrite /c Hws lookup_zip_with Hp Hk /=.
+        by eexists _, _, _. }
+    iIntros "(_ & _ & Hetbl)".
+    iDestruct (big_sepL2_length with "Hetbl") as %Hlen.
+    rewrite finz_seq_between_length in Hlen.
+    pose proof (lookup_lt_Some _ _ _ Hentry) as Hk_lt.
+    iDestruct (big_sepL2_lookup _ _ _ k with "Hetbl") as "Ha"; [|exact Hentry|].
+    { apply (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries c))); first done.
+      rewrite -Hlen /finz.dist in Hk_lt |- *. solve_addr+Hk_lt. }
+    rewrite addr_off_eq.
+    by iApply entry_nargs_intro.
+  Qed.
+
+  (** The number of arguments of export [k] of a compartment, at its sealable
+      [cmpt_export_sb]. *)
+  Lemma fw_cmpt_pers_res_export_nargs fw img fc k n :
+    cmpt_ok fw img fc →
+    fc_export_nargs fc !! k = Some n →
+    n ≤ 7 →
+    fw_cmpt_pers_res img fc ⊢ cmpt_export_sb (cmpt_of img (fc_name fc)) k ↦ₑ□{nargs} n.
+  Proof.
+    iIntros (Hok Hk Hn) "Hres".
+    iDestruct (fw_cmpt_pers_res_entry_nargs with "Hres") as "Ha"; [done..|].
+    by iApply entry_nargs_sb_intro.
+  Qed.
 
   (** A compartment, initialised. *)
   Definition fw_cmpt_res (img : fw_image) (fc : fw_cmpt) : iProp Σ :=
@@ -318,28 +379,16 @@ Section prepared.
     by iMod (initialise_adversary_compartment with "Hmem") as "($ & $ & $ & $ & $ & $ & $)".
   Qed.
 
-  Lemma big_sepL_fw_flat_map {A B} (Φ : B → iProp Σ) (f : A → list B) (l : list A) :
-    ([∗ list] y ∈ fw_flat_map f l, Φ y) ⊣⊢ [∗ list] x ∈ l, [∗ list] y ∈ f x, Φ y.
-  Proof.
-    induction l as [|x l IH]; first done.
-    by rewrite fw_flat_map_cons big_sepL_app big_sepL_cons IH.
-  Qed.
-
   (** Every compartment of a firmware, initialised. *)
   Lemma fw_cmpts_init {E : coPset} fw img σ :
     firmware_ok fw img σ →
-    ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) -∗
-    ([∗ list] e ∈ fw_entries fw img,
-       WSealed (ot_switcher (img_sw img)) e.1 ↦□ₑ e.2 ∗
-       WSealed (ot_switcher (img_sw img)) (borrow_sb e.1) ↦□ₑ e.2)
+    ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w)
     ={E}=∗
     [∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res img fc.
   Proof.
-    intros (_ & _ & _ & Hwf). iIntros "Hcmpts Hentries".
-    rewrite /fw_entries big_sepL_fw_flat_map.
-    iDestruct (big_sepL_sep_2 with "Hcmpts Hentries") as "Hcmpts".
+    intros (_ & _ & _ & Hwf). iIntros "Hcmpts".
     iApply big_sepL_fupd. iApply (big_sepL_impl with "Hcmpts").
-    iIntros "!>" (k fc Hk) "[Hmem #Hentries]".
+    iIntros "!>" (k fc Hk) "Hmem".
     pose proof (img_wf_cmpt_layout _ _ _ Hwf (list_elem_of_lookup_2 _ _ _ Hk)) as Hc.
     iMod (fw_adv_cmpt_init with "Hmem")
       as "(Himports & Hcode & Hdata & Hstatic & #Hpcc & #Hcgp & #Hetbl)"; first exact Hc.
@@ -381,7 +430,7 @@ Lemma fw_obligations_of (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParam
 Proof.
   intros Hentry Hprep img σ ceriseg sealsg stsg relg cstackg Hok.
   iIntros "Hshared Hthread". iNamed "Hshared". iNamed "Hthread".
-  iMod (fw_cmpts_init with "Hcmpts Hentries") as "Hcmpts"; first exact Hok.
+  iMod (fw_cmpts_init with "Hcmpts") as "Hcmpts"; first exact Hok.
   iEval (rewrite (fw_entry_pc_code fw img σ Hentry Hok)) in "HPC".
   iEval (rewrite fw_thread_of_0) in "Hstack".
   pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
@@ -433,41 +482,6 @@ Section adversary.
       iFrame "Hswitcher Hswitcher_static".
   Qed.
 
-  Lemma hole_exports_spec (c : img_cmpt) (ns : list nat) (k : list Word → Prop) :
-    hole_exports c ns k →
-    ∃ ps : list (nat * nat),
-      length ps = length ns ∧
-      Forall (λ p, (Z.of_nat p.1 < cmpt_e_pcc c - cmpt_b_pcc c)%Z) ps ∧
-      k (zip_with (λ p n, export_word (MkFwExport "" p.1 n p.2 InterruptEnabled)) ps ns).
-  Proof.
-    revert k. induction ns as [|n ns IH]; intros k Hk; cbn in Hk.
-    - by exists [].
-    - destruct Hk as (off & minstk & Hoff & Hk). destruct (IH _ Hk) as (ps & Hlen & Hps & Hws).
-      exists ((off, minstk) :: ps). split_and!; [by rewrite /= Hlen | by constructor | exact Hws].
-  Qed.
-
-  Lemma big_sepL_fw_imap_from {A B} (Φ : B → iProp Σ) (f : nat → A → B) j (l : list A) :
-    ([∗ list] y ∈ fw_imap_from f j l, Φ y) ⊣⊢ [∗ list] k ↦ x ∈ l, Φ (f (j + k) x).
-  Proof.
-    revert j. induction l as [|x l IH]; intros j; cbn; first done.
-    rewrite IH Nat.add_0_r. f_equiv. apply big_sepL_proper.
-    intros k y _. by rewrite Nat.add_succ_r.
-  Qed.
-
-  Lemma big_sepL_zip_with_exports (Φ : nat → nat → iProp Σ)
-      (Ψ : nat → InterruptStatus * nat * nat * nat → iProp Σ) (p0 : InterruptStatus)
-      (ps : list (nat * nat)) (ns : list nat) :
-    (∀ k p n, Φ k n ⊢ Ψ k (p0, n, p.2, p.1)) →
-    length ps = length ns →
-    ([∗ list] k ↦ n ∈ ns, Φ k n) ⊢
-    [∗ list] k ↦ e ∈ zip_with (λ p n, (p0, n, p.2, p.1)) ps ns, Ψ k e.
-  Proof.
-    revert ps Φ Ψ. induction ns as [|n ns IH]; intros [|p ps] Φ Ψ HΦ Hlen;
-      cbn in *; try done; try lia.
-    rewrite HΦ. iIntros "[$ H]". iApply (IH with "H"); last lia.
-    intros k p' n'. apply HΦ.
-  Qed.
-
   (** The facts about an untrusted compartment [fc] of a firmware that the
       allocation of its world needs: the contents of its code and globals,
       and the sealing predicate of the switcher for its export entries. *)
@@ -501,7 +515,7 @@ Section adversary.
     remember (fw_map ue_nargs (ub_exports ub)) as ns eqn:Hns.
     destruct (hole_exports_spec _ _ _ Hexps) as (ps & Hlen & Hps & Hentries_eq).
     split; first exact Hcode. split; first exact Hdata.
-    iIntros "#Hswitcher #Hstatic #(Hpcc & Hcgp & Hetbl & Hentries)".
+    iIntros "#Hswitcher #Hstatic #(Hpcc & Hcgp & Hetbl)".
     iApply (adversary_exports_prop W C C_cmpt fw_switcherN
               (zip_with (λ p n, (InterruptEnabled, n, p.2, p.1)) ps ns)
              with "Hswitcher Hstatic Hpcc Hcgp Hetbl").
@@ -522,9 +536,6 @@ Section adversary.
       induction ps as [|p ps IH]; intros [|n ns] Hlen; cbn in *; try constructor.
       + apply Forall_cons in Hsome as [Hs _]. exact Hs.
       + apply Forall_cons in Hsome as [_ Hsome]. apply IH; [exact Hsome | lia].
-    - rewrite /fc_entries /fc_export_nargs Hbody -Hns /fw_imap big_sepL_fw_imap_from.
-      iApply (big_sepL_zip_with_exports with "Hentries"); last done.
-      intros k p n. cbn. by rewrite /cmpt_export_sb addr_off_eq.
   Qed.
 
   (** The exports of an untrusted compartment are safe to share, given the

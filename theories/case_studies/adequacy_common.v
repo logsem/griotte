@@ -124,99 +124,20 @@ Section initial_rootedness.
 
 End initial_rootedness.
 
-(** ** Entry-point resources *)
-
-(** The entry-point map for a list of exported (unsealed) entries and their
-    number of arguments: each entry is registered both as is and borrowed. *)
-Definition exported_entries (ot : OType) (entries : list (Sealable * nat)) : gmap Word nat :=
-  list_to_map
-    (concat ((λ e, [(WSealed ot e.1, e.2); (WSealed ot (borrow_sb e.1), e.2)]) <$> entries)).
-
-Lemma global_ne_borrow_sb (sb sb' : Sealable) :
-  isGlobalSealable sb = true → sb ≠ borrow_sb sb'.
-Proof. destruct sb as [ [] ? [] | [] ? [] ], sb'; cbn; intros Hg Heq; simplify_eq. Qed.
-
-Lemma borrow_sb_inj_global (sb sb' : Sealable) :
-  isGlobalSealable sb = true → isGlobalSealable sb' = true →
-  borrow_sb sb = borrow_sb sb' → sb = sb'.
-Proof.
-  destruct sb as [ [] ? [] | [] ? [] ], sb' as [ [] ? [] | [] ? [] ]; cbn; intros; simplify_eq; done.
-Qed.
-
-Lemma exported_entries_keys_NoDup (ot : OType) (entries : list (Sealable * nat)) :
-  NoDup entries.*1 →
-  Forall (λ sb, isGlobalSealable sb = true) entries.*1 →
-  NoDup (concat ((λ e, [(WSealed ot e.1, e.2); (WSealed ot (borrow_sb e.1), e.2)]) <$> entries)).*1.
-Proof.
-  induction entries as [|[sb n] entries IH]; cbn; intros Hnodup Hglobal; first constructor.
-  apply NoDup_cons in Hnodup as [Hsb Hnodup].
-  apply Forall_cons in Hglobal as [Hg Hglobal].
-  assert (∀ w, w ∈ (concat ((λ e, [(WSealed ot e.1, e.2); (WSealed ot (borrow_sb e.1), e.2)])
-                              <$> entries)).*1 →
-               ∃ sb', sb' ∈ entries.*1 ∧ (w = WSealed ot sb' ∨ w = WSealed ot (borrow_sb sb')))
-    as Hkeys.
-  { clear. induction entries as [|[sb' n'] entries IH]; cbn; intros w Hw;
-      first by apply elem_of_nil in Hw.
-    rewrite !elem_of_cons in Hw.
-    destruct Hw as [ -> | [ -> | Hw ] ].
-    - exists sb'; split; [left|left]; done.
-    - exists sb'; split; [left|right]; done.
-    - destruct (IH w Hw) as (sb'' & Hin & Hw'); exists sb''; split; [right|]; done.
-  }
-  rewrite Forall_forall in Hglobal.
-  constructor; [|constructor]; last by apply IH; [|apply Forall_forall].
-  - intros Hin; rewrite elem_of_cons in Hin.
-    destruct Hin as [Heq | Hin].
-    + simplify_eq; by eapply global_ne_borrow_sb.
-    + destruct (Hkeys _ Hin) as (sb' & Hsb' & [Heq | Heq]); simplify_eq.
-      * done.
-      * by eapply global_ne_borrow_sb.
-  - intros Hin.
-    destruct (Hkeys _ Hin) as (sb' & Hsb' & [Heq | Heq]); simplify_eq.
-    + pose proof (Hglobal _ Hsb') as Hg'; by destruct sb as [ [] ? [] | [] ? [] ].
-    + apply borrow_sb_inj_global in Heq; [simplify_eq; done | done | by apply Hglobal].
-Qed.
-
-Section entries.
-  Context {Σ : gFunctors} {entryg : entryGS Σ}.
-
-  Lemma entries_split (ot : OType) (entries : list (Sealable * nat)) :
-    NoDup entries.*1 →
-    Forall (λ sb, isGlobalSealable sb = true) entries.*1 →
-    ([∗ map] w↦n ∈ exported_entries ot entries, w ↦□ₑ n) ⊢
-    [∗ list] e ∈ entries, WSealed ot e.1 ↦□ₑ e.2 ∗ WSealed ot (borrow_sb e.1) ↦□ₑ e.2.
-  Proof.
-    intros Hnodup Hglobal.
-    rewrite /exported_entries big_sepM_list_to_map;
-      last by apply exported_entries_keys_NoDup.
-    clear.
-    iIntros "H".
-    iInduction entries as [|[sb n] entries] "IH"; cbn; first done.
-    iDestruct "H" as "($ & $ & H)".
-    by iApply "IH".
-  Qed.
-
-End entries.
-
 (** ** Iris adequacy for the assert flag
 
     The premise receives the program-logic resources of the initial state
     (registers, system registers, memory, shadow table, address claims, the
-    non-atomic invariant token and the entry-point resources of [entries],
-    sealed with [ot]) and must produce a WP for the machine together with
+    non-atomic invariant token) and must produce a WP for the machine together with
     the invariant of the assert flag. *)
 Lemma cerise_flag_adequacy (Σ : gFunctors)
   {inv_preg : invGpreS Σ}
   {cerise_preg : ceriseGpreS Σ}
-  {entry_preg : entryGpreS Σ}
   {na_invg : na_invariants.na_invG Σ}
   `{MP: MachineParameters} {TV : trapVector}
-  (ot : OType) (entries : list (Sealable * nat))
   (flagN : namespace) (flag : Addr) (H : gset Addr)
   (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
   (es : list griotte_lang.expr) :
-  NoDup entries.*1 →
-  Forall (λ sb, isGlobalSealable sb = true) entries.*1 →
   ghost_init_cond (pc, reg, sreg, m, sh) H →
   reg !! cnull = Some (WInt 0) →
   (∀ (ceriseg : ceriseG Σ),
@@ -229,15 +150,14 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
      ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
      (* the pool of [ceriseg], not the [na_invg] parameter *)
-     @na_own Σ (@cerise_instance.na_invG Σ (@cerise_nainvG Σ ceriseg)) cerise_nais ⊤ -∗
-     ([∗ list] e ∈ entries, WSealed ot e.1 ↦□ₑ e.2 ∗ WSealed ot (borrow_sb e.1) ↦□ₑ e.2)
+     @na_own Σ (@cerise_instance.na_invG Σ (@cerise_nainvG Σ ceriseg)) cerise_nais ⊤
      ={⊤}=∗
      WP Seq (Instr Executable) {{ _, True }} ∗
      inv flagN (flag ↦ₐ WInt 0)) →
   rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
   m' !! flag = Some (WInt 0).
 Proof.
-  intros Hnodup Hglobal Hinit Hnull Hwp Hstep.
+  intros Hinit Hnull Hwp Hstep.
   pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
   pose (fun (c: ExecConf) => mem c !! flag = Some (WInt 0%Z)) as state_is_good.
   specialize (WPI (Seq (Instr Executable)) (pc, reg, sreg, m, sh) es (pc', reg', sreg', m', sh')
@@ -248,7 +168,6 @@ Proof.
        "(Hσ & HPC & Hreg & Hsreg & Hmem & Hshadow & Hclaims)".
   iEval (rewrite init_lmem_pointsto) in "Hmem".
   rewrite (init_lregs_cnull reg Hnull).
-  iMod (entry_init (exported_entries ot entries)) as (entry_g) "Hentries".
   iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
   pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
   pose ceriseg := {|
@@ -259,12 +178,10 @@ Proof.
     cerise_pcG := pc_g;
     reg_gen_regG := reg_heapg;
     sreg_gen_regG := sreg_heapg;
-    entryG := entry_g;
     cerise_registryG := registryg;
     cerise_addr_allocG := addr_allocg;
     cerise_trapVector := TV |}.
-  iDestruct (entries_split with "Hentries") as "Hentries"; [done..|].
-  iMod (Hwp ceriseg eq_refl with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna Hentries") as "[Hwp #Hflag]".
+  iMod (Hwp ceriseg eq_refl with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna") as "[Hwp #Hflag]".
   iModIntro.
   iExists (fun σ _ _ => cerise_state_interp σ)%I.
   iExists (fun _ => True)%I. cbn. iFrame "Hσ".
@@ -756,12 +673,10 @@ Section adversary_exports.
        a ↦ₐ□ lword_of_word v) -∗
     interp W C (cmpt_pcc_cap C_cmpt) -∗
     interp W C (cmpt_cgp_cap C_cmpt) -∗
-    WSealed switcher.ot_switcher (cmpt_export C_cmpt a) ↦□ₑ args -∗
-    WSealed switcher.ot_switcher (borrow_sb (cmpt_export C_cmpt a)) ↦□ₑ args -∗
     ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a)).
   Proof.
     intros Hi Ha Hargs Hentry_some.
-    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Hentries #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry'".
+    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Hentries #Hinterp_pcc #Hinterp_cgp".
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
     assert (i < length (cmpt_exp_tbl_entries C_cmpt)) as Hi_lt
         by (by apply lookup_lt_Some in Hi).
@@ -771,7 +686,7 @@ Section adversary_exports.
       f_equal; solve_addr. }
     iDestruct (big_sepL2_lookup with "Hentries") as "Hentry_inv"; [done..|].
     iApply (ot_switcher_interp _ _ _ Global _ posture args minstk off with
-              "Hswitcher Hswitcher_static Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp Hentry Hentry'");
+              "Hswitcher Hswitcher_static Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp");
       [solve_addr|lia|done].
   Qed.
 
@@ -796,8 +711,7 @@ Section adversary_exports.
   (** All the entries of the export table of an adversary [C_cmpt] satisfy
       the sealing predicate of the switcher, given its export table as a list
       of quadruples (interrupt posture, number of arguments, minimum stack
-      size, offset) and the entry-point resources of each entry. This is the
-      premise of [initialise_adversary_world]. *)
+      size, offset). This is the premise of [initialise_adversary_world]. *)
   Lemma adversary_exports_prop
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
     (exports : list (InterruptStatus * nat * nat * nat)) :
@@ -812,25 +726,19 @@ Section adversary_exports.
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
     ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
        a ↦ₐ□ lword_of_word v) -∗
-    ([∗ list] i ↦ e ∈ exports,
-       WSealed switcher.ot_switcher
-         (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a) ↦□ₑ e.1.1.2 ∗
-       WSealed switcher.ot_switcher
-         (borrow_sb (cmpt_export C_cmpt (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a)) ↦□ₑ e.1.1.2) -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W C (cmpt_pcc_cap C_cmpt) -∗
         interp W C (cmpt_cgp_cap C_cmpt) -∗
         ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a))).
   Proof.
     intros Htbl Hargs Hentries_some.
-    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Hentries #Hexports !>"
+    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Hentries !>"
       (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
     rewrite Htbl length_fmap in Hi.
     destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [ [ [posture args] minstk] offset] He].
-    iDestruct (big_sepL_lookup with "Hexports") as "[Hentry Hentry']"; first exact He.
     iApply (adversary_export_prop _ _ _ _ posture i args minstk offset
-             with "Hswitcher Hswitcher_static Hpcc Hcgp Hentries Hinterp_pcc Hinterp_cgp Hentry Hentry'").
+             with "Hswitcher Hswitcher_static Hpcc Hcgp Hentries Hinterp_pcc Hinterp_cgp").
     - by rewrite Htbl list_lookup_fmap He.
     - done.
     - by apply (Forall_lookup_1 _ _ _ _ Hargs He).

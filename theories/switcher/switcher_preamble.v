@@ -21,19 +21,17 @@ Proof.
     solve_addr.
 Qed.
 
-Section Switcher_preamble.
-  Context
-    {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
-    `{MP: MachineParameters}
-    {swlayout : switcherLayout}
-  .
+(** The number of arguments of an export entry, given by its address in the
+    export table or by the sealable that points to it. *)
+Class EntryNargs (Σ : gFunctors) (K : Type) := entry_nargs_at : K → nat → iProp Σ.
+#[global] Arguments entry_nargs_at {Σ K _} _ _.
+#[export] Hint Mode EntryNargs - ! : typeclass_instances.
 
-  Implicit Types W : WORLD.
-  Implicit Types C : CmptName.
+Notation "a ↦ₑ□{nargs} n" := (entry_nargs_at a n)
+  (at level 20, format "a  ↦ₑ□{nargs}  n") : bi_scope.
+
+Section Entry_projections.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
 
   Lemma encode_entry_point_eq_nargs mie nargs minstk off_entry :
     (0 ≤ nargs ≤ 7)%Z ->
@@ -83,6 +81,118 @@ Section Switcher_preamble.
     rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
     destruct mie; bitblast.
   Qed.
+
+  (** Projections of an export-table entry: the entry at [a] encodes
+      [n] arguments ([entry_nargs]), a minimum stack of [m] words
+      ([entry_min_stack]), or the interrupt posture [ie] ([entry_irq]).
+      Each is persistent, and the bound of its field is part of it. *)
+  Definition entry_nargs (a : Addr) (n : nat) : iProp Σ :=
+    ⌜n ≤ 7⌝ ∗ ∃ ie (m : nat) (off : Z), a ↦ₐ□ WInt (encode_entry_point ie n m off).
+  Definition entry_min_stack (a : Addr) (m : nat) : iProp Σ :=
+    ⌜m ≤ 255⌝ ∗ ∃ ie (n : nat) (off : Z), a ↦ₐ□ WInt (encode_entry_point ie n m off).
+  Definition entry_irq (a : Addr) (ie : InterruptStatus) : iProp Σ :=
+    ∃ (n m : nat) (off : Z), a ↦ₐ□ WInt (encode_entry_point ie n m off).
+
+  #[global] Instance entry_nargs_addr : EntryNargs Σ Addr := entry_nargs.
+
+  (** The entry of a sealable that is a read-only capability to an export
+      table entry. *)
+  Definition entry_nargs_sb (sb : Sealable) (n : nat) : iProp Σ :=
+    ∃ g b e a, ⌜sb = SCap true RO g b e a⌝ ∗ a ↦ₑ□{nargs} n.
+  #[global] Instance entry_nargs_sealable : EntryNargs Σ Sealable := entry_nargs_sb.
+
+  #[global] Instance entry_nargs_persistent (a : Addr) n : Persistent (a ↦ₑ□{nargs} n).
+  Proof. apply _. Qed.
+  #[global] Instance entry_nargs_sb_persistent (sb : Sealable) n :
+    Persistent (sb ↦ₑ□{nargs} n).
+  Proof. apply _. Qed.
+  #[global] Instance entry_min_stack_persistent a m : Persistent (entry_min_stack a m).
+  Proof. apply _. Qed.
+  #[global] Instance entry_irq_persistent a ie : Persistent (entry_irq a ie).
+  Proof. apply _. Qed.
+
+  Lemma entry_nargs_intro (a : Addr) ie (n m : nat) off :
+    n ≤ 7 →
+    a ↦ₐ□ WInt (encode_entry_point ie n m off) ⊢ a ↦ₑ□{nargs} n.
+  Proof. iIntros (Hn) "Ha". iSplit; [done|]. iExists _, _, _; iFrame. Qed.
+
+  Lemma entry_nargs_sb_intro g b e (a : Addr) n :
+    a ↦ₑ□{nargs} n ⊢ (SCap true RO g b e a) ↦ₑ□{nargs} n.
+  Proof. iIntros "Ha". iExists _, _, _, _. by iFrame "Ha". Qed.
+
+  Lemma entry_min_stack_intro a ie (n m : nat) off :
+    m ≤ 255 →
+    a ↦ₐ□ WInt (encode_entry_point ie n m off) ⊢ entry_min_stack a m.
+  Proof. iIntros (Hm) "Ha". iSplit; [done|]. iExists _, _, _; iFrame. Qed.
+
+  Lemma entry_irq_intro a ie (n m : nat) off :
+    a ↦ₐ□ WInt (encode_entry_point ie n m off) ⊢ entry_irq a ie.
+  Proof. iIntros "Ha". iExists _, _, _; iFrame. Qed.
+
+  Lemma entry_nargs_agree_raw (a : Addr) (n n' m : nat) ie off :
+    n' ≤ 7 →
+    a ↦ₑ□{nargs} n -∗
+    a ↦ₐ□ WInt (encode_entry_point ie n' m off) -∗
+    ⌜n = n'⌝.
+  Proof.
+    iIntros (Hn') "[%Hn (%ie0 & %m0 & %off0 & Ha0)] Ha".
+    iDestruct (pointsto_agree with "Ha0 Ha") as %Heq.
+    simplify_eq.
+    apply (f_equal (λ z, Z.land z 7)) in Heq.
+    rewrite !encode_entry_point_eq_nargs in Heq; [|lia|lia].
+    iPureIntro; lia.
+  Qed.
+
+  Lemma entry_nargs_agree (a : Addr) n n' :
+    a ↦ₑ□{nargs} n -∗ a ↦ₑ□{nargs} n' -∗ ⌜n = n'⌝.
+  Proof.
+    iIntros "Hn [%Hn' (%ie & %m & %off & Ha)]".
+    iApply (entry_nargs_agree_raw with "Hn Ha"); done.
+  Qed.
+
+  Lemma entry_min_stack_agree a m m' :
+    entry_min_stack a m -∗ entry_min_stack a m' -∗ ⌜m = m'⌝.
+  Proof.
+    iIntros "[%Hm (%ie & %n & %off & Ha)] [%Hm' (%ie' & %n' & %off' & Ha')]".
+    iDestruct (pointsto_agree with "Ha Ha'") as %Heq.
+    simplify_eq.
+    apply (f_equal (λ z, Z.land (z ≫ 8) 255)) in Heq.
+    rewrite !encode_entry_point_eq_minstk in Heq; [|lia|lia].
+    iPureIntro; lia.
+  Qed.
+
+  Lemma entry_irq_agree a ie ie' :
+    entry_irq a ie -∗ entry_irq a ie' -∗ ⌜ie = ie'⌝.
+  Proof.
+    iIntros "(%n & %m & %off & Ha) (%n' & %m' & %off' & Ha')".
+    iDestruct (pointsto_agree with "Ha Ha'") as %Heq.
+    simplify_eq.
+    apply (f_equal (λ z, Z.land z entry_point_irq_disabled_mask)) in Heq.
+    rewrite !encode_entry_point_eq_posture in Heq.
+    iPureIntro.
+    destruct ie, ie'; done.
+  Qed.
+
+End Entry_projections.
+
+Notation "a ↦ₑ□{stack} m" := (entry_min_stack a m)
+  (at level 20, format "a  ↦ₑ□{stack}  m") : bi_scope.
+Notation "a ↦ₑ□{irq} ie" := (entry_irq a ie)
+  (at level 20, format "a  ↦ₑ□{irq}  ie") : bi_scope.
+
+Section Switcher_preamble.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
+
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
   (** Property of capability sealed by the switcher's otype *)
   Definition export_tableN (Cname : namespace) : namespace := nroot .@ "export_tableN" .@ Cname.
@@ -195,11 +305,11 @@ Section Switcher_preamble.
       and [offset] is the offset of the function in the code,
       from the first address of the PCC (i.e., we must take account for the RO global data, like the imports).
 
-      For the most of the definition, [ot_switcher_prop] describes the logical state of the physical state described above.
-      In addition, it contains the resources [(seal_capability w ot_switcher) ↦□ₑ nargs],
-      which states that entry point uses [nargs] (the others are cleared by the switcher).
-      It's a [Persistent] knowledge, and is used by the functional spec of the switcher's call
-      for requiring the caller to only show [interp] of the actual arguments.
+      [ot_switcher_prop] describes the logical state of the physical state described above:
+      the export table's PCC and CGP, and the entry itself, as persistent points-to.
+      The entry word determines the number of arguments [nargs] the callee uses
+      (the switcher clears the other argument registers); callers of a known entry
+      read it through [↦ₑ□{nargs}] on the entry's address or its sealable.
 
       Finally, [execute_entry_point] is called, with [PCC+off] in the [PC],
       and the callee knows that its stack has at least [minstk] words.
@@ -229,8 +339,6 @@ Section Switcher_preamble.
            ∗ b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc
            ∗ (b_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp ecgp bcgp
            ∗ a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off)
-           ∗ (seal_capability w.(lw) ot_switcher) ↦□ₑ nargs
-           ∗ (seal_capability (borrow w.(lw)) ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap true RX Global bpcc epcc (bpcc ^+ off)%a)
@@ -255,8 +363,8 @@ Section Switcher_preamble.
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture ->
        Hatbl Hbtbl Hbtbl1 Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-      "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
-    iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
+      "(Hinvpcc & Hinvcgp & Hinventry & #Hcont)".
+    iFrame "Hinvpcc Hinvcgp Hinventry".
     iExists _,_.
     repeat (iSplit ; first done).
     iModIntro.
@@ -277,7 +385,7 @@ Section Switcher_preamble.
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture ->
        Hatbl Hbtbl Hbtbl1 Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-      "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+      "(Hinvpcc & Hinvcgp & Hinventry & #Hcont)".
     iFrame "#∗%".
     iExists Local; iPureIntro; done.
   Qed.

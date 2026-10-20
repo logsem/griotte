@@ -105,8 +105,8 @@ Section CMDC.
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
 
-      ∗ (WSealed ot_switcher B_f) ↦□ₑ cmdc_B_f_args
-      ∗ (WSealed ot_switcher C_g) ↦□ₑ cmdc_C_g_args
+      ∗ B_f ↦ₑ□{nargs} cmdc_B_f_args
+      ∗ C_g ↦ₑ□{nargs} cmdc_C_g_args
 
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
@@ -392,8 +392,8 @@ Section CMDC.
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
 
-      ∗ (WSealed ot_switcher B_f) ↦□ₑ cmdc_B_f_args
-      ∗ (WSealed ot_switcher C_g) ↦□ₑ cmdc_C_g_args
+      ∗ B_f ↦ₑ□{nargs} cmdc_B_f_args
+      ∗ C_g ↦ₑ□{nargs} cmdc_C_g_args
 
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)

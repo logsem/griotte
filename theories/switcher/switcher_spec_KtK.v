@@ -18,22 +18,6 @@ Section Switcher_KtK.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** The spill of a caller whose stack holds it does not fault. *)
-  Lemma switcher_cc_fault_known_to_known_stack_fits
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
-    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap : LReg)
-    (cstk : CSTK) (E : coPset) (R : iProp Σ) :
-    (a_stk + 4 <= e_stk)%Z ->
-    ⊢ switcher_cc_fault_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
-        wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E R.
-  Proof.
-    iIntros (Hfits) "Hres".
-    iApply trap_safe_absurd.
-    iMod "Hres" as "[(%Hspill & _) _]".
-    exfalso; solve_addr+Hspill Hfits.
-  Qed.
-
   (** Shape of the higher-order specification for entry points
       in the case of known-to-known cross-compartment calls.
       [P] is the precondition of the callee,
@@ -149,9 +133,7 @@ Section Switcher_KtK.
       holds, a fault of the callee all restore the four saved registers
       according to [load_heap].
       When the callee faults, the caller gets ECOMPARTMENTFAIL back, and
-      neither [P] nor [Q]. When the spill of the callee-save registers
-      faults, the caller gets back its resources and [P], and must be safely
-      unwound. *)
+      neither [P] nor [Q]. *)
   Lemma switcher_cc_specification_known_to_known_end_to_end
     (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
@@ -285,16 +267,11 @@ Section Switcher_KtK.
         may_fault P Q wcgp_caller wcra_caller wcs0_caller wcs1_caller
         b_stk e_stk a_stk arg_rmap cstk nargs minstk_tgt E
         bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt
-    ∗ ( ▷ ((if may_fault
-            then returned ∨ stack_exhausted ∨ callee_faulted
-            else returned ∨ stack_exhausted)
-          -∗ WP Seq (Instr Executable)
-                {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-        ∧
-        (* FAULT --- the callee-save registers do not fit on the caller's
-           stack; the callee did not run *)
-        switcher_cc_fault_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
-          wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E P )
+    ∗ ▷ ((if may_fault
+          then returned ∨ stack_exhausted ∨ callee_faulted
+          else returned ∨ stack_exhausted)
+        -∗ WP Seq (Instr Executable)
+              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -315,14 +292,6 @@ Section Switcher_KtK.
     iFrame "Hswitcher Hstatic Hinv_pcc Hinv_cgp Hinv_entry
             Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1
             Hargs Hregs Hstk Hcstk".
-    iSplit; cycle 1.
-    { (* The spill faults: the callee did not run, return [P] *)
-      iDestruct "Hpost" as "[_ Hfault]".
-      iIntros "Hres".
-      iApply "Hfault".
-      iMod "Hres" as "[Hres _]".
-      by iFrame. }
-    iDestruct "Hpost" as "[Hpost _]".
     iNext.
     iIntros "[
       (%mie & %arg_rmap' & %rmap' & %Harg_rmap' & %Hrmap'

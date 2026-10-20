@@ -67,10 +67,6 @@ Section so_obligations.
                       (length (@so_main_imports swl asl C_f ++ SO_main_code_run))))
       as Hentry_f_word.
     { reflexivity. }
-    assert (cmpt_export_sb (cmpt_of img "main") 0 =
-              SCap true RO Global (cmpt_exp_tbl_pcc main_cmpt) (cmpt_exp_tbl_entries_end main_cmpt)
-                (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a) as Hsbmain.
-    { rewrite /cmpt_export_sb -(cmpt_exp_tbl_entries_start_eq main_cmpt). done. }
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
@@ -83,18 +79,12 @@ Section so_obligations.
     iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & _)";
       first exact Hmain_l.
     rewrite main_imports' main_code.
-    iPoseProof "HC_pers" as "(_ & _ & _ & HC_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
-                fw_map ub_exports ue_nargs]) in "HC_entries".
-    iEval (rewrite HsbC /=) in "HC_entries".
-    iDestruct "HC_entries" as "([#Hentry_Cf #Hentry_Cf'] & _)".
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 0
+                 (fw_cmpt_ok_at _ _ _ 1 _ Hok eq_refl) with "HC_pers")
+      as "#Hentry_Cf"; [done|lia|].
+    iEval (rewrite HsbC) in "Hentry_Cf".
     (* The export table of main, which exports [f] (its first entry) to C *)
-    iPoseProof "Hmain_pers"
-      as "(Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_entries & Hmain_entries)".
-    iEval (cbv [fc_entries fc_export_nargs fw_imap fw_imap_from fc_body fc_name
-                fw_map tb_exports fe_nargs]) in "Hmain_entries".
-    iEval (rewrite Hsbmain /=) in "Hmain_entries".
-    iDestruct "Hmain_entries" as "([#Hentry_mainf #Hentry_mainf'] & _)".
+    iPoseProof "Hmain_pers" as "(Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_entries)".
     iEval (cbn [fc_name]) in "Hmain_etbl_pcc Hmain_etbl_cgp Hmain_etbl_entries".
     iEval (rewrite main_exp_tbl) in "Hmain_etbl_entries".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
@@ -205,7 +195,7 @@ Section so_obligations.
                          $Hworld_C
                          $HPC $Hcgp $Hcsp $Hregs
                          $Hcstk $Hinterp_stack_C
-                         $Hinterp_C $Hentry_Cf $Hentry_mainf $Hentry_mainf'
+                         $Hinterp_C $Hentry_Cf
                          $Hseal_switcher
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }

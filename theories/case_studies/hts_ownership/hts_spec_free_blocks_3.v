@@ -349,9 +349,6 @@ Section HTS_Spec_Free.
       reflexivity. }
     iFrame "Hobj Hright Hfree_mem Howner Howner_word".
     iSplitR; first (iPureIntro; set_solver+).
-    iSplit; last first.
-    { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_known_to_known_stack_fits; solve_addr+Hstk_min. }
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".

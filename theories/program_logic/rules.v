@@ -53,6 +53,6 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 
 (* Reexport CMRA for Griotte *)
-From griotte Require Export cerise_instance entry.
+From griotte Require Export cerise_instance.
 (* Reexport resources for registers and memory *)
 From griotte Require Export memory_region rules_base machine_instructions.

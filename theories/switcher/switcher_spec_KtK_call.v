@@ -29,46 +29,6 @@ Section Switcher_KtK_Call.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
-  (** The resources returned to the caller of
-      [switcher_cc_specification_known_to_known] when the spill of its
-      callee-save registers faults, because they do not fit on its stack:
-      the switcher invariant is closed, and the caller holds its registers and
-      its unchanged stack. The four cells of the spill do not fit below
-      [e_stk]. *)
-  Definition switcher_cc_fault_res_known_to_known
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
-    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap : LReg)
-    (cstk : CSTK) (E : coPset) : iProp Σ :=
-    ⌜ (e_stk < a_stk + 4)%Z ⌝ ∗
-    na_own cerise_nais E ∗
-    cgp ↦ᵣ wcgp_caller ∗
-    cra ↦ᵣ wcra_caller ∗
-    cs0 ↦ᵣ wcs0_caller ∗
-    cs1 ↦ᵣ wcs1_caller ∗
-    (∃ a_csp, csp ↦ᵣ WCap true RWL Local b_stk e_stk a_csp) ∗
-    ct1 ↦ᵣ wct1_caller ∗
-    ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
-    (∃ rmap', ⌜ dom rmap' = dom rmap ⌝ ∗ [∗ map] r↦w ∈ rmap', r ↦ᵣ w) ∗
-    [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
-    cstack_frag cstk.
-
-  (** The fault case of [switcher_cc_specification_known_to_known]: the
-      first store of the spill faults, and the caller must be safely unwound
-      from there, given the fault resources and [R] once the switcher
-      invariant is closed. *)
-  Definition switcher_cc_fault_known_to_known
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
-    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap : LReg)
-    (cstk : CSTK) (E : coPset) (R : iProp Σ) : iProp Σ :=
-    (|={⊤}=>
-       switcher_cc_fault_res_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
-         wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E ∗
-       R) -∗
-    trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
-      (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
-
   (** Failure path of [switcher_cc_specification_known_to_known]: the
       trusted stack is exhausted. *)
   Lemma switcher_cc_spec_tstack_exhausted_known_to_known
@@ -264,62 +224,58 @@ Section Switcher_KtK_Call.
     ∗ cstack_frag cstk
 
 
-    ∗ ( ▷ ( (∃ mie arg_rmap' rmap',
-              ⌜ is_arg_rmap arg_rmap' 8 ⌝
-              ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
+    ∗ ▷ ( (∃ mie arg_rmap' rmap',
+            ⌜ is_arg_rmap arg_rmap' 8 ⌝
+            ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
+            ∗ na_own cerise_nais E
+            (* Registers *)
+            ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
+            ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+            ∗ cra ↦ᵣ (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+            (* Stack register *)
+            ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
+            (* All the other registers *)
+            (* Entry point of the target compartment *)
+            ∗ ( [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg
+                                               ∗ (if decide (rarg ∈ dom_arg_rmap nargs)
+                                                  then ⌜ arg_rmap !! rarg = Some warg ⌝
+                                                  else ⌜warg = WInt 0⌝)
+              )
+            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+
+            (* Stack frame *)
+            ∗ ([[ a_stk4 , e_stk ]] ↦ₐ [[region_addrs_zeroes a_stk4 e_stk]])
+
+            (* Interpretation of the world and stack, at the moment of the switcher_call *)
+            ∗ cstack_frag (frame::cstk)
+          )
+          ∨
+          (
+            ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
+              ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
               ∗ na_own cerise_nais E
               (* Registers *)
-              ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
-              ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-              ∗ cra ↦ᵣ (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
-              (* Stack register *)
-              ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
+              ∗ PC ↦ₚ lupdatePcPerm (rcra)
+              ∗ cgp ↦ᵣ rcgp
+              ∗ cra ↦ᵣ rcra
+              ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+              ∗ cs0 ↦ᵣ rcs0
+              ∗ cs1 ↦ᵣ rcs1
+              ∗ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
+              ∗ ca1 ↦ᵣ WInt 0
               (* All the other registers *)
-              (* Entry point of the target compartment *)
-              ∗ ( [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg
-                                                 ∗ (if decide (rarg ∈ dom_arg_rmap nargs)
-                                                    then ⌜ arg_rmap !! rarg = Some warg ⌝
-                                                    else ⌜warg = WInt 0⌝)
-                )
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
 
               (* Stack frame *)
-              ∗ ([[ a_stk4 , e_stk ]] ↦ₐ [[region_addrs_zeroes a_stk4 e_stk]])
+              ∗ [[ a_stk , e_stk ]] ↦ₐ [[stk_mem']]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
-              ∗ cstack_frag (frame::cstk)
+              ∗ cstack_frag cstk
+              ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
+                  load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
           )
-          ∨
-            (
-              ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
-                ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-                ∗ na_own cerise_nais E
-                (* Registers *)
-                ∗ PC ↦ₚ lupdatePcPerm (rcra)
-                ∗ cgp ↦ᵣ rcgp
-                ∗ cra ↦ᵣ rcra
-                ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-                ∗ cs0 ↦ᵣ rcs0
-                ∗ cs1 ↦ᵣ rcs1
-                ∗ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
-                ∗ ca1 ↦ᵣ WInt 0
-                (* All the other registers *)
-                ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-
-                (* Stack frame *)
-                ∗ [[ a_stk , e_stk ]] ↦ₐ [[stk_mem']]
-
-                (* Interpretation of the world and stack, at the moment of the switcher_call *)
-                ∗ cstack_frag cstk
-                ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
-                    load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-            )
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-        ∧
-        (* FAULT --- the callee-save registers do not fit on the caller's stack *)
-        switcher_cc_fault_known_to_known wcgp_caller wcra_caller wcs0_caller wcs1_caller
-          wct1_caller b_stk e_stk a_stk stk_mem arg_rmap rmap cstk E True )
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -328,8 +284,8 @@ Section Switcher_KtK_Call.
        - [switcher_call_blocks_1_spec]: the checks on the stack pointer
          succeed;
        - [switcher_call_blocks_2_spec]: spill the callee-save registers and
-         push the stack pointer on the trusted stack; when the spill faults,
-         close the switcher invariant and use the fault case;
+         push the stack pointer on the trusted stack; the spill fits on the
+         caller's stack, which is at least the callee's minimum stack size;
        - when the trusted stack is exhausted:
          [switcher_cc_spec_tstack_exhausted_known_to_known];
        - [switcher_call_blocks_3_spec]: clear the callee's stack frame and
@@ -377,30 +333,11 @@ Section Switcher_KtK_Call.
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
       [done|done|done|].
     iSplit; cycle 1.
-    { (* The callee-save registers do not fit on the caller's stack: close
-         the switcher invariant, and return the fault resources *)
-      iIntros (a_f stk_mem' Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & Hstk
-        & Hmtdc & Hframeoffset & Htstk)".
-      destruct Ha_f as [ (-> & -> & Hspill) | (Hcontra & _) ]; last (exfalso; solve_addr).
-      iDestruct "Hpost" as "[_ Hfault]".
-      iApply ("Hfault" with "[-]").
-      subst hclose_switcher_inv.
-      iMod ("Hclose_switcher_inv" with
-        "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
-      { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
-      iModIntro.
-      iDestruct (big_sepM_insert_2 _ _ ctp with "[Hctp] Hregs") as "Hregs"; [iFrame|].
-      iDestruct (big_sepM_insert_2 _ _ ct2 with "[Hct2] Hregs") as "Hregs"; [iFrame|].
-      rewrite /switcher_cc_fault_res_known_to_known.
-      assert (e_stk < a_stk + 4)%Z as Hspill' by solve_addr+Hspill Hb_a.
-      iFrame "∗ %".
-      iPureIntro.
-      apply elem_of_dom_2 in Hwr0, Hwr1.
-      rewrite !dom_insert_L !dom_delete_L.
-      revert Hwr0 Hwr1; generalize (dom rmap); clear; intros X H0 H1.
-      apply set_eq; intros r.
-      destruct (decide (r = ct2)); destruct (decide (r = ctp)); set_solver. }
-    iDestruct "Hpost" as "[Hpost _]".
+    { (* The callee-save registers fit on the caller's stack: the spill does
+         not fault *)
+      iIntros (a_f stk_mem' Ha_f) "_".
+      destruct Ha_f as [ (-> & -> & Hspill) | (Hcontra & _) ]; exfalso;
+        [solve_addr+Hspill Hb_a Hminstk|solve_addr]. }
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     iDestruct "Hbranch" as
       "[(%Ha_frame & %Ha_frame_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset

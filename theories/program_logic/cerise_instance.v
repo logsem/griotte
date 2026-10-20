@@ -2,7 +2,7 @@ From iris.base_logic Require Export invariants na_invariants gen_heap ghost_map 
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import excl_auth.
-From griotte Require Import griotte_lang entry.
+From griotte Require Import griotte_lang.
 From griotte Require Export logical_words alloc_registry erasure.
 From griotte Require Import named_props_extra.
 
@@ -90,7 +90,6 @@ Class ceriseG Σ :=
       cerise_pcG :: pcG Σ; (* PC *)
       reg_gen_regG :: gen_heapGS RegName LWord Σ; (* register *)
       sreg_gen_regG :: gen_heapGS SRegName LWord Σ; (* system register *)
-      entryG :: entryGS Σ; (* entry point *)
       cerise_registryG :: allocRegistryG Σ; (* allocation registry *)
       cerise_addr_allocG :: addrAllocG Σ; (* address claims *)
       cerise_trapVector :: trapVector (* trap vector *)

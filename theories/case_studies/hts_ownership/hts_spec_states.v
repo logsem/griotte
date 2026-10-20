@@ -191,7 +191,7 @@ Section HTS_States.
       WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
         allocator_free_pcc_off) ∗
     interp W_init_C C (WSealed ot_switcher C_f) ∗
-    (WSealed ot_switcher C_f) ↦□ₑ 1.
+    C_f ↦ₑ□{nargs} 1.
 
   #[global] Instance hts_main_ctx_persistent : Persistent hts_main_ctx.
   Proof. rewrite /hts_main_ctx. tc_solve. Qed.
