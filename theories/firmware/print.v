@@ -530,9 +530,11 @@ Ltac2 pp_type (t : constr) : string :=
     The [k]-th existential [off] in the section of a compartment [X] is the
     offset of its [k]-th export. It is renamed [off_X_e] after the name [e]
     of that export, read from the comments [X, export e] of the sealed
-    imports of the export table of [X] at [cmpt_exp_tbl_entries_start X ^+
-    k], or [off_X_k] if no compartment imports it. The minimum stack size
-    [minstk] that follows it is renamed [min_X_e] likewise. *)
+    imports of the export table of [X] at [cmpt_exp_tbl_pcc X ^+
+    ExportTable_offset_entry k], or [off_X_k] if no compartment imports it. The minimum stack size
+    [minstk] that follows it is renamed [min_X_e] likewise. The existential
+    error handler offsets [eh] and [ehs] of [X] are renamed [eh_X] and
+    [ehs_X]. *)
 
 (** The position of [t] in [s], if any. *)
 Ltac2 find_sub (s : string) (t : string) : int option :=
@@ -576,8 +578,8 @@ Ltac2 app_of (g : constr) (p : constr) : constr array option :=
   end.
 
 (** The names of the exports imported somewhere: [(X, k, e)] for a
-    comment [X, export e] on a sealed word at an address [_ ^+ k] (or
-    [k = 0]). *)
+    comment [X, export e] on a sealed word at an address
+    [_ ^+ ExportTable_offset_entry k]. *)
 Ltac2 rec export_names (p : constr) : (string * int * string) list :=
   let here :=
     match app_of constr:(@note) p with
@@ -592,7 +594,7 @@ Ltac2 rec export_names (p : constr) : (string * int * string) list :=
                 lazy_match! (Array.get args 2) with
                 | WSealed _ (SCap _ _ _ _ _ ?a) =>
                     let k := lazy_match! a with
-                             | finz.incr_default _ ?k => leading_int (pp k)
+                             | finz.incr_default _ (ExportTable_offset_entry ?k) => leading_int (pp k)
                              | _ => 0
                              end in
                     [(x, k, e)]
@@ -657,6 +659,13 @@ Ltac2 rename_offsets (p : constr) : constr * (ident * constr * string) list :=
         match Constr.Unsafe.kind (Array.get args 1) with
         | Constr.Unsafe.Lambda b bd =>
             let old := match Constr.Binder.name b with Some x => Ident.to_string x | None => "" end in
+            let rename_cmpt pre :=
+              match Ident.of_string (String.concat "" [pre; ident_chars (first_word (title.(contents)))]) with
+              | Some x =>
+                  out.(contents) := (x, Constr.Binder.type b, title.(contents)) :: out.(contents);
+                  Constr.Binder.make (Some x) (Constr.Binder.type b)
+              | None => b
+              end in
             let rename pre e :=
               match Ident.of_string (String.concat "" [pre; ident_chars (first_word (title.(contents))); "_"; ident_chars e]) with
               | Some x =>
@@ -671,6 +680,8 @@ Ltac2 rename_offsets (p : constr) : constr * (ident * constr * string) list :=
                 last.(contents) := e;
                 rename "off_" e
               else if starts_with old "minstk" then rename "min_" (last.(contents))
+              else if String.equal old "ehs" then rename_cmpt "ehs_"
+              else if String.equal old "eh" then rename_cmpt "eh_"
               else b in
             rebuild_app constr:(@ex) args 1 (Constr.Unsafe.make (Constr.Unsafe.Lambda b (go bd)))
         | _ => p
@@ -1036,11 +1047,12 @@ Section memory_map.
      row (cmpt_b_cgp c) (length (cmpt_data c)) "globals" n (map text_cell (rle (cmpt_data c)));
      row (cmpt_b_static_sealed c) (length (cmpt_static_sealed c)) "static sealed" n
        (words_cells (cmpt_static_sealed c));
-     row (cmpt_exp_tbl_pcc c) (2 + length (cmpt_exp_tbl_entries c)) "export table" n
+     row (cmpt_exp_tbl_pcc c) (Z.to_nat ExportTable_offset_entries + length (cmpt_exp_tbl_entries c)) "export table" n
        (app
           (words_cells
              [WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c);
-              WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c)])
+              WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c);
+              cmpt_exp_tbl_handler c; cmpt_exp_tbl_handler_stackless c])
           (map entry_cell (cmpt_exp_tbl_entries c)))].
 
   Definition thread_rows (i : nat) (t : img_thread) : list map_row :=

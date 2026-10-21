@@ -68,6 +68,8 @@ Proof.
     (cmpt_of vae_demo_image "main"), (cmpt_of vae_demo_image "C").
   split; first done.
   split_and!.
+  (* The linker declares no error handler. *)
+  all: try (exists ExportTable_no_handler, ExportTable_no_handler; split_and!).
   all: try (exists vae_C_adv_entry, 0%nat; split; [|exists vae_C_g_entry, 0%nat; split_and!]).
   all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /vae_demo_state /img_state /img_regs; solve_other_registers

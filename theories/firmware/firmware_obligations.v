@@ -236,8 +236,20 @@ Ltac fw_fold_cmpt X :=
   change (image.cmpt_code c) with (compartment_layout.cmpt_code X) in *;
   change (image.cmpt_data c) with (compartment_layout.cmpt_data X) in *;
   change (image.cmpt_static_sealed c) with (compartment_layout.cmpt_static_sealed X) in *;
+  change (image.cmpt_exp_tbl_handler c) with (compartment_layout.cmpt_exp_tbl_handler X) in *;
+  change (image.cmpt_exp_tbl_handler_stackless c)
+    with (compartment_layout.cmpt_exp_tbl_handler_stackless X) in *;
   change (image.cmpt_exp_tbl_entries c)
     with (compartment_layout.cmpt_exp_tbl_entries X) in *.
+
+(** The export table of the compartment named [n] of the image [img]
+    starts at [b]. *)
+Definition cmpt_tbl (img : fw_image) (n : string) (b : Addr) : Prop :=
+  cmpt_exp_tbl_pcc (cmpt_of img n) = b.
+
+Lemma cmpt_tbl_of (img : fw_image) (n : string) :
+  cmpt_tbl img n (cmpt_exp_tbl_pcc (cmpt_of img n)).
+Proof. done. Qed.
 
 (** ** The prepared resources *)
 Section prepared.
@@ -260,16 +272,67 @@ Section prepared.
     [[ cmpt_b_static_sealed c, cmpt_e_static_sealed c ]] ↦ₐ
       [[ lword_of_word <$> cmpt_static_sealed c ]].
 
+  (** The error handler offsets of the compartment [fc], at the base [b] of
+      its export table: none for a trusted compartment, arbitrary for an
+      untrusted one. *)
+  Definition fw_handler_res (fc : fw_cmpt) (b : Addr) : iProp Σ :=
+    match fc_body fc with
+    | TrustedBody _ => no_handler b
+    | UntrustedBody _ => ∃ eh ehs : Z, b ↦ₕ□{stackful} eh ∗ b ↦ₕ□{stackless} ehs
+    end.
+
+  #[global] Instance fw_handler_res_persistent fc b : Persistent (fw_handler_res fc b).
+  Proof. rewrite /fw_handler_res. case_match; apply _. Qed.
+
+  (** The entries [ws] of the export table at [b], from [s] to [e], each at
+      its offset. *)
+  Lemma exp_tbl_entries_offsets_from (b s e : Addr) (j : nat) (ws : list Word) :
+    (b + ExportTable_offset_entry j)%a = Some s →
+    (s + length ws)%a = Some e →
+    ([∗ list] a;v ∈ finz.seq_between s e; ws, a ↦ₐ□ lword_of_word v) ⊣⊢
+    [∗ list] k ↦ v ∈ ws, (b ^+ ExportTable_offset_entry (j + k))%a ↦ₐ□ lword_of_word v.
+  Proof.
+    revert s j. induction ws as [|w ws IH]; intros s j Hs He.
+    - cbn in He. rewrite finz_seq_between_empty; [done | solve_addr].
+    - cbn in He. rewrite finz_seq_between_cons; last solve_addr.
+      rewrite big_sepL2_cons big_sepL_cons.
+      rewrite (IH (s ^+ 1)%a (S j)); [| solve_addr | solve_addr].
+      rewrite Nat.add_0_r.
+      replace (b ^+ ExportTable_offset_entry j)%a with s by solve_addr.
+      f_equiv. apply big_sepL_proper. intros k v _. by rewrite Nat.add_succ_r.
+  Qed.
+
+  Lemma exp_tbl_entries_offsets (b s e : Addr) (ws : list Word) :
+    (b + ExportTable_offset_entries)%a = Some s →
+    (s + length ws)%a = Some e →
+    ([∗ list] a;v ∈ finz.seq_between s e; ws, a ↦ₐ□ lword_of_word v) ⊣⊢
+    [∗ list] k ↦ v ∈ ws, (b ^+ ExportTable_offset_entry k)%a ↦ₐ□ lword_of_word v.
+  Proof.
+    intros Hs He. rewrite (exp_tbl_entries_offsets_from b s e 0); [done | solve_addr | done].
+  Qed.
+
   (** The export table of a compartment. *)
   Definition fw_cmpt_pers_res (img : fw_image) (fc : fw_cmpt) : iProp Σ :=
     let c := cmpt_of img (fc_name fc) in
     cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
     cmpt_exp_tbl_cgp c ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
-    ([∗ list] a;v ∈ finz.seq_between (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c);
-                    cmpt_exp_tbl_entries c, a ↦ₐ□ lword_of_word v).
+    fw_handler_res fc (cmpt_exp_tbl_pcc c) ∗
+    ([∗ list] k ↦ v ∈ cmpt_exp_tbl_entries c,
+       (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k)%a ↦ₐ□ lword_of_word v).
 
   #[global] Instance fw_cmpt_pers_res_persistent img fc : Persistent (fw_cmpt_pers_res img fc).
   Proof. rewrite /fw_cmpt_pers_res. apply _. Qed.
+
+  (** A trusted compartment declares no error handler, at the base of its
+      export table. *)
+  Lemma fw_cmpt_pers_res_no_handler img fc tb b :
+    fc_body fc = TrustedBody tb →
+    cmpt_tbl img (fc_name fc) b →
+    fw_cmpt_pers_res img fc ⊢ no_handler b.
+  Proof.
+    rewrite /cmpt_tbl. iIntros (Hbody <-) "(_ & _ & Hh & _)".
+    by rewrite /fw_handler_res Hbody.
+  Qed.
 
   (** The number of arguments of export [k] of a compartment, read off its
       export table, at the address of [cmpt_export_sb]. *)
@@ -278,7 +341,7 @@ Section prepared.
     cmpt_ok fw img fc →
     fc_export_nargs fc !! k = Some n →
     n ≤ 7 →
-    fw_cmpt_pers_res img fc ⊢ addr_off (cmpt_exp_tbl_entries_start c) k ↦ₑ□{nargs} n.
+    fw_cmpt_pers_res img fc ⊢ (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k)%a ↦ₑ□{nargs} n.
   Proof.
     intros c Hok Hk Hn.
     assert (∃ ie (m off : nat),
@@ -287,25 +350,19 @@ Section prepared.
     { destruct (cmpt_ok_inv _ _ _ Hok) as (_ & _ & _ & Hbody).
       rewrite /fc_export_nargs in Hk.
       destruct (fc_body fc) as [tb|ub].
-      - destruct Hbody as (_ & _ & Hexp).
+      - destruct Hbody as (_ & _ & _ & Hexp).
         rewrite fw_map_eq list_lookup_fmap in Hk.
         destruct (tb_exports tb !! k) as [e|] eqn:He; simplify_eq/=.
         rewrite /c Hexp /fw_imap fw_imap_const list_lookup_fmap He /=.
         by eexists _, _, _.
-      - destruct Hbody as (_ & _ & Hexp). rewrite /note in Hexp.
+      - destruct Hbody as (_ & _ & _ & Hexp). rewrite /note in Hexp.
         destruct (hole_exports_spec _ _ _ Hexp) as (ps & Hlen & _ & Hws).
         destruct (lookup_lt_is_Some_2 ps k) as [p Hp].
         { rewrite Hlen. by eapply lookup_lt_Some. }
         rewrite /c Hws lookup_zip_with Hp Hk /=.
         by eexists _, _, _. }
-    iIntros "(_ & _ & Hetbl)".
-    iDestruct (big_sepL2_length with "Hetbl") as %Hlen.
-    rewrite finz_seq_between_length in Hlen.
-    pose proof (lookup_lt_Some _ _ _ Hentry) as Hk_lt.
-    iDestruct (big_sepL2_lookup _ _ _ k with "Hetbl") as "Ha"; [|exact Hentry|].
-    { apply (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries c))); first done.
-      rewrite -Hlen /finz.dist in Hk_lt |- *. solve_addr+Hk_lt. }
-    rewrite addr_off_eq.
+    iIntros "(_ & _ & _ & Hetbl)".
+    iDestruct (big_sepL_lookup with "Hetbl") as "Ha"; first exact Hentry.
     by iApply entry_nargs_intro.
   Qed.
 
@@ -363,6 +420,8 @@ Section prepared.
       persistent. *)
   Lemma fw_adv_cmpt_init {E : coPset} img fc (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) :
     let c := cmpt_of img (fc_name fc) in
+    let a_eh := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_errorHandler)%a in
+    let a_ehs := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_errorHandlerStackless)%a in
     ([∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w)
     ={E}=∗
     [[ cmpt_b_pcc c, cmpt_a_code c ]] ↦ₐ [[ lword_of_word <$> cmpt_imports c ]] ∗
@@ -372,11 +431,15 @@ Section prepared.
       [[ lword_of_word <$> cmpt_static_sealed c ]] ∗
     cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
     cmpt_exp_tbl_cgp c ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
+    a_eh ↦ₐ□ lword_of_word (cmpt_exp_tbl_handler c) ∗
+    a_ehs ↦ₐ□ lword_of_word (cmpt_exp_tbl_handler_stackless c) ∗
     ([∗ list] a;v ∈ finz.seq_between (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c);
                     cmpt_exp_tbl_entries c, a ↦ₐ□ lword_of_word v).
   Proof.
-    intros c. rewrite (cmpt_mem_layout img fc Hc). iIntros "Hmem".
-    by iMod (initialise_adversary_compartment with "Hmem") as "($ & $ & $ & $ & $ & $ & $)".
+    intros c a_eh a_ehs. subst a_eh a_ehs.
+    rewrite (cmpt_mem_layout img fc Hc). iIntros "Hmem".
+    by iMod (initialise_adversary_compartment with "Hmem")
+      as "($ & $ & $ & $ & $ & $ & $ & $ & $)".
   Qed.
 
   (** Every compartment of a firmware, initialised. *)
@@ -386,14 +449,28 @@ Section prepared.
     ={E}=∗
     [∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res img fc.
   Proof.
-    intros (_ & _ & _ & Hwf). iIntros "Hcmpts".
+    intros Hok. pose proof Hok as (_ & _ & _ & Hwf). iIntros "Hcmpts".
     iApply big_sepL_fupd. iApply (big_sepL_impl with "Hcmpts").
     iIntros "!>" (k fc Hk) "Hmem".
     pose proof (img_wf_cmpt_layout _ _ _ Hwf (list_elem_of_lookup_2 _ _ _ Hk)) as Hc.
+    destruct (cmpt_ok_inv _ _ _ (fw_cmpt_ok_at _ _ _ _ _ Hok Hk)) as (_ & _ & _ & Hbody).
     iMod (fw_adv_cmpt_init with "Hmem")
-      as "(Himports & Hcode & Hdata & Hstatic & #Hpcc & #Hcgp & #Hetbl)"; first exact Hc.
-    iModIntro. rewrite /fw_cmpt_res /fw_cmpt_mem_res /fw_cmpt_pers_res.
+      as "(Himports & Hcode & Hdata & Hstatic & #Hpcc & #Hcgp & #Heh & #Hehs & #Hetbl)";
+      first exact Hc.
+    iModIntro. rewrite /fw_cmpt_res /fw_cmpt_mem_res /fw_cmpt_pers_res /fw_handler_res.
     iFrame "∗ #".
+    iSplitR; last first.
+    { iApply (exp_tbl_entries_offsets with "Hetbl").
+      - exact (icl_exp_tbl_header_size _ Hc).
+      - exact (icl_exp_tbl_entries_size _ Hc). }
+    destruct (fc_body fc); rewrite /body_ok /note in Hbody.
+    - destruct Hbody as (_ & _ & [Heh_eq Hehs_eq] & _).
+      rewrite Heh_eq Hehs_eq.
+      iSplit; [by iApply handler_stackful_intro | by iApply handler_stackless_intro].
+    - destruct Hbody as (_ & _ & (eh & ehs & Heh_eq & Hehs_eq) & _).
+      rewrite Heh_eq Hehs_eq.
+      iExists eh, ehs.
+      iSplit; [by iApply handler_stackful_intro | by iApply handler_stackless_intro].
   Qed.
 
   (** The imports and the code of a trusted compartment, persistent. *)
@@ -511,14 +588,16 @@ Section adversary.
     pose proof (Hcmpts_ok fc Hin) as Hfc_ok.
     destruct (cmpt_ok_inv _ _ _ Hfc_ok) as (_ & _ & _ & Hbody_ok).
     rewrite Hbody in Hbody_ok.
-    destruct Hbody_ok as (Hcode & Hdata & Hexps). rewrite /note in Hcode Hdata Hexps.
+    destruct Hbody_ok as (Hcode & Hdata & _ & Hexps). rewrite /note in Hcode Hdata Hexps.
     remember (fw_map ue_nargs (ub_exports ub)) as ns eqn:Hns.
     destruct (hole_exports_spec _ _ _ Hexps) as (ps & Hlen & Hps & Hentries_eq).
     split; first exact Hcode. split; first exact Hdata.
-    iIntros "#Hswitcher #Hstatic #(Hpcc & Hcgp & Hetbl)".
+    iIntros "#Hswitcher #Hstatic #(Hpcc & Hcgp & Hh & Hetbl)".
+    rewrite /fw_handler_res Hbody.
+    iDestruct "Hh" as (eh ehs) "[Heh Hehs]".
     iApply (adversary_exports_prop W C C_cmpt fw_switcherN
-              (zip_with (λ p n, (InterruptEnabled, n, p.2, p.1)) ps ns)
-             with "Hswitcher Hstatic Hpcc Hcgp Hetbl").
+              (zip_with (λ p n, (InterruptEnabled, n, p.2, p.1)) ps ns) eh ehs
+             with "Hswitcher Hstatic Hpcc Hcgp Heh Hehs Hetbl").
     - rewrite /= Hentries_eq. clear -Hlen. revert ns Hlen.
       induction ps as [|p ps IH]; intros [|n ns] Hlen; cbn in *; try done.
       by rewrite IH; last lia.
@@ -554,7 +633,7 @@ Section adversary.
     rewrite /fc_export_nargs Hbody fw_map_eq length_fmap in Hlen.
     iApply big_sepL_intro. iIntros "!>" (k n Hk).
     apply lookup_lt_Some in Hk.
-    rewrite /cmpt_export_sb addr_off_eq.
+    rewrite /cmpt_export_sb.
     iApply (adversary_export_interp (swlayout := fw_switcher_layout img) _ _
               (layout_cmpt_of _ Hc) k with "Hexp"); [done | cbn; lia].
   Qed.

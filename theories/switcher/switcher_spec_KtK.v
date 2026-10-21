@@ -150,6 +150,7 @@ Section Switcher_KtK.
     (may_fault : bool) (P : iProp Σ) (Q : LWord -> LWord -> iProp Σ)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
+    let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp)%a in
     let wct1_caller :=
       WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     (* The callee returned *)
@@ -226,13 +227,13 @@ Section Switcher_KtK.
     (b_stk <= a_stk)%a ->
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
-    is_shadow_address (btbl_tgt ^+ 1)%a = false ->
+    is_shadow_address a_tbl_cgp = false ->
     is_heap_address bpcc_tgt = false ->
     is_heap_address bcgp_tgt = false ->
     ↑Nswitcher ⊆ E ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
-    (btbl_tgt < (btbl_tgt ^+ 1))%a ->
-    ((btbl_tgt ^+ 1) < atbl_tgt)%a ->
+    (btbl_tgt < a_tbl_cgp)%a ->
+    (a_tbl_cgp < atbl_tgt)%a ->
     (0 <= nargs <= 7)%nat ->
     is_Some (bpcc_tgt + off_tgt)%a ->
     (* The callee's stack is at least its minimum stack size *)
@@ -248,7 +249,7 @@ Section Switcher_KtK.
     na_inv cerise_nais Nswitcher switcher_inv
     ∗ switcher_static
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
-    ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+    ∗ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
     ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) (Z.of_nat minstk_tgt) off_tgt)
     ∗ na_own cerise_nais E
     ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
@@ -275,7 +276,8 @@ Section Switcher_KtK.
     ⊢ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros a_stk4 wct1_caller returned stack_exhausted callee_faulted.
+    intros a_stk4 a_tbl_cgp wct1_caller returned stack_exhausted callee_faulted.
+    subst a_tbl_cgp.
     subst returned stack_exhausted callee_faulted.
     iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
              HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)

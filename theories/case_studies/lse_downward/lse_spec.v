@@ -44,6 +44,8 @@ Section LSE.
     :
 
     let imports := lse_main_imports C_f in
+    let a_lse_exp_tbl_cgp := (b_lse_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_lse_entry_f := (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f)%a in
 
     disjoint_from_shadow pc_b pc_e ->
     is_shadow_address cgp_b = false ->
@@ -52,7 +54,7 @@ Section LSE.
     is_heap_address pc_b = false ->
     Nswitcher ## Nlse_code ->
 
-    (b_lse_exp_tbl <= b_lse_exp_tbl ^+ 2 < e_lse_exp_tbl)%a ->
+    (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -73,8 +75,8 @@ Section LSE.
       ∗ codefrag_pers pc_a lse_main_code
       ∗ na_inv cerise_nais LSEN (cgp_b ↦ₐ WInt 2)
       ∗ b_lse_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-      ∗ (b_lse_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ (b_lse_exp_tbl ^+ 2)%a ↦ₐ□ lse_exp_tbl_entry_f
+      ∗ a_lse_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ a_lse_entry_f ↦ₐ□ lse_exp_tbl_entry_f
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -105,7 +107,8 @@ Section LSE.
        - [switcher_call_args_0] and [switcher_cc_specification]: call to
          [C_f];
        - [lse_run_blocks_2_spec]: block 3, halt. *)
-    intros imports; subst imports.
+    intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
+    subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexp_tbl_shadow Hpc_nonheap
                HNswitcher_lse Hsize_lse_exp_tbl
                Hrmap_dom Hrmap_init HsubBounds

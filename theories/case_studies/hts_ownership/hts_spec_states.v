@@ -175,6 +175,9 @@ Section HTS_States.
 
   (** The persistent invariants and facts used by every segment. *)
   Definition hts_main_ctx : iProp Σ :=
+    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
+    let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a in
+    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
     assert_static b_assert e_assert a_flag ∗
     allocator_service_ctx ∗
     allocator_service_static ∗
@@ -182,12 +185,12 @@ Section HTS_States.
     switcher_static ∗
     allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
-    (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
+    a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-    (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
+    a_alloc_entry_malloc ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
         allocator_malloc_pcc_off) ∗
-    (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
+    a_alloc_entry_free ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
         allocator_free_pcc_off) ∗
     interp W_init_C C (WSealed ot_switcher C_f) ∗

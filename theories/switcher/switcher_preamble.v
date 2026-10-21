@@ -180,6 +180,79 @@ Notation "a ↦ₑ□{stack} m" := (entry_min_stack a m)
 Notation "a ↦ₑ□{irq} ie" := (entry_irq a ie)
   (at level 20, format "a  ↦ₑ□{irq}  ie") : bi_scope.
 
+Section Handler_projections.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
+
+  (** Projections of the header of the export table at [b]: the offset [z]
+      of its stackful error handler ([handler_stackful]) and of its
+      stackless one ([handler_stackless]), [ExportTable_no_handler] for none. Each is
+      persistent. *)
+  Definition handler_stackful_def (b : Addr) (z : Z) : iProp Σ :=
+    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    a_eh ↦ₐ□ WInt z.
+  #[local] Definition handler_stackful_aux : seal (@handler_stackful_def). Proof. by eexists. Qed.
+  Definition handler_stackful := handler_stackful_aux.(unseal).
+  #[local] Definition handler_stackful_unseal :
+    @handler_stackful = @handler_stackful_def := handler_stackful_aux.(seal_eq).
+
+  Definition handler_stackless_def (b : Addr) (z : Z) : iProp Σ :=
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    a_ehs ↦ₐ□ WInt z.
+  #[local] Definition handler_stackless_aux : seal (@handler_stackless_def). Proof. by eexists. Qed.
+  Definition handler_stackless := handler_stackless_aux.(unseal).
+  #[local] Definition handler_stackless_unseal :
+    @handler_stackless = @handler_stackless_def := handler_stackless_aux.(seal_eq).
+
+  #[global] Instance handler_stackful_persistent b z : Persistent (handler_stackful b z).
+  Proof. rewrite handler_stackful_unseal. apply _. Qed.
+  #[global] Instance handler_stackless_persistent b z : Persistent (handler_stackless b z).
+  Proof. rewrite handler_stackless_unseal. apply _. Qed.
+
+  Lemma handler_stackful_intro b z :
+    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    a_eh ↦ₐ□ WInt z ⊢ handler_stackful b z.
+  Proof. by rewrite handler_stackful_unseal. Qed.
+  Lemma handler_stackless_intro b z :
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    a_ehs ↦ₐ□ WInt z ⊢ handler_stackless b z.
+  Proof. by rewrite handler_stackless_unseal. Qed.
+
+  Lemma handler_stackful_elim b z :
+    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    handler_stackful b z ⊢ a_eh ↦ₐ□ WInt z.
+  Proof. by rewrite handler_stackful_unseal. Qed.
+  Lemma handler_stackless_elim b z :
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    handler_stackless b z ⊢ a_ehs ↦ₐ□ WInt z.
+  Proof. by rewrite handler_stackless_unseal. Qed.
+
+  Lemma handler_stackful_agree b z z' :
+    handler_stackful b z -∗ handler_stackful b z' -∗ ⌜z = z'⌝.
+  Proof.
+    rewrite handler_stackful_unseal. iIntros "Ha Ha'".
+    iDestruct (pointsto_agree with "Ha Ha'") as %Heq. by simplify_eq.
+  Qed.
+  Lemma handler_stackless_agree b z z' :
+    handler_stackless b z -∗ handler_stackless b z' -∗ ⌜z = z'⌝.
+  Proof.
+    rewrite handler_stackless_unseal. iIntros "Ha Ha'".
+    iDestruct (pointsto_agree with "Ha Ha'") as %Heq. by simplify_eq.
+  Qed.
+
+  (** The compartment of the export table at [b] declares no error
+      handler. *)
+  Definition no_handler (b : Addr) : iProp Σ :=
+    handler_stackful b ExportTable_no_handler ∗ handler_stackless b ExportTable_no_handler.
+
+  #[global] Instance no_handler_persistent b : Persistent (no_handler b).
+  Proof. apply _. Qed.
+End Handler_projections.
+
+Notation "b ↦ₕ□{stackful} z" := (handler_stackful b z)
+  (at level 20, format "b  ↦ₕ□{stackful}  z") : bi_scope.
+Notation "b ↦ₕ□{stackless} z" := (handler_stackless b z)
+  (at level 20, format "b  ↦ₕ□{stackless}  z") : bi_scope.
+
 Section Switcher_preamble.
   Context
     {Σ:gFunctors}
@@ -298,6 +371,7 @@ Section Switcher_preamble.
       Operationally, a compartment entry point is a RO-capability pointing to
       an entry in the compartment's export table.
       The compartment's export table always starts with the compartment's PCC and CGP,
+      the offsets of its stackful and stackless error handlers,
       and then a list of entries of the form [(posture,nargs,minstk,offset)],
       where [posture] is the interrupt posture the callee runs with,
       [nargs] is the number of argument (up-to 7),
@@ -306,7 +380,9 @@ Section Switcher_preamble.
       from the first address of the PCC (i.e., we must take account for the RO global data, like the imports).
 
       [ot_switcher_prop] describes the logical state of the physical state described above:
-      the export table's PCC and CGP, and the entry itself, as persistent points-to.
+      the export table's PCC and CGP, and the entry itself, as persistent points-to,
+      and the handler offsets of the header, as projections ([↦ₕ□{stackful}],
+      [↦ₕ□{stackless}]) of any value.
       The entry word determines the number of arguments [nargs] the callee uses
       (the switcher clears the other argument registers); callers of a known entry
       read it through [↦ₑ□{nargs}] on the entry's address or its sealable.
@@ -323,23 +399,29 @@ Section Switcher_preamble.
           (bpcc epcc : Addr)
           (bcgp ecgp : Addr)
           (nargs minstk : nat) (off : Z) (posture : InterruptStatus)
-         ,
-           ⌜ w = WCap true RO g_tbl b_tbl e_tbl a_tbl ⌝
-           ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
-           ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
-           ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
-           ∗ ⌜ (0 <= nargs <= 7 )%nat ⌝
-           ∗ ⌜ (minstk <= 255)%nat ⌝
-           ∗ ⌜ is_Some (bpcc + off)%a ⌝
-           ∗ ⌜ is_shadow_address a_tbl = false ⌝
-           ∗ ⌜ is_shadow_address b_tbl = false ⌝
-           ∗ ⌜ is_shadow_address (b_tbl ^+ 1)%a = false ⌝
-           ∗ ⌜ is_heap_address bpcc = false ⌝
-           ∗ ⌜ is_heap_address bcgp = false ⌝
-           ∗ b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc
-           ∗ (b_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp ecgp bcgp
-           ∗ a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off)
-           ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
+          (eh ehs : Z),
+           let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
+           let a_tbl_ehs := (b_tbl ^+ ExportTable_offset_errorHandlerStackless)%a in
+           "%Hw" ∷ ⌜ w = WCap true RO g_tbl b_tbl e_tbl a_tbl ⌝ ∗
+           "%Hatbl" ∷ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝ ∗
+           "%Hbtbl" ∷ ⌜ (b_tbl < a_tbl_cgp)%a ⌝ ∗
+           "%Hbtbl_header" ∷ ⌜ (a_tbl_ehs < a_tbl)%a ⌝ ∗
+           "%Hnargs" ∷ ⌜ (0 <= nargs <= 7 )%nat ⌝ ∗
+           "%Hminstk" ∷ ⌜ (minstk <= 255)%nat ⌝ ∗
+           "%Hentry_some" ∷ ⌜ is_Some (bpcc + off)%a ⌝ ∗
+           "%Hatbl_shadow" ∷ ⌜ is_shadow_address a_tbl = false ⌝ ∗
+           "%Hbtbl_shadow" ∷ ⌜ is_shadow_address b_tbl = false ⌝ ∗
+           "%Hbtbl1_shadow" ∷ ⌜ is_shadow_address a_tbl_cgp = false ⌝ ∗
+           "%Hbpcc_heap" ∷ ⌜ is_heap_address bpcc = false ⌝ ∗
+           "%Hbcgp_heap" ∷ ⌜ is_heap_address bcgp = false ⌝ ∗
+           "#Htbl_pcc" ∷ b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
+           "#Htbl_cgp" ∷ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp ecgp bcgp ∗
+           "#Htbl_eh" ∷ b_tbl ↦ₕ□{stackful} eh ∗
+           "#Htbl_ehs" ∷ b_tbl ↦ₕ□{stackless} ehs ∗
+           "#Htbl_entry" ∷
+             a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
+           "#Hentry_cont" ∷
+             □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap true RX Global bpcc epcc (bpcc ^+ off)%a)
                             (WCap true RW Global bcgp ecgp bcgp)
@@ -360,17 +442,12 @@ Section Switcher_preamble.
     iIntros "Hot_switcher".
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
-    iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-      "(Hinvpcc & Hinvcgp & Hinventry & #Hcont)".
-    iFrame "Hinvpcc Hinvcgp Hinventry".
-    iExists _,_.
-    repeat (iSplit ; first done).
-    iModIntro.
-    iIntros (W'' Hrelated_W'_W'').
-    iSpecialize ("Hcont" $! W'').
-    iApply "Hcont".
+    iNamed "Hot_switcher".
+    iExists g_tbl, b_tbl, e_tbl, a_tbl, bpcc, epcc, bcgp, ecgp, nargs, minstk, off, posture,
+      eh, ehs.
+    iFrame "#%".
+    iIntros "!>" (W'' Hrelated_W'_W'').
+    iApply "Hentry_cont".
     iPureIntro.
     by eapply related_sts_priv_trans_world.
   Qed.
@@ -382,10 +459,7 @@ Section Switcher_preamble.
     iIntros "Hot_switcher".
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
-    iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-      "(Hinvpcc & Hinvcgp & Hinventry & #Hcont)".
+    iNamed "Hot_switcher". subst w.
     iFrame "#∗%".
     iExists Local; iPureIntro; done.
   Qed.

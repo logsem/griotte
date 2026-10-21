@@ -521,7 +521,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Definition length_kvs_data := length kvs_data.
 
   Definition kvs_nb_exports : Z := 3.
-  Definition length_kvs_exports_tbl : Z := 2 + kvs_nb_exports.
+  Definition length_kvs_exports_tbl : Z := ExportTable_offset_entries + kvs_nb_exports.
 
   Class kvsLayout : Type :=
     mkKvsLayout {
@@ -573,7 +573,9 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Definition kvs_exp_tbl_entry_addOrUpdate :=
     WInt (encode_entry_point InterruptEnabled kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack
             kvs_addOrUpdate_pcc_off).
-  Definition kvs_addOrUpdate_exp_tbl_off : nat := 2.
+  (** The index of the export [addOrUpdate], in the order of the firmware. *)
+  Definition kvs_entry_addOrUpdate : nat := 0.
+  Definition kvs_addOrUpdate_exp_tbl_off : Z := ExportTable_offset_entry kvs_entry_addOrUpdate.
   Definition kvs_addOrUpdate_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_addOrUpdate_exp_tbl_off)%a.
   Definition KVS_addOrUpdate {KVS : kvsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr.
@@ -591,7 +593,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Definition kvs_exp_tbl_entry_read :=
     WInt (encode_entry_point InterruptEnabled kvs_read_nargs kvs_read_min_stack
             kvs_read_pcc_off).
-  Definition kvs_read_exp_tbl_off : nat := 3.
+  Definition kvs_entry_read : nat := 1.
+  Definition kvs_read_exp_tbl_off : Z := ExportTable_offset_entry kvs_entry_read.
   Definition kvs_read_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_read_exp_tbl_off)%a.
   Definition KVS_read {KVS : kvsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr%a.
@@ -609,7 +612,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   Definition kvs_exp_tbl_entry_erase :=
     WInt (encode_entry_point InterruptEnabled kvs_erase_nargs kvs_erase_min_stack
             kvs_erase_pcc_off).
-  Definition kvs_erase_exp_tbl_off : nat := 4.
+  Definition kvs_entry_erase : nat := 2.
+  Definition kvs_erase_exp_tbl_off : Z := ExportTable_offset_entry kvs_entry_erase.
   Definition kvs_erase_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_erase_exp_tbl_off)%a.
   Definition KVS_erase {KVS : kvsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
@@ -692,6 +696,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 End KVS_Service.
 
 #[global] Ltac solve_addr.solve_addr_prepare ::=
+  try exptbl_unfold;
   repeat match goal with
     | H : context [ ASM_SIZEOF_KVS_ENTRY ] |- _ => rewrite /ASM_SIZEOF_KVS_ENTRY in H
     | _ : _ |- context [ ASM_SIZEOF_KVS_ENTRY ] => rewrite /ASM_SIZEOF_KVS_ENTRY

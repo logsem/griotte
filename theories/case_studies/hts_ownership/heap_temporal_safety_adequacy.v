@@ -49,7 +49,7 @@ Section hts_obligations.
       fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb]
       in Hok_main, Hok_alloc, Hok_B.
     destruct Hok_main as (main_imports & main_static & main_code & main_data & _).
-    destruct Hok_alloc as (alloc_imports & _ & alloc_code & alloc_data & alloc_exp_tbl).
+    destruct Hok_alloc as (alloc_imports & _ & alloc_code & alloc_data & _ & alloc_exp_tbl).
     destruct Hok_B as (B_imports & B_static & _).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as Halloc_l.
@@ -81,30 +81,19 @@ Section hts_obligations.
     assert allocatorLayoutWf as allocwf.
     { by apply img_allocator_layout_wf. }
     fw_fold_cmpt main_cmpt. fw_fold_cmpt alloc_cmpt. fw_fold_cmpt B_cmpt.
-    pose proof (cmpt_exp_tbl_entries_start_eq alloc_cmpt) as Halloc_start.
-
     (* 3 - The export entries, imported by main and B *)
     set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
-                  (cmpt_exp_tbl_entries_start B_cmpt)).
+                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry hts_B_entry_adv)%a).
     set (malloc_f := allocator_malloc Global).
     set (free_f := allocator_free Global).
-    assert (cmpt_export_sb (cmpt_of img "B") 0 = B_f ∧
-            cmpt_export_sb (cmpt_of img "allocator") 0 = malloc_f ∧
-            cmpt_export_sb (cmpt_of img "allocator") 1 = free_f) as (HsbB & Hsb0 & Hsb1).
-    { rewrite /cmpt_export_sb /B_f /malloc_f /free_f /allocator_malloc /allocator_free
-        /allocator_malloc_exp_tbl_off /allocator_free_exp_tbl_off /=.
-      fw_fold_cmpt alloc_cmpt. rewrite Halloc_start.
-      pose proof (cmpt_exp_tbl_entries_size alloc_cmpt) as Hsize.
-      rewrite alloc_exp_tbl in Hsize. cbn in Hsize.
-      split_and!; try done; f_equal; solve_addr+Hsize Halloc_start. }
+    assert (cmpt_export_sb (cmpt_of img "B") hts_B_entry_adv = B_f ∧
+            cmpt_export_sb (cmpt_of img "allocator") allocator_entry_malloc = malloc_f ∧
+            cmpt_export_sb (cmpt_of img "allocator") allocator_entry_free = free_f)
+      as (HsbB & Hsb0 & Hsb1).
+    { by split_and!. }
     assert (cmpt_imports main_cmpt = hts_main_imports (cmpt_b_static_sealed main_cmpt) B_f)
       as main_imports'.
-    { rewrite main_imports /hts_main_imports.
-      pose proof (cmpt_exp_tbl_entries_size alloc_cmpt) as Hsize.
-      rewrite alloc_exp_tbl in Hsize. cbn [length] in Hsize.
-      rewrite Halloc_start.
-      rewrite (_ : (cmpt_exp_tbl_pcc alloc_cmpt ^+ 2 ^+ 1)%a = (cmpt_exp_tbl_pcc alloc_cmpt ^+ 3)%a);
-        [reflexivity | solve_addr+Hsize Halloc_start]. }
+    { by rewrite main_imports /hts_main_imports. }
 
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
@@ -134,15 +123,15 @@ Section hts_obligations.
             ot_alloc {[hts_main_owner_id; hts_adv_owner_id]} Halloc_l allocwf
             alloc_imports' alloc_code alloc_data alloc_exp_tbl
            with "Halloc Halloc_pers Howners Hheap Hshadow Hclaims")
-      as "(#Hservice & #Hservice_static & #Halloc_etbl_pcc & #Halloc_etbl_cgp
+      as "(#Hservice & #Hservice_static & #Halloc_etbl_pcc & #Halloc_etbl_cgp & #Halloc_etbl_nh
            & #Hexport_malloc & #Hexport_free)".
-    cbn [fc_name fw_nth fw_cmpts hts_firmware].
+    cbn [fc_name fw_nth fw_cmpts hts_firmware fw_handler_res fc_body].
     fw_fold_cmpt main_cmpt. fw_fold_cmpt alloc_cmpt. fw_fold_cmpt B_cmpt.
     iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
       first exact Hmain_l.
     fw_fold_cmpt main_cmpt.
     rewrite main_imports' main_code main_data.
-    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 1
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ hts_B_entry_adv 1
                  (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) with "HB_pers")
       as "#Hentry_Bf"; [done|lia|].
     iEval (rewrite HsbB) in "Hentry_Bf".

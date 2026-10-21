@@ -77,7 +77,7 @@ Section helpers_switcher_adequacy.
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (g_etbl : Locality) (a_etbl: Addr)
-    (posture : InterruptStatus) (args minstk off : nat) (Nswitcher : namespace) :
+    (posture : InterruptStatus) (args minstk off : nat) (eh ehs : Z) (Nswitcher : namespace) :
     let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
     let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
     let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
@@ -93,6 +93,8 @@ Section helpers_switcher_adequacy.
     ⊢ switcher_static
     -∗ b_etbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc
     -∗ b_etbl1 ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp
+    -∗ b_etbl ↦ₕ□{stackful} eh
+    -∗ b_etbl ↦ₕ□{stackless} ehs
     -∗ a_etbl ↦ₐ□ WInt (encode_entry_point posture args minstk off)
     -∗ interp W C (WCap true RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap true RW Global b_cgp e_cgp b_cgp)
@@ -100,7 +102,7 @@ Section helpers_switcher_adequacy.
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
-    iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_entry #Hinterp_pcc #Hinterp_cgp".
+    iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
     set (minstk8 := Z.to_nat (Z.of_nat minstk `mod` 256)).
     assert (Z.land (Z.of_nat minstk) 255 = Z.of_nat minstk8) as Hminstk8.
@@ -109,13 +111,13 @@ Section helpers_switcher_adequacy.
     assert (Z.of_nat minstk8 < 256)%Z as Hminstk8_lt.
     { subst minstk8. rewrite Z2Nat.id; [apply Z.mod_pos_bound; lia|]. apply Z.mod_pos_bound; lia. }
     iEval (rewrite encode_entry_point_minstk_land Hminstk8) in "Hetbl_entry".
-    iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, minstk8, off, posture.
+    iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, minstk8, off, posture, eh, ehs.
     iFrame "#".
     iSplit ; first (by iPureIntro).
     iSplit.
     { iPureIntro. subst b_etbl e_etbl entries_etbl.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
-      pose proof (cmpt_exp_tbl_cgp_size C_cmpt) as H2.
+      pose proof (cmpt_exp_tbl_header_size C_cmpt) as H2.
       pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as H3.
       split ; try solve_addr.
     }
@@ -126,7 +128,7 @@ Section helpers_switcher_adequacy.
     }
     iSplit.
     { iPureIntro. subst b_etbl e_etbl entries_etbl.
-      pose proof (cmpt_exp_tbl_cgp_size C_cmpt) as H2.
+      pose proof (cmpt_exp_tbl_header_size C_cmpt) as H2.
       pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as H3.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       solve_addr.
@@ -135,7 +137,7 @@ Section helpers_switcher_adequacy.
     iSplit; first (iPureIntro ; lia).
     iSplit; first (iPureIntro; exact Hentry).
     pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as Htbl_pcc.
-    pose proof (cmpt_exp_tbl_cgp_size C_cmpt) as Htbl_cgp.
+    pose proof (cmpt_exp_tbl_header_size C_cmpt) as Htbl_cgp.
     iSplit.
     { iPureIntro. eapply disjoint_from_shadow_not_in.
       - exact (cmpt_exp_tbl_disjoint_from_shadow C_cmpt).
@@ -152,7 +154,7 @@ Section helpers_switcher_adequacy.
     iSplit; first (iPureIntro; exact (cmpt_cgp_base_not_heap C_cmpt)).
     iSplit.
     { subst b_etbl1 b_etbl.
-      replace (cmpt_exp_tbl_cgp C_cmpt ) with (cmpt_exp_tbl_pcc C_cmpt ^+ 1)%a; auto.
+      replace (cmpt_exp_tbl_cgp C_cmpt ) with (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp)%a; auto.
       pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
       solve_addr.
     }

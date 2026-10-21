@@ -212,3 +212,9 @@ int __cheri_compartment("known") run()
     ].
 
 End SO_Main.
+
+(** The indices of the export [f] of [main] and of the exports [adv] and [g]
+    of the adversary [C], in the order of the firmware. *)
+Definition so_entry_f : nat := 0.
+Definition so_C_entry_adv : nat := 0.
+Definition so_C_entry_g : nat := 1.

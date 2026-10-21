@@ -633,18 +633,16 @@ Section Switcher.
       by iFrame. }
     iNext; iIntros (wsb π)
       "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
-    iDestruct ("Hentry_prop" with "[//] [//]")
-      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture Heq Htbl Hbtbl Hbtbl1
-          Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-           "(#Htbl1 & #Htbl2 & #Htbl3 & #Hexec)".
-    rewrite /lword_of_word in Heq; simplify_eq.
+    iDestruct ("Hentry_prop" with "[//] [//]") as "Hentry_ot".
+    iNamed "Hentry_ot".
+    rewrite /lword_of_word in Hw; simplify_eq.
     iAssert ([∗ map] r↦w ∈ arg_rmap,
                r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True)%I
       with "[Hargs]" as "Hargs".
     { destruct is_entry_point_known.
       + iDestruct "Hargs" as "(%sb & %nargs0 & %Hwct1 & (%g & %b & %e & %a & -> & Hentry) & Hargs)".
         cbn in Hwct1; simplify_eq.
-        iDestruct (entry_nargs_agree_raw with "Hentry Htbl3") as %->; first lia.
+        iDestruct (entry_nargs_agree_raw with "Hentry Htbl_entry") as %->; first lia.
         iFrame.
       + iApply (big_sepM_impl with "Hargs").
         iIntros "!> %k %w' _ [$ Hinterp]".
@@ -656,14 +654,14 @@ Section Switcher.
       as "(Hworld_interp & #Hstk4v & %Hrelated & %Hrev)"; [done|done|solve_addr| | |].
     { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
     { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
-    iSpecialize ("Hexec" $! W' with "[]").
+    iSpecialize ("Hentry_cont" $! W' with "[]").
     { iPureIntro. by apply related_sts_pub_priv_world. }
 
     (* Blocks 7-12: load the callee and jump to it *)
     iApply (switcher_call_blocks_4_spec W C with
-      "[- $Htbl1 $Htbl2 $Htbl3 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
+      "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
           $Hargs $Hregs $Hcode]");
-      [done|done|done|lia|lia|done|done|done|done| | | |done| |].
+      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done| |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }
@@ -708,7 +706,7 @@ Section Switcher.
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs) "[Hregs Hregs_interp]"; [done| |done|done|].
     { symmetry. apply std_update_multiple_heap. }
-    iApply ("Hexec" $! (frame :: cstk) (W' :: Ws) (C :: Cs) regs a_stk e_stk).
+    iApply ("Hentry_cont" $! (frame :: cstk) (W' :: Ws) (C :: Cs) regs a_stk e_stk).
     iSplitL "Hcont_frame"; first by iApply "Hcont_frame".
     iSplit.
     { iPureIntro; simpl; split; [|split]; auto.

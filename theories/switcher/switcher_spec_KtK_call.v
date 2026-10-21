@@ -148,6 +148,7 @@ Section Switcher_KtK_Call.
 
     :
     let a_stk4 := (a_stk ^+ 4)%a in
+    let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp)%a in
     let wct1_caller := WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     let frame :=
@@ -165,7 +166,7 @@ Section Switcher_KtK_Call.
     disjoint_from_mmio b_stk e_stk ->
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
-    is_shadow_address (btbl_tgt ^+ 1)%a = false ->
+    is_shadow_address a_tbl_cgp = false ->
     is_heap_address bpcc_tgt = false ->
     is_heap_address bcgp_tgt = false ->
 
@@ -177,8 +178,8 @@ Section Switcher_KtK_Call.
 
     (* Well formed entry point *)
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a →
-    (btbl_tgt < (btbl_tgt ^+1))%a →
-    ((btbl_tgt ^+1) < atbl_tgt)%a  →
+    (btbl_tgt < a_tbl_cgp)%a →
+    (a_tbl_cgp < atbl_tgt)%a  →
     (0 <= nargs <= 7 )%nat →
     is_Some (bpcc_tgt + off_tgt)%a →
     (* The callee's stack is at least its minimum stack size *)
@@ -197,7 +198,7 @@ Section Switcher_KtK_Call.
 
     (* Export table of the target compartment *)
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
-    ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+    ∗ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
     ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) (Z.of_nat minstk_tgt) off_tgt)
 
 
@@ -294,7 +295,8 @@ Section Switcher_KtK_Call.
          its stack is at least its minimum stack size, so the check passes;
        - [switcher_inv_push_frame]: push the frame and close the switcher
          invariant. *)
-    intros astk4 wct1_caller callee_stk_region frame.
+    intros astk4 a_tbl_cgp wct1_caller callee_stk_region frame.
+    subst a_tbl_cgp.
     iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
              Hb_a HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hminstk Hdom Harg_rmap
              Hret_jalr Hret_heap)

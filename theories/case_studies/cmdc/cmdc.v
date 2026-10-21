@@ -113,3 +113,8 @@ Section CMDC_Main.
   Definition cmdc_C_g_args : nat := 1.
 
 End CMDC_Main.
+
+(** The indices of the exports [f] of [B] and [g] of [C], in the order of the
+    firmware. *)
+Definition cmdc_B_entry_f : nat := 0.
+Definition cmdc_C_entry_g : nat := 0.

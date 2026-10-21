@@ -324,15 +324,15 @@ Section HTS_Spec_Free.
     { exact Hstk_shadow. }
     { solve_addr. }
     { apply hts_export_tbl_not_shadow.
-      rewrite /allocator_free_exp_tbl_off. solve_addr. }
+      rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
     { exact hts_allocator_pcc_not_heap. }
     { exact hts_allocator_cgp_not_heap. }
     { solve_ndisj. }
-    { rewrite /allocator_free_exp_tbl_off. solve_addr. }
+    { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { solve_addr. }
-    { rewrite /allocator_free_exp_tbl_off. solve_addr. }
+    { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { rewrite /allocator_free_nargs; lia. }
     { exists (allocator_code_b ^+ length allocator_malloc_instrs)%a.
       rewrite allocator_free_pcc_off_eq /allocator_malloc_pcc_off.

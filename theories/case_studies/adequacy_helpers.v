@@ -194,6 +194,8 @@ Section adequacy_helpers.
     Lemma initialise_compartment ( C_cmpt : cmpt ) :
       let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
       let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+      let a_eh := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler)%a in
+      let a_ehs := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)%a in
       ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
       ==∗
       [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗
@@ -202,9 +204,12 @@ Section adequacy_helpers.
       [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_static_sealed C_cmpt ]] ∗
       cmpt_exp_tbl_pcc C_cmpt ↦ₐ PCC ∗
       cmpt_exp_tbl_cgp C_cmpt ↦ₐ CGP ∗
+      a_eh ↦ₐ lword_of_word (cmpt_exp_tbl_handler C_cmpt) ∗
+      a_ehs ↦ₐ lword_of_word (cmpt_exp_tbl_handler_stackless C_cmpt) ∗
       [[ (cmpt_exp_tbl_entries_start C_cmpt), (cmpt_exp_tbl_entries_end C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_exp_tbl_entries C_cmpt ]].
     Proof.
-      intros PCC CGP.
+      intros PCC CGP a_eh a_ehs.
+      subst a_eh a_ehs.
       iIntros "Hcmpt_C".
       iEval (rewrite /mk_initial_cmpt) in "Hcmpt_C".
       iDestruct (big_sepM_union with "Hcmpt_C") as "[HC HC_etbl]".
@@ -238,13 +243,25 @@ Section adequacy_helpers.
       iDestruct (mkregion_prepare with "[HC_etbl_pcc]") as ">HC_etbl_pcc"; auto.
       { cbn; apply cmpt_exp_tbl_pcc_size. }
       iDestruct (mkregion_prepare with "[HC_etbl_cgp]") as ">HC_etbl_cgp"; auto.
-      { cbn; apply cmpt_exp_tbl_cgp_size. }
+      { pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
+        pose proof (cmpt_exp_tbl_header_size C_cmpt).
+        cbn; solve_addr. }
       rewrite (finz_seq_between_singleton (cmpt_exp_tbl_pcc C_cmpt))
       ; last (apply cmpt_exp_tbl_pcc_size).
-      rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp C_cmpt))
-      ; last (apply cmpt_exp_tbl_cgp_size).
+      pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
+      pose proof (cmpt_exp_tbl_header_size C_cmpt).
+      rewrite (finz_seq_between_cons (cmpt_exp_tbl_cgp C_cmpt)); last solve_addr.
+      rewrite (finz_seq_between_cons (cmpt_exp_tbl_cgp C_cmpt ^+ 1)%a); last solve_addr.
+      rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp C_cmpt ^+ 1 ^+ 1)%a); last solve_addr.
+      replace (cmpt_exp_tbl_cgp C_cmpt ^+ 1)%a
+        with (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler)%a
+        by (exptbl_unfold; solve_addr).
+      replace (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler ^+ 1)%a
+        with (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)%a
+        by (exptbl_unfold; solve_addr).
       rewrite !big_sepL2_singleton.
-      rewrite /region_pointsto !big_sepL2_fmap_r.
+      rewrite /region_pointsto !big_sepL2_fmap_r /=.
+      iDestruct "HC_etbl_cgp" as "($ & $ & $ & _)".
       iFrame.
       done.
     Qed.
@@ -253,6 +270,8 @@ Section adequacy_helpers.
       let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
       let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
       let exp_tbl_addrs := (finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)) in
+      let a_eh := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler)%a in
+      let a_ehs := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)%a in
       ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
       ==∗
       [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗
@@ -261,14 +280,19 @@ Section adequacy_helpers.
       [[ (cmpt_b_static_sealed C_cmpt), (cmpt_e_static_sealed C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_static_sealed C_cmpt ]] ∗
       cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ PCC ∗
       cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ CGP ∗
+      a_eh ↦ₐ□ lword_of_word (cmpt_exp_tbl_handler C_cmpt) ∗
+      a_ehs ↦ₐ□ lword_of_word (cmpt_exp_tbl_handler_stackless C_cmpt) ∗
       ([∗ list] a;v ∈ exp_tbl_addrs ; cmpt_exp_tbl_entries C_cmpt, a ↦ₐ□ lword_of_word v).
     Proof.
-      intros PCC CGP exp_tbl_addrs.
+      intros PCC CGP exp_tbl_addrs a_eh a_ehs.
+      subst a_eh a_ehs.
       iIntros "Hcmpt_C".
       iMod (initialise_compartment with "Hcmpt_C")
-        as "($ & $ & $ & $ & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_entries)".
+        as "($ & $ & $ & $ & HC_etbl_pcc & HC_etbl_cgp & HC_etbl_eh & HC_etbl_ehs & HC_etbl_entries)".
       iMod (pointsto_persist with "HC_etbl_pcc") as "$".
       iMod (pointsto_persist with "HC_etbl_cgp") as "$".
+      iMod (pointsto_persist with "HC_etbl_eh") as "$".
+      iMod (pointsto_persist with "HC_etbl_ehs") as "$".
       iMod (region_pointsto_persist with "HC_etbl_entries") as "HC_etbl_entries".
       subst exp_tbl_addrs.
       rewrite /region_pointsto_pers big_sepL2_fmap_r.

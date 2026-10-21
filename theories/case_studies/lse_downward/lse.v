@@ -170,3 +170,8 @@ Section lse_C_code.
   Lemma lse_C_assembles : asm_ok (assemble_check lse_C_asm).
   Proof. asm_check. Qed.
 End lse_C_code.
+
+(** The indices of the export [f] of [main] and of the export [adv] of the
+    adversary [C], in the order of the firmware. *)
+Definition lse_entry_f : nat := 0.
+Definition lse_C_entry_adv : nat := 0.

@@ -51,6 +51,7 @@ Section KVS_main_spec.
     let imports :=
       kvs_main_imports static_sealed_b b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f
     in
+    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
 
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
@@ -79,7 +80,7 @@ Section KVS_main_spec.
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
 
       b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
-      (b_kvs_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      a_kvs_exp_tbl_cgp ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate ∗
       kvs_read_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_read ∗
 
@@ -110,7 +111,8 @@ Section KVS_main_spec.
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    intros imports; subst imports.
+    intros imports a_kvs_exp_tbl_cgp.
+    subst imports a_kvs_exp_tbl_cgp.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
                Hframe_match

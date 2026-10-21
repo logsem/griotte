@@ -178,17 +178,18 @@ Section Switcher_Call_Blocks_4.
     let switcher_instrs_8 := (switcher_instrs_n 8) in
     let len_switcher_8 := length switcher_instrs_8 in
     let wct1 := WCap true RO g btbl_tgt etbl_tgt atbl_tgt in
+    let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp)%a in
     is_shadow_address btbl_tgt = false ->
-    is_shadow_address (btbl_tgt ^+ 1)%a = false ->
+    is_shadow_address a_tbl_cgp = false ->
     is_heap_address bpcc_tgt = false ->
     is_heap_cap wcgp_tgt = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_8)%a ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
-    (btbl_tgt ^+ 1 < atbl_tgt)%a ->
+    (a_tbl_cgp < atbl_tgt)%a ->
     is_Some (bpcc_tgt + off_tgt)%a ->
 
     btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt ∗
-    (btbl_tgt ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
+    a_tbl_cgp ↦ₐ□ wcgp_tgt ∗
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ WInt off_tgt ∗
     cs1 ↦ᵣ wcs1 ∗
@@ -200,7 +201,7 @@ Section Switcher_Call_Blocks_4.
     ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_8)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
         cs1 ↦ᵣ WInt (btbl_tgt - atbl_tgt) ∗
-        ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt (btbl_tgt ^+ 1)%a ∗
+        ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt a_tbl_cgp ∗
         ct2 ↦ᵣ WInt (nargs + 1) ∗
         cgp ↦ᵣ wcgp_tgt ∗
         cra ↦ᵣ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a ∗
@@ -210,7 +211,8 @@ Section Switcher_Call_Blocks_4.
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros switcher_instrs_8 len_switcher_8 wct1; subst switcher_instrs_8 len_switcher_8 wct1.
+    intros switcher_instrs_8 len_switcher_8 wct1 a_tbl_cgp;
+      subst switcher_instrs_8 len_switcher_8 wct1 a_tbl_cgp.
     iIntros (Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hwcgp_nonheap Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1 Hentry)
       "(#Hb_tbl & #Hb_tbl1 & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
@@ -237,9 +239,9 @@ Section Switcher_Call_Blocks_4.
     iInstr "Hcode".
     { split;auto. rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea ct1 1 --- *)
+    (* --- Lea ct1 ExportTable_offset_cgp --- *)
     iInstr "Hcode".
-    { instantiate (1:=(btbl_tgt ^+ 1)%a); solve_addr. }
+    { instantiate (1:=(btbl_tgt ^+ ExportTable_offset_cgp)%a); solve_addr. }
 
     (* CLoad cgp ct1 0. *)
     iInstr "Hcode".
@@ -267,21 +269,22 @@ Section Switcher_Call_Blocks_4.
     (b_stk e_stk a_stk : Addr)
     (posture : InterruptStatus) (nargs minstk : nat) (off : Z) :
     let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
     (b_tbl <= a_tbl < e_tbl)%a ->
-    (b_tbl ^+ 1 < a_tbl)%a ->
+    (a_tbl_cgp < a_tbl)%a ->
     is_Some (bpcc + off)%a ->
     (nargs <= 7) ->
     (minstk <= 255) ->
     is_shadow_address a_tbl = false ->
     is_shadow_address b_tbl = false ->
-    is_shadow_address (b_tbl ^+ 1)%a = false ->
+    is_shadow_address a_tbl_cgp = false ->
     is_heap_address bpcc = false ->
     is_heap_cap wcgp_tgt = false ->
     (b_trusted_stack <= a_frame)%a ->
     (a_export_table < e_trusted_stack)%a ->
 
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
-    (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
+    a_tbl_cgp ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
     PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_decode_entry") ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -298,7 +301,7 @@ Section Switcher_Call_Blocks_4.
           PC ↦ₚ switcher_label_pc ".Lswitcher_clear_unused_args" ∗
           cs0 ↦ᵣ WInt off ∗
           cs1 ↦ᵣ WInt (b_tbl - a_tbl) ∗
-          ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl (b_tbl ^+ 1)%a ∗
+          ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl_cgp ∗
           ct2 ↦ᵣ WInt (Z.of_nat nargs + 1) ∗
           ctp ↦ᵣ WInt (entry_point_posture posture) ∗
           a_export_table ↦ₐ
@@ -325,7 +328,7 @@ Section Switcher_Call_Blocks_4.
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros a_export_table; subst a_export_table.
+    intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl1 Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap
                Hwcgp_heap Ha_frame_b Ha_frame_e)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2
@@ -473,14 +476,15 @@ Section Switcher_Call_Blocks_4.
     (posture : InterruptStatus) (nargs minstk : nat) (off : Z)
     (arg_rmap rmap : LReg) :
     let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
     (b_tbl <= a_tbl < e_tbl)%a ->
-    (b_tbl ^+ 1 < a_tbl)%a ->
+    (a_tbl_cgp < a_tbl)%a ->
     is_Some (bpcc + off)%a ->
     (nargs <= 7) ->
     (minstk <= 255) ->
     is_shadow_address a_tbl = false ->
     is_shadow_address b_tbl = false ->
-    is_shadow_address (b_tbl ^+ 1)%a = false ->
+    is_shadow_address a_tbl_cgp = false ->
     is_heap_address bpcc = false ->
     is_heap_cap wcgp_tgt = false ->
     (b_trusted_stack <= a_frame)%a ->
@@ -489,7 +493,7 @@ Section Switcher_Call_Blocks_4.
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
-    (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
+    a_tbl_cgp ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
     PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_decode_entry") ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -540,7 +544,7 @@ Section Switcher_Call_Blocks_4.
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros a_export_table; subst a_export_table.
+    intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl1 Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap
                Hwcgp_heap Ha_frame_b Ha_frame_e Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
@@ -593,14 +597,15 @@ Section Switcher_Call_Blocks_4.
     (posture : InterruptStatus) (nargs minstk : nat) (off : Z)
     (arg_rmap rmap : LReg) :
     let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
     (b_tbl <= a_tbl < e_tbl)%a ->
-    (b_tbl ^+ 1 < a_tbl)%a ->
+    (a_tbl_cgp < a_tbl)%a ->
     is_Some (bpcc + off)%a ->
     (nargs <= 7) ->
     (minstk <= 255) ->
     is_shadow_address a_tbl = false ->
     is_shadow_address b_tbl = false ->
-    is_shadow_address (b_tbl ^+ 1)%a = false ->
+    is_shadow_address a_tbl_cgp = false ->
     is_heap_address bpcc = false ->
     is_heap_cap wcgp_tgt = false ->
     (b_trusted_stack <= a_frame)%a ->
@@ -609,7 +614,7 @@ Section Switcher_Call_Blocks_4.
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
-    (b_tbl ^+ 1)%a ↦ₐ□ wcgp_tgt ∗
+    a_tbl_cgp ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
     PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_decode_entry") ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -660,7 +665,7 @@ Section Switcher_Call_Blocks_4.
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros a_export_table; subst a_export_table.
+    intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl1 Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap
                Hwcgp_heap Ha_frame_b Ha_frame_e Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp

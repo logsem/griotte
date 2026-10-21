@@ -361,7 +361,7 @@ Section Allocator.
     allocator_size_data :
       (allocator_cgp_b + length allocator_data)%a = Some allocator_cgp_e;
     allocator_size_exports :
-      (allocator_exp_tbl_b + (2 + length allocator_export_table_entries))%a =
+      (allocator_exp_tbl_b + (ExportTable_offset_entries + length allocator_export_table_entries))%a =
       Some allocator_exp_tbl_e;
     allocator_regions_disjoint :
       ## [finz.seq_between allocator_pcc_b allocator_pcc_e;

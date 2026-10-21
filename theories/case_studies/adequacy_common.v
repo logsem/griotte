@@ -44,27 +44,32 @@ Section initial_capabilities.
 
   Lemma cmpt_exp_tbl_addrs_lookup (C_cmpt : cmpt) (i : nat) (a : Addr) :
     cmpt_exp_tbl_addrs C_cmpt !! i = Some a →
-    a = (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a ∧ i < length (cmpt_exp_tbl_entries C_cmpt).
+    a = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a ∧
+    i < length (cmpt_exp_tbl_entries C_cmpt).
   Proof.
     intros Ha.
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
+    pose proof (cmpt_exp_tbl_header_size C_cmpt) as Hheader.
     assert (i < length (cmpt_exp_tbl_entries C_cmpt)) as Hi.
     { apply lookup_lt_Some in Ha.
       rewrite /cmpt_exp_tbl_addrs finz_seq_between_length /finz.dist in Ha.
       solve_addr. }
     rewrite /cmpt_exp_tbl_addrs (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt)))
       in Ha; [|done|done].
-    by simplify_eq.
+    simplify_eq. split; [solve_addr | done].
   Qed.
 
   Lemma cmpt_exp_tbl_addrs_elem_of (C_cmpt : cmpt) (i : nat) :
     i < length (cmpt_exp_tbl_entries C_cmpt) →
-    (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a ∈ cmpt_exp_tbl_addrs C_cmpt.
+    (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a ∈ cmpt_exp_tbl_addrs C_cmpt.
   Proof.
     intros Hi.
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
+    pose proof (cmpt_exp_tbl_header_size C_cmpt) as Hheader.
     apply list_elem_of_lookup_2 with i.
-    by rewrite /cmpt_exp_tbl_addrs (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt))).
+    rewrite /cmpt_exp_tbl_addrs (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt)));
+      [| done | done].
+    f_equal; solve_addr.
   Qed.
 
 End initial_capabilities.
@@ -660,40 +665,40 @@ Section adversary_exports.
       at address [a], satisfies the sealing predicate of the switcher. *)
   Lemma adversary_export_prop
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
-    (posture : InterruptStatus) (i args minstk off : nat) (a : Addr) :
+    (posture : InterruptStatus) (i args minstk off : nat) (a : Addr) (eh ehs : Z) :
     cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point posture args minstk off)) →
-    (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a = a →
+    (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
-    ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
-       a ↦ₐ□ lword_of_word v) -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₕ□{stackful} eh -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₕ□{stackless} ehs -∗
+    ([∗ list] k ↦ v ∈ cmpt_exp_tbl_entries C_cmpt,
+       (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry k)%a ↦ₐ□ lword_of_word v) -∗
     interp W C (cmpt_pcc_cap C_cmpt) -∗
     interp W C (cmpt_cgp_cap C_cmpt) -∗
     ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a)).
   Proof.
     intros Hi Ha Hargs Hentry_some.
-    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Hentries #Hinterp_pcc #Hinterp_cgp".
+    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Heh #Hehs #Hentries #Hinterp_pcc #Hinterp_cgp".
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
+    pose proof (cmpt_exp_tbl_header_size C_cmpt) as Hheader.
     assert (i < length (cmpt_exp_tbl_entries C_cmpt)) as Hi_lt
         by (by apply lookup_lt_Some in Hi).
-    assert (cmpt_exp_tbl_addrs C_cmpt !! i = Some a) as Ha_lookup.
-    { rewrite /cmpt_exp_tbl_addrs
-        (finz_seq_between_lookup _ _ _ (length (cmpt_exp_tbl_entries C_cmpt))) //.
-      f_equal; solve_addr. }
-    iDestruct (big_sepL2_lookup with "Hentries") as "Hentry_inv"; [done..|].
-    iApply (ot_switcher_interp _ _ _ Global _ posture args minstk off with
-              "Hswitcher Hswitcher_static Hpcc Hcgp Hentry_inv Hinterp_pcc Hinterp_cgp");
+    iDestruct (big_sepL_lookup with "Hentries") as "Hentry_inv"; first done.
+    rewrite Ha.
+    iApply (ot_switcher_interp _ _ _ Global _ posture args minstk off eh ehs with
+              "Hswitcher Hswitcher_static Hpcc Hcgp Heh Hehs Hentry_inv Hinterp_pcc Hinterp_cgp");
       [solve_addr|lia|done].
   Qed.
 
   (** The [i]-th sealed entry of the export table of an adversary [C_cmpt]
       is safe to share. *)
   Lemma adversary_export_interp (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (i : nat) (a : Addr) :
-    (cmpt_exp_tbl_entries_start C_cmpt ^+ i)%a = a →
+    (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a = a →
     i < length (cmpt_exp_tbl_entries C_cmpt) →
     ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp W C v) -∗
     interp W C (WSealed switcher.ot_switcher (cmpt_export C_cmpt a)).
@@ -714,7 +719,7 @@ Section adversary_exports.
       size, offset). This is the premise of [initialise_adversary_world]. *)
   Lemma adversary_exports_prop
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
-    (exports : list (InterruptStatus * nat * nat * nat)) :
+    (exports : list (InterruptStatus * nat * nat * nat)) (eh ehs : Z) :
     cmpt_exp_tbl_entries C_cmpt =
       (λ e : InterruptStatus * nat * nat * nat,
          WInt (encode_entry_point e.1.1.1 e.1.1.2 e.1.2 e.2)) <$> exports →
@@ -724,21 +729,23 @@ Section adversary_exports.
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
-    ([∗ list] a;v ∈ cmpt_exp_tbl_addrs C_cmpt ; cmpt_exp_tbl_entries C_cmpt,
-       a ↦ₐ□ lword_of_word v) -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₕ□{stackful} eh -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₕ□{stackless} ehs -∗
+    ([∗ list] k ↦ v ∈ cmpt_exp_tbl_entries C_cmpt,
+       (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry k)%a ↦ₐ□ lword_of_word v) -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W C (cmpt_pcc_cap C_cmpt) -∗
         interp W C (cmpt_cgp_cap C_cmpt) -∗
         ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a))).
   Proof.
     intros Htbl Hargs Hentries_some.
-    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Hentries !>"
+    iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Heh #Hehs #Hentries !>"
       (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
     rewrite Htbl length_fmap in Hi.
     destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [ [ [posture args] minstk] offset] He].
-    iApply (adversary_export_prop _ _ _ _ posture i args minstk offset
-             with "Hswitcher Hswitcher_static Hpcc Hcgp Hentries Hinterp_pcc Hinterp_cgp").
+    iApply (adversary_export_prop _ _ _ _ posture i args minstk offset _ eh ehs
+             with "Hswitcher Hswitcher_static Hpcc Hcgp Heh Hehs Hentries Hinterp_pcc Hinterp_cgp").
     - by rewrite Htbl list_lookup_fmap He.
     - done.
     - by apply (Forall_lookup_1 _ _ _ _ Hargs He).
@@ -979,14 +986,14 @@ Section main_sizes.
   Qed.
 
   Lemma cmpt_exp_tbl_cgp_eq (C_cmpt : cmpt) :
-    cmpt_exp_tbl_cgp C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ 1)%a.
+    cmpt_exp_tbl_cgp C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp)%a.
   Proof. pose proof (cmpt_exp_tbl_pcc_size C_cmpt); solve_addr. Qed.
 
   Lemma cmpt_exp_tbl_entries_start_eq (C_cmpt : cmpt) :
-    cmpt_exp_tbl_entries_start C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ 2)%a.
+    cmpt_exp_tbl_entries_start C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entries)%a.
   Proof.
     pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
-    pose proof (cmpt_exp_tbl_cgp_size C_cmpt).
+    pose proof (cmpt_exp_tbl_header_size C_cmpt).
     solve_addr.
   Qed.
 

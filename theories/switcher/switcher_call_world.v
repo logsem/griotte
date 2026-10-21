@@ -194,8 +194,8 @@ Section Switcher_Call_World.
     iNext; iIntros (wsb π Hwsb _); simplify_eq.
     destruct wsb as [t p g b e a | t sp g b e a]; cycle 1.
     { iEval (cbn) in "HP".
-      iDestruct "HP" as (???????????? Heq) "_".
-      rewrite /lforce_global /lift_word /lword_of_word /= in Heq; discriminate. }
+      iNamed "HP".
+      rewrite /lforce_global /lift_word /lword_of_word /= in Hw; discriminate. }
     cbn in Htag; subst t.
     destruct g; first done.
     iDestruct (ot_switcher_prop_borrow _ _ (WCap true p Global b e a @@? π) with "HP") as "HP'".

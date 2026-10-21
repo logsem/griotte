@@ -44,6 +44,9 @@ Section Heap_Temporal_Safety_Main.
 
     (Nswitcher : namespace)
     :
+    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
+    let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a in
+    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
 
     let imports := hts_main_imports owner_a C_f in
 
@@ -76,12 +79,12 @@ Section Heap_Temporal_Safety_Main.
       ∗ na_inv cerise_nais Nswitcher switcher_inv ∗ switcher_static
       ∗ allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
           allocator_pcc_b allocator_pcc_e allocator_pcc_b
-      ∗ (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
+      ∗ a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
           allocator_cgp_b allocator_cgp_e allocator_cgp_b
-      ∗ (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
+      ∗ a_alloc_entry_malloc ↦ₐ□
           WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
             allocator_malloc_pcc_off)
-      ∗ (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
+      ∗ a_alloc_entry_free ↦ₐ□
           WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
             allocator_free_pcc_off)
       ∗ na_own cerise_nais ⊤
@@ -122,7 +125,8 @@ Section Heap_Temporal_Safety_Main.
        (d) blocks 16-20: free result check, quarantine and second
            adversary call ([hts_spec_dangling], [hts_adv2_ret]);
        (e) blocks 21-23: assertion and halt ([hts_spec_assert]). *)
-    intros imports; subst imports.
+    intros a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free imports.
+    subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free imports.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       HNswitcher_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous

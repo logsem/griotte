@@ -236,15 +236,15 @@ Section HTS_Spec_Malloc.
     { exact Hstk_shadow. }
     { solve_addr. }
     { apply hts_export_tbl_not_shadow.
-      rewrite /allocator_malloc_exp_tbl_off. solve_addr. }
+      rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
     { exact hts_allocator_pcc_not_heap. }
     { exact hts_allocator_cgp_not_heap. }
     { solve_ndisj. }
-    { rewrite /allocator_malloc_exp_tbl_off. solve_addr. }
+    { rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { solve_addr. }
-    { rewrite /allocator_malloc_exp_tbl_off. solve_addr. }
+    { rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { rewrite /allocator_malloc_nargs; lia. }
     { exists allocator_code_b.
       rewrite /allocator_malloc_pcc_off -allocator_imports_length.

@@ -40,7 +40,7 @@ Section so_obligations.
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts so_firmware
       fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
-    destruct Hok_main as (main_imports & _ & main_code & main_data & main_exp_tbl).
+    destruct Hok_main as (main_imports & _ & main_code & main_data & _ & main_exp_tbl).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HC_l.
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
@@ -56,8 +56,8 @@ Section so_obligations.
 
     (* 2 - The export entries of C and main, imported by each other *)
     set (C_f := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                  (cmpt_exp_tbl_entries_start C_cmpt)).
-    assert (cmpt_export_sb (cmpt_of img "C") 0 = C_f) as HsbC.
+                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry so_C_entry_adv)%a).
+    assert (cmpt_export_sb (cmpt_of img "C") so_C_entry_adv = C_f) as HsbC.
     { by rewrite /cmpt_export_sb /C_f /=. }
     assert (image.cmpt_imports (cmpt_of img "main") = @so_main_imports swl asl C_f)
       as main_imports'.
@@ -79,12 +79,13 @@ Section so_obligations.
     iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & _)";
       first exact Hmain_l.
     rewrite main_imports' main_code.
-    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 0
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ so_C_entry_adv 0
                  (fw_cmpt_ok_at _ _ _ 1 _ Hok eq_refl) with "HC_pers")
       as "#Hentry_Cf"; [done|lia|].
     iEval (rewrite HsbC) in "Hentry_Cf".
     (* The export table of main, which exports [f] (its first entry) to C *)
-    iPoseProof "Hmain_pers" as "(Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_entries)".
+    iPoseProof "Hmain_pers" as "(Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_nh & Hmain_etbl_entries)".
+    iEval (cbn [fw_handler_res fc_body]) in "Hmain_etbl_nh".
     iEval (cbn [fc_name]) in "Hmain_etbl_pcc Hmain_etbl_cgp Hmain_etbl_entries".
     iEval (rewrite main_exp_tbl) in "Hmain_etbl_entries".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
@@ -94,22 +95,20 @@ Section so_obligations.
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     pose proof (cmpt_exp_tbl_entries_size main_cmpt) as Hmain_exp_tbl_size.
     rewrite main_exp_tbl in Hmain_exp_tbl_size.
-    assert (cmpt_exp_tbl_pcc main_cmpt <= cmpt_exp_tbl_pcc main_cmpt ^+ 2
+    assert (cmpt_exp_tbl_pcc main_cmpt <= cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f
             < cmpt_exp_tbl_entries_end main_cmpt)%a as Hmain_exp_tbl_bounds.
-    { pose proof (cmpt_exp_tbl_entries_start_eq main_cmpt) as Hstart.
-      pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as Hpcc_size.
-      clear -Hmain_exp_tbl_size Hstart Hpcc_size. cbn in *. solve_addr. }
-    rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start main_cmpt));
-      last (cbn in Hmain_exp_tbl_size |- *; solve_addr+Hmain_exp_tbl_size).
-    iEval (rewrite big_sepL2_cons) in "Hmain_etbl_entries".
+    { pose proof (cmpt_exp_tbl_header_size main_cmpt) as Hheader.
+      clear -Hmain_exp_tbl_size Hheader. rewrite /so_entry_f. cbn in *. solve_addr. }
+    iEval (rewrite big_sepL_cons) in "Hmain_etbl_entries".
     iDestruct "Hmain_etbl_entries" as "[Hmain_etbl_f _]".
-    rewrite (cmpt_exp_tbl_entries_start_eq main_cmpt) (cmpt_exp_tbl_cgp_eq main_cmpt).
+    rewrite (cmpt_exp_tbl_cgp_eq main_cmpt).
     rewrite Hentry_f_word.
 
     (* 4 - Seal the exported entry [f] of main with [ot_switcher] in the
        world of C *)
     set (main_f := SCap true RO Global (cmpt_exp_tbl_pcc main_cmpt)
-                     (cmpt_exp_tbl_entries_end main_cmpt) (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a) in *.
+                     (cmpt_exp_tbl_entries_end main_cmpt)
+                       (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f)%a) in *.
     set (W0' := <o[ switcher.ot_switcher :=
                     {[ lword_of_word (WSealable main_f);
                        lword_of_word (borrow (WSealable main_f)) ]} ]o> fw_world0).
@@ -151,7 +150,8 @@ Section so_obligations.
         cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts so_firmware
              fc_name fc_body tb_exports fe_name String.eqb Ascii.eqb Bool.eqb andb addr_off].
         fw_fold_cmpt main_cmpt.
-        rewrite (cmpt_exp_tbl_entries_start_eq main_cmpt).
+        change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)%a
+          with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f)%a.
         fold main_f.
         iSplit.
         + iApply interp_to_in_mem.
@@ -174,9 +174,9 @@ Section so_obligations.
         fw_fold_cmpt C_cmpt.
         iSplit.
         + iApply interp_to_in_mem.
-          iApply (adversary_export_interp (swlayout := swl) _ _ C_cmpt 1 with "Hexports");
+          iApply (adversary_export_interp (swlayout := swl) _ _ C_cmpt so_C_entry_g with "Hexports");
             first done.
-          rewrite -HC_len /=; lia.
+          rewrite -HC_len /so_C_entry_g /=; lia.
         + iIntros (W2 W3) "!> %Hrelated Hinterp".
           iEval (cbn) in "Hinterp".
           iApply (interp_in_mem_monotone_nl W2 W3 C RWL with "Hinterp"); first exact Hrelated.

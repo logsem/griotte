@@ -57,7 +57,7 @@ Proof.
   pose proof (icl_code_size _ Hc) as Hcs.
   pose proof (icl_data_size _ Hc) as Hd.
   pose proof (icl_exp_tbl_pcc_size _ Hc) as He1.
-  pose proof (icl_exp_tbl_cgp_size _ Hc) as He2.
+  pose proof (icl_exp_tbl_header_size _ Hc) as He2.
   pose proof (icl_exp_tbl_entries_size _ Hc) as He3.
   pose proof (icl_disjointness _ Hc) as Hdisj.
   pose proof (icl_pcc_not_heap _ Hc) as [_ Hpcc_heap].
@@ -109,10 +109,14 @@ Section allocator_init.
       memory, unpainted shadow entries and claims from the heap root
       [heap_b]) and the owner map of the owner identifiers [ids], form the
       allocator service invariant; its export table gives the capabilities
-      and the entries of [malloc] and [free]. *)
+      and the entries of [malloc] and [free], with its error handler
+      offsets. *)
   Lemma allocator_init {E : coPset} (img : fw_image) (fc : fw_cmpt) (ot : OType) (ids : gset Z) :
     let c := cmpt_of img (fc_name fc) in
     let alloclayout := img_allocator_layout c ot in
+    let a_alloc_exp_tbl_cgp := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp)%a in
+    let a_alloc_entry_malloc := (cmpt_exp_tbl_pcc c ^+ allocator_malloc_exp_tbl_off)%a in
+    let a_alloc_entry_free := (cmpt_exp_tbl_pcc c ^+ allocator_free_exp_tbl_off)%a in
     img_cmpt_layout c →
     @allocatorLayoutWf MP alloclayout →
     cmpt_imports c = img_allocator_imports ot →
@@ -129,23 +133,26 @@ Section allocator_init.
     allocator_service_ctx (layout := alloclayout) ∗
     allocator_service_static (layout := alloclayout) ∗
     cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
-    (cmpt_exp_tbl_pcc c ^+ 1)%a ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
-    (cmpt_exp_tbl_pcc c ^+ allocator_malloc_exp_tbl_off)%a ↦ₐ□
+    a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
+    fw_handler_res fc (cmpt_exp_tbl_pcc c) ∗
+    a_alloc_entry_malloc ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
         allocator_malloc_pcc_off) ∗
-    (cmpt_exp_tbl_pcc c ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
+    a_alloc_entry_free ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
         allocator_free_pcc_off).
   Proof.
-    intros c alloclayout Hc Hwf Himports Hcode Hdata Hexports.
-    iIntros "(Himports & Hcode & Hdata) (#Hpcc & #Hcgp & #Hetbl) Howners Hheap Hshadow Hclaims".
+    intros c alloclayout a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free
+      Hc Hwf Himports Hcode Hdata Hexports.
+    subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free.
+    iIntros "(Himports & Hcode & Hdata) (#Hpcc & #Hcgp & #Hh & #Hetbl) Howners Hheap Hshadow Hclaims".
     subst c. set (c := cmpt_of img (fc_name fc)) in *.
     pose proof (allocator_size_code (allocatorLayoutWf := Hwf)) as Hcode_size.
     pose proof (allocator_size_exports (allocatorLayoutWf := Hwf)) as Hexp_size.
     cbn in Hcode_size, Hexp_size.
     rewrite /allocator_export_table_entries /= in Hexp_size.
     pose proof (icl_exp_tbl_pcc_size _ Hc) as Hpcc_size.
-    pose proof (icl_exp_tbl_cgp_size _ Hc) as Hcgp_size.
+    pose proof (icl_exp_tbl_header_size _ Hc) as Hcgp_size.
     iDestruct (initial_heap_resources with "Hheap Hshadow") as "Hheap".
     iMod (allocator_service_init_correct (layout := alloclayout) E
             (lword_of_word <$> initial_heap_memory) ids Hwf
@@ -157,20 +164,11 @@ Section allocator_init.
         by solve_addr+Hcode_size.
       iFrame. }
     iModIntro. iFrame "Hpcc".
-    replace (cmpt_exp_tbl_cgp c) with (cmpt_exp_tbl_pcc c ^+ 1)%a by solve_addr+Hpcc_size.
-    iFrame "Hcgp".
+    replace (cmpt_exp_tbl_cgp c) with (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp)%a by solve_addr+Hpcc_size.
+    iFrame "Hcgp Hh".
     rewrite Hexports /allocator_export_table_entries.
-    rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start c));
-      last solve_addr+Hpcc_size Hcgp_size Hexp_size.
-    rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start c ^+ 1)%a);
-      last solve_addr+Hpcc_size Hcgp_size Hexp_size.
-    iEval (rewrite !big_sepL2_cons) in "Hetbl".
+    iEval (rewrite !big_sepL_cons) in "Hetbl".
     iDestruct "Hetbl" as "(Hmalloc & Hfree & _)".
-    rewrite /allocator_malloc_exp_tbl_off /allocator_free_exp_tbl_off.
-    replace (cmpt_exp_tbl_entries_start c ^+ 1)%a with (cmpt_exp_tbl_pcc c ^+ 3)%a
-      by solve_addr+Hpcc_size Hcgp_size.
-    replace (cmpt_exp_tbl_entries_start c) with (cmpt_exp_tbl_pcc c ^+ 2)%a
-      by solve_addr+Hpcc_size Hcgp_size.
     iFrame "Hmalloc Hfree".
   Qed.
 End allocator_init.

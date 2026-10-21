@@ -334,6 +334,7 @@ Section KVS_Main_Blocks.
       (rmap : LReg) (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert : Addr) (B_f : Sealable)
       (Nswitcher : namespace) (stk_mem : list LWord) :
+    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
@@ -354,7 +355,7 @@ Section KVS_Main_Blocks.
     ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
     ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ∗ b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
-    ∗ (b_kvs_exp_tbl ^+ 1)%a ↦ₐ□
+    ∗ a_kvs_exp_tbl_cgp ↦ₐ□
         WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
     ∗ kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate
     ∗ na_own cerise_nais ⊤
@@ -405,6 +406,8 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
+    intros a_kvs_exp_tbl_cgp.
+    subst a_kvs_exp_tbl_cgp.
     iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds Himports_contiguous Hstatic_sealed_b)
       "(#Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
@@ -536,14 +539,14 @@ Section KVS_Main_Blocks.
                  $Hstk $Hcstk_frag $HKVS_f
                  Hstatic_sealed_b HLUKVS Hkvs_1 Hpost]").
     all: [> exact Hstk_heap | exact Hstk_shadow | solve_addr
-      | apply Hexport_shadow; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off;
+      | apply Hexport_shadow; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate;
         solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj
-      | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
+      | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate; solve_addr+Hkvs_exp_tbl_size
       | solve_addr+Hkvs_exp_tbl_size
-      | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
+      | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate; solve_addr+Hkvs_exp_tbl_size
       | rewrite /kvs_addOrUpdate_nargs; lia
       | exists KVS_pcc_b'; exact KVS_size_imports
       | rewrite /kvs_addOrUpdate_min_stack; solve_addr+Hstk_min
@@ -634,6 +637,7 @@ Section KVS_Main_Blocks.
       (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert a_flag : Addr) (Nswitcher : namespace)
       (stk_mem : list LWord) :
+    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
@@ -655,7 +659,7 @@ Section KVS_Main_Blocks.
     ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
     ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ∗ b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
-    ∗ (b_kvs_exp_tbl ^+ 1)%a ↦ₐ□
+    ∗ a_kvs_exp_tbl_cgp ↦ₐ□
         WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
     ∗ kvs_read_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_read
     ∗ na_own cerise_nais ⊤
@@ -684,6 +688,8 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
+    intros a_kvs_exp_tbl_cgp.
+    subst a_kvs_exp_tbl_cgp.
     iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hdom_rmap HsubBounds Himports_contiguous Hstatic_sealed_b)
       "(#Hassert & #Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
@@ -807,14 +813,14 @@ Section KVS_Main_Blocks.
                  $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag $HKVS_f
                  Hstatic_sealed_b HLUKVS Hkvs_1]").
     all: [> exact Hstk_heap | exact Hstk_shadow | solve_addr
-      | apply Hexport_shadow; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off;
+      | apply Hexport_shadow; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read;
         solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj
-      | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
+      | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr+Hkvs_exp_tbl_size
       | solve_addr+Hkvs_exp_tbl_size
-      | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size
+      | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr+Hkvs_exp_tbl_size
       | rewrite /kvs_read_nargs; lia
       | pose proof KVS_size_imports as Himports;
         pose proof KVS_size_code as Hcode;
