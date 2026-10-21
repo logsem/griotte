@@ -43,9 +43,9 @@ Section griotte_lang_rules.
     i = Lt r arg1 arg2 ∨
     i = Le r arg1 arg2.
 
-  Lemma regs_of_is_BinOp i r arg1 arg2 :
+  Lemma operands_of_is_BinOp i r arg1 arg2 :
     is_BinOp i r arg1 arg2 →
-    regs_of i = {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2.
+    operands_of i = {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2.
   Proof.
     intros HH. destruct_or! HH; subst i; reflexivity.
   Qed.
@@ -91,13 +91,14 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-    erewrite regs_of_is_BinOp in Hri, Dregs; eauto.
+    rewrite /regs_of in Dregs.
+    erewrite operands_of_is_BinOp in Hri, Dregs; eauto.
     destruct (Hri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
     destruct (lz_of_argument_dom regs arg1) as [n1 Hn1].
-    { intros x ->. apply Dregs. rewrite /regs_of_argument. set_solver+. }
+    { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn1 as Hn1'.
     destruct (lz_of_argument_dom regs arg2) as [n2 Hn2].
-    { intros x ->. apply Dregs. rewrite /regs_of_argument. set_solver+. }
+    { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
 
     assert (exec_opt i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
@@ -108,7 +109,7 @@ Section griotte_lang_rules.
       (λ lpc' regs' retv, BinOp_spec i _ regs dst arg1 arg2 lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. }
-    { apply Dregs. set_solver+. }
+    { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
     { intros. by econstructor. }
     { intros. apply BinOp_spec_failure; [|done..]. by eapply BinOp_fail_incrPC. }
@@ -135,7 +136,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = i →
     is_BinOp i dst arg1 arg2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    {[dst]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2 ⊆ dom regs →
+    ({[dst]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2) ∖ {[ cnull ]} ⊆ dom regs →
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
@@ -150,7 +151,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hi Hvpc Hdom H1 H2 Hinc φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_BinOp with "[$HPC $Hpc_a $Hmap]"); eauto.
-    { by erewrite regs_of_is_BinOp. }
+    { rewrite /regs_of. by erewrite operands_of_is_BinOp. }
     iIntros "!>" (lpc0 regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     rewrite Hdecode in Hspec.
     destruct (BinOp_spec_next _ _ _ _ _ _ _ _ _ _ _ _ H1 H2 Hinc Hspec) as (-> & -> & ->).

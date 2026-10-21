@@ -63,7 +63,7 @@ Section griotte_lang_rules.
     { iApply (sreg_interp_mstatus with "Hsr"). }
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-    unfold regs_of in Hri, Dregs.
+    unfold regs_of, operands_of in Hri, Dregs.
     destruct (Hri rsrc) as [wsrc [H'rsrc _]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'rsrc) as (s & Hrsrc & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs H'rsrc) as Hoksrc.
@@ -119,7 +119,7 @@ Section griotte_lang_rules.
                   (link @@? pc_π) link (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her1.
-        * apply Dregs. set_solver.
+        * right. apply Dregs. set_solver.
         * exact Hoklink.
         * exact Hrellink.
         * by apply reg_word_ok_lupdatePcPerm.
@@ -144,7 +144,7 @@ Section griotte_lang_rules.
                   (link @@? pc_π) link (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her.
-        * apply Dregs. set_solver.
+        * right. apply Dregs. set_solver.
         * exact Hoklink.
         * exact Hrellink.
         * by apply reg_word_ok_lupdatePcPerm.
@@ -358,8 +358,9 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
     iApply (wp_instr_faulted_2 with "[$HPC $Hrsrc $Hrdst $Hpc_a]"); [done | done | | ].
     - intros r sr m st s1 s2 Hr1 _.
-      rewrite /exec /= /lookup_reg Hr1 /= jalr_target_checks.
-      case_decide; first done.
+      rewrite /exec /= /lookup_reg /=.
+      destruct (decide (rsrc = cnull)) as [->|Hne]; first done.
+      rewrite Hr1 /= jalr_target_checks.
       by rewrite jalr_target_ok_and_tag Hfail andb_false_r.
     - iNext. iIntros "(HPC & Hrsrc & Hrdst & Hpc_a)". iApply "Hφ". iFrame.
   Qed.
@@ -383,8 +384,9 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hrsrc) Hφ".
     iApply (wp_instr_faulted_1 with "[$HPC $Hrsrc $Hpc_a]"); [done | done | | ].
     - intros rf sr m st s1 Hr1.
-      rewrite /exec /= /lookup_reg Hr1 /= jalr_target_checks.
-      case_decide; first done.
+      rewrite /exec /= /lookup_reg /=.
+      destruct (decide (rsrc = cnull)) as [->|Hne]; first done.
+      rewrite Hr1 /= jalr_target_checks.
       by rewrite jalr_target_ok_and_tag Hfail andb_false_r.
     - iNext. iIntros "(HPC & Hrsrc & Hpc_a)". iApply "Hφ". iFrame.
   Qed.
@@ -408,8 +410,9 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hr) Hφ".
     iApply (wp_instr_faulted_1 with "[$HPC $Hr $Hpc_a]"); [done | done | | ].
     - intros rf sr m st s1 Hr1.
-      rewrite /exec /= /lookup_reg Hr1 /= jalr_target_checks.
-      case_decide; first done.
+      rewrite /exec /= /lookup_reg /=.
+      destruct (decide (r = cnull)) as [->|Hne]; first done.
+      rewrite Hr1 /= jalr_target_checks.
       by rewrite jalr_target_ok_and_tag Hfail andb_false_r.
     - iNext. iIntros "(HPC & Hr & Hpc_a)". iApply "Hφ". iFrame.
   Qed.

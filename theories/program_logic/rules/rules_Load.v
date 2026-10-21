@@ -301,7 +301,7 @@ Section griotte_lang_rules.
     { iIntros (a revoked Hlookup).
       iDestruct (big_sepM_lookup with "Hshadow") as "Ha"; first exact Hlookup.
       iApply (gen_heap_valid with "Hst Ha"). }
-    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
+    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
     odestruct (Hri r2) as [r2v [Hr'2 _]]; first by set_solver+.
     odestruct (Hri r1) as [r1v [Hr'1 _]]; first by set_solver+.
     clear Hri.
@@ -415,7 +415,7 @@ Section griotte_lang_rules.
       (λ lpc' regs' retv, Load_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' regs' mem shadow wit dw retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hmem Hshadow Hwit Hdw]").
     { exact Her. } { exact Hlregs. }
-    { apply Dregs. set_solver+. }
+    { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     { exact Hok. } { exact Hstep'. } { exact Hpv. } { exact Hsucc. } { exact Hfailure. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
@@ -1353,7 +1353,7 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hvpc Hcap φ) "(>HPC & >Hi & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hne]".
     iApply (wp_load_fail_const_imm E pc_p pc_g pc_b pc_e pc_a pc_π w r1 r2 imm _ (if decide (r2 = cnull) then lnull else wsrc) with "[$HPC $Hi $Hmap]"); eauto; simplify_map_eq; eauto.
-    { case_decide; done. }
+    1,2: case_decide; done.
     iNext. iIntros "(HPC & Hi & Hmap)".
     iDestruct (regs_of_map_2 with "Hmap") as "[Hdst Hsrc]"; first done.
     iApply "Hφ". iFrame.
@@ -1859,7 +1859,7 @@ Section load_exact.
     iApply (wp_load_general _ pc_p pc_g pc_b pc_e pc_a pc_π r1 r2 w _ _ _ ∅ DfracDiscarded LoadPlain
       (deref_witness_of πs q) with "[$HPC $Hmem $Hmap $Hdw]"); try done.
     all: try (by simplify_map_eq).
-    all: try (by rewrite /regs_of ?dom_insert_L ?dom_singleton_L; set_solver+).
+    all: try (by rewrite /regs_of /operands_of ?dom_insert_L ?dom_singleton_L; set_solver+).
     all: try (by rewrite !dom_insert_L).
     all: try (by rewrite big_sepM_empty).
     { intros p0 g0 b0 e0 ea (Hreg & _ & _). simplify_map_eq. rewrite Hshadow.
