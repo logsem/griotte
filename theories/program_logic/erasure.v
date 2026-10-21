@@ -904,7 +904,6 @@ Section erasure.
     erasure R C σ lpc lreg lsreg lmem → regs ⊆ lreg → regs !!ₗ r = Some v → reg_word_ok R C v.
   Proof.
     intros Her Hincl Hv. rewrite /llookup_reg in Hv.
-    destruct (regs !! r) as [v'|] eqn:Hr; cbn in Hv; last done.
     case_decide; simplify_eq; first apply reg_word_ok_lnull.
     eapply er_reg_words; first done. by eapply lookup_weaken.
   Qed.
@@ -918,29 +917,27 @@ Section erasure.
     - by eapply erasure_llookup_reg_word.
   Qed.
 
-  (** Writes a register, [cnull] included. *)
+  (** Writes a register; a write to [cnull] changes nothing. *)
   Lemma erasure_linsert_reg R C pc r sr m st lpc lreg lsreg lmem x v w :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     reg_word_ok R C v →
     reg_phys R v w →
     erasure R C (pc, insert_reg x w r, sr, m, st) lpc (<[x := v]ₗ> lreg) lsreg lmem.
   Proof.
-    intros Her Hok Hw. destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
+    intros Her Hok Hw.
+    destruct (decide (x = cnull)) as [->|Hx].
+    { by rewrite linsert_reg_cnull insert_reg_cnull. }
+    rewrite linsert_reg_not_cnull // insert_reg_not_cnull //.
+    destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
     constructor; cbn in *; try done.
     - split.
-      + rewrite /insert_reg /linsert_reg !dom_insert_L. by rewrite Hrdom.
-      + intros y v'. rewrite /insert_reg /linsert_reg.
-        destruct (decide (x = y)) as [<-|Hne].
-        * rewrite !lookup_insert_eq. intros [= <-]. eexists. split; first done.
-          case_decide; [apply reg_phys_lnull | done].
+      + rewrite !dom_insert_L. by rewrite Hrdom.
+      + intros y v'. destruct (decide (x = y)) as [<-|Hne].
+        * rewrite !lookup_insert_eq. intros [= <-]. by eexists.
         * rewrite !lookup_insert_ne //. apply Hregs.
-    - intros v'. rewrite /linsert_reg.
-      destruct (decide (x = cnull)) as [->|Hne].
-      + rewrite lookup_insert_eq. by intros [=].
-      + rewrite lookup_insert_ne //. apply Hcnull.
-    - intros r' v'. rewrite /linsert_reg.
-      destruct (decide (x = r')) as [<-|Hne].
-      + rewrite lookup_insert_eq. intros [= <-]. case_decide; [apply reg_word_ok_lnull|done].
+    - intros v'. rewrite lookup_insert_ne //. apply Hcnull.
+    - intros r' v'. destruct (decide (x = r')) as [<-|Hne].
+      + rewrite lookup_insert_eq. by intros [= <-].
       + rewrite lookup_insert_ne //. apply Hrw.
   Qed.
 
@@ -952,7 +949,7 @@ Section erasure.
     erasure R C (pc, <[x := w]> r, sr, m, st) lpc (<[x := v]> lreg) lsreg lmem.
   Proof.
     intros Hx Her Hok Hw. pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ x v w Her Hok Hw) as H.
-    by rewrite /insert_reg /linsert_reg !decide_False in H.
+    by rewrite insert_reg_not_cnull // linsert_reg_not_cnull // in H.
   Qed.
 
   (** Writes a system register. *)
