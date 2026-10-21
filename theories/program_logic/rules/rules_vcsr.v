@@ -155,7 +155,7 @@ Section vcsr.
     iDestruct (map_of_sregs_1 with "Hsrc") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]");
       [exact Hinstr | exact Hvpc
-      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L; set_solver
       | rewrite Hxsr /sregs_of dom_singleton_L; set_solver |].
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
@@ -193,7 +193,7 @@ Section vcsr.
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]");
       [exact Hinstr | exact Hvpc
-      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L; set_solver
       | rewrite Hxsr /sregs_of dom_singleton_L; set_solver |].
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
@@ -309,7 +309,7 @@ Section vcsr.
     destruct (specialrw_sregs_phys R C _ r psr m st _ lreg lsreg lmem regs {[sr := vold]} sr src
                 vold Her Hlregs Hregs Hlsregs)
       as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
-    { rewrite /regs_of in Dregs. set_solver. } { by simplify_map_eq. }
+    { rewrite /regs_of /operands_of in Dregs. set_solver. } { by simplify_map_eq. }
     cbn in Hstep. rewrite Hxsr Hwold /= Hφ1 /= in Hstep.
     assert (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) =
               Some (WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hi.
@@ -350,7 +350,7 @@ Section vcsr.
                             regs' = <[dst := vold]> regs ∧ retv = NextIV)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her1. } { exact Hlregs. }
-      { apply Dregs. rewrite /regs_of. set_solver. }
+      { right. apply Dregs. rewrite /regs_of /operands_of. set_solver. }
       { exact Hokold. }
       { rewrite /update_reg /= in Hu Hstep |- *. by rewrite Hu in Hstep |- *. }
       { exact Hrelold. }
@@ -381,7 +381,7 @@ Section vcsr.
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]");
       [exact Hinstr | exact Hvpc | exact Hxsr | exact Hpca'
-      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L; set_solver
       | by left |].
     iNext. iIntros (vst) "(_ & HPC & Hpc_a & Hmap)".
     rewrite specialrw_regs_ne // insert_singleton_eq.
@@ -410,7 +410,7 @@ Section vcsr.
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]");
       [exact Hinstr | exact Hvpc | exact Hxsr | exact Hpca'
-      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L; set_solver
       | by right |].
     iNext. iIntros (vt) "(%Hint & HPC & Hpc_a & Hmap)".
     destruct (Hint eq_refl) as [z ->].
@@ -441,7 +441,7 @@ Section vcsr.
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]");
       [exact Hinstr | exact Hvpc | exact Hxsr | exact Hpca'
-      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L; set_solver
       | by left |].
     iNext. iIntros (vst) "(_ & HPC & Hpc_a & Hmap)".
     rewrite specialrw_regs_cnull.

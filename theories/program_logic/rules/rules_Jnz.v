@@ -67,14 +67,14 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-    unfold regs_of in Hri, Dregs.
+    unfold regs_of, operands_of in Hri, Dregs.
     destruct (Hri rcond) as [wrcond [H'rcond _]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'rcond) as (sc & Hrcond & _).
     pose proof (nonZero_and_tag sc wrcond.(lw)) as Hnz'.
     set (φc := (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) in Hstep.
     destruct (nonZero wrcond.(lw)) eqn:Hnz.
     - destruct (lz_of_argument_dom regs rimm) as [imm Himm].
-      { intros x ->. apply Dregs. set_solver+. }
+      { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       assert (exec_opt (Jnz rimm rcond) pc_p φc = advancePC φc imm) as HH.
       { cbn. rewrite Hrcond /= Hnz'.
         by rewrite (lz_of_argument_incl R regs r _ imm). }
@@ -117,7 +117,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hne Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
     iDestruct (map_of_regs_1 with "Hrcond") as "Hmap".
     iApply (wp_Jnz with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
+    { by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | Hfail ].
@@ -156,7 +156,7 @@ Section griotte_lang_rules.
     destruct (IsLInt_inv _ _ Hwimm) as [πimm ->].
     iDestruct (map_of_regs_2 with "Hrimm Hrcond") as "[Hmap %]".
     iApply (wp_Jnz with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
+    { by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | Hfail ].
@@ -192,7 +192,7 @@ Section griotte_lang_rules.
     destruct (IsLInt_inv _ _ Hwcond) as [πcond ->].
     iDestruct (map_of_regs_1 with "Hrcond") as "Hmap".
     iApply (wp_Jnz with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
+    { by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero (WInt imm) = true).
@@ -227,15 +227,15 @@ Section griotte_lang_rules.
     destruct (IsLInt_inv _ _ Hwcond) as [πcond ->].
     iDestruct (map_of_regs_1 with "Hrcond") as "Hmap".
     iApply (wp_Jnz with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
+    { by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | Hfail ]; try incrementPC_inv; simplify_lmap_eq; eauto.
     { iApply "Hφ". iFrame.
       iRegsMap "Hmap"; eauto; iFrame. }
-    { destruct (decide (rcond = cnull)); cbn in *; done. }
+    { exfalso; unfold lnull in *; destruct (decide (rcond = cnull)); simplify_eq/=; congruence. }
     { destruct Hfail; simplify_lmap_eq; eauto; try congruence.
-      all: destruct (decide (rcond = cnull)); cbn in *; try done.
+      all: unfold lnull in *; destruct (decide (rcond = cnull)); simplify_eq/=; try done; try congruence.
       all: try incrementPC_inv as (?&?&?&?&?&?&?&?&?&?&?); simplify_lmap_eq; eauto; congruence.
     }
   Qed.
@@ -263,15 +263,15 @@ Section griotte_lang_rules.
     destruct (IsLInt_inv _ _ Hwcond) as [πcond ->].
     iDestruct (map_of_regs_2 with "Hrcond Hrimm") as "[Hmap %]".
     iApply (wp_Jnz with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    { by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
+    { by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
     iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | Hfail ]; try incrementPC_inv; simplify_lmap_eq; eauto.
     { iApply "Hφ". iFrame.
       iRegsMap "Hmap"; eauto; iFrame. }
-    { destruct (decide (rcond = cnull)); cbn in *; done. }
+    { exfalso; unfold lnull in *; destruct (decide (rcond = cnull)); simplify_eq/=; congruence. }
     { destruct Hfail; simplify_lmap_eq; eauto; try congruence.
-      all: destruct (decide (rcond = cnull)); cbn in *; try done.
+      all: unfold lnull in *; destruct (decide (rcond = cnull)); simplify_eq/=; try done; try congruence.
       all: try (try incrementPC_inv as (?&?&?&?&?&?&?&?&?&?&?); simplify_lmap_eq; eauto; congruence).
     }
   Qed.
