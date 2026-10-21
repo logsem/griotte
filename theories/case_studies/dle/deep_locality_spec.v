@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception_stub deep_locality.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception deep_locality.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
 From griotte Require Import dle_spec_states dle_spec_world
@@ -43,6 +43,7 @@ Section DLE.
 
     let imports := dle_main_imports C_f in
 
+    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio cgp_b cgp_e ->
@@ -104,7 +105,7 @@ Section DLE.
        - [dle_assert_blocks_4_spec]: blocks 3-5, assert that [b] is unchanged
          and halt. *)
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hrmap_dom Hrmap_init
+    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hrmap_dom Hrmap_init
                HsubBounds Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap
                Hframe_match
             )
@@ -169,6 +170,7 @@ Section DLE.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
@@ -226,6 +228,7 @@ Section DLE.
     { destruct mie'; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

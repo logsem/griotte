@@ -53,6 +53,7 @@ Section KVS_main_spec.
     in
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
 
+    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
@@ -113,7 +114,7 @@ Section KVS_main_spec.
   Proof.
     intros imports a_kvs_exp_tbl_cgp.
     subst imports a_kvs_exp_tbl_cgp.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
+    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
                Hframe_match
             )
@@ -247,7 +248,7 @@ Section KVS_main_spec.
              wcs0 (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e csp_b B_f stk_mem_B rmap_B Ws Cs
              ).
-    all: [> exact Hstk_shadow | exact Hstk_heap | solve_addr | solve_addr+Hstk_min
+    all: [> exact HNtrap | exact Hstk_shadow | exact Hstk_heap | solve_addr | solve_addr+Hstk_min
          | destruct mie; reflexivity
          | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
          | subst rmap_B;

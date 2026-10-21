@@ -1,4 +1,5 @@
 From griotte Require Import machine_parameters assembler.
+From griotte Require Import griotte_opsem.
 From griotte Require Export clear_stack clear_registers.
 
 Class switcherLayout : Type :=
@@ -64,6 +65,60 @@ Section Switcher.
   Definition TrustedStackFrame_offset_calleeExportTable : Z := 1.
   Definition TrustedStackFrame_offset_errorHandlerCount : Z := 2.
   Definition TrustedStackFrame_size : Z := 3.
+
+  (** The word of the register save area of the register xi: word i. *)
+  Definition TrustedStack_offset_reg (r : RegName) : Z :=
+    match r with registers.R n _ => Z.of_nat n end.
+
+  Lemma TrustedStack_offset_reg_named :
+    TrustedStack_offset_reg cra = TrustedStack_offset_cra ∧
+    TrustedStack_offset_reg csp = TrustedStack_offset_csp ∧
+    TrustedStack_offset_reg cgp = TrustedStack_offset_cgp ∧
+    TrustedStack_offset_reg ctp = TrustedStack_offset_ctp ∧
+    TrustedStack_offset_reg ct0 = TrustedStack_offset_ct0 ∧
+    TrustedStack_offset_reg ct1 = TrustedStack_offset_ct1 ∧
+    TrustedStack_offset_reg ct2 = TrustedStack_offset_ct2 ∧
+    TrustedStack_offset_reg cs0 = TrustedStack_offset_cs0 ∧
+    TrustedStack_offset_reg cs1 = TrustedStack_offset_cs1 ∧
+    TrustedStack_offset_reg ca0 = TrustedStack_offset_ca0 ∧
+    TrustedStack_offset_reg ca1 = TrustedStack_offset_ca1 ∧
+    TrustedStack_offset_reg ca2 = TrustedStack_offset_ca2 ∧
+    TrustedStack_offset_reg ca3 = TrustedStack_offset_ca3 ∧
+    TrustedStack_offset_reg ca4 = TrustedStack_offset_ca4 ∧
+    TrustedStack_offset_reg ca5 = TrustedStack_offset_ca5.
+  Proof. done. Qed.
+
+  (** CHERIoT's [trustedSpillRegisters]: spill the registers [regs], in
+      order, to the register save area of the trusted stack in [csp]. *)
+  Definition trusted_spill_registers_asm (regs : list RegName) : list asm_code :=
+    macro: ((λ r : RegName, store_imm csp r (TrustedStack_offset_reg r)) <$> regs).
+
+  (** CHERIoT's [trustedReloadRegisters]: reload the registers [regs], in
+      order, from the register save area of the trusted stack in [csp]. *)
+  Definition trusted_reload_registers_asm (regs : list RegName) : list asm_code :=
+    macro: ((λ r : RegName, load_imm r csp (TrustedStack_offset_reg r)) <$> regs).
+
+  Definition trusted_spill_registers (regs : list RegName) : list instr :=
+    (λ r : RegName, machine_instructions.Store csp (inr r) (TrustedStack_offset_reg r)) <$> regs.
+  Definition trusted_spill_registers_instrs (regs : list RegName) : list Word :=
+    encodeInstrsW (trusted_spill_registers regs).
+  Definition trusted_reload_registers (regs : list RegName) : list instr :=
+    (λ r : RegName, machine_instructions.CLoad r csp (TrustedStack_offset_reg r)) <$> regs.
+  Definition trusted_reload_registers_instrs (regs : list RegName) : list Word :=
+    encodeInstrsW (trusted_reload_registers regs).
+
+  (** The registers of the interrupted context that the exception entry
+      spills first: all but [csp], which is still in mtdc. *)
+  Definition exception_spill_regs : list RegName :=
+    [cra; cgp; ctp; ct0; ct1; ct2; cs0; cs1; ca0; ca1; ca2; ca3; ca4; ca5].
+
+  Lemma trusted_spill_registers_assembles :
+    asm_ok (assemble_check (trusted_spill_registers_asm exception_spill_regs)).
+  Proof. asm_check. Qed.
+
+  Lemma trusted_reload_registers_assembles :
+    asm_ok (assemble_check (trusted_reload_registers_asm exception_spill_regs)).
+  Proof. asm_check. Qed.
 
   (** The layout of an export table, counted in words: the PCC and the CGP
       of the compartment, the offsets of its stackful and stackless error
@@ -292,6 +347,7 @@ Section Switcher.
       (#".Lswitch_callee_dead_zeros"::clear_registers_post_call_asm)
       ; (* Return to caller  *)
       [ #".Lswitcher_return_to_caller";
+        #".Lswitch_just_return";
         ret ]
     ].
 
@@ -325,17 +381,6 @@ Section Switcher.
         #".Lcommon_thread_exit";
         halt
       ]
-      ; (* Exception entry: the faulting compartment's call is unwound as
-           by the forced unwind. The error code is returned in ca0, ca1 is
-           cleared, and the return routine pops the top trusted-stack frame
-           (or exits the thread at the entry frame). No register of the
-           faulting compartment is read. *)
-      [ #"exception_entry_asm";
-        mov ca0 ECOMPARTMENTFAIL;
-        mov ca1 0;
-        #".Lexception_entry_return";
-        jmp (".Lswitcher_after_compartment_call")%asm
-      ]
       ; (* The callee's stack is smaller than the minimum stack size of the
            entry point: the frame is already pushed, so the return routine
            pops it and returns to the caller. *)
@@ -347,10 +392,105 @@ Section Switcher.
       ]
     ].
 
+  Definition switcher_exception_asm : list (list asm_code) :=
+    [ (* Exception entry: swap the trusted stack in from mtdc. A null
+         mtdc means that the exception entry was re-entered. *)
+      [ #"exception_entry_asm";
+        specialrw csp mtdc csp;
+        jnz 2 csp;
+        jmp (".Lexception_reentered")%asm
+      ]
+      ; (* Spill the registers of the interrupted context in the register
+           save area, but the stack pointer. *)
+      (#".Lexception_spill_registers" :: trusted_spill_registers_asm exception_spill_regs)
+      ; (* Spill the interrupted stack pointer, from mtdc, which is
+           cleared, then the PC, mstatus and the cause of the trap. A cause
+           handled by the compartments (a CHERI fault or a cause below 8)
+           goes to [.Lhandle_error]; any other goes to the scheduler. *)
+      [ #".Lexception_exiting_threads_rejoin";
+        mov ct1 0;
+        specialrw ct1 mtdc ct1;
+        store_imm csp ct1 TrustedStack_offset_csp;
+        readsr ct0 mepcc;
+        store_imm csp ct0 TrustedStack_offset_mepcc;
+        csrr ct1 mstatus;
+        store_imm csp ct1 TrustedStack_offset_mstatus;
+        csrr ct1 mcause;
+        store_imm csp ct1 TrustedStack_offset_mcause;
+        mov ca0 MCAUSE_CHERI;
+        sub ca0 ca0 ct1;
+        jnz 2 ca0;
+        jmp (".Lhandle_error")%asm;
+        mov ca0 8;
+        lt ca0 ct1 ca0;
+        jnz (".Lhandle_error")%asm ca0;
+        jmp (".Lexception_scheduler_call")%asm
+      ]
+      ; (* A trap to be handled by the compartments: restore mtdc, then force
+         the unwind of the faulting compartment's call. A fault of the
+         switcher (whose PC has the base of the switcher's PC) goes to
+         [.Lhandle_error_in_switcher]. With no frame on the trusted stack,
+         the thread exits. *)
+      [ #".Lhandle_error";
+        writesr mtdc csp;
+        auipcc ct0 0;
+        load_imm ct1 csp TrustedStack_offset_mepcc;
+        getb ct0 ct0;
+        getb ctp ct1;
+        sub ct0 ct0 ctp;
+        jnz 2 ct0;
+        jmp (".Lhandle_error_in_switcher")%asm;
+        load_imm ct0 csp TrustedStack_offset_csp;
+        load_imm ctp csp TrustedStack_offset_frameoffset;
+        mov ct1 TrustedStack_offset_frames;
+        sub ct1 ctp ct1;
+        jnz 2 ct1;
+        jmp (".Lcommon_thread_exit")%asm;
+        jmp (".Lcommon_force_unwind")%asm
+      ]
+      ; (* A fault of the switcher. A fault of the first spill of the call
+           path (the callee-save registers do not fit on the caller's stack)
+           resumes the caller as if the call had returned [-ENOTENOUGHSTACK]:
+           the return values overwrite the saved [ca0] and [ca1], and the
+           context install resumes at [.Lswitch_just_return], a return to
+           [cra]. Any other fault of the switcher forces the unwind. *)
+      [ #".Lhandle_error_in_switcher";
+        auipcc ctp (".Lswitcher_entry_first_spill")%asm;
+        sub ct1 ct1 ctp;
+        jnz (".Lcommon_force_unwind")%asm ct1;
+        mov ca0 ENOTENOUGHSTACK;
+        mov ca1 0;
+        #".Lhandle_return_context_install";
+        auipcc ct2 (".Lswitch_just_return")%asm;
+        store_imm csp ca0 TrustedStack_offset_ca0;
+        store_imm csp ca1 TrustedStack_offset_ca1;
+        jmp (".Lcommon_context_install")%asm
+      ]
+      ; (* The exception entry was re-entered: stop the machine *)
+      [ #".Lexception_reentered";
+        halt
+      ]
+      ; (* A trap for the scheduler: stop the machine *)
+      [ #".Lexception_scheduler_call";
+        halt
+      ]
+      ; (* Install the context of the register save area, and resume it at
+           the PC in [ct2]: restore mstatus, write the PC to MEPCC, reload
+           the registers, the stack pointer last (it overwrites the trusted
+           stack), and return from the trap. *)
+      (#".Lcommon_context_install" ::
+         load_imm cra csp TrustedStack_offset_mstatus ::
+         csrw mstatus cra ::
+         writesr mepcc ct2 ::
+         trusted_reload_registers_asm (exception_spill_regs ++ [csp]) ++
+         [mret])
+    ].
+
   Definition switcher_asm : list (list asm_code) :=
     switcher_call_asm ++
     switcher_callback_asm ++
-    switcher_failure_asm.
+    switcher_failure_asm ++
+    switcher_exception_asm.
 
   Definition assembled_switcher :=
     Eval compute in assemble_block switcher_asm.
@@ -396,7 +536,9 @@ Section Switcher.
            number of frames. *)
         trusted_stack_frames_fit :
         ∃ n : nat,
-          (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack
+          (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack;
+        (* The trusted stack is not at address 0: mtdc is never null. *)
+        trusted_stack_base_nonzero : (b_trusted_stack : Z) ≠ 0
       }.
 
   Lemma switcher_base_not_heap

@@ -15,6 +15,7 @@ Section fundamental.
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
+    (trap_no_resume : LWord → Prop)
   .
 
   Implicit Types W : WORLD.
@@ -28,7 +29,7 @@ Section fundamental.
    Lemma mov_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
      (p p' : Perm) (g : Locality) (b e a : Addr)
      (w : LWord) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr W C regs p p' g b e a w (Mov dst src) ρ P cstk Ws Cs.
+    ftlr_instr trap_no_resume W C regs p p' g b e a w (Mov dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -45,7 +46,7 @@ Section fundamental.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+      iApply (ftlr_trap with "Htrap Hreg HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
     - incrementPC_inv as (t0 & p0 & g0 & b0 & e0 & a0 & a0' & π0 & ? & ? & ?); simplify_map_eq.
       iApply wp_pure_step_later; auto; iNext; iIntros "_".
 

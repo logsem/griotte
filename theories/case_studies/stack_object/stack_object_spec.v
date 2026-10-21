@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From griotte Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
 From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From griotte Require Import switcher_exception_stub.
+From griotte Require Import switcher_exception.
 From griotte Require Import stack_object.
 From griotte Require Import proofmode.
 From griotte Require Import stack_object_spec_states stack_object_spec_world_call
@@ -48,6 +48,7 @@ Section SO.
     let a_so_exp_tbl_cgp := (b_so_exp_tbl ^+ ExportTable_offset_cgp)%a in
     let a_so_entry_f := (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f)%a in
 
+    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow b_so_exp_tbl e_so_exp_tbl ->
     is_heap_address pc_b = false ->
@@ -107,7 +108,7 @@ Section SO.
        - [so_run_blocks_2_spec]: block 2, halt. *)
     intros imports a_so_exp_tbl_cgp a_so_entry_f.
     subst imports a_so_exp_tbl_cgp a_so_entry_f.
-    iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap
+    iIntros (HNtrap Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap
                Hsize_so_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hframe_match)
       "(#Hassert & #Hswitcher & #Hswitcher_static
@@ -162,6 +163,7 @@ Section SO.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

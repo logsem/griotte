@@ -6,7 +6,6 @@ From griotte Require Import
   lse lse_adequacy.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import image firmware firmware_ok image_state link lse_firmware.
-Set Mangle Names.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.

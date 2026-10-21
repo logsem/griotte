@@ -14,6 +14,7 @@ Section fundamental.
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
+    (trap_no_resume : LWord → Prop)
   .
 
   Implicit Types W : WORLD.
@@ -32,8 +33,8 @@ Section fundamental.
     (w : LWord) (ρ : region_type) (P : V) (Pinstr Q : Prop)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     (Q → Pinstr) →
-    ftlr_instr_base W C regs p p' g b e a w ρ P Pinstr cstk Ws Cs →
-    ftlr_instr_base W C regs p p' g b e a w ρ P Q cstk Ws Cs.
+    ftlr_instr_base trap_no_resume W C regs p p' g b e a w ρ P Pinstr cstk Ws Cs →
+    ftlr_instr_base trap_no_resume W C regs p p' g b e a w ρ P Q cstk Ws Cs.
   Proof.
     intros HQP H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked HQ.
     exact (H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked (HQP HQ)).
@@ -44,8 +45,8 @@ Section fundamental.
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_type) (P : V)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    (∀ i, ftlr_instr W C regs p p' g b e a w i ρ P cstk Ws Cs) →
-    ftlr_instr_base W C regs p p' g b e a w ρ P True cstk Ws Cs.
+    (∀ i, ftlr_instr trap_no_resume W C regs p p' g b e a w i ρ P cstk Ws Cs) →
+    ftlr_instr_base trap_no_resume W C regs p p' g b e a w ρ P True cstk Ws Cs.
   Proof.
     intros Hcases.
     apply (ftlr_instr_base_mono _ _ _ _ _ _ _ _ _ _ _ _ (decodeInstrW w.(lw) = decodeInstrW w.(lw)));
@@ -113,14 +114,14 @@ Section fundamental.
     iApply (interp_in_registers with "[Hreg] [H]"); eauto.
   Qed.
 
-  (* The premise [trap_vector_safe (lword_of_word mtcc_vec)] is discharged in
-     the switcher by [switcher_trap_vector_safe]
-     (switcher/switcher_exception_stub.v). *)
+  (* The premise [trap_vector_safe trap_no_resume (lword_of_word mtcc_vec)] is discharged in
+     the switcher by [switcher_mtcc_vec_safe]
+     (switcher/switcher_exception.v). *)
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)
     (b e a : Addr) (π : option AId) :
-    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+    ⊢ trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
       interp W C (WCap true p g b e a @@? π) →
       interp_expression W C (WCap true p g b e a @@? π).
   Proof.
@@ -136,7 +137,9 @@ Section fundamental.
       iApply (wp_notCorrectPC_trap with "HPC").
       { intro Hcontra ; destruct p ; inv Hcontra; congruence. }
       iDestruct "Hfull" as %Hfull.
-      iApply (interp_trap_safe with "Htrap [$Hmreg $Hworld_interp $Hcont $Hown $Hframe]"); done.
+      iApply (interp_trap_safe with "Htrap [Hreg] [$Hmreg $Hworld_interp $Hcont $Hown $Hframe]");
+        [done | done | | done].
+      iRight. by iApply (interp_reg_intro with "Hreg").
     }
     clear Hread_p.
 
@@ -149,12 +152,14 @@ Section fundamental.
       iApply ("IH'" with "[%] HPC Hcont Hown Htframe [%] Hregs Hmreg Hworld_interp Hinterp"); eauto.
     }
     iIntros "#Hinv_interp".
-    iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
+    iDestruct "Hfull" as %Hfull. iDestruct "Hreg" as "#Hreg".
     rewrite /registers_pointsto.
     destruct (decide (isCorrectPC (WCap true p g b e a))) as [HcorrectPC|] ; cycle 1.
     { (* Not correct PC *)
       iApply (wp_notCorrectPC_trap with "HPC"); first done.
-      iApply (interp_trap_safe with "Htrap [$Hmreg $Hworld_interp $Hcont $Hown $Hframe]"); done.
+      iApply (interp_trap_safe with "Htrap [] [$Hmreg $Hworld_interp $Hcont $Hown $Hframe]");
+        [done | done | | done].
+      iRight. by iApply (interp_reg_intro with "Hreg").
     }
 
     (* Correct PC *)
@@ -219,22 +224,24 @@ Section fundamental.
   Qed.
 
   Theorem fundamental W C w :
-    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+    ⊢ trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
       interp W C w -∗
       interp_expression W C w.
   Proof.
     iIntros "#Htrap Hw"; destruct w as [ [| [ [] p g b e a | ] | | ] π].
     2: { iApply (fundamental_cap with "Htrap"); done. }
     all: iIntros (cstk Ws Cs regs)
-           "([%Hfull _] & HPC & Hregs & Hworld_interp & Hcont & Hown & Hframe & %Hframe)".
+           "(#Hinterp_regs & HPC & Hregs & Hworld_interp & Hcont & Hown & Hframe & %Hframe)".
+    all: iPoseProof "Hinterp_regs" as "[%Hfull _]".
     all: iApply (wp_notCorrectPC_trap with "HPC"); first by inversion 1.
-    all: iApply (interp_trap_safe with "Htrap [$Hregs $Hworld_interp $Hcont $Hown $Hframe]"); done.
+    all: iApply (interp_trap_safe with "Htrap [] [$Hregs $Hworld_interp $Hcont $Hown $Hframe]");
+      [done | done | iRight; iExact "Hinterp_regs" | done].
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
   Lemma interp_exec_cond W C p g b e a π :
     executeAllowed p = true ->
-    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+    ⊢ trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
       interp W C (WCap true p g b e a @@? π) -∗
       exec_cond W C p g b e π interp.
   Proof.
@@ -280,7 +287,7 @@ Section fundamental.
   Qed.
 
   Lemma fundamental_ih :
-    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+    ⊢ trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
       ftlr_IH.
   Proof.
     iIntros "#Htrap".
@@ -292,7 +299,7 @@ Section fundamental.
   Qed.
 
   Lemma jmp_or_fail_spec W C (w : LWord) φ :
-    ⊢ trap_vector_safe (lword_of_word mtcc_vec) -∗
+    ⊢ trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
     (interp W C w
      -∗ (if decide (isCorrectPC (updatePcPerm w.(lw)))
          then

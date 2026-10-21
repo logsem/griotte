@@ -673,6 +673,7 @@ Section adversary_exports.
     (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
+    Nswitcher ## N_trap →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
@@ -685,7 +686,7 @@ Section adversary_exports.
     interp W C (cmpt_cgp_cap C_cmpt) -∗
     ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a)).
   Proof.
-    intros Hi Ha Hargs Hentry_some.
+    intros Hi Ha Hargs Hentry_some HNtrap.
     iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Heh #Hehs #Hentries #Hinterp_pcc #Hinterp_cgp".
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
     pose proof (cmpt_exp_tbl_header_size C_cmpt) as Hheader.
@@ -695,7 +696,7 @@ Section adversary_exports.
     rewrite Ha.
     iApply (ot_switcher_interp _ _ _ Global _ posture args minstk off eh ehs with
               "Hswitcher Hswitcher_static Hpcc Hcgp Heh Hehs Hentry_inv Hinterp_pcc Hinterp_cgp");
-      [solve_addr|lia|done].
+      [solve_addr|lia|done|done].
   Qed.
 
   (** The [i]-th sealed entry of the export table of an adversary [C_cmpt]
@@ -728,6 +729,7 @@ Section adversary_exports.
          WInt (encode_entry_point e.1.1.1 e.1.1.2 e.1.2 e.2)) <$> exports →
     Forall (λ e, e.1.1.2 < 7) exports →
     Forall (λ e : InterruptStatus * nat * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
+    Nswitcher ## N_trap →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
@@ -741,7 +743,7 @@ Section adversary_exports.
         interp W C (cmpt_cgp_cap C_cmpt) -∗
         ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a))).
   Proof.
-    intros Htbl Hargs Hentries_some.
+    intros Htbl Hargs Hentries_some HNtrap.
     iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Heh #Hehs #Hentries !>"
       (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
@@ -753,6 +755,7 @@ Section adversary_exports.
     - done.
     - by apply (Forall_lookup_1 _ _ _ _ Hargs He).
     - by apply (Forall_lookup_1 _ _ _ _ Hentries_some He).
+    - done.
   Qed.
 
 End adversary_exports.
@@ -773,13 +776,14 @@ Section adversary_imports.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
 
   Lemma switcher_call_import_safe (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
+    Nswitcher ## N_trap ->
     let w := lword_of_word (WSentry FwdDisable true XSRW_ Local
                switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     interp_in_memC (W, C, w) ∗ future_priv_mono C interp_in_memC w.
   Proof.
-    intros w; subst w.
+    intros HNtrap w; subst w.
     iIntros "#Hswitcher #Hswitcher_static".
     assert (heap_authority_base
               (WSentry FwdDisable true XSRW_ Local

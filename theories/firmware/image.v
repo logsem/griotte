@@ -1,6 +1,5 @@
 From stdpp Require Import strings.
 From griotte Require Import machine_base.
-Set Mangle Names.
 
 (** * Firmware images: the memory layout
 

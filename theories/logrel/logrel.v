@@ -1080,79 +1080,66 @@ Section logrel.
     interp_expr interp interp_continuation.
   Definition interp_registers : R := interp_reg interp.
 
-  (** The trivial register interpretation: every word is accepted. *)
-  Program Definition interp_any : V := λne _ _ _, True%I.
-  Solve All Obligations with solve_proper.
-
-  (** The trap vector [wvec] is safe: in every world and compartment,
-      execution from [wvec] is safe whatever the registers hold. *)
-  Definition trap_vector_safe (wvec : LWord) : iProp Σ :=
-    □ ∀ W C, interp_expr interp_any interp_continuation W C wvec.
-
-  #[global] Instance trap_vector_safe_persistent wvec :
-    Persistent (trap_vector_safe wvec).
-  Proof. rewrite /trap_vector_safe. apply _. Qed.
-
-  (** The explicit form of [trap_vector_safe]: from [wvec], with a full
-      register file, the world, the caller's continuation and the call
-      stack, execution is safe. *)
-  Lemma trap_vector_safe_unfold (wvec : LWord) :
-    trap_vector_safe wvec ⊣⊢
+  (** The trap vector [wvec] is safe: in every world and compartment, after
+      trap entry from any PC [w], execution from [wvec] is safe. The
+      registers may hold anything when the trap vector does not resume the
+      faulting context ([trap_no_resume w]); otherwise they are safe. Trap
+      entry lends MEPCC and mcause to the trap vector ([trap_entry_out w])
+      and holds the trap-entry part [N_trap] of the non-atomic token. *)
+  Definition trap_vector_safe (trap_no_resume : LWord → Prop) (wvec : LWord) : iProp Σ :=
     □ ∀ (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-        (regs : LReg),
+        (regs : LReg) (w : LWord),
       ⌜∀ r, is_Some (regs !! r)⌝ -∗
       ⌜frame_match Ws Cs cstk W C⌝ -∗
+      (⌜trap_no_resume w⌝ ∨ interp_reg interp W C regs) -∗
       PC ↦ₚ wvec -∗
+      trap_entry_out w -∗
       registers_pointsto regs -∗
       world_interp W C -∗
       interp_continuation cstk Ws Cs -∗
-      na_own cerise_nais ⊤ -∗
+      na_own cerise_nais (⊤ ∖ ↑N_trap) -∗
       cstack_frag cstk -∗
       interp_conf W C.
-  Proof.
-    rewrite /trap_vector_safe /interp_expr /interp_reg /full_map /=.
-    iSplit; iIntros "#Hsafe !>".
-    - iIntros (W C cstk Ws Cs regs Hfull Hframe) "HPC Hregs Hworld Hcont Hna Hcstk".
-      iApply ("Hsafe" $! W C cstk Ws Cs regs); iFrame "∗ %".
-      by iIntros.
-    - iIntros (W C cstk Ws Cs regs)
-        "([Hfull _] & HPC & Hregs & Hworld & Hcont & Hna & Hcstk & %Hframe)".
-      iDestruct "Hfull" as %Hfull.
-      iApply ("Hsafe" with "[//] [//] HPC Hregs Hworld Hcont Hna Hcstk").
-  Qed.
+
+  #[global] Instance trap_vector_safe_persistent trap_no_resume wvec :
+    Persistent (trap_vector_safe trap_no_resume wvec).
+  Proof. rewrite /trap_vector_safe. apply _. Qed.
 
   (** A fault closes through a safe trap vector: after exception entry, the
-      PC holds the trap vector and execution is safe. No register needs to be
-      safe. *)
-  Lemma interp_trap
+      PC holds the trap vector and execution is safe. The registers need to
+      be safe only when the trap vector may resume the faulting context. *)
+  Lemma interp_trap (trap_no_resume : LWord → Prop)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (regs : LReg) (wvec : LWord) :
+    (regs : LReg) (wvec w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
-    trap_vector_safe wvec -∗
+    trap_vector_safe trap_no_resume wvec -∗
+    (⌜trap_no_resume w⌝ ∨ interp_reg interp W C regs) -∗
     registers_pointsto regs -∗
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
-    na_own cerise_nais ⊤ -∗
+    na_own cerise_nais (⊤ ∖ ↑N_trap) -∗
     cstack_frag cstk -∗
+    trap_entry_out w -∗
     (PC ↦ₚ wvec -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}).
   Proof.
-    iIntros (Hfull Hframe) "Hsafe Hregs Hworld Hcont Hna Hcstk HPC".
-    rewrite trap_vector_safe_unfold.
-    iApply ("Hsafe" with "[//] [//] HPC Hregs Hworld Hcont Hna Hcstk").
+    iIntros (Hfull Hframe) "#Hsafe Hres Hregs Hworld Hcont Hna Hcstk Hout HPC".
+    iApply ("Hsafe" with "[//] [//] Hres HPC Hout Hregs Hworld Hcont Hna Hcstk").
   Qed.
 
   (** The fault obligation from a safe trap vector [mtcc_vec]: trap entry
       leads to the trap vector, where execution is safe. The resources come
       under an update at the time of the fault (for instance, to close an
-      invariant); the non-atomic token provides the trap-entry token, which
-      comes back with MEPCC and mcause after trap entry. *)
-  Lemma interp_trap_safe
+      invariant); the non-atomic token provides the trap-entry token, and
+      the trap vector receives MEPCC and mcause. The registers need to be
+      safe only when the trap vector may resume the faulting context. *)
+  Lemma interp_trap_safe (trap_no_resume : LWord → Prop)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
-    trap_vector_safe (lword_of_word mtcc_vec) -∗
+    trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
+    (⌜trap_no_resume w⌝ ∨ interp_reg interp W C regs) -∗
     (|={⊤}=>
        registers_pointsto regs ∗
        world_interp W C ∗
@@ -1161,18 +1148,13 @@ Section logrel.
        cstack_frag cstk) -∗
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
-    iIntros (Hfull Hframe) "Hsafe Hres".
+    iIntros (Hfull Hframe) "Hsafe Hno_resume Hres".
     iApply trap_safe_entry_intro.
     iSplit; last by iIntros "!> %Hv".
-    (* The trap-entry token, from the non-atomic token; it comes back with
-       MEPCC and mcause after trap entry. *)
     iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk)".
     iDestruct (trap_entry_res_split ⊤ with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
-    iApply (wp_trap_entry_out_return with "Hout"); first done.
-    iIntros "Htok".
-    iDestruct (trap_entry_res_split ⊤ with "[$Htok $Hna]") as "Hna"; first done.
-    by iApply (interp_trap with "Hsafe Hregs Hworld Hcont Hna Hcstk HPC").
+    by iApply (interp_trap with "Hsafe Hno_resume Hregs Hworld Hcont Hna Hcstk Hout HPC").
   Qed.
 
   Lemma interp_untagged_eq W C w :
@@ -1308,6 +1290,17 @@ Section logrel.
     - apply _.
     - destruct sb as [t p g b e' a | t p g b e' a];
         destruct t; cbn in Htag; try discriminate; apply _.
+  Qed.
+
+  (** A full register file of safe words is safe up to the world's filter. *)
+  Lemma interp_reg_intro W C (regs : LReg) :
+    (∀ r, is_Some (regs !! r)) →
+    (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    interp_reg interp W C regs.
+  Proof.
+    iIntros (Hfull) "#Hregs".
+    iSplit; first (iIntros (r); iPureIntro; apply Hfull).
+    iIntros (r v Hv). iApply interp_filter_heap. by iApply "Hregs".
   Qed.
 
   #[global] Instance interp_in_mem_pre_persistent W C p w :

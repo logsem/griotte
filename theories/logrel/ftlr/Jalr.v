@@ -13,6 +13,7 @@ Section fundamental.
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
+    (trap_no_resume : LWord → Prop)
   .
 
   Implicit Types W : WORLD.
@@ -28,7 +29,7 @@ Section fundamental.
   Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName):
-    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs.
+    ftlr_instr trap_no_resume W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -44,7 +45,7 @@ Section fundamental.
     1,2: assert (ρ = Temporary ∨ ρ = Permanent) as Hρ by (destruct ρ; auto; contradiction);
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto;
-      iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+      iApply (ftlr_trap with "Htrap Hreg HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
 
     (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
     iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
@@ -101,14 +102,14 @@ Section fundamental.
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC_tag with "HPC"); first done.
         iNext; iIntros "HPC /=".
-        iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+        iApply (ftlr_trap with "Htrap Hreg' HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
       }
       destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
         iNext; iIntros "HPC /=".
-        iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+        iApply (ftlr_trap with "Htrap Hreg' HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
       }
 
       destruct_word wsrc; try destruct t; cbn in Hwsrc; try discriminate.
@@ -140,7 +141,7 @@ Section fundamental.
     all: iApply (wp_bind (fill [SeqCtx])).
     all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].
     all: iNext; iIntros "HPC /=".
-    all: iApply (ftlr_trap with "Htrap HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+    all: iApply (ftlr_trap with "Htrap Hreg' HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
   Qed.
 
 End fundamental.

@@ -1,7 +1,6 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import machine_base.
 From griotte Require Import compartment_layout.
-Set Mangle Names.
 
 (** * Firmwares: the abstract description of a firmware image
 

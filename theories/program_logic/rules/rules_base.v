@@ -781,18 +781,6 @@ Section griotte_lang_rules.
     iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
   Qed.
 
-  (** The return, from the resources of trap entry. *)
-  Lemma wp_trap_entry_out_return E e Φ w :
-    to_val e = None →
-    trap_entry_out w -∗
-    (trap_entry_res -∗ WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    rewrite trap_entry_out_unseal trap_entry_res_unseal.
-    iIntros (He) "[Hmepcc (%c & _ & Hmcause)] HΦ".
-    iApply (wp_trap_entry_return with "Hmepcc Hmcause HΦ"); done.
-  Qed.
-
   (* The obligation of a fault from the PC [w]: either, under an update at
      the time of the fault, the trap-entry token and the continuation from
      the trap vector [mtcc_vec], or the postcondition of a stopped machine.

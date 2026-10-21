@@ -50,6 +50,7 @@ Section LSE.
     disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
     is_heap_address pc_b = false ->
     Nswitcher ## Nlse ->
+    Nswitcher ## N_trap ->
     (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
     (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
@@ -82,7 +83,7 @@ Section LSE.
     intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
     subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap
-               HNswitcher_lse
+               HNswitcher_lse HNtrap
                Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main

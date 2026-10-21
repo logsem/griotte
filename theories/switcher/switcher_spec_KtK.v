@@ -3,7 +3,7 @@ From griotte Require Import logrel memory_region rules proofmode.
 From griotte Require Export switcher switcher_preamble.
 From griotte Require Import
   switcher_spec_KtK_call switcher_spec_KtK_return switcher_load_spec
-  switcher_exception_stub.
+  switcher_exception.
 From griotte Require Import map_simpl register_tactics.
 
 
@@ -22,9 +22,10 @@ Section Switcher_KtK.
       in the case of known-to-known cross-compartment calls.
       [P] is the precondition of the callee,
       and [Q] is the postcondition, parameterised by the returned values.
-      When [may_fault] holds, the callee may fault: its continuation also
-      covers the exception entry of the switcher, which returns
-      ECOMPARTMENTFAIL to the caller.
+      When [may_fault] holds, the callee may fault (at a PC that the
+      exception path does not resume): its continuation also covers the
+      exception entry of the switcher, which returns ECOMPARTMENTFAIL to the
+      caller.
       The callee's stack is at least its minimum stack size [minstk].
 
       The machine frame records only the saved words. The allocator owns all
@@ -81,6 +82,7 @@ Section Switcher_KtK.
        returns ECOMPARTMENTFAIL to the caller *)
     let fault_cont :=
       (∀ (wpc : LWord),
+         ⌜ trap_no_resume wpc ⌝ -∗
          (|={⊤}=>
             ∃ (rmap_ret : LReg) (stk_mem_ret : list LWord),
               ⌜ dom rmap_ret =
@@ -236,6 +238,7 @@ Section Switcher_KtK.
     is_heap_address bcgp_tgt = false ->
     ↑Nswitcher ⊆ E ->
     ↑N_trap ⊆ E ->
+    Nswitcher ## N_trap ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt < a_tbl_cgp)%a ->
     (a_tbl_ehs < atbl_tgt)%a ->
@@ -286,7 +289,7 @@ Section Switcher_KtK.
     subst returned stack_exhausted callee_faulted.
     iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow
              Hbpcc_nonheap Hbcgp_nonheap
-             HE HEtrap Hatbl Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
+             HE HEtrap HNtrap Hatbl Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".
@@ -367,19 +370,31 @@ Section Switcher_KtK.
       }
       (* The callee faults: the exception entry returns ECOMPARTMENTFAIL *)
       destruct may_fault; last done.
-      iIntros (wpc) "Hres".
-      iApply (trap_safe_exception_entry E with "Hstatic"); first done.
-      iMod "Hres" as "(%rmap_ret & %stk_mem_ret & %Hrmap_ret & Hna & Hcgp & Hcra & Hcs0 & Hcs1
-                       & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk)".
-      iModIntro; iFrame "Hna Hca0 Hca1".
-      iIntros "(HPC & Hca0 & Hca1 & Hna)".
-      iApply (switcher_cc_specification_return_known_to_known
+      iIntros (wpc Hno_resume) "Hres".
+      iApply (trap_safe_exception_entry Nswitcher E with "Hswitcher Hstatic");
+        [done | done | done | done |].
+      iMod "Hres" as "(%rmap_ret & %stk_mem_ret & %Hrmap_ret & Hna & [%wcgp Hcgp] & [%wcra Hcra]
+                       & [%wcs0 Hcs0] & [%wcs1 Hcs1] & Hcsp & [%wca0 Hca0] & [%wca1 Hca1] & Hregs
+                       & Hstk & Hcstk)".
+      iModIntro.
+      iInsertList "Hregs" [cgp;cra;cs0;cs1;csp;ca0;ca1].
+      iExists _. iFrame "Hna Hregs".
+      iSplit.
+      { iPureIntro. intros r. apply elem_of_dom. rewrite !dom_insert_L Hrmap_ret.
+        pose proof (all_registers_s_correct r). set_solver. }
+      iIntros (rmap_fault Hfull_rmap_fault Hca0' Hca1') "HPC Hrmap_fault Hna".
+      rewrite /registers_pointsto.
+      getRegValList [cgp;cra;cs0;cs1;csp].
+      iExtractList "Hrmap_fault" [cgp;cra;cs0;cs1;csp;ca0;ca1]
+        as ["Hcgp";"Hcra";"Hcs0";"Hcs1";"Hcsp";"Hca0";"Hca1"].
+      iApply (switcher_cc_specification_return_known_to_known_gen
                 Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
-                (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret rmap_ret cstk btbl_tgt E
+                (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret _ cstk btbl_tgt E
                 with
                 "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
-                  $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk Hpost]");
-        [exact Hstk_heap|exact Hstk_shadow|exact HE|exact Hrmap_ret|].
+                  $Hcsp $Hca0 $Hca1 $Hrmap_fault $Hstk $Hcstk Hpost]");
+        [exact Hstk_heap | exact Hstk_shadow | exact HE | |].
+      { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap_fault). set_solver. }
       iNext.
       iIntros (rmap_final rcgp rcra rcs0 rcs1)
         "(%Hrestored & %Hrmap_final & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1

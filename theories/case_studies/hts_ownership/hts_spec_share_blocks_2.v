@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception_stub.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
@@ -39,6 +39,7 @@ Section HTS_Spec_Share.
     csp_b csp_e C_f owner_a W_init_C Ws Cs []).
 
   Lemma hts_spec_share :
+    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
@@ -55,7 +56,7 @@ Section HTS_Spec_Share.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
+    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
       HsubBounds Himports_contiguous Hheap_empty) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -250,6 +251,7 @@ Section HTS_Spec_Share.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_share).
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

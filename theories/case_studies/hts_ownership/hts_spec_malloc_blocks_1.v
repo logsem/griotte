@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
 From griotte Require Import fetch_spec assert_spec switcher_spec_call.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
-From griotte Require Import switcher_spec_KtK switcher_spec_KtK_call switcher_exception_stub.
+From griotte Require Import switcher_spec_KtK switcher_spec_KtK_call switcher_exception.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
@@ -41,6 +41,7 @@ Section HTS_Spec_Malloc.
     csp_b csp_e C_f owner_a W_init_C Ws Cs []).
 
   Lemma hts_spec_malloc (rmap : LReg) :
+    Nswitcher ## N_trap ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
     is_heap_address owner_a = false ->
@@ -71,7 +72,7 @@ Section HTS_Spec_Malloc.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
+    iIntros (HNtrap Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
       Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hstk_min Hrmap_dom HsubBounds
       Himports_contiguous)
       "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hrmap & Hstatic & Howner & Hworld
@@ -244,6 +245,7 @@ Section HTS_Spec_Malloc.
     { exact hts_allocator_cgp_not_heap. }
     { solve_ndisj. }
     { solve_ndisj. }
+    { exact HNtrap. }
     { rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { solve_addr. }
     { rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }

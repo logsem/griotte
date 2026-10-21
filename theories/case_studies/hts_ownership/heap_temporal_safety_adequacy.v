@@ -19,7 +19,6 @@ From griotte.case_studies.hts_ownership Require Import
 From griotte.allocators.ownership Require Import
   allocator allocator_preamble allocator_resource_spec allocator_malloc_safe allocator_free_safe
   allocator_adequacy.
-Set Mangle Names.
 
 Section hts_obligations.
   Context {Σ : gFunctors}.
@@ -58,7 +57,8 @@ Section hts_obligations.
     pose proof (fw_cmpts_disjoint_at _ _ _ 0 2 _ _ Hmain_l HB_l Hok ltac:(done) eq_refl eq_refl)
       as HmainB.
     pose proof (fw_switcher_cmpt_disjoint_at _ _ _ Hok 0 _ Hmain_l eq_refl) as Hsw_main.
-    cbn [fc_name] in Hmain_l, Halloc_l, HB_l, HmainB, Hsw_main.
+    pose proof (fw_switcher_cmpt_disjoint_at _ _ _ Hok 1 _ Halloc_l eq_refl) as Hsw_alloc.
+    cbn [fc_name] in Hmain_l, Halloc_l, HB_l, HmainB, Hsw_main, Hsw_alloc.
     set (main_cmpt := layout_cmpt_of (cmpt_of img "main") Hmain_l) in *.
     set (alloc_cmpt := layout_cmpt_of (cmpt_of img "allocator") Halloc_l) in *.
     set (B_cmpt := layout_cmpt_of (cmpt_of img "B") HB_l) in *.
@@ -81,6 +81,14 @@ Section hts_obligations.
     assert allocatorLayoutWf as allocwf.
     { by apply img_allocator_layout_wf. }
     fw_fold_cmpt main_cmpt. fw_fold_cmpt alloc_cmpt. fw_fold_cmpt B_cmpt.
+    (* The allocator's code is outside the switcher's: its faults are not
+       resumed by the exception path *)
+    assert (allocator_pcc_b ≠ switcher.b_switcher) as Halloc_switcher.
+    { apply (switcher_cmpt_disjoint_pcc_b alloc_cmpt swc Hsw_alloc).
+      pose proof allocator_size_imports as Himports_size.
+      pose proof allocator_size_code as Hcode_size.
+      cbn in Himports_size, Hcode_size |- *.
+      solve_addr. }
     (* 3 - The export entries, imported by main and B *)
     set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
                   (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry hts_B_entry_adv)%a).
@@ -162,8 +170,11 @@ Section hts_obligations.
            with "Hseal_switcher [] Hworld_B")
       as "(Hworld_B & #Hseal_alloc)"; [by repeat constructor | done | |].
     { iModIntro. iSplit; last iSplit; last done.
-      - iApply (malloc_entry_point_spec Global _ B fw_switcherN); iFrame "#".
-      - iApply (free_entry_point_spec Global _ B fw_switcherN); first solve_ndisj.
+      - iApply (malloc_entry_point_spec Global _ B fw_switcherN);
+          [exact fw_switcherN_trap_disj | exact Halloc_switcher |].
+        iFrame "#".
+      - iApply (free_entry_point_spec Global _ B fw_switcherN);
+          [solve_ndisj | exact fw_switcherN_trap_disj | exact Halloc_switcher |].
         iFrame "#". }
     set (W1 := <o[ switcher.ot_switcher := exports_words [malloc_f; free_f] ]o> fw_world0).
 
@@ -254,6 +265,7 @@ Section hts_obligations.
     { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { rewrite /fw_switcherN /Nallocator_service; solve_ndisj. }
+    { exact fw_switcherN_trap_disj. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply (main_cgp_not_in_adv_world Temporary W1' swc main_cmpt B_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.

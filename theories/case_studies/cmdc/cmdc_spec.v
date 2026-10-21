@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel rules monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception_stub cmdc.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception cmdc.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
 From griotte Require Import cmdc_spec_states cmdc_spec_world
@@ -46,6 +46,7 @@ Section CMDC.
 
     let imports := cmdc_main_imports B_f C_g in
 
+    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_mmio_address cgp_b = false ->
@@ -136,7 +137,7 @@ Section CMDC.
          [b] is unchanged,
        - [cmdc_halt_blocks_5_spec]: block 10, halt. *)
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
+    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
@@ -204,6 +205,7 @@ Section CMDC.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
@@ -281,6 +283,7 @@ Section CMDC.
     { destruct mie'; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
@@ -337,6 +340,7 @@ Section CMDC.
 
     let imports := cmdc_main_imports B_f C_g in
 
+    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_mmio_address cgp_b = false ->
@@ -404,7 +408,7 @@ Section CMDC.
       ⊢ WP Seq (Instr Executable) {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
+    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap

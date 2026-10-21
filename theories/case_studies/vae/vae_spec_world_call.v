@@ -249,6 +249,7 @@ Section VAE_World_Call.
       registers are cleared, and [ct0] is the entry point of the
       switcher. *)
   Lemma vae_call_args W C (Nswitcher : namespace) (rmap : LReg) :
+    Nswitcher ## N_trap ->
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
@@ -263,7 +264,7 @@ Section VAE_World_Call.
       ([∗ map] rarg↦warg ∈ vae_call_adv_arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg) ∗
       ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
   Proof.
-    iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 Hca1 Hct0 Hrmap".
+    iIntros (HNtrap Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 Hca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".
     { apply Hzero; set_solver+. }
     iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]".
@@ -279,7 +280,7 @@ Section VAE_World_Call.
       set_solver+. }
     iAssert (interp W C (WInt 0)) as "#Hint"; first iApply interp_int.
     iAssert (interp W C vae_switcher_entry) as "#Hentry".
-    { iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]"). }
+    { iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]"); done. }
     rewrite /vae_call_adv_arg_rmap.
     repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
     done.

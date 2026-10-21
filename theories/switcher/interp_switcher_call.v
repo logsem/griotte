@@ -7,12 +7,36 @@ From griotte Require Import wp_rules_interp switcher_macros_spec.
 From griotte Require Import rules proofmode monotone.
 From griotte Require Import fundamental.
 From griotte Require Import switcher_preamble.
-From griotte Require Import interp_switcher_return switcher_exception_stub switcher_helpers.
+From griotte Require Import interp_switcher_return switcher_exception switcher_helpers.
 From griotte Require Import switcher_call_states switcher_call_world
   switcher_call_blocks_1 switcher_call_blocks_2 switcher_call_blocks_3 switcher_call_blocks_4
   switcher_call_blocks_5 switcher_call_blocks_6.
 From griotte Require Import map_simpl register_tactics proofmode.
 
+
+(** The register file at a fault of the first spill of the call path is
+    safe: the checks leave integers in [ct2] and [ctp], and the other
+    registers hold the caller's safe words. [Hfull] states that the
+    caller's register map [regs] is full, and the Iris hypothesis [Hreg]
+    that its words are safe ([∀ r v, ⌜regs !! r = Some v⌝ → interp W C v]). *)
+Ltac first_spill_regs_interp Hfull Hreg :=
+  iRight;
+  iApply interp_reg_intro;
+  [intros ?; repeat (rewrite lookup_insert_is_Some'; right); apply Hfull |];
+  let r := fresh "r" in
+  let v := fresh "v" in
+  let Hv := fresh "Hv" in
+  iIntros (r v Hv);
+  destruct (decide (r = ct2)) as [-> | ?]; [simplify_map_eq; iApply interp_int |];
+  destruct (decide (r = ctp)) as [-> | ?]; [simplify_map_eq; iApply interp_int |];
+  iApply (Hreg $! r v); iPureIntro;
+  destruct (decide (r = csp)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = cs0)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = cs1)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = cra)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = cgp)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = ct1)) as [-> | ?]; [by simplify_map_eq |];
+  by simplify_map_eq.
 
 Section fundamental.
   Context
@@ -46,6 +70,7 @@ Section fundamental.
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    Nswitcher ## N_trap ->
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
     (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
@@ -76,13 +101,14 @@ Section fundamental.
     (* Outline of the proof: [switcher_call_block_18_spec] executes block 18,
        then close the switcher invariant and run the return routine
        ([switcher_return_unwind]) with the integer return values. *)
-    iIntros (Hfull_rmap Hframe Hlen_cstk Ha_tstk_e Hot_bounds)
+    iIntros (HNtrap Hfull_rmap Hframe Hlen_cstk Ha_tstk_e Hot_bounds)
       "(#Hinv_switcher & Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hframeoffset & HthreadID
       & Htstk & #Hstatic
       & Hcstk_full & Hstk_interp & #Hp_ot_switcher & HPC & Hrmap
       & Hworld_interp & Hcont & Hcstk)".
     iPoseProof "Hstatic" as "[#Hcode _]".
-    iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hstatic]") as "#Htrap".
+    iPoseProof (switcher_mtcc_vec_safe Nswitcher HNtrap with "[$Hinv_switcher $Hstatic]")
+      as "#Htrap".
     rewrite /registers_pointsto.
     getRegValList [ca0;ca1].
     iExtractList "Hrmap" [ca0;ca1] as ["Hca0";"Hca1"].
@@ -102,7 +128,7 @@ Section fundamental.
 
   (** Failure path of [interp_expr_switcher_call]: the trusted stack is
       exhausted. *)
-  Lemma interp_switcher_call_tstack_exhausted
+  Lemma interp_switcher_call_tstack_exhausted (no_resume : LWord → Prop)
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (rmap : LReg) (b e a : Addr) (lv : list LWord)
@@ -121,7 +147,7 @@ Section fundamental.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
-    trap_vector_safe (lword_of_word mtcc_vec) ∗
+    trap_vector_safe no_resume (lword_of_word mtcc_vec) ∗
     interp W C wcs0 ∗
     interp W C wcs1 ∗
     interp W C wcra ∗
@@ -210,6 +236,7 @@ Section fundamental.
   Qed.
 
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
+    Nswitcher ## N_trap ->
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static
     ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
@@ -239,11 +266,12 @@ Section fundamental.
          push the frame and [switcher_call_stack_too_small_unwind];
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs0 [Hregs (HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros (HNtrap) "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs0 [Hregs (HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
     iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
     iIntros (regs) "%Hfull_rmap #Hreg Hrmap Hworld_interp". clear regs0.
     rewrite /registers_pointsto.
-    iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hstatic]") as "#Htrap".
+    iPoseProof (switcher_mtcc_vec_safe Nswitcher HNtrap with "[$Hinv_switcher $Hstatic]")
+      as "#Htrap".
     iPoseProof (fundamental_ih with "Htrap") as "IH". (* used for weakening lemma later *)
     iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _)".
 
@@ -327,7 +355,7 @@ Section fundamental.
                "[$Hinv_switcher $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID
                  $Htstk $Hstatic
                  $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hrmap
-                 $Hworld_interp $Hcont $Hcstk]"); [|done..].
+                 $Hworld_interp $Hcont $Hcstk]"); [done| |done..].
              intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
            (* The first store faults, and nothing is written: close the
               switcher invariant, and unwind the call *)
@@ -338,8 +366,11 @@ Section fundamental.
            iApply (switcher_call_blocks_2_fail_spec with "[- $HPC $Hcsp $Hcgp $Hcode]"); [done | done |].
            iIntros "[Hcsp Hcgp]".
            iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-           iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [|done|by iFrame].
-           intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+           iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]");
+             [done| |done| |by iFrame].
+           { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+           (* A fault of the first spill: the registers are safe *)
+           first_spill_regs_interp Hfull_rmap "Hreg". }
          (* The cursor is below the base, and the furthest cell within
             bounds: open the caller's stack from that cell *)
          destruct (Hnot_stk b e a eq_refl) as [Hab|Hea]; last solve_addr.
@@ -364,7 +395,7 @@ Section fundamental.
              "[$Hinv_switcher $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID
                $Htstk $Hstatic
                $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hrmap
-               $Hworld_interp $Hcont $Hcstk]"); [|done..].
+               $Hworld_interp $Hcont $Hcstk]"); [done| |done..].
            intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
          (* The first store writes [cgp] in the caller's stack, and the
             second one faults: close the switcher invariant and the caller's
@@ -386,8 +417,11 @@ Section fundamental.
          { iApply big_sepL_cons; iSplitR; first (iRight; iExact "Hcgpv").
            iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
          iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-         iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [|done|by iFrame].
-         intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+         iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]");
+           [done| |done| |by iFrame].
+         { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+         (* A fault of the second store of the spill is not resumed *)
+         iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
     iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_mmio Hstk_heap]; first done.
 
     (* Open the caller's stack frame, before the checks: the opened
@@ -411,7 +445,7 @@ Section fundamental.
         "[$Hinv_switcher $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID $Htstk
           $Hstatic
           $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hrmap
-          $Hworld_interp $Hcont $Hcstk]"); [|done..].
+          $Hworld_interp $Hcont $Hcstk]"); [done| |done..].
       intros r. rewrite !lookup_insert_is_Some'. naive_solver.
     }
 
@@ -430,12 +464,14 @@ Section fundamental.
         as "Hworld_interp"; first done.
       { iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-      iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [|done|]; cycle 1.
+      iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]"); [done| |done| |]; cycle 2.
       { iMod ("Hclose_switcher_inv" with
           "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
         { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
         by iFrame. }
-      intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+      { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+      (* A fault of the first spill: the registers are safe *)
+      first_spill_regs_interp Hfull_rmap "Hreg". }
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
     assert (4 <= length lv) as Hlen_lv4.
@@ -445,7 +481,7 @@ Section fundamental.
          & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)
        | (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset & Htstk)]"; cycle 1.
     { (* The trusted stack is exhausted *)
-      iApply (interp_switcher_call_tstack_exhausted W C Nswitcher cstk _ Ws Cs _ b e a lv
+      iApply (interp_switcher_call_tstack_exhausted _ W C Nswitcher cstk _ Ws Cs _ b e a lv
                 wcs0 wcs1 wcra wcgp with
         "[$Htrap $Hcs0v $Hcs1v $Hcrav $Hcgpv $Hspv $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area
           $Hframeoffset $HthreadID $Htstk $Hstatic
@@ -489,9 +525,11 @@ Section fundamental.
              |}).
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
       iApply (trap_safe_unwind _ _ _ (frame :: cstk) (W :: Ws) (C :: Cs)
-               with "Hinv_switcher Hstatic [-]"); cycle 1.
+               with "Hinv_switcher Hstatic [] [-]"); [done|..]; cycle 1.
       { simpl. split; auto; first apply related_sts_pub_refl_world.
         split; [reflexivity|]; split; done. }
+      { (* The unsealing is not the first spill *)
+        iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
       { (* The table cell is still cleared *)
         assert (WInt 0 = WInt 0 ∨ exp_tbl_cap (b_callee_exp_tbl frame) (WInt 0)) as Htbl_cell
           by by left.
@@ -611,7 +649,8 @@ Section fundamental.
       subst rmap'.
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
       iApply (switcher_call_stack_too_small_unwind _ _ _ (frame :: cstk) (W :: Ws) (C :: Cs)
-               with "[$HPC $Hrmap $Hinv_switcher $Hstatic $Hworld_interp $Hna $Hcstk Hcont]").
+               with "[$HPC $Hrmap $Hinv_switcher $Hstatic $Hworld_interp $Hna $Hcstk Hcont]");
+        first done.
       { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
       { simpl. split; [apply related_sts_pub_refl_world|done]. }
       iFrame "Hcont".
@@ -653,16 +692,17 @@ Section fundamental.
   Qed.
 
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
+    Nswitcher ## N_trap ->
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static
     ⊢ interp W C (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
-    iIntros "[#Hinv #Hstatic]".
+    iIntros (HNtrap) "[#Hinv #Hstatic]".
     rewrite interp_unfold /=.
     iSplit; first (iPureIntro; exact switcher_not_heap_range).
     iIntros "!> %regs %W' % %".
     destruct g'; first done.
-    iNext ; iApply (interp_expr_switcher_call with "[$Hinv $Hstatic]").
+    iNext ; iApply (interp_expr_switcher_call with "[$Hinv $Hstatic]"); done.
   Qed.
 
 End fundamental.

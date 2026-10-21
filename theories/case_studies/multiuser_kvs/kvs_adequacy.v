@@ -16,7 +16,6 @@ From griotte Require Import disjoint_regions_tactics.
 From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
-Set Mangle Names.
 
 Section kvs_obligations.
   Context {Σ : gFunctors}.
@@ -54,7 +53,8 @@ Section kvs_obligations.
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as Hkvs_l.
     pose proof (fw_cmpt_layout_at _ _ _ 2 _ Hok eq_refl) as HB_l.
-    cbn [fc_name] in Hmain_l, Hkvs_l, HB_l.
+    pose proof (fw_switcher_cmpt_disjoint_at _ _ _ Hok 1 _ Hkvs_l eq_refl) as Hsw_kvs.
+    cbn [fc_name] in Hmain_l, Hkvs_l, HB_l, Hsw_kvs.
     set (main_cmpt := layout_cmpt_of (cmpt_of img "main") Hmain_l).
     set (kvs_cmpt := layout_cmpt_of (cmpt_of img "kvs") Hkvs_l).
     set (B_cmpt := layout_cmpt_of (cmpt_of img "B") HB_l).
@@ -104,6 +104,14 @@ Section kvs_obligations.
       - exact (cmpt_cgp_base_not_heap kvs_cmpt).
       - exact (cmpt_exp_tbl_base_not_heap kvs_cmpt).
     }
+    (* The KVS's code is outside the switcher's: its faults are not resumed by
+       the exception path *)
+    assert (cmpt_b_pcc kvs_cmpt ≠ switcher.b_switcher) as Hkvs_switcher.
+    { apply (switcher_cmpt_disjoint_pcc_b kvs_cmpt _ Hsw_kvs).
+      pose proof (cmpt_import_size kvs_cmpt) as Himports_size.
+      pose proof (cmpt_code_size kvs_cmpt) as Hcode_size.
+      rewrite kvs_imports in Himports_size; cbn [length] in Himports_size.
+      solve_addr+Himports_size Hcode_size. }
 
     (* 3 - The export entries of the KVS, at the addresses of the KVS layout,
        and the export entry of B *)
@@ -226,7 +234,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
-      iApply kvs_addOrUpdate_entry_point_spec.
+      iApply kvs_addOrUpdate_entry_point_spec; [exact fw_switcherN_trap_disj | exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_addOrUpdate".
     }
@@ -236,7 +244,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
-      iApply kvs_read_entry_point_spec.
+      iApply kvs_read_entry_point_spec; [exact fw_switcherN_trap_disj | exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_read".
     }
@@ -246,7 +254,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
-      iApply kvs_erase_entry_point_spec.
+      iApply kvs_erase_entry_point_spec; [exact fw_switcherN_trap_disj | exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_erase".
     }
@@ -449,6 +457,7 @@ Section kvs_obligations.
                         $Hworld_B $Hcstk
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
+    { exact fw_switcherN_trap_disj. }
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_base_not_heap main_cmpt). }

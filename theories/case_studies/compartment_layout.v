@@ -325,6 +325,24 @@ Section CmptLayout.
     (C : cmpt) (Cswitcher : cmptSwitcher) : Prop :=
     (cmpt_switcher_region Cswitcher) ## (cmpt_region C).
 
+  (** The PCC of a compartment disjoint from the switcher, with code, does
+      not have the base of the switcher's PCC. *)
+  Lemma switcher_cmpt_disjoint_pcc_b (C : cmpt) (Cswitcher : cmptSwitcher) :
+    switcher_cmpt_disjoint C Cswitcher →
+    (cmpt_b_pcc C < cmpt_e_pcc C)%a →
+    cmpt_b_pcc C ≠ b_switcher Cswitcher.
+  Proof.
+    intros Hdisj Hpcc Heq.
+    pose proof (switcher_size Cswitcher) as Hsize.
+    pose proof (switcher_call_entry_point Cswitcher) as Hcall.
+    assert (cmpt_b_pcc C ∈ cmpt_switcher_code_region Cswitcher) as Hin_sw.
+    { rewrite /cmpt_switcher_code_region elem_of_finz_seq_between Heq. solve_addr. }
+    assert (cmpt_b_pcc C ∈ cmpt_pcc_region C) as Hin_C.
+    { rewrite /cmpt_pcc_region elem_of_finz_seq_between. solve_addr. }
+    rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdisj.
+    set_solver.
+  Qed.
+
   Record cmptAssert : Type :=
     mkCmptAssert {
         b_assert : Addr ;

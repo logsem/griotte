@@ -71,8 +71,8 @@ Proof.
 Qed.
 
 (** The trap vector: the word that MTCC holds in every state, the
-    capability of the exception entry stub. It is tagged, so a fault never
-    stops the machine. *)
+    capability of the exception entry of the switcher. It is tagged, so a
+    fault never stops the machine. *)
 Class trapVector := {
   mtcc_vec : Word;
   mtcc_vec_tagged : get_tag mtcc_vec = true;

@@ -8,7 +8,6 @@ From griotte.allocators.ownership Require Import allocator.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import image firmware firmware_ok image_state link.
 From griotte.case_studies.hts_ownership Require Import hts_firmware.
-Set Mangle Names.
 
 #[local] Transparent MemNum ONum.
 #[local] Open Scope string_scope.

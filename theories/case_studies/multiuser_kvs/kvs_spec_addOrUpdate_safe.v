@@ -70,7 +70,7 @@ Section KVS_spec_addOrUpdate_safe.
            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         ) ∧
         (* The load after the failed unsealing of the user key faults *)
-        ▷ ( ∀ w,
+        ▷ ( ∀ a,
             na_own cerise_nais E ∗
             cgp ↦ᵣ - ∗
             cra ↦ᵣ - ∗
@@ -81,7 +81,8 @@ Section KVS_spec_addOrUpdate_safe.
             ct1 ↦ᵣ - ∗
             ct2 ↦ᵣ - ∗
             world_interp W C -∗
-            trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
+            trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤
+              (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W Htgt)
@@ -107,7 +108,7 @@ Section KVS_spec_addOrUpdate_safe.
                       Hworld Hpost Hca2]");
         [exact Hunsealing_shadow | exact Hwca1_uint16
         | right; exact Hwca0_tag |].
-      iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
+      iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
       iDestruct "Hpost" as "[_ Hfailed]".
       iApply ("Hfailed" with "[$]"). }
 
@@ -119,7 +120,7 @@ Section KVS_spec_addOrUpdate_safe.
                       Hworld Hpost Hca2]");
         [exact Hunsealing_shadow | exact Hwca1_uint16
         | left; exact Hwca0_sealed_with_kvs_ot |].
-      iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
+      iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
       iDestruct "Hpost" as "[_ Hfailed]".
       iApply ("Hfailed" with "[$]").
     }
@@ -238,6 +239,8 @@ Section KVS_spec_addOrUpdate_safe.
     :
 
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    Nswitcher ## N_trap ->
+    KVS_pcc_b ≠ b_switcher ->
     seal_pred KVS_OTYPE kvs_otype_propC ∗
     kvs_static ∗
     na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -251,7 +254,7 @@ Section KVS_spec_addOrUpdate_safe.
     -∗
     ot_switcher_prop W C (WCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.
-    intros a_kvs_exp_tbl_cgp.
+    intros a_kvs_exp_tbl_cgp HNtrap Hpc_switcher.
     subst a_kvs_exp_tbl_cgp.
     iIntros
       "(#Hspred & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
@@ -381,9 +384,10 @@ Section KVS_spec_addOrUpdate_safe.
       { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
+      { exact HNtrap. }
       { iSplit; iApply interp_int. }
     - (* The invalid user key faults: return ECOMPARTMENTFAIL to the caller *)
-      iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
+      iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
       iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       iDestruct "Hct2" as "[% Hct2]"; iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap".
@@ -397,7 +401,7 @@ Section KVS_spec_addOrUpdate_safe.
       iDestruct "Hcgp" as "[% Hcgp]"; iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       map_simpl "Hrmap".
-      iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs w
+      iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs _
                with "Hinv_switcher Hswitcher_static [-]");
         last (iModIntro; iFrame).
       { exact Hrelated_pub_W0_Wfixed. }
@@ -409,6 +413,8 @@ Section KVS_spec_addOrUpdate_safe.
       { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
+      { exact HNtrap. }
+      { by apply trap_no_resume_cap. }
   Qed.
 
 End KVS_spec_addOrUpdate_safe.

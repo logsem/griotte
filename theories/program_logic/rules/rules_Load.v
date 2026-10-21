@@ -2091,4 +2091,86 @@ Section load_exact.
       all: rewrite llookup_reg_not_cnull //; by simplify_map_eq.
   Qed.
 
+  (** [wp_load_witness_imm_one_inbounds] when the destination is the
+      source register. *)
+  Lemma wp_load_witness_imm_same_inbounds E pc_p pc_g pc_b pc_e pc_a pc_a' r
+      (imm : Z) (wi : LWord) dq p g b e a_src a (raw : LWord) wit :
+    decodeInstrW wi.(lw) = CLoad r r imm →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (a_src + imm)%a = Some a →
+    is_shadow_address a = false →
+    readAllowed p = true →
+    withinBounds b e a = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r ≠ cnull →
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+        pc_a ↦ₐ{dq} wi ∗
+        r ↦ᵣ WCap true p g b e a_src ∗
+        a ↦ₐ raw ∗
+        load_witness_res wit }}}
+      Instr Executable @ E
+    {{{ actual, RET NextIV;
+        ⌜load_post wit p raw actual⌝ ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+        pc_a ↦ₐ{dq} wi ∗
+        r ↦ᵣ actual ∗
+        a ↦ₐ raw ∗
+        load_witness_res wit }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hea Hnot_shadow Hread Hbounds Hpca' Hr Φ)
+      "(HPC & Hi & Hsrc & Ha & Hwit) HΦ".
+    iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
+    iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
+    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
+      as "Hshadow".
+    { by rewrite big_sepM_empty. }
+    iApply (wp_load_general_shadow_imm E pc_p pc_g pc_b pc_e pc_a None r r imm wi
+      (<[pc_a:=wi]> (<[a:=raw]> ∅)) _ _ ∅ DfracDiscarded wit DerefNoId
+      with "[$HPC $Hmem $Hshadow $Hmap $Hwit //]").
+    { exact Hinstr. }
+    { exact Hvpc. }
+    { by rewrite !dom_insert; set_solver+. }
+    { by simplify_map_eq. }
+    { intros p0 g0 b0 e0 ea0 Hallow.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      rewrite Hnot_shadow.
+      case_match; first done.
+      eexists. by simplify_map_eq. }
+    { by rewrite !dom_insert_L. }
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
+                      |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
+                      |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |Hfail -> ->].
+    - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
+      injection Hlookup as <-.
+      rewrite linsert_reg_not_cnull //.
+      apply incrementPC_Some_inv in Hinc
+        as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
+      injection HPC as <- <- <- <- <- <- <-.
+      rewrite Hpca' in Hapc. injection Hapc as <-.
+      rewrite insert_insert_eq.
+      iDestruct (regs_of_map_1 with "Hmap") as "Hsrc".
+      iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
+      iApply "HΦ". by iFrame.
+    - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
+    - exfalso. eapply (load_failure_spec_impossible _ _ _ _ _ _ _ p g b e a_src a);
+        eauto; try by simplify_map_eq.
+      all: try (by intros ? Hv; rewrite llookup_reg_not_cnull // in Hv; simplify_map_eq).
+      all: rewrite llookup_reg_not_cnull //; by simplify_map_eq.
+  Qed.
+
 End load_exact.

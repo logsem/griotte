@@ -1,7 +1,6 @@
 From griotte Require Import firmware firmware_ok.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
-Set Mangle Names.
 
 (** * Defining the initial-state predicate of a case study
 

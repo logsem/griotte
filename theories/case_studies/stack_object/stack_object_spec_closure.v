@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import switcher_spec_call switcher_spec_return switcher_exception_stub.
+From griotte Require Import switcher_spec_call switcher_spec_return switcher_exception.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
 From griotte Require Import allocator_resources heap_region.
@@ -90,6 +90,8 @@ Section SO.
     let a_so_exp_tbl_cgp := (b_so_exp_tbl ^+ ExportTable_offset_cgp)%a in
     let a_so_entry_f := (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f)%a in
 
+    Nswitcher ## N_trap ->
+    pc_b ≠ b_switcher ->
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow b_so_exp_tbl e_so_exp_tbl ->
     is_heap_address pc_b = false ->
@@ -139,7 +141,7 @@ Section SO.
        size, so neither block 7 nor the spill of the call to [g] faults. *)
     intros imports a_so_exp_tbl_cgp a_so_entry_f.
     subst imports a_so_exp_tbl_cgp a_so_entry_f.
-    iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap
+    iIntros (HNtrap Hpc_switcher Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap
                Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
@@ -204,13 +206,16 @@ Section SO.
     { (* The checks of [in] fail: [f] is unwound *)
       iIntros (a_f Ha_f) "(Hca0 & Hca1 & Hct1 & [%wcs0' Hcs0] & [%wcs1' Hcs1] & Hcsp)".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
-      iApply (trap_safe_unwind W0 C Nswitcher cstk Ws Cs with "Hswitcher Hswitcher_static [-]");
+      iApply (trap_safe_unwind W0 C Nswitcher cstk Ws Cs with
+               "Hswitcher Hswitcher_static [] [-]");
         last (iModIntro; iFrame).
+      { exact HNtrap. }
       { intros r; apply elem_of_dom.
         rewrite !dom_insert_L !dom_delete_L Hrmap_dom.
         pose proof (all_registers_s_correct r) as Hall.
         set_solver+ Hall. }
-      { exact Hframe_match. } }
+      { exact Hframe_match. }
+      { iLeft; iPureIntro. by apply trap_no_resume_cap. } }
     iNext; iIntros (t p g b e a π)
       "(%Hp & -> & %Hno_overlap & HPC & Hca0 & Hca1 & Hct1 & Hcs0 & Hcs1 & Hcsp
       & _ & Hlc)".
@@ -221,13 +226,16 @@ Section SO.
                "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode_main]"); [done|solve_addr|].
       iIntros "(Hca0 & [%wcs0' Hcs0] & [%wcs1' Hcs1])".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
-      iApply (trap_safe_unwind W0 C Nswitcher cstk Ws Cs with "Hswitcher Hswitcher_static [-]");
+      iApply (trap_safe_unwind W0 C Nswitcher cstk Ws Cs with
+               "Hswitcher Hswitcher_static [] [-]");
         last (iModIntro; iFrame).
+      { exact HNtrap. }
       { intros r; apply elem_of_dom.
         rewrite !dom_insert_L !dom_delete_L Hrmap_dom.
         pose proof (all_registers_s_correct r) as Hall.
         set_solver+ Hall. }
-      { exact Hframe_match. } }
+      { exact Hframe_match. }
+      { iLeft; iPureIntro. by apply trap_no_resume_cap. } }
 
     iAssert (⌜disjoint_from_shadow b e⌝)%I as "%Hobject_shadow".
     { destruct Htag_or_empty as [-> | Hempty].
@@ -262,7 +270,7 @@ Section SO.
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hcra";"Hcgp"].
       iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e (csp_b' ^+ 4)%a l_revoked stk_mem
                 cstk Ws Cs with "Hswitcher Hswitcher_static [-]").
-      7: { iMod ("Hclose_object" with "Hobject") as "(Hworld_interp_C & Hrevoked & Hstk)".
+      9: { iMod ("Hclose_object" with "Hobject") as "(Hworld_interp_C & Hrevoked & Hstk)".
            iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
                        with "Hrevoked") as "Hrevoked".
            iModIntro; iFrame. }
@@ -273,7 +281,9 @@ Section SO.
         rewrite -Hcsp_base; exact Hcsp_sync. }
       { destruct Hextract as [Hnodup _]; exact Hnodup. }
       { intros a' Ha'; destruct Hextract as [_ Htemp].
-        destruct (Htemp a') as [Hin _]; exact (Hin Ha'). } }
+        destruct (Htemp a') as [Hin _]; exact (Hin Ha'). }
+      { exact HNtrap. }
+      { by apply trap_no_resume_cap. } }
     iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & [_ Hlc'])".
 
     (* Close the region of [in] *)
@@ -308,7 +318,7 @@ Section SO.
       as "(Hworld_interp_C & #Hinterp_wca0_W3 & #Hinterp_z & #Hinterp_wct1
            & Hstack_revoked & %Hrevoked_W3 & %Hpriv_W0_W3 & %Ha_stk1_W3)";
       [done..|].
-    iDestruct (so_call_args with "Hswitcher Hswitcher_static Hca0 Hinterp_wca0_W3 Hca1 Hinterp_z Hct0 Hrmap")
+    iDestruct (so_call_args _ _ _ _ _ _ HNtrap with "Hswitcher Hswitcher_static Hca0 Hinterp_wca0_W3 Hca1 Hinterp_z Hct0 Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite !dom_delete_L Hrmap_dom; set_solver+. }
     { intros r Hr.
@@ -328,6 +338,7 @@ Section SO.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill of the call to [g] cannot fault: the stack holds it *)

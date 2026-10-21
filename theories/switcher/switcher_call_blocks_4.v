@@ -7,7 +7,7 @@ From griotte Require Import switcher_call_states.
 
     After the unsealing of the entry point, block 7 reads the entry of the
     export table and checks that the callee's stack is at least the minimum
-    stack size of the entry (otherwise, the execution jumps to block 21, see
+    stack size of the entry (otherwise, the execution jumps to block 20, see
     [switcher_call_blocks_6]), block 8 loads the PCC and CGP of the callee, block 9 clears
     the unused argument registers, block 10 enables interrupts unless the
     entry point asks for them disabled, block 11 clears the other registers,
@@ -262,7 +262,7 @@ Section Switcher_Call_Blocks_4.
   (** Blocks 7-8: read the entry of the export table, check the size of
       the callee's stack, and load the PCC and CGP of the callee. When the
       callee's stack is smaller than the minimum stack size of the entry,
-      jump to block 21. *)
+      jump to block 20. *)
   Lemma switcher_call_blocks_7_8_spec
     (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
@@ -467,7 +467,7 @@ Section Switcher_Call_Blocks_4.
   (** Blocks 7-12: read the entry of the export table, check the size of
       the callee's stack, load the callee, enable interrupts, clear the
       registers and jump to the callee. When the callee's stack is smaller
-      than the minimum stack size of the entry, jump to block 21 instead. *)
+      than the minimum stack size of the entry, jump to block 20 instead. *)
   Lemma switcher_call_blocks_4_spec
     (W : WORLD) (C : CmptName)
     (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
