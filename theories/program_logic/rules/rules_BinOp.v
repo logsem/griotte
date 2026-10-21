@@ -28,6 +28,7 @@ Section griotte_lang_rules.
     | LShiftL _ _ _ => (n1 ≪ n2)%Z
     | LShiftR _ _ _ => (n1 ≫ n2)%Z
     | Lt _ _ _ => (Z.b2z (n1 <? n2)%Z)
+    | Le _ _ _ => (Z.b2z (n1 <=? n2)%Z)
     | _ => 0%Z
     end.
 
@@ -39,7 +40,8 @@ Section griotte_lang_rules.
     i = LOr r arg1 arg2 ∨
     i = LShiftL r arg1 arg2 ∨
     i = LShiftR r arg1 arg2 ∨
-    i = Lt r arg1 arg2.
+    i = Lt r arg1 arg2 ∨
+    i = Le r arg1 arg2.
 
   Lemma regs_of_is_BinOp i r arg1 arg2 :
     is_BinOp i r arg1 arg2 →
@@ -496,6 +498,9 @@ Proof. intros; unfold is_BinOp; naive_solver. Qed.
 Lemma is_BinOp_Lt dst arg1 arg2 :
   is_BinOp (Lt dst arg1 arg2) dst arg1 arg2.
 Proof. intros; unfold is_BinOp; naive_solver. Qed.
+Lemma is_BinOp_Le dst arg1 arg2 :
+  is_BinOp (Le dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
 
 #[export] Hint Resolve is_BinOp_Add : core.
 #[export] Hint Resolve is_BinOp_Sub : core.
@@ -505,3 +510,4 @@ Proof. intros; unfold is_BinOp; naive_solver. Qed.
 #[export] Hint Resolve is_BinOp_LShiftL : core.
 #[export] Hint Resolve is_BinOp_LShiftR : core.
 #[export] Hint Resolve is_BinOp_Lt : core.
+#[export] Hint Resolve is_BinOp_Le : core.

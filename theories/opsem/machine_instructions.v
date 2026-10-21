@@ -8,6 +8,7 @@ Inductive instr: Type :=
 | CLoad (dst src: RegName) (imm: Z)
 | Store (dst: RegName) (src: Z + RegName) (imm: Z)
 | Lt (dst: RegName) (r1 r2: Z + RegName)
+| Le (dst: RegName) (r1 r2: Z + RegName)
 | Add (dst: RegName) (r1 r2: Z + RegName)
 | Sub (dst: RegName) (r1 r2: Z + RegName)
 | Mul (dst: RegName) (r1 r2: Z + RegName)
@@ -88,6 +89,7 @@ Proof.
       | GetTag dst src => GenNode 30 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))]
       | ClearTag dst src => GenNode 31 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))]
       | Auipcc dst imm => GenNode 32 [GenLeaf (inl (inl dst)); GenLeaf (inr (inl imm))]
+      | Le dst r1 r2 => GenNode 35 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       end).
   set (dec := fun e =>
       match e with
@@ -128,6 +130,7 @@ Proof.
       | GenNode 30 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))] => GetTag dst src
       | GenNode 31 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))] => ClearTag dst src
       | GenNode 32 [GenLeaf (inl (inl dst)); GenLeaf (inr (inl imm))] => Auipcc dst imm
+      | GenNode 35 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Le dst r1 r2
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).

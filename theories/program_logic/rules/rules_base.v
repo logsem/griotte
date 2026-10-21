@@ -915,6 +915,7 @@ Definition regs_of (i: instr): gset RegName :=
   | LShiftL r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | LShiftR r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Lt r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
+  | Le r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Mov r arg => {[ r ]} ∪ regs_of_argument arg
   | Restrict r1 arg => {[ r1 ]} ∪ regs_of_argument arg
   | Subseg r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2

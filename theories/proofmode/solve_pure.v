@@ -121,6 +121,7 @@ Proof. auto. Qed.
 #[export] Hint Resolve is_BinOp_LShiftL : solve_pure.
 #[export] Hint Resolve is_BinOp_LShiftR : solve_pure.
 #[export] Hint Resolve is_BinOp_Lt : solve_pure.
+#[export] Hint Resolve is_BinOp_Le : solve_pure.
 
 (* is_z *)
 #[export] Hint Extern 1 (is_z _ = false) => reflexivity : solve_pure.

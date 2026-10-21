@@ -869,6 +869,7 @@ Definition canon_instr (i : instr) : instr :=
   | CLoad r1 r2 z => CLoad (c r1) (c r2) z
   | Store r a z => Store (c r) (ca a) z
   | Lt r a1 a2 => Lt (c r) (ca a1) (ca a2)
+  | Le r a1 a2 => Le (c r) (ca a1) (ca a2)
   | Add r a1 a2 => Add (c r) (ca a1) (ca a2)
   | Sub r a1 a2 => Sub (c r) (ca a1) (ca a2)
   | Mul r a1 a2 => Mul (c r) (ca a1) (ca a2)
