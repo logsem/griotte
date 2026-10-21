@@ -76,6 +76,7 @@ Module Asm_Griotte.
   | CLoad (dst src: RegName) (imm: asm_expr)
   | Store (dst: RegName) (src: asm_arg) (imm: asm_expr)
   | Lt (dst: RegName) (r1 r2: asm_arg)
+  | Le (dst: RegName) (r1 r2: asm_arg)
   | Add (dst: RegName) (r1 r2: asm_arg)
   | Sub (dst: RegName) (r1 r2: asm_arg)
   | Mul (dst: RegName) (r1 r2: asm_arg)
@@ -292,6 +293,10 @@ Module Asm_Griotte.
         w1 ← assemble_arg r1 env n;
         w2 ← assemble_arg r2 env n;
         Ok (machine_instructions.Lt dst w1 w2)
+    | Le dst r1 r2 =>
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Le dst w1 w2)
     | Add dst r1 r2 =>
         w1 ← assemble_arg r1 env n;
         w2 ← assemble_arg r2 env n;
@@ -718,6 +723,7 @@ Module Asm_Griotte.
   Definition load dst src := load_imm dst src (Asm_z 0).
   Definition store dst src := store_imm dst src (Asm_z 0).
   Definition lt dst r1 r2 := (ASM_Instr (Lt dst r1 r2)).
+  Definition le dst r1 r2 := (ASM_Instr (Le dst r1 r2)).
   Definition add dst r1 r2 := (ASM_Instr (Add dst r1 r2)).
   Definition sub dst r1 r2 := (ASM_Instr (Sub dst r1 r2)).
   Definition mul dst r1 r2 := (ASM_Instr (Mul dst r1 r2)).

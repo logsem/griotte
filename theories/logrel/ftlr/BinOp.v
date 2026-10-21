@@ -49,7 +49,8 @@ Section fundamental.
        decodeInstrW w.(lw) = LOr dst r1 r2 \/
        decodeInstrW w.(lw) = LShiftL dst r1 r2 \/
        decodeInstrW w.(lw) = LShiftR dst r1 r2 \/
-       decodeInstrW w.(lw) = Lt dst r1 r2
+       decodeInstrW w.(lw) = Lt dst r1 r2 \/
+       decodeInstrW w.(lw) = Le dst r1 r2
       ) cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.

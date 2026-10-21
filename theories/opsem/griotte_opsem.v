@@ -433,6 +433,10 @@ Section opsem.
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
     φ .[dst :=ᵣ WInt (Z.b2z (Z.ltb n1 n2))] |> nextPC
+    | Le dst ρ1 ρ2 =>
+    n1 ← z_of_argument (reg φ) ρ1;
+    n2 ← z_of_argument (reg φ) ρ2;
+    φ .[dst :=ᵣ WInt (Z.b2z (Z.leb n1 n2))] |> nextPC
   | Subseg dst ρ1 ρ2 =>
     wdst ← (reg φ) !!ᵣ dst;
     match wdst with

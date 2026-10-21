@@ -62,6 +62,7 @@ Ltac dispatch_instr_rule instr cont :=
   | LShiftL ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   | LShiftR ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   | Lt ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | Le ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   (* Lea *)
   | Lea _ (inr _) => (cont (@wp_lea_success_reg) || cont (@wp_lea_success_reg_sr))
   | Lea _ (inl _) =>

@@ -194,6 +194,7 @@ Section fundamental.
     - (* CLoad *) apply load_case.
     - (* Store *) apply store_case.
     - (* Lt *) by_binop_case.
+    - (* Le *) by_binop_case.
     - (* Add *) by_binop_case.
     - (* Sub *) by_binop_case.
     - (* Mul *) by_binop_case.
