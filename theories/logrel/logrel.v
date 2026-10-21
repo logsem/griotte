@@ -1310,6 +1310,41 @@ Section logrel.
         destruct t; cbn in Htag; try discriminate; apply _.
   Qed.
 
+  (** Register maps: a write to [cnull] is dropped, a read of [cnull] is an
+      integer. *)
+  Lemma interp_linsert W C (regs : LReg) dst w :
+    (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    (⌜dst ≠ cnull⌝ → interp W C w) -∗
+    ∀ (r : RegName) v, ⌜<[dst := w]ₗ> regs !! r = Some v⌝ → interp W C v.
+  Proof.
+    iIntros "#Hreg #Hw" (r v Hv). rewrite /linsert_reg in Hv.
+    case_decide as Hdst; first by iApply "Hreg".
+    destruct (decide (r = dst)) as [->|Hne].
+    - rewrite lookup_insert_eq in Hv. simplify_eq. by iApply "Hw".
+    - rewrite lookup_insert_ne // in Hv. by iApply "Hreg".
+  Qed.
+
+  (** A register read: [cnull] reads an integer. *)
+  Lemma interp_llookup W C (regs : LReg) r v :
+    regs !!ₗ r = Some v →
+    (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    interp W C v.
+  Proof.
+    iIntros (Hv) "#Hreg". rewrite /llookup_reg in Hv.
+    case_decide; simplify_eq; [by iApply interp_untagged | by iApply "Hreg"].
+  Qed.
+
+  Lemma interp_lword_of_argument W C (regs : LReg) arg v :
+    lword_of_argument regs arg = Some v →
+    (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v)
+    -∗ interp W C v.
+  Proof.
+    iIntros (Harg) "#Hreg".
+    apply lword_of_argument_Some_inv in Harg as [(z & -> & ->) | (r & -> & Hr)].
+    { by iApply interp_untagged. }
+    by iApply (interp_llookup with "Hreg").
+  Qed.
+
   #[global] Instance interp_in_mem_pre_persistent W C p w :
     Persistent (interp_in_mem_pre W C p interp w).
   Proof. apply _. Qed.

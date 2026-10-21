@@ -540,16 +540,9 @@ Section fundamental.
 
     iApply ("IH" $! _ _ _ _ _ (<[dst:=loadv']ₗ> regs)
              with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
-    { intros x6. rewrite /linsert_reg.
-      rewrite lookup_insert_is_Some.
-      destruct (decide (dst = x6)); [ auto | right; split; auto]. }
+    { by apply full_map_linsert. }
     (* The value relation holds for the register that was loaded to. *)
-    { iIntros (ri wi Hregs_ri).
-      rewrite /linsert_reg in Hregs_ri.
-      destruct (decide (ri = dst)).
-      { subst ri. rewrite lookup_insert_eq in Hregs_ri. injection Hregs_ri as <-.
-        destruct (decide (dst = cnull)); [by iApply interp_untagged | done]. }
-      rewrite !lookup_insert_ne // in Hregs_ri. iApply "Hreg"; auto. }
+    { iApply (interp_linsert with "Hreg"). iIntros (_). done. }
     iModIntro.
     iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.

@@ -79,19 +79,6 @@ Section fundamental.
   Qed.
 
   (** The stored word is valid: it is an immediate or a register's word. *)
-  Lemma interp_lword_of_argument W C (regs : LReg) arg v :
-    lword_of_argument regs arg = Some v →
-    (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v)
-    -∗ interp W C v.
-  Proof.
-    iIntros (Harg) "#Hreg".
-    apply lword_of_argument_Some_inv in Harg as [(z & -> & ->) | (r & -> & Hr)].
-    { by iApply interp_untagged. }
-    apply bind_Some in Hr as (wr & Hwr & Hv).
-    destruct (decide (r = cnull)); simplify_eq; first by iApply interp_untagged.
-    by iApply "Hreg".
-  Qed.
-
   (* Description of what the resources are supposed to look like
      after opening the region if we need to,
      but before closing the region up again*)
@@ -495,7 +482,7 @@ Section fundamental.
       - by eexists.
       - destruct (Hsome' r) as [wr Hwr].
         exists (if decide (r = cnull) then lnull else wr).
-        by rewrite /lword_of_argument /llookup_reg Hwr.
+        rewrite /lword_of_argument /llookup_reg. by case_decide.
     }
 
     (* Step 1: open the region, if necessary,

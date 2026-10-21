@@ -56,21 +56,14 @@ Section fundamental.
     { destruct ρ;auto;contradiction. }
 
     iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
-    - cbn; intros; subst regs'. rewrite /linsert_reg.
-      by repeat (apply lookup_insert_is_Some'; right).
-    - iIntros (ri v Hvs).
-      subst regs'. rewrite /linsert_reg in Hvs.
-      destruct (decide (ri = dst)).
-      { subst ri. rewrite lookup_insert_eq in Hvs. simplify_eq.
-        destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-        rewrite /auipcc_word.
-        destruct (a + imm)%a as [a'|]; last by iApply interp_untagged.
-        iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr;
-          try apply subseg_heap_base_same.
-        - eapply PermFlowsToReflexive.
-        - apply LocalityFlowsToReflexive.
-      }
-      { iApply "Hreg"; auto. by simplify_map_eq. }
+    - subst regs'. by apply full_map_linsert.
+    - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
+      rewrite /auipcc_word.
+      destruct (a + imm)%a as [a'|]; last by iApply interp_untagged.
+      iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr;
+      try apply subseg_heap_base_same.
+      + eapply PermFlowsToReflexive.
+      + apply LocalityFlowsToReflexive.
     - iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 

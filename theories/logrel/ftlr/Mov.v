@@ -54,17 +54,9 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ _ _ _ (<[dst:=w0]ₗ> regs) with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
-      + intros x; rewrite /linsert_reg lookup_insert_is_Some'; right; apply Hsome.
-      + iIntros (ri wi Hregs_ri).
-        rewrite /linsert_reg in Hregs_ri.
-        destruct (decide (ri = dst)); simplify_map_eq.
-        * (* ri = dst *)
-          destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-          destruct src; simplify_map_eq; [by iApply interp_untagged|].
-          apply bind_Some in Hw0 as (wr & Hr & Hwr).
-          destruct (decide (r = cnull)); simplify_eq; [by iApply interp_untagged|].
-          iApply ("Hreg" $! r) ; auto.
-        * iApply ("Hreg" $! ri) ; auto.
+      + by apply full_map_linsert.
+      + iApply (interp_linsert with "Hreg"). iIntros (_).
+        by iApply (interp_lword_of_argument with "Hreg").
       + iApply (interp_next_PC with "[Hinv_interp]"); eauto.
   Qed.
 
