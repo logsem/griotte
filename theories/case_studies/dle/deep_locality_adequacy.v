@@ -97,7 +97,7 @@ Section dle_obligations.
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     iPoseProof (dle_spec (swlayout := swl) (assertlayout := asl) (C := C)
-                  _ _ _ _ _ _ _ _ _ _ [] [] fw_switcherN
+                  _ _ _ _ _ _ _ _ _ _ [] [] fw_switcherN fw_switcherN_trap_disj
                  with "[ $Hassert $Hswitcher $Hswitcher_static $Hna
                         $Hworld_C
                         $HPC $Hcgp $Hcsp $Hregs

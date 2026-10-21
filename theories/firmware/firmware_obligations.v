@@ -558,8 +558,8 @@ Section adversary.
     rewrite /fw_import_safe /fw_word_of /note. iSplit; last iIntros "!>" (W2 W3 Hrel) "_";
       iEval (rewrite /interp_in_mem_pre /=); rewrite /interp_in_mem_pre /=;
       (rewrite filter_heap_nonheap; last (cbn; rewrite Hb; by case_decide));
-      iApply (interp_switcher_call (swlayout := fw_switcher_layout img));
-      iFrame "Hswitcher Hswitcher_static".
+      (iApply (interp_switcher_call (swlayout := fw_switcher_layout img));
+       [exact fw_switcherN_trap_disj | iFrame "Hswitcher Hswitcher_static"]).
   Qed.
 
   (** The facts about an untrusted compartment [fc] of a firmware that the
@@ -618,6 +618,7 @@ Section adversary.
       induction ps as [|p ps IH]; intros [|n ns] Hlen; cbn in *; try constructor.
       + apply Forall_cons in Hsome as [Hs _]. exact Hs.
       + apply Forall_cons in Hsome as [_ Hsome]. apply IH; [exact Hsome | lia].
+    - exact fw_switcherN_trap_disj.
   Qed.
 
   (** The exports of an untrusted compartment are safe to share, given the

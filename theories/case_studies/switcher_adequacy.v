@@ -20,6 +20,7 @@ Section helpers_switcher_adequacy.
     (W : WORLD) (C : CmptName) ( b_pcc e_pcc b_cgp e_cgp : Addr )
     (args minstk off : nat) (Nswitcher : namespace) :
     disjoint_from_heap b_cgp e_cgp ->
+    Nswitcher ## N_trap ->
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ switcher_static -∗
     interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
@@ -29,9 +30,10 @@ Section helpers_switcher_adequacy.
     → ▷ execute_entry_point (WCap true RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap true RW Global b_cgp e_cgp b_cgp)
         args minstk W' C.
   Proof.
-    intros Hcgp_heap.
+    intros Hcgp_heap HNtrap.
     iIntros "#Hinv_switcher #Hswitcher_static #Hinterp_pcc #Hinterp_cgp".
-    iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]") as "#Htrap".
+    iPoseProof (switcher_mtcc_vec_safe Nswitcher HNtrap with "[$Hinv_switcher $Hswitcher_static]")
+      as "#Htrap".
     iIntros (W' Hrelated).
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     iDestruct (interp_monotone_nl_cap_nonheap W W' C true RX Global
@@ -61,7 +63,7 @@ Section helpers_switcher_adequacy.
     destruct (decide (r = cra)) as [-> | Hrcra].
     { destruct Hregs_cra as [mie Hregs_cra].
       rewrite Hregs_cra in Hr ; simplify_eq.
-      iApply (interp_switcher_return with "[$Hinv_switcher $Hswitcher_static]").
+      iApply (interp_switcher_return with "[$Hinv_switcher $Hswitcher_static]"); done.
     }
     destruct (decide (r = csp)) as [-> | Hrcsp].
     { by rewrite Hregs_csp in Hr ; simplify_eq. }
@@ -89,6 +91,7 @@ Section helpers_switcher_adequacy.
     (entries_etbl <= a_etbl < e_etbl)%a
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
+    → Nswitcher ## N_trap
     → na_inv cerise_nais Nswitcher switcher_inv
     ⊢ switcher_static
     -∗ b_etbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc
@@ -101,7 +104,7 @@ Section helpers_switcher_adequacy.
     -∗ ot_switcher_prop W C (WCap true RO g_etbl b_etbl e_etbl a_etbl).
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
-      Ha_etbl Hargs Hentry.
+      Ha_etbl Hargs Hentry HNtrap.
     iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
       #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
@@ -161,8 +164,8 @@ Section helpers_switcher_adequacy.
       solve_addr.
     }
     iApply (fundamental_execute_entry_point
-              with "Hinv_switcher Hswitcher_static Hinterp_pcc Hinterp_cgp").
-    exact (cmpt_cgp_disjoint_from_heap C_cmpt).
+              with "Hinv_switcher Hswitcher_static Hinterp_pcc Hinterp_cgp");
+      [exact (cmpt_cgp_disjoint_from_heap C_cmpt) | exact HNtrap].
   Qed.
 
 End helpers_switcher_adequacy.

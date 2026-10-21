@@ -59,6 +59,7 @@ Section Heap_Temporal_Safety_Main.
     disjoint_from_shadow cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
     Nswitcher ## Nallocator_service ->
+    Nswitcher ## N_trap ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -129,7 +130,7 @@ Section Heap_Temporal_Safety_Main.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free imports.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
-      HNswitcher_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
+      HNswitcher_service HNtrap Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
       Himports_contiguous Hstk_min Hp_fresh Hheap_empty Hframe_match)
       "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna

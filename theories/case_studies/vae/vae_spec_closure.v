@@ -46,6 +46,7 @@ Section VAE.
     let a_vae_exp_tbl_cgp := (b_vae_exp_tbl ^+ ExportTable_offset_cgp)%a in
     let a_vae_entry_awkward := (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a in
 
+    Nswitcher ## N_trap ->
     is_shadow_address cgp_b = false ->
     disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
     disjoint_from_shadow pc_b pc_e ->
@@ -106,7 +107,7 @@ Section VAE.
        the calls to [g] do not fault. *)
     intros imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
     subst a_vae_exp_tbl_cgp a_vae_entry_awkward.
-    iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
+    iIntros (HNtrap Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
                Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hloc_i_W Hrel_i_W)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
@@ -199,7 +200,7 @@ Section VAE.
       by eapply vae_quarantined_disjoint_stack. }
     iDestruct (vae_world_callback W0 W2q C wca0 with "[]") as "#Hinterp_W2q_wca0";
       [done|done|by case_match|].
-    iDestruct (vae_call_args W2q C Nswitcher with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
+    iDestruct (vae_call_args W2q C Nswitcher _ HNtrap with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap1) "(%Hrmap1_dom & Hrmap_arg & Hrmap)".
     { rewrite !dom_delete_L Hrmap_dom; set_solver+. }
     { intros r Hr.
@@ -219,6 +220,7 @@ Section VAE.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill cannot fault: the stack holds it *)
@@ -286,7 +288,7 @@ Section VAE.
       by eapply vae_quarantined_disjoint_stack. }
     iDestruct (vae_world_callback_restored W2q W3 W5q C wca0 callback1 with "Hinterp_W2q_wca0")
       as "#Hinterp_W5q_wca0"; [done..|].
-    iDestruct (vae_call_args W5q C Nswitcher with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
+    iDestruct (vae_call_args W5q C Nswitcher _ HNtrap with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap5) "(%Hrmap5_dom & Hrmap_arg & Hrmap)".
     { rewrite !dom_delete_L Hrmap3_dom; set_solver+. }
     { by apply vae_rmap_zero. }
@@ -305,6 +307,7 @@ Section VAE.
     { destruct mie'; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill cannot fault: the stack holds it *)

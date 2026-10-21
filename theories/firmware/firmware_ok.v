@@ -414,6 +414,7 @@ Section translation.
                  Some (e_trusted_stack t) ∧
                note "stack" (range_ok (b_stack t) (e_stack t)) ∧
                note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t)) ∧
+               note "trusted stack not at address 0" ((b_trusted_stack t : Z) ≠ 0) ∧
                note "minimum stack size of the entry" (fe_min_stack e <= ft_stack_size ft)%nat
            end
        end).

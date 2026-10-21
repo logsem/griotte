@@ -123,6 +123,7 @@ Section so_obligations.
       iApply (stack_object_f_spec (swlayout := swl) (assertlayout := asl)
                 _ _ _ _ _ _ _ _ _ W0' fw_switcherN);
         last iFrame "#"; auto.
+      { exact fw_switcherN_trap_disj. }
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
@@ -198,6 +199,7 @@ Section so_obligations.
                          $Hinterp_C $Hentry_Cf
                          $Hseal_switcher
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
+    { exact fw_switcherN_trap_disj. }
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }

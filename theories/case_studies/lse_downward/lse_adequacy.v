@@ -139,7 +139,8 @@ Section lse_obligations.
       { exact (cmpt_cgp_base_not_heap main_cmpt). }
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
-      rewrite /fw_switcherN /lseN; solve_ndisj. }
+      { rewrite /fw_switcherN /lseN; solve_ndisj. }
+      exact fw_switcherN_trap_disj. }
     iMod (seal_main_export fw_world0 C main_f
            with "Hseal_switcher Hot_switcher_main_f Hworld_C")
       as "(Hworld_C & #Hinterp_main_f)"; [done| |done|].
@@ -200,6 +201,7 @@ Section lse_obligations.
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { rewrite /fw_switcherN /lseN; solve_ndisj. }
+    { exact fw_switcherN_trap_disj. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { done. }

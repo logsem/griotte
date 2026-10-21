@@ -238,6 +238,7 @@ Section KVS_spec_addOrUpdate_safe.
     :
 
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    Nswitcher ## N_trap ->
     seal_pred KVS_OTYPE kvs_otype_propC ∗
     kvs_static ∗
     na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -251,7 +252,7 @@ Section KVS_spec_addOrUpdate_safe.
     -∗
     ot_switcher_prop W C (WCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.
-    intros a_kvs_exp_tbl_cgp.
+    intros a_kvs_exp_tbl_cgp HNtrap.
     subst a_kvs_exp_tbl_cgp.
     iIntros
       "(#Hspred & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
@@ -381,6 +382,7 @@ Section KVS_spec_addOrUpdate_safe.
       { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
+      { exact HNtrap. }
       { iSplit; iApply interp_int. }
     - (* The invalid user key faults: return ECOMPARTMENTFAIL to the caller *)
       iNext; iIntros (w) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
@@ -409,6 +411,7 @@ Section KVS_spec_addOrUpdate_safe.
       { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
+      { exact HNtrap. }
   Qed.
 
 End KVS_spec_addOrUpdate_safe.

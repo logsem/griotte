@@ -162,8 +162,11 @@ Section hts_obligations.
            with "Hseal_switcher [] Hworld_B")
       as "(Hworld_B & #Hseal_alloc)"; [by repeat constructor | done | |].
     { iModIntro. iSplit; last iSplit; last done.
-      - iApply (malloc_entry_point_spec Global _ B fw_switcherN); iFrame "#".
-      - iApply (free_entry_point_spec Global _ B fw_switcherN); first solve_ndisj.
+      - iApply (malloc_entry_point_spec Global _ B fw_switcherN);
+          first exact fw_switcherN_trap_disj.
+        iFrame "#".
+      - iApply (free_entry_point_spec Global _ B fw_switcherN);
+          [solve_ndisj | exact fw_switcherN_trap_disj |].
         iFrame "#". }
     set (W1 := <o[ switcher.ot_switcher := exports_words [malloc_f; free_f] ]o> fw_world0).
 
@@ -254,6 +257,7 @@ Section hts_obligations.
     { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { rewrite /fw_switcherN /Nallocator_service; solve_ndisj. }
+    { exact fw_switcherN_trap_disj. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply (main_cgp_not_in_adv_world Temporary W1' swc main_cmpt B_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.

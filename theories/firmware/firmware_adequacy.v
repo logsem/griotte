@@ -295,6 +295,7 @@ Section layout_bridges.
     isl_switcher_end_not_heap : is_heap_address (e_switcher sw) = false;
     isl_trusted_stack_not_heap :
       not_heap_range (b_trusted_stack t) (b_trusted_stack t ^+ TSTACK_REGFRAME_SZ)%a;
+    isl_trusted_stack_nonzero : (b_trusted_stack t : Z) ≠ 0;
   }.
 
   Definition layout_switcher_of (sw : img_switcher) (t : img_thread) (ts ss : list Word)
@@ -569,13 +570,14 @@ Section layout_of_img_wf.
     (b_trusted_stack (thread_of img i) + tstack_frame_offset (S (ft_tstack_frames ft)))%a =
       Some (e_trusted_stack (thread_of img i)) ∧
     range_ok (b_stack (thread_of img i)) (e_stack (thread_of img i)) ∧
-    range_ok (b_trusted_stack (thread_of img i)) (e_trusted_stack (thread_of img i)).
+    range_ok (b_trusted_stack (thread_of img i)) (e_trusted_stack (thread_of img i)) ∧
+    (b_trusted_stack (thread_of img i) : Z) ≠ 0.
   Proof.
     rewrite /thread_wf /section /note.
     destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|] eqn:Hbody;
       last done.
     destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
-    intros (Hstack & Htstack & Hrange_stack & Hrange_tstack & _).
+    intros (Hstack & Htstack & Hrange_stack & Hrange_tstack & Htstack_nonzero & _).
     destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
     by split_and!.
   Qed.
@@ -699,7 +701,7 @@ Section layout_of_img_wf.
     rewrite Hthreads in Hthread. apply big_and_cons in Hthread as [Hthread _].
     destruct Hsw as (Hcall & Hsize & Hret & Hrange & Hend).
     destruct (thread_wf_inv _ _ _ _ Hthread)
-      as (_ & _ & Hstack & Htstack & Hrange_stack & Hrange_tstack).
+      as (_ & _ & Hstack & Htstack & Hrange_stack & Hrange_tstack & Htstack_nonzero).
     assert (rngs_disjoint
       [("switcher", b_switcher (img_sw img), e_switcher (img_sw img));
        ("thread 0, trusted stack",
@@ -734,6 +736,7 @@ Section layout_of_img_wf.
       rewrite /tstack_frame_offset /TrustedStack_offset_frames /TrustedStackFrame_size
         /TSTACK_REGFRAME_SZ /TSTACK_HEADER_SZ in Htstack.
       rewrite /TSTACK_REGFRAME_SZ. solve_addr.
+    - exact Htstack_nonzero.
   Qed.
 
   Lemma img_wf_cmpt_layout fw img fc :
@@ -796,7 +799,7 @@ Section entry.
       last done.
     rewrite /fw_export_named.
     destruct (fw_find_export (ft_entry (fw_thread_of fw i)) (tb_exports tb)) as [e|]; last done.
-    intros (Hstack & _ & _ & _ & Hmin).
+    intros (Hstack & _ & _ & _ & _ & Hmin).
     solve_addr+Hstack Hmin.
   Qed.
 
@@ -997,7 +1000,7 @@ Section initial_memory_wf.
     revert k. induction fts as [|ft fts IH]; intros k Hwf; first constructor.
     cbn [fw_imap_from]. apply big_and_cons in Hwf as [Hft Hwf].
     rewrite fw_flat_map_cons. apply Forall_app; split; last by apply IH.
-    destruct (thread_wf_inv _ _ _ _ Hft) as (_ & _ & _ & _ & Hstack & Htstack).
+    destruct (thread_wf_inv _ _ _ _ Hft) as (_ & _ & _ & _ & Hstack & Htstack & _).
     rewrite /thread_ranges.
     apply Forall_cons; split; first exact Htstack. apply Forall_singleton. exact Hstack.
   Qed.
@@ -1198,7 +1201,7 @@ Section ghost_init.
                 (e_trusted_stack (thread_of img 0))) as Hts_heap.
       { rewrite Hthreads in Hthreads_wf.
         apply big_and_cons in Hthreads_wf as [Hthread0 _].
-        destruct (thread_wf_inv _ _ _ _ Hthread0) as (_ & _ & _ & _ & _ & [ [_ Hheap] _]).
+        destruct (thread_wf_inv _ _ _ _ Hthread0) as (_ & _ & _ & _ & _ & [ [_ Hheap] _] & _).
         exact Hheap. }
       intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
       destruct sr; try apply word_rooted_int.
@@ -1324,6 +1327,10 @@ End entries_facts.
 
 Definition fw_switcherN : namespace := nroot .@ "firmware" .@ "switcher".
 Definition fw_flagN : namespace := nroot .@ "firmware" .@ "assert_flag".
+
+(** The switcher's invariant is disjoint from the trap-entry token. *)
+Lemma fw_switcherN_trap_disj : fw_switcherN ## N_trap.
+Proof. rewrite /fw_switcherN /N_trap. solve_ndisj. Qed.
 
 (** The layout of the switcher of an image, with the trusted stack of the
     first thread. *)
@@ -1754,4 +1761,4 @@ Definition fw_switcher_layout_wf `{MP : MachineParameters} (img : fw_image) (ts 
     (isl_return_entry_point _ _ _ Hsw) (isl_ot_switcher_size _ _ _ Hsw)
     (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_switcher_base_not_shadow _ _ _ Hsw)
     (isl_switcher_not_heap _ _ _ Hsw) (isl_trusted_stack_not_heap _ _ _ Hsw)
-    (tsl_frames_fit _ _ _ Hts).
+    (tsl_frames_fit _ _ _ Hts) (isl_trusted_stack_nonzero _ _ _ Hsw).

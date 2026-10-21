@@ -138,6 +138,7 @@ Section vae_obligations.
       iApply (vae_awkward_spec (swlayout := swl) (assertlayout := asl)
                 _ _ _ _ _ _ _ _ _ W1' fw_switcherN);
         last iFrame "#"; auto.
+      { exact fw_switcherN_trap_disj. }
       { eapply disjoint_from_shadow_not_in;
           first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
         apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }
@@ -218,6 +219,7 @@ Section vae_obligations.
                          $Hinterp_C $Hentry_Cf
                          $Hseal_switcher
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
+    { exact fw_switcherN_trap_disj. }
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }

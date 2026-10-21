@@ -97,6 +97,12 @@ Section Switcher.
           )
             -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
 
+  (** The spill of the callee-save registers, four words from the cursor
+      [a_stk] towards the top of the stack (stacks grow up), does not fit
+      below [e_stk]. *)
+  Definition switcher_spill_overflows (a_stk e_stk : Addr) : Prop :=
+    (e_stk < a_stk + 4)%Z.
+
   (** The resources returned to the caller of [switcher_cc_specification_gen]
       when the spill of its callee-save registers faults, because they do not
       fit on its stack: the switcher invariant is closed, and the caller holds
@@ -108,7 +114,7 @@ Section Switcher.
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : iProp Σ :=
-    ⌜ (e_stk < a_stk + 4)%Z ⌝ ∗
+    ⌜ switcher_spill_overflows a_stk e_stk ⌝ ∗
     na_own cerise_nais ⊤ ∗
     cgp ↦ᵣ wcgp_caller ∗
     cra ↦ᵣ wcra_caller ∗
@@ -153,6 +159,7 @@ Section Switcher.
     iIntros (Hfits) "Hres".
     iApply trap_safe_absurd.
     iMod "Hres" as "(%Hspill & _)".
+    rewrite /switcher_spill_overflows in Hspill.
     exfalso; solve_addr+Hspill Hfits.
   Qed.
 
@@ -326,6 +333,7 @@ Section Switcher.
     (* The caller returns to a valid target, outside the heap *)
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
+    Nswitcher ## N_trap ->
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
@@ -462,7 +470,7 @@ Section Switcher.
          ([switcher_call_stack_too_small_unwind]);
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & Hstk_val & %Hstk_revoked & Hcstk & Hcont & Hpost)".
     subst a_stk4 callee_stk_region.
@@ -520,7 +528,7 @@ Section Switcher.
           iIntros (r w Hr) "!> [$ _]". }
       iDestruct (big_sepM_insert_2 _ _ ctp with "[Hctp] Hregs") as "Hregs"; [iFrame|].
       iDestruct (big_sepM_insert_2 _ _ ct2 with "[Hct2] Hregs") as "Hregs"; [iFrame|].
-      rewrite /switcher_cc_fault_res.
+      rewrite /switcher_cc_fault_res /switcher_spill_overflows.
       iSplit; first (iPureIntro; solve_addr+Hspill Hb_a).
       iFrame.
       iPureIntro.
@@ -619,7 +627,7 @@ Section Switcher.
       iDestruct (switcher_cc_full_regs with "Hrmap0 Hcra Hcgp Hcsp Hcs0 Hcs1 Hca0 Hca1")
         as (regs) "[%Hfull_regs Hregs]"; first done.
       iApply (trap_safe_unwind _ _ _ (frame :: cstk) (W' :: Ws) (C :: Cs) regs
-               with "Hswitcher Hstatic [-]"); first done.
+               with "Hswitcher Hstatic [-]"); [done | done | |].
       { simpl. split; first apply related_sts_pub_refl_world. done. }
       iMod (switcher_cc_world_reinstate with "Hworld_interp Hstk_val Hstk")
         as "(Hworld_interp & #Hstk4v & _ & _)"; [done|done|solve_addr| | |].
@@ -696,7 +704,7 @@ Section Switcher.
       iDestruct ("Hcont_frame" with "Hstk4v") as "Hcont_frame".
       iApply (switcher_call_stack_too_small_unwind W' C Nswitcher (frame :: cstk) (W' :: Ws) (C :: Cs)
                 regs);
-        [done|simpl; split; [apply related_sts_pub_refl_world|done]|].
+        [done|done|simpl; split; [apply related_sts_pub_refl_world|done]|].
       iFrame "Hswitcher Hstatic".
       iFrame. }
     iIntros (mie arg_rmap' rmap')
@@ -754,6 +762,7 @@ Section Switcher.
     (* The caller returns to a valid target, outside the heap *)
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
+    Nswitcher ## N_trap ->
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
@@ -844,7 +853,7 @@ Section Switcher.
        revoke the world in the post-condition, with
        [switcher_cc_revoke_returned] when the callee returned, and with
        [switcher_cc_revoke_exhausted] when the trusted stack was exhausted. *)
-    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont & Hpost)".
     subst a_stk4.
@@ -911,6 +920,7 @@ Section Switcher.
     (* The caller returns to a valid target, outside the heap *)
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
+    Nswitcher ## N_trap ->
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
@@ -986,13 +996,13 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_revoked Nswitcher W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller target
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true).
-    1-7: eauto.
+    1-8: eauto.
     iFrame "Hswitcher Hstatic Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
       Hstk Hworld_interp Hstk_val Hcstk Hcont".
     iFrame "Hentry".
@@ -1041,6 +1051,7 @@ Section Switcher.
     (* The caller returns to a valid target, outside the heap *)
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
+    Nswitcher ## N_trap ->
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
@@ -1114,13 +1125,13 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_revoked Nswitcher W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false).
-    1-7: eauto.
+    1-8: eauto.
     iFrame "Hswitcher Hstatic Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
       Hstk Hworld_interp Hstk_val Hcstk Hcont Hpost".
     iFrame "Htarget_v".

@@ -68,6 +68,7 @@ Section Heap_Temporal_Safety_Interp.
   (** Execute free for an arbitrary caller and update the shared heap world. *)
   Lemma free_exec_entry_point W C (Nswitcher : namespace) :
     Nswitcher ## Nallocator_service ->
+    Nswitcher ## N_trap ->
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
@@ -79,7 +80,7 @@ Section Heap_Temporal_Safety_Interp.
       allocator_free_nargs allocator_free_min_stack W C.
   Proof.
     (* Unpack the entry register map and classify the requested capability. *)
-    iIntros (Hdisj) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
+    iIntros (Hdisj HNtrap) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
       "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
     rewrite /interp_conf.
@@ -108,7 +109,7 @@ Section Heap_Temporal_Safety_Interp.
       iInsertRegs "Hrmap" ["Hcgpr";"Hcrar";"Hca0";"Hca1";"Hca2";
                            "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
       iApply (trap_safe_unwind with "Hswitcher Hswitcher_static [-]");
-        [|exact Hframe|]; cycle 1.
+        [exact HNtrap| |exact Hframe|]; cycle 1.
       { iModIntro. iFrame. }
       intros r. destruct (Hfull_rmap r) as [wr Hwr].
       rewrite !lookup_insert_is_Some' !lookup_delete_is_Some.
@@ -208,7 +209,8 @@ Section Heap_Temporal_Safety_Interp.
       { exact Hframe. }
       { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
       { exact Hnodup. }
-      { intros a Ha. apply Htemps in Ha. exact Ha. } }
+      { intros a Ha. apply Htemps in Ha. exact Ha. }
+      { exact HNtrap. } }
     (* A tagged heap argument is a live capability of the object [ι] that
        the world records, whose bounds cover the argument's. *)
     destruct Hcap as (p & g & b & e & a & -> & Hbounds).
@@ -296,7 +298,8 @@ Section Heap_Temporal_Safety_Interp.
         { exact Hframe. }
         { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
         { exact Hnodup. }
-        { intros x Hx. apply Htemps in Hx. exact Hx. } }
+        { intros x Hx. apply Htemps in Hx. exact Hx. }
+        { exact HNtrap. } }
       (* Accept: collect every cell of [ι] from the world and free it. *)
       iMod (free_region_open_list W C lk Hlk_nodup Hpayload_keys
         with "[$Hregion $Hsts]")
@@ -443,6 +446,7 @@ Section Heap_Temporal_Safety_Interp.
       { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
       { exact Hnodup. }
       { intros x Hx. apply Htemps. exact Hx. }
+      { exact HNtrap. }
     - (* Narrowed bounds: a strict subrange of the allocation is rejected. *)
       iExtract "Hrmap" csp as "Hcspr".
       iMod (world_interp_revoke_stack W C (a_stk ^+ 4)%a e_stk
@@ -499,6 +503,7 @@ Section Heap_Temporal_Safety_Interp.
       { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
       { exact Hnodup. }
       { intros x Hx. apply Htemps in Hx. exact Hx. }
+      { exact HNtrap. }
   Qed.
 
 
@@ -508,6 +513,7 @@ Section Heap_Temporal_Safety_Interp.
     (C : CmptName)
     (Nswitcher : namespace) :
     Nswitcher ## Nallocator_service ->
+    Nswitcher ## N_trap ->
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
     let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
     allocator_service_ctx ∗
@@ -527,7 +533,7 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_free).
   Proof.
-    intros Hdisj a_alloc_exp_tbl_cgp a_alloc_entry_free.
+    intros Hdisj HNtrap a_alloc_exp_tbl_cgp a_alloc_entry_free.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_free.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
@@ -614,7 +620,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (W') "%Hpriv".
     iNext.
     change (allocator_pcc_b ^+ allocator_free_pcc_off)%a with allocator_free_pcc_addr.
-    iApply (free_exec_entry_point W' C Nswitcher Hdisj).
+    iApply (free_exec_entry_point W' C Nswitcher Hdisj HNtrap).
     iFrame "#".
   Qed.
 

@@ -100,6 +100,7 @@ Section HTS_Spec_Free.
 
   Lemma hts_spec_free :
     Nswitcher ## Nallocator_service ->
+    Nswitcher ## N_trap ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
     is_heap_address owner_a = false ->
@@ -117,7 +118,7 @@ Section HTS_Spec_Free.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hdisj Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min HsubBounds
+    iIntros (Hdisj HNtrap Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min HsubBounds
       Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -334,6 +335,7 @@ Section HTS_Spec_Free.
     { exact hts_allocator_cgp_not_heap. }
     { solve_ndisj. }
     { solve_ndisj. }
+    { exact HNtrap. }
     { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { solve_addr. }
     { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }

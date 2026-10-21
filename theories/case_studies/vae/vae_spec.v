@@ -49,6 +49,7 @@ Section VAE.
     let a_vae_exp_tbl_cgp := (b_vae_exp_tbl ^+ ExportTable_offset_cgp)%a in
     let a_vae_entry_awkward := (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a in
 
+    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
     is_heap_address pc_b = false ->
@@ -112,7 +113,7 @@ Section VAE.
        - [vae_init_blocks_2_spec]: block 3, halt. *)
     intros imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
     subst imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
-    iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
+    iIntros (HNtrap Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
                Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hloc_i_0 Hframe_match
             )
@@ -171,6 +172,7 @@ Section VAE.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
