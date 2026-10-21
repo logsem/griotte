@@ -483,6 +483,8 @@ Section fundamental.
                 b_stk := b ;
                 a_stk := a ;
                 e_stk := e ;
+                (* the export table cell is cleared: any base *)
+                b_callee_exp_tbl := za ;
                 ccrel := Unknown_to_Unknown
              |}).
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
@@ -493,7 +495,7 @@ Section fundamental.
       { iMod (switcher_inv_push_frame frame cstk with
                "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
                 Htstk Hstk_interp [] Hp_ot_switcher")
-          as "[Hinv Hcstk]"; [done..|].
+          as "[Hinv Hcstk]"; [first [done | by left | (right; apply exp_tbl_cap_entry; solve_addr)]..|].
         iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
         iModIntro.
         iFrame "Hrmap Hworld_interp Hcstk Hna Hcont".
@@ -582,6 +584,7 @@ Section fundamental.
               b_stk := b ;
               a_stk := a ;
               e_stk := e ;
+              b_callee_exp_tbl := b_tbl ;
               ccrel := Unknown_to_Unknown
            |}).
     iNext; iSplit; cycle 1.
@@ -592,7 +595,7 @@ Section fundamental.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [] Hp_ot_switcher")
-        as "[Hinv Hcstk]"; [done..|].
+        as "[Hinv Hcstk]"; [first [done | by left | (right; apply exp_tbl_cap_entry; solve_addr)]..|].
       iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
       iDestruct (big_sepM_sep with "Hparams") as "[Hparams _]".
       iDestruct (big_sepM_union with "[$Hparams $Hrest]") as "Hrmap".
@@ -616,7 +619,7 @@ Section fundamental.
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done..|].
+      as "[Hinv Hcstk]"; [first [done | by left | (right; apply exp_tbl_cap_entry; solve_addr)]..|].
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
 
     (* Execute the entry point of the callee *)

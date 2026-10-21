@@ -40,6 +40,8 @@ Definition is_known_to_known (r : caller_callee_relation) :=
     - [wcs1] records the value of [cs1], general purpose register
     - [b_stk], [a_stk] and  [e_stk] records the bounds of the stack capability [csp],
     the (compartment) stack frame of the caller
+    - [b_callee_exp_tbl] records the base of the export table of the callee
+      ([calleeExportTable] in CHERIoT)
 
     The frame records the saved logical words, with their identifiers, not
     their mutable shadow bits. Each restored word satisfies [load_heap]: a
@@ -64,6 +66,7 @@ Record cframe := MkCFrame {
       b_stk : Addr;
       a_stk : Addr;
       e_stk : Addr;
+      b_callee_exp_tbl : Addr;
       ccrel : caller_callee_relation;
   }.
 

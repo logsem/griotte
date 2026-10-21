@@ -71,7 +71,7 @@ Section switcher_helpers_cframe.
   (* TODO USED IN INTERP RETURN *)
   Lemma open_world_interp_cframe
     (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
-    (wret wcgp0 wcs2 wcs3 : LWord) (ccrel : caller_callee_relation)
+    (wret wcgp0 wcs2 wcs3 : LWord) (ccrel : caller_callee_relation) (b_callee_exp_tbl : Addr)
     :
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
@@ -86,6 +86,7 @@ Section switcher_helpers_cframe.
         b_stk := b_stk;
         a_stk := a_stk;
         e_stk := e_stk;
+        b_callee_exp_tbl := b_callee_exp_tbl;
         ccrel := ccrel
            |}
     ∗ world_interp W C
@@ -230,7 +231,7 @@ Section switcher_helpers_cframe.
 
     Lemma open_world_interp_cframe_gen
     (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list LAddr)
-    (wret wcgp wcs0 wcs1 : LWord) (ccrel : caller_callee_relation)
+    (wret wcgp wcs0 wcs1 : LWord) (ccrel : caller_callee_relation) (b_callee_exp_tbl : Addr)
     :
       let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur in
       let a_stk := (csp_b ^+ -4)%a in
@@ -254,6 +255,7 @@ Section switcher_helpers_cframe.
           b_stk := b_stk;
           a_stk := a_stk;
           e_stk := csp_e;
+          b_callee_exp_tbl := b_callee_exp_tbl;
           ccrel := ccrel
            |}
         -∗

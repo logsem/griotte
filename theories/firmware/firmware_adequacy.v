@@ -259,6 +259,14 @@ Section layout_bridges.
     tsl_frameoffset :
       ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
     tsl_frames_fit : ∃ n : nat, (b + tstack_frame_offset (S n))%a = Some e;
+    tsl_export_table :
+      ∃ (b_tbl : Addr) (w : Word),
+        ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable) = Some w ∧
+        exp_tbl_cap b_tbl w;
+    tsl_error_count :
+      ∃ n : Z,
+        ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
+        = Some (WInt n);
     tsl_words : Forall trusted_stack_word ts;
   }.
 
@@ -297,7 +305,8 @@ Section layout_bridges.
       (ot_switcher sw) (b_trusted_stack t) (e_trusted_stack t)
       (isl_switcher_size _ _ _ Hsw) (isl_call_entry_point _ _ _ Hsw) (isl_return_entry_point _ _ _ Hsw)
       (isl_ot_switcher_size _ _ _ Hsw)
-      ts (tsl_size _ _ _ Hts) (tsl_frameoffset _ _ _ Hts) (tsl_frames_fit _ _ _ Hts) (tsl_words _ _ _ Hts)
+      ts (tsl_size _ _ _ Hts) (tsl_frameoffset _ _ _ Hts) (tsl_frames_fit _ _ _ Hts)
+      (tsl_export_table _ _ _ Hts) (tsl_error_count _ _ _ Hts) (tsl_words _ _ _ Hts)
       (b_stack t) (e_stack t) ss (isl_stack_size _ _ _ Hsw) (isl_disjointness _ _ _ Hsw)
       (isl_trusted_stack_mmio _ _ _ Hsw) (isl_switcher_base_not_shadow _ _ _ Hsw)
       (isl_switcher_not_heap _ _ _ Hsw) (isl_stack_mmio _ _ _ Hsw) (isl_stack_not_heap _ _ _ Hsw)
@@ -508,12 +517,15 @@ Section layout_of_img_wf.
     (b + tstack_frame_offset (S n))%a = Some e →
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
+    (∃ b_tbl, exp_tbl_cap b_tbl w_export_table) →
     trusted_stack_layout b e (initial_trusted_stack_content w_csp w_export_table n).
   Proof.
-    intros Hsize Hcsp Hexport_table. split.
+    intros Hsize Hcsp Hexport_table [b_tbl Htbl]. split.
     - by rewrite initial_trusted_stack_content_length.
     - reflexivity.
     - by exists n.
+    - by exists b_tbl, w_export_table.
+    - by exists 0%Z.
     - by apply initial_trusted_stack_content_words.
   Qed.
 
@@ -569,16 +581,21 @@ Section layout_of_img_wf.
     let c := cmpt_of img (ft_cmpt ft) in
     trusted_stack_word (WCap true RWL Local (b_stack t) (e_stack t) (b_stack t)) ∧
     trusted_stack_word
+      (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)) ∧
+    exp_tbl_cap (cmpt_exp_tbl_pcc c)
       (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)).
   Proof.
     intros Hcmpts Hthread t c.
     destruct (thread_wf_inv _ _ _ _ Hthread) as (Hin & Hname & _ & _ & Hrange_stack & _).
     rewrite Forall_forall in Hcmpts.
-    destruct (cmpt_wf_split _ _ _ (Hcmpts _ Hin)) as (_ & _ & _ & _ & _ & _ & _ & Hranges & _).
+    destruct (cmpt_wf_split _ _ _ (Hcmpts _ Hin))
+      as (_ & _ & _ & _ & _ & Hheader & Hentries & Hranges & _).
     rewrite /cmpt_ranges Forall_cons Forall_cons Forall_cons Forall_singleton Hname in Hranges.
+    rewrite Hname in Hheader Hentries.
     destruct Hranges as (_ & _ & _ & [ [_ Hexp_heap] _]).
     destruct Hrange_stack as [ [_ Hstack_heap] _].
-    split; by apply trusted_stack_word_cap.
+    split_and!; [by apply trusted_stack_word_cap.. |].
+    subst t c. eexists _, _, _, _. split_and!; [done | done | solve_addr].
   Qed.
 
   (** The words of the trusted stack of a thread. *)
@@ -588,7 +605,7 @@ Section layout_of_img_wf.
     Forall trusted_stack_word (fw_tstack_content img i ft).
   Proof.
     intros Hcmpts Hthread.
-    destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread) as [Hcsp Hexport_table].
+    destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread) as (Hcsp & Hexport_table & _).
     by apply initial_trusted_stack_content_words.
   Qed.
 
@@ -656,9 +673,10 @@ Section layout_of_img_wf.
     intros Hthreads (_ & _ & Hcmpts & Hthread & _).
     apply big_and_fw_map in Hcmpts.
     rewrite Hthreads in Hthread. apply big_and_cons in Hthread as [Hthread _].
-    destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread) as [Hcsp Hexport_table].
+    destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread)
+      as (Hcsp & Hexport_table & Hexp_tbl_cap).
     destruct (thread_wf_inv _ _ _ _ Hthread) as (_ & _ & _ & Htstack & _).
-    by apply initial_trusted_stack_layout.
+    apply initial_trusted_stack_layout; [done.. | by eexists].
   Qed.
 
   Lemma img_wf_switcher_layout fw img ft fts :

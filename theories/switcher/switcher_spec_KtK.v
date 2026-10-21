@@ -42,6 +42,7 @@ Section Switcher_KtK.
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
     (off_tgt : Z)
+    (b_callee_exp_tbl : Addr)
     : iProp Σ :=
     let a_stk4 := (a_stk ^+ 4)%a in
     let frame :=
@@ -52,6 +53,7 @@ Section Switcher_KtK.
               b_stk := b_stk;
               a_stk := a_stk;
               e_stk := e_stk;
+              b_callee_exp_tbl := b_callee_exp_tbl;
               ccrel := Known_to_Known
            |}
     in
@@ -151,6 +153,7 @@ Section Switcher_KtK.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp)%a in
+    let a_tbl_ehs := (btbl_tgt ^+ ExportTable_offset_errorHandlerStackless)%a in
     let wct1_caller :=
       WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     (* The callee returned *)
@@ -233,7 +236,7 @@ Section Switcher_KtK.
     ↑Nswitcher ⊆ E ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt < a_tbl_cgp)%a ->
-    (a_tbl_cgp < atbl_tgt)%a ->
+    (a_tbl_ehs < atbl_tgt)%a ->
     (0 <= nargs <= 7)%nat ->
     is_Some (bpcc_tgt + off_tgt)%a ->
     (* The callee's stack is at least its minimum stack size *)
@@ -267,7 +270,7 @@ Section Switcher_KtK.
     ∗ switcher_cc_specification_known_to_known_function
         may_fault P Q wcgp_caller wcra_caller wcs0_caller wcs1_caller
         b_stk e_stk a_stk arg_rmap cstk nargs minstk_tgt E
-        bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt
+        bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt btbl_tgt
     ∗ ▷ ((if may_fault
           then returned ∨ stack_exhausted ∨ callee_faulted
           else returned ∨ stack_exhausted)
@@ -276,8 +279,8 @@ Section Switcher_KtK.
     ⊢ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros a_stk4 a_tbl_cgp wct1_caller returned stack_exhausted callee_faulted.
-    subst a_tbl_cgp.
+    intros a_stk4 a_tbl_cgp a_tbl_ehs wct1_caller returned stack_exhausted callee_faulted.
+    subst a_tbl_cgp a_tbl_ehs.
     subst returned stack_exhausted callee_faulted.
     iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
              HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
@@ -350,7 +353,7 @@ Section Switcher_KtK.
         }
         iApply (switcher_cc_specification_return_known_to_known
                   Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
-                  wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk E
+                  wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk btbl_tgt E
                   with
                   "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                     $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hretpost]").
@@ -369,7 +372,7 @@ Section Switcher_KtK.
       iIntros "(HPC & Hca0 & Hca1)".
       iApply (switcher_cc_specification_return_known_to_known
                 Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
-                (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret rmap_ret cstk E
+                (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret rmap_ret cstk btbl_tgt E
                 with
                 "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                   $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk Hpost]");

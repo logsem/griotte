@@ -116,9 +116,12 @@ Section adequacy_helpers.
         }
         iFrame.
       }
-      iAssert ( switcher_preamble.switcher_inv )
-        with "[Htrusted_stack Hcstk_full Hmtdc]" as "Hswitcher".
+      iAssert (|==> switcher_preamble.switcher_inv )%I
+        with "[Htrusted_stack Hcstk_full Hmtdc]" as ">Hswitcher".
       {
+        pose proof (trusted_stack_content_export_table switcher_cmpt)
+          as (b_tbl & w_tbl & Hw_tbl & Htbl_cap).
+        pose proof (trusted_stack_content_error_count switcher_cmpt) as [n_cnt Hw_cnt].
         pose proof (trusted_stack_content_frameoffset switcher_cmpt) as Hframeoffset.
         pose proof (trusted_stack_size switcher_cmpt) as Htstk_size.
         pose proof (trusted_stack_frames_fit switcher_cmpt) as [n Hfit].
@@ -141,7 +144,13 @@ Section adequacy_helpers.
           by (tstack_unfold; solve_addr).
         (* The save area, the header ([frameoffset] and [threadID]), the entry
            frame and the unused part *)
+        assert (drop (S i_frameoffset) l !! 2 = Some w_tbl) as Hw_tbl'.
+        { by rewrite lookup_drop -Hw_tbl. }
+        assert (drop (S i_frameoffset) l !! 3 = Some (WInt n_cnt)) as Hw_cnt'.
+        { by rewrite lookup_drop -Hw_cnt. }
+        clear Hw_tbl Hw_cnt.
         rewrite -(take_drop_middle l i_frameoffset _ Hframeoffset).
+        revert Hw_tbl' Hw_cnt'.
         assert (length (drop (S i_frameoffset) l)
                 = Z.to_nat (TSTACK_HEADER_SZ - 1 + TrustedStackFrame_size * Z.of_nat (S n)))
           as Hlen_rest
@@ -151,6 +160,7 @@ Section adequacy_helpers.
         destruct rest as [|w_csp rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
         destruct rest as [|w_export_table rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
         destruct rest as [|w_error_count rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
+        intros Hw_tbl' Hw_cnt'. cbn in Hw_tbl', Hw_cnt'. simplify_eq.
         rewrite fmap_app fmap_cons.
         iDestruct (region_pointsto_split _ _ (b ^+ TSTACK_REGFRAME_SZ)%a with "Htrusted_stack")
           as "[Hsave_area Htrusted_stack]".
@@ -170,12 +180,16 @@ Section adequacy_helpers.
         iDestruct (region_pointsto_cons _ a_next with "Htrusted_stack")
           as "[Herror_count Htrusted_stack]";
           [subst a_entry a_error_count a_next; tstack_unfold; solve_addr..|].
+        iMod (pointsto_persist with "Hexport_table") as "#Hexport_table".
+        iModIntro.
         rewrite /switcher_inv.
         iExists a_entry, [], _, _.
         cbn.
         rewrite /TrustedStackFrame_offset_csp finz_add_0_default.
         iFrame "∗ #".
-        iPureIntro; split; [done|subst a_entry b e; tstack_unfold; split; solve_addr].
+        iSplit; first done.
+        iSplit; last (iExists b_tbl; done).
+        iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.
       }
       iMod (na_inv_alloc cerise_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".

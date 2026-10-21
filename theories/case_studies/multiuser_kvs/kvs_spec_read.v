@@ -1582,7 +1582,7 @@ Section KVS_spec_read.
          ⌜ wca1 = w ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_read_nargs kvs_read_min_stack E
-      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_read_pcc_off.
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_read_pcc_off b_kvs_exp_tbl.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).

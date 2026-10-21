@@ -78,6 +78,20 @@ Section Switcher.
   (** The handler offset of a compartment that declares no handler. *)
   Definition ExportTable_no_handler : Z := 0xffff.
 
+  (** [w] is a readable capability to the export table at [b], whose bounds
+      cover the header of the table: the switcher reads the header through
+      it, from its base. *)
+  Definition exp_tbl_cap (b : Addr) (w : Word) : Prop :=
+    ∃ p g e a, w = WCap true p g b e a ∧ readAllowed p = true ∧
+               (b ^+ ExportTable_offset_entries <= e)%a.
+
+  (** The unsealed export entry, as the call path stores it. *)
+  Lemma exp_tbl_cap_entry g b e a :
+    (b ^+ ExportTable_offset_errorHandlerStackless < a)%a →
+    (a < e)%a →
+    exp_tbl_cap b (WCap true RO g b e a).
+  Proof. intros Hb Ha. eexists _, _, _, _. split_and!; [done | done | unfold ExportTable_offset_errorHandlerStackless, ExportTable_offset_entries in *; solve_addr]. Qed.
+
   (** The offset of the [k]-th export entry in an export table. *)
   Definition ExportTable_offset_entry (k : nat) : Z := ExportTable_offset_entries + Z.of_nat k.
 

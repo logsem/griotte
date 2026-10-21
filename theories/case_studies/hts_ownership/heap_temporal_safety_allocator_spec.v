@@ -46,7 +46,7 @@ Section Heap_Temporal_Safety_Allocator.
       (hts_malloc_result a_owner id Ω) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
-      allocator_malloc_pcc_off.
+      allocator_malloc_pcc_off allocator_exp_tbl_b.
   Proof.
     intros.
     by apply (allocator_malloc_switcher_spec ∅ g_owner); [lia|..].
@@ -79,7 +79,7 @@ Section Heap_Temporal_Safety_Allocator.
       (hts_free_result a_owner id Ω ι) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs allocator_free_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
-      allocator_free_pcc_off%I.
+      allocator_free_pcc_off allocator_exp_tbl_b%I.
   Proof. apply allocator_free_switcher_spec. Qed.
 
 End Heap_Temporal_Safety_Allocator.

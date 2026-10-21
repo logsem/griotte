@@ -487,12 +487,15 @@ Section Switcher_preamble.
     let b_stk := frm.(b_stk) in
     let a_stk := frm.(a_stk) in
     let e_stk := frm.(e_stk) in
+    let b_callee_exp_tbl := frm.(b_callee_exp_tbl) in
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
     let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
     a_csp ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
-    (∃ w, a_export_table ↦ₐ w) ∗
-    (∃ w, a_error_count ↦ₐ w) ∗
+    (* The export table of the callee, at [b_callee_exp_tbl], once the call
+       path has stored the unsealed entry; cleared before. *)
+    (∃ w, a_export_table ↦ₐ w ∗ ⌜w.(lw) = WInt 0 ∨ exp_tbl_cap b_callee_exp_tbl w.(lw)⌝) ∗
+    (∃ n : Z, a_error_count ↦ₐ WInt n) ∗
     ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
       disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
       (* a trusted caller returns to a valid target, outside the heap *)
@@ -503,8 +506,10 @@ Section Switcher_preamble.
   (** [cstack_interp] interprets a call-stack, whose topmost frame is at
       [a_tstk] in the trusted stack. It interprets the topmost stack frame,
       as well as the rest of the call-stack, in the frames below. The empty
-      call-stack is the entry frame of the thread, [frames[0]], whose cells
-      are not constrained.
+      call-stack is the entry frame of the thread, [frames[0]]: its stack
+      pointer is unconstrained, its export table cell holds, for good, a
+      capability to the export table of the compartment the thread starts
+      in, and its error handler count is an integer.
    *)
   Fixpoint cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
     (match cstk with
@@ -512,10 +517,11 @@ Section Switcher_preamble.
         let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
         let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
         let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
-        ∃ w0 w1 w2,
-          a_csp ↦ₐ w0 ∗
-          a_export_table ↦ₐ w1 ∗
-          a_error_count ↦ₐ w2
+        ∃ (w_csp w_tbl : LWord) (b_tbl : Addr) (n : Z),
+          a_csp ↦ₐ w_csp ∗
+          a_export_table ↦ₐ□ w_tbl ∗
+          ⌜exp_tbl_cap b_tbl w_tbl.(lw)⌝ ∗
+          a_error_count ↦ₐ WInt n
     | frm::cstk' =>
         let a_prev := (a_tstk ^+ - TrustedStackFrame_size)%a in
         cstack_interp cstk' a_prev ∗ cframe_interp frm a_tstk

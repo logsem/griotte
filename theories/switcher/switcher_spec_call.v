@@ -556,6 +556,8 @@ Section Switcher.
               b_stk := b_stk;
               a_stk := a_stk;
               e_stk := e_stk;
+              (* the base of the sealed entry point, if it is one *)
+              b_callee_exp_tbl := default za (memory_cap_base wct1_caller.(lw));
               ccrel := Known_to_Unknown
            |}).
     (* The continuation of the caller, once the frame is pushed *)
@@ -626,7 +628,7 @@ Section Switcher.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [Hcells] Hp_ot_switcher")
-        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _| |].
+        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|first [by left | (right; apply exp_tbl_cap_entry; solve_addr)]| |].
       { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
       iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
       iDestruct ("Hcont_frame" with "Hstk4v") as "Hcont_frame".
@@ -676,7 +678,7 @@ Section Switcher.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [Hcells] Hp_ot_switcher")
-        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _| |].
+        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|first [by left | (right; apply exp_tbl_cap_entry; solve_addr)]| |].
       { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
       iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
       iDestruct (big_sepM_sep with "Hargs") as "[Hargs _]".
@@ -697,7 +699,7 @@ Section Switcher.
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _| |].
+      as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|first [by left | (right; apply exp_tbl_cap_entry; solve_addr)]| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
 
