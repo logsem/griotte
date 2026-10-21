@@ -96,6 +96,10 @@ Class ceriseG Σ :=
     }.
 #[export] Hint Mode ceriseG - : typeclass_instances.
 
+(** The namespace of the non-atomic token of trap entry: a fault hands it
+    to the state interpretation, in exchange for MEPCC and mcause. *)
+Definition N_trap : namespace := nroot .@ "trap_entry".
+
 (** The state interpretation: the logical PC, registers, system registers and
     memory, the physical shadow table, the registry and the address claims,
     related to the machine state by erasure. *)
@@ -104,16 +108,22 @@ Section state_interp.
   Context `{!pcG Σ,
             !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName LWord Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
-            !allocRegistryG Σ, !addrAllocG Σ, !trapVector}.
+            !allocRegistryG Σ, !addrAllocG Σ, !trapVector, !cerise_na_invs Σ}.
 
-  (** The only points-to of the system registers that no client holds:
-      mstatus, the registers trap entry writes (MEPCC, mcause, mtval) and
-      MTCC, which holds the trap vector [mtcc_vec]. *)
+  (** The system registers that the state interpretation reserves: mstatus,
+      the registers trap entry writes (MEPCC, mcause, mtval) and MTCC, which
+      holds the trap vector [mtcc_vec]. No client holds the points-to of
+      mstatus, mtval and MTCC. MEPCC and mcause are held here, or lent to
+      the code after trap entry, which then holds their points-to while the
+      state interpretation holds the trap-entry token. mtval holds an
+      integer. *)
   Definition sreg_reserved : iProp Σ :=
     "Hmstatus" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MSTATUS (DfracOwn 1) v) ∗
-    "Hmepcc" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MEPCC (DfracOwn 1) v) ∗
-    "Hmcause" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MCAUSE (DfracOwn 1) v) ∗
-    "Hmtval" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MTVAL (DfracOwn 1) v) ∗
+    "Hwin" ∷ (((∃ v, pointsto (L:=SRegName) (V:=LWord) MEPCC (DfracOwn 1) v) ∗
+               (∃ v, pointsto (L:=SRegName) (V:=LWord) MCAUSE (DfracOwn 1) v)) ∨
+              na_own cerise_nais (↑N_trap)) ∗
+    "Hmtval" ∷ (∃ z : Z, pointsto (L:=SRegName) (V:=LWord) MTVAL (DfracOwn 1)
+                           (lword_of_word (WInt z))) ∗
     "Hmtcc" ∷ pointsto (L:=SRegName) (V:=LWord) MTCC (DfracOwn 1) (lword_of_word mtcc_vec).
 
   (** The logical system registers, with the reserved points-to. *)
@@ -257,7 +267,8 @@ Section ghost_init.
       are unpainted, [cnull] holds zero, and every tagged executable word
       has closed bounds that avoid the heap; a tagged PC, MTCC or MEPCC is an
       unsealed executable capability; the system registers that the state
-      interpretation reserves exist, and MTCC holds the trap vector. *)
+      interpretation reserves exist, MTCC holds the trap vector and mtval an
+      integer. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -278,6 +289,7 @@ Section ghost_init.
     gi_sregs_pc_ok sr w : is_pc_sreg sr = true → sreg σ !! sr = Some w → pc_ok w;
     gi_reserved_sregs sr : sr ∈ reserved_sregs → is_Some (sreg σ !! sr);
     gi_mtcc : sreg σ !! MTCC = Some mtcc_vec;
+    gi_mtval : ∃ z, sreg σ !! MTVAL = Some (WInt z);
   }.
 
   Lemma lookup_init_claims H a :
@@ -347,7 +359,7 @@ Section ghost_init.
     - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
       apply fmap_Some in Hv as (w & Hw & ->).
       apply Hok; last by eapply gi_sregs_exec. intros b. eapply gi_sregs; eauto.
-    - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
+    - intros sr v _. rewrite /init_lsregs lookup_fmap. intros Hv _.
       by apply fmap_Some in Hv as (w & Hw & ->).
     - intros sr v Hsr. rewrite /init_lsregs lookup_fmap. intros Hv.
       apply fmap_Some in Hv as (w & Hw & ->). by eapply gi_sregs_pc_ok.
@@ -363,7 +375,7 @@ Section ghost_init.
     - apply Hinit.
   Qed.
 
-  Context `{!ceriseGpreS Σ}.
+  Context `{!ceriseGpreS Σ, !cerise_na_invs Σ}.
 
   (** The generic ghost initialisation of every adequacy theorem. It returns
       the state interpretation, the logical PC, register, system register,
@@ -395,7 +407,7 @@ Section ghost_init.
     destruct (gi_reserved_sregs _ _ Hinit MSTATUS) as [wst Hwst]; first set_solver.
     destruct (gi_reserved_sregs _ _ Hinit MEPCC) as [wepcc Hwepcc]; first set_solver.
     destruct (gi_reserved_sregs _ _ Hinit MCAUSE) as [wcause Hwcause]; first set_solver.
-    destruct (gi_reserved_sregs _ _ Hinit MTVAL) as [wtval Hwtval]; first set_solver.
+    destruct (gi_mtval _ _ Hinit) as [ztval Hwtval].
     pose proof (gi_mtcc _ _ Hinit) as Hwtcc.
     iDestruct (big_sepM_delete _ _ MSTATUS with "Hsrs") as "[Hmstatus Hsrs]"; first exact Hwst.
     iDestruct (big_sepM_delete _ _ MEPCC with "Hsrs") as "[Hmepcc Hsrs]";
@@ -408,7 +420,7 @@ Section ghost_init.
       first by rewrite !lookup_delete_ne.
     iAssert (sreg_interp (lword_of_word <$> sreg σ))
       with "[Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc]" as "Hsr".
-    { iFrame "Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc". }
+    { iFrame "Hsr Hmstatus Hmtval Hmtcc". iLeft. iFrame "Hmepcc Hmcause". }
     iFrame. iPureIntro. by apply init_erasure.
   Qed.
 

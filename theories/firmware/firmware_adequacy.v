@@ -1249,6 +1249,7 @@ Section ghost_init.
       destruct sr; try done; by apply pc_ok_untagged.
     - intros sr _. eexists. apply Hsreg.
     - exact (Hsreg MTCC).
+    - exists 0%Z. exact (Hsreg MTVAL).
   Qed.
 End ghost_init.
 

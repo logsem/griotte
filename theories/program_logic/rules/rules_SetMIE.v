@@ -81,7 +81,7 @@ Section griotte_lang_rules.
     (* The new mstatus, in the state interpretation *)
     pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (setmie_mstatus mie vst)
       (WInt (mstatus_enc mie (mpie_of (get_a vst.(lw))))) Her) as Her1.
-    specialize (Her1 ltac:(apply reg_word_ok_int) eq_refl ltac:(by intros)
+    specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                   ltac:(apply reg_phys_lword_of_word)).
     iMod (sreg_interp_update_mstatus _ (setmie_mstatus mie vst) with "Hsr") as "Hsr".
     iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _

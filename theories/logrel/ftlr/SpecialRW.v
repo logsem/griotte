@@ -54,7 +54,6 @@ Section fundamental.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
     { by rewrite HpXRS. }
-    { by rewrite HpXRS. }
 
     iIntros "!>" (lpc' regs' sregs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap & _)".
     destruct HSpec; cycle 1.

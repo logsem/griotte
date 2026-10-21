@@ -67,6 +67,7 @@ Section Heap_Temporal_Safety_Interp.
 
   (** Execute free for an arbitrary caller and update the shared heap world. *)
   Lemma free_exec_entry_point W C (Nswitcher : namespace) :
+    Nswitcher ## Nallocator_service ->
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
@@ -78,7 +79,7 @@ Section Heap_Temporal_Safety_Interp.
       allocator_free_nargs allocator_free_min_stack W C.
   Proof.
     (* Unpack the entry register map and classify the requested capability. *)
-    iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
+    iIntros (Hdisj) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
       "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
     rewrite /interp_conf.
@@ -319,12 +320,17 @@ Section Heap_Temporal_Safety_Interp.
       set (rmap := delete cnull (delete ctp (delete ca4 (delete ca3 (delete ct2
         (delete ct1 (delete ct0 (delete ca2 (delete ca1 (delete ca0
         (delete cra (delete cgp regs)))))))))))).
-      iApply (allocator_free_valid_correct ⊤ g_owner a_owner id Ω p g ι b e a ws
+      (* MTDC, for the quarantine, from the switcher invariant. *)
+      iMod (na_inv_acc with "Hswitcher Hna") as "(Hsw & Hna & Hsw_close)";
+        [solve_ndisj|solve_ndisj|].
+      iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
+      iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        _ rmap (λ v, (⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) with "[-]");
-        [ solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ | exact Hbounds
-        | symmetry; exact Hlen | | | intros _; reflexivity
-        | apply jalr_target_ok_switcher_return_sentry |].
+        _ (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rmap
+        (λ v, (⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) with "[-]");
+        [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
+        | exact Hbounds | symmetry; exact Hlen | | | intros _; reflexivity
+        | intros _; reflexivity | apply jalr_target_ok_switcher_return_sentry |].
       { subst rmap. apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }
@@ -334,12 +340,14 @@ Section Heap_Temporal_Safety_Interp.
         clear -Hca1 Hca0 Hcra Hcgp.
         rewrite /allocator_free_nargs /dom_arg_rmap /=. set_solver. }
       iFrame "Hservice Hstatic Hna Hid Ha_owner Hobj Hheld HPCr Hcgpr Hcrar Hca0 Hca1 Hca2
-        Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hrmap Hcells".
+        Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hrmap Hmtdc Hcells".
       iNext.
       iIntros "(Hna_post & Hid & Ha_owner & HPCr_post & Hcgpr_post &
         Hcrar_post & Hca0_post & Hca1_post & Hca2_post & Hct0_post &
         Hct1_post & Hct2_post & Hct3_post & Hct4_post & Hctp_post &
-        Hcnull_post & Hrmap & #Hq & Hlc)".
+        Hcnull_post & Hrmap & Hmtdc & #Hq & Hlc)".
+      iMod ("Hsw_close" with "[$Hna_post Hmtdc Hsw]") as "Hna_post".
+      { iNext. iExists a_tstk, cstk', save_area, tstk_next. iFrame. }
       subst rmap. iExtract "Hrmap" csp as "Hcspr".
       (* Move the world's entry for [ι] to Quarantined. *)
       set (h' := heap_quarantine W.2 ι).
@@ -499,6 +507,7 @@ Section Heap_Temporal_Safety_Interp.
     (W : WORLD)
     (C : CmptName)
     (Nswitcher : namespace) :
+    Nswitcher ## Nallocator_service ->
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
     let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
     allocator_service_ctx ∗
@@ -518,7 +527,7 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_free).
   Proof.
-    intros a_alloc_exp_tbl_cgp a_alloc_entry_free.
+    intros Hdisj a_alloc_exp_tbl_cgp a_alloc_entry_free.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_free.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
@@ -605,7 +614,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (W') "%Hpriv".
     iNext.
     change (allocator_pcc_b ^+ allocator_free_pcc_off)%a with allocator_free_pcc_addr.
-    iApply (free_exec_entry_point W' C Nswitcher).
+    iApply (free_exec_entry_point W' C Nswitcher Hdisj).
     iFrame "#".
   Qed.
 

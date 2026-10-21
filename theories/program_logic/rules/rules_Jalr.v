@@ -99,7 +99,7 @@ Section griotte_lang_rules.
     destruct (jalr_mstatus wsrc.(lw) (get_a vst.(lw))) as [z|] eqn:Hmie.
     - pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (WInt z) (WInt z) Her)
         as Her1.
-      specialize (Her1 ltac:(apply reg_word_ok_int) eq_refl ltac:(by intros)
+      specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                     ltac:(apply reg_phys_lword_of_word)).
       iMod (sreg_interp_update_mstatus _ (WInt z : LWord) with "Hsr") as "Hsr".
       destruct (decide (rdst = cnull)) as [Hnull | Hnull].

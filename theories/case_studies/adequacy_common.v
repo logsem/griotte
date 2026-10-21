@@ -99,9 +99,11 @@ Section initial_rootedness.
     (∀ sr w, is_pc_sreg sr = true → sreg !! sr = Some w → pc_ok w) →
     (∀ sr, sr ∈ reserved_sregs → is_Some (sreg !! sr)) →
     sreg !! MTCC = Some mtcc_vec →
+    (∃ z, sreg !! MTVAL = Some (WInt z)) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
-    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok Hreserved Hmtcc.
+    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok Hreserved Hmtcc
+      Hmtval.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -125,6 +127,7 @@ Section initial_rootedness.
     - exact Hsregok.
     - exact Hreserved.
     - exact Hmtcc.
+    - exact Hmtval.
   Qed.
 
 End initial_rootedness.
@@ -168,13 +171,13 @@ Proof.
   specialize (WPI (Seq (Instr Executable)) (pc, reg, sreg, m, sh) es (pc', reg', sreg', m', sh')
                 (state_is_good (pc', reg', sreg', m', sh'))).
   eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
+  iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
+  pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
   iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H Hinit)
     as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg)
        "(Hσ & HPC & Hreg & Hsreg & Hmem & Hshadow & Hclaims)".
   iEval (rewrite init_lmem_pointsto) in "Hmem".
   rewrite (init_lregs_cnull reg Hnull).
-  iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
-  pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
   pose ceriseg := {|
     cerise_invG := Hinv;
     cerise_nainvG := cerise_na_invs;

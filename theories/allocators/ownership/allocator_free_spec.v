@@ -449,17 +449,21 @@ Section AllocatorFree.
       moves to [APainting] before the paint loop and to [AQuar] right before
       the revoker store, which kills [ι]: no register holds a word with
       authority over [ι] there, since [ca0] holds [ALLOC_OK], [ca1] is zeroed and the
-      framed registers are identifier-free. The payload is unpainted and
-      returns to the service as unclaimed cells. A successful call
+      framed registers and MTDC have no identifier when they have authority.
+      The non-atomic token
+      [F] and the mask [E] both contain the namespace of the service
+      invariant. The payload is unpainted and returns to the service as
+      unclaimed cells. A successful call
       relinquishes the memory and returns [ι ⊒ AQuar]. *)
 
   Lemma allocator_free_valid_correct
-    (E : coPset) (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
+    (E F : coPset) (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
     (p : Perm) (g : Locality) (ι : AId) (b e a : Addr)
-    (ws : list LWord) (wret wnull : LWord) (rmap : LReg)
+    (ws : list LWord) (wret wnull wmtdc : LWord) (rmap : LReg)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
+    ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     ι ∈ Ω ->
@@ -469,13 +473,14 @@ Section AllocatorFree.
       {[cgp; cra; ca0; ca1; ca2; ct0; ct1; ct2; ca3; ca4; ctp; cnull]} ->
     (∀ r w, rmap !! r = Some w -> has_authority w.(lw) -> w.(lprov) = None) ->
     (has_authority wret.(lw) -> wret.(lprov) = None) ->
+    (has_authority wmtdc.(lw) -> wmtdc.(lprov) = None) ->
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ⊢ (
 
        allocator_service_ctx ∗
        allocator_service_static ∗
-       na_own cerise_nais E ∗
+       na_own cerise_nais F ∗
        allocator_owner_id id Ω ∗
        a_owner ↦ₐ WInt id ∗
        alloc_obj ι b e ∗
@@ -498,9 +503,10 @@ Section AllocatorFree.
        ctp ↦ᵣ - ∗
        cnull ↦ᵣ wnull ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
+       mtdc ↦ₛᵣ wmtdc ∗
        [[b, e]] ↦ₕ[ι] [[ws]] ∗
 
-       ▷ (na_own cerise_nais E ∗
+       ▷ (na_own cerise_nais F ∗
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗
           PC ↦ₚ lupdatePcPerm wret ∗
@@ -518,20 +524,22 @@ Section AllocatorFree.
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ wnull ∗
           ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
+          mtdc ↦ₛᵣ wmtdc ∗
           ι ⊒ AQuar ∗
           £ 1
 
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
-    intros HEservice Hshadow_a Hbounds_a HιΩ Hbounds Hlen Hdom Hclean Hclean_ret Htgt.
+    intros HEservice HFservice Hshadow_a Hbounds_a HιΩ Hbounds Hlen Hdom Hclean Hclean_ret
+      Hclean_mtdc Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & #Hobj & Hheld & HPC & Hcgp & Hcra & Hca0 & Hca1 &
-      Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hrmap & Hheap & Hpost)".
+      Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hrmap & Hmtdc & Hheap & Hpost)".
     (* Split the cells into their memory and their status shares. *)
     iDestruct (heap_region_pointsto_split with "Hobj") as "[Hto _]".
     iDestruct ("Hto" with "Hheap") as "[Hmem Hshares]".
     (* Open the service invariant. *)
-    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
+    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; [exact HEservice|exact HFservice|].
     iDestruct "Hinv" as ">@".
     iDestruct "Hstatic" as "[#Himports #Hcode]".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
@@ -607,9 +615,9 @@ Section AllocatorFree.
        token moves to [AQuar]; the store kills [ι]; unpaint the payload. *)
     iApply (allocator_free_revoke_spec with
       "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hrmap
-          $Hobj $Hpainting $Hpayload $Htail_code]"); [done|done|done|done|done|].
+          $Hmtdc $Hobj $Hpainting $Hpayload $Htail_code]"); [done|done|done|done|done|done|].
     iNext. iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 &
-      Hctp & Hcnull & Hrmap & Hdead & #Hq & Hcells_free & _)".
+      Hctp & Hcnull & Hrmap & Hmtdc & Hdead & #Hq & Hcells_free & _)".
     (* Return. *)
     iApply (allocator_free_return_spec with "[- $HPC $Hcra $Htail_code]"); [done|done|].
     iNext. iIntros "(HPC & Hcra & _ & Hlc)".

@@ -544,7 +544,7 @@ Section KVS_Main_Blocks.
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | exact kvs_exp_tbl_disjoint_from_shadow
-      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj
+      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj | solve_ndisj
       | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate;
         solve_addr+Hkvs_exp_tbl_size
       | solve_addr+Hkvs_exp_tbl_size
@@ -821,7 +821,7 @@ Section KVS_Main_Blocks.
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | exact kvs_exp_tbl_disjoint_from_shadow
-      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj
+      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj | solve_ndisj
       | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr+Hkvs_exp_tbl_size
       | solve_addr+Hkvs_exp_tbl_size
       | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr+Hkvs_exp_tbl_size
