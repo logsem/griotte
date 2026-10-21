@@ -23,8 +23,8 @@ Ltac instr_normalize_register_aliases :=
         end)
   end.
 
-(* Operand aliases share one owned entry, including cnull. Reading
-   cnull still requires its physical register resource. *)
+(* Operand aliases share one owned entry. [cnull] needs no register
+   resource. *)
 (* Distinct full-ownership hypotheses already imply distinct registers. The
    explicit-resource rule proves this fact internally when consuming them. *)
 Ltac instr_distinct_register_resources r1 r2 :=
@@ -63,10 +63,12 @@ Ltac instr_registers_contain regs r :=
   end.
 
 (* PC has its own resource in every failure rule. Collect only the remaining
-   distinct operands, binding each to its owned word before applying a rule. *)
+   distinct operands other than [cnull], binding each to its owned word
+   before applying a rule. *)
 Ltac instr_register_words rs :=
   lazymatch rs with
   | nil => constr:(@nil (RegName * LWord))
+  | cnull :: ?rs => instr_register_words rs
   | ?r :: ?rs =>
     let tail := instr_register_words rs in
     let found := instr_registers_contain tail r in
