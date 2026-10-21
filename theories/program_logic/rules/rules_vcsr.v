@@ -25,7 +25,7 @@ Section vcsr.
 
   (** "vcsr" stands for the volatile control and status registers: those
       that every trap entry overwrites (MEPCC and mcause, and on the machine
-      also mtval and the MPIE bit of mstatus). Their contents are only
+      also mtval and the MIE and MPIE bits of mstatus). Their contents are only
       meaningful between a trap entry and the next trap.
 
       [vcsr_res] is the right to read and write them now, and [vcsr_frag sr v]
@@ -96,13 +96,10 @@ Section vcsr.
   Proof.
     rewrite vcsr_res_unseal /vcsr_res_def vcsr_frag_unseal.
     iIntros (He) "(%wepcc & %wcause & Hmepcc & Hmcause) HΦ".
-    rewrite wp_unfold /wp_pre He.
-    iIntros (σ1 ns κ κs nt) "Hσ /=".
-    iNamed "Hσ".
-    iDestruct (sreg_interp_trap_return with "Hsr Hmepcc Hmcause") as "(_ & Hsr & Htok)".
-    iSpecialize ("HΦ" with "Htok").
-    iApply ("HΦ" $! σ1 ns κ κs nt).
-    iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
+    iApply (wp_trap_entry_return with "Hmepcc Hmcause"); first done.
+    iIntros "Htok".
+    iDestruct (trap_entry_res_split (↑N_trap) with "Htok") as "[Htok _]"; first done.
+    iApply ("HΦ" with "Htok").
   Qed.
 
   (** The converse: the trap-entry token lends the volatile registers, with
@@ -141,24 +138,25 @@ Section vcsr.
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ dst ↦ᵣ wdst
-        ∗ ▷ vcsr_frag sr vsr }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ dst ↦ᵣ wdst ∗
+        ▷ vcsr_frag sr vsr }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ dst ↦ᵣ vsr
-          ∗ vcsr_frag sr vsr }}}.
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          dst ↦ᵣ vsr ∗
+          vcsr_frag sr vsr }}}.
   Proof.
     rewrite vcsr_frag_unseal.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hsrc") as "Hsmap".
-    iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument dom_singleton_L. set_solver. }
-    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]");
+      [exact Hinstr | exact Hvpc
+      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | rewrite Hxsr /sregs_of dom_singleton_L; set_solver |].
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold & Hvold & Hsr' & ->).
@@ -178,24 +176,25 @@ Section vcsr.
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ src ↦ᵣ vsrc
-        ∗ ▷ vcsr_frag MEPCC vold }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ vsrc ∗
+        ▷ vcsr_frag MEPCC vold }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ src ↦ᵣ vsrc
-          ∗ vcsr_frag MEPCC (llegalise MEPCC vsrc) }}}.
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          src ↦ᵣ vsrc ∗
+          vcsr_frag MEPCC (llegalise MEPCC vsrc) }}}.
   Proof.
     rewrite vcsr_frag_unseal.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
-    iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument dom_singleton_L. set_solver. }
-    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]");
+      [exact Hinstr | exact Hvpc
+      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | rewrite Hxsr /sregs_of dom_singleton_L; set_solver |].
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold' & Hvold & Hsr' & ->).
@@ -216,15 +215,15 @@ Section vcsr.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ vcsr_frag MEPCC wepcc
-        ∗ ▷ vcsr_frag MCAUSE wcause }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ vcsr_frag MEPCC wepcc ∗
+        ▷ vcsr_frag MCAUSE wcause }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ wepcc
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ trap_entry_res }}}.
+          PC ↦ₚ wepcc ∗
+          pc_a ↦ₐ{dq} w ∗
+          trap_entry_res }}}.
   Proof.
     rewrite vcsr_frag_unseal.
     iIntros (Hinstr Hvpc Hxsr φ) "(>HPC & >Hpc_a & >Hmepcc & >Hmcause) Hφ".
@@ -274,15 +273,15 @@ Section vcsr.
     regs_of (SpecialRW dst sr src) ⊆ dom regs →
     sr = MSTATUS ∨ (sr = MTVAL ∧ src = inr cnull) →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) }}}
       Instr Executable @ E
       {{{ vold, RET NextIV;
-          ⌜sr = MTVAL → ∃ z : Z, vold = lword_of_word (WInt z)⌝
-          ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ ([∗ map] k↦y ∈ specialrw_regs regs dst vold, k ↦ᵣ y) }}}.
+          ⌜sr = MTVAL → ∃ z : Z, vold = lword_of_word (WInt z)⌝ ∗
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          ([∗ map] k↦y ∈ specialrw_regs regs dst vold, k ↦ᵣ y) }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Dregs Hsr_case φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
@@ -369,19 +368,21 @@ Section vcsr.
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ dst ↦ᵣ wdst }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ E
       {{{ vst, RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ dst ↦ᵣ vst }}}.
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          dst ↦ᵣ vst }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument dom_singleton_L. set_solver. }
+    iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]");
+      [exact Hinstr | exact Hvpc | exact Hxsr | exact Hpca'
+      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | by left |].
     iNext. iIntros (vst) "(_ & HPC & Hpc_a & Hmap)".
     rewrite specialrw_regs_ne // insert_singleton_eq.
     iApply "Hφ". iFrame.
@@ -396,19 +397,21 @@ Section vcsr.
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ dst ↦ᵣ wdst }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ E
       {{{ (z : Z), RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ dst ↦ᵣ lword_of_word (WInt z) }}}.
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          dst ↦ᵣ lword_of_word (WInt z) }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument dom_singleton_L. set_solver. }
+    iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]");
+      [exact Hinstr | exact Hvpc | exact Hxsr | exact Hpca'
+      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | by right |].
     iNext. iIntros (vt) "(%Hint & HPC & Hpc_a & Hmap)".
     destruct (Hint eq_refl) as [z ->].
     rewrite specialrw_regs_ne // insert_singleton_eq.
@@ -425,19 +428,21 @@ Section vcsr.
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ src ↦ᵣ vsrc }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ vsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ src ↦ᵣ vsrc }}}.
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          src ↦ᵣ vsrc }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hsrc) Hφ".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
-    iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument dom_singleton_L. set_solver. }
+    iApply (wp_specialrw_reserved_success with "[$HPC $Hmap $Hpc_a]");
+      [exact Hinstr | exact Hvpc | exact Hxsr | exact Hpca'
+      | rewrite /regs_of /regs_of_argument dom_singleton_L; set_solver
+      | by left |].
     iNext. iIntros (vst) "(_ & HPC & Hpc_a & Hmap)".
     rewrite specialrw_regs_cnull.
     iApply "Hφ". iFrame.

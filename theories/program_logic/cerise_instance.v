@@ -110,12 +110,13 @@ Section state_interp.
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ, !trapVector, !cerise_na_invs Σ}.
 
-  (** The only points-to of the system registers that no client holds:
-      mstatus, the registers trap entry writes (MEPCC, mcause, mtval) and
-      MTCC, which holds the trap vector [mtcc_vec]. MEPCC and mcause are
-      held here, or lent to the code after trap entry, in which case the
-      state interpretation holds the trap-entry token instead. mtval holds
-      an integer. *)
+  (** The system registers that the state interpretation reserves: mstatus,
+      the registers trap entry writes (MEPCC, mcause, mtval) and MTCC, which
+      holds the trap vector [mtcc_vec]. No client holds the points-to of
+      mstatus, mtval and MTCC. MEPCC and mcause are held here, or lent to
+      the code after trap entry, which then holds their points-to while the
+      state interpretation holds the trap-entry token. mtval holds an
+      integer. *)
   Definition sreg_reserved : iProp Σ :=
     "Hmstatus" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MSTATUS (DfracOwn 1) v) ∗
     "Hwin" ∷ (((∃ v, pointsto (L:=SRegName) (V:=LWord) MEPCC (DfracOwn 1) v) ∗
@@ -142,14 +143,6 @@ Section state_interp.
   Proof.
     iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmstatus" as (v) "Hmstatus".
     iDestruct (gen_heap_valid with "Hsr Hmstatus") as %Hlookup. eauto.
-  Qed.
-
-  (** mtval holds an integer. *)
-  Lemma sreg_interp_mtval lsreg :
-    sreg_interp lsreg -∗ ⌜∃ z : Z, lsreg !! MTVAL = Some (lword_of_word (WInt z))⌝.
-  Proof.
-    iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmtval" as (z) "Hmtval".
-    iDestruct (gen_heap_valid with "Hsr Hmtval") as %Hlookup. eauto.
   Qed.
 
   (** MTCC holds the trap vector. *)

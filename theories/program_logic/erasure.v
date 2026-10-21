@@ -576,16 +576,6 @@ Section erasure.
   Lemma reg_phys_no_id R v : v.(lprov) = None → reg_phys R v v.(lw).
   Proof. intros Hp. apply reg_phys_exact. intros ι x _ Hι. congruence. Qed.
 
-  (** The register clause of a word without identifier does not depend on
-      the registry. *)
-  Lemma reg_phys_no_id_mono R R' v w : v.(lprov) = None → reg_phys R v w → reg_phys R' v w.
-  Proof.
-    intros Hπ [Hrel _]. split.
-    - destruct Hrel as [-> | [-> [[(ι & x & Hι & _) _] | Hh]]];
-        [by left | congruence | right; split; [done | by right]].
-    - intros ι x _ Hι. congruence.
-  Qed.
-
   Lemma reg_phys_untagged R v : get_tag v.(lw) = false → reg_phys R v v.(lw).
   Proof.
     intros Ht. apply reg_phys_exact. intros ι x Ha. by rewrite (has_authority_tag _ Ha) in Ht.

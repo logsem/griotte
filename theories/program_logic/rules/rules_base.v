@@ -680,33 +680,11 @@ Section griotte_lang_rules.
       iExists (trap_cause σ1). iFrame. iPureIntro. apply trap_cause_ok.
   Qed.
 
-  (** The return of MEPCC and mcause to the state interpretation, in front
-      of any instruction: the trap-entry token comes back. *)
-  Lemma wp_trap_entry_return E e Φ (wepcc wcause : LWord) :
-    to_val e = None →
-    MEPCC ↦ₛᵣ wepcc -∗
-    MCAUSE ↦ₛᵣ wcause -∗
-    (na_own cerise_nais (↑N_trap) -∗ WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He) "Hmepcc Hmcause HΦ".
-    rewrite wp_unfold /wp_pre He.
-    iIntros (σ1 ns κ κs nt) "Hσ /=".
-    iNamed "Hσ".
-    iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
-    iDestruct "Hwin" as "[[Hmepcc' _] | Htok]".
-    { iDestruct "Hmepcc'" as (v0) "Hmepcc'".
-      iDestruct (pointsto_ne with "Hmepcc Hmepcc'") as %Hne. by exfalso; apply Hne. }
-    iSpecialize ("HΦ" with "Htok").
-    iApply ("HΦ" $! σ1 ns κ κs nt).
-    iExists lpc, lreg, lsreg, lmem, R, C. iFrame. iSplit; last done.
-    iLeft. iSplitL "Hmepcc"; by iExists _.
-  Qed.
-
   (* The resources trap entry consumes, and those it gives back to the
      continuation from the trap vector, for a fault from the PC [w]: the
-     trap-entry token, and MEPCC and mcause with a fault cause. Sealed, so
-     that clients never depend on their definition. *)
+     trap-entry token, and MEPCC and mcause with a fault cause. Sealed:
+     [trap_entry_res_split] relates the token to the non-atomic token, and
+     [trap_entry_out_unfold] gives the registers. *)
   Definition trap_entry_res_def : iProp Σ := na_own cerise_nais (↑N_trap).
   #[local] Definition trap_entry_res_aux : seal (@trap_entry_res_def). Proof. by eexists. Qed.
   Definition trap_entry_res := trap_entry_res_aux.(unseal).
@@ -732,20 +710,8 @@ Section griotte_lang_rules.
     by rewrite -union_difference_L.
   Qed.
 
-  (** The return, from the resources of trap entry. *)
-  Lemma wp_trap_entry_out_return E e Φ w :
-    to_val e = None →
-    trap_entry_out w -∗
-    (trap_entry_res -∗ WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    rewrite trap_entry_out_unseal trap_entry_res_unseal.
-    iIntros (He) "[Hmepcc (%c & _ & Hmcause)] HΦ".
-    iApply (wp_trap_entry_return with "Hmepcc Hmcause HΦ"); done.
-  Qed.
-
-  (** The resources trap entry gives back, unfolded: the error path of the
-      switcher states its specifications against them. *)
+  (** The resources trap entry gives back, unfolded into MEPCC and mcause
+      ([rules_vcsr] turns them into the views of the lent registers). *)
   Lemma trap_entry_out_unfold w :
     trap_entry_out w ⊣⊢
     MEPCC ↦ₛᵣ lmepcc_of_pc w ∗
@@ -793,6 +759,38 @@ Section griotte_lang_rules.
     iSplit; first done.
     iSplitR "Htok"; last done.
     iFrame "Hsr Hmstatus Hmtval Hmtcc". iLeft. iSplitL "Hmepcc"; by iExists _.
+  Qed.
+
+  (** The return of MEPCC and mcause to the state interpretation, in front
+      of any instruction: the trap-entry token comes back. *)
+  Lemma wp_trap_entry_return E e Φ (wepcc wcause : LWord) :
+    to_val e = None →
+    MEPCC ↦ₛᵣ wepcc -∗
+    MCAUSE ↦ₛᵣ wcause -∗
+    (na_own cerise_nais (↑N_trap) -∗ WP e @ E {{ Φ }}) -∗
+    WP e @ E {{ Φ }}.
+  Proof.
+    iIntros (He) "Hmepcc Hmcause HΦ".
+    rewrite wp_unfold /wp_pre He.
+    iIntros (σ1 ns κ κs nt) "Hσ /=".
+    iNamed "Hσ".
+    iDestruct (sreg_interp_trap_return with "Hsr Hmepcc Hmcause") as "(_ & Hsr & Htok)".
+    iEval (rewrite trap_entry_res_unseal) in "Htok".
+    iSpecialize ("HΦ" with "Htok").
+    iApply ("HΦ" $! σ1 ns κ κs nt).
+    iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
+  Qed.
+
+  (** The return, from the resources of trap entry. *)
+  Lemma wp_trap_entry_out_return E e Φ w :
+    to_val e = None →
+    trap_entry_out w -∗
+    (trap_entry_res -∗ WP e @ E {{ Φ }}) -∗
+    WP e @ E {{ Φ }}.
+  Proof.
+    rewrite trap_entry_out_unseal trap_entry_res_unseal.
+    iIntros (He) "[Hmepcc (%c & _ & Hmcause)] HΦ".
+    iApply (wp_trap_entry_return with "Hmepcc Hmcause HΦ"); done.
   Qed.
 
   (* The obligation of a fault from the PC [w]: either, under an update at

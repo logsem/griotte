@@ -449,7 +449,8 @@ Section AllocatorFree.
       moves to [APainting] before the paint loop and to [AQuar] right before
       the revoker store, which kills [ι]: no register holds a word with
       authority over [ι] there, since [ca0] holds [ALLOC_OK], [ca1] is zeroed and the
-      framed registers and MTDC are identifier-free. The non-atomic token
+      framed registers and MTDC have no identifier when they have authority.
+      The non-atomic token
       [F] and the mask [E] both contain the namespace of the service
       invariant. The payload is unpainted and returns to the service as
       unclaimed cells. A successful call
