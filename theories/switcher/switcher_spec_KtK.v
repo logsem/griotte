@@ -22,9 +22,10 @@ Section Switcher_KtK.
       in the case of known-to-known cross-compartment calls.
       [P] is the precondition of the callee,
       and [Q] is the postcondition, parameterised by the returned values.
-      When [may_fault] holds, the callee may fault: its continuation also
-      covers the exception entry of the switcher, which returns
-      ECOMPARTMENTFAIL to the caller.
+      When [may_fault] holds, the callee may fault (at a PC that the
+      exception path does not resume): its continuation also covers the
+      exception entry of the switcher, which returns ECOMPARTMENTFAIL to the
+      caller.
       The callee's stack is at least its minimum stack size [minstk].
 
       The machine frame records only the saved words. The allocator owns all
@@ -81,6 +82,7 @@ Section Switcher_KtK.
        returns ECOMPARTMENTFAIL to the caller *)
     let fault_cont :=
       (∀ (wpc : LWord),
+         ⌜ trap_no_resume wpc ⌝ -∗
          (|={⊤}=>
             ∃ (rmap_ret : LReg) (stk_mem_ret : list LWord),
               ⌜ dom rmap_ret =
@@ -368,8 +370,9 @@ Section Switcher_KtK.
       }
       (* The callee faults: the exception entry returns ECOMPARTMENTFAIL *)
       destruct may_fault; last done.
-      iIntros (wpc) "Hres".
-      iApply (trap_safe_exception_entry Nswitcher E with "Hswitcher Hstatic"); [done | done | done |].
+      iIntros (wpc Hno_resume) "Hres".
+      iApply (trap_safe_exception_entry Nswitcher E with "Hswitcher Hstatic");
+        [done | done | done | done |].
       iMod "Hres" as "(%rmap_ret & %stk_mem_ret & %Hrmap_ret & Hna & [%wcgp Hcgp] & [%wcra Hcra]
                        & [%wcs0 Hcs0] & [%wcs1 Hcs1] & Hcsp & [%wca0 Hca0] & [%wca1 Hca1] & Hregs
                        & Hstk & Hcstk)".

@@ -39,7 +39,8 @@ Section fundamental.
             -∗ □ interp W_ih C_ih (WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih)
             -∗ interp_conf W_ih C_ih))%I.
 
-  Definition ftlr_instr_base (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
+  Definition ftlr_instr_base (trap_no_resume : LWord → Prop)
+    (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_type) (P : V) (Pinstr : Prop) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : Prop :=
@@ -54,7 +55,7 @@ Section fundamental.
     → ρ ≠ Revoked
     → Pinstr
     -> ("#IH" ∷ ftlr_IH ∗
-        "#Htrap" ∷ trap_vector_safe (lword_of_word mtcc_vec) ∗
+        "#Htrap" ∷ trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) ∗
         "#Hinv_interp" ∷ interp W C (WCap true p g b e a) ∗
         "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
         "#Hinva" ∷ rel C (LNonHeap a) p' (safeC P) ∗
@@ -80,12 +81,15 @@ Section fundamental.
                         → na_own cerise_nais ⊤}} }}.
 
   (** A fault in a case of the fundamental theorem, once the case has closed
-      the world: trap entry leads to the safe trap vector. *)
-  Lemma ftlr_trap (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+      the world: trap entry leads to the safe trap vector, with safe
+      registers. *)
+  Lemma ftlr_trap (trap_no_resume : LWord → Prop)
+    (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (w : LWord) :
     (∀ x : RegName, is_Some (regs !! x)) →
     frame_match Ws Cs cstk W C →
-    trap_vector_safe (lword_of_word mtcc_vec) -∗
+    trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
+    (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) -∗
     PC ↦ₚ w -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     world_interp W C -∗
@@ -94,15 +98,18 @@ Section fundamental.
     cstack_frag cstk -∗
     WP Seq (Instr Faulted) {{ v0, ⌜v0 = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hfull Hframe) "Htrap HPC Hmap Hworld Hcont Hown Hcstk".
+    iIntros (Hfull Hframe) "Htrap Hreg HPC Hmap Hworld Hcont Hown Hcstk".
     iApply (wp_trap with "HPC").
-    iApply (interp_trap_safe with "Htrap [$Hmap $Hworld $Hcont $Hown $Hcstk]"); done.
+    iApply (interp_trap_safe with "Htrap [Hreg] [$Hmap $Hworld $Hcont $Hown $Hcstk]");
+      [done | done | | done].
+    iRight. by iApply (interp_reg_intro with "Hreg").
   Qed.
 
-  Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
+  Definition ftlr_instr (trap_no_resume : LWord → Prop)
+    (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (i: instr) (ρ : region_type) (P : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : Prop :=
-    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w.(lw) = i) cstk Ws Cs.
+    ftlr_instr_base trap_no_resume W C regs p p' g b e a w ρ P (decodeInstrW w.(lw) = i) cstk Ws Cs.
 
 End fundamental.

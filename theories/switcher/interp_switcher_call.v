@@ -14,6 +14,27 @@ From griotte Require Import switcher_call_states switcher_call_world
 From griotte Require Import map_simpl register_tactics proofmode.
 
 
+(** The register file at a fault of the first spill of the call path is
+    safe: the checks leave integers in [ct2] and [ctp], and the other
+    registers hold the caller's safe words ["Hreg"]. *)
+Ltac first_spill_regs_interp :=
+  iRight;
+  iApply interp_reg_intro; [intros ?; rewrite !lookup_insert_is_Some'; naive_solver |];
+  let r := fresh "r" in
+  let v := fresh "v" in
+  let Hv := fresh "Hv" in
+  iIntros (r v Hv);
+  destruct (decide (r = ct2)) as [-> | ?]; [simplify_map_eq; iApply interp_int |];
+  destruct (decide (r = ctp)) as [-> | ?]; [simplify_map_eq; iApply interp_int |];
+  iApply ("Hreg" $! r v); iPureIntro;
+  destruct (decide (r = csp)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = cs0)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = cs1)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = cra)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = cgp)) as [-> | ?]; [by simplify_map_eq |];
+  destruct (decide (r = ct1)) as [-> | ?]; [by simplify_map_eq |];
+  by simplify_map_eq.
+
 Section fundamental.
   Context
     {Σ:gFunctors}
@@ -104,7 +125,7 @@ Section fundamental.
 
   (** Failure path of [interp_expr_switcher_call]: the trusted stack is
       exhausted. *)
-  Lemma interp_switcher_call_tstack_exhausted
+  Lemma interp_switcher_call_tstack_exhausted (no_resume : LWord → Prop)
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (rmap : LReg) (b e a : Addr) (lv : list LWord)
@@ -123,7 +144,7 @@ Section fundamental.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
-    trap_vector_safe (lword_of_word mtcc_vec) ∗
+    trap_vector_safe no_resume (lword_of_word mtcc_vec) ∗
     interp W C wcs0 ∗
     interp W C wcs1 ∗
     interp W C wcra ∗
@@ -342,8 +363,11 @@ Section fundamental.
            iApply (switcher_call_blocks_2_fail_spec with "[- $HPC $Hcsp $Hcgp $Hcode]"); [done | done |].
            iIntros "[Hcsp Hcgp]".
            iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-           iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [done| |done|by iFrame].
-           intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+           iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]");
+             [done| |done| |by iFrame].
+           { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+           (* A fault of the first spill: the registers are safe *)
+           first_spill_regs_interp. }
          (* The cursor is below the base, and the furthest cell within
             bounds: open the caller's stack from that cell *)
          destruct (Hnot_stk b e a eq_refl) as [Hab|Hea]; last solve_addr.
@@ -390,8 +414,11 @@ Section fundamental.
          { iApply big_sepL_cons; iSplitR; first (iRight; iExact "Hcgpv").
            iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
          iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-         iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [done| |done|by iFrame].
-         intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+         iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]");
+           [done| |done| |by iFrame].
+         { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+         (* A fault of the second store of the spill is not resumed *)
+         iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
     iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_mmio Hstk_heap]; first done.
 
     (* Open the caller's stack frame, before the checks: the opened
@@ -434,12 +461,14 @@ Section fundamental.
         as "Hworld_interp"; first done.
       { iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-      iApply (trap_safe_unwind with "Hinv_switcher Hstatic [-]"); [done| |done|]; cycle 1.
+      iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]"); [done| |done| |]; cycle 2.
       { iMod ("Hclose_switcher_inv" with
           "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
         { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
         by iFrame. }
-      intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+      { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
+      (* A fault of the first spill: the registers are safe *)
+      first_spill_regs_interp. }
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
     assert (4 <= length lv) as Hlen_lv4.
@@ -449,7 +478,7 @@ Section fundamental.
          & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)
        | (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset & Htstk)]"; cycle 1.
     { (* The trusted stack is exhausted *)
-      iApply (interp_switcher_call_tstack_exhausted W C Nswitcher cstk _ Ws Cs _ b e a lv
+      iApply (interp_switcher_call_tstack_exhausted _ W C Nswitcher cstk _ Ws Cs _ b e a lv
                 wcs0 wcs1 wcra wcgp with
         "[$Htrap $Hcs0v $Hcs1v $Hcrav $Hcgpv $Hspv $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area
           $Hframeoffset $HthreadID $Htstk $Hstatic
@@ -493,9 +522,11 @@ Section fundamental.
              |}).
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
       iApply (trap_safe_unwind _ _ _ (frame :: cstk) (W :: Ws) (C :: Cs)
-               with "Hinv_switcher Hstatic [-]"); [done|..]; cycle 1.
+               with "Hinv_switcher Hstatic [] [-]"); [done|..]; cycle 1.
       { simpl. split; auto; first apply related_sts_pub_refl_world.
         split; [reflexivity|]; split; done. }
+      { (* The unsealing is not the first spill *)
+        iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
       { (* The table cell is still cleared *)
         assert (WInt 0 = WInt 0 ∨ exp_tbl_cap (b_callee_exp_tbl frame) (WInt 0)) as Htbl_cell
           by by left.

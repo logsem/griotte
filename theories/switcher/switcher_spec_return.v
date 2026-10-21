@@ -272,7 +272,8 @@ Section Switcher.
 
   (** A fault in a trusted callee is safe: the exception entry sets the
       return values to integers, then the return routine returns to the
-      caller as in [switcher_ret_specification]. The return values need no
+      caller as in [switcher_ret_specification], for a fault that the
+      exception path does not resume. The return values need no
       validity. The resources come under an update at the time of the
       fault (for instance, to close an invariant). *)
   Lemma trap_safe_return
@@ -294,6 +295,7 @@ Section Switcher.
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     Nswitcher ## N_trap ->
+    trap_no_resume w ->
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
@@ -311,10 +313,11 @@ Section Switcher.
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
     intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked HNtrap)
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked HNtrap
+               Hno_resume)
       "#Hswitcher #Hstatic Hres".
     iApply (trap_safe_exception_entry Nswitcher ⊤ with "Hswitcher Hstatic");
-      [set_solver | set_solver | done |].
+      [set_solver | set_solver | done | done |].
     iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
                      & [%wca0 Hca0] & [%wca1 Hca1] & [%wcsp Hcsp])".
     iModIntro.

@@ -10,7 +10,7 @@ From griotte Require Import switcher_call_states switcher_call_world
   switcher_call_blocks_1 switcher_call_blocks_2 switcher_call_blocks_3 switcher_call_blocks_4
   switcher_call_blocks_5 switcher_call_blocks_6.
 From griotte Require Import map_simpl register_tactics proofmode.
-From griotte Require Import switcher_load_spec switcher_exception.
+From griotte Require Import switcher_load_spec switcher_blocks_15_16 switcher_exception.
 
 
 Section Switcher.
@@ -103,47 +103,145 @@ Section Switcher.
   Definition switcher_spill_overflows (a_stk e_stk : Addr) : Prop :=
     (e_stk < a_stk + 4)%Z.
 
-  (** The resources returned to the caller of [switcher_cc_specification_gen]
-      when the spill of its callee-save registers faults, because they do not
-      fit on its stack: the switcher invariant is closed, and the caller holds
-      its registers, its unchanged stack, and its world. The four cells of the
-      spill do not fit below [e_stk]. *)
-  Definition switcher_cc_fault_res
-    (W : WORLD) (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
-    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap : LReg)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : iProp Σ :=
-    ⌜ switcher_spill_overflows a_stk e_stk ⌝ ∗
-    na_own cerise_nais ⊤ ∗
-    cgp ↦ᵣ wcgp_caller ∗
-    cra ↦ᵣ wcra_caller ∗
-    cs0 ↦ᵣ wcs0_caller ∗
-    cs1 ↦ᵣ wcs1_caller ∗
-    (∃ a_csp, csp ↦ᵣ WCap true RWL Local b_stk e_stk a_csp) ∗
-    ct1 ↦ᵣ wct1_caller ∗
-    ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
-    (∃ rmap', ⌜ dom rmap' = dom rmap ⌝ ∗ [∗ map] r↦w ∈ rmap', r ↦ᵣ w) ∗
-    [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
-    world_interp W C ∗
-    StackRevokedResources W C (finz.seq_between a_stk e_stk) ∗
-    cstack_frag cstk ∗
-    interp_continuation cstk Ws Cs.
-
   (** The fault case of [switcher_cc_specification_gen]: the first store of
-      the spill faults, and the caller must be safely unwound from there,
-      given the fault resources once the switcher invariant is closed. *)
+      the spill faults, because the callee-save registers do not fit on the
+      caller's stack. The exception path of the switcher resumes the caller
+      as if the call had returned [-ENOTENOUGHSTACK] and 0: the caller must
+      be safe from there, with the PC and the registers of a successful
+      return (the other registers hold any words; no interrupt status is
+      promised), the switcher invariant closed, and its unchanged stack and
+      world. *)
   Definition switcher_cc_fault
     (W : WORLD) (C : CmptName)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : iProp Σ :=
+    ⌜ switcher_spill_overflows a_stk e_stk ⌝ -∗
+    ∀ (rmap' : LReg),
+      ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝ ∗
+      na_own cerise_nais ⊤ ∗
+      PC ↦ₚ lupdatePcPerm wcra_caller ∗
+      cgp ↦ᵣ wcgp_caller ∗
+      cra ↦ᵣ wcra_caller ∗
+      cs0 ↦ᵣ wcs0_caller ∗
+      cs1 ↦ᵣ wcs1_caller ∗
+      csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+      ca0 ↦ᵣ WInt ENOTENOUGHSTACK ∗
+      ca1 ↦ᵣ WInt 0 ∗
+      ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ) ∗
+      [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
+      world_interp W C ∗
+      StackRevokedResources W C (finz.seq_between a_stk e_stk) ∗
+      cstack_frag cstk ∗
+      interp_continuation cstk Ws Cs -∗
+      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+
+  (** The fault of the first spill of a trusted caller: the exception path
+      of the switcher resumes the caller at [.Lswitch_just_return], whose
+      return to [cra] goes to the continuation of the fault case. The
+      resources come under an update at the time of the fault, with the
+      switcher invariant closed: the caller's registers, of which [ct2] and
+      [ctp] hold the scratch words of the checks, and its stack. *)
+  Lemma switcher_cc_fault_resume
+    (Nswitcher : namespace)
+    (W : WORLD) (C : CmptName)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
+    (arg_rmap rmap rmap0 : LReg)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    Nswitcher ## N_trap ->
+    jalr_target_ok cnull cra wcra_caller.(lw) = true ->
+    switcher_spill_overflows a_stk e_stk ->
+    dom rmap0 = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+
+    na_inv cerise_nais Nswitcher switcher_inv -∗
+    switcher_static -∗
     (|={⊤}=>
-       switcher_cc_fault_res W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-         b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs) -∗
+       na_own cerise_nais ⊤ ∗
+       cgp ↦ᵣ wcgp_caller ∗
+       cra ↦ᵣ wcra_caller ∗
+       cs0 ↦ᵣ wcs0_caller ∗
+       cs1 ↦ᵣ wcs1_caller ∗
+       csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+       (∃ wca0, ca0 ↦ᵣ wca0) ∗
+       (∃ wca1, ca1 ↦ᵣ wca1) ∗
+       ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ w ) ∗
+       [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
+       world_interp W C ∗
+       StackRevokedResources W C (finz.seq_between a_stk e_stk) ∗
+       cstack_frag cstk ∗
+       interp_continuation cstk Ws Cs) -∗
+    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
+      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
     trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
       (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+  Proof.
+    iIntros (Hdisj Hjalr Hspill Hdom) "#Hinv_switcher #Hstatic Hres Hfault".
+    iApply (trap_safe_resume Nswitcher ⊤ with "Hinv_switcher Hstatic");
+      [set_solver | set_solver | done | apply trap_no_resume_first_spill |].
+    iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & [%wca0 Hca0] & [%wca1 Hca1]
+                     & Hrmap0 & Hstk & Hworld_interp & Hstk_val & Hcstk & Hcont)".
+    iModIntro.
+    iDestruct (big_sepM_insert_2 _ _ cra wcra_caller with "[Hcra] Hrmap0") as "Hrmap0"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cgp wcgp_caller with "[Hcgp] Hrmap0") as "Hrmap0"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ csp with "[Hcsp] Hrmap0") as "Hrmap0"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cs0 wcs0_caller with "[Hcs0] Hrmap0") as "Hrmap0"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ cs1 wcs1_caller with "[Hcs1] Hrmap0") as "Hrmap0"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ ca0 wca0 with "[Hca0] Hrmap0") as "Hrmap0"; [iFrame|].
+    iDestruct (big_sepM_insert_2 _ _ ca1 wca1 with "[Hca1] Hrmap0") as "Hrmap0"; [iFrame|].
+    iExists _; iFrame "Hna Hrmap0".
+    iSplit.
+    { iPureIntro. intros r; apply elem_of_dom.
+      rewrite !dom_insert_L Hdom.
+      pose proof (all_registers_s_correct r).
+      set_solver. }
+    iIntros (rmap' Hfull_rmap' Hsame Hca0' Hca1') "HPC Hrmap' Hna".
+    assert (rmap' !! cra = Some wcra_caller) as Hcra'
+      by (rewrite Hsame //; by simplify_map_eq).
+    assert (rmap' !! cgp = Some wcgp_caller) as Hcgp'
+      by (rewrite Hsame //; by simplify_map_eq).
+    assert (rmap' !! csp = Some (WCap true RWL Local b_stk e_stk a_stk : LWord)) as Hcsp'
+      by (rewrite Hsame //; by simplify_map_eq).
+    assert (rmap' !! cs0 = Some wcs0_caller) as Hcs0'
+      by (rewrite Hsame //; by simplify_map_eq).
+    assert (rmap' !! cs1 = Some wcs1_caller) as Hcs1'
+      by (rewrite Hsame //; by simplify_map_eq).
+    rewrite /registers_pointsto.
+    iDestruct (big_sepM_delete _ _ cra with "Hrmap'") as "[Hcra Hrmap']"; first done.
+    iDestruct (big_sepM_delete _ _ cgp with "Hrmap'") as "[Hcgp Hrmap']";
+      first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ csp with "Hrmap'") as "[Hcsp Hrmap']";
+      first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap'") as "[Hcs0 Hrmap']";
+      first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap'") as "[Hcs1 Hrmap']";
+      first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap'") as "[Hca0 Hrmap']";
+      first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap'") as "[Hca1 Hrmap']";
+      first by simplify_map_eq.
+    (* Block 16: the return to the caller *)
+    iPoseProof "Hstatic" as "[#Hswitcher _]".
+    pose proof switcher_SubBounds as Hsub.
+    pose proof switcher_size as Hsize; cbn in Hsize.
+    rewrite (_ : (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a =
+                 (a_switcher_call ^+ switcher_label_offset ".Lswitcher_return_to_caller")%a);
+      last by offsets_compute.
+    switcher_unfold_code "Hswitcher".
+    switcher_focus_block (switcher_block ".Lswitcher_return_to_caller") "Hswitcher"
+      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    iApply (switcher_return_block_16_spec _ _ _ _ ∅ with "[- $HPC $Hcra $Hcode]");
+      first done.
+    iSplitR; first by rewrite big_sepM_empty.
+    iSplit; last (iIntros "(%Hjalr' & _)"; congruence).
+    iNext; iIntros "(HPC & Hcra & _ & _ & _)".
+    iApply ("Hfault" $! Hspill with "[-]").
+    iFrame.
+    iPureIntro.
+    rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap').
+    set_solver.
+  Qed.
 
   (** The spill of a caller whose stack holds it does not fault. *)
   Lemma switcher_cc_fault_stack_fits
@@ -156,9 +254,7 @@ Section Switcher.
     ⊢ switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
         b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs.
   Proof.
-    iIntros (Hfits) "Hres".
-    iApply trap_safe_absurd.
-    iMod "Hres" as "(%Hspill & _)".
+    iIntros (Hfits Hspill).
     rewrite /switcher_spill_overflows in Hspill.
     exfalso; solve_addr+Hspill Hfits.
   Qed.
@@ -513,12 +609,6 @@ Section Switcher.
         & Hmtdc & Hframeoffset & Htstk)".
       destruct Ha_f as [ (-> & -> & Hspill) | (Hcontra & _) ]; last (exfalso; solve_addr).
       iDestruct "Hpost" as "[_ Hfault]".
-      iApply ("Hfault" with "[-]").
-      subst hclose_switcher_inv.
-      iMod ("Hclose_switcher_inv" with
-        "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
-      { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
-      iModIntro.
       iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I with "[Hargs]" as "Hargs".
       { destruct is_entry_point_known.
         + iDestruct "Hargs" as "(% & % & _ & _ & Hargs)".
@@ -526,17 +616,16 @@ Section Switcher.
           iIntros (r w Hr) "!> [$ _]".
         + iApply (big_sepM_impl with "Hargs"); eauto.
           iIntros (r w Hr) "!> [$ _]". }
-      iDestruct (big_sepM_insert_2 _ _ ctp with "[Hctp] Hregs") as "Hregs"; [iFrame|].
-      iDestruct (big_sepM_insert_2 _ _ ct2 with "[Hct2] Hregs") as "Hregs"; [iFrame|].
-      rewrite /switcher_cc_fault_res /switcher_spill_overflows.
-      iSplit; first (iPureIntro; solve_addr+Hspill Hb_a).
-      iFrame.
-      iPureIntro.
-      apply elem_of_dom_2 in Hwr0, Hwr1.
-      rewrite !dom_insert_L !dom_delete_L.
-      revert Hwr0 Hwr1; generalize (dom rmap); clear; intros X H0 H1.
-      apply set_eq; intros r.
-      destruct (decide (r = ct2)); destruct (decide (r = ctp)); set_solver. }
+      iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
+        as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
+      subst hclose_switcher_inv hinv_switcher.
+      iApply (switcher_cc_fault_resume Nswitcher with "Hswitcher Hstatic [-Hfault] Hfault");
+        [done | done | rewrite /switcher_spill_overflows; solve_addr+Hspill Hb_a | done |].
+      iMod ("Hclose_switcher_inv" with
+        "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
+      { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
+      iModIntro.
+      iFrame. }
     iDestruct "Hpost" as "[Hpost _]".
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
@@ -627,8 +716,10 @@ Section Switcher.
       iDestruct (switcher_cc_full_regs with "Hrmap0 Hcra Hcgp Hcsp Hcs0 Hcs1 Hca0 Hca1")
         as (regs) "[%Hfull_regs Hregs]"; first done.
       iApply (trap_safe_unwind _ _ _ (frame :: cstk) (W' :: Ws) (C :: Cs) regs
-               with "Hswitcher Hstatic [-]"); [done | done | |].
+               with "Hswitcher Hstatic [] [-]"); [done | done | | |].
       { simpl. split; first apply related_sts_pub_refl_world. done. }
+      { (* The unsealing is not the first spill *)
+        iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
       iMod (switcher_cc_world_reinstate with "Hworld_interp Hstk_val Hstk")
         as "(Hworld_interp & #Hstk4v & _ & _)"; [done|done|solve_addr| | |].
       { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }

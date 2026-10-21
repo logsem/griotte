@@ -28,6 +28,7 @@ Section Heap_Temporal_Safety_Interp.
   Lemma malloc_exec_entry_point (W : WORLD) (C : CmptName)
     (Nswitcher : namespace) :
     Nswitcher ## N_trap ->
+    allocator_pcc_b ≠ b_switcher ->
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
@@ -39,7 +40,7 @@ Section Heap_Temporal_Safety_Interp.
       allocator_malloc_nargs allocator_malloc_min_stack W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
-    iIntros (HNtrap) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
+    iIntros (HNtrap Hpc_b) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
       "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
     rewrite /interp_conf.
@@ -65,8 +66,10 @@ Section Heap_Temporal_Safety_Interp.
       (* Unwind to the caller: nothing was revoked or changed yet. *)
       iInsertRegs "Hrmap" ["Hcgpr";"Hcrar";"Hcspr";"Hca0";"Hca1";"Hca2";
                            "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
-      iApply (trap_safe_unwind with "Hswitcher Hswitcher_static [-]");
-        [exact HNtrap| |exact Hframe|]; cycle 1.
+      iApply (trap_safe_unwind with "Hswitcher Hswitcher_static [] [-]");
+        [exact HNtrap| |exact Hframe| |]; cycle 1.
+      { (* The fault is outside the switcher's code: it is not resumed *)
+        iLeft; iPureIntro. by apply trap_no_resume_cap. }
       { iModIntro. iFrame. }
       intros r. destruct (Hfull_rmap r) as [wr Hwr].
       rewrite !lookup_insert_is_Some' !lookup_delete_is_Some.
@@ -352,6 +355,7 @@ Section Heap_Temporal_Safety_Interp.
     (C : CmptName)
     (Nswitcher : namespace) :
     Nswitcher ## N_trap ->
+    allocator_pcc_b ≠ b_switcher ->
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
     let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a in
     allocator_service_ctx ∗
@@ -371,7 +375,7 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_malloc).
   Proof.
-    intros HNtrap a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
+    intros HNtrap Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
@@ -455,7 +459,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (W') "%Hpriv".
     iNext.
     change (allocator_pcc_b ^+ allocator_malloc_pcc_off)%a with allocator_malloc_pcc_addr.
-    iApply (malloc_exec_entry_point W' C Nswitcher HNtrap).
+    iApply (malloc_exec_entry_point W' C Nswitcher HNtrap Hpc_b).
     iFrame "#".
   Qed.
 

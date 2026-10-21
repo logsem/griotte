@@ -798,4 +798,69 @@ Section Switcher_Code.
     - iRegionSplit "H" as "H"; iFrame.
   Qed.
 
+  (** The faults whose context the exception path of the switcher does not
+      resume: every fault but one of the first spill of the call path
+      ([.Lswitcher_entry_first_spill]), which the exception path resumes as
+      a return of [-ENOTENOUGHSTACK]. The exception path tests the base and
+      the address of the faulting PC, as MEPCC holds it. *)
+  Definition trap_no_resume (w : LWord) : Prop :=
+    get_b (lmepcc_of_pc w).(lw) ≠ (b_switcher : Z) ∨
+    get_a (lmepcc_of_pc w).(lw) ≠
+      ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill")%a : Z).
+
+  Lemma get_b_mepcc_of_pc w : get_b (mepcc_of_pc w) = get_b w.
+  Proof.
+    rewrite /mepcc_of_pc. case_match; last done.
+    destruct w as [z|sb|k t p g b e a|ot sb]; try destruct sb; reflexivity.
+  Qed.
+
+  Lemma get_a_mepcc_of_pc w : get_a (mepcc_of_pc w) = get_a w.
+  Proof.
+    rewrite /mepcc_of_pc. case_match; last done.
+    destruct w as [z|sb|k t p g b e a|ot sb]; try destruct sb; reflexivity.
+  Qed.
+
+  (** A fault outside the switcher's code is not resumed. *)
+  Lemma trap_no_resume_base w :
+    get_b w.(lw) ≠ (b_switcher : Z) → trap_no_resume w.
+  Proof. intros Hb. left. by rewrite /lmepcc_of_pc /= get_b_mepcc_of_pc. Qed.
+
+  (** A fault of code outside the switcher's PC is not resumed. *)
+  Lemma trap_no_resume_cap (t : bool) (p : Perm) (g : Locality) (b e a : Addr) :
+    b ≠ b_switcher → trap_no_resume (WCap t p g b e a).
+  Proof. intros Hb. apply trap_no_resume_base. cbn. intros Heq. apply Hb. solve_addr. Qed.
+
+  (** A fault at another address than the first spill is not resumed. *)
+  Lemma trap_no_resume_addr w :
+    get_a w.(lw) ≠ ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill")%a : Z) →
+    trap_no_resume w.
+  Proof. intros Ha. right. by rewrite /lmepcc_of_pc /= get_a_mepcc_of_pc. Qed.
+
+  (** A fault at any other instruction of the switcher is not resumed. The
+      premise computes. *)
+  Lemma trap_no_resume_switcher_pc (off : Z) :
+    ((0 <=? off) && (off <? length switcher_instrs) &&
+       negb (off =? switcher_label_offset ".Lswitcher_entry_first_spill"))%Z = true →
+    trap_no_resume (switcher_pc off).
+  Proof.
+    intros Hoff.
+    apply andb_true_iff in Hoff as [Hoff Hne]. apply andb_true_iff in Hoff as [H0 Hlt].
+    apply Z.leb_le in H0. apply Z.ltb_lt in Hlt. apply negb_true_iff, Z.eqb_neq in Hne.
+    apply trap_no_resume_addr. cbn.
+    pose proof switcher_size as Hsize. pose proof switcher_call_entry_point as Hcall.
+    assert (switcher_label_offset ".Lswitcher_entry_first_spill" = 8%Z) as Hfirst
+      by reflexivity.
+    rewrite Hfirst in Hne |- *.
+    remember (length switcher_instrs) as len.
+    solve_addr.
+  Qed.
+
+  (** A fault at the first spill is resumed. *)
+  Lemma trap_no_resume_first_spill :
+    ¬ trap_no_resume (switcher_label_pc ".Lswitcher_entry_first_spill").
+  Proof.
+    rewrite /trap_no_resume /lmepcc_of_pc /= get_b_mepcc_of_pc get_a_mepcc_of_pc.
+    by intros [Hb | Ha].
+  Qed.
+
 End Switcher_Code.

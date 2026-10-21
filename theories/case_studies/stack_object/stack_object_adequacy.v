@@ -124,6 +124,12 @@ Section so_obligations.
                 _ _ _ _ _ _ _ _ _ W0' fw_switcherN);
         last iFrame "#"; auto.
       { exact fw_switcherN_trap_disj. }
+      { (* The code of main is outside the switcher's: its PCC holds the
+           imports *)
+        apply (switcher_cmpt_disjoint_pcc_b main_cmpt swc Hsw_main).
+        assert (length (so_main_imports C_f) = 3) as Himports_len by reflexivity.
+        rewrite Himports_len in Hmain_imports_size.
+        solve_addr+Hmain_imports_size Hmain_bounds. }
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }

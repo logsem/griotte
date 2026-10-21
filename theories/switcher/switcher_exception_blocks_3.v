@@ -1,0 +1,242 @@
+From iris.proofmode Require Import proofmode.
+From griotte Require Import memory_region rules rules_vcsr proofmode.
+From griotte Require Import register_tactics.
+From griotte Require Import switcher_exception_states trusted_spill_registers_spec.
+
+(** * Exception path, block 28: [.Lcommon_context_install]
+
+    Block 28 installs the context of the register save area and resumes it:
+    it restores mstatus, borrows the volatile registers back from the
+    trap-entry token to write the PC to resume (in [ct2]) to MEPCC, reloads
+    the registers (the stack pointer last, as it overwrites the trusted
+    stack), and returns from the trap with [mret], which gives the volatile
+    registers back. The interrupt status after [mret] is that of mstatus's
+    MPIE, which the specification does not track. *)
+
+Section Switcher_Exception_Blocks_3.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
+  .
+
+  (** Block 28: the context install. *)
+  Lemma switcher_instrs_28_split :
+    switcher_instrs_n 28 =
+      encodeInstrsW [machine_instructions.CLoad cra csp TrustedStack_offset_mstatus;
+                     SpecialRW cnull MSTATUS (inr cra); SpecialRW cnull MEPCC (inr ct2)] ++
+      trusted_reload_registers_instrs exception_spill_regs ++
+      encodeInstrsW [machine_instructions.CLoad csp csp TrustedStack_offset_csp; Mret].
+  Proof. reflexivity. Qed.
+
+  (** The cells of the registers but the stack pointer in the register save
+      area. *)
+  Lemma trusted_save_cells_ok_exception :
+    trusted_save_cells_ok b_trusted_stack e_trusted_stack b_trusted_stack exception_spill_regs.
+  Proof.
+    pose proof trusted_stack_frames_fit as [n Hfit].
+    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
+    intros r Hr. rewrite /exception_spill_regs !elem_of_cons elem_of_nil in Hr.
+    tstack_unfold.
+    repeat (destruct Hr as [-> | Hr]); try done.
+    all: cbv [TrustedStack_offset_reg cra cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5
+              Z.of_nat Pos.of_succ_nat Pos.succ].
+    all: split_and!; [solve_addr | rewrite /withinBounds; solve_addr | tstk_not_shadow Hts_shadow].
+  Qed.
+
+  #[local] Lemma switcher_exception_block_28_spec_aux (pc_a : Addr) (wpc : LWord) (save_area : list LWord)
+    (wcra wcgp wctp wct0 wct1 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
+    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 28))%a ->
+    length save_area = 21%nat ->
+
+    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    csp ↦ᵣ tstack_cap ∗
+    cra ↦ᵣ wcra ∗
+    cgp ↦ᵣ wcgp ∗
+    ctp ↦ᵣ wctp ∗
+    ct0 ↦ᵣ wct0 ∗
+    ct1 ↦ᵣ wct1 ∗
+    ct2 ↦ᵣ wpc ∗
+    cs0 ↦ᵣ wcs0 ∗
+    cs1 ↦ᵣ wcs1 ∗
+    ca0 ↦ᵣ wca0 ∗
+    ca1 ↦ᵣ wca1 ∗
+    ca2 ↦ᵣ wca2 ∗
+    ca3 ↦ᵣ wca3 ∗
+    ca4 ↦ᵣ wca4 ∗
+    ca5 ↦ᵣ wca5 ∗
+    [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
+    trap_entry_res ∗
+    codefrag_pers pc_a (switcher_instrs_n 28) ∗
+    ▷ ( PC ↦ₚ llegalise MEPCC wpc ∗
+        cra ↦ᵣ (save_area !!! 1%nat) ∗
+        csp ↦ᵣ (save_area !!! 2%nat) ∗
+        cgp ↦ᵣ (save_area !!! 3%nat) ∗
+        ctp ↦ᵣ (save_area !!! 4%nat) ∗
+        ct0 ↦ᵣ (save_area !!! 5%nat) ∗
+        ct1 ↦ᵣ (save_area !!! 6%nat) ∗
+        ct2 ↦ᵣ (save_area !!! 7%nat) ∗
+        cs0 ↦ᵣ (save_area !!! 8%nat) ∗
+        cs1 ↦ᵣ (save_area !!! 9%nat) ∗
+        ca0 ↦ᵣ (save_area !!! 10%nat) ∗
+        ca1 ↦ᵣ (save_area !!! 11%nat) ∗
+        ca2 ↦ᵣ (save_area !!! 12%nat) ∗
+        ca3 ↦ᵣ (save_area !!! 13%nat) ∗
+        ca4 ↦ᵣ (save_area !!! 14%nat) ∗
+        ca5 ↦ᵣ (save_area !!! 15%nat) ∗
+        [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
+        trap_entry_res ∗
+        codefrag_pers pc_a (switcher_instrs_n 28) -∗
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros (Hsub Hlen)
+      "(HPC & Hcsp & Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave & Htok & #Hcode & Hpost)".
+    pose proof trusted_stack_frames_fit as [n Hfit].
+    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
+    destruct save_area as
+      [|s0 [|s1 [|s2 [|s3 [|s4 [|s5 [|s6 [|s7 [|s8 [|s9 [|s10
+      [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
+      try done.
+    rewrite /tstack_save_end /tstack_cap.
+    assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a)
+      as Hsave_end by (tstack_unfold; solve_addr).
+    iRegionSplit "Hsave" as
+      "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
+       & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs16 & Hs17 & Hs18 & Hs19 & Hs20)".
+    (* The reload of the registers but the stack pointer is the macro *)
+    iPoseProof "Hcode" as "Hcode_all".
+    iEval (rewrite switcher_instrs_28_split) in "Hcode_all".
+    iDestruct (codefrag_app_pers with "Hcode_all") as "[_ Hcode_rest]".
+    iDestruct (codefrag_app_pers with "Hcode_rest") as "[#Hreload _]".
+    codefrag_facts "Hcode".
+    assert (length (switcher_instrs_n 28) = 19%nat) as Hlen28 by reflexivity.
+    rewrite Hlen28 in Hsub.
+    rewrite /switcher_instrs_n /assembled_switcher_n.
+    assert ((b_trusted_stack + 17)%a = Some (b_trusted_stack ^+ 17)%a) as Hts_17
+      by (tstack_unfold; solve_addr).
+    (* The saved words may be heap capabilities: they are loaded exactly *)
+    iAssert (load_witness_res LoadPlain) as "Hwit"; first done.
+    (* CLoad cra csp TrustedStack_offset_mstatus *)
+    iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds _ _ _ _ _ _ _ cra csp 17)
+      with "[$HPC $Hcra $Hcsp $Hs17 $Hwit]" as (wst) "(%Hload & HPC & Hcra & Hcsp & Hs17 & _)".
+    { tstk_not_shadow Hts_shadow. }
+    { rewrite /withinBounds; tstack_unfold; solve_addr. }
+    destruct Hload as (_ & _ & _ & Hload). rewrite lload_word_RWL in Hload. subst wst.
+    (* SpecialRW cnull mstatus cra *)
+    iInstrApply "Hcode" wp_csrw_mstatus with "[$HPC $Hcra]" as "(HPC & Hcra)".
+    (* The trap-entry token lends the volatile registers *)
+    iApply (wp_vcsr_lend with "Htok"); first done.
+    iIntros (wepcc wcause) "Hmepcc Hmcause".
+    (* SpecialRW cnull mepcc ct2 *)
+    iInstrApply "Hcode" wp_cspecialw_mepcc with "[$HPC $Hct2 $Hmepcc]" as "(HPC & Hct2 & Hmepcc)".
+    (* The reload of the registers but the stack pointer *)
+    rewrite (_ : (pc_a ^+ length (encodeInstrsW
+                   [machine_instructions.CLoad cra csp TrustedStack_offset_mstatus;
+                    SpecialRW cnull MSTATUS (inr cra); SpecialRW cnull MEPCC (inr ct2)]))%a =
+                 (pc_a ^+ 1 ^+ 1 ^+ 1)%a); last (cbn; solve_addr).
+    iApply (trusted_reload_registers_spec _ _ _ _ _ _ _ _ _ exception_spill_regs
+              [s17; wcgp; wctp; wct0; wct1; wpc; wcs0; wcs1; wca0; wca1; wca2; wca3; wca4; wca5]
+              [s1; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15]
+             with "[- $HPC $Hcsp $Hreload]").
+    { done. }
+    { done. }
+    { rewrite trusted_reload_registers_instrs_length /=. solve_addr. }
+    { apply trusted_save_cells_ok_exception. }
+    { rewrite /exception_spill_regs. set_solver. }
+    { rewrite /exception_spill_regs. set_solver. }
+    iSplitL "Hcra Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5".
+    { cbn. iFrame. }
+    iSplitL "Hs1 Hs3 Hs4 Hs5 Hs6 Hs7 Hs8 Hs9 Hs10 Hs11 Hs12 Hs13 Hs14 Hs15".
+    { cbn. iFrame. }
+    iNext; iIntros "(HPC & Hcsp & Hregs & Hcells & _)".
+    cbn.
+    iDestruct "Hregs" as
+      "(Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & _)".
+    iDestruct "Hcells" as
+      "(Hs1 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
+       & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & _)".
+    assert ((b_trusted_stack + 2)%a = Some (b_trusted_stack ^+ 2)%a) as Hts_2
+      by (tstack_unfold; solve_addr).
+    rewrite (_ : ((((pc_a ^+ 1) ^+ 1) ^+ 1) ^+ 14%nat)%a = (pc_a ^+ 17)%a); last solve_addr.
+    (* CLoad csp csp TrustedStack_offset_csp *)
+    iInstrApply "Hcode"
+      (wp_load_witness_imm_same_inbounds _ _ _ _ _ _ _ csp 2 _ _ _ _ _ _ _ _ _ LoadPlain)
+      with "[$HPC $Hcsp $Hs2 //]" as (wcsp) "(%Hload & HPC & Hcsp & Hs2 & _)".
+    { tstk_not_shadow Hts_shadow. }
+    { rewrite /withinBounds; tstack_unfold; solve_addr. }
+    destruct Hload as (_ & _ & _ & Hload). rewrite lload_word_RWL in Hload. subst wcsp.
+    (* Mret *)
+    iInstrApply "Hcode" wp_mret_vcsr with "[$HPC $Hmepcc $Hmcause]" as "(HPC & Htok)".
+    iApply "Hpost". iFrame "∗ #".
+    iRegionMerge. iFrame.
+  Qed.
+  (** Block 28, from its label: the registers receive the words of the
+      register save area, and the PC the word in [ct2], as MEPCC holds it. *)
+  Lemma switcher_exception_block_28_spec (wpc : LWord) (save_area : list LWord)
+    (wcra wcgp wctp wct0 wct1 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
+    length save_area = 21%nat ->
+
+    PC ↦ₚ switcher_label_pc ".Lcommon_context_install" ∗
+    csp ↦ᵣ tstack_cap ∗
+    cra ↦ᵣ wcra ∗
+    cgp ↦ᵣ wcgp ∗
+    ctp ↦ᵣ wctp ∗
+    ct0 ↦ᵣ wct0 ∗
+    ct1 ↦ᵣ wct1 ∗
+    ct2 ↦ᵣ wpc ∗
+    cs0 ↦ᵣ wcs0 ∗
+    cs1 ↦ᵣ wcs1 ∗
+    ca0 ↦ᵣ wca0 ∗
+    ca1 ↦ᵣ wca1 ∗
+    ca2 ↦ᵣ wca2 ∗
+    ca3 ↦ᵣ wca3 ∗
+    ca4 ↦ᵣ wca4 ∗
+    ca5 ↦ᵣ wca5 ∗
+    [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
+    trap_entry_res ∗
+    switcher_code ∗
+    ▷ ( PC ↦ₚ llegalise MEPCC wpc ∗
+        cra ↦ᵣ (save_area !!! 1%nat) ∗
+        csp ↦ᵣ (save_area !!! 2%nat) ∗
+        cgp ↦ᵣ (save_area !!! 3%nat) ∗
+        ctp ↦ᵣ (save_area !!! 4%nat) ∗
+        ct0 ↦ᵣ (save_area !!! 5%nat) ∗
+        ct1 ↦ᵣ (save_area !!! 6%nat) ∗
+        ct2 ↦ᵣ (save_area !!! 7%nat) ∗
+        cs0 ↦ᵣ (save_area !!! 8%nat) ∗
+        cs1 ↦ᵣ (save_area !!! 9%nat) ∗
+        ca0 ↦ᵣ (save_area !!! 10%nat) ∗
+        ca1 ↦ᵣ (save_area !!! 11%nat) ∗
+        ca2 ↦ᵣ (save_area !!! 12%nat) ∗
+        ca3 ↦ᵣ (save_area !!! 13%nat) ∗
+        ca4 ↦ᵣ (save_area !!! 14%nat) ∗
+        ca5 ↦ᵣ (save_area !!! 15%nat) ∗
+        [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
+        trap_entry_res ∗
+        switcher_code -∗
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros (Hlen)
+      "(HPC & Hcsp & Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave & Htok & #Hswitcher & Hpost)".
+    pose proof switcher_SubBounds as Hsub.
+    pose proof switcher_size as Hsize; cbn in Hsize.
+    switcher_unfold_code "Hswitcher".
+    switcher_focus_block (switcher_block ".Lcommon_context_install") "Hswitcher"
+      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    iApply (switcher_exception_block_28_spec_aux with
+             "[- $HPC $Hcsp $Hcra $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
+                $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hsave $Htok $Hcode]"); [done | done |].
+    iNext; iIntros
+      "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave & Htok & _)".
+    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+    iApply "Hpost"; iFrame "∗ Hswitcher".
+  Qed.
+
+End Switcher_Exception_Blocks_3.

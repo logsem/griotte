@@ -347,6 +347,7 @@ Section Switcher.
       (#".Lswitch_callee_dead_zeros"::clear_registers_post_call_asm)
       ; (* Return to caller  *)
       [ #".Lswitcher_return_to_caller";
+        #".Lswitch_just_return";
         ret ]
     ].
 
@@ -447,9 +448,23 @@ Section Switcher.
         jmp (".Lcommon_thread_exit")%asm;
         jmp (".Lcommon_force_unwind")%asm
       ]
-      ; (* A fault of the switcher: force the unwind *)
+      ; (* A fault of the switcher. A fault of the first spill of the call
+           path (the callee-save registers do not fit on the caller's stack)
+           resumes the caller as if the call had returned [-ENOTENOUGHSTACK]:
+           the return values overwrite the saved [ca0] and [ca1], and the
+           context install resumes at [.Lswitch_just_return], a return to
+           [cra]. Any other fault of the switcher forces the unwind. *)
       [ #".Lhandle_error_in_switcher";
-        jmp (".Lcommon_force_unwind")%asm
+        auipcc ctp (".Lswitcher_entry_first_spill")%asm;
+        sub ct1 ct1 ctp;
+        jnz (".Lcommon_force_unwind")%asm ct1;
+        mov ca0 ENOTENOUGHSTACK;
+        mov ca1 0;
+        #".Lhandle_return_context_install";
+        auipcc ct2 (".Lswitch_just_return")%asm;
+        store_imm csp ca0 TrustedStack_offset_ca0;
+        store_imm csp ca1 TrustedStack_offset_ca1;
+        jmp (".Lcommon_context_install")%asm
       ]
       ; (* The exception entry was re-entered: stop the machine *)
       [ #".Lexception_reentered";
@@ -459,6 +474,16 @@ Section Switcher.
       [ #".Lexception_scheduler_call";
         halt
       ]
+      ; (* Install the context of the register save area, and resume it at
+           the PC in [ct2]: restore mstatus, write the PC to MEPCC, reload
+           the registers, the stack pointer last (it overwrites the trusted
+           stack), and return from the trap. *)
+      (#".Lcommon_context_install" ::
+         load_imm cra csp TrustedStack_offset_mstatus ::
+         csrw mstatus cra ::
+         writesr mepcc ct2 ::
+         trusted_reload_registers_asm (exception_spill_regs ++ [csp]) ++
+         [mret])
     ].
 
   Definition switcher_asm : list (list asm_code) :=

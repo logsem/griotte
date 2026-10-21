@@ -6,16 +6,20 @@ Set Mangle Names.
 (** * Shared interfaces of the exception path of the switcher
 
     The exception path runs from the exception entry ([exception_entry_asm],
-    block 21) to the forced unwind of the faulting compartment's call. Its
+    block 21) to the forced unwind of the faulting compartment's call, or to
+    the resumption of a fault of the first spill of the call path. Its
     block-group lemmas only depend on this file and on the specifications of
-    the spill macro ([trusted_spill_registers_spec]):
+    the spill and reload macros ([trusted_spill_registers_spec]):
     - [switcher_exception_blocks_1]: blocks 21-23, swap the trusted stack
       in from mtdc, spill the registers of the interrupted context in the
       register save area, then the PC, mstatus and the cause, and dispatch
       on the cause,
     - [switcher_exception_blocks_2]: blocks 24-25, [.Lhandle_error]:
       restore mtdc, test for a fault of the switcher and for a trusted stack
-      with no frame, and force the unwind.
+      with no frame, and force the unwind, or, for a fault of the first
+      spill of the call path, overwrite the saved return values,
+    - [switcher_exception_blocks_3]: block 28, [.Lcommon_context_install]:
+      install the context of the register save area and resume it.
 
     The specifications are thread-generic: they take the points-to of the
     register save area, not the invariant of the switcher. *)

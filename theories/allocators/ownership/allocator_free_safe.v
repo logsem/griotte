@@ -69,6 +69,7 @@ Section Heap_Temporal_Safety_Interp.
   Lemma free_exec_entry_point W C (Nswitcher : namespace) :
     Nswitcher ## Nallocator_service ->
     Nswitcher ## N_trap ->
+    allocator_pcc_b ≠ b_switcher ->
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
@@ -80,7 +81,7 @@ Section Heap_Temporal_Safety_Interp.
       allocator_free_nargs allocator_free_min_stack W C.
   Proof.
     (* Unpack the entry register map and classify the requested capability. *)
-    iIntros (Hdisj HNtrap) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
+    iIntros (Hdisj HNtrap Hpc_b) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
       "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
     rewrite /interp_conf.
@@ -108,8 +109,10 @@ Section Heap_Temporal_Safety_Interp.
       (* Unwind to the caller: nothing was revoked or changed yet. *)
       iInsertRegs "Hrmap" ["Hcgpr";"Hcrar";"Hca0";"Hca1";"Hca2";
                            "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
-      iApply (trap_safe_unwind with "Hswitcher Hswitcher_static [-]");
-        [exact HNtrap| |exact Hframe|]; cycle 1.
+      iApply (trap_safe_unwind with "Hswitcher Hswitcher_static [] [-]");
+        [exact HNtrap| |exact Hframe| |]; cycle 1.
+      { (* The fault is outside the switcher's code: it is not resumed *)
+        iLeft; iPureIntro. by apply trap_no_resume_cap. }
       { iModIntro. iFrame. }
       intros r. destruct (Hfull_rmap r) as [wr Hwr].
       rewrite !lookup_insert_is_Some' !lookup_delete_is_Some.
@@ -514,6 +517,7 @@ Section Heap_Temporal_Safety_Interp.
     (Nswitcher : namespace) :
     Nswitcher ## Nallocator_service ->
     Nswitcher ## N_trap ->
+    allocator_pcc_b ≠ b_switcher ->
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
     let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
     allocator_service_ctx ∗
@@ -533,7 +537,7 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_free).
   Proof.
-    intros Hdisj HNtrap a_alloc_exp_tbl_cgp a_alloc_entry_free.
+    intros Hdisj HNtrap Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_free.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_free.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
@@ -620,7 +624,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (W') "%Hpriv".
     iNext.
     change (allocator_pcc_b ^+ allocator_free_pcc_off)%a with allocator_free_pcc_addr.
-    iApply (free_exec_entry_point W' C Nswitcher Hdisj HNtrap).
+    iApply (free_exec_entry_point W' C Nswitcher Hdisj HNtrap Hpc_b).
     iFrame "#".
   Qed.
 

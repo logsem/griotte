@@ -1007,7 +1007,7 @@ Section KVS_spec_erase.
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
 
       (* The load after the failed unsealing of the user key faults *)
-      ▷ ( ∀ w,
+      ▷ ( ∀ a,
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ - ∗
@@ -1015,7 +1015,7 @@ Section KVS_spec_erase.
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
           ctp ↦ᵣ - -∗
-          trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
+          trap_safe (WCap true RX Global pc_b pc_e a) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -1081,7 +1081,7 @@ Section KVS_spec_erase.
       ctp ↦ᵣ - ∗ (* scratch *)
 
       (* The load after the failed unsealing of the user key faults *)
-      ▷ ( ∀ w,
+      ▷ ( ∀ a,
           na_own cerise_nais E ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -1090,7 +1090,7 @@ Section KVS_spec_erase.
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
           ctp ↦ᵣ - -∗
-          trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
+          trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -1119,7 +1119,7 @@ Section KVS_spec_erase.
     iApply (KVS_erase_spec_invalid_sealed_user_key_pre
              with "[$HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcode $Ha_unsealing Hna Hfailed]");
       eauto.
-    iNext; iIntros (w) "Hregs".
+    iNext; iIntros (a_fault) "Hregs".
     iApply ("Hfailed" with "[$Hna $Hregs]").
   Qed.
 

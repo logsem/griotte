@@ -94,7 +94,7 @@ Section fundamental.
       whose return values [ca0] and [ca1] are safe, the switcher pops the
       caller's frame and returns to it, or exits the thread when the frame to
       pop is the entry frame. No other register is read. *)
-  Lemma switcher_return_unwind
+  Lemma switcher_return_unwind (no_resume : LWord → Prop)
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (rmap : LReg) (wca0 wca1 : LWord) :
@@ -109,7 +109,7 @@ Section fundamental.
     interp W C wca1 ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ∗
-    trap_vector_safe (lword_of_word mtcc_vec) ∗
+    trap_vector_safe no_resume (lword_of_word mtcc_vec) ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own cerise_nais ⊤ ∗
