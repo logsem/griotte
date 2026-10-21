@@ -1095,7 +1095,10 @@ Tactic Notation "iCombine_ident" constr(H1) constr(H2) "as" constr(pat) :=
 (* Rewrites [WInt (if decide (r = cnull) then 0 else 0)] (from the rules
    writing an immediate to a register) to [WInt 0]. The occurrences are found
    syntactically, then changed by conversion when [decide (r = cnull)]
-   computes (concrete [r]), or rewritten otherwise. *)
+   computes (concrete [r]), or rewritten otherwise.
+   Also rewrites [r ↦ᵣ (if decide (r = cnull) then w else w')] (from the rules
+   writing to a register that may be [cnull]) to [r ↦ᵣ w'] when [r ≠ cnull]
+   is a hypothesis or [r] is a concrete register. *)
 Ltac simpl_cnull_zero :=
   repeat
     match goal with
@@ -1105,6 +1108,10 @@ Ltac simpl_cnull_zero :=
           [ change (WInt (if decide (r = cnull) then z1 else z2)) with (WInt 0)
           | replace (WInt (if decide (r = cnull) then z1 else z2)) with (WInt 0)
               by (destruct (decide _); done) ]
+    | |- context [ (?r ↦ᵣ (if decide (?r = cnull) then _ else _))%I ] =>
+        let Hne := fresh "Hne" in
+        assert (r ≠ cnull) as Hne by (solve [assumption | discriminate | done]);
+        rewrite (decide_False _ _ Hne); clear Hne
     end.
 
 Ltac instr_finish hprog hlc hlc' :=
