@@ -492,10 +492,13 @@ Section fundamental.
                with "Hinv_switcher Hstatic [-]"); cycle 1.
       { simpl. split; auto; first apply related_sts_pub_refl_world.
         split; [reflexivity|]; split; done. }
-      { iMod (switcher_inv_push_frame frame cstk with
+      { (* The table cell is still cleared *)
+        assert (WInt 0 = WInt 0 ∨ exp_tbl_cap (b_callee_exp_tbl frame) (WInt 0)) as Htbl_cell
+          by by left.
+        iMod (switcher_inv_push_frame frame cstk with
                "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
                 Htstk Hstk_interp [] Hp_ot_switcher")
-          as "[Hinv Hcstk]"; [first [done | by left | (right; apply exp_tbl_cap_entry; solve_addr)]..|].
+          as "[Hinv Hcstk]"; [done..|].
         iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
         iModIntro.
         iFrame "Hrmap Hworld_interp Hcstk Hna Hcont".
@@ -592,10 +595,14 @@ Section fundamental.
          invariant, and return to the caller through the return routine *)
       iIntros "(_ & HPC & [%wcs0' Hcs0] & [%wcs1'' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2]
         & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hparams & Hrest & _)".
+      (* The table cell holds the unsealed entry *)
+      assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
+              exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
+      { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [] Hp_ot_switcher")
-        as "[Hinv Hcstk]"; [first [done | by left | (right; apply exp_tbl_cap_entry; solve_addr)]..|].
+        as "[Hinv Hcstk]"; [done..|].
       iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
       iDestruct (big_sepM_sep with "Hparams") as "[Hparams _]".
       iDestruct (big_sepM_union with "[$Hparams $Hrest]") as "Hrmap".
@@ -615,11 +622,15 @@ Section fundamental.
     iIntros (mie arg_rmap' rmap'')
       "(%Hbig & %Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
 
-    (* Push the frame and close the switcher invariant *)
+    (* Push the frame, whose table cell holds the unsealed entry, and close the
+       switcher invariant *)
+    assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
+            exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
+    { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [first [done | by left | (right; apply exp_tbl_cap_entry; solve_addr)]..|].
+      as "[Hinv Hcstk]"; [done..|].
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
 
     (* Execute the entry point of the callee *)

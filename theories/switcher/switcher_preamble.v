@@ -403,6 +403,7 @@ Section Switcher_preamble.
            let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
            let a_tbl_ehs := (b_tbl ^+ ExportTable_offset_errorHandlerStackless)%a in
            "%Hw" ∷ ⌜ w = WCap true RO g_tbl b_tbl e_tbl a_tbl ⌝ ∗
+           "%Htbl_shadow" ∷ ⌜ disjoint_from_shadow b_tbl e_tbl ⌝ ∗
            "%Hatbl" ∷ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝ ∗
            "%Hbtbl" ∷ ⌜ (b_tbl < a_tbl_cgp)%a ⌝ ∗
            "%Hbtbl_header" ∷ ⌜ (a_tbl_ehs < a_tbl)%a ⌝ ∗
@@ -411,7 +412,7 @@ Section Switcher_preamble.
            "%Hentry_some" ∷ ⌜ is_Some (bpcc + off)%a ⌝ ∗
            "%Hatbl_shadow" ∷ ⌜ is_shadow_address a_tbl = false ⌝ ∗
            "%Hbtbl_shadow" ∷ ⌜ is_shadow_address b_tbl = false ⌝ ∗
-           "%Hbtbl1_shadow" ∷ ⌜ is_shadow_address a_tbl_cgp = false ⌝ ∗
+           "%Hbtbl_cgp_shadow" ∷ ⌜ is_shadow_address a_tbl_cgp = false ⌝ ∗
            "%Hbpcc_heap" ∷ ⌜ is_heap_address bpcc = false ⌝ ∗
            "%Hbcgp_heap" ∷ ⌜ is_heap_address bcgp = false ⌝ ∗
            "#Htbl_pcc" ∷ b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗

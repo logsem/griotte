@@ -695,6 +695,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
 End KVS_Service.
 
+(* This redefinition replaces the one of [switcher.v]: it must keep calling
+   [exptbl_unfold]. *)
 #[global] Ltac solve_addr.solve_addr_prepare ::=
   try exptbl_unfold;
   repeat match goal with

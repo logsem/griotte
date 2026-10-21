@@ -528,6 +528,10 @@ Section Heap_Temporal_Safety_Interp.
       allocator_free_nargs, allocator_free_min_stack, allocator_free_pcc_off.
     iFrame "#".
     iSplit; first done.
+    iSplit.
+    { iPureIntro. pose proof allocator_regions_disjoint as Hregions.
+      rewrite !disjoint_list_cons in Hregions. cbn [union_list] in Hregions.
+      rewrite /disjoint_from_shadow. set_solver+Hregions. }
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
       rewrite /allocator_export_table_entries /allocator_free_exp_tbl_off /allocator_entry_free in Hsize |- *;
       solve_addr).

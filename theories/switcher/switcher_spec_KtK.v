@@ -231,6 +231,7 @@ Section Switcher_KtK.
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
     is_shadow_address a_tbl_cgp = false ->
+    disjoint_from_shadow btbl_tgt etbl_tgt ->
     is_heap_address bpcc_tgt = false ->
     is_heap_address bcgp_tgt = false ->
     ↑Nswitcher ⊆ E ->
@@ -282,8 +283,9 @@ Section Switcher_KtK.
     intros a_stk4 a_tbl_cgp a_tbl_ehs wct1_caller returned stack_exhausted callee_faulted.
     subst a_tbl_cgp a_tbl_ehs.
     subst returned stack_exhausted callee_faulted.
-    iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
-             HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
+    iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow
+             Hbpcc_nonheap Hbcgp_nonheap
+             HE Hatbl Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".

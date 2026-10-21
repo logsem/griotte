@@ -102,7 +102,8 @@ Section helpers_switcher_adequacy.
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
-    iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry #Hinterp_pcc #Hinterp_cgp".
+    iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
+      #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
     set (minstk8 := Z.to_nat (Z.of_nat minstk `mod` 256)).
     assert (Z.land (Z.of_nat minstk) 255 = Z.of_nat minstk8) as Hminstk8.
@@ -114,6 +115,7 @@ Section helpers_switcher_adequacy.
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, minstk8, off, posture, eh, ehs.
     iFrame "#".
     iSplit ; first (by iPureIntro).
+    iSplit; first (iPureIntro; exact (cmpt_exp_tbl_disjoint_from_shadow C_cmpt)).
     iSplit.
     { iPureIntro. subst b_etbl e_etbl entries_etbl.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.

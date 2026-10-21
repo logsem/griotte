@@ -169,6 +169,7 @@ Section Switcher_KtK_Call.
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
     is_shadow_address a_tbl_cgp = false ->
+    disjoint_from_shadow btbl_tgt etbl_tgt ->
     is_heap_address bpcc_tgt = false ->
     is_heap_address bcgp_tgt = false ->
 
@@ -299,8 +300,8 @@ Section Switcher_KtK_Call.
          invariant. *)
     intros astk4 a_tbl_cgp a_tbl_ehs wct1_caller callee_stk_region frame.
     subst a_tbl_cgp a_tbl_ehs.
-    iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
-             Hb_a HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hminstk Hdom Harg_rmap
+    iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
+             Hb_a HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
              Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
@@ -399,10 +400,14 @@ Section Switcher_KtK_Call.
       "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)
+    (* The table cell holds the unsealed entry *)
+    assert (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt = WInt 0 ∨
+            exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt)) as Htbl_cell.
+    { right. apply exp_tbl_cap_entry; [exact Hbtbl_ehs | solve_addr | exact Htbl_shadow]. }
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done|done|done|done|exact Hstk_bounds|done|done|by intros _|first [by left | (right; apply exp_tbl_cap_entry; solve_addr)]| |].
+      as "[Hinv Hcstk]"; [done|done|done|done|exact Hstk_bounds|done|done|by intros _|exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
     iApply "Hpost"; iLeft; iFrame "∗ %".

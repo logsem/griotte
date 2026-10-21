@@ -182,7 +182,8 @@ Section translation.
         cmpt_code c = tb_code b ∧
         cmpt_data c = chunks_words ss c (tb_data b) ∧
         note "no error handler"
-          (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧ cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler) ∧
+          (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
+           cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler) ∧
         cmpt_exp_tbl_entries c =
           fw_imap (λ _ e, note ("export " ++ fe_name e) (export_word e)) (tb_exports b)
     | UntrustedBody b =>

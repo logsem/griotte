@@ -625,10 +625,13 @@ Section Switcher.
         as "(Hworld_interp & #Hstk4v & _ & _)"; [done|done|solve_addr| | |].
       { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
       { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
+      (* The table cell is still cleared *)
+      assert (WInt 0 = WInt 0 ∨ exp_tbl_cap (b_callee_exp_tbl frame) (WInt 0)) as Htbl_cell
+        by by left.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [Hcells] Hp_ot_switcher")
-        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|first [by left | (right; apply exp_tbl_cap_entry; solve_addr)]| |].
+        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
       { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
       iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
       iDestruct ("Hcont_frame" with "Hstk4v") as "Hcont_frame".
@@ -675,10 +678,14 @@ Section Switcher.
       iIntros "(_ & HPC & [%wcs0' Hcs0] & [%wcs1'' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2]
         & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
       subst hclose_switcher_inv hinv_switcher.
+      (* The table cell holds the unsealed entry *)
+      assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
+              exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
+      { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [Hcells] Hp_ot_switcher")
-        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|first [by left | (right; apply exp_tbl_cap_entry; solve_addr)]| |].
+        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
       { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
       iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
       iDestruct (big_sepM_sep with "Hargs") as "[Hargs _]".
@@ -696,10 +703,14 @@ Section Switcher.
       "(%Hbig & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)
+    (* The table cell holds the unsealed entry *)
+    assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
+            exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
+    { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|first [by left | (right; apply exp_tbl_cap_entry; solve_addr)]| |].
+      as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
 

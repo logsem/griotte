@@ -121,6 +121,7 @@ Section VAE.
     pc_b, pc_e, cgp_b, cgp_e, 1, 4, _.
     iFrame "#".
     iSplit; first done.
+    iSplit; first done.
     iSplit; first solve_addr.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).

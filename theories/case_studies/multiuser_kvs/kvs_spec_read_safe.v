@@ -231,6 +231,7 @@ Section KVS_spec_read_safe.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iFrame "#".
     iSplit; first done.
+    iSplit; first (iPureIntro; exact kvs_exp_tbl_disjoint_from_shadow).
     iSplit; first by (iPureIntro; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr).
     iSplit; first by (iPureIntro; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr).
     iSplit; first by (iPureIntro; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr).

@@ -1047,7 +1047,8 @@ Section memory_map.
      row (cmpt_b_cgp c) (length (cmpt_data c)) "globals" n (map text_cell (rle (cmpt_data c)));
      row (cmpt_b_static_sealed c) (length (cmpt_static_sealed c)) "static sealed" n
        (words_cells (cmpt_static_sealed c));
-     row (cmpt_exp_tbl_pcc c) (Z.to_nat ExportTable_offset_entries + length (cmpt_exp_tbl_entries c)) "export table" n
+     row (cmpt_exp_tbl_pcc c) (Z.to_nat ExportTable_offset_entries + length (cmpt_exp_tbl_entries c))
+       "export table" n
        (app
           (words_cells
              [WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c);

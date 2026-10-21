@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel memory_region disjoint_regions_tactics.
-From griotte Require Import switcher compartment_layout adequacy_common allocator_resources.
+From griotte Require Import switcher switcher_preamble compartment_layout adequacy_common allocator_resources.
 From griotte.allocators.ownership Require Import allocator allocator_preamble allocator_resource_spec.
 From griotte Require Import firmware_ok firmware_adequacy firmware_obligations.
 (* Imported last: the fields of the image records shadow the fields of the
@@ -109,9 +109,10 @@ Section allocator_init.
       memory, unpainted shadow entries and claims from the heap root
       [heap_b]) and the owner map of the owner identifiers [ids], form the
       allocator service invariant; its export table gives the capabilities
-      and the entries of [malloc] and [free], with its error handler
-      offsets. *)
-  Lemma allocator_init {E : coPset} (img : fw_image) (fc : fw_cmpt) (ot : OType) (ids : gset Z) :
+      and the entries of [malloc] and [free]; as a trusted compartment
+      ([tb]), it declares no error handler. *)
+  Lemma allocator_init {E : coPset} (img : fw_image) (fc : fw_cmpt) (ot : OType) (ids : gset Z)
+      (tb : fw_trusted) :
     let c := cmpt_of img (fc_name fc) in
     let alloclayout := img_allocator_layout c ot in
     let a_alloc_exp_tbl_cgp := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp)%a in
@@ -123,6 +124,7 @@ Section allocator_init.
     cmpt_code c = allocator_code →
     cmpt_data c = allocator_data →
     cmpt_exp_tbl_entries c = allocator_export_table_entries →
+    fc_body fc = TrustedBody tb →
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     allocator_owners (gset_to_gmap ∅ ids) -∗
@@ -134,7 +136,7 @@ Section allocator_init.
     allocator_service_static (layout := alloclayout) ∗
     cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
     a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
-    fw_handler_res fc (cmpt_exp_tbl_pcc c) ∗
+    no_handler (cmpt_exp_tbl_pcc c) ∗
     a_alloc_entry_malloc ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
         allocator_malloc_pcc_off) ∗
@@ -143,7 +145,7 @@ Section allocator_init.
         allocator_free_pcc_off).
   Proof.
     intros c alloclayout a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free
-      Hc Hwf Himports Hcode Hdata Hexports.
+      Hc Hwf Himports Hcode Hdata Hexports Hbody.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free.
     iIntros "(Himports & Hcode & Hdata) (#Hpcc & #Hcgp & #Hh & #Hetbl) Howners Hheap Hshadow Hclaims".
     subst c. set (c := cmpt_of img (fc_name fc)) in *.
@@ -165,6 +167,7 @@ Section allocator_init.
       iFrame. }
     iModIntro. iFrame "Hpcc".
     replace (cmpt_exp_tbl_cgp c) with (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp)%a by solve_addr+Hpcc_size.
+    rewrite /fw_handler_res Hbody.
     iFrame "Hcgp Hh".
     rewrite Hexports /allocator_export_table_entries.
     iEval (rewrite !big_sepL_cons) in "Hetbl".

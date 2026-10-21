@@ -414,6 +414,9 @@ Section prepared.
     "%Hstack_min" ∷
       ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) <= e_stack t)%Z ⌝ ∗
     "Hcstk" ∷ cstack_frag [] ∗
+    "#Hframe0_tbl" ∷
+      (∃ w0 : Word,
+         fw_frame0_tbl img 0 ↦ₐ□ lword_of_word w0 ∗ ⌜exp_tbl_cap (cmpt_exp_tbl_pcc m) w0⌝) ∗
     "Hna" ∷ na_own cerise_nais ⊤.
 
   (** The memory of a compartment, initialised: the export table becomes

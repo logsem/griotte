@@ -79,18 +79,24 @@ Section Switcher.
   Definition ExportTable_no_handler : Z := 0xffff.
 
   (** [w] is a readable capability to the export table at [b], whose bounds
-      cover the header of the table: the switcher reads the header through
-      it, from its base. *)
+      cover the header of the table and avoid the shadow table: the switcher
+      reads the header through it, from its base. *)
   Definition exp_tbl_cap (b : Addr) (w : Word) : Prop :=
     ∃ p g e a, w = WCap true p g b e a ∧ readAllowed p = true ∧
-               (b ^+ ExportTable_offset_entries <= e)%a.
+               (b ^+ ExportTable_offset_errorHandlerStackless < e)%a ∧
+               disjoint_from_shadow b e.
 
   (** The unsealed export entry, as the call path stores it. *)
   Lemma exp_tbl_cap_entry g b e a :
     (b ^+ ExportTable_offset_errorHandlerStackless < a)%a →
     (a < e)%a →
+    disjoint_from_shadow b e →
     exp_tbl_cap b (WCap true RO g b e a).
-  Proof. intros Hb Ha. eexists _, _, _, _. split_and!; [done | done | unfold ExportTable_offset_errorHandlerStackless, ExportTable_offset_entries in *; solve_addr]. Qed.
+  Proof.
+    intros Hb Ha Hshadow. eexists _, _, _, _.
+    split_and!; [done | done | | done].
+    unfold ExportTable_offset_errorHandlerStackless in *; solve_addr.
+  Qed.
 
   (** The offset of the [k]-th export entry in an export table. *)
   Definition ExportTable_offset_entry (k : nat) : Z := ExportTable_offset_entries + Z.of_nat k.
@@ -427,5 +433,7 @@ Ltac exptbl_unfold :=
     ExportTable_offset_errorHandler, ExportTable_offset_errorHandlerStackless,
     ExportTable_offset_entries in *.
 
-(** [solve_addr] sees through the layout of export tables. *)
+(** [solve_addr] sees through the layout of export tables. The hook has a
+    single definition: any later redefinition of [solve_addr_prepare] (for
+    instance in [kvs.v]) must also call [exptbl_unfold]. *)
 #[global] Ltac solve_addr.solve_addr_prepare ::= try exptbl_unfold.

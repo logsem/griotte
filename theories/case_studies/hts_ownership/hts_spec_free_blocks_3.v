@@ -327,6 +327,7 @@ Section HTS_Spec_Free.
       rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
+    { exact hts_export_tbl_disjoint_from_shadow. }
     { exact hts_allocator_pcc_not_heap. }
     { exact hts_allocator_cgp_not_heap. }
     { solve_ndisj. }

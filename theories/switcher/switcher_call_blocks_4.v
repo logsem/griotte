@@ -213,7 +213,7 @@ Section Switcher_Call_Blocks_4.
   Proof.
     intros switcher_instrs_8 len_switcher_8 wct1 a_tbl_cgp;
       subst switcher_instrs_8 len_switcher_8 wct1 a_tbl_cgp.
-    iIntros (Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hwcgp_nonheap Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1 Hentry)
+    iIntros (Hbtbl_shadow Hbtbl_cgp_shadow Hbpcc_nonheap Hwcgp_nonheap Hsub_reg atbl_tgt_inbounds Hbtbl_tgt_cgp Hentry)
       "(#Hb_tbl & #Hb_tbl1 & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -329,7 +329,7 @@ Section Switcher_Call_Blocks_4.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
-    iIntros (Htbl Htbl1 Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap
+    iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Hbpcc_heap
                Hwcgp_heap Ha_frame_b Ha_frame_e)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2
       & Hctp & Ha_export_table & Hcgp & Hcra & Hcsp & #Hswitcher & Hpost)".
@@ -545,7 +545,7 @@ Section Switcher_Call_Blocks_4.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
-    iIntros (Htbl Htbl1 Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap
+    iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Hbpcc_heap
                Hwcgp_heap Ha_frame_b Ha_frame_e Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
       & Ha_export_table & Hcgp & Hcra & Hcsp & Hargs & Hregs & #Hswitcher & Hpost)".
@@ -666,7 +666,7 @@ Section Switcher_Call_Blocks_4.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
-    iIntros (Htbl Htbl1 Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap
+    iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Hbpcc_heap
                Hwcgp_heap Ha_frame_b Ha_frame_e Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
       & Ha_export_table & Hcgp & Hcra & Hcsp & Hargs & Hregs & #Hswitcher & Hpost)".

@@ -267,9 +267,13 @@ Section KVS_spec_addOrUpdate_safe.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iFrame "#".
     iSplit; first done.
-    iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate; solve_addr).
-    iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate; solve_addr).
-    iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate; solve_addr).
+    iSplit; first (iPureIntro; exact kvs_exp_tbl_disjoint_from_shadow).
+    iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off
+                        /kvs_entry_addOrUpdate; solve_addr).
+    iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off
+                        /kvs_entry_addOrUpdate; solve_addr).
+    iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off
+                        /kvs_entry_addOrUpdate; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_addOrUpdate_nargs; lia).
     iSplit; first (iPureIntro; rewrite /kvs_addOrUpdate_min_stack; lia).
     iSplit; first (iPureIntro; exists KVS_pcc_b'; exact KVS_size_imports).

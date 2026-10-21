@@ -71,6 +71,9 @@ Section adequacy_helpers.
     Lemma initialise_switcher_compartment
       {E : coPset} (switcher_cmpt : cmptSwitcher) (switcherN : namespace) :
       let swlayout :=  (cmptSwitcher_switcherLayout switcher_cmpt) in
+      let a_frame0_tbl :=
+        ((b_trusted_stack switcher_cmpt ^+ TrustedStack_offset_frames)
+           ^+ TrustedStackFrame_offset_calleeExportTable)%a in
       mtcc_vec = switcher_label_pc "exception_entry_asm" ->
       ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ lword_of_word y) -∗
       can_alloc_pred (ot_switcher switcher_cmpt) -∗
@@ -80,9 +83,14 @@ Section adequacy_helpers.
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
       na_inv cerise_nais switcherN switcher_inv ∗
       switcher_static ∗
-      [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ [[ lword_of_word <$> stack_content switcher_cmpt ]].
+      [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ [[ lword_of_word <$> stack_content switcher_cmpt ]] ∗
+      (* The export table cell of the entry frame, for good *)
+      (∃ w0 : Word,
+         ⌜trusted_stack_content switcher_cmpt
+            !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable) = Some w0⌝ ∗
+         a_frame0_tbl ↦ₐ□ lword_of_word w0).
     Proof.
-      intros swlayout Hmtcc.
+      intros swlayout a_frame0_tbl Hmtcc.
       iIntros "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc".
       rewrite /mk_initial_switcher.
       iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hswitcher Hstack]".
@@ -116,11 +124,11 @@ Section adequacy_helpers.
         }
         iFrame.
       }
-      iAssert (|==> switcher_preamble.switcher_inv )%I
-        with "[Htrusted_stack Hcstk_full Hmtdc]" as ">Hswitcher".
+      pose proof (trusted_stack_content_export_table switcher_cmpt)
+        as (b_tbl & w_tbl & Hw_tbl & Htbl_cap).
+      iAssert (|==> switcher_preamble.switcher_inv ∗ a_frame0_tbl ↦ₐ□ lword_of_word w_tbl)%I
+        with "[Htrusted_stack Hcstk_full Hmtdc]" as ">[Hswitcher #Hframe0_tbl]".
       {
-        pose proof (trusted_stack_content_export_table switcher_cmpt)
-          as (b_tbl & w_tbl & Hw_tbl & Htbl_cap).
         pose proof (trusted_stack_content_error_count switcher_cmpt) as [n_cnt Hw_cnt].
         pose proof (trusted_stack_content_frameoffset switcher_cmpt) as Hframeoffset.
         pose proof (trusted_stack_size switcher_cmpt) as Htstk_size.
@@ -146,9 +154,10 @@ Section adequacy_helpers.
            frame and the unused part *)
         assert (drop (S i_frameoffset) l !! 2 = Some w_tbl) as Hw_tbl'.
         { by rewrite lookup_drop -Hw_tbl. }
+        clear Hw_tbl.
         assert (drop (S i_frameoffset) l !! 3 = Some (WInt n_cnt)) as Hw_cnt'.
         { by rewrite lookup_drop -Hw_cnt. }
-        clear Hw_tbl Hw_cnt.
+        clear Hw_cnt.
         rewrite -(take_drop_middle l i_frameoffset _ Hframeoffset).
         revert Hw_tbl' Hw_cnt'.
         assert (length (drop (S i_frameoffset) l)
@@ -182,6 +191,7 @@ Section adequacy_helpers.
           [subst a_entry a_error_count a_next; tstack_unfold; solve_addr..|].
         iMod (pointsto_persist with "Hexport_table") as "#Hexport_table".
         iModIntro.
+        iSplitL; last by iFrame "Hexport_table".
         rewrite /switcher_inv.
         iExists a_entry, [], _, _.
         cbn.
@@ -202,7 +212,7 @@ Section adequacy_helpers.
       { apply (stack_size switcher_cmpt). }
       rewrite /region_pointsto big_sepL2_fmap_r.
       iFrame "∗ Hsealed_pred_ot_switcher Hswitcher Hswitcher_static".
-      done.
+      iExists w_tbl. by iFrame "Hframe0_tbl".
     Qed.
 
     Lemma initialise_compartment ( C_cmpt : cmpt ) :
@@ -264,15 +274,16 @@ Section adequacy_helpers.
       ; last (apply cmpt_exp_tbl_pcc_size).
       pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
       pose proof (cmpt_exp_tbl_header_size C_cmpt).
-      rewrite (finz_seq_between_cons (cmpt_exp_tbl_cgp C_cmpt)); last solve_addr.
-      rewrite (finz_seq_between_cons (cmpt_exp_tbl_cgp C_cmpt ^+ 1)%a); last solve_addr.
-      rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp C_cmpt ^+ 1 ^+ 1)%a); last solve_addr.
-      replace (cmpt_exp_tbl_cgp C_cmpt ^+ 1)%a
-        with (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler)%a
-        by (exptbl_unfold; solve_addr).
-      replace (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler ^+ 1)%a
-        with (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)%a
-        by (exptbl_unfold; solve_addr).
+      assert (finz.seq_between (cmpt_exp_tbl_cgp C_cmpt) (cmpt_exp_tbl_entries_start C_cmpt) =
+                [cmpt_exp_tbl_cgp C_cmpt;
+                 (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler)%a;
+                 (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)%a])
+        as Hheader_addrs.
+      { rewrite finz_seq_between_cons; last solve_addr.
+        rewrite finz_seq_between_cons; last solve_addr.
+        rewrite finz_seq_between_singleton; last solve_addr.
+        f_equal; f_equal; [solve_addr | f_equal; solve_addr]. }
+      rewrite Hheader_addrs.
       rewrite !big_sepL2_singleton.
       rewrite /region_pointsto !big_sepL2_fmap_r /=.
       iDestruct "HC_etbl_cgp" as "($ & $ & $ & _)".

@@ -215,6 +215,7 @@ Section KVS_spec_erase.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iFrame "#".
     iSplit; first done.
+    iSplit; first (iPureIntro; exact kvs_exp_tbl_disjoint_from_shadow).
     iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off /kvs_entry_erase; solve_addr).
     iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off /kvs_entry_erase; solve_addr).
     iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off /kvs_entry_erase; solve_addr).

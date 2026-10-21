@@ -76,6 +76,14 @@ Section HTS_Layout.
     set_solver.
   Qed.
 
+  Lemma hts_export_tbl_disjoint_from_shadow :
+    disjoint_from_shadow allocator_exp_tbl_b allocator_exp_tbl_e.
+  Proof.
+    pose proof allocator_regions_disjoint as Hregions.
+    rewrite !disjoint_list_cons in Hregions. cbn [union_list] in Hregions.
+    rewrite /disjoint_from_shadow. set_solver+Hregions.
+  Qed.
+
   Lemma hts_export_tbl_not_heap :
     is_heap_address allocator_exp_tbl_b = false.
   Proof.

@@ -350,6 +350,14 @@ Section layout_memory.
       (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
       (ft_tstack_frames ft).
 
+  (** The export table cell of the entry frame of the thread [i]. *)
+  Lemma fw_tstack_content_export_table (img : fw_image) (i : nat) (ft : fw_thread) :
+    let c := cmpt_of img (ft_cmpt ft) in
+    fw_tstack_content img i ft
+      !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable)
+    = Some (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)).
+  Proof. reflexivity. Qed.
+
   Lemma mem_region_app (b a e : Addr) (ws1 ws2 : list Word) :
     (b + length ws1)%a = Some a →
     (a + length ws2)%a = Some e →
@@ -592,10 +600,10 @@ Section layout_of_img_wf.
       as (_ & _ & _ & _ & _ & Hheader & Hentries & Hranges & _).
     rewrite /cmpt_ranges Forall_cons Forall_cons Forall_cons Forall_singleton Hname in Hranges.
     rewrite Hname in Hheader Hentries.
-    destruct Hranges as (_ & _ & _ & [ [_ Hexp_heap] _]).
+    destruct Hranges as (_ & _ & _ & [ [_ Hexp_heap] [Hexp_shadow _] ]).
     destruct Hrange_stack as [ [_ Hstack_heap] _].
     split_and!; [by apply trusted_stack_word_cap.. |].
-    subst t c. eexists _, _, _, _. split_and!; [done | done | solve_addr].
+    subst t c. eexists _, _, _, _. split_and!; [done | done | solve_addr | done].
   Qed.
 
   (** The words of the trusted stack of a thread. *)
@@ -803,6 +811,11 @@ Section entry.
   Definition fw_entry_cgp (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let m := fw_entry_cmpt fw img i in
     WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m).
+
+  (** The export table cell of the entry frame of the thread [i]. *)
+  Definition fw_frame0_tbl (img : fw_image) (i : nat) : Addr :=
+    ((b_trusted_stack (thread_of img i) ^+ TrustedStack_offset_frames)
+       ^+ TrustedStackFrame_offset_calleeExportTable)%a.
 
   Definition fw_thread_csp (img : fw_image) (i : nat) : Word :=
     let t := thread_of img i in
@@ -1369,6 +1382,10 @@ Section resources.
       [[ b_stack t, e_stack t ]] ↦ₐ
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0) ]] ∗
     "Hcstk" ∷ cstack_frag [] ∗
+    "#Hframe0_tbl" ∷
+      (∃ w0 : Word,
+         fw_frame0_tbl img i ↦ₐ□ lword_of_word w0 ∗
+         ⌜exp_tbl_cap (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img i)) w0⌝) ∗
     "Hna" ∷ na_own cerise_nais ⊤.
 End resources.
 
@@ -1564,11 +1581,25 @@ Proof.
     by apply map_disjoint_union_r. }
   iMod (initialise_switcher_compartment swc fw_switcherN Hmtcc
          with "Hswitcher Hseal_switcher Hcstk_full Hmtdc")
-    as "(#Hseal_pred & #Hswitcher & #Hswitcher_static & Hstack)".
+    as "(#Hseal_pred & #Hswitcher & #Hswitcher_static & Hstack & (%w0 & %Hw0 & #Hframe0_tbl))".
+  (* The export table cell of the entry frame: the export table of the
+     compartment the thread starts in *)
+  iAssert (∃ w0 : Word,
+             fw_frame0_tbl img 0 ↦ₐ□ lword_of_word w0 ∗
+             ⌜exp_tbl_cap (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img 0)) w0⌝)%I
+    as "#Hframe0".
+  { pose proof Hwf as (_ & _ & Hcmpts_wf & Hthreads_wf & _).
+    apply big_and_fw_map in Hcmpts_wf.
+    rewrite Hthreads in Hthreads_wf. apply big_and_cons in Hthreads_wf as [Hthread0 _].
+    destruct (thread_entry_frame_words _ _ _ _ Hcmpts_wf Hthread0) as (_ & _ & Htbl_cap).
+    change (trusted_stack_content swc) with (fw_tstack_content img 0 (fw_thread0 fw)) in Hw0.
+    rewrite fw_tstack_content_export_table in Hw0. simplify_eq.
+    iExists _. iFrame "Hframe0_tbl". iPureIntro.
+    rewrite /fw_entry_cmpt fw_thread_of_0. exact Htbl_cap. }
   (* The obligations of the trusted code. *)
   iPoseProof (Hobl img _ ceriseg sealsg stsg relg cstackg Hok) as "Hobl".
   iMod ("Hobl" with "[-HPC Hcgp Hcsp Hregs Hstack Hcstk_frag Hna]
-                     [$HPC $Hcgp $Hcsp $Hregs $Hstack $Hcstk_frag $Hna]") as "Hwp".
+                     [$HPC $Hcgp $Hcsp $Hregs $Hstack $Hcstk_frag $Hframe0 $Hna]") as "Hwp".
   { rewrite /fw_shared_res /CNames big_sepS_list_to_set; last apply finite.NoDup_enum.
     iFrame "Hotypes Hheap Hshadow Hclaims Hcmpts Hworlds". iFrame "#". }
   iModIntro. iFrame "Hwp Hflag".
