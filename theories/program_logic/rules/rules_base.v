@@ -744,6 +744,57 @@ Section griotte_lang_rules.
     iApply (wp_trap_entry_return with "Hmepcc Hmcause HΦ"); done.
   Qed.
 
+  (** The resources trap entry gives back, unfolded: the error path of the
+      switcher states its specifications against them. *)
+  Lemma trap_entry_out_unfold w :
+    trap_entry_out w ⊣⊢
+    MEPCC ↦ₛᵣ lmepcc_of_pc w ∗
+    (∃ c : Z, ⌜mcause_ok c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)).
+  Proof. by rewrite trap_entry_out_unseal. Qed.
+
+  (** Lending MEPCC and mcause from the state interpretation, against the
+      trap-entry token. *)
+  Lemma sreg_interp_trap_lend lsreg :
+    sreg_interp lsreg -∗
+    trap_entry_res -∗
+    ∃ wepcc wcause,
+      ⌜lsreg !! MEPCC = Some wepcc ∧ lsreg !! MCAUSE = Some wcause⌝ ∗
+      sreg_interp lsreg ∗
+      MEPCC ↦ₛᵣ wepcc ∗
+      MCAUSE ↦ₛᵣ wcause.
+  Proof.
+    rewrite trap_entry_res_unseal.
+    iIntros "[Hsr Hres] Htok". iNamed "Hres".
+    iDestruct "Hwin" as "[[[%wepcc Hmepcc] [%wcause Hmcause]] | Htok']"; last first.
+    { iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
+      destruct (nclose_infinite N_trap []) as (i & Hi & _). set_solver. }
+    iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
+    iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
+    iExists wepcc, wcause. iSplit; first done.
+    iFrame "Hmepcc Hmcause Hsr Hmstatus Hmtval Hmtcc". by iRight.
+  Qed.
+
+  (** The return of MEPCC and mcause to the state interpretation: the
+      trap-entry token comes back. *)
+  Lemma sreg_interp_trap_return lsreg wepcc wcause :
+    sreg_interp lsreg -∗
+    MEPCC ↦ₛᵣ wepcc -∗
+    MCAUSE ↦ₛᵣ wcause -∗
+    ⌜lsreg !! MEPCC = Some wepcc ∧ lsreg !! MCAUSE = Some wcause⌝ ∗
+    sreg_interp lsreg ∗
+    trap_entry_res.
+  Proof.
+    rewrite trap_entry_res_unseal.
+    iIntros "[Hsr Hres] Hmepcc Hmcause". iNamed "Hres".
+    iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
+    iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
+    iDestruct "Hwin" as "[[[%wepcc' Hmepcc'] _] | Htok]".
+    { iDestruct (pointsto_ne with "Hmepcc Hmepcc'") as %Hne. by exfalso; apply Hne. }
+    iSplit; first done.
+    iSplitR "Htok"; last done.
+    iFrame "Hsr Hmstatus Hmtval Hmtcc". iLeft. iSplitL "Hmepcc"; by iExists _.
+  Qed.
+
   (* The obligation of a fault from the PC [w]: either, under an update at
      the time of the fault, the trap-entry token and the continuation from
      the trap vector [mtcc_vec], or the postcondition of a stopped machine.

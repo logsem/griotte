@@ -144,6 +144,14 @@ Section state_interp.
     iDestruct (gen_heap_valid with "Hsr Hmstatus") as %Hlookup. eauto.
   Qed.
 
+  (** mtval holds an integer. *)
+  Lemma sreg_interp_mtval lsreg :
+    sreg_interp lsreg -∗ ⌜∃ z : Z, lsreg !! MTVAL = Some (lword_of_word (WInt z))⌝.
+  Proof.
+    iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmtval" as (z) "Hmtval".
+    iDestruct (gen_heap_valid with "Hsr Hmtval") as %Hlookup. eauto.
+  Qed.
+
   (** MTCC holds the trap vector. *)
   Lemma sreg_interp_mtcc lsreg :
     sreg_interp lsreg -∗ ⌜lsreg !! MTCC = Some (lword_of_word mtcc_vec)⌝.
