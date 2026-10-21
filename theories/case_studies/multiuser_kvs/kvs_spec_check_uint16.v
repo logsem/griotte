@@ -74,7 +74,6 @@ Section KVS_check_uint16.
       iInstr "Hcode".
       (* Mov rdst ASM_FALSE. *)
       iInstr "Hcode".
-      rewrite decide_False //.
       (* Jmp .kvs_key_ret. *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame "∗ Hcode".
@@ -94,7 +93,6 @@ Section KVS_check_uint16.
       iInstr "Hcode".
       (* mov rdst ASM_FALSE; *)
       iInstr "Hcode".
-      rewrite decide_False //.
       (* jmp (".kvs_key_ret")%asm; *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame "∗ Hcode".
@@ -115,7 +113,6 @@ Section KVS_check_uint16.
       iInstr "Hcode".
       (* mov rdst ASM_FALSE; *)
       iInstr "Hcode".
-      rewrite decide_False //.
       (* jmp (".kvs_key_ret")%asm; *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame "∗ Hcode".

@@ -62,8 +62,13 @@ Section ClearRegistersMacro.
     cbn.
     codefrag_facts "Hcode".
 
+    iApply (wp_reg_cnull_lnull with "Hr"); first done.
+    iIntros (Hrv) "Hr".
+    (* Mov r 0. *)
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ 1)%a); auto; solve_addr. }
+    iAssert (r ↦ᵣ WInt 0)%I with "[Hr]" as "Hr".
+    { case_decide as Hr_cnull; last done. by rewrite (Hrv Hr_cnull). }
     destruct (decide (l = [])).
     { subst l. iApply "Hcont". iFrame "∗ #".
       replace (delete r rmap) with (∅ : LReg).

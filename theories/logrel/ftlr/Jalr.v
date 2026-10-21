@@ -84,8 +84,8 @@ Section fundamental.
     rewrite /lupdatePcPerm /lift_word /=.
     iAssert (interp W C (wsrc @@? πs)) as "#Hwsrc".
     { destruct (decide (rsrc = cnull)) as [->|Hnull].
-      + rewrite /llookup_reg in Hrsrc. apply bind_Some in Hrsrc as (? & _ & Hw).
-        injection Hw as <- <-. by iApply interp_untagged.
+      + rewrite llookup_reg_cnull /lnull in Hrsrc.
+        injection Hrsrc as <- <-. by iApply interp_untagged.
       + rewrite llookup_reg_not_cnull // in Hrsrc.
         iApply "Hreg"; eauto. }
 

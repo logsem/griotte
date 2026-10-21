@@ -119,19 +119,19 @@ Section griotte_lang_rules.
      iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
      rewrite Hinstr in Hstep.
      specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-     unfold regs_of in Hri, Dregs.
+     unfold regs_of, operands_of in Hri, Dregs.
      destruct (Hri r1) as [r1v [H'r1 _]]; first by set_solver+.
      destruct (llookup_reg_phys _ _ _ _ _ Hregs H'r1) as (s & Hr1 & Hrel).
      pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs H'r1) as Hok.
      rewrite /exec /= Hr1 /= in Hstep.
      destruct (lz_of_argument_dom regs arg) as [argz Harg].
-     { intros x ->. apply Dregs. set_solver+. }
+     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
      rewrite (lz_of_argument_incl R regs r _ argz) /= in Hstep; [|done|done].
      destruct (decide ((is_sealed r1v.(lw) || is_sentry r1v.(lw)) = true)) as [Hsl | Hsl].
      { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (lclear_tag r1v) (clear_tag r1v.(lw)) _ _ _
           (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
        { apply reg_word_ok_lclear_tag. }
        { rewrite -Hstep. by destruct r1v as [[| [] | | ? []] ?], s. }
        { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
@@ -144,7 +144,7 @@ Section griotte_lang_rules.
      1: { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WInt (n + argz) @@? π) _ _ _ _
           (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-       { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
        { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_int. }
        { intros lpc' Hi. eapply Lea_spec_int; eauto. }
        { intros Hi. apply Lea_spec_failure; [|done..]. eapply Lea_fail_overflow_PC_other; eauto. }
@@ -153,7 +153,7 @@ Section griotte_lang_rules.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WCap t p g b e a' @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-         { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+         { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
          { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); [by left|done|done|done]. }
          { exact Hstep. }
          { by apply (reg_phys_derive _ (WCap t p g b e a @@? π) s (WCap t p g b e a')). }
@@ -163,7 +163,7 @@ Section griotte_lang_rules.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WCap false p g b e a @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-         { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+         { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
          { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); [by left|done|done|done]. }
          { exact Hstep. }
          { by apply reg_phys_untagged. }
@@ -174,7 +174,7 @@ Section griotte_lang_rules.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WSealRange t p g b e a' @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-         { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+         { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
          { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); [by right|done|done|done]. }
          { exact Hstep. }
          { by apply (reg_phys_derive _ (WSealRange t p g b e a @@? π) s (WSealRange t p g b e a')). }
@@ -184,7 +184,7 @@ Section griotte_lang_rules.
        + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 (WSealRange false p g b e a @@? π) _ _ _ _
            (λ lpc' regs' retv, Lea_spec _ regs r1 arg lpc' regs' retv)
            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-         { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+         { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
          { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); [by right|done|done|done]. }
          { exact Hstep. }
          { by apply reg_phys_untagged. }

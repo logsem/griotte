@@ -793,6 +793,25 @@ Section griotte_lang_rules.
     iApply (wp_trap_entry_return with "Hmepcc Hmcause HΦ"); done.
   Qed.
 
+  (** The register [cnull] holds the null word: read from the state
+      interpretation, in front of any expression that is not a value. *)
+  Lemma wp_reg_cnull_lnull E e Φ r w :
+    to_val e = None →
+    r ↦ᵣ w -∗
+    (⌜r = cnull → w = lnull⌝ -∗ r ↦ᵣ w -∗ WP e @ E {{ Φ }}) -∗
+    WP e @ E {{ Φ }}.
+  Proof.
+    iIntros (He) "Hr' HΦ".
+    rewrite wp_unfold /wp_pre He.
+    iIntros (σ1 ns κ κs nt) "Hσ /=".
+    iNamed "Hσ".
+    iDestruct (gen_heap_valid with "Hr Hr'") as %Hlookup.
+    iSpecialize ("HΦ" with "[%] Hr'").
+    { intros ->. by eapply er_cnull. }
+    iApply ("HΦ" $! σ1 ns κ κs nt).
+    iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
+  Qed.
+
   (* The obligation of a fault from the PC [w]: either, under an update at
      the time of the fault, the trap-entry token and the continuation from
      the trap vector [mtcc_vec], or the postcondition of a stopped machine.
@@ -907,7 +926,8 @@ Definition regs_of_argument (arg: Z + RegName): gset RegName :=
   | inr r => {[ r ]}
   end.
 
-Definition regs_of (i: instr): gset RegName :=
+(** The register operands of an instruction, read or written. *)
+Definition operands_of (i: instr): gset RegName :=
   match i with
   | Lea r1 arg => {[ r1 ]} ∪ regs_of_argument arg
   | GetP r1 r2 => {[ r1; r2 ]}
@@ -934,27 +954,36 @@ Definition regs_of (i: instr): gset RegName :=
   | Store r1 arg _ => {[ r1 ]} ∪ regs_of_argument arg
   | Jnz arg1 r2 => {[ r2 ]} ∪ regs_of_argument arg1
   | Jmp arg => regs_of_argument arg
-  (* A [cnull] destination of [Jalr] is not written. *)
-  | Jalr rdst rsrc => {[ rsrc ]} ∪ ({[ rdst ]} ∖ {[ cnull ]})
+  | Jalr rdst rsrc => {[ rsrc; rdst ]}
   | Seal dst r1 r2 => {[dst; r1; r2]}
   | UnSeal dst r1 r2 => {[dst; r1; r2]}
-  (* [cnull] is neither read nor written by [SpecialRW]. *)
-  | SpecialRW dst _ src => ({[ dst ]} ∪ regs_of_argument src) ∖ {[ cnull ]}
+  | SpecialRW dst _ src => {[ dst ]} ∪ regs_of_argument src
   | Auipcc dst _ => {[ dst ]}
   | _ => ∅
   end.
 
+(** The registers whose resources an instruction needs: its operands but
+    [cnull], which reads as 0 and drops writes. *)
+Definition regs_of (i: instr): gset RegName := operands_of i ∖ {[ cnull ]}.
+
+(** Every operand has a word: an owned one, or [cnull]'s. *)
 Lemma indom_lregs_incl D (regs regs': LReg) :
-  D ⊆ dom regs →
+  D ∖ {[ cnull ]} ⊆ dom regs →
   regs ⊆ regs' →
   ∀ r, r ∈ D →
        ∃ (w:LWord), (regs !!ₗ r = Some w) ∧ (regs' !!ₗ r = Some w).
 Proof.
   intros * HD Hincl rr Hr.
-  assert (is_Some (regs !!ₗ rr)) as [w Hw].
-  { eapply elem_of_dom_lreg.
-    eapply elem_of_subseteq; eauto. }
+  destruct (llookup_reg_of_dom _ _ _ HD Hr) as [w Hw].
   exists w. split; auto. eapply llookup_reg_weaken; eauto.
+Qed.
+
+(** A register of [D] is [cnull] or owned. *)
+Lemma elem_of_lregs_dom D (regs : LReg) r :
+  D ∖ {[ cnull ]} ⊆ dom regs → r ∈ D → r = cnull ∨ r ∈ dom regs.
+Proof.
+  intros HD Hr. destruct (decide (r = cnull)) as [->|Hne]; first by left.
+  right. apply HD. set_solver.
 Qed.
 
 Definition sregs_of (i: instr): gset SRegName :=
@@ -1059,12 +1088,11 @@ Section logical_lookups.
     lregs_phys R regs r → regs !!ₗ x = Some v →
     ∃ s, lookup_reg x r = Some (and_tag s v.(lw)) ∧ reg_phys R v (and_tag s v.(lw)).
   Proof.
-    intros Hincl Hx. rewrite /llookup_reg in Hx.
-    destruct (regs !! x) as [v'|] eqn:Hv'; cbn in Hx; last done.
-    destruct (Hincl x v' Hv') as (w & Hw & Hrel).
-    rewrite /lookup_reg Hw /=. case_decide; simplify_eq.
+    intros Hincl Hx. rewrite /llookup_reg in Hx. rewrite /lookup_reg.
+    case_decide; simplify_eq.
     - exists true. split; first done. apply reg_phys_lnull.
-    - destruct (reg_phys_and_tag _ _ _ Hrel) as [s ->]. by exists s.
+    - destruct (Hincl x v Hx) as (w & Hw & Hrel). rewrite Hw.
+      destruct (reg_phys_and_tag _ _ _ Hrel) as [s ->]. by exists s.
   Qed.
 
   (** Integer reads are exact. *)
@@ -1081,28 +1109,37 @@ Section logical_lookups.
     by rewrite /= get_a_and_tag.
   Qed.
 
+  (** An operand register is [cnull] or owned. *)
+  Definition arg_owned (regs : LReg) (arg : Z + RegName) : Prop :=
+    ∀ x, arg = inr x → x ≠ cnull → x ∈ dom regs.
+
+  Lemma arg_owned_of_dom D (regs : LReg) arg :
+    D ∖ {[ cnull ]} ⊆ dom regs → regs_of_argument arg ⊆ D → arg_owned regs arg.
+  Proof. intros HD Harg x -> Hx. apply HD. rewrite /regs_of_argument in Harg. set_solver. Qed.
+
   Lemma lz_of_argument_None R (regs : LReg) (r : Reg) arg :
-    lregs_phys R regs r → (∀ x, arg = inr x → x ∈ dom regs) →
+    lregs_phys R regs r → arg_owned regs arg →
     lz_of_argument regs arg = None → z_of_argument r arg = None.
   Proof.
     intros Hincl Hdom Hz. destruct arg as [z|x]; cbn in *; first done.
     destruct (regs !!ₗ x) as [v|] eqn:Hx.
     - done.
-    - exfalso. assert (is_Some (regs !!ₗ x)) as [? ?]; last congruence.
-      apply elem_of_dom_lreg. by apply Hdom.
+    - exfalso. rewrite /llookup_reg in Hx. case_decide as Hne; first done.
+      apply not_elem_of_dom in Hx. by apply Hx, Hdom.
   Qed.
 
   (** An operand whose register is in the map has an integer view. *)
   Lemma lz_of_argument_dom (regs : LReg) arg :
-    (∀ x, arg = inr x → x ∈ dom regs) → is_Some (lz_of_argument regs arg).
+    arg_owned regs arg → is_Some (lz_of_argument regs arg).
   Proof.
-    intros Hdom. apply lz_of_argument_is_Some. intros x Hx.
-    apply elem_of_dom_lreg. by apply Hdom.
+    intros Hdom. apply lz_of_argument_is_Some. intros x ->.
+    apply is_Some_llookup_reg. destruct (decide (x = cnull)) as [->|Hne]; first by left.
+    right. by apply elem_of_dom, Hdom.
   Qed.
 
   Lemma lz_of_argument_phys R (regs : LReg) (r : Reg) arg :
     lregs_phys R regs r →
-    (∀ x, arg = inr x → x ∈ dom regs) →
+    arg_owned regs arg →
     z_of_argument r arg = lz_of_argument regs arg.
   Proof.
     intros Hincl Hdom. destruct (lz_of_argument regs arg) eqn:Hz.
@@ -1125,9 +1162,9 @@ Section logical_lookups.
     r ≠ cnull ∧ ∃ π, regs !! r = Some (WCap t p g b e a @@? π).
   Proof.
     intros H. unfold llookup_reg in H.
-    destruct (regs !! r) as [[w π]|] eqn:Hr; cbn in H; last done.
-    destruct (decide (r = cnull)) as [->|Hne]; cbn in H; simplify_eq.
-    split; first done. exists π. done.
+    case_decide as Hne; first done.
+    destruct (regs !! r) as [[w π]|] eqn:Hr; cbn in H; simplify_eq.
+    split; first done. by exists π.
   Qed.
 
   (** The identifier of the word read from a register, if it is a
@@ -1375,6 +1412,20 @@ Section instruction_closing.
       iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
   Qed.
 
+  (** Writes the logical register [dst], owned unless it is [cnull]. *)
+  Lemma lreg_update (lreg regs : LReg) dst v :
+    (dst = cnull ∨ dst ∈ dom regs) →
+    gen_heap_interp lreg -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ==∗
+    gen_heap_interp (<[dst := v]ₗ> lreg) ∗ [∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y.
+  Proof.
+    iIntros (Hdst) "Hr Hmap".
+    destruct (decide (dst = cnull)) as [->|Hne].
+    { rewrite !linsert_reg_cnull. by iFrame. }
+    destruct Hdst as [->|Hdst]; first done.
+    rewrite !linsert_reg_not_cnull //.
+    iApply (gen_heap_update_inSepM with "Hr Hmap"). by apply elem_of_dom.
+  Qed.
+
   (** Closes an instruction that writes one register then increments the PC,
       as the physical [nextPC (update_reg φ dst v)]. The spec [P] holds of
       the new PC and owned registers on success, and of the old ones on
@@ -1384,7 +1435,7 @@ Section instruction_closing.
       (P : LWord → LReg → griotte_lang.val → Prop) :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     regs ⊆ lreg →
-    dst ∈ dom regs →
+    dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
     (match nextPC (update_reg (pc, r, sr, m, st) dst w) with
      | Some conf => conf | None => (Faulted, (pc, r, sr, m, st)) end) = (c, σ') →
@@ -1406,14 +1457,11 @@ Section instruction_closing.
     destruct (incrementPC lpc) as [lpc'|] eqn:Hi.
     - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
-      assert (is_Some (regs !! dst)) as [vold Hvold] by by apply elem_of_dom.
-      iMod (gen_heap_update_inSepM _ _ dst (if decide (dst = cnull) then lnull else v)
-        with "Hr Hmap") as "[Hr Hmap]"; first eauto.
+      iMod (lreg_update _ _ dst v Hdst with "Hr Hmap") as "[Hr Hmap]".
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
       iModIntro. iSplitR "Hφ HPC Hmap".
       + iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
-      + iApply ("Hφ" with "[%] HPC [Hmap]"); first by apply HPs.
-        by rewrite /linsert_reg.
+      + iApply ("Hφ" with "[%] HPC Hmap"). by apply HPs.
     - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
       rewrite /nextPC Hfail in Hstep.
       simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
@@ -1426,7 +1474,7 @@ Section instruction_closing.
       (regs : LReg) dst (v : LWord) (w : Word) (lpc' : LWord) (pc' : Word)
       (Φ : griotte_lang.val → iProp Σ) :
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
-    dst ∈ dom regs →
+    dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
     reg_phys R v w →
     reg_word_ok R C lpc' →
@@ -1445,13 +1493,11 @@ Section instruction_closing.
       "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her1 Hokpc Hwpc Hpcok) as Her2.
-    assert (is_Some (regs !! dst)) as [vold Hvold] by by apply elem_of_dom.
-    iMod (gen_heap_update_inSepM _ _ dst (if decide (dst = cnull) then lnull else v)
-      with "Hr Hmap") as "[Hr Hmap]"; first eauto.
+    iMod (lreg_update _ _ dst v Hdst with "Hr Hmap") as "[Hr Hmap]".
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplitR "Hφ HPC Hmap".
     - iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
-    - iApply ("Hφ" with "HPC [Hmap]"). by rewrite /linsert_reg.
+    - iApply ("Hφ" with "HPC Hmap").
   Qed.
 
   (** Closes a step that only sets the PC. *)
@@ -1503,9 +1549,9 @@ Ltac instr_fail Hstep :=
 Ltac solve_next_side :=
   first [ done
         | by apply incrementPC_add
-        | by rewrite /regs_of /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver+
+        | by rewrite /regs_of /operands_of /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver+
         | by simplify_map_eq
-        | by eapply llookup_reg_cnull; simplify_map_eq
+        | by apply llookup_reg_cnull
         | by rewrite /lz_of_argument /=; simplify_map_eq ].
 
 (** Splits the register map of a post after the write of one register, as

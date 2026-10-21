@@ -111,7 +111,7 @@ Section griotte_lang_rules.
     { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag r2v) (clear_tag r2v.(lw)) _ _ _
         (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+      { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply reg_word_ok_lclear_tag. }
       { rewrite -Hstep.
         by destruct r1v as [[| [] | | ? []] ?], r2v as [[| [] | | ? []] ?], s1, s2. }
@@ -135,7 +135,7 @@ Section griotte_lang_rules.
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WSealed a sb @@? π) _ _ _ _
         (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+      { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply (reg_word_ok_seal _ _ sb); auto. } { exact Hstep. }
       { eapply (reg_phys_derive_eq _ (WSealable sb @@? π) s2); [done|by destruct sb|done|].
         destruct s2; rewrite ?and_tag_sealable_true ?and_tag_sealable_false.
@@ -148,7 +148,7 @@ Section griotte_lang_rules.
         (WSealed a (clear_tag_sealable sb) @@? π) _ _ _ _
         (λ lpc' regs' retv, Seal_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+      { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply (reg_word_ok_seal _ _ sb); auto. } { exact Hstep. }
       { eapply (reg_phys_derive_eq _ (WSealable sb @@? π) s2); [done|by destruct sb|by destruct sb|].
         destruct s2; rewrite ?and_tag_sealable_true ?and_tag_sealable_false.
@@ -189,7 +189,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Htag Hps Hwb Hpc_a' Hcnull Hcnull' Hncull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Seal with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    all: try (by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | ? ? ? ? ? ? ? | * Hfail].
@@ -234,7 +234,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Htag Hps Hwb Hpc_a' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
     iApply (wp_Seal with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    all: try (by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | ? ? ? ? ? ? ? | * Hfail].
@@ -280,7 +280,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Htag Hps Hwb Hpc_a' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
     iApply (wp_Seal with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    all: try (by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | | ? ? ? ? ? ? ? | * Hfail].
@@ -359,18 +359,17 @@ Section instruction_outcomes.
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
         ∗ r2 ↦ᵣ WSealable sb @@? π
-        ∗ dst ↦ᵣ (if decide (dst = cnull) then lnull else WSealed a (clear_tag_sealable (sb)) @@? π) }}}.
+        ∗ dst ↦ᵣ (if decide (dst = cnull) then wd else WSealed a (clear_tag_sealable (sb)) @@? π) }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2 & >Hr3) Hφ".
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap %Hne]".
     destruct Hne as (? & ? & ?).
     iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (sb) _ with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
-    rewrite /linsert_reg; try (rewrite decide_False; [|done]).
-    iRegsMap "Hmap"; iFrame.
+    rewrite /linsert_reg; case_decide; iRegsMap "Hmap"; iFrame.
   Qed.
 
   Lemma wp_seal_invalidated_r1 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a r2 sb πs π dq :
@@ -394,7 +393,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (sb) _ with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -423,7 +422,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (sb) _ with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -446,17 +445,16 @@ Section instruction_outcomes.
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ WSealRange t p g b e a @@? πs
-        ∗ dst ↦ᵣ (if decide (dst = cnull) then lnull else WSealed a (clear_tag_sealable (SSealRange t p g b e a)) @@? πs) }}}.
+        ∗ dst ↦ᵣ (if decide (dst = cnull) then wd else WSealed a (clear_tag_sealable (SSealRange t p g b e a)) @@? πs) }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull1 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (SSealRange t p g b e a) _ with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
-    rewrite /linsert_reg; try (rewrite decide_False; [|done]).
-    iRegsMap "Hmap"; iFrame.
+    rewrite /linsert_reg; case_decide; iRegsMap "Hmap"; iFrame.
   Qed.
 
   Lemma wp_seal_invalidated_all E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a πs dq :
@@ -477,7 +475,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hpc Hincr Hnull1 Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
     iApply (seal_invalidated_map E _ _ _ _ _ _ pc_a' w _ _ _ _ t p g b e a _ (SSealRange t p g b e a) _ with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".

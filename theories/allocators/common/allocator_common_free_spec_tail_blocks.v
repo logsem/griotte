@@ -186,7 +186,7 @@ Section AllocatorFreeTailBlocks.
               revoker_addr (revoker_addr ^+ 1)%a revoker_addr {[ι]})
       with "[$HPC $Hregs Hquar Hpayload]"
       as "(HPC & Hregs & Hpost)".
-    { rewrite /regs_of !dom_insert_L. set_solver. }
+    { rewrite /regs_of /operands_of !dom_insert_L. set_solver. }
     { split_and!; [by simplify_map_eq | by rewrite finz_add_0 | done |].
       apply withinBounds_true_iff. solve_addr. }
     { intros v Hv. by simplify_map_eq. }

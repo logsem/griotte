@@ -187,79 +187,98 @@ Notation LReg := (gmap RegName LWord).
 Notation LSReg := (gmap SRegName LWord).
 Notation LMem := (gmap Addr LWord).
 
-(** The word held by [cnull]: a write to [cnull] stores it, and a read of
-    [cnull] returns it, as in [opsem/register_file.v]. *)
+(** The word held by [cnull]. A read of [cnull] returns it and a write to
+    [cnull] is dropped, whatever the map holds: [cnull] needs no register
+    resource. *)
 Definition lnull : LWord := MkLWord (WInt 0) None.
 
 Definition llookup_reg (r : RegName) (regs : LReg) : option LWord :=
-  w ← (regs !! r);
-  Some (if (decide (r = cnull)) then lnull else w).
+  if decide (r = cnull) then Some lnull else regs !! r.
 Definition linsert_reg (r : RegName) (w : LWord) (regs : LReg) : LReg :=
-  let w' := if (decide (r = cnull)) then lnull else w in
-  <[r:=w']>regs.
+  if decide (r = cnull) then regs else <[r:=w]>regs.
 
 Notation "m !!ₗ i" := (llookup_reg i m) (at level 20) : stdpp_scope.
 Notation "<[ k := a ]ₗ>" := (linsert_reg k a)
   (at level 5, right associativity, format "<[ k := a ]ₗ>") : stdpp_scope.
 
 Lemma is_Some_llookup_reg (regs : LReg) (r : RegName) :
-  is_Some (regs !!ₗ r) ↔ is_Some (regs !! r).
-Proof. rewrite /llookup_reg. destruct (regs !! r); cbn; done. Qed.
+  is_Some (regs !!ₗ r) ↔ r = cnull ∨ is_Some (regs !! r).
+Proof. rewrite /llookup_reg. case_decide; naive_solver. Qed.
 
 Lemma llookup_reg_not_cnull (regs : LReg) (r : RegName) :
   r ≠ cnull → regs !!ₗ r = regs !! r.
-Proof.
-  intros Hr. rewrite /llookup_reg.
-  destruct (regs !! r); cbn; last done. by rewrite decide_False.
-Qed.
+Proof. intros Hr. rewrite /llookup_reg. by rewrite decide_False. Qed.
 
-Lemma llookup_reg_cnull (regs : LReg) w :
-  regs !! cnull = Some w → regs !!ₗ cnull = Some lnull.
-Proof. rewrite /llookup_reg. by intros ->. Qed.
+Lemma llookup_reg_cnull (regs : LReg) : regs !!ₗ cnull = Some lnull.
+Proof. rewrite /llookup_reg. by case_decide. Qed.
 
 Lemma elem_of_dom_lreg (regs : LReg) (r : RegName) :
-  r ∈ dom regs ↔ is_Some (regs !!ₗ r).
-Proof. rewrite is_Some_llookup_reg. apply elem_of_dom. Qed.
+  r ∈ dom regs → is_Some (regs !!ₗ r).
+Proof. rewrite is_Some_llookup_reg elem_of_dom. by right. Qed.
 
 Lemma llookup_reg_weaken (regs1 regs2 : LReg) (r : RegName) (w : LWord) :
   regs1 !!ₗ r = Some w → regs1 ⊆ regs2 → regs2 !!ₗ r = Some w.
 Proof.
   rewrite /llookup_reg. intros Hr1 Hincl.
-  destruct (regs1 !! r) eqn:Hr; cbn in *; last done.
-  by rewrite (lookup_weaken _ _ _ _ Hr Hincl).
+  case_decide; first done. by eapply lookup_weaken.
 Qed.
-
-Lemma linsert_reg_insert r w1 w2 (regs : LReg) :
-  <[ r := w1 ]ₗ> (<[ r := w2 ]> regs) = <[ r := w1 ]ₗ> regs.
-Proof. rewrite /linsert_reg. by rewrite insert_insert_eq. Qed.
 
 Lemma insert_linsert_reg r w1 w2 (regs : LReg) :
   <[ r := w1 ]> (<[ r := w2 ]ₗ> regs) = <[ r := w1 ]> regs.
-Proof. rewrite /linsert_reg. by rewrite insert_insert_eq. Qed.
+Proof. rewrite /linsert_reg. case_decide; first done. by rewrite insert_insert_eq. Qed.
 
 Lemma linsert_reg_not_cnull r w (regs : LReg) :
   r ≠ cnull → <[ r := w ]ₗ> regs = <[ r := w ]> regs.
 Proof. intros Hr. rewrite /linsert_reg. by rewrite decide_False. Qed.
 
-Lemma linsert_reg_cnull w (regs : LReg) :
-  <[ cnull := w ]ₗ> regs = <[ cnull := lnull ]> regs.
+Lemma linsert_reg_cnull w (regs : LReg) : <[ cnull := w ]ₗ> regs = regs.
 Proof. rewrite /linsert_reg. by case_decide. Qed.
 
 Lemma lookup_linsert_reg_eq r w (regs : LReg) :
-  (<[ r := w ]ₗ> regs) !! r = Some (if decide (r = cnull) then lnull else w).
-Proof. rewrite /linsert_reg. by rewrite lookup_insert_eq. Qed.
+  (<[ r := w ]ₗ> regs) !! r = if decide (r = cnull) then regs !! r else Some w.
+Proof. rewrite /linsert_reg. case_decide; first done. by rewrite lookup_insert_eq. Qed.
 
 Lemma lookup_linsert_reg_ne r r' w (regs : LReg) :
   r ≠ r' → (<[ r := w ]ₗ> regs) !! r' = regs !! r'.
-Proof. intros Hne. rewrite /linsert_reg. by rewrite lookup_insert_ne. Qed.
+Proof. intros Hne. rewrite /linsert_reg. case_decide; first done. by rewrite lookup_insert_ne. Qed.
+
+Lemma llookup_linsert_reg_eq r w (regs : LReg) :
+  (<[ r := w ]ₗ> regs) !!ₗ r = Some (if decide (r = cnull) then lnull else w).
+Proof. rewrite /llookup_reg /linsert_reg. case_decide; first done. by rewrite lookup_insert_eq. Qed.
+
+Lemma llookup_linsert_reg_ne r r' w (regs : LReg) :
+  r ≠ r' → (<[ r := w ]ₗ> regs) !!ₗ r' = regs !!ₗ r'.
+Proof.
+  intros Hne. rewrite /llookup_reg. case_decide; first done.
+  by rewrite lookup_linsert_reg_ne.
+Qed.
 
 Lemma dom_linsert_reg r w (regs : LReg) :
-  dom (<[ r := w ]ₗ> regs) = {[ r ]} ∪ dom regs.
-Proof. rewrite /linsert_reg. by rewrite dom_insert_L. Qed.
+  r ≠ cnull → dom (<[ r := w ]ₗ> regs) = {[ r ]} ∪ dom regs.
+Proof. intros Hr. by rewrite linsert_reg_not_cnull // dom_insert_L. Qed.
 
 Lemma linsert_reg_mono r w (regs regs' : LReg) :
   regs ⊆ regs' → <[ r := w ]ₗ> regs ⊆ <[ r := w ]ₗ> regs'.
-Proof. intros. rewrite /linsert_reg. by apply insert_mono. Qed.
+Proof. intros. rewrite /linsert_reg. case_decide; first done. by apply insert_mono. Qed.
+
+(** A full register map stays full after a write. *)
+Lemma full_map_linsert (regs : LReg) dst w :
+  (∀ x : RegName, is_Some (regs !! x)) →
+  ∀ x : RegName, is_Some (<[dst := w]ₗ> regs !! x).
+Proof.
+  intros Hfull x. rewrite /linsert_reg. case_decide; first done.
+  apply lookup_insert_is_Some'. by right.
+Qed.
+
+(** A map holding the registers [D] other than [cnull] gives a word for each
+    register of [D]. *)
+Lemma llookup_reg_of_dom (D : gset RegName) (regs : LReg) r :
+  D ∖ {[ cnull ]} ⊆ dom regs → r ∈ D → is_Some (regs !!ₗ r).
+Proof.
+  intros HD Hr. apply is_Some_llookup_reg.
+  destruct (decide (r = cnull)) as [->|Hne]; first by left.
+  right. apply elem_of_dom, HD. set_solver.
+Qed.
 
 (** ** Arguments of instructions *)
 
@@ -386,8 +405,7 @@ Qed.
 
 (** ** Erasure of identifiers
 
-    The physical register file erases the identifiers of the logical one,
-    except at [cnull], whose physical entry is never read. *)
+    The physical register file erases the identifiers of the logical one. *)
 
 Definition lregs_erase (regs : LReg) : Reg := lw <$> regs.
 Definition lmem_erase (m : LMem) : Mem := lw <$> m.
@@ -395,14 +413,14 @@ Definition lmem_erase (m : LMem) : Mem := lw <$> m.
 Lemma lookup_reg_erase (regs : LReg) r :
   lookup_reg r (lregs_erase regs) = lw <$> (regs !!ₗ r).
 Proof.
-  rewrite /lookup_reg /llookup_reg /lregs_erase lookup_fmap.
-  destruct (regs !! r) as [v|] eqn:Hv; rewrite ?Hv /=; [case_decide; done|done].
+  rewrite /lookup_reg /llookup_reg /lregs_erase lookup_fmap. by case_decide.
 Qed.
 
 Lemma insert_reg_erase (regs : LReg) r v :
   insert_reg r v.(lw) (lregs_erase regs) = lregs_erase (<[ r := v ]ₗ> regs).
 Proof.
-  rewrite /insert_reg /linsert_reg /lregs_erase fmap_insert. by case_decide.
+  rewrite /insert_reg /linsert_reg /lregs_erase. case_decide; first done.
+  by rewrite fmap_insert.
 Qed.
 
 Lemma lookup_lregs_erase (regs : LReg) r : lregs_erase regs !! r = lw <$> regs !! r.
