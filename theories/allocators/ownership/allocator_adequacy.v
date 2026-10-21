@@ -6,7 +6,6 @@ From griotte Require Import firmware_ok firmware_adequacy firmware_obligations.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout]. *)
 From griotte Require Import image firmware.
-Set Mangle Names.
 
 (** * The initialisation of the allocator compartment of a firmware
 

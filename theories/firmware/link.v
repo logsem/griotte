@@ -1,7 +1,6 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import machine_base machine_parameters switcher assert compartment_layout.
 From griotte Require Import image firmware firmware_ok.
-Set Mangle Names.
 
 #[local] Open Scope string_scope.
 

@@ -1,7 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Export switcher.
-Set Mangle Names.
 
 (** * Spill and reload of registers to the register save area
 

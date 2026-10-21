@@ -11,18 +11,18 @@ From griotte Require Import switcher_call_blocks_6 switcher_blocks_15_16 switche
     spills the interrupted context and unwinds the faulting compartment's
     call: it sets the return values and runs the return routine. It reads
     the registers of the faulting compartment only to spill them, so its
-    safety needs no validity of the register file, but when it resumes the
-    faulting context (a fault of the first spill of the call path, which
-    returns [-ENOTENOUGHSTACK] to the caller): it then needs safe registers.
+    safety needs no validity of the register file, except when it resumes
+    the faulting context: a fault of the first spill of the call path
+    returns [-ENOTENOUGHSTACK] to the caller, whose registers must then be
+    safe.
 
     It is a safe trap vector ([switcher_trap_vector_safe]) for the faults
     that it does not resume ([trap_no_resume]) and for safe register files,
-    which closes the faults of trusted code ([trap_safe_unwind],
-    [trap_safe_absurd]); a resumed fault of trusted code is closed by
-    [trap_safe_resume]. The file also hosts the safety of the
-    return-to-switcher entry point ([interp_expr_switcher_return],
-    [interp_switcher_return]), which needs the trap vector and would
-    otherwise form an import cycle. *)
+    which closes the faults of trusted code ([trap_safe_unwind]); a resumed
+    fault of trusted code is closed by [trap_safe_resume]. The file also
+    hosts the safety of the return-to-switcher entry point
+    ([interp_expr_switcher_return], [interp_switcher_return]), which needs
+    the trap vector and would otherwise form an import cycle. *)
 
 Section Switcher_Exception.
   Context
@@ -34,6 +34,43 @@ Section Switcher_Exception.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
+
+  (** Block 16 from [.Lswitch_just_return], where the exception path resumes
+      a context: the return to [cra]. *)
+  Lemma switcher_just_return_spec (wret : LWord) :
+    PC ↦ₚ switcher_label_pc ".Lswitch_just_return" ∗
+    cra ↦ᵣ wret ∗
+    switcher_code ∗
+    ( ▷ ( PC ↦ₚ lupdatePcPerm wret ∗
+          cra ↦ᵣ wret ∗
+          £ 1 -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+      ( ⌜jalr_target_ok cnull cra wret.(lw) = false⌝ ∗
+        cra ↦ᵣ wret -∗
+        trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
+          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
+    pose proof switcher_SubBounds as Hsub.
+    pose proof switcher_size as Hsize; cbn in Hsize.
+    rewrite (_ : (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a =
+                 (a_switcher_call ^+ switcher_label_offset ".Lswitcher_return_to_caller")%a);
+      last by offsets_compute.
+    switcher_unfold_code "Hswitcher".
+    switcher_focus_block (switcher_block ".Lswitcher_return_to_caller") "Hswitcher"
+      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    iApply (switcher_return_block_16_spec _ _ _ _ ∅ with "[- $HPC $Hcra $Hcode]");
+      first done.
+    iSplitR; first by rewrite big_sepM_empty.
+    iSplit.
+    - iNext; iIntros "(HPC & Hcra & _ & _ & Hlc)".
+      iDestruct "Hpost" as "[Hpost _]".
+      iApply ("Hpost" with "[$HPC $Hcra $Hlc]").
+    - iIntros "(%Hjalr & Hcra & _)".
+      iDestruct "Hpost" as "[_ Hpost]".
+      iApply ("Hpost" with "[$Hcra]"); done.
+  Qed.
 
   (** The return to the caller of the context that the exception path
       resumes, at [.Lswitch_just_return]: with safe registers, the jump to
@@ -59,24 +96,14 @@ Section Switcher_Exception.
     iPoseProof "Hstatic" as "[#Hswitcher _]".
     iAssert (interp_reg interp W C rmap) as "#Hregs_interp".
     { by iApply interp_reg_intro. }
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size as Hsize; cbn in Hsize.
     rewrite /registers_pointsto.
     getRegValList [cra].
     iDestruct ("Hregs" $! cra wcra with "[//]") as "#Hinterp_wcra".
     iExtract "Hrmap" cra as "Hcra".
-    rewrite (_ : (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a =
-                 (a_switcher_call ^+ switcher_label_offset ".Lswitcher_return_to_caller")%a);
-      last by offsets_compute.
-    switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lswitcher_return_to_caller") "Hswitcher"
-      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_return_block_16_spec _ _ _ _ ∅ with "[- $HPC $Hcra $Hcode]");
-      first done.
-    iSplitR; first by rewrite big_sepM_empty.
+    iApply (switcher_just_return_spec with "[- $HPC $Hcra $Hswitcher]").
     iSplit.
     - (* The jump to [cra] *)
-      iNext; iIntros "(HPC & Hcra & _ & _ & Hlc)".
+      iNext; iIntros "(HPC & Hcra & Hlc)".
       iInsert "Hrmap" cra.
       rewrite insert_id //.
       iDestruct (jmp_or_fail_spec with "Htrap Hinterp_wcra") as "Hjmp".
@@ -84,7 +111,7 @@ Section Switcher_Exception.
       { (* The return address is not a valid PC: the jump faults *)
         iApply "Hjmp"; iFrame "HPC".
         iApply (interp_trap_safe with "Htrap [] [$Hrmap $Hworld_interp $Hcont $Hna $Hcstk]");
-          [done | done | by iRight | done]. }
+          [exact Hfull | exact Hframe | by iRight | done]. }
       iDestruct "Hjmp" as (p g b e a π) "(%Hwcra_target & #Hjmp)".
       iAssert (future_world g W W) as "Hfuture".
       { destruct g; cbn; iPureIntro; [ apply related_sts_priv_refl_world
@@ -94,11 +121,11 @@ Section Switcher_Exception.
       iApply ("Hjmp'" $! cstk Ws Cs rmap); iFrame "∗ #".
       done.
     - (* The jump faults *)
-      iIntros "(_ & Hcra & _)".
+      iIntros "(_ & Hcra)".
       iInsert "Hrmap" cra.
       rewrite insert_id //.
       iApply (interp_trap_safe with "Htrap [] [$Hrmap $Hworld_interp $Hcont $Hna $Hcstk]");
-        [done | done | by iRight | done].
+        [exact Hfull | exact Hframe | by iRight | done].
   Qed.
 
   (** The exception entry: from the exception entry, after trap entry, the
@@ -282,7 +309,8 @@ Section Switcher_Exception.
     iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
     iApply (switcher_exception_path_spec Nswitcher F with
-             "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcont]"); [done.. |].
+             "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcont]");
+      [exact HF | exact HFtrap | exact Hdisj | exact Hfull_rmap |].
     iNext; iSplit.
     - iIntros (_). iExact "Hcont".
     - by iIntros (Hresume).
@@ -326,7 +354,8 @@ Section Switcher_Exception.
     iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
     iApply (switcher_exception_path_spec Nswitcher F with
-             "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcont]"); [done.. |].
+             "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcont]");
+      [exact HF | exact HFtrap | exact Hdisj | exact Hfull_rmap |].
     iNext; iSplit.
     - by iIntros (Hno_resume).
     - iIntros (_). iExact "Hcont".
@@ -360,18 +389,6 @@ Section Switcher_Exception.
     iPoseProof (switcher_mtcc_vec_safe Nswitcher Hdisj with "[$Hinv_switcher $Hstatic]")
       as "#Htrap".
     iApply (interp_trap_safe with "Htrap Hno_resume Hres"); done.
-  Qed.
-
-  (** A fault that cannot happen is safe: the update yields a contradiction,
-      which is eliminated at the time of the fault. *)
-  Lemma trap_safe_absurd (w : LWord) :
-    (|={⊤}=> False) -∗
-    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
-  Proof.
-    iIntros "Hfalse".
-    iApply trap_safe_entry_intro.
-    iSplit; last by iIntros "!> %Hv".
-    by iMod "Hfalse".
   Qed.
 
   (** The return-to-switcher entry point is safe to execute: the registers

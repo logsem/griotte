@@ -12,7 +12,6 @@ From griotte Require Import firmware_ok firmware_adequacy.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and of [switcherLayout]. *)
 From griotte Require Import image firmware.
-Set Mangle Names.
 
 (** * The obligations of a firmware, over prepared resources
 

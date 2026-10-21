@@ -30,22 +30,8 @@ Section Switcher_Exception_Blocks_3.
       encodeInstrsW [machine_instructions.CLoad csp csp TrustedStack_offset_csp; Mret].
   Proof. reflexivity. Qed.
 
-  (** The cells of the registers but the stack pointer in the register save
-      area. *)
-  Lemma trusted_save_cells_ok_exception :
-    trusted_save_cells_ok b_trusted_stack e_trusted_stack b_trusted_stack exception_spill_regs.
-  Proof.
-    pose proof trusted_stack_frames_fit as [n Hfit].
-    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
-    intros r Hr. rewrite /exception_spill_regs !elem_of_cons elem_of_nil in Hr.
-    tstack_unfold.
-    repeat (destruct Hr as [-> | Hr]); try done.
-    all: cbv [TrustedStack_offset_reg cra cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5
-              Z.of_nat Pos.of_succ_nat Pos.succ].
-    all: split_and!; [solve_addr | rewrite /withinBounds; solve_addr | tstk_not_shadow Hts_shadow].
-  Qed.
-
-  #[local] Lemma switcher_exception_block_28_spec_aux (pc_a : Addr) (wpc : LWord) (save_area : list LWord)
+  #[local] Lemma switcher_exception_block_28_spec_aux
+    (pc_a : Addr) (wpc : LWord) (save_area : list LWord)
     (wcra wcgp wctp wct0 wct1 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 28))%a ->
     length save_area = 21%nat ->
@@ -95,7 +81,6 @@ Section Switcher_Exception_Blocks_3.
       "(HPC & Hcsp & Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave & Htok & #Hcode & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
-    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     destruct save_area as
       [|s0 [|s1 [|s2 [|s3 [|s4 [|s5 [|s6 [|s7 [|s8 [|s9 [|s10
       [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
@@ -115,15 +100,15 @@ Section Switcher_Exception_Blocks_3.
     assert (length (switcher_instrs_n 28) = 19%nat) as Hlen28 by reflexivity.
     rewrite Hlen28 in Hsub.
     rewrite /switcher_instrs_n /assembled_switcher_n.
-    assert ((b_trusted_stack + 17)%a = Some (b_trusted_stack ^+ 17)%a) as Hts_17
-      by (tstack_unfold; solve_addr).
+    pose proof (tstack_save_cell_ok TrustedStack_offset_mstatus
+                  ltac:(unfold TrustedStack_offset_mstatus; lia))
+      as (Hts_17 & Hts_17_bounds & Hts_17_shadow).
     (* The saved words may be heap capabilities: they are loaded exactly *)
     iAssert (load_witness_res LoadPlain) as "Hwit"; first done.
     (* CLoad cra csp TrustedStack_offset_mstatus *)
-    iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds _ _ _ _ _ _ _ cra csp 17)
+    iInstrApply "Hcode"
+      (wp_load_witness_imm_one_inbounds _ _ _ _ _ _ _ cra csp TrustedStack_offset_mstatus)
       with "[$HPC $Hcra $Hcsp $Hs17 $Hwit]" as (wst) "(%Hload & HPC & Hcra & Hcsp & Hs17 & _)".
-    { tstk_not_shadow Hts_shadow. }
-    { rewrite /withinBounds; tstack_unfold; solve_addr. }
     destruct Hload as (_ & _ & _ & Hload). rewrite lload_word_RWL in Hload. subst wst.
     (* SpecialRW cnull mstatus cra *)
     iInstrApply "Hcode" wp_csrw_mstatus with "[$HPC $Hcra]" as "(HPC & Hcra)".
@@ -159,21 +144,22 @@ Section Switcher_Exception_Blocks_3.
     iDestruct "Hcells" as
       "(Hs1 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & _)".
-    assert ((b_trusted_stack + 2)%a = Some (b_trusted_stack ^+ 2)%a) as Hts_2
-      by (tstack_unfold; solve_addr).
+    pose proof (tstack_save_cell_ok TrustedStack_offset_csp
+                  ltac:(unfold TrustedStack_offset_csp; lia))
+      as (Hts_2 & Hts_2_bounds & Hts_2_shadow).
     rewrite (_ : ((((pc_a ^+ 1) ^+ 1) ^+ 1) ^+ 14%nat)%a = (pc_a ^+ 17)%a); last solve_addr.
     (* CLoad csp csp TrustedStack_offset_csp *)
     iInstrApply "Hcode"
-      (wp_load_witness_imm_same_inbounds _ _ _ _ _ _ _ csp 2 _ _ _ _ _ _ _ _ _ LoadPlain)
+      (wp_load_witness_imm_same_inbounds _ _ _ _ _ _ _ csp TrustedStack_offset_csp
+         _ _ _ _ _ _ _ _ _ LoadPlain)
       with "[$HPC $Hcsp $Hs2 //]" as (wcsp) "(%Hload & HPC & Hcsp & Hs2 & _)".
-    { tstk_not_shadow Hts_shadow. }
-    { rewrite /withinBounds; tstack_unfold; solve_addr. }
     destruct Hload as (_ & _ & _ & Hload). rewrite lload_word_RWL in Hload. subst wcsp.
     (* Mret *)
     iInstrApply "Hcode" wp_mret_vcsr with "[$HPC $Hmepcc $Hmcause]" as "(HPC & Htok)".
     iApply "Hpost". iFrame "∗ #".
     iRegionMerge. iFrame.
   Qed.
+
   (** Block 28, from its label: the registers receive the words of the
       register save area, and the PC the word in [ct2], as MEPCC holds it. *)
   Lemma switcher_exception_block_28_spec (wpc : LWord) (save_area : list LWord)

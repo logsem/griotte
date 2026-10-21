@@ -223,19 +223,9 @@ Section Switcher.
       first by simplify_map_eq.
     (* Block 16: the return to the caller *)
     iPoseProof "Hstatic" as "[#Hswitcher _]".
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size as Hsize; cbn in Hsize.
-    rewrite (_ : (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a =
-                 (a_switcher_call ^+ switcher_label_offset ".Lswitcher_return_to_caller")%a);
-      last by offsets_compute.
-    switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lswitcher_return_to_caller") "Hswitcher"
-      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_return_block_16_spec _ _ _ _ ∅ with "[- $HPC $Hcra $Hcode]");
-      first done.
-    iSplitR; first by rewrite big_sepM_empty.
+    iApply (switcher_just_return_spec with "[- $HPC $Hcra $Hswitcher]").
     iSplit; last (iIntros "(%Hjalr' & _)"; congruence).
-    iNext; iIntros "(HPC & Hcra & _ & _ & _)".
+    iNext; iIntros "(HPC & Hcra & _)".
     iApply ("Hfault" $! Hspill with "[-]").
     iFrame.
     iPureIntro.

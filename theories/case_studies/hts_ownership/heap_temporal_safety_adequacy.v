@@ -19,7 +19,6 @@ From griotte.case_studies.hts_ownership Require Import
 From griotte.allocators.ownership Require Import
   allocator allocator_preamble allocator_resource_spec allocator_malloc_safe allocator_free_safe
   allocator_adequacy.
-Set Mangle Names.
 
 Section hts_obligations.
   Context {Σ : gFunctors}.

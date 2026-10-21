@@ -4,7 +4,6 @@ From griotte Require Import switcher assert allocator_resources compartment_layo
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and [switcher]. *)
 From griotte Require Import image firmware.
-Set Mangle Names.
 
 #[local] Open Scope string_scope.
 

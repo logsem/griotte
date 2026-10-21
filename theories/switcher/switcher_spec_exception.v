@@ -99,6 +99,25 @@ Section Switcher_Spec_Exception.
 
     (* Blocks 24-25: [.Lhandle_error] *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
+    (* The close of the switcher invariant, and the recombination of the
+       token, for any content of the register save area *)
+    iAssert (∀ save' : list LWord,
+               mtdc ↦ₛᵣ tstack_cap -∗
+               [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
+               (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
+                 ↦ₐ WInt (tstack_frameoffset (length cstk')) -∗
+               trap_entry_res
+               ={⊤}=∗
+               na_own cerise_nais F)%I
+      with "[HthreadID Htstk Hcstk_full Hstk_interp Hclose Hna]" as "Hclose".
+    { iIntros (save') "Hmtdc Hsave_area Hframeoffset Htok".
+      iMod ("Hclose" with
+             "[Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp $Hna]")
+        as "Hna".
+      { iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
+        iExists a_tstk, cstk', _, tstk_next. iFrame "∗ # %". iPureIntro. by split. }
+      iModIntro.
+      iApply (trap_entry_res_split F with "[$Htok $Hna]"); first done. }
     iApply (switcher_exception_blocks_24_25_spec _ _ (lmepcc_of_pc w) with
              "[- $HPC $Hcsp $Hct0 $Hct1 $Hctp $Hca0 $Hca1 $Hct2 $Hmtdc $Hsave_area
                  $Hframeoffset $Hcode]").
@@ -111,20 +130,17 @@ Section Switcher_Spec_Exception.
           & Hframeoffset & _)".
       iApply (switcher_call_block_18_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
       iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
-      (* Close the switcher invariant, and recombine the token *)
-      iMod ("Hclose" with
-             "[Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp $Hna]")
-        as "Hna".
-      { iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
-        iExists a_tstk, cstk', _, tstk_next. iFrame "∗ # %". done. }
-      iDestruct (trap_entry_res_split F with "[$Htok $Hna]") as "Hna"; first done.
-      iInsertList "Hrmap" [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca0;ca1;ca2;ca3;ca4;ca5].
+      iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Htok") as "Hna".
+      (* The return values are inserted last *)
+      iInsertList "Hrmap" [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca2;ca3;ca4;ca5;ca0;ca1].
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" with "[] [] [] [] HPC Hrmap Hna").
       + iPureIntro. exact Hno_resume.
-      + iPureIntro. intros r. rewrite !lookup_insert_is_Some'. naive_solver.
-      + iPureIntro. by simplify_map_eq.
-      + iPureIntro. by simplify_map_eq.
+      + iPureIntro. intros r.
+        repeat (rewrite lookup_insert_is_Some'; right).
+        apply Hfull.
+      + iPureIntro. rewrite lookup_insert_ne //. apply lookup_insert_eq.
+      + iPureIntro. apply lookup_insert_eq.
     - (* A fault of the first spill of the call path: block 28, the context
          install, resumes the interrupted context *)
       iIntros (Hresume wct0' wct1' wctp')
@@ -140,28 +156,25 @@ Section Switcher_Spec_Exception.
       (* The PC to resume is a valid PC: MEPCC keeps it *)
       rewrite (_ : llegalise MEPCC (switcher_label_pc ".Lswitch_just_return") =
                    switcher_label_pc ".Lswitch_just_return"); last reflexivity.
-      (* Close the switcher invariant, and recombine the token *)
-      iMod ("Hclose" with
-             "[Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp $Hna]")
-        as "Hna".
-      { iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
-        iExists a_tstk, cstk', _, tstk_next. iFrame "∗ # %". done. }
-      iDestruct (trap_entry_res_split F with "[$Htok $Hna]") as "Hna"; first done.
+      iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Htok") as "Hna".
       rewrite /exception_spill /TrustedStack_offset_ca0 /TrustedStack_offset_ca1 /=.
-      iInsertList "Hrmap" [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca0;ca1;ca2;ca3;ca4;ca5].
+      (* The other registers get their words back: the register map is the
+         original one, with the return values inserted last *)
+      iInsertList "Hrmap" [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca2;ca3;ca4;ca5;ca0;ca1].
+      rewrite (insert_id _ _ _ Hwcra) (insert_id _ _ _ Hwcsp) (insert_id _ _ _ Hwcgp)
+        (insert_id _ _ _ Hwctp) (insert_id _ _ _ Hwct0) (insert_id _ _ _ Hwct1)
+        (insert_id _ _ _ Hwct2) (insert_id _ _ _ Hwcs0) (insert_id _ _ _ Hwcs1)
+        (insert_id _ _ _ Hwca2) (insert_id _ _ _ Hwca3) (insert_id _ _ _ Hwca4)
+        (insert_id _ _ _ Hwca5).
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[] [] [] [] [] HPC Hrmap Hna").
       + iPureIntro. destruct Hresume as [Hb Ha]. by intros [Hb' | Ha'].
-      + iPureIntro. intros r. rewrite !lookup_insert_is_Some'. naive_solver.
-      + iPureIntro. intros r Hr0 Hr1.
-        destruct (decide (r ∈ [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca2;ca3;ca4;ca5]))
-          as [Hin | Hnin].
-        * rewrite !elem_of_cons elem_of_nil in Hin.
-          repeat (destruct Hin as [-> | Hin]); [by simplify_map_eq.. | done].
-        * rewrite !elem_of_cons elem_of_nil in Hnin.
-          rewrite !lookup_insert_ne; naive_solver.
-      + iPureIntro. by simplify_map_eq.
-      + iPureIntro. by simplify_map_eq.
+      + iPureIntro. intros r.
+        repeat (rewrite lookup_insert_is_Some'; right).
+        apply Hfull.
+      + iPureIntro. intros r Hr0 Hr1. rewrite !lookup_insert_ne //.
+      + iPureIntro. rewrite lookup_insert_ne //. apply lookup_insert_eq.
+      + iPureIntro. apply lookup_insert_eq.
   Qed.
 
 End Switcher_Spec_Exception.

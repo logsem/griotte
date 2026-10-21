@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Export switcher switcher_preamble.
-Set Mangle Names.
+From griotte Require Import trusted_spill_registers_spec.
 
 (** * Shared interfaces of the exception path of the switcher
 
@@ -66,6 +66,34 @@ Section Switcher_Exception_States.
     iPureIntro. rewrite -Hlen finz_seq_between_length /finz.dist /tstack_save_end.
     pose proof trusted_stack_frames_fit as [n Hfit].
     tstack_unfold. solve_addr.
+  Qed.
+
+  (** The words of the register save area are in the bounds of the trusted
+      stack, outside the shadow table. *)
+  Lemma tstack_save_cell_ok (k : Z) :
+    (0 <= k < 21)%Z →
+    (b_trusted_stack + k)%a = Some (b_trusted_stack ^+ k)%a ∧
+    withinBounds b_trusted_stack e_trusted_stack (b_trusted_stack ^+ k)%a = true ∧
+    is_shadow_address (b_trusted_stack ^+ k)%a = false.
+  Proof.
+    intros Hk.
+    pose proof trusted_stack_frames_fit as [n Hfit].
+    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
+    tstack_unfold.
+    split_and!; [solve_addr | rewrite /withinBounds; solve_addr | tstk_not_shadow Hts_shadow].
+  Qed.
+
+  (** The cells of the registers but the stack pointer in the register save
+      area. *)
+  Lemma trusted_save_cells_ok_exception :
+    trusted_save_cells_ok b_trusted_stack e_trusted_stack b_trusted_stack exception_spill_regs.
+  Proof.
+    intros r Hr. apply tstack_save_cell_ok.
+    rewrite /exception_spill_regs !elem_of_cons elem_of_nil in Hr.
+    repeat (destruct Hr as [-> | Hr]);
+      cbv [TrustedStack_offset_reg cra cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5
+           Z.of_nat Pos.of_succ_nat Pos.succ];
+      lia.
   Qed.
 
 End Switcher_Exception_States.

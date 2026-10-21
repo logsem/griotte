@@ -16,7 +16,6 @@ From griotte Require Import disjoint_regions_tactics.
 From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
-Set Mangle Names.
 
 Section kvs_obligations.
   Context {Σ : gFunctors}.

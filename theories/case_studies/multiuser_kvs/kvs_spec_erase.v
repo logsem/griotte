@@ -1015,7 +1015,8 @@ Section KVS_spec_erase.
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
           ctp ↦ᵣ - -∗
-          trap_safe (WCap true RX Global pc_b pc_e a) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
+          trap_safe (WCap true RX Global pc_b pc_e a) ⊤
+            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -1090,7 +1091,8 @@ Section KVS_spec_erase.
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
           ctp ↦ᵣ - -∗
-          trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
+          trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤
+            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.

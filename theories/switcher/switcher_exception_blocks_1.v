@@ -272,15 +272,8 @@ Section Switcher_Exception_Blocks_1.
              with "[- $HPC $Hcsp $Hspill]").
     { done. }
     { done. }
-    { rewrite -switcher_instrs_22_spill. offsets_compute. solve_addr. }
-    { intros r Hr. rewrite /exception_spill_regs !elem_of_cons elem_of_nil in Hr.
-      tstack_unfold.
-      repeat (destruct Hr as [-> | Hr]);
-        [cbv [TrustedStack_offset_reg cra cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5
-              Z.of_nat Pos.of_succ_nat Pos.succ];
-         split_and!;
-         [solve_addr | rewrite /withinBounds; solve_addr | tstk_not_shadow Hts_shadow]..
-        |done]. }
+    { rewrite -switcher_instrs_22_spill. offsets_compute. solve_addr+Hsub Hsize. }
+    { apply trusted_save_cells_ok_exception. }
     { rewrite /exception_spill_regs. set_solver. }
     { rewrite /exception_spill_regs. set_solver. }
     iSplitL "Hcra Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5".
@@ -302,7 +295,7 @@ Section Switcher_Exception_Blocks_1.
       as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_exception_block_23_spec_aux with
              "[- $HPC $Hcsp $Hct0 $Hct1 $Hca0 $Hmtdc $Hs0 $Hs2 $Hs17 $Hs18 $Hout $Hcode]");
-      [done | offsets_compute; solve_addr |].
+      [done | offsets_compute; solve_addr+Hsize |].
     iNext; iIntros (wst cause zca0)
       "(%Hcause & HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Htok & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.

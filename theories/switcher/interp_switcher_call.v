@@ -16,17 +16,20 @@ From griotte Require Import map_simpl register_tactics proofmode.
 
 (** The register file at a fault of the first spill of the call path is
     safe: the checks leave integers in [ct2] and [ctp], and the other
-    registers hold the caller's safe words ["Hreg"]. *)
-Ltac first_spill_regs_interp :=
+    registers hold the caller's safe words. [Hfull] states that the
+    caller's register map [regs] is full, and the Iris hypothesis [Hreg]
+    that its words are safe ([∀ r v, ⌜regs !! r = Some v⌝ → interp W C v]). *)
+Ltac first_spill_regs_interp Hfull Hreg :=
   iRight;
-  iApply interp_reg_intro; [intros ?; rewrite !lookup_insert_is_Some'; naive_solver |];
+  iApply interp_reg_intro;
+  [intros ?; repeat (rewrite lookup_insert_is_Some'; right); apply Hfull |];
   let r := fresh "r" in
   let v := fresh "v" in
   let Hv := fresh "Hv" in
   iIntros (r v Hv);
   destruct (decide (r = ct2)) as [-> | ?]; [simplify_map_eq; iApply interp_int |];
   destruct (decide (r = ctp)) as [-> | ?]; [simplify_map_eq; iApply interp_int |];
-  iApply ("Hreg" $! r v); iPureIntro;
+  iApply (Hreg $! r v); iPureIntro;
   destruct (decide (r = csp)) as [-> | ?]; [by simplify_map_eq |];
   destruct (decide (r = cs0)) as [-> | ?]; [by simplify_map_eq |];
   destruct (decide (r = cs1)) as [-> | ?]; [by simplify_map_eq |];
@@ -367,7 +370,7 @@ Section fundamental.
              [done| |done| |by iFrame].
            { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
            (* A fault of the first spill: the registers are safe *)
-           first_spill_regs_interp. }
+           first_spill_regs_interp Hfull_rmap "Hreg". }
          (* The cursor is below the base, and the furthest cell within
             bounds: open the caller's stack from that cell *)
          destruct (Hnot_stk b e a eq_refl) as [Hab|Hea]; last solve_addr.
@@ -468,7 +471,7 @@ Section fundamental.
         by iFrame. }
       { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
       (* A fault of the first spill: the registers are safe *)
-      first_spill_regs_interp. }
+      first_spill_regs_interp Hfull_rmap "Hreg". }
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
     assert (4 <= length lv) as Hlen_lv4.

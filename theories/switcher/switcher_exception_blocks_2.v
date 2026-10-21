@@ -220,7 +220,6 @@ Section Switcher_Exception_Blocks_2.
       iInstr "Hcode".
       (* Mov ca1 0 *)
       iInstr "Hcode".
-      destruct (decide (ca0 = cnull)) as [Hca0_null|_]; first done.
       assert ((pc_a ^+ 5 + (-74))%a = Some (pc_a ^+ (-69))%a) as Hjust_return' by solve_addr.
       (* Auipcc ct2 .Lswitch_just_return *)
       iInstr "Hcode".
@@ -319,7 +318,8 @@ Section Switcher_Exception_Blocks_2.
       iHide "Hswitcher" as hswitcher.
     iApply (switcher_exception_block_24_spec_aux with
              "[- $HPC $Hcsp $Hct0 $Hct1 $Hctp $Hmtdc $Hsave $Hframeoffset $Hcode]");
-      [done | offsets_compute; solve_addr | offsets_compute; solve_addr | done | done |].
+      [done | offsets_compute; solve_addr+Hsize | offsets_compute; solve_addr+Hsize
+      | done | done |].
     iNext; iIntros (wct0' wct1' wctp' off)
       "(%Hoff & HPC & Hcsp & Hct0 & Hct1 & Hctp & Hmtdc & Hsave & Hframeoffset & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
@@ -339,7 +339,7 @@ Section Switcher_Exception_Blocks_2.
         as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
       iApply (switcher_exception_block_25_spec_aux with
                "[- $HPC $Hcsp $Hct1 $Hctp $Hca0 $Hca1 $Hct2 $Hs10 $Hs11 $Hcode]");
-        [done | offsets_compute; solve_addr.. |].
+        [done | offsets_compute; solve_addr+Hsize.. |].
       iNext; iSplit.
       + iIntros (wct1'' wctp'')
           "(%Hnot_first & HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11 & _)".
@@ -348,7 +348,7 @@ Section Switcher_Exception_Blocks_2.
         iDestruct "Hpost" as "[Hpost _]".
         iApply ("Hpost" with "[] [-]").
         { iPureIntro. right. subst a_first_spill. offsets_compute.
-          intros Heq. apply Hnot_first. rewrite Heq. solve_addr. }
+          intros Heq. apply Hnot_first. rewrite Heq. solve_addr+Hsize. }
         iFrame "∗ Hswitcher". iRegionMerge. iFrame.
       + iIntros (wct1'' wctp'')
           "(%Hfirst & HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11 & _)".
@@ -357,10 +357,10 @@ Section Switcher_Exception_Blocks_2.
         iDestruct "Hpost" as "[_ Hpost]".
         iApply ("Hpost" with "[] [-]").
         { iPureIntro. split; first done. subst a_first_spill. offsets_compute.
-          rewrite Hfirst. solve_addr. }
+          rewrite Hfirst. solve_addr+Hsize. }
         rewrite (_ : (a_switcher_call ^+ switcher_block_offset 25 ^+ (-69))%a =
                      (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a);
-          last (offsets_compute; solve_addr).
+          last (offsets_compute; solve_addr+Hsize).
         iFrame "∗ Hswitcher". cbn. iRegionMerge. iFrame.
     - switcher_change_pc (switcher_label_offset ".Lcommon_force_unwind").
       iDestruct "Hpost" as "[Hpost _]".

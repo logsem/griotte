@@ -3,7 +3,6 @@ From griotte Require Import machine_base griotte_opsem switcher assert allocator
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety.
 From griotte.allocators.ownership Require Import allocator.
 From griotte Require Import image firmware firmware_ok initial_state.
-Set Mangle Names.
 
 #[local] Open Scope string_scope.
 

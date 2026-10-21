@@ -4,7 +4,6 @@ From griotte Require Import machine_base machine_parameters switcher.
 From griotte Require Import image firmware firmware_ok.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
-Set Mangle Names.
 
 #[local] Open Scope string_scope.
 

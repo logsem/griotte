@@ -77,7 +77,8 @@ Section KVS_spec_read_safe.
             ct2 ↦ᵣ - ∗
             ctp ↦ᵣ - ∗
             world_interp W C -∗
-            trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
+            trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤
+              (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca0_W Htgt)
