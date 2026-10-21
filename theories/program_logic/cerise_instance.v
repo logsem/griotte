@@ -347,7 +347,7 @@ Section ghost_init.
     - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
       apply fmap_Some in Hv as (w & Hw & ->).
       apply Hok; last by eapply gi_sregs_exec. intros b. eapply gi_sregs; eauto.
-    - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
+    - intros sr v _. rewrite /init_lsregs lookup_fmap. intros Hv _.
       by apply fmap_Some in Hv as (w & Hw & ->).
     - intros sr v Hsr. rewrite /init_lsregs lookup_fmap. intros Hv.
       apply fmap_Some in Hv as (w & Hw & ->). by eapply gi_sregs_pc_ok.

@@ -163,7 +163,8 @@ Section hts_obligations.
       as "(Hworld_B & #Hseal_alloc)"; [by repeat constructor | done | |].
     { iModIntro. iSplit; last iSplit; last done.
       - iApply (malloc_entry_point_spec Global _ B fw_switcherN); iFrame "#".
-      - iApply (free_entry_point_spec Global _ B fw_switcherN); iFrame "#". }
+      - iApply (free_entry_point_spec Global _ B fw_switcherN); first solve_ndisj.
+        iFrame "#". }
     set (W1 := <o[ switcher.ot_switcher := exports_words [malloc_f; free_f] ]o> fw_world0).
 
     (* 9 - Seal the allocator capability of B, with its owner identifier *)

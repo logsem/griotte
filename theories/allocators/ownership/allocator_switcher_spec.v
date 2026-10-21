@@ -11,7 +11,8 @@ From griotte.allocators.ownership Require Export allocator_malloc_spec allocator
     word and owner token, and the argument is in [ca1]. The callers carry no
     register condition: the switcher-entry facts (the non-argument registers
     are zero, the stack and return capabilities carry no identifier)
-    discharge the allocator-entry condition of the functional [free]. *)
+    discharge the allocator-entry condition of the functional [free]. The
+    switcher invariant supplies MTDC, which [free] reads for its quarantine. *)
 
 Section AllocatorSwitcherSpec.
   Context
@@ -144,10 +145,12 @@ Section AllocatorSwitcherSpec.
      ⌜w0 = WInt ALLOC_OK ∧ w1 = WInt 0⌝)%I.
 
   Lemma allocator_free_switcher_spec
+    (Nswitcher : namespace)
     (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
     (wcgp wcra wcs0 wcs1 : LWord)
     (b_stk e_stk a_stk b e a : Addr) (arg_rmap : LReg) (cstk : CSTK)
     (p : Perm) (g : Locality) (ι : AId) (ws : list LWord) :
+    Nswitcher ## Nallocator_service ->
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
@@ -155,7 +158,8 @@ Section AllocatorSwitcherSpec.
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
     arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
     allocator_service_ctx ∗
-    allocator_service_static ⊢
+    allocator_service_static ∗
+    na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_cc_specification_known_to_known_function false
       (allocator_owner_id id Ω ∗
        ⌜ι ∈ Ω⌝ ∗
@@ -168,7 +172,8 @@ Section AllocatorSwitcherSpec.
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_free_pcc_off allocator_exp_tbl_b%I.
   Proof.
-    iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg) "[#Hservice #Hstatic]".
+    iIntros (Hdisj Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg)
+      "(#Hservice & #Hstatic & #Hswitcher)".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (mie arg_rmap' rmap')
       "(_ & %Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
@@ -203,11 +208,16 @@ Section AllocatorSwitcherSpec.
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcsp").
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca5").
       iExact "Hrmap". }
-    iApply (allocator_free_valid_correct ⊤ g_owner a_owner id Ω p g ι b e a ws _ _ rframe with
+    (* MTDC, for the quarantine, from the switcher invariant. *)
+    iMod (na_inv_acc with "Hswitcher Hna") as "(Hsw & Hna & Hsw_close)";
+      [solve_ndisj|solve_ndisj|].
+    iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
+    iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
+      _ _ (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rframe with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
-       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hcnull $Hframe $Hmem]");
-      [ solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ | exact Hbounds
-      | exact Hlen | | | intros _; reflexivity
+       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hcnull $Hframe $Hmtdc $Hmem]");
+      [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
+      | exact Hbounds | exact Hlen | | | intros _; reflexivity | intros _; reflexivity
       | apply jalr_target_ok_switcher_return_sentry |].
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom
         /dom_arg_rmap /=. set_solver+. }
@@ -218,7 +228,9 @@ Section AllocatorSwitcherSpec.
       by rewrite (Hzero _ _ Hr). }
     iNext.
     iIntros "(Hna & Hid & Ha_owner & HPC & Hcgp & Hcra & Hca0 & Hca1
-      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hframe & #Hq & _)".
+      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hframe & Hmtdc & #Hq & _)".
+    iMod ("Hsw_close" with "[$Hna Hmtdc Hsw]") as "Hna".
+    { iNext. iExists a_tstk, cstk', save_area, tstk_next. iFrame. }
     iEval (cbn) in "HPC".
     subst rframe.
     iDestruct (big_sepM_insert with "Hframe") as "[Hcsp Hframe]".

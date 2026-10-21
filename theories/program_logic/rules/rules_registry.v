@@ -67,34 +67,40 @@ Section rules_registry.
   Qed.
 
   (** [APainting → AQuar], given the whole token and the painted range. It
-      issues the quarantine witness. The whole register file and the PC are
-      owned, and none of their words with authority carries [ι] ([cnull]
-      always holds the null word). *)
-  Lemma reg_quarantine E ι b e' lpc (regs : LReg) :
+      issues the quarantine witness. The whole register file, MTDC and the
+      PC are owned, and none of their words with authority carries [ι]
+      ([cnull] always holds the null word, and the other system registers
+      hold no word with authority and identifier). *)
+  Lemma reg_quarantine E ι b e' lpc (regs : LReg) (vmtdc : LWord) :
     (∀ x, is_Some (regs !! x)) →
-    (∀ v, (v = lpc ∨ ∃ x, x ≠ cnull ∧ regs !! x = Some v) →
+    (∀ v, (v = lpc ∨ v = vmtdc ∨ ∃ x, x ≠ cnull ∧ regs !! x = Some v) →
        has_authority v.(lw) → v.(lprov) ≠ Some ι) →
     alloc_obj ι b e' -∗
     ι ↦st{1} APainting -∗
     ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
+    MTDC ↦ₛᵣ vmtdc -∗
     |~{E}~>
       ι ↦st{1} AQuar ∗ ι ⊒ AQuar ∗
       ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) ∗
       PC ↦ₚ lpc ∗
-      [∗ map] k↦y ∈ regs, k ↦ᵣ y.
+      ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
+      MTDC ↦ₛᵣ vmtdc.
   Proof.
-    iIntros (Hfull Hclean) "#Hobj Htok Hcells HPC Hmap".
+    iIntros (Hfull Hclean) "#Hobj Htok Hcells HPC Hmap Hmtdc".
     iApply (si_upd_ghost _
       (alloc_obj ι b e' ∗ ι ↦st{1} APainting ∗
        ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) ∗
-       PC ↦ₚ lpc ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y)%I
-      with "[$Hobj $Htok $Hcells $HPC $Hmap]").
+       PC ↦ₚ lpc ∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗ MTDC ↦ₛᵣ vmtdc)%I
+      with "[$Hobj $Htok $Hcells $HPC $Hmap $Hmtdc]").
     intros σ. iApply si_ghost_update_pc.
-    iIntros (lpc' lreg lsreg lmem R C Her) "HPCa Hr Hsr Hm Hst HR HC (#Hobj & Htok & Hcells & HPC & Hmap)".
+    iIntros (lpc' lreg lsreg lmem R C Her)
+      "HPCa Hr Hsr Hm Hst HR HC (#Hobj & Htok & Hcells & HPC & Hmap & Hmtdc)".
     iDestruct (PC_agree with "HPCa HPC") as %<-.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hincl.
+    iAssert (⌜lsreg !! MTDC = Some vmtdc⌝)%I as %Hmtdc.
+    { iDestruct "Hsr" as "[Hsr _]". iApply (gen_heap_valid with "Hsr Hmtdc"). }
     iDestruct (reg_lookup_own with "HR Htok") as %(b1 & e1 & γ & HRι).
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ' & s & HRι').
     rewrite HRι in HRι'. simplify_eq.
@@ -109,15 +115,17 @@ Section rules_registry.
     iDestruct (st_lb_get with "Htok") as "#Hq".
     iModIntro. iExists _, C. iFrame "∗#". iPureIntro.
     eapply erasure_reg_step; eauto; try done.
-    intros _ v Hv Hauth. destruct Hv as [-> | (x & Hx)].
-    { apply Hclean; [by left | done]. }
-    destruct (decide (x = cnull)) as [->|Hxn].
-    { (* [cnull] holds the null word, which has no authority. *)
-      destruct Her as [_ _ Hcnull _ _ _ _ _ _ _ _ _ _ _].
-      rewrite (Hcnull _ Hx) in Hauth. by inversion Hauth. }
-    apply Hclean; last done.
-    right. exists x. split; first done. destruct (Hfull x) as [v' Hv'].
-    by rewrite (lookup_weaken _ _ _ _ Hv' Hincl) in Hx; simplify_eq.
+    intros _ v Hv Hauth. destruct Hv as [-> | [(x & Hx) | (x & Hx)]].
+    - apply Hclean; [by left | done].
+    - destruct (decide (x = cnull)) as [->|Hxn].
+      { (* [cnull] holds the null word, which has no authority. *)
+        rewrite (er_cnull _ _ _ _ _ _ _ Her _ Hx) in Hauth. by inversion Hauth. }
+      apply Hclean; last done.
+      right; right. exists x. split; first done. destruct (Hfull x) as [v' Hv'].
+      by rewrite (lookup_weaken _ _ _ _ Hv' Hincl) in Hx; simplify_eq.
+    - destruct (decide (x = MTDC)) as [->|Hxn].
+      { rewrite Hmtdc in Hx. simplify_eq. apply Hclean; [by right; left | done]. }
+      by rewrite (er_sreg_legal_id _ _ _ _ _ _ _ Her x v Hxn Hx Hauth).
   Qed.
 
   (** ** Allocation (strong, with a freshness set) *)

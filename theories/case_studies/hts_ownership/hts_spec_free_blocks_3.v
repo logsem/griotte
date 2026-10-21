@@ -99,6 +99,7 @@ Section HTS_Spec_Free.
     csp_b csp_e C_f owner_a Ws Cs []).
 
   Lemma hts_spec_free :
+    Nswitcher ## Nallocator_service ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
     is_heap_address owner_a = false ->
@@ -116,7 +117,7 @@ Section HTS_Spec_Free.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min HsubBounds
+    iIntros (Hdisj Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min HsubBounds
       Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -280,14 +281,15 @@ Section HTS_Spec_Free.
       <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap))))))).
-    iPoseProof (hts_free_known_function
+    iPoseProof (hts_free_known_function Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a b (b ^+ 1)%a b
       free_arg [] RW Global ι
       [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
       Global owner_a hts_main_owner_id {[ι]}
-      with "[$Hservice $Hservice_static]") as "Hfree_fun".
+      with "[$Hservice $Hservice_static $Hswitcher]") as "Hfree_fun".
+    { exact Hdisj. }
     { exact Howner_shadow. }
     { exact Howner_bounds. }
     { exact Hbounds. }

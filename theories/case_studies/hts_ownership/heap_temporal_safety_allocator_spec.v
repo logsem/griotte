@@ -57,10 +57,12 @@ Section Heap_Temporal_Safety_Allocator.
     allocator_free_result a_owner id Ω ι.
 
   Lemma hts_free_known_function
+    (Nswitcher : namespace)
     (wcgp wcra wcs0 wcs1 : LWord)
     (b_stk e_stk a_stk b e a : Addr) (arg_rmap : LReg) (cstk : CSTK)
     (p : Perm) (g : Locality) (ι : AId) (ws : list LWord)
     (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId) :
+    Nswitcher ## Nallocator_service ->
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
@@ -68,7 +70,8 @@ Section Heap_Temporal_Safety_Allocator.
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
     arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
     allocator_service_ctx ∗
-    allocator_service_static ⊢
+    allocator_service_static ∗
+    na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_cc_specification_known_to_known_function false
       (allocator_owner_id id Ω ∗
        ⌜ι ∈ Ω⌝ ∗

@@ -13,7 +13,8 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 
     Block 2 stores to the revoker, through the revoker capability in [ca3]:
     the sweep kills [ι], whose payload is quarantined. It reads the whole
-    register file, which must hold no word with authority over [ι]. The
+    register file and MTDC, which must hold no word with authority over
+    [ι]. The
     shadow cursor is then rewound to the payload base. Block 3 unpaints the
     revoked payload, whose cells are now unclaimed.
 
@@ -87,17 +88,18 @@ Section AllocatorFreeTailBlocks.
   Qed.
 
   (** Block 2: the revoker store, over the whole register file [regs].
-      Right before the store, with the PC and the whole register file in
-      hand, none of whose words with authority carries [ι], the painted
+      Right before the store, with the PC, the whole register file and MTDC
+      in hand, none of whose words with authority carries [ι], the painted
       payload moves the status token of [ι] to [AQuar]. *)
   Lemma allocator_free_revoke_store_spec
-    (E : coPset) (pc_b pc_e pc_a b e sb se : Addr) (ι : AId) (w4 wa2 : LWord) (regs : LReg)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (E : coPset) (pc_b pc_e pc_a b e sb se : Addr) (ι : AId) (w4 wa2 wmtdc : LWord)
+    (regs : LReg) (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (se + (b - e))%a = Some sb ->
     dom regs = all_registers_s ∖ {[ct1; ct2; ca3; ca4; ctp; ca2]} ->
     (∀ x lv, x ≠ cnull -> regs !! x = Some lv ->
        has_authority lv.(lw) -> lv.(lprov) ≠ Some ι) ->
+    (has_authority wmtdc.(lw) -> wmtdc.(lprov) ≠ Some ι) ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2)%a ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt e ∗
@@ -106,6 +108,7 @@ Section AllocatorFreeTailBlocks.
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e se ∗
     ca2 ↦ᵣ wa2 ∗
     ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
+    mtdc ↦ₛᵣ wmtdc ∗
     alloc_obj ι b e ∗
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
@@ -118,14 +121,15 @@ Section AllocatorFreeTailBlocks.
        ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
        ca2 ↦ᵣ WInt (e - b) ∗
        ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
+       mtdc ↦ₛᵣ wmtdc ∗
        revoke_post ι ∗
        ι ⊒ AQuar ∗
        codefrag_pers pc_a allocator_free_tail_code
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow) Hsb Hdom Hclean.
-    iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & #Hobj & Hpainting &
+    intros (Hpc & Hpc_shadow) Hsb Hdom Hclean Hclean_mtdc.
+    iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hmtdc & #Hobj & Hpainting &
       Hpayload & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
@@ -158,8 +162,8 @@ Section AllocatorFreeTailBlocks.
     (* Every cell is quarantined and no register carries [ι]: the status
        token moves to [AQuar]. *)
     iDestruct (big_sepL_sep with "Hpayload") as "[Hshadows Hclaims]".
-    iMod (reg_quarantine _ ι b e with "Hobj Hpainting Hshadows HPC Hregs")
-      as "(Hquar & #Hq & Hshadows & HPC & Hregs)".
+    iMod (reg_quarantine _ ι b e with "Hobj Hpainting Hshadows HPC Hregs Hmtdc")
+      as "(Hquar & #Hq & Hshadows & HPC & Hregs & Hmtdc)".
     { intros x.
       destruct (decide (x ∈ ({[ct1; ct2; ca3; ca4; ctp; ca2]} : gset RegName))) as [Hx|Hx].
       { rewrite !elem_of_union !elem_of_singleton in Hx.
@@ -167,7 +171,7 @@ Section AllocatorFreeTailBlocks.
       rewrite !lookup_insert_ne; [|set_solver..].
       apply elem_of_dom. rewrite Hdom. apply elem_of_difference.
       split; [apply all_registers_s_correct|done]. }
-    { intros v [-> | (x & Hxn & Hlookup)] Hauth; first done.
+    { intros v [-> | [-> | (x & Hxn & Hlookup) ] ] Hauth; [done | by apply Hclean_mtdc |].
       destruct (decide (x ∈ ({[ct1; ct2; ca3; ca4; ctp; ca2]} : gset RegName))) as [Hin|Hin].
       { rewrite !elem_of_union !elem_of_singleton in Hin.
         destruct_or! Hin; subst x; simplify_map_eq; done. }
@@ -210,7 +214,7 @@ Section AllocatorFreeTailBlocks.
 
   Lemma allocator_free_revoke_spec
     (E : coPset) (pc_b pc_e pc_a next b e : Addr) (ι : AId)
-    (w4 wa2 wret wnull : LWord) (rmap : LReg)
+    (w4 wa2 wret wnull wmtdc : LWord) (rmap : LReg)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
@@ -218,6 +222,7 @@ Section AllocatorFreeTailBlocks.
       {[cgp; cra; ca0; ca1; ca2; ct0; ct1; ct2; ca3; ca4; ctp; cnull]} ->
     (∀ r w, rmap !! r = Some w -> has_authority w.(lw) -> w.(lprov) = None) ->
     (has_authority wret.(lw) -> wret.(lprov) = None) ->
+    (has_authority wmtdc.(lw) -> wmtdc.(lprov) = None) ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2)%a ∗
     cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
@@ -232,6 +237,7 @@ Section AllocatorFreeTailBlocks.
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
     cnull ↦ᵣ wnull ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
+    mtdc ↦ₛᵣ wmtdc ∗
     alloc_obj ι b e ∗
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
@@ -250,6 +256,7 @@ Section AllocatorFreeTailBlocks.
        ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
        cnull ↦ᵣ wnull ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
+       mtdc ↦ₛᵣ wmtdc ∗
        ι ↦st{1} ADead ∗
        ι ⊒ AQuar ∗
        ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) ∗
@@ -257,10 +264,10 @@ Section AllocatorFreeTailBlocks.
        -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
-    intros Hbounds_code Hbounds Hdom Hclean Hclean_ret.
+    intros Hbounds_code Hbounds Hdom Hclean Hclean_ret Hclean_mtdc.
     pose proof Hbounds_code as (Hpc & Hpc_shadow).
     iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp &
-      Hcnull & Hrmap & #Hobj & Hpainting & Hpayload & #Hcode_main & Hφ)".
+      Hcnull & Hrmap & Hmtdc & #Hobj & Hpainting & Hpayload & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
     pose proof heap_shadow_same_size as Hss.
@@ -285,7 +292,7 @@ Section AllocatorFreeTailBlocks.
     iDestruct (big_sepM_insert with "[$Hregs $Hcgp]") as "Hregs";
       first (simplify_map_eq; apply Hrmap_none; set_solver).
     iApply (allocator_free_revoke_store_spec _ _ _ _ b e sb se ι with
-      "[- $HPC $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hca2 $Hregs $Hobj $Hpainting $Hpayload
+      "[- $HPC $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hca2 $Hregs $Hmtdc $Hobj $Hpainting $Hpayload
           $Hcode_main]").
     { exact Hbounds_code. }
     { subst sb se. solve_addr. }
@@ -301,8 +308,9 @@ Section AllocatorFreeTailBlocks.
       destruct (decide (x = ct0)); [subst; simplify_map_eq; done|].
       rewrite !lookup_insert_ne // in Hlookup.
       by rewrite (Hclean _ _ Hlookup Hauth). }
-    iNext. iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hdead & #Hq &
-      _)".
+    { intros Hauth. by rewrite Hclean_mtdc. }
+    iNext. iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hmtdc & Hdead &
+      #Hq & _)".
     iDestruct "Hdead" as (b1 e1) "(#Hobj1 & Hdead & _ & Hcells_dead)".
     iDestruct (alloc_obj_agree with "Hobj Hobj1") as %[<- <-].
     (* Take the registers back from the register file. *)

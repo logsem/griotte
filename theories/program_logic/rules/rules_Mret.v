@@ -82,7 +82,7 @@ Section griotte_lang_rules.
     (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
     pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (mret_mstatus vst)
       (WInt (mstatus_enc (mpie_of (get_a vst.(lw))) InterruptEnabled)) Her) as Her1.
-    specialize (Her1 ltac:(apply reg_word_ok_int) eq_refl ltac:(by intros)
+    specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                   ltac:(apply reg_phys_lword_of_word)).
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
     specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
