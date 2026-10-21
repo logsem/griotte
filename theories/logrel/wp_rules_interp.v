@@ -601,7 +601,7 @@ Section wp_interp.
 
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
     iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    { by unfold regs_of, operands_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
     destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc ->
@@ -680,7 +680,7 @@ Section wp_interp.
 
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
     iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    { by unfold regs_of, operands_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
     destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc ->
@@ -754,7 +754,7 @@ Section wp_interp.
 
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
     iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    { by unfold regs_of, operands_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
 
     destruct Hspec as [p g b e a πs o sb π Hsr' Hsd Htag Hperm Hwb Hinc ->

@@ -296,7 +296,6 @@ Section KVS_search.
     { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
     (* mov ridx (-1)%Z; *)
     iInstr "Hcode".
-    rewrite (decide_False (Z.of_nat 0)); last done.
     iApply "Hpost". iFrame "∗ Hcode".
   Qed.
 
