@@ -18,7 +18,7 @@ From griotte Require Import switcher_call_blocks_6 switcher_spec_exception.
     ([interp_expr_switcher_return], [interp_switcher_return]), which needs
     the trap vector and would otherwise form an import cycle. *)
 
-Section Switcher_Exception_Stub.
+Section Switcher_Exception.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
@@ -256,4 +256,4 @@ Section Switcher_Exception_Stub.
   Qed.
 
 
-End Switcher_Exception_Stub.
+End Switcher_Exception.

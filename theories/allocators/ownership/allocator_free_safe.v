@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel proofmode switcher switcher_preamble.
 From griotte Require Import switcher_spec_KtK register_tactics map_simpl.
-From griotte Require Import world_interp_stack model_interp_stack switcher_spec_return switcher_exception_stub.
+From griotte Require Import world_interp_stack model_interp_stack switcher_spec_return switcher_exception.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.allocators.ownership Require Import allocator_header_spec.
 From griotte.allocators.common Require Import allocator_common_safe.

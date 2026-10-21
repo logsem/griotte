@@ -10,7 +10,7 @@ From griotte Require Import switcher_call_states switcher_call_world
   switcher_call_blocks_1 switcher_call_blocks_2 switcher_call_blocks_3 switcher_call_blocks_4
   switcher_call_blocks_5 switcher_call_blocks_6.
 From griotte Require Import map_simpl register_tactics proofmode.
-From griotte Require Import switcher_load_spec switcher_exception_stub.
+From griotte Require Import switcher_load_spec switcher_exception.
 
 
 Section Switcher.

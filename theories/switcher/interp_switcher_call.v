@@ -7,7 +7,7 @@ From griotte Require Import wp_rules_interp switcher_macros_spec.
 From griotte Require Import rules proofmode monotone.
 From griotte Require Import fundamental.
 From griotte Require Import switcher_preamble.
-From griotte Require Import interp_switcher_return switcher_exception_stub switcher_helpers.
+From griotte Require Import interp_switcher_return switcher_exception switcher_helpers.
 From griotte Require Import switcher_call_states switcher_call_world
   switcher_call_blocks_1 switcher_call_blocks_2 switcher_call_blocks_3 switcher_call_blocks_4
   switcher_call_blocks_5 switcher_call_blocks_6.

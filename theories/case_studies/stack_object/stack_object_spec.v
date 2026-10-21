@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From griotte Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
 From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From griotte Require Import switcher_exception_stub.
+From griotte Require Import switcher_exception.
 From griotte Require Import stack_object.
 From griotte Require Import proofmode.
 From griotte Require Import stack_object_spec_states stack_object_spec_world_call

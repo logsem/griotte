@@ -58,8 +58,10 @@ Section Switcher_Exception_Blocks_2.
       "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hmtdc & Hsave & Hframeoffset & #Hcode & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
-    do 21 (destruct save_area as [|? save_area]; [done|]).
-    destruct save_area; [|done].
+    destruct save_area as
+      [|s0 [|s1 [|s2 [|s3 [|s4 [|s5 [|s6 [|s7 [|s8 [|s9 [|s10
+      [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
+      try done.
     rewrite /tstack_save_end /tstack_cap.
     assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a)
       as Hsave_end by (tstack_unfold; solve_addr).

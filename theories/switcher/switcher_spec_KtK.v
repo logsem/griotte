@@ -3,7 +3,7 @@ From griotte Require Import logrel memory_region rules proofmode.
 From griotte Require Export switcher switcher_preamble.
 From griotte Require Import
   switcher_spec_KtK_call switcher_spec_KtK_return switcher_load_spec
-  switcher_exception_stub.
+  switcher_exception.
 From griotte Require Import map_simpl register_tactics.
 
 

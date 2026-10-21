@@ -117,7 +117,7 @@ Section Switcher_Call_Blocks_6.
     iApply "Hpost"; iFrame "∗ Hcode".
   Qed.
 
-  (** Block 21: the callee's stack is too small, return to the caller. *)
+  (** Block 20: the callee's stack is too small, return to the caller. *)
   Lemma switcher_call_block_20_spec (wca0 wca1 : LWord) :
     PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
     ca0 ↦ᵣ wca0 ∗

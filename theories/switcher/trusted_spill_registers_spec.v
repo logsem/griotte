@@ -91,8 +91,8 @@ Section TrustedSpillRegisters.
     iApply ("IH" with "[] [] [] [] [] Hcode' HPC Hcsp Hregs Hcells [Hr Hc Hpost]").
     { done. }
     { iPureIntro. revert Hbounds.
-      rewrite /trusted_spill_registers_instrs /trusted_reload_registers_instrs
-        /trusted_spill_registers /trusted_reload_registers /encodeInstrsW
+      rewrite /trusted_spill_registers_instrs
+        /trusted_spill_registers /encodeInstrsW
         !length_map !length_fmap /=.
       solve_addr. }
     { iPureIntro. intros r' Hr'. apply Hcells. set_solver. }

@@ -70,6 +70,24 @@ Section Switcher.
   Definition TrustedStack_offset_reg (r : RegName) : Z :=
     match r with registers.R n _ => Z.of_nat n end.
 
+  Lemma TrustedStack_offset_reg_named :
+    TrustedStack_offset_reg cra = TrustedStack_offset_cra ∧
+    TrustedStack_offset_reg csp = TrustedStack_offset_csp ∧
+    TrustedStack_offset_reg cgp = TrustedStack_offset_cgp ∧
+    TrustedStack_offset_reg ctp = TrustedStack_offset_ctp ∧
+    TrustedStack_offset_reg ct0 = TrustedStack_offset_ct0 ∧
+    TrustedStack_offset_reg ct1 = TrustedStack_offset_ct1 ∧
+    TrustedStack_offset_reg ct2 = TrustedStack_offset_ct2 ∧
+    TrustedStack_offset_reg cs0 = TrustedStack_offset_cs0 ∧
+    TrustedStack_offset_reg cs1 = TrustedStack_offset_cs1 ∧
+    TrustedStack_offset_reg ca0 = TrustedStack_offset_ca0 ∧
+    TrustedStack_offset_reg ca1 = TrustedStack_offset_ca1 ∧
+    TrustedStack_offset_reg ca2 = TrustedStack_offset_ca2 ∧
+    TrustedStack_offset_reg ca3 = TrustedStack_offset_ca3 ∧
+    TrustedStack_offset_reg ca4 = TrustedStack_offset_ca4 ∧
+    TrustedStack_offset_reg ca5 = TrustedStack_offset_ca5.
+  Proof. done. Qed.
+
   (** CHERIoT's [trustedSpillRegisters]: spill the registers [regs], in
       order, to the register save area of the trusted stack in [csp]. *)
   Definition trusted_spill_registers_asm (regs : list RegName) : list asm_code :=
@@ -382,7 +400,7 @@ Section Switcher.
         jmp (".Lexception_reentered")%asm
       ]
       ; (* Spill the registers of the interrupted context in the register
-           save area, but the stack pointer *)
+           save area, but the stack pointer. *)
       (#".Lexception_spill_registers" :: trusted_spill_registers_asm exception_spill_regs)
       ; (* Spill the interrupted stack pointer, from mtdc, which is
            cleared, then the PC, mstatus and the cause of the trap. A cause

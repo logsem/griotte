@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception_stub.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.

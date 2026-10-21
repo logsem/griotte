@@ -70,7 +70,7 @@ Section Switcher_Spec_Exception.
       as ["Hcra";"Hcsp";"Hcgp";"Hctp";"Hct0";"Hct1";"Hct2";"Hcs0";"Hcs1";
           "Hca0";"Hca1";"Hca2";"Hca3";"Hca4";"Hca5"].
 
-    (* Block 20: the exception entry *)
+    (* Blocks 21-23: the exception entry *)
     iApply (switcher_exception_blocks_21_23_spec with
              "[- $HPC $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hmtdc $Hsave_area $Hout $Hcode]");
@@ -79,7 +79,7 @@ Section Switcher_Spec_Exception.
       "(%Hcause & HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave_area & Htok & _)".
 
-    (* Blocks 22-23: [.Lhandle_error] *)
+    (* Blocks 24-25: [.Lhandle_error] *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_exception_blocks_24_25_spec with
              "[- $HPC $Hcsp $Hct0 $Hct1 $Hctp $Hmtdc $Hsave_area $Hframeoffset $Hcode]").

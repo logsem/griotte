@@ -115,7 +115,7 @@ Section fundamental.
 
   (* The premise [trap_vector_safe (lword_of_word mtcc_vec)] is discharged in
      the switcher by [switcher_mtcc_vec_safe]
-     (switcher/switcher_exception_stub.v). *)
+     (switcher/switcher_exception.v). *)
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)

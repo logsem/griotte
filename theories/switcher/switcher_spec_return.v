@@ -8,7 +8,7 @@ From griotte Require Export switcher switcher_preamble.
 From griotte Require Import switcher_return_states switcher_return_blocks_1 switcher_return_blocks_2.
 From stdpp Require Import base.
 From griotte Require Import map_simpl register_tactics proofmode.
-From griotte Require Import switcher_load_spec switcher_exception_stub.
+From griotte Require Import switcher_load_spec switcher_exception.
 From griotte Require Export world_ghost_theory world_interp_stack switcher_helpers.
 
 

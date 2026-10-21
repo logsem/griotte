@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception_stub deep_locality.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception deep_locality.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
 From griotte Require Import dle_spec_states dle_spec_world
