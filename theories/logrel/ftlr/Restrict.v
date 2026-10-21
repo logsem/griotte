@@ -77,20 +77,13 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
-      - cbn; intros; subst regs'. rewrite /linsert_reg.
-        by repeat (apply lookup_insert_is_Some'; right).
-      - iIntros (ri v Hvs).
-        subst regs'. rewrite /linsert_reg in Hvs.
-        destruct (decide (ri = dst)).
-        { subst ri. rewrite lookup_insert_eq in Hvs. simplify_eq.
-          destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-          assert (src ≠ cnull) as Hsrc_cnull
-            by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
-          rewrite llookup_reg_not_cnull // in Hsrc.
-          iDestruct ("Hreg" $! src _ Hsrc) as "Hsrc".
-          iApply PermPairFlows_interp_preserved; eauto.
-        }
-        { iApply "Hreg"; auto. by simplify_map_eq. }
+      - subst regs'. by apply full_map_linsert.
+      - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
+        assert (src ≠ cnull) as Hsrc_cnull
+          by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
+        rewrite llookup_reg_not_cnull // in Hsrc.
+        iDestruct ("Hreg" $! src _ Hsrc) as "Hsrc".
+        iApply PermPairFlows_interp_preserved; eauto.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
@@ -101,20 +94,13 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
-      - cbn; intros; subst regs'. rewrite /linsert_reg.
-        by repeat (apply lookup_insert_is_Some'; right).
-      - iIntros (ri v Hvs).
-        subst regs'. rewrite /linsert_reg in Hvs.
-        destruct (decide (ri = dst)).
-        { subst ri. rewrite lookup_insert_eq in Hvs. simplify_eq.
-          destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-          assert (src ≠ cnull) as Hsrc_cnull
-            by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
-          rewrite llookup_reg_not_cnull // in Hsrc.
-          iDestruct ("Hreg" $! src _ Hsrc) as "Hsrc".
-          iApply SealPermPairFlows_interp_preserved; eauto.
-        }
-        { iApply "Hreg"; auto. by simplify_map_eq. }
+      - subst regs'. by apply full_map_linsert.
+      - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
+        assert (src ≠ cnull) as Hsrc_cnull
+          by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
+        rewrite llookup_reg_not_cnull // in Hsrc.
+        iDestruct ("Hreg" $! src _ Hsrc) as "Hsrc".
+        iApply SealPermPairFlows_interp_preserved; eauto.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
@@ -125,16 +111,9 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
-      - cbn; intros; subst regs'. rewrite /linsert_reg.
-        by repeat (apply lookup_insert_is_Some'; right).
-      - iIntros (ri v Hvs).
-        subst regs'. rewrite /linsert_reg in Hvs.
-        destruct (decide (ri = dst)).
-        { subst ri. rewrite lookup_insert_eq in Hvs. simplify_eq.
-          destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-          by iApply interp_untagged.
-        }
-        { iApply "Hreg"; auto. by simplify_map_eq. }
+      - subst regs'. by apply full_map_linsert.
+      - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
+        by iApply interp_untagged.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
@@ -145,16 +124,9 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
-      - cbn; intros; subst regs'. rewrite /linsert_reg.
-        by repeat (apply lookup_insert_is_Some'; right).
-      - iIntros (ri v Hvs).
-        subst regs'. rewrite /linsert_reg in Hvs.
-        destruct (decide (ri = dst)).
-        { subst ri. rewrite lookup_insert_eq in Hvs. simplify_eq.
-          destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-          by iApply interp_untagged.
-        }
-        { iApply "Hreg"; auto. by simplify_map_eq. }
+      - subst regs'. by apply full_map_linsert.
+      - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
+        by iApply interp_untagged.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { (* The destination loses its tag. *)
@@ -165,16 +137,9 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
       iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
-      - cbn; intros; subst regs'. rewrite /linsert_reg.
-        by repeat (apply lookup_insert_is_Some'; right).
-      - iIntros (ri wi Hregs_ri).
-        subst regs'. rewrite /linsert_reg in Hregs_ri.
-        destruct (decide (ri = dst)) as [->|Hne].
-        { rewrite lookup_insert_eq in Hregs_ri.
-          injection Hregs_ri as <-.
-          destruct (decide (dst = cnull)); [by iApply interp_untagged | iApply interp_clear_tag]. }
-        rewrite !lookup_insert_ne in Hregs_ri; try congruence.
-        iApply "Hreg"; eauto.
+      - subst regs'. by apply full_map_linsert.
+      - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (_).
+        iApply interp_clear_tag.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { subst regs'.

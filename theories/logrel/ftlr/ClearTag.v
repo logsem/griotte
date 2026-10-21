@@ -52,16 +52,8 @@ Section fundamental.
       { destruct ρ; auto; contradiction. }
       iApply ("IH" $! _ _ _ _ _ (<[dst:=lclear_tag w0]ₗ> regs) _ _ _ _ a0' None
         with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]"); eauto.
-      + intros rr. rewrite /linsert_reg !lookup_insert_is_Some'; eauto.
-      + iIntros (ri wi Hregs_ri).
-        rewrite /linsert_reg in Hregs_ri.
-        destruct (decide (ri = dst)) as [->|Hne].
-        { rewrite lookup_insert_eq in Hregs_ri.
-          injection Hregs_ri as <-.
-          destruct (decide (dst = cnull));
-            [iApply interp_int | iApply interp_clear_tag]. }
-        rewrite !lookup_insert_ne in Hregs_ri; try congruence.
-        iApply "Hreg"; eauto.
+      + by apply full_map_linsert.
+      + iApply (interp_linsert with "Hreg"). iIntros (_). iApply interp_clear_tag.
       + iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 

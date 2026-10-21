@@ -288,6 +288,15 @@ Lemma linsert_reg_mono r w (regs regs' : LReg) :
   regs ⊆ regs' → <[ r := w ]ₗ> regs ⊆ <[ r := w ]ₗ> regs'.
 Proof. intros. rewrite /linsert_reg. case_decide; first done. by apply insert_mono. Qed.
 
+(** A full register map stays full after a write. *)
+Lemma full_map_linsert (regs : LReg) dst w :
+  (∀ x : RegName, is_Some (regs !! x)) →
+  ∀ x : RegName, is_Some (<[dst := w]ₗ> regs !! x).
+Proof.
+  intros Hfull x. rewrite /linsert_reg. case_decide; first done.
+  apply lookup_insert_is_Some'. by right.
+Qed.
+
 (** A map holding the registers [D] other than [cnull] gives a word for each
     register of [D]. *)
 Lemma llookup_reg_of_dom (D : gset RegName) (regs : LReg) r :
