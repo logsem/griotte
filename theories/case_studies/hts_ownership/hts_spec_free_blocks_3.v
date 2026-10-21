@@ -333,6 +333,7 @@ Section HTS_Spec_Free.
     { exact hts_allocator_pcc_not_heap. }
     { exact hts_allocator_cgp_not_heap. }
     { solve_ndisj. }
+    { solve_ndisj. }
     { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { solve_addr. }
     { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }

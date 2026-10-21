@@ -272,8 +272,8 @@ Section Switcher.
   (** A fault in a trusted callee is safe: the exception entry sets the
       return values to integers, then the return routine returns to the
       caller as in [switcher_ret_specification]. The return values need no
-      validity. The resources are only needed after the exception entry,
-      hence under an update (for instance, to close an invariant). *)
+      validity. The resources come under an update at the time of the
+      fault (for instance, to close an invariant). *)
   Lemma trap_safe_return
     (Nswitcher : namespace)
     (W0 Wcur : WORLD)
@@ -311,11 +311,11 @@ Section Switcher.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
       "#Hswitcher #Hstatic Hres".
-    iApply (trap_safe_exception_entry with "Hstatic").
+    iApply (trap_safe_exception_entry ⊤ with "Hstatic"); first done.
     iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
                      & Hca0 & Hca1 & [%wcsp Hcsp])".
-    iModIntro; iFrame "Hca0 Hca1".
-    iIntros "(HPC & Hca0 & Hca1)".
+    iModIntro; iFrame "Hna Hca0 Hca1".
+    iIntros "(HPC & Hca0 & Hca1 & Hna)".
     iApply (switcher_ret_specification with
              "[$Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
                $Hclose_list_res $Hrmap $Hca0 $Hca1 $Hcsp]"); try done.

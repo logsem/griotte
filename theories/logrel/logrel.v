@@ -1143,9 +1143,10 @@ Section logrel.
   Qed.
 
   (** The fault obligation from a safe trap vector [mtcc_vec]: trap entry
-      leads to the trap vector, where execution is safe. The resources are
-      only needed after the exception entry, hence under an update (for
-      instance, to close an invariant). *)
+      leads to the trap vector, where execution is safe. The resources come
+      under an update at the time of the fault (for instance, to close an
+      invariant); the non-atomic token provides the trap-entry token, which
+      comes back with MEPCC and mcause after trap entry. *)
   Lemma interp_trap_safe
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (w : LWord) :
@@ -1161,12 +1162,17 @@ Section logrel.
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
     iIntros (Hfull Hframe) "Hsafe Hres".
-    iApply (trap_safe_entry_intro with "[]"); first iApply trap_entry_res_intro.
-    iSplit.
-    - iIntros "!> _ HPC".
-      iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk)".
-      by iApply (interp_trap with "Hsafe Hregs Hworld Hcont Hna Hcstk HPC").
-    - by iIntros "!> %Hv".
+    iApply trap_safe_entry_intro.
+    iSplit; last by iIntros "!> %Hv".
+    (* The trap-entry token, from the non-atomic token; it comes back with
+       MEPCC and mcause after trap entry. *)
+    iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk)".
+    iDestruct (trap_entry_res_split ⊤ with "Hna") as "[Htok Hna]"; first done.
+    iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
+    iApply (wp_trap_entry_out_return with "Hout"); first done.
+    iIntros "Htok".
+    iDestruct (trap_entry_res_split ⊤ with "[$Htok $Hna]") as "Hna"; first done.
+    by iApply (interp_trap with "Hsafe Hregs Hworld Hcont Hna Hcstk HPC").
   Qed.
 
   Lemma interp_untagged_eq W C w :

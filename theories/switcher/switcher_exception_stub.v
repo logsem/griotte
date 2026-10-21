@@ -199,36 +199,44 @@ Section Switcher_Exception_Stub.
 
   (** A fault closes through the exception entry of the switcher: after
       exception entry, the exception entry block sets the return values and
-      jumps to the return routine, which must then be safe. The resources are
-      only needed after the exception entry, hence under an update. *)
-  Lemma trap_safe_exception_entry (w : LWord) :
+      jumps to the return routine, which must then be safe. The resources come
+      under an update at the time of the fault; the non-atomic token [F]
+      provides the trap-entry token, which comes back with MEPCC and mcause
+      after trap entry. *)
+  Lemma trap_safe_exception_entry (F : coPset) (w : LWord) :
+    ↑N_trap ⊆ F →
     switcher_static -∗
     (|={⊤}=>
+       na_own cerise_nais F ∗
        ca0 ↦ᵣ - ∗
        ca1 ↦ᵣ - ∗
        (PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
-        ca1 ↦ᵣ WInt 0 -∗
+        ca1 ↦ᵣ WInt 0 ∗
+        na_own cerise_nais F -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})) -∗
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
-    iIntros "#Hstatic Hres".
+    iIntros (HF) "#Hstatic Hres".
     iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc)".
-    iApply (trap_safe_entry_intro with "[]"); first iApply trap_entry_res_intro.
+    iApply trap_safe_entry_intro.
     iSplit; last by iIntros "!> %Hv".
-    iIntros "!> _ HPC".
-    iMod "Hres" as "([%wca0 Hca0] & [%wca1 Hca1] & Hcont)".
+    iMod "Hres" as "(Hna & [%wca0 Hca0] & [%wca1 Hca1] & Hcont)".
+    iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
+    iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
+    iApply (wp_trap_entry_out_return with "Hout"); first done.
+    iIntros "Htok".
+    iDestruct (trap_entry_res_split F with "[$Htok $Hna]") as "Hna"; first done.
     rewrite Hmtcc.
     iApply (switcher_exception_entry_block_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
     iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
-    iApply ("Hcont" with "[$HPC $Hca0 $Hca1]").
+    iApply ("Hcont" with "[$HPC $Hca0 $Hca1 $Hna]").
   Qed.
 
   (** A fault in trusted code is safe: after exception entry, the exception
       entry of the switcher unwinds the call of the faulting compartment.
-      No register needs to be safe. The resources are only needed after the
-      exception entry, hence under an update (for instance, to close an
-      invariant). *)
+      No register needs to be safe. The resources come under an update at
+      the time of the fault (for instance, to close an invariant). *)
   Lemma trap_safe_unwind
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
@@ -252,15 +260,14 @@ Section Switcher_Exception_Stub.
   Qed.
 
   (** A fault that cannot happen is safe: the update yields a contradiction,
-      which is eliminated after trap entry. *)
+      which is eliminated at the time of the fault. *)
   Lemma trap_safe_absurd (w : LWord) :
     (|={⊤}=> False) -∗
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
     iIntros "Hfalse".
-    iApply (trap_safe_entry_intro with "[]"); first iApply trap_entry_res_intro.
+    iApply trap_safe_entry_intro.
     iSplit; last by iIntros "!> %Hv".
-    iIntros "!> _ _".
     by iMod "Hfalse".
   Qed.
 

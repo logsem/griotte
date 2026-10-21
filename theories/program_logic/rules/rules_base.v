@@ -599,16 +599,33 @@ Section griotte_lang_rules.
   (* Clients close faults with [wp_trap] (through [iTrap]) only; the lemmas
      below are its proof. *)
 
+  (** The fault causes: the named causes below 8, and the CHERI cause. *)
+  Definition mcause_ok (z : Z) : Prop := (0 ≤ z < 8)%Z ∨ z = 28%Z.
+
+  Lemma trap_cause_ok φ : mcause_ok (trap_cause φ).
+  Proof.
+    pose proof (trap_cause_range φ) as Hr.
+    rewrite /MCAUSE_INST_ACCESS_FAULT /MCAUSE_ILLEGAL_INSTRUCTION /MCAUSE_LOAD_ACCESS_FAULT
+      /MCAUSE_STORE_ACCESS_FAULT /MCAUSE_CHERI in Hr.
+    rewrite /mcause_ok. set_unfold. naive_solver lia.
+  Qed.
+
   (** Trap entry from any faulting PC [w]: MTCC holds the tagged trap vector
       [mtcc_vec], so the machine never stops on a fault. MEPCC receives the
       PC, untagged if it is not a correct PC and without identifier
-      ([lmepcc_of_pc]), and the PC receives the trap vector. *)
+      ([lmepcc_of_pc]), and the PC receives the trap vector. The trap-entry
+      token goes to the state interpretation, which lends MEPCC and mcause,
+      with a fault cause, to the continuation. *)
   Lemma wp_trap_entry E Φ w :
     PC ↦ₚ w -∗
-    ▷ (PC ↦ₚ lword_of_word mtcc_vec -∗ WP Seq (Instr Executable) @ E {{ Φ }}) -∗
+    na_own cerise_nais (↑N_trap) -∗
+    ▷ (PC ↦ₚ lword_of_word mtcc_vec -∗
+       MEPCC ↦ₛᵣ lmepcc_of_pc w -∗
+       (∃ c : Z, ⌜mcause_ok c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)) -∗
+       WP Seq (Instr Executable) @ E {{ Φ }}) -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
-    iIntros "HPC HΦ".
+    iIntros "HPC Htok HΦ".
     iApply wp_lift_base_step; first done.
     iIntros (σ1 ns κ κs nt) "Hσ /=".
     iNamed "Hσ".
@@ -636,10 +653,14 @@ Section griotte_lang_rules.
     pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
       as Her'.
     iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
+    (* With the token in hand, MEPCC and mcause are held. *)
+    iDestruct "Hwin" as "[[Hmepcc Hmcause] | Htok']"; last first.
+    { iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
+      destruct (nclose_infinite N_trap []) as (i & Hi & _). set_solver. }
     iDestruct "Hmepcc" as (vepcc) "Hmepcc".
     iDestruct "Hmstatus" as (vst) "Hmstatus".
     iDestruct "Hmcause" as (vcause) "Hmcause".
-    iDestruct "Hmtval" as (vtval) "Hmtval".
+    iDestruct "Hmtval" as (ztval) "Hmtval".
     iMod (gen_heap_update _ _ _ (lmepcc_of_pc w) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
     iMod (gen_heap_update _ _ _
             (lword_of_word (WInt (mstatus_enc InterruptDisabled
@@ -650,56 +671,104 @@ Section griotte_lang_rules.
     iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_tval σ1)))
            with "Hsr Hmtval") as "[Hsr Hmtval]".
     iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
-    iModIntro. iSplitR "HΦ HPC".
+    iModIntro. iSplitR "HΦ HPC Hmepcc Hmcause".
     - iExists (lword_of_word mtcc_vec), lreg,
         (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w lsreg), lmem, R, C.
       rewrite /lsregs_enter_exc /=. iFrame. by iPureIntro.
-    - iSplitL; last done. by iApply ("HΦ" with "HPC").
+    - iSplitL; last done.
+      iApply ("HΦ" with "HPC Hmepcc").
+      iExists (trap_cause σ1). iFrame. iPureIntro. apply trap_cause_ok.
+  Qed.
+
+  (** The return of MEPCC and mcause to the state interpretation, in front
+      of any instruction: the trap-entry token comes back. *)
+  Lemma wp_trap_entry_return E e Φ (wepcc wcause : LWord) :
+    to_val e = None →
+    MEPCC ↦ₛᵣ wepcc -∗
+    MCAUSE ↦ₛᵣ wcause -∗
+    (na_own cerise_nais (↑N_trap) -∗ WP e @ E {{ Φ }}) -∗
+    WP e @ E {{ Φ }}.
+  Proof.
+    iIntros (He) "Hmepcc Hmcause HΦ".
+    rewrite wp_unfold /wp_pre He.
+    iIntros (σ1 ns κ κs nt) "Hσ /=".
+    iNamed "Hσ".
+    iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
+    iDestruct "Hwin" as "[[Hmepcc' _] | Htok]".
+    { iDestruct "Hmepcc'" as (v0) "Hmepcc'".
+      iDestruct (pointsto_ne with "Hmepcc Hmepcc'") as %Hne. by exfalso; apply Hne. }
+    iSpecialize ("HΦ" with "Htok").
+    iApply ("HΦ" $! σ1 ns κ κs nt).
+    iExists lpc, lreg, lsreg, lmem, R, C. iFrame. iSplit; last done.
+    iLeft. iSplitL "Hmepcc"; by iExists _.
   Qed.
 
   (* The resources trap entry consumes, and those it gives back to the
-     continuation from the trap vector, for a fault from the PC [w]. Sealed,
-     so that clients never depend on their definition; both are trivial for
-     now. *)
-  Definition trap_entry_res_def : iProp Σ := True.
+     continuation from the trap vector, for a fault from the PC [w]: the
+     trap-entry token, and MEPCC and mcause with a fault cause. Sealed, so
+     that clients never depend on their definition. *)
+  Definition trap_entry_res_def : iProp Σ := na_own cerise_nais (↑N_trap).
   #[local] Definition trap_entry_res_aux : seal (@trap_entry_res_def). Proof. by eexists. Qed.
   Definition trap_entry_res := trap_entry_res_aux.(unseal).
   #[local] Definition trap_entry_res_unseal :
     @trap_entry_res = @trap_entry_res_def := trap_entry_res_aux.(seal_eq).
 
-  Definition trap_entry_out_def (w : LWord) : iProp Σ := True.
+  Definition trap_entry_out_def (w : LWord) : iProp Σ :=
+    MEPCC ↦ₛᵣ lmepcc_of_pc w ∗
+    (∃ c : Z, ⌜mcause_ok c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)).
   #[local] Definition trap_entry_out_aux : seal (@trap_entry_out_def). Proof. by eexists. Qed.
   Definition trap_entry_out := trap_entry_out_aux.(unseal).
   #[local] Definition trap_entry_out_unseal :
     @trap_entry_out = @trap_entry_out_def := trap_entry_out_aux.(seal_eq).
 
-  Lemma trap_entry_res_intro : ⊢ trap_entry_res.
-  Proof. by rewrite trap_entry_res_unseal. Qed.
+  (** The trap-entry token is part of the non-atomic token of any mask that
+      contains [N_trap]. *)
+  Lemma trap_entry_res_split F :
+    ↑N_trap ⊆ F →
+    na_own cerise_nais F ⊣⊢ trap_entry_res ∗ na_own cerise_nais (F ∖ ↑N_trap).
+  Proof.
+    intros HF. rewrite trap_entry_res_unseal /trap_entry_res_def -na_own_union;
+      last set_solver.
+    by rewrite -union_difference_L.
+  Qed.
 
-  (* The obligation of a fault from the PC [w]: the resources of trap entry,
-     and either the continuation from the trap vector [mtcc_vec], or the
-     postcondition of a stopped machine. Sealed: clients consume it with
-     [wp_trap] and produce it through the closing lemmas [interp_trap_safe]
-     (logical relation) and those of the exception entry of the switcher
-     (trusted code); [trap_safe_entry_intro] is used only by those lemmas. *)
+  (** The return, from the resources of trap entry. *)
+  Lemma wp_trap_entry_out_return E e Φ w :
+    to_val e = None →
+    trap_entry_out w -∗
+    (trap_entry_res -∗ WP e @ E {{ Φ }}) -∗
+    WP e @ E {{ Φ }}.
+  Proof.
+    rewrite trap_entry_out_unseal trap_entry_res_unseal.
+    iIntros (He) "[Hmepcc (%c & _ & Hmcause)] HΦ".
+    iApply (wp_trap_entry_return with "Hmepcc Hmcause HΦ"); done.
+  Qed.
+
+  (* The obligation of a fault from the PC [w]: either, under an update at
+     the time of the fault, the trap-entry token and the continuation from
+     the trap vector [mtcc_vec], or the postcondition of a stopped machine.
+     Sealed: clients consume it with [wp_trap] and produce it through the
+     closing lemmas [interp_trap_safe] (logical relation) and those of the
+     exception entry of the switcher (trusted code); [trap_safe_entry_intro]
+     is used only by those lemmas. *)
   Definition trap_safe_def (w : LWord) (E : coPset) (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
-    trap_entry_res ∗
-    ((▷ (trap_entry_out w -∗
-         PC ↦ₚ lword_of_word mtcc_vec -∗
-         WP Seq (Instr Executable) @ E {{ Φ }})) ∧
-     ▷ Φ FaultedV).
+    (|={E}=> trap_entry_res ∗
+       ▷ (trap_entry_out w -∗
+          PC ↦ₚ lword_of_word mtcc_vec -∗
+          WP Seq (Instr Executable) @ E {{ Φ }})) ∧
+    ▷ Φ FaultedV.
   #[local] Definition trap_safe_aux : seal (@trap_safe_def). Proof. by eexists. Qed.
   Definition trap_safe := trap_safe_aux.(unseal).
   #[local] Definition trap_safe_unseal : @trap_safe = @trap_safe_def := trap_safe_aux.(seal_eq).
 
   Lemma trap_safe_entry_intro w E Φ :
-    trap_entry_res -∗
-    ((▷ (trap_entry_out w -∗
-         PC ↦ₚ lword_of_word mtcc_vec -∗
-         WP Seq (Instr Executable) @ E {{ Φ }})) ∧
+    ((|={E}=> trap_entry_res ∗
+       ▷ (trap_entry_out w -∗
+          PC ↦ₚ lword_of_word mtcc_vec -∗
+          WP Seq (Instr Executable) @ E {{ Φ }})) ∧
      ▷ Φ FaultedV) -∗
     trap_safe w E Φ.
-  Proof. rewrite trap_safe_unseal. iIntros "Hres HΦ". iFrame. Qed.
+  Proof. rewrite trap_safe_unseal. by iIntros "H". Qed.
 
   (* A fault, from the configuration a faulting instruction returns: trap
      entry, then the continuation from the trap vector. *)
@@ -708,10 +777,11 @@ Section griotte_lang_rules.
     trap_safe w E Φ -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
-    rewrite trap_safe_unseal /trap_safe_def.
-    iIntros "HPC [_ [HΦ _]]".
-    iApply (wp_trap_entry with "HPC"). iNext.
-    iApply "HΦ". by rewrite trap_entry_out_unseal.
+    rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
+    iIntros "HPC [>[Htok HΦ] _]".
+    iApply (wp_trap_entry with "HPC Htok"). iNext.
+    iIntros "HPC Hmepcc Hmcause".
+    iApply ("HΦ" with "[$Hmepcc $Hmcause] HPC").
   Qed.
 
   (* A fetch fault: the PC is not a correct PC. *)
