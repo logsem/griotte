@@ -182,3 +182,9 @@ Section vae_C_code.
   Definition vae_C_g_entry : nat :=
     Eval vm_compute in label_offset vae_C_asm "g_entry".
 End vae_C_code.
+
+(** The indices of the export [awkward] of [main] and of the exports [adv]
+    and [g] of the adversary [C], in the order of the firmware. *)
+Definition vae_entry_awkward : nat := 0.
+Definition vae_C_entry_adv : nat := 0.
+Definition vae_C_entry_g : nat := 1.

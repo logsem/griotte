@@ -483,6 +483,8 @@ Section fundamental.
                 b_stk := b ;
                 a_stk := a ;
                 e_stk := e ;
+                (* the export table cell is cleared: any base *)
+                b_callee_exp_tbl := za ;
                 ccrel := Unknown_to_Unknown
              |}).
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
@@ -490,7 +492,10 @@ Section fundamental.
                with "Hinv_switcher Hstatic [-]"); cycle 1.
       { simpl. split; auto; first apply related_sts_pub_refl_world.
         split; [reflexivity|]; split; done. }
-      { iMod (switcher_inv_push_frame frame cstk with
+      { (* The table cell is still cleared *)
+        assert (WInt 0 = WInt 0 ∨ exp_tbl_cap (b_callee_exp_tbl frame) (WInt 0)) as Htbl_cell
+          by by left.
+        iMod (switcher_inv_push_frame frame cstk with
                "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
                 Htstk Hstk_interp [] Hp_ot_switcher")
           as "[Hinv Hcstk]"; [done..|].
@@ -524,12 +529,10 @@ Section fundamental.
     { case_match; [iExact "Hct1v"|done]. }
     iDestruct "Hlc" as "[Hlc _]".
     iMod (lc_fupd_elim_later with "Hlc Hentry_prop") as "Hentry_prop".
-    iDestruct ("Hentry_prop" with "[//] [//]")
-      as (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs minstk off posture Heq Htbl Hbtbl Hbtbl1
-          Hnargs Hminstk Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-           "(#Htbl1 & #Htbl2 & #Htbl3 & #Hexec)".
-    rewrite /lword_of_word in Heq; simplify_eq.
-    iSpecialize ("Hexec" $! W with "[]").
+    iDestruct ("Hentry_prop" with "[//] [//]") as "Hentry_ot".
+    iNamed "Hentry_ot".
+    rewrite /lword_of_word in Hw; simplify_eq.
+    iSpecialize ("Hentry_cont" $! W with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }
 
     (* Blocks 7-12: load the callee and jump to it *)
@@ -552,9 +555,9 @@ Section fundamental.
       repeat (apply lookup_delete_Some in Hin as [_ Hin]); auto.
     }
     iApply (switcher_call_blocks_4_spec W C with
-      "[- $Htbl1 $Htbl2 $Htbl3 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
+      "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
           $Hparams $Hrest $Hcode]");
-      [done|done|done|lia|lia|done|done|done|done| | | | | |].
+      [done|solve_addr|done|lia|lia|done|done|done|done| | | | | |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }
@@ -567,7 +570,7 @@ Section fundamental.
         specialize (Hfull_rmap i) as [x Hx].
         exists x. split;auto.
       - intros [? [? ?] ]. auto. }
-    { clear -Hfull_rmap. apply lregmap_full_dom in Hfull_rmap as Heq'.
+    { clear -Hfull_rmap. apply lregmap_full_dom in Hfull_rmap as Hw'.
       rewrite /rmap' !map_filter_delete !dom_delete_L.
       cut (dom (filter (λ v, ¬ Pf v) regs) = all_registers_s ∖ dom_arg_rmap 8);[set_solver|].
       apply (dom_filter_L _ (regs : gmap RegName LWord)).
@@ -584,6 +587,7 @@ Section fundamental.
               b_stk := b ;
               a_stk := a ;
               e_stk := e ;
+              b_callee_exp_tbl := b_tbl ;
               ccrel := Unknown_to_Unknown
            |}).
     iNext; iSplit; cycle 1.
@@ -591,6 +595,10 @@ Section fundamental.
          invariant, and return to the caller through the return routine *)
       iIntros "(_ & HPC & [%wcs0' Hcs0] & [%wcs1'' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2]
         & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hparams & Hrest & _)".
+      (* The table cell holds the unsealed entry *)
+      assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
+              exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
+      { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [] Hp_ot_switcher")
@@ -614,7 +622,11 @@ Section fundamental.
     iIntros (mie arg_rmap' rmap'')
       "(%Hbig & %Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
 
-    (* Push the frame and close the switcher invariant *)
+    (* Push the frame, whose table cell holds the unsealed entry, and close the
+       switcher invariant *)
+    assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
+            exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
+    { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [] Hp_ot_switcher")
@@ -627,7 +639,7 @@ Section fundamental.
     iDestruct (switcher_call_entry_registers W W C nargs arg_rmap' rmap'' with
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs') "[Hregs Hregs_interp]"; [apply related_sts_pub_refl_world|done|done|done|].
-    iApply ("Hexec" $! (frame :: cstk) (W :: Ws) (C :: Cs) regs' a e).
+    iApply ("Hentry_cont" $! (frame :: cstk) (W :: Ws) (C :: Cs) regs' a e).
     iSplitL "Hcont".
     { iFrame. simpl.
       iSplit.

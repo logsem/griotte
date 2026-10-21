@@ -148,6 +148,8 @@ Section Switcher_KtK_Call.
 
     :
     let a_stk4 := (a_stk ^+ 4)%a in
+    let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp)%a in
+    let a_tbl_ehs := (btbl_tgt ^+ ExportTable_offset_errorHandlerStackless)%a in
     let wct1_caller := WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     let frame :=
@@ -158,6 +160,7 @@ Section Switcher_KtK_Call.
               b_stk := b_stk;
               a_stk := a_stk;
               e_stk := e_stk;
+              b_callee_exp_tbl := btbl_tgt;
               ccrel := Known_to_Known
            |}
     in
@@ -165,7 +168,8 @@ Section Switcher_KtK_Call.
     disjoint_from_mmio b_stk e_stk ->
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
-    is_shadow_address (btbl_tgt ^+ 1)%a = false ->
+    is_shadow_address a_tbl_cgp = false ->
+    disjoint_from_shadow btbl_tgt etbl_tgt ->
     is_heap_address bpcc_tgt = false ->
     is_heap_address bcgp_tgt = false ->
 
@@ -177,8 +181,8 @@ Section Switcher_KtK_Call.
 
     (* Well formed entry point *)
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a →
-    (btbl_tgt < (btbl_tgt ^+1))%a →
-    ((btbl_tgt ^+1) < atbl_tgt)%a  →
+    (btbl_tgt < a_tbl_cgp)%a →
+    (a_tbl_ehs < atbl_tgt)%a  →
     (0 <= nargs <= 7 )%nat →
     is_Some (bpcc_tgt + off_tgt)%a →
     (* The callee's stack is at least its minimum stack size *)
@@ -197,7 +201,7 @@ Section Switcher_KtK_Call.
 
     (* Export table of the target compartment *)
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
-    ∗ (btbl_tgt ^+ 1)%a ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+    ∗ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
     ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) (Z.of_nat minstk_tgt) off_tgt)
 
 
@@ -294,9 +298,10 @@ Section Switcher_KtK_Call.
          its stack is at least its minimum stack size, so the check passes;
        - [switcher_inv_push_frame]: push the frame and close the switcher
          invariant. *)
-    intros astk4 wct1_caller callee_stk_region frame.
-    iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
-             Hb_a HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hminstk Hdom Harg_rmap
+    intros astk4 a_tbl_cgp a_tbl_ehs wct1_caller callee_stk_region frame.
+    subst a_tbl_cgp a_tbl_ehs.
+    iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
+             Hb_a HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
              Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
@@ -380,7 +385,7 @@ Section Switcher_KtK_Call.
     iApply (switcher_call_blocks_4_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
         $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hargs $Hregs $Hcode]");
-      [done|done|done|lia|lia|done|done|done|done| | | |done| |].
+      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done| |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }
@@ -395,10 +400,14 @@ Section Switcher_KtK_Call.
       "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
 
     (* Push the frame and close the switcher invariant *)
+    (* The table cell holds the unsealed entry *)
+    assert (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt = WInt 0 ∨
+            exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt)) as Htbl_cell.
+    { right. apply exp_tbl_cap_entry; [exact Hbtbl_ehs | solve_addr | exact Htbl_shadow]. }
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done|done|done|done|exact Hstk_bounds|done|done|by intros _| |].
+      as "[Hinv Hcstk]"; [done|done|done|done|exact Hstk_bounds|done|done|by intros _|exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
     iApply "Hpost"; iLeft; iFrame "∗ %".

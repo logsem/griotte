@@ -65,6 +65,42 @@ Section Switcher.
   Definition TrustedStackFrame_offset_errorHandlerCount : Z := 2.
   Definition TrustedStackFrame_size : Z := 3.
 
+  (** The layout of an export table, counted in words: the PCC and the CGP
+      of the compartment, the offsets of its stackful and stackless error
+      handlers ([0xffff] for none; one word each, where CHERIoT has 16-bit
+      fields), then the export entries. *)
+  Definition ExportTable_offset_pcc : Z := 0.
+  Definition ExportTable_offset_cgp : Z := 1.
+  Definition ExportTable_offset_errorHandler : Z := 2.
+  Definition ExportTable_offset_errorHandlerStackless : Z := 3.
+  Definition ExportTable_offset_entries : Z := 4.
+
+  (** The handler offset of a compartment that declares no handler. *)
+  Definition ExportTable_no_handler : Z := 0xffff.
+
+  (** [w] is a readable capability to the export table at [b], whose bounds
+      cover the header of the table and avoid the shadow table: the switcher
+      reads the header through it, from its base. *)
+  Definition exp_tbl_cap (b : Addr) (w : Word) : Prop :=
+    ∃ p g e a, w = WCap true p g b e a ∧ readAllowed p = true ∧
+               (b ^+ ExportTable_offset_errorHandlerStackless < e)%a ∧
+               disjoint_from_shadow b e.
+
+  (** The unsealed export entry, as the call path stores it. *)
+  Lemma exp_tbl_cap_entry g b e a :
+    (b ^+ ExportTable_offset_errorHandlerStackless < a)%a →
+    (a < e)%a →
+    disjoint_from_shadow b e →
+    exp_tbl_cap b (WCap true RO g b e a).
+  Proof.
+    intros Hb Ha Hshadow. eexists _, _, _, _.
+    split_and!; [done | done | | done].
+    unfold ExportTable_offset_errorHandlerStackless in *; solve_addr.
+  Qed.
+
+  (** The offset of the [k]-th export entry in an export table. *)
+  Definition ExportTable_offset_entry (k : nat) : Z := ExportTable_offset_entries + Z.of_nat k.
+
   (** The offset of [frames[d]] from the base of the trusted stack. *)
   Definition tstack_frame_offset (d : nat) : Z :=
     TrustedStack_offset_frames + TrustedStackFrame_size * Z.of_nat d.
@@ -195,7 +231,7 @@ Section Switcher.
         sub cs1 cgp cs1;
         lea ct1 cs1;
         load cra ct1;
-        lea ct1 1;
+        lea ct1 ExportTable_offset_cgp;
         load cgp ct1;
         lea cra cs0;
         add ct2 ct2 1
@@ -390,3 +426,14 @@ Ltac tstack_unfold :=
     TSTACK_REGFRAME_SZ, TSTACK_HEADER_SZ, TrustedStackFrame_offset_csp,
     TrustedStackFrame_offset_calleeExportTable,
     TrustedStackFrame_offset_errorHandlerCount, TrustedStackFrame_size in *.
+
+(** Unfold the constants of the layout of an export table, everywhere. *)
+Ltac exptbl_unfold :=
+  unfold ExportTable_offset_entry, ExportTable_offset_pcc, ExportTable_offset_cgp,
+    ExportTable_offset_errorHandler, ExportTable_offset_errorHandlerStackless,
+    ExportTable_offset_entries in *.
+
+(** [solve_addr] sees through the layout of export tables. The hook has a
+    single definition: any later redefinition of [solve_addr_prepare] (for
+    instance in [kvs.v]) must also call [exptbl_unfold]. *)
+#[global] Ltac solve_addr.solve_addr_prepare ::= try exptbl_unfold.

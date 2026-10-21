@@ -115,3 +115,7 @@ Section DROE_Main.
     ].
 
 End DROE_Main.
+
+(** The index of the export [f] of the adversary [C], in the order of the
+    firmware. *)
+Definition droe_C_entry_f : nat := 0.

@@ -194,8 +194,8 @@ Section Switcher_Call_World.
     iNext; iIntros (wsb π Hwsb _); simplify_eq.
     destruct wsb as [t p g b e a | t sp g b e a]; cycle 1.
     { iEval (cbn) in "HP".
-      iDestruct "HP" as (???????????? Heq) "_".
-      rewrite /lforce_global /lift_word /lword_of_word /= in Heq; discriminate. }
+      iNamed "HP".
+      rewrite /lforce_global /lift_word /lword_of_word /= in Hw; discriminate. }
     cbn in Htag; subst t.
     destruct g; first done.
     iDestruct (ot_switcher_prop_borrow _ _ (WCap true p Global b e a @@? π) with "HP") as "HP'".
@@ -292,7 +292,7 @@ Section Switcher_Call_World.
       trusted stack, above the topmost frame at [a_tstk]. *)
   Lemma switcher_inv_push_frame
     (frm : cframe) (cstk cstk' : CSTK) (a_tstk : Addr) (save_area tstk_next : list LWord)
-    (wtbl wcnt : LWord) :
+    (wtbl : LWord) (n : Z) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
@@ -310,6 +310,7 @@ Section Switcher_Call_World.
     disjoint_from_heap frm.(b_stk) frm.(e_stk) ->
     (is_untrusted_caller_frm frm = false →
      jalr_target_ok cnull cra frm.(wret).(lw) = true ∧ is_heap_cap frm.(wret).(lw) = false) ->
+    wtbl.(lw) = WInt 0 ∨ exp_tbl_cap frm.(b_callee_exp_tbl) wtbl.(lw) ->
 
     cstack_full cstk' -∗
     cstack_frag cstk -∗
@@ -320,7 +321,7 @@ Section Switcher_Call_World.
     a_csp ↦ₐ
       WCap true RWL Local frm.(b_stk) frm.(e_stk) (frm.(a_stk) ^+ 4)%a -∗
     a_export_table ↦ₐ wtbl -∗
-    a_error_count ↦ₐ wcnt -∗
+    a_error_count ↦ₐ WInt n -∗
     [[ a_free , e_trusted_stack ]]
       ↦ₐ [[ tstk_next ]] -∗
     cstack_interp cstk' a_tstk -∗
@@ -331,7 +332,7 @@ Section Switcher_Call_World.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
-    iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret)
+    iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret Htbl)
       "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
        Htstk Hstk_interp Hframe #Hp_ot_switcher".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.

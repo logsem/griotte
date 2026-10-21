@@ -499,6 +499,8 @@ Section Heap_Temporal_Safety_Interp.
     (W : WORLD)
     (C : CmptName)
     (Nswitcher : namespace) :
+    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
+    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
@@ -506,30 +508,37 @@ Section Heap_Temporal_Safety_Interp.
     switcher_static ∗
     allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
-    (allocator_exp_tbl_b ^+ 1)%a ↦ₐ□ WCap true RW Global
+    a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-    (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a ↦ₐ□
+    no_handler allocator_exp_tbl_b ∗
+    a_alloc_entry_free ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
         allocator_free_pcc_off) -∗
     ot_switcher_prop W C
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
-        (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a).
+        a_alloc_entry_free).
   Proof.
+    intros a_alloc_exp_tbl_cgp a_alloc_entry_free.
+    subst a_alloc_exp_tbl_cgp a_alloc_entry_free.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
-      #Hentry)".
+      [#Heh #Hehs] & #Hentry)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a,
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
       allocator_free_nargs, allocator_free_min_stack, allocator_free_pcc_off.
     iFrame "#".
     iSplit; first done.
+    iSplit.
+    { iPureIntro. pose proof allocator_regions_disjoint as Hregions.
+      rewrite !disjoint_list_cons in Hregions. cbn [union_list] in Hregions.
+      rewrite /disjoint_from_shadow. set_solver+Hregions. }
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
-      rewrite /allocator_export_table_entries /allocator_free_exp_tbl_off in Hsize |- *;
+      rewrite /allocator_export_table_entries /allocator_free_exp_tbl_off /allocator_entry_free in Hsize |- *;
       solve_addr).
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
       rewrite /allocator_export_table_entries in Hsize; solve_addr).
     iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
-      rewrite /allocator_export_table_entries /allocator_free_exp_tbl_off in Hsize |- *;
+      rewrite /allocator_export_table_entries /allocator_free_exp_tbl_off /allocator_entry_free in Hsize |- *;
       solve_addr).
     iSplit; first (iPureIntro; rewrite /allocator_free_nargs; lia).
     iSplit; first (iPureIntro; rewrite /allocator_free_min_stack; lia).
@@ -554,7 +563,7 @@ Section Heap_Temporal_Safety_Interp.
       set_solver. }
     iSplit; first (iPureIntro; apply Hexport_shadow;
       pose proof allocator_size_exports as Hsize;
-      rewrite /allocator_export_table_entries /allocator_free_exp_tbl_off in Hsize |- *;
+      rewrite /allocator_export_table_entries /allocator_free_exp_tbl_off /allocator_entry_free in Hsize |- *;
       solve_addr).
     iSplit; first (iPureIntro; apply Hexport_shadow;
       pose proof allocator_size_exports as Hsize;

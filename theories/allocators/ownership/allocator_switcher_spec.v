@@ -64,7 +64,7 @@ Section AllocatorSwitcherSpec.
       (allocator_malloc_result S a_owner id Ω n) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
-      allocator_malloc_pcc_off.
+      allocator_malloc_pcc_off allocator_exp_tbl_b.
   Proof.
     iIntros (Hn Hshadow_owner Hbounds_owner Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
@@ -166,7 +166,7 @@ Section AllocatorSwitcherSpec.
       (allocator_free_result a_owner id Ω ι) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs allocator_free_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
-      allocator_free_pcc_off%I.
+      allocator_free_pcc_off allocator_exp_tbl_b%I.
   Proof.
     iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.

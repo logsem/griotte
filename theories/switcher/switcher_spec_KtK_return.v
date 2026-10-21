@@ -33,6 +33,7 @@ Section Switcher_KtK_Return.
     (stk_mem : list LWord)
     (rmap : LReg)
     (cstk : CSTK)
+    (b_callee_exp_tbl : Addr)
     (E : coPset)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
@@ -44,6 +45,7 @@ Section Switcher_KtK_Return.
               b_stk := b_stk;
               a_stk := a_stk;
               e_stk := e_stk;
+              b_callee_exp_tbl := b_callee_exp_tbl;
               ccrel := Known_to_Known
            |}
     in
@@ -140,7 +142,7 @@ Section Switcher_KtK_Return.
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     rewrite /frame /cframe_interp; iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl Ha_tstk_tbl] & >[%wcnt Ha_tstk_cnt] & >%HWF
+    iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >[%ncnt Ha_tstk_cnt] & >%HWF
                                     & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
     destruct HWF as (Hb_a4 & He_a1 & Ha_stk4 & _ & _ & Hret_ok).
     pose proof (switcher_stk_bounds_frame b_stk e_stk a_stk Hb_a4 He_a1 Ha_stk4) as Hstk_bounds.

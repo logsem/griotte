@@ -108,7 +108,7 @@ Section translation.
         note (n ++ ", export " ++ e)
           (WSealed (ot_switcher (img_sw img))
              (SCap true RO Global (cmpt_exp_tbl_pcc x) (cmpt_exp_tbl_entries_end x)
-                (addr_off (cmpt_exp_tbl_entries_start x) k)))
+                (cmpt_exp_tbl_pcc x ^+ ExportTable_offset_entry k)%a))
     | ISealedStatic o s =>
         let k := match fw_index_of ss_name s ss with Some k => k | None => 0 end in
         let a := addr_off (cmpt_b_static_sealed c) k in
@@ -181,12 +181,17 @@ Section translation.
     | TrustedBody b =>
         cmpt_code c = tb_code b ∧
         cmpt_data c = chunks_words ss c (tb_data b) ∧
+        note "no error handler"
+          (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
+           cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler) ∧
         cmpt_exp_tbl_entries c =
           fw_imap (λ _ e, note ("export " ++ fe_name e) (export_word e)) (tb_exports b)
     | UntrustedBody b =>
         note "arbitrary, any length" (Forall is_int (cmpt_code c)) ∧
         note "arbitrary, any length"
           (Forall (initial_data_word (cmpt_b_cgp c) (cmpt_e_cgp c)) (cmpt_data c)) ∧
+        note "arbitrary error handler offsets"
+          (∃ eh ehs : Z, cmpt_exp_tbl_handler c = WInt eh ∧ cmpt_exp_tbl_handler_stackless c = WInt ehs) ∧
         note "arbitrary offsets, inside the PCC range, and minimum stack sizes" (hole_exports c (fw_map ue_nargs (ub_exports b)) (λ ws, cmpt_exp_tbl_entries c = ws))
     end.
 
@@ -227,6 +232,8 @@ Section translation.
       (mem_region (cmpt_exp_tbl_pcc c)
          (WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ::
           WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ::
+          cmpt_exp_tbl_handler c ::
+          cmpt_exp_tbl_handler_stackless c ::
           cmpt_exp_tbl_entries c)).
 
   (** The trusted stack holds a zeroed register save area, the header, the
@@ -350,8 +357,8 @@ Section translation.
            (cmpt_b_cgp c + Z.of_nat (length (cmpt_data c)))%a = Some (cmpt_e_cgp c);
            (cmpt_b_static_sealed c + Z.of_nat (length (cmpt_static_sealed c)))%a =
              Some (cmpt_e_static_sealed c);
-           (cmpt_exp_tbl_pcc c + 1)%a = Some (cmpt_exp_tbl_cgp c);
-           (cmpt_exp_tbl_cgp c + 1)%a = Some (cmpt_exp_tbl_entries_start c);
+           (cmpt_exp_tbl_pcc c + ExportTable_offset_cgp)%a = Some (cmpt_exp_tbl_cgp c);
+           (cmpt_exp_tbl_pcc c + ExportTable_offset_entries)%a = Some (cmpt_exp_tbl_entries_start c);
            (cmpt_exp_tbl_entries_start c + Z.of_nat (length (cmpt_exp_tbl_entries c)))%a =
              Some (cmpt_exp_tbl_entries_end c);
            ranges_ok (cmpt_ranges fc);

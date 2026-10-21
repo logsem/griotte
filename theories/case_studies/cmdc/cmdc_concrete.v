@@ -83,6 +83,8 @@ Proof.
     (cmpt_of cmdc_demo_image "main"), (cmpt_of cmdc_demo_image "B"), (cmpt_of cmdc_demo_image "C").
   split; first done.
   split_and!.
+  (* The linker declares no error handler. *)
+  all: try (exists ExportTable_no_handler, ExportTable_no_handler; split_and!).
   all: try (exists 1%nat, 0%nat; split_and!).
   all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /cmdc_demo_state /img_state /img_regs; solve_other_registers

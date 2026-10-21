@@ -41,6 +41,8 @@ Section LSE.
     :
 
     let imports := lse_main_imports C_f in
+    let a_lse_exp_tbl_cgp := (b_lse_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_lse_entry_f := (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f)%a in
 
     disjoint_from_shadow pc_b pc_e ->
     is_shadow_address cgp_b = false ->
@@ -48,7 +50,7 @@ Section LSE.
     disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
     is_heap_address pc_b = false ->
     Nswitcher ## Nlse ->
-    (b_lse_exp_tbl <= b_lse_exp_tbl ^+ 2 < e_lse_exp_tbl)%a ->
+    (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
     (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
@@ -61,11 +63,12 @@ Section LSE.
     ∗ codefrag_pers pc_a lse_main_code
     ∗ na_inv cerise_nais Nlse (cgp_b ↦ₐ WInt 2)
     ∗ b_lse_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-    ∗ (b_lse_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ (b_lse_exp_tbl ^+ 2)%a ↦ₐ□ lse_exp_tbl_entry_f
+    ∗ a_lse_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ no_handler b_lse_exp_tbl
+    ∗ a_lse_entry_f ↦ₐ□ lse_exp_tbl_entry_f
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
-    ot_switcher_prop W C (WCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a).
+    ot_switcher_prop W C (WCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl a_lse_entry_f).
   Proof.
     (* Outline of the proof:
        - unfold [ot_switcher_prop] and introduce the state of the machine at
@@ -76,7 +79,8 @@ Section LSE.
        - [lse_f_blocks_2_spec]: blocks 5-6, assert that [a] contains [2],
          and jump to the switcher;
        - [switcher_ret_specification]: return to the caller of [f]. *)
-    intros imports; subst imports.
+    intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
+    subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap
                HNswitcher_lse
                Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some)
@@ -85,11 +89,14 @@ Section LSE.
       & #Hlse_code
       & #Hlse_exp_PCC
       & #Hlse_exp_CGP
+      & [#Hlse_exp_eh #Hlse_exp_ehs]
       & #Hlse_exp_f
       & #Hot_switcher)".
-    iExists g_lse_exp_tbl, b_lse_exp_tbl, e_lse_exp_tbl, (b_lse_exp_tbl ^+ 2)%a,
+    iExists g_lse_exp_tbl, b_lse_exp_tbl, e_lse_exp_tbl,
+      (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f)%a,
     pc_b, pc_e, cgp_b, cgp_e, 0, 1, _.
     iFrame "#".
+    iSplit; first done.
     iSplit; first done.
     iSplit; first solve_addr.
     iSplit; first (iPureIntro; solve_addr).

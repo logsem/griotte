@@ -131,7 +131,7 @@ Section Switcher.
     destruct frm.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl Ha_tstk_tbl] & >[%wcnt Ha_tstk_cnt]
+    iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >[%ncnt Ha_tstk_cnt]
                                     & >%HWF & Hcframe_interp)".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap & Hret_ok).
     cbn in Hcsp_sync; destruct Hcsp_sync as [ Ha He ]; simplify_eq.

@@ -61,11 +61,11 @@ Section cmdc_obligations.
 
     (* 2 - The export entries of B and C, imported by main *)
     set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
-                  (cmpt_exp_tbl_entries_start B_cmpt)).
+                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry cmdc_B_entry_f)%a).
     set (C_g := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                  (cmpt_exp_tbl_entries_start C_cmpt)).
-    assert (cmpt_export_sb (cmpt_of img "B") 0 = B_f ∧
-            cmpt_export_sb (cmpt_of img "C") 0 = C_g) as (HsbB & HsbC).
+                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry cmdc_C_entry_g)%a).
+    assert (cmpt_export_sb (cmpt_of img "B") cmdc_B_entry_f = B_f ∧
+            cmpt_export_sb (cmpt_of img "C") cmdc_C_entry_g = C_g) as (HsbB & HsbC).
     { by rewrite /cmpt_export_sb /B_f /C_g /=. }
     assert (image.cmpt_imports (cmpt_of img "main") = @cmdc_main_imports swl asl B_f C_g)
       as main_imports'.
@@ -82,11 +82,11 @@ Section cmdc_obligations.
     iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
       first exact Hmain_l.
     rewrite main_imports' main_code main_data.
-    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 cmdc_B_f_args
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ cmdc_B_entry_f cmdc_B_f_args
                  (fw_cmpt_ok_at _ _ _ 1 _ Hok eq_refl) with "HB_pers")
       as "#Hentry_Bf"; [done|cbv; lia|].
     iEval (rewrite HsbB) in "Hentry_Bf".
-    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 cmdc_C_g_args
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ cmdc_C_entry_g cmdc_C_g_args
                  (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) with "HC_pers")
       as "#Hentry_Cg"; [done|cbv; lia|].
     iEval (rewrite HsbC) in "Hentry_Cg".

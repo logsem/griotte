@@ -87,12 +87,14 @@ Section SO.
     :
 
     let imports := so_main_imports C_f in
+    let a_so_exp_tbl_cgp := (b_so_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_so_entry_f := (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f)%a in
 
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow b_so_exp_tbl e_so_exp_tbl ->
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
-    (b_so_exp_tbl <= b_so_exp_tbl ^+ 2 < e_so_exp_tbl)%a ->
+    (b_so_exp_tbl <= a_so_entry_f < e_so_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
     (pc_b + so_label ".Lso_run")%a = Some pc_a ->
     (cgp_b + length so_main_data)%a = Some cgp_e ->
@@ -104,11 +106,12 @@ Section SO.
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a so_main_code
     ∗ b_so_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-    ∗ (b_so_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ (b_so_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 6 (length (imports ++ SO_main_code_run)))
+    ∗ a_so_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ no_handler b_so_exp_tbl
+    ∗ a_so_entry_f ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 6 (length (imports ++ SO_main_code_run)))
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
-    ot_switcher_prop W C (WCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a).
+    ot_switcher_prop W C (WCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl a_so_entry_f).
   Proof.
     (* Outline of the proof:
        - unfold [ot_switcher_prop] and introduce the state of the machine at
@@ -134,18 +137,22 @@ Section SO.
        [checkints] puts [in] back unchanged (second closing of
        [so_world_open_object]). The stack of [f] holds its minimum stack
        size, so neither block 7 nor the spill of the call to [g] faults. *)
-    intros imports; subst imports.
+    intros imports a_so_exp_tbl_cgp a_so_entry_f.
+    subst imports a_so_exp_tbl_cgp a_so_entry_f.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap
                Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hso_exp_PCC
       & #Hso_exp_CGP
+      & [#Hso_exp_eh #Hso_exp_ehs]
       & #Hso_exp_awkward
       & #Hot_switcher)".
-    iExists g_so_exp_tbl, b_so_exp_tbl, e_so_exp_tbl, (b_so_exp_tbl ^+ 2)%a,
+    iExists g_so_exp_tbl, b_so_exp_tbl, e_so_exp_tbl,
+      (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f)%a,
     pc_b, pc_e, cgp_b, cgp_e, 2, 6, _.
     iFrame "#".
+    iSplit; first done.
     iSplit; first done.
     iSplit; first solve_addr.
     iSplit; first (iPureIntro; solve_addr).

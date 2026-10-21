@@ -228,9 +228,14 @@ Section AllocatorCommonCode.
   Definition allocator_malloc_pcc_off : nat :=
     Eval vm_compute in label_offset allocator_import_symbols_asm ".Lmalloc".
 
-  Definition allocator_malloc_exp_tbl_off : nat := 2.
+  (** The indices of the exports [malloc] and [free], in the order of the
+      firmware, and the offsets of their entries in the export table. *)
+  Definition allocator_entry_malloc : nat := 0.
+  Definition allocator_entry_free : nat := 1.
 
-  Definition allocator_free_exp_tbl_off : nat := 3.
+  Definition allocator_malloc_exp_tbl_off : Z := ExportTable_offset_entry allocator_entry_malloc.
+
+  Definition allocator_free_exp_tbl_off : Z := ExportTable_offset_entry allocator_entry_free.
 
   (** The well-formedness of a layout that does not depend on the code. Each
       allocator's [allocatorLayoutWf] provides it. *)

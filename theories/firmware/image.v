@@ -11,7 +11,8 @@ Set Mangle Names.
 
 (** A compartment: its PCC range (import table, then code), its CGP range
     (globals), its static sealed objects and its export table (the PCC and
-    CGP capabilities, then the entries). *)
+    CGP capabilities, the offsets of the stackful and stackless error
+    handlers, then the entries). *)
 Record img_cmpt : Type := MkImgCmpt {
   cmpt_b_pcc : Addr;
   cmpt_a_code : Addr;
@@ -28,6 +29,8 @@ Record img_cmpt : Type := MkImgCmpt {
   cmpt_code : list Word;
   cmpt_data : list Word;
   cmpt_static_sealed : list Word;
+  cmpt_exp_tbl_handler : Word;
+  cmpt_exp_tbl_handler_stackless : Word;
   cmpt_exp_tbl_entries : list Word;
 }.
 
@@ -70,7 +73,7 @@ Record fw_image : Type := MkFwImage {
 Definition za0 : Addr := za.
 
 Definition default_img_cmpt : img_cmpt :=
-  MkImgCmpt za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 [] [] [] [] [].
+  MkImgCmpt za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 [] [] [] [] (WInt 0) (WInt 0) [].
 
 Definition default_img_thread : img_thread := MkImgThread za0 za0 za0 za0.
 

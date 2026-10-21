@@ -26,14 +26,19 @@ Section CmptLayout.
         cmpt_code : list Word;
         cmpt_data : list Word;
         cmpt_static_sealed : list Word;
+        cmpt_exp_tbl_handler : Word;
+        cmpt_exp_tbl_handler_stackless : Word;
         cmpt_exp_tbl_entries : list Word;
 
         cmpt_import_size : (cmpt_b_pcc + length cmpt_imports)%a = Some cmpt_a_code;
         cmpt_code_size : (cmpt_a_code + length cmpt_code)%a = Some cmpt_e_pcc;
         cmpt_data_size : (cmpt_b_cgp + length cmpt_data)%a = Some cmpt_e_cgp;
         cmpt_static_sealed_size : (cmpt_b_static_sealed + length cmpt_static_sealed)%a = Some cmpt_e_static_sealed;
-        cmpt_exp_tbl_pcc_size : (cmpt_exp_tbl_pcc + 1)%a = Some cmpt_exp_tbl_cgp;
-        cmpt_exp_tbl_cgp_size : (cmpt_exp_tbl_cgp + 1)%a = Some cmpt_exp_tbl_entries_start;
+        cmpt_exp_tbl_pcc_size :
+          (cmpt_exp_tbl_pcc + ExportTable_offset_cgp)%a = Some cmpt_exp_tbl_cgp;
+        (* The header: the PCC, the CGP and the offsets of the error handlers *)
+        cmpt_exp_tbl_header_size :
+          (cmpt_exp_tbl_pcc + ExportTable_offset_entries)%a = Some cmpt_exp_tbl_entries_start;
         cmpt_exp_tbl_entries_size : (cmpt_exp_tbl_entries_start + length cmpt_exp_tbl_entries)%a = Some cmpt_exp_tbl_entries_end;
 
         cmpt_disjointness :
@@ -128,7 +133,8 @@ Section CmptLayout.
     let pcc_word := WCap true RX Global (cmpt_b_pcc C) (cmpt_e_pcc C) (cmpt_b_pcc C) in
     let cgp_word := WCap true RW Global (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_b_cgp C) in
     mkregion (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_cgp C) [pcc_word] ∪
-      mkregion (cmpt_exp_tbl_cgp C) (cmpt_exp_tbl_entries_start C) [cgp_word] ∪
+      mkregion (cmpt_exp_tbl_cgp C) (cmpt_exp_tbl_entries_start C)
+        [cgp_word; cmpt_exp_tbl_handler C; cmpt_exp_tbl_handler_stackless C] ∪
       mkregion (cmpt_exp_tbl_entries_start C) (cmpt_exp_tbl_entries_end C) (cmpt_exp_tbl_entries C)
   .
 
@@ -208,6 +214,20 @@ Section CmptLayout.
         trusted_stack_frames_fit :
         ∃ n : nat,
           (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack;
+        (* The entry frame holds a capability to the export table of the
+           compartment the thread starts in, and an integer error handler
+           count. *)
+        trusted_stack_content_export_table :
+        ∃ (b_tbl : Addr) (w : Word),
+          trusted_stack_content
+            !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable)
+          = Some w ∧
+          exp_tbl_cap b_tbl w;
+        trusted_stack_content_error_count :
+        ∃ n : Z,
+          trusted_stack_content
+            !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
+          = Some (WInt n);
         (* The trusted stack has no authority over the heap and no
            executable word. *)
         trusted_stack_content_words :
@@ -501,7 +521,7 @@ Section CmptLayout.
     pose proof (cmpt_data_size B_cmpt).
     pose proof (cmpt_static_sealed_size B_cmpt).
     pose proof (cmpt_exp_tbl_pcc_size B_cmpt).
-    pose proof (cmpt_exp_tbl_cgp_size B_cmpt).
+    pose proof (cmpt_exp_tbl_header_size B_cmpt).
     pose proof (cmpt_exp_tbl_entries_size B_cmpt).
 
     rewrite !dom_union_L.
@@ -605,49 +625,37 @@ Section CmptLayout.
     mkregion (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)
       [WCap true RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
       ∪ mkregion (cmpt_exp_tbl_cgp B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt)
-      [WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)]
+      [WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt);
+       cmpt_exp_tbl_handler B_cmpt; cmpt_exp_tbl_handler_stackless B_cmpt]
       ##ₘ mkregion (cmpt_exp_tbl_entries_start B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries B_cmpt).
   Proof.
     apply map_disjoint_dom_2.
-    pose proof (cmpt_disjointness B_cmpt) as Hdis.
-    rewrite !disjoint_list_cons in Hdis.
-    destruct Hdis as (?&?&_&?).
-    rewrite !union_list_cons in H,H0.
-    rewrite union_list_nil in H,H0.
-    rewrite /union /Union_list in H,H0.
-    rewrite /empty /Empty_list in H,H0.
-    rewrite app_nil_r in H,H0.
-    pose proof (cmpt_import_size B_cmpt).
     pose proof (cmpt_exp_tbl_pcc_size B_cmpt).
-    pose proof (cmpt_exp_tbl_cgp_size B_cmpt).
+    pose proof (cmpt_exp_tbl_header_size B_cmpt).
     pose proof (cmpt_exp_tbl_entries_size B_cmpt).
-    repeat rewrite dom_mkregion_eq; try (solve_addr).
-    rewrite /mkregion.
-    rewrite finz_seq_between_cons /=; [rewrite zip_nil_r /=|solve_addr].
-    rewrite finz_seq_between_cons /=; [rewrite zip_nil_r /=|solve_addr].
-    rewrite dom_union_L !dom_insert_L !dom_empty_L !union_empty_r_L.
-    rewrite disjoint_union_l
-    ; split
-    ; rewrite disjoint_singleton_l not_elem_of_list_to_set not_elem_of_finz_seq_between
-    ; solve_addr.
+    rewrite dom_union_L.
+    repeat rewrite dom_mkregion_eq; try (cbn; solve_addr).
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite elem_of_union !elem_of_list_to_set !elem_of_finz_seq_between in Ha.
+    rewrite !elem_of_list_to_set !elem_of_finz_seq_between in Ha'.
+    solve_addr.
   Qed.
 
   Lemma cmpt_exp_tbl_pcc_cgp_disjoint (B_cmpt : cmpt) :
     mkregion (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)
       [WCap true RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
       ##ₘ mkregion (cmpt_exp_tbl_cgp B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt)
-      [WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)].
+      [WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt);
+       cmpt_exp_tbl_handler B_cmpt; cmpt_exp_tbl_handler_stackless B_cmpt].
   Proof.
     apply map_disjoint_dom_2.
     pose proof (cmpt_exp_tbl_pcc_size B_cmpt).
-    pose proof (cmpt_exp_tbl_cgp_size B_cmpt).
-    pose proof (cmpt_exp_tbl_entries_size B_cmpt).
-
-    rewrite /mkregion.
-    rewrite finz_seq_between_cons /=; [rewrite zip_nil_r /=|solve_addr].
-    rewrite finz_seq_between_cons /=; [rewrite zip_nil_r /=|solve_addr].
-    rewrite !dom_insert_L !dom_empty_L !union_empty_r_L.
-    rewrite disjoint_singleton_l elem_of_singleton.
+    pose proof (cmpt_exp_tbl_header_size B_cmpt).
+    repeat rewrite dom_mkregion_eq; try (cbn; solve_addr).
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_list_to_set !elem_of_finz_seq_between in Ha Ha'.
     solve_addr.
   Qed.
 

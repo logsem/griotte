@@ -11,7 +11,8 @@ Set Mangle Names.
     on, section after section: the switcher, the assert library, then for
     each compartment its export table, its PCC range, its globals and its
     static sealed objects, then for each thread its trusted stack and its
-    stack. The contents of the untrusted compartments are given by [cfg].
+    stack. The contents of the untrusted compartments are given by [cfg]; no
+    compartment declares an error handler.
     The linker is not trusted: its result is checked against the
     predicate. *)
 
@@ -59,14 +60,15 @@ Section link.
     let '(nc, nd, ne) := cmpt_lengths fc in
     let ni := length (fc_imports fc) in
     let ns := length (fc_static_sealed fc) in
-    let pcc := (a + 2 + Z.of_nat ne)%Z in
+    let pcc := (a + ExportTable_offset_entries + Z.of_nat ne)%Z in
     let code := (pcc + Z.of_nat ni)%Z in
     let epcc := (code + Z.of_nat nc)%Z in
     let ecgp := (epcc + Z.of_nat nd)%Z in
     let ess := (ecgp + Z.of_nat ns)%Z in
     (MkImgCmpt (mk_addr pcc) (mk_addr code) (mk_addr epcc) (mk_addr epcc) (mk_addr ecgp)
-       (mk_addr ecgp) (mk_addr ess) (mk_addr a) (mk_addr (a + 1)) (mk_addr (a + 2))
-       (mk_addr (a + 2 + Z.of_nat ne)) [] [] [] [] [],
+       (mk_addr ecgp) (mk_addr ess) (mk_addr a) (mk_addr (a + ExportTable_offset_cgp))
+       (mk_addr (a + ExportTable_offset_entries))
+       (mk_addr (a + ExportTable_offset_entries + Z.of_nat ne)) [] [] [] [] (WInt 0) (WInt 0) [],
      ess).
 
   Fixpoint place_cmpts (a : Z) (fcs : list fw_cmpt) : list (string * img_cmpt) * Z :=
@@ -123,7 +125,7 @@ Section link.
     (n, MkImgCmpt (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c) (cmpt_b_cgp c) (cmpt_e_cgp c)
           (cmpt_b_static_sealed c) (cmpt_e_static_sealed c) (cmpt_exp_tbl_pcc c)
           (cmpt_exp_tbl_cgp c) (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c)
-          imports code data (map ss_word ss) entries).
+          imports code data (map ss_word ss) (WInt ExportTable_no_handler) (WInt ExportTable_no_handler) entries).
 
   (** The linked image, if it fits in memory. *)
   Definition link (fw : firmware) : option fw_image :=

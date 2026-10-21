@@ -130,6 +130,8 @@ Proof.
     (cmpt_of hts_demo_image "B"), hts_alloc_sealing_type.
   split; first done.
   split_and!.
+  (* The linker declares no error handler. *)
+  all: try (exists ExportTable_no_handler, ExportTable_no_handler; split_and!).
   all: try (exists 4%nat, 0%nat; split_and!).
   (* The shadow table of this machine translates the heap by a constant offset. *)
   all: try (intros a; reflexivity).

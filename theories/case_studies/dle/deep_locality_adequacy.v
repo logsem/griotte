@@ -55,8 +55,8 @@ Section dle_obligations.
 
     (* 2 - The export entry of C, imported by main *)
     set (C_f := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                  (cmpt_exp_tbl_entries_start C_cmpt)).
-    assert (cmpt_export_sb (cmpt_of img "C") 0 = C_f) as HsbC.
+                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry dle_C_entry_f)%a).
+    assert (cmpt_export_sb (cmpt_of img "C") dle_C_entry_f = C_f) as HsbC.
     { by rewrite /cmpt_export_sb /C_f /=. }
     assert (image.cmpt_imports (cmpt_of img "main") = @dle_main_imports swl asl C_f)
       as main_imports'.
@@ -73,7 +73,7 @@ Section dle_obligations.
     iMod (fw_cmpt_mem_persist with "Hmain") as "(#Hmain_imports & #Hmain_code & Hmain_data)";
       first exact Hmain_l.
     rewrite main_imports' main_code main_data.
-    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ 0 1
+    iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ dle_C_entry_f 1
                  (fw_cmpt_ok_at _ _ _ 1 _ Hok eq_refl) with "HC_pers")
       as "#Hentry_Cf"; [done|lia|].
     iEval (rewrite HsbC) in "Hentry_Cf".

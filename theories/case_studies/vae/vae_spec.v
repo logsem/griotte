@@ -46,6 +46,8 @@ Section VAE.
     :
 
     let imports := vae_main_imports C_f in
+    let a_vae_exp_tbl_cgp := (b_vae_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_vae_entry_awkward := (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a in
 
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
@@ -54,7 +56,7 @@ Section VAE.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     is_shadow_address cgp_b = false ->
 
-    (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
+    (b_vae_exp_tbl <= a_vae_entry_awkward < e_vae_exp_tbl)%a ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -74,8 +76,8 @@ Section VAE.
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a vae_main_code
       ∗ b_vae_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-      ∗ (b_vae_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ (b_vae_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
+      ∗ a_vae_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ a_vae_entry_awkward ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
       ∗ inv awkN (awk_inv C i cgp_b)
       ∗ sts_rel_loc C i awk_rel_pub awk_rel_priv
       ∗ na_own cerise_nais ⊤
@@ -108,7 +110,8 @@ Section VAE.
        - [switcher_call_args_0] and [switcher_cc_specification]: call to
          [B.adv];
        - [vae_init_blocks_2_spec]: block 3, halt. *)
-    intros imports; subst imports.
+    intros imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
+    subst imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
                Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hloc_i_0 Hframe_match

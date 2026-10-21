@@ -215,3 +215,7 @@ Section Heap_Temporal_Safety.
      allocator_capability Global owner_a].
 
 End Heap_Temporal_Safety.
+
+(** The index of the export [adv] of the adversary [B], in the order of the
+    firmware. *)
+Definition hts_B_entry_adv : nat := 0.

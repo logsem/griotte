@@ -208,9 +208,9 @@ Section layout_bridges.
     icl_static_sealed_size :
       (cmpt_b_static_sealed c + length (cmpt_static_sealed c))%a = Some (cmpt_e_static_sealed c);
     icl_exp_tbl_pcc_size :
-      (cmpt_exp_tbl_pcc c + 1)%a = Some (cmpt_exp_tbl_cgp c);
-    icl_exp_tbl_cgp_size :
-      (cmpt_exp_tbl_cgp c + 1)%a = Some (cmpt_exp_tbl_entries_start c);
+      (cmpt_exp_tbl_pcc c + ExportTable_offset_cgp)%a = Some (cmpt_exp_tbl_cgp c);
+    icl_exp_tbl_header_size :
+      (cmpt_exp_tbl_pcc c + ExportTable_offset_entries)%a = Some (cmpt_exp_tbl_entries_start c);
     icl_exp_tbl_entries_size :
       (cmpt_exp_tbl_entries_start c + length (cmpt_exp_tbl_entries c))%a =
         Some (cmpt_exp_tbl_entries_end c);
@@ -240,9 +240,10 @@ Section layout_bridges.
       (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_cgp c)
       (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c)
       (cmpt_imports c) (cmpt_code c) (cmpt_data c)
-      (cmpt_static_sealed c) (cmpt_exp_tbl_entries c)
+      (cmpt_static_sealed c) (cmpt_exp_tbl_handler c) (cmpt_exp_tbl_handler_stackless c)
+      (cmpt_exp_tbl_entries c)
       (icl_import_size _ Hc) (icl_code_size _ Hc) (icl_data_size _ Hc)
-      (icl_static_sealed_size _ Hc) (icl_exp_tbl_pcc_size _ Hc) (icl_exp_tbl_cgp_size _ Hc)
+      (icl_static_sealed_size _ Hc) (icl_exp_tbl_pcc_size _ Hc) (icl_exp_tbl_header_size _ Hc)
       (icl_exp_tbl_entries_size _ Hc) (icl_disjointness _ Hc)
       (icl_pcc_mmio _ Hc) (icl_pcc_not_heap _ Hc) (icl_cgp_mmio _ Hc) (icl_cgp_not_heap _ Hc)
       (icl_exp_tbl_mmio _ Hc) (icl_static_sealed_mmio _ Hc) (icl_exp_tbl_not_heap _ Hc)
@@ -258,6 +259,14 @@ Section layout_bridges.
     tsl_frameoffset :
       ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
     tsl_frames_fit : ∃ n : nat, (b + tstack_frame_offset (S n))%a = Some e;
+    tsl_export_table :
+      ∃ (b_tbl : Addr) (w : Word),
+        ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable) = Some w ∧
+        exp_tbl_cap b_tbl w;
+    tsl_error_count :
+      ∃ n : Z,
+        ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
+        = Some (WInt n);
     tsl_words : Forall trusted_stack_word ts;
   }.
 
@@ -296,7 +305,8 @@ Section layout_bridges.
       (ot_switcher sw) (b_trusted_stack t) (e_trusted_stack t)
       (isl_switcher_size _ _ _ Hsw) (isl_call_entry_point _ _ _ Hsw) (isl_return_entry_point _ _ _ Hsw)
       (isl_ot_switcher_size _ _ _ Hsw)
-      ts (tsl_size _ _ _ Hts) (tsl_frameoffset _ _ _ Hts) (tsl_frames_fit _ _ _ Hts) (tsl_words _ _ _ Hts)
+      ts (tsl_size _ _ _ Hts) (tsl_frameoffset _ _ _ Hts) (tsl_frames_fit _ _ _ Hts)
+      (tsl_export_table _ _ _ Hts) (tsl_error_count _ _ _ Hts) (tsl_words _ _ _ Hts)
       (b_stack t) (e_stack t) ss (isl_stack_size _ _ _ Hsw) (isl_disjointness _ _ _ Hsw)
       (isl_trusted_stack_mmio _ _ _ Hsw) (isl_switcher_base_not_shadow _ _ _ Hsw)
       (isl_switcher_not_heap _ _ _ Hsw) (isl_stack_mmio _ _ _ Hsw) (isl_stack_not_heap _ _ _ Hsw)
@@ -340,6 +350,14 @@ Section layout_memory.
       (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
       (ft_tstack_frames ft).
 
+  (** The export table cell of the entry frame of the thread [i]. *)
+  Lemma fw_tstack_content_export_table (img : fw_image) (i : nat) (ft : fw_thread) :
+    let c := cmpt_of img (ft_cmpt ft) in
+    fw_tstack_content img i ft
+      !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable)
+    = Some (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)).
+  Proof. reflexivity. Qed.
+
   Lemma mem_region_app (b a e : Addr) (ws1 ws2 : list Word) :
     (b + length ws1)%a = Some a →
     (a + length ws2)%a = Some e →
@@ -360,17 +378,19 @@ Section layout_memory.
       /cmpt_static_sealed_mregion /cmpt_exp_tbl_mregion /=.
     pose proof (icl_import_size _ Hc). pose proof (icl_code_size _ Hc).
     pose proof (icl_data_size _ Hc). pose proof (icl_static_sealed_size _ Hc).
-    pose proof (icl_exp_tbl_pcc_size _ Hc). pose proof (icl_exp_tbl_cgp_size _ Hc).
+    pose proof (icl_exp_tbl_pcc_size _ Hc). pose proof (icl_exp_tbl_header_size _ Hc).
     pose proof (icl_exp_tbl_entries_size _ Hc).
     rewrite (mem_region_app (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c)) //.
     rewrite (mem_region_mkregion (cmpt_b_cgp c) (cmpt_e_cgp c)) //.
     rewrite (mem_region_mkregion (cmpt_b_static_sealed c) (cmpt_e_static_sealed c)) //.
     rewrite (mem_region_mkregion (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c));
       last (cbn; solve_addr).
-    change (?w1 :: ?w2 :: cmpt_exp_tbl_entries c) with ([w1] ++ [w2] ++ cmpt_exp_tbl_entries c).
-    rewrite (mkregion_app (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_cgp c)) //;
-      last (rewrite length_app; cbn; solve_addr).
-    rewrite (mkregion_app (cmpt_exp_tbl_cgp c) (cmpt_exp_tbl_entries_start c)) //.
+    change (?w1 :: ?w2 :: ?w3 :: ?w4 :: cmpt_exp_tbl_entries c)
+      with ([w1] ++ [w2; w3; w4] ++ cmpt_exp_tbl_entries c).
+    rewrite (mkregion_app (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_cgp c));
+      [| cbn; solve_addr | rewrite length_app; cbn; solve_addr].
+    rewrite (mkregion_app (cmpt_exp_tbl_cgp c) (cmpt_exp_tbl_entries_start c));
+      [| cbn; solve_addr | done].
     by rewrite assoc_L.
   Qed.
 
@@ -471,8 +491,8 @@ Section layout_of_img_wf.
     (cmpt_a_code c + length (cmpt_code c))%a = Some (cmpt_e_pcc c) ∧
     (cmpt_b_cgp c + length (cmpt_data c))%a = Some (cmpt_e_cgp c) ∧
     (cmpt_b_static_sealed c + length (cmpt_static_sealed c))%a = Some (cmpt_e_static_sealed c) ∧
-    (cmpt_exp_tbl_pcc c + 1)%a = Some (cmpt_exp_tbl_cgp c) ∧
-    (cmpt_exp_tbl_cgp c + 1)%a = Some (cmpt_exp_tbl_entries_start c) ∧
+    (cmpt_exp_tbl_pcc c + ExportTable_offset_cgp)%a = Some (cmpt_exp_tbl_cgp c) ∧
+    (cmpt_exp_tbl_pcc c + ExportTable_offset_entries)%a = Some (cmpt_exp_tbl_entries_start c) ∧
     (cmpt_exp_tbl_entries_start c + length (cmpt_exp_tbl_entries c))%a =
       Some (cmpt_exp_tbl_entries_end c) ∧
     Forall (λ t, range_ok t.1.2 t.2) (cmpt_ranges img fc) ∧
@@ -505,12 +525,15 @@ Section layout_of_img_wf.
     (b + tstack_frame_offset (S n))%a = Some e →
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
+    (∃ b_tbl, exp_tbl_cap b_tbl w_export_table) →
     trusted_stack_layout b e (initial_trusted_stack_content w_csp w_export_table n).
   Proof.
-    intros Hsize Hcsp Hexport_table. split.
+    intros Hsize Hcsp Hexport_table [b_tbl Htbl]. split.
     - by rewrite initial_trusted_stack_content_length.
     - reflexivity.
     - by exists n.
+    - by exists b_tbl, w_export_table.
+    - by exists 0%Z.
     - by apply initial_trusted_stack_content_words.
   Qed.
 
@@ -566,16 +589,21 @@ Section layout_of_img_wf.
     let c := cmpt_of img (ft_cmpt ft) in
     trusted_stack_word (WCap true RWL Local (b_stack t) (e_stack t) (b_stack t)) ∧
     trusted_stack_word
+      (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)) ∧
+    exp_tbl_cap (cmpt_exp_tbl_pcc c)
       (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)).
   Proof.
     intros Hcmpts Hthread t c.
     destruct (thread_wf_inv _ _ _ _ Hthread) as (Hin & Hname & _ & _ & Hrange_stack & _).
     rewrite Forall_forall in Hcmpts.
-    destruct (cmpt_wf_split _ _ _ (Hcmpts _ Hin)) as (_ & _ & _ & _ & _ & _ & _ & Hranges & _).
+    destruct (cmpt_wf_split _ _ _ (Hcmpts _ Hin))
+      as (_ & _ & _ & _ & _ & Hheader & Hentries & Hranges & _).
     rewrite /cmpt_ranges Forall_cons Forall_cons Forall_cons Forall_singleton Hname in Hranges.
-    destruct Hranges as (_ & _ & _ & [ [_ Hexp_heap] _]).
+    rewrite Hname in Hheader Hentries.
+    destruct Hranges as (_ & _ & _ & [ [_ Hexp_heap] [Hexp_shadow _] ]).
     destruct Hrange_stack as [ [_ Hstack_heap] _].
-    split; by apply trusted_stack_word_cap.
+    split_and!; [by apply trusted_stack_word_cap.. |].
+    subst t c. eexists _, _, _, _. split_and!; [done | done | solve_addr | done].
   Qed.
 
   (** The words of the trusted stack of a thread. *)
@@ -585,7 +613,7 @@ Section layout_of_img_wf.
     Forall trusted_stack_word (fw_tstack_content img i ft).
   Proof.
     intros Hcmpts Hthread.
-    destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread) as [Hcsp Hexport_table].
+    destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread) as (Hcsp & Hexport_table & _).
     by apply initial_trusted_stack_content_words.
   Qed.
 
@@ -653,9 +681,10 @@ Section layout_of_img_wf.
     intros Hthreads (_ & _ & Hcmpts & Hthread & _).
     apply big_and_fw_map in Hcmpts.
     rewrite Hthreads in Hthread. apply big_and_cons in Hthread as [Hthread _].
-    destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread) as [Hcsp Hexport_table].
+    destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread)
+      as (Hcsp & Hexport_table & Hexp_tbl_cap).
     destruct (thread_wf_inv _ _ _ _ Hthread) as (_ & _ & _ & Htstack & _).
-    by apply initial_trusted_stack_layout.
+    apply initial_trusted_stack_layout; [done.. | by eexists].
   Qed.
 
   Lemma img_wf_switcher_layout fw img ft fts :
@@ -782,6 +811,11 @@ Section entry.
   Definition fw_entry_cgp (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let m := fw_entry_cmpt fw img i in
     WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m).
+
+  (** The export table cell of the entry frame of the thread [i]. *)
+  Definition fw_frame0_tbl (img : fw_image) (i : nat) : Addr :=
+    ((b_trusted_stack (thread_of img i) ^+ TrustedStack_offset_frames)
+       ^+ TrustedStackFrame_offset_calleeExportTable)%a.
 
   Definition fw_thread_csp (img : fw_image) (i : nat) : Word :=
     let t := thread_of img i in
@@ -1005,11 +1039,27 @@ Section ghost_init.
       apply mem_exec_ok_union; [done | by apply IH].
   Qed.
 
+  (** The error handler offsets of a compartment are integers. *)
+  Lemma cmpt_ok_handlers fw img fc :
+    cmpt_ok fw img fc →
+    let c := cmpt_of img (fc_name fc) in
+    ∃ eh ehs : Z,
+      cmpt_exp_tbl_handler c = WInt eh ∧ cmpt_exp_tbl_handler_stackless c = WInt ehs.
+  Proof.
+    rewrite /cmpt_ok /section. destruct (fc_unknown_export fw fc); first done.
+    intros (_ & _ & Hbody). rewrite /body_ok /note in Hbody.
+    destruct (fc_body fc).
+    - destruct Hbody as (_ & _ & [Heh Hehs] & _). by eexists _, _.
+    - by destruct Hbody as (_ & _ & Hh & _).
+  Qed.
+
   Lemma cmpt_mem_rooted_exec_ok fw img fc :
+    cmpt_ok fw img fc →
     cmpt_wf fw img fc →
     mem_rooted (fw_set (fw_heap_roots fw)) (cmpt_mem img fc) ∧ mem_exec_ok (cmpt_mem img fc).
   Proof.
-    intros Hwf.
+    intros Hok Hwf.
+    destruct (cmpt_ok_handlers _ _ _ Hok) as (eh & ehs & Heh & Hehs).
     destruct (cmpt_wf_split _ _ _ Hwf) as (_ & _ & _ & _ & _ & _ & _ & Hranges & Hend & Hrooted & Hexec).
     rewrite /cmpt_ranges Forall_cons Forall_cons Forall_cons Forall_singleton in Hranges.
     destruct Hranges as ([ [Hpcc Hpcc_heap] _] & [ [Hcgp _] _] & _ & _).
@@ -1020,12 +1070,18 @@ Section ghost_init.
     - repeat apply mem_rooted_union; apply mem_rooted_mem_region; try done.
       + by apply Forall_app.
       + apply Forall_cons; split; first by apply word_rooted_cap_nonheap.
-        apply Forall_cons; split; [by apply word_rooted_cap_nonheap | done].
+        apply Forall_cons; split; first by apply word_rooted_cap_nonheap.
+        rewrite Heh Hehs.
+        do 2 (apply Forall_cons; split; first apply word_rooted_int).
+        done.
     - repeat apply mem_exec_ok_union; apply mem_exec_ok_mem_region; try done.
       + by apply Forall_app.
       + apply Forall_cons; split.
         { eapply word_exec_ok_closed; [done | by split | done]. }
-        apply Forall_cons; split; [by apply word_exec_ok_not_executable | done].
+        apply Forall_cons; split; first by apply word_exec_ok_not_executable.
+        rewrite Heh Hehs.
+        do 2 (apply Forall_cons; split; first apply word_exec_ok_int).
+        done.
   Qed.
 
   Lemma thread_mem_rooted_exec_ok H fw img i ft :
@@ -1088,7 +1144,7 @@ Section ghost_init.
   Proof.
     intros Hok.
     pose proof (firmware_ok_mem_in _ _ _ Hok) as Hmem_in.
-    destruct Hok as (_ & [Hmem Hsh] & Hregs & Hwf).
+    destruct Hok as (Hcmpts_ok & [Hmem Hsh] & Hregs & Hwf).
     change (mem (w_pc, regs, sregs, m, sh)) with m in Hmem.
     change (shadowtbl (w_pc, regs, sregs, m, sh)) with sh in Hsh.
     rewrite /note in Hmem Hsh. subst m sh.
@@ -1107,6 +1163,9 @@ Section ghost_init.
     pose proof Hwf as (Hsw_wf & Hasrt_wf & Hcmpts_wf & Hthreads_wf & _).
     pose proof Hsw_wf as (_ & _ & _ & [Hsw_not_heap _] & Hsw_end).
     apply big_and_fw_map in Hcmpts_wf.
+    apply big_and_fw_map in Hcmpts_ok.
+    assert (Forall (λ fc, cmpt_ok fw img fc ∧ cmpt_wf fw img fc) (fw_cmpts fw)) as Hcmpts_ok_wf.
+    { by apply Forall_and. }
     apply ghost_init_cond_roots; first done.
     - (* The memory is rooted. *)
       assert (is_heap_address (flag_assert (img_asrt img)) = false) as Hflag_heap.
@@ -1115,8 +1174,8 @@ Section ghost_init.
       apply mem_rooted_union; last by apply (threads_mem_rooted_exec_ok _ fw).
       apply mem_rooted_union.
       2: { apply mem_rooted_big_union. rewrite fw_map_eq. apply Forall_fmap.
-           eapply Forall_impl; first exact Hcmpts_wf.
-           intros fc Hfc. by destruct (cmpt_mem_rooted_exec_ok _ _ _ Hfc). }
+           eapply Forall_impl; first exact Hcmpts_ok_wf.
+           intros fc [Hfc_ok Hfc]. by destruct (cmpt_mem_rooted_exec_ok _ _ _ Hfc_ok Hfc). }
       apply mem_rooted_union.
       2: { apply mem_rooted_mem_region. apply Forall_singleton. apply word_rooted_int. }
       apply mem_rooted_union.
@@ -1160,8 +1219,8 @@ Section ghost_init.
         last exact (proj2 (threads_mem_rooted_exec_ok ∅ fw img 0 _ Hcmpts_wf Hthreads_wf)).
       apply mem_exec_ok_union.
       2: { apply mem_exec_ok_big_union. rewrite fw_map_eq. apply Forall_fmap.
-           eapply Forall_impl; first exact Hcmpts_wf.
-           intros fc Hfc. by destruct (cmpt_mem_rooted_exec_ok _ _ _ Hfc). }
+           eapply Forall_impl; first exact Hcmpts_ok_wf.
+           intros fc [Hfc_ok Hfc]. by destruct (cmpt_mem_rooted_exec_ok _ _ _ Hfc_ok Hfc). }
       apply mem_exec_ok_union.
       2: { apply mem_exec_ok_mem_region. apply Forall_singleton. apply word_exec_ok_int. }
       apply mem_exec_ok_union.
@@ -1208,7 +1267,7 @@ Section entries.
       ([IExport]). *)
   Definition cmpt_export_sb (c : img_cmpt) (k : nat) : Sealable :=
     SCap true RO Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
-      (addr_off (cmpt_exp_tbl_entries_start c) k).
+      (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k)%a.
 End entries.
 
 Section entries_facts.
@@ -1252,8 +1311,8 @@ Section entries_facts.
   Proof.
     rewrite /fc_export_nargs. intros (_ & _ & _ & Hbody)%cmpt_ok_inv.
     destruct (fc_body fc) as [tb|ub].
-    - destruct Hbody as (_ & _ & ->). by rewrite fw_map_eq length_fmap /fw_imap length_fw_imap_from.
-    - destruct Hbody as (_ & _ & Hexp). rewrite /note in Hexp.
+    - destruct Hbody as (_ & _ & _ & ->). by rewrite fw_map_eq length_fmap /fw_imap length_fw_imap_from.
+    - destruct Hbody as (_ & _ & _ & Hexp). rewrite /note in Hexp.
       destruct (hole_exports_length _ _ _ Hexp) as (ws & Hlen & ->).
       done.
   Qed.
@@ -1323,6 +1382,10 @@ Section resources.
       [[ b_stack t, e_stack t ]] ↦ₐ
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0) ]] ∗
     "Hcstk" ∷ cstack_frag [] ∗
+    "#Hframe0_tbl" ∷
+      (∃ w0 : Word,
+         fw_frame0_tbl img i ↦ₐ□ lword_of_word w0 ∗
+         ⌜exp_tbl_cap (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img i)) w0⌝) ∗
     "Hna" ∷ na_own cerise_nais ⊤.
 End resources.
 
@@ -1518,11 +1581,25 @@ Proof.
     by apply map_disjoint_union_r. }
   iMod (initialise_switcher_compartment swc fw_switcherN Hmtcc
          with "Hswitcher Hseal_switcher Hcstk_full Hmtdc")
-    as "(#Hseal_pred & #Hswitcher & #Hswitcher_static & Hstack)".
+    as "(#Hseal_pred & #Hswitcher & #Hswitcher_static & Hstack & (%w0 & %Hw0 & #Hframe0_tbl))".
+  (* The export table cell of the entry frame: the export table of the
+     compartment the thread starts in *)
+  iAssert (∃ w0 : Word,
+             fw_frame0_tbl img 0 ↦ₐ□ lword_of_word w0 ∗
+             ⌜exp_tbl_cap (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img 0)) w0⌝)%I
+    as "#Hframe0".
+  { pose proof Hwf as (_ & _ & Hcmpts_wf & Hthreads_wf & _).
+    apply big_and_fw_map in Hcmpts_wf.
+    rewrite Hthreads in Hthreads_wf. apply big_and_cons in Hthreads_wf as [Hthread0 _].
+    destruct (thread_entry_frame_words _ _ _ _ Hcmpts_wf Hthread0) as (_ & _ & Htbl_cap).
+    change (trusted_stack_content swc) with (fw_tstack_content img 0 (fw_thread0 fw)) in Hw0.
+    rewrite fw_tstack_content_export_table in Hw0. simplify_eq.
+    iExists _. iFrame "Hframe0_tbl". iPureIntro.
+    rewrite /fw_entry_cmpt fw_thread_of_0. exact Htbl_cap. }
   (* The obligations of the trusted code. *)
   iPoseProof (Hobl img _ ceriseg sealsg stsg relg cstackg Hok) as "Hobl".
   iMod ("Hobl" with "[-HPC Hcgp Hcsp Hregs Hstack Hcstk_frag Hna]
-                     [$HPC $Hcgp $Hcsp $Hregs $Hstack $Hcstk_frag $Hna]") as "Hwp".
+                     [$HPC $Hcgp $Hcsp $Hregs $Hstack $Hcstk_frag $Hframe0 $Hna]") as "Hwp".
   { rewrite /fw_shared_res /CNames big_sepS_list_to_set; last apply finite.NoDup_enum.
     iFrame "Hotypes Hheap Hshadow Hclaims Hcmpts Hworlds". iFrame "#". }
   iModIntro. iFrame "Hwp Hflag".

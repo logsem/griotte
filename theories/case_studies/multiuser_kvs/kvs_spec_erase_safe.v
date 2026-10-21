@@ -185,6 +185,7 @@ Section KVS_spec_erase.
     (Nswitcher : namespace)
     :
 
+    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
     seal_pred KVS_OTYPE kvs_otype_propC ∗
     kvs_static ∗
     na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
@@ -192,15 +193,19 @@ Section KVS_spec_erase.
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ∗
     b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
-    (b_kvs_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+    a_kvs_exp_tbl_cgp ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+    no_handler b_kvs_exp_tbl ∗
     kvs_erase_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_erase
     -∗
     ot_switcher_prop W C (WCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr).
   Proof.
+    intros a_kvs_exp_tbl_cgp.
+    subst a_kvs_exp_tbl_cgp.
     iIntros
       "(#Hspred & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
       & #Hkvs_exp_PCC
       & #Hkvs_exp_CGP
+      & [#Hkvs_exp_eh #Hkvs_exp_ehs]
       & #Hkvs_exp_addOrErase
       )".
 
@@ -210,9 +215,10 @@ Section KVS_spec_erase.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iFrame "#".
     iSplit; first done.
-    iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off; solve_addr).
-    iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off; solve_addr).
-    iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off; solve_addr).
+    iSplit; first (iPureIntro; exact kvs_exp_tbl_disjoint_from_shadow).
+    iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off /kvs_entry_erase; solve_addr).
+    iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off /kvs_entry_erase; solve_addr).
+    iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off /kvs_entry_erase; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_erase_nargs; lia).
     iSplit; first (iPureIntro; rewrite /kvs_erase_min_stack; lia).
     iSplit.
@@ -226,7 +232,7 @@ Section KVS_spec_erase.
     { iPureIntro. eapply disjoint_from_shadow_not_in.
       - exact kvs_exp_tbl_disjoint_from_shadow.
       - apply withinBounds_true_iff.
-        rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off; solve_addr. }
+        rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off /kvs_entry_erase; solve_addr. }
     iSplit.
     { iPureIntro. eapply disjoint_from_shadow_not_in.
       - exact kvs_exp_tbl_disjoint_from_shadow.

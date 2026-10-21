@@ -218,3 +218,7 @@ Section kvs_B_code.
   Definition kvs_B_adv_entry : nat :=
     Eval vm_compute in label_offset kvs_B_asm "adv_entry".
 End kvs_B_code.
+
+(** The index of the export [f] of the adversary [B], in the order of the
+    firmware. *)
+Definition kvs_B_entry_f : nat := 0.

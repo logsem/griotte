@@ -43,13 +43,15 @@ Section VAE.
     :
 
     let imports := vae_main_imports C_f in
+    let a_vae_exp_tbl_cgp := (b_vae_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_vae_entry_awkward := (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a in
 
     is_shadow_address cgp_b = false ->
     disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
-    (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
+    (b_vae_exp_tbl <= a_vae_entry_awkward < e_vae_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
     (pc_b + vae_label ".Lvae_init")%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
@@ -64,14 +66,15 @@ Section VAE.
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a vae_main_code
     ∗ b_vae_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-    ∗ (b_vae_exp_tbl ^+ 1)%a ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ (b_vae_exp_tbl ^+ 2)%a ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
+    ∗ a_vae_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ no_handler b_vae_exp_tbl
+    ∗ a_vae_entry_awkward ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
     ∗ seal_pred ot_switcher ot_switcher_propC
     (* invariant for d *)
     ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
     ∗ sts_rel_loc (A:=LAddr) C i awk_rel_pub awk_rel_priv
       -∗
-    ot_switcher_prop W C (WCap true RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a).
+    ot_switcher_prop W C (WCap true RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl a_vae_entry_awkward).
   Proof.
     (* Outline of the proof:
        - unfold [ot_switcher_prop] and introduce the state of the machine at
@@ -101,19 +104,23 @@ Section VAE.
        - [switcher_ret_specification]: return to the caller of [awkward].
        The stack of [awkward] holds its minimum stack size, so the spills of
        the calls to [g] do not fault. *)
-    intros imports.
+    intros imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
+    subst a_vae_exp_tbl_cgp a_vae_entry_awkward.
     iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
                Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hloc_i_W Hrel_i_W)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hvae_exp_PCC
       & #Hvae_exp_CGP
+      & [#Hvae_exp_eh #Hvae_exp_ehs]
       & #Hvae_exp_awkward
       & #Hot_switcher
       & [%awkN #HawkN] & #Hsts_rel)".
-    iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl, (b_vae_exp_tbl ^+ 2)%a,
+    iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl,
+      (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a,
     pc_b, pc_e, cgp_b, cgp_e, 1, 4, _.
     iFrame "#".
+    iSplit; first done.
     iSplit; first done.
     iSplit; first solve_addr.
     iSplit; first (iPureIntro; solve_addr).
