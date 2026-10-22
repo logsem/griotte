@@ -3,9 +3,9 @@ From griotte Require Import memory_region rules rules_vcsr proofmode.
 From griotte Require Import register_tactics.
 From griotte Require Import switcher_exception_states trusted_spill_registers_spec.
 
-(** * Exception path, block 28: [.Lcommon_context_install]
+(** * Exception path, block 39: [.Lcommon_context_install]
 
-    Block 28 installs the context of the register save area and resumes it:
+    Block 39 installs the context of the register save area and resumes it:
     it restores mstatus, borrows the volatile registers back from the
     trap-entry token to write the PC to resume (in [ct2]) to MEPCC, reloads
     the registers (the stack pointer last, as it overwrites the trusted
@@ -21,19 +21,19 @@ Section Switcher_Exception_Blocks_3.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** Block 28: the context install. *)
-  Lemma switcher_instrs_28_split :
-    switcher_instrs_n 28 =
+  (** Block 39: the context install. *)
+  Lemma switcher_instrs_39_split :
+    switcher_instrs_n 39 =
       encodeInstrsW [machine_instructions.CLoad cra csp TrustedStack_offset_mstatus;
                      SpecialRW cnull MSTATUS (inr cra); SpecialRW cnull MEPCC (inr ct2)] ++
       trusted_reload_registers_instrs exception_spill_regs ++
       encodeInstrsW [machine_instructions.CLoad csp csp TrustedStack_offset_csp; Mret].
   Proof. reflexivity. Qed.
 
-  #[local] Lemma switcher_exception_block_28_spec_aux
+  #[local] Lemma switcher_exception_block_39_spec_aux
     (pc_a : Addr) (wpc : LWord) (save_area : list LWord)
     (wcra wcgp wctp wct0 wct1 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
-    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 28))%a ->
+    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 39))%a ->
     length save_area = 21%nat ->
 
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
@@ -54,7 +54,7 @@ Section Switcher_Exception_Blocks_3.
     ca5 ↦ᵣ wca5 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     trap_entry_res ∗
-    codefrag_pers pc_a (switcher_instrs_n 28) ∗
+    codefrag_pers pc_a (switcher_instrs_n 39) ∗
     ▷ ( PC ↦ₚ llegalise MEPCC wpc ∗
         cra ↦ᵣ (save_area !!! 1%nat) ∗
         csp ↦ᵣ (save_area !!! 2%nat) ∗
@@ -73,7 +73,7 @@ Section Switcher_Exception_Blocks_3.
         ca5 ↦ᵣ (save_area !!! 15%nat) ∗
         [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
         trap_entry_res ∗
-        codefrag_pers pc_a (switcher_instrs_n 28) -∗
+        codefrag_pers pc_a (switcher_instrs_n 39) -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -93,12 +93,12 @@ Section Switcher_Exception_Blocks_3.
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs16 & Hs17 & Hs18 & Hs19 & Hs20)".
     (* The reload of the registers but the stack pointer is the macro *)
     iPoseProof "Hcode" as "Hcode_all".
-    iEval (rewrite switcher_instrs_28_split) in "Hcode_all".
+    iEval (rewrite switcher_instrs_39_split) in "Hcode_all".
     iDestruct (codefrag_app_pers with "Hcode_all") as "[_ Hcode_rest]".
     iDestruct (codefrag_app_pers with "Hcode_rest") as "[#Hreload _]".
     codefrag_facts "Hcode".
-    assert (length (switcher_instrs_n 28) = 19%nat) as Hlen28 by reflexivity.
-    rewrite Hlen28 in Hsub.
+    assert (length (switcher_instrs_n 39) = 19%nat) as Hlen39 by reflexivity.
+    rewrite Hlen39 in Hsub.
     rewrite /switcher_instrs_n /assembled_switcher_n.
     pose proof (tstack_save_cell_ok TrustedStack_offset_mstatus
                   ltac:(unfold TrustedStack_offset_mstatus; lia))
@@ -160,9 +160,9 @@ Section Switcher_Exception_Blocks_3.
     iRegionMerge. iFrame.
   Qed.
 
-  (** Block 28, from its label: the registers receive the words of the
+  (** Block 39, from its label: the registers receive the words of the
       register save area, and the PC the word in [ct2], as MEPCC holds it. *)
-  Lemma switcher_exception_block_28_spec (wpc : LWord) (save_area : list LWord)
+  Lemma switcher_context_install_spec (wpc : LWord) (save_area : list LWord)
     (wcra wcgp wctp wct0 wct1 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     length save_area = 21%nat ->
 
@@ -215,7 +215,7 @@ Section Switcher_Exception_Blocks_3.
     switcher_unfold_code "Hswitcher".
     switcher_focus_block (switcher_block ".Lcommon_context_install") "Hswitcher"
       as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_exception_block_28_spec_aux with
+    iApply (switcher_exception_block_39_spec_aux with
              "[- $HPC $Hcsp $Hcra $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hsave $Htok $Hcode]"); [done | done |].
     iNext; iIntros

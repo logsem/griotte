@@ -403,9 +403,11 @@ Section Switcher_preamble.
   Qed.
 
   (** [tf_export_tbl_ok tf]: the word [tf_export_tbl] of the frame [tf] is a
-      capability to an export table, at [tf_export_tbl_b tf]. *)
+      capability to an export table, at [tf_export_tbl_b tf], without
+      identifier: the switcher loads the table's header through it. *)
   Definition tf_export_tbl_ok (tf : trusted_frame) : Prop :=
-    exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw).
+    exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw) ∧
+    tf.(tf_export_tbl).(lprov) = None.
 
   (** The export table cell of a pushed frame, as the call path writes it:
       cleared, before the entry unseals... *)
@@ -424,7 +426,8 @@ Section Switcher_preamble.
     (lword_of_word (WCap true RO g b e a) = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf).
   Proof.
     intros Htbl Hb Ha Hshadow. right. split; first done.
-    rewrite /tf_export_tbl_ok /tf_export_tbl_b Htbl /=. by apply exp_tbl_cap_entry.
+    rewrite /tf_export_tbl_ok /tf_export_tbl_b Htbl /=. split; last done.
+    by apply exp_tbl_cap_entry.
   Qed.
 
   (** [trusted_frame_interp entry tf a_tstk] interprets the frame [tf] of the

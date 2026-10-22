@@ -807,6 +807,18 @@ Section griotte_lang_rules.
     trap_safe w E Φ.
   Proof. rewrite trap_safe_unseal. by iIntros "H". Qed.
 
+  (** [trap_safe] under an update, for a postcondition that holds of a
+      fault. *)
+  Lemma trap_safe_fupd (w : LWord) (E : coPset) (Φ : griotte_lang.val → iProp Σ) :
+    (|={E}=> trap_safe w E Φ) ∗
+    ▷ Φ FaultedV ⊢
+    trap_safe w E Φ.
+  Proof.
+    rewrite trap_safe_unseal /trap_safe_def.
+    iIntros "[H HΦ]". iSplit; last done.
+    iMod "H" as "[H _]". iExact "H".
+  Qed.
+
   (* A fault, from the configuration a faulting instruction returns: trap
      entry, then the continuation from the trap vector. *)
   Lemma wp_trap E Φ w :

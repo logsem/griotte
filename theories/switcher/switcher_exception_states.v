@@ -6,19 +6,30 @@ From griotte Require Import trusted_spill_registers_spec.
 (** * Shared interfaces of the exception path of the switcher
 
     The exception path runs from the exception entry ([exception_entry_asm],
-    block 21) to the forced unwind of the faulting compartment's call, or to
-    the resumption of a fault of the first spill of the call path. Its
-    block-group lemmas only depend on this file and on the specifications of
-    the spill and reload macros ([trusted_spill_registers_spec]):
+    block 21) to the forced unwind of the faulting compartment's call, to
+    the resumption of a fault of the first spill of the call path, or to the
+    invocation of an error handler. Its block-group lemmas only depend on
+    this file and on the specifications of the spill and reload macros
+    ([trusted_spill_registers_spec]):
     - [switcher_exception_blocks_1]: blocks 21-23, swap the trusted stack
       in from mtdc, spill the registers of the interrupted context in the
       register save area, then the PC, mstatus and the cause, and dispatch
       on the cause,
-    - [switcher_exception_blocks_2]: blocks 24-25, [.Lhandle_error]:
+    - [switcher_exception_blocks_2]: blocks 24 and 36, [.Lhandle_error]:
       restore mtdc, test for a fault of the switcher and for a trusted stack
-      with no frame, and force the unwind, or, for a fault of the first
-      spill of the call path, overwrite the saved return values,
-    - [switcher_exception_blocks_3]: block 28, [.Lcommon_context_install]:
+      with no frame; for a fault of the switcher, force the unwind or, for a
+      fault of the first spill of the call path, overwrite the saved return
+      values; otherwise, go on with the lookup of an error handler,
+    - [switcher_exception_blocks_4]: blocks 25-29, the lookup of an error
+      handler in the export table of the topmost frame: the room for the
+      [ErrorState] of a stackful handler, the stackful and the stackless
+      handlers, and the stack of a stackless handler,
+    - [switcher_exception_blocks_5]: blocks 30-32, the count of the fault
+      in the topmost frame, the handler's PC and CGP, the setup of a
+      stackless handler and the placeholder of the stackful setup,
+    - [switcher_exception_blocks_6]: blocks 33-35, the invocation of a
+      handler, its return, and the placeholder of the context install,
+    - [switcher_exception_blocks_3]: block 39, [.Lcommon_context_install]:
       install the context of the register save area and resume it.
 
     The specifications are thread-generic: they take the points-to of the
@@ -66,6 +77,24 @@ Section Switcher_Exception_States.
     iPureIntro. rewrite -Hlen finz_seq_between_length /finz.dist /tstack_save_end.
     pose proof trusted_stack_frames_fit as [n Hfit].
     tstack_unfold. solve_addr.
+  Qed.
+
+  (** The word [k] of the register save area. *)
+  Lemma tstack_save_area_acc (save : list LWord) (k : nat) (wk : LWord) :
+    save !! k = Some wk →
+    [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] -∗
+    (b_trusted_stack ^+ k)%a ↦ₐ wk ∗
+    ((b_trusted_stack ^+ k)%a ↦ₐ wk -∗ [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]]).
+  Proof.
+    iIntros (Hk) "Hsave".
+    iDestruct (tstack_save_area_length with "Hsave") as %Hlen.
+    pose proof trusted_stack_frames_fit as [n Hfit].
+    rewrite /region_pointsto.
+    iDestruct (big_sepL2_lookup_acc _ _ _ k with "Hsave") as "[Hw Hcont]"; [|exact Hk|].
+    { eapply finz_seq_between_lookup with (n := 21%nat).
+      - apply lookup_lt_Some in Hk. lia.
+      - rewrite /tstack_save_end. tstack_unfold. solve_addr. }
+    iFrame.
   Qed.
 
   (** The words of the register save area are in the bounds of the trusted

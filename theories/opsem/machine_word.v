@@ -522,6 +522,12 @@ Definition load_word (p : Perm) (w : Word) :=
   let borrow_dro_w := (if isDRO p then readonly borrow_w else borrow_w) in
   borrow_dro_w.
 
+(** A load through a capability that is neither deep-local nor
+    deep-read-only gives the word in memory. *)
+Lemma load_word_no_dl_dro (p : Perm) (w : Word) :
+  isDL p = false → isDRO p = false → load_word p w = w.
+Proof. intros Hdl Hdro. by rewrite /load_word Hdl Hdro. Qed.
+
 Definition load_word_perm (pload p : Perm) :=
   match p with
   | BPerm rx pw dl dro => (BPerm rx

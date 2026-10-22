@@ -24,6 +24,10 @@ Section Switcher.
   Definition ENOTENOUGHSTACK : Z := -140.
   Definition ENOTENOUGHTRUSTEDSTACK : Z := -141.
 
+  (** The number of faults after which the switcher stops invoking the
+      handlers of a compartment call, and forces the unwind. *)
+  Definition MAX_FAULTS_PER_COMPARTMENT_CALL : Z := 1024.
+
   (** The layout of the trusted stack, with CHERIoT's names (with
       [CONFIG_MSHWM]), counted in words: each field takes one word, including
       the 32-bit fields that CHERIoT packs in pairs. mtdc holds a capability
@@ -122,11 +126,13 @@ Section Switcher.
 
   (** [w] is a readable capability to the export table at [b], whose bounds
       cover the header of the table and avoid the shadow table: the switcher
-      reads the header through it, from its base. *)
+      reads the header through it, from its base. It is neither deep-local
+      nor deep-read-only: a load through it gives the word in memory. *)
   Definition exp_tbl_cap (b : Addr) (w : Word) : Prop :=
     ∃ p g e a, w = WCap true p g b e a ∧ readAllowed p = true ∧
                (b ^+ ExportTable_offset_errorHandlerStackless < e)%a ∧
-               disjoint_from_shadow b e.
+               disjoint_from_shadow b e ∧
+               isDL p = false ∧ isDRO p = false.
 
   (** The unsealed export entry, as the call path stores it. *)
   Lemma exp_tbl_cap_entry g b e a :
@@ -136,7 +142,7 @@ Section Switcher.
     exp_tbl_cap b (WCap true RO g b e a).
   Proof.
     intros Hb Ha Hshadow. eexists _, _, _, _.
-    split_and!; [done | done | | done].
+    split_and!; [done | done | | done | done | done].
     unfold ExportTable_offset_errorHandlerStackless in *; solve_addr.
   Qed.
 
@@ -413,11 +419,12 @@ Section Switcher.
         jnz (".Lhandle_error")%asm ca0;
         jmp (".Lexception_scheduler_call")%asm
       ]
-      ; (* A trap to be handled by the compartments: restore mtdc, then force
-         the unwind of the faulting compartment's call. A fault of the
-         switcher (whose PC has the base of the switcher's PC) goes to
-         [.Lhandle_error_in_switcher]. With no frame on the trusted stack,
-         the thread exits. *)
+      ; (* A trap to be handled by the compartments: restore mtdc. A fault of
+           the switcher (whose PC has the base of the switcher's PC) goes to
+           [.Lhandle_error_in_switcher]. With no frame on the trusted stack,
+           the thread exits. Otherwise, [ctp] points to the topmost frame,
+           [ct0] holds the faulting stack pointer, and [ca0] is cleared: it
+           is set when the handler found is stackless. *)
       [ #".Lhandle_error";
         writesr mtdc csp;
         auipcc ct0 0;
@@ -433,6 +440,151 @@ Section Switcher.
         sub ct1 ctp ct1;
         jnz 2 ct1;
         jmp (".Lcommon_thread_exit")%asm;
+        add ctp ctp (- TrustedStackFrame_size)%Z;
+        (* cincoffset ctp, csp, tp *)
+        mov ct1 ctp;
+        mov ctp csp;
+        lea ctp ct1;
+        mov ca0 0
+      ]
+      ; (* Room for the [ErrorState] of a stackful handler, above the cursor
+           of the faulting stack pointer (the layout is mirrored for
+           upward-growing stacks): a tagged capability with 16 words between
+           its cursor and its end. [cs1] holds the offset of an absent
+           handler. *)
+      [ #".Lhandle_error_stack_oob";
+        gettag ct1 ct0;
+        mov cs1 ExportTable_no_handler;
+        jnz 2 ct1;
+        jmp (".Lhandle_error_try_stackless")%asm;
+        getwtype ct1 ct0;
+        mov ct2 (encodeWordType wt_cap);
+        sub ct1 ct1 ct2;
+        jnz (".Lhandle_error_try_stackless")%asm ct1;
+        geta ct1 ct0;
+        add ct1 ct1 16;
+        gete ct2 ct0;
+        le ct1 ct1 ct2;
+        jnz 2 ct1;
+        jmp (".Lhandle_error_try_stackless")%asm
+      ]
+      ; (* The stackful handler of the export table of the topmost frame,
+           read through the table capability moved to its base. The load
+           faults when the cell of the frame is cleared. *)
+      [ #".Lhandle_error_try_stackful";
+        load_imm ct1 ctp TrustedStackFrame_offset_calleeExportTable;
+        getb cs0 ct1;
+        (* csetaddr ct1, ct1, s0 *)
+        geta ct2 ct1;
+        sub ct2 cs0 ct2;
+        lea ct1 ct2;
+        load_imm cs0 ct1 ExportTable_offset_errorHandler;
+        sub ct2 cs0 cs1;
+        jnz (".Lhandle_error_found")%asm ct2
+      ]
+      ; (* The stackless handler; with none, force the unwind. Its stack is
+           that of the caller of the topmost frame; for the entry frame, it
+           is the thread's stack, as is. *)
+      [ #".Lhandle_error_try_stackless";
+        load_imm ct1 ctp TrustedStackFrame_offset_calleeExportTable;
+        getb cs0 ct1;
+        (* csetaddr ct1, ct1, s0 *)
+        geta ct2 ct1;
+        sub ct2 cs0 ct2;
+        lea ct1 ct2;
+        load_imm cs0 ct1 ExportTable_offset_errorHandlerStackless;
+        sub ct2 cs0 cs1;
+        jnz 2 ct2;
+        jmp (".Lcommon_force_unwind")%asm;
+        load_imm ct0 ctp TrustedStackFrame_offset_csp;
+        (* cincoffset s1, csp, TrustedStack_offset_frames *)
+        mov cs1 csp;
+        lea cs1 TrustedStack_offset_frames;
+        geta cs1 cs1;
+        geta ct2 ctp;
+        sub cs1 cs1 ct2;
+        jnz 2 cs1;
+        jmp (".Lhandle_stack_recovered")%asm
+      ]
+      ; (* The stack of a pushed frame: the part above the cursor of the
+           caller's stack pointer, with the cursor at its end (mirrored for
+           upward-growing stacks). *)
+      [ #".Lhandle_stack_rebound";
+        geta ca1 ct0;
+        gete ca2 ct0;
+        subseg ct0 ca1 ca2;
+        sub ca1 ca2 ca1;
+        lea ct0 ca1
+      ]
+      ; (* A stackless handler. *)
+      [ #".Lhandle_stack_recovered";
+        mov ca0 1
+      ]
+      ; (* A handler was found: count it in the topmost frame. An even count
+           (a fault of a running handler) or too many faults force the
+           unwind. Otherwise, compute the handler's PC in [cra], from the PCC
+           of the export table, and its CGP in [cgp]. *)
+      [ #".Lhandle_error_found";
+        load_imm cs1 ctp TrustedStackFrame_offset_errorHandlerCount;
+        add cs1 cs1 1;
+        store_imm ctp cs1 TrustedStackFrame_offset_errorHandlerCount;
+        land cra cs1 1;
+        jnz 2 cra;
+        jmp (".Lcommon_force_unwind")%asm;
+        mov cra MAX_FAULTS_PER_COMPARTMENT_CALL;
+        (* bgtu s1, ra: a signed comparison *)
+        le cra cs1 cra;
+        jnz 2 cra;
+        jmp (".Lcommon_force_unwind")%asm;
+        load_imm cra ct1 ExportTable_offset_pcc;
+        load_imm cgp ct1 ExportTable_offset_cgp;
+        getb cs1 cra;
+        (* csetaddr ra, ra, s1 *)
+        geta ct2 cra;
+        sub ct2 cs1 ct2;
+        lea cra ct2;
+        lea cra cs0;
+        jnz 2 ca0;
+        jmp (".Lhandle_error_stack_setup")%asm
+      ]
+      ; (* The arguments of a stackless handler: the cause and the value of
+           the trap, and its stack. *)
+      [ #".Lhandle_error_stackless_setup";
+        load_imm ca0 csp TrustedStack_offset_mcause;
+        csrr ca1 mtval;
+        mov ca2 0;
+        mov csp ct0;
+        jmp (".Lhandle_error_handler_invoke")%asm
+      ]
+      ; (* The stackful handler is not supported yet: force the unwind. *)
+      [ #".Lhandle_error_stack_setup";
+        jmp (".Lcommon_force_unwind")%asm
+      ]
+      ; (* Invoke the handler, with interrupts enabled and the registers
+           cleared but its arguments, as
+           [zero_all_registers_except_asm [cra; csp; cgp; ca0; ca1; ca2]]
+           ([zero_all_registers_except_handler_invoke]). The link of the
+           [cjalr] is the return sentry of the handler,
+           [.Lhandle_error_handler_return]. The registers are cleared by an
+           explicit list, with [cnull] first: the assembled switcher is
+           computed, and the list of the kept registers cannot be filtered
+           by computation (register names are opaque). The label
+           [.Lhandle_error_handler_cjalr] does not exist in CHERIoT: it names
+           the [cjalr], whose fault is the PC of a nested fault. *)
+      (#".Lhandle_error_handler_invoke" ::
+         csrsi mstatus (Z.shiftl 1 MIE_BIT) ::
+         rclear_asm registers_handler_invoke ++
+         [ #".Lhandle_error_handler_cjalr";
+           jalr cra cra ])
+      ; (* The handler returns: disable interrupts. A request to unwind
+           ([ca0] not zero) forces the unwind. *)
+      [ #".Lhandle_error_handler_return";
+        csrci mstatus (Z.shiftl 1 MIE_BIT);
+        jnz (".Lcommon_force_unwind")%asm ca0
+      ]
+      ; (* The installation of the context of the handler is not supported
+           yet: force the unwind. *)
+      [ #".Lhandle_error_install_context";
         jmp (".Lcommon_force_unwind")%asm
       ]
       ; (* A fault of the switcher. A fault of the first spill of the call

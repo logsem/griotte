@@ -69,13 +69,25 @@ Section Switcher_error_handler.
 
   (** ** The handler invocation (mirrored for upward-growing stacks) *)
 
-  (** The sentry the switcher gives a handler in [cra] (link of the [cjalr],
-      interrupts enabled), named through the label
-      [.Lhandle_error_handler_return]. The switcher code does not yet contain
-      this label, which then resolves to offset 0. *)
-  Definition handler_return_sentry : LWord :=
-    WSentry (ret_kind InterruptEnabled) true XSRW_ Local b_switcher e_switcher
+  (** The sentry the switcher gives a handler in [cra]: the link of the
+      [cjalr] of [.Lhandle_error_handler_cjalr], to the next instruction,
+      [.Lhandle_error_handler_return]. Its kind follows the interrupt status
+      [mie] at the [cjalr], which the logic does not track. *)
+  Definition handler_return_sentry (mie : InterruptStatus) : LWord :=
+    WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher
       (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_return")%a.
+
+  (** The return label follows the [cjalr] (both labels exist: an undefined
+      label has offset 0). *)
+  Lemma handler_return_label_after_cjalr :
+    switcher_label_offset ".Lhandle_error_handler_return" =
+    (switcher_label_offset ".Lhandle_error_handler_cjalr" + 1)%Z.
+  Proof. reflexivity. Qed.
+
+  Lemma handler_return_sentry_pc (mie : InterruptStatus) :
+    lupdatePcPerm (handler_return_sentry mie) =
+    switcher_label_pc ".Lhandle_error_handler_return".
+  Proof. by destruct mie. Qed.
 
   (** The handler's PC, as the switcher computes it from the table's PCC
       [wpcc] and the handler offset [off]: the address set to the base, then
@@ -86,6 +98,37 @@ Section Switcher_error_handler.
     | MkLWord (WCap t p g b e _) π => (λ a, MkLWord (WCap t p g b e a) π) <$> (b + off)%a
     | _ => None
     end.
+
+  (** The word that the switcher computes in [cra] from the table's PCC
+      [wpcc] and the handler offset [off], for any [wpcc]: the cursor moved
+      to the base, then by [off] (two [Lea]s). *)
+  Definition handler_word (wpcc : LWord) (off : Z) : LWord :=
+    default wpcc
+      (lea_result wpcc (get_b wpcc.(lw) - get_a wpcc.(lw)) ≫= λ w, lea_result w off).
+
+  Lemma handler_word_entry (wpcc : LWord) (off : Z) (wpc : LWord) :
+    handler_entry wpcc off = Some wpc → handler_word wpcc off = wpc.
+  Proof.
+    destruct wpcc as [w π]. rewrite /handler_entry /handler_word /lea_result /=.
+    destruct_word w; try done; cbn.
+    rewrite (_ : (a + (b - a))%a = Some b); last solve_addr.
+    cbn. destruct (b + off)%a; cbn; by intros [=<-].
+  Qed.
+
+  (** When the computed word is not a handler's PC, the [cjalr] faults. *)
+  Lemma handler_word_none (wpcc : LWord) (off : Z) :
+    handler_entry wpcc off = None →
+    jalr_target_ok cra cra (handler_word wpcc off).(lw) = false.
+  Proof.
+    destruct wpcc as [w π]. rewrite /handler_entry /handler_word /lea_result /=.
+    destruct_word w; cbn; try done.
+    - rewrite (_ : (a + (b - a))%a = Some b); last solve_addr.
+      cbn. by destruct (b + off)%a.
+    - intros _.
+      destruct (a + (b - a))%ot; cbn; destruct (_ + off)%ot; cbn;
+        rewrite /jalr_target_ok /= ?andb_false_r; done.
+    - intros _. destruct sb; cbn; done.
+  Qed.
 
   (** The registers of the [ErrorState], in the order of the register save
       area (words 1 to 15; word 0 is MEPCC). *)
@@ -169,7 +212,7 @@ Section Switcher_error_handler.
   Definition handler_invocation_regs (kind : handler_kind) (cstk : CSTK) (wcgp : LWord)
     (rfault : LReg) (mcause mtval : Z) (regs : LReg) : Prop :=
     (∀ r, is_Some (regs !! r)) ∧
-    regs !! cra = Some handler_return_sentry ∧
+    (∃ mie, regs !! cra = Some (handler_return_sentry mie)) ∧
     regs !! cgp = Some wcgp ∧
     match kind with
     | Stackful =>
@@ -259,7 +302,8 @@ Section Switcher_error_handler.
       - a fault in a trusted compartment whose table declares trusted
         handlers for some [P_fault]: the site proves [P_fault] and lends the
         slot ([F = ⊤]: the handler runs with the whole token);
-      - a fault in a running trusted handler (the top count is odd).
+      - a fault in a running trusted handler (the top count is odd), with
+        the handler words of the header of its table.
       Each case gives the site's unwind continuation. *)
   Definition trap_handler_ok_def (F : coPset) (cstk : CSTK) (w : LWord) (regs : LReg)
     : iProp Σ :=
@@ -274,7 +318,10 @@ Section Switcher_error_handler.
          error_state_slot eh regs ∗
          unwind_cont ⊤ cstk (error_state_slot eh regs))
     ∨ (unwind_cont F cstk True ∗
-       ⌜Z.odd (top_error_count cstk) = true⌝) ).
+       ⌜Z.odd (top_error_count cstk) = true⌝ ∗
+       ∃ eh ehs : Z,
+         top_export_tbl cstk ↦ₕ□{stackful} eh ∗
+         top_export_tbl cstk ↦ₕ□{stackless} ehs) ).
   #[local] Definition trap_handler_ok_aux : seal (@trap_handler_ok_def). Proof. by eexists. Qed.
   Definition trap_handler_ok := trap_handler_ok_aux.(unseal).
   #[local] Definition trap_handler_ok_unseal :
@@ -319,30 +366,36 @@ Section Switcher_error_handler.
   Qed.
 
   (** A fault in a running trusted handler. *)
-  Lemma trap_handler_ok_running F cstk w regs :
+  Lemma trap_handler_ok_running F cstk w regs (eh ehs : Z) :
     trap_no_resume w →
     Z.odd (top_error_count cstk) = true →
+    top_export_tbl cstk ↦ₕ□{stackful} eh -∗
+    top_export_tbl cstk ↦ₕ□{stackless} ehs -∗
     unwind_cont F cstk True -∗
     trap_handler_ok F cstk w regs.
   Proof.
-    rewrite trap_handler_ok_unseal. iIntros (Hno Hodd) "HU".
+    rewrite trap_handler_ok_unseal. iIntros (Hno Hodd) "Heh Hehs HU".
     iSplit; first done. iRight; iRight. by iFrame.
   Qed.
 
-  (** Every case unwinds: the fault is not resumed, and the site gave its
-      unwind continuation and the resources that it takes back. This is all
-      the trap vector uses while the switcher force-unwinds every fault. *)
-  Lemma trap_handler_ok_unwind F cstk w regs :
+  (** The three cases, unsealed. *)
+  Lemma trap_handler_ok_cases F cstk w regs :
     trap_handler_ok F cstk w regs -∗
     ⌜trap_no_resume w⌝ ∗
-    ∃ R_unwind_stk : iProp Σ, R_unwind_stk ∗ unwind_cont F cstk R_unwind_stk.
-  Proof.
-    rewrite trap_handler_ok_unseal.
-    iIntros "[%Hno [[HU _] | [[-> (%P_fault & %eh & _ & _ & _ & Hslot & HU)] | [HU _]]]]";
-      iSplit; try done.
-    - iExists True%I. by iFrame.
-    - iExists _. iFrame.
-    - iExists True%I. by iFrame.
-  Qed.
+    ( (unwind_cont F cstk True ∗
+       (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)))
+    ∨ (⌜F = ⊤⌝ ∗
+       ∃ (P_fault : CSTK → LWord → LReg → iProp Σ) (eh : Z),
+         trusted_handler (top_export_tbl cstk) P_fault ∗
+         top_export_tbl cstk ↦ₕ□{stackful} eh ∗
+         P_fault cstk w regs ∗
+         error_state_slot eh regs ∗
+         unwind_cont ⊤ cstk (error_state_slot eh regs))
+    ∨ (unwind_cont F cstk True ∗
+       ⌜Z.odd (top_error_count cstk) = true⌝ ∗
+       ∃ eh ehs : Z,
+         top_export_tbl cstk ↦ₕ□{stackful} eh ∗
+         top_export_tbl cstk ↦ₕ□{stackless} ehs) ).
+  Proof. rewrite trap_handler_ok_unseal. iIntros "H". iExact "H". Qed.
 
 End Switcher_error_handler.
