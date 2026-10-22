@@ -180,79 +180,6 @@ Notation "a ↦ₑ□{stack} m" := (entry_min_stack a m)
 Notation "a ↦ₑ□{irq} ie" := (entry_irq a ie)
   (at level 20, format "a  ↦ₑ□{irq}  ie") : bi_scope.
 
-Section Handler_projections.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
-
-  (** Projections of the header of the export table at [b]: the offset [z]
-      of its stackful error handler ([handler_stackful]) and of its
-      stackless one ([handler_stackless]), [ExportTable_no_handler] for none. Each is
-      persistent. *)
-  Definition handler_stackful_def (b : Addr) (z : Z) : iProp Σ :=
-    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
-    a_eh ↦ₐ□ WInt z.
-  #[local] Definition handler_stackful_aux : seal (@handler_stackful_def). Proof. by eexists. Qed.
-  Definition handler_stackful := handler_stackful_aux.(unseal).
-  #[local] Definition handler_stackful_unseal :
-    @handler_stackful = @handler_stackful_def := handler_stackful_aux.(seal_eq).
-
-  Definition handler_stackless_def (b : Addr) (z : Z) : iProp Σ :=
-    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
-    a_ehs ↦ₐ□ WInt z.
-  #[local] Definition handler_stackless_aux : seal (@handler_stackless_def). Proof. by eexists. Qed.
-  Definition handler_stackless := handler_stackless_aux.(unseal).
-  #[local] Definition handler_stackless_unseal :
-    @handler_stackless = @handler_stackless_def := handler_stackless_aux.(seal_eq).
-
-  #[global] Instance handler_stackful_persistent b z : Persistent (handler_stackful b z).
-  Proof. rewrite handler_stackful_unseal. apply _. Qed.
-  #[global] Instance handler_stackless_persistent b z : Persistent (handler_stackless b z).
-  Proof. rewrite handler_stackless_unseal. apply _. Qed.
-
-  Lemma handler_stackful_intro b z :
-    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
-    a_eh ↦ₐ□ WInt z ⊢ handler_stackful b z.
-  Proof. by rewrite handler_stackful_unseal. Qed.
-  Lemma handler_stackless_intro b z :
-    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
-    a_ehs ↦ₐ□ WInt z ⊢ handler_stackless b z.
-  Proof. by rewrite handler_stackless_unseal. Qed.
-
-  Lemma handler_stackful_elim b z :
-    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
-    handler_stackful b z ⊢ a_eh ↦ₐ□ WInt z.
-  Proof. by rewrite handler_stackful_unseal. Qed.
-  Lemma handler_stackless_elim b z :
-    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
-    handler_stackless b z ⊢ a_ehs ↦ₐ□ WInt z.
-  Proof. by rewrite handler_stackless_unseal. Qed.
-
-  Lemma handler_stackful_agree b z z' :
-    handler_stackful b z -∗ handler_stackful b z' -∗ ⌜z = z'⌝.
-  Proof.
-    rewrite handler_stackful_unseal. iIntros "Ha Ha'".
-    iDestruct (pointsto_agree with "Ha Ha'") as %Heq. by simplify_eq.
-  Qed.
-  Lemma handler_stackless_agree b z z' :
-    handler_stackless b z -∗ handler_stackless b z' -∗ ⌜z = z'⌝.
-  Proof.
-    rewrite handler_stackless_unseal. iIntros "Ha Ha'".
-    iDestruct (pointsto_agree with "Ha Ha'") as %Heq. by simplify_eq.
-  Qed.
-
-  (** The compartment of the export table at [b] declares no error
-      handler. *)
-  Definition no_handler (b : Addr) : iProp Σ :=
-    handler_stackful b ExportTable_no_handler ∗ handler_stackless b ExportTable_no_handler.
-
-  #[global] Instance no_handler_persistent b : Persistent (no_handler b).
-  Proof. apply _. Qed.
-End Handler_projections.
-
-Notation "b ↦ₕ□{stackful} z" := (handler_stackful b z)
-  (at level 20, format "b  ↦ₕ□{stackful}  z") : bi_scope.
-Notation "b ↦ₕ□{stackless} z" := (handler_stackless b z)
-  (at level 20, format "b  ↦ₕ□{stackless}  z") : bi_scope.
-
 Section Switcher_preamble.
   Context
     {Σ:gFunctors}
@@ -325,10 +252,15 @@ Section Switcher_preamble.
       It is the WP rule to prove to show that the execution of an entry point is valid.
       In case of known code entry point, it contains all the information available when invoked.
       In case of unknown code entry point, we can show this by validity of
-      the code and data capability (see the use of [fundamental] in [ot_switcher_interp]).
+      the code and data capability (see [fundamental_execute_entry_point]).
+
+      [b_tbl] is the base of the callee's export table: the switcher has pushed a
+      frame for this call, so the call stack is not empty, and its topmost frame
+      records [b_tbl] ([top_callee_tbl]). For unknown code, this is what builds
+      [top_cmpt_untrusted].
 
       An important point is the use of [csp_sync] and the stack capability [WCap true RWL Local a_stk4 e_stk a_stk4].
-      If the call stack is not empty, we know that the caller's stack looks like
+      We know that the caller's stack looks like
       [WCap true RWL Local b_stk e_stk a_stk] (it is tested by the switcher's call routine).
       The switcher reserves the area `[a_stk, a_stk+4)` for the callee-saved area,
       and passes the rest, i.e. `[a_stk+4, e_stk)`  to the callee.
@@ -341,13 +273,16 @@ Section Switcher_preamble.
       to re-instate validity of the caller's stack.
       This will become clearer in the proof of [switcher_ret_specification].
    *)
-  Program Definition execute_entry_point (wpcc wcgp : LWord) (nargs minstk : nat) :
+  Program Definition execute_entry_point (b_tbl : Addr) (wpcc wcgp : LWord) (nargs minstk : nat) :
     (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
       ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) regs a_stk e_stk,
        let a_stk4 := (a_stk ^+4)%a in
        ( interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
+         (* The switcher pushed a frame for the call of the compartment of the
+            export table at [b_tbl]. *)
+         ∗ ⌜cstk ≠ [] ∧ top_callee_tbl cstk b_tbl⌝
          ∗ PC ↦ₚ wpcc
          ∗ (execute_entry_point_register wcgp (WCap true RWL Local a_stk4 e_stk a_stk4) nargs W C regs)
          ∗ registers_pointsto regs
@@ -387,7 +322,8 @@ Section Switcher_preamble.
       (the switcher clears the other argument registers); callers of a known entry
       read it through [↦ₑ□{nargs}] on the entry's address or its sealable.
 
-      Finally, [execute_entry_point] is called, with [PCC+off] in the [PC],
+      Finally, [execute_entry_point] is called with the table base [b_tbl],
+      [PCC+off] in the [PC],
       and the callee knows that its stack has at least [minstk] words.
       It is guarded by a □-modality, because the entry point can be invoked at any time.
       Similarly, [related_sts_priv_world].
@@ -423,7 +359,7 @@ Section Switcher_preamble.
              a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
            "#Hentry_cont" ∷
              □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
-                   ▷ (execute_entry_point
+                   ▷ (execute_entry_point b_tbl
                             (WCap true RX Global bpcc epcc (bpcc ^+ off)%a)
                             (WCap true RW Global bcgp ecgp bcgp)
                             nargs minstk

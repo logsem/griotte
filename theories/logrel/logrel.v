@@ -177,10 +177,66 @@ Section logrel.
         by apply IHcstk.
   Qed.
 
+  (** [top_cmpt_untrusted interp W C cstk] states that the compartment of the
+      callee of the topmost frame of [cstk] is untrusted: the PCC and the CGP
+      of its export table are safe in every private future world of [W]. It
+      also records the handler offsets of the header of that table. A thread
+      starts in a trusted compartment, so it is [False] for an empty call
+      stack. *)
+  Definition top_cmpt_untrusted (interp : V) (W : WORLD) (C : CmptName) (cstk : CSTK)
+    : iProp Σ :=
+    match cstk with
+    | frm :: _ =>
+        let b_tbl := frm.(b_callee_exp_tbl) in
+        let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
+        ∃ (pcc cgp : LWord) (eh ehs : Z),
+          b_tbl ↦ₐ□ pcc ∗
+          a_tbl_cgp ↦ₐ□ cgp ∗
+          b_tbl ↦ₕ□{stackful} eh ∗
+          b_tbl ↦ₕ□{stackless} ehs ∗
+          □ ∀ W', ⌜related_sts_priv_world W W'⌝ → interp W' C pcc ∗ interp W' C cgp
+    | [] => False
+    end.
+
+  #[global] Instance top_cmpt_untrusted_persistent interp W C cstk :
+    Persistent (top_cmpt_untrusted interp W C cstk).
+  Proof. destruct cstk; apply _. Qed.
+
+  #[global] Instance top_cmpt_untrusted_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) top_cmpt_untrusted.
+  Proof.
+    intros interp interp' Heq W ? <- C ? <- cstk ? <-.
+    destruct cstk; [done|]. rewrite /top_cmpt_untrusted. solve_proper.
+  Qed.
+
+  Lemma top_cmpt_untrusted_mono_priv interp W W' C cstk :
+    related_sts_priv_world W W' →
+    top_cmpt_untrusted interp W C cstk -∗ top_cmpt_untrusted interp W' C cstk.
+  Proof.
+    iIntros (Hrelated) "Htop".
+    destruct cstk as [|frm cstk]; first done.
+    iDestruct "Htop" as (pcc cgp eh ehs) "(Hpcc & Hcgp & Heh & Hehs & #Hinterp)".
+    iExists pcc, cgp, eh, ehs. iFrame.
+    iIntros "!>" (W'' Hrelated').
+    iApply "Hinterp". iPureIntro.
+    by eapply related_sts_priv_trans_world.
+  Qed.
+
+  Lemma top_cmpt_untrusted_mono_pub interp W W' C cstk :
+    related_sts_pub_world W W' →
+    top_cmpt_untrusted interp W C cstk -∗ top_cmpt_untrusted interp W' C cstk.
+  Proof.
+    intros Hrelated. apply top_cmpt_untrusted_mono_priv.
+    by apply related_sts_pub_priv_world.
+  Qed.
+
+  (** Safe execution from [wpc]: with safe registers, in an untrusted topmost
+      compartment ([top_cmpt_untrusted]), and the continuation of [cstk]. *)
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
     (λne (W : WORLD) (C : CmptName) (wpc : LWord),
        ∀ cstk Ws Cs regs,
        ( interp_reg interp W C regs
+        ∗ top_cmpt_untrusted interp W C cstk
         ∗ PC ↦ₚ wpc
         ∗ registers_pointsto regs
         ∗ world_interp W C
@@ -524,8 +580,8 @@ Section logrel.
       [interp_cont] contains 3 components:
       - the recursive part of the definition, stating that the rest of the stack is also part of the continuation
       - safety of the stack callee stack pointer
-      - [interp_cont_exec], which provides a WP rule for the continuation,
-        matching the machine state after the return-to-caller
+      - for a trusted caller, [interp_cont_exec], which provides a WP rule for
+        the continuation, matching the machine state after the return-to-caller
 
       Each known caller records only its pure machine frame. The continuation
       accepts the four words restored by the switcher, each related to its
@@ -534,7 +590,9 @@ Section logrel.
 
       Unknown callers use the logical relation on the actual words loaded
       from their shared stack. Their frame's placeholder words do not classify
-      those saved words and carry no restoration obligation here.
+      those saved words. Untrusted callers instead record
+      [top_cmpt_untrusted] of their own call stack at their world, for the
+      return to them.
 
       The "body" of continuation relation is only enforced if the caller-callee relation
       involves an unknown compartment.
@@ -551,8 +609,10 @@ Section logrel.
          else
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              interp_callee_part_of_the_stack interp Wt Ct (WCap true RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
-             (* The continuation when matching the switcher's state at return-to-caller *)
-             ∗ (if is_untrusted_caller_frm frm then True else
+             (* An untrusted caller records that its topmost compartment is
+                untrusted, for the return to it; a trusted caller, the
+                continuation matching the switcher's state at return-to-caller *)
+             ∗ (if is_untrusted_caller_frm frm then top_cmpt_untrusted interp Wt Ct cstk' else
                     (∀ W', ⌜related_sts_pub_world Wt W'⌝
                       -∗ interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs')
                            cstk' W' Ct frm))))%I
@@ -565,18 +625,19 @@ Section logrel.
     intros interp interp0 Heq x y -> W W0 -> C C0 ->.
     generalize dependent W0.
     generalize dependent C0.
-    induction y; intros C0 W0;[simpl;f_equiv|].
+    induction y as [|frm y IH]; intros C0 W0;[simpl;f_equiv|].
     destruct W0 as [|Wt Ws], C0 as [|Ct Cs]; [reflexivity|reflexivity|reflexivity|].
     cbn [interp_cont_aux].
-    apply bi.sep_ne; first apply IHy.
-    destruct (is_known_to_known_frm a); first done.
+    apply bi.sep_ne; first apply IH.
+    destruct (is_known_to_known_frm frm); first done.
     apply bi.sep_ne.
     { unfold interp_callee_part_of_the_stack. apply bi.sep_ne; first reflexivity. apply Heq. }
-    destruct (is_untrusted_caller_frm a); first done.
+    destruct (is_untrusted_caller_frm frm).
+    { by apply top_cmpt_untrusted_ne. }
     apply bi.forall_ne; intros W'.
     apply bi.wand_ne; first reflexivity.
-    exact (interp_cont_exec_ne n interp interp0 Heq _ _ (IHy Cs Ws)
-      y W' Ct a).
+    exact (interp_cont_exec_ne n interp interp0 Heq _ _ (IH Cs Ws)
+      y W' Ct frm).
   Qed.
 
   Program Definition interp_cont (interp : V) : K :=
@@ -1083,15 +1144,16 @@ Section logrel.
   (** The trap vector [wvec] is safe: in every world and compartment, after
       trap entry from any PC [w], execution from [wvec] is safe. The
       registers may hold anything when the trap vector does not resume the
-      faulting context ([trap_no_resume w]); otherwise they are safe. Trap
-      entry lends MEPCC and mcause to the trap vector ([trap_entry_out w])
-      and holds the trap-entry part [N_trap] of the non-atomic token. *)
+      faulting context ([trap_no_resume w]); otherwise they are safe and the
+      compartment of the topmost frame is untrusted. Trap entry lends MEPCC
+      and mcause to the trap vector ([trap_entry_out w]) and holds the
+      trap-entry part [N_trap] of the non-atomic token. *)
   Definition trap_vector_safe (trap_no_resume : LWord → Prop) (wvec : LWord) : iProp Σ :=
     □ ∀ (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
         (regs : LReg) (w : LWord),
       ⌜∀ r, is_Some (regs !! r)⌝ -∗
       ⌜frame_match Ws Cs cstk W C⌝ -∗
-      (⌜trap_no_resume w⌝ ∨ interp_reg interp W C regs) -∗
+      (⌜trap_no_resume w⌝ ∨ (interp_reg interp W C regs ∗ top_cmpt_untrusted interp W C cstk)) -∗
       PC ↦ₚ wvec -∗
       trap_entry_out w -∗
       registers_pointsto regs -∗
@@ -1107,14 +1169,15 @@ Section logrel.
 
   (** A fault closes through a safe trap vector: after exception entry, the
       PC holds the trap vector and execution is safe. The registers need to
-      be safe only when the trap vector may resume the faulting context. *)
+      be safe, and the topmost compartment untrusted, only when the trap
+      vector may resume the faulting context. *)
   Lemma interp_trap (trap_no_resume : LWord → Prop)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (wvec w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
     trap_vector_safe trap_no_resume wvec -∗
-    (⌜trap_no_resume w⌝ ∨ interp_reg interp W C regs) -∗
+    (⌜trap_no_resume w⌝ ∨ (interp_reg interp W C regs ∗ top_cmpt_untrusted interp W C cstk)) -∗
     registers_pointsto regs -∗
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
@@ -1132,14 +1195,15 @@ Section logrel.
       under an update at the time of the fault (for instance, to close an
       invariant); the non-atomic token provides the trap-entry token, and
       the trap vector receives MEPCC and mcause. The registers need to be
-      safe only when the trap vector may resume the faulting context. *)
+      safe, and the topmost compartment untrusted, only when the trap vector
+      may resume the faulting context. *)
   Lemma interp_trap_safe (trap_no_resume : LWord → Prop)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
     trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
-    (⌜trap_no_resume w⌝ ∨ interp_reg interp W C regs) -∗
+    (⌜trap_no_resume w⌝ ∨ (interp_reg interp W C regs ∗ top_cmpt_untrusted interp W C cstk)) -∗
     (|={⊤}=>
        registers_pointsto regs ∗
        world_interp W C ∗

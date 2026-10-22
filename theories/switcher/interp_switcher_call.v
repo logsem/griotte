@@ -17,10 +17,13 @@ From griotte Require Import map_simpl register_tactics proofmode.
 (** The register file at a fault of the first spill of the call path is
     safe: the checks leave integers in [ct2] and [ctp], and the other
     registers hold the caller's safe words. [Hfull] states that the
-    caller's register map [regs] is full, and the Iris hypothesis [Hreg]
-    that its words are safe ([∀ r v, ⌜regs !! r = Some v⌝ → interp W C v]). *)
-Ltac first_spill_regs_interp Hfull Hreg :=
+    caller's register map [regs] is full, the Iris hypothesis [Hreg]
+    that its words are safe ([∀ r v, ⌜regs !! r = Some v⌝ → interp W C v]),
+    and the Iris hypothesis [Htop] that the topmost compartment is
+    untrusted. *)
+Ltac first_spill_regs_interp Hfull Hreg Htop :=
   iRight;
+  iSplit; last iExact Htop;
   iApply interp_reg_intro;
   [intros ?; repeat (rewrite lookup_insert_is_Some'; right); apply Hfull |];
   let r := fresh "r" in
@@ -153,6 +156,7 @@ Section fundamental.
     interp W C wcra ∗
     interp W C wcgp ∗
     interp W C (WCap true RWL Local b e a) ∗
+    top_cmpt_untrusted interp W C cstk ∗
     (▷ switcher_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
@@ -188,7 +192,7 @@ Section fundamental.
        then close the switcher invariant and
        [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hdom Hframe Hstk_bounds Hstk_mmio Hlen_lv Hlen_cstk Ha_tstk_e Hot_bounds)
-      "(#Htrap & #Hcs0v & #Hcs1v & #Hcrav & #Hcgpv & #Hspv & Hclose_switcher_inv & Hna & Hmtdc
+      "(#Htrap & #Hcs0v & #Hcs1v & #Hcrav & #Hcgpv & #Hspv & #Htop & Hclose_switcher_inv & Hna & Hmtdc
       & Hsave_area & Hframeoffset & HthreadID & Htstk
       & #Hstatic & Hcstk_full & Hstk_interp & #Hp_ot_switcher & HPC & Hcs0 & Hcs1 & Hcgp
       & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk & Hstk_opened & Hrmap & Hcont & Hcstk)".
@@ -227,7 +231,7 @@ Section fundamental.
     (* Jump back to the caller, or unwind the call when the jump faults;
        close the switcher invariant first *)
     iApply (switcher_jump_to_caller_cases_spec with
-             "Htrap Hrcrav Hrcgpv Hrcs0v Hrcs1v Hspv [] [] Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
+             "Htrap Hrcrav Hrcgpv Hrcs0v Hrcs1v Hspv [] [] Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
               Hrmap Hcont [-]"); [done|done|iApply interp_int|iApply interp_int|].
     iMod ("Hclose_switcher_inv" with
       "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "HH".
@@ -266,7 +270,7 @@ Section fundamental.
          push the frame and [switcher_call_stack_too_small_unwind];
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros (HNtrap) "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs0 [Hregs (HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros (HNtrap) "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %regs0 (Hregs & #Htop & HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)".
     iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
     iIntros (regs) "%Hfull_rmap #Hreg Hrmap Hworld_interp". clear regs0.
     rewrite /registers_pointsto.
@@ -370,7 +374,7 @@ Section fundamental.
              [done| |done| |by iFrame].
            { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
            (* A fault of the first spill: the registers are safe *)
-           first_spill_regs_interp Hfull_rmap "Hreg". }
+           first_spill_regs_interp Hfull_rmap "Hreg" "Htop". }
          (* The cursor is below the base, and the furthest cell within
             bounds: open the caller's stack from that cell *)
          destruct (Hnot_stk b e a eq_refl) as [Hab|Hea]; last solve_addr.
@@ -471,7 +475,7 @@ Section fundamental.
         by iFrame. }
       { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
       (* A fault of the first spill: the registers are safe *)
-      first_spill_regs_interp Hfull_rmap "Hreg". }
+      first_spill_regs_interp Hfull_rmap "Hreg" "Htop". }
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
     assert (4 <= length lv) as Hlen_lv4.
@@ -483,7 +487,7 @@ Section fundamental.
     { (* The trusted stack is exhausted *)
       iApply (interp_switcher_call_tstack_exhausted _ W C Nswitcher cstk _ Ws Cs _ b e a lv
                 wcs0 wcs1 wcra wcgp with
-        "[$Htrap $Hcs0v $Hcs1v $Hcrav $Hcgpv $Hspv $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area
+        "[$Htrap $Hcs0v $Hcs1v $Hcrav $Hcgpv $Hspv $Htop $Hclose_switcher_inv $Hna $Hmtdc $Hsave_area
           $Hframeoffset $HthreadID $Htstk $Hstatic
           $Hcstk_full $Hstk_interp $Hp_ot_switcher $HPC $Hcs0 $Hcs1 $Hcgp $Hcra
           $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk $Hstk_opened $Hrmap $Hcont $Hcstk]"); try done.
@@ -541,7 +545,7 @@ Section fundamental.
         iModIntro.
         iFrame "Hrmap Hworld_interp Hcstk Hna Hcont".
         simpl.
-        iSplit; last done.
+        iSplit; last iExact "Htop".
         iSplit; first (iPureIntro; exact Hstk_heap).
         iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
       intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
@@ -655,7 +659,7 @@ Section fundamental.
       { simpl. split; [apply related_sts_pub_refl_world|done]. }
       iFrame "Hcont".
       simpl.
-      iSplit; last done.
+      iSplit; last iExact "Htop".
       iSplit; first (iPureIntro; exact Hstk_heap).
       iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
     iIntros (mie arg_rmap' rmap'')
@@ -684,9 +688,10 @@ Section fundamental.
       iSplit.
       - iSplit; first (iPureIntro; exact Hstk_heap).
         iApply (interp_weakening with "IH Hspv");auto;solve_addr.
-      - done. }
+      - iExact "Htop". }
     iSplit.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
+    iSplit; first (iPureIntro; split; [done | reflexivity]).
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
     iPureIntro; split; [split; [split; reflexivity | solve_addr] | exact Hbig].
   Qed.

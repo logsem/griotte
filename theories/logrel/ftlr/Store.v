@@ -553,7 +553,7 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
       iApply ("IH" $! _ _ _ _ _ regs p g b e apc' None
-               with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
+               with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]"); auto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { exfalso. pose proof (Hnonshadow p0 g0 b0 e0 a0 ea0 Hallow0). congruence. }
@@ -562,7 +562,7 @@ Section fundamental.
       iDestruct ("WorldRes" with "[$Ha $Hinterp $HmonoV]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply (ftlr_trap with "Htrap Hreg HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
+      iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
     Unshelve. all: auto.
   Qed.
 

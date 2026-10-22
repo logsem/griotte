@@ -3,7 +3,7 @@ From iris.algebra Require Import excl_auth.
 From iris.base_logic Require Import own.
 From griotte Require Import griotte_lang.
 From griotte Require Export cerise_instance machine_parameters machine_word machine_base addresses.
-From griotte Require Export logical_words.
+From griotte Require Export logical_words export_table_layout.
 
 
 (** The relationship between the caller and the callee determines
@@ -161,3 +161,84 @@ Section pre_CSTACK.
   Qed.
 
 End pre_CSTACK.
+
+Section Handler_projections.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
+
+  (** Projections of the header of the export table at [b]: the offset [z]
+      of its stackful error handler ([handler_stackful]) and of its
+      stackless one ([handler_stackless]), [ExportTable_no_handler] for none. Each is
+      persistent. *)
+  Definition handler_stackful_def (b : Addr) (z : Z) : iProp Σ :=
+    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    a_eh ↦ₐ□ WInt z.
+  #[local] Definition handler_stackful_aux : seal (@handler_stackful_def). Proof. by eexists. Qed.
+  Definition handler_stackful := handler_stackful_aux.(unseal).
+  #[local] Definition handler_stackful_unseal :
+    @handler_stackful = @handler_stackful_def := handler_stackful_aux.(seal_eq).
+
+  Definition handler_stackless_def (b : Addr) (z : Z) : iProp Σ :=
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    a_ehs ↦ₐ□ WInt z.
+  #[local] Definition handler_stackless_aux : seal (@handler_stackless_def). Proof. by eexists. Qed.
+  Definition handler_stackless := handler_stackless_aux.(unseal).
+  #[local] Definition handler_stackless_unseal :
+    @handler_stackless = @handler_stackless_def := handler_stackless_aux.(seal_eq).
+
+  #[global] Instance handler_stackful_persistent b z : Persistent (handler_stackful b z).
+  Proof. rewrite handler_stackful_unseal. apply _. Qed.
+  #[global] Instance handler_stackless_persistent b z : Persistent (handler_stackless b z).
+  Proof. rewrite handler_stackless_unseal. apply _. Qed.
+
+  Lemma handler_stackful_intro b z :
+    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    a_eh ↦ₐ□ WInt z ⊢ handler_stackful b z.
+  Proof. by rewrite handler_stackful_unseal. Qed.
+  Lemma handler_stackless_intro b z :
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    a_ehs ↦ₐ□ WInt z ⊢ handler_stackless b z.
+  Proof. by rewrite handler_stackless_unseal. Qed.
+
+  Lemma handler_stackful_elim b z :
+    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    handler_stackful b z ⊢ a_eh ↦ₐ□ WInt z.
+  Proof. by rewrite handler_stackful_unseal. Qed.
+  Lemma handler_stackless_elim b z :
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    handler_stackless b z ⊢ a_ehs ↦ₐ□ WInt z.
+  Proof. by rewrite handler_stackless_unseal. Qed.
+
+  Lemma handler_stackful_agree b z z' :
+    handler_stackful b z -∗ handler_stackful b z' -∗ ⌜z = z'⌝.
+  Proof.
+    rewrite handler_stackful_unseal. iIntros "Ha Ha'".
+    iDestruct (pointsto_agree with "Ha Ha'") as %Heq. by simplify_eq.
+  Qed.
+  Lemma handler_stackless_agree b z z' :
+    handler_stackless b z -∗ handler_stackless b z' -∗ ⌜z = z'⌝.
+  Proof.
+    rewrite handler_stackless_unseal. iIntros "Ha Ha'".
+    iDestruct (pointsto_agree with "Ha Ha'") as %Heq. by simplify_eq.
+  Qed.
+
+  (** The compartment of the export table at [b] declares no error
+      handler. *)
+  Definition no_handler (b : Addr) : iProp Σ :=
+    handler_stackful b ExportTable_no_handler ∗ handler_stackless b ExportTable_no_handler.
+
+  #[global] Instance no_handler_persistent b : Persistent (no_handler b).
+  Proof. apply _. Qed.
+End Handler_projections.
+
+Notation "b ↦ₕ□{stackful} z" := (handler_stackful b z)
+  (at level 20, format "b  ↦ₕ□{stackful}  z") : bi_scope.
+Notation "b ↦ₕ□{stackless} z" := (handler_stackless b z)
+  (at level 20, format "b  ↦ₕ□{stackless}  z") : bi_scope.
+
+(** The callee of the topmost frame of [cstk], if any, has its export table
+    at [b]. *)
+Definition top_callee_tbl (cstk : cstack) (b : Addr) : Prop :=
+  match cstk with
+  | frm :: _ => frm.(b_callee_exp_tbl) = b
+  | [] => True
+  end.

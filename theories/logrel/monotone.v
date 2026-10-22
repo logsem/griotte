@@ -613,17 +613,18 @@ Lemma interp_monotone_continuation
   related_sts_pub_world W W' ->
   interp_continuation cstk (W :: Ws) (C :: Cs) -∗ interp_continuation cstk (W' :: Ws) (C :: Cs).
 Proof.
-  revert Ws Cs; induction cstk;intros Ws Cs; simpl;auto.
+  revert Ws Cs; induction cstk as [|frm cstk IH];intros Ws Cs; simpl;auto.
   iIntros (Hrel) "[Hic Hk]".
-  destruct (is_known_to_known_frm a); first (by iFrame).
-  iDestruct "Hk" as "[Hcallee Hrestore]".
+  destruct (is_known_to_known_frm frm); first (by iFrame).
+  iDestruct "Hk" as "[Hcallee Htopmost_frm]".
   iSplitL "Hic"; [|iSplitL "Hcallee"].
   - iFrame.
   - iDestruct "Hcallee" as "[%Hheap Hcallee]".
     iSplit; first done.
     iApply (interp_monotone_cap_nonheap with "Hcallee"); naive_solver.
-  - destruct (is_untrusted_caller_frm a); first done.
-    iIntros (W'' Hrel'). iApply "Hrestore". iPureIntro.
+  - destruct (is_untrusted_caller_frm frm).
+    { by iApply (top_cmpt_untrusted_mono_pub with "Htopmost_frm"). }
+    iIntros (W'' Hrel'). iApply "Htopmost_frm". iPureIntro.
     eapply related_sts_pub_trans_world; eauto.
 Qed.
 

@@ -34,7 +34,7 @@ Section Heap_Temporal_Safety_Interp.
     seal_pred AllocOtype allocator_otype_propC ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ⊢
-    execute_entry_point
+    execute_entry_point allocator_exp_tbl_b
       (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
       (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
       allocator_malloc_nargs allocator_malloc_min_stack W C.
@@ -42,7 +42,7 @@ Section Heap_Temporal_Safety_Interp.
     (* Unpack the entry register map and the caller's continuation. *)
     iIntros (HNtrap Hpc_b) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
-      "(Hcont & %Hframe & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
+      "(Hcont & %Hframe & _ & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
     rewrite /interp_conf.
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & [%mie %Hcra] & %Hcsp & #Hinterp_csp & Hregs)".

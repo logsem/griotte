@@ -1,6 +1,6 @@
 From griotte Require Import machine_parameters assembler.
 From griotte Require Import griotte_opsem.
-From griotte Require Export clear_stack clear_registers.
+From griotte Require Export clear_stack clear_registers export_table_layout.
 
 Class switcherLayout : Type :=
   mkSwitcherLayout {
@@ -119,19 +119,6 @@ Section Switcher.
   Lemma trusted_reload_registers_assembles :
     asm_ok (assemble_check (trusted_reload_registers_asm exception_spill_regs)).
   Proof. asm_check. Qed.
-
-  (** The layout of an export table, counted in words: the PCC and the CGP
-      of the compartment, the offsets of its stackful and stackless error
-      handlers ([0xffff] for none; one word each, where CHERIoT has 16-bit
-      fields), then the export entries. *)
-  Definition ExportTable_offset_pcc : Z := 0.
-  Definition ExportTable_offset_cgp : Z := 1.
-  Definition ExportTable_offset_errorHandler : Z := 2.
-  Definition ExportTable_offset_errorHandlerStackless : Z := 3.
-  Definition ExportTable_offset_entries : Z := 4.
-
-  (** The handler offset of a compartment that declares no handler. *)
-  Definition ExportTable_no_handler : Z := 0xffff.
 
   (** [w] is a readable capability to the export table at [b], whose bounds
       cover the header of the table and avoid the shadow table: the switcher

@@ -126,7 +126,7 @@ Section fundamental.
       interp_expression W C (WCap true p g b e a @@? π).
   Proof.
     iIntros "#Htrap #Hinv_interp".
-    iIntros (cstk Ws Cs regs0) "[Hregs [HPC [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]]".
+    iIntros (cstk Ws Cs regs0) "[Hregs [#Htop [HPC [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]]]".
     (* The registers are replaced by their filtered words, which are safe. *)
     iApply (interp_reg_refilter with "Hregs Hmreg Hworld_interp").
     iIntros (regs) "Hfull Hreg Hmreg Hworld_interp".
@@ -139,19 +139,19 @@ Section fundamental.
       iDestruct "Hfull" as %Hfull.
       iApply (interp_trap_safe with "Htrap [Hreg] [$Hmreg $Hworld_interp $Hcont $Hown $Hframe]");
         [done | done | | done].
-      iRight. by iApply (interp_reg_intro with "Hreg").
+      iRight. iFrame "Htop". by iApply (interp_reg_intro with "Hreg").
     }
     clear Hread_p.
 
-    iRevert "Hinv_interp".
+    iRevert "Hinv_interp Htop".
     iLöb as "IH'" forall (W C regs p g b e a π cstk Ws Cs Hframe).
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
       iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih π_ih)
-        "%Hfull #Hregs HPC Hmreg Hworld_interp Hcont %Hframe' Hown Htframe Hinterp".
-      iApply ("IH'" with "[%] HPC Hcont Hown Htframe [%] Hregs Hmreg Hworld_interp Hinterp"); eauto.
+        "%Hfull #Hregs HPC Hmreg Hworld_interp Hcont %Hframe' #Htop Hown Htframe Hinterp".
+      iApply ("IH'" with "[%] HPC Hcont Hown Htframe [%] Hregs Hmreg Hworld_interp Hinterp Htop"); eauto.
     }
-    iIntros "#Hinv_interp".
+    iIntros "#Hinv_interp #Htop".
     iDestruct "Hfull" as %Hfull. iDestruct "Hreg" as "#Hreg".
     rewrite /registers_pointsto.
     destruct (decide (isCorrectPC (WCap true p g b e a))) as [HcorrectPC|] ; cycle 1.
@@ -159,7 +159,7 @@ Section fundamental.
       iApply (wp_notCorrectPC_trap with "HPC"); first done.
       iApply (interp_trap_safe with "Htrap [] [$Hmreg $Hworld_interp $Hcont $Hown $Hframe]");
         [done | done | | done].
-      iRight. by iApply (interp_reg_intro with "Hreg").
+      iRight. iFrame "Htop". by iApply (interp_reg_intro with "Hreg").
     }
 
     (* Correct PC *)
@@ -183,7 +183,7 @@ Section fundamental.
     iApply (wp_bind (fill [SeqCtx])).
     iApply (ftlr_instr_dispatch W C regs p p'' g b e a w ρ P'' cstk Ws Cs with
              "[$IH $Htrap $Hinv_interp $Hreg $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
-               $Hcont $Hworld_interp $Hown $Hframe $Hstate $HPC $Hmreg //]")
+               $Hcont $Hworld_interp $Hown $Hframe $Htop $Hstate $HPC $Hmreg //]")
     ; [| eauto..].
     (* proof by cases on each instruction *)
     intros i; destruct i.
@@ -232,11 +232,11 @@ Section fundamental.
     iIntros "#Htrap Hw"; destruct w as [ [| [ [] p g b e a | ] | | ] π].
     2: { iApply (fundamental_cap with "Htrap"); done. }
     all: iIntros (cstk Ws Cs regs)
-           "(#Hinterp_regs & HPC & Hregs & Hworld_interp & Hcont & Hown & Hframe & %Hframe)".
+           "(#Hinterp_regs & #Htop & HPC & Hregs & Hworld_interp & Hcont & Hown & Hframe & %Hframe)".
     all: iPoseProof "Hinterp_regs" as "[%Hfull _]".
     all: iApply (wp_notCorrectPC_trap with "HPC"); first by inversion 1.
     all: iApply (interp_trap_safe with "Htrap [] [$Hregs $Hworld_interp $Hcont $Hown $Hframe]");
-      [done | done | iRight; iExact "Hinterp_regs" | done].
+      [done | done | iRight; iFrame "Hinterp_regs Htop" | done].
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
@@ -293,7 +293,8 @@ Section fundamental.
   Proof.
     iIntros "#Htrap".
     iModIntro; iNext.
-    iIntros (????????????) "? #Hregs ???????#Hv".
+    iIntros (W C cstk Ws Cs regs p g b e a π)
+      "Hfull #Hregs HPC Hmap Hworld Hinterp_cont Hframe #Htop Hown Hcstk #Hv".
     iDestruct (fundamental with "Htrap Hv") as "Hcont".
     iApply "Hcont"; iFrame "∗#".
     iIntros (r v Hv). iApply interp_filter_heap. by iApply "Hregs".
