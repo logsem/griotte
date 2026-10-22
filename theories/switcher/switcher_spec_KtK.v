@@ -18,14 +18,24 @@ Section Switcher_KtK.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
+  (** The unwind continuation of a known callee's frame [frame], pushed on
+      [cstk], with the callee's stack [[a_stk4, e_stk)]: the switcher
+      force-unwinds a fault of the callee and returns ECOMPARTMENTFAIL to
+      the caller, which needs the callee's whole stack back. *)
+  Definition ktk_fault_cont (E : coPset) (frame : cframe) (cstk : CSTK)
+    (a_stk4 e_stk : Addr) : iProp Σ :=
+    unwind_cont E (cstack_push frame cstk)
+      (∃ stk_mem : list LWord, [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem ]]).
+
   (** Shape of the higher-order specification for entry points
       in the case of known-to-known cross-compartment calls.
       [P] is the precondition of the callee,
       and [Q] is the postcondition, parameterised by the returned values.
-      When [may_fault] holds, the callee may fault (at a PC that the
-      exception path does not resume): its continuation also covers the
-      exception entry of the switcher, which returns ECOMPARTMENTFAIL to the
-      caller.
+      When [may_fault] holds, the callee may fault: it also receives the
+      unwind continuation of its frame ([ktk_fault_cont]), and the
+      switcher's invariant and static resources, to close its faults with
+      [trap_safe_exception_entry]; the switcher returns ECOMPARTMENTFAIL to
+      the caller.
       The callee's stack is at least its minimum stack size [minstk].
 
       The machine frame records only the saved words. The allocator owns all
@@ -79,28 +89,14 @@ Section Switcher_KtK.
                -∗ WP Seq (Instr Executable)
                      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}))%I
     in
-    (* FAULT --- the callee faults; the exception entry of the switcher
+    (* FAULT --- the callee faults; the switcher force-unwinds its frame and
        returns ECOMPARTMENTFAIL to the caller *)
-    let fault_cont :=
-      (∀ (wpc : LWord),
-         ⌜ trap_no_resume wpc ⌝ -∗
-         (|={⊤}=>
-            ∃ (rmap_ret : LReg) (stk_mem_ret : list LWord),
-              ⌜ dom rmap_ret =
-                  all_registers_s ∖
-                    {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-              na_own cerise_nais E ∗
-              cgp ↦ᵣ - ∗
-              cra ↦ᵣ - ∗
-              cs0 ↦ᵣ - ∗
-              cs1 ↦ᵣ - ∗
-              csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4 ∗
-              ca0 ↦ᵣ - ∗
-              ca1 ↦ᵣ - ∗
-              ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w) ∗
-              [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem_ret ]] ∗
-              cstack_frag (cstack_push frame cstk)) -∗
-         trap_safe wpc ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤))%I
+    let fault_cont := ktk_fault_cont E frame cstk a_stk4 e_stk in
+    let switcher_res :=
+      (∃ Nswitcher : namespace,
+         ⌜↑Nswitcher ⊆ E ∧ ↑N_trap ⊆ E ∧ Nswitcher ## N_trap⌝ ∗
+         na_inv cerise_nais Nswitcher switcher_inv ∗
+         switcher_static)%I
     in
     (∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
        ⌜ (Z.of_nat minstk <= e_stk - a_stk4)%Z ⌝
@@ -123,14 +119,16 @@ Section Switcher_KtK.
            [[ region_addrs_zeroes a_stk4 e_stk ]]
        ∗ cstack_frag (cstack_push frame cstk)
        ∗ P
-       ∗ (if may_fault then return_cont ∧ fault_cont else return_cont)
+       ∗ (if may_fault then (return_cont ∧ fault_cont) ∗ switcher_res else return_cont)
        -∗ WP Seq (Instr Executable)
              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
 
 
-  #[local] Lemma if_and_intro (b : bool) (R F : iProp Σ) :
-    R ∧ (if b then F else True) ⊢ if b then R ∧ F else R.
-  Proof. destruct b; first done. by iIntros "[$ _]". Qed.
+  #[local] Lemma if_and_sep_intro (b : bool) (R F S : iProp Σ) :
+    (if b then S else True) -∗
+    R ∧ (if b then F else True) -∗
+    if b then (R ∧ F) ∗ S else R.
+  Proof. destruct b; iIntros "HS H"; [iFrame | by iDestruct "H" as "[$ _]"]. Qed.
 
   (** Specification of the switcher for known-to-known cross compartment call,
       with higher-order specification of the callee. *)
@@ -318,7 +316,9 @@ Section Switcher_KtK.
       iSplit; first (iPureIntro; solve_addr+Hminstk).
       iSplit; first done.
       iSplit; first (iPureIntro; rewrite Hrmap' Hdom; set_solver).
-      iApply if_and_intro.
+      iApply (if_and_sep_intro with "[]").
+      { destruct may_fault; last done.
+        iExists Nswitcher. iFrame "Hswitcher Hstatic". by iPureIntro. }
       iSplit.
       { (* The callee returns *)
         iNext.
@@ -373,19 +373,8 @@ Section Switcher_KtK.
       }
       (* The callee faults: the exception entry returns ECOMPARTMENTFAIL *)
       destruct may_fault; last done.
-      iIntros (wpc Hno_resume) "Hres".
-      iApply (trap_safe_exception_entry Nswitcher E with "Hswitcher Hstatic");
-        [done | done | done | done |].
-      iMod "Hres" as "(%rmap_ret & %stk_mem_ret & %Hrmap_ret & Hna & [%wcgp Hcgp] & [%wcra Hcra]
-                       & [%wcs0 Hcs0] & [%wcs1 Hcs1] & Hcsp & [%wca0 Hca0] & [%wca1 Hca1] & Hregs
-                       & Hstk & Hcstk)".
-      iModIntro.
-      iInsertList "Hregs" [cgp;cra;cs0;cs1;csp;ca0;ca1].
-      iExists _. iFrame "Hna Hregs".
-      iSplit.
-      { iPureIntro. intros r. apply elem_of_dom. rewrite !dom_insert_L Hrmap_ret.
-        pose proof (all_registers_s_correct r). set_solver. }
-      iIntros (rmap_fault Hfull_rmap_fault Hca0' Hca1') "HPC Hrmap_fault Hna".
+      iIntros (n rmap_fault Hfull_rmap_fault Hca0' Hca1')
+        "HPC Hrmap_fault Hcstk [%stk_mem_ret Hstk] Hna".
       rewrite /registers_pointsto.
       getRegValList [cgp;cra;cs0;cs1;csp].
       iExtractList "Hrmap_fault" [cgp;cra;cs0;cs1;csp;ca0;ca1]
@@ -393,7 +382,7 @@ Section Switcher_KtK.
       iApply (switcher_cc_specification_return_known_to_known_gen
                 Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
                 (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret _ cstk
-                (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E
+                (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E n
                 with
                 "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                   $Hcsp $Hca0 $Hca1 $Hrmap_fault $Hstk $Hcstk Hpost]");

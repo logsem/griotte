@@ -131,10 +131,12 @@ Section Switcher.
 
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     destruct frm as [ [w_csp w_tbl n_cnt] [wret wcgp wcs0 wcs1] ccrel].
-    rewrite /cframe_interp /trusted_frame_interp.
+    rewrite /cframe_interp.
+    iDestruct "Hcframe_interp" as "[>Hcframe_top Hcframe_interp]".
+    iNamed "Hcframe_top". iNamed "Hcf_tframe".
+    iDestruct "Htf_tbl" as (wtbl) "[Htf_tbl _]".
     iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "((>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >Ha_tstk_cnt)
-                                    & %b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
+    iDestruct "Hcframe_interp" as "(%b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
     cbn in HWF.
     destruct HWF as (-> & Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap & Hret_ok).
     assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Hspill by solve_addr.
@@ -156,9 +158,9 @@ Section Switcher.
     (* Block 13: pop the trusted stack *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Ha_tstk $Hcode]");
+      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
       [done|done|done|done|].
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_tstk
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
                     & _ & Hlc)".
     iInsertRegs "Hrmap" ["Hct2"].
 
@@ -200,18 +202,18 @@ Section Switcher.
                (if is_untrusted_caller ccrel
                 then True
                 else [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]]))%I
-      with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+      with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv
              Hworld_interp Hstk' Hstk Hrevoked Hlc'']" as "Hupd".
     { iMod (cstack_update _ _ {| cstk_entry := ef; cstk_frames := frms |} with "Hcstk_full Hcstk")
         as "[Hcstk_full Hcstk_frag]".
       iMod ("Hclose_switcher_inv"
-             with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+             with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
                     Hcstk_full Hstk_interp_next]")
         as "Hna".
       { iNext.
         iApply (switcher_inv_pop_frame _ {| cstk_entry := ef; cstk_frames := frms |} with
-                 "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+                 "Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
                   Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
       iMod (world_interp_stack_fixing with
              "Htrap Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
@@ -279,12 +281,19 @@ Section Switcher.
       Unshelve. all: exact Wcur.
   Qed.
 
-  (** A fault in a trusted callee is safe: the exception entry sets the
-      return values to integers, then the return routine returns to the
-      caller as in [switcher_ret_specification], for a fault that the
-      exception path does not resume. The return values need no
-      validity. The resources come under an update at the time of the
-      fault (for instance, to close an invariant). *)
+  (** [csp_sync] does not read the error handler count of the topmost
+      frame. *)
+  Lemma csp_sync_set_top_count (cstk : CSTK) (n : Z) (a_stk' e_stk' : Addr) :
+    csp_sync (cstack_set_top_count cstk n) a_stk' e_stk' ↔ csp_sync cstk a_stk' e_stk'.
+  Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+
+  (** A fault in a trusted callee whose table declares no handler is safe:
+      the exception entry sets the return values to integers, then the
+      return routine returns to the caller as in
+      [switcher_ret_specification], for a fault that the exception path
+      does not resume. The return values need no validity. The resources
+      come under an update at the time of the fault (for instance, to close
+      an invariant). *)
   Lemma trap_safe_return
     (Nswitcher : namespace)
     (W0 Wcur : WORLD)
@@ -308,6 +317,7 @@ Section Switcher.
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
+    no_handler (top_export_tbl cstk) -∗
     (|={⊤}=>
        [[csp_b,csp_e]]↦ₐ[[stk_mem]] ∗
        cstack_frag cstk ∗
@@ -324,25 +334,29 @@ Section Switcher.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked HNtrap
                Hno_resume)
-      "#Hswitcher #Hstatic Hres".
+      "#Hswitcher #Hstatic #Hno_handler Hres".
     iApply (trap_safe_exception_entry Nswitcher ⊤ with "Hswitcher Hstatic");
-      [set_solver | set_solver | done | done |].
+      [set_solver | set_solver | done |].
     iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
                      & [%wca0 Hca0] & [%wca1 Hca1] & [%wcsp Hcsp])".
     iModIntro.
     iInsertList "Hrmap" [csp;ca0;ca1].
-    iExists _. iFrame "Hna Hrmap".
+    iExists _, cstk. iFrame "Hna Hrmap Hcstk".
     iSplit.
     { iPureIntro. intros r. apply elem_of_dom. rewrite !dom_insert_L Hrmap.
       pose proof (all_registers_s_correct r). set_solver. }
-    iIntros (rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hna".
+    iApply (trap_handler_ok_no_handler with "Hno_handler"); first done.
+    iIntros (n rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hcstk _ Hna".
     rewrite /registers_pointsto.
     getRegValList [csp].
     iExtractList "Hrmap'" [csp;ca0;ca1] as ["Hcsp";"Hca0";"Hca1"].
-    iApply (switcher_ret_specification with
+    iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "HK".
+    iApply (switcher_ret_specification _ _ _ _ _ _ _ _ _ (cstack_set_top_count cstk n) with
              "[$Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
                $Hclose_list_res $Hrmap' $Hca0 $Hca1 $Hcsp]"); try done.
     { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap'). set_solver. }
+    { by apply frame_match_set_top_count. }
+    { by apply csp_sync_set_top_count. }
     iSplit; iApply interp_int.
   Qed.
 

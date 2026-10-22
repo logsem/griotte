@@ -214,15 +214,7 @@ Section CmptLayout.
         trusted_stack_frames_fit :
         ∃ n : nat,
           (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack;
-        (* The entry frame holds a capability to the export table of the
-           compartment the thread starts in, and no error handler
-           invocation. *)
-        trusted_stack_content_export_table :
-        ∃ (b_tbl : Addr) (w : Word),
-          trusted_stack_content
-            !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable)
-          = Some w ∧
-          exp_tbl_cap b_tbl w;
+        (* The entry frame records no error handler invocation. *)
         trusted_stack_content_error_count :
           trusted_stack_content
             !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)

@@ -33,16 +33,19 @@ Section Heap_Temporal_Safety_Interp.
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    switcher_static ⊢
+    switcher_static ∗
+    no_handler allocator_exp_tbl_b ⊢
     execute_entry_point allocator_exp_tbl_b
       (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
       (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
       allocator_malloc_nargs allocator_malloc_min_stack W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
-    iIntros (HNtrap Hpc_b) "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static)".
+    iIntros (HNtrap Hpc_b)
+      "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
-      "(Hcont & %Hframe & _ & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ & Hcstk & Hna)".
+      "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
+        Hcstk & Hna)".
     rewrite /interp_conf.
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & [%mie %Hcra] & %Hcsp & #Hinterp_csp & Hregs)".
@@ -66,10 +69,12 @@ Section Heap_Temporal_Safety_Interp.
       (* Unwind to the caller: nothing was revoked or changed yet. *)
       iInsertRegs "Hrmap" ["Hcgpr";"Hcrar";"Hcspr";"Hca0";"Hca1";"Hca2";
                            "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
-      iApply (trap_safe_unwind with "Hswitcher Hswitcher_static [] [-]");
-        [exact HNtrap| |exact Hframe| |]; cycle 1.
+      iApply (trap_safe_unwind_logrel with "Hswitcher Hswitcher_static [] [-]");
+        [exact HNtrap| |exact Hframe| | |]; cycle 1.
       { (* The fault is outside the switcher's code: it is not resumed *)
-        iLeft; iPureIntro. by apply trap_no_resume_cap. }
+        by apply trap_no_resume_cap. }
+      { (* The allocator's table declares no handler *)
+        iRight. destruct Htop_tbl as [_ ->]. iExact "Hno_handler". }
       { iModIntro. iFrame. }
       intros r. destruct (Hfull_rmap r) as [wr Hwr].
       rewrite !lookup_insert_is_Some' !lookup_delete_is_Some.
@@ -459,6 +464,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (W') "%Hpriv".
     iNext.
     change (allocator_pcc_b ^+ allocator_malloc_pcc_off)%a with allocator_malloc_pcc_addr.
+    iAssert (no_handler allocator_exp_tbl_b) as "#Hno_handler"; first iFrame "Heh Hehs".
     iApply (malloc_exec_entry_point W' C Nswitcher HNtrap Hpc_b).
     iFrame "#".
   Qed.

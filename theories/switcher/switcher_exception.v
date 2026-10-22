@@ -4,6 +4,7 @@ From griotte Require Import register_tactics map_simpl.
 From griotte Require Import logrel fundamental switcher_preamble switcher_return_blocks_1
   interp_switcher_return.
 From griotte Require Import switcher_call_blocks_6 switcher_blocks_15_16 switcher_spec_exception.
+From griotte Require Export switcher_error_handler.
 
 (** * Exception entry of the switcher
 
@@ -17,9 +18,10 @@ From griotte Require Import switcher_call_blocks_6 switcher_blocks_15_16 switche
     safe.
 
     It is a safe trap vector ([switcher_trap_vector_safe]) for the faults
-    that it does not resume ([trap_no_resume]) and for safe register files,
-    which closes the faults of trusted code ([trap_safe_unwind]); a resumed
-    fault of trusted code is closed by [trap_safe_resume]. The file also
+    in an untrusted compartment ([untrusted_fault]) and for the faults that
+    it handles ([trap_handler_ok]), which closes the faults of trusted code
+    ([trap_safe_unwind], [trap_safe_exception_entry]); a resumed fault of
+    trusted code is closed by [trap_safe_resume]. The file also
     hosts the safety of the return-to-switcher entry point
     ([interp_expr_switcher_return], [interp_switcher_return]), which needs
     the trap vector and would otherwise form an import cycle. *)
@@ -75,13 +77,13 @@ Section Switcher_Exception.
   (** The return to the caller of the context that the exception path
       resumes, at [.Lswitch_just_return]: with safe registers, in an
       untrusted topmost compartment, the jump to [cra] is safe, or faults. *)
-  Lemma switcher_just_return_safe (no_resume : LWord → Prop)
+  Lemma switcher_just_return_safe (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (rmap : LReg) :
     (∀ r, is_Some (rmap !! r)) ->
     frame_match Ws Cs cstk W C ->
 
-    trap_vector_safe no_resume (lword_of_word mtcc_vec) -∗
+    trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
     (∀ (r : RegName) (v : LWord), ⌜rmap !! r = Some v⌝ → interp W C v) -∗
     top_cmpt_untrusted interp W C cstk -∗
     switcher_static -∗
@@ -111,8 +113,9 @@ Section Switcher_Exception.
       destruct (decide (isCorrectPC (updatePcPerm wcra.(lw)))) as [Hpc | Hpc]; cycle 1.
       { (* The return address is not a valid PC: the jump faults *)
         iApply "Hjmp"; iFrame "HPC".
-        iApply (interp_trap_safe with "Htrap [] [$Hrmap $Hworld_interp $Hcont $Hna $Hcstk]");
-          [exact Hfull | exact Hframe | iRight; by iFrame "#" | done]. }
+        iApply (interp_trap_safe_untrusted with
+                 "Htrap Hregs_interp Htop [$Hrmap $Hworld_interp $Hcont $Hna $Hcstk]");
+          done. }
       iDestruct "Hjmp" as (p g b e a π) "(%Hwcra_target & #Hjmp)".
       iAssert (future_world g W W) as "Hfuture".
       { destruct g; cbn; iPureIntro; [ apply related_sts_priv_refl_world
@@ -125,55 +128,41 @@ Section Switcher_Exception.
       iIntros "(_ & Hcra)".
       iInsert "Hrmap" cra.
       rewrite insert_id //.
-      iApply (interp_trap_safe with "Htrap [] [$Hrmap $Hworld_interp $Hcont $Hna $Hcstk]");
-        [exact Hfull | exact Hframe | iRight; by iFrame "#" | done].
+      iApply (interp_trap_safe_untrusted with
+               "Htrap Hregs_interp Htop [$Hrmap $Hworld_interp $Hcont $Hna $Hcstk]");
+        done.
   Qed.
 
   (** The exception entry: from the exception entry, after trap entry, the
       switcher unwinds the call of the faulting compartment through the
-      return routine, whatever the registers hold, or, for a fault of the
-      first spill of the call path (where the registers are safe and the
-      topmost compartment untrusted), resumes
-      the caller. The safe registers are re-filtered first. The trap vector
-      is only needed after the first instruction, hence under a later. *)
-  Lemma switcher_exception_entry_safe
-    (W : WORLD) (C : CmptName) (Nswitcher : namespace)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (rmap : LReg) (w : LWord) :
+      return routine, or, for a fault of the first spill of the call path
+      (in an untrusted compartment, with safe registers), resumes the
+      caller. A fault in an untrusted compartment unwinds through the
+      logical relation's resources, after the safe registers are
+      re-filtered; a fault that the switcher handles unwinds through the
+      unwind continuation of its site. The trap vector is only needed after
+      the first instruction, hence under a later. *)
+  Lemma switcher_exception_entry_safe (Nswitcher : namespace)
+    (cstk : CSTK) (rmap : LReg) (w : LWord) :
     Nswitcher ## N_trap ->
     (∀ r, is_Some (rmap !! r)) ->
-    frame_match Ws Cs cstk W C ->
 
-    (⌜trap_no_resume w⌝ ∨ (interp_reg interp W C rmap ∗ top_cmpt_untrusted interp W C cstk)) ∗
+    (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap) ∗
     PC ↦ₚ lword_of_word mtcc_vec ∗
     trap_entry_out w ∗
     registers_pointsto rmap ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ∗
-    ▷ trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) ∗
-    world_interp W C ∗
-    interp_cont interp cstk Ws Cs ∗
+    ▷ trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) ∗
     na_own cerise_nais (⊤ ∖ ↑N_trap) ∗
     cstack_frag cstk
-    ⊢ interp_conf W C.
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hdisj Hfull_rmap Hframe)
-      "(Hno_resume & HPC & Hout & Hrmap & #Hinv_switcher & #Hstatic & #Htrap & Hworld_interp
-        & Hcont & Hna & Hcstk)".
-    rewrite /interp_conf.
-    iDestruct "Hno_resume" as "[%Hno_resume | [#Hregs #Htop]]".
-    - iApply (switcher_exception_path_spec Nswitcher ⊤ with
-               "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hworld_interp Hcont Hcstk]");
-        [set_solver | set_solver | done | done |].
-      iNext; iSplit.
-      + iIntros (_ rmap' Hfull_rmap' Hca0 Hca1) "HPC Hrmap Hna".
-        iApply (switcher_return_unwind with
-                 "[$HPC $Hrmap $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna
-                   $Hcstk]");
-          [done | done | done | done |].
-        iSplit; iApply interp_int.
-      + by iIntros (Hresume).
-    - (* The registers are safe: re-filter them *)
+    iIntros (Hdisj Hfull_rmap)
+      "(Hfault & HPC & Hout & Hrmap & #Hinv_switcher & #Hstatic & #Htrap & Hna & Hcstk)".
+    iDestruct "Hfault" as "[Huntrusted | Hhandled]".
+    - (* A fault in an untrusted compartment: re-filter the safe registers *)
+      iDestruct "Huntrusted" as (W C Ws Cs Hframe) "(#Hregs & #Htop & Hworld_interp & Hcont)".
       iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
       iIntros (rmap') "%Hfull_rmap' #Hregs' Hrmap Hworld_interp".
       iApply (switcher_exception_path_spec Nswitcher ⊤ with
@@ -197,27 +186,37 @@ Section Switcher_Exception.
         { rewrite Hca1 in Hv. simplify_eq. iApply interp_int. }
         rewrite Hsame in Hv; [| done | done].
         by iApply "Hregs'".
+    - (* A fault that the switcher handles: it unwinds *)
+      iDestruct (trap_handler_ok_unwind with "Hhandled") as (Hno_resume R_unwind_stk) "[HS HU]".
+      iApply (switcher_exception_path_spec Nswitcher ⊤ with
+               "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna HU HS Hcstk]");
+        [set_solver | set_solver | done | done |].
+      iNext; iSplit.
+      + iIntros (_ rmap' Hfull_rmap' Hca0 Hca1) "HPC Hrmap Hna".
+        iApply ("HU" $! (top_error_count cstk) rmap' with
+                 "[//] [//] [//] HPC Hrmap [Hcstk] HS Hna").
+        by rewrite cstack_set_top_count_id.
+      + by iIntros (Hresume).
   Qed.
 
   (** The trap vector of the machine, the exception entry of the switcher,
-      is safe, for the faults that it does not resume ([trap_no_resume])
-      and for safe register files. The proof is by Löb induction: the
-      exception path needs the trap vector to be safe only after the first
-      instruction of the exception entry. The exception path opens the
-      invariant of the switcher while trap entry holds [N_trap]. *)
+      is safe, for the faults in an untrusted compartment and for the
+      faults that it handles ([trap_handler_ok ⊤]). The proof is by Löb
+      induction: the exception path needs the trap vector to be safe only
+      after the first instruction of the exception entry. The exception
+      path opens the invariant of the switcher while trap entry holds
+      [N_trap]. *)
   Lemma switcher_mtcc_vec_safe (Nswitcher : namespace) :
     Nswitcher ## N_trap ->
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static
-    ⊢ trap_vector_safe trap_no_resume (lword_of_word mtcc_vec).
+    ⊢ trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec).
   Proof.
     iIntros (Hdisj) "[#Hinv_switcher #Hstatic]".
     iLöb as "IH".
-    iIntros "!>" (W C cstk Ws Cs regs w Hfull_rmap Hframe)
-      "Hno_resume HPC Hout Hrmap Hworld_interp Hcont Hna Hcstk".
+    iIntros "!>" (cstk regs w Hfull_rmap) "Hfault HPC Hout Hrmap Hna Hcstk".
     iApply (switcher_exception_entry_safe with
-             "[$Hno_resume $HPC $Hout $Hrmap $Hinv_switcher $Hstatic $IH $Hworld_interp $Hcont
-               $Hna $Hcstk]");
+             "[$Hfault $HPC $Hout $Hrmap $Hinv_switcher $Hstatic $IH $Hna $Hcstk]");
       done.
   Qed.
 
@@ -226,12 +225,35 @@ Section Switcher_Exception.
     Nswitcher ## N_trap ->
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static
-    ⊢ trap_vector_safe trap_no_resume (switcher_label_pc "exception_entry_asm").
+    ⊢ trap_vector_safe (trap_handler_ok ⊤) (switcher_label_pc "exception_entry_asm").
   Proof.
     iIntros (Hdisj) "[#Hinv_switcher #Hstatic]".
     iPoseProof "Hstatic" as "(_ & _ & %Hmtcc)".
     rewrite -Hmtcc.
     iApply (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hstatic]"); done.
+  Qed.
+
+  (** The unwind continuation from the logical relation's resources: the
+      return routine pops the frame of the faulting compartment, whatever
+      its error handler count. *)
+  Lemma logrel_unwind_cont (Nswitcher : namespace) (W : WORLD) (C : CmptName)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    Nswitcher ## N_trap →
+    frame_match Ws Cs cstk W C →
+    na_inv cerise_nais Nswitcher switcher_inv -∗
+    switcher_static -∗
+    world_interp W C -∗
+    interp_continuation cstk Ws Cs -∗
+    unwind_cont ⊤ cstk True.
+  Proof.
+    iIntros (Hdisj Hframe) "#Hinv #Hstatic Hworld Hcont".
+    iIntros (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk _ Hna".
+    iPoseProof (switcher_mtcc_vec_safe Nswitcher Hdisj with "[$Hinv $Hstatic]") as "#Htrap".
+    iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "Hcont".
+    iApply (switcher_return_unwind _ W C Nswitcher (cstack_set_top_count cstk n) Ws Cs
+             with "[$HPC $Hrmap $Hinv $Hstatic $Htrap $Hworld $Hcont $Hna $Hcstk]");
+      [done | done | done | by apply frame_match_set_top_count |].
+    iSplit; iApply interp_int.
   Qed.
 
   (** The callee's stack is smaller than the minimum stack size of the
@@ -274,47 +296,42 @@ Section Switcher_Exception.
   Qed.
 
   (** A fault closes through the exception path of the switcher: after
-      trap entry, the switcher spills the registers, sets the return values
-      and jumps to the return routine, which must then be safe. The
+      trap entry, the switcher handles the fault ([trap_handler_ok F]);
+      while it force-unwinds every fault, it spills the registers, sets the
+      return values and runs the unwind continuation of the site. The
       resources come under an update at the time of the fault; the
       non-atomic token [F] provides the trap-entry token, and the exception
-      path opens the invariant of the switcher with the rest of [F]. The
-      continuation receives the registers as the exception path leaves them,
-      with the return values set. The fault is one that the exception path
-      does not resume. *)
+      path opens the invariant of the switcher with the rest of [F]. *)
   Lemma trap_safe_exception_entry (Nswitcher : namespace) (F : coPset) (w : LWord) :
     ↑Nswitcher ⊆ F →
     ↑N_trap ⊆ F →
     Nswitcher ## N_trap →
-    trap_no_resume w →
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
     (|={⊤}=>
-       ∃ rmap : LReg,
+       ∃ (rmap : LReg) (cstk : CSTK),
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
          na_own cerise_nais F ∗
          registers_pointsto rmap ∗
-         (∀ rmap' : LReg,
-            ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
-            ⌜rmap' !! ca0 = Some (WInt ECOMPARTMENTFAIL : LWord)⌝ -∗
-            ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-            PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
-            registers_pointsto rmap' -∗
-            na_own cerise_nais F -∗
-            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})) -∗
+         cstack_frag cstk ∗
+         trap_handler_ok F cstk w rmap) -∗
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
-    iIntros (HF HFtrap Hdisj Hno_resume) "#Hinv_switcher #Hstatic Hres".
+    iIntros (HF HFtrap Hdisj) "#Hinv_switcher #Hstatic Hres".
     iApply trap_safe_entry_intro.
     iSplit; last by iIntros "!> %Hv".
-    iMod "Hres" as (rmap Hfull_rmap) "(Hna & Hrmap & Hcont)".
+    iMod "Hres" as (rmap cstk Hfull_rmap) "(Hna & Hrmap & Hcstk & Hhandled)".
+    iDestruct (trap_handler_ok_unwind with "Hhandled") as (Hno_resume R_unwind_stk) "[HS HU]".
     iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
     iApply (switcher_exception_path_spec Nswitcher F with
-             "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcont]");
+             "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna HU HS Hcstk]");
       [exact HF | exact HFtrap | exact Hdisj | exact Hfull_rmap |].
     iNext; iSplit.
-    - iIntros (_). iExact "Hcont".
+    - iIntros (_ rmap' Hfull_rmap' Hca0 Hca1) "HPC Hrmap Hna".
+      iApply ("HU" $! (top_error_count cstk) rmap' with
+               "[//] [//] [//] HPC Hrmap [Hcstk] HS Hna").
+      by rewrite cstack_set_top_count_id.
     - by iIntros (Hresume).
   Qed.
 
@@ -364,21 +381,44 @@ Section Switcher_Exception.
   Qed.
 
   (** A fault in trusted code is safe: after exception entry, the exception
-      entry of the switcher unwinds the call of the faulting compartment.
-      The registers need to be safe, and the topmost compartment untrusted,
-      only when the exception path resumes the fault. The resources come under an update at the time of the fault
+      entry of the switcher unwinds the call of the faulting compartment, or
+      resumes a fault in an untrusted compartment. The resources and the
+      fault's justification come under an update at the time of the fault
       (for instance, to close an invariant). *)
-  Lemma trap_safe_unwind
+  Lemma trap_safe_unwind (Nswitcher : namespace) (cstk : CSTK) (rmap : LReg) (w : LWord) :
+    Nswitcher ## N_trap ->
+    (∀ r, is_Some (rmap !! r)) ->
+    na_inv cerise_nais Nswitcher switcher_inv -∗
+    switcher_static -∗
+    (|={⊤}=>
+       registers_pointsto rmap ∗
+       na_own cerise_nais ⊤ ∗
+       cstack_frag cstk ∗
+       (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap)) -∗
+    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+  Proof.
+    iIntros (Hdisj Hfull_rmap) "#Hinv_switcher #Hstatic Hres".
+    iPoseProof (switcher_mtcc_vec_safe Nswitcher Hdisj with "[$Hinv_switcher $Hstatic]")
+      as "#Htrap".
+    iApply (interp_trap_safe with "Htrap Hres"); done.
+  Qed.
+
+  (** A fault in trusted code, with the logical relation's resources, in
+      the switcher ([switcher_fault_pc w]) or in a compartment whose table
+      declares no handler: the switcher unwinds the call of the faulting
+      compartment through the return routine. *)
+  Lemma trap_safe_unwind_logrel
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (rmap : LReg) (w : LWord) :
     Nswitcher ## N_trap ->
     (∀ r, is_Some (rmap !! r)) ->
     frame_match Ws Cs cstk W C ->
+    trap_no_resume w ->
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
-    (⌜trap_no_resume w⌝ ∨ (interp_reg interp W C rmap ∗ top_cmpt_untrusted interp W C cstk)) -∗
+    (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)) -∗
     (|={⊤}=>
        registers_pointsto rmap ∗
        world_interp W C ∗
@@ -387,10 +427,15 @@ Section Switcher_Exception.
        cstack_frag cstk) -∗
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
-    iIntros (Hdisj Hfull_rmap Hframe) "#Hinv_switcher #Hstatic Hno_resume Hres".
-    iPoseProof (switcher_mtcc_vec_safe Nswitcher Hdisj with "[$Hinv_switcher $Hstatic]")
-      as "#Htrap".
-    iApply (interp_trap_safe with "Htrap Hno_resume Hres"); done.
+    iIntros (Hdisj Hfull_rmap Hframe Hno_resume) "#Hinv_switcher #Hstatic Hcase Hres".
+    iApply (trap_safe_unwind with "Hinv_switcher Hstatic"); [done | done |].
+    iMod "Hres" as "(Hrmap & Hworld_interp & Hcont & Hna & Hcstk)".
+    iModIntro. iFrame "Hrmap Hna Hcstk". iRight.
+    iPoseProof (logrel_unwind_cont with "Hinv_switcher Hstatic Hworld_interp Hcont")
+      as "HU"; [done | done |].
+    iDestruct "Hcase" as "[%Hpc | Hnh]".
+    - by iApply (trap_handler_ok_switcher with "HU").
+    - by iApply (trap_handler_ok_no_handler with "Hnh HU").
   Qed.
 
   (** The return-to-switcher entry point is safe to execute: the registers

@@ -27,7 +27,8 @@ Section Switcher_KtK_Return.
 
 
   (** The return to a known caller: the stack pointer can hold any word,
-      since the return routine reloads it from the frame. *)
+      since the return routine reloads it from the frame, and the frame may
+      have any error handler count [n_cnt]. *)
   Lemma switcher_cc_specification_return_known_to_known_gen
     (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : LWord)
@@ -37,13 +38,14 @@ Section Switcher_KtK_Return.
     (cstk : CSTK)
     (w_callee_exp_tbl : LWord)
     (E : coPset)
+    (n_cnt : Z)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let frame :=
            {| cf_tframe :=
                 {| tf_csp := WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a;
                    tf_export_tbl := w_callee_exp_tbl;
-                   tf_error_count := 0 |};
+                   tf_error_count := n_cnt |};
               cf_saved :=
                 {| cs_cra := wcra_caller;
                    cs_cgp := wcgp_caller;
@@ -147,9 +149,12 @@ Section Switcher_KtK_Return.
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
-    rewrite /frame /cframe_interp /trusted_frame_interp; iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "((>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >Ha_tstk_cnt)
-                                    & %b_stk' & %e_stk' & %a_stk' & >%HWF
+    rewrite /frame /cframe_interp.
+    iDestruct "Hcframe_interp" as "[>Hcframe_top Hcframe_interp]".
+    iNamed "Hcframe_top". iNamed "Hcf_tframe".
+    iDestruct "Htf_tbl" as (wtbl) "[Htf_tbl _]".
+    iEval (cbn) in "Hcframe_interp".
+    iDestruct "Hcframe_interp" as "(%b_stk' & %e_stk' & %a_stk' & >%HWF
                                     & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
     destruct HWF as (Hcsp & Hb_a4 & He_a1 & Ha_stk4' & _ & _ & Hret_ok).
     apply lword_of_word_inj in Hcsp. injection Hcsp as Hb He Ha. subst b_stk' e_stk'.
@@ -165,11 +170,11 @@ Section Switcher_KtK_Return.
     (* Block 13: pop the trusted stack *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Ha_tstk $Hcode]");
+      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
       [done|done|done| |].
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       rewrite /withinBounds; solve_addr. }
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_tstk
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
                     & _ & _)".
     iInsertRegs "Hregs" ["Hct2"].
 
@@ -200,12 +205,12 @@ Section Switcher_KtK_Return.
     (* Pop the frame and close the switcher invariant *)
     iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
     iMod ("Hclose_switcher_inv"
-           with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+           with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
                   Hcstk_full Hstk_interp_next]")
       as "Hna".
     { iNext.
       iApply (switcher_inv_pop_frame _ cstk with
-               "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+               "Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
                 Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
 
     iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1); iFrame.

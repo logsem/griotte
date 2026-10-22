@@ -25,7 +25,7 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-    Lemma world_interp_stack_fixing (no_resume : LWord → Prop)
+    Lemma world_interp_stack_fixing (trusted_fault : CSTK → LWord → LReg → iProp Σ)
       (Wcur W0 : WORLD) (C : CmptName)
       (a_stk4 b_stk csp_b csp_e : Addr) (l : list LAddr)
       ccrel
@@ -40,7 +40,7 @@ Section switcher_helper.
       (csp_b ^+ -4 + 4)%a = Some a_stk4 ->
 
       related_sts_pub_world W0 Wfixed ->
-      trap_vector_safe no_resume (lword_of_word mtcc_vec) -∗
+      trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W0 C
         (WCap true RWL Local
            (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e
@@ -242,13 +242,13 @@ Section switcher_helper.
     (** Jump to a safe return address [wret], with safe callee-save
         registers [cgp], [cs0], [cs1], [csp], safe return values [ca0],
         [ca1], and cleared registers. *)
-    Lemma switcher_jump_to_caller_spec (no_resume : LWord → Prop)
+    Lemma switcher_jump_to_caller_spec (trusted_fault : CSTK → LWord → LReg → iProp Σ)
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
       (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 : LWord) :
       dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
       frame_match Ws Cs cstk W C ->
 
-      trap_vector_safe no_resume (lword_of_word mtcc_vec) -∗
+      trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W C wret -∗
       interp W C wcgp -∗
       interp W C wcs0 -∗
@@ -304,8 +304,9 @@ Section switcher_helper.
       destruct (decide (isCorrectPC (updatePcPerm wret.(lw)))); cycle 1.
       { (* The return address is not a valid PC: the jump faults *)
         iApply "Hcont"; iFrame "HPC".
-        iApply (interp_trap_safe with "Htrap [] [$Hrmap $Hworld_interp $HK $Hna $Hcstk]");
-          [done | done | iRight; by iFrame "#" | done]. }
+        iApply (interp_trap_safe_untrusted with
+                 "Htrap Hregs_interp Htop [$Hrmap $Hworld_interp $HK $Hna $Hcstk]");
+          done. }
 
       iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
       iDestruct "Hcont" as "(%Hwret & #Hcont)".
@@ -324,13 +325,13 @@ Section switcher_helper.
         not a valid target of [Jalr cnull cra]: the fault unwinds the frame
         of the caller. The world, the token and the call stack are only
         needed after the jump or the exception entry. *)
-    Lemma switcher_jump_to_caller_cases_spec (no_resume : LWord → Prop)
+    Lemma switcher_jump_to_caller_cases_spec (trusted_fault : CSTK → LWord → LReg → iProp Σ)
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
       (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 w : LWord) :
       dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
       frame_match Ws Cs cstk W C ->
 
-      trap_vector_safe no_resume (lword_of_word mtcc_vec) -∗
+      trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W C wret -∗
       interp W C wcgp -∗
       interp W C wcs0 -∗
@@ -388,8 +389,9 @@ Section switcher_helper.
           rewrite Hdom. set_solver+. }
         iPoseProof (switcher_caller_regs_interp with "Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1")
           as "#Hregs_interp"; [exact Hfull_regs | exact Hrmap_zeroes |].
-        iApply (interp_trap_safe _ _ _ cstk Ws Cs regs with "Htrap [] [Hrmap HK Hres]");
-          [done | done | iRight; by iFrame "#" |].
+        iApply (interp_trap_safe_untrusted _ _ _ cstk Ws Cs regs with
+                 "Htrap Hregs_interp Htop [Hrmap HK Hres]");
+          [done | done |].
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
         by iFrame.
     Qed.
