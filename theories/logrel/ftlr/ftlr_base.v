@@ -34,6 +34,7 @@ Section fundamental.
             -∗ world_interp W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
+            -∗ top_cmpt_untrusted interp W_ih C_ih cstk
             -∗ na_own cerise_nais ⊤
             -∗ cstack_frag cstk
             -∗ □ interp W_ih C_ih (WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih)
@@ -69,6 +70,7 @@ Section fundamental.
         "WorldRes" ∷ ▷ WorldRes W C a p' (safeC P) w ρ ∗
         "Hcont" ∷ interp_continuation cstk Ws Cs ∗
         "%Hframe" ∷ ⌜frame_match Ws Cs cstk W C⌝ ∗
+        "#Htop" ∷ top_cmpt_untrusted interp W C cstk ∗
         "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
         "Hown" ∷ na_own cerise_nais ⊤ ∗
         "Htframe" ∷ cstack_frag cstk ∗
@@ -82,7 +84,7 @@ Section fundamental.
 
   (** A fault in a case of the fundamental theorem, once the case has closed
       the world: trap entry leads to the safe trap vector, with safe
-      registers. *)
+      registers, in an untrusted topmost compartment. *)
   Lemma ftlr_trap (trap_no_resume : LWord → Prop)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (w : LWord) :
@@ -90,6 +92,7 @@ Section fundamental.
     frame_match Ws Cs cstk W C →
     trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
     (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    top_cmpt_untrusted interp W C cstk -∗
     PC ↦ₚ w -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     world_interp W C -∗
@@ -98,11 +101,11 @@ Section fundamental.
     cstack_frag cstk -∗
     WP Seq (Instr Faulted) {{ v0, ⌜v0 = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hfull Hframe) "Htrap Hreg HPC Hmap Hworld Hcont Hown Hcstk".
+    iIntros (Hfull Hframe) "Htrap Hreg Htop HPC Hmap Hworld Hcont Hown Hcstk".
     iApply (wp_trap with "HPC").
-    iApply (interp_trap_safe with "Htrap [Hreg] [$Hmap $Hworld $Hcont $Hown $Hcstk]");
+    iApply (interp_trap_safe with "Htrap [Hreg Htop] [$Hmap $Hworld $Hcont $Hown $Hcstk]");
       [done | done | | done].
-    iRight. by iApply (interp_reg_intro with "Hreg").
+    iRight. iFrame "Htop". by iApply (interp_reg_intro with "Hreg").
   Qed.
 
   Definition ftlr_instr (trap_no_resume : LWord → Prop)

@@ -256,6 +256,7 @@ Section switcher_helper.
       interp W C wcsp -∗
       interp W C wca0 -∗
       interp W C wca1 -∗
+      top_cmpt_untrusted interp W C cstk -∗
       PC ↦ₚ lupdatePcPerm wret -∗
       cra ↦ᵣ wret -∗
       cgp ↦ᵣ wcgp -∗
@@ -272,7 +273,7 @@ Section switcher_helper.
       £ 1 -∗
       WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
     Proof.
-      iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1
+      iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
         HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc".
       iDestruct (jmp_or_fail_spec with "Htrap Hwret") as "Hcont".
       iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
@@ -304,7 +305,7 @@ Section switcher_helper.
       { (* The return address is not a valid PC: the jump faults *)
         iApply "Hcont"; iFrame "HPC".
         iApply (interp_trap_safe with "Htrap [] [$Hrmap $Hworld_interp $HK $Hna $Hcstk]");
-          [done | done | by iRight | done]. }
+          [done | done | iRight; by iFrame "#" | done]. }
 
       iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
       iDestruct "Hcont" as "(%Hwret & #Hcont)".
@@ -337,6 +338,7 @@ Section switcher_helper.
       interp W C wcsp -∗
       interp W C wca0 -∗
       interp W C wca1 -∗
+      top_cmpt_untrusted interp W C cstk -∗
       cra ↦ᵣ wret -∗
       cgp ↦ᵣ wcgp -∗
       cs0 ↦ᵣ wcs0 -∗
@@ -356,13 +358,13 @@ Section switcher_helper.
       ( ⌜ jalr_target_ok cnull cra wret.(lw) = false ⌝ -∗
         trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ).
     Proof.
-      iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1
+      iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
         Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hres".
       iSplit.
       - iIntros "[HPC Hlc]".
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
         iApply (switcher_jump_to_caller_spec with
-                 "Htrap Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1 HPC Hcra Hcgp Hcs0 Hcs1 Hcsp
+                 "Htrap Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1 Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp
                   Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc"); done.
       - iIntros "_".
         iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
@@ -387,7 +389,7 @@ Section switcher_helper.
         iPoseProof (switcher_caller_regs_interp with "Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1")
           as "#Hregs_interp"; [exact Hfull_regs | exact Hrmap_zeroes |].
         iApply (interp_trap_safe _ _ _ cstk Ws Cs regs with "Htrap [] [Hrmap HK Hres]");
-          [done | done | by iRight |].
+          [done | done | iRight; by iFrame "#" |].
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
         by iFrame.
     Qed.

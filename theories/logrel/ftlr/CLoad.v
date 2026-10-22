@@ -522,7 +522,7 @@ Section fundamental.
          iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
          iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
          { destruct ρ; auto; contradiction. }
-         iApply (ftlr_trap with "Htrap Hreg HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
+         iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'].
 
     (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
@@ -540,7 +540,7 @@ Section fundamental.
     { destruct ρ;auto;contradiction. }
 
     iApply ("IH" $! _ _ _ _ _ (<[dst:=loadv']ₗ> regs)
-             with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
+             with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
     { intros x6. rewrite /linsert_reg.
       rewrite lookup_insert_is_Some.
       destruct (decide (dst = x6)); [ auto | right; split; auto]. }

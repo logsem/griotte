@@ -814,6 +814,7 @@ Section Switcher.
     { iPureIntro; simpl; split; [|split]; auto.
       apply related_sts_pub_refl_world.
     }
+    iSplit; first (iPureIntro; split; [done | reflexivity]).
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
     iPureIntro; split; [split; [split; reflexivity | solve_addr] | exact Hbig].
   Qed.

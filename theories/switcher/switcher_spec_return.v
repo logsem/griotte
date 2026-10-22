@@ -144,7 +144,7 @@ Section Switcher.
     iDestruct (interp_monotone_continuation with "HK") as "HK"; eauto.
     rewrite /interp_continuation /interp_cont.
     iEval (cbn) in "HK"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
-    iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
+    iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
     assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
@@ -250,8 +250,8 @@ Section Switcher.
       replace ((a_stk ^+ 4) ^+ -4)%a with a_stk by (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
 
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /=)
-        in "Hexec_topmost_frm".
-      iApply ("Hexec_topmost_frm" with
+        in "Htopmost_frm".
+      iApply ("Htopmost_frm" with
                "[] [%] [%] [%] [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
       $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna]");
         [done|exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
@@ -260,9 +260,14 @@ Section Switcher.
     - (* Case where caller is untrusted, we jump to the return address *)
       iDestruct "Hinterp_loaded" as
         "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
+      (* The untrusted caller recorded that its topmost compartment is
+         untrusted *)
+      iDestruct "Htopmost_frm" as "#Htop_caller".
+      iDestruct (top_cmpt_untrusted_mono_pub with "Htop_caller") as "#Htop";
+        first exact Hrelated_pub_W0_Wfixed.
       iApply (switcher_jump_to_caller_cases_spec with
                "Htrap Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk'
-                Hinterp_Wfixed_wca0 Hinterp_Wfixed_wca1 Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
+                Hinterp_Wfixed_wca0 Hinterp_Wfixed_wca1 Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
                 Hrmap Hcont_K [Hupd]"); first done.
       { eapply frame_match_mono; eauto. }
       iMod "Hupd" as "(Hna & Hcstk_frag & Hworld_interp & _)".

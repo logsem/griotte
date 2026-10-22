@@ -17,38 +17,60 @@ Section helpers_switcher_adequacy.
   .
 
   Lemma fundamental_execute_entry_point
-    (W : WORLD) (C : CmptName) ( b_pcc e_pcc b_cgp e_cgp : Addr )
+    (W : WORLD) (C : CmptName) (b_tbl b_pcc e_pcc b_cgp e_cgp : Addr) (eh ehs : Z)
     (args minstk off : nat) (Nswitcher : namespace) :
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
     disjoint_from_heap b_cgp e_cgp ->
     Nswitcher ## N_trap ->
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ switcher_static -∗
+    b_tbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc -∗
+    a_tbl_cgp ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp -∗
+    b_tbl ↦ₕ□{stackful} eh -∗
+    b_tbl ↦ₕ□{stackless} ehs -∗
     interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
     interp W C (WCap true RW Global b_cgp e_cgp b_cgp) -∗
     □ ∀ (W' : WORLD),
     ⌜related_sts_priv_world W W'⌝
-    → ▷ execute_entry_point (WCap true RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap true RW Global b_cgp e_cgp b_cgp)
+    → ▷ execute_entry_point b_tbl
+        (WCap true RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap true RW Global b_cgp e_cgp b_cgp)
         args minstk W' C.
   Proof.
-    intros Hcgp_heap HNtrap.
-    iIntros "#Hinv_switcher #Hswitcher_static #Hinterp_pcc #Hinterp_cgp".
+    intros a_tbl_cgp Hcgp_heap HNtrap.
+    iIntros "#Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
+      #Hinterp_pcc #Hinterp_cgp".
     iPoseProof (switcher_mtcc_vec_safe Nswitcher HNtrap with "[$Hinv_switcher $Hswitcher_static]")
       as "#Htrap".
-    iIntros (W' Hrelated).
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
-    iDestruct (interp_monotone_nl_cap_nonheap W W' C true RX Global
-                 b_pcc e_pcc b_pcc Hpcc_heap Hrelated eq_refl
-                 with "Hinterp_pcc") as "Hinterp_pcc'".
-    iDestruct (interp_monotone_nl_cap_nonheap W W' C true RW Global
-                 b_cgp e_cgp b_cgp Hcgp_heap Hrelated eq_refl
-                 with "Hinterp_cgp") as "Hinterp_cgp'".
+    (* The PCC and the CGP of the table are safe in every private future world *)
+    iAssert (□ ∀ W', ⌜related_sts_priv_world W W'⌝ →
+               interp W' C (WCap true RX Global b_pcc e_pcc b_pcc) ∗
+               interp W' C (WCap true RW Global b_cgp e_cgp b_cgp))%I
+      as "#Hinterp_tbl".
+    { iIntros "!>" (W' Hrelated).
+      iSplit.
+      - iApply (interp_monotone_nl_cap_nonheap W W' C true RX Global
+                  b_pcc e_pcc b_pcc Hpcc_heap Hrelated eq_refl with "Hinterp_pcc").
+      - iApply (interp_monotone_nl_cap_nonheap W W' C true RW Global
+                  b_cgp e_cgp b_cgp Hcgp_heap Hrelated eq_refl with "Hinterp_cgp"). }
+    iIntros (W' Hrelated).
+    iDestruct ("Hinterp_tbl" $! W' Hrelated) as "[Hinterp_pcc' Hinterp_cgp']".
     iDestruct (interp_lea with "Hinterp_pcc'") as "Hinterp_PCC"; first done.
     iModIntro;iNext.
 
-    iIntros (cstk Ws Cs ???)
-      "( Hcont & %Hfreq & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
+    iIntros (cstk Ws Cs regs a_stk e_stk)
+      "( Hcont & %Hfreq & [%Hcstk_ne %Htop_tbl] & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hworld_interp & %Hcsp_sync & _ & Htframe & Hna)".
+    (* The callee, whose export table is at [b_tbl], is the topmost
+       compartment, and it is untrusted *)
+    iAssert (top_cmpt_untrusted interp W' C cstk) as "#Htop".
+    { destruct cstk as [|frm cstk]; first done.
+      cbn in Htop_tbl. rewrite /top_cmpt_untrusted Htop_tbl.
+      iExists _, _, eh, ehs. iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs".
+      iIntros "!>" (W'' Hrelated').
+      iApply "Hinterp_tbl". iPureIntro.
+      by eapply related_sts_priv_trans_world. }
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental with "Htrap Hinterp_PCC") as "H_jmp".
     iSpecialize ("H_jmp" $! cstk Ws Cs regs).
@@ -115,6 +137,9 @@ Section helpers_switcher_adequacy.
     assert (Z.of_nat minstk8 < 256)%Z as Hminstk8_lt.
     { subst minstk8. rewrite Z2Nat.id; [apply Z.mod_pos_bound; lia|]. apply Z.mod_pos_bound; lia. }
     iEval (rewrite encode_entry_point_minstk_land Hminstk8) in "Hetbl_entry".
+    assert ((cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp)%a = cmpt_exp_tbl_cgp C_cmpt)
+      as Hcgp_addr.
+    { pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as Hsize. solve_addr+Hsize. }
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, minstk8, off, posture, eh, ehs.
     iFrame "#".
     iSplit ; first (by iPureIntro).
@@ -158,14 +183,13 @@ Section helpers_switcher_adequacy.
     iSplit; first (iPureIntro; exact (cmpt_pcc_base_not_heap C_cmpt)).
     iSplit; first (iPureIntro; exact (cmpt_cgp_base_not_heap C_cmpt)).
     iSplit.
-    { subst b_etbl1 b_etbl.
-      replace (cmpt_exp_tbl_cgp C_cmpt ) with (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp)%a; auto.
-      pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
-      solve_addr.
-    }
+    { subst b_etbl1 b_etbl. by rewrite Hcgp_addr. }
     iApply (fundamental_execute_entry_point
-              with "Hinv_switcher Hswitcher_static Hinterp_pcc Hinterp_cgp");
-      [exact (cmpt_cgp_disjoint_from_heap C_cmpt) | exact HNtrap].
+              with "Hinv_switcher Hswitcher_static Hetbl_pcc [] Hetbl_eh Hetbl_ehs
+                    Hinterp_pcc Hinterp_cgp");
+      [exact (cmpt_cgp_disjoint_from_heap C_cmpt) | exact HNtrap |].
+    subst b_etbl1 b_etbl.
+    rewrite Hcgp_addr; iExact "Hetbl_cgp".
   Qed.
 
 End helpers_switcher_adequacy.

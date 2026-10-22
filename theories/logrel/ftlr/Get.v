@@ -52,7 +52,7 @@ Section fundamental.
     - iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply (ftlr_trap with "Htrap Hreg HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+      iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
     - incrementPC_inv; simplify_map_eq.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
@@ -61,7 +61,7 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ _ _ _ (<[dst := WInt z]ₗ> regs)
-               with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
+               with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]")
         ; eauto.
       + intro; cbn. rewrite /linsert_reg. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hregs_ri).

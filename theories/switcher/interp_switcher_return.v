@@ -179,7 +179,7 @@ Section fundamental.
     rewrite /interp_continuation /interp_cont.
     iEval (cbn) in "Hcont_K"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     cbn.
-    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
+    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
     assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
@@ -287,10 +287,10 @@ Section fundamental.
         subst rstk2; congruence. }
       iIntros "[HPC _]".
       iMod "Hupd" as "[Hna Hcstk_frag]".
-      iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
+      iSpecialize ("Htopmost_frm" $! W (related_sts_pub_refl_world W)).
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
-        in "Hexec_topmost_frm".
-      iApply ("Hexec_topmost_frm" with "[%] [%] [%] [%]
+        in "Htopmost_frm".
+      iApply ("Htopmost_frm" with "[%] [%] [%] [%]
                [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
       $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]");
         [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
@@ -327,9 +327,12 @@ Section fundamental.
       rewrite fmap_nil -open_world_interp_empty.
 
       rewrite /is_untrusted_caller_frm /= Hccrel in Hfreq.
+      (* The untrusted caller recorded that its topmost compartment is
+         untrusted *)
+      iDestruct "Htopmost_frm" as "#Htop_caller".
       iApply (switcher_jump_to_caller_cases_spec with
                "Htrap Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk
-                Hinterp_wca0 Hinterp_wca1 Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
+                Hinterp_wca0 Hinterp_wca1 Htop_caller Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
                 Hrmap Hcont_K [Hupd Hworld_interp]"); [done|done|].
       iMod "Hupd" as "[Hna Hcstk_frag]".
       by iFrame.
