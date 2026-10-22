@@ -69,8 +69,8 @@ Section vae_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
-    change (fw_entry_min_stack vae_firmware 0) with 4 in Hstack_min.
+    pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
+    change (fw_entry_min_stack vae_firmware 0) with 4 in Hentry_min_stack.
     iEval (cbv [vae_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts" as "((Hmain & _ & #Hmain_pers) & (HC & _ & #HC_pers) & _)".
     cbn [fc_name].

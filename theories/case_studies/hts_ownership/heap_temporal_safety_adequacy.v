@@ -105,8 +105,8 @@ Section hts_obligations.
 
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
-    change (fw_entry_min_stack (hts_firmware ot_alloc) 0) with 5 in Hstack_min.
+    pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
+    change (fw_entry_min_stack (hts_firmware ot_alloc) 0) with 5 in Hentry_min_stack.
     iEval (cbv [hts_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts"
       as "((Hmain & Hmain_static & _) & (Halloc & _ & #Halloc_pers) & (HB & HB_static & #HB_pers) & _)".
