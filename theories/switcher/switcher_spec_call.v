@@ -548,7 +548,7 @@ Section Switcher.
          predicate of the switcher;
        - [switcher_call_blocks_3_spec]: clear the callee's stack frame and
          unseal the entry point; when the unsealing faults, push the frame and
-         unwind to the caller's continuation ([trap_safe_unwind]);
+         unwind to the caller's continuation ([trap_safe_unwind_logrel]);
        - [switcher_cc_world_reinstate]: reinstate the callee's stack frame;
        - [switcher_call_blocks_4_spec]: check the size of the callee's
          stack, load the callee and jump to it; when the stack is too small,
@@ -707,20 +707,19 @@ Section Switcher.
         as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
       iDestruct (switcher_cc_full_regs with "Hrmap0 Hcra Hcgp Hcsp Hcs0 Hcs1 Hca0 Hca1")
         as (regs) "[%Hfull_regs Hregs]"; first done.
-      iApply (trap_safe_unwind _ _ _ (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
-               with "Hswitcher Hstatic [] [-]"); [done | done | | |].
+      iApply (trap_safe_unwind_logrel _ _ _ (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
+               with "Hswitcher Hstatic [] [-]"); [done | done | | | |].
       { simpl. split; first apply related_sts_pub_refl_world. done. }
       { (* The unsealing is not the first spill *)
-        iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
+        apply trap_no_resume_switcher_pc. by vm_compute. }
+      { (* The fault is in the switcher *)
+        iLeft; iPureIntro. apply switcher_fault_pc_cap. }
       iMod (switcher_cc_world_reinstate with "Hworld_interp Hstk_val Hstk")
         as "(Hworld_interp & #Hstk4v & _ & _)"; [done|done|solve_addr| | |].
       { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
       { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
       (* The table cell is still cleared *)
-      assert (lword_of_word (WInt 0) = lword_of_word (WInt 0) ∨
-                (lword_of_word (WInt 0) = tf_export_tbl (cf_tframe frame) ∧
-                 tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell
-        by by left.
+      pose proof (tf_export_tbl_cell_cleared (cf_tframe frame)) as Htbl_cell.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [Hcells] Hp_ot_switcher")
@@ -772,12 +771,8 @@ Section Switcher.
         & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
       subst hclose_switcher_inv hinv_switcher.
       (* The table cell holds the unsealed entry *)
-      assert (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) = lword_of_word (WInt 0) ∨
-              (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) =
-                 tf_export_tbl (cf_tframe frame) ∧
-               tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
-      { right. split; first done. rewrite /tf_export_tbl_ok /=.
-        apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
+      pose proof (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
+               eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [Hcells] Hp_ot_switcher")
@@ -800,12 +795,8 @@ Section Switcher.
 
     (* Push the frame and close the switcher invariant *)
     (* The table cell holds the unsealed entry *)
-    assert (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) = lword_of_word (WInt 0) ∨
-            (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) =
-               tf_export_tbl (cf_tframe frame) ∧
-             tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
-    { right. split; first done. rewrite /tf_export_tbl_ok /=.
-      apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
+    pose proof (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
+               eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")

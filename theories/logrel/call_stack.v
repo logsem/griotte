@@ -194,6 +194,52 @@ Lemma top_tframe_entry (ef : trusted_frame) :
   top_tframe (entry_cstack ef) = ef.
 Proof. done. Qed.
 
+(** The frame [tf] with its error handler count set to [n]. *)
+Definition tf_set_count (tf : trusted_frame) (n : Z) : trusted_frame :=
+  {| tf_csp := tf.(tf_csp); tf_export_tbl := tf.(tf_export_tbl); tf_error_count := n |}.
+
+(** The call stack [cstk] with the error handler count of its topmost frame
+    set to [n]; the rest is unchanged. *)
+Definition cstack_set_top_count (cstk : cstack) (n : Z) : cstack :=
+  match cstk.(cstk_frames) with
+  | frm :: frms =>
+      {| cstk_entry := cstk.(cstk_entry);
+         cstk_frames :=
+           {| cf_tframe := tf_set_count frm.(cf_tframe) n;
+              cf_saved := frm.(cf_saved);
+              ccrel := frm.(ccrel) |} :: frms |}
+  | [] => {| cstk_entry := tf_set_count cstk.(cstk_entry) n; cstk_frames := [] |}
+  end.
+
+(** Whether the topmost frame is the entry frame. *)
+Definition top_is_entry (cstk : cstack) : bool :=
+  match cstk.(cstk_frames) with [] => true | _ :: _ => false end.
+
+Lemma top_tframe_set_count cstk n :
+  top_tframe (cstack_set_top_count cstk n) = tf_set_count (top_tframe cstk) n.
+Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+Lemma top_error_count_set_count cstk n :
+  top_error_count (cstack_set_top_count cstk n) = n.
+Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+Lemma top_export_tbl_set_count cstk n :
+  top_export_tbl (cstack_set_top_count cstk n) = top_export_tbl cstk.
+Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+Lemma top_is_entry_set_count cstk n :
+  top_is_entry (cstack_set_top_count cstk n) = top_is_entry cstk.
+Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+Lemma cstack_set_top_count_frames_length cstk n :
+  length (cstack_set_top_count cstk n).(cstk_frames) = length cstk.(cstk_frames).
+Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+Lemma cstack_set_top_count_id cstk :
+  cstack_set_top_count cstk (top_error_count cstk) = cstk.
+Proof. by destruct cstk as [ [csp tbl n] [|[ [csp' tbl' n'] saved rel] frms] ]. Qed.
+Lemma cstack_set_top_count_twice cstk n m :
+  cstack_set_top_count (cstack_set_top_count cstk n) m = cstack_set_top_count cstk m.
+Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+
+(** The two kinds of error handler an export table may declare. *)
+Inductive handler_kind := Stackful | Stackless.
+
 Definition cstackUR := excl_authUR CSTK.
 
 Class CSTACK_preG Σ :=

@@ -1155,69 +1155,105 @@ Section logrel.
     interp_expr interp interp_continuation.
   Definition interp_registers : R := interp_reg interp.
 
-  (** The trap vector [wvec] is safe: in every world and compartment, after
-      trap entry from any PC [w], execution from [wvec] is safe. The
-      registers may hold anything when the trap vector does not resume the
-      faulting context ([trap_no_resume w]); otherwise they are safe and the
-      compartment of the topmost frame is untrusted. Trap entry lends MEPCC
-      and mcause to the trap vector ([trap_entry_out w]) and holds the
+  (** A fault in an untrusted compartment: the topmost frame's compartment
+      is untrusted, the faulting registers are safe, and the logical
+      relation's resources go to the trap vector, which may resume the
+      faulting context or run an untrusted error handler through the FTLR. *)
+  Definition untrusted_fault (cstk : CSTK) (regs : LReg) : iProp Σ :=
+    ∃ (W : WORLD) (C : CmptName) (Ws : list WORLD) (Cs : list CmptName),
+      ⌜frame_match Ws Cs cstk W C⌝ ∗
+      interp_reg interp W C regs ∗
+      top_cmpt_untrusted interp W C cstk ∗
+      world_interp W C ∗
+      interp_continuation cstk Ws Cs.
+
+  Lemma untrusted_fault_intro (W : WORLD) (C : CmptName) (cstk : CSTK)
+    (Ws : list WORLD) (Cs : list CmptName) (regs : LReg) :
+    frame_match Ws Cs cstk W C →
+    interp_reg interp W C regs -∗
+    top_cmpt_untrusted interp W C cstk -∗
+    world_interp W C -∗
+    interp_continuation cstk Ws Cs -∗
+    untrusted_fault cstk regs.
+  Proof. iIntros (Hframe) "Hreg Htop Hworld Hcont". iExists W, C, Ws, Cs. by iFrame. Qed.
+
+  (** The trap vector [wvec] is safe: after trap entry from any PC [w], with
+      any call stack [cstk] and registers [regs], execution from [wvec] is
+      safe, for a fault in an untrusted compartment ([untrusted_fault]) or
+      a fault that the switcher handles ([trusted_fault], instantiated by
+      the switcher with [trap_handler_ok ⊤]). Only a fault in an untrusted
+      compartment carries the worlds and the continuation. Trap entry lends
+      MEPCC and mcause to the trap vector ([trap_entry_out w]) and holds the
       trap-entry part [N_trap] of the non-atomic token. *)
-  Definition trap_vector_safe (trap_no_resume : LWord → Prop) (wvec : LWord) : iProp Σ :=
-    □ ∀ (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-        (regs : LReg) (w : LWord),
+  Definition trap_vector_safe
+      (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
+    □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord),
       ⌜∀ r, is_Some (regs !! r)⌝ -∗
-      ⌜frame_match Ws Cs cstk W C⌝ -∗
-      (⌜trap_no_resume w⌝ ∨ (interp_reg interp W C regs ∗ top_cmpt_untrusted interp W C cstk)) -∗
+      (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
       PC ↦ₚ wvec -∗
       trap_entry_out w -∗
       registers_pointsto regs -∗
-      world_interp W C -∗
-      interp_continuation cstk Ws Cs -∗
       na_own cerise_nais (⊤ ∖ ↑N_trap) -∗
       cstack_frag cstk -∗
-      interp_conf W C.
+      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
 
-  #[global] Instance trap_vector_safe_persistent trap_no_resume wvec :
-    Persistent (trap_vector_safe trap_no_resume wvec).
+  #[global] Instance trap_vector_safe_persistent trusted_fault wvec :
+    Persistent (trap_vector_safe trusted_fault wvec).
   Proof. rewrite /trap_vector_safe. apply _. Qed.
 
   (** A fault closes through a safe trap vector: after exception entry, the
-      PC holds the trap vector and execution is safe. The registers need to
-      be safe, and the topmost compartment untrusted, only when the trap
-      vector may resume the faulting context. *)
-  Lemma interp_trap (trap_no_resume : LWord → Prop)
-    (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (regs : LReg) (wvec w : LWord) :
+      PC holds the trap vector and execution is safe, for a fault in an
+      untrusted compartment or one that [trusted_fault] accepts. *)
+  Lemma interp_trap (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    (cstk : CSTK) (regs : LReg) (wvec w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
-    frame_match Ws Cs cstk W C ->
-    trap_vector_safe trap_no_resume wvec -∗
-    (⌜trap_no_resume w⌝ ∨ (interp_reg interp W C regs ∗ top_cmpt_untrusted interp W C cstk)) -∗
+    trap_vector_safe trusted_fault wvec -∗
+    (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
     registers_pointsto regs -∗
-    world_interp W C -∗
-    interp_continuation cstk Ws Cs -∗
     na_own cerise_nais (⊤ ∖ ↑N_trap) -∗
     cstack_frag cstk -∗
     trap_entry_out w -∗
     (PC ↦ₚ wvec -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}).
   Proof.
-    iIntros (Hfull Hframe) "#Hsafe Hres Hregs Hworld Hcont Hna Hcstk Hout HPC".
-    iApply ("Hsafe" with "[//] [//] Hres HPC Hout Hregs Hworld Hcont Hna Hcstk").
+    iIntros (Hfull) "#Hsafe Hfault Hregs Hna Hcstk Hout HPC".
+    iApply ("Hsafe" with "[//] Hfault HPC Hout Hregs Hna Hcstk").
   Qed.
 
   (** The fault obligation from a safe trap vector [mtcc_vec]: trap entry
-      leads to the trap vector, where execution is safe. The resources come
-      under an update at the time of the fault (for instance, to close an
-      invariant); the non-atomic token provides the trap-entry token, and
-      the trap vector receives MEPCC and mcause. The registers need to be
-      safe, and the topmost compartment untrusted, only when the trap vector
-      may resume the faulting context. *)
-  Lemma interp_trap_safe (trap_no_resume : LWord → Prop)
+      leads to the trap vector, where execution is safe. The resources and
+      the fault's justification come under an update at the time of the fault (for instance,
+      to close an invariant); the non-atomic token provides the trap-entry
+      token, and the trap vector receives MEPCC and mcause. *)
+  Lemma interp_trap_safe (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    (cstk : CSTK) (regs : LReg) (w : LWord) :
+    (∀ r, is_Some (regs !! r)) ->
+    trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
+    (|={⊤}=>
+       registers_pointsto regs ∗
+       na_own cerise_nais ⊤ ∗
+       cstack_frag cstk ∗
+       (untrusted_fault cstk regs ∨ trusted_fault cstk w regs)) -∗
+    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+  Proof.
+    iIntros (Hfull) "#Hsafe Hres".
+    iApply trap_safe_entry_intro.
+    iSplit; last by iIntros "!> %Hv".
+    iMod "Hres" as "(Hregs & Hna & Hcstk & Hfault)".
+    iDestruct (trap_entry_res_split ⊤ with "Hna") as "[Htok Hna]"; first done.
+    iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
+    by iApply (interp_trap with "Hsafe Hfault Hregs Hna Hcstk Hout HPC").
+  Qed.
+
+  (** A fault in an untrusted compartment, from the logical relation: the
+      registers are safe and the topmost compartment is untrusted. *)
+  Lemma interp_trap_safe_untrusted (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
-    trap_vector_safe trap_no_resume (lword_of_word mtcc_vec) -∗
-    (⌜trap_no_resume w⌝ ∨ (interp_reg interp W C regs ∗ top_cmpt_untrusted interp W C cstk)) -∗
+    trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
+    interp_reg interp W C regs -∗
+    top_cmpt_untrusted interp W C cstk -∗
     (|={⊤}=>
        registers_pointsto regs ∗
        world_interp W C ∗
@@ -1226,13 +1262,25 @@ Section logrel.
        cstack_frag cstk) -∗
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
-    iIntros (Hfull Hframe) "Hsafe Hno_resume Hres".
-    iApply trap_safe_entry_intro.
-    iSplit; last by iIntros "!> %Hv".
+    iIntros (Hfull Hframe) "Hsafe Hreg Htop Hres".
+    iApply (interp_trap_safe with "Hsafe"); first done.
     iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk)".
-    iDestruct (trap_entry_res_split ⊤ with "Hna") as "[Htok Hna]"; first done.
-    iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
-    by iApply (interp_trap with "Hsafe Hno_resume Hregs Hworld Hcont Hna Hcstk Hout HPC").
+    iModIntro. iFrame "Hregs Hna Hcstk". iLeft.
+    iApply (untrusted_fault_intro with "Hreg Htop Hworld Hcont"); done.
+  Qed.
+
+  (** [frame_match] and [interp_continuation] do not read the error
+      handler count of the topmost frame. *)
+  Lemma frame_match_set_top_count (Ws : list WORLD) (Cs : list CmptName)
+    (cstk : CSTK) (W : WORLD) (C : CmptName) (n : Z) :
+    frame_match Ws Cs (cstack_set_top_count cstk n) W C ↔ frame_match Ws Cs cstk W C.
+  Proof. destruct cstk as [ef [|frm frms] ]; [done|]. by destruct Ws, Cs. Qed.
+
+  Lemma interp_cont_set_top_count (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (n : Z) :
+    interp_continuation (cstack_set_top_count cstk n) Ws Cs ⊣⊢
+    interp_continuation cstk Ws Cs.
+  Proof.
+    destruct cstk as [ef [|frm frms] ]; by destruct Ws, Cs.
   Qed.
 
   Lemma interp_untagged_eq W C w :

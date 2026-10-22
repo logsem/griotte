@@ -305,7 +305,7 @@ Section layout_bridges.
       (isl_switcher_size _ _ _ Hsw) (isl_call_entry_point _ _ _ Hsw) (isl_return_entry_point _ _ _ Hsw)
       (isl_ot_switcher_size _ _ _ Hsw)
       ts (tsl_size _ _ _ Hts) (tsl_frameoffset _ _ _ Hts) (tsl_frames_fit _ _ _ Hts)
-      (tsl_export_table _ _ _ Hts) (tsl_error_count _ _ _ Hts) (tsl_words _ _ _ Hts)
+      (tsl_error_count _ _ _ Hts) (tsl_words _ _ _ Hts)
       (b_stack t) (e_stack t) ss (isl_stack_size _ _ _ Hsw) (isl_disjointness _ _ _ Hsw)
       (isl_trusted_stack_mmio _ _ _ Hsw) (isl_switcher_base_not_shadow _ _ _ Hsw)
       (isl_switcher_not_heap _ _ _ Hsw) (isl_stack_mmio _ _ _ Hsw) (isl_stack_not_heap _ _ _ Hsw)

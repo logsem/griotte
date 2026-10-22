@@ -94,7 +94,7 @@ Section fundamental.
       whose return values [ca0] and [ca1] are safe, the switcher pops the
       caller's frame and returns to it, or exits the thread when the frame to
       pop is the entry frame. No other register is read. *)
-  Lemma switcher_return_unwind (no_resume : LWord → Prop)
+  Lemma switcher_return_unwind (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (rmap : LReg) (wca0 wca1 : LWord) :
@@ -109,7 +109,7 @@ Section fundamental.
     interp W C wca1 ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ∗
-    trap_vector_safe no_resume (lword_of_word mtcc_vec) ∗
+    trap_vector_safe trusted_fault (lword_of_word mtcc_vec) ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own cerise_nais ⊤ ∗
@@ -166,10 +166,12 @@ Section fundamental.
     destruct Cs;[done|].
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     destruct frm as [ [w_csp w_tbl n_cnt] [wret_saved wcgp_saved wcs0_saved wcs1_saved] ccrel].
-    rewrite /cframe_interp /trusted_frame_interp.
+    rewrite /cframe_interp.
+    iDestruct "Hcframe_interp" as "[>Hcframe_top Hcframe_interp]".
+    iNamed "Hcframe_top". iNamed "Hcf_tframe".
+    iDestruct "Htf_tbl" as (wtbl) "[Htf_tbl _]".
     iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "((>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >Ha_tstk_cnt)
-                                    & %b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
+    iDestruct "Hcframe_interp" as "(%b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
     cbn in HWF.
     destruct HWF as (-> & Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap & Hret_ok).
     assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Hspill by solve_addr.
@@ -193,9 +195,9 @@ Section fundamental.
     (* Block 13: pop the trusted stack *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_blocks_1_spec with
-      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Ha_tstk $Hcode]");
+      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
       [done|done|done|done|].
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_tstk
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
                     & _ & Hlc)".
     iInsertRegs "Hrmap" ["Hct2"].
 
@@ -256,17 +258,17 @@ Section fundamental.
        invariant, after the jump or the exception entry *)
     iAssert (|={⊤}=> na_own cerise_nais ⊤ ∗
                      cstack_frag {| cstk_entry := ef; cstk_frames := frms |})%I
-      with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+      with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv]" as "Hupd".
     { iMod (cstack_update _ _ {| cstk_entry := ef; cstk_frames := frms |} with "Hcstk_full Hcstk")
         as "[Hcstk_full Hcstk_frag]".
       iMod ("Hclose_switcher_inv"
-             with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+             with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
                     Hcstk_full Hstk_interp_next]")
         as "Hna".
       { iNext.
         iApply (switcher_inv_pop_frame _ {| cstk_entry := ef; cstk_frames := frms |} with
-                 "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
+                 "Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
                   Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
       by iFrame. }
 

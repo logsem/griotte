@@ -134,7 +134,7 @@ Section SO.
          unchanged, and return;
        - [so_world_return]: repair the world;
        - [switcher_ret_specification]: return to the caller of [f].
-       A fault before the revocation unwinds [f] ([trap_safe_unwind]). A
+       A fault before the revocation unwinds [f] ([trap_safe_unwind_logrel]). A
        fault after it returns to the caller of [f] through the switcher:
        [checkints] puts [in] back unchanged (second closing of
        [so_world_open_object]). The stack of [f] holds its minimum stack
@@ -171,7 +171,10 @@ Section SO.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_interp_C &
+      %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+    iAssert (no_handler (top_export_tbl cstk)) as "#Hno_handler".
+    { destruct Htop_tbl as [_ ->]. iFrame "Hso_exp_eh Hso_exp_ehs". }
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.
@@ -206,7 +209,7 @@ Section SO.
     { (* The checks of [in] fail: [f] is unwound *)
       iIntros (a_f Ha_f) "(Hca0 & Hca1 & Hct1 & [%wcs0' Hcs0] & [%wcs1' Hcs1] & Hcsp)".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
-      iApply (trap_safe_unwind W0 C Nswitcher cstk Ws Cs with
+      iApply (trap_safe_unwind_logrel W0 C Nswitcher cstk Ws Cs with
                "Hswitcher Hswitcher_static [] [-]");
         last (iModIntro; iFrame).
       { exact HNtrap. }
@@ -215,7 +218,8 @@ Section SO.
         pose proof (all_registers_s_correct r) as Hall.
         set_solver+ Hall. }
       { exact Hframe_match. }
-      { iLeft; iPureIntro. by apply trap_no_resume_cap. } }
+      { by apply trap_no_resume_cap. }
+      { iRight. iExact "Hno_handler". } }
     iNext; iIntros (t p g b e a π)
       "(%Hp & -> & %Hno_overlap & HPC & Hca0 & Hca1 & Hct1 & Hcs0 & Hcs1 & Hcsp
       & _ & Hlc)".
@@ -226,7 +230,7 @@ Section SO.
                "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode_main]"); [done|solve_addr|].
       iIntros "(Hca0 & [%wcs0' Hcs0] & [%wcs1' Hcs1])".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
-      iApply (trap_safe_unwind W0 C Nswitcher cstk Ws Cs with
+      iApply (trap_safe_unwind_logrel W0 C Nswitcher cstk Ws Cs with
                "Hswitcher Hswitcher_static [] [-]");
         last (iModIntro; iFrame).
       { exact HNtrap. }
@@ -235,7 +239,8 @@ Section SO.
         pose proof (all_registers_s_correct r) as Hall.
         set_solver+ Hall. }
       { exact Hframe_match. }
-      { iLeft; iPureIntro. by apply trap_no_resume_cap. } }
+      { by apply trap_no_resume_cap. }
+      { iRight. iExact "Hno_handler". } }
 
     iAssert (⌜disjoint_from_shadow b e⌝)%I as "%Hobject_shadow".
     { destruct Htag_or_empty as [-> | Hempty].
@@ -269,7 +274,7 @@ Section SO.
       iDestruct "Hclose_object" as "[_ Hclose_object]".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hcra";"Hcgp"].
       iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e (csp_b' ^+ 4)%a l_revoked stk_mem
-                cstk Ws Cs with "Hswitcher Hswitcher_static [-]").
+                cstk Ws Cs with "Hswitcher Hswitcher_static Hno_handler [-]").
       9: { iMod ("Hclose_object" with "Hobject") as "(Hworld_interp_C & Hrevoked & Hstk)".
            iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
                        with "Hrevoked") as "Hrevoked".

@@ -407,6 +407,26 @@ Section Switcher_preamble.
   Definition tf_export_tbl_ok (tf : trusted_frame) : Prop :=
     exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw).
 
+  (** The export table cell of a pushed frame, as the call path writes it:
+      cleared, before the entry unseals... *)
+  Lemma tf_export_tbl_cell_cleared (tf : trusted_frame) :
+    lword_of_word (WInt 0) = lword_of_word (WInt 0) ∨
+    (lword_of_word (WInt 0) = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf).
+  Proof. by left. Qed.
+
+  (** ... or holding the unsealed entry, a capability to the export table. *)
+  Lemma tf_export_tbl_cell_entry (tf : trusted_frame) g b e a :
+    tf.(tf_export_tbl) = lword_of_word (WCap true RO g b e a) →
+    (b ^+ ExportTable_offset_errorHandlerStackless < a)%a →
+    (a < e)%a →
+    disjoint_from_shadow b e →
+    lword_of_word (WCap true RO g b e a) = lword_of_word (WInt 0) ∨
+    (lword_of_word (WCap true RO g b e a) = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf).
+  Proof.
+    intros Htbl Hb Ha Hshadow. right. split; first done.
+    rewrite /tf_export_tbl_ok /tf_export_tbl_b Htbl /=. by apply exp_tbl_cap_entry.
+  Qed.
+
   (** [trusted_frame_interp entry tf a_tstk] interprets the frame [tf] of the
       trusted stack at [a_tstk]: its three cells hold the stack pointer
       [tf_csp], the capability [tf_export_tbl] to the export table of the
@@ -421,12 +441,13 @@ Section Switcher_preamble.
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
     let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
-    (a_csp ↦ₐ tf.(tf_csp) ∗
-    (if entry
-     then a_export_table ↦ₐ□ tf.(tf_export_tbl) ∗ ⌜tf_export_tbl_ok tf⌝
-     else ∃ w, a_export_table ↦ₐ w ∗
-            ⌜w = lword_of_word (WInt 0) ∨ (w = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf)⌝) ∗
-    a_error_count ↦ₐ WInt tf.(tf_error_count))%I.
+    ("Htf_csp" ∷ a_csp ↦ₐ tf.(tf_csp) ∗
+     "Htf_tbl" ∷ (if entry
+                  then a_export_table ↦ₐ□ tf.(tf_export_tbl) ∗ ⌜tf_export_tbl_ok tf⌝
+                  else ∃ w, a_export_table ↦ₐ w ∗
+                         ⌜w = lword_of_word (WInt 0) ∨
+                          (w = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf)⌝) ∗
+     "Htf_cnt" ∷ a_error_count ↦ₐ WInt tf.(tf_error_count))%I.
 
   (** [cframe_stk_own a_stk saved ccrel] holds the area [[a_stk, a_stk+4)]
       where the switcher spilled the callee-saved registers [saved] of the
@@ -454,16 +475,17 @@ Section Switcher_preamble.
       and the spill area.
    *)
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
-    trusted_frame_interp false frm.(cf_tframe) a_tstk ∗
+    "Hcf_tframe" ∷ trusted_frame_interp false frm.(cf_tframe) a_tstk ∗
     ∃ b_stk e_stk a_stk : Addr,
-    ⌜ frm.(cf_tframe).(tf_csp) = WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∧
-      (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
-      disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
-      (* a trusted caller returns to a valid target, outside the heap *)
-      (is_untrusted_caller_frm frm = false →
-       jalr_target_ok cnull cra frm.(cf_saved).(cs_cra).(lw) = true ∧
-       is_heap_cap frm.(cf_saved).(cs_cra).(lw) = false) ⌝ ∗
-    cframe_stk_own a_stk frm.(cf_saved) frm.(ccrel).
+    "%Hcf_csp" ∷
+      ⌜ frm.(cf_tframe).(tf_csp) = WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∧
+        (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
+        disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
+        (* a trusted caller returns to a valid target, outside the heap *)
+        (is_untrusted_caller_frm frm = false →
+         jalr_target_ok cnull cra frm.(cf_saved).(cs_cra).(lw) = true ∧
+         is_heap_cap frm.(cf_saved).(cs_cra).(lw) = false) ⌝ ∗
+    "Hcf_spill" ∷ cframe_stk_own a_stk frm.(cf_saved) frm.(ccrel).
 
   (** [frames_interp ef frms a_tstk] interprets the frames [frms], the
       topmost at [a_tstk] in the trusted stack, above the entry frame [ef]. *)
@@ -480,6 +502,19 @@ Section Switcher_preamble.
       below them, the entry frame of the thread, [frames[0]]. *)
   Definition cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
     frames_interp cstk.(cstk_entry) cstk.(cstk_frames) a_tstk.
+
+  (** Open the three cells of the topmost frame, whether it is the entry
+      frame or a pushed frame; close them with any error handler count. *)
+  Lemma cstack_interp_open_top (cstk : CSTK) (a_tstk : Addr) :
+    cstack_interp cstk a_tstk ⊢
+    trusted_frame_interp (top_is_entry cstk) (top_tframe cstk) a_tstk ∗
+    (∀ n, trusted_frame_interp (top_is_entry cstk) (tf_set_count (top_tframe cstk) n) a_tstk -∗
+          cstack_interp (cstack_set_top_count cstk n) a_tstk).
+  Proof.
+    destruct cstk as [ef [|frm frms] ]; rewrite /cstack_interp /=.
+    - iIntros "Htf". iFrame "Htf". by iIntros (n) "Htf".
+    - iIntros "[Hrest [Htf Hspill]]". iFrame "Htf". iIntros (n) "Htf". iFrame.
+  Qed.
 
   (** [switcher_inv] describes the invariant of the switcher,
       and describe the private state of the switcher.

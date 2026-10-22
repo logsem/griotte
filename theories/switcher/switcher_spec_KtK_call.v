@@ -402,13 +402,8 @@ Section Switcher_KtK_Call.
 
     (* Push the frame and close the switcher invariant *)
     (* The table cell holds the unsealed entry *)
-    assert (lword_of_word (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) =
-              lword_of_word (WInt 0) ∨
-            (lword_of_word (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) =
-               tf_export_tbl (cf_tframe frame) ∧
-             tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
-    { right. split; first done. rewrite /tf_export_tbl_ok /=.
-      apply exp_tbl_cap_entry; [exact Hbtbl_ehs | solve_addr | exact Htbl_shadow]. }
+    pose proof (tf_export_tbl_cell_entry (cf_tframe frame) Global btbl_tgt etbl_tgt atbl_tgt
+               eq_refl Hbtbl_ehs ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")

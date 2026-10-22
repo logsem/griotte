@@ -263,7 +263,10 @@ Section KVS_spec_read_safe.
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & _ & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_C &
+      %Hsync_csp & _ & Hcstk & Hna)".
+    iAssert (no_handler (top_export_tbl cstk)) as "#Hno_handler".
+    { destruct Htop_tbl as [_ ->]. iFrame "Hkvs_exp_eh Hkvs_exp_ehs". }
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -367,7 +370,7 @@ Section KVS_spec_read_safe.
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       map_simpl "Hrmap".
       iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs _
-               with "Hinv_switcher Hswitcher_static [-]");
+               with "Hinv_switcher Hswitcher_static Hno_handler [-]");
         last (iModIntro; iFrame).
       { exact Hrelated_pub_W0_Wfixed. }
       { apply lregmap_full_dom in Hrmap_init.

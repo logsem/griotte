@@ -21,9 +21,7 @@ From griotte Require Import map_simpl register_tactics proofmode.
     that its words are safe ([∀ r v, ⌜regs !! r = Some v⌝ → interp W C v]),
     and the Iris hypothesis [Htop] that the topmost compartment is
     untrusted. *)
-Ltac first_spill_regs_interp Hfull Hreg Htop :=
-  iRight;
-  iSplit; last iExact Htop;
+Ltac first_spill_regs_interp Hfull Hreg :=
   iApply interp_reg_intro;
   [intros ?; repeat (rewrite lookup_insert_is_Some'; right); apply Hfull |];
   let r := fresh "r" in
@@ -131,7 +129,7 @@ Section fundamental.
 
   (** Failure path of [interp_expr_switcher_call]: the trusted stack is
       exhausted. *)
-  Lemma interp_switcher_call_tstack_exhausted (no_resume : LWord → Prop)
+  Lemma interp_switcher_call_tstack_exhausted (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (rmap : LReg) (b e a : Addr) (lv : list LWord)
@@ -150,7 +148,7 @@ Section fundamental.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
-    trap_vector_safe no_resume (lword_of_word mtcc_vec) ∗
+    trap_vector_safe trusted_fault (lword_of_word mtcc_vec) ∗
     interp W C wcs0 ∗
     interp W C wcs1 ∗
     interp W C wcra ∗
@@ -370,11 +368,11 @@ Section fundamental.
            iApply (switcher_call_blocks_2_fail_spec with "[- $HPC $Hcsp $Hcgp $Hcode]"); [done | done |].
            iIntros "[Hcsp Hcgp]".
            iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-           iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]");
-             [done| |done| |by iFrame].
+           iApply (interp_trap_safe_untrusted with "Htrap [] Htop [-]");
+             [ |done| |by iFrame].
            { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
            (* A fault of the first spill: the registers are safe *)
-           first_spill_regs_interp Hfull_rmap "Hreg" "Htop". }
+           first_spill_regs_interp Hfull_rmap "Hreg". }
          (* The cursor is below the base, and the furthest cell within
             bounds: open the caller's stack from that cell *)
          destruct (Hnot_stk b e a eq_refl) as [Hab|Hea]; last solve_addr.
@@ -421,11 +419,13 @@ Section fundamental.
          { iApply big_sepL_cons; iSplitR; first (iRight; iExact "Hcgpv").
            iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
          iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-         iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]");
-           [done| |done| |by iFrame].
+         iApply (trap_safe_unwind_logrel with "Hinv_switcher Hstatic [] [-]");
+           [done| |done| | |by iFrame].
          { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
-         (* A fault of the second store of the spill is not resumed *)
-         iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
+         { (* A fault of the second store of the spill is not resumed *)
+           apply trap_no_resume_switcher_pc. by vm_compute. }
+         (* The fault is in the switcher *)
+         iLeft; iPureIntro. apply switcher_fault_pc_cap. }
     iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_mmio Hstk_heap]; first done.
 
     (* Open the caller's stack frame, before the checks: the opened
@@ -468,14 +468,14 @@ Section fundamental.
         as "Hworld_interp"; first done.
       { iApply big_sepL_intro; iIntros "!>" (k w Hk); by iLeft. }
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-      iApply (trap_safe_unwind with "Hinv_switcher Hstatic [] [-]"); [done| |done| |]; cycle 2.
+      iApply (interp_trap_safe_untrusted with "Htrap [] Htop [-]"); [ |done| |]; cycle 2.
       { iMod ("Hclose_switcher_inv" with
           "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
         { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
         by iFrame. }
       { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
       (* A fault of the first spill: the registers are safe *)
-      first_spill_regs_interp Hfull_rmap "Hreg" "Htop". }
+      first_spill_regs_interp Hfull_rmap "Hreg". }
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
     assert (4 <= length lv) as Hlen_lv4.
@@ -529,17 +529,16 @@ Section fundamental.
                 ccrel := Unknown_to_Unknown
              |}).
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-      iApply (trap_safe_unwind _ _ _ (cstack_push frame cstk) (W :: Ws) (C :: Cs)
+      iApply (trap_safe_unwind_logrel _ _ _ (cstack_push frame cstk) (W :: Ws) (C :: Cs)
                with "Hinv_switcher Hstatic [] [-]"); [done|..]; cycle 1.
       { simpl. split; auto; first apply related_sts_pub_refl_world.
         split; [reflexivity|]; split; done. }
       { (* The unsealing is not the first spill *)
-        iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
+        apply trap_no_resume_switcher_pc. by vm_compute. }
+      { (* The fault is in the switcher *)
+        iLeft; iPureIntro. apply switcher_fault_pc_cap. }
       { (* The table cell is still cleared *)
-        assert (lword_of_word (WInt 0) = lword_of_word (WInt 0) ∨
-                (lword_of_word (WInt 0) = tf_export_tbl (cf_tframe frame) ∧
-                 tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell
-          by by left.
+        pose proof (tf_export_tbl_cell_cleared (cf_tframe frame)) as Htbl_cell.
         iMod (switcher_inv_push_frame frame cstk with
                "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
                 Htstk Hstk_interp [] Hp_ot_switcher")
@@ -644,12 +643,8 @@ Section fundamental.
       iIntros "(_ & HPC & [%wcs0' Hcs0] & [%wcs1'' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2]
         & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hparams & Hrest & _)".
       (* The table cell holds the unsealed entry *)
-      assert (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) = lword_of_word (WInt 0) ∨
-              (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) =
-                 tf_export_tbl (cf_tframe frame) ∧
-               tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
-      { right. split; first done. rewrite /tf_export_tbl_ok /=.
-        apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
+      pose proof (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
+               eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [] Hp_ot_switcher")
@@ -678,12 +673,8 @@ Section fundamental.
 
     (* Push the frame, whose table cell holds the unsealed entry, and close the
        switcher invariant *)
-    assert (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) = lword_of_word (WInt 0) ∨
-            (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) =
-               tf_export_tbl (cf_tframe frame) ∧
-             tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
-    { right. split; first done. rewrite /tf_export_tbl_ok /=.
-      apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
+    pose proof (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
+               eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [] Hp_ot_switcher")
