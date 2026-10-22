@@ -150,8 +150,8 @@ Section kvs_obligations.
 
     (* 5 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
-    change (fw_entry_min_stack (kvs_firmware ot_kvs key_main key_B) 0) with 4 in Hstack_min.
+    pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
+    change (fw_entry_min_stack (kvs_firmware ot_kvs key_main key_B) 0) with 4 in Hentry_min_stack.
     iEval (cbv [kvs_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts"
       as "((Hmain & Hmain_static_sealed & _) & (Hkvs & _ & #Hkvs_pers) &
