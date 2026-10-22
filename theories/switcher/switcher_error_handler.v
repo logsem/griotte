@@ -135,19 +135,53 @@ Section Switcher_error_handler.
   Definition error_state_regs : list RegName :=
     [cra; csp; cgp; ctp; ct0; ct1; ct2; cs0; cs1; ca0; ca1; ca2; ca3; ca4; ca5].
 
-  (** The switcher's room test for the [ErrorState] (mirrored: the 16 words
-      above the cursor). *)
+  (** The switcher's room test for the [ErrorState] (mirrored: the
+      [ErrorState_size] words above the cursor). A sealing range passes the
+      test: the first store of the [ErrorState] then faults. *)
   Definition error_state_fits (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
-    | WCap true _ _ _ e a => (a + 16 <= e)%Z
+    | WCap true _ _ _ e a => (a + ErrorState_size <= e)%Z
+    | WSealRange true _ _ _ e a => (a + ErrorState_size <= e)%Z
     | _ => False
     end.
+
+  (** The room test, on the stack pointer moved past the [ErrorState]
+      ([wct0]): its tag, and its cursor not past its end. *)
+  Lemma error_state_fits_lea (wcsp wct0 : LWord) :
+    lea_result wcsp ErrorState_size = Some wct0 →
+    (get_tag wct0.(lw) = true ∧ get_a wct0.(lw) <= get_e wct0.(lw))%Z ↔
+    error_state_fits wcsp.
+  Proof.
+    destruct wcsp as [w π]. rewrite /lea_result /error_state_fits /ErrorState_size /=.
+    destruct_word w; cbn; intros [=<-]; cbn; try (split; [by intros [? _] | done]).
+    - destruct (a + 16)%a as [a'|] eqn:Ha; destruct t; cbn; split;
+        try (by intros [? _]); try done; [intros [_ ?] | intros ? | intros ?]; solve_addr.
+    - destruct (a + 16)%ot as [a'|] eqn:Ha; destruct t; cbn; split;
+        try (by intros [? _]); try done; [intros [_ ?] | intros ? | intros ?]; solve_finz.
+    - destruct sb; cbn; split; [by intros [? _] | done | by intros [? _] | done].
+  Qed.
+
+  (** The tag of the moved stack pointer is stripped only if that of the
+      faulting one is. *)
+  Lemma tag_strippable_lea (wcsp wct0 : LWord) (z : Z) :
+    lea_result wcsp z = Some wct0 →
+    tag_strippable wct0 → tag_strippable wcsp.
+  Proof.
+    destruct wcsp as [w π]. rewrite /lea_result /tag_strippable /=.
+    destruct_word w; cbn; intros [=<-]; cbn; try done.
+    - destruct (a + z)%a; cbn; [|by intros [? _] ].
+      by rewrite /has_authority /heap_authority_base /heap_cap_base /memory_cap_base /=.
+    - destruct (a + z)%ot; cbn; [|by intros [? _] ].
+      by rewrite /has_authority /heap_authority_base /heap_cap_base /memory_cap_base /=.
+    - by intros [? _].
+    - destruct sb; cbn; by intros [? _].
+  Qed.
 
   (** The room test passes and the switcher's stores of the [ErrorState]
       through the faulting [csp] succeed. *)
   Definition error_state_stores_ok (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
-    | WCap true p _ b e a => writeAllowed p = true ∧ (b <= a)%a ∧ (a + 16 <= e)%Z
+    | WCap true p _ b e a => writeAllowed p = true ∧ (b <= a)%a ∧ (a + ErrorState_size <= e)%Z
     | _ => False
     end.
 
@@ -158,33 +192,130 @@ Section Switcher_error_handler.
     error_state_stores_ok wcsp → error_state_fits wcsp.
   Proof. rewrite /error_state_stores_ok /error_state_fits. repeat case_match; naive_solver. Qed.
 
+  (** When the room test passes but the stores do not succeed, the first
+      store of the stackful setup, through the moved stack pointer [wct0]
+      at the base of the [ErrorState], faults: [wct0] is a sealing range,
+      or it has no write permission, or the [ErrorState] starts below its
+      base. *)
+  Lemma error_state_store_fault (wcsp wct0 : LWord) :
+    lea_result wcsp ErrorState_size = Some wct0 →
+    error_state_fits wcsp →
+    ¬ error_state_stores_ok wcsp →
+    is_cap wct0.(lw) = false ∨
+    ∃ (p : Perm) (g : Locality) (b e a ea : Addr),
+      wct0.(lw) = WCap true p g b e a ∧
+      (a + (- ErrorState_size))%a = Some ea ∧
+      (writeAllowed p = false ∨ withinBounds b e ea = false).
+  Proof.
+    destruct wcsp as [w π].
+    rewrite /lea_result /error_state_fits /error_state_stores_ok /ErrorState_size /=.
+    destruct_word w; cbn; intros [=<-] Hfits Hnot; cbn; try done.
+    - destruct t; last done.
+      destruct (a + 16)%a as [a'|] eqn:Ha; last solve_addr.
+      right. exists c, g, b, e, a', a. split_and!; [done | solve_addr |].
+      destruct (writeAllowed c) eqn:Hw; [right | by left].
+      rewrite /withinBounds. apply andb_false_iff.
+      destruct (decide (b <= a)%a); last (left; solve_addr).
+      exfalso. apply Hnot. split_and!; done.
+    - left. by destruct (a + 16)%ot.
+  Qed.
   (** The [ErrorState] the switcher writes for a fault at [w] with the
       registers [rfault], through a [csp] of permission [p]: the untagged
       MEPCC, then each register as stored through [p]. *)
   Definition error_state_words (p : Perm) (w : LWord) (rfault : LReg) : list LWord :=
     lclear_tag (lmepcc_of_pc w) :: ((λ r, lstore_word p (rfault !!! r)) <$> error_state_regs).
 
+  Lemma length_error_state_words p w rfault :
+    length (error_state_words p w rfault) = Z.to_nat ErrorState_size.
+  Proof. reflexivity. Qed.
+
+  (** A word whose tag is cleared is stored as is. *)
+  Lemma lstore_word_clear_tag (p : Perm) (v : LWord) :
+    lstore_word p (lclear_tag v) = lclear_tag v.
+  Proof.
+    destruct v as [w π].
+    rewrite /lstore_word /lclear_tag /lift_word /store_word /=.
+    destruct (canStore p (clear_tag w)); [done | by rewrite clear_tag_idempotent].
+  Qed.
+
+  (** The words the switcher copies to the [ErrorState]: the untagged
+      MEPCC, then the registers as spilled. *)
+  Definition error_state_src (w : LWord) (rfault : LReg) : list LWord :=
+    lclear_tag (lmepcc_of_pc w) :: ((λ r, rfault !!! r) <$> error_state_regs).
+
+  Lemma error_state_src_store (p : Perm) (w : LWord) (rfault : LReg) :
+    lstore_word p <$> error_state_src w rfault = error_state_words p w rfault.
+  Proof.
+    rewrite /error_state_src /error_state_words fmap_cons lstore_word_clear_tag.
+    by rewrite -list_fmap_compose.
+  Qed.
+
   (** The [ErrorState] at the faulting cursor, with the words the switcher
       writes. *)
   Definition error_state_pointsto (w : LWord) (rfault : LReg) : iProp Σ :=
     match (rfault !!! csp).(lw) with
-    | WCap _ p _ _ _ a => [[ a , (a ^+ 16)%a ]] ↦ₐ [[ error_state_words p w rfault ]]
+    | WCap _ p _ _ _ a =>
+        [[ a , (a ^+ ErrorState_size)%a ]] ↦ₐ [[ error_state_words p w rfault ]]
     | _ => True
     end.
 
   (** The [ErrorState] slot at the faulting cursor, any contents. *)
   Definition error_state_area (rfault : LReg) : iProp Σ :=
     match (rfault !!! csp).(lw) with
-    | WCap _ _ _ _ _ a => ∃ ws, ⌜length ws = 16⌝ ∗ [[ a , (a ^+ 16)%a ]] ↦ₐ [[ ws ]]
+    | WCap _ _ _ _ _ a =>
+        ∃ ws, ⌜length ws = Z.to_nat ErrorState_size⌝ ∗
+              [[ a , (a ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]]
+    | _ => True
+    end.
+
+  (** The [ErrorState] slot while the switcher writes it: its first [i]
+      words are those of [error_state_words], the others any. *)
+  Definition error_state_cells (w : LWord) (rfault : LReg) (i : nat) : iProp Σ :=
+    match (rfault !!! csp).(lw) with
+    | WCap _ p _ _ _ a =>
+        ∃ ws, ⌜length ws = (Z.to_nat ErrorState_size - i)%nat⌝ ∗
+              [[ a , (a ^+ ErrorState_size)%a ]] ↦ₐ
+                [[ take i (error_state_words p w rfault) ++ ws ]]
+    | _ => True
+    end.
+
+  Lemma error_state_cells_0 (w : LWord) (rfault : LReg) :
+    error_state_cells w rfault 0 ⊣⊢ error_state_area rfault.
+  Proof.
+    rewrite /error_state_cells /error_state_area.
+    by destruct (rfault !!! csp) as [ [|[ | ]|? []|] π]; cbn.
+  Qed.
+
+  Lemma error_state_cells_full (w : LWord) (rfault : LReg) :
+    error_state_cells w rfault (Z.to_nat ErrorState_size) ⊣⊢ error_state_pointsto w rfault.
+  Proof.
+    rewrite /error_state_cells /error_state_pointsto.
+    destruct (rfault !!! csp) as [ [|[ | ]|? []|] π]; cbn; try done.
+    rewrite Nat.sub_diag take_ge; last by rewrite length_error_state_words.
+    iSplit.
+    - iIntros "(%ws & %Hws & Hws)". destruct ws; last done.
+      by rewrite app_nil_r.
+    - iIntros "Hws". iExists []. rewrite app_nil_r. by iFrame.
+  Qed.
+
+  (** The [ErrorState] slot does not overlap the shadow table. *)
+  Definition error_state_shadow_free (wcsp : LWord) : Prop :=
+    match wcsp.(lw) with
+    | WCap _ _ _ _ _ a => disjoint_from_shadow a (a ^+ ErrorState_size)%a
     | _ => True
     end.
 
   (** What a fault site with a trusted handler lends: the slot, when the
       table declares a stackful handler (offset [eh]) and the switcher's
-      stores succeed. *)
+      stores succeed. The site also guarantees that the switcher's stores
+      need no liveness resource (its [csp] has no identifier) and that the
+      slot is outside the shadow table. *)
   Definition error_state_slot (eh : Z) (rfault : LReg) : iProp Σ :=
     if decide (eh ≠ ExportTable_no_handler ∧ error_state_stores_ok (rfault !!! csp))
-    then error_state_area rfault else True%I.
+    then (⌜(rfault !!! csp).(lprov) = None⌝ ∗
+          ⌜error_state_shadow_free (rfault !!! csp)⌝ ∗
+          error_state_area rfault)%I
+    else True%I.
 
   (** The stackless handler's stack: the invocation's slice of the topmost
       pushed frame's [csp], cursor at its end (mirror of CHERIoT's cursor at
@@ -204,7 +335,8 @@ Section Switcher_error_handler.
   Definition stackful_regs (wcsp : LWord) : option (LWord * LWord) :=
     match wcsp with
     | MkLWord (WCap t p g b e a) π =>
-        (λ a16, (MkLWord (WCap t p g b e a16) π, MkLWord (WCap t p g b e a) π)) <$> (a + 16)%a
+        (λ a16, (MkLWord (WCap t p g b e a16) π, MkLWord (WCap t p g b e a) π)) <$>
+          (a + ErrorState_size)%a
     | _ => None
     end.
 
@@ -230,6 +362,19 @@ Section Switcher_error_handler.
     end ∧
     (∀ r, r ∉ ({[cra; cgp; csp; ca0; ca1; ca2]} : gset RegName) →
           regs !! r = Some (lword_of_word (WInt 0))).
+
+  (** The handler offset of kind [kind] declared by the table at [b]. *)
+  Definition handler_offset (kind : handler_kind) (b : Addr) (z : Z) : iProp Σ :=
+    match kind with Stackful => b ↦ₕ□{stackful} z | Stackless => b ↦ₕ□{stackless} z end.
+
+  #[global] Instance handler_offset_persistent kind b z :
+    Persistent (handler_offset kind b z).
+  Proof. destruct kind; apply _. Qed.
+
+  (** The number of words of the [ErrorState] that the switcher writes
+      before it invokes a handler of kind [kind]. *)
+  Definition error_state_written (kind : handler_kind) : nat :=
+    match kind with Stackful => Z.to_nat ErrorState_size | Stackless => 0 end.
 
   (** What the handler receives of the slot, and what it gives back to the
       unwind continuation. *)
