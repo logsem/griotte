@@ -276,4 +276,41 @@ Section griotte_lang_rules.
     }
   Qed.
 
+  (** [Jnz] falls through on any word whose address is zero. *)
+  Lemma wp_jnz_success_next_any E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond dq :
+    decodeInstrW w.(lw) = Jnz (inl imm) rcond →
+    nonZero wcond.(lw) = false →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    rcond ≠ cnull →
+
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ rcond ↦ᵣ wcond }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        rcond ↦ᵣ wcond }}}.
+  Proof.
+    iIntros (Hinstr Hnz Hvpc Hpc_a' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    iDestruct (map_of_regs_1 with "Hrcond") as "Hmap".
+    iApply (wp_Jnz with "[$HPC $Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
+    { by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+. }
+    iNext. iIntros (lpc' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [lpc'' cond Hcond Hnz' Hinc | lpc'' imm' cond Hcond Hnz' _ _ | Hfail].
+    - rewrite llookup_reg_not_cnull // lookup_insert_eq in Hcond. injection Hcond as <-.
+      apply incrementPC_Some_inv in Hinc
+        as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
+      injection HPC as <- <- <- <- <- <- <-.
+      rewrite Hpc_a' in Hapc. injection Hapc as <-.
+      iApply "Hφ". iFrame. iApply (regs_of_map_1 with "Hmap").
+    - rewrite llookup_reg_not_cnull // lookup_insert_eq in Hcond. injection Hcond as <-.
+      congruence.
+    - exfalso. destruct Hfail as [cond Hcond _ Hinc | imm' cond Hcond Hnz' _ _].
+      + rewrite /incrementPC /= Hpc_a' in Hinc. done.
+      + rewrite llookup_reg_not_cnull // lookup_insert_eq in Hcond. injection Hcond as <-.
+        congruence.
+  Qed.
+
 End griotte_lang_rules.

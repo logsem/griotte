@@ -611,7 +611,7 @@ Section layout_of_img_wf.
     destruct Hranges as (_ & _ & _ & [ [_ Hexp_heap] [Hexp_shadow _] ]).
     destruct Hrange_stack as [ [_ Hstack_heap] _].
     split_and!; [by apply trusted_stack_word_cap.. |].
-    subst t c. eexists _, _, _, _. split_and!; [done | done | solve_addr | done].
+    subst t c. eexists _, _, _, _. split_and!; [done | done | solve_addr | done | done | done].
   Qed.
 
   (** The words of the trusted stack of a thread. *)

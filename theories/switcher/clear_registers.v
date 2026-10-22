@@ -14,6 +14,32 @@ Section ClearStackMacro.
   Definition rclear_instrs' (l : list RegName) : list Word
     := (fun r => (encodeInstrW (machine_instructions.Mov r (inl 0%Z)))) <$> l.
 
+  (** The registers but those of [keep], in the order of [all_registers]. *)
+  Definition registers_except (keep : list RegName) : list RegName :=
+    filter (λ r, r ∉ keep) all_registers.
+
+  (** CHERIoT's [zeroAllRegistersExcept]: clear every register but those of
+      [keep], [cnull] included. *)
+  Definition zero_all_registers_except_asm (keep : list RegName) : list asm_code :=
+    rclear_asm (registers_except keep).
+
+  (** The registers that the invocation of an error handler clears: all but
+      its return sentry, its stack, its globals and its three arguments. The
+      names of the registers are opaque to the computation of an assembled
+      code, which cannot compute [registers_except]: the code uses this
+      explicit list. *)
+  Definition registers_handler_invoke : list RegName :=
+    [cnull; ctp; ct0; ct1; ct2; cs0; cs1; ca3; ca4; ca5].
+
+  Lemma registers_except_handler_invoke :
+    registers_except [cra; csp; cgp; ca0; ca1; ca2] = registers_handler_invoke.
+  Proof. vm_compute. reflexivity. Qed.
+
+  Lemma zero_all_registers_except_handler_invoke :
+    zero_all_registers_except_asm [cra; csp; cgp; ca0; ca1; ca2] =
+      rclear_asm registers_handler_invoke.
+  Proof. by rewrite /zero_all_registers_except_asm registers_except_handler_invoke. Qed.
+
   Definition registers_pre_call_skip : list RegName :=
     [ca0;ca1;ca2;ca3;ca4;ca5;ct0].
   Definition clear_registers_pre_call_skip_asm : list asm_code :=

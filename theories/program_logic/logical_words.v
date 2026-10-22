@@ -108,6 +108,15 @@ Lemma lw_lload_word p v : (lload_word p v).(lw) = load_word p v.(lw).
 Proof. done. Qed.
 Lemma lprov_lload_word p v : (lload_word p v).(lprov) = v.(lprov).
 Proof. done. Qed.
+
+(** [load_word_no_dl_dro] on logical words. *)
+Lemma lload_word_no_dl_dro (p : Perm) (v : LWord) :
+  isDL p = false → isDRO p = false → lload_word p v = v.
+Proof.
+  intros Hdl Hdro. destruct v as [w π].
+  by rewrite /lload_word /lift_word /= load_word_no_dl_dro.
+Qed.
+
 Lemma lw_lstore_word p v : (lstore_word p v).(lw) = store_word p v.(lw).
 Proof. done. Qed.
 Lemma lprov_lstore_word p v : (lstore_word p v).(lprov) = v.(lprov).

@@ -240,6 +240,12 @@ Section logrel.
     by apply related_sts_pub_priv_world.
   Qed.
 
+  (** [top_cmpt_untrusted] does not read the count of the topmost frame. *)
+  Lemma top_cmpt_untrusted_set_top_count interp (W : WORLD) (C : CmptName) (cstk : CSTK) (n : Z) :
+    top_cmpt_untrusted interp W C (cstack_set_top_count cstk n) ⊣⊢
+    top_cmpt_untrusted interp W C cstk.
+  Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+
   (** Safe execution from [wpc]: with safe registers, in an untrusted topmost
       compartment ([top_cmpt_untrusted]), and the continuation of [cstk]. *)
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=

@@ -205,7 +205,7 @@ Section adequacy_helpers.
         iFrame "∗ #".
         iSplit; first done.
         iSplit; last (iPureIntro; destruct Htbl_cap as (p & g & e_tbl & a_tbl & -> & Htbl);
-                      rewrite /tf_export_tbl_ok /=; by exists p, g, e_tbl, a_tbl).
+                      rewrite /tf_export_tbl_ok /=; split; [by exists p, g, e_tbl, a_tbl | done]).
         iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.
       }
       iMod (na_inv_alloc cerise_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".

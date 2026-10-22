@@ -116,6 +116,47 @@ Section ClearRegistersMacro.
       {  iPureIntro; set_solver. }
   Qed.
 
+  Lemma list_to_set_registers_except (keep : list RegName) :
+    (list_to_set (registers_except keep) : gset RegName) = all_registers_s ∖ list_to_set keep.
+  Proof.
+    apply set_eq. intros r.
+    rewrite elem_of_list_to_set elem_of_difference elem_of_list_to_set
+      /registers_except list_elem_of_filter.
+    pose proof (all_registers_s_correct r). pose proof (all_registers_correct r).
+    naive_solver.
+  Qed.
+
+  (** CHERIoT's [zeroAllRegistersExcept]: the registers but those of [keep]
+      hold 0. *)
+  Lemma zero_all_registers_except_spec
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
+    (keep : list RegName) (rmap : LReg) φ :
+    let l := registers_except keep in
+    l ≠ [] ->
+    executeAllowed pc_p = true ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l))%a ->
+    dom rmap = all_registers_s ∖ list_to_set keep ->
+
+    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
+    codefrag_pers pc_a (rclear_instrs' l) ∗
+    ▷ ( (∃ rmap' : LReg,
+           ⌜dom rmap' = all_registers_s ∖ list_to_set keep⌝ ∗
+           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l))%a ∗
+           ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝) ∗
+           codefrag_pers pc_a (rclear_instrs' l))
+        -∗ WP Seq (Instr Executable) {{ φ }})
+    ⊢ WP Seq (Instr Executable) {{ φ }}.
+  Proof.
+    intros l. iIntros (Hne Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
+    iApply (rclear_spec _ _ _ _ _ l); eauto.
+    { by rewrite /l list_to_set_registers_except. }
+    iFrame "∗ #". iNext.
+    iIntros "(%rmap' & %Hdom' & HPC & Hregs & Hcode')".
+    iApply "Hcont". iFrame. iPureIntro.
+    by rewrite Hdom' /l list_to_set_registers_except.
+  Qed.
+
   Lemma clear_registers_post_call_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (rmap : LReg) φ :

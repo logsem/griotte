@@ -212,6 +212,10 @@ Section griotte_lang_rules.
      | _ => Some (lclear_tag v)
      end.
 
+   (** [lea_result] is defined on every word. *)
+   Lemma lea_result_is_Some (w : LWord) (z : Z) : is_Some (lea_result w z).
+   Proof. rewrite /lea_result. repeat case_match; eauto. Qed.
+
    (** A Lea whose PC increments has one outcome. *)
    Lemma Lea_spec_next lpc regs r1 arg lpc' regs' retv wr z wr' lpc0 :
      regs !!ₗ r1 = Some wr →
@@ -492,6 +496,63 @@ Section griotte_lang_rules.
      iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WSealRange t p g b e a @@? π) _
        (WSealRange false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
        try by rewrite /lea_result /= Ha'.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
+   Qed.
+
+   (** [Lea] on an integer, by the integer of a register. *)
+   Lemma wp_lea_success_reg_int Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv n wz z π dq :
+     decodeInstrW w.(lw) = Lea r1 (inr rv) →
+     IsLInt wz z →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     (pc_a + 1)%a = Some pc_a' →
+     rv ≠ cnull →
+     r1 ≠ cnull →
+
+     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+         ▷ pc_a ↦ₐ{dq} w ∗
+         ▷ r1 ↦ᵣ WInt n @@? π ∗
+         ▷ rv ↦ᵣ wz }}}
+       Instr Executable @ Ep
+     {{{ RET NextIV;
+         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+         pc_a ↦ₐ{dq} w ∗
+         rv ↦ᵣ wz ∗
+         r1 ↦ᵣ WInt (n + z) @@? π }}}.
+   Proof.
+     iIntros (Hinstr Hwz Hvpc Hpca' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
+     iDestruct (map_of_regs_2 with "Hrv Hr1") as "[Hmap %]".
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ (WInt n @@? π) _
+       (WInt (n + z) @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side; try done.
+     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
+   Qed.
+
+   (** [Lea] by the integer of a register, on any word. *)
+   Lemma wp_lea_success_reg_any Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv wr wr' wz z dq :
+     decodeInstrW w.(lw) = Lea r1 (inr rv) →
+     IsLInt wz z →
+     lea_result wr z = Some wr' →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     (pc_a + 1)%a = Some pc_a' →
+     rv ≠ cnull →
+     r1 ≠ cnull →
+
+     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+         ▷ pc_a ↦ₐ{dq} w ∗
+         ▷ r1 ↦ᵣ wr ∗
+         ▷ rv ↦ᵣ wz }}}
+       Instr Executable @ Ep
+     {{{ RET NextIV;
+         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+         pc_a ↦ₐ{dq} w ∗
+         rv ↦ᵣ wz ∗
+         r1 ↦ᵣ wr' }}}.
+   Proof.
+     iIntros (Hinstr Hwz Hres Hvpc Hpca' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
+     iDestruct (map_of_regs_2 with "Hrv Hr1") as "[Hmap %]".
+     iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ wr _ wr' with "[$HPC $Hpc_a $Hmap]");
+       try solve_next_side; try done.
      iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
    Qed.
 
