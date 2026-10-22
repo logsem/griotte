@@ -29,13 +29,13 @@ Section HTS_Spec_Dangling.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace).
+  Context (Nswitcher : namespace) (cstk : CSTK).
 
   #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   #[local] Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a Ws Cs []).
+    csp_b csp_e C_f owner_a Ws Cs cstk).
   #[local] Notation adv2_ret := (hts_adv2_ret pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a []).
+    csp_b csp_e C_f owner_a cstk).
 
   Lemma hts_spec_dangling :
     Nswitcher ## N_trap ->
@@ -203,7 +203,7 @@ Section HTS_Spec_Dangling.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f stk
-      adv_arg adv_other [] Ws Cs 1
+      adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
         $Hworld $Hstack_revoked_free $Hcstk $HK $Hinterp_adv_free]").

@@ -90,13 +90,13 @@ Section HTS_Spec_Free.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace).
+  Context (Nswitcher : namespace) (cstk : CSTK).
 
   #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   #[local] Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a W_init_C Ws Cs []).
+    csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
   #[local] Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a Ws Cs []).
+    csp_b csp_e C_f owner_a Ws Cs cstk).
 
   Lemma hts_spec_free :
     Nswitcher ## Nallocator_service ->
@@ -286,7 +286,7 @@ Section HTS_Spec_Free.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a b (b ^+ 1)%a b
-      free_arg [] RW Global ι
+      free_arg cstk RW Global ι
       [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
       Global owner_a hts_main_owner_id {[ι]}
       with "[$Hservice $Hservice_static $Hswitcher]") as "Hfree_fun".
@@ -314,7 +314,7 @@ Section HTS_Spec_Free.
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
-      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other []
+      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other cstk
       allocator_free_nargs allocator_free_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a

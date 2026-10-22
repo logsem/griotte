@@ -292,7 +292,7 @@ Section Switcher_Call_World.
       trusted stack, above the topmost frame at [a_tstk]. *)
   Lemma switcher_inv_push_frame
     (frm : cframe) (cstk cstk' : CSTK) (a_tstk : Addr) (save_area tstk_next : list LWord)
-    (wtbl : LWord) (n : Z) :
+    (wtbl : LWord) (b_stk e_stk a_stk : Addr) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
@@ -301,49 +301,58 @@ Section Switcher_Call_World.
     let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
     let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
-    (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
-    (b_trusted_stack + tstack_frame_offset (S (length cstk')))%a = Some a_next ->
+    (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
+    (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ->
     (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
-    switcher_stk_bounds frm.(b_stk) frm.(e_stk) frm.(a_stk) ->
-    disjoint_from_mmio frm.(b_stk) frm.(e_stk) ->
-    disjoint_from_heap frm.(b_stk) frm.(e_stk) ->
+    frm.(cf_tframe).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a) ->
+    switcher_stk_bounds b_stk e_stk a_stk ->
+    disjoint_from_mmio b_stk e_stk ->
+    disjoint_from_heap b_stk e_stk ->
     (is_untrusted_caller_frm frm = false →
-     jalr_target_ok cnull cra frm.(wret).(lw) = true ∧ is_heap_cap frm.(wret).(lw) = false) ->
-    wtbl.(lw) = WInt 0 ∨ exp_tbl_cap frm.(b_callee_exp_tbl) wtbl.(lw) ->
+     jalr_target_ok cnull cra frm.(cf_saved).(cs_cra).(lw) = true ∧
+     is_heap_cap frm.(cf_saved).(cs_cra).(lw) = false) ->
+    wtbl = lword_of_word (WInt 0) ∨
+    (wtbl = frm.(cf_tframe).(tf_export_tbl) ∧ tf_export_tbl_ok frm.(cf_tframe)) ->
 
     cstack_full cstk' -∗
     cstack_frag cstk -∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
-    a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'))) -∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     (∃ w, a_threadID ↦ₐ w) -∗
-    a_csp ↦ₐ
-      WCap true RWL Local frm.(b_stk) frm.(e_stk) (frm.(a_stk) ^+ 4)%a -∗
+    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a -∗
     a_export_table ↦ₐ wtbl -∗
-    a_error_count ↦ₐ WInt n -∗
+    a_error_count ↦ₐ WInt frm.(cf_tframe).(tf_error_count) -∗
     [[ a_free , e_trusted_stack ]]
       ↦ₐ [[ tstk_next ]] -∗
     cstack_interp cstk' a_tstk -∗
-    cframe_stk_own frm -∗
+    cframe_stk_own a_stk frm.(cf_saved) frm.(ccrel) -∗
     seal_pred ot_switcher ot_switcher_propC
     ==∗
-    switcher_inv ∗ cstack_frag (frm :: cstk).
+    switcher_inv ∗ cstack_frag (cstack_push frm cstk).
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
-    iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret Htbl)
+    iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot Hcsp (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret Htbl)
       "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
        Htstk Hstk_interp Hframe #Hp_ot_switcher".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
-    iMod (cstack_update _ _ (frm :: cstk) with "Hcstk_full Hcstk") as "[Hcstk_full $]".
+    iMod (cstack_update _ _ (cstack_push frm cstk) with "Hcstk_full Hcstk") as "[Hcstk_full $]".
     iModIntro.
-    iExists (a_tstk ^+ TrustedStackFrame_size)%a, (frm :: cstk), save_area, tstk_next.
+    iExists (a_tstk ^+ TrustedStackFrame_size)%a, (cstack_push frm cstk), save_area, tstk_next.
     iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hp_ot_switcher".
+    rewrite /cstack_interp.
     cbn.
     replace ((a_tstk ^+ TrustedStackFrame_size) ^+ - TrustedStackFrame_size)%a with a_tstk
       by (tstack_unfold; solve_addr).
-    iFrame.
+    rewrite /cframe_interp /trusted_frame_interp Hcsp.
+    iFrame "Hstk_interp Hframe_csp Hframe_cnt".
+    iSplit; first done.
+    iSplit; first (iPureIntro; split; done).
+    iSplitL "Hframe_tbl"; first (iExists wtbl; by iFrame).
+    iExists b_stk, e_stk, a_stk.
+    iFrame "Hframe".
     iPureIntro.
     repeat split; try done; try solve_addr; try (by destruct Hstk_mmio); naive_solver.
   Qed.

@@ -33,12 +33,12 @@ Section HTS_Spec_Malloc.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace).
+  Context (Nswitcher : namespace) (cstk : CSTK).
 
   #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
   #[local] Notation hts_static := (hts_static_mem pc_b pc_a cgp_b C_f owner_a).
   #[local] Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f owner_a W_init_C Ws Cs []).
+    csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
 
   Lemma hts_spec_malloc (rmap : LReg) :
     Nswitcher ## N_trap ->
@@ -66,8 +66,8 @@ Section HTS_Spec_Malloc.
     allocator_owner_id hts_main_owner_id ∅ ∗
     world_interp W_init_C C ∗
     interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b) ∗
-    interp_continuation [] Ws Cs ∗
-    cstack_frag [] ∗
+    interp_continuation cstk Ws Cs ∗
+    cstack_frag cstk ∗
     (malloc_ret -∗
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -201,7 +201,7 @@ Section HTS_Spec_Malloc.
     iPoseProof (hts_malloc_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e csp_b rmap_arg []
+      wcs0 wcs1 csp_b csp_e csp_b rmap_arg cstk
       Global owner_a hts_main_owner_id ∅
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
     { exact Howner_shadow. }
@@ -224,7 +224,7 @@ Section HTS_Spec_Malloc.
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other []
+      wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other cstk
       allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a

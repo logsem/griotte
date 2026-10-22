@@ -47,7 +47,7 @@ Section Switcher_KtK_Call.
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     switcher_stk_bounds b_stk e_stk a_stk ->
-    (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
+    (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
@@ -57,7 +57,7 @@ Section Switcher_KtK_Call.
     na_own cerise_nais (E ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
-    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
     (∃ w, a_threadID ↦ₐ w) ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_static ∗
@@ -153,14 +153,15 @@ Section Switcher_KtK_Call.
     let wct1_caller := WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     let frame :=
-           {| wret := wcra_caller;
-              wcgp := wcgp_caller;
-              wcs0 := wcs0_caller;
-              wcs1 := wcs1_caller;
-              b_stk := b_stk;
-              a_stk := a_stk;
-              e_stk := e_stk;
-              b_callee_exp_tbl := btbl_tgt;
+           {| cf_tframe :=
+                {| tf_csp := WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a;
+                   tf_export_tbl := WCap true RO Global btbl_tgt etbl_tgt atbl_tgt;
+                   tf_error_count := 0 |};
+              cf_saved :=
+                {| cs_cra := wcra_caller;
+                   cs_cgp := wcgp_caller;
+                   cs_cs0 := wcs0_caller;
+                   cs_cs1 := wcs1_caller |};
               ccrel := Known_to_Known
            |}
     in
@@ -251,7 +252,7 @@ Section Switcher_KtK_Call.
             ∗ ([[ a_stk4 , e_stk ]] ↦ₐ [[region_addrs_zeroes a_stk4 e_stk]])
 
             (* Interpretation of the world and stack, at the moment of the switcher_call *)
-            ∗ cstack_frag (frame::cstk)
+            ∗ cstack_frag (cstack_push frame cstk)
           )
           ∨
           (
@@ -401,13 +402,18 @@ Section Switcher_KtK_Call.
 
     (* Push the frame and close the switcher invariant *)
     (* The table cell holds the unsealed entry *)
-    assert (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt = WInt 0 ∨
-            exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt)) as Htbl_cell.
-    { right. apply exp_tbl_cap_entry; [exact Hbtbl_ehs | solve_addr | exact Htbl_shadow]. }
+    assert (lword_of_word (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) =
+              lword_of_word (WInt 0) ∨
+            (lword_of_word (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) =
+               tf_export_tbl (cf_tframe frame) ∧
+             tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
+    { right. split; first done. rewrite /tf_export_tbl_ok /=.
+      apply exp_tbl_cap_entry; [exact Hbtbl_ehs | solve_addr | exact Htbl_shadow]. }
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done|done|done|done|exact Hstk_bounds|done|done|by intros _|exact Htbl_cell| |].
+      as "[Hinv Hcstk]";
+      [done|done|done|done|done|exact Hstk_bounds|done|done|by intros _|exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
     iApply "Hpost"; iLeft; iFrame "∗ %".

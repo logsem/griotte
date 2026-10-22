@@ -71,24 +71,19 @@ Section switcher_helpers_cframe.
   (* TODO USED IN INTERP RETURN *)
   Lemma open_world_interp_cframe
     (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
-    (wret wcgp0 wcs2 wcs3 : LWord) (ccrel : caller_callee_relation) (b_callee_exp_tbl : Addr)
+    (wret wcgp0 wcs2 wcs3 : LWord) (ccrel : caller_callee_relation)
     :
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
     interp W C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
-    cframe_stk_own {|
-        wret := wret;
-        wcgp := wcgp0;
-        wcs0 := wcs2;
-        wcs1 := wcs3;
-        b_stk := b_stk;
-        a_stk := a_stk;
-        e_stk := e_stk;
-        b_callee_exp_tbl := b_callee_exp_tbl;
-        ccrel := ccrel
-           |}
+    cframe_stk_own a_stk {|
+        cs_cra := wret;
+        cs_cgp := wcgp0;
+        cs_cs0 := wcs2;
+        cs_cs1 := wcs3
+           |} ccrel
     ∗ world_interp W C
       -∗
     ∃ wastk wastk1 wastk2 wastk3,
@@ -231,7 +226,7 @@ Section switcher_helpers_cframe.
 
     Lemma open_world_interp_cframe_gen
     (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list LAddr)
-    (wret wcgp wcs0 wcs1 : LWord) (ccrel : caller_callee_relation) (b_callee_exp_tbl : Addr)
+    (wret wcgp wcs0 wcs1 : LWord) (ccrel : caller_callee_relation)
     :
       let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur in
       let a_stk := (csp_b ^+ -4)%a in
@@ -246,18 +241,13 @@ Section switcher_helpers_cframe.
       disjoint_from_heap b_stk csp_e ->
 
       interp W0 C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
-      cframe_stk_own
+      cframe_stk_own a_stk
         {|
-          wret := wret;
-          wcgp := wcgp;
-          wcs0 := wcs0;
-          wcs1 := wcs1;
-          b_stk := b_stk;
-          a_stk := a_stk;
-          e_stk := csp_e;
-          b_callee_exp_tbl := b_callee_exp_tbl;
-          ccrel := ccrel
-           |}
+          cs_cra := wret;
+          cs_cgp := wcgp;
+          cs_cs0 := wcs0;
+          cs_cs1 := wcs1
+           |} ccrel
         -∗
         RevokedResources Wfixed C l -∗
         £ 1

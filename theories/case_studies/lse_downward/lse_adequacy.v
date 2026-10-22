@@ -181,7 +181,7 @@ Section lse_obligations.
 
     (* 7 - We can apply the specification! *)
     iPoseProof (lse_run_spec (swlayout := swl) (assertlayout := asl) (C := C)
-                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] fw_switcherN lseN
+                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ fw_switcherN lseN
                  with "[ $Hassert $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code $Hlse_data
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f

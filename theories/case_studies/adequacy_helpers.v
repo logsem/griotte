@@ -68,29 +68,34 @@ Section adequacy_helpers.
       + by rewrite (assert_flag_size assert_cmpt).
     Qed.
 
+    (** The entry frame of the thread holds the words [w_csp] and [w_tbl], a
+        capability to the export table at [b_tbl], of the initial trusted
+        stack, and no error handler invocation. *)
     Lemma initialise_switcher_compartment
-      {E : coPset} (switcher_cmpt : cmptSwitcher) (switcherN : namespace) :
+      {E : coPset} (switcher_cmpt : cmptSwitcher) (switcherN : namespace)
+      (w_csp w_tbl : Word) (b_tbl : Addr) :
       let swlayout :=  (cmptSwitcher_switcherLayout switcher_cmpt) in
-      let a_frame0_tbl :=
-        ((b_trusted_stack switcher_cmpt ^+ TrustedStack_offset_frames)
-           ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+      let ef := {| tf_csp := lword_of_word w_csp; tf_export_tbl := lword_of_word w_tbl;
+                   tf_error_count := 0 |} in
       mtcc_vec = switcher_label_pc "exception_entry_asm" ->
+      trusted_stack_content switcher_cmpt
+        !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_csp) = Some w_csp ->
+      trusted_stack_content switcher_cmpt
+        !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable)
+        = Some w_tbl ->
+      exp_tbl_cap b_tbl w_tbl ->
       ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ lword_of_word y) -∗
       can_alloc_pred (ot_switcher switcher_cmpt) -∗
-      cstack_full [] -∗
+      cstack_full (entry_cstack ef) -∗
       mtdc ↦ₛᵣ WCap true RWL Global (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
       na_inv cerise_nais switcherN switcher_inv ∗
       switcher_static ∗
-      [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ [[ lword_of_word <$> stack_content switcher_cmpt ]] ∗
-      (* The export table cell of the entry frame, for good *)
-      (∃ w0 : Word,
-         ⌜trusted_stack_content switcher_cmpt
-            !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable) = Some w0⌝ ∗
-         a_frame0_tbl ↦ₐ□ lword_of_word w0).
+      [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ
+        [[ lword_of_word <$> stack_content switcher_cmpt ]].
     Proof.
-      intros swlayout a_frame0_tbl Hmtcc.
+      intros swlayout ef Hmtcc Hw_csp Hw_tbl Htbl_cap.
       iIntros "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc".
       rewrite /mk_initial_switcher.
       iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hswitcher Hstack]".
@@ -124,12 +129,10 @@ Section adequacy_helpers.
         }
         iFrame.
       }
-      pose proof (trusted_stack_content_export_table switcher_cmpt)
-        as (b_tbl & w_tbl & Hw_tbl & Htbl_cap).
-      iAssert (|==> switcher_preamble.switcher_inv ∗ a_frame0_tbl ↦ₐ□ lword_of_word w_tbl)%I
-        with "[Htrusted_stack Hcstk_full Hmtdc]" as ">[Hswitcher #Hframe0_tbl]".
+      iAssert (|==> switcher_preamble.switcher_inv)%I
+        with "[Htrusted_stack Hcstk_full Hmtdc]" as ">Hswitcher".
       {
-        pose proof (trusted_stack_content_error_count switcher_cmpt) as [n_cnt Hw_cnt].
+        pose proof (trusted_stack_content_error_count switcher_cmpt) as Hw_cnt.
         pose proof (trusted_stack_content_frameoffset switcher_cmpt) as Hframeoffset.
         pose proof (trusted_stack_size switcher_cmpt) as Htstk_size.
         pose proof (trusted_stack_frames_fit switcher_cmpt) as [n Hfit].
@@ -152,24 +155,27 @@ Section adequacy_helpers.
           by (tstack_unfold; solve_addr).
         (* The save area, the header ([frameoffset] and [threadID]), the entry
            frame and the unused part *)
+        assert (drop (S i_frameoffset) l !! 1 = Some w_csp) as Hw_csp'.
+        { by rewrite lookup_drop -Hw_csp. }
+        clear Hw_csp.
         assert (drop (S i_frameoffset) l !! 2 = Some w_tbl) as Hw_tbl'.
         { by rewrite lookup_drop -Hw_tbl. }
         clear Hw_tbl.
-        assert (drop (S i_frameoffset) l !! 3 = Some (WInt n_cnt)) as Hw_cnt'.
+        assert (drop (S i_frameoffset) l !! 3 = Some (WInt 0)) as Hw_cnt'.
         { by rewrite lookup_drop -Hw_cnt. }
         clear Hw_cnt.
         rewrite -(take_drop_middle l i_frameoffset _ Hframeoffset).
-        revert Hw_tbl' Hw_cnt'.
+        revert Hw_csp' Hw_tbl' Hw_cnt'.
         assert (length (drop (S i_frameoffset) l)
                 = Z.to_nat (TSTACK_HEADER_SZ - 1 + TrustedStackFrame_size * Z.of_nat (S n)))
           as Hlen_rest
           by (rewrite length_drop Hlen; subst i_frameoffset; tstack_unfold; lia).
         destruct (drop (S i_frameoffset) l) as [|w_threadID rest];
           first (cbn in Hlen_rest; tstack_unfold; lia).
-        destruct rest as [|w_csp rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
+        destruct rest as [|w_csp_cell rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
         destruct rest as [|w_export_table rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
         destruct rest as [|w_error_count rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
-        intros Hw_tbl' Hw_cnt'. cbn in Hw_tbl', Hw_cnt'. simplify_eq.
+        intros Hw_csp' Hw_tbl' Hw_cnt'. cbn in Hw_csp', Hw_tbl', Hw_cnt'. simplify_eq.
         rewrite fmap_app fmap_cons.
         iDestruct (region_pointsto_split _ _ (b ^+ TSTACK_REGFRAME_SZ)%a with "Htrusted_stack")
           as "[Hsave_area Htrusted_stack]".
@@ -191,14 +197,15 @@ Section adequacy_helpers.
           [subst a_entry a_error_count a_next; tstack_unfold; solve_addr..|].
         iMod (pointsto_persist with "Hexport_table") as "#Hexport_table".
         iModIntro.
-        iSplitL; last by iFrame "Hexport_table".
         rewrite /switcher_inv.
-        iExists a_entry, [], _, _.
-        cbn.
-        rewrite /TrustedStackFrame_offset_csp finz_add_0_default.
+        iExists a_entry, (entry_cstack ef), _, _.
+        rewrite /cstack_interp.
+        subst ef. cbn.
+        rewrite /trusted_frame_interp /TrustedStackFrame_offset_csp finz_add_0_default /=.
         iFrame "∗ #".
         iSplit; first done.
-        iSplit; last (iExists b_tbl; done).
+        iSplit; last (iPureIntro; destruct Htbl_cap as (p & g & e_tbl & a_tbl & -> & Htbl);
+                      rewrite /tf_export_tbl_ok /=; by exists p, g, e_tbl, a_tbl).
         iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.
       }
       iMod (na_inv_alloc cerise_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
@@ -211,8 +218,7 @@ Section adequacy_helpers.
       iDestruct (mkregion_prepare with "[Hstack]") as ">Hstack"; auto.
       { apply (stack_size switcher_cmpt). }
       rewrite /region_pointsto big_sepL2_fmap_r.
-      iFrame "∗ Hsealed_pred_ot_switcher Hswitcher Hswitcher_static".
-      iExists w_tbl. by iFrame "Hframe0_tbl".
+      by iFrame "∗ Hsealed_pred_ot_switcher Hswitcher Hswitcher_static".
     Qed.
 
     Lemma initialise_compartment ( C_cmpt : cmpt ) :

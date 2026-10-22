@@ -300,7 +300,7 @@ Section Switcher.
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     switcher_stk_bounds b_stk e_stk a_stk ->
-    (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
+    (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
@@ -310,7 +310,7 @@ Section Switcher.
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
-    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
     (∃ w, a_threadID ↦ₐ w) ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_static ∗
@@ -636,25 +636,27 @@ Section Switcher.
       as "[Hworld_interp Hentry_prop]".
     set (W' := std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary).
     set (frame :=
-           {| wret := wcra_caller;
-              wcgp := wcgp_caller;
-              wcs0 := wcs0_caller;
-              wcs1 := wcs1_caller;
-              b_stk := b_stk;
-              a_stk := a_stk;
-              e_stk := e_stk;
-              (* the base of the sealed entry point, if it is one *)
-              b_callee_exp_tbl := default za (memory_cap_base wct1_caller.(lw));
+           {| cf_tframe :=
+                {| tf_csp := WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a;
+                   (* the entry point, unsealed, if it is sealed *)
+                   tf_export_tbl := lunseal Global wct1_caller;
+                   tf_error_count := 0 |};
+              cf_saved :=
+                {| cs_cra := wcra_caller;
+                   cs_cgp := wcgp_caller;
+                   cs_cs0 := wcs0_caller;
+                   cs_cs1 := wcs1_caller |};
               ccrel := Known_to_Unknown
            |}).
     (* The continuation of the caller, once the frame is pushed *)
     iAssert (interp W' C (WCap true RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a) -∗
-             interp_continuation (frame :: cstk) (W' :: Ws) (C :: Cs))%I
+             interp_continuation (cstack_push frame cstk) (W' :: Ws) (C :: Cs))%I
       with "[Hpost Hlc Hcont]" as "Hcont_frame".
     { iIntros "#Hstk4v".
       simpl.
       iFrame.
       iEval (cbn).
+      rewrite (spill_cursor a_stk) ?cstack_eta; last by eexists.
       iDestruct (interp_cap_disjoint_wl with "Hstk4v") as %[_ Hstk4_heap]; first done.
       iSplitR.
       { iSplit; first (iPureIntro; exact Hstk4_heap).
@@ -705,7 +707,7 @@ Section Switcher.
         as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
       iDestruct (switcher_cc_full_regs with "Hrmap0 Hcra Hcgp Hcsp Hcs0 Hcs1 Hca0 Hca1")
         as (regs) "[%Hfull_regs Hregs]"; first done.
-      iApply (trap_safe_unwind _ _ _ (frame :: cstk) (W' :: Ws) (C :: Cs) regs
+      iApply (trap_safe_unwind _ _ _ (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
                with "Hswitcher Hstatic [] [-]"); [done | done | | |].
       { simpl. split; first apply related_sts_pub_refl_world. done. }
       { (* The unsealing is not the first spill *)
@@ -715,12 +717,14 @@ Section Switcher.
       { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
       { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
       (* The table cell is still cleared *)
-      assert (WInt 0 = WInt 0 ∨ exp_tbl_cap (b_callee_exp_tbl frame) (WInt 0)) as Htbl_cell
+      assert (lword_of_word (WInt 0) = lword_of_word (WInt 0) ∨
+                (lword_of_word (WInt 0) = tf_export_tbl (cf_tframe frame) ∧
+                 tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell
         by by left.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [Hcells] Hp_ot_switcher")
-        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
+        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
       { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
       iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
       iDestruct ("Hcont_frame" with "Hstk4v") as "Hcont_frame".
@@ -768,13 +772,16 @@ Section Switcher.
         & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
       subst hclose_switcher_inv hinv_switcher.
       (* The table cell holds the unsealed entry *)
-      assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
-              exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
-      { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
+      assert (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) = lword_of_word (WInt 0) ∨
+              (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) =
+                 tf_export_tbl (cf_tframe frame) ∧
+               tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
+      { right. split; first done. rewrite /tf_export_tbl_ok /=.
+        apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [Hcells] Hp_ot_switcher")
-        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
+        as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
       { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
       iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
       iDestruct (big_sepM_sep with "Hargs") as "[Hargs _]".
@@ -783,8 +790,8 @@ Section Switcher.
       iDestruct (switcher_cc_full_regs with "Hrmap0 Hcra Hcgp Hcsp Hcs0 Hcs1 Hca0 Hca1")
         as (regs) "[%Hfull_regs Hregs]"; first done.
       iDestruct ("Hcont_frame" with "Hstk4v") as "Hcont_frame".
-      iApply (switcher_call_stack_too_small_unwind W' C Nswitcher (frame :: cstk) (W' :: Ws) (C :: Cs)
-                regs);
+      iApply (switcher_call_stack_too_small_unwind W' C Nswitcher (cstack_push frame cstk)
+                (W' :: Ws) (C :: Cs) regs);
         [done|done|simpl; split; [apply related_sts_pub_refl_world|done]|].
       iFrame "Hswitcher Hstatic".
       iFrame. }
@@ -793,13 +800,16 @@ Section Switcher.
 
     (* Push the frame and close the switcher invariant *)
     (* The table cell holds the unsealed entry *)
-    assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
-            exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
-    { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
+    assert (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) = lword_of_word (WInt 0) ∨
+            (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) =
+               tf_export_tbl (cf_tframe frame) ∧
+             tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
+    { right. split; first done. rewrite /tf_export_tbl_ok /=.
+      apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")
-      as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
+      as "[Hinv Hcstk]"; [done|done|done|done|done|done|done|done|by intros _|exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
 
@@ -808,7 +818,7 @@ Section Switcher.
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs) "[Hregs Hregs_interp]"; [done| |done|done|].
     { symmetry. apply std_update_multiple_heap. }
-    iApply ("Hentry_cont" $! (frame :: cstk) (W' :: Ws) (C :: Cs) regs a_stk e_stk).
+    iApply ("Hentry_cont" $! (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs a_stk e_stk).
     iSplitL "Hcont_frame"; first by iApply "Hcont_frame".
     iSplit.
     { iPureIntro; simpl; split; [|split]; auto.
@@ -816,7 +826,9 @@ Section Switcher.
     }
     iSplit; first (iPureIntro; split; [done | reflexivity]).
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
-    iPureIntro; split; [split; [split; reflexivity | solve_addr] | exact Hbig].
+    iPureIntro; split;
+      [split; [split; [cbn; apply spill_cursor; by eexists | reflexivity] | solve_addr]
+      | exact Hbig].
   Qed.
 
   (* This specification unifies the two possible outcomes of the switcher call.

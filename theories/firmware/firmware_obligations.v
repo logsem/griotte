@@ -322,17 +322,6 @@ Section prepared.
   #[global] Instance fw_cmpt_pers_res_persistent img fc : Persistent (fw_cmpt_pers_res img fc).
   Proof. rewrite /fw_cmpt_pers_res. apply _. Qed.
 
-  (** A trusted compartment declares no error handler, at the base of its
-      export table. *)
-  Lemma fw_cmpt_pers_res_no_handler img fc tb b :
-    fc_body fc = TrustedBody tb →
-    cmpt_tbl img (fc_name fc) b →
-    fw_cmpt_pers_res img fc ⊢ no_handler b.
-  Proof.
-    rewrite /cmpt_tbl. iIntros (Hbody <-) "(_ & _ & Hh & _)".
-    by rewrite /fw_handler_res Hbody.
-  Qed.
-
   (** The number of arguments of export [k] of a compartment, read off its
       export table, at the address of [cmpt_export_sb]. *)
   Lemma fw_cmpt_pers_res_entry_nargs fw img fc k n :
@@ -412,10 +401,13 @@ Section prepared.
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] ∗
     "%Hstack_min" ∷
       ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) <= e_stack t)%Z ⌝ ∗
-    "Hcstk" ∷ cstack_frag [] ∗
-    "#Hframe0_tbl" ∷
-      (∃ w0 : Word,
-         fw_frame0_tbl img 0 ↦ₐ□ lword_of_word w0 ∗ ⌜exp_tbl_cap (cmpt_exp_tbl_pcc m) w0⌝) ∗
+    "Hcstk" ∷
+      cstack_frag
+        (entry_cstack {| tf_csp := WCap true RWL Local (b_stack t) (e_stack t) (b_stack t);
+                         tf_export_tbl :=
+                           WCap true RW Global (cmpt_exp_tbl_pcc m)
+                             (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);
+                         tf_error_count := 0 |}) ∗
     "Hna" ∷ na_own cerise_nais ⊤.
 
   (** The memory of a compartment, initialised: the export table becomes

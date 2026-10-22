@@ -27,6 +27,13 @@ Section Heap_Temporal_Safety_Main.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
+  (** The call stack of a thread that starts in this compartment, with the
+      stack [b, e) and the export table word [w] *)
+  #[local] Notation main_entry_cstack b e w :=
+    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+                     tf_export_tbl := w;
+                     tf_error_count := 0 |}) (only parsing).
+
   Lemma hts_main_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -41,6 +48,9 @@ Section Heap_Temporal_Safety_Main.
 
     (Ws : list WORLD)
     (Cs : list CmptName)
+    (* The capability to the export table of the compartment, as the entry
+       frame of the thread records it *)
+    (w_main_tbl : LWord)
 
     (Nswitcher : namespace)
     :
@@ -73,7 +83,7 @@ Section Heap_Temporal_Safety_Main.
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     heap_std W_init_C = ∅ ->
 
-    frame_match Ws Cs [] W_init_C C ->
+    frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
     (
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
@@ -105,9 +115,9 @@ Section Heap_Temporal_Safety_Main.
 
       ∗ world_interp W_init_C C
 
-      ∗ interp_continuation [] Ws Cs
+      ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag []
+      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
@@ -128,6 +138,7 @@ Section Heap_Temporal_Safety_Main.
        (e) blocks 21-23: assertion and halt ([hts_spec_assert]). *)
     intros a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free imports.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free imports.
+    set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       HNswitcher_service HNtrap Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
@@ -149,7 +160,7 @@ Section Heap_Temporal_Safety_Main.
     { iFrame "#". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher rmap
+      C_f owner_a W_init_C Ws Cs Nswitcher cstk0 rmap
       with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hrmap $Howner $Hworld
         $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
         $Himport_adv $Himport_malloc $Himport_free $Himport_alloc_cap
@@ -157,22 +168,22 @@ Section Heap_Temporal_Safety_Main.
     iIntros "Hmalloc_ret".
     (* (b) *)
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher
+      C_f owner_a W_init_C Ws Cs Nswitcher cstk0
       with "[$Hctx $Hmalloc_ret]"); try done.
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher
+      C_f owner_a W_init_C Ws Cs Nswitcher cstk0
       with "[$Hctx $Hadv1_ret]"); try done.
     iIntros "Hfree_ret".
     (* (d) *)
     iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher
+      C_f owner_a W_init_C Ws Cs Nswitcher cstk0
       with "[$Hctx $Hfree_ret]"); try done.
     iIntros "Hadv2_ret".
     (* (e) *)
     iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Nswitcher []
+      C_f owner_a W_init_C Nswitcher cstk0
       with "[$Hctx $Hadv2_ret]"); done.
   Qed.
 End Heap_Temporal_Safety_Main.

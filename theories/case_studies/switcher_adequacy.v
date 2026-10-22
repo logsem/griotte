@@ -65,8 +65,8 @@ Section helpers_switcher_adequacy.
     (* The callee, whose export table is at [b_tbl], is the topmost
        compartment, and it is untrusted *)
     iAssert (top_cmpt_untrusted interp W' C cstk) as "#Htop".
-    { destruct cstk as [|frm cstk]; first done.
-      cbn in Htop_tbl. rewrite /top_cmpt_untrusted Htop_tbl.
+    { destruct cstk as [ef [|frm frms] ]; first done.
+      rewrite /top_export_tbl /= in Htop_tbl. rewrite /top_cmpt_untrusted /= Htop_tbl.
       iExists _, _, eh, ehs. iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs".
       iIntros "!>" (W'' Hrelated').
       iApply "Hinterp_tbl". iPureIntro.

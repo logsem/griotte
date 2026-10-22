@@ -112,7 +112,8 @@ Section Switcher.
     iExtract "Hrmap" ct2 as "Hct2".
 
     iDestruct (cstack_agree with "Hcstk_full [$]") as %Heq; subst cstk'.
-    destruct cstk as [|frm cstk]; iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
+    destruct cstk as [ef [|frm frms] ]; iEval (rewrite /cstack_interp; cbn) in "Hstk_interp";
+      cbn in Hlen_cstk.
     { (* No caller: the frame to pop is the entry frame, the thread exits *)
       iApply (switcher_return_blocks_1_exit_spec with
         "[$HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode
@@ -121,7 +122,7 @@ Section Switcher.
       subst hclose_switcher_inv.
       iMod ("Hclose_switcher_inv" with
              "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp]") as "Hna".
-      { iNext. iExists a_tstk, [], save_area, tstk_next. iFrame "∗ # %". }
+      { iNext. iExists a_tstk, (entry_cstack ef), save_area, tstk_next. iFrame "∗ # %". }
       iModIntro; iIntros (_); iFrame.
     }
 
@@ -129,13 +130,15 @@ Section Switcher.
     destruct Hframe as [Hrelated_pub_Wprev_W0 [<- [Hccrel_known_to_known Hframe] ] ].
 
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
-    destruct frm.
-    rewrite /cframe_interp.
+    destruct frm as [ [w_csp w_tbl n_cnt] [wret wcgp wcs0 wcs1] ccrel].
+    rewrite /cframe_interp /trusted_frame_interp.
     iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >[%ncnt Ha_tstk_cnt]
-                                    & >%HWF & Hcframe_interp)".
-    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap & Hret_ok).
-    cbn in Hcsp_sync; destruct Hcsp_sync as [ Ha He ]; simplify_eq.
+    iDestruct "Hcframe_interp" as "((>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >Ha_tstk_cnt)
+                                    & %b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
+    cbn in HWF.
+    destruct HWF as (-> & Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap & Hret_ok).
+    assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Hspill by solve_addr.
+    cbn in Hcsp_sync; rewrite Hspill in Hcsp_sync; destruct Hcsp_sync as [ Ha He ]; simplify_eq.
     set (a_stk := (csp_b ^+ -4)%a).
     pose proof (switcher_stk_bounds_frame b_stk csp_e a_stk Hb_a4 He_a1 (ex_intro _ _ Ha_stk4))
       as Hstk_bounds.
@@ -143,7 +146,7 @@ Section Switcher.
 
     iDestruct (interp_monotone_continuation with "HK") as "HK"; eauto.
     rewrite /interp_continuation /interp_cont.
-    iEval (cbn) in "HK"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
+    iEval (cbn; rewrite Hspill) in "HK"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
     assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
@@ -192,7 +195,7 @@ Section Switcher.
        invariant and fix the world, after the jump or the exception entry *)
     iAssert (|={⊤}=>
                na_own cerise_nais ⊤ ∗
-               cstack_frag cstk ∗
+               cstack_frag {| cstk_entry := ef; cstk_frames := frms |} ∗
                world_interp Wfixed C ∗
                (if is_untrusted_caller ccrel
                 then True
@@ -200,13 +203,14 @@ Section Switcher.
       with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv
              Hworld_interp Hstk' Hstk Hrevoked Hlc'']" as "Hupd".
-    { iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk_frag]".
+    { iMod (cstack_update _ _ {| cstk_entry := ef; cstk_frames := frms |} with "Hcstk_full Hcstk")
+        as "[Hcstk_full Hcstk_frag]".
       iMod ("Hclose_switcher_inv"
              with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
                     Hcstk_full Hstk_interp_next]")
         as "Hna".
       { iNext.
-        iApply (switcher_inv_pop_frame with
+        iApply (switcher_inv_pop_frame _ {| cstk_entry := ef; cstk_frames := frms |} with
                  "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
                   Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
       iMod (world_interp_stack_fixing with

@@ -139,7 +139,7 @@ Section cmdc_obligations.
     iApply (cmdc_spec_full (swlayout := swl) (assertlayout := asl) (B := B) (C := C)
               _ _ _ _ _ _ _
               _ _ _ _ _
-              [] [] _ (fun _ => True)%I fw_switcherN fw_switcherN_trap_disj
+              [] [] _ _ (fun _ => True)%I fw_switcherN fw_switcherN_trap_disj
               (cmpt_pcc_disjoint_from_shadow main_cmpt)
               (cmpt_pcc_base_not_heap main_cmpt)
               Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)

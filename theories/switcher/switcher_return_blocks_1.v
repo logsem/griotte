@@ -21,8 +21,9 @@ Section Switcher_Return_Blocks_1.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** The test of the empty call-stack, with [d] frames: the thread exits
-      when the frame to pop is the entry frame, i.e. when [d = 0]. *)
+  (** The test for a pushed frame, with [d] frames pushed above the entry
+      frame: the thread exits when the frame to pop is the entry frame,
+      i.e. when [d = 0]. *)
   Lemma switcher_return_block_13_load_spec
     (E : coPset) (Φ : griotte_lang.val → iProp Σ)
     pc_b pc_e pc_a (d : nat)

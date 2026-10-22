@@ -24,6 +24,13 @@ Section VAE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
+  (** The call stack of a thread that starts in this compartment, with the
+      stack [b, e) and the export table word [w] *)
+  #[local] Notation main_entry_cstack b e w :=
+    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+                     tf_export_tbl := w;
+                     tf_error_count := 0 |}) (only parsing).
+
   Lemma vae_init_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -39,6 +46,9 @@ Section VAE.
 
     (Ws : list WORLD)
     (Cs : list CmptName)
+    (* The capability to the export table of the compartment, as the entry
+       frame of the thread records it *)
+    (w_main_tbl : LWord)
 
     (Nswitcher : namespace)
 
@@ -69,7 +79,7 @@ Section VAE.
     (csp_b + 4 <= csp_e)%Z ->
 
     loc W0 !! i = Some (encode false) ->
-    frame_match Ws Cs [] W0 C ->
+    frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     (
       assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
@@ -92,9 +102,9 @@ Section VAE.
       (* initial memory layout *)
       ∗ world_interp W0 C
 
-      ∗ interp_continuation [] Ws Cs
+      ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag []
+      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 0

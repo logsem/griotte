@@ -76,7 +76,7 @@ Section fundamental.
     Nswitcher ## N_trap ->
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
-    (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
+    (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
@@ -85,7 +85,7 @@ Section fundamental.
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
-    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
     (∃ w, a_threadID ↦ₐ w) ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_static ∗
@@ -146,7 +146,7 @@ Section fundamental.
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     length (finz.seq_between a e) = length lv ->
-    (b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk ->
+    (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
@@ -161,7 +161,7 @@ Section fundamental.
     na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
-    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
     (∃ w, a_threadID ↦ₐ w) ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_static ∗
@@ -516,26 +516,29 @@ Section fundamental.
         iApply big_sepL_forall. iIntros (k w Hk). iRight.
         apply lookup_replicate in Hk as [-> _]. iApply interp_int. }
       set (frame :=
-             {| wret := WInt 0;
-                wcgp := WInt 0;
-                wcs0 := WInt 0;
-                wcs1 := WInt 0;
-                b_stk := b ;
-                a_stk := a ;
-                e_stk := e ;
-                (* the export table cell is cleared: any base *)
-                b_callee_exp_tbl := za ;
+             {| cf_tframe :=
+                  {| tf_csp := WCap true RWL Local b e (a ^+ 4)%a;
+                     (* the export table cell holds 0: the word is never read *)
+                     tf_export_tbl := WInt 0;
+                     tf_error_count := 0 |};
+                cf_saved :=
+                  {| cs_cra := WInt 0;
+                     cs_cgp := WInt 0;
+                     cs_cs0 := WInt 0;
+                     cs_cs1 := WInt 0 |};
                 ccrel := Unknown_to_Unknown
              |}).
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-      iApply (trap_safe_unwind _ _ _ (frame :: cstk) (W :: Ws) (C :: Cs)
+      iApply (trap_safe_unwind _ _ _ (cstack_push frame cstk) (W :: Ws) (C :: Cs)
                with "Hinv_switcher Hstatic [] [-]"); [done|..]; cycle 1.
       { simpl. split; auto; first apply related_sts_pub_refl_world.
         split; [reflexivity|]; split; done. }
       { (* The unsealing is not the first spill *)
         iLeft; iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
       { (* The table cell is still cleared *)
-        assert (WInt 0 = WInt 0 ∨ exp_tbl_cap (b_callee_exp_tbl frame) (WInt 0)) as Htbl_cell
+        assert (lword_of_word (WInt 0) = lword_of_word (WInt 0) ∨
+                (lword_of_word (WInt 0) = tf_export_tbl (cf_tframe frame) ∧
+                 tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell
           by by left.
         iMod (switcher_inv_push_frame frame cstk with
                "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
@@ -543,8 +546,10 @@ Section fundamental.
           as "[Hinv Hcstk]"; [done..|].
         iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
         iModIntro.
-        iFrame "Hrmap Hworld_interp Hcstk Hna Hcont".
+        iFrame "Hrmap Hworld_interp Hcstk Hna".
         simpl.
+        iFrame "Hcont".
+        rewrite (spill_cursor a) ?cstack_eta; last by eexists.
         iSplit; last iExact "Htop".
         iSplit; first (iPureIntro; exact Hstk_heap).
         iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
@@ -622,14 +627,15 @@ Section fundamental.
       - intros [? [? ?] ]. apply elem_of_difference.
         split;auto. apply all_registers_s_correct. }
     set (frame :=
-           {| wret := WInt 0;
-              wcgp := WInt 0;
-              wcs0 := WInt 0;
-              wcs1 := WInt 0;
-              b_stk := b ;
-              a_stk := a ;
-              e_stk := e ;
-              b_callee_exp_tbl := b_tbl ;
+           {| cf_tframe :=
+                {| tf_csp := WCap true RWL Local b e (a ^+ 4)%a;
+                   tf_export_tbl := WCap true RO g_tbl b_tbl e_tbl a_tbl;
+                   tf_error_count := 0 |};
+              cf_saved :=
+                {| cs_cra := WInt 0;
+                   cs_cgp := WInt 0;
+                   cs_cs0 := WInt 0;
+                   cs_cs1 := WInt 0 |};
               ccrel := Unknown_to_Unknown
            |}).
     iNext; iSplit; cycle 1.
@@ -638,9 +644,12 @@ Section fundamental.
       iIntros "(_ & HPC & [%wcs0' Hcs0] & [%wcs1'' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2]
         & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hparams & Hrest & _)".
       (* The table cell holds the unsealed entry *)
-      assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
-              exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
-      { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
+      assert (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) = lword_of_word (WInt 0) ∨
+              (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) =
+                 tf_export_tbl (cf_tframe frame) ∧
+               tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
+      { right. split; first done. rewrite /tf_export_tbl_ok /=.
+        apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [] Hp_ot_switcher")
@@ -652,13 +661,15 @@ Section fundamental.
       rewrite map_filter_union_complement.
       subst rmap'.
       iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
-      iApply (switcher_call_stack_too_small_unwind _ _ _ (frame :: cstk) (W :: Ws) (C :: Cs)
+      iApply (switcher_call_stack_too_small_unwind _ _ _ (cstack_push frame cstk)
+               (W :: Ws) (C :: Cs)
                with "[$HPC $Hrmap $Hinv_switcher $Hstatic $Hworld_interp $Hna $Hcstk Hcont]");
         first done.
       { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
       { simpl. split; [apply related_sts_pub_refl_world|done]. }
-      iFrame "Hcont".
       simpl.
+      iFrame "Hcont".
+      rewrite (spill_cursor a) ?cstack_eta; last by eexists.
       iSplit; last iExact "Htop".
       iSplit; first (iPureIntro; exact Hstk_heap).
       iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
@@ -667,9 +678,12 @@ Section fundamental.
 
     (* Push the frame, whose table cell holds the unsealed entry, and close the
        switcher invariant *)
-    assert (WCap true RO g_tbl b_tbl e_tbl a_tbl = WInt 0 ∨
-            exp_tbl_cap (b_callee_exp_tbl frame) (WCap true RO g_tbl b_tbl e_tbl a_tbl)) as Htbl_cell.
-    { right. apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
+    assert (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) = lword_of_word (WInt 0) ∨
+            (lword_of_word (WCap true RO g_tbl b_tbl e_tbl a_tbl) =
+               tf_export_tbl (cf_tframe frame) ∧
+             tf_export_tbl_ok (cf_tframe frame))) as Htbl_cell.
+    { right. split; first done. rewrite /tf_export_tbl_ok /=.
+      apply exp_tbl_cap_entry; [exact Hbtbl_header | solve_addr | exact Htbl_shadow]. }
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [] Hp_ot_switcher")
@@ -682,9 +696,10 @@ Section fundamental.
     iDestruct (switcher_call_entry_registers W W C nargs arg_rmap' rmap'' with
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs') "[Hregs Hregs_interp]"; [apply related_sts_pub_refl_world|done|done|done|].
-    iApply ("Hentry_cont" $! (frame :: cstk) (W :: Ws) (C :: Cs) regs' a e).
+    iApply ("Hentry_cont" $! (cstack_push frame cstk) (W :: Ws) (C :: Cs) regs' a e).
     iSplitL "Hcont".
-    { iFrame. simpl.
+    { simpl. iFrame "Hcont".
+      rewrite (spill_cursor a) ?cstack_eta; last by eexists.
       iSplit.
       - iSplit; first (iPureIntro; exact Hstk_heap).
         iApply (interp_weakening with "IH Hspv");auto;solve_addr.
@@ -693,7 +708,9 @@ Section fundamental.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
     iSplit; first (iPureIntro; split; [done | reflexivity]).
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
-    iPureIntro; split; [split; [split; reflexivity | solve_addr] | exact Hbig].
+    iPureIntro; split;
+      [split; [split; [cbn; apply spill_cursor; by eexists | reflexivity] | solve_addr]
+      | exact Hbig].
   Qed.
 
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
