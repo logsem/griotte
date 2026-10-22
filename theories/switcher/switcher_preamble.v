@@ -234,10 +234,10 @@ Section Switcher_preamble.
       See [execute_entry_point] to understand how they are related.
    *)
   Definition csp_sync (cstk : CSTK) (a_stk' e_stk' : Addr) :=
-    match cstk with
+    match cstk.(cstk_frames) with
     | frm::_ =>
-        frm.(a_stk) = a_stk'
-        ∧ frm.(e_stk) = e_stk'
+        cf_spill_a frm = a_stk'
+        ∧ cf_stk_e frm = e_stk'
     | _ => True
     end
   .
@@ -255,8 +255,9 @@ Section Switcher_preamble.
       the code and data capability (see [fundamental_execute_entry_point]).
 
       [b_tbl] is the base of the callee's export table: the switcher has pushed a
-      frame for this call, so the call stack is not empty, and its topmost frame
-      records [b_tbl] ([top_callee_tbl]). For unknown code, this is what builds
+      frame for this call, so the call stack has a frame above the entry
+      frame, and its topmost frame records the table word, whose base is
+      [b_tbl] ([top_export_tbl]). For unknown code, this is what builds
       [top_cmpt_untrusted].
 
       An important point is the use of [csp_sync] and the stack capability [WCap true RWL Local a_stk4 e_stk a_stk4].
@@ -282,7 +283,7 @@ Section Switcher_preamble.
          ∗ ⌜frame_match Ws Cs cstk W C⌝
          (* The switcher pushed a frame for the call of the compartment of the
             export table at [b_tbl]. *)
-         ∗ ⌜cstk ≠ [] ∧ top_callee_tbl cstk b_tbl⌝
+         ∗ ⌜cstk.(cstk_frames) ≠ [] ∧ top_export_tbl cstk = b_tbl⌝
          ∗ PC ↦ₚ wpcc
          ∗ (execute_entry_point_register wcgp (WCap true RWL Local a_stk4 e_stk a_stk4) nargs W C regs)
          ∗ registers_pointsto regs
@@ -401,68 +402,84 @@ Section Switcher_preamble.
     iExists Local; iPureIntro; done.
   Qed.
 
-  (** [cframe_interp] interprets a call-frame, i.e.,
-      describes how the physical call-frame is linked to the logical call-frame [frm : cframe].
-      We have 2 situations to take into account:
+  (** [tf_export_tbl_ok tf]: the word [tf_export_tbl] of the frame [tf] is a
+      capability to an export table, at [tf_export_tbl_b tf]. *)
+  Definition tf_export_tbl_ok (tf : trusted_frame) : Prop :=
+    exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw).
+
+  (** [trusted_frame_interp entry tf a_tstk] interprets the frame [tf] of the
+      trusted stack at [a_tstk]: its three cells hold the stack pointer
+      [tf_csp], the capability [tf_export_tbl] to the export table of the
+      callee, and the error handler count [tf_error_count].
+      The export table cell of the entry frame ([entry = true]) is written
+      once, by the loader: it holds the capability for good. The call path
+      clears the export table cell of a pushed frame before it stores the
+      unsealed entry; the frame is unwound with a cleared cell when the
+      entry does not unseal.
+   *)
+  Definition trusted_frame_interp (entry : bool) (tf : trusted_frame) (a_tstk : Addr) : iProp Σ :=
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
+    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    (a_csp ↦ₐ tf.(tf_csp) ∗
+    (if entry
+     then a_export_table ↦ₐ□ tf.(tf_export_tbl) ∗ ⌜tf_export_tbl_ok tf⌝
+     else ∃ w, a_export_table ↦ₐ w ∗
+            ⌜w = lword_of_word (WInt 0) ∨ (w = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf)⌝) ∗
+    a_error_count ↦ₐ WInt tf.(tf_error_count))%I.
+
+  (** [cframe_stk_own a_stk saved ccrel] holds the area [[a_stk, a_stk+4)]
+      where the switcher spilled the callee-saved registers [saved] of the
+      caller. We have 2 situations to take into account:
       - If the caller is untrusted, the points-to predicate of the callee-save region
         are stored in the region invariant, which means that their content is controlled by adversary,
         and does not have to match with the call-frame.
       - If the caller is trusted, the switcher controls the callee-save region,
         and the content should match the words of the call-frame.
    *)
-  Definition cframe_stk_own (frm : cframe) : iProp Σ :=
-    let a_stk := frm.(a_stk) in
-    (if (is_untrusted_caller_frm frm)
+  Definition cframe_stk_own (a_stk : Addr) (saved : callee_saved_registers)
+    (ccrel : caller_callee_relation) : iProp Σ :=
+    (if (is_untrusted_caller ccrel)
     then True
     else
-      a_stk ↦ₐ frm.(wcs0)
-      ∗ (a_stk ^+ 1)%a ↦ₐ frm.(wcs1)
-      ∗ (a_stk ^+ 2)%a ↦ₐ frm.(wret)
-      ∗ (a_stk ^+ 3)%a ↦ₐ frm.(wcgp))%I.
+      a_stk ↦ₐ saved.(cs_cs0)
+      ∗ (a_stk ^+ 1)%a ↦ₐ saved.(cs_cs1)
+      ∗ (a_stk ^+ 2)%a ↦ₐ saved.(cs_cra)
+      ∗ (a_stk ^+ 3)%a ↦ₐ saved.(cs_cgp))%I.
 
+  (** [cframe_interp] interprets a call-frame, i.e.,
+      describes how the physical call-frame is linked to the logical call-frame [frm : cframe]:
+      its frame of the trusted stack, whose stack pointer is the stack of
+      the caller [[b_stk, e_stk)], after the spill area [[a_stk, a_stk+4)];
+      and the spill area.
+   *)
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
-    let b_stk := frm.(b_stk) in
-    let a_stk := frm.(a_stk) in
-    let e_stk := frm.(e_stk) in
-    let b_callee_exp_tbl := frm.(b_callee_exp_tbl) in
-    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
-    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
-    (* The export table of the callee, at [b_callee_exp_tbl], once the call
-       path has stored the unsealed entry; cleared before. *)
-    (∃ w, a_export_table ↦ₐ w ∗ ⌜w.(lw) = WInt 0 ∨ exp_tbl_cap b_callee_exp_tbl w.(lw)⌝) ∗
-    (∃ n : Z, a_error_count ↦ₐ WInt n) ∗
-    ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
+    trusted_frame_interp false frm.(cf_tframe) a_tstk ∗
+    ∃ b_stk e_stk a_stk : Addr,
+    ⌜ frm.(cf_tframe).(tf_csp) = WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∧
+      (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
       disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
       (* a trusted caller returns to a valid target, outside the heap *)
       (is_untrusted_caller_frm frm = false →
-       jalr_target_ok cnull cra frm.(wret).(lw) = true ∧ is_heap_cap frm.(wret).(lw) = false) ⌝ ∗
-    cframe_stk_own frm%I.
+       jalr_target_ok cnull cra frm.(cf_saved).(cs_cra).(lw) = true ∧
+       is_heap_cap frm.(cf_saved).(cs_cra).(lw) = false) ⌝ ∗
+    cframe_stk_own a_stk frm.(cf_saved) frm.(ccrel).
+
+  (** [frames_interp ef frms a_tstk] interprets the frames [frms], the
+      topmost at [a_tstk] in the trusted stack, above the entry frame [ef]. *)
+  Fixpoint frames_interp (ef : trusted_frame) (frms : list cframe) (a_tstk : Addr) : iProp Σ :=
+    (match frms with
+    | [] => trusted_frame_interp true ef a_tstk
+    | frm::frms' =>
+        let a_prev := (a_tstk ^+ - TrustedStackFrame_size)%a in
+        frames_interp ef frms' a_prev ∗ cframe_interp frm a_tstk
+    end)%I.
 
   (** [cstack_interp] interprets a call-stack, whose topmost frame is at
-      [a_tstk] in the trusted stack. It interprets the topmost stack frame,
-      as well as the rest of the call-stack, in the frames below. The empty
-      call-stack is the entry frame of the thread, [frames[0]]: its stack
-      pointer is unconstrained, its export table cell holds, for good, a
-      capability to the export table of the compartment the thread starts
-      in, and its error handler count is an integer.
-   *)
-  Fixpoint cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
-    (match cstk with
-    | [] =>
-        let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
-        let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-        let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
-        ∃ (w_csp w_tbl : LWord) (b_tbl : Addr) (n : Z),
-          a_csp ↦ₐ w_csp ∗
-          a_export_table ↦ₐ□ w_tbl ∗
-          ⌜exp_tbl_cap b_tbl w_tbl.(lw)⌝ ∗
-          a_error_count ↦ₐ WInt n
-    | frm::cstk' =>
-        let a_prev := (a_tstk ^+ - TrustedStackFrame_size)%a in
-        cstack_interp cstk' a_prev ∗ cframe_interp frm a_tstk
-    end)%I.
+      [a_tstk] in the trusted stack: the frames pushed by the calls, and,
+      below them, the entry frame of the thread, [frames[0]]. *)
+  Definition cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
+    frames_interp cstk.(cstk_entry) cstk.(cstk_frames) a_tstk.
 
   (** [switcher_inv] describes the invariant of the switcher,
       and describe the private state of the switcher.
@@ -498,12 +515,13 @@ Section Switcher_preamble.
       "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
-      "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+      "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
       "Htstk" ∷ [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
       "Hcstk_full" ∷ cstack_full cstk' ∗
-      "%Hlen_cstk" ∷ ⌜(b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk
-                      ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
+      "%Hlen_cstk" ∷
+        ⌜(b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk
+         ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
       (* link the topmost frame of cstk' to the state *)
       "Hstk_interp" ∷ cstack_interp cstk' a_tstk ∗
       "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC.
@@ -520,12 +538,13 @@ Section Switcher_preamble.
       "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
-      "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk')) ∗
+      "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
       "Htstk" ∷ [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
       "Hcstk_full" ∷ cstack_full cstk' ∗
-      "%Hlen_cstk" ∷ ⌜(b_trusted_stack + tstack_frame_offset (length cstk'))%a = Some a_tstk
-                      ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
+      "%Hlen_cstk" ∷
+        ⌜(b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk
+         ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
       "Hstk_interp" ∷ ▷ cstack_interp cstk' a_tstk ∗
       "#Hp_ot_switcher" ∷ ▷ seal_pred ot_switcher ot_switcher_propC.
   Proof.
@@ -549,13 +568,13 @@ Section Switcher_preamble.
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
     let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
-    (b_trusted_stack + tstack_frame_offset (S (length cstk)))%a = Some a_tstk ->
+    (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
 
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
-    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk)) -∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
     (∃ w, a_threadID ↦ₐ w) -∗
     a_csp ↦ₐ w0 -∗
     a_export_table ↦ₐ w1 -∗

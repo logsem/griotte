@@ -23,6 +23,13 @@ Section CMDC.
   Implicit Types C : CmptName.
 
 
+  (** The call stack of a thread that starts in this compartment, with the
+      stack [b, e) and the export table word [w] *)
+  #[local] Notation main_entry_cstack b e w :=
+    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+                     tf_export_tbl := w;
+                     tf_error_count := 0 |}) (only parsing).
+
   Lemma cmdc_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -37,6 +44,9 @@ Section CMDC.
 
     (Ws : list WORLD)
     (Cs : list CmptName)
+    (* The capability to the export table of the compartment, as the entry
+       frame of the thread records it *)
+    (w_main_tbl : LWord)
 
     (csp_content : list LWord)
 
@@ -99,9 +109,9 @@ Section CMDC.
       ∗ world_interp W_init_B B
       ∗ world_interp W_init_C C
 
-      ∗ interp_continuation [] Ws Cs
+      ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag []
+      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -331,6 +341,9 @@ Section CMDC.
 
     (Ws : list WORLD)
     (Cs : list CmptName)
+    (* The capability to the export table of the compartment, as the entry
+       frame of the thread records it *)
+    (w_main_tbl : LWord)
 
     (csp_content : list LWord)
 
@@ -389,9 +402,9 @@ Section CMDC.
       ∗ world_interp W_init_B B
       ∗ world_interp W_init_C C
 
-      ∗ interp_continuation [] Ws Cs
+      ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag []
+      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -428,7 +441,7 @@ Section CMDC.
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
                 B_f C_g W_init_B W_init_C
-               Ws Cs csp_content φ Nswitcher); eauto; iFrame "#∗".
+               Ws Cs w_main_tbl csp_content φ Nswitcher); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

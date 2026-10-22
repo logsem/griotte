@@ -214,18 +214,19 @@ Section world_init.
     {cstack_preg : CSTACK_preG Σ}
     `{MP: MachineParameters}.
 
-  Lemma initialise_world (Cs : list CmptName) (ots : gset OType) :
+  (** The call stack starts with the entry frame [ef] of the thread only. *)
+  Lemma initialise_world (Cs : list CmptName) (ots : gset OType) (ef : trusted_frame) :
     CNames = list_to_set Cs →
     NoDup Cs →
     ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
             (stsg : STSG LAddr region_type OType LWord Σ) (cstackg : CSTACKG Σ),
       ([∗ set] o ∈ ots, can_alloc_pred o) ∗
-      cstack_full [] ∗
-      cstack_frag [] ∗
+      cstack_full (entry_cstack ef) ∗
+      cstack_frag (entry_cstack ef) ∗
       [∗ list] C ∈ Cs, world_interp (∅, (∅, ∅), ∅, ∅) C.
   Proof.
     intros HCNames HNoDup.
-    iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
+    iMod (gen_cstack_init (entry_cstack ef)) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (world_interp_init ots) as (relg stsg seal_storeg) "(Hworld_interp & Hseal_store)".
     rewrite HCNames big_sepS_list_to_set //.
     iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.

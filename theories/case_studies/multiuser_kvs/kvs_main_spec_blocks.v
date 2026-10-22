@@ -235,7 +235,7 @@ Section KVS_Main_Blocks.
       (wcgp wcra wcs0 wcs1 : LWord)
       (b_stk e_stk a_stk : Addr) (target : Sealable)
       (stk_mem : list LWord) (rmap : LReg)
-      (Ws : list WORLD) (Cs : list CmptName) :
+      (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) :
     Nswitcher ## N_trap ->
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
@@ -264,8 +264,8 @@ Section KVS_Main_Blocks.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
     ∗ ⌜revoked_addresses W (finz.seq_between a_stk e_stk)⌝
-    ∗ cstack_frag []
-    ∗ interp_continuation [] Ws Cs
+    ∗ cstack_frag cstk
+    ∗ interp_continuation cstk Ws Cs
     ∗ ▷ (∀ (W2 : WORLD) (rmap' : LReg) (stk_mem' : list LWord) l' rcgp rcra rcs0 rcs1,
         ⌜extract_temporaries_condition
           W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk))⌝
@@ -286,7 +286,7 @@ Section KVS_Main_Blocks.
              ∧ (a_stk ^+ 4)%a <= e_stk
              ∧ (a_stk + 4)%a = Some (a_stk ^+ 4)%a)%a⌝
         ∗ world_interp (revoke W2) C
-        ∗ cstack_frag []
+        ∗ cstack_frag cstk
         ∗ PC ↦ₚ lupdatePcPerm (rcra)
         ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra
         ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
@@ -295,7 +295,7 @@ Section KVS_Main_Blocks.
         ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
         ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
         ∗ [[a_stk, e_stk]] ↦ₐ [[stk_mem']]
-        ∗ interp_continuation [] Ws Cs
+        ∗ interp_continuation cstk Ws Cs
         ∗ ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
              load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝
         -∗ WP Seq (Instr Executable)
@@ -313,7 +313,7 @@ Section KVS_Main_Blocks.
       "[$Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0]") as "Hargs".
     iApply (switcher_cc_specification Nswitcher W C wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk target stk_mem kvs_main_adversary_arg_rmap
-      rmap [] Ws Cs 0 with
+      rmap cstk Ws Cs 0 with
       "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
        $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
        $Htarget Hargs Hpost]");
@@ -334,7 +334,7 @@ Section KVS_Main_Blocks.
       (pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e : Addr)
       (rmap : LReg) (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert : Addr) (B_f : Sealable)
-      (Nswitcher : namespace) (stk_mem : list LWord) :
+      (Nswitcher : namespace) (stk_mem : list LWord) (cstk : CSTK) :
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
     Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
@@ -376,7 +376,7 @@ Section KVS_Main_Blocks.
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
-    ∗ cstack_frag []
+    ∗ cstack_frag cstk
     ∗ ▷ (∀ (rmap_ret : LReg),
         ⌜dom rmap_ret =
           all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝
@@ -392,7 +392,7 @@ Section KVS_Main_Blocks.
         ∗ ([∗ map] r ↦ w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
         ∗ [[csp_b, csp_e]] ↦ₐ
             [[region_addrs_zeroes csp_b csp_e]]
-        ∗ cstack_frag []
+        ∗ cstack_frag cstk
         ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
         ∗ user_kvs_inv KVS_USER_KEY_MAIN
         ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
@@ -520,7 +520,7 @@ Section KVS_Main_Blocks.
                   (WCap true RW Global cgp_b cgp_e cgp_b)
                   (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
                   wcs0 (kvs_user_seal_key Global static_sealed_b)
-                  csp_b csp_e csp_b rmap_arg [] ⊤
+                  csp_b csp_e csp_b rmap_arg cstk ⊤
                   KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
                  with "[$Hkvs_static $Hkvs $Hkvs_logical]") as "HKVS_f"; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
@@ -530,7 +530,7 @@ Section KVS_Main_Blocks.
               (WCap true RW Global cgp_b cgp_e cgp_b)
               (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
-              csp_b csp_e csp_b stk_mem rmap_arg rmap' []
+              csp_b csp_e csp_b stk_mem rmap_arg rmap' cstk
               kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack ⊤
               b_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr e_kvs_exp_tbl
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
@@ -642,7 +642,7 @@ Section KVS_Main_Blocks.
       (rmap : LReg) (wca0 wca1 wcra wcs0 : LWord)
       (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert a_flag : Addr) (Nswitcher : namespace)
-      (stk_mem : list LWord) :
+      (stk_mem : list LWord) (cstk : CSTK) :
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
     Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
@@ -681,7 +681,7 @@ Section KVS_Main_Blocks.
     ∗ ca0 ↦ᵣ wca0 ∗ ca1 ↦ᵣ wca1
     ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
-    ∗ cstack_frag []
+    ∗ cstack_frag cstk
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
@@ -799,7 +799,7 @@ Section KVS_Main_Blocks.
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
       wcs0 (kvs_user_seal_key Global static_sealed_b)
-      csp_b csp_e csp_b rmap_arg_read [] ⊤
+      csp_b csp_e csp_b rmap_arg_read cstk ⊤
       KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
       with "[$Hkvs_static $Hkvs $Hkvs_logical]") as "HKVS_f"; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
@@ -809,7 +809,7 @@ Section KVS_Main_Blocks.
               (WCap true RW Global cgp_b cgp_e cgp_b)
               (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               wcs0 (kvs_user_seal_key Global static_sealed_b)
-              csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call []
+              csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call cstk
               kvs_read_nargs kvs_read_min_stack ⊤
               b_kvs_exp_tbl kvs_read_exp_tbl_addr e_kvs_exp_tbl
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e

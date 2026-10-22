@@ -35,25 +35,28 @@ Section Switcher_KtK_Return.
     (stk_mem : list LWord)
     (rmap : LReg)
     (cstk : CSTK)
-    (b_callee_exp_tbl : Addr)
+    (w_callee_exp_tbl : LWord)
     (E : coPset)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let frame :=
-           {| wret := wcra_caller;
-              wcgp := wcgp_caller;
-              wcs0 := wcs0_caller;
-              wcs1 := wcs1_caller;
-              b_stk := b_stk;
-              a_stk := a_stk;
-              e_stk := e_stk;
-              b_callee_exp_tbl := b_callee_exp_tbl;
+           {| cf_tframe :=
+                {| tf_csp := WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a;
+                   tf_export_tbl := w_callee_exp_tbl;
+                   tf_error_count := 0 |};
+              cf_saved :=
+                {| cs_cra := wcra_caller;
+                   cs_cgp := wcgp_caller;
+                   cs_cs0 := wcs0_caller;
+                   cs_cs1 := wcs1_caller |};
               ccrel := Known_to_Known
            |}
     in
 
     disjoint_from_heap b_stk e_stk ->
     disjoint_from_mmio b_stk e_stk ->
+    (* The switcher spilled the callee-saved registers at [a_stk] *)
+    is_Some (a_stk + 4)%a ->
 
     (* NA mask *)
     ↑Nswitcher ⊆ E ->
@@ -85,7 +88,7 @@ Section Switcher_KtK_Return.
     ∗ [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
-    ∗ cstack_frag (frame::cstk)
+    ∗ cstack_frag (cstack_push frame cstk)
 
 
     (* POST-CONDITION *)
@@ -129,7 +132,7 @@ Section Switcher_KtK_Return.
          target, so the jump does not fault;
        - pop the frame and close the switcher invariant. *)
     intros astk4 frame; subst astk4.
-    iIntros (Hstk_heap Hstk_mmio HE Hdom)
+    iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)
       "(#Hswitcher & #[Hcode _] & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
       & [%wcsp Hcsp] & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
 
@@ -142,11 +145,15 @@ Section Switcher_KtK_Return.
 
     (* Read the topmost frame *)
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
+    iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
-    rewrite /frame /cframe_interp; iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "(>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >[%ncnt Ha_tstk_cnt] & >%HWF
+    rewrite /frame /cframe_interp /trusted_frame_interp; iEval (cbn) in "Hcframe_interp".
+    iDestruct "Hcframe_interp" as "((>Ha_tstk & >[%wtbl [Ha_tstk_tbl _]] & >Ha_tstk_cnt)
+                                    & %b_stk' & %e_stk' & %a_stk' & >%HWF
                                     & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
-    destruct HWF as (Hb_a4 & He_a1 & Ha_stk4 & _ & _ & Hret_ok).
+    destruct HWF as (Hcsp & Hb_a4 & He_a1 & Ha_stk4' & _ & _ & Hret_ok).
+    apply lword_of_word_inj in Hcsp. injection Hcsp as Hb He Ha. subst b_stk' e_stk'.
+    assert (a_stk' = a_stk) as -> by (destruct Ha_stk4, Ha_stk4'; solve_addr).
     pose proof (switcher_stk_bounds_frame b_stk e_stk a_stk Hb_a4 He_a1 Ha_stk4) as Hstk_bounds.
     pose proof Hstk_bounds as (_ & _ & Ha4).
     iExtract "Hregs" ctp as "Hctp".
@@ -197,7 +204,7 @@ Section Switcher_KtK_Return.
                   Hcstk_full Hstk_interp_next]")
       as "Hna".
     { iNext.
-      iApply (switcher_inv_pop_frame with
+      iApply (switcher_inv_pop_frame _ cstk with
                "Hmtdc Hsave_area Hframeoffset HthreadID Ha_tstk Ha_tstk_tbl Ha_tstk_cnt Htstk
                 Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
 
@@ -212,25 +219,28 @@ Section Switcher_KtK_Return.
     (stk_mem : list LWord)
     (rmap : LReg)
     (cstk : CSTK)
-    (b_callee_exp_tbl : Addr)
+    (w_callee_exp_tbl : LWord)
     (E : coPset)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let frame :=
-           {| wret := wcra_caller;
-              wcgp := wcgp_caller;
-              wcs0 := wcs0_caller;
-              wcs1 := wcs1_caller;
-              b_stk := b_stk;
-              a_stk := a_stk;
-              e_stk := e_stk;
-              b_callee_exp_tbl := b_callee_exp_tbl;
+           {| cf_tframe :=
+                {| tf_csp := WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a;
+                   tf_export_tbl := w_callee_exp_tbl;
+                   tf_error_count := 0 |};
+              cf_saved :=
+                {| cs_cra := wcra_caller;
+                   cs_cgp := wcgp_caller;
+                   cs_cs0 := wcs0_caller;
+                   cs_cs1 := wcs1_caller |};
               ccrel := Known_to_Known
            |}
     in
 
     disjoint_from_heap b_stk e_stk ->
     disjoint_from_mmio b_stk e_stk ->
+    (* The switcher spilled the callee-saved registers at [a_stk] *)
+    is_Some (a_stk + 4)%a ->
 
     (* NA mask *)
     ↑Nswitcher ⊆ E ->
@@ -262,7 +272,7 @@ Section Switcher_KtK_Return.
     ∗ [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
-    ∗ cstack_frag (frame::cstk)
+    ∗ cstack_frag (cstack_push frame cstk)
 
 
     (* POST-CONDITION *)
@@ -297,7 +307,8 @@ Section Switcher_KtK_Return.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_stk4 frame.
-    iIntros (Hstk_heap Hstk_mmio HE Hdom) "(Hswitcher & Hstatic & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
+    iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)
+      "(Hswitcher & Hstatic & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
       & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
     iApply (switcher_cc_specification_return_known_to_known_gen with
              "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hregs

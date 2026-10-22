@@ -22,6 +22,13 @@ Section DROE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
+  (** The call stack of a thread that starts in this compartment, with the
+      stack [b, e) and the export table word [w] *)
+  #[local] Notation main_entry_cstack b e w :=
+    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+                     tf_export_tbl := w;
+                     tf_error_count := 0 |}) (only parsing).
+
   Lemma droe_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -35,6 +42,9 @@ Section DROE.
 
     (Ws : list WORLD)
     (Cs : list CmptName)
+    (* The capability to the export table of the compartment, as the entry
+       frame of the thread records it *)
+    (w_main_tbl : LWord)
 
     (Nswitcher : namespace)
     :
@@ -65,7 +75,7 @@ Section DROE.
     LNonHeap (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
-    frame_match Ws Cs [] W_init_C C ->
+    frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
     (
       assert_static b_assert e_assert a_flag
       ∗ na_inv cerise_nais Nswitcher switcher_inv
@@ -84,9 +94,9 @@ Section DROE.
 
       ∗ world_interp W_init_C C
 
-      ∗ interp_continuation [] Ws Cs
+      ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag []
+      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1

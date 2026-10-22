@@ -1155,7 +1155,8 @@ Section KVS_spec_erase.
          ⌜ wca1 = WInt 0 ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_erase_nargs kvs_erase_min_stack E
-      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off b_kvs_exp_tbl.
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off
+      (WCap true RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr).
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).

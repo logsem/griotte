@@ -613,7 +613,8 @@ Lemma interp_monotone_continuation
   related_sts_pub_world W W' ->
   interp_continuation cstk (W :: Ws) (C :: Cs) -∗ interp_continuation cstk (W' :: Ws) (C :: Cs).
 Proof.
-  revert Ws Cs; induction cstk as [|frm cstk IH];intros Ws Cs; simpl;auto.
+  destruct cstk as [ef frms].
+  revert Ws Cs; induction frms as [|frm frms IH];intros Ws Cs; simpl;auto.
   iIntros (Hrel) "[Hic Hk]".
   destruct (is_known_to_known_frm frm); first (by iFrame).
   iDestruct "Hk" as "[Hcallee Htopmost_frm]".

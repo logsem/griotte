@@ -215,8 +215,8 @@ Section CmptLayout.
         ∃ n : nat,
           (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack;
         (* The entry frame holds a capability to the export table of the
-           compartment the thread starts in, and an integer error handler
-           count. *)
+           compartment the thread starts in, and no error handler
+           invocation. *)
         trusted_stack_content_export_table :
         ∃ (b_tbl : Addr) (w : Word),
           trusted_stack_content
@@ -224,10 +224,9 @@ Section CmptLayout.
           = Some w ∧
           exp_tbl_cap b_tbl w;
         trusted_stack_content_error_count :
-        ∃ n : Z,
           trusted_stack_content
             !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
-          = Some (WInt n);
+          = Some (WInt 0);
         (* The trusted stack has no authority over the heap and no
            executable word. *)
         trusted_stack_content_words :

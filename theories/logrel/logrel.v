@@ -147,18 +147,26 @@ Section logrel.
       The compartment's name is an equality, because untrusted (physical) compartments
       that can call each others are considered as a unique logical compartment.
    *)
-  Fixpoint frame_match
-    (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) (W : WORLD) (C : CmptName)
+  Fixpoint frame_match_l
+    (Ws : list WORLD) (Cs : list CmptName) (frms : list cframe) (W : WORLD) (C : CmptName)
     : Prop :=
-    match Ws,Cs,cstk with
-    | W' :: Ws', C' :: Cs', frm :: cstk' =>
+    match Ws,Cs,frms with
+    | W' :: Ws', C' :: Cs', frm :: frms' =>
         related_sts_pub_world W' W
         ∧ C = C'
         ∧ is_known_to_known_frm frm = false
-        ∧ (if (is_untrusted_caller_frm frm) then frame_match Ws' Cs' cstk' W C else True)
+        ∧ (if (is_untrusted_caller_frm frm) then frame_match_l Ws' Cs' frms' W C else True)
     | [], [] , []=> True
     | _,_,_ => False
     end.
+
+  (** The worlds [Ws] and compartments [Cs] match the frames pushed by the
+      calls; the entry frame has none. *)
+  Definition frame_match
+    (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) (W : WORLD) (C : CmptName)
+    : Prop :=
+    frame_match_l Ws Cs cstk.(cstk_frames) W C.
+  #[global] Arguments frame_match _ _ _ _ _ /.
 
   Lemma frame_match_mono
     (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) (W W' : WORLD) ( C : CmptName ) :
@@ -166,8 +174,10 @@ Section logrel.
     frame_match Ws Cs cstk W C ->
     frame_match Ws Cs cstk W' C.
   Proof.
-    revert Ws Cs.
-    induction cstk as [|frm cstk]; intros Ws Cs Hrelated Hfrm.
+    rewrite /frame_match.
+    generalize (cstk_frames cstk) as frms; clear cstk.
+    intros frms; revert Ws Cs.
+    induction frms as [|frm frms IHcstk]; intros Ws Cs Hrelated Hfrm.
     - destruct Ws,Cs; cbn in *; try done.
     - destruct Ws,Cs; cbn in *; try done.
       destruct Hfrm as (Hrelated' & <- & is_not_known_to_known & IHframe).
@@ -181,13 +191,13 @@ Section logrel.
       callee of the topmost frame of [cstk] is untrusted: the PCC and the CGP
       of its export table are safe in every private future world of [W]. It
       also records the handler offsets of the header of that table. A thread
-      starts in a trusted compartment, so it is [False] for an empty call
-      stack. *)
+      starts in a trusted compartment, so it is [False] when no frame is
+      pushed above the entry frame. *)
   Definition top_cmpt_untrusted (interp : V) (W : WORLD) (C : CmptName) (cstk : CSTK)
     : iProp Σ :=
-    match cstk with
+    match cstk.(cstk_frames) with
     | frm :: _ =>
-        let b_tbl := frm.(b_callee_exp_tbl) in
+        let b_tbl := tf_export_tbl_b frm.(cf_tframe) in
         let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
         ∃ (pcc cgp : LWord) (eh ehs : Z),
           b_tbl ↦ₐ□ pcc ∗
@@ -200,13 +210,13 @@ Section logrel.
 
   #[global] Instance top_cmpt_untrusted_persistent interp W C cstk :
     Persistent (top_cmpt_untrusted interp W C cstk).
-  Proof. destruct cstk; apply _. Qed.
+  Proof. destruct cstk as [ef [|frm frms] ]; apply _. Qed.
 
   #[global] Instance top_cmpt_untrusted_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) top_cmpt_untrusted.
   Proof.
     intros interp interp' Heq W ? <- C ? <- cstk ? <-.
-    destruct cstk; [done|]. rewrite /top_cmpt_untrusted. solve_proper.
+    destruct cstk as [ef [|frm frms] ]; [done|]. rewrite /top_cmpt_untrusted. solve_proper.
   Qed.
 
   Lemma top_cmpt_untrusted_mono_priv interp W W' C cstk :
@@ -214,7 +224,7 @@ Section logrel.
     top_cmpt_untrusted interp W C cstk -∗ top_cmpt_untrusted interp W' C cstk.
   Proof.
     iIntros (Hrelated) "Htop".
-    destruct cstk as [|frm cstk]; first done.
+    destruct cstk as [ef [|frm frms] ]; first done.
     iDestruct "Htop" as (pcc cgp eh ehs) "(Hpcc & Hcgp & Heh & Hehs & #Hinterp)".
     iExists pcc, cgp, eh, ehs. iFrame.
     iIntros "!>" (W'' Hrelated').
@@ -503,16 +513,16 @@ Section logrel.
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
      ,
        ∀ (rcgp rcra rcs0 rcs1 wca0 wca1 : LWord) (regs : LReg) (stk_mem_l stk_mem_h : list LWord),
-       let b_stk := frm.(b_stk) in
-       let a_stk := frm.(a_stk) in
-       let e_stk := frm.(e_stk) in
+       let b_stk := cf_stk_b frm in
+       let a_stk := cf_spill_a frm in
+       let e_stk := cf_stk_e frm in
        let astk4 := (a_stk ^+4)%a in
        let callee_stk_region := finz.seq_between (if (is_untrusted_caller_frm frm) then a_stk else astk4) e_stk in
        let callee_stk_mem := if (is_untrusted_caller_frm frm) then stk_mem_l++stk_mem_h else stk_mem_h in
-       ⌜load_heap_in_world W frm.(wcgp) rcgp⌝ -∗
-       ⌜load_heap_in_world W frm.(wret) rcra⌝ -∗
-       ⌜load_heap_in_world W frm.(wcs0) rcs0⌝ -∗
-       ⌜load_heap_in_world W frm.(wcs1) rcs1⌝ -∗
+       ⌜load_heap_in_world W frm.(cf_saved).(cs_cgp) rcgp⌝ -∗
+       ⌜load_heap_in_world W frm.(cf_saved).(cs_cra) rcra⌝ -∗
+       ⌜load_heap_in_world W frm.(cf_saved).(cs_cs0) rcs0⌝ -∗
+       ⌜load_heap_in_world W frm.(cf_saved).(cs_cs1) rcs1⌝ -∗
        ( PC ↦ₚ lupdatePcPerm rcra
          ∗ cra ↦ᵣ rcra
          ∗ csp ↦ᵣ (WCap true RWL Local b_stk e_stk a_stk)
@@ -597,32 +607,36 @@ Section logrel.
       The "body" of continuation relation is only enforced if the caller-callee relation
       involves an unknown compartment.
    *)
-  Program Fixpoint interp_cont_aux (interp : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+  Program Fixpoint interp_cont_aux (interp : V) (ef : trusted_frame) (frms : list cframe)
+    (Ws : list WORLD) (Cs : list CmptName)
     : iProp Σ :=
-    match cstk, Ws, Cs with
+    match frms, Ws, Cs with
     | [],[],[] => True%I
-    | frm :: cstk', Wt :: Ws', Ct :: Cs' =>
+    | frm :: frms', Wt :: Ws', Ct :: Cs' =>
+        let cstk' := {| cstk_entry := ef; cstk_frames := frms' |} in
         (* Continuation for the rest of the call-stack *)
-        interp_cont_aux interp cstk' Ws' Cs' ∗
+        interp_cont_aux interp ef frms' Ws' Cs' ∗
         (if is_known_to_known_frm frm
          then True%I
          else
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
-             interp_callee_part_of_the_stack interp Wt Ct (WCap true RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
+             interp_callee_part_of_the_stack interp Wt Ct
+               (WCap true RWL Local (cf_stk_b frm) (cf_stk_e frm) (cf_spill_a frm))
+               (is_untrusted_caller_frm frm)
              (* An untrusted caller records that its topmost compartment is
                 untrusted, for the return to it; a trusted caller, the
                 continuation matching the switcher's state at return-to-caller *)
              ∗ (if is_untrusted_caller_frm frm then top_cmpt_untrusted interp Wt Ct cstk' else
                     (∀ W', ⌜related_sts_pub_world Wt W'⌝
-                      -∗ interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs')
+                      -∗ interp_cont_exec interp (interp_cont_aux interp ef frms' Ws' Cs')
                            cstk' W' Ct frm))))%I
     | _,_,_ =>  False%I
     end.
   Solve All Obligations with ( solve_proper; split; intros ; (intros [?  [] ]; done) ).
   #[global] Instance interp_cont_aux_ne n :
-    Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) (interp_cont_aux).
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) (interp_cont_aux).
   Proof.
-    intros interp interp0 Heq x y -> W W0 -> C C0 ->.
+    intros interp interp0 Heq ef ? <- x y -> W W0 -> C C0 ->.
     generalize dependent W0.
     generalize dependent C0.
     induction y as [|frm y IH]; intros C0 W0;[simpl;f_equiv|].
@@ -637,12 +651,12 @@ Section logrel.
     apply bi.forall_ne; intros W'.
     apply bi.wand_ne; first reflexivity.
     exact (interp_cont_exec_ne n interp interp0 Heq _ _ (IH Cs Ws)
-      y W' Ct frm).
+      _ W' Ct frm).
   Qed.
 
   Program Definition interp_cont (interp : V) : K :=
     (λne (cstk : CSTK) (Ws : list WORLD) (Cs : leibnizO (list CmptName)),
-       interp_cont_aux interp cstk Ws Cs
+       interp_cont_aux interp cstk.(cstk_entry) cstk.(cstk_frames) Ws Cs
     ).
   Solve All Obligations with solve_proper.
   #[global] Instance interp_cont_ne n :

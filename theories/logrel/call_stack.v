@@ -30,25 +30,85 @@ Definition is_known_to_known (r : caller_callee_relation) :=
   end.
 
 
-(** A calls stack [cstack] is a list of call-frames [cframe],
-    and they contain the content of the callee-saved registers,
-    kept track by the switcher.
+(** The callee-saved registers of a caller, spilled by the switcher on the
+    caller's own stack at the call, and restored at the return.
 
-    - [wret] records the value of [cra], the return pointer of the caller
-    - [wcgp] records the value of [cgp], the global data (compartment's memory) of the caller
-    - [wcs0] records the value of [cs0], general purpose register
-    - [wcs1] records the value of [cs1], general purpose register
-    - [b_stk], [a_stk] and  [e_stk] records the bounds of the stack capability [csp],
-    the (compartment) stack frame of the caller
-    - [b_callee_exp_tbl] records the base of the export table of the callee
-      ([calleeExportTable] in CHERIoT)
+    - [cs_cra] records the value of [cra], the return pointer of the caller
+    - [cs_cgp] records the value of [cgp], the global data (compartment's memory) of the caller
+    - [cs_cs0] records the value of [cs0], general purpose register
+    - [cs_cs1] records the value of [cs1], general purpose register
 
-    The frame records the saved logical words, with their identifiers, not
-    their mutable shadow bits. Each restored word satisfies [load_heap]: a
-    heap capability may lose its tag when loaded, and keeps its identifier.
-    The shadow state is not recorded on the call stack.
+    They are logical words, with their identifiers, not their mutable shadow
+    bits. Each restored word satisfies [load_heap]: a heap capability may lose
+    its tag when loaded, and keeps its identifier. The shadow state is not
+    recorded on the call stack.
+ **)
+Record callee_saved_registers := MkCalleeSaved {
+      cs_cra : LWord;
+      cs_cgp : LWord;
+      cs_cs0 : LWord;
+      cs_cs1 : LWord;
+  }.
 
-    Finally, [ccrel] tracks the caller-callee relationship.
+(** A frame of the trusted stack ([TrustedStackFrame] in CHERIoT):
+
+    - [tf_csp] is the word of its [csp] cell: the stack pointer of the
+      caller, after the spill of the callee-saved registers; for the entry
+      frame of the thread, the initial stack pointer of the thread
+    - [tf_export_tbl] is the word of its [calleeExportTable] cell, stored
+      when the frame is pushed: the unsealed export entry of the callee, a
+      capability to its export table (its base is [tf_export_tbl_b]); for the
+      entry frame, the capability to the export table of the compartment the
+      thread starts in. When the unseal of the entry fails, the frame is
+      unwound with the cell still 0: the field may then be any word, and it
+      is never read
+    - [tf_error_count] is the number of error handlers invoked
+      ([errorHandlerCount])
+ **)
+Record trusted_frame := MkTFrame {
+      tf_csp : LWord;
+      tf_export_tbl : LWord;
+      tf_error_count : Z;
+  }.
+
+(** The stack of the caller of a frame, read from [tf_csp]: its bounds
+    [tf_stk_b] and [tf_stk_e], and the base [tf_spill_a] of the area where the
+    switcher spilled the callee-saved registers, the four words below the
+    cursor of [tf_csp]. *)
+Definition tf_stk_b (tf : trusted_frame) : Addr :=
+  match tf.(tf_csp).(lw) with
+  | WCap _ _ _ b _ _ => b
+  | _ => 0%a
+  end.
+Definition tf_stk_e (tf : trusted_frame) : Addr :=
+  match tf.(tf_csp).(lw) with
+  | WCap _ _ _ _ e _ => e
+  | _ => 0%a
+  end.
+Definition tf_spill_a (tf : trusted_frame) : Addr :=
+  match tf.(tf_csp).(lw) with
+  | WCap _ _ _ _ _ a => (a ^+ -4)%a
+  | _ => 0%a
+  end.
+
+(** The base of the export table of the callee of a frame. *)
+Definition tf_export_tbl_b (tf : trusted_frame) : Addr :=
+  match tf.(tf_export_tbl).(lw) with
+  | WCap _ _ _ b _ _ => b
+  | _ => 0%a
+  end.
+
+Arguments tf_export_tbl_b !tf /.
+Arguments tf_stk_b !tf /.
+Arguments tf_stk_e !tf /.
+Arguments tf_spill_a !tf /.
+
+Lemma spill_cursor (a : Addr) : is_Some (a + 4)%a → ((a ^+ 4) ^+ -4)%a = a.
+Proof. intros [a4 Ha4]. solve_addr. Qed.
+
+(** A call-frame [cframe]: the frame [cf_tframe] of the trusted stack, the
+    callee-saved registers [cf_saved] of the caller, and the caller-callee
+    relationship [ccrel].
     In case of know-to-known, we trust the caller and the callee to properly
     keep track of the continuation themselves, and therefore the continuation is trivial.
 
@@ -59,16 +119,15 @@ Definition is_known_to_known (r : caller_callee_relation) :=
     More explanation in the switcher's invariant.
  **)
 Record cframe := MkCFrame {
-      wret : LWord;
-      wcgp : LWord;
-      wcs0 : LWord;
-      wcs1 : LWord;
-      b_stk : Addr;
-      a_stk : Addr;
-      e_stk : Addr;
-      b_callee_exp_tbl : Addr;
+      cf_tframe : trusted_frame;
+      cf_saved : callee_saved_registers;
       ccrel : caller_callee_relation;
   }.
+
+(** The stack of the caller of a frame, and the base of its spill area. *)
+Notation cf_stk_b frm := (tf_stk_b (cf_tframe frm)).
+Notation cf_stk_e frm := (tf_stk_e (cf_tframe frm)).
+Notation cf_spill_a frm := (tf_spill_a (cf_tframe frm)).
 
 (** [load_heap saved actual] describes a saved register after its load.
     A heap capability may retain its tag or have it cleared, depending on
@@ -89,8 +148,51 @@ Definition is_known_to_known_frm (frm : cframe) :=
   is_known_to_known frm.(ccrel).
 
 
-Notation cstack := (list cframe).
+(** A call stack [cstack]: the entry frame of the thread [cstk_entry]
+    ([frames[0]] of the trusted stack), and the frames [cstk_frames] pushed
+    above it by the calls, the topmost first. *)
+Record cstack := MkCStack {
+      cstk_entry : trusted_frame;
+      cstk_frames : list cframe;
+  }.
 Notation CSTK := (leibnizO cstack).
+
+#[global] Instance trusted_frame_inhabited : Inhabited trusted_frame :=
+  populate (MkTFrame (lword_of_word (WInt 0)) (lword_of_word (WInt 0)) 0).
+#[global] Instance cstack_inhabited : Inhabited cstack :=
+  populate (MkCStack inhabitant []).
+
+(** The call stack of a thread with no call: its entry frame only. *)
+Notation entry_cstack ef := {| cstk_entry := ef; cstk_frames := [] |}.
+
+(** The call stack [cstk] with the frame [frm] pushed on top. *)
+Notation cstack_push frm cstk :=
+  {| cstk_entry := cstk.(cstk_entry); cstk_frames := frm :: cstk.(cstk_frames) |}.
+
+Lemma cstack_eta (cstk : cstack) :
+  {| cstk_entry := cstk.(cstk_entry); cstk_frames := cstk.(cstk_frames) |} = cstk.
+Proof. by destruct cstk. Qed.
+
+(** The topmost frame of the trusted stack: the topmost pushed frame, or the
+    entry frame. *)
+Definition top_tframe (cstk : cstack) : trusted_frame :=
+  match cstk.(cstk_frames) with
+  | frm :: _ => frm.(cf_tframe)
+  | [] => cstk.(cstk_entry)
+  end.
+
+(** The base of the export table of the callee of the topmost frame. *)
+Definition top_export_tbl (cstk : cstack) : Addr := tf_export_tbl_b (top_tframe cstk).
+
+(** The error handler count of the topmost frame. *)
+Definition top_error_count (cstk : cstack) : Z := (top_tframe cstk).(tf_error_count).
+
+Lemma top_tframe_push (frm : cframe) (cstk : cstack) :
+  top_tframe (cstack_push frm cstk) = frm.(cf_tframe).
+Proof. done. Qed.
+Lemma top_tframe_entry (ef : trusted_frame) :
+  top_tframe (entry_cstack ef) = ef.
+Proof. done. Qed.
 
 Definition cstackUR := excl_authUR CSTK.
 
@@ -234,11 +336,3 @@ Notation "b ↦ₕ□{stackful} z" := (handler_stackful b z)
   (at level 20, format "b  ↦ₕ□{stackful}  z") : bi_scope.
 Notation "b ↦ₕ□{stackless} z" := (handler_stackless b z)
   (at level 20, format "b  ↦ₕ□{stackless}  z") : bi_scope.
-
-(** The callee of the topmost frame of [cstk], if any, has its export table
-    at [b]. *)
-Definition top_callee_tbl (cstk : cstack) (b : Addr) : Prop :=
-  match cstk with
-  | frm :: _ => frm.(b_callee_exp_tbl) = b
-  | [] => True
-  end.

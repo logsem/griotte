@@ -29,6 +29,13 @@ Section KVS_main_spec.
   Implicit Types W : WORLD.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
+  (** The call stack of a thread that starts in this compartment, with the
+      stack [b, e) and the export table word [w] *)
+  #[local] Notation main_entry_cstack b e w :=
+    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+                     tf_export_tbl := w;
+                     tf_error_count := 0 |}) (only parsing).
+
   Lemma kvs_main_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -44,6 +51,9 @@ Section KVS_main_spec.
     (W0 : WORLD)
     (Ws : list WORLD)
     (Cs : list CmptName)
+    (* The capability to the export table of the compartment, as the entry
+       frame of the thread records it *)
+    (w_main_tbl : LWord)
 
     (Nswitcher : namespace)
     :
@@ -71,7 +81,7 @@ Section KVS_main_spec.
     (csp_b + 4 <= csp_e)%Z ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
-    frame_match Ws Cs [] W0 B ->
+    frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 B ->
     (
       assert_static b_assert e_assert a_flag ∗
       na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -103,8 +113,8 @@ Section KVS_main_spec.
       (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥ ∗
 
       world_interp W0 B ∗
-      interp_continuation [] Ws Cs ∗
-      cstack_frag [] ∗
+      interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs ∗
+      cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl) ∗
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       B_f ↦ₑ□{nargs} 0 ∗
@@ -114,6 +124,7 @@ Section KVS_main_spec.
   Proof.
     intros imports a_kvs_exp_tbl_cgp.
     subst imports a_kvs_exp_tbl_cgp.
+    set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
     iIntros (HNtrap Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
                Hframe_match
@@ -159,7 +170,7 @@ Section KVS_main_spec.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iApply (kvs_main_add_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
-      rmap KVS_USER_KEY_MAIN b_assert e_assert B_f Nswitcher stk_mem
+      rmap KVS_USER_KEY_MAIN b_assert e_assert B_f Nswitcher stk_mem cstk0
       with
       "[- $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
@@ -246,7 +257,7 @@ Section KVS_main_spec.
              (WCap true RW Global cgp_b cgp_e cgp_b)
              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
              wcs0 (kvs_user_seal_key Global static_sealed_b)
-             csp_b csp_e csp_b B_f stk_mem_B rmap_B Ws Cs
+             csp_b csp_e csp_b B_f stk_mem_B rmap_B Ws Cs cstk0
              ).
     all: [> exact HNtrap | exact Hstk_shadow | exact Hstk_heap | solve_addr | solve_addr+Hstk_min
          | destruct mie; reflexivity
@@ -298,7 +309,7 @@ Section KVS_main_spec.
       rmap warg0 warg1
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a) rcs0
       KVS_USER_KEY_MAIN b_assert e_assert a_flag Nswitcher
-      stk_mem with
+      stk_mem cstk0 with
       "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
        $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1

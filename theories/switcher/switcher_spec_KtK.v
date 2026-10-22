@@ -43,18 +43,19 @@ Section Switcher_KtK.
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
     (off_tgt : Z)
-    (b_callee_exp_tbl : Addr)
+    (w_callee_exp_tbl : LWord)
     : iProp Σ :=
     let a_stk4 := (a_stk ^+ 4)%a in
     let frame :=
-           {| wret := wcra_caller;
-              wcgp := wcgp_caller;
-              wcs0 := wcs0_caller;
-              wcs1 := wcs1_caller;
-              b_stk := b_stk;
-              a_stk := a_stk;
-              e_stk := e_stk;
-              b_callee_exp_tbl := b_callee_exp_tbl;
+           {| cf_tframe :=
+                {| tf_csp := WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a;
+                   tf_export_tbl := w_callee_exp_tbl;
+                   tf_error_count := 0 |};
+              cf_saved :=
+                {| cs_cra := wcra_caller;
+                   cs_cgp := wcgp_caller;
+                   cs_cs0 := wcs0_caller;
+                   cs_cs1 := wcs1_caller |};
               ccrel := Known_to_Known
            |}
     in
@@ -73,7 +74,7 @@ Section Switcher_KtK.
              ∗ ca1 ↦ᵣ wca1
              ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w)
              ∗ [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem_ret ]]
-             ∗ cstack_frag (frame :: cstk)
+             ∗ cstack_frag (cstack_push frame cstk)
              ∗ Q wca0 wca1
                -∗ WP Seq (Instr Executable)
                      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}))%I
@@ -98,7 +99,7 @@ Section Switcher_KtK.
               ca1 ↦ᵣ - ∗
               ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w) ∗
               [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem_ret ]] ∗
-              cstack_frag (frame :: cstk)) -∗
+              cstack_frag (cstack_push frame cstk)) -∗
          trap_safe wpc ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤))%I
     in
     (∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
@@ -120,7 +121,7 @@ Section Switcher_KtK.
        ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
        ∗ [[ a_stk4 , e_stk ]] ↦ₐ
            [[ region_addrs_zeroes a_stk4 e_stk ]]
-       ∗ cstack_frag (frame :: cstk)
+       ∗ cstack_frag (cstack_push frame cstk)
        ∗ P
        ∗ (if may_fault then return_cont ∧ fault_cont else return_cont)
        -∗ WP Seq (Instr Executable)
@@ -275,7 +276,7 @@ Section Switcher_KtK.
     ∗ switcher_cc_specification_known_to_known_function
         may_fault P Q wcgp_caller wcra_caller wcs0_caller wcs1_caller
         b_stk e_stk a_stk arg_rmap cstk nargs minstk_tgt E
-        bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt btbl_tgt
+        bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt)
     ∗ ▷ ((if may_fault
           then returned ∨ stack_exhausted ∨ callee_faulted
           else returned ∨ stack_exhausted)
@@ -359,12 +360,14 @@ Section Switcher_KtK.
         }
         iApply (switcher_cc_specification_return_known_to_known
                   Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
-                  wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk btbl_tgt E
+                  wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk
+                  (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E
                   with
                   "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                     $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hretpost]").
         { exact Hstk_heap. }
         { exact Hstk_shadow. }
+        { exists (a_stk ^+ 4)%a; solve_addr. }
         { exact HE. }
         { exact Hrmap_ret. }
       }
@@ -389,11 +392,12 @@ Section Switcher_KtK.
         as ["Hcgp";"Hcra";"Hcs0";"Hcs1";"Hcsp";"Hca0";"Hca1"].
       iApply (switcher_cc_specification_return_known_to_known_gen
                 Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
-                (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret _ cstk btbl_tgt E
+                (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret _ cstk
+                (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E
                 with
                 "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                   $Hcsp $Hca0 $Hca1 $Hrmap_fault $Hstk $Hcstk Hpost]");
-        [exact Hstk_heap | exact Hstk_shadow | exact HE | |].
+        [exact Hstk_heap | exact Hstk_shadow | exists (a_stk ^+ 4)%a; solve_addr | exact HE | |].
       { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap_fault). set_solver. }
       iNext.
       iIntros (rmap_final rcgp rcra rcs0 rcs1)

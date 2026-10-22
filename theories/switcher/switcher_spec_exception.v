@@ -105,7 +105,7 @@ Section Switcher_Spec_Exception.
                mtdc ↦ₛᵣ tstack_cap -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
-                 ↦ₐ WInt (tstack_frameoffset (length cstk')) -∗
+                 ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
                trap_entry_res
                ={⊤}=∗
                na_own cerise_nais F)%I

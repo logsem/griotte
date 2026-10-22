@@ -206,7 +206,7 @@ Section vae_obligations.
 
     (* 7 - We can apply the specification! *)
     iPoseProof (vae_init_spec (swlayout := swl) (assertlayout := asl) (C := C)
-                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] fw_switcherN
+                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ fw_switcherN
                  with "[ $Hassert $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_awk
