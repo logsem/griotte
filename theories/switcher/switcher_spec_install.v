@@ -190,19 +190,20 @@ Section Switcher_Spec_Install.
     (* The cells of the topmost frame *)
     iDestruct (cstack_interp_open_top with "Hstk_interp") as "[Htf Hstk_close]".
     iDestruct (trusted_frame_interp_open with "Htf")
-      as (wcell dq) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
+      as (dq) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
     iEval (fold (top_error_count cstk)) in "Hcnt".
 
     (* Block 35: the loads of the [ErrorState] and the count *)
     iApply (switcher_install_context_block_spec (length cstk.(cstk_frames)) a_tstk
-              (top_export_tbl cstk) (top_error_count cstk) save_area wpcc wcell wcsp
+              (top_export_tbl cstk) (top_error_count cstk) save_area wpcc
+              (top_tframe cstk).(tf_export_tbl) wcsp
               _ _ _ _ _ _ _ _ _ _ dq L
              with "[- $HPC $Hcsp $Hcra $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca2 $Hca3 $Hca4
                      $Hmtdc $Hframeoffset $Hcell $Hcnt $Hsave_area $Hcode $HL $Hacc]").
     { exact Hlen_cstk. }
     { exact Ha_tstk_e. }
     { exact Hsave_len. }
-    { destruct Hwcell as [-> | (_ & Hexp & Hprov)]; [by left | by right]. }
+    { destruct Hwcell as [Hz | (Hexp & Hprov)]; [by left | by right]. }
     iSplitR; first (iIntros "_"; iExact "Hpcc").
     iNext; iSplit.
     - (* A load faults: the invariant is closed, the count unchanged *)

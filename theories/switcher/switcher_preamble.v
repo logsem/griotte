@@ -412,8 +412,8 @@ Section Switcher_preamble.
   (** The export table cell of a pushed frame, as the call path writes it:
       cleared, before the entry unseals... *)
   Lemma tf_export_tbl_cell_cleared (tf : trusted_frame) :
-    lword_of_word (WInt 0) = lword_of_word (WInt 0) ∨
-    (lword_of_word (WInt 0) = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf).
+    tf.(tf_export_tbl) = lword_of_word (WInt 0) →
+    tf.(tf_export_tbl) = lword_of_word (WInt 0) ∨ tf_export_tbl_ok tf.
   Proof. by left. Qed.
 
   (** ... or holding the unsealed entry, a capability to the export table. *)
@@ -422,10 +422,9 @@ Section Switcher_preamble.
     (b ^+ ExportTable_offset_errorHandlerStackless < a)%a →
     (a < e)%a →
     disjoint_from_shadow b e →
-    lword_of_word (WCap true RO g b e a) = lword_of_word (WInt 0) ∨
-    (lword_of_word (WCap true RO g b e a) = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf).
+    tf_export_tbl_ok tf.
   Proof.
-    intros Htbl Hb Ha Hshadow. right. split; first done.
+    intros Htbl Hb Ha Hshadow.
     rewrite /tf_export_tbl_ok /tf_export_tbl_b Htbl /=. split; last done.
     by apply exp_tbl_cap_entry.
   Qed.
@@ -435,10 +434,10 @@ Section Switcher_preamble.
       [tf_csp], the capability [tf_export_tbl] to the export table of the
       callee, and the error handler count [tf_error_count].
       The export table cell of the entry frame ([entry = true]) is written
-      once, by the loader: it holds the capability for good. The call path
-      clears the export table cell of a pushed frame before it stores the
-      unsealed entry; the frame is unwound with a cleared cell when the
-      entry does not unseal.
+      once, by the loader: it holds the capability for good. The export
+      table cell of a pushed frame holds the frame's word: the unsealed
+      entry, or [WInt 0] for a frame unwound because its entry does not
+      unseal (the call path clears the cell before it unseals).
    *)
   Definition trusted_frame_interp (entry : bool) (tf : trusted_frame) (a_tstk : Addr) : iProp Σ :=
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
@@ -447,9 +446,9 @@ Section Switcher_preamble.
     ("Htf_csp" ∷ a_csp ↦ₐ tf.(tf_csp) ∗
      "Htf_tbl" ∷ (if entry
                   then a_export_table ↦ₐ□ tf.(tf_export_tbl) ∗ ⌜tf_export_tbl_ok tf⌝
-                  else ∃ w, a_export_table ↦ₐ w ∗
-                         ⌜w = lword_of_word (WInt 0) ∨
-                          (w = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf)⌝) ∗
+                  else a_export_table ↦ₐ tf.(tf_export_tbl) ∗
+                         ⌜tf.(tf_export_tbl) = lword_of_word (WInt 0) ∨
+                          tf_export_tbl_ok tf⌝) ∗
      "Htf_cnt" ∷ a_error_count ↦ₐ WInt tf.(tf_error_count))%I.
 
   (** [cframe_stk_own a_stk saved ccrel] holds the area [[a_stk, a_stk+4)]

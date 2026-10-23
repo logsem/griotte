@@ -746,17 +746,17 @@ Section Switcher_Spec_Exception.
       assert (rmap !!! csp = wcsp) as Hrmap_csp by (rewrite lookup_total_alt Hwcsp; done).
       iDestruct (cstack_interp_open_top with "Hstk_interp") as "[Htf Hstk_close]".
       iDestruct (trusted_frame_interp_open with "Htf")
-        as (wcell dq) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
+        as (dq) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
       iEval (fold (top_error_count cstk)) in "Hcnt".
       (* Blocks 25-29: the lookup *)
       iApply (switcher_handler_lookup_spec cstk a_tstk (top_export_tbl cstk) eh ehs wcsp wct0_l
-                wcell
+                (top_tframe cstk).(tf_export_tbl)
                with "[- $HPC $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca0 $Hca1 $Hca2
                        $Hcsp_cell $Hcell $Hcode]").
       { exact Hlen_cstk. }
       { exact Ha_tstk_e. }
       { exact Hframe_csp. }
-      { destruct Hwcell as [-> | (_ & Hexp & Hprov)]; [by left | by right]. }
+      { destruct Hwcell as [Hz | (Hexp & Hprov)]; [by left | by right]. }
       { exact Hlea. }
       iSplitR; first (iIntros "_"; iFrame "Heh Hehs").
       iNext; iSplit; [|iSplit].
@@ -793,7 +793,7 @@ Section Switcher_Spec_Exception.
         iIntros (p g e a off z0 wct0_h wct2_h wcs1_h wca1_h wca2_h Hw Hfound)
           "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
             & Hcsp_cell & Hcell & _)".
-        destruct Hwcell as [Hz | (Htf_tbl & Hexp & _)].
+        destruct Hwcell as [Hz | (Hexp & _)].
         { exfalso. rewrite Hw in Hz. by inversion Hz. }
         rewrite Hw /= in Hexp.
         assert (exp_tbl_cap (top_export_tbl cstk)

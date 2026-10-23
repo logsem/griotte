@@ -674,20 +674,20 @@ Section Switcher_error_handler.
   Qed.
 
   (** The cells of a frame of the trusted stack: the cell of the export
-      table, of any fraction, is cleared or holds a capability to the table,
-      without identifier. *)
+      table, of any fraction, holds the frame's word, cleared or a capability
+      to the table, without identifier. *)
   Lemma trusted_frame_interp_open (entry : bool) (tf : trusted_frame) (a_tstk : Addr) :
     trusted_frame_interp entry tf a_tstk -∗
-    ∃ (wcell : LWord) (dq : dfrac),
+    ∃ (dq : dfrac),
       (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) ∗
-      (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} wcell ∗
+      (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} tf.(tf_export_tbl) ∗
       (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt tf.(tf_error_count) ∗
-      ⌜wcell = lword_of_word (WInt 0) ∨
-       (wcell = tf.(tf_export_tbl) ∧
-        exp_tbl_cap (tf_export_tbl_b tf) wcell.(lw) ∧ wcell.(lprov) = None)⌝ ∗
+      ⌜tf.(tf_export_tbl) = lword_of_word (WInt 0) ∨
+       (exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw) ∧
+        tf.(tf_export_tbl).(lprov) = None)⌝ ∗
       (∀ n : Z,
          (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) -∗
-         (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} wcell -∗
+         (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} tf.(tf_export_tbl) -∗
          (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt n -∗
          trusted_frame_interp entry (tf_set_count tf n) a_tstk).
   Proof.
@@ -695,15 +695,13 @@ Section Switcher_error_handler.
     iIntros "Htf". iNamed "Htf".
     destruct entry.
     - iDestruct "Htf_tbl" as "[#Htbl %Hok]".
-      iExists _, DfracDiscarded. iFrame "Htf_csp Htbl Htf_cnt".
-      iSplit; first (iPureIntro; right; split; [done | exact Hok]).
+      iExists DfracDiscarded. iFrame "Htf_csp Htbl Htf_cnt".
+      iSplit; first (iPureIntro; right; exact Hok).
       iIntros (n) "Hcsp _ Hcnt". iFrame "Hcsp Hcnt". iPureIntro. exact Hok.
-    - iDestruct "Htf_tbl" as (w) "[Htbl %Hw]".
-      iExists w, (DfracOwn 1). iFrame "Htf_csp Htbl Htf_cnt".
-      iSplit.
-      { iPureIntro.
-        destruct Hw as [-> | [-> Hok] ]; [by left | right; split; [done | exact Hok] ]. }
-      iIntros (n) "Hcsp Htbl Hcnt". iFrame "Hcsp Hcnt". iExists w. iFrame "Htbl".
+    - iDestruct "Htf_tbl" as "[Htbl %Hw]".
+      iExists (DfracOwn 1). iFrame "Htf_csp Htbl Htf_cnt".
+      iSplit; first (iPureIntro; destruct Hw as [-> | Hok]; [by left | right; exact Hok]).
+      iIntros (n) "Hcsp Htbl Hcnt". iFrame "Hcsp Htbl Hcnt".
       iPureIntro. exact Hw.
   Qed.
 

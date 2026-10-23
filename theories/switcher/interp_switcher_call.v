@@ -538,7 +538,7 @@ Section fundamental.
       { (* The fault is in the switcher *)
         iLeft; iPureIntro. apply switcher_fault_pc_cap. }
       { (* The table cell is still cleared *)
-        pose proof (tf_export_tbl_cell_cleared (cf_tframe frame)) as Htbl_cell.
+        pose proof (tf_export_tbl_cell_cleared (cf_tframe frame) eq_refl) as Htbl_cell.
         iMod (switcher_inv_push_frame frame cstk with
                "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
                 Htstk Hstk_interp [] Hp_ot_switcher")
@@ -643,8 +643,9 @@ Section fundamental.
       iIntros "(_ & HPC & [%wcs0' Hcs0] & [%wcs1'' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2]
         & [%wctp' Hctp] & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hparams & Hrest & _)".
       (* The table cell holds the unsealed entry *)
-      pose proof (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
-               eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
+      pose proof (or_intror (A := (cf_tframe frame).(tf_export_tbl) = lword_of_word (WInt 0))
+                    (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
+                       eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow)) as Htbl_cell.
       iMod (switcher_inv_push_frame frame cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
               Htstk Hstk_interp [] Hp_ot_switcher")
@@ -673,8 +674,9 @@ Section fundamental.
 
     (* Push the frame, whose table cell holds the unsealed entry, and close the
        switcher invariant *)
-    pose proof (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
-               eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
+    pose proof (or_intror (A := (cf_tframe frame).(tf_export_tbl) = lword_of_word (WInt 0))
+                  (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
+                     eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow)) as Htbl_cell.
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [] Hp_ot_switcher")
