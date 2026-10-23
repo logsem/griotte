@@ -162,7 +162,7 @@ Section kvs_obligations.
       first exact Hmain_l.
     iDestruct "Hkvs" as "(Hkvs_imports & Hkvs_code & Hkvs_data)".
     iDestruct "Hkvs_pers" as "(Hkvs_etbl_pcc & Hkvs_etbl_cgp & Hkvs_etbl_nh & Hkvs_etbl_entries)".
-    iEval (cbn [fw_handler_res fc_body]) in "Hkvs_etbl_nh".
+    iEval (cbn [fw_handler_res fc_body tb_error_handler tb_error_handler_stackless]) in "Hkvs_etbl_nh".
     iDestruct (fw_cmpt_pers_res_export_nargs _ _ _ kvs_B_entry_f 0
                  (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl) with "HB_pers")
       as "#Hentry_Bf"; [done|lia|].

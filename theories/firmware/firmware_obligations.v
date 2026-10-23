@@ -272,16 +272,20 @@ Section prepared.
       [[ lword_of_word <$> cmpt_static_sealed c ]].
 
   (** The error handler offsets of the compartment [fc], at the base [b] of
-      its export table: none for a trusted compartment, arbitrary for an
-      untrusted one. *)
+      its export table: the declared ones for a trusted compartment,
+      arbitrary for an untrusted one. *)
   Definition fw_handler_res (fc : fw_cmpt) (b : Addr) : iProp Σ :=
     match fc_body fc with
-    | TrustedBody _ => no_handler b
+    | TrustedBody tb =>
+        match tb_error_handler tb, tb_error_handler_stackless tb with
+        | None, None => no_handler b
+        | eh, ehs => b ↦ₕ□{stackful} handler_word eh ∗ b ↦ₕ□{stackless} handler_word ehs
+        end
     | UntrustedBody _ => ∃ eh ehs : Z, b ↦ₕ□{stackful} eh ∗ b ↦ₕ□{stackless} ehs
     end.
 
   #[global] Instance fw_handler_res_persistent fc b : Persistent (fw_handler_res fc b).
-  Proof. rewrite /fw_handler_res. case_match; apply _. Qed.
+  Proof. rewrite /fw_handler_res. repeat case_match; apply _. Qed.
 
   (** The entries [ws] of the export table at [b], from [s] to [e], each at
       its offset. *)
@@ -457,10 +461,12 @@ Section prepared.
     { iApply (exp_tbl_entries_offsets with "Hetbl").
       - exact (icl_exp_tbl_header_size _ Hc).
       - exact (icl_exp_tbl_entries_size _ Hc). }
-    destruct (fc_body fc); rewrite /body_ok /note in Hbody.
-    - destruct Hbody as (_ & _ & [Heh_eq Hehs_eq] & _).
-      rewrite Heh_eq Hehs_eq.
-      iSplit; [by iApply handler_stackful_intro | by iApply handler_stackless_intro].
+    destruct (fc_body fc) as [tb|ub]; rewrite /body_ok /note in Hbody.
+    - destruct Hbody as (_ & _ & Hh & _).
+      destruct (tb_error_handler tb), (tb_error_handler_stackless tb);
+        destruct Hh as [Heh_eq Hehs_eq];
+        rewrite Heh_eq Hehs_eq;
+        (iSplit; [by iApply handler_stackful_intro | by iApply handler_stackless_intro]).
     - destruct Hbody as (_ & _ & (eh & ehs & Heh_eq & Hehs_eq) & _).
       rewrite Heh_eq Hehs_eq.
       iExists eh, ehs.

@@ -108,8 +108,8 @@ Section allocator_init.
       memory, unpainted shadow entries and claims from the heap root
       [heap_b]) and the owner map of the owner identifiers [ids], form the
       allocator service invariant; its export table gives the capabilities
-      and the entries of [malloc] and [free]; as a trusted compartment
-      ([tb]), it declares no error handler. *)
+      and the entries of [malloc] and [free]; it is a trusted compartment
+      ([tb]) that declares no error handler. *)
   Lemma allocator_init {E : coPset} (img : fw_image) (fc : fw_cmpt) (ot : OType) (ids : gset Z)
       (tb : fw_trusted) :
     let c := cmpt_of img (fc_name fc) in
@@ -124,6 +124,8 @@ Section allocator_init.
     cmpt_data c = allocator_data →
     cmpt_exp_tbl_entries c = allocator_export_table_entries →
     fc_body fc = TrustedBody tb →
+    tb_error_handler tb = None →
+    tb_error_handler_stackless tb = None →
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     allocator_owners (gset_to_gmap ∅ ids) -∗
@@ -144,7 +146,7 @@ Section allocator_init.
         allocator_free_pcc_off).
   Proof.
     intros c alloclayout a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free
-      Hc Hwf Himports Hcode Hdata Hexports Hbody.
+      Hc Hwf Himports Hcode Hdata Hexports Hbody Hnh Hnhs.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free.
     iIntros "(Himports & Hcode & Hdata) (#Hpcc & #Hcgp & #Hh & #Hetbl) Howners Hheap Hshadow Hclaims".
     subst c. set (c := cmpt_of img (fc_name fc)) in *.
@@ -166,7 +168,7 @@ Section allocator_init.
       iFrame. }
     iModIntro. iFrame "Hpcc".
     replace (cmpt_exp_tbl_cgp c) with (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp)%a by solve_addr+Hpcc_size.
-    rewrite /fw_handler_res Hbody.
+    rewrite /fw_handler_res Hbody Hnh Hnhs.
     iFrame "Hcgp Hh".
     rewrite Hexports /allocator_export_table_entries.
     iEval (rewrite !big_sepL_cons) in "Hetbl".

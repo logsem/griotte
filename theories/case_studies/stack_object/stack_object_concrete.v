@@ -39,7 +39,9 @@ Definition so_demo_link_cfg : link_cfg := {|
              la_exports := [
                so_C_adv_entry;
                so_C_g_entry
-             ] |})
+             ];
+             la_handler := ExportTable_no_handler;
+             la_handler_stackless := ExportTable_no_handler |})
   ]
 |}.
 
@@ -69,8 +71,8 @@ Proof.
     (cmpt_of so_demo_image "main"), (cmpt_of so_demo_image "C").
   split; first done.
   split_and!.
-  (* The linker declares no error handler. *)
-  all: try (exists ExportTable_no_handler, ExportTable_no_handler; split_and!).
+  (* The error handler offsets of the adversaries, as the configuration gives them. *)
+  all: try exists_adv_handlers so_demo_link_cfg.
   all: try (exists so_C_adv_entry, 0%nat; split; [|exists so_C_g_entry, 0%nat; split_and!]).
   all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /so_demo_state /img_state /img_regs; solve_other_registers

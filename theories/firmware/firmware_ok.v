@@ -81,6 +81,11 @@ Definition export_word (e : fw_export) : Word :=
   WInt (encode_entry_point (fe_posture e) (Z.of_nat (fe_nargs e)) (Z.of_nat (fe_min_stack e))
           (Z.of_nat (fe_offset e))).
 
+(** The export table header word of an error handler: its offset if it is
+    declared, [ExportTable_no_handler] otherwise. *)
+Definition handler_word (eh : option nat) : Z :=
+  match eh with Some off => Z.of_nat off | None => ExportTable_no_handler end.
+
 Section translation.
   Context `{MP : MachineParameters}.
   Context (fw : firmware) (img : fw_image).
@@ -180,9 +185,16 @@ Section translation.
     | TrustedBody b =>
         cmpt_code c = tb_code b ∧
         cmpt_data c = chunks_words ss c (tb_data b) ∧
-        note "no error handler"
-          (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
-           cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler) ∧
+        match tb_error_handler b, tb_error_handler_stackless b with
+        | None, None =>
+            note "no error handler"
+              (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
+               cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler)
+        | eh, ehs =>
+            note "declared error handlers"
+              (cmpt_exp_tbl_handler c = WInt (handler_word eh) ∧
+               cmpt_exp_tbl_handler_stackless c = WInt (handler_word ehs))
+        end ∧
         cmpt_exp_tbl_entries c =
           fw_imap (λ _ e, note ("export " ++ fe_name e) (export_word e)) (tb_exports b)
     | UntrustedBody b =>
@@ -481,13 +493,14 @@ Ltac reduce_firmware_ok t :=
     img_cmpt_words
     export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf heap_machine_ok
     fw_map fw_imap fw_imap_from fw_app fw_flat_map big_and big_union nat_str
-    addr_off default_export fw_export_named body_str fw_set
+    addr_off default_export fw_export_named body_str fw_set handler_word
     fw_word_unknown fw_words_unknown chunks_fw_words fc_unknown_export
     fw_index_of fw_body_export_index fw_export_index fw_find_export
     cmpt_of thread_of assoc fw_nth fw_cmpt_of
     fw_cmpts fw_threads fw_otypes fw_heap_roots
     fc_name fc_imports fc_static_sealed fc_body ss_name ss_word
-    tb_code tb_data tb_exports ub_owner ub_exports
+    tb_code tb_data tb_exports tb_error_handler tb_error_handler_stackless
+    ub_owner ub_exports
     fe_name fe_offset fe_nargs fe_min_stack fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames
     img_sw img_asrt img_cmpts img_threads
