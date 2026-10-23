@@ -88,7 +88,7 @@ Section Heap_Temporal_Safety.
         #".Lhts_share";
         (* saved_buf = buf (stack slot below the callee frame); buf[0] = 0; *)
         store_imm csp ca0 0;
-        lea csp 1;
+        lea csp csp 1;
         store_imm ca0 (0)%asm 0
       ];
       #".Lhts_fetch_switcher_adv_1" ::

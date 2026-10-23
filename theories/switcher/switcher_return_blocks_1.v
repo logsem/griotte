@@ -170,7 +170,7 @@ Section Switcher_Return_Blocks_1.
     (* Mov ct1 ctp *)
     iInstr "Hcode".
 
-    (* Lea ct1 ct2 *)
+    (* Lea ct1 ct1 ct2 *)
     iInstr "Hcode".
 
     (* CLoad csp ct1 0 *)
@@ -185,7 +185,7 @@ Section Switcher_Return_Blocks_1.
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     rewrite lstore_word_isWL; last reflexivity.
 
-    (* Lea csp (-1)%Z *)
+    (* Lea csp csp (-1)%Z *)
     iInstr "Hcode" with "Hlc".
     { transitivity (Some (a_stk ^+ 3)%a); solve_addr+Ha_stk4. }
 

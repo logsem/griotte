@@ -55,9 +55,9 @@ Section AllocatorMallocPublishBlocks4.
     focus_block 4 "Hcode_main" of allocator_malloc_blocks at pc_a as a_publish Ha_publish
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    (* Lea ct0 allocator_header_words. *)
+    (* Lea ct0 ct0 allocator_header_words. *)
     iInstr "Hcode".
-    (* Lea ct0 ca1. *)
+    (* Lea ct0 ct0 ca1. *)
     iInstr "Hcode".
     (* Store cgp ct0. *)
     iInstr "Hcode".

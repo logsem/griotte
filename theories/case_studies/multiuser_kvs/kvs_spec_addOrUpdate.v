@@ -137,7 +137,7 @@ Section KVS_spec_addOrUpdate.
     (* Jne 5 ctp 0 *)
     iInstr "Hcode".
     { apply nonZero_WInt; injection; intros; lia. }
-    (* Lea cgp 2 *)
+    (* Lea cgp cgp 2 *)
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); last done; solve_addr+Hcgp_idx. }
     iPoseProof deref_res_none as "-#Hdw".
@@ -602,7 +602,7 @@ Section KVS_spec_addOrUpdate.
       { apply nonZero_WInt; intros Hcontra; inversion Hcontra; lia. }
       (* mul ct1 ct1 ASM_SIZEOF_KVS_ENTRY *)
       iInstr "Hcode".
-      (* lea cgp ct1; *)
+      (* lea cgp cgp ct1; *)
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx_empty)%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       (* store cgp ASM_SOME; *)
@@ -610,7 +610,7 @@ Section KVS_spec_addOrUpdate.
       { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
         solve_addr+Hcgp_bounds. }
       { solve_addr+Hcgp_bounds. }
-      (* lea cgp 1; *)
+      (* lea cgp cgp 1; *)
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       iPoseProof deref_res_none as "-#Hdw".
@@ -621,7 +621,7 @@ Section KVS_spec_addOrUpdate.
       { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
         solve_addr+Hcgp_bounds. }
       { solve_addr+Hcgp_bounds. }
-      (* lea cgp 1; *)
+      (* lea cgp cgp 1; *)
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       iPoseProof deref_res_none as "-#Hdw".

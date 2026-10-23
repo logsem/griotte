@@ -80,7 +80,7 @@ Section ClearStackMacro.
         apply withinBounds_true_iff; solve_addr. }
       { apply withinBounds_true_iff; solve_addr. }
 
-      (* --- Lea r2 1 --- *)
+      (* --- Lea r2 r2 1 --- *)
       destruct (csp_a + 1)%a eqn:Ha;cycle 1.
       { iInstr_lookup "Hcode" as "Hi" "Hcode".
         solve_addr.

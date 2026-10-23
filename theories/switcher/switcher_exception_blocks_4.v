@@ -383,7 +383,7 @@ Section Switcher_Exception_Blocks_4.
       (* Mov cs1 csp *)
       iInstr "Hcode".
       rewrite /tstack_cap.
-      (* Lea cs1 TrustedStack_offset_frames *)
+      (* Lea cs1 cs1 TrustedStack_offset_frames *)
       iInstr "Hcode".
       { transitivity (Some (b_trusted_stack ^+ TrustedStack_offset_frames)%a);
           tstack_unfold; solve_addr. }
@@ -440,13 +440,13 @@ Section Switcher_Exception_Blocks_4.
     iInstr "Hcode".
     (* GetE ca2 ct0 *)
     iInstr "Hcode".
-    (* Subseg ct0 ca1 ca2 *)
+    (* Subseg ct0 ct0 ca1 ca2 *)
     iInstr "Hcode".
     { rewrite /isWithin. solve_addr. }
     { intros _ Hlt. by apply Hheap. }
     (* Sub ca1 ca2 ca1 *)
     iInstr "Hcode".
-    (* Lea ct0 ca1 *)
+    (* Lea ct0 ct0 ca1 *)
     iInstr "Hcode".
     { transitivity (Some e); solve_addr. }
     iApply "Hpost". iFrame "∗ Hcode".

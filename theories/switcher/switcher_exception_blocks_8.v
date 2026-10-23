@@ -36,7 +36,7 @@ Section Switcher_Exception_Blocks_8.
                       machine_instructions.Add ctp (inr ctp) (inl (- TrustedStackFrame_size)%Z);
                       Mov ct0 (inr ctp);
                       Mov ctp (inr ct1);
-                      Lea ctp (inr ct0);
+                      Lea ctp ctp (inr ct0);
                       CLoad ct0 ctp TrustedStackFrame_offset_calleeExportTable;
                       GetB cs0 ct0;
                       SetA ct0 ct0 (inr cs0);
@@ -45,9 +45,9 @@ Section Switcher_Exception_Blocks_8.
                       GetA cra cra;
                       SetA ct2 ct0 (inr cra);
                       Mov ca2 (inr csp);
-                      Lea ca2 (inl (TrustedStack_offset_cra - ErrorState_size)%Z);
+                      Lea ca2 ca2 (inl (TrustedStack_offset_cra - ErrorState_size)%Z);
                       Mov ca3 (inr ct1);
-                      Lea ca3 (inl TrustedStack_offset_cra) ] ++
+                      Lea ca3 ca3 (inl TrustedStack_offset_cra) ] ++
       copy_context_instrs ca3 ca2 cs1 ca4 ++
       encodeInstrsW [ CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount;
                       machine_instructions.Add cs1 (inr cs1) (inl 1%Z);
@@ -184,7 +184,7 @@ Section Switcher_Exception_Blocks_8.
     assert ((b_trusted_stack + (tstack_frameoffset d + - TrustedStackFrame_size))%a = Some a_tstk)
       as Ha_tstk'.
     { rewrite -Ha_tstk. f_equal. tstack_unfold. lia. }
-    (* Lea ctp ct0 *)
+    (* Lea ctp ctp ct0 *)
     iInstr "Hcode".
     assert ((a_tstk + TrustedStackFrame_offset_calleeExportTable)%a = Some a_tbl_cell)
       as Ha_cell by (subst a_tbl_cell; tstack_unfold; solve_addr).
@@ -294,12 +294,12 @@ Section Switcher_Exception_Blocks_8.
       by (by rewrite /resumed_pc Hwpc).
     (* Mov ca2 csp *)
     iInstr "Hcode".
-    (* Lea ca2 (TrustedStack_offset_cra - ErrorState_size) *)
+    (* Lea ca2 ca2 (TrustedStack_offset_cra - ErrorState_size) *)
     iInstr "Hcode".
     { transitivity (Some (ea ^+ 1)%a); solve_addr. }
     (* Mov ca3 ct1 *)
     iInstr "Hcode".
-    (* Lea ca3 TrustedStack_offset_cra *)
+    (* Lea ca3 ca3 TrustedStack_offset_cra *)
     iInstr "Hcode".
     { pose proof (tstack_save_cell_ok 1 ltac:(lia)) as (Hts_1 & _). exact Hts_1. }
     (* The destination of the copy: the words 1-15 of the register save area *)

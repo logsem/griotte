@@ -145,12 +145,12 @@ Section vae_C_code.
       #@".Limport_g";
       #"adv_entry";
       store csp cra;
-      lea csp 1 ] ++
+      lea csp csp 1 ] ++
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_awkward" ct1 ++
     fetch_asm ".Limport_g" ca0 ++
     [ jalr cra ct0;
-      lea csp (-1);
+      lea csp csp (-1);
       load cra csp;
       mov ca0 0;
       ret;
@@ -160,12 +160,12 @@ Section vae_C_code.
       jnez ("g_ret")%asm ct0;
       store cgp 1;
       store csp cra;
-      lea csp 1 ] ++
+      lea csp csp 1 ] ++
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_awkward" ct1 ++
     fetch_asm ".Limport_g" ca0 ++
     [ jalr cra ct0;
-      lea csp (-1);
+      lea csp csp (-1);
       load cra csp;
       mov ca0 0;
       #"g_ret";

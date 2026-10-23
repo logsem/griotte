@@ -171,12 +171,12 @@ Section Switcher_Exception_Blocks_2.
       assert ((b_trusted_stack + (tstack_frameoffset d + - TrustedStackFrame_size))%a = Some a_tstk)
         as Ha_tstk'.
       { rewrite -Ha_tstk. f_equal. tstack_unfold. lia. }
-      (* Lea ctp ct1 *)
+      (* Lea ctp ctp ct1 *)
       iInstr "Hcode".
       (* Mov ca0 0 *)
       iInstr "Hcode".
       destruct (lea_result_is_Some s2 ErrorState_size) as [wct0' Hlea].
-      (* Lea ct0 ErrorState_size *)
+      (* Lea ct0 ct0 ErrorState_size *)
       iInstrApply "Hcode" (wp_lea_success_z_any _ _ _ _ _ _ _ _ _ ct0 s2 wct0')
         with "[$HPC $Hct0]" as "(HPC & Hct0)".
       iDestruct "Hpost" as "[_ Hpost]".

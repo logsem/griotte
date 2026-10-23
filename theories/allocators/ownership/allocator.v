@@ -135,8 +135,8 @@ Section Allocator.
         add ct1 ct1 allocator_header_words;
         add ct2 ct1 ca1;
         mov ca4 ct0;
-        lea ca4 allocator_header_words;
-        subseg ca4 ct1 ct2;
+        lea ca4 ca4 allocator_header_words;
+        subseg ca4 ca4 ct1 ct2;
         (* Record the immutable end and owner, and initialize the reserved
            address. The header's shadow entries are painted below. *)
         store ct0 ct2;
@@ -148,8 +148,8 @@ Section Allocator.
       fetch_asm ".Limport_shadow" ctp
     ] ++ allocator_malloc_shadow_asm ++
     [ [ (* Skip the header and payload, publishing only after initialization. *)
-        lea ct0 allocator_header_words;
-        lea ct0 ca1;
+        lea ct0 ct0 allocator_header_words;
+        lea ct0 ct0 ca1;
         store cgp ct0;
         mov ca0 ca4;
         mov ca1 0;
@@ -241,14 +241,14 @@ Section Allocator.
         getb ca3 ct0;
         sub ca3 ct1 ca3;
         sub ca3 ca3 1;
-        lea ctp ca3;
+        lea ctp ctp ca3;
         (* The last header word is painted. Compare against the machine's
            encoding rather than assuming quarantined is one. *)
         load ca3 ctp;
         sub ca3 ca3 (encodeAllocStatus ShadowQuarantined);
         jnez (".free_invalid")%asm ca3;
         (* The payload base is unpainted. *)
-        lea ctp 1;
+        lea ctp ctp 1;
         load ca3 ctp;
         sub ca3 ca3 (encodeAllocStatus ShadowLive);
         jnez (".free_invalid")%asm ca3;
@@ -258,7 +258,7 @@ Section Allocator.
         geta ca3 ct0;
         sub ca3 ct1 ca3;
         sub ca3 ca3 allocator_header_words;
-        lea ca4 ca3;
+        lea ca4 ca4 ca3;
         load ca2 ca4;
         sub ca3 ca2 ct2;
         jnez (".free_invalid")%asm ca3;

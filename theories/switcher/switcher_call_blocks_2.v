@@ -152,7 +152,7 @@ Section Switcher_Call_Blocks_2.
     { stk_not_shadow Hstk_shadow. }
     { rewrite /withinBounds. solve_addr. }
 
-    (* Lea csp 4 *)
+    (* Lea csp csp 4 *)
     iInstr "Hcode".
 
     repeat rewrite lstore_word_isWL; try reflexivity.
@@ -297,7 +297,7 @@ Section Switcher_Call_Blocks_2.
     (* Mov ctp ct2 *)
     iInstr "Hcode".
 
-    (* Lea ctp cs1 *)
+    (* Lea ctp ctp cs1 *)
     iInstr "Hcode".
     { instantiate (1 := (a_tstk ^+ TrustedStackFrame_size)%a). tstack_unfold; solve_addr. }
 

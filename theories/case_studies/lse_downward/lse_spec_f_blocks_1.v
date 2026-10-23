@@ -68,7 +68,7 @@ Section LSE_F_Blocks_1.
     iInstr "Hcode".
     (* Add cs1 cs0 1 *)
     iInstr "Hcode".
-    (* Subseg cgp cs0 cs1 *)
+    (* Subseg cgp cgp cs0 cs1 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1%nat)%a); [solve_addr+Hcgp_bounds|reflexivity]. }
     { solve_addr+Hcgp_bounds. }

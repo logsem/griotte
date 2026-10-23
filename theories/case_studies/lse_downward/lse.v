@@ -79,7 +79,7 @@ int __cheri_compartment("known") run()
       [ #".Llse_f";
         getb cs0 cgp;
         add cs1 cs0 1;
-        subseg cgp cs0 cs1; (* cgp := (RW, Global, a, a+1, a) *)
+        subseg cgp cgp cs0 cs1; (* cgp := (RW, Global, a, a+1, a) *)
         (* csp = (RWL, Local, bstk, estk, bstk)  *)
         store csp cgp; (* bstk -> (RW, Global, a, a+1, a) *)
         (* -- assert (a == 2) -- *)
@@ -152,14 +152,14 @@ Section lse_C_code.
     [ #@".Limport_switcher";
       #@".Limport_main_f";
       store csp cra;
-      lea csp 1 ] ++
+      lea csp csp 1 ] ++
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_main_f" ct1 ++
     [ jalr cra ct0 ] ++
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_main_f" ct1 ++
     [ jalr cra ct0;
-      lea csp (-1);
+      lea csp csp (-1);
       load cra csp;
       mov ca0 0;
       mov ca1 0;

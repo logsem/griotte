@@ -158,7 +158,7 @@ Section Switcher_Exception_Blocks_5.
     iInstrApply "Hcode" (wp_seta_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr1)
       with "[$HPC $Hcra $Hcs1]" as "(HPC & Hcs1 & Hcra)".
     { by rewrite seta_result_lea_result. }
-    (* Lea cra cs0 *)
+    (* Lea cra cra cs0 *)
     iInstrApply "Hcode" (wp_lea_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr2)
       with "[$HPC $Hcra $Hcs0]" as "(HPC & Hcs0 & Hcra)".
     assert (handler_word (lload_word p wpcc) off = wr2) as Hhw.

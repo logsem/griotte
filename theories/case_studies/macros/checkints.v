@@ -13,7 +13,7 @@ Section Checkints_Asm.
           load r1 r ] ++
         is_int_asm r1 r2 ++
         [ (* is an integer *)
-          lea r 1;
+          lea r r 1;
           geta r1 r;
           gete r2 r;
           lt r1 r1 r2;
@@ -49,7 +49,7 @@ Section Checkints.
       ++ is_int_instrs r1 r2
       ++ encodeInstrsW
       [ (* is an integer *)
-        Lea r 1;
+        Lea r r 1;
         GetA r1 r;
         GetE r2 r;
         Lt r1 r1 r2;

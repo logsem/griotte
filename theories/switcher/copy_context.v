@@ -20,9 +20,9 @@ Section CopyContextMacro.
       (* addi counter, counter, -1 *)
       add counter counter (-1)%Z;
       (* cincoffset dst, dst, 8 *)
-      lea dst 1;
+      lea dst dst 1;
       (* cincoffset src, src, 8 *)
-      lea src 1;
+      lea src src 1;
       (* bnez counter, 1b *)
       jnez ("copy_loop")%asm counter
     ].

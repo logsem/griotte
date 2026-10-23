@@ -83,7 +83,7 @@ Section SO_Call_Blocks_3.
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|rewrite /withinBounds; solve_addr+Hcsp_size]. }
     { rewrite /withinBounds; solve_addr+Hcsp_size. }
-    (* Lea csp 1 *)
+    (* Lea csp csp 1 *)
     iInstr "Hcode".
     (* Mov ca1 csp *)
     iInstr "Hcode".
@@ -102,7 +102,7 @@ Section SO_Call_Blocks_3.
     assert (is_heap_address a_stk1 = false) as Hastk1_nonheap.
     { eapply disjoint_from_heap_not_in; [exact Hstk_heap|].
       rewrite /withinBounds; solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
-    (* Subseg ca1 cs0 cs1 *)
+    (* Subseg ca1 ca1 cs0 cs1 *)
     iInstr "Hcode".
     { transitivity (Some a_stk2); auto. solve_addr+Hastk2. }
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
@@ -112,7 +112,7 @@ Section SO_Call_Blocks_3.
     { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|].
       rewrite /withinBounds; solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
-    (* Lea csp 1%Z *)
+    (* Lea csp csp 1%Z *)
     iInstr "Hcode".
     replace (a_stk1 ^+ 1)%a with a_stk2 by solve_addr+Hastk2.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

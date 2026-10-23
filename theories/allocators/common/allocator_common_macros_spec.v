@@ -168,7 +168,7 @@ Section AllocatorMacros.
     { solve_addr. }
     iEval (rewrite Hπ -deref_witness_res_deref_res) in "Hdw".
 
-    (* Lea rptr 1 advances the heap cursor. *)
+    (* Lea rptr rptr 1 advances the heap cursor. *)
     iInstr "Hcode".
     { transitivity (Some (b ^+ 1)%a); solve_addr. }
     (* GetA rtmp rptr reads the advanced cursor. *)
@@ -305,7 +305,7 @@ Section AllocatorMacros.
     iLöb as "IH" forall (b sb Hheap Hshadow Hlen Htranslate Hok).
     assert (Hcode_eq : allocator_paint_instrs rptr rcount s_new =
       encodeInstrsW [Store rptr (inl (encodeAllocStatus s_new)) 0;
-                    Lea rptr (inl 1%Z);
+                    Lea rptr rptr (inl 1%Z);
                     Sub rcount (inr rcount) (inl 1%Z);
                     Jne (inl (-3)%Z) (inr rcount) (inl 0%Z)]) by (destruct s_new; reflexivity).
     rewrite Hcode_eq in Hpc |- *.
@@ -329,7 +329,7 @@ Section AllocatorMacros.
     { solve_addr. }
     { solve_addr. }
 
-    (* Lea rptr 1 advances the shadow cursor. *)
+    (* Lea rptr rptr 1 advances the shadow cursor. *)
     iInstr "Hcode".
     { transitivity (Some (sb ^+ 1)%a); solve_addr. }
     (* Sub rcount rcount 1 consumes one word of the count. *)

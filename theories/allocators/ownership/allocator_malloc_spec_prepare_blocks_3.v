@@ -109,9 +109,9 @@ Section AllocatorMallocPrepareBlocks3.
     replace (b + n)%Z with (finz.to_z finish) by solve_addr.
     (* Mov ca4 ct0. *)
     iInstr "Hcode".
-    (* Lea ca4 allocator_header_words. *)
+    (* Lea ca4 ca4 allocator_header_words. *)
     iInstr "Hcode".
-    (* Subseg ca4 ct1 ct2. *)
+    (* Subseg ca4 ca4 ct1 ct2. *)
     iInstrApply "Hcode" (wp_subseg_rebase _ _ _ _ _ _ _ _ ca4 ct1 ct2 RW Global heap_b heap_e b _ b _ finish
               b finish _ ι 1 ALive)
       with "[$HPC $Hct4 $Hct1 $Hct2 $Hobj $Htok]"

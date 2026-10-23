@@ -126,7 +126,7 @@ Section AllocatorFreeHeaderBlocks3.
     (* Sub ca3 ca3 1. *)
     iInstr "Hcode".
     replace (b - heap_b - 1)%Z with ((sb ^+ -1)%a - shadow_b)%Z by (subst sb; solve_addr).
-    (* Lea ctp ca3. *)
+    (* Lea ctp ctp ca3. *)
     iInstr "Hcode".
     { transitivity (Some (sb ^+ -1)%a); subst sb; solve_addr. }
     unfold lword_of_word.
@@ -155,7 +155,7 @@ Section AllocatorFreeHeaderBlocks3.
     rewrite Z.sub_diag.
     (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
-    (* Lea ctp 1. *)
+    (* Lea ctp ctp 1. *)
     iInstr "Hcode".
     { transitivity (Some (sb ^+ 0)%a); subst sb; solve_addr. }
     replace ((sb ^+ -1) ^+ 1)%a with sb by (subst sb; solve_addr).
@@ -196,7 +196,7 @@ Section AllocatorFreeHeaderBlocks3.
     unfold allocator_header_words in *.
     change (Z.opp 3) with (-3)%Z in *.
     replace (b - next - 3)%Z with ((b ^+ -3)%a - next)%Z by solve_addr.
-    (* Lea ca4 ca3. *)
+    (* Lea ca4 ca4 ca3. *)
     iInstr "Hcode".
     { transitivity (Some (b ^+ -3)%a); solve_addr. }
     iPoseProof deref_res_none as "-#Hdw".

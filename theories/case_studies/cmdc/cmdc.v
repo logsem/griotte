@@ -27,13 +27,13 @@ Section CMDC_Main.
         mov ca0 cgp;
 
         (* set c <- 0 *)
-        lea cgp 1;
+        lea cgp cgp 1;
         store cgp 0;
 
         (* call B.f b *)
         geta ct0 ca0;
         add ct1 ct0 1;
-        subseg ca0 ct0 ct1 (* ca0 -> b *)
+        subseg ca0 ca0 ct0 ct1 (* ca0 -> b *)
       ];
       #".Lcmdc_call_B" ::
       fetch_asm ".Limport_switcher" ctp; (* ctp -> switcher entry point *)
@@ -54,13 +54,13 @@ Section CMDC_Main.
         mov ca1 0; (* erase returned values from the call *)
 
         (* set b <- 42 *)
-        lea cgp (-1);
+        lea cgp cgp (-1);
         store cgp 42;
 
         (* call C.g c *)
         geta ct0 ca0;
         add ct1 ct0 1;
-        subseg ca0 ct0 ct1 (* ca0 -> c *)
+        subseg ca0 ca0 ct0 ct1 (* ca0 -> c *)
       ];
       #".Lcmdc_call_C" ::
       fetch_asm ".Limport_switcher" ctp; (* ctp -> switcher entry point *)

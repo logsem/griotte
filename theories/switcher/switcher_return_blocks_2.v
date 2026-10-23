@@ -85,7 +85,7 @@ Section Switcher_Return_Blocks_2.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea csp (-1)%Z --- *)
+    (* --- Lea csp csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
@@ -98,7 +98,7 @@ Section Switcher_Return_Blocks_2.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea csp (-1)%Z --- *)
+    (* --- Lea csp csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
@@ -111,7 +111,7 @@ Section Switcher_Return_Blocks_2.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea csp (-1)%Z --- *)
+    (* --- Lea csp csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 
@@ -213,7 +213,7 @@ Section Switcher_Return_Blocks_2.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea csp (-1)%Z --- *)
+    (* --- Lea csp csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
@@ -226,7 +226,7 @@ Section Switcher_Return_Blocks_2.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea csp (-1)%Z --- *)
+    (* --- Lea csp csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
@@ -239,7 +239,7 @@ Section Switcher_Return_Blocks_2.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea csp (-1)%Z --- *)
+    (* --- Lea csp csp (-1)%Z --- *)
     iInstr "Hcode".
     { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 
@@ -360,7 +360,7 @@ Section Switcher_Return_Blocks_2.
         rewrite /withinBounds; solve_addr. }
       { rewrite /withinBounds; solve_addr. }
 
-      (* Lea csp (-1)%Z. *)
+      (* Lea csp csp (-1)%Z. *)
       iInstr "Hcode".
       { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
@@ -373,7 +373,7 @@ Section Switcher_Return_Blocks_2.
         rewrite /withinBounds; solve_addr. }
       { rewrite /withinBounds; solve_addr. }
 
-      (* Lea csp (-1)%Z. *)
+      (* Lea csp csp (-1)%Z. *)
       iInstr "Hcode".
       { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
@@ -386,7 +386,7 @@ Section Switcher_Return_Blocks_2.
         rewrite /withinBounds; solve_addr. }
       { rewrite /withinBounds; solve_addr. }
 
-      (* Lea csp (-1)%Z. *)
+      (* Lea csp csp (-1)%Z. *)
       iInstr "Hcode".
       { transitivity (Some a_stk); solve_addr+Ha_stk4. }
 

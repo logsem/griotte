@@ -15,7 +15,7 @@ Section ClearStackMacro.
       jmp ("loop_end")%asm;
       #"loop_body";
       store r2 0;
-      lea r2 1;
+      lea r2 r2 1;
       add r1 r1 1;
       jmp ("loop_start")%asm;
       #"loop_end"

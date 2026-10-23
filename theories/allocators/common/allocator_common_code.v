@@ -56,7 +56,7 @@ Section AllocatorCommonCode.
   Definition allocator_zero_asm (rptr rend rtmp : RegName) : list asm_code :=
     macro: [ #".allocator_zero";
          store rptr 0;
-         lea rptr 1;
+         lea rptr rptr 1;
          geta rtmp rptr;
          sub rtmp rend rtmp;
          jnez (".allocator_zero")%asm rtmp
@@ -78,7 +78,7 @@ Section AllocatorCommonCode.
     : list asm_code :=
     macro: [ #".allocator_paint";
          store rptr (encodeAllocStatus status);
-         lea rptr 1;
+         lea rptr rptr 1;
          sub rcount rcount 1;
          jnez (".allocator_paint")%asm rcount
        ].
@@ -109,7 +109,7 @@ Section AllocatorCommonCode.
         getb ca3 ct0;
         sub ca3 ct1 ca3;
         sub ca3 ca3 allocator_header_words;
-        lea ctp ca3;
+        lea ctp ctp ca3;
         mov ca2 allocator_header_words
       ];
       (* Paint the three header words quarantined, as CHERIoT does: [free]
@@ -177,7 +177,7 @@ Section AllocatorCommonCode.
         (* Sweep memory: every capability to the painted payload loses its tag. *)
         store ca3 0;
         (* Rewind the shadow cursor to the payload base. *)
-        lea ctp ca4
+        lea ctp ctp ca4
       ];
       (* The revoked payload leaves quarantine: unpaint it. *)
       allocator_paint_asm ctp ca2 ShadowLive;

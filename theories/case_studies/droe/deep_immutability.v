@@ -52,17 +52,17 @@ Section DROE_Main.
         (* set a <- (RW, Global, b, b+1, b) *)
         getb ct1 cgp;       (* ct1 := b *)
         add ct2 ct1 1;      (* ct2 := b+1 = a *)
-        subseg ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
+        subseg ct0 ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
 
-        lea cgp 1;          (* cgp := (RW, Global, b, e, b+1) *)
+        lea cgp cgp 1;          (* cgp := (RW, Global, b, e, b+1) *)
         store cgp ct0;      (* a <- (RW, Global, b, b+1, b) *)
 
         (* call B.f (RO_DRO, Global, a, a+1,a) *)
         mov ca0 cgp;        (* ca0 := (RW, Global, b, e, b+1) = (RW, Global, b, e, a) *)
-        lea cgp (-1);       (* cgp := (RW, Global, b, e, b) *)
+        lea cgp cgp (-1);       (* cgp := (RW, Global, b, e, b) *)
         add ct1 ct2 1;      (* ct1 := a+1 *)
-        subseg ca0 ct2 ct1; (* ca0 := (RW, Global, a, a+1, a) *)
-        restrict ca0 ro_dro (* ca0 := (RO_DRO, Global, a, a+1, a) *)
+        subseg ca0 ca0 ct2 ct1; (* ca0 := (RW, Global, a, a+1, a) *)
+        restrict ca0 ca0 ro_dro (* ca0 := (RO_DRO, Global, a, a+1, a) *)
       ];
       #".Ldroe_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)

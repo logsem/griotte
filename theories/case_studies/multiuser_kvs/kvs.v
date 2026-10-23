@@ -133,26 +133,26 @@ pair<int, int> search(FKeyT fk) {
       jnez (".some_index")%asm rscratch;
       #".none_index";
       mov ridx_empty ridx;
-      lea cgp ASM_SIZEOF_KVS_ENTRY;
+      lea cgp cgp ASM_SIZEOF_KVS_ENTRY;
       add ridx ridx 1;
       jmp (".loop_start");
       #".some_index";
       (* we now need to compare rscratch with the full key *)
-      lea cgp 1;
+      lea cgp cgp 1;
       load rscratch cgp;
       sub rscratch rkey rscratch;
       jnez (".not_same_key")%asm rscratch;
       #".same_key";
-      lea cgp (-1)%Z;
+      lea cgp cgp (-1)%Z;
       (* key was found, [cgp] points-to the the found key *)
       jmp (".loop_end_found")%asm;
       #".not_same_key";
       (* skip, we then finish the body of the loop *)
-      lea cgp 2;
+      lea cgp cgp 2;
       add ridx ridx 1;
       jmp (".loop_start");
       #".loop_end_not_found";
-      lea cgp (-(ASM_SIZEOF_KVS_ENTRY*SIZE_MAP))%Z;
+      lea cgp cgp (-(ASM_SIZEOF_KVS_ENTRY*SIZE_MAP))%Z;
       mov ridx (-1)%Z;
       #".loop_end_found"
     ].
@@ -291,13 +291,13 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
         #".addOrUpdate_empty_slot_found";
         (* make cgp points to the empty index *)
         mul ct1 ct1 ASM_SIZEOF_KVS_ENTRY;
-        lea cgp ct1;
+        lea cgp cgp ct1;
         (* insert Some *)
         store cgp ASM_SOME;
-        lea cgp 1;
+        lea cgp cgp 1;
         (* insert Key *)
         store cgp ca0;
-        lea cgp 1;
+        lea cgp cgp 1;
         (* insert Value *)
         store cgp ca2;
         (* return true *)
@@ -308,7 +308,7 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
         (* key was found, we know that [cgp] points-to it *)
         #".addOrUpdate_key_found";
         (* update the value *)
-        lea cgp 2;
+        lea cgp cgp 2;
         store cgp ca2;
         (* return true *)
         mov ca0 ASM_TRUE;
@@ -375,7 +375,7 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
         jmp (".read_key_ret")%asm;
         #".read_key_found";
         (* read the value *)
-        lea cgp 2;
+        lea cgp cgp 2;
         load ca1 cgp;
         (* return true *)
         mov ca0 ASM_TRUE;

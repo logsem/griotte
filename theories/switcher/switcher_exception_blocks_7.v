@@ -29,12 +29,12 @@ Section Switcher_Exception_Blocks_7.
                       ClearTag cs1 cs1;
                       Store ct0 (inr cs1) (-16);
                       Mov ca2 (inr csp);
-                      Lea ca2 (inl 1%Z);
+                      Lea ca2 ca2 (inl 1%Z);
                       Mov ca3 (inr ct0);
-                      Lea ca3 (inl (-15)%Z) ] ++
+                      Lea ca3 ca3 (inl (-15)%Z) ] ++
       copy_context_instrs ca3 ca2 cs1 ca4 ++
       encodeInstrsW [ Mov ca0 (inr ct0);
-                      Lea ca0 (inl (-16)%Z);
+                      Lea ca0 ca0 (inl (-16)%Z);
                       CLoad ca1 csp 18;
                       SpecialRW ca2 MTVAL (inr cnull);
                       Mov csp (inr ct0) ].
@@ -171,12 +171,12 @@ Section Switcher_Exception_Blocks_7.
     iMod ("Hclose" with "Hcell Hderef") as "HES".
     (* Mov ca2 csp *)
     iInstr "Hcode".
-    (* Lea ca2 TrustedStack_offset_cra *)
+    (* Lea ca2 ca2 TrustedStack_offset_cra *)
     iInstr "Hcode".
     { pose proof (tstack_save_cell_ok 1 ltac:(lia)) as (Hts_1 & _). exact Hts_1. }
     (* Mov ca3 ct0 *)
     iInstr "Hcode".
-    (* Lea ca3 (TrustedStack_offset_cra - ErrorState_size) *)
+    (* Lea ca3 ca3 (TrustedStack_offset_cra - ErrorState_size) *)
     iInstr "Hcode".
     { transitivity (Some (a ^+ 1)%a); solve_addr. }
     (* The source of the copy: the words 1-15 of the register save area. *)
@@ -225,7 +225,7 @@ Section Switcher_Exception_Blocks_7.
       iFrame. }
     (* Mov ca0 ct0 *)
     iInstr "Hcode".
-    (* Lea ca0 (- ErrorState_size) *)
+    (* Lea ca0 ca0 (- ErrorState_size) *)
     iInstr "Hcode".
     { transitivity (Some a); solve_addr. }
     destruct (lookup_lt_is_Some_2 save 18%nat) as [w18 Hw18]; first lia.

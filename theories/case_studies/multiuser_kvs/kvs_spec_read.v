@@ -136,7 +136,7 @@ Section KVS_spec_read.
     (* Jne 5 ct1 0 *)
     iInstr "Hcode".
     { apply nonZero_WInt; injection; intros; lia. }
-    (* Lea cgp 1 *)
+    (* Lea cgp cgp 1 *)
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx. }
     (* CLoad ca1 cgp 0: the heap shadow can clear the returned tag. *)
@@ -557,7 +557,7 @@ Section KVS_spec_read.
     (* Jne 4 ctp 0 *)
     iInstr "Hcode".
     { apply nonZero_WInt; intros Hcontra; inversion Hcontra; lia. }
-    (* Lea cgp 2 *)
+    (* Lea cgp cgp 2 *)
     iInstr "Hcode".
     { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a); [|done].
       apply withinBounds_true_iff in Hcgp_idx; solve_addr. }

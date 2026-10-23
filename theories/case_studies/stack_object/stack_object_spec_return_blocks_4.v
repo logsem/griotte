@@ -69,7 +69,7 @@ Section SO_Return_Blocks_4.
     (* Block 10: read back the secret *)
     focus_block (so_block ".Lso_f_after_call") "Hcode_main" of so_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Lea csp (-2)%Z *)
+    (* Lea csp csp (-2)%Z *)
     iInstr "Hcode".
     { transitivity (Some csp_b); auto. solve_addr+Hastk2. }
     (* CLoad ct0 csp 0 *)

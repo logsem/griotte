@@ -129,7 +129,7 @@ Section KVS_search.
     iInstr "Hcode".
     (* mov ridx_empty ridx; *)
     iInstr "Hcode".
-    (* lea cgp ASM_SIZEOF_KVS_ENTRY; *)
+    (* lea cgp cgp ASM_SIZEOF_KVS_ENTRY; *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a); solve_addr. }
     (* add ridx ridx 1; *)
@@ -207,7 +207,7 @@ Section KVS_search.
     { split; [done | solve_addr]. }
     (* jnez (".some_index")%asm rscratch; *)
     iInstr "Hcode".
-    (* lea cgp 1; *)
+    (* lea cgp cgp 1; *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a); [solve_addr | done]. }
     (* load rscratch cgp; *)
@@ -221,7 +221,7 @@ Section KVS_search.
     - replace (kidx - kidx)%Z with 0%Z by lia.
       (* jnez (".not_same_key")%asm rscratch; *)
       iInstr "Hcode".
-      (* lea cgp (-1)%Z; *)
+      (* lea cgp cgp (-1)%Z; *)
       iInstr "Hcode"; first (transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a); solve_addr).
       (* jmp (".loop_end_found")%asm; *)
       iInstr "Hcode".
@@ -229,7 +229,7 @@ Section KVS_search.
     - assert (WInt (fkey - kidx)%Z ≠ WInt 0) by (injection; intro; simplify_eq; apply Hneq; lia).
       (* jnez (".not_same_key")%asm rscratch; *)
       iInstr "Hcode".
-      (* lea cgp 2; *)
+      (* lea cgp cgp 2; *)
       iInstr "Hcode"; first (transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a); [solve_addr | done]).
       (* add ridx ridx 1; *)
       iInstr "Hcode".
@@ -291,7 +291,7 @@ Section KVS_search.
     iInstr "Hcode".
     (* jmp (".loop_end_not_found")%asm; *)
     iInstr "Hcode".
-    (* lea cgp (-(ASM_SIZEOF_KVS_ENTRY*SIZE_MAP))%Z; *)
+    (* lea cgp cgp (-(ASM_SIZEOF_KVS_ENTRY*SIZE_MAP))%Z; *)
     iInstr "Hcode".
     { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
     (* mov ridx (-1)%Z; *)

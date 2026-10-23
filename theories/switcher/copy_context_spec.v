@@ -91,10 +91,10 @@ Section CopyContextMacro.
     iDestruct ("Hws" with "Hwi") as "Hws".
     (* Add counter counter (-1) *)
     iInstr "Hcode".
-    (* Lea dst 1 *)
+    (* Lea dst dst 1 *)
     iInstr "Hcode".
     { transitivity (Some (a_d ^+ S i)%a); solve_addr. }
-    (* Lea src 1 *)
+    (* Lea src src 1 *)
     iInstr "Hcode".
     { transitivity (Some (a_s ^+ S i)%a); solve_addr. }
     destruct (decide (i = 14)) as [-> | Hi14].
@@ -275,10 +275,10 @@ Section CopyContextMacro.
     iDestruct ("Hwd" with "Hwi") as "Hwd".
     (* Add counter counter (-1) *)
     iInstr "Hcode".
-    (* Lea dst 1 *)
+    (* Lea dst dst 1 *)
     iInstr "Hcode".
     { transitivity (Some (a_d ^+ S i)%a); solve_addr. }
-    (* Lea src 1 *)
+    (* Lea src src 1 *)
     iInstr "Hcode".
     { destruct He_s as [? ?]. transitivity (Some (a_s ^+ S i)%a); solve_addr. }
     assert (take (S i) (<[i:=lstore_word p_d v']> wd) = lstore_word p_d <$> ls ++ [v'])

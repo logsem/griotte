@@ -126,7 +126,7 @@ Section HTS_Spec_Share.
     { eapply disjoint_from_shadow_not_in;
         [exact (disjoint_from_mmio_shadow _ _ Hstk_shadow)|rewrite /withinBounds; solve_addr]. }
     { apply withinBounds_true_iff; solve_addr. }
-    (* Lea csp 1. *)
+    (* Lea csp csp 1. *)
     iInstr "Hcode".
     (* Store ca0 0 0. *)
     iInstr "Hcode".

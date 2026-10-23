@@ -232,7 +232,7 @@ Section Switcher_Call_Blocks_4.
     iInstr "Hcode".
     { split;auto. rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea ct1 ExportTable_offset_cgp --- *)
+    (* --- Lea ct1 ct1 ExportTable_offset_cgp --- *)
     iInstr "Hcode".
     { instantiate (1:=(btbl_tgt ^+ ExportTable_offset_cgp)%a); solve_addr. }
 
@@ -240,7 +240,7 @@ Section Switcher_Call_Blocks_4.
     iInstr "Hcode".
     { split;auto. rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea cra cs0 --- *)
+    (* --- Lea cra cra cs0 --- *)
     destruct Hentry as [a_entry Hentry].
     iInstr "Hcode".
 
