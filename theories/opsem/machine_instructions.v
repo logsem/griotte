@@ -2,7 +2,12 @@ From griotte Require Import registers.
 
 Inductive instr: Type :=
 | Jmp (rimm: Z + RegName)
-| Jnz (rimm : Z + RegName) (rcond: RegName)
+(* Conditional jumps: compare the integer views of [r1] and [r2] (signed),
+   and jump by [off] relative to the PC if the comparison holds. *)
+| Jeq (off : Z + RegName) (r1 r2 : Z + RegName)
+| Jne (off : Z + RegName) (r1 r2 : Z + RegName)
+| Jlt (off : Z + RegName) (r1 r2 : Z + RegName)
+| Jle (off : Z + RegName) (r1 r2 : Z + RegName)
 | Jalr (rdst: RegName) (rsrc: RegName) (* jumps to wsrc, rdst receives return cap *)
 | Mov (dst: RegName) (src: Z + RegName)
 | CLoad (dst src: RegName) (imm: Z)
@@ -17,6 +22,8 @@ Inductive instr: Type :=
 | LShiftL (dst: RegName) (r1 r2: Z + RegName)
 | LShiftR (dst: RegName) (r1 r2: Z + RegName)
 | Lea (dst: RegName) (r: Z + RegName)
+(* The word of [src] with its address set to [addr], written to [dst]. *)
+| SetA (dst src : RegName) (addr : Z + RegName)
 | Restrict (dst: RegName) (r: Z + RegName)
 | Subseg (dst: RegName) (r1 r2: Z + RegName)
 | GetB (dst r: RegName)
@@ -53,7 +60,6 @@ Proof.
   set (enc := fun e =>
       match e with
       | Jmp r => GenNode 0 [GenLeaf (inr r)]
-      | Jnz r1 r2 => GenNode 1 [GenLeaf (inr r1); GenLeaf (inl (inl r2))]
       | Mov dst src => GenNode 2 [GenLeaf (inl (inl dst)); GenLeaf (inr src)]
       | CLoad dst src imm => GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr (inl imm))]
       | Store dst src imm => GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src); GenLeaf (inr (inl imm))]
@@ -90,11 +96,15 @@ Proof.
       | ClearTag dst src => GenNode 31 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))]
       | Auipcc dst imm => GenNode 32 [GenLeaf (inl (inl dst)); GenLeaf (inr (inl imm))]
       | Le dst r1 r2 => GenNode 35 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Jeq off r1 r2 => GenNode 36 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Jne off r1 r2 => GenNode 37 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Jlt off r1 r2 => GenNode 38 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Jle off r1 r2 => GenNode 39 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | SetA dst src addr => GenNode 40 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr addr)]
       end).
   set (dec := fun e =>
       match e with
       | GenNode 0 [GenLeaf (inr r) ] => Jmp r
-      | GenNode 1 [GenLeaf (inr r1); GenLeaf (inl (inl r2))] => Jnz r1 r2
       | GenNode 2 [GenLeaf (inl (inl dst)); GenLeaf (inr src)] => Mov dst src
       | GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr (inl imm))] => CLoad dst src imm
       | GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src); GenLeaf (inr (inl imm))] => Store dst src imm
@@ -131,6 +141,11 @@ Proof.
       | GenNode 31 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))] => ClearTag dst src
       | GenNode 32 [GenLeaf (inl (inl dst)); GenLeaf (inr (inl imm))] => Auipcc dst imm
       | GenNode 35 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Le dst r1 r2
+      | GenNode 36 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)] => Jeq off r1 r2
+      | GenNode 37 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)] => Jne off r1 r2
+      | GenNode 38 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)] => Jlt off r1 r2
+      | GenNode 39 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)] => Jle off r1 r2
+      | GenNode 40 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr addr)] => SetA dst src addr
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).

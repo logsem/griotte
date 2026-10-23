@@ -37,7 +37,7 @@ Module Asm_Griotte.
       are resolved inside it and do not clash with other instances:
       ```
       Definition xxx_asm (r : RegName) : list asm_code :=
-        macro: [ ... ; #"loop"; ... ; jnz "loop" r; ... ].
+        macro: [ ... ; #"loop"; ... ; jnez "loop" r; ... ].
       Definition xxx (r : RegName) : list instr :=
         Eval compute in assemble (xxx_asm r).
       Lemma xxx_assembles r : asm_ok (assemble_check (xxx_asm r)).
@@ -70,7 +70,10 @@ Module Asm_Griotte.
 
   Inductive asm_instr: Type :=
   | Jmp (rimm: asm_arg)
-  | Jnz (rimm : asm_arg) (rcond: RegName)
+  | Jeq (off : asm_arg) (r1 r2 : asm_arg)
+  | Jne (off : asm_arg) (r1 r2 : asm_arg)
+  | Jlt (off : asm_arg) (r1 r2 : asm_arg)
+  | Jle (off : asm_arg) (r1 r2 : asm_arg)
   | Jalr (rdst: RegName) (rsrc: RegName)
   | Mov (dst: RegName) (src: asm_arg)
   | CLoad (dst src: RegName) (imm: asm_expr)
@@ -85,6 +88,7 @@ Module Asm_Griotte.
   | LShiftL (dst: RegName) (r1 r2: asm_arg)
   | LShiftR (dst: RegName) (r1 r2: asm_arg)
   | Lea (dst: RegName) (r: asm_arg)
+  | SetA (dst src : RegName) (addr : asm_arg)
   | Restrict (dst: RegName) (r: asm_arg)
   | Subseg (dst: RegName) (r1 r2: asm_arg)
   | GetB (dst r: RegName)
@@ -274,9 +278,26 @@ Module Asm_Griotte.
     | Jmp rimm =>
         rimm' ← assemble_arg rimm env n;
         Ok (machine_instructions.Jmp rimm')
-    | Jnz rimm rcond =>
-        rimm' ← assemble_arg rimm env n;
-        Ok (machine_instructions.Jnz rimm' rcond)
+    | Jeq off r1 r2 =>
+        off' ← assemble_arg off env n;
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Jeq off' w1 w2)
+    | Jne off r1 r2 =>
+        off' ← assemble_arg off env n;
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Jne off' w1 w2)
+    | Jlt off r1 r2 =>
+        off' ← assemble_arg off env n;
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Jlt off' w1 w2)
+    | Jle off r1 r2 =>
+        off' ← assemble_arg off env n;
+        w1 ← assemble_arg r1 env n;
+        w2 ← assemble_arg r2 env n;
+        Ok (machine_instructions.Jle off' w1 w2)
     | Jalr rdst rsrc =>
         Ok (machine_instructions.Jalr rdst rsrc)
     | Mov dst src  =>
@@ -328,6 +349,9 @@ Module Asm_Griotte.
     | Lea dst r =>
         w ← assemble_arg r env n;
         Ok (machine_instructions.Lea dst w)
+    | SetA dst src addr =>
+        w ← assemble_arg addr env n;
+        Ok (machine_instructions.SetA dst src w)
     | Restrict dst r =>
         w ← assemble_arg r env n;
         Ok (machine_instructions.Restrict dst w)
@@ -712,7 +736,17 @@ Module Asm_Griotte.
   Coercion asme : asm_expr >-> asm_arg.
 
   Definition jmp r := (ASM_Instr (Jmp r)).
-  Definition jnz rimm rcond := (ASM_Instr (Jnz rimm rcond)).
+  (** Conditional jumps by [off] on a comparison of [r1] and [r2]; [jgt]
+      and [jge] swap the operands of [jlt] and [jle]; [jnez off r] and
+      [jeqz off r] compare [r] with 0. *)
+  Definition jeq off r1 r2 := (ASM_Instr (Jeq off r1 r2)).
+  Definition jne off r1 r2 := (ASM_Instr (Jne off r1 r2)).
+  Definition jlt off r1 r2 := (ASM_Instr (Jlt off r1 r2)).
+  Definition jle off r1 r2 := (ASM_Instr (Jle off r1 r2)).
+  Definition jgt off r1 r2 := (ASM_Instr (Jlt off r2 r1)).
+  Definition jge off r1 r2 := (ASM_Instr (Jle off r2 r1)).
+  Definition jnez off (r : RegName) := (ASM_Instr (Jne off (asmr r) (asmz 0))).
+  Definition jeqz off (r : RegName) := (ASM_Instr (Jeq off (asmr r) (asmz 0))).
   Definition jalr rdst rsrc := (ASM_Instr (Jalr rdst rsrc)).
 
   Definition mov dst src  := (ASM_Instr (Mov dst src)).
@@ -732,6 +766,7 @@ Module Asm_Griotte.
   Definition lshiftl dst r1 r2 := (ASM_Instr (LShiftL dst r1 r2)).
   Definition lshiftr dst r1 r2 := (ASM_Instr (LShiftR dst r1 r2)).
   Definition lea dst r := (ASM_Instr (Lea dst r)).
+  Definition seta dst src addr := (ASM_Instr (SetA dst src addr)).
   Definition restrict dst r := (ASM_Instr (Restrict dst r)).
   Definition subseg dst r1 r2 := (ASM_Instr (Subseg dst r1 r2)).
   Definition getb dst src := (ASM_Instr (GetB dst src)).

@@ -93,6 +93,7 @@ Ltac instr_failure_registers instr :=
   let instr := eval cbv [regn cst] in instr in
   let rs := lazymatch instr with
     | Lea ?dst ?src => instr_argument_registers src constr:([dst])
+    | SetA ?dst ?src ?addr => instr_argument_registers addr constr:([dst; src])
     | Restrict ?dst ?src => instr_argument_registers src constr:([dst])
     | Subseg ?dst ?s1 ?s2 =>
       let rest := instr_argument_registers s2 constr:([dst]) in

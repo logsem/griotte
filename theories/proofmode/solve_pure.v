@@ -2,7 +2,7 @@ From Stdlib Require Import ZArith Lia ssreflect.
 From stdpp Require Import base.
 From griotte Require Import machine_base machine_parameters solve_addr.
 From griotte Require Export solve_addr_extra classes class_instances.
-From griotte Require Import rules_Get rules_BinOp.
+From griotte Require Import rules_Get rules_BinOp rules_JCond.
 From machine_utils Require Export solve_pure.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
@@ -21,6 +21,7 @@ Ltac solve_pure_addr := solve_pure_finz.
    - withinBounds (p, b, e, a) = true
    - is_Get
    - is_BinOp
+   - is_JCond
 
    See the comments in [machine_utils/theories/solve_pure.v] on how to
    extend [solve_pure] with more hints.
@@ -122,6 +123,13 @@ Proof. auto. Qed.
 #[export] Hint Resolve is_BinOp_LShiftR : solve_pure.
 #[export] Hint Resolve is_BinOp_Lt : solve_pure.
 #[export] Hint Resolve is_BinOp_Le : solve_pure.
+
+(* is_JCond *)
+#[export] Hint Mode is_JCond ! - - - : solve_pure.
+#[export] Hint Resolve is_JCond_Jeq : solve_pure.
+#[export] Hint Resolve is_JCond_Jne : solve_pure.
+#[export] Hint Resolve is_JCond_Jlt : solve_pure.
+#[export] Hint Resolve is_JCond_Jle : solve_pure.
 
 (* is_z *)
 #[export] Hint Extern 1 (is_z _ = false) => reflexivity : solve_pure.

@@ -910,6 +910,7 @@ Definition regs_of_argument (arg: Z + RegName): gset RegName :=
 Definition regs_of (i: instr): gset RegName :=
   match i with
   | Lea r1 arg => {[ r1 ]} ∪ regs_of_argument arg
+  | SetA dst src arg => {[ dst; src ]} ∪ regs_of_argument arg
   | GetP r1 r2 => {[ r1; r2 ]}
   | GetB r1 r2 => {[ r1; r2 ]}
   | GetE r1 r2 => {[ r1; r2 ]}
@@ -933,7 +934,8 @@ Definition regs_of (i: instr): gset RegName :=
   | Subseg r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | CLoad r1 r2 _ => {[ r1; r2 ]}
   | Store r1 arg _ => {[ r1 ]} ∪ regs_of_argument arg
-  | Jnz arg1 r2 => {[ r2 ]} ∪ regs_of_argument arg1
+  | Jeq off r1 r2 | Jne off r1 r2 | Jlt off r1 r2 | Jle off r1 r2 =>
+      regs_of_argument off ∪ regs_of_argument r1 ∪ regs_of_argument r2
   | Jmp arg => regs_of_argument arg
   (* A [cnull] destination of [Jalr] is not written. *)
   | Jalr rdst rsrc => {[ rsrc ]} ∪ ({[ rdst ]} ∖ {[ cnull ]})
@@ -1032,6 +1034,11 @@ Lemma incrementPC_add (t : bool) p g b e a a' π :
   incrementPC (WCap t p g b e a @@? π) = Some (WCap t p g b e a' @@? π).
 Proof. intros Ha. by rewrite /incrementPC /incrementPC_gen /= Ha. Qed.
 
+Lemma incrementPC_gen_add (t : bool) p g b e a a' π z :
+  (a + z)%a = Some a' →
+  incrementPC_gen (WCap t p g b e a @@? π) z = Some (WCap t p g b e a' @@? π).
+Proof. intros Ha. by rewrite /incrementPC_gen /= Ha. Qed.
+
 Ltac incrementPC_inv :=
   match goal with
   | H : incrementPC _ = Some _ |- _ =>
@@ -1099,6 +1106,14 @@ Section logical_lookups.
   Proof.
     intros Hdom. apply lz_of_argument_is_Some. intros x Hx.
     apply elem_of_dom_lreg. by apply Hdom.
+  Qed.
+
+  (** The integer of a register holding the integer 0, [cnull] included. *)
+  Lemma lz_of_argument_singleton_zero r π :
+    lz_of_argument {[r := WInt 0 @@? π]} (inr r) = Some 0%Z.
+  Proof.
+    rewrite /lz_of_argument /llookup_reg lookup_singleton_eq /=.
+    by case_decide.
   Qed.
 
   Lemma lz_of_argument_phys R (regs : LReg) (r : Reg) arg :

@@ -74,6 +74,7 @@ Section mem_avoids_mmio.
   Proof.
     intros Hφ. rewrite /exec.
     destruct (exec_opt i p φ) as [c|] eqn:Hexec; last done.
+    rewrite /exec_opt /exec_jcond in Hexec.
     destruct i; cbn in Hexec; repeat case_match; simplify_eq; try done.
     all: repeat match goal with
       | H : mbind _ ?x = Some _ |- _ => destruct x eqn:?; cbn in H; try discriminate

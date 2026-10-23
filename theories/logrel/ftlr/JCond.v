@@ -3,7 +3,8 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Import ftlr_base interp_weakening.
-From griotte Require Import rules_base rules_Jnz.
+From griotte Require Export rules_JCond.
+From griotte Require Import rules_base.
 From griotte Require Import map_simpl register_tactics.
 
 Section fundamental.
@@ -25,22 +26,23 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-  Lemma jnz_case (W : WORLD) (C : CmptName)  (regs : leibnizO LReg)
+  Lemma jcond_case (W : WORLD) (C : CmptName)  (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (rimm : Z + RegName) (rcond : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr trusted_fault W C regs p p' g b e a w (Jnz rimm rcond) ρ P cstk Ws Cs.
+    (w : LWord) (i : instr) (ρ : region_type) (off arg1 arg2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    is_JCond i off arg1 arg2 →
+    ftlr_instr trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros HJCond Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_Jnz with "[$HPC $Ha $Hmap]"); eauto.
+    iApply (wp_JCond with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
-    destruct HSpec as [ lpc' wcond Hrcond Hnz Hincr | lpc' imm wcond Hrcond Hnz Hrimm HincrPC | ]; cycle 2.
+    destruct HSpec as [ lpc' n1 n2 Hn1 Hn2 Htest Hincr | lpc' n1 n2 imm Hn1 Hn2 Htest Himm HincrPC | ]; cycle 2.
     { iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
