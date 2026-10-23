@@ -25,7 +25,7 @@ Section DROE.
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -85,7 +85,7 @@ Section DROE.
       (* initial register file *)
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
@@ -100,7 +100,7 @@ Section DROE.
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
-      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b)
+      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -175,7 +175,7 @@ Section DROE.
               $Hinterp_W3_C_f $HentryC_f $HK]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
-    { solve_addr+. }
+    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct mie; reflexivity. }
@@ -185,13 +185,14 @@ Section DROE.
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
+      iApply switcher_cc_fault_stack_fits.
+      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem rmap.
     iIntros (W4 rmap stk_mem l' rcgp rcra rcs0 rcs1)
       "( _ & _ & _
       & %Hrelated_pub_W3ext_W4 & _ & %Hrmap_dom & _ & _
-      & Hna & [%Hcsp_bounds _]
+      & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & _
       & HPC & Hcgp & Hcra & Hcs0 & _ & _

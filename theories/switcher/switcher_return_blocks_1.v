@@ -33,7 +33,7 @@ Section Switcher_Return_Blocks_1.
     let len_switcher_13 := length switcher_instrs_13 in
     (* The distance from this block to the exit of the thread. *)
     let off_exit :=
-      asm_label_offset switcher_asm ".Lswitcher_after_compartment_call"
+      asm_label_offset switcher_asm "switcher_after_compartment_call"
         ".Lcommon_defer_irqs_and_thread_exit" in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_13)%a ->
     (pc_a ^+ 6 + (off_exit - 6))%a = Some (pc_a ^+ off_exit)%a ->
@@ -236,7 +236,7 @@ Section Switcher_Return_Blocks_1.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     rewrite switcher_return_block_13.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block "switcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_return_block_13_load_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode]");
       [done|offsets_compute; solve_addr|].
@@ -300,7 +300,7 @@ Section Switcher_Return_Blocks_1.
     rewrite switcher_return_block_13.
     iAssert switcher_code as "Hswitcher_code"; first iFrame "Hswitcher".
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block "switcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_return_block_13_load_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode]");
       [done|offsets_compute; solve_addr|].

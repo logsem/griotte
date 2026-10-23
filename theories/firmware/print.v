@@ -266,7 +266,7 @@ Ltac2 quote (s : string) : string :=
 
 (** An equation [l = Some c] where [c] is a capability at a label [s] of
     the switcher, printed [(p, g, b, e, a ^+ label "s")]: [label "s"] is
-    [label_offset_from (concat switcher_asm) ".Lswitcher_csp_check_perm" s].
+    [label_offset_from (concat switcher_asm) ".Lswitch_csp_check" s].
     The exception entry gets its comment. *)
 Ltac2 label_eq (ind : string) (p : constr) : pline option :=
   Control.plus (fun () =>
@@ -274,7 +274,7 @@ Ltac2 label_eq (ind : string) (p : constr) : pline option :=
     | ?l = Some (WSealable (SCap true ?p ?g ?b ?e
                   (finz.incr_default ?a
                      (assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
-                        ".Lswitcher_csp_check_perm" ?s)))) =>
+                        ".Lswitch_csp_check" ?s)))) =>
         let s := str s in
         let c := if String.equal s "exception_entry_asm" then Some "exception entry" else None in
         Some (PEq ind (pp l)

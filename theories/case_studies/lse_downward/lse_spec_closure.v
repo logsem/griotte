@@ -113,7 +113,7 @@ Section LSE.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
+    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & _ & _)".
@@ -128,7 +128,6 @@ Section LSE.
       as ["Hct0";"Hct1";"Hcs0";"Hcs1";"Hca0";"Hca1";"Hcnull"].
 
     (* Revoke the world, to get the stack frame *)
-    set (csp_b := (csp_b' ^+ 4)%a).
     iMod (lse_world_f with "Hinterp_W0_csp Hworld_interp_C")
       as (l stk_mem) "(%Hextract & %Hpub_W0_Wfixed & Hworld_interp_C & Hrevoked_l & Hstk)".
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -143,7 +142,7 @@ Section LSE.
     change_pc_to (pc_a ^+ lse_label_offset ".Llse_f")%a.
     iApply (lse_f_blocks_1_spec with
              "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hcode_main]");
-      [done|done|done|done| |subst csp_b; solve_addr+Hstk_min|].
+      [done|done|done|done| |solve_addr+Hstk_min|].
     { by eapply switcher_disjoint_subseg; [| |split; eassumption]; solve_addr. }
     iNext; iIntros (stk_mem' wcs0' wcs1')
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & _)".
@@ -164,9 +163,6 @@ Section LSE.
              "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
-    { subst csp_b.
-      destruct Hsync_csp as [Hcsp_sync Hcsp_base].
-      rewrite -Hcsp_base; auto. }
     { destruct Hextract; auto. }
     { intros a; destruct Hextract as [_ Htemp]; destruct (Htemp a); auto. }
     { iSplit; iApply interp_int. }

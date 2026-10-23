@@ -730,7 +730,7 @@ Section SO_World_Object.
     readAllowed p = true ->
     (t = true ∨ (e <= b)%a) ->
     finz.seq_between b e ## finz.seq_between csp_b csp_e ->
-    interp W0 C (WCap true RWL Local csp_b csp_e csp_b) -∗
+    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WCap t p g b e a @@? π) -∗
     world_interp W0 C -∗
     £ 1

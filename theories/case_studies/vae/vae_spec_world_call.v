@@ -197,17 +197,19 @@ Section VAE_World_Call.
       of the call, when the stack frame is revoked in [W]. *)
   Lemma vae_world_pub_call (W W' : WORLD) (b e : Addr) :
     revoked_addresses W (finz.seq_between b e) ->
+    callee_stk_bounds b e (stk_start_a b e) ->
     related_sts_pub_world
-      (std_update_multiple W (finz.seq_between (b ^+ 4)%a e) Temporary) W' ->
+      (std_update_multiple W (callee_stk_region b e (stk_start_a b e)) Temporary) W' ->
     related_sts_pub_world W W'.
   Proof.
-    intros Hrevoked Hpub.
+    intros Hrevoked Hbounds Hpub.
     eapply related_sts_pub_trans_world; last exact Hpub.
     apply related_sts_pub_update_multiple_temp.
     apply Forall_forall; intros a Ha.
     rewrite /revoked_addresses Forall_forall in Hrevoked.
     apply Hrevoked.
-    rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
+    apply elem_of_finz_seq_between.
+    exact (callee_stk_region_incl _ _ _ _ Hbounds Ha).
   Qed.
 
   (** The argument registers of [awkward] other than the callback [g] are
@@ -290,7 +292,7 @@ Section VAE_World_Call.
       frame. The entry point of [B.adv] is still safe in the revoked
       world. *)
   Lemma vae_world_run_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
-    interp W0 C (WCap true RWL Local csp_b csp_e csp_b) -∗
+    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
     ={⊤}=∗

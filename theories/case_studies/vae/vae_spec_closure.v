@@ -137,7 +137,7 @@ Section VAE.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
+    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
@@ -160,7 +160,6 @@ Section VAE.
     iDestruct (world_interp_rel_loc_valid with "Hworld_interp_C Hsts_rel") as %Hrel_i_W0.
 
     (* Revoke the world, to get the stack frame *)
-    set (csp_b := (csp_b' ^+ 4)%a).
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_mmio Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
@@ -214,7 +213,7 @@ Section VAE.
               $Hinterp_W2q_wca0 $HK]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
-    { solve_addr+. }
+    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
     { exact Hrmap1_dom. }
     { apply vae_call_adv_arg_rmap_is_arg. }
     { destruct mie; reflexivity. }
@@ -224,13 +223,14 @@ Section VAE.
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_stack_fits; subst csp_b; solve_addr+Hstk_min. }
+      iApply switcher_cc_fault_stack_fits.
+      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
     iNext.
     clear dependent rmap1 stk_mem.
     iIntros (W3 rmap3 stk_mem l1 rcgp rcra rcs0 callback1)
       "(%Hl1_unk & Hrevoked_l1 & %Hl1_revoked_W4 & %Hpub_ext_W3 & _ & %Hrmap3_dom
       & Hstack_revoked_W3 & %Hstack_revoked_W3
-      & Hna & _
+      & Hna & %Hcsp_bounds1
       & Hworld_interp_C
       & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
@@ -248,7 +248,7 @@ Section VAE.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* The flag can be set to [true] *)
-    pose proof (vae_world_pub_call W2q W3 csp_b csp_e Hstack_revoked_W2q Hpub_ext_W3)
+    pose proof (vae_world_pub_call W2q W3 csp_b csp_e Hstack_revoked_W2q Hcsp_bounds1 Hpub_ext_W3)
       as Hpub_W2q_W3.
     assert (related_sts_pub_world W2 W3) as Hpub_W2_W3.
     { eapply related_sts_pub_trans_world; [subst W2q; apply close_list_related_sts_pub|exact Hpub_W2q_W3]. }
@@ -301,7 +301,7 @@ Section VAE.
               $Hinterp_W5q_wca0 $HK]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
-    { solve_addr+. }
+    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
     { exact Hrmap5_dom. }
     { apply vae_call_adv_arg_rmap_is_arg. }
     { destruct mie'; reflexivity. }
@@ -311,7 +311,8 @@ Section VAE.
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_stack_fits; subst csp_b; solve_addr+Hstk_min. }
+      iApply switcher_cc_fault_stack_fits.
+      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
     iNext.
     iIntros (W6 rmap6 stk_mem6 l2 rcgp rcra rcs0 rcs1)
       "(%Hl2_unk & Hrevoked_l2 & %Hl2_revoked_W7 & %Hpub_ext_W6 & _ & %Hrmap6_dom & _
@@ -334,7 +335,7 @@ Section VAE.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* The flag is still [true], and the world can be repaired *)
-    pose proof (vae_world_pub_call W5q W6 csp_b csp_e Hstack_revoked_W5q Hpub_ext_W6)
+    pose proof (vae_world_pub_call W5q W6 csp_b csp_e Hstack_revoked_W5q Hcsp_bounds Hpub_ext_W6)
       as Hpub_W5q_W6.
     iMod (vae_world_return W0 W3 W6 C i b l l0_live l0_quarantined l1 l1_live l1_quarantined l2
            csp_b csp_e
@@ -361,9 +362,6 @@ Section VAE.
              "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap6_dom; set_solver+. }
-    { subst csp_b.
-      destruct Hsync_csp as [Hcsp_sync Hcsp_base].
-      rewrite -Hcsp_base; auto. }
     { iSplit; iApply interp_int. }
   Qed.
 

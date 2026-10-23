@@ -173,16 +173,19 @@ Section fundamental.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "(%b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
     cbn in HWF.
-    destruct HWF as (-> & Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap & Hret_ok).
-    assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Hspill by solve_addr.
+    destruct HWF as (-> & Hstk_bounds & Hstk_mmio & Hstk_heap & Hret_ok).
+    assert (∀ tf, tf.(tf_csp).(lw) = WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) →
+                  tf_caller_a tf = a_stk) as Hspill.
+    { intros tf Htf. eapply tf_caller_a_saved; [apply Hstk_bounds | exact Htf]. }
     simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hccrel_known_to_known & Hfreq).
-    pose proof (switcher_stk_bounds_frame b_stk e_stk a_stk Hb_a4 He_a1 (ex_intro _ _ Ha_stk4))
-      as Hstk_bounds.
-    pose proof Hstk_bounds as (_ & _ & Ha4).
+    pose proof Hstk_bounds as (Hb_a4 & He_a1 & Ha4).
+    stk_unfold. change (4 - 1)%Z with 3%Z in He_a1.
+    assert (is_Some (a_stk + 4)%a) as [a_stk4 Ha_stk4] by (eexists; exact Ha4).
 
     iDestruct (interp_monotone_continuation with "Hcont_K") as "Hcont_K"; eauto.
     rewrite /interp_continuation /interp_cont.
-    iEval (cbn; rewrite Hspill) in "Hcont_K".
+    iEval (cbn) in "Hcont_K". rewrite Hspill; last done.
+    stk_unfold.
     rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     cbn.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
@@ -219,6 +222,7 @@ Section fundamental.
       else True)%I as "#Hnormal".
     { destruct (is_untrusted_caller ccrel) eqn:Huntrusted; simpl; last done.
       rewrite /StackWorldResources.
+      stk_unfold.
       do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
       rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
       replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
@@ -298,6 +302,7 @@ Section fundamental.
       iSpecialize ("Htopmost_frm" $! W (related_sts_pub_refl_world W)).
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
         in "Htopmost_frm".
+      stk_unfold.
       iApply ("Htopmost_frm" with "[%] [%] [%] [%]
                [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
       $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]");
@@ -313,7 +318,7 @@ Section fundamental.
       { clear -He_a1 Ha_stk4.
         intros a Ha Ha'.
         apply elem_of_finz_seq_between in Ha, Ha'.
-        solve_addr.
+        stk_unfold. solve_addr.
       }
       { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
 

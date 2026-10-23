@@ -31,15 +31,7 @@ Section Switcher_Return_States.
 
   (** The return entry point is the first address of block 13. *)
   Lemma switcher_return_block_13 :
-    a_switcher_return = (a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call")%a.
+    a_switcher_return = (a_switcher_call ^+ switcher_label_offset "switcher_after_compartment_call")%a.
   Proof. rewrite switcher_return_offset. by offsets_compute. Qed.
-
-  (** The bounds of the caller's stack frame, as stored in the call frame. *)
-  Lemma switcher_stk_bounds_frame (b e a : Addr) :
-    (b <= a)%a ->
-    (a ^+ 3 < e)%a ->
-    is_Some (a + 4)%a ->
-    switcher_stk_bounds b e a.
-  Proof. intros ?? [a4 ?]. rewrite /switcher_stk_bounds. split; [|split]; solve_addr. Qed.
 
 End Switcher_Return_States.

@@ -272,20 +272,21 @@ Section Switcher_Exception.
   Proof.
     destruct cstk as [ef [|frm frms] ]; first done.
     intros Hframe Hstack _.
-    destruct (Hstack ltac:(done)) as (b_stk & e_stk & a_stk & Hcsp & Hb & [a4 Ha4]).
+    destruct (Hstack ltac:(done)) as (b_stk & e_stk & a_stk & Hcsp & Hb & Ha4).
     rewrite /top_tframe /= in Hcsp.
     destruct Ws as [|Wt Ws], Cs as [|Ct Cs]; try done.
     destruct Hframe as (Hrelated & <- & Hktk & _).
     rewrite /interp_continuation /interp_cont /= Hktk.
     iIntros "[Hrest [#Hcallee Htop]]". iFrame "Hrest Htop Hcallee".
-    rewrite /stackless_csp /= Hcsp /tf_stk_b /tf_stk_e /tf_spill_a Hcsp /=.
+    rewrite (tf_caller_a_saved (cf_tframe frm) true RWL Local b_stk e_stk a_stk Ha4);
+      last by rewrite Hcsp.
+    rewrite /stackless_csp /= Hcsp /tf_stk_b /tf_stk_e Hcsp /=.
     iDestruct "Hcallee" as "[%Hheap Hcallee]".
-    assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Hspill by solve_addr.
-    rewrite Hspill. rewrite Hspill in Hheap.
+    stk_unfold.
     iDestruct (interp_monotone_cap_nonheap with "Hcallee") as "Hcallee'";
       [exact Hheap | exact Hrelated |].
     iApply (interp_weakeningEO with "Hcallee'"); try done.
-    destruct (is_untrusted_caller_frm frm); solve_addr.
+    all: destruct (is_untrusted_caller_frm frm); solve_addr.
   Qed.
 
   (** The unwind continuation from the logical relation's resources, for a

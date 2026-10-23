@@ -331,8 +331,8 @@ Section Switcher_Call_Blocks_4.
     switcher_unfold_code "Hswitcher".
 
     (* Block 7: read the entry of the export table and check the stack *)
-    switcher_focus_block (switcher_block ".Lswitcher_unseal_entry") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_unseal_entry") ^+ 1)%a.
+    switcher_focus_block (switcher_block ".Lswitch_unseal_entry") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitch_unseal_entry") ^+ 1)%a.
     iApply (switcher_call_block_7_after_unseal_spec _ _ _
               (a_switcher_call ^+ switcher_label_offset ".Lswitch_stack_too_small")%a
              with
@@ -433,10 +433,10 @@ Section Switcher_Call_Blocks_4.
     iApply (switcher_call_block_10_spec with "[- $HPC $Hctp $Hcode]"); first done.
     iIntros "!> (HPC & Hctp & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    switcher_change_pc (switcher_label_offset ".Lswitcher_clear_registers").
+    switcher_change_pc (switcher_label_offset ".Lswitch_skip_interrupt_enable").
 
     (* Block 11: clear the other registers *)
-    switcher_focus_block (switcher_block ".Lswitcher_clear_registers") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_skip_interrupt_enable") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hct2] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hcs1] Hregs") as "Hregs";[iFrame|].
@@ -448,11 +448,11 @@ Section Switcher_Call_Blocks_4.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 12: jump to the callee *)
-    switcher_focus_block (switcher_block ".Lswitcher_call_callee") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_callee_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* Jalr cra cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    rewrite (_ : ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_call_callee") ^+ 1)%a = a_switcher_return);
+    rewrite (_ : ((a_switcher_call ^+ switcher_label_offset ".Lswitch_callee_call") ^+ 1)%a = a_switcher_return);
       last (rewrite switcher_return_offset; offsets_compute; solve_addr).
     iApply ("Hpost" $! mie rmap'); iFrame "∗ Hswitcher"; done.
   Qed.

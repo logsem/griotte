@@ -520,11 +520,16 @@ Section logrel.
      ,
        ∀ (rcgp rcra rcs0 rcs1 wca0 wca1 : LWord) (regs : LReg) (stk_mem_l stk_mem_h : list LWord),
        let b_stk := cf_stk_b frm in
-       let a_stk := cf_spill_a frm in
+       let a_stk := cf_caller_a frm in
        let e_stk := cf_stk_e frm in
-       let astk4 := (a_stk ^+4)%a in
-       let callee_stk_region := finz.seq_between (if (is_untrusted_caller_frm frm) then a_stk else astk4) e_stk in
-       let callee_stk_mem := if (is_untrusted_caller_frm frm) then stk_mem_l++stk_mem_h else stk_mem_h in
+       let shared_stk_region :=
+         if (is_untrusted_caller_frm frm)
+         then stk_free b_stk e_stk a_stk
+         else callee_stk_region b_stk e_stk a_stk in
+       let callee_stk_mem :=
+         if (is_untrusted_caller_frm frm)
+         then stk_mem_join stk_mem_l stk_mem_h
+         else stk_mem_h in
        ⌜load_heap_in_world W frm.(cf_saved).(cs_cgp) rcgp⌝ -∗
        ⌜load_heap_in_world W frm.(cf_saved).(cs_cra) rcra⌝ -∗
        ⌜load_heap_in_world W frm.(cf_saved).(cs_cs0) rcs0⌝ -∗
@@ -543,12 +548,12 @@ Section logrel.
          ∗ ⌜dom regs = all_registers_s ∖ {[cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
          (* points-to predicate of the stack region *)
-         ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
-         ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
+         ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]]
+         ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
-         ∗ world_interp_open W C (LNonHeap <$> callee_stk_region)
+         ∗ world_interp_open W C (LNonHeap <$> shared_stk_region)
          (* Bookkeeping resources for the opened world *)
-         ∗ StackOpenWorldResources interp W C callee_stk_region callee_stk_mem
+         ∗ StackOpenWorldResources interp W C shared_stk_region callee_stk_mem
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
@@ -562,11 +567,11 @@ Section logrel.
 
   (** [interp_callee_part_of_the_stack] interprets the stack pointer of the caller [wstk].
       When a caller calls the switcher-call routine with a capability [WCap true p g b e a] in the [csp]
-      register, the switcher is using the region `[a,a+4)` for as callee-saved registers area,
-      and giving the region `[a+4,e)` as callee-stack frame.
+      register, the switcher is using the spill area at [stk_spill_a a] as callee-saved registers area,
+      and giving the region [[stk_callee_b b a, stk_callee_e e a)] as callee-stack frame.
 
       If the caller is trusted, the callee-saved registers area is expected to be solely accessed by the switcher,
-      sharing in fact only the region `[a+4,e)` with the caller.
+      sharing in fact only the callee's region with the caller.
 
       If the caller is untrusted, there are no guarantees that the caller won't share its entire stack frame
       with the callee, through one of the arguments.
@@ -582,10 +587,10 @@ Section logrel.
     : iProp Σ :=
     match wstk with
     | WCap t p g b e a =>
-        let a4 := (a^+4)%a in
-        let b_callee := if is_untrusted_caller then b else a4 in
-        ⌜disjoint_from_heap b_callee e⌝ ∗
-        interp W C (WCap t p g b_callee e a)
+        let b_callee := if is_untrusted_caller then b else stk_callee_b b a in
+        let e_callee := if is_untrusted_caller then e else stk_callee_e e a in
+        ⌜disjoint_from_heap b_callee e_callee⌝ ∗
+        interp W C (WCap t p g b_callee e_callee a)
     | _ => True
     end.
 
@@ -627,7 +632,7 @@ Section logrel.
          else
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              interp_callee_part_of_the_stack interp Wt Ct
-               (WCap true RWL Local (cf_stk_b frm) (cf_stk_e frm) (cf_spill_a frm))
+               (WCap true RWL Local (cf_stk_b frm) (cf_stk_e frm) (cf_caller_a frm))
                (is_untrusted_caller_frm frm)
              (* An untrusted caller records that its topmost compartment is
                 untrusted, for the return to it; a trusted caller, the

@@ -29,7 +29,7 @@ Section initial_capabilities.
 
   (** Stack and trusted-stack capabilities of the switcher. *)
   Definition stack_cap (sw : cmptSwitcher) : Word :=
-    WCap true RWL Local (b_stack sw) (e_stack sw) (b_stack sw).
+    WCap true RWL Local (b_stack sw) (e_stack sw) (stk_start_a (b_stack sw) (e_stack sw)).
 
   (** The (unsealed) export-table capability for the entry at address [a]. *)
   Definition cmpt_export (C_cmpt : cmpt) (a : Addr) : Sealable :=
@@ -306,9 +306,10 @@ Section adversary_world.
     disjoint_from_heap b e →
     Forall (λ a, std W !! LNonHeap a = Some Temporary) (finz.seq_between b e) →
     ([∗ list] a ∈ finz.seq_between b e, rel C (LNonHeap a) RWL interp_in_memC) -∗
-    interp W C (WCap true RWL Local b e b).
+    interp W C (WCap true RWL Local b e (stk_start_a b e)).
   Proof.
     iIntros (Hmmio Hheap Htemp) "#Hrel".
+    rewrite /stk_start_a.
     iEval (rewrite interp_unfold /=).
     iSplit.
     { iApply big_sepL_intro; iModIntro.

@@ -191,7 +191,7 @@ Section Switcher.
       (* Check permissions of the stack *)
       [ (* The sealing key, one word before the first instruction. *)
         #@".Lswitcher_unseal_key";
-        #".Lswitcher_csp_check_perm";
+        #".Lswitch_csp_check";
         getp ct2 csp;
         mov ctp (encodePerm RWL);
         sub ct2 ct2 ctp;
@@ -208,12 +208,12 @@ Section Switcher.
            furthest from the cursor: if it fits, the stack is long enough
            for the others. A cursor below the base can still make a later
            store fault. *)
-      [ #".Lswitcher_entry_first_spill";
+      [ #".Lswitch_entry_first_spill";
         store_imm csp cgp 3;
-        store_imm csp cs0 0;
-        store_imm csp cs1 1;
+        store_imm csp cs0 SpillSlot_cs0;
+        store_imm csp cs1 SpillSlot_cs1;
         store_imm csp cra 2;
-        lea csp csp 4
+        lea csp csp SpillSlot_size
       ]
       ; (* Check that the trusted stack has room for a frame, and push it *)
       [ #".Lswitcher_trusted_stack_push";
@@ -246,13 +246,13 @@ Section Switcher.
       ; (* Zero out the callee's stack frame *)
       (#".Lswitcher_zero_callee_stack" :: clear_stack_asm cs0 cs1)
       ; (* Fetch (unsealing capability and unseal entry point *)
-      [ #".Lswitcher_fetch_unseal_key";
+      [ #".Lswitch_after_zero";
         auipcc cs0 (".Lswitcher_unseal_key")%asm;
         load cs0 cs0
       ]
       ; (* CLoad and decode entry point nargs, minimum stack size and offset;
            check the size of the callee's stack *)
-      [ #".Lswitcher_unseal_entry";
+      [ #".Lswitch_unseal_entry";
         unseal ct1 cs0 ct1;
         #".Lswitcher_decode_entry";
         load cs0 ct1;
@@ -288,13 +288,13 @@ Section Switcher.
       (#".Lswitcher_clear_unused_args" :: clear_registers_pre_call_skip_asm)
       ; (* Enable interrupts, unless the entry point asks for them disabled *)
       [ #".Lswitcher_enable_interrupts";
-        jnez (".Lswitcher_clear_registers")%asm ctp;
+        jnez (".Lswitch_skip_interrupt_enable")%asm ctp;
         csrsi mstatus (Z.shiftl 1 MIE_BIT)
       ]
       ; (* Clear non-arguments registers  *)
-      (#".Lswitcher_clear_registers" :: clear_registers_pre_call_asm)
+      (#".Lswitch_skip_interrupt_enable" :: clear_registers_pre_call_asm)
       ; (* Jump to callee *)
-      [ #".Lswitcher_call_callee";
+      [ #".Lswitch_callee_call";
         jalr cra cra ]
     ].
 
@@ -303,7 +303,7 @@ Section Switcher.
     [
       (* Return from the callee *)
       [
-        #".Lswitcher_after_compartment_call";
+        #"switcher_after_compartment_call";
         readsr ctp mtdc;
         (* The offset of the frame to pop *)
         load_imm ct2 ctp TrustedStack_offset_frameoffset;
@@ -365,7 +365,7 @@ Section Switcher.
         mov ca0 ECOMPARTMENTFAIL;
         mov ca1 0;
         #".Lcommon_force_unwind_return";
-        jmp (".Lswitcher_after_compartment_call")%asm
+        jmp ("switcher_after_compartment_call")%asm
       ]
       ; (* Exit the thread, with interrupts disabled *)
       [ #".Lcommon_defer_irqs_and_thread_exit";
@@ -380,7 +380,7 @@ Section Switcher.
         mov ca0 ENOTENOUGHSTACK;
         mov ca1 0;
         #".Lswitch_stack_too_small_return";
-        jmp (".Lswitcher_after_compartment_call")%asm
+        jmp ("switcher_after_compartment_call")%asm
       ]
     ].
 
@@ -662,7 +662,7 @@ Section Switcher.
            context install resumes at [.Lswitch_just_return], a return to
            [cra]. Any other fault of the switcher forces the unwind. *)
       [ #".Lhandle_error_in_switcher";
-        auipcc ctp (".Lswitcher_entry_first_spill")%asm;
+        auipcc ctp (".Lswitch_entry_first_spill")%asm;
         sub ct1 ct1 ctp;
         jnez (".Lcommon_force_unwind")%asm ct1;
         mov ca0 ENOTENOUGHSTACK;

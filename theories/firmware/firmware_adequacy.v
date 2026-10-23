@@ -345,7 +345,7 @@ Section layout_memory.
     let t := thread_of img i in
     let c := cmpt_of img (ft_cmpt ft) in
     initial_trusted_stack_content
-      (WCap true RWL Local (b_stack t) (e_stack t) (b_stack t))
+      (WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)))
       (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
       (ft_tstack_frames ft).
 
@@ -354,7 +354,7 @@ Section layout_memory.
     let t := thread_of img i in
     fw_tstack_content img i ft
       !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_csp)
-    = Some (WCap true RWL Local (b_stack t) (e_stack t) (b_stack t)).
+    = Some (WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t))).
   Proof. reflexivity. Qed.
 
   (** The export table cell of the entry frame of the thread [i]. *)
@@ -595,7 +595,7 @@ Section layout_of_img_wf.
     thread_wf fw img i ft →
     let t := thread_of img i in
     let c := cmpt_of img (ft_cmpt ft) in
-    trusted_stack_word (WCap true RWL Local (b_stack t) (e_stack t) (b_stack t)) ∧
+    trusted_stack_word (WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t))) ∧
     trusted_stack_word
       (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)) ∧
     exp_tbl_cap (cmpt_exp_tbl_pcc c)
@@ -823,7 +823,7 @@ Section entry.
 
   Definition fw_thread_csp (img : fw_image) (i : nat) : Word :=
     let t := thread_of img i in
-    WCap true RWL Local (b_stack t) (e_stack t) (b_stack t).
+    WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)).
 
   (** The capability to the export table of the compartment the thread [i]
       starts in, as its entry frame holds it. *)
@@ -848,7 +848,7 @@ Section entry.
     WCap true XSRW_ Local (b_switcher sw) (e_switcher sw)
       (a_switcher_call sw ^+
          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
-           ".Lswitcher_csp_check_perm" "exception_entry_asm")%a.
+           ".Lswitch_csp_check" "exception_entry_asm")%a.
 
   Definition fw_trap_vector (img : fw_image) : trapVector :=
     {| mtcc_vec := fw_mtcc img; mtcc_vec_tagged := eq_refl |}.

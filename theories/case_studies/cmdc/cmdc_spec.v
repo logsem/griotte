@@ -26,7 +26,7 @@ Section CMDC.
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -97,7 +97,7 @@ Section CMDC.
       (* initial register file *)
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -209,7 +209,7 @@ Section CMDC.
               $Hinterp_B_f $HentryB_f $HK]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { solve_addr+. }
+    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct mie; reflexivity. }
@@ -219,7 +219,8 @@ Section CMDC.
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
+      iApply switcher_cc_fault_stack_fits.
+      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap.
     iIntros (W_ret_B rmap stk_mem l rcgp rcra rcs0 rcs1)
@@ -242,7 +243,7 @@ Section CMDC.
 
     (* Get b back from the world of B *)
     iMod (cmdc_world_return with "Hworld_interp_B Hrel_cgp_b") as "[%wcgp_b Hcgp_b]";
-      [done|done|solve_addr|done|].
+      [done|done|exact Hcsp_bounds|done|].
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ca2;cnull]
       as ["Hctp";"Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
@@ -287,7 +288,7 @@ Section CMDC.
               $Hinterp_C_g $HentryC_g $HK]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { solve_addr+. }
+    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct mie'; reflexivity. }
@@ -297,7 +298,8 @@ Section CMDC.
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
+      iApply switcher_cc_fault_stack_fits.
+      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap stk_mem.
     iIntros (W_ret_C rmap stk_mem l' rcgp rcra rcs0 rcs1)
@@ -390,7 +392,7 @@ Section CMDC.
       (* initial register file *)
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)

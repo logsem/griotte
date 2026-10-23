@@ -196,6 +196,7 @@ Section fundamental.
       & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk & Hstk_opened & Hrmap & Hcont & Hcstk)".
     iPoseProof "Hstatic" as "[#Hcode _]".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     assert (4 <= length lv) as Hlen_lv4.
     { rewrite -Hlen_lv finz_seq_between_length /finz.dist. solve_addr. }
     assert (is_Some (rmap !! ca0)) as [? ?] by (apply elem_of_dom; rewrite Hdom; set_solver-).
@@ -478,6 +479,7 @@ Section fundamental.
       first_spill_regs_interp Hfull_rmap "Hreg". }
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     pose proof Hstk_bounds as (_ & Hba3 & Ha4).
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     assert (4 <= length lv) as Hlen_lv4.
     { rewrite -Hlen_lv finz_seq_between_length /finz.dist. solve_addr. }
     iDestruct "Hbranch" as
@@ -517,7 +519,7 @@ Section fundamental.
         apply lookup_replicate in Hk as [-> _]. iApply interp_int. }
       set (frame :=
              {| cf_tframe :=
-                  {| tf_csp := WCap true RWL Local b e (a ^+ 4)%a;
+                  {| tf_csp := WCap true RWL Local b e (stk_saved_a a);
                      (* the export table cell holds 0: the word is never read *)
                      tf_export_tbl := WInt 0;
                      tf_error_count := 0 |};
@@ -548,7 +550,8 @@ Section fundamental.
         iFrame "Hrmap Hworld_interp Hcstk Hna".
         simpl.
         iFrame "Hcont".
-        rewrite (spill_cursor a) ?cstack_eta; last by eexists.
+        rewrite (tf_caller_a_saved _ true RWL Local b e a); [| done | done].
+        rewrite ?cstack_eta.
         iSplit; last iExact "Htop".
         iSplit; first (iPureIntro; exact Hstk_heap).
         iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
@@ -627,7 +630,7 @@ Section fundamental.
         split;auto. apply all_registers_s_correct. }
     set (frame :=
            {| cf_tframe :=
-                {| tf_csp := WCap true RWL Local b e (a ^+ 4)%a;
+                {| tf_csp := WCap true RWL Local b e (stk_saved_a a);
                    tf_export_tbl := WCap true RO g_tbl b_tbl e_tbl a_tbl;
                    tf_error_count := 0 |};
               cf_saved :=
@@ -665,7 +668,8 @@ Section fundamental.
       { simpl. split; [apply related_sts_pub_refl_world|done]. }
       simpl.
       iFrame "Hcont".
-      rewrite (spill_cursor a) ?cstack_eta; last by eexists.
+      rewrite (tf_caller_a_saved _ true RWL Local b e a); [| done | done].
+      rewrite ?cstack_eta.
       iSplit; last iExact "Htop".
       iSplit; first (iPureIntro; exact Hstk_heap).
       iApply (interp_weakening with "IH Hspv"); auto; solve_addr. }
@@ -690,10 +694,12 @@ Section fundamental.
     iDestruct (switcher_call_entry_registers W W C nargs arg_rmap' rmap'' with
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs') "[Hregs Hregs_interp]"; [apply related_sts_pub_refl_world|done|done|done|].
-    iApply ("Hentry_cont" $! (cstack_push frame cstk) (W :: Ws) (C :: Cs) regs' a e).
+    iApply ("Hentry_cont" $! (cstack_push frame cstk) (W :: Ws) (C :: Cs) regs'
+             (stk_callee_b b a) (stk_callee_e e a)).
     iSplitL "Hcont".
     { simpl. iFrame "Hcont".
-      rewrite (spill_cursor a) ?cstack_eta; last by eexists.
+      rewrite (tf_caller_a_saved _ true RWL Local b e a); [| done | done].
+      rewrite ?cstack_eta.
       iSplit.
       - iSplit; first (iPureIntro; exact Hstk_heap).
         iApply (interp_weakening with "IH Hspv");auto;solve_addr.
@@ -702,9 +708,8 @@ Section fundamental.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
     iSplit; first (iPureIntro; split_and!; [done | reflexivity | reflexivity | exact Htbl_ok]).
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
-    iPureIntro; split;
-      [split; [split; [cbn; apply spill_cursor; by eexists | reflexivity] | solve_addr]
-      | exact Hbig].
+    iPureIntro; split; last exact Hbig.
+    cbn. rewrite (tf_caller_a_saved _ true RWL Local b e a); [by split | done | done].
   Qed.
 
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :

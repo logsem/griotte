@@ -236,7 +236,7 @@ Section SO_World_Call.
     (csp_b + 1)%a = Some a_stk1 ->
     (a_stk1 + 1)%a = Some a_stk2 ->
     (a_stk2 <= csp_e)%a ->
-    interp W0 C (WCap true RWL Local csp_b csp_e csp_b) -∗
+    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C wct1 -∗
     world_interp W2q C -∗
     interp W2 C (WCap t p g b e (finz.max b e) @@? π) -∗
@@ -248,8 +248,8 @@ Section SO_World_Call.
     interp W3 C (WCap t p g b e (finz.max b e) @@? π) ∗
     interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1) ∗
     (if is_sealed_with_o wct1.(lw) ot_switcher then interp W3 C wct1 else True) ∗
-    StackRevokedResources W3 C (finz.seq_between a_stk2 csp_e) ∗
-    ⌜revoked_addresses W3 (finz.seq_between a_stk2 csp_e)⌝ ∗
+    StackRevokedResources W3 C (stk_free csp_b csp_e a_stk2) ∗
+    ⌜revoked_addresses W3 (stk_free csp_b csp_e a_stk2)⌝ ∗
     ⌜related_sts_priv_world W0 W3⌝ ∗
     ⌜std W3 !! LNonHeap a_stk1 = Some Temporary⌝.
   Proof.
@@ -335,7 +335,7 @@ Section SO_World_Call.
     iPureIntro.
     split; last done.
     apply Forall_forall; intros x Hx.
-    apply elem_of_finz_seq_between in Hx.
+    apply elem_of_finz_seq_between in Hx; unfold stk_free_b, stk_free_e in Hx.
     subst W3 W2q W2.
     rewrite close_list_lookup_not_in.
     2: { intros Hx'; apply list_elem_of_singleton in Hx'; simplify_eq.
@@ -431,7 +431,7 @@ Section SO_World_Call.
       Revoke the world [W0], to get the stack frame. The entry point of the
       adversary is still safe in the revoked world. *)
   Lemma so_world_run_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
-    interp W0 C (WCap true RWL Local csp_b csp_e csp_b) -∗
+    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
     ={⊤}=∗

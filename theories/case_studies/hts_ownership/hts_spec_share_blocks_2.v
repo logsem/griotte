@@ -121,6 +121,7 @@ Section HTS_Spec_Share.
     assert ((csp_b ^+ 1)%a <= csp_e)%a as Hcsp_le by solve_addr.
     iDestruct (region_pointsto_cons _ _ _ _ _ Hcsp_succ Hcsp_le with "Hstk")
       as "[Hslot Hstk]".
+    iEval (rewrite /stk_start_a) in "Hcsp".
     (* Store csp ca0 0. *)
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in;
@@ -245,7 +246,7 @@ Section HTS_Spec_Share.
         $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { solve_addr. }
+    { stk_unfold; solve_addr. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie; reflexivity. }
@@ -255,7 +256,7 @@ Section HTS_Spec_Share.
     iSplitR; first (iPureIntro; exact Hstack_revoked_share).
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
+      iApply switcher_cc_fault_stack_fits; stk_unfold; solve_addr+Hstk_min. }
     iNext.
     iIntros (Wret rmap_after stk_after lret rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & %Hrelated_share_ret & _ & %Hdom_rmap_after

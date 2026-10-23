@@ -31,7 +31,7 @@ Section SO_Check_Blocks_1.
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     codefrag_pers pc_a so_main_code ∗
     ( ▷ (∀ t p g b e a π,
         ⌜readAllowed p = true⌝ ∗
@@ -43,7 +43,7 @@ Section SO_Check_Blocks_1.
         ct1 ↦ᵣ wca1 ∗
         cs0 ↦ᵣ WInt 0 ∗
         cs1 ↦ᵣ WInt 0 ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
         codefrag_pers pc_a so_main_code ∗
         £ 1
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
@@ -54,7 +54,7 @@ Section SO_Check_Blocks_1.
         ct1 ↦ᵣ wca1 ∗
         cs0 ↦ᵣ - ∗
         cs1 ↦ᵣ - ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b -∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) -∗
         trap_safe (WCap true RX Global pc_b pc_e a_f) ⊤
           (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.

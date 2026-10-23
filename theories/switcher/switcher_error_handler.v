@@ -769,15 +769,15 @@ Section Switcher_error_handler.
 
   (** ** The topmost frame of the call stack *)
 
-  (** The stack of the caller of the topmost pushed frame, from the cursor
-      of the frame's stack pointer: the switcher's spill area is below the
-      cursor. *)
+  (** The stack of the caller of the topmost pushed frame: the frame's stack
+      pointer is the one saved after the spill at the caller's cursor
+      [a_stk]. *)
   Definition top_frame_stack_ok (cstk : CSTK) : Prop :=
     cstk.(cstk_frames) ≠ [] →
     ∃ b_stk e_stk a_stk : Addr,
-      (top_tframe cstk).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a) ∧
-      (b_stk <= a_stk)%a ∧
-      is_Some (a_stk + 4)%a.
+      (top_tframe cstk).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (stk_saved_a a_stk)) ∧
+      stk_cursor_ok b_stk e_stk a_stk ∧
+      stk_spill_ok a_stk.
 
   (** The stack pointer of the topmost pushed frame is a capability whose
       cursor is in its bounds. *)
@@ -792,9 +792,10 @@ Section Switcher_error_handler.
     destruct cstk as [ef [|frm frms] ]; first by iIntros "_ %".
     rewrite /cstack_interp /=.
     iIntros "[_ Hcf]". iNamed "Hcf". iDestruct "Hcf" as (b_stk e_stk a_stk) "Hcf". iNamed "Hcf".
-    destruct Hcf_csp as (Hcsp & Hba & Hae & [a4 Ha4] & _ & Hheap & _).
+    destruct Hcf_csp as (Hcsp & (Hba & Hae & Ha4) & _ & Hheap & _).
     iPureIntro. intros _. rewrite /top_tframe /= Hcsp.
-    eexists _, _, b_stk, e_stk, (a_stk ^+ 4)%a. split_and!; [done | solve_addr.. | done].
+    eexists _, _, b_stk, e_stk, (stk_saved_a a_stk). split_and!; [done | | | done];
+      stk_unfold; change (4 - 1)%Z with 3%Z in Hae; solve_addr+Hba Hae Ha4.
   Qed.
 
   (** The stack of the caller of the topmost pushed frame. *)
@@ -805,7 +806,7 @@ Section Switcher_error_handler.
     destruct cstk as [ef [|frm frms] ]; first by iIntros "_ %".
     rewrite /cstack_interp /=.
     iIntros "[_ Hcf]". iNamed "Hcf". iDestruct "Hcf" as (b_stk e_stk a_stk) "Hcf". iNamed "Hcf".
-    destruct Hcf_csp as (Hcsp & Hba & _ & Ha4 & _).
+    destruct Hcf_csp as (Hcsp & (Hba & _ & Ha4) & _).
     iPureIntro. intros _. rewrite /top_tframe /= Hcsp.
     by exists b_stk, e_stk, a_stk.
   Qed.

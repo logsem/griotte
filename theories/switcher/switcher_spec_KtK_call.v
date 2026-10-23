@@ -72,9 +72,9 @@ Section Switcher_KtK_Call.
     ctp ↦ᵣ wctp ∗
     ct2 ↦ᵣ wct2 ∗
     ct1 ↦ᵣ wct1_caller ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
-    switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller ∗
-    [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ drop 4 stk_mem ]] ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
+    switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcra_caller wcgp_caller ∗
+    [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
     ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ w ) ∗
     cstack_frag cstk ∗
@@ -90,7 +90,7 @@ Section Switcher_KtK_Call.
             ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
             ca1 ↦ᵣ WInt 0 ∗
             ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
-            [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem' ]] ∗
+            [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]] ∗
             cstack_frag cstk ∗
             ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
               load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝ )
@@ -109,6 +109,7 @@ Section Switcher_KtK_Call.
       & Hargs & Hregs & Hcstk & Hpost)".
     iPoseProof "Hstatic" as "[#Hcode _]".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hastk_bounds.
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
     iApply (switcher_call_blocks_5_spec with
@@ -147,14 +148,12 @@ Section Switcher_KtK_Call.
     (off_tgt : Z) (posture_tgt : InterruptStatus)
 
     :
-    let a_stk4 := (a_stk ^+ 4)%a in
     let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp)%a in
     let a_tbl_ehs := (btbl_tgt ^+ ExportTable_offset_errorHandlerStackless)%a in
     let wct1_caller := WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
-    let callee_stk_region := finz.seq_between a_stk4 e_stk in
     let frame :=
            {| cf_tframe :=
-                {| tf_csp := WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a;
+                {| tf_csp := WCap true RWL Local b_stk e_stk (stk_saved_a a_stk);
                    tf_export_tbl := WCap true RO Global btbl_tgt etbl_tgt atbl_tgt;
                    tf_error_count := 0 |};
               cf_saved :=
@@ -176,8 +175,8 @@ Section Switcher_KtK_Call.
 
     (* (* NA mask *) *)
     disjoint_from_heap b_stk e_stk ->
-    (* The caller's stack pointer is not below the base of its stack *)
-    (b_stk <= a_stk)%a ->
+    (* The caller's stack pointer is in the stack, on the side of its used part *)
+    stk_cursor_ok b_stk e_stk a_stk ->
     ↑Nswitcher ⊆ E ->
 
     (* Well formed entry point *)
@@ -187,7 +186,7 @@ Section Switcher_KtK_Call.
     (0 <= nargs <= 7 )%nat →
     is_Some (bpcc_tgt + off_tgt)%a →
     (* The callee's stack is at least its minimum stack size *)
-    (a_stk + 4 + minstk_tgt <= e_stk)%Z →
+    stk_callee_fits b_stk e_stk a_stk minstk_tgt →
 
     (* Well formed register map *)
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
@@ -223,7 +222,7 @@ Section Switcher_KtK_Call.
     ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
     (* Stack frame *)
-    ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ cstack_frag cstk
@@ -238,7 +237,7 @@ Section Switcher_KtK_Call.
             ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
             ∗ cra ↦ᵣ (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
             (* Stack register *)
-            ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
+            ∗ csp ↦ᵣ callee_csp b_stk e_stk a_stk
             (* All the other registers *)
             (* Entry point of the target compartment *)
             ∗ ( [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg
@@ -249,7 +248,8 @@ Section Switcher_KtK_Call.
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
 
             (* Stack frame *)
-            ∗ ([[ a_stk4 , e_stk ]] ↦ₐ [[region_addrs_zeroes a_stk4 e_stk]])
+            ∗ ([[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
+                 [[region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)]])
 
             (* Interpretation of the world and stack, at the moment of the switcher_call *)
             ∗ cstack_frag (cstack_push frame cstk)
@@ -272,7 +272,7 @@ Section Switcher_KtK_Call.
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
 
               (* Stack frame *)
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[stk_mem']]
+              ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[stk_mem']]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ cstack_frag cstk
@@ -299,13 +299,14 @@ Section Switcher_KtK_Call.
          its stack is at least its minimum stack size, so the check passes;
        - [switcher_inv_push_frame]: push the frame and close the switcher
          invariant. *)
-    intros astk4 a_tbl_cgp a_tbl_ehs wct1_caller callee_stk_region frame.
+    intros a_tbl_cgp a_tbl_ehs wct1_caller frame.
     subst a_tbl_cgp a_tbl_ehs.
     iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
              Hb_a HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
              Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
+    stk_unfold.
 
     assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
     { rewrite -/(is_Some (rmap !! ct2)).
@@ -395,7 +396,7 @@ Section Switcher_KtK_Call.
     iNext; iSplit; cycle 1.
     { (* The callee's stack is at least its minimum stack size *)
       iIntros "(%Hsmall & _)"; exfalso.
-      pose proof Hstk_bounds as (_ & _ & Ha4).
+      pose proof Hstk_bounds as (_ & _ & Ha4). stk_unfold.
       solve_addr+Hsmall Hminstk Hminstk8_le Ha4. }
     iIntros (mie arg_rmap' rmap')
       "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".

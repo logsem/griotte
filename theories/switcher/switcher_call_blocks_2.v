@@ -380,7 +380,7 @@ Section Switcher_Call_Blocks_2.
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_entry_first_spill" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_entry_first_spill" ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
@@ -427,10 +427,10 @@ Section Switcher_Call_Blocks_2.
         -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
     ( ∀ a_f stk_mem',
-        ⌜ (a_f = (a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill")%a ∧
+        ⌜ (a_f = (a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a ∧
            stk_mem' = stk_mem ∧ (a + 3 < b ∨ e <= a + 3)%Z) ∨
           ((a < b)%a ∧
-           a_f = (a_switcher_call ^+ (switcher_label_offset ".Lswitcher_entry_first_spill" + 1))%a ∧
+           a_f = (a_switcher_call ^+ (switcher_label_offset ".Lswitch_entry_first_spill" + 1))%a ∧
            stk_mem' = <[3 := wcgp]> stk_mem) ⌝ -∗
         cs0 ↦ᵣ wcs0 ∗
         cs1 ↦ᵣ wcs1 ∗
@@ -457,7 +457,7 @@ Section Switcher_Call_Blocks_2.
     switcher_unfold_code "Hswitcher".
 
     (* Block 2: spill the callee-save registers *)
-    switcher_focus_block (switcher_block ".Lswitcher_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_2_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hcode]"); [done|done|].
     iSplit; cycle 1.
@@ -489,11 +489,13 @@ Section Switcher_Call_Blocks_2.
     ]"; unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     - switcher_change_pc (switcher_label_offset ".Lswitcher_chop_stack").
       iApply "Hpost"; iFrame "∗ Hswitcher".
-      iSplit; first (iPureIntro; split; [solve_addr|split; [solve_addr|done] ]).
+      iSplit; first (iPureIntro; rewrite /switcher_stk_bounds; stk_unfold; change (4 - 1)%Z with 3%Z;
+                     split; [solve_addr|split; [solve_addr|done] ]).
       iLeft; iFrame "∗ %".
     - switcher_change_pc (switcher_label_offset ".Lswitch_trusted_stack_exhausted").
       iApply "Hpost"; iFrame "∗ Hswitcher".
-      iSplit; first (iPureIntro; split; [solve_addr|split; [solve_addr|done] ]).
+      iSplit; first (iPureIntro; rewrite /switcher_stk_bounds; stk_unfold; change (4 - 1)%Z with 3%Z;
+                     split; [solve_addr|split; [solve_addr|done] ]).
       iRight; iFrame.
   Qed.
 
@@ -504,13 +506,13 @@ Section Switcher_Call_Blocks_2.
     (∀ b e a a3, wcsp.(lw) = WCap true RWL Local b e a -> (a + 3)%a = Some a3 ->
                  (a3 < b)%a ∨ (e <= a3)%a) ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_entry_first_spill" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_entry_first_spill" ∗
     csp ↦ᵣ wcsp ∗
     cgp ↦ᵣ wcgp ∗
     switcher_code ∗
     ( csp ↦ᵣ wcsp ∗
       cgp ↦ᵣ wcgp -∗
-      trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
+      trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -518,7 +520,7 @@ Section Switcher_Call_Blocks_2.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lswitcher_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     destruct (is_cap wcsp.(lw)) eqn:Hcap; cycle 1.
     { (* Store csp cgp 3 *)
       iInstrApply "Hcode" wp_store_fail_reg_not_cap_lword_imm with "[$HPC $Hcgp $Hcsp]" as "(HPC & Hcgp & Hcsp)".
@@ -550,7 +552,7 @@ Section Switcher_Call_Blocks_2.
     (b <= a ^+ 3 < e)%a ->
     (a + 3)%a = Some (a ^+ 3)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_entry_first_spill" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_entry_first_spill" ∗
     csp ↦ᵣ WCap true RWL Local b e a ∗
     cs0 ↦ᵣ wcs0 ∗
     cgp ↦ᵣ wcgp ∗
@@ -560,7 +562,7 @@ Section Switcher_Call_Blocks_2.
       cs0 ↦ᵣ wcs0 ∗
       cgp ↦ᵣ wcgp ∗
       (a ^+ 3)%a ↦ₐ wcgp -∗
-      trap_safe (switcher_pc (switcher_label_offset ".Lswitcher_entry_first_spill" + 1)) ⊤
+      trap_safe (switcher_pc (switcher_label_offset ".Lswitch_entry_first_spill" + 1)) ⊤
         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -568,7 +570,7 @@ Section Switcher_Call_Blocks_2.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lswitcher_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_entry_first_spill") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     (* Store csp cgp 3 *)
     iInstr "Hcode".
     { stk_not_shadow Hstk_shadow. }
@@ -577,7 +579,7 @@ Section Switcher_Call_Blocks_2.
     iInstrApply "Hcode" wp_store_fail_reg with "[$HPC $Hcs0 $Hcsp]" as "(HPC & Hcs0 & Hcsp)".
     { rewrite /withinBounds; solve_addr. }
     rewrite lstore_word_isWL; last reflexivity.
-    switcher_change_pc (switcher_label_offset ".Lswitcher_entry_first_spill" + 1)%Z.
+    switcher_change_pc (switcher_label_offset ".Lswitch_entry_first_spill" + 1)%Z.
     iTrap with "Hfailed".
   Qed.
 

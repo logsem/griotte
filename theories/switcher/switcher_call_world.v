@@ -305,7 +305,7 @@ Section Switcher_Call_World.
     (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ->
     (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
-    frm.(cf_tframe).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a) ->
+    frm.(cf_tframe).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (stk_saved_a a_stk)) ->
     switcher_stk_bounds b_stk e_stk a_stk ->
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
@@ -321,13 +321,13 @@ Section Switcher_Call_World.
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     (∃ w, a_threadID ↦ₐ w) -∗
-    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a -∗
+    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
     a_export_table ↦ₐ wtbl -∗
     a_error_count ↦ₐ WInt frm.(cf_tframe).(tf_error_count) -∗
     [[ a_free , e_trusted_stack ]]
       ↦ₐ [[ tstk_next ]] -∗
     cstack_interp cstk' a_tstk -∗
-    cframe_stk_own a_stk frm.(cf_saved) frm.(ccrel) -∗
+    cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel) -∗
     seal_pred ot_switcher ot_switcher_propC
     ==∗
     switcher_inv ∗ cstack_frag (cstack_push frm cstk).

@@ -17,7 +17,7 @@ From griotte Require Import switcher_exception_states.
     error handler ([.Lhandle_error_stack_oob], block 25).
 
     Block 36 tests whether the fault is one of the first spill of the call
-    path ([.Lswitcher_entry_first_spill]): the spilled PC has its address.
+    path ([.Lswitch_entry_first_spill]): the spilled PC has its address.
     If so, it overwrites the saved return values with [-ENOTENOUGHSTACK] and
     0, and goes to the context install (block 39), which resumes the
     interrupted context at [.Lswitch_just_return]; otherwise, it forces the
@@ -239,7 +239,7 @@ Section Switcher_Exception_Blocks_2.
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     codefrag_facts "Hcode".
     rewrite /switcher_instrs_n /assembled_switcher_n /tstack_cap.
-    (* Auipcc ctp .Lswitcher_entry_first_spill *)
+    (* Auipcc ctp .Lswitch_entry_first_spill *)
     iInstr "Hcode".
     (* Sub ct1 ct1 ctp *)
     iInstrApply "Hcode" (wp_sub_dst_r_any _ ct1 _ _ _ _ _ _ _ _ ctp)
@@ -294,7 +294,7 @@ Section Switcher_Exception_Blocks_2.
     (d : nat) (a_tstk : Addr) (save_area : list LWord)
     (wmepcc wmtdc wct0 wct1 wctp wca0 wca1 wct2 : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_first_spill := (a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill")%a in
+    let a_first_spill := (a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a in
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     length save_area = 21%nat ->
     save_area !! 0%nat = Some wmepcc ->

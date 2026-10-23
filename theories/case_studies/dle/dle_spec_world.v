@@ -192,9 +192,9 @@ Section DLE_World.
     (l : list LAddr) :
     let W3 := dle_Wshare W0 cgp_b in
     let stk := finz.seq_between csp_b csp_e in
-    let stk' := finz.seq_between (csp_b ^+ 4)%a csp_e in
+    let stk' := callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e) in
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
-    (csp_b <= csp_b ^+ 4)%a ->
+    callee_stk_bounds csp_b csp_e (stk_start_a csp_b csp_e) ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     revoked_addresses W3 stk ->
     extract_temporaries_condition W4 (l ++ (LNonHeap <$> stk')) ->
@@ -217,7 +217,8 @@ Section DLE_World.
     assert (Forall (λ a, std W3 !! LNonHeap a = Some Revoked) stk') as Hstack_revoked_W3'.
     { rewrite /revoked_addresses Forall_forall in Hstack_revoked_W3.
       apply Forall_forall; intros a Ha; apply Hstack_revoked_W3.
-      rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha Hcsp_bounds.
+      apply elem_of_finz_seq_between.
+      exact (callee_stk_region_incl _ _ _ _ Hcsp_bounds Ha).
     }
     assert (related_sts_pub_world W3 W4) as Hrelated_pub_W3_W4.
     { eapply related_sts_pub_trans_world ; eauto.
