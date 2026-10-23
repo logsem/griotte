@@ -1,6 +1,6 @@
 From griotte Require Import machine_parameters assembler.
 From griotte Require Import griotte_opsem.
-From griotte Require Export clear_stack clear_registers export_table_layout.
+From griotte Require Export clear_stack copy_context clear_registers export_table_layout.
 
 Class switcherLayout : Type :=
   mkSwitcherLayout {
@@ -27,6 +27,10 @@ Section Switcher.
   (** The number of faults after which the switcher stops invoking the
       handlers of a compartment call, and forces the unwind. *)
   Definition MAX_FAULTS_PER_COMPARTMENT_CALL : Z := 1024.
+
+  (** The size of CHERIoT's [ErrorState] (compartment.h): the PCC and the 15
+      registers, one word each. *)
+  Definition ErrorState_size : Z := 16.
 
   (** The layout of the trusted stack, with CHERIoT's names (with
       [CONFIG_MSHWM]), counted in words: each field takes one word, including
@@ -423,8 +427,9 @@ Section Switcher.
            the switcher (whose PC has the base of the switcher's PC) goes to
            [.Lhandle_error_in_switcher]. With no frame on the trusted stack,
            the thread exits. Otherwise, [ctp] points to the topmost frame,
-           [ct0] holds the faulting stack pointer, and [ca0] is cleared: it
-           is set when the handler found is stackless. *)
+           [ca0] is cleared (it is set when the handler found is stackless),
+           and [ct0] holds the faulting stack pointer moved past the room for
+           the [ErrorState] of a stackful handler. *)
       [ #".Lhandle_error";
         writesr mtdc csp;
         auipcc ct0 0;
@@ -445,24 +450,27 @@ Section Switcher.
         mov ct1 ctp;
         mov ctp csp;
         lea ctp ct1;
-        mov ca0 0
+        (* li a0, 0 *)
+        mov ca0 0;
+        (* cincoffset ct0, ct0, -(16*8): the layout is mirrored for
+           upward-growing stacks, so the room is above the cursor *)
+        lea ct0 ErrorState_size
       ]
-      ; (* Room for the [ErrorState] of a stackful handler, above the cursor
-           of the faulting stack pointer (the layout is mirrored for
-           upward-growing stacks): a tagged capability with 16 words between
-           its cursor and its end. [cs1] holds the offset of an absent
-           handler. *)
+      ; (* Room for the [ErrorState] of a stackful handler: the moved stack
+           pointer [ct0] is tagged, and its cursor is not past its end.
+           [cs1] holds the offset of an absent handler. *)
       [ #".Lhandle_error_stack_oob";
+        (* cgettag t1, ct0 *)
         gettag ct1 ct0;
+        (* li s1, 0xffff *)
         mov cs1 ExportTable_no_handler;
+        (* beqz t1, .Lhandle_error_try_stackless *)
         jnz 2 ct1;
         jmp (".Lhandle_error_try_stackless")%asm;
-        getwtype ct1 ct0;
-        mov ct2 (encodeWordType wt_cap);
-        sub ct1 ct1 ct2;
-        jnz (".Lhandle_error_try_stackless")%asm ct1;
+        (* Not in CHERIoT, where a cursor moved out of the representable
+           bounds clears the tag: [Lea] keeps the tag out of bounds, so the
+           end is tested explicitly ([ct2] is a dead scratch register). *)
         geta ct1 ct0;
-        add ct1 ct1 16;
         gete ct2 ct0;
         le ct1 ct1 ct2;
         jnz 2 ct1;
@@ -556,10 +564,43 @@ Section Switcher.
         mov csp ct0;
         jmp (".Lhandle_error_handler_invoke")%asm
       ]
-      ; (* The stackful handler is not supported yet: force the unwind. *)
-      [ #".Lhandle_error_stack_setup";
-        jmp (".Lcommon_force_unwind")%asm
-      ]
+      ; (* The arguments of a stackful handler: the [ErrorState], a copy of
+           the register save area with the untagged MEPCC, written below the
+           moved stack pointer [ct0] (the layout is mirrored for
+           upward-growing stacks: CHERIoT writes it above [ct0]), then the
+           cause and the value of the trap. The handler's stack pointer is
+           [ct0], past the [ErrorState], and [ca0] points to the
+           [ErrorState]. Falls through to the invocation. *)
+      ([ #".Lhandle_error_stack_setup";
+         (* clc cs1, TrustedStack_offset_mepcc(csp) *)
+         load_imm cs1 csp TrustedStack_offset_mepcc;
+         (* ccleartag cs1, cs1 *)
+         cleartag cs1 cs1;
+         (* csc cs1, TrustedStack_offset_mepcc(ct0): mirrored, the
+            [ErrorState] is below [ct0] *)
+         store_imm ct0 cs1 (TrustedStack_offset_mepcc - ErrorState_size)%Z;
+         (* cincoffset ca2, csp, TrustedStack_offset_cra: [mov] then [lea] *)
+         mov ca2 csp;
+         lea ca2 TrustedStack_offset_cra;
+         (* cincoffset ca3, ct0, TrustedStack_offset_cra: [mov] then [lea],
+            mirrored *)
+         mov ca3 ct0;
+         lea ca3 (TrustedStack_offset_cra - ErrorState_size)%Z
+       ] ++
+       (* copyContext ca3, ca2, cs1, a4 *)
+       copy_context_asm ca3 ca2 cs1 ca4 ++
+       [ (* cmove ca0, ct0: mirrored, [ca0] points to the [ErrorState],
+            below [ct0] *)
+         mov ca0 ct0;
+         lea ca0 (- ErrorState_size)%Z;
+         (* clw a1, TrustedStack_offset_mcause(csp) *)
+         load_imm ca1 csp TrustedStack_offset_mcause;
+         (* csrr a2, mtval *)
+         csrr ca2 mtval;
+         (* cmove csp, ca0: mirrored, the stack pointer is [ct0], past the
+            [ErrorState] *)
+         mov csp ct0
+       ])
       ; (* Invoke the handler, with interrupts enabled and the registers
            cleared but its arguments, as
            [zero_all_registers_except_asm [cra; csp; cgp; ca0; ca1; ca2]]

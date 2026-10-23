@@ -4,7 +4,7 @@ From griotte Require Import register_tactics.
 From griotte Require Import call_stack switcher_exception_states switcher_error_handler
   switcher_exception_blocks_4.
 
-(** * Exception path, blocks 30-32: the handler found
+(** * Exception path, blocks 30-31: the handler found
 
     Block 30 ([.Lhandle_error_found]) counts the fault in the error handler
     count of the topmost frame. An even count (the fault of a running
@@ -12,9 +12,9 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
     unwind. Otherwise, it computes the handler's PC in [cra] from the PCC of
     the export table and the handler offset in [cs0], and its CGP in [cgp];
     [ca0] selects the setup: block 31 ([.Lhandle_error_stackless_setup])
-    sets the arguments and the stack of a stackless handler, and block 32
-    ([.Lhandle_error_stack_setup]), the setup of a stackful handler, forces
-    the unwind: stackful handlers are not supported yet. *)
+    sets the arguments and the stack of a stackless handler; block 32
+    ([.Lhandle_error_stack_setup]), the setup of a stackful handler, is in
+    [switcher_exception_blocks_7]. *)
 
 Section Switcher_Exception_Blocks_5.
   Context
@@ -30,7 +30,7 @@ Section Switcher_Exception_Blocks_5.
     (wpcc wcgp wcra wcgp0 wct2 wcs1 : LWord) :
     let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 30))%a ->
-    (pc_a + (-106))%a = Some (pc_a ^+ (-106))%a ->
+    (pc_a + (-102))%a = Some (pc_a ^+ (-102))%a ->
     (pc_a + 24)%a = Some (pc_a ^+ 24)%a ->
     (a_tstk + TrustedStackFrame_offset_errorHandlerCount)%a = Some a_cnt_cell ->
     withinBounds b_trusted_stack e_trusted_stack a_cnt_cell = true ->
@@ -50,7 +50,7 @@ Section Switcher_Exception_Blocks_5.
     codefrag_pers pc_a (switcher_instrs_n 30) ∗
     ▷ ( ( ⌜Z.even n = false ∨ (MAX_FAULTS_PER_COMPARTMENT_CALL < n + 1)%Z⌝ -∗
           ∀ wcra' : LWord,
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-106))%a ∗
+          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-102))%a ∗
           ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ WCap true p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ wct2 ∗
@@ -108,7 +108,7 @@ Section Switcher_Exception_Blocks_5.
          iInstr "Hcode".
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
-         { transitivity (Some (pc_a ^+ (-106))%a); solve_addr. }
+         { transitivity (Some (pc_a ^+ (-102))%a); solve_addr. }
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by left).
          iFrame "∗ Hcode". }
@@ -125,7 +125,7 @@ Section Switcher_Exception_Blocks_5.
          iInstr "Hcode".
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
-         { transitivity (Some (pc_a ^+ (-106))%a); solve_addr. }
+         { transitivity (Some (pc_a ^+ (-102))%a); solve_addr. }
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by right).
          iFrame "∗ Hcode". }
@@ -188,7 +188,7 @@ Section Switcher_Exception_Blocks_5.
   #[local] Lemma switcher_exception_block_31_spec_aux
     (pc_a : Addr) (save_area : list LWord) (wct0 wca0 wca1 wca2 : LWord) :
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 31))%a ->
-    (pc_a + 6)%a = Some (pc_a ^+ 6)%a ->
+    (pc_a + 24)%a = Some (pc_a ^+ 24)%a ->
     length save_area = 21%nat ->
 
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
@@ -200,7 +200,7 @@ Section Switcher_Exception_Blocks_5.
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     codefrag_pers pc_a (switcher_instrs_n 31) ∗
     ▷ ( ∀ mtval : Z,
-        PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 6)%a ∗
+        PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 24)%a ∗
         csp ↦ᵣ wct0 ∗
         ct0 ↦ᵣ wct0 ∗
         ca0 ↦ᵣ (save_area !!! 18%nat) ∗
@@ -231,27 +231,8 @@ Section Switcher_Exception_Blocks_5.
     iInstr "Hcode".
     (* Jmp .Lhandle_error_handler_invoke *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ 6)%a); solve_addr. }
+    { transitivity (Some (pc_a ^+ 24)%a); solve_addr. }
     iApply "Hpost". iFrame "∗ Hcode". by iApply "Hsave".
-  Qed.
-
-  (** Block 32: the setup of a stackful handler forces the unwind. *)
-  #[local] Lemma switcher_exception_block_32_spec_aux (pc_a : Addr) :
-    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 32))%a ->
-    (pc_a + (-130))%a = Some (pc_a ^+ (-130))%a ->
-
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
-    codefrag_pers pc_a (switcher_instrs_n 32) ∗
-    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-130))%a -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    iIntros (Hsub Hunwind) "(HPC & #Hcode & Hpost)".
-    codefrag_facts "Hcode".
-    rewrite /switcher_instrs_n /assembled_switcher_n.
-    (* Jmp .Lcommon_force_unwind *)
-    iInstr "Hcode".
-    iApply "Hpost". iFrame.
   Qed.
 
   (** Block 30, from [.Lhandle_error_found]: the handler of offset [off]
@@ -390,30 +371,6 @@ Section Switcher_Exception_Blocks_5.
     iNext; iIntros (mtval) "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     switcher_change_pc (switcher_label_offset ".Lhandle_error_handler_invoke").
-    iApply "Hpost". iFrame "∗ Hswitcher".
-  Qed.
-
-  (** Block 32, from [.Lhandle_error_stack_setup]: stackful handlers are
-      not supported yet, the unwind is forced. *)
-  Lemma switcher_stack_setup_placeholder_spec :
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_stack_setup" ∗
-    switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-        switcher_code -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    iIntros "(HPC & #Hswitcher & Hpost)".
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size as Hsize; cbn in Hsize.
-    switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lhandle_error_stack_setup") "Hswitcher"
-      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_exception_block_32_spec_aux with "[- $HPC $Hcode]");
-      [done | offsets_compute; solve_addr+Hsize |].
-    iNext; iIntros "HPC".
-    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    switcher_change_pc (switcher_label_offset ".Lcommon_force_unwind").
     iApply "Hpost". iFrame "∗ Hswitcher".
   Qed.
 
