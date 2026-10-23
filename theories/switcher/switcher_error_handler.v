@@ -472,9 +472,17 @@ Section Switcher_error_handler.
     match kind with Stackful => Z.to_nat ErrorState_size | Stackless => 0 end.
 
   (** What the handler receives of the slot, and what it gives back to the
-      unwind continuation. *)
+      unwind continuation. A stackful handler receives the written
+      [ErrorState], with the two facts of the site on the faulting [csp]:
+      no identifier, and the slot outside the shadow table. *)
   Definition handler_slot (kind : handler_kind) (w : LWord) (rfault : LReg) : iProp Σ :=
-    match kind with Stackful => error_state_pointsto w rfault | Stackless => True end.
+    match kind with
+    | Stackful =>
+        ⌜(rfault !!! csp).(lprov) = None⌝ ∗
+        ⌜error_state_shadow_free (rfault !!! csp)⌝ ∗
+        error_state_pointsto w rfault
+    | Stackless => True
+    end.
   Definition handler_unwind_res (kind : handler_kind) (rfault : LReg) : iProp Σ :=
     match kind with Stackful => error_state_area rfault | Stackless => True end.
 
