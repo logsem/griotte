@@ -30,7 +30,8 @@ Definition droe_firmware `{MP : MachineParameters} : firmware := {|
          tb_exports := [
            (* after the 3 imports; the stack holds the spill of the switcher calls *)
            {| fe_name := "entry"; fe_offset := 3; fe_nargs := 0; fe_min_stack := 4; fe_posture := InterruptEnabled |}
-         ] |} |};
+         ];
+         tb_error_handler := None |} |};
     {| fc_name          := "C";
        fc_imports       := [
          ISwitcherCall

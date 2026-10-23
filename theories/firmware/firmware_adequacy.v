@@ -1065,8 +1065,9 @@ Section ghost_init.
   Proof.
     rewrite /cmpt_ok /section. destruct (fc_unknown_export fw fc); first done.
     intros (_ & _ & Hbody). rewrite /body_ok /note in Hbody.
-    destruct (fc_body fc).
-    - destruct Hbody as (_ & _ & [Heh Hehs] & _). by eexists _, _.
+    destruct (fc_body fc) as [tb|ub].
+    - destruct Hbody as (_ & _ & Hh & _).
+      destruct (tb_error_handler tb); destruct Hh as [Heh Hehs]; by eexists _, _.
     - by destruct Hbody as (_ & _ & Hh & _).
   Qed.
 

@@ -180,9 +180,16 @@ Section translation.
     | TrustedBody b =>
         cmpt_code c = tb_code b ∧
         cmpt_data c = chunks_words ss c (tb_data b) ∧
-        note "no error handler"
-          (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
-           cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler) ∧
+        match tb_error_handler b with
+        | None =>
+            note "no error handler"
+              (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
+               cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler)
+        | Some off =>
+            note "stackful error handler, no stackless one"
+              (cmpt_exp_tbl_handler c = WInt (Z.of_nat off) ∧
+               cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler)
+        end ∧
         cmpt_exp_tbl_entries c =
           fw_imap (λ _ e, note ("export " ++ fe_name e) (export_word e)) (tb_exports b)
     | UntrustedBody b =>
@@ -487,7 +494,7 @@ Ltac reduce_firmware_ok t :=
     cmpt_of thread_of assoc fw_nth fw_cmpt_of
     fw_cmpts fw_threads fw_otypes fw_heap_roots
     fc_name fc_imports fc_static_sealed fc_body ss_name ss_word
-    tb_code tb_data tb_exports ub_owner ub_exports
+    tb_code tb_data tb_exports tb_error_handler ub_owner ub_exports
     fe_name fe_offset fe_nargs fe_min_stack fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames
     img_sw img_asrt img_cmpts img_threads

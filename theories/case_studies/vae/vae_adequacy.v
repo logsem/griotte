@@ -85,7 +85,7 @@ Section vae_obligations.
     (* The export table of main, which exports [awkward] (its first entry)
        to C *)
     iPoseProof "Hmain_pers" as "(Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_nh & Hmain_etbl_entries)".
-    iEval (cbn [fw_handler_res fc_body]) in "Hmain_etbl_nh".
+    iEval (cbn [fw_handler_res fc_body tb_error_handler]) in "Hmain_etbl_nh".
     iEval (cbn [fc_name]) in "Hmain_etbl_pcc Hmain_etbl_cgp Hmain_etbl_entries".
     iEval (rewrite main_exp_tbl) in "Hmain_etbl_entries".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
