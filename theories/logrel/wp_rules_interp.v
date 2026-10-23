@@ -613,6 +613,60 @@ Section wp_interp.
       first done; destruct ρ; auto; contradiction.
   Qed.
 
+  (** The loads of [n] cells, safe in the world, through a safe capability
+      with read permission, from its cursor: each load below the end opens
+      the cell in the world, with the status witness of the world's heap
+      provenance, and closes it as is. The loaded words are safe. *)
+  Lemma world_interp_cells_load_acc (W : WORLD) (C : CmptName)
+    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (n : nat) :
+    readAllowed p = true →
+    (b <= a)%a →
+    interp W C (WCap true p g b e a @@? π) -∗
+    cells_load_acc (λ _ ls, world_interp W C ∗ [∗ list] v ∈ ls, interp W C v)%I p e a π n.
+  Proof.
+    iIntros (Hra Hb) "#Hinterp_src".
+    iIntros "!>" (i ls Hi Hie) "[Hworld_interp #Hls]".
+    set (ea := (a ^+ i)%a).
+    assert (b <= ea < e)%a as Hbounds by (subst ea; solve_addr).
+    assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (read_allowed_inv _ _ ea with "Hinterp_src")
+      as (p' P Hflows Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & Hmono)"; [solve_addr | auto |].
+    iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hinterp_src")
+      as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
+    iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hlive;
+      [by eapply readAllowed_nonO | done |].
+    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
+      [by eapply readAllowed_nonO | done |].
+    iDestruct (open_world_interp W C (addr_key π ea) p' (safeC P) ρ with "Hrel Hworld_interp")
+      as "(Hworld_interp & Hstate & (%v & WorldRes))";
+      [exact Hlive | destruct ρ; auto; contradiction | exact Hρ |].
+    iDestruct (WorldRes_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes]".
+    iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
+    iDestruct (world_interp_open_heap_provenance with "Hworld_interp")
+      as "[Hworld_interp #Hprov]".
+    iDestruct (heap_provenance_load_witness W v with "Hprov") as "Hwit".
+    iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
+    iModIntro. iExists v, (DfracOwn 1), (load_witness_of W v), dw.
+    iFrame "Ha Hwit Hdw". iSplit; first done. iSplit; first done.
+    iIntros "!>" (v' Hpost) "Ha _ Hdw".
+    iDestruct ("Hshare" with "Hdw") as "Hshare".
+    pose proof (Hpers (W, C, v)).
+    iDestruct "Hinterp" as "#HφV /=".
+    iDestruct ("Hrcond" with "HφV") as "#Hnormal_p'".
+    iAssert (interp_in_mem p W C v)%I as "#Hnormal".
+    { iEval (rewrite /interp_in_mem /= /interp_in_mem_pre filter_heap_load_word).
+      iApply (interp_weakening_word_load W C p p' (filter_heap W v)); first exact Hflows.
+      iEval (rewrite /interp_in_mem_pre filter_heap_load_word) in "Hnormal_p'".
+      iExact "Hnormal_p'". }
+    iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hv'"; first exact Hpost.
+    iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
+    iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
+    iModIntro. iSplitL.
+    - iApply (close_world_interp with "Hworld_interp Hstate Hrel WorldRes");
+        first done; destruct ρ; auto; contradiction.
+    - rewrite big_sepL_app /=. iFrame "Hls Hv'".
+  Qed.
+
   Lemma wp_unseal_unknown {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
     decodeInstrW wi.(lw) = UnSeal r2 r1 r2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

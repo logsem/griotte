@@ -595,4 +595,32 @@ Section cells_load.
     iApply ("Hacc" $! (S i) (w :: ls) with "[%] [%] HL"); [lia | solve_addr].
   Qed.
 
+  (** The loads of the cells of an owned region outside the shadow table,
+      through a capability of permission [p] without identifier: once [i]
+      words are loaded, they are the first [i] words of the region, as
+      loaded through [p]. *)
+  Lemma region_cells_load_acc (p : Perm) (e a a' : Addr) (ws : list LWord) :
+    (a + length ws)%a = Some a' →
+    disjoint_from_shadow a a' →
+    ⊢ cells_load_acc
+        (λ i ls, [[ a , a' ]] ↦ₐ [[ ws ]] ∗ ⌜ls = take i (lload_word p <$> ws)⌝)%I
+        p e a None (length ws).
+  Proof.
+    iIntros (Ha' Hshadow).
+    iIntros "!>" (i ls Hi Hie) "[Hws ->]".
+    destruct (lookup_lt_is_Some_2 ws i Hi) as [v Hv].
+    iEval (rewrite (region_pointsto_cells a a' ws Ha')) in "Hws".
+    iDestruct (big_sepL_lookup_acc with "Hws") as "[Ha Hclose]"; first exact Hv.
+    iModIntro. iExists v, (DfracOwn 1), LoadPlain, DerefNoId.
+    iFrame "Ha". iSplit.
+    { iPureIntro. eapply disjoint_from_shadow_not_in; first exact Hshadow.
+      apply withinBounds_true_iff. solve_addr. }
+    iSplit; first done. iSplitR; first done. iSplitR; first done.
+    iIntros "!>" (v' (_ & _ & _ & ->)) "Ha _ _ !>".
+    iDestruct ("Hclose" with "Ha") as "Hws".
+    rewrite (region_pointsto_cells a a' ws Ha'). iFrame "Hws". iPureIntro.
+    rewrite (take_S_r _ _ (lload_word p v)); first done.
+    by rewrite list_lookup_fmap Hv.
+  Qed.
+
 End cells_load.

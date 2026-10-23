@@ -109,6 +109,17 @@ Proof. done. Qed.
 Lemma lprov_lload_word p v : (lload_word p v).(lprov) = v.(lprov).
 Proof. done. Qed.
 
+(** A load keeps the address of a word. *)
+Lemma get_a_lload_word (p : Perm) (v : LWord) :
+  get_a (lload_word p v).(lw) = get_a v.(lw).
+Proof.
+  rewrite lw_lload_word /load_word.
+  destruct v as [w π]; cbn.
+  destruct (isDL p), (isDRO p);
+    destruct w as [n | [t p0 g0 b0 e0 a0 | t p0 g0 b0 e0 a0] | k t p0 g0 b0 e0 a0 | ot sb];
+    try destruct sb; reflexivity.
+Qed.
+
 (** [load_word_no_dl_dro] on logical words. *)
 Lemma lload_word_no_dl_dro (p : Perm) (v : LWord) :
   isDL p = false → isDRO p = false → lload_word p v = v.
