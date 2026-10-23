@@ -10,18 +10,21 @@ From griotte Require Import image firmware firmware_ok.
     on, section after section: the switcher, the assert library, then for
     each compartment its export table, its PCC range, its globals and its
     static sealed objects, then for each thread its trusted stack and its
-    stack. The contents of the untrusted compartments are given by [cfg]; no
-    compartment declares an error handler.
+    stack. The contents of the untrusted compartments, including their error
+    handler offsets, are given by [cfg].
     The linker is not trusted: its result is checked against the
     predicate. *)
 
-(** The contents of an untrusted compartment: code, globals, and the
-    offsets of its exports, in the order of its exports. Its exports declare
-    a minimum stack size of 0. *)
+(** The contents of an untrusted compartment: code, globals, the offsets
+    of its exports, in the order of its exports, and the two words of its
+    export table header for its stackful and stackless error handlers. Its
+    exports declare a minimum stack size of 0. *)
 Record link_adv : Type := MkLinkAdv {
   la_code : list Word;
   la_data : list Word;
   la_exports : list nat;
+  la_handler : Z;
+  la_handler_stackless : Z;
 }.
 
 Record link_cfg : Type := MkLinkCfg {
@@ -30,7 +33,8 @@ Record link_cfg : Type := MkLinkCfg {
   lk_adv : list (string * link_adv);
 }.
 
-Definition default_link_adv : link_adv := MkLinkAdv [] [] [].
+Definition default_link_adv : link_adv :=
+  MkLinkAdv [] [] [] ExportTable_no_handler ExportTable_no_handler.
 
 Definition mk_addr (z : Z) : Addr :=
   match finz.of_z z with Some a => a | None => za0 end.
@@ -111,20 +115,26 @@ Section link.
     let c := cmpt_of img n in
     let ss := fc_static_sealed fc in
     let imports := map (fw_word_of fw img ss c) (fc_imports fc) in
-    let '(code, data, entries) :=
+    let '(code, data, eh, ehs, entries) :=
       match fc_body fc with
       | TrustedBody b =>
-          (tb_code b, chunks_words fw img ss c (tb_data b), map export_word (tb_exports b))
+          let eh :=
+            match tb_error_handler b with
+            | Some off => Z.of_nat off
+            | None => ExportTable_no_handler
+            end in
+          (tb_code b, chunks_words fw img ss c (tb_data b), eh, ExportTable_no_handler,
+           map export_word (tb_exports b))
       | UntrustedBody b =>
           let a := adv_of n in
-          (la_code a, la_data a,
+          (la_code a, la_data a, la_handler a, la_handler_stackless a,
            zip_with (λ off e, export_word (MkFwExport "" off (ue_nargs e) 0 InterruptEnabled))
              (la_exports a) (ub_exports b))
       end in
     (n, MkImgCmpt (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c) (cmpt_b_cgp c) (cmpt_e_cgp c)
           (cmpt_b_static_sealed c) (cmpt_e_static_sealed c) (cmpt_exp_tbl_pcc c)
           (cmpt_exp_tbl_cgp c) (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c)
-          imports code data (map ss_word ss) (WInt ExportTable_no_handler) (WInt ExportTable_no_handler) entries).
+          imports code data (map ss_word ss) (WInt eh) (WInt ehs) entries).
 
   (** The linked image, if it fits in memory. *)
   Definition link (fw : firmware) : option fw_image :=
@@ -136,3 +146,11 @@ Section link.
     | None => None
     end.
 End link.
+
+(** In the predicate of an image linked with [cfg], the error handler
+    offsets of the untrusted compartment [n] are the ones [cfg] gives. *)
+Ltac exists_adv_handlers cfg :=
+  lazymatch goal with
+  | |- ∃ eh ehs : Z, cmpt_exp_tbl_handler (cmpt_of _ ?n) = _ ∧ _ =>
+      exists (la_handler (adv_of cfg n)), (la_handler_stackless (adv_of cfg n)); split
+  end.

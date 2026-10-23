@@ -37,7 +37,9 @@ Definition kvs_demo_link_cfg : link_cfg := {|
              la_data    := kvs_B_data;
              la_exports := [
                kvs_B_adv_entry
-             ] |})
+             ];
+             la_handler := ExportTable_no_handler;
+             la_handler_stackless := ExportTable_no_handler |})
   ]
 |}.
 
@@ -68,8 +70,8 @@ Proof.
     kvs_service_sealing_type, 1%Z, 2%Z.
   split; first done.
   split_and!.
-  (* The linker declares no error handler. *)
-  all: try (exists ExportTable_no_handler, ExportTable_no_handler; split_and!).
+  (* The error handler offsets of the adversaries, as the configuration gives them. *)
+  all: try exists_adv_handlers kvs_demo_link_cfg.
   all: try (exists kvs_B_adv_entry, 0%nat; split_and!).
   all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /kvs_demo_state /img_state /img_regs; solve_other_registers

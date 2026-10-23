@@ -42,7 +42,9 @@ Definition droe_demo_link_cfg : link_cfg := {|
              la_data    := droe_C_data;
              la_exports := [
                1  (* after the import *)
-             ] |})
+             ];
+             la_handler := ExportTable_no_handler;
+             la_handler_stackless := ExportTable_no_handler |})
   ]
 |}.
 
@@ -72,8 +74,8 @@ Proof.
     (cmpt_of droe_demo_image "main"), (cmpt_of droe_demo_image "C").
   split; first done.
   split_and!.
-  (* The linker declares no error handler. *)
-  all: try (exists ExportTable_no_handler, ExportTable_no_handler; split_and!).
+  (* The error handler offsets of the adversaries, as the configuration gives them. *)
+  all: try exists_adv_handlers droe_demo_link_cfg.
   all: try (exists 1%nat, 0%nat; split_and!).
   all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /droe_demo_state /img_state /img_regs; solve_other_registers

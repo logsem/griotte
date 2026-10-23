@@ -98,7 +98,9 @@ Definition hts_demo_link_cfg : link_cfg := {|
              la_data    := hts_adv_data;
              la_exports := [
                4  (* after the 4 imports *)
-             ] |})
+             ];
+             la_handler := ExportTable_no_handler;
+             la_handler_stackless := ExportTable_no_handler |})
   ]
 |}.
 
@@ -129,8 +131,8 @@ Proof.
     (cmpt_of hts_demo_image "B"), hts_alloc_sealing_type.
   split; first done.
   split_and!.
-  (* The linker declares no error handler. *)
-  all: try (exists ExportTable_no_handler, ExportTable_no_handler; split_and!).
+  (* The error handler offsets of the adversaries, as the configuration gives them. *)
+  all: try exists_adv_handlers hts_demo_link_cfg.
   all: try (exists 4%nat, 0%nat; split_and!).
   (* The shadow table of this machine translates the heap by a constant offset. *)
   all: try (intros a; reflexivity).
