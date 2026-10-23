@@ -204,7 +204,8 @@ Section Error_Handling_Handler.
              HPC Hregs (_ & %Hshadow & Hes) _ HUP Hcstk Hna".
     destruct Hns as (HF & HFtrap & Hdisj).
     destruct Hinvoc as
-      (Hfull & [mie Hcra] & Hcgp & (Hstores & wcsp & wa0 & Hsr & Hcsp & Hca0 & Hca1 & Hca2) & Hzero).
+      (Hfull & [mie Hcra] & Hcgp &
+       (Hstores & wcsp & wa0 & Hsr & Hcsp & Hca0 & Hca1 & Hca2) & Hzero).
     (* The facts of the site, keeping the [∧] *)
     rewrite /stats_P_fault.
     iDestruct (and_pure_sep_r with "HUP") as "[%Hfacts HUP]".
@@ -233,8 +234,9 @@ Section Error_Handling_Handler.
     pose proof stats_release_addr_next as Hrel.
 
     (* The body of the handler *)
-    iApply (stats_handler_spec STATS_pcc_b STATS_pcc_e RWL g b e a _ RX Global STATS_pcc_b STATS_pcc_e
-              stats_load_addr stats_release_addr with "[- $HPC $Hca0 $Hct0 $Hcra $Hes $Hcode_stats]").
+    iApply (stats_handler_spec STATS_pcc_b STATS_pcc_e RWL g b e a _
+              RX Global STATS_pcc_b STATS_pcc_e stats_load_addr stats_release_addr
+              with "[- $HPC $Hca0 $Hct0 $Hcra $Hes $Hcode_stats]").
     { apply stats_code_bounds_layout. }
     1-8: done.
     { rewrite /error_state_words /lmepcc_of_pc /mepcc_of_pc /stats_pcc /=.
@@ -301,7 +303,8 @@ Section Error_Handling_Handler.
       assert (llegalise MEPCC (resumed_pc stats_wpcc (get_a (lw (ws !!! 0%nat)))) =
                 stats_pcc stats_release_addr) as ->.
       { rewrite /ws /resumed_pc /stats_wpcc /stats_pcc /lea_result /=.
-        rewrite (_ : (STATS_pcc_b + (stats_release_addr - STATS_pcc_b))%a = Some stats_release_addr);
+        rewrite (_ : (STATS_pcc_b + (stats_release_addr - STATS_pcc_b))%a =
+                       Some stats_release_addr);
           last solve_addr.
         done. }
       rewrite (stats_install_regs rfault rmap); [ | done | by rewrite /rmap; simplify_map_eq].

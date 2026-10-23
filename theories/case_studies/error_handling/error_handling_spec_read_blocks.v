@@ -5,11 +5,11 @@ From griotte Require Import error_handling_spec_states.
 (** * The blocks of [stats_read]
 
     Block 0 tests the lock, the first global of [stats], at [cgp]. When it
-    is taken, block 4 returns [EBUSY] ([stats_read_busy_spec]). When it is
-    free, block 1 takes it ([stats_read_take_spec]) and block 2 loads
-    through the pointer of the caller, in [ca0] ([stats_read_load_spec];
-    both: [stats_read_take_load_spec]). Block 3 releases the lock and
-    returns ([stats_read_release_spec]).
+    is free, block 1 takes it ([stats_read_take_spec]) and block 2 loads
+    through the pointer of the caller, in [ca0] ([stats_read_load_spec]).
+    Block 3 releases the lock and returns ([stats_read_release_spec]). When
+    the lock is taken, block 4 returns [EBUSY]: this case is not specified,
+    since the invariant of [stats] gives a free lock.
 
     The load is the fault site of [stats]: only its successful execution
     is specified here. The specifications are stated over plain points-to:
@@ -24,69 +24,6 @@ Section Error_Handling_Read_Blocks.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
-
-  (** The lock is taken: return [EBUSY]. *)
-  Lemma stats_read_busy_spec
-    (pc_b pc_e cgp_b cgp_e : Addr) (l : Z)
-    (wct0 wca0 wca1 wcra : LWord) :
-    stats_code_bounds pc_b pc_e ->
-    (cgp_b < cgp_e)%a ->
-    is_shadow_address cgp_b = false ->
-    l ≠ 0%Z ->
-    jalr_target_ok cnull cra wcra.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_read")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ct0 ↦ᵣ wct0 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    cra ↦ᵣ wcra ∗
-    cgp_b ↦ₐ WInt l ∗
-    codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ct0 ↦ᵣ WInt l ∗
-        ca0 ↦ᵣ WInt EBUSY ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ wcra ∗
-        cgp_b ↦ₐ WInt l ∗
-        codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hl Htgt)
-      "(HPC & Hcgp & Hct0 & Hca0 & Hca1 & Hcra & Hlock & Hcode_stats & Hpost)".
-    iDestruct (codefrag_contiguous_region_pers with "Hcode_stats") as %Hpc_contiguous;
-    cbn [length map encodeInstrsW] in Hpc_contiguous.
-    stats_unfold_code.
-
-    (* Block 0: the lock test *)
-    focus_block (stats_block ".Lstats_read") "Hcode_stats" of stats_blocks at pc_b
-      as a_test Ha_test "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    (* CLoad ct0 cgp 0 *)
-    iInstr "Hcode".
-    { reflexivity. }
-    { split; first done. apply withinBounds_true_iff; solve_addr. }
-    iEval (rewrite /lload_word /lift_word /load_word /=) in "Hct0".
-    (* Jne .Lread_busy ct0 0 *)
-    iInstr "Hcode".
-    { rewrite /nonZero /=. by apply Z.eqb_neq in Hl as ->. }
-    { instantiate (1 := (a_test ^+ 7)%a). offsets_compute. solve_addr. }
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
-
-    (* Block 4: return EBUSY *)
-    focus_block (stats_block ".Lread_busy") "Hcode_stats" of stats_blocks at pc_b
-      as a_busy Ha_busy "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    (* Mov ca0 EBUSY *)
-    iInstr "Hcode".
-    (* Mov ca1 0 *)
-    iInstr "Hcode".
-    (* Jalr cnull cra *)
-    iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
-    iApply "Hpost"; iFrame "∗ Hcode_stats".
-  Qed.
 
   (** The lock is free: take it, up to the load. *)
   Lemma stats_read_take_spec
@@ -175,44 +112,6 @@ Section Error_Handling_Read_Blocks.
     assert ((a_load ^+ 1)%a = (pc_b ^+ stats_label ".Lread_release")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_stats".
-  Qed.
-
-  (** The lock is free: take it, and load through the pointer of the
-      caller, when the load succeeds. *)
-  Lemma stats_read_take_load_spec
-    (pc_b pc_e cgp_b cgp_e : Addr)
-    (p : Perm) (g : Locality) (b e a : Addr) (w wct0 : LWord) :
-    stats_code_bounds pc_b pc_e ->
-    (cgp_b < cgp_e)%a ->
-    is_shadow_address cgp_b = false ->
-    readAllowed p = true ->
-    withinBounds b e a = true ->
-    is_shadow_address a = false ->
-    is_heap_cap w.(lw) = false ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_read")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ct0 ↦ᵣ wct0 ∗
-    ca0 ↦ᵣ WCap true p g b e a ∗
-    cgp_b ↦ₐ WInt 0 ∗
-    a ↦ₐ w ∗
-    codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ct0 ↦ᵣ WInt 0 ∗
-        ca0 ↦ᵣ lload_word p w ∗
-        cgp_b ↦ₐ WInt 1 ∗
-        a ↦ₐ w ∗
-        codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    iIntros (Hbounds Hcgp_bounds Hcgp_shadow Hread Ha_bounds Ha_shadow Hw_nonheap)
-      "(HPC & Hcgp & Hct0 & Hca0 & Hlock & Ha & Hcode_stats & Hpost)".
-    iApply (stats_read_take_spec with "[- $HPC $Hcgp $Hct0 $Hlock $Hcode_stats]"); try done.
-    iNext; iIntros "(HPC & Hcgp & Hct0 & Hlock & Hcode_stats)".
-    iApply (stats_read_load_spec with "[- $HPC $Hca0 $Ha $Hcode_stats]"); try done.
-    iNext; iIntros "(HPC & Hca0 & Ha & Hcode_stats)".
-    iApply "Hpost"; iFrame.
   Qed.
 
   (** Release the lock, and return. *)

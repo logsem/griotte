@@ -160,6 +160,8 @@ Qed.
     [machine_run] returns only the final configuration kind.
     [machine_run_conf] is the same interpreter, but returns the final
     configuration, so that the final memory computes. *)
+(* TODO: move to theories/opsem/machine_run.v, with [machine_run_conf_correct];
+   [machine_run] can then be [option_map fst ∘ machine_run_conf] *)
 Fixpoint machine_run_conf `{MachineParameters} (fuel : nat) (c : Conf) : option Conf :=
   match fuel with
   | 0 => None

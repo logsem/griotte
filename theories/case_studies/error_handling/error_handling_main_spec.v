@@ -80,10 +80,13 @@ Section Error_Handling_Main_Spec.
   Proof. by rewrite /is_arg_rmap /main_adv_arg_rmap. Qed.
 
   Lemma main_adv_arg_rmap_resources (W : WORLD) :
-    ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0 ∗ ca2 ↦ᵣ WInt 0 ∗
-    ca3 ↦ᵣ WInt 0 ∗ ca4 ↦ᵣ WInt 0 ∗ ca5 ↦ᵣ WInt 0 ∗
-    ct0 ↦ᵣ WInt 0
-    -∗
+    ca0 ↦ᵣ WInt 0 ∗
+    ca1 ↦ᵣ WInt 0 ∗
+    ca2 ↦ᵣ WInt 0 ∗
+    ca3 ↦ᵣ WInt 0 ∗
+    ca4 ↦ᵣ WInt 0 ∗
+    ca5 ↦ᵣ WInt 0 ∗
+    ct0 ↦ᵣ WInt 0 -∗
     [∗ map] rarg ↦ warg ∈ main_adv_arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg.
   Proof.
     iIntros "(Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0)".
@@ -279,7 +282,6 @@ Section Error_Handling_Main_Spec.
     iApply (main_call_read_2_spec with
              "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main]");
       first exact Hbounds.
-    { apply sealed_cap_nonheap. exact stats_export_base_not_heap. }
     iIntros "!>" (mie) "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _)".
 
     iInsertList "Hrmap" [ctp].
@@ -367,7 +369,6 @@ Section Error_Handling_Main_Spec.
     iApply (main_call_read_1_spec with
              "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main]");
       first exact Hbounds.
-    { apply sealed_cap_nonheap. exact stats_export_base_not_heap. }
     iIntros "!>" (mie) "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _)".
     iInsertList "Hrmap" [ctp].
 
@@ -490,7 +491,7 @@ Section Error_Handling_Main_Spec.
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_W0")
       as "Hstack_revoked_W1"; eauto.
 
-    (* Blocks 0-2: the jump to the switcher, to call [adv] *)
+    (* The stack is revoked in [W1] *)
     assert (revoked_addresses W1 (finz.seq_between csp_b csp_e)) as Hstack_revoked_W1.
     { rewrite /revoked_addresses Forall_forall.
       rewrite Forall_forall in Hstack_revoked_W0.

@@ -32,6 +32,7 @@ Section Error_Handling_Read_Safe.
     {statslayout : statsLayout} {statslayoutwf : statsLayoutWf}
   .
 
+  (* TODO: move to theories/logrel/wp_rules_interp.v, with the next lemma *)
   (** A load whose result the opsem gives as a fault: the registers and the
       memory are unchanged. *)
   #[local] Ltac stats_load_fault :=
@@ -40,6 +41,8 @@ Section Error_Handling_Read_Safe.
       destruct s1; cbn; try done
     | iIntros "!> (HPC & Hsrc & Hi)"; iApply "Hφ"; iLeft; by iFrame ].
 
+  (* TODO: move to theories/logrel/wp_rules_interp.v, after [wp_load_interp], as
+     [wp_load_interp_same] *)
   (** A load through a safe word into the register that holds it: it
       faults, or it loads a safe word ([wp_load_interp] for one register,
       with any fraction of the instruction). *)
@@ -210,6 +213,7 @@ Section Error_Handling_Read_Safe.
       iApply ("Hcont" with "HPC Hca0 Hwload Hworld").
   Qed.
 
+  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [ret_regs] *)
   (** The registers of a full register map, as [switcher_ret_specification]
       takes them. *)
   Lemma stats_ret_regs (rmap : LReg) :
@@ -217,7 +221,9 @@ Section Error_Handling_Read_Safe.
     registers_pointsto rmap ⊢
     ∃ rest : LReg,
       ⌜dom rest = all_registers_s ∖ {[ csp ; ca0 ; ca1 ]}⌝ ∗
-      csp ↦ᵣ (rmap !!! csp) ∗ ca0 ↦ᵣ (rmap !!! ca0) ∗ ca1 ↦ᵣ (rmap !!! ca1) ∗
+      csp ↦ᵣ (rmap !!! csp) ∗
+      ca0 ↦ᵣ (rmap !!! ca0) ∗
+      ca1 ↦ᵣ (rmap !!! ca1) ∗
       ([∗ map] r↦w ∈ rest, r ↦ᵣ w).
   Proof.
     iIntros (Hfull) "Hregs". rewrite /registers_pointsto.
@@ -355,7 +361,8 @@ Section Error_Handling_Read_Safe.
     set (a_stk4 := (a_stk ^+ 4)%a).
     destruct Htop_tbl as (Hframes & Htbl & Hcount & Htbl_ok).
     rewrite /stats_read_min_stack in Hminstk.
-    set (wret := WSentry (ret_kind mie_ret) true XSRW_ Local b_switcher e_switcher a_switcher_return).
+    set (wret :=
+      WSentry (ret_kind mie_ret) true XSRW_ Local b_switcher e_switcher a_switcher_return).
     rewrite /interp_conf.
     destruct (Hfull ca0) as [wptr Hwptr].
     iAssert (interp W0 C wptr) as "#Hinterp_wptr".

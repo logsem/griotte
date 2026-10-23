@@ -62,6 +62,7 @@ Section Error_Handling_Read.
     - by iIntros (Hne).
   Qed.
 
+  (* TODO: move to theories/opsem/machine_parameters.v, as [disjoint_from_shadow_sub] *)
   (** A sub-range of a range outside the shadow table. *)
   Lemma stats_disjoint_from_shadow_sub (b e b' e' : Addr) :
     (b <= b')%a → (e' <= e)%a →
@@ -140,7 +141,8 @@ Section Error_Handling_Read.
     iIntros (Hdisj_trap Hdisj_stats Hswitcher Hfull Hcsp Hcgp Hcra Hba Hae Hshadow
                Htbl Hcount Htbl_set)
       "#Hinv_switcher #Hswitcher_static #Hstatic Hregs Hcstk Hna Hclose Hlock Harea Hret".
-    iApply (trap_safe_exception_entry Nswitcher (⊤ ∖ ↑Nstats) with "Hinv_switcher Hswitcher_static");
+    iApply (trap_safe_exception_entry Nswitcher (⊤ ∖ ↑Nstats)
+              with "Hinv_switcher Hswitcher_static");
       [solve_ndisj | solve_ndisj | done |].
     iModIntro. iExists rfault, cstk. iFrame "Hna Hregs Hcstk". iSplit; first done.
     iDestruct (stats_trusted_handler with "Hstatic") as "#Hhandler".
@@ -165,6 +167,7 @@ Section Error_Handling_Read.
 
   (** ** Helpers *)
 
+  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [regs_extract] *)
   (** A register of a register map, with the map given back once the
       register is updated. *)
   Lemma stats_regs_extract (rmap : LReg) (r : RegName) (w : LWord) :
@@ -178,14 +181,18 @@ Section Error_Handling_Read.
     iApply (big_sepM_insert with "[$Hregs $Hr]"). by rewrite lookup_delete_eq.
   Qed.
 
+  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [regs_extract2] *)
   (** Two registers of a register map. *)
   Lemma stats_regs_extract2 (rmap : LReg) (r1 r2 : RegName) (w1 w2 : LWord) :
     r1 ≠ r2 →
     rmap !! r1 = Some w1 →
     rmap !! r2 = Some w2 →
     registers_pointsto rmap ⊢
-    r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗
-    (∀ w1' w2', r1 ↦ᵣ w1' -∗ r2 ↦ᵣ w2' -∗
+    r1 ↦ᵣ w1 ∗
+    r2 ↦ᵣ w2 ∗
+    (∀ w1' w2',
+       r1 ↦ᵣ w1' -∗
+       r2 ↦ᵣ w2' -∗
        registers_pointsto (<[r1:=w1']> (<[r2:=w2']> rmap))).
   Proof.
     iIntros (Hne Hr1 Hr2) "Hregs". rewrite /registers_pointsto.
@@ -197,6 +204,7 @@ Section Error_Handling_Read.
     iFrame.
   Qed.
 
+  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [regs_extract3] *)
   (** Three registers of a register map. *)
   Lemma stats_regs_extract3 (rmap : LReg) (r1 r2 r3 : RegName) (w1 w2 w3 : LWord) :
     r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
@@ -204,8 +212,13 @@ Section Error_Handling_Read.
     rmap !! r2 = Some w2 →
     rmap !! r3 = Some w3 →
     registers_pointsto rmap ⊢
-    r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ r3 ↦ᵣ w3 ∗
-    (∀ w1' w2' w3', r1 ↦ᵣ w1' -∗ r2 ↦ᵣ w2' -∗ r3 ↦ᵣ w3' -∗
+    r1 ↦ᵣ w1 ∗
+    r2 ↦ᵣ w2 ∗
+    r3 ↦ᵣ w3 ∗
+    (∀ w1' w2' w3',
+       r1 ↦ᵣ w1' -∗
+       r2 ↦ᵣ w2' -∗
+       r3 ↦ᵣ w3' -∗
        registers_pointsto (<[r1:=w1']> (<[r2:=w2']> (<[r3:=w3']> rmap)))).
   Proof.
     iIntros (Hne12 Hne13 Hne23 Hr1 Hr2 Hr3) "Hregs". rewrite /registers_pointsto.
@@ -220,6 +233,7 @@ Section Error_Handling_Read.
     iFrame.
   Qed.
 
+  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [return_regs] *)
   (** The registers of a full register map, as the return routine of the
       switcher takes them. *)
   Lemma stats_return_regs (rmap : LReg) :
@@ -227,8 +241,13 @@ Section Error_Handling_Read.
     registers_pointsto rmap ⊢
     ∃ rmap_ret : LReg,
       ⌜dom rmap_ret = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}⌝ ∗
-      cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ - ∗
-      csp ↦ᵣ (rmap !!! csp) ∗ ca0 ↦ᵣ (rmap !!! ca0) ∗ ca1 ↦ᵣ (rmap !!! ca1) ∗
+      cgp ↦ᵣ - ∗
+      cra ↦ᵣ - ∗
+      cs0 ↦ᵣ - ∗
+      cs1 ↦ᵣ - ∗
+      csp ↦ᵣ (rmap !!! csp) ∗
+      ca0 ↦ᵣ (rmap !!! ca0) ∗
+      ca1 ↦ᵣ (rmap !!! ca1) ∗
       ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w).
   Proof.
     iIntros (Hfull) "Hregs". rewrite /registers_pointsto.
