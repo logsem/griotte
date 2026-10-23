@@ -52,6 +52,25 @@ Section Switcher_Exception_Blocks_8.
                       Jmp (inl 12%Z) ].
   Proof. reflexivity. Qed.
 
+  (** The loads of the [ErrorState] succeed through a tagged capability
+      whose cursor moves by [- ErrorState_size], readable, with the
+      [ErrorState] in bounds. *)
+  #[local] Lemma error_state_loads_ok_inv (wcsp : LWord) :
+    error_state_loads_ok wcsp →
+    ∃ (p : Perm) (g : Locality) (b e a ea : Addr),
+      wcsp.(lw) = WCap true p g b e a ∧
+      (a + (- ErrorState_size))%a = Some ea ∧
+      readAllowed p = true ∧ (b <= ea)%a ∧ (ea + ErrorState_size <= e)%Z.
+  Proof.
+    rewrite /error_state_loads_ok /lea_result.
+    destruct wcsp as [w π]; cbn.
+    destruct w as [n | [t p g b e a | t p g b e a] | k t p g b e a | ot sb]; cbn; try done.
+    - destruct (a + - ErrorState_size)%a as [ea|] eqn:Hea; cbn; last done.
+      destruct t; last done.
+      intros (Hra & Hb & He). by exists p, g, b, e, a, ea.
+    - by destruct (a + - ErrorState_size)%ot.
+  Qed.
+
   (** Block 35, at [pc_a]. [d] is the depth of the call stack, [a_tstk] its
       topmost frame, whose cell of the export table holds [wcell] (cleared,
       or a capability to the table at [b_tbl], whose PCC is [wpcc]) and
@@ -60,7 +79,8 @@ Section Switcher_Exception_Blocks_8.
       for the [ErrorState] below [wcsp]. A fault happens at [pc_a ^+ k]:
       at the load of the PCC of the table ([k = 7]), at the load of
       word 0 of the [ErrorState] ([k = 8]), or at a load of the copy
-      ([k = 14]). *)
+      ([k = 14]); the cell is then cleared, or [wcsp] does not allow the
+      loads of the [ErrorState]. *)
   #[local] Lemma switcher_exception_block_35_spec_aux
     (pc_a : Addr) (d : nat) (a_tstk b_tbl : Addr) (n : Z) (save : list LWord)
     (wpcc wcell wcsp wcra wctp wct0 wct1 wct2 wcs0 wcs1 wca2 wca3 wca4 : LWord)
@@ -99,7 +119,8 @@ Section Switcher_Exception_Blocks_8.
        ⌜lea_result wcsp (- ErrorState_size) = Some (WCap true p g b e a @@? π)⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
-    ▷ ( ( ∀ (k : Z) (i : nat) (ls save' : list LWord),
+    ▷ ( ( ⌜wcell = lword_of_word (WInt 0) ∨ ¬ error_state_loads_ok wcsp⌝ -∗
+          ∀ (k : Z) (i : nat) (ls save' : list LWord),
           ⌜k = 7%Z ∨ k = 8%Z ∨ k = 14%Z⌝ -∗
           ⌜length save' = 21%nat⌝ -∗
           csp ↦ᵣ wcsp ∗
@@ -197,6 +218,7 @@ Section Switcher_Exception_Blocks_8.
       (* CLoad ct0 ct0 ExportTable_offset_pcc *)
       iInstr_fail "Hcode".
       iDestruct "Hpost" as "[Hfailed _]".
+      iSpecialize ("Hfailed" with "[%]"); first by left.
       iTrap with ("Hfailed" $! 7%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
     destruct Htbl as (p_tbl & g_tbl & e_tbl & a_tbl & Hw & Hread_tbl & Hbnd & Hshadow_tbl
                       & Hdl & Hdro).
@@ -220,6 +242,10 @@ Section Switcher_Exception_Blocks_8.
       iInstrApply "Hcode" (wp_load_fail_not_cap_imm _ cra csp) with "[$HPC $Hcra $Hcsp]"
         as "(HPC & Hcra & Hcsp)".
       iDestruct "Hpost" as "[Hfailed _]".
+      iSpecialize ("Hfailed" with "[%]").
+      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+          %error_state_loads_ok_inv.
+        cbn in Hw'; by subst wsp. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
     destruct wsp as [|[tag p g b e a|] | |]; try done.
     destruct tag; cycle 1.
@@ -232,6 +258,10 @@ Section Switcher_Exception_Blocks_8.
       { done. }
       iDestruct (regs_of_map_2 with "Hmap") as "[Hcra Hcsp]"; first done.
       iDestruct "Hpost" as "[Hfailed _]".
+      iSpecialize ("Hfailed" with "[%]").
+      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+          %error_state_loads_ok_inv.
+        by cbn in Hw'. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
     destruct (a + (TrustedStack_offset_mepcc - ErrorState_size))%a as [ea|] eqn:Hea; cycle 1.
     { iDestruct (map_of_regs_2 with "Hcra Hcsp") as "[Hmap %Hne]".
@@ -243,12 +273,21 @@ Section Switcher_Exception_Blocks_8.
       all: try done.
       iDestruct (regs_of_map_2 with "Hmap") as "[Hcra Hcsp]"; first done.
       iDestruct "Hpost" as "[Hfailed _]".
+      iSpecialize ("Hfailed" with "[%]").
+      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+          %error_state_loads_ok_inv.
+        cbn in Hw'; simplify_eq.
+        rewrite /TrustedStack_offset_mepcc /ErrorState_size in Hea Hea'. solve_addr. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
     destruct (readAllowed p) eqn:Hra; cycle 1.
     { (* CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size) *)
       iInstrApply "Hcode" (wp_load_fail_not_ra_imm _ cra csp) with "[$HPC $Hcra $Hcsp]"
         as "(HPC & Hcra & Hcsp)".
       iDestruct "Hpost" as "[Hfailed _]".
+      iSpecialize ("Hfailed" with "[%]").
+      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+          %error_state_loads_ok_inv.
+        cbn in Hw'; simplify_eq. congruence. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
     destruct (decide (b <= ea < e)%a) as [Hin | Hout]; cycle 1.
     { (* CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size) *)
@@ -256,6 +295,11 @@ Section Switcher_Exception_Blocks_8.
         with "[$HPC $Hcra $Hcsp]" as "(HPC & Hcra & Hcsp)".
       { rewrite /withinBounds; solve_addr. }
       iDestruct "Hpost" as "[Hfailed _]".
+      iSpecialize ("Hfailed" with "[%]").
+      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+          %error_state_loads_ok_inv.
+        cbn in Hw'; simplify_eq.
+        rewrite /TrustedStack_offset_mepcc /ErrorState_size in Hea Hea' He'. solve_addr. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
     (* The accessor of the [ErrorState], below [csp] *)
     iPoseProof ("Hacc" $! p g b e ea π with "[%] [%]") as "#Hacc_es".
@@ -326,6 +370,11 @@ Section Switcher_Exception_Blocks_8.
     iNext. iSplit.
     - iIntros (j ls wd' Hj Hls Hwd' Hout) "Hca2 Hca3 Hcs1 Hca4 Hdst HL".
       iDestruct "Hpost" as "[Hfailed _]".
+      iSpecialize ("Hfailed" with "[%]").
+      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+          %error_state_loads_ok_inv.
+        cbn in Hw'; simplify_eq.
+        rewrite /ErrorState_size in Hea' He'. solve_addr. }
       rewrite (_ : ((pc_a ^+ 13%nat) ^+ 1)%a = (pc_a ^+ 14)%a); last solve_addr.
       iApply ("Hfailed" $! 14%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
                with "[] [%] [-]").
@@ -380,9 +429,9 @@ Section Switcher_Exception_Blocks_8.
       [L i ls] holds once the first [i] words [ls] of the [ErrorState] are
       loaded, through the accessor given for the [ErrorState] below the
       handler's stack pointer [wcsp]. Outcomes:
-      - a load faults at a switcher PC that does not resume: the cell of
-        the export table is cleared, or [wcsp] does not allow the load of a
-        word of the [ErrorState];
+      - a load faults at a switcher PC that does not resume, for one of two
+        reasons: the cell of the export table is cleared, or [wcsp] does not
+        allow the loads of the [ErrorState];
       - the 16 words [ls] of the [ErrorState] are loaded: words 1-15 are
         in the register save area, the count is incremented, [ct2] holds
         the PCC of the table with the address of word 0, and the PC is at
@@ -423,7 +472,8 @@ Section Switcher_Exception_Blocks_8.
        ⌜lea_result wcsp (- ErrorState_size) = Some (WCap true p g b e a @@? π)⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
-    ▷ ( ( ∀ (off : Z) (i : nat) (ls save' : list LWord),
+    ▷ ( ( ⌜wcell = lword_of_word (WInt 0) ∨ ¬ error_state_loads_ok wcsp⌝ -∗
+          ∀ (off : Z) (i : nat) (ls save' : list LWord),
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
           ⌜length save' = 21%nat⌝ -∗
           csp ↦ᵣ wcsp ∗
@@ -486,7 +536,7 @@ Section Switcher_Exception_Blocks_8.
                       $Hmtdc $Hframeoffset $Hcell $Hcnt $Hpcc $Hsave $Hcode $HL $Hacc]");
       [done | offsets_compute; solve_addr+Hsize | done | done | done | done |].
     iNext; iSplit.
-    - iIntros (k i ls save' Hk Hsave')
+    - iIntros (Hwhy k i ls save' Hk Hsave')
         "(Hcsp & Hcra & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca2 & Hca3 & Hca4
          & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave & HL)".
       unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
@@ -494,7 +544,7 @@ Section Switcher_Exception_Blocks_8.
       rewrite (_ : ((a_switcher_call ^+ switcher_block_offset 35) ^+ k)%a =
                    (a_switcher_call ^+ (switcher_block_offset 35 + k))%a);
         last (destruct Hk as [-> | [-> | ->] ]; offsets_compute; solve_addr+Hsize).
-      iApply ("Hfailed" with "[] [//] [-]").
+      iApply ("Hfailed" with "[//] [] [//] [-]").
       { iPureIntro. apply trap_no_resume_switcher_pc.
         destruct Hk as [-> | [-> | ->] ]; by vm_compute. }
       iFrame "∗ Hswitcher".

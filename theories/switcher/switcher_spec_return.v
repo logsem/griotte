@@ -134,7 +134,7 @@ Section Switcher.
     rewrite /cframe_interp.
     iDestruct "Hcframe_interp" as "[>Hcframe_top Hcframe_interp]".
     iNamed "Hcframe_top". iNamed "Hcf_tframe".
-    iDestruct "Htf_tbl" as (wtbl) "[Htf_tbl _]".
+    iDestruct "Htf_tbl" as "[Htf_tbl _]".
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "(%b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
     cbn in HWF.

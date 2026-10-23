@@ -174,7 +174,7 @@ Section SO.
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_interp_C &
       %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iAssert (no_handler (top_export_tbl cstk)) as "#Hno_handler".
-    { destruct Htop_tbl as [_ ->]. iFrame "Hso_exp_eh Hso_exp_ehs". }
+    { destruct Htop_tbl as (_ & -> & _). iFrame "Hso_exp_eh Hso_exp_ehs". }
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /interp_conf /registers_pointsto.

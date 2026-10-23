@@ -266,7 +266,7 @@ Section KVS_spec_read_safe.
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_C &
       %Hsync_csp & _ & Hcstk & Hna)".
     iAssert (no_handler (top_export_tbl cstk)) as "#Hno_handler".
-    { destruct Htop_tbl as [_ ->]. iFrame "Hkvs_exp_eh Hkvs_exp_ehs". }
+    { destruct Htop_tbl as (_ & -> & _). iFrame "Hkvs_exp_eh Hkvs_exp_ehs". }
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
