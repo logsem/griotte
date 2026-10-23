@@ -279,9 +279,7 @@ Section Switcher.
       ; (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
       [ #".Lswitcher_prepare_callee";
         getb cgp ct1;
-        geta cs1 ct1;
-        sub cs1 cgp cs1;
-        lea ct1 cs1;
+        seta ct1 ct1 cgp;
         load cra ct1;
         lea ct1 ExportTable_offset_cgp;
         load cgp ct1;
@@ -483,9 +481,7 @@ Section Switcher.
         load_imm ct1 ctp TrustedStackFrame_offset_calleeExportTable;
         getb cs0 ct1;
         (* csetaddr ct1, ct1, s0 *)
-        geta ct2 ct1;
-        sub ct2 cs0 ct2;
-        lea ct1 ct2;
+        seta ct1 ct1 cs0;
         load_imm cs0 ct1 ExportTable_offset_errorHandler;
         sub ct2 cs0 cs1;
         jnez (".Lhandle_error_found")%asm ct2
@@ -497,9 +493,7 @@ Section Switcher.
         load_imm ct1 ctp TrustedStackFrame_offset_calleeExportTable;
         getb cs0 ct1;
         (* csetaddr ct1, ct1, s0 *)
-        geta ct2 ct1;
-        sub ct2 cs0 ct2;
-        lea ct1 ct2;
+        seta ct1 ct1 cs0;
         load_imm cs0 ct1 ExportTable_offset_errorHandlerStackless;
         sub ct2 cs0 cs1;
         jnez 2 ct2;
@@ -548,9 +542,7 @@ Section Switcher.
         load_imm cgp ct1 ExportTable_offset_cgp;
         getb cs1 cra;
         (* csetaddr ra, ra, s1 *)
-        geta ct2 cra;
-        sub ct2 cs1 ct2;
-        lea cra ct2;
+        seta cra cra cs1;
         lea cra cs0;
         jnez 2 ca0;
         jmp (".Lhandle_error_stack_setup")%asm
@@ -646,9 +638,7 @@ Section Switcher.
          (* cgetbase s0, ct0 *)
          getb cs0 ct0;
          (* csetaddr ct0, ct0, s0 *)
-         geta ct2 ct0;
-         sub ct2 cs0 ct2;
-         lea ct0 ct2;
+         seta ct0 ct0 cs0;
          (* clc ct0, ExportTable_offset_pcc(ct0) *)
          load_imm ct0 ct0 ExportTable_offset_pcc;
          (* clc cra, TrustedStack_offset_mepcc(csp): mirrored, the
@@ -657,10 +647,7 @@ Section Switcher.
          (* cgetaddr ra, cra *)
          geta cra cra;
          (* csetaddr ct2, ct0, ra *)
-         mov ct2 ct0;
-         geta cs0 ct2;
-         sub cs0 cra cs0;
-         lea ct2 cs0;
+         seta ct2 ct0 cra;
          (* cincoffset ca2, csp, TrustedStack_offset_cra: mirrored *)
          mov ca2 csp;
          lea ca2 (TrustedStack_offset_cra - ErrorState_size)%Z;

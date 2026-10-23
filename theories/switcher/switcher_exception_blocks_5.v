@@ -30,8 +30,8 @@ Section Switcher_Exception_Blocks_5.
     (wpcc wcgp wcra wcgp0 wct2 wcs1 : LWord) :
     let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 30))%a ->
-    (pc_a + (-102))%a = Some (pc_a ^+ (-102))%a ->
-    (pc_a + 24)%a = Some (pc_a ^+ 24)%a ->
+    (pc_a + (-98))%a = Some (pc_a ^+ (-98))%a ->
+    (pc_a + 22)%a = Some (pc_a ^+ 22)%a ->
     (a_tstk + TrustedStackFrame_offset_errorHandlerCount)%a = Some a_cnt_cell ->
     withinBounds b_trusted_stack e_trusted_stack a_cnt_cell = true ->
     exp_tbl_cap b_tbl (WCap true p g b_tbl e_tbl b_tbl) ->
@@ -50,7 +50,7 @@ Section Switcher_Exception_Blocks_5.
     codefrag_pers pc_a (switcher_instrs_n 30) ∗
     ▷ ( ( ⌜Z.even n = false ∨ (MAX_FAULTS_PER_COMPARTMENT_CALL < n + 1)%Z⌝ -∗
           ∀ wcra' : LWord,
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-102))%a ∗
+          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-98))%a ∗
           ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ WCap true p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ wct2 ∗
@@ -64,7 +64,7 @@ Section Switcher_Exception_Blocks_5.
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
         ( ⌜Z.even n = true ∧ (n + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z⌝ -∗
           ∀ (off' : Z) (wct2' wcs1' : LWord),
-          ⌜(z0 ≠ 0 ∧ off' = 19%Z) ∨ (z0 = 0 ∧ off' = 24%Z)⌝ -∗
+          ⌜(z0 ≠ 0 ∧ off' = 17%Z) ∨ (z0 = 0 ∧ off' = 22%Z)⌝ -∗
           PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ off')%a ∗
           ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ WCap true p g b_tbl e_tbl b_tbl ∗
@@ -108,7 +108,7 @@ Section Switcher_Exception_Blocks_5.
          iInstr "Hcode".
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
-         { transitivity (Some (pc_a ^+ (-102))%a); solve_addr. }
+         { transitivity (Some (pc_a ^+ (-98))%a); solve_addr. }
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by left).
          iFrame "∗ Hcode". }
@@ -125,7 +125,7 @@ Section Switcher_Exception_Blocks_5.
          iInstr "Hcode".
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
-         { transitivity (Some (pc_a ^+ (-102))%a); solve_addr. }
+         { transitivity (Some (pc_a ^+ (-98))%a); solve_addr. }
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by right).
          iFrame "∗ Hcode". }
@@ -150,17 +150,14 @@ Section Switcher_Exception_Blocks_5.
     { rewrite /withinBounds; solve_addr. }
     (* GetB cs1 cra *)
     iInstr "Hcode".
-    (* GetA ct2 cra *)
-    iInstr "Hcode".
-    (* Sub ct2 cs1 ct2 *)
-    iInstr "Hcode".
     destruct (lea_result_is_Some (lload_word p wpcc)
                 (get_b (lload_word p wpcc).(lw) - get_a (lload_word p wpcc).(lw)))
       as [wr1 Hwr1].
     destruct (lea_result_is_Some wr1 off) as [wr2 Hwr2].
-    (* Lea cra ct2 *)
-    iInstrApply "Hcode" (wp_lea_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr1)
-      with "[$HPC $Hcra $Hct2]" as "(HPC & Hct2 & Hcra)".
+    (* SetA cra cra cs1 *)
+    iInstrApply "Hcode" (wp_seta_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr1)
+      with "[$HPC $Hcra $Hcs1]" as "(HPC & Hcs1 & Hcra)".
+    { by rewrite seta_result_lea_result. }
     (* Lea cra cs0 *)
     iInstrApply "Hcode" (wp_lea_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr2)
       with "[$HPC $Hcra $Hcs0]" as "(HPC & Hcs0 & Hcra)".
@@ -173,7 +170,7 @@ Section Switcher_Exception_Blocks_5.
       iInstr "Hcode".
       (* Jmp .Lhandle_error_stack_setup *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ 24)%a); solve_addr. }
+      { transitivity (Some (pc_a ^+ 22)%a); solve_addr. }
       iApply ("Hpost" with "[] [] [-]"); [done | iPureIntro; by right |].
       iFrame "∗ Hcode".
     - (* Jne 2 ca0 0 *)
