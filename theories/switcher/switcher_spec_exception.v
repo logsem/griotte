@@ -138,16 +138,6 @@ Section Switcher_Spec_Exception.
     (error_state_written : nat → iProp Σ) : iProp Σ :=
     ⌜¬ switcher_fault_pc w⌝ -∗ path_nested_fault F cstk error_state_written.
 
-  (** The stack of the caller of the topmost pushed frame, from the cursor
-      of the frame's stack pointer: the switcher's spill area is below the
-      cursor. *)
-  Definition top_frame_stack_ok (cstk : CSTK) : Prop :=
-    cstk.(cstk_frames) ≠ [] →
-    ∃ b_stk e_stk a_stk : Addr,
-      (top_tframe cstk).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a) ∧
-      (b_stk <= a_stk)%a ∧
-      is_Some (a_stk + 4)%a.
-
   (** The [cjalr] to a handler of kind [kind], at offset [off], succeeded.
       The table's PCC [wpcc] and CGP [wcgp] are loaded through the frame's
       capability to the table, which is neither deep-local nor
@@ -285,71 +275,6 @@ Section Switcher_Spec_Exception.
     rewrite lookup_app_r; last lia. rewrite Hregs.
     rewrite lookup_app_r; last (rewrite length_take length_drop; lia).
     rewrite length_take length_drop Hsave /=. reflexivity.
-  Qed.
-
-  (** The stack pointer of the topmost pushed frame is a capability whose
-      cursor is in its bounds. *)
-  #[local] Lemma cstack_interp_top_csp (cstk : CSTK) (a_tstk : Addr) :
-    cstack_interp cstk a_tstk -∗
-    ⌜cstk.(cstk_frames) ≠ [] →
-     ∃ (p : Perm) (g : Locality) (b e a : Addr),
-       (top_tframe cstk).(tf_csp) = lword_of_word (WCap true p g b e a) ∧
-       (b <= a)%a ∧ (a <= e)%a ∧
-       disjoint_from_heap b e⌝.
-  Proof.
-    destruct cstk as [ef [|frm frms] ]; first by iIntros "_ %".
-    rewrite /cstack_interp /=.
-    iIntros "[_ Hcf]". iNamed "Hcf". iDestruct "Hcf" as (b_stk e_stk a_stk) "Hcf". iNamed "Hcf".
-    destruct Hcf_csp as (Hcsp & Hba & Hae & [a4 Ha4] & _ & Hheap & _).
-    iPureIntro. intros _. rewrite /top_tframe /= Hcsp.
-    eexists _, _, b_stk, e_stk, (a_stk ^+ 4)%a. split_and!; [done | solve_addr.. | done].
-  Qed.
-
-  (** The stack of the caller of the topmost pushed frame. *)
-  #[local] Lemma cstack_interp_top_stack (cstk : CSTK) (a_tstk : Addr) :
-    cstack_interp cstk a_tstk -∗
-    ⌜top_frame_stack_ok cstk⌝.
-  Proof.
-    destruct cstk as [ef [|frm frms] ]; first by iIntros "_ %".
-    rewrite /cstack_interp /=.
-    iIntros "[_ Hcf]". iNamed "Hcf". iDestruct "Hcf" as (b_stk e_stk a_stk) "Hcf". iNamed "Hcf".
-    destruct Hcf_csp as (Hcsp & Hba & _ & Ha4 & _).
-    iPureIntro. intros _. rewrite /top_tframe /= Hcsp.
-    by exists b_stk, e_stk, a_stk.
-  Qed.
-
-  (** The cells of a frame of the trusted stack: the cell of the export
-      table, of any fraction, is cleared or holds a capability to the table,
-      without identifier. *)
-  #[local] Lemma trusted_frame_interp_open (entry : bool) (tf : trusted_frame) (a_tstk : Addr) :
-    trusted_frame_interp entry tf a_tstk -∗
-    ∃ (wcell : LWord) (dq : dfrac),
-      (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) ∗
-      (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} wcell ∗
-      (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt tf.(tf_error_count) ∗
-      ⌜wcell = lword_of_word (WInt 0) ∨
-       (wcell = tf.(tf_export_tbl) ∧
-        exp_tbl_cap (tf_export_tbl_b tf) wcell.(lw) ∧ wcell.(lprov) = None)⌝ ∗
-      (∀ n : Z,
-         (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) -∗
-         (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} wcell -∗
-         (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt n -∗
-         trusted_frame_interp entry (tf_set_count tf n) a_tstk).
-  Proof.
-    rewrite /trusted_frame_interp.
-    iIntros "Htf". iNamed "Htf".
-    destruct entry.
-    - iDestruct "Htf_tbl" as "[#Htbl %Hok]".
-      iExists _, DfracDiscarded. iFrame "Htf_csp Htbl Htf_cnt".
-      iSplit; first (iPureIntro; right; split; [done | exact Hok]).
-      iIntros (n) "Hcsp _ Hcnt". iFrame "Hcsp Hcnt". iPureIntro. exact Hok.
-    - iDestruct "Htf_tbl" as (w) "[Htbl %Hw]".
-      iExists w, (DfracOwn 1). iFrame "Htf_csp Htbl Htf_cnt".
-      iSplit.
-      { iPureIntro.
-        destruct Hw as [-> | [-> Hok] ]; [by left | right; split; [done | exact Hok] ]. }
-      iIntros (n) "Hcsp Htbl Hcnt". iFrame "Hcsp Hcnt". iExists w. iFrame "Htbl".
-      iPureIntro. exact Hw.
   Qed.
 
   (** The forced unwind, from [.Lcommon_force_unwind], once the closing of
