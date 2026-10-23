@@ -37,6 +37,8 @@ Section Switcher_KtK.
       [trap_safe_exception_entry]; the switcher returns ECOMPARTMENTFAIL to
       the caller.
       The callee's stack is at least its minimum stack size [minstk].
+      The callee returns through [return_cont] at any error handler count
+      [n] of its frame: a callee with an error handler may fault and resume.
 
       The machine frame records only the saved words. The allocator owns all
       shadow entries; their states may change between the call and return.
@@ -70,7 +72,7 @@ Section Switcher_KtK.
            |}
     in
     let return_cont :=
-      (▷ (∀ (wca0 wca1 : LWord) (rmap_ret : LReg)
+      (▷ (∀ (n : Z) (wca0 wca1 : LWord) (rmap_ret : LReg)
                (stk_mem_ret : list LWord),
              ⌜ dom rmap_ret =
                    all_registers_s ∖
@@ -84,7 +86,7 @@ Section Switcher_KtK.
              ∗ ca1 ↦ᵣ wca1
              ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w)
              ∗ [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem_ret ]]
-             ∗ cstack_frag (cstack_push frame cstk)
+             ∗ cstack_frag (cstack_set_top_count (cstack_push frame cstk) n)
              ∗ Q wca0 wca1
                -∗ WP Seq (Instr Executable)
                      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}))%I
@@ -92,12 +94,6 @@ Section Switcher_KtK.
     (* FAULT --- the callee faults; the switcher force-unwinds its frame and
        returns ECOMPARTMENTFAIL to the caller *)
     let fault_cont := ktk_fault_cont E frame cstk a_stk4 e_stk in
-    let switcher_res :=
-      (∃ Nswitcher : namespace,
-         ⌜↑Nswitcher ⊆ E ∧ ↑N_trap ⊆ E ∧ Nswitcher ## N_trap⌝ ∗
-         na_inv cerise_nais Nswitcher switcher_inv ∗
-         switcher_static)%I
-    in
     (∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
        ⌜ (Z.of_nat minstk <= e_stk - a_stk4)%Z ⌝
        ∗ ⌜ is_arg_rmap arg_rmap' 8 ⌝
@@ -119,7 +115,7 @@ Section Switcher_KtK.
            [[ region_addrs_zeroes a_stk4 e_stk ]]
        ∗ cstack_frag (cstack_push frame cstk)
        ∗ P
-       ∗ (if may_fault then (return_cont ∧ fault_cont) ∗ switcher_res else return_cont)
+       ∗ (if may_fault then (return_cont ∧ fault_cont) ∗ switcher_res E else return_cont)
        -∗ WP Seq (Instr Executable)
              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
 
@@ -322,7 +318,7 @@ Section Switcher_KtK.
       iSplit.
       { (* The callee returns *)
         iNext.
-        iIntros (wca0 wca1 rmap_ret stk_mem_ret)
+        iIntros (n wca0 wca1 rmap_ret stk_mem_ret)
           "(%Hrmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
            & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & HQ)".
         iAssert (
@@ -358,10 +354,10 @@ Section Switcher_KtK.
             iExists rcgp, rcra, rcs0, rcs1, wca0, wca1, rmap_final;
             iFrame "∗#%".
         }
-        iApply (switcher_cc_specification_return_known_to_known
+        iApply (switcher_cc_specification_return_known_to_known_gen
                   Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
                   wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk
-                  (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E
+                  (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E n
                   with
                   "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                     $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hretpost]").

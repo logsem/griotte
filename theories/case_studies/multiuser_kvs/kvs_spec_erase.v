@@ -1215,7 +1215,7 @@ Section KVS_spec_erase.
     set (rmap_ret := <[ct0 := lword_of_word (WInt 0)]> rmap_ret8).
     iEval (cbn) in "HPC".
 
-    iApply ("Hpost" $! (WInt 0) (WInt 0) rmap_ret
+    iApply ("Hpost" $! 0%Z (WInt 0) (WInt 0) rmap_ret
               (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iSplit.
     { iPureIntro.

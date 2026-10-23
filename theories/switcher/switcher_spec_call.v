@@ -822,7 +822,7 @@ Section Switcher.
     { iPureIntro; simpl; split; [|split]; auto.
       apply related_sts_pub_refl_world.
     }
-    iSplit; first (iPureIntro; split; [done | reflexivity]).
+    iSplit; first (iPureIntro; split_and!; [done | reflexivity | reflexivity | exact Htbl_cell]).
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
     iPureIntro; split;
       [split; [split; [cbn; apply spill_cursor; by eexists | reflexivity] | solve_addr]

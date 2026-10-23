@@ -59,7 +59,7 @@ Section helpers_switcher_adequacy.
     iModIntro;iNext.
 
     iIntros (cstk Ws Cs regs a_stk e_stk)
-      "( Hcont & %Hfreq & [%Hcstk_ne %Htop_tbl] & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
+      "( Hcont & %Hfreq & (%Hcstk_ne & %Htop_tbl & _) & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hworld_interp & %Hcsp_sync & _ & Htframe & Hna)".
     (* The callee, whose export table is at [b_tbl], is the topmost

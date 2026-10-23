@@ -121,7 +121,7 @@ Section AllocatorSwitcherSpec.
       rewrite Hrmapdom /dom_arg_rmap /allocator_malloc_nargs /=.
       set_solver+. }
     iDestruct "Hres" as "[(Hid & Hca0 & Hca1) | Hres]".
-    - iApply ("Hpost" $! (lword_of_word (WInt ALLOC_NO_MEMORY))
+    - iApply ("Hpost" $! 0%Z (lword_of_word (WInt ALLOC_NO_MEMORY))
         (lword_of_word (WInt 0)) rmap_ret
         (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit; first (iPureIntro; exact Hdom_ret).
@@ -129,7 +129,7 @@ Section AllocatorSwitcherSpec.
       iFrame "Ha_owner". iLeft. iFrame "Hid". iPureIntro. auto.
     - iDestruct "Hres" as (ι b e)
         "(%Hbounds & %Hfresh & %Hfresh_Ω & Hca0 & Hca1 & #Hobj & Hheld & Hid & Hzero)".
-      iApply ("Hpost" $! (WCap true RW Global b e b @@ ι) (lword_of_word (WInt 0))
+      iApply ("Hpost" $! 0%Z (WCap true RW Global b e b @@ ι) (lword_of_word (WInt 0))
         rmap_ret (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
@@ -250,7 +250,7 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hct4" as (wct4_ret) "Hct4".
     iDestruct "Hctp" as (wctp_ret) "Hctp".
     iInsertList "Hframe" [ca2;ct0;ct1;ct2;ca3;ca4;ctp;cnull].
-    iApply ("Hpost" $! (lword_of_word (WInt ALLOC_OK)) (lword_of_word (WInt 0)) _
+    iApply ("Hpost" $! 0%Z (lword_of_word (WInt ALLOC_OK)) (lword_of_word (WInt 0)) _
       (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hframe Hstk Hcstk".
     rewrite /allocator_free_result. iFrame "Hq Hid Ha_owner".

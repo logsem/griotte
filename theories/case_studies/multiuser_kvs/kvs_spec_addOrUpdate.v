@@ -1373,7 +1373,7 @@ Section KVS_spec_addOrUpdate.
     iEval (cbn) in "HPC".
 
     iDestruct "Hres" as "[(Hca0 & Hkey) | (Hca0 & Hkey)]".
-    - iApply ("Hpost" $! (WInt ASM_TRUE) (WInt 0) rmap_ret
+    - iApply ("Hpost" $! 0%Z (WInt ASM_TRUE) (WInt 0) rmap_ret
                 (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit.
       { iPureIntro.
@@ -1385,7 +1385,7 @@ Section KVS_spec_addOrUpdate.
       iFrame.
       iFrame. iSplit; first done. iLeft.
       iSplit; first done. iFrame.
-    - iApply ("Hpost" $! (WInt ASM_FALSE) (WInt 0) rmap_ret
+    - iApply ("Hpost" $! 0%Z (WInt ASM_FALSE) (WInt 0) rmap_ret
                 (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit.
       { iPureIntro.

@@ -674,9 +674,10 @@ Section fundamental.
 
     (* Push the frame, whose table cell holds the unsealed entry, and close the
        switcher invariant *)
+    pose proof (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
+                  eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow) as Htbl_ok.
     pose proof (or_intror (A := (cf_tframe frame).(tf_export_tbl) = lword_of_word (WInt 0))
-                  (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl
-                     eq_refl Hbtbl_header ltac:(solve_addr) Htbl_shadow)) as Htbl_cell.
+                  Htbl_ok) as Htbl_cell.
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [] Hp_ot_switcher")
@@ -699,7 +700,7 @@ Section fundamental.
       - iExact "Htop". }
     iSplit.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
-    iSplit; first (iPureIntro; split; [done | reflexivity]).
+    iSplit; first (iPureIntro; split_and!; [done | reflexivity | reflexivity | exact Htbl_ok]).
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
     iPureIntro; split;
       [split; [split; [cbn; apply spill_cursor; by eexists | reflexivity] | solve_addr]

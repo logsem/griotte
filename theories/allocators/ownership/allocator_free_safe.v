@@ -117,7 +117,7 @@ Section Heap_Temporal_Safety_Interp.
       { (* The fault is outside the switcher's code: it is not resumed *)
         by apply trap_no_resume_cap. }
       { (* The allocator's table declares no handler *)
-        iRight. destruct Htop_tbl as [_ ->]. iExact "Hno_handler". }
+        iRight. destruct Htop_tbl as (_ & -> & _). iExact "Hno_handler". }
       { iModIntro. iFrame. }
       intros r. destruct (Hfull_rmap r) as [wr Hwr].
       rewrite !lookup_insert_is_Some' !lookup_delete_is_Some.

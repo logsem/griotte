@@ -242,6 +242,13 @@ Section Switcher_preamble.
     end
   .
 
+  (** [tf_export_tbl_ok tf]: the word [tf_export_tbl] of the frame [tf] is a
+      capability to an export table, at [tf_export_tbl_b tf], without
+      identifier: the switcher loads the table's header through it. *)
+  Definition tf_export_tbl_ok (tf : trusted_frame) : Prop :=
+    exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw) ∧
+    tf.(tf_export_tbl).(lprov) = None.
+
   (** [execute_entry_point] provides a WP rule matching the state of the machine
       after the execution of call-switcher.
 
@@ -282,8 +289,10 @@ Section Switcher_preamble.
        ( interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
          (* The switcher pushed a frame for the call of the compartment of the
-            export table at [b_tbl]. *)
-         ∗ ⌜cstk.(cstk_frames) ≠ [] ∧ top_export_tbl cstk = b_tbl⌝
+            export table at [b_tbl], with no fault yet and the unsealed entry
+            in its table cell. *)
+         ∗ ⌜cstk.(cstk_frames) ≠ [] ∧ top_export_tbl cstk = b_tbl ∧
+            top_error_count cstk = 0 ∧ tf_export_tbl_ok (top_tframe cstk)⌝
          ∗ PC ↦ₚ wpcc
          ∗ (execute_entry_point_register wcgp (WCap true RWL Local a_stk4 e_stk a_stk4) nargs W C regs)
          ∗ registers_pointsto regs
@@ -401,13 +410,6 @@ Section Switcher_preamble.
     iFrame "#∗%".
     iExists Local; iPureIntro; done.
   Qed.
-
-  (** [tf_export_tbl_ok tf]: the word [tf_export_tbl] of the frame [tf] is a
-      capability to an export table, at [tf_export_tbl_b tf], without
-      identifier: the switcher loads the table's header through it. *)
-  Definition tf_export_tbl_ok (tf : trusted_frame) : Prop :=
-    exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw) ∧
-    tf.(tf_export_tbl).(lprov) = None.
 
   (** The export table cell of a pushed frame, as the call path writes it:
       cleared, before the entry unseals... *)
