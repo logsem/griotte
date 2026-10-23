@@ -21,6 +21,7 @@ Section Error_Handling_Main_Blocks_2.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
+    {statslayout : statsLayout}
   .
 
   Lemma main_check_1_spec
@@ -95,11 +96,11 @@ Section Error_Handling_Main_Blocks_2.
   Qed.
 
   Lemma main_call_read_2_spec
-    (pc_b pc_e pc_a : Addr) (stats_read : Sealable)
+    (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wca0 wctp wct1 wcra : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
-    is_heap_cap (WSealed ot_switcher stats_read) = false ->
+    is_heap_cap (WSealed ot_switcher (STATS_read Global)) = false ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_arg_2")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
@@ -107,13 +108,13 @@ Section Error_Handling_Main_Blocks_2.
     ct1 ↦ᵣ wct1 ∗
     cra ↦ᵣ wcra ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
-    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher stats_read ∗
+    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
     codefrag_pers pc_a error_handling_main_code ∗
     ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ctp ↦ᵣ main_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher stats_read ∗
+        ct1 ↦ᵣ WSealed ot_switcher (STATS_read Global) ∗
         cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_read_2")%a ∗
         codefrag_pers pc_a error_handling_main_code

@@ -147,11 +147,71 @@ Section Stats.
   (** The index of the export [stats_read], in the order of the firmware. *)
   Definition stats_entry_read : nat := 0.
   Definition stats_read_exp_tbl_off : Z := ExportTable_offset_entry stats_entry_read.
-  (** The export of [stats_read], before its sealing by the switcher, for
-      the export table of [stats] at [[b_exp_tbl, e_exp_tbl)]. *)
-  Definition stats_read_export (b_exp_tbl e_exp_tbl : Addr) (g : Locality) : Sealable :=
-    SCap true RO g b_exp_tbl e_exp_tbl (b_exp_tbl ^+ stats_read_exp_tbl_off)%a.
+
+  (** [stats] exports [stats_read] only. *)
+  Definition stats_nb_exports : Z := 1.
+  Definition length_stats_exports_tbl : Z := ExportTable_offset_entries + stats_nb_exports.
+
+  (** The layout of [stats]: its PCC [[STATS_pcc_b, STATS_pcc_e)], with its
+      code at [STATS_pcc_b'], its globals [[STATS_cgp_b, STATS_cgp_e)], the
+      lock at [STATS_cgp_b], and its export table
+      [[b_stats_exp_tbl, e_stats_exp_tbl)]. *)
+  Class statsLayout : Type :=
+    mkStatsLayout {
+        STATS_pcc_b : Addr;
+        STATS_pcc_b' : Addr;
+        STATS_pcc_e : Addr;
+
+        STATS_cgp_b : Addr;
+        STATS_cgp_e : Addr;
+
+        b_stats_exp_tbl : Addr;
+        e_stats_exp_tbl : Addr;
+      }.
+
+  Class statsLayoutWf `{!statsLayout} : Type :=
+    mkStatsLayoutWf {
+        (* [stats] has no import: its code starts at the base of its PCC. *)
+        STATS_size_imports : (STATS_pcc_b + 0)%a = Some STATS_pcc_b';
+
+        STATS_size_code : (STATS_pcc_b' + length stats_code)%a = Some STATS_pcc_e;
+
+        STATS_size_data : (STATS_cgp_b + length stats_data)%a = Some STATS_cgp_e;
+
+        stats_exp_tbl_size : (b_stats_exp_tbl + length_stats_exports_tbl)%a = Some e_stats_exp_tbl;
+
+        STATS_cgp_disjoint_from_shadow : disjoint_from_shadow STATS_cgp_b STATS_cgp_e;
+        STATS_pcc_disjoint_from_shadow : disjoint_from_shadow STATS_pcc_b STATS_pcc_e;
+        stats_exp_tbl_disjoint_from_shadow : disjoint_from_shadow b_stats_exp_tbl e_stats_exp_tbl;
+        STATS_pcc_base_not_heap : is_heap_address STATS_pcc_b = false;
+        STATS_cgp_base_not_heap : is_heap_address STATS_cgp_b = false;
+        stats_export_base_not_heap : is_heap_address b_stats_exp_tbl = false
+      }.
+
+  Definition stats_read_pcc_addr {STATS : statsLayout} : Addr :=
+    (STATS_pcc_b ^+ stats_read_pcc_off)%a.
+  Definition stats_handler_pcc_addr {STATS : statsLayout} : Addr :=
+    (STATS_pcc_b ^+ stats_handler_pcc_off)%a.
+  Definition stats_read_exp_tbl_addr {STATS : statsLayout} : Addr :=
+    (b_stats_exp_tbl ^+ stats_read_exp_tbl_off)%a.
+  (** The export of [stats_read], before its sealing by the switcher. *)
+  Definition STATS_read {STATS : statsLayout} (g : Locality) : Sealable :=
+    SCap true RO g b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr.
+
+  (** The handler is inside the PCC of [stats]. *)
+  Lemma stats_handler_pcc_addr_in_pcc {STATS : statsLayout} {STATS_WF : statsLayoutWf} :
+    (STATS_pcc_b <= stats_handler_pcc_addr < STATS_pcc_e)%a.
+  Proof.
+    pose proof STATS_size_imports as Hsize_imports.
+    pose proof STATS_size_code as Hsize_code.
+    rewrite /stats_handler_pcc_addr stats_handler_pcc_off_eq.
+    cbn in Hsize_code |- *.
+    solve_addr.
+  Qed.
 End Stats.
+
+(* [statsLayout] has no parameter: it takes no [Hint Mode]. *)
+#[export] Hint Mode statsLayoutWf - + : typeclass_instances.
 
 (** ** [main] *)
 Section Main.
@@ -269,19 +329,18 @@ Section Main.
   #[local] Close Scope Z_scope.
   #[local] Coercion Z.of_nat : nat >-> Z.
 
-  Definition error_handling_main_imports `{!switcherLayout} `{!assertLayout}
-    (adv_f stats_read : Sealable) : list Word :=
+  Definition error_handling_main_imports `{!switcherLayout} `{!assertLayout} `{!statsLayout}
+    (adv_f : Sealable) : list Word :=
     [
       WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSentry Inherit true RX Global b_assert e_assert b_assert;
       WSealed ot_switcher adv_f;
-      WSealed ot_switcher stats_read
+      WSealed ot_switcher (STATS_read Global)
     ].
 
-  Definition length_error_handling_main_imports `{!switcherLayout} `{!assertLayout} :=
-    length
-      (error_handling_main_imports (SCap true RO Global za za za)
-         (SCap true RO Global za za za)).
+  Definition length_error_handling_main_imports `{!switcherLayout} `{!assertLayout}
+    `{!statsLayout} :=
+    length (error_handling_main_imports (SCap true RO Global za za za)).
 
   Definition error_handling_main_entry_nargs : nat := 0.
   (** The stack holds the spill of the switcher calls. *)
@@ -289,7 +348,8 @@ Section Main.
   (** The offset of the entry [.Lmain] from the start of the PCC. *)
   Definition error_handling_main_entry_pcc_off : nat :=
     Eval vm_compute in label_offset (concat error_handling_main_asm) ".Lmain".
-  Lemma error_handling_main_entry_pcc_off_eq `{!switcherLayout} `{!assertLayout} :
+  Lemma error_handling_main_entry_pcc_off_eq `{!switcherLayout} `{!assertLayout}
+    `{!statsLayout} :
     error_handling_main_entry_pcc_off = length_error_handling_main_imports.
   Proof. reflexivity. Qed.
 End Main.
