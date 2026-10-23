@@ -250,6 +250,10 @@ Section Switcher_error_handler.
     by rewrite -list_fmap_compose.
   Qed.
 
+  Lemma length_error_state_src (w : LWord) (rmap : LReg) :
+    length (error_state_src w rmap) = Z.to_nat ErrorState_size.
+  Proof. reflexivity. Qed.
+
   (** The [ErrorState] at the faulting cursor, with the words the switcher
       writes. *)
   Definition error_state_pointsto (w : LWord) (rfault : LReg) : iProp Σ :=
@@ -340,6 +344,36 @@ Section Switcher_error_handler.
     | _ => None
     end.
 
+  (** The stackful handler's [csp] and [a0], when the stores of the
+      [ErrorState] succeed: the stack pointer moved past the [ErrorState],
+      and the faulting one. *)
+  Lemma stackful_regs_lea (wcsp wct0 : LWord) :
+    lea_result wcsp ErrorState_size = Some wct0 →
+    error_state_stores_ok wcsp →
+    stackful_regs wcsp = Some (wct0, wcsp).
+  Proof.
+    destruct wcsp as [w π]. rewrite /lea_result /error_state_stores_ok /stackful_regs /=.
+    destruct_word w; cbn; try done.
+    intros [=<-] Hok. destruct t; last done.
+    destruct Hok as (_ & _ & Hend).
+    rewrite /ErrorState_size in Hend |- *.
+    destruct (a + 16)%a as [a'|] eqn:Ha; last solve_addr.
+    done.
+  Qed.
+
+  (** The stackful handler's [csp] and [a0] are safe when the faulting
+      [csp] is: [interp] does not read the cursor of a capability. *)
+  Lemma interp_stackful_regs (W : WORLD) (C : CmptName) (wcsp wcsp' wa0 : LWord) :
+    stackful_regs wcsp = Some (wcsp', wa0) →
+    interp W C wcsp -∗ interp W C wcsp' ∗ interp W C wa0.
+  Proof.
+    destruct wcsp as [w π]. rewrite /stackful_regs.
+    destruct_word w; try done.
+    destruct (a + ErrorState_size)%a as [a'|]; cbn; last done.
+    intros [= <- <-]. iIntros "#H". iSplit; last done.
+    by rewrite (interp_cap_cur_addr W C t c g b e a' a π).
+  Qed.
+
   (** The registers at the handler's first instruction. *)
   Definition handler_invocation_regs (kind : handler_kind) (cstk : CSTK) (wcgp : LWord)
     (rfault : LReg) (mcause mtval : Z) (regs : LReg) : Prop :=
@@ -373,7 +407,7 @@ Section Switcher_error_handler.
 
   (** The number of words of the [ErrorState] that the switcher writes
       before it invokes a handler of kind [kind]. *)
-  Definition error_state_written (kind : handler_kind) : nat :=
+  Definition error_state_size (kind : handler_kind) : nat :=
     match kind with Stackful => Z.to_nat ErrorState_size | Stackless => 0 end.
 
   (** What the handler receives of the slot, and what it gives back to the

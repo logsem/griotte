@@ -217,23 +217,6 @@ Section Switcher_Exception.
     destruct (Hfull r) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv).
   Qed.
 
-  Lemma length_error_state_src (w : LWord) (rmap : LReg) :
-    length (error_state_src w rmap) = Z.to_nat ErrorState_size.
-  Proof. reflexivity. Qed.
-
-  (** The stackful handler's [csp] and [a0] are safe when the faulting
-      [csp] is: [interp] does not read the cursor of a capability. *)
-  Lemma interp_stackful_regs (W : WORLD) (C : CmptName) (wcsp wcsp' wa0 : LWord) :
-    stackful_regs wcsp = Some (wcsp', wa0) →
-    interp W C wcsp -∗ interp W C wcsp' ∗ interp W C wa0.
-  Proof.
-    destruct wcsp as [w π]. rewrite /stackful_regs.
-    destruct_word w; try done.
-    destruct (a + ErrorState_size)%a as [a'|]; cbn; last done.
-    intros [= <- <-]. iIntros "#H". iSplit; last done.
-    by rewrite (interp_cap_cur_addr W C t c g b e a' a π).
-  Qed.
-
   (** The destination of the [ErrorState] stores for an untrusted topmost
       compartment: the world, through the safe faulting [csp]. *)
   Lemma untrusted_error_state_acc (W : WORLD) (C : CmptName) (cstk : CSTK) (w : LWord)

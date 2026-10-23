@@ -47,12 +47,6 @@ Section Switcher_Spec_Exception.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (* TODO: move to switcher_error_handler.v *)
-  (** The number of words of the [ErrorState] that the switcher writes
-      before it invokes a handler of kind [kind]. *)
-  Definition error_state_size (kind : handler_kind) : nat :=
-    match kind with Stackful => Z.to_nat ErrorState_size | Stackless => 0 end.
-
   (** The header of the export table of the topmost frame of [cstk]: its
       handler offsets, and its PCC and CGP when a handler may be invoked. *)
   Definition handler_header (cstk : CSTK) : iProp Σ :=
@@ -451,24 +445,6 @@ Section Switcher_Spec_Exception.
       as "Hrmap".
     iApply ("Hnested" with "[//] [] Hrmap Hcstk Hwritten Hna").
     iPureIntro. by apply regs_rebuild_full.
-  Qed.
-
-  (* TODO: move to switcher_error_handler.v *)
-  (** The stackful handler's [csp] and [a0], when the stores of the
-      [ErrorState] succeed: the stack pointer moved past the [ErrorState],
-      and the faulting one. *)
-  Lemma stackful_regs_lea (wcsp wct0 : LWord) :
-    lea_result wcsp ErrorState_size = Some wct0 →
-    error_state_stores_ok wcsp →
-    stackful_regs wcsp = Some (wct0, wcsp).
-  Proof.
-    destruct wcsp as [w π]. rewrite /lea_result /error_state_stores_ok /stackful_regs /=.
-    destruct_word w; cbn; try done.
-    intros [=<-] Hok. destruct t; last done.
-    destruct Hok as (_ & _ & Hend).
-    rewrite /ErrorState_size in Hend |- *.
-    destruct (a + 16)%a as [a'|] eqn:Ha; last solve_addr.
-    done.
   Qed.
 
   (** The words of the [ErrorState] in the register save area after the
