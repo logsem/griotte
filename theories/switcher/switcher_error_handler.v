@@ -1,5 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import logrel memory_region rules proofmode.
+From griotte Require Import logrel interp_weakening memory_region rules proofmode.
+From griotte Require Import map_simpl register_tactics.
 From griotte Require Export switcher_preamble.
 
 (** * Error handlers
@@ -471,9 +472,17 @@ Section Switcher_error_handler.
     match kind with Stackful => Z.to_nat ErrorState_size | Stackless => 0 end.
 
   (** What the handler receives of the slot, and what it gives back to the
-      unwind continuation. *)
+      unwind continuation. A stackful handler receives the written
+      [ErrorState], with the two facts of the site on the faulting [csp]:
+      no identifier, and the slot outside the shadow table. *)
   Definition handler_slot (kind : handler_kind) (w : LWord) (rfault : LReg) : iProp Σ :=
-    match kind with Stackful => error_state_pointsto w rfault | Stackless => True end.
+    match kind with
+    | Stackful =>
+        ⌜(rfault !!! csp).(lprov) = None⌝ ∗
+        ⌜error_state_shadow_free (rfault !!! csp)⌝ ∗
+        error_state_pointsto w rfault
+    | Stackless => True
+    end.
   Definition handler_unwind_res (kind : handler_kind) (rfault : LReg) : iProp Σ :=
     match kind with Stackful => error_state_area rfault | Stackless => True end.
 
@@ -483,8 +492,9 @@ Section Switcher_error_handler.
       PCC [wpcc] of the table at [b_tbl] (CGP [wcgp]), for its fault
       obligation [P_fault]: for every call stack [cstk] (the faulting one,
       count even), faulting PC [w] and registers [rfault], the handler runs
-      safely from the invocation state. It does not mention the trap
-      vector. *)
+      safely from the invocation state, with the slot and, as it chooses,
+      the site's unwind continuation or [P_fault]. It does not mention the
+      trap vector. *)
   Definition execute_error_handler (b_tbl : Addr) (wpcc wcgp : LWord) (off : Z)
     (kind : handler_kind) (P_fault : CSTK → LWord → LReg → iProp Σ) : iProp Σ :=
     □ ∀ (cstk : CSTK) (w : LWord) (rfault : LReg) (mcause mtval : Z) (wpc : LWord) (regs : LReg),
@@ -495,9 +505,8 @@ Section Switcher_error_handler.
           ⌜handler_invocation_regs kind cstk wcgp rfault mcause mtval regs⌝ -∗
           PC ↦ₚ wpc -∗
           registers_pointsto regs -∗
-          P_fault cstk w rfault -∗
           handler_slot kind w rfault -∗
-          unwind_cont ⊤ cstk (handler_unwind_res kind rfault) -∗
+          (unwind_cont ⊤ cstk (handler_unwind_res kind rfault) ∧ P_fault cstk w rfault) -∗
           cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
           na_own cerise_nais ⊤ -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ).
@@ -524,6 +533,180 @@ Section Switcher_error_handler.
     Persistent (trusted_handler b_tbl P_fault).
   Proof. rewrite /trusted_handler. apply _. Qed.
 
+  (** ** Context installation *)
+
+  (** The PC that InstallContext resumes: the PCC [wpcc] of the topmost
+      table with its address set to [a], as the switcher computes it
+      ([csetaddr] as a [Lea] by the difference). *)
+  Definition resumed_pc (wpcc : LWord) (a : Z) : LWord :=
+    default wpcc (lea_result wpcc (a - get_a wpcc.(lw))).
+
+  (** The registers after InstallContext: the 15 words [ls] of the
+      [ErrorState] (registers x1 to x15), the other registers of [rmap]. *)
+  Definition error_state_install (rmap : LReg) (ls : list LWord) : LReg :=
+    list_to_map (zip error_state_regs ls) ∪ rmap.
+
+  (** The resumption of a context that InstallContext installs, at the PC
+      [wpc] with the registers [regs]: the continuation of a trusted fault
+      site, which it packs in its [P_fault]. *)
+  Definition context_resume (cstk : CSTK) (wpc : LWord) (regs : LReg) : iProp Σ :=
+    (⌜∀ r, is_Some (regs !! r)⌝ -∗
+     PC ↦ₚ wpc -∗
+     registers_pointsto regs -∗
+     cstack_frag cstk -∗
+     na_own cerise_nais ⊤ -∗
+     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+
+  (** Setting the address of a safe word keeps it safe: a capability or a
+      sealing range with its cursor moved, or untagged by an overflow, an
+      integer, or an untagged word. *)
+  Lemma interp_resumed_pc (W : WORLD) (C : CmptName) (wpcc : LWord) (a : Z) :
+    interp W C wpcc -∗ interp W C (resumed_pc wpcc a).
+  Proof.
+    iIntros "#H". destruct wpcc as [w π].
+    rewrite /resumed_pc /lea_result /=.
+    destruct w as [n | [t p g b e a0 | t p g b e a0] | k t p g b e a0 | ot sb]; cbn.
+    - iApply interp_int.
+    - destruct (a0 + (a - a0))%a as [a'|]; cbn.
+      + by rewrite (interp_cap_cur_addr W C t p g b e a' a0 π).
+      + by iApply interp_untagged.
+    - destruct (a0 + (a - a0))%ot as [a'|]; cbn.
+      + iApply (interp_weakening_ot with "H"); try solve_finz.
+        * apply SealPermFlowsToReflexive.
+        * apply LocalityFlowsToReflexive.
+      + by iApply interp_untagged.
+    - iApply interp_clear_tag.
+    - iApply interp_clear_tag.
+  Qed.
+
+  (** Writing a safe word to MEPCC keeps it safe: the same word, or the
+      word untagged. *)
+  Lemma interp_llegalise_mepcc (W : WORLD) (C : CmptName) (w : LWord) :
+    interp W C w -∗ interp W C (llegalise MEPCC w).
+  Proof.
+    iIntros "#H". destruct w as [w π].
+    rewrite /llegalise /lift_word /legalise /legalise_pc /=.
+    destruct (is_sealb w && executable_word w); first done.
+    iApply (interp_clear_tag W C (MkLWord w π)).
+  Qed.
+
+  (** Installing the [ErrorState]'s registers keeps a full register map
+      full. *)
+  Lemma error_state_install_full (rmap : LReg) (ls : list LWord) :
+    (∀ r, is_Some (rmap !! r)) →
+    ∀ r, is_Some (error_state_install rmap ls !! r).
+  Proof.
+    intros Hfull r. rewrite /error_state_install lookup_union_is_Some. right. apply Hfull.
+  Qed.
+
+  (** The registers after InstallContext, from the other registers of
+      [rmap] and the 15 registers of the [ErrorState]. *)
+  Lemma error_state_install_pointsto (rmap : LReg)
+    (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
+    ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
+       (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) -∗
+    cra ↦ᵣ wcra -∗
+    csp ↦ᵣ wcsp -∗
+    cgp ↦ᵣ wcgp -∗
+    ctp ↦ᵣ wctp -∗
+    ct0 ↦ᵣ wct0 -∗
+    ct1 ↦ᵣ wct1 -∗
+    ct2 ↦ᵣ wct2 -∗
+    cs0 ↦ᵣ wcs0 -∗
+    cs1 ↦ᵣ wcs1 -∗
+    ca0 ↦ᵣ wca0 -∗
+    ca1 ↦ᵣ wca1 -∗
+    ca2 ↦ᵣ wca2 -∗
+    ca3 ↦ᵣ wca3 -∗
+    ca4 ↦ᵣ wca4 -∗
+    ca5 ↦ᵣ wca5 -∗
+    registers_pointsto (error_state_install rmap
+      [wcra; wcsp; wcgp; wctp; wct0; wct1; wct2; wcs0; wcs1; wca0; wca1; wca2; wca3; wca4; wca5]).
+  Proof.
+    iIntros "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5".
+    iInsertList "Hrmap" [ca5;ca4;ca3;ca2;ca1;ca0;cs1;cs0;ct2;ct1;ct0;ctp;cgp;csp;cra].
+    rewrite /registers_pointsto /error_state_install /=.
+    rewrite -!insert_union_l (left_id_L ∅ (∪)). iFrame.
+  Qed.
+
+  (** ** The topmost frame of the call stack *)
+
+  (** The stack of the caller of the topmost pushed frame, from the cursor
+      of the frame's stack pointer: the switcher's spill area is below the
+      cursor. *)
+  Definition top_frame_stack_ok (cstk : CSTK) : Prop :=
+    cstk.(cstk_frames) ≠ [] →
+    ∃ b_stk e_stk a_stk : Addr,
+      (top_tframe cstk).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a) ∧
+      (b_stk <= a_stk)%a ∧
+      is_Some (a_stk + 4)%a.
+
+  (** The stack pointer of the topmost pushed frame is a capability whose
+      cursor is in its bounds. *)
+  Lemma cstack_interp_top_csp (cstk : CSTK) (a_tstk : Addr) :
+    cstack_interp cstk a_tstk -∗
+    ⌜cstk.(cstk_frames) ≠ [] →
+     ∃ (p : Perm) (g : Locality) (b e a : Addr),
+       (top_tframe cstk).(tf_csp) = lword_of_word (WCap true p g b e a) ∧
+       (b <= a)%a ∧ (a <= e)%a ∧
+       disjoint_from_heap b e⌝.
+  Proof.
+    destruct cstk as [ef [|frm frms] ]; first by iIntros "_ %".
+    rewrite /cstack_interp /=.
+    iIntros "[_ Hcf]". iNamed "Hcf". iDestruct "Hcf" as (b_stk e_stk a_stk) "Hcf". iNamed "Hcf".
+    destruct Hcf_csp as (Hcsp & Hba & Hae & [a4 Ha4] & _ & Hheap & _).
+    iPureIntro. intros _. rewrite /top_tframe /= Hcsp.
+    eexists _, _, b_stk, e_stk, (a_stk ^+ 4)%a. split_and!; [done | solve_addr.. | done].
+  Qed.
+
+  (** The stack of the caller of the topmost pushed frame. *)
+  Lemma cstack_interp_top_stack (cstk : CSTK) (a_tstk : Addr) :
+    cstack_interp cstk a_tstk -∗
+    ⌜top_frame_stack_ok cstk⌝.
+  Proof.
+    destruct cstk as [ef [|frm frms] ]; first by iIntros "_ %".
+    rewrite /cstack_interp /=.
+    iIntros "[_ Hcf]". iNamed "Hcf". iDestruct "Hcf" as (b_stk e_stk a_stk) "Hcf". iNamed "Hcf".
+    destruct Hcf_csp as (Hcsp & Hba & _ & Ha4 & _).
+    iPureIntro. intros _. rewrite /top_tframe /= Hcsp.
+    by exists b_stk, e_stk, a_stk.
+  Qed.
+
+  (** The cells of a frame of the trusted stack: the cell of the export
+      table, of any fraction, is cleared or holds a capability to the table,
+      without identifier. *)
+  Lemma trusted_frame_interp_open (entry : bool) (tf : trusted_frame) (a_tstk : Addr) :
+    trusted_frame_interp entry tf a_tstk -∗
+    ∃ (wcell : LWord) (dq : dfrac),
+      (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) ∗
+      (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} wcell ∗
+      (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt tf.(tf_error_count) ∗
+      ⌜wcell = lword_of_word (WInt 0) ∨
+       (wcell = tf.(tf_export_tbl) ∧
+        exp_tbl_cap (tf_export_tbl_b tf) wcell.(lw) ∧ wcell.(lprov) = None)⌝ ∗
+      (∀ n : Z,
+         (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) -∗
+         (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} wcell -∗
+         (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt n -∗
+         trusted_frame_interp entry (tf_set_count tf n) a_tstk).
+  Proof.
+    rewrite /trusted_frame_interp.
+    iIntros "Htf". iNamed "Htf".
+    destruct entry.
+    - iDestruct "Htf_tbl" as "[#Htbl %Hok]".
+      iExists _, DfracDiscarded. iFrame "Htf_csp Htbl Htf_cnt".
+      iSplit; first (iPureIntro; right; split; [done | exact Hok]).
+      iIntros (n) "Hcsp _ Hcnt". iFrame "Hcsp Hcnt". iPureIntro. exact Hok.
+    - iDestruct "Htf_tbl" as (w) "[Htbl %Hw]".
+      iExists w, (DfracOwn 1). iFrame "Htf_csp Htbl Htf_cnt".
+      iSplit.
+      { iPureIntro.
+        destruct Hw as [-> | [-> Hok] ]; [by left | right; split; [done | exact Hok] ]. }
+      iIntros (n) "Hcsp Htbl Hcnt". iFrame "Hcsp Hcnt". iExists w. iFrame "Htbl".
+      iPureIntro. exact Hw.
+  Qed.
+
   (** ** Faults that the switcher handles *)
 
   (** A fault at a PC of the switcher. *)
@@ -539,8 +722,10 @@ Section Switcher_error_handler.
       - a fault in the switcher, or in a compartment whose table declares no
         handler;
       - a fault in a trusted compartment whose table declares trusted
-        handlers for some [P_fault]: the site proves [P_fault] and lends the
-        slot ([F = ⊤]: the handler runs with the whole token);
+        handlers for some [P_fault]: the site lends the slot, and proves
+        both its unwind continuation and [P_fault], from the same resources
+        (the handler uses one of them; [F = ⊤]: the handler runs with the
+        whole token);
       - a fault in a running trusted handler (the top count is odd), with
         the handler words of the header of its table.
       Each case gives the site's unwind continuation. *)
@@ -553,9 +738,8 @@ Section Switcher_error_handler.
        ∃ (P_fault : CSTK → LWord → LReg → iProp Σ) (eh : Z),
          trusted_handler (top_export_tbl cstk) P_fault ∗
          top_export_tbl cstk ↦ₕ□{stackful} eh ∗
-         P_fault cstk w regs ∗
          error_state_slot eh regs ∗
-         unwind_cont ⊤ cstk (error_state_slot eh regs))
+         (unwind_cont ⊤ cstk (error_state_slot eh regs) ∧ P_fault cstk w regs))
     ∨ (unwind_cont F cstk True ∗
        ⌜Z.odd (top_error_count cstk) = true⌝ ∗
        ∃ eh ehs : Z,
@@ -594,14 +778,13 @@ Section Switcher_error_handler.
     trap_no_resume w →
     trusted_handler (top_export_tbl cstk) P_fault -∗
     top_export_tbl cstk ↦ₕ□{stackful} eh -∗
-    P_fault cstk w regs -∗
     error_state_slot eh regs -∗
-    unwind_cont ⊤ cstk (error_state_slot eh regs) -∗
+    (unwind_cont ⊤ cstk (error_state_slot eh regs) ∧ P_fault cstk w regs) -∗
     trap_handler_ok ⊤ cstk w regs.
   Proof.
-    rewrite trap_handler_ok_unseal. iIntros (Hno) "Hh Heh HP Hslot HU".
+    rewrite trap_handler_ok_unseal. iIntros (Hno) "Hh Heh Hslot HUP".
     iSplit; first done. iRight; iLeft. iSplit; first done.
-    iExists P_fault, eh. iFrame "Hh Heh HP Hslot HU".
+    iExists P_fault, eh. iFrame "Hh Heh Hslot HUP".
   Qed.
 
   (** A fault in a running trusted handler. *)
@@ -627,9 +810,8 @@ Section Switcher_error_handler.
        ∃ (P_fault : CSTK → LWord → LReg → iProp Σ) (eh : Z),
          trusted_handler (top_export_tbl cstk) P_fault ∗
          top_export_tbl cstk ↦ₕ□{stackful} eh ∗
-         P_fault cstk w regs ∗
          error_state_slot eh regs ∗
-         unwind_cont ⊤ cstk (error_state_slot eh regs))
+         (unwind_cont ⊤ cstk (error_state_slot eh regs) ∧ P_fault cstk w regs))
     ∨ (unwind_cont F cstk True ∗
        ⌜Z.odd (top_error_count cstk) = true⌝ ∗
        ∃ eh ehs : Z,

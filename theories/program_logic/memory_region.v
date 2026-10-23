@@ -1,7 +1,7 @@
 From griotte Require Export stdpp_extra griotte_lang rules_base.
 From iris.proofmode Require Import proofmode.
 From machine_utils Require Import finz_interval.
-From griotte Require Import alloc_registry.
+From griotte Require Import alloc_registry rules_Load.
 (* From griotte Require Import addr_reg. (* Required because of a weird Coq bug related to imports *) *)
 
 Section region.
@@ -548,3 +548,79 @@ Section cells_store.
   Qed.
 
 End cells_store.
+
+Section cells_load.
+  Context {Σ:gFunctors} {ceriseg:ceriseG Σ} `{MP: MachineParameters}.
+
+  (** The loads of [n] cells from [a] through a capability of permission
+      [p], end [e] and identifier [π]. [L i ls] holds once the first [i]
+      cells are loaded, [ls] the loaded words. Each load of a cell below
+      [e] gets cell [i], outside the shadow table, with a status witness
+      and a dereference witness of [π], and gives it back with the loaded
+      word. *)
+  Definition cells_load_acc (L : nat → list LWord → iProp Σ) (p : Perm) (e a : Addr)
+    (π : option AId) (n : nat) : iProp Σ :=
+    □ ∀ (i : nat) (ls : list LWord),
+      ⌜(i < n)%nat⌝ -∗
+      ⌜(a + i < e)%Z⌝ -∗
+      L i ls
+      ={⊤}=∗
+      ∃ (v : LWord) (dq : dfrac) (wit : load_witness) (dw : deref_witness),
+        ⌜is_shadow_address (a ^+ i)%a = false⌝ ∗
+        ⌜π = deref_id dw⌝ ∗
+        (a ^+ i)%a ↦ₐ{dq} v ∗
+        load_witness_res wit ∗
+        deref_witness_res dw ∗
+        ▷ (∀ v' : LWord,
+             ⌜load_post wit p v v'⌝ -∗
+             (a ^+ i)%a ↦ₐ{dq} v -∗
+             load_witness_res wit -∗
+             deref_witness_res dw
+             ={⊤}=∗
+             L (S i) (ls ++ [v'])).
+
+  #[global] Instance cells_load_acc_persistent L p e a π n :
+    Persistent (cells_load_acc L p e a π n).
+  Proof. apply _. Qed.
+
+  (** The loads of [S n] cells from [a], once the first is loaded as [w]:
+      those of [n] cells from [a ^+ 1]. *)
+  Lemma cells_load_acc_tail (L : nat → list LWord → iProp Σ) (p : Perm) (e a : Addr)
+    (π : option AId) (n : nat) (w : LWord) :
+    cells_load_acc L p e a π (S n) -∗
+    cells_load_acc (λ i ls, L (S i) (w :: ls)) p e (a ^+ 1)%a π n.
+  Proof.
+    iIntros "#Hacc !>" (i ls Hi Hie) "HL".
+    rewrite (_ : ((a ^+ 1) ^+ i)%a = (a ^+ S i)%a); last solve_addr.
+    iApply ("Hacc" $! (S i) (w :: ls) with "[%] [%] HL"); [lia | solve_addr].
+  Qed.
+
+  (** The loads of the cells of an owned region outside the shadow table,
+      through a capability of permission [p] without identifier: once [i]
+      words are loaded, they are the first [i] words of the region, as
+      loaded through [p]. *)
+  Lemma region_cells_load_acc (p : Perm) (e a a' : Addr) (ws : list LWord) :
+    (a + length ws)%a = Some a' →
+    disjoint_from_shadow a a' →
+    ⊢ cells_load_acc
+        (λ i ls, [[ a , a' ]] ↦ₐ [[ ws ]] ∗ ⌜ls = take i (lload_word p <$> ws)⌝)%I
+        p e a None (length ws).
+  Proof.
+    iIntros (Ha' Hshadow).
+    iIntros "!>" (i ls Hi Hie) "[Hws ->]".
+    destruct (lookup_lt_is_Some_2 ws i Hi) as [v Hv].
+    iEval (rewrite (region_pointsto_cells a a' ws Ha')) in "Hws".
+    iDestruct (big_sepL_lookup_acc with "Hws") as "[Ha Hclose]"; first exact Hv.
+    iModIntro. iExists v, (DfracOwn 1), LoadPlain, DerefNoId.
+    iFrame "Ha". iSplit.
+    { iPureIntro. eapply disjoint_from_shadow_not_in; first exact Hshadow.
+      apply withinBounds_true_iff. solve_addr. }
+    iSplit; first done. iSplitR; first done. iSplitR; first done.
+    iIntros "!>" (v' (_ & _ & _ & ->)) "Ha _ _ !>".
+    iDestruct ("Hclose" with "Ha") as "Hws".
+    rewrite (region_pointsto_cells a a' ws Ha'). iFrame "Hws". iPureIntro.
+    rewrite (take_S_r _ _ (lload_word p v)); first done.
+    by rewrite list_lookup_fmap Hv.
+  Qed.
+
+End cells_load.

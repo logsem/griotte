@@ -623,11 +623,64 @@ Section Switcher.
         csrci mstatus (Z.shiftl 1 MIE_BIT);
         jnz (".Lcommon_force_unwind")%asm ca0
       ]
-      ; (* The installation of the context of the handler is not supported
-           yet: force the unwind. *)
-      [ #".Lhandle_error_install_context";
-        jmp (".Lcommon_force_unwind")%asm
-      ]
+      ; (* Install the context of the handler: the [ErrorState] below the
+           handler's stack pointer (mirrored for upward-growing stacks:
+           CHERIoT reads it above [csp]). The PC is the PCC of the export
+           table of the topmost frame, with the address of the [ErrorState]'s
+           PC. The 15 registers are copied back to the register save area,
+           the count of the topmost frame is incremented again, and the
+           context is installed. *)
+      ([ #".Lhandle_error_install_context";
+         (* cspecialr ct1, mtdc *)
+         readsr ct1 mtdc;
+         (* clhu tp, TrustedStack_offset_frameoffset(ct1) *)
+         load_imm ctp ct1 TrustedStack_offset_frameoffset;
+         (* addi tp, tp, -TrustedStackFrame_size *)
+         add ctp ctp (- TrustedStackFrame_size)%Z;
+         (* cincoffset ctp, ct1, tp *)
+         mov ct0 ctp;
+         mov ctp ct1;
+         lea ctp ct0;
+         (* clc ct0, TrustedStackFrame_offset_calleeExportTable(ctp) *)
+         load_imm ct0 ctp TrustedStackFrame_offset_calleeExportTable;
+         (* cgetbase s0, ct0 *)
+         getb cs0 ct0;
+         (* csetaddr ct0, ct0, s0 *)
+         geta ct2 ct0;
+         sub ct2 cs0 ct2;
+         lea ct0 ct2;
+         (* clc ct0, ExportTable_offset_pcc(ct0) *)
+         load_imm ct0 ct0 ExportTable_offset_pcc;
+         (* clc cra, TrustedStack_offset_mepcc(csp): mirrored, the
+            [ErrorState] is below [csp] *)
+         load_imm cra csp (TrustedStack_offset_mepcc - ErrorState_size)%Z;
+         (* cgetaddr ra, cra *)
+         geta cra cra;
+         (* csetaddr ct2, ct0, ra *)
+         mov ct2 ct0;
+         geta cs0 ct2;
+         sub cs0 cra cs0;
+         lea ct2 cs0;
+         (* cincoffset ca2, csp, TrustedStack_offset_cra: mirrored *)
+         mov ca2 csp;
+         lea ca2 (TrustedStack_offset_cra - ErrorState_size)%Z;
+         (* cincoffset ca3, ct1, TrustedStack_offset_cra *)
+         mov ca3 ct1;
+         lea ca3 TrustedStack_offset_cra
+       ] ++
+       (* copyContext ca3, ca2, cs1, a4 *)
+       copy_context_asm ca3 ca2 cs1 ca4 ++
+       [ (* clh s1, TrustedStackFrame_offset_errorHandlerCount(ctp) *)
+         load_imm cs1 ctp TrustedStackFrame_offset_errorHandlerCount;
+         (* addi s1, s1, 1 *)
+         add cs1 cs1 1;
+         (* csh s1, TrustedStackFrame_offset_errorHandlerCount(ctp) *)
+         store_imm ctp cs1 TrustedStackFrame_offset_errorHandlerCount;
+         (* cmove csp, ct1 *)
+         mov csp ct1;
+         (* j .Lcommon_context_install *)
+         jmp (".Lcommon_context_install")%asm
+       ])
       ; (* A fault of the switcher. A fault of the first spill of the call
            path (the callee-save registers do not fit on the caller's stack)
            resumes the caller as if the call had returned [-ENOTENOUGHSTACK]:
