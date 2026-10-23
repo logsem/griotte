@@ -387,10 +387,10 @@ Section opsem.
     | Mov dst ρ =>
       tomov ← word_of_argument (reg φ) ρ;
       φ .[dst :=ᵣ tomov] |> nextPC
-    | Lea dst ρ =>
+    | Lea dst src ρ =>
       n ← z_of_argument (reg φ) ρ;
-      wdst ← (reg φ) !!ᵣ dst;
-      match wdst with
+      wsrc ← (reg φ) !!ᵣ src;
+      match wsrc with
       | WCap t p g b e a =>
           match (a + n)%a with
           | Some a' => φ .[dst :=ᵣ WCap t p g b e a'] |> nextPC
@@ -403,7 +403,7 @@ Section opsem.
           end
       | WInt z => φ .[dst :=ᵣ WInt (z + n)%Z] |> nextPC
       (* A sealed word or a sentry loses its tag; its address is unchanged. *)
-      | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
+      | _ => φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
       end
     | SetA dst src ρ =>
       n ← z_of_argument (reg φ) ρ;
@@ -423,10 +423,10 @@ Section opsem.
       (* A sealed word or a sentry loses its tag; its address is unchanged. *)
       | _ => φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
       end
-    | Restrict dst ρ =>
+    | Restrict dst src ρ =>
       n ← z_of_argument (reg φ) ρ ;
-      wdst ← (reg φ) !!ᵣ dst;
-      match wdst with
+      wsrc ← (reg φ) !!ᵣ src;
+      match wsrc with
       | WCap t p g b e a =>
           let (p',g') := decodePermPair n in
           let new_tag := t && PermFlowsTo p' p && LocalityFlowsTo g' g in
@@ -437,7 +437,7 @@ Section opsem.
           φ .[dst :=ᵣ WSealRange new_tag p' g' b e a] |> nextPC
       (* An integer is unchanged; a sealed word or a sentry loses its tag,
          its permissions unchanged. *)
-      | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
+      | _ => φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
       end
     | machine_instructions.Add dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
@@ -475,9 +475,9 @@ Section opsem.
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
     φ .[dst :=ᵣ WInt (Z.b2z (Z.leb n1 n2))] |> nextPC
-  | Subseg dst ρ1 ρ2 =>
-    wdst ← (reg φ) !!ᵣ dst;
-    match wdst with
+  | Subseg dst src ρ1 ρ2 =>
+    wsrc ← (reg φ) !!ᵣ src;
+    match wsrc with
     | WCap t p g b e a =>
       n1 ← z_of_argument (reg φ) ρ1;
       n2 ← z_of_argument (reg φ) ρ2;
@@ -498,7 +498,7 @@ Section opsem.
       end
     (* An integer is unchanged; a sealed word or a sentry loses its tag, its
        bounds unchanged. *)
-    | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
+    | _ => φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
     end
   | GetA dst r =>
     wr ← (reg φ) !!ᵣ r;

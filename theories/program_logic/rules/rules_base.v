@@ -909,7 +909,7 @@ Definition regs_of_argument (arg: Z + RegName): gset RegName :=
 
 Definition regs_of (i: instr): gset RegName :=
   match i with
-  | Lea r1 arg => {[ r1 ]} ∪ regs_of_argument arg
+  | Lea dst src arg => {[ dst; src ]} ∪ regs_of_argument arg
   | SetA dst src arg => {[ dst; src ]} ∪ regs_of_argument arg
   | GetP r1 r2 => {[ r1; r2 ]}
   | GetB r1 r2 => {[ r1; r2 ]}
@@ -930,8 +930,8 @@ Definition regs_of (i: instr): gset RegName :=
   | Lt r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Le r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Mov r arg => {[ r ]} ∪ regs_of_argument arg
-  | Restrict r1 arg => {[ r1 ]} ∪ regs_of_argument arg
-  | Subseg r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
+  | Restrict dst src arg => {[ dst; src ]} ∪ regs_of_argument arg
+  | Subseg dst src arg1 arg2 => {[ dst; src ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | CLoad r1 r2 _ => {[ r1; r2 ]}
   | Store r1 arg _ => {[ r1 ]} ∪ regs_of_argument arg
   | Jeq off r1 r2 | Jne off r1 r2 | Jlt off r1 r2 | Jle off r1 r2 =>

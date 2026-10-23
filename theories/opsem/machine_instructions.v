@@ -21,11 +21,15 @@ Inductive instr: Type :=
 | LOr (dst: RegName) (r1 r2: Z + RegName)
 | LShiftL (dst: RegName) (r1 r2: Z + RegName)
 | LShiftR (dst: RegName) (r1 r2: Z + RegName)
-| Lea (dst: RegName) (r: Z + RegName)
+(* The word of [src] with its address offset by [off], written to [dst]. *)
+| Lea (dst src : RegName) (off : Z + RegName)
 (* The word of [src] with its address set to [addr], written to [dst]. *)
 | SetA (dst src : RegName) (addr : Z + RegName)
-| Restrict (dst: RegName) (r: Z + RegName)
-| Subseg (dst: RegName) (r1 r2: Z + RegName)
+(* The word of [src] with its permissions restricted to [perm], written to
+   [dst]. *)
+| Restrict (dst src : RegName) (perm : Z + RegName)
+(* The word of [src] with its bounds set to [b] and [e], written to [dst]. *)
+| Subseg (dst src : RegName) (b e : Z + RegName)
 | GetB (dst r: RegName)
 | GetE (dst r: RegName)
 | GetA (dst r: RegName)
@@ -66,9 +70,9 @@ Proof.
       | Lt dst r1 r2 => GenNode 5 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | Add dst r1 r2 => GenNode 6 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | Sub dst r1 r2 => GenNode 7 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | Lea dst r => GenNode 8 [GenLeaf (inl (inl dst)); GenLeaf (inr r)]
-      | Restrict dst r => GenNode 9 [GenLeaf (inl (inl dst)); GenLeaf (inr r)]
-      | Subseg dst r1 r2 => GenNode 10 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Lea dst src r => GenNode 8 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr r)]
+      | Restrict dst src r => GenNode 9 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr r)]
+      | Subseg dst src r1 r2 => GenNode 10 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | GetB dst r => GenNode 11 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
       | GetE dst r => GenNode 12 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
       | GetA dst r => GenNode 13 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
@@ -111,9 +115,9 @@ Proof.
       | GenNode 5 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Lt dst r1 r2
       | GenNode 6 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Add dst r1 r2
       | GenNode 7 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Sub dst r1 r2
-      | GenNode 8 [GenLeaf (inl (inl dst)); GenLeaf (inr r)] => Lea dst r
-      | GenNode 9 [GenLeaf (inl (inl dst)); GenLeaf (inr r)] => Restrict dst r
-      | GenNode 10 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Subseg dst r1 r2
+      | GenNode 8 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr r)] => Lea dst src r
+      | GenNode 9 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr r)] => Restrict dst src r
+      | GenNode 10 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr r1); GenLeaf (inr r2)] => Subseg dst src r1 r2
       | GenNode 11 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetB dst r
       | GenNode 12 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetE dst r
       | GenNode 13 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetA dst r

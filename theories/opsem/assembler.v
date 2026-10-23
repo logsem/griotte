@@ -87,10 +87,10 @@ Module Asm_Griotte.
   | LOr (dst: RegName) (r1 r2: asm_arg)
   | LShiftL (dst: RegName) (r1 r2: asm_arg)
   | LShiftR (dst: RegName) (r1 r2: asm_arg)
-  | Lea (dst: RegName) (r: asm_arg)
+  | Lea (dst src : RegName) (off : asm_arg)
   | SetA (dst src : RegName) (addr : asm_arg)
-  | Restrict (dst: RegName) (r: asm_arg)
-  | Subseg (dst: RegName) (r1 r2: asm_arg)
+  | Restrict (dst src : RegName) (perm : asm_arg)
+  | Subseg (dst src : RegName) (b e : asm_arg)
   | GetB (dst r: RegName)
   | GetE (dst r: RegName)
   | GetA (dst r: RegName)
@@ -346,19 +346,19 @@ Module Asm_Griotte.
         w1 ← assemble_arg r1 env n;
         w2 ← assemble_arg r2 env n;
         Ok (machine_instructions.LShiftR dst w1 w2)
-    | Lea dst r =>
+    | Lea dst src r =>
         w ← assemble_arg r env n;
-        Ok (machine_instructions.Lea dst w)
+        Ok (machine_instructions.Lea dst src w)
     | SetA dst src addr =>
         w ← assemble_arg addr env n;
         Ok (machine_instructions.SetA dst src w)
-    | Restrict dst r =>
+    | Restrict dst src r =>
         w ← assemble_arg r env n;
-        Ok (machine_instructions.Restrict dst w)
-    | Subseg dst r1 r2 =>
+        Ok (machine_instructions.Restrict dst src w)
+    | Subseg dst src r1 r2 =>
         w1 ← assemble_arg r1 env n;
         w2 ← assemble_arg r2 env n;
-        Ok (machine_instructions.Subseg dst w1 w2)
+        Ok (machine_instructions.Subseg dst src w1 w2)
     | GetB dst src =>
         Ok (machine_instructions.GetB dst src)
     | GetE dst src =>
@@ -765,10 +765,10 @@ Module Asm_Griotte.
   Definition lor dst r1 r2 := (ASM_Instr (LOr dst r1 r2)).
   Definition lshiftl dst r1 r2 := (ASM_Instr (LShiftL dst r1 r2)).
   Definition lshiftr dst r1 r2 := (ASM_Instr (LShiftR dst r1 r2)).
-  Definition lea dst r := (ASM_Instr (Lea dst r)).
+  Definition lea dst src off := (ASM_Instr (Lea dst src off)).
   Definition seta dst src addr := (ASM_Instr (SetA dst src addr)).
-  Definition restrict dst r := (ASM_Instr (Restrict dst r)).
-  Definition subseg dst r1 r2 := (ASM_Instr (Subseg dst r1 r2)).
+  Definition restrict dst src perm := (ASM_Instr (Restrict dst src perm)).
+  Definition subseg dst src b e := (ASM_Instr (Subseg dst src b e)).
   Definition getb dst src := (ASM_Instr (GetB dst src)).
   Definition gete dst src := (ASM_Instr (GetE dst src)).
   Definition geta dst src := (ASM_Instr (GetA dst src)).

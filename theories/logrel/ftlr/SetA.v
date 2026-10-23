@@ -25,14 +25,6 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-  (** [cnull] reads as the integer 0. *)
-  Lemma llookup_reg_not_zero_not_cnull (regs : LReg) r w :
-    regs !!ₗ r = Some w → w.(lw) ≠ WInt 0 → r ≠ cnull.
-  Proof.
-    intros Hr Hw ->. rewrite /llookup_reg /= in Hr.
-    by destruct (regs !! cnull); simplify_eq/=.
-  Qed.
-
   Lemma seta_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
     (ρ : region_type) (dst src : RegName) (arg : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :

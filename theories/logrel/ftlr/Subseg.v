@@ -41,8 +41,8 @@ Section fundamental.
 
    Lemma subseg_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
      (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
-     (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr trusted_fault W C regs p p' g b e a w (Subseg dst r1 r2) ρ P cstk Ws Cs.
+     (ρ : region_type) (dst src : RegName) (r1 r2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr trusted_fault W C regs p p' g b e a w (Subseg dst src r1 r2) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -61,11 +61,11 @@ Section fundamental.
         + rewrite llookup_reg_not_cnull // in Hr. iApply "Hreg"; eauto. }
       iDestruct (interp_cap_heap_conditions with "Hr") as %[Hvalid _].
       iPureIntro. exact (Hvalid Hlt). }
-    assert (subseg_root_free regs dst r1 r2) as Hroot.
-    { intros t0 p0 g0 b0 e0 a0 a1 a2 Hdst Ha1 Ha2 Ht Hlt.
+    assert (subseg_root_free regs src r1 r2) as Hroot.
+    { intros t0 p0 g0 b0 e0 a0 a1 a2 Hsrc Ha1 Ha2 Ht Hlt.
       apply andb_true_iff in Ht as [Ht Hle]. apply andb_true_iff in Ht as [-> Hwi].
       apply isWithin_implies in Hwi.
-      specialize (Hnoid _ _ _ _ _ _ _ Hdst eq_refl ltac:(solve_addr)).
+      specialize (Hnoid _ _ _ _ _ _ _ Hsrc eq_refl ltac:(solve_addr)).
       apply not_true_is_false. intros Hheap.
       rewrite /disjoint_from_heap elem_of_disjoint in Hnoid.
       apply (Hnoid a1); apply elem_of_finz_seq_between; [solve_addr|].
@@ -73,17 +73,17 @@ Section fundamental.
     (* A narrowed capability with an identifier keeps a heap base. *)
     iMod (observe_regs_prov_heap with "Hmap") as "[Hmap %Hprovheap]".
 
-    iApply (wp_Subseg _ _ _ _ _ _ _ _ _ _ _ _ None with "[$HPC $Ha $Hmap]"); eauto.
+    iApply (wp_Subseg _ _ _ _ _ _ _ _ _ _ _ _ _ None with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & _ & Hmap)".
     clear Hnoid Hroot.
-    destruct HSpec as [t p0 g0 b0 e0 a0 π n1 n2 a1 a2 Hdst Hz1 Hz2 Hao1 Hao2 HincrPC Hregs'
-                      | * Hdst Hz1 Hz2 Hunrep HincrPC Hregs'
-                      | t p0 g0 b0 e0 a0 π n1 n2 a1 a2 Hdst Hz1 Hz2 Hoo1 Hoo2 HincrPC Hregs'
-                      | * Hdst Hz1 Hz2 Hunrep HincrPC Hregs'
-                      | * Hdst Hk HincrPC Hregs' | Hfail ].
+    destruct HSpec as [t p0 g0 b0 e0 a0 π n1 n2 a1 a2 Hsrc Hz1 Hz2 Hao1 Hao2 HincrPC Hregs'
+                      | * Hsrc Hz1 Hz2 Hunrep HincrPC Hregs'
+                      | t p0 g0 b0 e0 a0 π n1 n2 a1 a2 Hsrc Hz1 Hz2 Hoo1 Hoo2 HincrPC Hregs'
+                      | * Hsrc Hz1 Hz2 Hunrep HincrPC Hregs'
+                      | * Hsrc Hk HincrPC Hregs' | Hfail ].
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -106,11 +106,13 @@ Section fundamental.
           apply andb_true_iff in Hwi as [Hwi Hle].
           apply isWithin_implies in Hwi as [Hwi_b Hwi_e].
           destruct t; [|by iApply interp_untagged].
-          rewrite llookup_reg_not_cnull // in Hdst.
-          iSpecialize ("Hreg" $! dst _ Hdst).
+          assert (src ≠ cnull) as Hsrc_cnull
+            by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
+          rewrite llookup_reg_not_cnull // in Hsrc.
+          iSpecialize ("Hreg" $! src _ Hsrc).
           iApply (interp_weakening with "IH Hreg"); auto; try solve_addr.
           - intros ι -> _ Hlt.
-            eapply (Hprovheap dst _ ι b0 e0 Hdst); [done|done|solve_addr|done|solve_addr].
+            eapply (Hprovheap src _ ι b0 e0 Hsrc); [done|done|solve_addr|done|solve_addr].
           - apply PermFlowsToReflexive.
           - apply LocalityFlowsToReflexive.
         }
@@ -155,8 +157,10 @@ Section fundamental.
           destruct (isWithin a1 a2 b0 e0) eqn:Hwi;
             last (rewrite andb_false_r; by iApply interp_untagged).
           rewrite andb_true_r.
-          rewrite llookup_reg_not_cnull // in Hdst.
-          iSpecialize ("Hreg" $! dst _ Hdst).
+          assert (src ≠ cnull) as Hsrc_cnull
+            by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
+          rewrite llookup_reg_not_cnull // in Hsrc.
+          iSpecialize ("Hreg" $! src _ Hsrc).
           rewrite /isWithin in Hwi.
           iApply (interp_weakening_ot with "Hreg"); auto; try solve_addr.
           - apply SealPermFlowsToReflexive.
