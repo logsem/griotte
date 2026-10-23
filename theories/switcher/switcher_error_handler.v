@@ -153,7 +153,8 @@ Section Switcher_error_handler.
     error_state_fits wcsp.
   Proof.
     destruct wcsp as [w π]. rewrite /lea_result /error_state_fits /ErrorState_size /=.
-    destruct_word w; cbn; intros [=<-]; cbn; try (split; [by intros [? _] | done]).
+    destruct w as [n | [t p g b e a | t p g b e a] | k t p g b e a | ot sb];
+      cbn; intros [=<-]; cbn; try (split; [by intros [? _] | done]).
     - destruct (a + 16)%a as [a'|] eqn:Ha; destruct t; cbn; split;
         try (by intros [? _]); try done; [intros [_ ?] | intros ? | intros ?]; solve_addr.
     - destruct (a + 16)%ot as [a'|] eqn:Ha; destruct t; cbn; split;
@@ -168,7 +169,8 @@ Section Switcher_error_handler.
     tag_strippable wct0 → tag_strippable wcsp.
   Proof.
     destruct wcsp as [w π]. rewrite /lea_result /tag_strippable /=.
-    destruct_word w; cbn; intros [=<-]; cbn; try done.
+    destruct w as [n | [t p g b e a | t p g b e a] | k t p g b e a | ot sb];
+      cbn; intros [=<-]; cbn; try done.
     - destruct (a + z)%a; cbn; [|by intros [? _] ].
       by rewrite /has_authority /heap_authority_base /heap_cap_base /memory_cap_base /=.
     - destruct (a + z)%ot; cbn; [|by intros [? _] ].
@@ -188,10 +190,6 @@ Section Switcher_error_handler.
   #[global] Instance error_state_stores_ok_dec wcsp : Decision (error_state_stores_ok wcsp).
   Proof. rewrite /error_state_stores_ok. repeat case_match; apply _. Defined.
 
-  Lemma error_state_stores_ok_fits wcsp :
-    error_state_stores_ok wcsp → error_state_fits wcsp.
-  Proof. rewrite /error_state_stores_ok /error_state_fits. repeat case_match; naive_solver. Qed.
-
   (** When the room test passes but the stores do not succeed, the first
       store of the stackful setup, through the moved stack pointer [wct0]
       at the base of the [ErrorState], faults: [wct0] is a sealing range,
@@ -209,11 +207,12 @@ Section Switcher_error_handler.
   Proof.
     destruct wcsp as [w π].
     rewrite /lea_result /error_state_fits /error_state_stores_ok /ErrorState_size /=.
-    destruct_word w; cbn; intros [=<-] Hfits Hnot; cbn; try done.
+    destruct w as [n | [t p g b e a | t p g b e a] | k t p g b e a | ot sb];
+      cbn; intros [=<-] Hfits Hnot; cbn; try done.
     - destruct t; last done.
       destruct (a + 16)%a as [a'|] eqn:Ha; last solve_addr.
-      right. exists c, g, b, e, a', a. split_and!; [done | solve_addr |].
-      destruct (writeAllowed c) eqn:Hw; [right | by left].
+      right. exists p, g, b, e, a', a. split_and!; [done | solve_addr |].
+      destruct (writeAllowed p) eqn:Hw; [right | by left].
       rewrite /withinBounds. apply andb_false_iff.
       destruct (decide (b <= a)%a); last (left; solve_addr).
       exfalso. apply Hnot. split_and!; done.
@@ -302,6 +301,67 @@ Section Switcher_error_handler.
     - iIntros "Hws". iExists []. rewrite app_nil_r. by iFrame.
   Qed.
 
+  (** The words of the [ErrorState] are safe, for safe registers. *)
+  Lemma interp_error_state_src (W : WORLD) (C : CmptName) (w : LWord) (rmap : LReg) :
+    (∀ r, is_Some (rmap !! r)) →
+    (∀ (r : RegName) (v : LWord), ⌜rmap !! r = Some v⌝ → interp W C v) -∗
+    [∗ list] v ∈ error_state_src w rmap, interp W C v.
+  Proof.
+    iIntros (Hfull) "#Hregs".
+    rewrite /error_state_src big_sepL_cons big_sepL_fmap.
+    iSplit; first iApply interp_clear_tag.
+    iApply big_sepL_intro. iIntros "!>" (k r _).
+    iApply "Hregs". iPureIntro.
+    destruct (Hfull r) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv).
+  Qed.
+
+  (** Cell [i] of the [ErrorState] slot while the switcher writes it. *)
+  Lemma error_state_cells_acc (w : LWord) (rmap : LReg)
+    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (i : nat) :
+    rmap !!! csp = WCap true p g b e a @@? π →
+    (a + ErrorState_size <= e)%Z →
+    (i < Z.to_nat ErrorState_size)%nat →
+    error_state_cells w rmap i -∗
+    ∃ v, (a ^+ i)%a ↦ₐ v ∗
+      ((a ^+ i)%a ↦ₐ lstore_word p (error_state_src w rmap !!! i) -∗
+       error_state_cells w rmap (S i)).
+  Proof.
+    intros Hcsp He Hi.
+    rewrite /error_state_cells Hcsp; cbn [lw].
+    iIntros "(%ws & %Hws & Hcells)".
+    destruct ws as [|v ws]; first (cbn in Hws; lia).
+    set (l := take i (error_state_words p w rmap)).
+    assert (length l = i) as Hl.
+    { rewrite /l length_take length_error_state_words. lia. }
+    assert ((a + length (l ++ v :: ws))%a = Some (a ^+ ErrorState_size)%a) as Hend.
+    { rewrite length_app Hl. cbn in Hws |- *. rewrite /ErrorState_size in He Hws Hi |- *.
+      solve_addr. }
+    rewrite region_pointsto_cells //.
+    iDestruct (big_sepL_insert_acc _ _ i v with "Hcells") as "[Hv Hclose]".
+    { by rewrite lookup_app_r Hl ?Nat.sub_diag. }
+    iExists v. iFrame "Hv". iIntros "Hv".
+    iExists ws. iSplit; first (iPureIntro; cbn in Hws; lia).
+    destruct (lookup_lt_is_Some_2 (error_state_src w rmap) i) as [x Hx].
+    { by rewrite length_error_state_src. }
+    rewrite (list_lookup_total_correct _ _ _ Hx).
+    assert (<[i := lstore_word p x]> (l ++ v :: ws) =
+            take (S i) (error_state_words p w rmap) ++ ws) as Heq.
+    { rewrite insert_app_r_alt; last lia.
+      rewrite Hl Nat.sub_diag (take_S_r _ _ (lstore_word p x)); first by rewrite -app_assoc.
+      by rewrite -error_state_src_store list_lookup_fmap Hx. }
+    rewrite -Heq region_pointsto_cells; last by rewrite length_insert.
+    by iApply "Hclose".
+  Qed.
+
+  Lemma error_state_pointsto_area (w : LWord) (rmap : LReg) :
+    error_state_pointsto w rmap -∗ error_state_area rmap.
+  Proof.
+    rewrite -error_state_cells_full -(error_state_cells_0 w) /error_state_cells.
+    destruct (rmap !!! csp) as [ [|[ | ]|? []|] π]; cbn; iIntros "Hws"; try done.
+    iDestruct "Hws" as (ws Hws) "Hws". iExists _. iFrame "Hws". iPureIntro.
+    rewrite length_app length_take length_error_state_words Hws. lia.
+  Qed.
+
   (** The [ErrorState] slot does not overlap the shadow table. *)
   Definition error_state_shadow_free (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
@@ -353,7 +413,7 @@ Section Switcher_error_handler.
     stackful_regs wcsp = Some (wct0, wcsp).
   Proof.
     destruct wcsp as [w π]. rewrite /lea_result /error_state_stores_ok /stackful_regs /=.
-    destruct_word w; cbn; try done.
+    destruct w as [n | [t p g b e a | t p g b e a] | k t p g b e a | ot sb]; cbn; try done.
     intros [=<-] Hok. destruct t; last done.
     destruct Hok as (_ & _ & Hend).
     rewrite /ErrorState_size in Hend |- *.
@@ -368,10 +428,10 @@ Section Switcher_error_handler.
     interp W C wcsp -∗ interp W C wcsp' ∗ interp W C wa0.
   Proof.
     destruct wcsp as [w π]. rewrite /stackful_regs.
-    destruct_word w; try done.
+    destruct w as [n | [t p g b e a | t p g b e a] | k t p g b e a | ot sb]; try done.
     destruct (a + ErrorState_size)%a as [a'|]; cbn; last done.
     intros [= <- <-]. iIntros "#H". iSplit; last done.
-    by rewrite (interp_cap_cur_addr W C t c g b e a' a π).
+    by rewrite (interp_cap_cur_addr W C t p g b e a' a π).
   Qed.
 
   (** The registers at the handler's first instruction. *)

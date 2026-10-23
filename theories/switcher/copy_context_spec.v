@@ -14,44 +14,6 @@ Section CopyContextMacro.
     {ceriseg:ceriseG Σ}
     `{MP: MachineParameters}.
 
-  (** The stores of [ws] to the cells from [a], through a capability of
-      permission [p] and identifier [π]. [D i] holds once the first [i]
-      cells are written. Each store gets cell [i], outside the shadow
-      table, with the liveness of [π], and gives it back with the stored
-      word. *)
-  Definition cells_store_acc (D : nat → iProp Σ) (p : Perm) (a : Addr)
-    (π : option AId) (ws : list LWord) : iProp Σ :=
-    □ ∀ i : nat,
-      ⌜(i < length ws)%nat⌝ -∗
-      D i
-      ={⊤}=∗
-      ∃ (v : LWord) (q : Qp),
-        ⌜is_shadow_address (a ^+ i)%a = false⌝ ∗
-        (a ^+ i)%a ↦ₐ v ∗
-        deref_res π q ∗
-        ▷ ((a ^+ i)%a ↦ₐ lstore_word p (ws !!! i) -∗
-           deref_res π q
-           ={⊤}=∗
-           D (S i)).
-
-  #[global] Instance cells_store_acc_persistent D p a π ws :
-    Persistent (cells_store_acc D p a π ws).
-  Proof. apply _. Qed.
-
-  (** The stores of [w :: ws] from [a], without the first: those of [ws]
-      from [a ^+ 1]. *)
-  Lemma cells_store_acc_tail (D : nat → iProp Σ) (p : Perm) (a : Addr)
-    (π : option AId) (w : LWord) (ws : list LWord) :
-    is_Some (a + length (w :: ws))%a →
-    cells_store_acc D p a π (w :: ws) -∗
-    cells_store_acc (λ i, D (S i)) p (a ^+ 1)%a π ws.
-  Proof.
-    iIntros ([a_end Ha_end]) "#Hacc". iIntros "!>" (i Hi) "HD".
-    cbn in Ha_end.
-    rewrite (_ : ((a ^+ 1) ^+ i)%a = (a ^+ S i)%a); last solve_addr.
-    iApply ("Hacc" $! (S i) with "[] HD"). iPureIntro; cbn; lia.
-  Qed.
-
   (** One word per iteration, from [copy_loop] with [i] words copied. *)
   #[local] Lemma copy_context_loop_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)

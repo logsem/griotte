@@ -4,7 +4,7 @@ From griotte Require Import register_tactics map_simpl.
 From griotte Require Import logrel fundamental switcher_preamble switcher_return_blocks_1
   interp_switcher_return.
 From griotte Require Import switcher_call_blocks_6 switcher_blocks_15_16 switcher_exception_blocks_6
-  switcher_spec_exception copy_context_spec world_ghost_theory.
+  switcher_spec_exception copy_context_spec world_ghost_theory wp_rules_interp.
 From griotte Require Export switcher_error_handler.
 
 (** * Exception entry of the switcher
@@ -143,80 +143,6 @@ Section Switcher_Exception.
 
   (** ** Small lemmas *)
 
-  (* TODO: move to wp_rules_interp.v *)
-  (** The stores of words [ws], safe in the world, through a safe
-      capability with write permission whose range from its cursor covers
-      them: each store opens the cell in the world and closes it with the
-      stored word. The world is the destination at every step. *)
-  Lemma world_interp_cells_store_acc (W : WORLD) (C : CmptName)
-    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (ws : list LWord) :
-    writeAllowed p = true →
-    (b <= a)%a →
-    (a + length ws <= e)%Z →
-    interp W C (WCap true p g b e a @@? π) -∗
-    ([∗ list] v ∈ ws, interp W C v) -∗
-    cells_store_acc (λ _, world_interp W C) p a π ws.
-  Proof.
-    iIntros (Hwa Hb He) "#Hinterp_dst #Hws".
-    iIntros "!>" (i Hi) "Hworld_interp".
-    set (ea := (a ^+ i)%a).
-    assert (b <= ea < e)%a as Hbounds by (subst ea; solve_addr).
-    assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
-    iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
-      as (p' P Hflows Hpers) "(Hrel & _ & Hwcond & _ & Hmono)"; [solve_addr | by rewrite Hwa |].
-    iDestruct (writeAllowed_valid_cap_implies_at _ _ _ _ _ _ _ ea with "Hinterp_dst")
-      as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
-    iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hlive;
-      [by eapply writeAllowed_nonO | done |].
-    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
-      [by eapply writeAllowed_nonO | done |].
-    iDestruct (open_world_interp W C (addr_key π ea) p' (safeC P) ρ with "Hrel Hworld_interp")
-      as "(Hworld_interp & Hstate & (%v & WorldRes))";
-      [exact Hlive | destruct ρ; auto; contradiction | exact Hρ |].
-    iDestruct (WorldRes_acc_forall with "WorldRes") as "[ (>Ha & _ & _) WorldRes]".
-    iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
-    iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
-    iEval (rewrite deref_witness_res_deref_res -Hdw) in "Hdw".
-    iModIntro. iExists v, (deref_share dw). iFrame "Ha Hdw". iSplit; first done.
-    iIntros "!> Ha Hdw".
-    iEval (rewrite Hdw -deref_witness_res_deref_res) in "Hdw".
-    iDestruct ("Hshare" with "Hdw") as "Hshare".
-    set (v' := lstore_word p (ws !!! i)).
-    iAssert (P W C v') as "Hinterp'".
-    { iApply "Hwcond". iApply interp_lstore_word.
-      destruct (lookup_lt_is_Some_2 ws i) as [wi Hwi]; first lia.
-      rewrite (list_lookup_total_correct _ _ _ Hwi).
-      by iApply (big_sepL_lookup with "Hws"). }
-    iAssert (mono_invariant C p' (safeC P) v' ρ) as "Hmono'".
-    { rewrite /monoReq Hρ mono_invariant_eq.
-      destruct ρ; [| | exfalso; done]; simpl.
-      - destruct (isWL p'); auto.
-        destruct (isDL p'); first done.
-        iApply "Hmono". iPureIntro.
-        rewrite lw_lstore_word. by eapply canStore_store_word_flowsto.
-      - iApply "Hmono". iPureIntro.
-        rewrite lw_lstore_word. by eapply canStore_store_word_flowsto. }
-    iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
-    iDestruct ("WorldRes" with "[$Ha $Hinterp' $Hmono']") as "WorldRes".
-    iModIntro.
-    iApply (close_world_interp with "Hworld_interp Hstate Hrel WorldRes");
-      first done; destruct ρ; auto; contradiction.
-  Qed.
-
-  (** The words of the [ErrorState] are safe, for safe registers. *)
-  Lemma interp_error_state_src (W : WORLD) (C : CmptName) (w : LWord) (rmap : LReg) :
-    (∀ r, is_Some (rmap !! r)) →
-    (∀ (r : RegName) (v : LWord), ⌜rmap !! r = Some v⌝ → interp W C v) -∗
-    [∗ list] v ∈ error_state_src w rmap, interp W C v.
-  Proof.
-    iIntros (Hfull) "#Hregs".
-    rewrite /error_state_src big_sepL_cons big_sepL_fmap.
-    iSplit; first iApply interp_clear_tag.
-    iApply big_sepL_intro. iIntros "!>" (k r _).
-    iApply "Hregs". iPureIntro.
-    destruct (Hfull r) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv).
-  Qed.
-
   (** The destination of the [ErrorState] stores for an untrusted topmost
       compartment: the world, through the safe faulting [csp]. *)
   Lemma untrusted_error_state_acc (W : WORLD) (C : CmptName) (cstk : CSTK) (w : LWord)
@@ -235,53 +161,6 @@ Section Switcher_Exception.
     - rewrite -Hcsp. iApply "Hregs". iPureIntro.
       destruct (Hfull csp) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv).
     - by iApply interp_error_state_src.
-  Qed.
-
-  (** Cell [i] of the [ErrorState] slot while the switcher writes it. *)
-  Lemma error_state_cells_acc (w : LWord) (rmap : LReg)
-    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (i : nat) :
-    rmap !!! csp = WCap true p g b e a @@? π →
-    (a + ErrorState_size <= e)%Z →
-    (i < Z.to_nat ErrorState_size)%nat →
-    error_state_cells w rmap i -∗
-    ∃ v, (a ^+ i)%a ↦ₐ v ∗
-      ((a ^+ i)%a ↦ₐ lstore_word p (error_state_src w rmap !!! i) -∗
-       error_state_cells w rmap (S i)).
-  Proof.
-    intros Hcsp He Hi.
-    rewrite /error_state_cells Hcsp; cbn [lw].
-    iIntros "(%ws & %Hws & Hcells)".
-    destruct ws as [|v ws]; first (cbn in Hws; lia).
-    set (l := take i (error_state_words p w rmap)).
-    assert (length l = i) as Hl.
-    { rewrite /l length_take length_error_state_words. lia. }
-    assert ((a + length (l ++ v :: ws))%a = Some (a ^+ ErrorState_size)%a) as Hend.
-    { rewrite length_app Hl. cbn in Hws |- *. rewrite /ErrorState_size in He Hws Hi |- *.
-      solve_addr. }
-    rewrite region_pointsto_cells //.
-    iDestruct (big_sepL_insert_acc _ _ i v with "Hcells") as "[Hv Hclose]".
-    { by rewrite lookup_app_r Hl ?Nat.sub_diag. }
-    iExists v. iFrame "Hv". iIntros "Hv".
-    iExists ws. iSplit; first (iPureIntro; cbn in Hws; lia).
-    destruct (lookup_lt_is_Some_2 (error_state_src w rmap) i) as [x Hx].
-    { by rewrite length_error_state_src. }
-    rewrite (list_lookup_total_correct _ _ _ Hx).
-    assert (<[i := lstore_word p x]> (l ++ v :: ws) =
-            take (S i) (error_state_words p w rmap) ++ ws) as Heq.
-    { rewrite insert_app_r_alt; last lia.
-      rewrite Hl Nat.sub_diag (take_S_r _ _ (lstore_word p x)); first by rewrite -app_assoc.
-      by rewrite -error_state_src_store list_lookup_fmap Hx. }
-    rewrite -Heq region_pointsto_cells; last by rewrite length_insert.
-    by iApply "Hclose".
-  Qed.
-
-  Lemma error_state_pointsto_area (w : LWord) (rmap : LReg) :
-    error_state_pointsto w rmap -∗ error_state_area rmap.
-  Proof.
-    rewrite -error_state_cells_full -(error_state_cells_0 w) /error_state_cells.
-    destruct (rmap !!! csp) as [ [|[ | ]|? []|] π]; cbn; iIntros "Hws"; try done.
-    iDestruct "Hws" as (ws Hws) "Hws". iExists _. iFrame "Hws". iPureIntro.
-    rewrite length_app length_take length_error_state_words Hws. lia.
   Qed.
 
   (** The destination of the [ErrorState] stores for a trusted topmost
@@ -789,7 +668,7 @@ Section Switcher_Exception.
     { (* No store of the [ErrorState] *)
       iIntros "!>" (eh p g b e a π Hnot Hev) "#Heh %Hsome _ _".
       rewrite /no_handler.
-      iDestruct "Hcase" as "[%Hpc | [[Hnone _] | [%Hodd _] ] ]"; first done.
+      iDestruct "Hcase" as "[%Hpc | [ [Hnone _] | [%Hodd _] ] ]"; first done.
       - iDestruct (handler_stackful_agree with "Hnone Heh") as %Heq. by subst eh.
       - exfalso. rewrite -Z.negb_odd Hodd in Hev. done. }
     iNext.
@@ -801,7 +680,7 @@ Section Switcher_Exception.
     - iIntros (kind wpcc wcgp wpc off mcause mtval regs Hnot Hev _ Hoff _ _ _)
         "_ _ #Hoff _ _ _ _ _".
       rewrite /no_handler.
-      iDestruct "Hcase" as "[%Hpc | [[Hnone Hnone'] | [%Hodd _] ] ]"; first done.
+      iDestruct "Hcase" as "[%Hpc | [ [Hnone Hnone'] | [%Hodd _] ] ]"; first done.
       + destruct kind; cbn [handler_offset].
         * iDestruct (handler_stackful_agree with "Hnone Hoff") as %Heq. by subst off.
         * iDestruct (handler_stackless_agree with "Hnone' Hoff") as %Heq. by subst off.

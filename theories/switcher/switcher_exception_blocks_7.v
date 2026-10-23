@@ -23,7 +23,7 @@ Section Switcher_Exception_Blocks_7.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  Lemma switcher_instrs_32_split :
+  #[local] Lemma switcher_instrs_32_split :
     switcher_instrs_n 32 =
       encodeInstrsW [ CLoad cs1 csp 0;
                       ClearTag cs1 cs1;
@@ -143,9 +143,9 @@ Section Switcher_Exception_Blocks_7.
     iDestruct "Hpost" as "[_ Hpost]".
     destruct wcsp as [wsp π].
     rewrite /error_state_stores_ok /= in Hok.
-    destruct_word wsp; try done. destruct t; last done.
+    destruct wsp as [n | [t p g b e a | t p g b e a] | k t p g b e a | ot sb]; try done.
+    destruct t; last done.
     destruct Hok as (Hwa & Hba & Hae).
-    rename c into p.
     iPoseProof ("Hacc" $! p g b e a π with "[//] [%]") as "Hacc_es".
     { by rewrite /error_state_stores_ok /=. }
     rewrite /lea_result /ErrorState_size /= in Hlea Hae.
@@ -210,7 +210,7 @@ Section Switcher_Exception_Blocks_7.
       intros x Hx HR. eapply Hts_shadow; last exact HR.
       apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
       solve_addr. }
-    { set_solver. }
+    { clear; set_solver. }
     iIntros "!> (%wscratch' & HPC & Hca2 & Hca3 & Hcs1 & Hca4 & Hsrc & HES)".
     assert (length (copy_context_instrs ca3 ca2 cs1 ca4) = 7%nat) as Hlen_cc by reflexivity.
     rewrite Hlen_cc.
@@ -249,10 +249,10 @@ Section Switcher_Exception_Blocks_7.
   (** Block 32, from [.Lhandle_error_stack_setup]: the [ErrorState] of a
       stackful handler is written below [ct0], through the accessor of
       [error_state_written]. The first store faults when the faulting
-      [csp] does not allow the stores. Otherwise [csp] and [ct0] are the handler's stack, [ca0]
-      the faulting [csp], [ca1] the cause (word 18 of the register save
-      area) and [ca2] the value of the trap, and the PC is at the
-      invocation of the handler. *)
+      [csp] does not allow the stores. Otherwise [csp] and [ct0] are the
+      handler's stack, [ca0] the faulting [csp], [ca1] the cause (word 18
+      of the register save area) and [ca2] the value of the trap, and the
+      PC is at the invocation of the handler. *)
   Lemma switcher_stackful_setup_spec
     (save : list LWord) (wcsp wct0 wcs1 wca0 wca1 wca2 wca3 wca4 : LWord)
     (error_state_written : nat → iProp Σ) :

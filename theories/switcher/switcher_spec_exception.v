@@ -27,10 +27,10 @@ From griotte Require Import map_simpl register_tactics.
     faulting [csp]: the path performs these stores through a destination
     resource [error_state_written] and a store accessor ([path_es_acc])
     that the caller provides; [error_state_written i] holds once [i] words
-    are written, and every continuation gets the destination back. Three kinds of instruction of
-    the path fault: the loads of the header through a cleared cell of the
-    export table, the first store of the [ErrorState], and the [cjalr] to
-    a word that is not a valid target.
+    are written, and every continuation gets the destination back. Three
+    kinds of instruction of the path fault: the loads of the header
+    through a cleared cell of the export table, the first store of the
+    [ErrorState], and the [cjalr] to a word that is not a valid target.
 
     The path opens the invariant of the switcher: it needs the non-atomic
     token without [N_trap], which trap entry holds, and gives back the whole

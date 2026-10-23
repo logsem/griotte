@@ -31,31 +31,6 @@ Section Switcher_Exception_Blocks_2.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (* TODO: move to rules_Lea.v *)
-  (** [Lea] by an immediate, on any word. *)
-  Lemma wp_lea_success_z_any Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 wr wr' z dq :
-    decodeInstrW w.(lw) = Lea r1 (inl z) →
-    lea_result wr z = Some wr' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull →
-
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ r1 ↦ᵣ wr }}}
-      Instr Executable @ Ep
-    {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-        pc_a ↦ₐ{dq} w ∗
-        r1 ↦ᵣ wr' }}}.
-  Proof.
-    iIntros (Hinstr Hres Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
-    iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-    iApply (wp_lea_next _ _ _ _ _ _ _ _ _ _ _ wr _ wr' with "[$HPC $Hpc_a $Hmap]");
-      try solve_next_side; try done.
-    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
-  Qed.
-
   #[local] Lemma switcher_exception_block_24_spec_aux
     (pc_a : Addr) (d : nat) (a_tstk : Addr) (save_area : list LWord)
     (wmepcc wmtdc wct0 wct1 wctp wca0 : LWord) :
