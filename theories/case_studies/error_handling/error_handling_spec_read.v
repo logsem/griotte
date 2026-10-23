@@ -62,17 +62,6 @@ Section Error_Handling_Read.
     - by iIntros (Hne).
   Qed.
 
-  (* TODO: move to theories/opsem/machine_parameters.v, as [disjoint_from_shadow_sub] *)
-  (** A sub-range of a range outside the shadow table. *)
-  Lemma stats_disjoint_from_shadow_sub (b e b' e' : Addr) :
-    (b <= b')%a → (e' <= e)%a →
-    disjoint_from_shadow b e → disjoint_from_shadow b' e'.
-  Proof.
-    rewrite /disjoint_from_shadow !elem_of_disjoint.
-    intros Hb He Hdisj a Ha Hsh. apply (Hdisj a); last done.
-    apply elem_of_finz_seq_between in Ha. apply elem_of_finz_seq_between. solve_addr.
-  Qed.
-
   (** The switcher invokes the handler of [stats] for a fault at the load,
       with a stack that has room for the [ErrorState], at count 0. *)
   Lemma stats_read_handler_runs (cstk : CSTK) (rfault : LReg) (g : Locality) (b e a : Addr) :
@@ -165,114 +154,6 @@ Section Error_Handling_Read.
       by exists g, b, e, a.
   Qed.
 
-  (** ** Helpers *)
-
-  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [regs_extract] *)
-  (** A register of a register map, with the map given back once the
-      register is updated. *)
-  Lemma stats_regs_extract (rmap : LReg) (r : RegName) (w : LWord) :
-    rmap !! r = Some w →
-    registers_pointsto rmap ⊢
-    r ↦ᵣ w ∗ (∀ w', r ↦ᵣ w' -∗ registers_pointsto (<[r:=w']> rmap)).
-  Proof.
-    iIntros (Hr) "Hregs". rewrite /registers_pointsto.
-    iDestruct (big_sepM_delete _ _ r with "Hregs") as "[$ Hregs]"; first done.
-    iIntros (w') "Hr". rewrite -insert_delete_eq.
-    iApply (big_sepM_insert with "[$Hregs $Hr]"). by rewrite lookup_delete_eq.
-  Qed.
-
-  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [regs_extract2] *)
-  (** Two registers of a register map. *)
-  Lemma stats_regs_extract2 (rmap : LReg) (r1 r2 : RegName) (w1 w2 : LWord) :
-    r1 ≠ r2 →
-    rmap !! r1 = Some w1 →
-    rmap !! r2 = Some w2 →
-    registers_pointsto rmap ⊢
-    r1 ↦ᵣ w1 ∗
-    r2 ↦ᵣ w2 ∗
-    (∀ w1' w2',
-       r1 ↦ᵣ w1' -∗
-       r2 ↦ᵣ w2' -∗
-       registers_pointsto (<[r1:=w1']> (<[r2:=w2']> rmap))).
-  Proof.
-    iIntros (Hne Hr1 Hr2) "Hregs". rewrite /registers_pointsto.
-    iDestruct (big_sepM_delete _ _ r1 with "Hregs") as "[$ Hregs]"; first done.
-    iDestruct (big_sepM_delete _ _ r2 with "Hregs") as "[$ Hregs]".
-    { by rewrite lookup_delete_ne. }
-    iIntros (w1' w2') "Hr1 Hr2".
-    rewrite big_sepM_insert_delete delete_insert_ne // big_sepM_insert_delete.
-    iFrame.
-  Qed.
-
-  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [regs_extract3] *)
-  (** Three registers of a register map. *)
-  Lemma stats_regs_extract3 (rmap : LReg) (r1 r2 r3 : RegName) (w1 w2 w3 : LWord) :
-    r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
-    rmap !! r1 = Some w1 →
-    rmap !! r2 = Some w2 →
-    rmap !! r3 = Some w3 →
-    registers_pointsto rmap ⊢
-    r1 ↦ᵣ w1 ∗
-    r2 ↦ᵣ w2 ∗
-    r3 ↦ᵣ w3 ∗
-    (∀ w1' w2' w3',
-       r1 ↦ᵣ w1' -∗
-       r2 ↦ᵣ w2' -∗
-       r3 ↦ᵣ w3' -∗
-       registers_pointsto (<[r1:=w1']> (<[r2:=w2']> (<[r3:=w3']> rmap)))).
-  Proof.
-    iIntros (Hne12 Hne13 Hne23 Hr1 Hr2 Hr3) "Hregs". rewrite /registers_pointsto.
-    iDestruct (big_sepM_delete _ _ r1 with "Hregs") as "[$ Hregs]"; first done.
-    iDestruct (big_sepM_delete _ _ r2 with "Hregs") as "[$ Hregs]".
-    { by rewrite lookup_delete_ne. }
-    iDestruct (big_sepM_delete _ _ r3 with "Hregs") as "[$ Hregs]".
-    { by rewrite !lookup_delete_ne. }
-    iIntros (w1' w2' w3') "Hr1 Hr2 Hr3".
-    rewrite big_sepM_insert_delete !delete_insert_ne // big_sepM_insert_delete.
-    rewrite delete_insert_ne // big_sepM_insert_delete.
-    iFrame.
-  Qed.
-
-  (* TODO: move to theories/case_studies/case_study_spec_helpers.v, as [return_regs] *)
-  (** The registers of a full register map, as the return routine of the
-      switcher takes them. *)
-  Lemma stats_return_regs (rmap : LReg) :
-    (∀ r, is_Some (rmap !! r)) →
-    registers_pointsto rmap ⊢
-    ∃ rmap_ret : LReg,
-      ⌜dom rmap_ret = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}⌝ ∗
-      cgp ↦ᵣ - ∗
-      cra ↦ᵣ - ∗
-      cs0 ↦ᵣ - ∗
-      cs1 ↦ᵣ - ∗
-      csp ↦ᵣ (rmap !!! csp) ∗
-      ca0 ↦ᵣ (rmap !!! ca0) ∗
-      ca1 ↦ᵣ (rmap !!! ca1) ∗
-      ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w).
-  Proof.
-    iIntros (Hfull) "Hregs". rewrite /registers_pointsto.
-    pose proof (lregmap_full_dom _ Hfull) as Hdom.
-    iExists (delete ca1 (delete ca0 (delete cs1 (delete cs0 (delete cra
-               (delete cgp (delete csp rmap))))))).
-    iSplit.
-    { iPureIntro. rewrite !dom_delete_L Hdom. set_solver+. }
-    iDestruct (big_sepM_delete _ _ csp with "Hregs") as "[Hcsp Hregs]".
-    { apply lookup_lookup_total, Hfull. }
-    iDestruct (big_sepM_delete _ _ cgp with "Hregs") as "[Hcgp Hregs]".
-    { rewrite lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
-    iDestruct (big_sepM_delete _ _ cra with "Hregs") as "[Hcra Hregs]".
-    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
-    iDestruct (big_sepM_delete _ _ cs0 with "Hregs") as "[Hcs0 Hregs]".
-    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
-    iDestruct (big_sepM_delete _ _ cs1 with "Hregs") as "[Hcs1 Hregs]".
-    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hregs") as "[Hca0 Hregs]".
-    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
-    iDestruct (big_sepM_delete _ _ ca1 with "Hregs") as "[Hca1 Hregs]".
-    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
-    iFrame.
-  Qed.
-
   (** The load through an untagged capability faults. *)
   Lemma stats_read_load_untagged_spec
     (pc_b pc_e : Addr) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) :
@@ -321,7 +202,7 @@ Section Error_Handling_Read.
     iNamed "Hstatic".
     iMod (na_inv_acc with "Hinv_stats Hna") as "(>Hlock & Hna & Hclose)"; [done | done |].
     destruct (Hfull ct0) as [wct0 Hct0].
-    iDestruct (stats_regs_extract2 _ cgp ct0 with "Hregs") as "(Hcgp & Hct0 & Hregs)";
+    iDestruct (registers_pointsto_extract2 _ cgp ct0 with "Hregs") as "(Hcgp & Hct0 & Hregs)";
       [done | done | done |].
     pose proof STATS_size_data as Hsize_data.
     pose proof STATS_cgp_disjoint_from_shadow as Hcgp_shadow.
@@ -358,7 +239,7 @@ Section Error_Handling_Read.
     iIntros (Hfull Hcgp Hcra) "#Hstatic HPC Hregs Hlock Hna Hclose Hcont".
     iNamed "Hstatic".
     destruct (Hfull ca1) as [wca1 Hca1].
-    iDestruct (stats_regs_extract3 _ cgp ca1 cra with "Hregs") as "(Hcgp & Hca1 & Hcra & Hregs)";
+    iDestruct (registers_pointsto_extract3 _ cgp ca1 cra with "Hregs") as "(Hcgp & Hca1 & Hcra & Hregs)";
       [done | done | done | done | done | apply lookup_lookup_total, Hfull |].
     pose proof STATS_size_data as Hsize_data.
     pose proof STATS_cgp_disjoint_from_shadow as Hcgp_shadow.
@@ -494,7 +375,7 @@ Section Error_Handling_Read.
     assert (rtake !! ca0 = Some wptr) as Hca0_take.
     { rewrite /rtake /rfull !lookup_insert_ne //. by apply lookup_union_Some_l. }
     clearbody rtake.
-    iDestruct (stats_regs_extract _ ca0 with "Hregs") as "[Hca0 Hregs]"; first exact Hca0_take.
+    iDestruct (registers_pointsto_extract _ ca0 with "Hregs") as "[Hca0 Hregs]"; first exact Hca0_take.
     iPoseProof "Hstatic" as "Hstatic'". iNamed "Hstatic'".
     rewrite /stats_arg_pre.
     destruct wptr as [w π].
@@ -513,7 +394,7 @@ Section Error_Handling_Read.
       { rewrite lookup_total_insert_ne // Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
       iNext. iIntros "HPC Hregs Hna".
       (* The return, at count 0 *)
-      iDestruct (stats_return_regs with "Hregs") as (rmap_ret)
+      iDestruct (registers_pointsto_switcher_return with "Hregs") as (rmap_ret)
         "(%Hdom_ret & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap)".
       { intros r. rewrite !lookup_insert_is_Some'. by right; right. }
       set (M := <[ca1:=lword_of_word (WInt 0)]> (<[ca0:=lload_word p v]> rtake)).
@@ -556,7 +437,7 @@ Section Error_Handling_Read.
       { rewrite Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
       { solve_addr. }
       { exact Hroom. }
-      { apply (stats_disjoint_from_shadow_sub a_stk4 e_stk); [solve_addr | | exact Hstk_shadow].
+      { apply (disjoint_from_shadow_weaken a_stk4 e_stk); [solve_addr | | exact Hstk_shadow].
         rewrite /ErrorState_size in Hroom |- *; solve_addr. }
       1-3: done.
       { rewrite /error_state_area Hcsp_take /=. iExists _. iFrame "Hslot".
@@ -571,7 +452,7 @@ Section Error_Handling_Read.
       { rewrite /ErrorState_size in Hroom |- *; solve_addr. }
       { rewrite Hws /finz.dist. rewrite /ErrorState_size in Hroom |- *. solve_addr. }
       rewrite /stats_resumed_regs.
-      iDestruct (stats_return_regs with "Hregs") as (rmap_ret)
+      iDestruct (registers_pointsto_switcher_return with "Hregs") as (rmap_ret)
         "(%Hdom_ret & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap)".
       { intros r. rewrite !lookup_insert_is_Some'. by right; right; right. }
       set (M := <[ca1:=lword_of_word (WInt 0)]> (<[ca0:=lword_of_word (WInt EINVAL)]>
