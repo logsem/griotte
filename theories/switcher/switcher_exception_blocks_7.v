@@ -28,10 +28,8 @@ Section Switcher_Exception_Blocks_7.
       encodeInstrsW [ CLoad cs1 csp 0;
                       ClearTag cs1 cs1;
                       Store ct0 (inr cs1) (-16);
-                      Mov ca2 (inr csp);
-                      Lea ca2 ca2 (inl 1%Z);
-                      Mov ca3 (inr ct0);
-                      Lea ca3 ca3 (inl (-15)%Z) ] ++
+                      Lea ca2 csp (inl 1%Z);
+                      Lea ca3 ct0 (inl (-15)%Z) ] ++
       copy_context_instrs ca3 ca2 cs1 ca4 ++
       encodeInstrsW [ Mov ca0 (inr ct0);
                       Lea ca0 ca0 (inl (-16)%Z);
@@ -83,7 +81,7 @@ Section Switcher_Exception_Blocks_7.
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
         ( ⌜error_state_stores_ok wcsp⌝ -∗
           ∀ (mtval : Z) (wcs1' wca3' wca4' : LWord),
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 19)%a ∗
+          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 17)%a ∗
           csp ↦ᵣ wct0 ∗
           ct0 ↦ᵣ wct0 ∗
           cs1 ↦ᵣ wcs1' ∗
@@ -107,7 +105,7 @@ Section Switcher_Exception_Blocks_7.
     iDestruct (codefrag_app_pers with "Hcode_rest") as "[#Hcopy _]".
     iEval (simpl length) in "Hcopy".
     codefrag_facts "Hcode".
-    assert (length (switcher_instrs_n 32) = 19%nat) as Hlen32 by reflexivity.
+    assert (length (switcher_instrs_n 32) = 17%nat) as Hlen32 by reflexivity.
     rewrite Hlen32 in Hsub.
     destruct (lookup_lt_is_Some_2 save 0%nat) as [w0 Hw0]; first lia.
     pose proof (tstack_save_cell_ok 0 ltac:(lia)) as (Hts_0 & Hts_0_bounds & Hts_0_shadow).
@@ -169,14 +167,10 @@ Section Switcher_Exception_Blocks_7.
     { solve_addr. }
     rewrite (list_lookup_total_correct _ _ _ Hw0).
     iMod ("Hclose" with "Hcell Hderef") as "HES".
-    (* Mov ca2 csp *)
-    iInstr "Hcode".
-    (* Lea ca2 ca2 TrustedStack_offset_cra *)
+    (* Lea ca2 csp TrustedStack_offset_cra *)
     iInstr "Hcode".
     { pose proof (tstack_save_cell_ok 1 ltac:(lia)) as (Hts_1 & _). exact Hts_1. }
-    (* Mov ca3 ct0 *)
-    iInstr "Hcode".
-    (* Lea ca3 ca3 (TrustedStack_offset_cra - ErrorState_size) *)
+    (* Lea ca3 ct0 (TrustedStack_offset_cra - ErrorState_size) *)
     iInstr "Hcode".
     { transitivity (Some (a ^+ 1)%a); solve_addr. }
     (* The source of the copy: the words 1-15 of the register save area. *)
@@ -214,7 +208,7 @@ Section Switcher_Exception_Blocks_7.
     iIntros "!> (%wscratch' & HPC & Hca2 & Hca3 & Hcs1 & Hca4 & Hsrc & HES)".
     assert (length (copy_context_instrs ca3 ca2 cs1 ca4) = 7%nat) as Hlen_cc by reflexivity.
     rewrite Hlen_cc.
-    rewrite (_ : ((pc_a ^+ 7) ^+ 7%nat)%a = (pc_a ^+ 14)%a); last solve_addr.
+    rewrite (_ : ((pc_a ^+ 5) ^+ 7%nat)%a = (pc_a ^+ 12)%a); last solve_addr.
     iAssert ([[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]])%I
       with "[Hs0 Hsrc Hrest]" as "Hsave".
     { iEval (rewrite Hsave_eq).

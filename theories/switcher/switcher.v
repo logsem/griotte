@@ -228,9 +228,7 @@ Section Switcher.
         #".Lswitcher_trusted_stack_full";
         jmp (".Lswitch_trusted_stack_exhausted")%asm;
         (* ctp points to the new frame *)
-        mov cs1 ctp;
-        mov ctp ct2;
-        lea ctp ctp cs1;
+        lea ctp ct2 ctp;
         store_imm ctp csp TrustedStackFrame_offset_csp;
         store_imm ctp 0 TrustedStackFrame_offset_errorHandlerCount;
         store_imm ctp 0 TrustedStackFrame_offset_calleeExportTable;
@@ -316,8 +314,7 @@ Section Switcher.
         jnez 2 ct0;
         jmp (".Lcommon_defer_irqs_and_thread_exit")%asm;
         (* Restore the caller's stack pointer and pop the frame *)
-        mov ct1 ctp;
-        lea ct1 ct1 ct2;
+        lea ct1 ctp ct2;
         load_imm csp ct1 TrustedStackFrame_offset_csp;
         store_imm ctp ct2 TrustedStack_offset_frameoffset;
 
@@ -445,9 +442,7 @@ Section Switcher.
         jmp (".Lcommon_thread_exit")%asm;
         add ctp ctp (- TrustedStackFrame_size)%Z;
         (* cincoffset ctp, csp, tp *)
-        mov ct1 ctp;
-        mov ctp csp;
-        lea ctp ctp ct1;
+        lea ctp csp ctp;
         (* li a0, 0 *)
         mov ca0 0;
         (* cincoffset ct0, ct0, -(16*8): the layout is mirrored for
@@ -500,8 +495,7 @@ Section Switcher.
         jmp (".Lcommon_force_unwind")%asm;
         load_imm ct0 ctp TrustedStackFrame_offset_csp;
         (* cincoffset s1, csp, TrustedStack_offset_frames *)
-        mov cs1 csp;
-        lea cs1 cs1 TrustedStack_offset_frames;
+        lea cs1 csp TrustedStack_offset_frames;
         geta cs1 cs1;
         geta ct2 ctp;
         sub cs1 cs1 ct2;
@@ -571,13 +565,10 @@ Section Switcher.
          (* csc cs1, TrustedStack_offset_mepcc(ct0): mirrored, the
             [ErrorState] is below [ct0] *)
          store_imm ct0 cs1 (TrustedStack_offset_mepcc - ErrorState_size)%Z;
-         (* cincoffset ca2, csp, TrustedStack_offset_cra: [mov] then [lea] *)
-         mov ca2 csp;
-         lea ca2 ca2 TrustedStack_offset_cra;
-         (* cincoffset ca3, ct0, TrustedStack_offset_cra: [mov] then [lea],
-            mirrored *)
-         mov ca3 ct0;
-         lea ca3 ca3 (TrustedStack_offset_cra - ErrorState_size)%Z
+         (* cincoffset ca2, csp, TrustedStack_offset_cra *)
+         lea ca2 csp TrustedStack_offset_cra;
+         (* cincoffset ca3, ct0, TrustedStack_offset_cra: mirrored *)
+         lea ca3 ct0 (TrustedStack_offset_cra - ErrorState_size)%Z
        ] ++
        (* copyContext ca3, ca2, cs1, a4 *)
        copy_context_asm ca3 ca2 cs1 ca4 ++
@@ -630,9 +621,7 @@ Section Switcher.
          (* addi tp, tp, -TrustedStackFrame_size *)
          add ctp ctp (- TrustedStackFrame_size)%Z;
          (* cincoffset ctp, ct1, tp *)
-         mov ct0 ctp;
-         mov ctp ct1;
-         lea ctp ctp ct0;
+         lea ctp ct1 ctp;
          (* clc ct0, TrustedStackFrame_offset_calleeExportTable(ctp) *)
          load_imm ct0 ctp TrustedStackFrame_offset_calleeExportTable;
          (* cgetbase s0, ct0 *)
@@ -649,11 +638,9 @@ Section Switcher.
          (* csetaddr ct2, ct0, ra *)
          seta ct2 ct0 cra;
          (* cincoffset ca2, csp, TrustedStack_offset_cra: mirrored *)
-         mov ca2 csp;
-         lea ca2 ca2 (TrustedStack_offset_cra - ErrorState_size)%Z;
+         lea ca2 csp (TrustedStack_offset_cra - ErrorState_size)%Z;
          (* cincoffset ca3, ct1, TrustedStack_offset_cra *)
-         mov ca3 ct1;
-         lea ca3 ca3 TrustedStack_offset_cra
+         lea ca3 ct1 TrustedStack_offset_cra
        ] ++
        (* copyContext ca3, ca2, cs1, a4 *)
        copy_context_asm ca3 ca2 cs1 ca4 ++

@@ -138,7 +138,7 @@ Section Switcher_Return_Blocks_1.
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     a_csp ↦ₐ WCap true RWL Local b_stk e_stk a_stk4 ∗
     codefrag_pers pc_a switcher_instrs_13 ∗
-    ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 12)%a ∗
+    ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 11)%a ∗
         ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         ct1 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
         ct2 ↦ᵣ WInt (tstack_frame_offset (S d)) ∗
@@ -167,10 +167,7 @@ Section Switcher_Return_Blocks_1.
     assert (is_heap_cap (WCap true RWL Local b_stk e_stk a_stk4) = false) as Hwtstk_nonheap.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_stk_heap //. }
 
-    (* Mov ct1 ctp *)
-    iInstr "Hcode".
-
-    (* Lea ct1 ct1 ct2 *)
+    (* Lea ct1 ctp ct2 *)
     iInstr "Hcode".
 
     (* CLoad csp ct1 0 *)

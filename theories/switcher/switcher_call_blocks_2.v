@@ -205,7 +205,7 @@ Section Switcher_Call_Blocks_2.
             ⌜ (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
             PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_3)%a ∗
             cs0 ↦ᵣ WInt (tstack_frameoffset (S d)) ∗
-            cs1 ↦ᵣ WInt (tstack_frameoffset d) ∗
+            cs1 ↦ᵣ WInt b_trusted_stack ∗
             ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
             ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
             csp ↦ᵣ wstk ∗
@@ -280,7 +280,7 @@ Section Switcher_Call_Blocks_2.
     {
       (* Jne 2 cs0 0 *)
       iInstr "Hcode".
-      (* Jmp 94 *)
+      (* Jmp 96 *)
       iInstr "Hcode".
       iApply "Hpost".
       iRight.
@@ -291,14 +291,8 @@ Section Switcher_Call_Blocks_2.
     (* Jne 2 cs0 0 *)
     iInstr "Hcode" with "Hlc".
 
-    (* Mov cs1 ctp *)
+    (* Lea ctp ct2 ctp *)
     iInstr "Hcode" with "Hlc".
-
-    (* Mov ctp ct2 *)
-    iInstr "Hcode".
-
-    (* Lea ctp ctp cs1 *)
-    iInstr "Hcode".
     { instantiate (1 := (a_tstk ^+ TrustedStackFrame_size)%a). tstack_unfold; solve_addr. }
 
     (* Split the new frame off the unused part of the trusted stack *)
@@ -411,7 +405,7 @@ Section Switcher_Call_Blocks_2.
             ⌜ (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
             PC ↦ₚ switcher_label_pc ".Lswitcher_chop_stack" ∗
             cs0 ↦ᵣ WInt (tstack_frameoffset (S d)) ∗
-            cs1 ↦ᵣ WInt (tstack_frameoffset d) ∗
+            cs1 ↦ᵣ WInt b_trusted_stack ∗
             ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
             ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
             a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗

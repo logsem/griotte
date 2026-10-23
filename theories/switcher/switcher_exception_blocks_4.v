@@ -209,7 +209,7 @@ Section Switcher_Exception_Blocks_4.
     (pc_a a_tstk b_tbl : Addr) (eh : Z) (wcell wct1 wct2 wcs0 : LWord) (dq : dfrac) :
     let a_tbl_cell := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 26))%a ->
-    (pc_a + 27)%a = Some (pc_a ^+ 27)%a ->
+    (pc_a + 26)%a = Some (pc_a ^+ 26)%a ->
     (a_tstk + TrustedStackFrame_offset_calleeExportTable)%a = Some a_tbl_cell ->
     withinBounds b_trusted_stack e_trusted_stack a_tbl_cell = true ->
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
@@ -234,7 +234,7 @@ Section Switcher_Exception_Blocks_4.
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (off : Z) (wct2' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ ∗
-          ⌜(eh ≠ ExportTable_no_handler ∧ off = 27%Z) ∨
+          ⌜(eh ≠ ExportTable_no_handler ∧ off = 26%Z) ∨
            (eh = ExportTable_no_handler ∧ off = 6%Z)⌝ ∗
           PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ off)%a ∗
           ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
@@ -273,8 +273,8 @@ Section Switcher_Exception_Blocks_4.
       + (* Jne .Lhandle_error_found ct2 0 *)
         iInstr "Hcode".
         { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
-        { transitivity (Some (pc_a ^+ 27)%a); solve_addr. }
-        iApply ("Hpost" $! p g e a 27%Z). iFrame. iPureIntro. split; first done. by left.
+        { transitivity (Some (pc_a ^+ 26)%a); solve_addr. }
+        iApply ("Hpost" $! p g e a 26%Z). iFrame. iPureIntro. split; first done. by left.
   Qed.
 
   (** Block 27: the stackless handler, and the stack of the topmost frame:
@@ -286,8 +286,8 @@ Section Switcher_Exception_Blocks_4.
     let a_csp_cell := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
     let a_tbl_cell := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 27))%a ->
-    (pc_a + (-77))%a = Some (pc_a ^+ (-77))%a ->
-    (pc_a + 20)%a = Some (pc_a ^+ 20)%a ->
+    (pc_a + (-75))%a = Some (pc_a ^+ (-75))%a ->
+    (pc_a + 19)%a = Some (pc_a ^+ 19)%a ->
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
@@ -318,9 +318,9 @@ Section Switcher_Exception_Blocks_4.
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (off : Z) (wct0' wct2' wcs1' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ ∗
-          ⌜(ehs = ExportTable_no_handler ∧ off = (-77)%Z ∧ wct0' = wct0) ∨
-           (ehs ≠ ExportTable_no_handler ∧ d = 0 ∧ off = 20%Z ∧ wct0' = wfcsp) ∨
-           (ehs ≠ ExportTable_no_handler ∧ d ≠ 0 ∧ off = 15%Z ∧ wct0' = wfcsp)⌝ ∗
+          ⌜(ehs = ExportTable_no_handler ∧ off = (-75)%Z ∧ wct0' = wct0) ∨
+           (ehs ≠ ExportTable_no_handler ∧ d = 0 ∧ off = 19%Z ∧ wct0' = wfcsp) ∨
+           (ehs ≠ ExportTable_no_handler ∧ d ≠ 0 ∧ off = 14%Z ∧ wct0' = wfcsp)⌝ ∗
           PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ off)%a ∗
           csp ↦ᵣ tstack_cap ∗
           ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
@@ -367,8 +367,8 @@ Section Switcher_Exception_Blocks_4.
         iInstr "Hcode".
         (* Jmp .Lcommon_force_unwind *)
         iInstr "Hcode".
-        { transitivity (Some (pc_a ^+ (-77))%a); solve_addr. }
-        iApply ("Hpost" $! p g e a (-77)%Z). iFrame. iPureIntro. split; first done. by left. }
+        { transitivity (Some (pc_a ^+ (-75))%a); solve_addr. }
+        iApply ("Hpost" $! p g e a (-75)%Z). iFrame. iPureIntro. split; first done. by left. }
       (* Jne 2 ct2 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
@@ -380,10 +380,8 @@ Section Switcher_Exception_Blocks_4.
       { subst a_csp_cell; tstk_not_shadow Hts_shadow. }
       { subst a_csp_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
       rewrite lload_word_RWL.
-      (* Mov cs1 csp *)
-      iInstr "Hcode".
       rewrite /tstack_cap.
-      (* Lea cs1 cs1 TrustedStack_offset_frames *)
+      (* Lea cs1 csp TrustedStack_offset_frames *)
       iInstr "Hcode".
       { transitivity (Some (b_trusted_stack ^+ TrustedStack_offset_frames)%a);
           tstack_unfold; solve_addr. }
@@ -401,13 +399,13 @@ Section Switcher_Exception_Blocks_4.
         iInstr "Hcode".
         (* Jmp .Lhandle_stack_recovered *)
         iInstr "Hcode".
-        { transitivity (Some (pc_a ^+ 20)%a); solve_addr. }
-        iApply ("Hpost" $! p g e a 20%Z). iFrame. iPureIntro. split; first done.
+        { transitivity (Some (pc_a ^+ 19)%a); solve_addr. }
+        iApply ("Hpost" $! p g e a 19%Z). iFrame. iPureIntro. split; first done.
         right; left. done.
       + (* Jne 2 cs1 0 *)
         iInstr "Hcode".
         { apply negb_true_iff, Z.eqb_neq. cbn. tstack_unfold. solve_addr. }
-        iApply ("Hpost" $! p g e a 15%Z). iFrame. iPureIntro. split; first done.
+        iApply ("Hpost" $! p g e a 14%Z). iFrame. iPureIntro. split; first done.
         right; right. done.
   Qed.
 
