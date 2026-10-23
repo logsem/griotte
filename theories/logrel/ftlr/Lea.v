@@ -27,8 +27,8 @@ Section fundamental.
 
   Lemma lea_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
-    (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr trusted_fault W C regs p p' g b e a w (Lea dst src) ρ P cstk Ws Cs.
+    (ρ : region_type) (dst src : RegName) (arg : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr trusted_fault W C regs p p' g b e a w (Lea dst src arg) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -40,12 +40,12 @@ Section fundamental.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
-    destruct HSpec as [ * Hdst Hz Hoffset HincrPC Hregs'
-                      | * Hdst Hz Hoffset HincrPC Hregs'
-                      | * Hdst Hz Hoffset HincrPC Hregs'
-                      | * Hdst Hz Hoffset HincrPC Hregs'
-                      | * Hdst Hz HincrPC Hregs'
-                      | * Hdst Hsl HincrPC Hregs'
+    destruct HSpec as [ * Hsrc Hz Hoffset HincrPC Hregs'
+                      | * Hsrc Hz Hoffset HincrPC Hregs'
+                      | * Hsrc Hz Hoffset HincrPC Hregs'
+                      | * Hsrc Hz Hoffset HincrPC Hregs'
+                      | * Hsrc Hz HincrPC Hregs'
+                      | * Hsrc Hsl HincrPC Hregs'
                       | ].
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
@@ -62,8 +62,10 @@ Section fundamental.
         destruct (decide (ri = dst)).
         { subst ri. rewrite lookup_insert_eq in Hvs. simplify_eq.
           destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-          rewrite llookup_reg_not_cnull // in Hdst.
-          iSpecialize ("Hreg" $! dst _ Hdst).
+          assert (src ≠ cnull) as Hsrc_cnull
+            by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
+          rewrite llookup_reg_not_cnull // in Hsrc.
+          iSpecialize ("Hreg" $! src _ Hsrc).
           iApply (interp_weakening with "IH Hreg"); eauto; try solve_addr;
             try apply subseg_heap_base_same.
           - eapply PermFlowsToReflexive.
@@ -88,8 +90,10 @@ Section fundamental.
         destruct (decide (ri = dst)).
         { subst ri. rewrite lookup_insert_eq in Hvs. simplify_eq.
           destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-          rewrite llookup_reg_not_cnull // in Hdst.
-          iSpecialize ("Hreg" $! dst _ Hdst).
+          assert (src ≠ cnull) as Hsrc_cnull
+            by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
+          rewrite llookup_reg_not_cnull // in Hsrc.
+          iSpecialize ("Hreg" $! src _ Hsrc).
           iApply (interp_weakening_ot with "Hreg"); eauto; try solve_addr.
           - apply SealPermFlowsToReflexive.
           - apply LocalityFlowsToReflexive.

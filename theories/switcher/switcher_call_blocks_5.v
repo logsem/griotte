@@ -88,7 +88,7 @@ Section Switcher_Call_Blocks_5.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    (* Lea csp (inl (-1)%Z); *)
+    (* Lea csp csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 3)%a ) ; solve_addr. }
     (* CLoad cgp csp; *)
@@ -99,7 +99,7 @@ Section Switcher_Call_Blocks_5.
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
-    (* Lea csp (inl (-1)%Z); *)
+    (* Lea csp csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 2)%a ) ; solve_addr. }
     (* CLoad cra csp; *)
@@ -110,7 +110,7 @@ Section Switcher_Call_Blocks_5.
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
-    (* Lea csp (inl (-1)%Z); *)
+    (* Lea csp csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 1)%a ) ; solve_addr. }
     (* CLoad cs1 csp; *)
@@ -121,7 +121,7 @@ Section Switcher_Call_Blocks_5.
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
-    (* Lea csp (inl (-1)%Z); *)
+    (* Lea csp csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some a_stk ) ; solve_addr. }
     (* CLoad cs0 csp; *)
@@ -216,7 +216,7 @@ Section Switcher_Call_Blocks_5.
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
-    (* Lea csp (inl (-1)%Z); *)
+    (* Lea csp csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 3)%a ) ; solve_addr. }
     iEval (rewrite open_world_interp_empty) in "Hworld".
@@ -229,7 +229,7 @@ Section Switcher_Call_Blocks_5.
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
-    (* Lea csp (inl (-1)%Z); *)
+    (* Lea csp csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 2)%a ) ; solve_addr. }
     (* CLoad cra csp; *)
@@ -241,7 +241,7 @@ Section Switcher_Call_Blocks_5.
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
-    (* Lea csp (inl (-1)%Z); *)
+    (* Lea csp csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some (a_stk ^+ 1)%a ) ; solve_addr. }
     (* CLoad cs1 csp; *)
@@ -253,7 +253,7 @@ Section Switcher_Call_Blocks_5.
     { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
-    (* Lea csp (inl (-1)%Z); *)
+    (* Lea csp csp (inl (-1)%Z); *)
     iInstr "Hcode".
     { transitivity ( Some a_stk ) ; solve_addr. }
     (* CLoad cs0 csp; *)

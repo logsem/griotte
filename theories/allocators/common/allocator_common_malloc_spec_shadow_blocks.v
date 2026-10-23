@@ -114,7 +114,7 @@ Section AllocatorMallocShadowBlocks.
     (* Sub ca3 ca3 allocator_header_words. *)
     iInstr "Hcode".
     replace (b - heap_b - 3)%Z with (next - heap_b)%Z by solve_addr.
-    (* Lea ctp ca3. *)
+    (* Lea ctp ctp ca3. *)
     iInstr "Hcode".
     { transitivity (Some sh); subst sh; solve_addr. }
     (* Mov ca2 allocator_header_words. *)

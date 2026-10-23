@@ -10,14 +10,14 @@ Section Check_No_Overlap.
         getb r1 rsrc1; (* r1 := b1 *)
         getb r2 rsrc2; (* r2 := b2 *)
         lt r1 r1 r2;   (* r2 := (if b1 < b2 then 1 else 0) *)
-        jnz "b1_<_b2" r1;
+        jnez "b1_<_b2" r1;
         #"b2_<=_b1";
         (* we need b1 <= (e2-1) *)
         getb r1 rsrc1; (* r1 := b1 *)
         gete r2 rsrc2; (* r2 := e2 *)
         sub r2 r2 1;   (* r2 := e2-1 *)
         lt r1 r2 r1;   (* r1 := (if (e2-1) < b1 then 1 else 0) *)
-        jnz "b1_<=_e2'" r1;
+        jnez "b1_<=_e2'" r1;
         #"e2'_<_b1";
         fail;
         #"b1_<=_e2'";
@@ -29,7 +29,7 @@ Section Check_No_Overlap.
         gete r1 rsrc1; (* r1 := e1 *)
         sub r1 r1 1;   (* r1 := e1-1 *)
         lt r1 r1 r2;   (* r1 := (if (e1-1) < b2 then 1 else 0) *)
-        jnz "b2_<=_e1'" r1;
+        jnez "b2_<=_e1'" r1;
         #"e1'_<_b2";
         fail;
         #"b2_<=_e1'";

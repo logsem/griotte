@@ -1113,13 +1113,33 @@ Ltac instr_finish hprog hlc hlc' :=
   try wp_pure_lc hlc';
   try (iCombine_ident (INamed hlc) hlc' as (INamed hlc)).
 
+(* The comparison of a conditional jump, by computation, from a hypothesis,
+   or by [lia] on the comparison of the operands. *)
+Ltac solve_jcond_test :=
+  cbn [jcond_test];
+  first
+    [ reflexivity
+    | assumption
+    | lazymatch goal with
+      | |- Z.eqb _ _ = true => apply Z.eqb_eq; lia
+      | |- Z.eqb _ _ = false => apply Z.eqb_neq; lia
+      | |- negb (Z.eqb _ _) = true => apply negb_true_iff, Z.eqb_neq; lia
+      | |- negb (Z.eqb _ _) = false => apply negb_false_iff, Z.eqb_eq; lia
+      | |- Z.ltb _ _ = true => apply Z.ltb_lt; lia
+      | |- Z.ltb _ _ = false => apply Z.ltb_ge; lia
+      | |- Z.leb _ _ = true => apply Z.leb_le; lia
+      | |- Z.leb _ _ = false => apply Z.leb_gt; lia
+      end ].
+
 (* Integer operands are matched through [IsLInt] rather than by framing a
    [WInt _] points-to, so a rule only applies if its [IsLInt] premises are
-   proved. Fail otherwise, so that the dispatcher tries its next alternative.
-   Other side goals are left to the caller. *)
+   proved. Likewise, a conditional jump's rule (taken or not) only applies if
+   its comparison is proved. Fail otherwise, so that the dispatcher tries its
+   next alternative. Other side goals are left to the caller. *)
 Ltac instr_commit_lint :=
   lazymatch goal with
   | |- IsLInt _ _ => solve [ltac2:(solve_pure_iinstr ())]
+  | |- jcond_test _ _ _ = _ => solve [solve_jcond_test]
   | _ => idtac
   end.
 

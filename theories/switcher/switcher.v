@@ -195,14 +195,14 @@ Section Switcher.
         getp ct2 csp;
         mov ctp (encodePerm RWL);
         sub ct2 ct2 ctp;
-        jnz (".Lcommon_force_unwind")%asm ct2
+        jnez (".Lcommon_force_unwind")%asm ct2
       ]
       ; (* Check permissions of the stack *)
       [ #".Lswitcher_csp_check_loc";
         getl ct2 csp;
         mov ctp (encodeLoc Local);
         sub ct2 ct2 ctp;
-        jnz (".Lcommon_force_unwind")%asm ct2
+        jnez (".Lcommon_force_unwind")%asm ct2
       ]
       ; (* Save the callee registers. The first spill goes to the cell
            furthest from the cursor: if it fits, the stack is long enough
@@ -213,7 +213,7 @@ Section Switcher.
         store_imm csp cs0 0;
         store_imm csp cs1 1;
         store_imm csp cra 2;
-        lea csp 4
+        lea csp csp 4
       ]
       ; (* Check that the trusted stack has room for a frame, and push it *)
       [ #".Lswitcher_trusted_stack_push";
@@ -224,13 +224,11 @@ Section Switcher.
         getb cs1 ct2;
         sub cs0 cs0 cs1;
         lt cs0 ctp cs0; (* if (frameoffset < length) then (cs0 := 1) else (cs0 := 0) *)
-        jnz 2 cs0;
+        jnez 2 cs0;
         #".Lswitcher_trusted_stack_full";
         jmp (".Lswitch_trusted_stack_exhausted")%asm;
         (* ctp points to the new frame *)
-        mov cs1 ctp;
-        mov ctp ct2;
-        lea ctp cs1;
+        lea ctp ct2 ctp;
         store_imm ctp csp TrustedStackFrame_offset_csp;
         store_imm ctp 0 TrustedStackFrame_offset_errorHandlerCount;
         store_imm ctp 0 TrustedStackFrame_offset_calleeExportTable;
@@ -243,7 +241,7 @@ Section Switcher.
       [ #".Lswitcher_chop_stack";
         gete cs0 csp;
         geta cs1 csp;
-        subseg csp cs1 cs0
+        subseg csp csp cs1 cs0
       ]
       ; (* Zero out the callee's stack frame *)
       (#".Lswitcher_zero_callee_stack" :: clear_stack_asm cs0 cs1)
@@ -273,26 +271,24 @@ Section Switcher.
         sub cgp cgp cra;
         lt cra cgp cs1;
         #".Lswitch_stack_too_small_branch";
-        jnz (".Lswitch_stack_too_small")%asm cra;
+        jnez (".Lswitch_stack_too_small")%asm cra;
         lshiftr cs0 cs0 16
       ]
       ; (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
       [ #".Lswitcher_prepare_callee";
         getb cgp ct1;
-        geta cs1 ct1;
-        sub cs1 cgp cs1;
-        lea ct1 cs1;
+        seta ct1 ct1 cgp;
         load cra ct1;
-        lea ct1 ExportTable_offset_cgp;
+        lea ct1 ct1 ExportTable_offset_cgp;
         load cgp ct1;
-        lea cra cs0;
+        lea cra cra cs0;
         add ct2 ct2 1
       ]
       ; (* Clear ununsed arguments registers *)
       (#".Lswitcher_clear_unused_args" :: clear_registers_pre_call_skip_asm)
       ; (* Enable interrupts, unless the entry point asks for them disabled *)
       [ #".Lswitcher_enable_interrupts";
-        jnz (".Lswitcher_clear_registers")%asm ctp;
+        jnez (".Lswitcher_clear_registers")%asm ctp;
         csrsi mstatus (Z.shiftl 1 MIE_BIT)
       ]
       ; (* Clear non-arguments registers  *)
@@ -315,23 +311,22 @@ Section Switcher.
         add ct2 ct2 (- TrustedStackFrame_size)%Z;
         (* Exit the thread when the frame to pop is the entry frame *)
         lt ct0 ct0 ct2;
-        jnz 2 ct0;
+        jnez 2 ct0;
         jmp (".Lcommon_defer_irqs_and_thread_exit")%asm;
         (* Restore the caller's stack pointer and pop the frame *)
-        mov ct1 ctp;
-        lea ct1 ct2;
+        lea ct1 ctp ct2;
         load_imm csp ct1 TrustedStackFrame_offset_csp;
         store_imm ctp ct2 TrustedStack_offset_frameoffset;
 
         (* Restores the caller's saved registers *)
-        lea csp (-1)%Z;
+        lea csp csp (-1)%Z;
         #".Lswitcher_restore_cgp";
         load cgp csp;
-        lea csp (-1)%Z;
+        lea csp csp (-1)%Z;
         load cra csp;
-        lea csp (-1)%Z;
+        lea csp csp (-1)%Z;
         load cs1 csp;
-        lea csp (-1)%Z;
+        lea csp csp (-1)%Z;
         load cs0 csp;
 
         (* Zero out the callee stack frame *)
@@ -352,13 +347,13 @@ Section Switcher.
     (* Failure *)
     [ (* Trusted stack is exhausted: return to caller *)
       [ #".Lswitch_trusted_stack_exhausted";
-        lea csp (-1)%Z;
+        lea csp csp (-1)%Z;
         load cgp csp;
-        lea csp (-1)%Z;
+        lea csp csp (-1)%Z;
         load cra csp;
-        lea csp (-1)%Z;
+        lea csp csp (-1)%Z;
         load cs1 csp;
-        lea csp (-1)%Z;
+        lea csp csp (-1)%Z;
         load cs0 csp;
         mov ca0 ENOTENOUGHTRUSTEDSTACK;
         mov ca1 0;
@@ -394,7 +389,7 @@ Section Switcher.
          mtdc means that the exception entry was re-entered. *)
       [ #"exception_entry_asm";
         specialrw csp mtdc csp;
-        jnz 2 csp;
+        jnez 2 csp;
         jmp (".Lexception_reentered")%asm
       ]
       ; (* Spill the registers of the interrupted context in the register
@@ -416,11 +411,11 @@ Section Switcher.
         store_imm csp ct1 TrustedStack_offset_mcause;
         mov ca0 MCAUSE_CHERI;
         sub ca0 ca0 ct1;
-        jnz 2 ca0;
+        jnez 2 ca0;
         jmp (".Lhandle_error")%asm;
         mov ca0 8;
         lt ca0 ct1 ca0;
-        jnz (".Lhandle_error")%asm ca0;
+        jnez (".Lhandle_error")%asm ca0;
         jmp (".Lexception_scheduler_call")%asm
       ]
       ; (* A trap to be handled by the compartments: restore mtdc. A fault of
@@ -437,24 +432,22 @@ Section Switcher.
         getb ct0 ct0;
         getb ctp ct1;
         sub ct0 ct0 ctp;
-        jnz 2 ct0;
+        jnez 2 ct0;
         jmp (".Lhandle_error_in_switcher")%asm;
         load_imm ct0 csp TrustedStack_offset_csp;
         load_imm ctp csp TrustedStack_offset_frameoffset;
         mov ct1 TrustedStack_offset_frames;
         sub ct1 ctp ct1;
-        jnz 2 ct1;
+        jnez 2 ct1;
         jmp (".Lcommon_thread_exit")%asm;
         add ctp ctp (- TrustedStackFrame_size)%Z;
         (* cincoffset ctp, csp, tp *)
-        mov ct1 ctp;
-        mov ctp csp;
-        lea ctp ct1;
+        lea ctp csp ctp;
         (* li a0, 0 *)
         mov ca0 0;
         (* cincoffset ct0, ct0, -(16*8): the layout is mirrored for
            upward-growing stacks, so the room is above the cursor *)
-        lea ct0 ErrorState_size
+        lea ct0 ct0 ErrorState_size
       ]
       ; (* Room for the [ErrorState] of a stackful handler: the moved stack
            pointer [ct0] is tagged, and its cursor is not past its end.
@@ -465,7 +458,7 @@ Section Switcher.
         (* li s1, 0xffff *)
         mov cs1 ExportTable_no_handler;
         (* beqz t1, .Lhandle_error_try_stackless *)
-        jnz 2 ct1;
+        jnez 2 ct1;
         jmp (".Lhandle_error_try_stackless")%asm;
         (* Not in CHERIoT, where a cursor moved out of the representable
            bounds clears the tag: [Lea] keeps the tag out of bounds, so the
@@ -473,7 +466,7 @@ Section Switcher.
         geta ct1 ct0;
         gete ct2 ct0;
         le ct1 ct1 ct2;
-        jnz 2 ct1;
+        jnez 2 ct1;
         jmp (".Lhandle_error_try_stackless")%asm
       ]
       ; (* The stackful handler of the export table of the topmost frame,
@@ -483,12 +476,10 @@ Section Switcher.
         load_imm ct1 ctp TrustedStackFrame_offset_calleeExportTable;
         getb cs0 ct1;
         (* csetaddr ct1, ct1, s0 *)
-        geta ct2 ct1;
-        sub ct2 cs0 ct2;
-        lea ct1 ct2;
+        seta ct1 ct1 cs0;
         load_imm cs0 ct1 ExportTable_offset_errorHandler;
         sub ct2 cs0 cs1;
-        jnz (".Lhandle_error_found")%asm ct2
+        jnez (".Lhandle_error_found")%asm ct2
       ]
       ; (* The stackless handler; with none, force the unwind. Its stack is
            that of the caller of the topmost frame; for the entry frame, it
@@ -497,21 +488,18 @@ Section Switcher.
         load_imm ct1 ctp TrustedStackFrame_offset_calleeExportTable;
         getb cs0 ct1;
         (* csetaddr ct1, ct1, s0 *)
-        geta ct2 ct1;
-        sub ct2 cs0 ct2;
-        lea ct1 ct2;
+        seta ct1 ct1 cs0;
         load_imm cs0 ct1 ExportTable_offset_errorHandlerStackless;
         sub ct2 cs0 cs1;
-        jnz 2 ct2;
+        jnez 2 ct2;
         jmp (".Lcommon_force_unwind")%asm;
         load_imm ct0 ctp TrustedStackFrame_offset_csp;
         (* cincoffset s1, csp, TrustedStack_offset_frames *)
-        mov cs1 csp;
-        lea cs1 TrustedStack_offset_frames;
+        lea cs1 csp TrustedStack_offset_frames;
         geta cs1 cs1;
         geta ct2 ctp;
         sub cs1 cs1 ct2;
-        jnz 2 cs1;
+        jnez 2 cs1;
         jmp (".Lhandle_stack_recovered")%asm
       ]
       ; (* The stack of a pushed frame: the part above the cursor of the
@@ -520,9 +508,9 @@ Section Switcher.
       [ #".Lhandle_stack_rebound";
         geta ca1 ct0;
         gete ca2 ct0;
-        subseg ct0 ca1 ca2;
+        subseg ct0 ct0 ca1 ca2;
         sub ca1 ca2 ca1;
-        lea ct0 ca1
+        lea ct0 ct0 ca1
       ]
       ; (* A stackless handler. *)
       [ #".Lhandle_stack_recovered";
@@ -537,22 +525,20 @@ Section Switcher.
         add cs1 cs1 1;
         store_imm ctp cs1 TrustedStackFrame_offset_errorHandlerCount;
         land cra cs1 1;
-        jnz 2 cra;
+        jnez 2 cra;
         jmp (".Lcommon_force_unwind")%asm;
         mov cra MAX_FAULTS_PER_COMPARTMENT_CALL;
         (* bgtu s1, ra: a signed comparison *)
         le cra cs1 cra;
-        jnz 2 cra;
+        jnez 2 cra;
         jmp (".Lcommon_force_unwind")%asm;
         load_imm cra ct1 ExportTable_offset_pcc;
         load_imm cgp ct1 ExportTable_offset_cgp;
         getb cs1 cra;
         (* csetaddr ra, ra, s1 *)
-        geta ct2 cra;
-        sub ct2 cs1 ct2;
-        lea cra ct2;
-        lea cra cs0;
-        jnz 2 ca0;
+        seta cra cra cs1;
+        lea cra cra cs0;
+        jnez 2 ca0;
         jmp (".Lhandle_error_stack_setup")%asm
       ]
       ; (* The arguments of a stackless handler: the cause and the value of
@@ -579,20 +565,17 @@ Section Switcher.
          (* csc cs1, TrustedStack_offset_mepcc(ct0): mirrored, the
             [ErrorState] is below [ct0] *)
          store_imm ct0 cs1 (TrustedStack_offset_mepcc - ErrorState_size)%Z;
-         (* cincoffset ca2, csp, TrustedStack_offset_cra: [mov] then [lea] *)
-         mov ca2 csp;
-         lea ca2 TrustedStack_offset_cra;
-         (* cincoffset ca3, ct0, TrustedStack_offset_cra: [mov] then [lea],
-            mirrored *)
-         mov ca3 ct0;
-         lea ca3 (TrustedStack_offset_cra - ErrorState_size)%Z
+         (* cincoffset ca2, csp, TrustedStack_offset_cra *)
+         lea ca2 csp TrustedStack_offset_cra;
+         (* cincoffset ca3, ct0, TrustedStack_offset_cra: mirrored *)
+         lea ca3 ct0 (TrustedStack_offset_cra - ErrorState_size)%Z
        ] ++
        (* copyContext ca3, ca2, cs1, a4 *)
        copy_context_asm ca3 ca2 cs1 ca4 ++
        [ (* cmove ca0, ct0: mirrored, [ca0] points to the [ErrorState],
             below [ct0] *)
          mov ca0 ct0;
-         lea ca0 (- ErrorState_size)%Z;
+         lea ca0 ca0 (- ErrorState_size)%Z;
          (* clw a1, TrustedStack_offset_mcause(csp) *)
          load_imm ca1 csp TrustedStack_offset_mcause;
          (* csrr a2, mtval *)
@@ -621,7 +604,7 @@ Section Switcher.
            ([ca0] not zero) forces the unwind. *)
       [ #".Lhandle_error_handler_return";
         csrci mstatus (Z.shiftl 1 MIE_BIT);
-        jnz (".Lcommon_force_unwind")%asm ca0
+        jnez (".Lcommon_force_unwind")%asm ca0
       ]
       ; (* Install the context of the handler: the [ErrorState] below the
            handler's stack pointer (mirrored for upward-growing stacks:
@@ -638,17 +621,13 @@ Section Switcher.
          (* addi tp, tp, -TrustedStackFrame_size *)
          add ctp ctp (- TrustedStackFrame_size)%Z;
          (* cincoffset ctp, ct1, tp *)
-         mov ct0 ctp;
-         mov ctp ct1;
-         lea ctp ct0;
+         lea ctp ct1 ctp;
          (* clc ct0, TrustedStackFrame_offset_calleeExportTable(ctp) *)
          load_imm ct0 ctp TrustedStackFrame_offset_calleeExportTable;
          (* cgetbase s0, ct0 *)
          getb cs0 ct0;
          (* csetaddr ct0, ct0, s0 *)
-         geta ct2 ct0;
-         sub ct2 cs0 ct2;
-         lea ct0 ct2;
+         seta ct0 ct0 cs0;
          (* clc ct0, ExportTable_offset_pcc(ct0) *)
          load_imm ct0 ct0 ExportTable_offset_pcc;
          (* clc cra, TrustedStack_offset_mepcc(csp): mirrored, the
@@ -657,16 +636,11 @@ Section Switcher.
          (* cgetaddr ra, cra *)
          geta cra cra;
          (* csetaddr ct2, ct0, ra *)
-         mov ct2 ct0;
-         geta cs0 ct2;
-         sub cs0 cra cs0;
-         lea ct2 cs0;
+         seta ct2 ct0 cra;
          (* cincoffset ca2, csp, TrustedStack_offset_cra: mirrored *)
-         mov ca2 csp;
-         lea ca2 (TrustedStack_offset_cra - ErrorState_size)%Z;
+         lea ca2 csp (TrustedStack_offset_cra - ErrorState_size)%Z;
          (* cincoffset ca3, ct1, TrustedStack_offset_cra *)
-         mov ca3 ct1;
-         lea ca3 TrustedStack_offset_cra
+         lea ca3 ct1 TrustedStack_offset_cra
        ] ++
        (* copyContext ca3, ca2, cs1, a4 *)
        copy_context_asm ca3 ca2 cs1 ca4 ++
@@ -690,7 +664,7 @@ Section Switcher.
       [ #".Lhandle_error_in_switcher";
         auipcc ctp (".Lswitcher_entry_first_spill")%asm;
         sub ct1 ct1 ctp;
-        jnz (".Lcommon_force_unwind")%asm ct1;
+        jnez (".Lcommon_force_unwind")%asm ct1;
         mov ca0 ENOTENOUGHSTACK;
         mov ca1 0;
         #".Lhandle_return_context_install";

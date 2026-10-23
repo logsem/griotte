@@ -150,13 +150,13 @@ Section Switcher_Call_Blocks_4.
     rewrite encode_entry_point_eq_nargs; last lia.
     destruct (e_stk - b_stk <? minstk)%Z eqn:Hsmall; iEval (cbn) in "Hcra".
     - apply Z.ltb_lt in Hsmall.
-      (* Jnz ".Lswitch_stack_too_small" cra *)
+      (* Jne ".Lswitch_stack_too_small" cra 0 *)
       iInstr "Hcode".
       iApply "Hpost"; iRight.
       iFrame "∗ Hcode".
       done.
     - apply Z.ltb_ge in Hsmall.
-      (* Jnz ".Lswitch_stack_too_small" cra *)
+      (* Jne ".Lswitch_stack_too_small" cra 0 *)
       iInstr "Hcode".
 
       (* LShiftR cs0 cs0 16 *)
@@ -200,7 +200,7 @@ Section Switcher_Call_Blocks_4.
     codefrag_pers pc_a switcher_instrs_8 ∗
     ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_8)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
-        cs1 ↦ᵣ WInt (btbl_tgt - atbl_tgt) ∗
+        cs1 ↦ᵣ wcs1 ∗
         ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt a_tbl_cgp ∗
         ct2 ↦ᵣ WInt (nargs + 1) ∗
         cgp ↦ᵣ wcgp_tgt ∗
@@ -221,15 +221,8 @@ Section Switcher_Call_Blocks_4.
     (* --- GetB cgp ct1 --- *)
     iInstr "Hcode".
 
-    (* --- GetA cs1 ct1 --- *)
+    (* --- SetA ct1 ct1 cgp --- *)
     iInstr "Hcode".
-
-    (* --- Sub cs1 cgp cs1 --- *)
-    iInstr "Hcode".
-
-    (* --- Lea ct1 cs1 --- *)
-    iInstr "Hcode".
-    { instantiate (1:=btbl_tgt); solve_addr. }
 
     (* CLoad cra ct1 0. *)
     assert (is_heap_cap (WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt) = false)
@@ -239,7 +232,7 @@ Section Switcher_Call_Blocks_4.
     iInstr "Hcode".
     { split;auto. rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea ct1 ExportTable_offset_cgp --- *)
+    (* --- Lea ct1 ct1 ExportTable_offset_cgp --- *)
     iInstr "Hcode".
     { instantiate (1:=(btbl_tgt ^+ ExportTable_offset_cgp)%a); solve_addr. }
 
@@ -247,7 +240,7 @@ Section Switcher_Call_Blocks_4.
     iInstr "Hcode".
     { split;auto. rewrite /withinBounds; solve_addr. }
 
-    (* --- Lea cra cs0 --- *)
+    (* --- Lea cra cra cs0 --- *)
     destruct Hentry as [a_entry Hentry].
     iInstr "Hcode".
 
@@ -300,7 +293,7 @@ Section Switcher_Call_Blocks_4.
     ▷ ( ( ⌜ (Z.of_nat minstk <= e_stk - b_stk)%Z ⌝ ∗
           PC ↦ₚ switcher_label_pc ".Lswitcher_clear_unused_args" ∗
           cs0 ↦ᵣ WInt off ∗
-          cs1 ↦ᵣ WInt (b_tbl - a_tbl) ∗
+          cs1 ↦ᵣ WInt (Z.of_nat minstk) ∗
           ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl_cgp ∗
           ct2 ↦ᵣ WInt (Z.of_nat nargs + 1) ∗
           ctp ↦ᵣ WInt (entry_point_posture posture) ∗
@@ -394,12 +387,12 @@ Section Switcher_Call_Blocks_4.
     codefrag_facts "Hcode".
     rewrite /switcher_instrs_n /assembled_switcher_n.
     destruct posture; cbn [entry_point_posture].
-    - (* --- Jnz 2 ctp --- *)
+    - (* --- Jne 2 ctp 0 --- *)
       iInstr "Hcode".
       (* --- SetMIE InterruptEnabled --- *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame "∗ Hcode".
-    - (* --- Jnz 2 ctp --- *)
+    - (* --- Jne 2 ctp 0 --- *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame "∗ Hcode".
   Qed.

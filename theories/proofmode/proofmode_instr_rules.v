@@ -28,6 +28,21 @@ Ltac dispatch_BinOp r1 x1 x2 cont :=
   | (?dst, (inl _), (inl _)) => cont (@wp_binop_success_z_z)
   end.
 
+(* A conditional jump: the rule of the taken jump, else the rule of the
+   fall-through. Each commits its comparison ([instr_commit_lint]). *)
+Ltac dispatch_JCond off x1 x2 cont :=
+  let p := constr:((off, x1, x2)) in
+  lazymatch p with
+  | (inl _, inr ?r, inr ?r) =>
+      (cont (@wp_jcond_success_jmp_r_r_same) || cont (@wp_jcond_success_next_r_r_same))
+  | (inl _, inr _, inr _) =>
+      (cont (@wp_jcond_success_jmp_r_r) || cont (@wp_jcond_success_next_r_r))
+  | (inl _, inr _, inl _) =>
+      (cont (@wp_jcond_success_jmp_r_z) || cont (@wp_jcond_success_next_r_z))
+  | (inl _, inl _, inr _) =>
+      (cont (@wp_jcond_success_jmp_z_r) || cont (@wp_jcond_success_next_z_r))
+  end.
+
 Ltac dispatch_instr_rule instr cont :=
   let instr := eval unfold register_file.regn, register_file.cst in instr in
   lazymatch instr with
@@ -63,10 +78,20 @@ Ltac dispatch_instr_rule instr cont :=
   | LShiftR ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   | Lt ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   | Le ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  (* SetA *)
+  | SetA ?r ?r (inr _) => (cont (@wp_seta_success_reg) || cont (@wp_seta_success_reg_int))
+  | SetA ?r ?r (inl _) => (cont (@wp_seta_success_z) || cont (@wp_seta_success_z_int))
+  | SetA _ _ (inr _) =>
+    (cont (@wp_seta_success_reg_src) || cont (@wp_seta_success_reg_int_src))
+  | SetA _ _ (inl _) =>
+    (cont (@wp_seta_success_z_src) || cont (@wp_seta_success_z_int_src))
   (* Lea *)
-  | Lea _ (inr _) => (cont (@wp_lea_success_reg) || cont (@wp_lea_success_reg_sr))
-  | Lea _ (inl _) =>
+  | Lea ?r ?r (inr _) => (cont (@wp_lea_success_reg) || cont (@wp_lea_success_reg_sr))
+  | Lea ?r ?r (inl _) =>
     (cont (@wp_lea_success_z) || cont (@wp_lea_success_z_sr) || cont (@wp_lea_success_z_int))
+  | Lea ?r _ (inr ?r) => cont (@wp_lea_success_reg_dst_src)
+  | Lea _ _ (inr _) => cont (@wp_lea_success_reg_src)
+  | Lea _ _ (inl _) => (cont (@wp_lea_success_z_src) || cont (@wp_lea_success_z_int_src))
   (* CLoad *)
   | CLoad ?r ?r 0 =>
     (cont (fun MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' =>
@@ -103,10 +128,15 @@ Ltac dispatch_instr_rule instr cont :=
   | Store _ (inr _) _ =>
     (cont (@wp_store_success_reg_same_a_store_word_imm) ||
      cont (@wp_store_success_reg_store_word_imm))
-  (* Jnz *)
-  | Jnz (inl _) _ => (cont (@wp_jnz_success_next_z) || cont (@wp_jnz_success_jmp_z) )
-  | Jnz (inr ?r) ?r => cont (@wp_jnz_success_jmp_same)
-  | Jnz (inr _) _ => (cont (@wp_jnz_success_next_reg) || cont (@wp_jnz_success_jmp_reg) )
+  (* Conditional jumps; [Jne off r 0] and [Jeq off r 0] first *)
+  | Jne (inl _) (inr _) (inl 0%Z) =>
+    (cont (@wp_jnez_success_next_z) || cont (@wp_jnez_success_jmp_z))
+  | Jeq (inl _) (inr _) (inl 0%Z) =>
+    (cont (@wp_jeqz_success_jmp_z) || cont (@wp_jeqz_success_next_z))
+  | Jeq ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
+  | Jne ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
+  | Jlt ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
+  | Jle ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
   (* Jmp *)
   | Jmp (inl _) => cont (@wp_jmp_success_z)
   | Jmp (inr _) => cont (@wp_jmp_success_reg)
@@ -117,15 +147,15 @@ Ltac dispatch_instr_rule instr cont :=
   | Jalr ?r ?r => cont (@wp_jalr_success_rdst)
   | Jalr _ _ => cont (@wp_jalr_success)
   (* Subseg *)
-  | Subseg _ (inr ?r) (inr ?r) => (cont (@wp_subseg_success_same) || cont (@wp_subseg_success_same_sr)) (* TODO: improve using register values? *)
-  | Subseg _ (inr _) (inr _) =>
+  | Subseg ?d ?d (inr ?r) (inr ?r) => (cont (@wp_subseg_success_same) || cont (@wp_subseg_success_same_sr)) (* TODO: improve using register values? *)
+  | Subseg ?d ?d (inr _) (inr _) =>
     (cont (@wp_subseg_success) || cont (@wp_subseg_success_sr) || cont (@wp_subseg_success_root))
-  | Subseg _ (inl _) (inr _) => (cont (@wp_subseg_success_l) || cont (@wp_subseg_success_l_sr))
-  | Subseg _ (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
-  | Subseg _ (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
+  | Subseg ?d ?d (inl _) (inr _) => (cont (@wp_subseg_success_l) || cont (@wp_subseg_success_l_sr))
+  | Subseg ?d ?d (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
+  | Subseg ?d ?d (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
   (* Restrict *)
-  | Restrict _ (inr _) => cont (@wp_restrict_success_reg)
-  | Restrict _ (inl _) => cont (@wp_restrict_success_z)
+  | Restrict ?r ?r (inr _) => cont (@wp_restrict_success_reg)
+  | Restrict ?r ?r (inl _) => cont (@wp_restrict_success_z)
   (* Seal *)
   | Seal ?r _ ?r => cont (@wp_seal_r2)
   | Seal ?r ?r _ => cont (@wp_seal_r1)
@@ -192,37 +222,42 @@ Ltac dispatch_instr_failure instr cont :=
 Ltac dispatch_instr_invalidation instr cont :=
   let instr := eval cbv [regn cst] in instr in
   lazymatch instr with
+  (* SetA: an address out of range *)
+  | SetA ?r ?r (inr _) => cont (@wp_seta_invalid_reg)
+  | SetA ?r ?r (inl _) => cont (@wp_seta_invalid_z)
+  | SetA _ _ (inr _) => cont (@wp_seta_invalid_reg_src)
+  | SetA _ _ (inl _) => cont (@wp_seta_invalid_z_src)
   (* Lea: reuse the existing overflow rules. *)
-  | Lea _ (inr _) => (cont (@wp_lea_overflow_reg) || cont (@wp_lea_overflow_reg_sr))
-  | Lea _ (inl _) => (cont (@wp_lea_overflow_z) || cont (@wp_lea_overflow_z_sr))
+  | Lea ?r ?r (inr _) => (cont (@wp_lea_overflow_reg) || cont (@wp_lea_overflow_reg_sr))
+  | Lea ?r ?r (inl _) => (cont (@wp_lea_overflow_z) || cont (@wp_lea_overflow_z_sr))
   (* Restrict *)
-  | Restrict _ (inr _) =>
+  | Restrict ?r ?r (inr _) =>
       (cont (@wp_restrict_invalidated_reg) || cont (@wp_restrict_invalidated_reg_sr))
-  | Restrict _ (inl _) =>
+  | Restrict ?r ?r (inl _) =>
       (cont (@wp_restrict_invalidated_z) || cont (@wp_restrict_invalidated_z_sr))
   (* Subseg: conversion overflow has priority over representable rejection.
      The explicit-mode caller requires overflow evidence before committing. *)
-  | Subseg _ (inr ?r) (inr ?r) =>
+  | Subseg ?d ?d (inr ?r) (inr ?r) =>
       (cont (@wp_subseg_unrepresentable_same) ||
        cont (@wp_subseg_unrepresentable_same_sr) ||
        cont (@wp_subseg_invalidated_same) ||
        cont (@wp_subseg_invalidated_same_sr))
-  | Subseg _ (inr _) (inr _) =>
+  | Subseg ?d ?d (inr _) (inr _) =>
       (cont (@wp_subseg_unrepresentable) ||
        cont (@wp_subseg_unrepresentable_sr) ||
        cont (@wp_subseg_invalidated) ||
        cont (@wp_subseg_invalidated_sr))
-  | Subseg _ (inl _) (inr _) =>
+  | Subseg ?d ?d (inl _) (inr _) =>
       (cont (@wp_subseg_unrepresentable_l) ||
        cont (@wp_subseg_unrepresentable_l_sr) ||
        cont (@wp_subseg_invalidated_l) ||
        cont (@wp_subseg_invalidated_l_sr))
-  | Subseg _ (inr _) (inl _) =>
+  | Subseg ?d ?d (inr _) (inl _) =>
       (cont (@wp_subseg_unrepresentable_r) ||
        cont (@wp_subseg_unrepresentable_r_sr) ||
        cont (@wp_subseg_invalidated_r) ||
        cont (@wp_subseg_invalidated_r_sr))
-  | Subseg _ (inl _) (inl _) =>
+  | Subseg ?d ?d (inl _) (inl _) =>
       (cont (@wp_subseg_unrepresentable_lr) ||
        cont (@wp_subseg_unrepresentable_lr_sr) ||
        cont (@wp_subseg_invalidated_lr) ||

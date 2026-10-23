@@ -31,13 +31,13 @@ Section SO_Asm.
       checkints_asm ca0 cs0 cs1;
       [ #".Lso_f_alloc";
         store csp so_secret;
-        lea csp 1;
+        lea csp csp 1;
         mov ca1 csp;
         geta cs0 ca1;
         add cs1 cs0 1;
-        subseg ca1 cs0 cs1;
+        subseg ca1 ca1 cs0 cs1;
         store ca1 0;
-        lea csp 1 ];
+        lea csp csp 1 ];
       #".Lso_f_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0;
       [ #".Lso_f_call";
@@ -45,7 +45,7 @@ Section SO_Asm.
         mov cs1 ct1;
         jalr cra ct0 ];
       [ #".Lso_f_after_call";
-        lea csp (-2);
+        lea csp csp (-2);
         load ct0 csp;
         mov ct1 so_secret ];
       #".Lso_f_assert" ::
@@ -80,21 +80,21 @@ Section SO_C_code.
       #@".Limport_g";
       #"adv_entry";
       store csp cra;
-      lea csp 1;
+      lea csp csp 1;
       mov ca0 csp;
       geta cs0 ca0;
       add cs1 cs0 1;
-      subseg ca0 cs0 cs1;
+      subseg ca0 ca0 cs0 cs1;
       store ca0 0;
-      lea csp 1 ] ++
+      lea csp csp 1 ] ++
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_main_f" ct1 ++
     fetch_asm ".Limport_g" ca1 ++
     [ mov cs0 cra;
       mov cs1 ct1;
       jalr cra ct0;
-      lea csp (-1);
-      lea csp (-1);
+      lea csp csp (-1);
+      lea csp csp (-1);
       load cra csp;
       mov ca0 0;
       mov ca1 0;
@@ -105,7 +105,7 @@ Section SO_C_code.
       ret;
 
       #"g_entry";
-      lea ca0 (-1);
+      lea ca0 ca0 (-1);
       store ca0 7;
       store ca1 9;
       ret ].

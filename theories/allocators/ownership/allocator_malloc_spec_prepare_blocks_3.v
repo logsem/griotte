@@ -99,7 +99,7 @@ Section AllocatorMallocPrepareBlocks3.
     iInstr "Hcode".
     replace (heap_e - next - 3 <? n)%Z with false
       by (symmetry; apply Z.ltb_ge; solve_addr).
-    (* Jnz .malloc_no_memory ca3. *)
+    (* Jne .malloc_no_memory ca3 0. *)
     iInstr "Hcode".
     (* Add ct1 ct1 allocator_header_words. *)
     iInstr "Hcode".
@@ -109,9 +109,9 @@ Section AllocatorMallocPrepareBlocks3.
     replace (b + n)%Z with (finz.to_z finish) by solve_addr.
     (* Mov ca4 ct0. *)
     iInstr "Hcode".
-    (* Lea ca4 allocator_header_words. *)
+    (* Lea ca4 ca4 allocator_header_words. *)
     iInstr "Hcode".
-    (* Subseg ca4 ct1 ct2. *)
+    (* Subseg ca4 ca4 ct1 ct2. *)
     iInstrApply "Hcode" (wp_subseg_rebase _ _ _ _ _ _ _ _ ca4 ct1 ct2 RW Global heap_b heap_e b _ b _ finish
               b finish _ ι 1 ALive)
       with "[$HPC $Hct4 $Hct1 $Hct2 $Hobj $Htok]"
@@ -282,7 +282,7 @@ Section AllocatorMallocPrepareBlocks3.
     (* Lt ca3 ca3 ca1. *)
     iInstr "Hcode".
     replace (heap_e - next - 3 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
-    (* Jnz .malloc_no_memory ca3. *)
+    (* Jne .malloc_no_memory ca3 0. *)
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ allocator_malloc_no_memory_offset)%a);
         offsets_compute; solve_addr. }

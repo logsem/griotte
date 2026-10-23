@@ -44,12 +44,12 @@ Section AllocatorMallocSizeCheckBlocks2.
     (* Sub ca3 ca3 (encodeWordType wt_int). *)
     iInstr "Hcode".
     rewrite (encodeWordType_correct_int n 0) /wt_int Z.sub_diag.
-    (* Jnz .malloc_invalid ca3. *)
+    (* Jne .malloc_invalid ca3 0. *)
     iInstr "Hcode".
     (* Lt ca3 0 ca1. *)
     iInstr "Hcode".
     replace (0 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
-    (* Jnz .malloc_size_ok ca3. *)
+    (* Jne .malloc_size_ok ca3 0. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_block_offset 2)%a.
@@ -125,14 +125,14 @@ Section AllocatorMallocSizeCheckBlocks2.
     destruct (is_z wreq) eqn:Hreq_z.
     - destruct wreq; cbn in *; try done.
       rewrite (encodeWordType_correct_int z 0) /wt_int Z.sub_diag.
-      (* Jnz .malloc_invalid ca3. *)
+      (* Jne .malloc_invalid ca3 0. *)
       iInstr "Hcode".
       (* Lt ca3 0 ca1. *)
       iInstr "Hcode".
       destruct (decide (0 < z)%Z) as [Hzpos|Hznonpos].
       { exfalso. apply Hinvalid. exists z. split; [reflexivity|exact Hzpos]. }
       replace (0 <? z)%Z with false by (symmetry; apply Z.ltb_ge; lia).
-      (* Jnz .malloc_size_ok ca3. *)
+      (* Jne .malloc_size_ok ca3 0. *)
       iInstr "Hcode".
       (* Jmp .malloc_invalid. *)
       iInstr "Hcode".
@@ -150,7 +150,7 @@ Section AllocatorMallocSizeCheckBlocks2.
         assert (Heq : encodeWordType wreq = encodeWordType (WInt 0)) by lia.
         destruct wreq; cbn in Hreq_z, Hencode; try discriminate.
         all: try (destruct sb; cbn in Hencode); contradiction. }
-      (* Jnz .malloc_invalid ca3. *)
+      (* Jne .malloc_invalid ca3 0. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_malloc_invalid_offset)%a);
           offsets_compute; solve_addr. }

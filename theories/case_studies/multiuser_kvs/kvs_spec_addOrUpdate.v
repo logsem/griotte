@@ -106,7 +106,7 @@ Section KVS_spec_addOrUpdate.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    (* jnz (".addOrUpdate_not_uint16")%asm ct1; *)
+    (* jnez (".addOrUpdate_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
     iInstr "Hcode".
@@ -134,10 +134,10 @@ Section KVS_spec_addOrUpdate.
     focus_block 5 "Hcode_main" as a_addOrUpdate Ha_addOrUpdate "Hcode" "Hcont"; iHide "Hcode_main" as hcode; clear dependent Ha_search.
     (* Sub ctp ct1 (-1) *)
     iInstr "Hcode".
-    (* Jnz 5 ctp *)
+    (* Jne 5 ctp 0 *)
     iInstr "Hcode".
     { apply nonZero_WInt; injection; intros; lia. }
-    (* Lea cgp 2 *)
+    (* Lea cgp cgp 2 *)
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); last done; solve_addr+Hcgp_idx. }
     iPoseProof deref_res_none as "-#Hdw".
@@ -560,7 +560,7 @@ Section KVS_spec_addOrUpdate.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    (* jnz (".addOrUpdate_not_uint16")%asm ct1; *)
+    (* jnez (".addOrUpdate_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
     iInstr "Hcode".
@@ -593,16 +593,16 @@ Section KVS_spec_addOrUpdate.
       (* sub ctp ctp (-1)%Z; *)
       iInstr "Hcode".
       replace (-1 - -1)%Z with 0%Z by lia.
-      (* jnz (".addOrUpdate_key_found")%asm ctp; *)
+      (* jnez (".addOrUpdate_key_found")%asm ctp; *)
       iInstr "Hcode".
       (* sub ctp ct1 (-1)%Z; *)
       iInstr "Hcode".
-      (* jnz (".addOrUpdate_empty_slot_found")%asm ctp; *)
+      (* jnez (".addOrUpdate_empty_slot_found")%asm ctp; *)
       iInstr "Hcode".
       { apply nonZero_WInt; intros Hcontra; inversion Hcontra; lia. }
       (* mul ct1 ct1 ASM_SIZEOF_KVS_ENTRY *)
       iInstr "Hcode".
-      (* lea cgp ct1; *)
+      (* lea cgp cgp ct1; *)
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx_empty)%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       (* store cgp ASM_SOME; *)
@@ -610,7 +610,7 @@ Section KVS_spec_addOrUpdate.
       { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
         solve_addr+Hcgp_bounds. }
       { solve_addr+Hcgp_bounds. }
-      (* lea cgp 1; *)
+      (* lea cgp cgp 1; *)
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       iPoseProof deref_res_none as "-#Hdw".
@@ -621,7 +621,7 @@ Section KVS_spec_addOrUpdate.
       { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
         solve_addr+Hcgp_bounds. }
       { solve_addr+Hcgp_bounds. }
-      (* lea cgp 1; *)
+      (* lea cgp cgp 1; *)
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       iPoseProof deref_res_none as "-#Hdw".
@@ -653,12 +653,12 @@ Section KVS_spec_addOrUpdate.
       (* sub ct1 ct1 (-1)%Z; *)
       iInstr "Hcode".
       replace (-1 - -1)%Z with 0%Z by lia.
-      (* jnz (".addOrUpdate_key_found")%asm ctp; *)
+      (* jnez (".addOrUpdate_key_found")%asm ctp; *)
       iInstr "Hcode".
       (* sub ct1 ct1 (-1)%Z; *)
       iInstr "Hcode".
       replace (-1 - -1)%Z with 0%Z by lia.
-      (* jnz (".addOrUpdate_empty_slot_found")%asm ct1; *)
+      (* jnez (".addOrUpdate_empty_slot_found")%asm ct1; *)
       iInstr "Hcode".
       (* mov ca0 ASM_FALSE; *)
       iInstr "Hcode".
@@ -1061,7 +1061,7 @@ Section KVS_spec_addOrUpdate.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont". iHide "Hcode_main" as hcode.
-    (* jnz (".addOrUpdate_not_uint16")%asm ct1; *)
+    (* jnez (".addOrUpdate_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* mov ca0 ASM_FALSE; *)
     iInstr "Hcode".
@@ -1195,7 +1195,7 @@ Section KVS_spec_addOrUpdate.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont". iHide "Hcode_main" as hcode.
-    (* jnz (".addOrUpdate_not_uint16")%asm ct1; *)
+    (* jnez (".addOrUpdate_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
     iInstr "Hcode".

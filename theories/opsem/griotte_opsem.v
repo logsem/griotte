@@ -84,6 +84,28 @@ Definition word_of_argument (regs: Reg) (a: Z + RegName): option Word :=
   | inr r => regs !!ᵣ r
   end.
 
+(** The comparison of a conditional jump, on the integer views of its
+    operands (signed). *)
+Definition jcond_test (i : instr) (n1 n2 : Z) : bool :=
+  match i with
+  | Jeq _ _ _ => Z.eqb n1 n2
+  | Jne _ _ _ => negb (Z.eqb n1 n2)
+  | Jlt _ _ _ => Z.ltb n1 n2
+  | Jle _ _ _ => Z.leb n1 n2
+  | _ => false
+  end.
+
+(** A conditional jump: the comparison [test] of [ρ1] and [ρ2] decides
+    between a jump by [off], relative to the PC, and the next instruction. *)
+Definition exec_jcond (test : Z → Z → bool) (off ρ1 ρ2 : Z + RegName)
+  (φ : ExecConf) : option Conf :=
+  n1 ← z_of_argument (reg φ) ρ1;
+  n2 ← z_of_argument (reg φ) ρ2;
+  if test n1 n2
+  then imm ← z_of_argument (reg φ) off;
+       advancePC φ imm
+  else nextPC φ.
+
 Definition addr_of_argument regs src :=
   match z_of_argument regs src with
   | Some n => z_to_addr n
@@ -267,12 +289,10 @@ Section opsem.
     | Jmp rimm =>
         imm ← z_of_argument (reg φ) rimm;
         advancePC φ imm
-    | Jnz rimm rcond =>
-        wcond ← (reg φ) !!ᵣ rcond;
-        if nonZero wcond
-        then imm ← z_of_argument (reg φ) rimm;
-             advancePC φ imm
-        else nextPC φ
+    | Jeq off ρ1 ρ2 => exec_jcond (jcond_test i) off ρ1 ρ2 φ
+    | Jne off ρ1 ρ2 => exec_jcond (jcond_test i) off ρ1 ρ2 φ
+    | Jlt off ρ1 ρ2 => exec_jcond (jcond_test i) off ρ1 ρ2 φ
+    | Jle off ρ1 ρ2 => exec_jcond (jcond_test i) off ρ1 ρ2 φ
     | Jalr rdst rsrc =>
         wrsrc ← (reg φ) !!ᵣ rsrc;
         (* The checks on the target, in the order of cheriot-sail: the tag,
@@ -367,10 +387,10 @@ Section opsem.
     | Mov dst ρ =>
       tomov ← word_of_argument (reg φ) ρ;
       φ .[dst :=ᵣ tomov] |> nextPC
-    | Lea dst ρ =>
+    | Lea dst src ρ =>
       n ← z_of_argument (reg φ) ρ;
-      wdst ← (reg φ) !!ᵣ dst;
-      match wdst with
+      wsrc ← (reg φ) !!ᵣ src;
+      match wsrc with
       | WCap t p g b e a =>
           match (a + n)%a with
           | Some a' => φ .[dst :=ᵣ WCap t p g b e a'] |> nextPC
@@ -383,12 +403,30 @@ Section opsem.
           end
       | WInt z => φ .[dst :=ᵣ WInt (z + n)%Z] |> nextPC
       (* A sealed word or a sentry loses its tag; its address is unchanged. *)
-      | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
+      | _ => φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
       end
-    | Restrict dst ρ =>
+    | SetA dst src ρ =>
+      n ← z_of_argument (reg φ) ρ;
+      wsrc ← (reg φ) !!ᵣ src;
+      match wsrc with
+      | WCap t p g b e a =>
+          match z_to_addr n with
+          | Some a' => φ .[dst :=ᵣ WCap t p g b e a'] |> nextPC
+          | None => φ .[dst :=ᵣ WCap false p g b e a] |> nextPC
+          end
+      | WSealRange t p g b e a =>
+          match z_to_otype n with
+          | Some a' => φ .[dst :=ᵣ WSealRange t p g b e a'] |> nextPC
+          | None => φ .[dst :=ᵣ WSealRange false p g b e a] |> nextPC
+          end
+      | WInt _ => φ .[dst :=ᵣ WInt n] |> nextPC
+      (* A sealed word or a sentry loses its tag; its address is unchanged. *)
+      | _ => φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
+      end
+    | Restrict dst src ρ =>
       n ← z_of_argument (reg φ) ρ ;
-      wdst ← (reg φ) !!ᵣ dst;
-      match wdst with
+      wsrc ← (reg φ) !!ᵣ src;
+      match wsrc with
       | WCap t p g b e a =>
           let (p',g') := decodePermPair n in
           let new_tag := t && PermFlowsTo p' p && LocalityFlowsTo g' g in
@@ -399,7 +437,7 @@ Section opsem.
           φ .[dst :=ᵣ WSealRange new_tag p' g' b e a] |> nextPC
       (* An integer is unchanged; a sealed word or a sentry loses its tag,
          its permissions unchanged. *)
-      | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
+      | _ => φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
       end
     | machine_instructions.Add dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
@@ -437,9 +475,9 @@ Section opsem.
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
     φ .[dst :=ᵣ WInt (Z.b2z (Z.leb n1 n2))] |> nextPC
-  | Subseg dst ρ1 ρ2 =>
-    wdst ← (reg φ) !!ᵣ dst;
-    match wdst with
+  | Subseg dst src ρ1 ρ2 =>
+    wsrc ← (reg φ) !!ᵣ src;
+    match wsrc with
     | WCap t p g b e a =>
       n1 ← z_of_argument (reg φ) ρ1;
       n2 ← z_of_argument (reg φ) ρ2;
@@ -460,7 +498,7 @@ Section opsem.
       end
     (* An integer is unchanged; a sealed word or a sentry loses its tag, its
        bounds unchanged. *)
-    | _ => φ .[dst :=ᵣ clear_tag wdst] |> nextPC
+    | _ => φ .[dst :=ᵣ clear_tag wsrc] |> nextPC
     end
   | GetA dst r =>
     wr ← (reg φ) !!ᵣ r;

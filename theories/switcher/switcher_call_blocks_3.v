@@ -62,7 +62,7 @@ Section Switcher_Call_Blocks_3.
     { intros _ Hlt. eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       apply withinBounds_true_iff. apply isWithin_implies in Hastk. solve_addr. }
 
-    (* --- Subseg csp cs1 cs0 --- *)
+    (* --- Subseg csp csp cs1 cs0 --- *)
     iInstr "Hcode".
 
     iApply "Hpost"; iFrame "∗ Hcode".

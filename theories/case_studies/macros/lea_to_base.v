@@ -12,7 +12,7 @@ Section Lea_To_Base.
       getb r1 r;
       geta r2 r;
       sub r1 r1 r2;
-      lea r r1;
+      lea r r r1;
       mov r1 0;
       mov r2 0
     ].

@@ -61,8 +61,8 @@ Section Switcher_Call_Blocks_1.
     iInstr "Hcode".
     destruct (decide ((p0 - encodePerm RWL)%Z = 0)) as [Hp0'|Hp0']; cycle 1.
     {
-      (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
-      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
+      (* Jne (".Lcommon_force_unwind")%asm ct2 0 *)
+      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
       { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; done. }
       { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
         offsets_compute; solve_addr. }
@@ -73,7 +73,7 @@ Section Switcher_Call_Blocks_1.
       iExists _,_. iFrame "∗ Hswitcher".
     }
     rewrite Hp0'.
-    (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
+    (* Jne (".Lcommon_force_unwind")%asm ct2 0 *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
@@ -90,8 +90,8 @@ Section Switcher_Call_Blocks_1.
     iInstr "Hcode".
     destruct (decide ((g0 - encodeLoc Local)%Z = 0)) as [Hg0'|Hg0']; cycle 1.
     {
-      (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
-      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
+      (* Jne (".Lcommon_force_unwind")%asm ct2 0 *)
+      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
       { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; done. }
       { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
         offsets_compute; solve_addr. }
@@ -103,7 +103,7 @@ Section Switcher_Call_Blocks_1.
       iExists _,_. iFrame "∗ Hswitcher".
     }
     rewrite Hg0'.
-    (* Jnz (".Lcommon_force_unwind")%asm ct2 *)
+    (* Jne (".Lcommon_force_unwind")%asm ct2 0 *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     iApply "Hpost"; iLeft.

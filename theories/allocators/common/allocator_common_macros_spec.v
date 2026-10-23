@@ -168,7 +168,7 @@ Section AllocatorMacros.
     { solve_addr. }
     iEval (rewrite Hπ -deref_witness_res_deref_res) in "Hdw".
 
-    (* Lea rptr 1 advances the heap cursor. *)
+    (* Lea rptr rptr 1 advances the heap cursor. *)
     iInstr "Hcode".
     { transitivity (Some (b ^+ 1)%a); solve_addr. }
     (* GetA rtmp rptr reads the advanced cursor. *)
@@ -177,14 +177,14 @@ Section AllocatorMacros.
     iInstr "Hcode".
     destruct (decide ((b ^+ 1)%a = e)) as [Hlast | Hmore].
     - rewrite Hlast Z.sub_diag.
-      (* Jnz .allocator_zero rtmp falls through after the last address. *)
+      (* Jne .allocator_zero rtmp 0 falls through after the last address. *)
       iInstr "Hcode".
       iApply "Hφ"; iFrame "∗ Hcode".
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap)))
         Hlast finz_seq_between_empty; last solve_addr.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
-    - (* Jnz .allocator_zero rtmp repeats the loop. *)
-      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Htmp]" as "(HPC & Htmp)".
+    - (* Jne .allocator_zero rtmp 0 repeats the loop. *)
+      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Htmp]" as "(HPC & Htmp)".
       { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
       iApply ("IH" $! (b ^+ 1)%a with
@@ -305,9 +305,9 @@ Section AllocatorMacros.
     iLöb as "IH" forall (b sb Hheap Hshadow Hlen Htranslate Hok).
     assert (Hcode_eq : allocator_paint_instrs rptr rcount s_new =
       encodeInstrsW [Store rptr (inl (encodeAllocStatus s_new)) 0;
-                    Lea rptr (inl 1%Z);
+                    Lea rptr rptr (inl 1%Z);
                     Sub rcount (inr rcount) (inl 1%Z);
-                    Jnz (inl (-3)%Z) rcount]) by (destruct s_new; reflexivity).
+                    Jne (inl (-3)%Z) (inr rcount) (inl 0%Z)]) by (destruct s_new; reflexivity).
     rewrite Hcode_eq in Hpc |- *.
     codefrag_facts "Hcode".
     clear Hcode_eq.
@@ -329,14 +329,14 @@ Section AllocatorMacros.
     { solve_addr. }
     { solve_addr. }
 
-    (* Lea rptr 1 advances the shadow cursor. *)
+    (* Lea rptr rptr 1 advances the shadow cursor. *)
     iInstr "Hcode".
     { transitivity (Some (sb ^+ 1)%a); solve_addr. }
     (* Sub rcount rcount 1 consumes one word of the count. *)
     iInstr "Hcode".
     destruct (decide ((b ^+ 1)%a = e)) as [Hlast | Hmore].
     - replace (e - b - 1)%Z with 0%Z by solve_addr.
-      (* Jnz .allocator_paint rcount falls through after the last address. *)
+      (* Jne .allocator_paint rcount 0 falls through after the last address. *)
       iInstr "Hcode".
       assert (Hslast : (sb ^+ 1)%a = se) by solve_addr.
       rewrite Hslast.
@@ -344,8 +344,8 @@ Section AllocatorMacros.
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap)))
         Hlast finz_seq_between_empty; last solve_addr.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
-    - (* Jnz .allocator_paint rcount repeats the loop. *)
-      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hcount]" as "(HPC & Hcount)".
+    - (* Jne .allocator_paint rcount 0 repeats the loop. *)
+      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hcount]" as "(HPC & Hcount)".
       { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
       replace (e - b - 1)%Z with (e - (b ^+ 1)%a)%Z by solve_addr.

@@ -58,7 +58,7 @@ Section CMDC_Prep_Blocks_4.
     iInstr "Hcode".
     (* Mov ca1 0%Z *)
     iInstr "Hcode".
-    (* Lea cgp (-1)%Z *)
+    (* Lea cgp cgp (-1)%Z *)
     iInstr "Hcode".
     { transitivity (Some cgp_b); auto; solve_addr. }
     (* Store cgp 42%Z 0 *)
@@ -69,7 +69,7 @@ Section CMDC_Prep_Blocks_4.
     iInstr "Hcode".
     (* Add ct1 ct0 1%Z *)
     iInstr "Hcode".
-    (* Subseg ca0 ct0 ct1 *)
+    (* Subseg ca0 ca0 ct0 ct1 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
     { solve_addr. }

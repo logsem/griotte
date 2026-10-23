@@ -57,7 +57,7 @@ Section ClearStackMacro.
     destruct (decide (csp_a = csp_e)).
     - (* csp_a = csp_2 ==> loop has ended *)
       replace (csp_a - csp_e)%Z with 0%Z by solve_addr.
-      (* --- Jnz 2 r1 --- *)
+      (* --- Jne 2 r1 0 --- *)
       iInstr "Hcode".
       (* --- Jmp 5 ---- *)
       iInstr "Hcode".
@@ -66,8 +66,8 @@ Section ClearStackMacro.
       rewrite /region_addrs_zeroes finz_dist_0; last solve_addr+.
       done.
     - (* csp_a ≠ csp_2 ==> another iteration (or failure) *)
-      (* --- Jnz 2 r1 --- *)
-      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hr1]" as "(HPC & Hct2)".
+      (* --- Jne 2 r1 0 --- *)
+      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hr1]" as "(HPC & Hct2)".
       { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; solve_addr. }
 
       rewrite finz_seq_between_cons in Hlen_stk; last solve_addr.
@@ -80,7 +80,7 @@ Section ClearStackMacro.
         apply withinBounds_true_iff; solve_addr. }
       { apply withinBounds_true_iff; solve_addr. }
 
-      (* --- Lea r2 1 --- *)
+      (* --- Lea r2 r2 1 --- *)
       destruct (csp_a + 1)%a eqn:Ha;cycle 1.
       { iInstr_lookup "Hcode" as "Hi" "Hcode".
         solve_addr.

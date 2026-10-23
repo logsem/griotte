@@ -237,6 +237,14 @@ Lemma llookup_reg_cnull (regs : LReg) w :
   regs !! cnull = Some w → regs !!ₗ cnull = Some lnull.
 Proof. rewrite /llookup_reg. by intros ->. Qed.
 
+(** [cnull] reads as the integer 0. *)
+Lemma llookup_reg_not_zero_not_cnull (regs : LReg) r w :
+  regs !!ₗ r = Some w → w.(lw) ≠ WInt 0 → r ≠ cnull.
+Proof.
+  intros Hr Hw ->. rewrite /llookup_reg /= in Hr.
+  by destruct (regs !! cnull); simplify_eq/=.
+Qed.
+
 Lemma elem_of_dom_lreg (regs : LReg) (r : RegName) :
   r ∈ dom regs ↔ is_Some (regs !!ₗ r).
 Proof. rewrite is_Some_llookup_reg. apply elem_of_dom. Qed.

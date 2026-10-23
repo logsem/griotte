@@ -15,7 +15,7 @@ Section Is_WordType_Asm.
          then r1 = 0
          then r1 != 0
        *)
-      jnz 2 r1; (* r2 is zero, then continue, else jump to fail *)
+      jnez 2 r1; (* r2 is zero, then continue, else jump to fail *)
       (* getwtype(r) == wtype *)
       jmp 2;
       (* getwtype(r) != wtype *)
@@ -34,7 +34,7 @@ Section Is_WordType_Asm.
 
   Definition is_memory_cap_asm (r r1 : RegName) : list asm_code :=
     is_word_type_asm r r1 wt_cap ++
-    [gettag r1 r; sub r1 r1 1; jnz 2 r1; jmp 2; fail].
+    [gettag r1 r; sub r1 r1 1; jnez 2 r1; jmp 2; fail].
 End Is_WordType_Asm.
 
 Section Is_WordType.
@@ -49,7 +49,7 @@ Section Is_WordType.
    is_word_type_instrs r r1 wt_int.
   Definition is_memory_cap_instrs (r r1 : RegName) : list Word :=
    is_word_type_instrs r r1 wt_cap ++
-   encodeInstrsW [GetTag r1 r; Sub r1 r1 1; Jnz 2 r1; Jmp 2; Fail].
+   encodeInstrsW [GetTag r1 r; Sub r1 r1 1; Jne 2 r1 0; Jmp 2; Fail].
 
   (** The code of [is_memory_cap_instrs], split for its proof, is its
       assembly. *)

@@ -205,7 +205,7 @@ Qed.
     ∃ φ', (exec i p φ = (Faulted, φ') ) ∨ (exec i p φ = (NextI, φ')) ∨
           (exec i p φ = (Halted, φ')).
   Proof.
-    unfold exec, exec_opt.
+    unfold exec, exec_opt, exec_jcond.
     repeat case_match; simplify_eq; eauto;rename H0 into Heqo.
     (* Create more goals through *_of_argument, now that some have been pruned *)
     all: repeat destruct (addr_of_argument (reg φ) _)
@@ -334,6 +334,7 @@ Qed.
     sys_pc_ok φ → exec_opt i p φ = Some c → sys_pc_ok c.2.
   Proof.
     intros Hinv Hexec.
+    rewrite /exec_opt /exec_jcond in Hexec.
     destruct i; cbn in Hexec.
     all: repeat (case_match || simplify_option_eq); simplify_eq/=; try done.
     (* Every instruction but Jalr and Mret writes the PC through [advancePC]. *)

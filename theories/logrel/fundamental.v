@@ -3,8 +3,8 @@ From iris.program_logic Require Import weakestpre lifting.
 From griotte Require Export logrel interp_weakening monotone.
 From griotte Require Export
   ftlr_base
-  Jmp Jnz Jalr Mov CLoad Store BinOp Restrict
-  Subseg Get ClearTag Lea Seal UnSeal SpecialRW SetMIE Mret FailHalt Auipcc.
+  Jmp JCond Jalr Mov CLoad Store BinOp Restrict
+  Subseg Get ClearTag Lea SetA Seal UnSeal SpecialRW SetMIE Mret FailHalt Auipcc.
 From griotte Require Import register_tactics.
 
 Section fundamental.
@@ -55,6 +55,8 @@ Section fundamental.
 
   #[local] Ltac by_binop_case :=
     eapply ftlr_instr_base_mono; [| eapply binop_case]; intros ->; eauto 10.
+  #[local] Ltac by_jcond_case :=
+    eapply jcond_case; eauto.
   #[local] Ltac by_get_case :=
     eapply get_case; rewrite /is_Get; eauto 10.
 
@@ -188,7 +190,10 @@ Section fundamental.
     (* proof by cases on each instruction *)
     intros i; destruct i.
     - (* Jmp *) apply jmp_case.
-    - (* Jnz *) apply jnz_case.
+    - (* Jeq *) by_jcond_case.
+    - (* Jne *) by_jcond_case.
+    - (* Jlt *) by_jcond_case.
+    - (* Jle *) by_jcond_case.
     - (* Jalr *) apply jalr_case.
     - (* Mov *) apply mov_case.
     - (* CLoad *) apply load_case.
@@ -203,6 +208,7 @@ Section fundamental.
     - (* LShiftL *) by_binop_case.
     - (* LShiftR *) by_binop_case.
     - (* Lea *) apply lea_case.
+    - (* SetA *) apply seta_case.
     - (* Restrict *) apply restrict_case.
     - (* Subseg *) apply subseg_case.
     - (* GetB *) by_get_case.

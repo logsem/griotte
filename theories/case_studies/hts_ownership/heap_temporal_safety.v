@@ -80,7 +80,7 @@ Section Heap_Temporal_Safety.
         (* if (malloc failed) halt; the result is tagged only on success:
            allocator errors and switcher failures return an integer in ca0. *)
         gettag ct0 ca0;
-        jnz (".hts_malloc_result_end")%asm ct0;
+        jnez (".hts_malloc_result_end")%asm ct0;
         halt;
         #".hts_malloc_result_end"
       ];
@@ -88,7 +88,7 @@ Section Heap_Temporal_Safety.
         #".Lhts_share";
         (* saved_buf = buf (stack slot below the callee frame); buf[0] = 0; *)
         store_imm csp ca0 0;
-        lea csp 1;
+        lea csp csp 1;
         store_imm ca0 (0)%asm 0
       ];
       #".Lhts_fetch_switcher_adv_1" ::
@@ -128,7 +128,7 @@ Section Heap_Temporal_Safety.
         (* ca0 is ALLOC_OK = 0 only after a successful free. A nonzero value
            is a switcher failure: buf is then still live and holds &p, so we
            must halt. *)
-        jnz (".hts_free_result_bad")%asm ca0;
+        jnez (".hts_free_result_bad")%asm ca0;
         jmp (".hts_free_result_end")%asm;
         #".hts_free_result_bad";
         halt;

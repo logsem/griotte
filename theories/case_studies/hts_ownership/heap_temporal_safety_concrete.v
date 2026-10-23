@@ -71,11 +71,11 @@ Definition hts_adv_asm : list (list Asm_Griotte.asm_code) :=
   let observed := 2%Z in
   [ [load_imm ct0 cgp count; add ct0 (asmr ct0) (asmz 1);
      store_imm cgp (asmr ct0) (asmexprz count);
-     sub ct1 (asmr ct0) (asmz 1); jnz (asms second) ct1;
+     sub ct1 (asmr ct0) (asmz 1); jnez (asms second) ct1;
      #first; store_imm cgp (asmr ca0) (asmexprz saved); jmp (asms return_)];
-    [ #second; sub ct1 (asmr ct0) (asmz 2); jnz (asms bad) ct1;
+    [ #second; sub ct1 (asmr ct0) (asmz 2); jnez (asms bad) ct1;
      load_imm ct0 cgp saved; gettag ct1 ct0;
-     store_imm cgp (asmr ct1) (asmexprz observed); jnz (asms bad) ct1];
+     store_imm cgp (asmr ct1) (asmexprz observed); jnez (asms bad) ct1];
     [ #return_; mov ca0 (asmz 0); mov ca1 (asmz 0); ret];
     [ #bad; fail] ].
 

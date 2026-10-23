@@ -45,7 +45,7 @@ Section Switcher_Exception_Blocks_1.
     (* SpecialRW csp mtdc csp *)
     iInstr "Hcode".
     rewrite llegalise_mtdc.
-    (* Jnz 2 csp *)
+    (* Jne 2 csp 0 *)
     iInstr "Hcode".
     { apply negb_true_iff, Z.eqb_neq. exact Hts_nonzero. }
     iApply "Hpost". iFrame "∗ #".
@@ -158,14 +158,14 @@ Section Switcher_Exception_Blocks_1.
     { iIntros (zca0) "HPC Hca0 Hct1".
       iApply ("Hpost" $! wst cause zca0). iFrame "∗ Hcode %". }
     assert ((pc_a ^+ 12 + 5)%a = Some (pc_a ^+ 17)%a) as Hjmp_handle by solve_addr.
-    assert ((pc_a ^+ 15 + 2)%a = Some (pc_a ^+ 17)%a) as Hjnz_handle by solve_addr.
+    assert ((pc_a ^+ 15 + 2)%a = Some (pc_a ^+ 17)%a) as Hjnez_handle by solve_addr.
     destruct (decide (cause = 28%Z)) as [-> | Hcause_ne].
-    - (* Jnz 2 ca0 *)
+    - (* Jne 2 ca0 0 *)
       iInstr "Hcode".
       (* Jmp .Lhandle_error *)
       iInstr "Hcode".
       iApply ("Hpost" with "HPC Hca0 Hct1").
-    - (* Jnz 2 ca0 *)
+    - (* Jne 2 ca0 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       (* Mov ca0 8 *)
@@ -174,7 +174,7 @@ Section Switcher_Exception_Blocks_1.
       iInstr "Hcode".
       destruct (decide (ca0 = cnull)) as [Hca0_null|_]; first done.
       assert ((cause <? 8)%Z = true) as -> by (apply Z.ltb_lt; destruct Hcause; lia).
-      (* Jnz .Lhandle_error ca0 *)
+      (* Jne .Lhandle_error ca0 0 *)
       iInstr "Hcode".
       iApply ("Hpost" with "HPC Hca0 Hct1").
   Qed.

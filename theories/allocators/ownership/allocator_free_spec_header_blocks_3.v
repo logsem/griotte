@@ -126,7 +126,7 @@ Section AllocatorFreeHeaderBlocks3.
     (* Sub ca3 ca3 1. *)
     iInstr "Hcode".
     replace (b - heap_b - 1)%Z with ((sb ^+ -1)%a - shadow_b)%Z by (subst sb; solve_addr).
-    (* Lea ctp ca3. *)
+    (* Lea ctp ctp ca3. *)
     iInstr "Hcode".
     { transitivity (Some (sb ^+ -1)%a); subst sb; solve_addr. }
     unfold lword_of_word.
@@ -144,7 +144,7 @@ Section AllocatorFreeHeaderBlocks3.
     destruct (decide (s1 = ShadowQuarantined)) as [->|Hs1q]; last first.
     { assert (Hneq : WInt (encodeAllocStatus s1 - encodeAllocStatus ShadowQuarantined) ≠ WInt 0).
       { intros [=]. apply (Henc _ _ Hs1q). lia. }
-      (* Jnz .free_invalid ca3. *)
+      (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
@@ -153,9 +153,9 @@ Section AllocatorFreeHeaderBlocks3.
       iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. iSplitL "Hca2"; [by iExists _|].
       by iExists _. }
     rewrite Z.sub_diag.
-    (* Jnz .free_invalid ca3. *)
+    (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
-    (* Lea ctp 1. *)
+    (* Lea ctp ctp 1. *)
     iInstr "Hcode".
     { transitivity (Some (sb ^+ 0)%a); subst sb; solve_addr. }
     replace ((sb ^+ -1) ^+ 1)%a with sb by (subst sb; solve_addr).
@@ -173,7 +173,7 @@ Section AllocatorFreeHeaderBlocks3.
     destruct (decide (s2 = ShadowLive)) as [->|Hs2l]; last first.
     { assert (Hneq : WInt (encodeAllocStatus s2 - encodeAllocStatus ShadowLive) ≠ WInt 0).
       { intros [=]. apply (Henc _ _ Hs2l). lia. }
-      (* Jnz .free_invalid ca3. *)
+      (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
@@ -181,7 +181,7 @@ Section AllocatorFreeHeaderBlocks3.
       iApply "Hφ". iFrame "∗ Hcode_main Himport Hrevoker_import". iRight. iSplit; first (iPureIntro; intros (_ & ? & _); done).
       iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. by iExists _. }
     rewrite Z.sub_diag.
-    (* Jnz .free_invalid ca3. *)
+    (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     specialize (Hheader eq_refl eq_refl).
     iDestruct "Hhdr" as "[Hhdr Hown]".
@@ -196,7 +196,7 @@ Section AllocatorFreeHeaderBlocks3.
     unfold allocator_header_words in *.
     change (Z.opp 3) with (-3)%Z in *.
     replace (b - next - 3)%Z with ((b ^+ -3)%a - next)%Z by solve_addr.
-    (* Lea ca4 ca3. *)
+    (* Lea ca4 ca4 ca3. *)
     iInstr "Hcode".
     { transitivity (Some (b ^+ -3)%a); solve_addr. }
     iPoseProof deref_res_none as "-#Hdw".
@@ -214,7 +214,7 @@ Section AllocatorFreeHeaderBlocks3.
     iInstr "Hcode".
     destruct (decide (eh = e)) as [->|Hne].
     - rewrite Z.sub_diag.
-      (* Jnz .free_invalid ca3. *)
+      (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
       iPoseProof deref_res_none as "-#Hdw".
       (* CLoad ca3 ca4 1: the recorded owner. *)
@@ -232,7 +232,7 @@ Section AllocatorFreeHeaderBlocks3.
       iInstr "Hcode".
       destruct (decide (oh = o)) as [->|Hneo].
       + rewrite Z.sub_diag.
-        (* Jnz .free_invalid ca3. *)
+        (* Jne .free_invalid ca3 0. *)
         iInstr "Hcode".
         (* Sub ca2 ct2 ct1. *)
         iInstr "Hcode".
@@ -254,7 +254,7 @@ Section AllocatorFreeHeaderBlocks3.
         iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].
         iFrame "∗ Hcode_main Himport Hrevoker_import". iLeft. iFrame "∗". done.
       + assert (Hneq : WInt (oh - o) ≠ WInt 0) by (intros [=]; apply Hneo; lia).
-        (* Jnz .free_invalid ca3. *)
+        (* Jne .free_invalid ca3 0. *)
         iInstr "Hcode".
         { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
             offsets_compute; solve_addr. }
@@ -263,7 +263,7 @@ Section AllocatorFreeHeaderBlocks3.
         iFrame "∗ Hcode_main Himport Hrevoker_import". iRight. iSplit; first (iPureIntro; intros (_ & _ & _ & ?); done).
         iFrame "HPC". iSplitL "Hct3"; [by iExists _|]. by iExists _.
     - assert (Hneq : WInt (eh - e) ≠ WInt 0) by (intros [=]; apply Hne; solve_addr).
-      (* Jnz .free_invalid ca3. *)
+      (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }

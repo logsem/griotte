@@ -21,7 +21,7 @@ Section Assert_Code.
   Definition assert_subroutine_asm : list asm_code :=
     [
       sub ct0 ct0 ct1;
-      jnz ("assert_fail")%asm ct0;
+      jnez ("assert_fail")%asm ct0;
       #"assert_success";
       mov ct0 0;
       mov ct1 0;

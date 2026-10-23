@@ -205,7 +205,7 @@ Section AllocatorFreeTailBlocks.
       first (simplify_map_eq; apply Hnone; set_solver).
     iDestruct (big_sepM_insert with "Hregs") as "[Hca2 Hregs]";
       first (apply Hnone; set_solver).
-    (* Lea ctp ca4. *)
+    (* Lea ctp ctp ca4. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_free_tail_block_offset 3)%a.

@@ -105,7 +105,7 @@ Section KVS_spec_read.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    (* jnz (".addOrUpdate_not_uint16")%asm ct1; *)
+    (* jnez (".addOrUpdate_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
     iInstr "Hcode".
@@ -133,10 +133,10 @@ Section KVS_spec_read.
     focus_block 5 "Hcode_main" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcode_main" as hcode; clear dependent Ha_search.
     (* Sub ct1 ct1 (-1) *)
     iInstr "Hcode".
-    (* Jnz 5 ct1 *)
+    (* Jne 5 ct1 0 *)
     iInstr "Hcode".
     { apply nonZero_WInt; injection; intros; lia. }
-    (* Lea cgp 1 *)
+    (* Lea cgp cgp 1 *)
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx. }
     (* CLoad ca1 cgp 0: the heap shadow can clear the returned tag. *)
@@ -526,7 +526,7 @@ Section KVS_spec_read.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
-    (* jnz (".addOrUpdate_not_uint16")%asm ct1; *)
+    (* jnez (".addOrUpdate_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
     iInstr "Hcode".
@@ -554,10 +554,10 @@ Section KVS_spec_read.
     focus_block 5 "Hcode_main" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcode_main" as hcode; clear dependent Ha_search.
     (* Sub ctp ctp (-1) *)
     iInstr "Hcode".
-    (* Jnz 4 ctp *)
+    (* Jne 4 ctp 0 *)
     iInstr "Hcode".
     { apply nonZero_WInt; intros Hcontra; inversion Hcontra; lia. }
-    (* Lea cgp 2 *)
+    (* Lea cgp cgp 2 *)
     iInstr "Hcode".
     { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a); [|done].
       apply withinBounds_true_iff in Hcgp_idx; solve_addr. }
@@ -946,7 +946,7 @@ Section KVS_spec_read.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont". iHide "Hcode_main" as hcode.
-    (* jnz (".read_not_uint16")%asm ct1; *)
+    (* jnez (".read_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* jmp (".read_uint16_check_pass")%asm; *)
     iInstr "Hcode".
@@ -980,7 +980,7 @@ Section KVS_spec_read.
         (* sub ctp ctp (-1)%Z; *)
         iInstr "Hcode".
         replace (-1 - -1)%Z with 0%Z by lia.
-        (* jnz (".read_key_found")%asm ctp; *)
+        (* jnez (".read_key_found")%asm ctp; *)
         iInstr "Hcode".
         (* mov ca0 ASM_FALSE; *)
         iInstr "Hcode".
@@ -1001,7 +1001,7 @@ Section KVS_spec_read.
         (* sub ctp ctp (-1)%Z; *)
         iInstr "Hcode".
         replace (-1 - -1)%Z with 0%Z by lia.
-        (* jnz (".read_key_found")%asm ctp; *)
+        (* jnez (".read_key_found")%asm ctp; *)
         iInstr "Hcode".
         (* mov ca0 ASM_FALSE; *)
         iInstr "Hcode".
@@ -1335,7 +1335,7 @@ Section KVS_spec_read.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont". iHide "Hcode_main" as hcode.
-    (* jnz (".read_not_uint16")%asm ct1; *)
+    (* jnez (".read_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* mov ca0 ASM_FALSE; *)
     iInstr "Hcode".
@@ -1469,7 +1469,7 @@ Section KVS_spec_read.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     focus_block 1 "Hcode_main" as a_check_uint Ha_check_uint "Hcode" "Hcont". iHide "Hcode_main" as hcode.
-    (* jnz (".read_not_uint16")%asm ct1; *)
+    (* jnez (".read_not_uint16")%asm ct1; *)
     iInstr "Hcode".
     (* jmp (".read_uint16_check_pass")%asm; *)
     iInstr "Hcode".

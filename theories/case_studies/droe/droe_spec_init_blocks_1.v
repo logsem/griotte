@@ -62,12 +62,12 @@ Section DROE_Init_Blocks_1.
     iInstr "Hcode".
     (* Add ct2 ct1 1%Z *)
     iInstr "Hcode".
-    (* Subseg ct0 ct1 ct2 *)
+    (* Subseg ct0 ct0 ct1 ct2 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
     { solve_addr. }
     { solve_addr. }
-    (* Lea cgp 1%Z *)
+    (* Lea cgp cgp 1%Z *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
     iPoseProof deref_res_none as "-#Hdw".
@@ -80,7 +80,7 @@ Section DROE_Init_Blocks_1.
     { done. }
     (* Mov ca0 cgp *)
     iInstr "Hcode".
-    (* Lea cgp (-1)%Z *)
+    (* Lea cgp cgp (-1)%Z *)
     iInstr "Hcode".
     { transitivity (Some cgp_b); auto; solve_addr. }
     (* Add ct1 ct2 1%Z *)
@@ -88,13 +88,13 @@ Section DROE_Init_Blocks_1.
     assert (is_heap_address (cgp_b ^+ 1)%a = false) as Hcgp1_nonheap
       by solve_not_heap Hcgp_heap.
     clear Hcgp_nonheap.
-    (* Subseg ca0 ct2 ct1 *)
+    (* Subseg ca0 ca0 ct2 ct1 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
     { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
     { solve_addr. }
     { solve_addr. }
-    (* Restrict ca0 (encodePermPair (RO_DRO, Global)) *)
+    (* Restrict ca0 ca0 (encodePermPair (RO_DRO, Global)) *)
     iInstr "Hcode".
     { by rewrite decode_encode_permPair_inv. }
     { solve_pure. }
