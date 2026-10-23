@@ -109,6 +109,17 @@ Lemma if_dec_later {Σ : gFunctors} {C} {eqdec: Decision C} (Q Q' : iProp Σ) :
   (if (decide C) then ▷ Q else Q') -∗ ▷ (if (decide C) then Q else Q').
 Proof. iIntros "H". destruct (decide C);auto. Qed.
 
+(** A pure fact of the right conjunct of an [∧], keeping both conjuncts. *)
+Lemma and_pure_sep_r {Σ : gFunctors} (A B : iProp Σ) (φ : Prop) :
+  A ∧ (⌜φ⌝ ∗ B) ⊢ ⌜φ⌝ ∗ (A ∧ B).
+Proof.
+  iIntros "H".
+  iAssert ⌜φ⌝%I as %Hφ.
+  { iDestruct "H" as "[_ [$ _] ]". }
+  iSplit; first done.
+  iSplit; [iDestruct "H" as "[$ _]" | iDestruct "H" as "[_ [_ $] ]"].
+Qed.
+
 Ltac iHide0 irisH coqH :=
   let coqH := fresh coqH in
   match goal with

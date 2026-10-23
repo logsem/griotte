@@ -408,7 +408,8 @@ Section Switcher_KtK_Call.
            "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
             Hstk_interp [Hcells] Hp_ot_switcher")
       as "[Hinv Hcstk]";
-      [done|done|done|done|done|exact Hstk_bounds|done|done|by intros _|done|right; exact Htbl_cell| |].
+      [done|done|done|done|done|exact Hstk_bounds|done|done|by intros _|done
+      |right; exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
     iApply "Hpost"; iLeft; iFrame "∗ %".

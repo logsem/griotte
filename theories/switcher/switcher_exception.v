@@ -847,6 +847,7 @@ Section Switcher_Exception.
                    PC ↦ₚ wpc -∗
                    registers_pointsto regs -∗
                    handler_slot kind w rmap -∗
+                   (⌜kind = Stackless⌝ → handler_skipped cstk w rmap) -∗
                    (unwind_or_runs F cstk w rmap (handler_unwind_res kind rmap) ∧
                     P_fault F cstk w rmap) -∗
                    cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
@@ -901,7 +902,7 @@ Section Switcher_Exception.
       by iApply trusted_error_state_slot.
     - iIntros (kind wpcc' wcgp' wpc off mcause mtval regs _ Hev _ Hoff_some Hmcause Hentry
                 Hinv_regs)
-        "_ #Hpcc' #Hcgp' #Hoff HPC Hregs Hcstk Hes Hna".
+        "#Hskip_sl #Hpcc' #Hcgp' #Hoff HPC Hregs Hcstk Hes Hna".
       iDestruct (pointsto_agree with "Hpcc Hpcc'") as %<-.
       iDestruct (pointsto_agree with "Hcgp Hcgp'") as %<-.
       destruct kind.
@@ -914,8 +915,8 @@ Section Switcher_Exception.
         iDestruct "Hes" as "(%Hprov & %Hshadow & Hcells)".
         iEval (rewrite error_state_cells_full) in "Hcells".
         iApply ("Hrun" with
-                 "Hoff [//] Hswitcher_res [//] [//] [//] [//] [//] HPC Hregs [$Hcells //] [HUP]
-                  Hcstk Hna").
+                 "Hoff [//] Hswitcher_res [//] [//] [//] [//] [//] HPC Hregs [$Hcells //] Hskip_sl
+                  [HUP] Hcstk Hna").
         iSplit; last by iDestruct "HUP" as "[_ HP]".
         iDestruct "HUP" as "[ [Hruns | HU] _]"; first by iLeft. iRight.
         iApply (unwind_cont_weaken with "[] HU").
@@ -923,8 +924,8 @@ Section Switcher_Exception.
         by iFrame.
       + (* Stackless *)
         iApply ("Hrun" with
-                 "Hoff [//] Hswitcher_res [//] [//] [//] [//] [//] HPC Hregs [//] [HUP Hes]
-                  Hcstk Hna").
+                 "Hoff [//] Hswitcher_res [//] [//] [//] [//] [//] HPC Hregs [//] Hskip_sl
+                  [HUP Hes] Hcstk Hna").
         iSplit; last by iDestruct "HUP" as "[_ HP]".
         iDestruct "HUP" as "[ [Hruns | HU] _]"; first by iLeft. iRight.
         iApply (unwind_cont_give with "Hes HU").

@@ -712,8 +712,8 @@ Section Switcher.
         as (regs) "[%Hfull_regs Hregs]"; first done.
       (* The frame of a failed unsealing: its table cell is still cleared *)
       set (frame_failed := frame_tbl (lword_of_word (WInt 0))).
-      iApply (trap_safe_unwind_logrel _ _ _ (cstack_push frame_failed cstk) (W' :: Ws) (C :: Cs) regs
-               with "Hswitcher Hstatic [] [-]"); [done | done | | | |].
+      iApply (trap_safe_unwind_logrel _ _ _ (cstack_push frame_failed cstk) (W' :: Ws) (C :: Cs)
+                regs with "Hswitcher Hstatic [] [-]"); [done | done | | | |].
       { simpl. split; first apply related_sts_pub_refl_world. done. }
       { (* The unsealing is not the first spill *)
         apply trap_no_resume_switcher_pc. by vm_compute. }

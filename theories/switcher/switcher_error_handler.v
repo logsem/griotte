@@ -535,6 +535,7 @@ Section Switcher_error_handler.
     Persistent (handler_skipped cstk w rmap).
   Proof. rewrite /handler_skipped. apply _. Qed.
 
+  (** The stackful handler cannot both run and be skipped. *)
   Lemma handler_runs_skipped cstk w rmap :
     handler_runs cstk w rmap -∗ handler_skipped cstk w rmap -∗ False.
   Proof. iIntros "Hruns #Hskip". by iApply "Hskip". Qed.
@@ -561,7 +562,8 @@ Section Switcher_error_handler.
       count even), faulting PC [w] and registers [rfault], the handler runs
       safely from the invocation state, with the slot and, as it chooses,
       the site's unwind continuation (or the fact that the stackful handler
-      runs) or [P_fault]. It does not mention the trap vector. *)
+      runs) or [P_fault]. A stackless handler also knows that the stackful
+      handler does not run. It does not mention the trap vector. *)
   Definition execute_error_handler (b_tbl : Addr) (wpcc wcgp : LWord) (off : Z)
     (kind : handler_kind) (P_fault : coPset → CSTK → LWord → LReg → iProp Σ) : iProp Σ :=
     □ ∀ (F : coPset) (cstk : CSTK) (w : LWord) (rfault : LReg) (mcause mtval : Z)
@@ -575,6 +577,7 @@ Section Switcher_error_handler.
           PC ↦ₚ wpc -∗
           registers_pointsto regs -∗
           handler_slot kind w rfault -∗
+          (⌜kind = Stackless⌝ → handler_skipped cstk w rfault) -∗
           (unwind_or_runs F cstk w rfault (handler_unwind_res kind rfault) ∧
            P_fault F cstk w rfault) -∗
           cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
@@ -605,18 +608,6 @@ Section Switcher_error_handler.
     (* A plain [apply _] times out on the four existentials. *)
     rewrite /trusted_handler.
     do 4 (apply bi.exist_persistent; intros). apply _.
-  Qed.
-
-  (* TODO: move to iris_extra.v *)
-  (** A pure fact of the right conjunct of an [∧], keeping both conjuncts:
-      for a handler, the facts of its [P_fault] next to the unwind. *)
-  Lemma and_pure_sep_r (A B : iProp Σ) (φ : Prop) : A ∧ (⌜φ⌝ ∗ B) ⊢ ⌜φ⌝ ∗ (A ∧ B).
-  Proof.
-    iIntros "H".
-    iAssert ⌜φ⌝%I as %Hφ.
-    { iDestruct "H" as "[_ [$ _]]". }
-    iSplit; first done.
-    iSplit; [iDestruct "H" as "[$ _]" | iDestruct "H" as "[_ [_ $]]"].
   Qed.
 
   (** ** Context installation *)
