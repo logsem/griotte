@@ -672,6 +672,37 @@ Section Switcher_error_handler.
     | _ => True
     end.
 
+  (** The [ErrorState] that the switcher writes for a stackful handler is
+      the one that the install loads below the handler's [csp]. *)
+  Lemma install_region_slot (rfault : LReg) (t : bool) (p : Perm) (g : Locality)
+    (b e a : Addr) (π : option AId) (wa0 : LWord) (ws : list LWord) :
+    stackful_regs (rfault !!! csp) = Some (MkLWord (WCap t p g b e a) π, wa0) →
+    error_state_region rfault ws ⊣⊢ install_region a ws.
+  Proof.
+    rewrite /stackful_regs /error_state_region /install_region.
+    destruct (rfault !!! csp) as [w π']; cbn.
+    destruct w as [n | [t' p' g' b' e' a' | t' p' g' b' e' a'] | k t' p' g' b' e' a' | ot sb];
+      try done.
+    destruct (a' + ErrorState_size)%a as [a16|] eqn:Ha16; cbn; last done.
+    intros Hregs; simplify_eq.
+    rewrite /ErrorState_size in Ha16 |- *.
+    rewrite (_ : (a ^- 16)%f = a'); last solve_addr.
+    by rewrite (_ : (a' ^+ 16)%a = a); last solve_addr.
+  Qed.
+
+  (** When the switcher invokes the stackful handler, the cell of the
+      table is set: the install faults only if the handler's [csp] does not
+      allow the loads of the [ErrorState]. *)
+  Lemma stackful_handler_runs_install (cstk : CSTK) (w : LWord) (rfault : LReg)
+    (eh : Z) (wpcc : LWord) (n : Z) (regs : LReg) :
+    stackful_handler_runs cstk w rfault eh wpcc →
+    error_state_loads_ok (regs !!! csp) →
+    ¬ install_skipped (cstack_set_top_count cstk n) regs.
+  Proof.
+    intros (_ & Hset & _) Hok [Hz | Hnok]; last done.
+    rewrite top_tframe_set_count in Hz. by apply Hset.
+  Qed.
+
   (** Setting the address of a safe word keeps it safe: a capability or a
       sealing range with its cursor moved, or untagged by an overflow, an
       integer, or an untagged word. *)

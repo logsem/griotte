@@ -414,9 +414,9 @@ Section Switcher_Exception.
     iAssert (interp W C (rmap !!! csp)) as "#Hcsp".
     { iApply "Hregs". iPureIntro.
       destruct (Hfull csp) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv). }
-    iApply (switcher_install_context_spec Nswitcher cstk rmap wpcc
+    iApply (switcher_install_context_spec Nswitcher ⊤ cstk rmap wpcc
               (λ (_ : nat) (ls : list LWord), world_interp W C ∗ [∗ list] v ∈ ls, interp W C v)%I
-             with "[- ]"); [done | done | done |].
+             with "[- ]"); [set_solver | set_solver | done | done | done |].
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
     iSplitL "Hworld_interp"; first by iFrame.
     iSplitR.
@@ -425,7 +425,7 @@ Section Switcher_Exception.
       by iApply (interp_lea_result_cap with "Hcsp"). }
     iNext. iSplit.
     - (* A fault of the installation: the switcher unwinds *)
-      iIntros (off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hworld_interp _] Hna".
+      iIntros (_ off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hworld_interp _] Hna".
       iApply (interp_trap_safe with "Htrap"); first done.
       iModIntro. iFrame "Hrmap Hna Hcstk". iRight.
       iApply trap_handler_ok_switcher; [done | apply switcher_fault_pc_cap |].
@@ -1227,12 +1227,15 @@ Section Switcher_Exception.
       cells are outside the shadow table. The resumed PC is the PCC [wpcc]
       of the topmost table with the address of word 0, the registers hold
       words 1-15 as loaded through the permission of [csp], and the count
-      of the topmost frame is incremented. A fault of the installation (the
-      cell of the table is cleared, or [csp] does not allow the loads) is a
-      fault in the switcher, which unwinds. *)
-  Lemma switcher_handler_return_install (Nswitcher : namespace) (cstk : CSTK)
+      of the topmost frame is incremented. The handler runs with the
+      token [F] of its fault site. A fault of the installation (the cell of
+      the table is cleared, or [csp] does not allow the loads:
+      [install_skipped]) is a fault in the switcher, which unwinds. *)
+  Lemma switcher_handler_return_install (Nswitcher : namespace) (F : coPset) (cstk : CSTK)
     (rmap : LReg) (wpcc : LWord) (p : Perm) (g : Locality) (b e a : Addr)
     (ws : list LWord) :
+    ↑Nswitcher ⊆ F →
+    ↑N_trap ⊆ F →
     Nswitcher ## N_trap →
     (∀ r, is_Some (rmap !! r)) →
     nonZero (rmap !!! ca0).(lw) = false →
@@ -1246,28 +1249,30 @@ Section Switcher_Exception.
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_return" ∗
     registers_pointsto rmap ∗
-    [[ (a ^+ (- ErrorState_size))%a , a ]] ↦ₐ [[ ws ]] ∗
+    install_region a ws ∗
     cstack_frag cstk ∗
-    na_own cerise_nais ⊤ ∗
-    ▷ ( ( [[ (a ^+ (- ErrorState_size))%a , a ]] ↦ₐ [[ ws ]] -∗
-          unwind_cont ⊤ cstk True ) ∧
-        ( [[ (a ^+ (- ErrorState_size))%a , a ]] ↦ₐ [[ ws ]] -∗
-          context_resume ⊤ (cstack_set_top_count cstk (top_error_count cstk + 1))
+    na_own cerise_nais F ∗
+    ▷ ( ( ⌜install_skipped cstk rmap⌝ -∗
+          install_region a ws -∗
+          unwind_cont F cstk True ) ∧
+        ( install_region a ws -∗
+          context_resume F (cstack_set_top_count cstk (top_error_count cstk + 1))
             (llegalise MEPCC (resumed_pc wpcc (get_a (ws !!! 0%nat).(lw))))
             (error_state_install rmap (lload_word p <$> drop 1 ws)) ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hdisj Hfull Hnz Hcsp [a_es Ha_es] Hshadow Hws)
+    iIntros (HF HFtrap Hdisj Hfull Hnz Hcsp [a_es Ha_es] Hshadow Hws)
       "(#Hinv_switcher & #Hstatic & #Hpcc & HPC & Hrmap & Hws & Hcstk & Hna & Hpost)".
+    rewrite /install_region.
     assert ((a ^+ (- ErrorState_size))%a = a_es) as Ha_es' by solve_addr.
     rewrite Ha_es' in Hshadow.
     iRevert "Hws Hpost". rewrite Ha_es'. iIntros "Hws Hpost".
     assert ((a_es + length ws)%a = Some a) as Ha_end.
     { rewrite Hws. rewrite /ErrorState_size in Ha_es |- *. solve_addr. }
-    iApply (switcher_install_context_spec Nswitcher cstk rmap wpcc
+    iApply (switcher_install_context_spec Nswitcher F cstk rmap wpcc
               (λ (i : nat) (ls : list LWord),
                  [[ a_es , a ]] ↦ₐ [[ ws ]] ∗ ⌜ls = take i (lload_word p <$> ws)⌝)%I
-             with "[- ]"); [done | done | done |].
+             with "[- ]"); [done | done | done | done | done |].
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
     iSplitL "Hws"; first by iFrame.
     iSplitR.
@@ -1278,12 +1283,12 @@ Section Switcher_Exception.
       iApply (region_cells_load_acc p e a_es a ws Ha_end Hshadow). }
     iNext. iSplit.
     - (* A fault of the installation: the switcher unwinds *)
-      iIntros (off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hws _] Hna".
+      iIntros (Hskipped off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hws _] Hna".
       iDestruct "Hpost" as "[Hfault _]".
-      iApply (trap_safe_unwind with "Hinv_switcher Hstatic"); [done | done |].
-      iModIntro. iFrame "Hrmap Hna Hcstk". iRight.
+      iApply (trap_safe_exception_entry with "Hinv_switcher Hstatic"); [done | done | done |].
+      iModIntro. iExists rmap', cstk. iFrame "Hrmap Hna Hcstk". iSplit; first done.
       iApply trap_handler_ok_switcher; [done | apply switcher_fault_pc_cap |].
-      by iApply "Hfault".
+      by iApply ("Hfault" with "[//] Hws").
     - (* The context is installed *)
       iIntros (ls Hls) "HPC Hrmap Hcstk [Hws ->] Hna".
       iDestruct "Hpost" as "[_ Hresume]".
