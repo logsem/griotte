@@ -1067,7 +1067,8 @@ Section ghost_init.
     intros (_ & _ & Hbody). rewrite /body_ok /note in Hbody.
     destruct (fc_body fc) as [tb|ub].
     - destruct Hbody as (_ & _ & Hh & _).
-      destruct (tb_error_handler tb); destruct Hh as [Heh Hehs]; by eexists _, _.
+      destruct (tb_error_handler tb), (tb_error_handler_stackless tb);
+        destruct Hh as [Heh Hehs]; by eexists _, _.
     - by destruct Hbody as (_ & _ & Hh & _).
   Qed.
 

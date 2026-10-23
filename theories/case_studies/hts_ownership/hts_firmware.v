@@ -44,7 +44,8 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
               of the switcher calls *)
            {| fe_name := "entry"; fe_offset := 6; fe_nargs := 0; fe_min_stack := 5; fe_posture := InterruptEnabled |}
          ];
-         tb_error_handler := None |} |};
+         tb_error_handler := None;
+         tb_error_handler_stackless := None |} |};
     {| fc_name          := "allocator";
        fc_imports       := [
          FW (WCap true RW Global shadow_b shadow_e shadow_b);                             (* the shadow table *)
@@ -61,7 +62,8 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
            {| fe_name := "malloc"; fe_offset := allocator_malloc_pcc_off; fe_nargs := allocator_malloc_nargs; fe_min_stack := allocator_malloc_min_stack; fe_posture := InterruptEnabled |};
            {| fe_name := "free";   fe_offset := allocator_free_pcc_off;   fe_nargs := allocator_free_nargs;   fe_min_stack := allocator_free_min_stack;   fe_posture := InterruptEnabled |}
          ];
-         tb_error_handler := None |} |};
+         tb_error_handler := None;
+         tb_error_handler_stackless := None |} |};
     {| fc_name          := "B";
        fc_imports       := [
          ISwitcherCall;

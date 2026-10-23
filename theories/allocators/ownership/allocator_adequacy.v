@@ -125,6 +125,7 @@ Section allocator_init.
     cmpt_exp_tbl_entries c = allocator_export_table_entries →
     fc_body fc = TrustedBody tb →
     tb_error_handler tb = None →
+    tb_error_handler_stackless tb = None →
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     allocator_owners (gset_to_gmap ∅ ids) -∗
@@ -145,7 +146,7 @@ Section allocator_init.
         allocator_free_pcc_off).
   Proof.
     intros c alloclayout a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free
-      Hc Hwf Himports Hcode Hdata Hexports Hbody Hnh.
+      Hc Hwf Himports Hcode Hdata Hexports Hbody Hnh Hnhs.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free.
     iIntros "(Himports & Hcode & Hdata) (#Hpcc & #Hcgp & #Hh & #Hetbl) Howners Hheap Hshadow Hclaims".
     subst c. set (c := cmpt_of img (fc_name fc)) in *.
@@ -167,7 +168,7 @@ Section allocator_init.
       iFrame. }
     iModIntro. iFrame "Hpcc".
     replace (cmpt_exp_tbl_cgp c) with (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp)%a by solve_addr+Hpcc_size.
-    rewrite /fw_handler_res Hbody Hnh.
+    rewrite /fw_handler_res Hbody Hnh Hnhs.
     iFrame "Hcgp Hh".
     rewrite Hexports /allocator_export_table_entries.
     iEval (rewrite !big_sepL_cons) in "Hetbl".

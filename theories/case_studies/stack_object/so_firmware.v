@@ -36,7 +36,8 @@ Definition so_firmware `{MP : MachineParameters} : firmware := {|
            (* after the 3 imports; the stack holds the spill of the switcher call *)
            {| fe_name := "entry"; fe_offset := 3; fe_nargs := 0; fe_min_stack := 4; fe_posture := InterruptEnabled |}
          ];
-         tb_error_handler := None |} |};
+         tb_error_handler := None;
+         tb_error_handler_stackless := None |} |};
     {| fc_name          := "C";
        fc_imports       := [
          ISwitcherCall;

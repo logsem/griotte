@@ -129,7 +129,7 @@ Section hts_obligations.
     (* 6 - The allocator: its service invariant owns the heap *)
     iMod (allocator_init img (fw_nth 1 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt)
             ot_alloc {[hts_main_owner_id; hts_adv_owner_id]} _ Halloc_l allocwf
-            alloc_imports' alloc_code alloc_data alloc_exp_tbl eq_refl eq_refl
+            alloc_imports' alloc_code alloc_data alloc_exp_tbl eq_refl eq_refl eq_refl
            with "Halloc Halloc_pers Howners Hheap Hshadow Hclaims")
       as "(#Hservice & #Hservice_static & #Halloc_etbl_pcc & #Halloc_etbl_cgp & #Halloc_etbl_nh
            & #Hexport_malloc & #Hexport_free)".

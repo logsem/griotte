@@ -46,13 +46,14 @@ Record fw_untrusted_export : Type := MkFwUntrustedExport {
 }.
 
 (** A trusted compartment has known code, globals and exports, and
-    possibly a stackful error handler, given by its offset from the base of
-    the PCC (trusted compartments declare no stackless error handler). *)
+    possibly a stackful and a stackless error handler, each given by its
+    offset from the base of the PCC. *)
 Record fw_trusted : Type := MkFwTrusted {
   tb_code : list Word;
   tb_data : list fw_chunk;
   tb_exports : list fw_export;
   tb_error_handler : option nat;
+  tb_error_handler_stackless : option nat;
 }.
 
 (** The code, the globals and the export offsets of an untrusted

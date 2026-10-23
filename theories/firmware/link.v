@@ -118,12 +118,8 @@ Section link.
     let '(code, data, eh, ehs, entries) :=
       match fc_body fc with
       | TrustedBody b =>
-          let eh :=
-            match tb_error_handler b with
-            | Some off => Z.of_nat off
-            | None => ExportTable_no_handler
-            end in
-          (tb_code b, chunks_words fw img ss c (tb_data b), eh, ExportTable_no_handler,
+          (tb_code b, chunks_words fw img ss c (tb_data b),
+           handler_word (tb_error_handler b), handler_word (tb_error_handler_stackless b),
            map export_word (tb_exports b))
       | UntrustedBody b =>
           let a := adv_of n in
