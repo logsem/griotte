@@ -3,7 +3,7 @@ From iris.program_logic Require Import language.
 From griotte Require Import
   machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
   assembler fetch switcher assert allocator_resources compartment_layout
-  error_handling.
+  error_handling error_handling_adequacy.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import image firmware firmware_ok image_state link error_handling_firmware.
 
@@ -15,8 +15,9 @@ From griotte Require Import image firmware firmware_ok image_state link error_ha
 
     The error-handling firmware with a concrete adversary [adv], laid out
     by the linker. Its initial state satisfies
-    [error_handling_initial_state_ok] by computation, and runs to [Halted]
-    with the flag of the assert library still zero. *)
+    [error_handling_initial_state_ok] by computation, and runs to [Halted];
+    [error_handling_adequacy] gives that the flag of the assert library is
+    still zero. *)
 
 Definition error_handling_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
@@ -129,11 +130,36 @@ Proof.
   all: solve_concrete_condition.
 Qed.
 
-(** ** The run, with its final state
+(** ** The run
 
-    [machine_run] returns only the final flag. [machine_run_conf] is the
-    same interpreter, but returns the final configuration, so that the
-    final memory computes. *)
+    [error_handling_demo_state] runs to [Halted], at the final [halt] of
+    [main], and [error_handling_adequacy] applies to it: the flag of the
+    assert library is still zero. *)
+Theorem error_handling_runs_and_gracefully_halts :
+  ∃ pc' reg' sreg' mem' sh',
+    rtc erased_step ([Seq (Instr Executable)], error_handling_demo_state)
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
+    ∧ mem' !! flag_assert (img_asrt error_handling_demo_image) = Some (WInt 0%Z).
+Proof.
+  pose proof (machine_run_correct (N.to_nat 15000%N) Executable error_handling_demo_state Halted)
+    as Hrun.
+  specialize (Hrun ltac:(vm_compute; reflexivity)).
+  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  exact (error_handling_adequacy _ _ _ _ error_handling_demo_ok Hrun).
+Qed.
+
+(** ** Without the error handler
+
+    The same firmware and adversary, where [stats] declares no error
+    handler. The fault of [stats_read], in the first call of [adv], then
+    unwinds [stats] with its lock held: the first call of [main] returns
+    [EBUSY], its first assert fails, and the machine halts with the flag
+    set.
+
+    [machine_run] returns only the final configuration kind.
+    [machine_run_conf] is the same interpreter, but returns the final
+    configuration, so that the final memory computes. *)
 Fixpoint machine_run_conf `{MachineParameters} (fuel : nat) (c : Conf) : option Conf :=
   match fuel with
   | 0 => None
@@ -199,38 +225,7 @@ Proof.
     apply erased_step_seq. constructor.
 Qed.
 
-(** [error_handling_demo_state] runs to [Halted], at the final [halt] of
-    [main], and the flag of the assert library is still zero: both asserts
-    of [main] hold, the first one thanks to the error handler of [stats].
-    The flag is computed on the final memory of this run. Once
-    [error_handling_adequacy] exists, it will give the flag for any run,
-    applied here as in [lse_runs_and_gracefully_halts]:
-    [exact (error_handling_adequacy _ _ _ _ error_handling_demo_ok Hrun)]. *)
-Theorem error_handling_runs_and_gracefully_halts :
-  ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Seq (Instr Executable)], error_handling_demo_state)
-      ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! flag_assert (img_asrt error_handling_demo_image) = Some (WInt 0%Z).
-Proof.
-  pose proof (machine_run_conf_correct (N.to_nat 15000%N) Executable error_handling_demo_state)
-    as Hrun.
-  assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_demo_state) with
-          | Some (Halted, (_, _, _, mem', _)) =>
-              mem' !! flag_assert (img_asrt error_handling_demo_image) = Some (WInt 0%Z)
-          | _ => False
-          end) as Hflag by (vm_compute; reflexivity).
-  destruct (machine_run_conf _ _) as [ [ [] [ [ [ [pc' reg'] sreg'] mem'] sh'] ] | ];
-    try done.
-  exists pc', reg', sreg', mem', sh'. split; [by apply Hrun | exact Hflag].
-Qed.
-
-(** ** Without the error handler
-
-    The same firmware and adversary, where [stats] declares no error
-    handler. The fault of [stats_read], in the first call of [adv], then
-    unwinds [stats] with its lock held: the first call of [main] returns
-    [EBUSY], its first assert fails, and the machine halts with the flag
-    set. *)
+(** [stats] without its error handler. *)
 Definition error_handling_drop_stats_handler (fc : fw_cmpt) : fw_cmpt :=
   match fc_body fc with
   | TrustedBody b =>
