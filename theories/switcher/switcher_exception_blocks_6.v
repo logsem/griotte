@@ -4,7 +4,7 @@ From griotte Require Import register_tactics.
 From griotte Require Import call_stack switcher_exception_states switcher_error_handler
   clear_registers_spec.
 
-(** * Exception path, blocks 33-35: the invocation of a handler and its return
+(** * Exception path, blocks 33-34: the invocation of a handler and its return
 
     Block 33 ([.Lhandle_error_handler_invoke]) enables interrupts, clears
     every register but the handler's return sentry, stack, globals and
@@ -16,9 +16,9 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 
     Block 34 ([.Lhandle_error_handler_return]), the handler's return,
     disables interrupts; a request to unwind ([ca0] not zero) forces the
-    unwind. Otherwise, block 35 ([.Lhandle_error_install_context]) would
-    install the context of the handler: this is not supported yet, the
-    unwind is forced. *)
+    unwind. Otherwise, the switcher continues at block 35
+    ([.Lhandle_error_install_context]), which installs the context of the
+    handler. *)
 
 Section Switcher_Exception_Blocks_6.
   Context
@@ -132,26 +132,6 @@ Section Switcher_Exception_Blocks_6.
       iApply ("Hpost" $! 2%Z with "[] [$]"). iPureIntro. by right.
   Qed.
 
-  (** Block 35: the installation of the handler's context is not supported
-      yet. *)
-  #[local] Lemma switcher_exception_block_35_spec_aux (pc_a : Addr) :
-    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 35))%a ->
-    (pc_a + (-159))%a = Some (pc_a ^+ (-159))%a ->
-
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
-    codefrag_pers pc_a (switcher_instrs_n 35) ∗
-    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-159))%a -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    iIntros (Hsub Hunwind) "(HPC & #Hcode & Hpost)".
-    codefrag_facts "Hcode".
-    rewrite /switcher_instrs_n /assembled_switcher_n.
-    (* Jmp .Lcommon_force_unwind *)
-    iInstr "Hcode".
-    iApply "Hpost". iFrame.
-  Qed.
-
   (** Block 33, from [.Lhandle_error_handler_invoke]: with interrupts
       enabled, the registers of [rmap] (all but [cra], [csp], [cgp], [ca0],
       [ca1] and [ca2]) are cleared, and the [cjalr] calls the word in [cra]
@@ -206,16 +186,23 @@ Section Switcher_Exception_Blocks_6.
       iApply ("Hfailed" with "[//] [//]"). iFrame "∗ Hswitcher".
   Qed.
 
-  (** Blocks 34-35, from [.Lhandle_error_handler_return]: both answers of
-      the handler force the unwind. *)
+  (** Block 34, from [.Lhandle_error_handler_return]: a request to unwind
+      ([ca0] not zero) forces the unwind; otherwise the switcher installs
+      the context of the handler, at [.Lhandle_error_install_context]. *)
   Lemma switcher_handler_return_block_spec (wca0 : LWord) :
     PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_return" ∗
     ca0 ↦ᵣ wca0 ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-        ca0 ↦ᵣ wca0 ∗
-        switcher_code -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+    ▷ ( ( ⌜nonZero wca0.(lw) = true⌝ -∗
+          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
+          ca0 ↦ᵣ wca0 ∗
+          switcher_code -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+        ( ⌜nonZero wca0.(lw) = false⌝ -∗
+          PC ↦ₚ switcher_label_pc ".Lhandle_error_install_context" ∗
+          ca0 ↦ᵣ wca0 ∗
+          switcher_code -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros "(HPC & Hca0 & #Hswitcher & Hpost)".
@@ -228,18 +215,13 @@ Section Switcher_Exception_Blocks_6.
       [done | offsets_compute; solve_addr+Hsize |].
     iNext; iIntros (off Hoff) "(HPC & Hca0)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    destruct Hoff as [(_ & ->) | (_ & ->)].
+    destruct Hoff as [(Hnz & ->) | (Hnz & ->)].
     - switcher_change_pc (switcher_label_offset ".Lcommon_force_unwind").
-      iApply "Hpost". iFrame "∗ Hswitcher".
+      iDestruct "Hpost" as "[Hpost _]".
+      iApply ("Hpost" with "[//]"). iFrame "∗ Hswitcher".
     - switcher_change_pc (switcher_label_offset ".Lhandle_error_install_context").
-      switcher_focus_block (switcher_block ".Lhandle_error_install_context") "Hswitcher"
-        as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-      iApply (switcher_exception_block_35_spec_aux with "[- $HPC $Hcode]");
-        [done | offsets_compute; solve_addr+Hsize |].
-      iNext; iIntros "HPC".
-      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-      switcher_change_pc (switcher_label_offset ".Lcommon_force_unwind").
-      iApply "Hpost". iFrame "∗ Hswitcher".
+      iDestruct "Hpost" as "[_ Hpost]".
+      iApply ("Hpost" with "[//]"). iFrame "∗ Hswitcher".
   Qed.
 
 End Switcher_Exception_Blocks_6.
