@@ -21,7 +21,7 @@ Section Error_Handling_Main_Blocks_2.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
-    {statslayout : statsLayout}
+    {statslayout : statsLayout} {statslayoutWf : statsLayoutWf}
   .
 
   Lemma main_check_1_spec
@@ -100,7 +100,6 @@ Section Error_Handling_Main_Blocks_2.
     (cgp_b cgp_e : Addr)
     (wca0 wctp wct1 wcra : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
-    is_heap_cap (WSealed ot_switcher (STATS_read Global)) = false ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_arg_2")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
@@ -121,9 +120,11 @@ Section Error_Handling_Main_Blocks_2.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
       "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra
       & #Himport_switcher & #Himport_read & #Hcode_main & Hpost)".
+    assert (is_heap_cap (WSealed ot_switcher (STATS_read Global)) = false) as Hsealed_nonheap
+      by (apply sealed_cap_nonheap, stats_export_base_not_heap).
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.

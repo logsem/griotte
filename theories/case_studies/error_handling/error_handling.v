@@ -188,26 +188,11 @@ Section Stats.
         stats_export_base_not_heap : is_heap_address b_stats_exp_tbl = false
       }.
 
-  Definition stats_read_pcc_addr {STATS : statsLayout} : Addr :=
-    (STATS_pcc_b ^+ stats_read_pcc_off)%a.
-  Definition stats_handler_pcc_addr {STATS : statsLayout} : Addr :=
-    (STATS_pcc_b ^+ stats_handler_pcc_off)%a.
   Definition stats_read_exp_tbl_addr {STATS : statsLayout} : Addr :=
     (b_stats_exp_tbl ^+ stats_read_exp_tbl_off)%a.
   (** The export of [stats_read], before its sealing by the switcher. *)
   Definition STATS_read {STATS : statsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr.
-
-  (** The handler is inside the PCC of [stats]. *)
-  Lemma stats_handler_pcc_addr_in_pcc {STATS : statsLayout} {STATS_WF : statsLayoutWf} :
-    (STATS_pcc_b <= stats_handler_pcc_addr < STATS_pcc_e)%a.
-  Proof.
-    pose proof STATS_size_imports as Hsize_imports.
-    pose proof STATS_size_code as Hsize_code.
-    rewrite /stats_handler_pcc_addr stats_handler_pcc_off_eq.
-    cbn in Hsize_code |- *.
-    solve_addr.
-  Qed.
 End Stats.
 
 (* [statsLayout] has no parameter: it takes no [Hint Mode]. *)
@@ -354,7 +339,6 @@ Section Main.
   Proof. reflexivity. Qed.
 End Main.
 
-(** The index of the export [entry] of [main] and of the export [adv] of the
-    adversary, in the order of the firmware. *)
-Definition error_handling_main_entry : nat := 0.
+(** The index of the export [adv] of the adversary, in the order of the
+    firmware. *)
 Definition error_handling_adv_entry : nat := 0.
