@@ -590,6 +590,8 @@ Section Switcher_error_handler.
     iApply (interp_clear_tag W C (MkLWord w π)).
   Qed.
 
+  (** Installing the [ErrorState]'s registers keeps a full register map
+      full. *)
   Lemma error_state_install_full (rmap : LReg) (ls : list LWord) :
     (∀ r, is_Some (rmap !! r)) →
     ∀ r, is_Some (error_state_install rmap ls !! r).
@@ -639,7 +641,6 @@ Section Switcher_error_handler.
       (top_tframe cstk).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a) ∧
       (b_stk <= a_stk)%a ∧
       is_Some (a_stk + 4)%a.
-
 
   (** The stack pointer of the topmost pushed frame is a capability whose
       cursor is in its bounds. *)

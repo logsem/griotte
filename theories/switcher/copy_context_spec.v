@@ -250,7 +250,8 @@ Section CopyContextMacro.
       iTrap with ("Hfailed" $! i ls wd with
                    "[//] [//] [//] [%] Hsrc Hdst [$Hscratch] Hcounter Hwd HL").
       solve_addr. }
-    iMod ("Hacc" $! i ls with "[%] [%] HL") as (v dq wit dw) "(%Hsh_s & %Hπ & Hcell & Hwit & Hdw & Hclose)".
+    iMod ("Hacc" $! i ls with "[%] [%] HL")
+      as (v dq wit dw) "(%Hsh_s & %Hπ & Hcell & Hwit & Hdw & Hclose)".
     { lia. }
     { solve_addr. }
     (* CLoad scratch src 0 *)

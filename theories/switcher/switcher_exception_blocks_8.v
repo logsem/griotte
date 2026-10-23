@@ -149,7 +149,8 @@ Section Switcher_Exception_Blocks_8.
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt (n + 1) ∗
-          [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save !!! 0%nat :: drop 1 ls ++ drop 16 save ]] ∗
+          [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
+            [[ save !!! 0%nat :: drop 1 ls ++ drop 16 save ]] ∗
           L (Z.to_nat ErrorState_size) ls -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -495,7 +496,8 @@ Section Switcher_Exception_Blocks_8.
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt (n + 1) ∗
-          [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save !!! 0%nat :: drop 1 ls ++ drop 16 save ]] ∗
+          [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
+            [[ save !!! 0%nat :: drop 1 ls ++ drop 16 save ]] ∗
           switcher_code ∗
           L (Z.to_nat ErrorState_size) ls -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )

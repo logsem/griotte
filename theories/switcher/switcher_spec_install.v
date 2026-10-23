@@ -248,7 +248,8 @@ Section Switcher_Spec_Install.
                      [|w13 [|w14 [|w15 [|w16 ls] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
         rewrite /ErrorState_size /= in Hls; try lia.
       iDestruct (error_state_install_pointsto with
-                  "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5")
+                  "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1
+                   Hca0 Hca1 Hca2 Hca3 Hca4 Hca5")
         as "Hrmap".
       iDestruct "Hpost" as "[_ Hresume]".
       iApply ("Hresume" with "[] HPC Hrmap Hcstk HL Hna").
