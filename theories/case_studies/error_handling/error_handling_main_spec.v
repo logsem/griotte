@@ -168,7 +168,7 @@ Section Error_Handling_Main_Spec.
                   wcs0 wcs1 csp_b csp_e csp_b arg_rmap cstk wptr v
                  with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats]")
       as "Hread"; [done | done | done | | done |].
-    { eapply stats_disjoint_from_shadow_sub;
+    { eapply disjoint_from_shadow_weaken;
         [| | exact (disjoint_from_mmio_shadow _ _ Hstk_mmio)];
         rewrite /stats_read_min_stack in Hstk_min; solve_addr+Hstk_min. }
     iPoseProof "Hstats_static" as "Hstats_static'". iNamed "Hstats_static'".

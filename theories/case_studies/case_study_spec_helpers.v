@@ -9,7 +9,9 @@ From griotte Require Export code_blocks.
       compartment, and the tactics to focus on its blocks,
     - [switcher_call_args_0] ... [switcher_call_args_3]: the argument
       registers of a call to the switcher, for an entry point with 0 to 3
-      arguments. *)
+      arguments,
+    - [registers_pointsto_extract] ... [registers_pointsto_ret_spec]: the
+      registers of a register map. *)
 
 (** ** Arguments of a call to the switcher
 
@@ -232,6 +234,154 @@ Section Fresh_stack.
     { rewrite -Hlen finz_seq_between_length. done. }
   Qed.
 End Fresh_stack.
+
+(** ** Registers of a register map
+
+    [registers_pointsto_extract], [registers_pointsto_extract2] and
+    [registers_pointsto_extract3] take one to three registers out of a
+    register map, and give the map back once they are updated.
+    [registers_pointsto_switcher_return] and [registers_pointsto_ret_spec]
+    split a full register map as the return routine of the switcher, and
+    [switcher_ret_specification], take it. *)
+Section Register_maps.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+  .
+
+  (** A register of a register map, with the map given back once the
+      register is updated. *)
+  Lemma registers_pointsto_extract (rmap : LReg) (r : RegName) (w : LWord) :
+    rmap !! r = Some w →
+    registers_pointsto rmap ⊢
+    r ↦ᵣ w ∗ (∀ w', r ↦ᵣ w' -∗ registers_pointsto (<[r:=w']> rmap)).
+  Proof.
+    iIntros (Hr) "Hregs". rewrite /registers_pointsto.
+    iDestruct (big_sepM_delete _ _ r with "Hregs") as "[$ Hregs]"; first done.
+    iIntros (w') "Hr". rewrite -insert_delete_eq.
+    iApply (big_sepM_insert with "[$Hregs $Hr]"). by rewrite lookup_delete_eq.
+  Qed.
+
+  (** Two registers of a register map. *)
+  Lemma registers_pointsto_extract2 (rmap : LReg) (r1 r2 : RegName) (w1 w2 : LWord) :
+    r1 ≠ r2 →
+    rmap !! r1 = Some w1 →
+    rmap !! r2 = Some w2 →
+    registers_pointsto rmap ⊢
+    r1 ↦ᵣ w1 ∗
+    r2 ↦ᵣ w2 ∗
+    (∀ w1' w2',
+       r1 ↦ᵣ w1' -∗
+       r2 ↦ᵣ w2' -∗
+       registers_pointsto (<[r1:=w1']> (<[r2:=w2']> rmap))).
+  Proof.
+    iIntros (Hne Hr1 Hr2) "Hregs". rewrite /registers_pointsto.
+    iDestruct (big_sepM_delete _ _ r1 with "Hregs") as "[$ Hregs]"; first done.
+    iDestruct (big_sepM_delete _ _ r2 with "Hregs") as "[$ Hregs]".
+    { by rewrite lookup_delete_ne. }
+    iIntros (w1' w2') "Hr1 Hr2".
+    rewrite big_sepM_insert_delete delete_insert_ne // big_sepM_insert_delete.
+    iFrame.
+  Qed.
+
+  (** Three registers of a register map. *)
+  Lemma registers_pointsto_extract3 (rmap : LReg) (r1 r2 r3 : RegName) (w1 w2 w3 : LWord) :
+    r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
+    rmap !! r1 = Some w1 →
+    rmap !! r2 = Some w2 →
+    rmap !! r3 = Some w3 →
+    registers_pointsto rmap ⊢
+    r1 ↦ᵣ w1 ∗
+    r2 ↦ᵣ w2 ∗
+    r3 ↦ᵣ w3 ∗
+    (∀ w1' w2' w3',
+       r1 ↦ᵣ w1' -∗
+       r2 ↦ᵣ w2' -∗
+       r3 ↦ᵣ w3' -∗
+       registers_pointsto (<[r1:=w1']> (<[r2:=w2']> (<[r3:=w3']> rmap)))).
+  Proof.
+    iIntros (Hne12 Hne13 Hne23 Hr1 Hr2 Hr3) "Hregs". rewrite /registers_pointsto.
+    iDestruct (big_sepM_delete _ _ r1 with "Hregs") as "[$ Hregs]"; first done.
+    iDestruct (big_sepM_delete _ _ r2 with "Hregs") as "[$ Hregs]".
+    { by rewrite lookup_delete_ne. }
+    iDestruct (big_sepM_delete _ _ r3 with "Hregs") as "[$ Hregs]".
+    { by rewrite !lookup_delete_ne. }
+    iIntros (w1' w2' w3') "Hr1 Hr2 Hr3".
+    rewrite big_sepM_insert_delete !delete_insert_ne // big_sepM_insert_delete.
+    rewrite delete_insert_ne // big_sepM_insert_delete.
+    iFrame.
+  Qed.
+
+  (** The registers of a full register map, as the return routine of the
+      switcher takes them. *)
+  Lemma registers_pointsto_switcher_return (rmap : LReg) :
+    (∀ r, is_Some (rmap !! r)) →
+    registers_pointsto rmap ⊢
+    ∃ rmap_ret : LReg,
+      ⌜dom rmap_ret = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}⌝ ∗
+      cgp ↦ᵣ - ∗
+      cra ↦ᵣ - ∗
+      cs0 ↦ᵣ - ∗
+      cs1 ↦ᵣ - ∗
+      csp ↦ᵣ (rmap !!! csp) ∗
+      ca0 ↦ᵣ (rmap !!! ca0) ∗
+      ca1 ↦ᵣ (rmap !!! ca1) ∗
+      ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w).
+  Proof.
+    iIntros (Hfull) "Hregs". rewrite /registers_pointsto.
+    pose proof (lregmap_full_dom _ Hfull) as Hdom.
+    iExists (delete ca1 (delete ca0 (delete cs1 (delete cs0 (delete cra
+               (delete cgp (delete csp rmap))))))).
+    iSplit.
+    { iPureIntro. rewrite !dom_delete_L Hdom. set_solver+. }
+    iDestruct (big_sepM_delete _ _ csp with "Hregs") as "[Hcsp Hregs]".
+    { apply lookup_lookup_total, Hfull. }
+    iDestruct (big_sepM_delete _ _ cgp with "Hregs") as "[Hcgp Hregs]".
+    { rewrite lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
+    iDestruct (big_sepM_delete _ _ cra with "Hregs") as "[Hcra Hregs]".
+    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
+    iDestruct (big_sepM_delete _ _ cs0 with "Hregs") as "[Hcs0 Hregs]".
+    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
+    iDestruct (big_sepM_delete _ _ cs1 with "Hregs") as "[Hcs1 Hregs]".
+    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
+    iDestruct (big_sepM_delete _ _ ca0 with "Hregs") as "[Hca0 Hregs]".
+    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
+    iDestruct (big_sepM_delete _ _ ca1 with "Hregs") as "[Hca1 Hregs]".
+    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
+    iFrame.
+  Qed.
+
+  (** The registers of a full register map, as [switcher_ret_specification]
+      takes them. *)
+  Lemma registers_pointsto_ret_spec (rmap : LReg) :
+    (∀ r, is_Some (rmap !! r)) →
+    registers_pointsto rmap ⊢
+    ∃ rest : LReg,
+      ⌜dom rest = all_registers_s ∖ {[ csp ; ca0 ; ca1 ]}⌝ ∗
+      csp ↦ᵣ (rmap !!! csp) ∗
+      ca0 ↦ᵣ (rmap !!! ca0) ∗
+      ca1 ↦ᵣ (rmap !!! ca1) ∗
+      ([∗ map] r↦w ∈ rest, r ↦ᵣ w).
+  Proof.
+    iIntros (Hfull) "Hregs". rewrite /registers_pointsto.
+    pose proof (lregmap_full_dom _ Hfull) as Hdom.
+    iExists (delete ca1 (delete ca0 (delete csp rmap))).
+    iSplit.
+    { iPureIntro. rewrite !dom_delete_L Hdom. set_solver+. }
+    iDestruct (big_sepM_delete _ _ csp with "Hregs") as "[Hcsp Hregs]".
+    { apply lookup_lookup_total, Hfull. }
+    iDestruct (big_sepM_delete _ _ ca0 with "Hregs") as "[Hca0 Hregs]".
+    { rewrite lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
+    iDestruct (big_sepM_delete _ _ ca1 with "Hregs") as "[Hca1 Hregs]".
+    { rewrite !lookup_delete_ne //. apply lookup_lookup_total, Hfull. }
+    iFrame.
+  Qed.
+
+End Register_maps.
 
 (** An address within bounds of a region disjoint from the MMIO (resp. heap)
     region is not a shadow (resp. heap) address. *)

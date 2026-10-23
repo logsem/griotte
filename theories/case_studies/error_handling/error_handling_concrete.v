@@ -157,75 +157,8 @@ Qed.
     [EBUSY], its first assert fails, and the machine halts with the flag
     set.
 
-    [machine_run] returns only the final configuration kind.
-    [machine_run_conf] is the same interpreter, but returns the final
+    [machine_run_conf], rather than [machine_run], returns the final
     configuration, so that the final memory computes. *)
-(* TODO: move to theories/opsem/machine_run.v, with [machine_run_conf_correct];
-   [machine_run] can then be [option_map fst ∘ machine_run_conf] *)
-Fixpoint machine_run_conf `{MachineParameters} (fuel : nat) (c : Conf) : option Conf :=
-  match fuel with
-  | 0 => None
-  | S fuel =>
-    match c with
-    | (Faulted, φ) =>
-        if trap_halts φ then Some (Faulted, φ)
-        else machine_run_conf fuel (Executable, enter_exc (trap_cause φ, trap_tval φ) φ)
-    | (Halted, φ) => Some (Halted, φ)
-    | (NextI, φ) => machine_run_conf fuel (Executable, φ)
-    | (Executable, (pc, r, sr, m, st)) =>
-        if isCorrectPCb pc
-        then (
-            let a := match pc with
-                     | WCap _ _ _ _ _ a => a
-                     | _ => addresses.top (* dummy *)
-                     end
-            in
-            let p := match pc with
-                     | WCap _ p _ _ _ _ => p
-                     | _ => RWX (* dummy *)
-                     end
-            in
-            match m !! a with
-            | None => machine_run_conf fuel (Faulted, (pc, r, sr, m, st))
-            | Some wa =>
-                let i := decodeInstrW wa in
-                let c' := exec i p (pc, r, sr, m, st) in
-                machine_run_conf fuel (c'.1, c'.2)
-            end
-          ) else machine_run_conf fuel (Faulted, (pc, r, sr, m, st))
-    end
-  end.
-
-Lemma machine_run_conf_correct `{MachineParameters} fuel cf (φ : ExecConf) cf' φ' :
-  machine_run_conf fuel (cf, φ) = Some (cf', φ') →
-  rtc erased_step ([Seq (Instr cf)], φ) ([Instr cf'], φ').
-Proof.
-  revert cf φ. induction fuel as [|fuel IHfuel]; first (cbn; done).
-  cbn. intros cf [[[[wpc r] sr] m] st] Hc.
-  destruct cf; simplify_eq.
-  - (* Executable: the fetch and the instruction, then the rest of the run. *)
-    destruct (isCorrectPCb wpc) eqn:HPC.
-    + apply isCorrectPCb_isCorrectPC in HPC.
-      inversion HPC as [p g b e a Hbounds Hx Hwpc]; subst wpc.
-      destruct (m !! a) as [wa | ] eqn:HeMem.
-      * eapply rtc_l; last eapply IHfuel, Hc.
-        apply erased_step_seq_instr. constructor. eapply step_exec_instr; eauto.
-      * eapply rtc_l; last eapply IHfuel, Hc.
-        apply erased_step_seq_instr. constructor. eapply step_exec_memfail; eauto.
-    + apply isCorrectPCb_nisCorrectPC in HPC.
-      eapply rtc_l; last eapply IHfuel, Hc.
-      apply erased_step_seq_instr. constructor. by eapply step_exec_corrfail.
-  - (* Halted *)
-    eapply rtc_once. apply erased_step_seq. constructor.
-  - (* Faulted: the machine stops, or enters the exception handler. *)
-    destruct (trap_halts _) eqn:Hhalt; simplify_eq.
-    + eapply rtc_once. apply erased_step_seq. by constructor.
-    + eapply rtc_l; last eapply IHfuel, Hc.
-      apply erased_step_seq. by constructor.
-  - (* NextI *)
-    eapply rtc_l; last eapply IHfuel, Hc.
-    apply erased_step_seq. constructor.
-Qed.
 
 (** [stats] without its error handler. *)
 Definition error_handling_drop_stats_handler (fc : fw_cmpt) : fw_cmpt :=
