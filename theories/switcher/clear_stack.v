@@ -11,7 +11,7 @@ Section ClearStackMacro.
       sub r1 r2 r1;
       mov r2 csp;
       #"loop_start";
-      jnz ("loop_body")%asm r1;
+      jnez ("loop_body")%asm r1;
       jmp ("loop_end")%asm;
       #"loop_body";
       store r2 0;

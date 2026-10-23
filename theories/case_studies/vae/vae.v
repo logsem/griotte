@@ -157,7 +157,7 @@ Section vae_C_code.
 
       #"g_entry";
       load ct0 cgp;
-      jnz ("g_ret")%asm ct0;
+      jnez ("g_ret")%asm ct0;
       store cgp 1;
       store csp cra;
       lea csp 1 ] ++

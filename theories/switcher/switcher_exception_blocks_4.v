@@ -77,7 +77,7 @@ Section Switcher_Exception_Blocks_4.
     iInstr "Hcode".
     destruct (decide (cs1 = cnull)) as [Hcs1_null|_]; first done.
     destruct (decide (ztag = 0%Z)) as [-> | Hztag_nz].
-    - (* Jnz 2 ct1 *)
+    - (* Jne 2 ct1 0 *)
       iInstr "Hcode".
       (* Jmp .Lhandle_error_try_stackless *)
       iInstr "Hcode".
@@ -85,7 +85,7 @@ Section Switcher_Exception_Blocks_4.
       iApply ("Hpost" $! _ _ 17%Z). iFrame "∗ Hcode". iPureIntro. right. split; last done.
       destruct Hztag as [Htag | [_ Hstrip] ]; last (right; by eapply tag_strippable_lea).
       left. intros [Htag_true _]%Hfits_iff. by rewrite Htag_true in Htag.
-    - (* Jnz 2 ct1 *)
+    - (* Jne 2 ct1 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       assert (get_tag (lw wct0) = true) as Htag.
@@ -97,11 +97,11 @@ Section Switcher_Exception_Blocks_4.
       (* Le ct1 ct1 ct2 *)
       iInstr "Hcode".
       destruct (Z.leb_spec (get_a (lw wct0)) (get_e (lw wct0))) as [Hfits | Hnot_fits]; cbn.
-      + (* Jnz 2 ct1 *)
+      + (* Jne 2 ct1 0 *)
         iInstr "Hcode".
         iApply ("Hpost" $! _ _ 9%Z). iFrame "∗ Hcode". iPureIntro. left.
         split; last done. by apply Hfits_iff.
-      + (* Jnz 2 ct1 *)
+      + (* Jne 2 ct1 0 *)
         iInstr "Hcode".
         (* Jmp .Lhandle_error_try_stackless *)
         iInstr "Hcode".
@@ -277,10 +277,10 @@ Section Switcher_Exception_Blocks_4.
       iDestruct "Hpost" as "[_ Hpost]".
       destruct (decide (eh = ExportTable_no_handler)) as [-> | Hhandler].
       + rewrite Z.sub_diag.
-        (* Jnz .Lhandle_error_found ct2 *)
+        (* Jne .Lhandle_error_found ct2 0 *)
         iInstr "Hcode".
         iApply ("Hpost" $! p g e a 8%Z). iFrame. iPureIntro. split; first done. by right.
-      + (* Jnz .Lhandle_error_found ct2 *)
+      + (* Jne .Lhandle_error_found ct2 0 *)
         iInstr "Hcode".
         { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
         { transitivity (Some (pc_a ^+ 31)%a); solve_addr. }
@@ -373,13 +373,13 @@ Section Switcher_Exception_Blocks_4.
       iDestruct "Hpost" as "[_ Hpost]".
       destruct (decide (ehs = ExportTable_no_handler)) as [-> | Hhandler].
       { rewrite Z.sub_diag.
-        (* Jnz 2 ct2 *)
+        (* Jne 2 ct2 0 *)
         iInstr "Hcode".
         (* Jmp .Lcommon_force_unwind *)
         iInstr "Hcode".
         { transitivity (Some (pc_a ^+ (-79))%a); solve_addr. }
         iApply ("Hpost" $! p g e a (-79)%Z). iFrame. iPureIntro. split; first done. by left. }
-      (* Jnz 2 ct2 *)
+      (* Jne 2 ct2 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       (* CLoad ct0 ctp TrustedStackFrame_offset_csp *)
@@ -407,14 +407,14 @@ Section Switcher_Exception_Blocks_4.
       + assert ((b_trusted_stack ^+ TrustedStack_offset_frames)%a = a_tstk) as Hentry
           by (tstack_unfold; solve_addr).
         rewrite Hentry Z.sub_diag.
-        (* Jnz 2 cs1 *)
+        (* Jne 2 cs1 0 *)
         iInstr "Hcode".
         (* Jmp .Lhandle_stack_recovered *)
         iInstr "Hcode".
         { transitivity (Some (pc_a ^+ 22)%a); solve_addr. }
         iApply ("Hpost" $! p g e a 22%Z). iFrame. iPureIntro. split; first done.
         right; left. done.
-      + (* Jnz 2 cs1 *)
+      + (* Jne 2 cs1 0 *)
         iInstr "Hcode".
         { apply negb_true_iff, Z.eqb_neq. cbn. tstack_unfold. solve_addr. }
         iApply ("Hpost" $! p g e a 17%Z). iFrame. iPureIntro. split; first done.

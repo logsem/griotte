@@ -98,10 +98,10 @@ Section CopyContextMacro.
     iInstr "Hcode".
     { transitivity (Some (a_s ^+ S i)%a); solve_addr. }
     destruct (decide (i = 14)) as [-> | Hi14].
-    - (* Jnz -5 counter *)
+    - (* Jne -5 counter 0 *)
       iInstr "Hcode".
       iApply "Hpost". iExists (ws !!! 14). iFrame.
-    - (* Jnz -5 counter *)
+    - (* Jne -5 counter 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       { transitivity (Some (pc_a ^+ 1)%a); solve_addr. }
@@ -287,7 +287,7 @@ Section CopyContextMacro.
       rewrite take_insert decide_False; last lia.
       by rewrite fmap_app Htake. }
     destruct (decide (i = 14)) as [-> | Hi14].
-    - (* Jnz -5 counter *)
+    - (* Jne -5 counter 0 *)
       iInstr "Hcode".
       iDestruct "Hpost" as "[_ Hpost]".
       rewrite take_ge in Htake'; last (rewrite length_insert; lia).
@@ -296,7 +296,7 @@ Section CopyContextMacro.
       iApply ("Hpost" with "[%] [HPC] Hsrc Hdst Hscratch Hcounter Hwd HL").
       { rewrite length_app /=; lia. }
       { iExact "HPC". }
-    - (* Jnz -5 counter *)
+    - (* Jne -5 counter 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       { transitivity (Some (pc_a ^+ 1)%a); solve_addr. }

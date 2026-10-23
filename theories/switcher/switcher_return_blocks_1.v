@@ -99,13 +99,13 @@ Section Switcher_Return_Blocks_1.
       destruct (decide (ct0 = cnull)) as [Hct0_null|_] in Hnonempty; [done| |done|].
     - assert (0 < d)%nat as Hd
         by (apply Z.ltb_lt in Hnonempty; tstack_unfold; lia).
-      (* Jnz 2 ct0 *)
+      (* Jne 2 ct0 0 *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame "∗ Hcode".
       iLeft; iFrame; done.
     - assert (d = 0) as ->
         by (apply Z.ltb_ge in Hnonempty; tstack_unfold; lia).
-      (* Jnz 2 ct0 *)
+      (* Jne 2 ct0 0 *)
       iInstr "Hcode".
       (* Jmp .Lcommon_defer_irqs_and_thread_exit *)
       iInstr "Hcode".

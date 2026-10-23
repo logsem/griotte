@@ -59,7 +59,7 @@ Section AllocatorCommonCode.
          lea rptr 1;
          geta rtmp rptr;
          sub rtmp rend rtmp;
-         jnz (".allocator_zero")%asm rtmp
+         jnez (".allocator_zero")%asm rtmp
        ].
 
   Definition allocator_zero (rptr rend rtmp : RegName) :=
@@ -80,7 +80,7 @@ Section AllocatorCommonCode.
          store rptr (encodeAllocStatus status);
          lea rptr 1;
          sub rcount rcount 1;
-         jnz (".allocator_paint")%asm rcount
+         jnez (".allocator_paint")%asm rcount
        ].
 
   Definition allocator_paint (rptr rcount : RegName) (status : AllocStatus) :=

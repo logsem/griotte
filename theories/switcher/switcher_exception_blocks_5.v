@@ -104,7 +104,7 @@ Section Switcher_Exception_Blocks_5.
     { rewrite (Z.land_ones _ 1) // Zmod_even Z.even_add Z.even_1. by destruct (Z.even n). }
     iEval (rewrite Hland) in "Hcra".
     destruct (Z.even n) eqn:Hev.
-    2: { (* Jnz 2 cra *)
+    2: { (* Jne 2 cra 0 *)
          iInstr "Hcode".
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
@@ -112,7 +112,7 @@ Section Switcher_Exception_Blocks_5.
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by left).
          iFrame "∗ Hcode". }
-    (* Jnz 2 cra *)
+    (* Jne 2 cra 0 *)
     iInstr "Hcode".
     (* Mov cra MAX_FAULTS_PER_COMPARTMENT_CALL *)
     iInstr "Hcode".
@@ -121,7 +121,7 @@ Section Switcher_Exception_Blocks_5.
     iInstr "Hcode".
     rewrite /MAX_FAULTS_PER_COMPARTMENT_CALL.
     destruct (Z.leb_spec (n + 1) 1024) as [Hmax | Hmax].
-    2: { (* Jnz 2 cra *)
+    2: { (* Jne 2 cra 0 *)
          iInstr "Hcode".
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
@@ -129,7 +129,7 @@ Section Switcher_Exception_Blocks_5.
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by right).
          iFrame "∗ Hcode". }
-    (* Jnz 2 cra *)
+    (* Jne 2 cra 0 *)
     iInstr "Hcode".
     destruct Htbl as (p' & g' & e' & a' & Hw & Hread & Hbnd & Hshadow & _).
     injection Hw as <- <- <- _.
@@ -169,14 +169,14 @@ Section Switcher_Exception_Blocks_5.
     rewrite -Hhw.
     iDestruct "Hpost" as "[_ Hpost]".
     destruct (decide (z0 = 0)) as [-> | Hz0].
-    - (* Jnz 2 ca0 *)
+    - (* Jne 2 ca0 0 *)
       iInstr "Hcode".
       (* Jmp .Lhandle_error_stack_setup *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ 24)%a); solve_addr. }
       iApply ("Hpost" with "[] [] [-]"); [done | iPureIntro; by right |].
       iFrame "∗ Hcode".
-    - (* Jnz 2 ca0 *)
+    - (* Jne 2 ca0 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       iApply ("Hpost" with "[] [] [-]"); [done | iPureIntro; by left |].

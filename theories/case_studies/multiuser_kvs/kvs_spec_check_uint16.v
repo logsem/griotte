@@ -70,7 +70,7 @@ Section KVS_check_uint16.
         pose proof (encodeWordType_correct wv (WInt 0)) as Hencode.
         assert (encodeWordType wv = encodeWordType (WInt 0)) as Heq by lia.
         destruct wv as [| [] | | ]; cbn in His_z_wrv, Hencode; done. }
-      (* Jnz .kvs_key_check_uint16_not_int rdst. *)
+      (* Jne .kvs_key_check_uint16_not_int rdst 0. *)
       iInstr "Hcode".
       (* Mov rdst ASM_FALSE. *)
       iInstr "Hcode".
@@ -82,7 +82,7 @@ Section KVS_check_uint16.
       iPureIntro. destruct wv; cbn in *; [done | tauto ..]. }
     destruct wv as [nkey | | | ]; try done.
     rewrite (encodeWordType_correct_int nkey 0) Z.sub_diag.
-    (* Jnz .kvs_key_check_uint16_not_int rdst. *)
+    (* Jne .kvs_key_check_uint16_not_int rdst 0. *)
     iInstr "Hcode".
     (* Lt rdst (UINT16_MIN-1)%Z rv. *)
     iInstr "Hcode".
@@ -90,7 +90,7 @@ Section KVS_check_uint16.
     destruct (decide ( UINT16_MIN <= nkey )%Z) as [Hnkey_pass_min_uint16 | Hnkey_fail_min_uint16] ; cycle 1.
     { replace (-1 <? nkey)%Z with false by (rewrite /UINT16_MIN in Hnkey_fail_min_uint16; lia).
       iEval (cbn) in "Hrdst".
-      (* jnz (".kvs_key_check_uint16_min")%asm rdst; *)
+      (* jnez (".kvs_key_check_uint16_min")%asm rdst; *)
       iInstr "Hcode".
       (* mov rdst ASM_FALSE; *)
       iInstr "Hcode".
@@ -103,7 +103,7 @@ Section KVS_check_uint16.
     }
     replace (-1 <? nkey)%Z with true by (rewrite /UINT16_MIN in Hnkey_pass_min_uint16; lia).
     iEval (cbn) in "Hrdst".
-    (* jnz (".kvs_key_check_uint16_min")%asm rdst; *)
+    (* jnez (".kvs_key_check_uint16_min")%asm rdst; *)
     iInstr "Hcode".
     (* lt rdst rv UINT16_MAX; *)
     iInstr "Hcode".
@@ -111,7 +111,7 @@ Section KVS_check_uint16.
     destruct (decide (nkey < UINT16_MAX )%Z) as [Hnkey_pass_max_uint16 | Hnkey_fail_max_uint16] ; cycle 1.
     { replace (nkey <? 65536)%Z with false by (rewrite /UINT16_MAX in Hnkey_fail_max_uint16; lia).
       iEval (cbn) in "Hrdst".
-      (* jnz (".kvs_key_check_uint16_max")%asm rdst; *)
+      (* jnez (".kvs_key_check_uint16_max")%asm rdst; *)
       iInstr "Hcode".
       (* mov rdst ASM_FALSE; *)
       iInstr "Hcode".
@@ -124,7 +124,7 @@ Section KVS_check_uint16.
     }
     replace (nkey <? 65536)%Z with true by (rewrite /UINT16_MAX in Hnkey_pass_max_uint16; lia).
     iEval (cbn) in "Hrdst".
-    (* jnz (".kvs_key_check_uint16_min")%asm rdst; *)
+    (* jnez (".kvs_key_check_uint16_min")%asm rdst; *)
     iInstr "Hcode".
     (* mov rdst ASM_TRUE; *)
     iInstr "Hcode".

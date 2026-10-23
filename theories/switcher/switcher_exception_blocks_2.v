@@ -122,7 +122,7 @@ Section Switcher_Exception_Blocks_2.
     destruct (decide ((b_switcher - get_b (lw wmepcc))%Z = 0)) as [Hin | Hnot_in].
     - (* A fault of the switcher *)
       rewrite Hin.
-      (* Jnz 2 ct0 *)
+      (* Jne 2 ct0 0 *)
       iInstr "Hcode".
       assert ((pc_a ^+ 7 + 144)%a = Some (pc_a ^+ 151)%a) as Hjmp_in by solve_addr.
       (* Jmp .Lhandle_error_in_switcher *)
@@ -132,7 +132,7 @@ Section Switcher_Exception_Blocks_2.
       iSplit; first (iPureIntro; lia).
       iFrame "∗ Hcode".
       iRegionMerge. iFrame.
-    - (* Jnz 2 ct0 *)
+    - (* Jne 2 ct0 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       assert ((b_trusted_stack + 2)%a = Some (b_trusted_stack ^+ 2)%a) as Hts_2
@@ -159,7 +159,7 @@ Section Switcher_Exception_Blocks_2.
       iInstr "Hcode".
       destruct (decide (ct1 = cnull)) as [Hct1_null|_]; first done.
       (* The trusted stack always has a frame: the thread does not exit *)
-      (* Jnz 2 ct1 *)
+      (* Jne 2 ct1 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. tstack_unfold. lia. }
       (* Add ctp ctp (-3) *)
@@ -252,7 +252,7 @@ Section Switcher_Exception_Blocks_2.
     - (* A fault of the first spill: resume the caller *)
       iDestruct "Hpost" as "[_ Hpost]".
       iEval (cbn [lw get_a]; rewrite Hfirst Z.sub_diag) in "Hct1".
-      (* Jnz .Lcommon_force_unwind ct1 *)
+      (* Jne .Lcommon_force_unwind ct1 0 *)
       iInstr "Hcode".
       (* Mov ca0 ENOTENOUGHSTACK *)
       iInstr "Hcode".
@@ -282,7 +282,7 @@ Section Switcher_Exception_Blocks_2.
     - (* Any other fault of the switcher: force the unwind *)
       iDestruct "Hpost" as "[Hpost _]".
       assert ((pc_a ^+ 2 + (-195))%a = Some (pc_a ^+ (-193))%a) as Hunwind' by solve_addr.
-      (* Jnz .Lcommon_force_unwind ct1 *)
+      (* Jne .Lcommon_force_unwind ct1 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       iApply "Hpost". iFrame "∗ Hcode". done.

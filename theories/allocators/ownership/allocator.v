@@ -116,9 +116,9 @@ Section Allocator.
       [ (* Reject noninteger and nonpositive sizes before touching the heap. *)
         getwtype ca3 ca1;
         sub ca3 ca3 (encodeWordType wt_int);
-        jnz (".malloc_invalid")%asm ca3;
+        jnez (".malloc_invalid")%asm ca3;
         lt ca3 0 ca1;
-        jnz (".malloc_size_ok")%asm ca3;
+        jnez (".malloc_size_ok")%asm ca3;
         jmp (".malloc_invalid")%asm
       ];
       [ #".malloc_size_ok";
@@ -130,7 +130,7 @@ Section Allocator.
         sub ca3 ct2 ct1;
         sub ca3 ca3 allocator_header_words;
         lt ca3 ca3 ca1;
-        jnz (".malloc_no_memory")%asm ca3;
+        jnez (".malloc_no_memory")%asm ca3;
         (* Bound the returned capability to the payload, excluding its header. *)
         add ct1 ct1 allocator_header_words;
         add ct2 ct1 ca1;
@@ -214,27 +214,27 @@ Section Allocator.
         (* Reject every non-capability word, including null. *)
         getwtype ca3 ca1;
         sub ca3 ca3 (encodeWordType wt_cap);
-        jnz (".free_invalid")%asm ca3
+        jnez (".free_invalid")%asm ca3
       ];
       [ gettag ca3 ca1;
         sub ca3 ca3 1;
-        jnz (".free_invalid")%asm ca3;
+        jnez (".free_invalid")%asm ca3;
         (* Check bounds against the allocated prefix, ignoring the cursor. *)
         load ct0 cgp;
         getb ct1 ca1;
         gete ct2 ca1;
         getb ca3 ct0;
         lt ca3 ca3 ct1;
-        jnz (".free_base_ok")%asm ca3;
+        jnez (".free_base_ok")%asm ca3;
         jmp (".free_invalid")%asm;
         #".free_base_ok";
         lt ca3 ct1 ct2;
-        jnz (".free_nonempty")%asm ca3;
+        jnez (".free_nonempty")%asm ca3;
         jmp (".free_invalid")%asm;
         #".free_nonempty";
         geta ca3 ct0;
         lt ca3 ca3 ct2;
-        jnz (".free_invalid")%asm ca3
+        jnez (".free_invalid")%asm ca3
       ];
       fetch_asm ".Limport_shadow" ctp;
       [ (* Translate the word below the payload base to its shadow entry. *)
@@ -246,12 +246,12 @@ Section Allocator.
            encoding rather than assuming quarantined is one. *)
         load ca3 ctp;
         sub ca3 ca3 (encodeAllocStatus ShadowQuarantined);
-        jnz (".free_invalid")%asm ca3;
+        jnez (".free_invalid")%asm ca3;
         (* The payload base is unpainted. *)
         lea ctp 1;
         load ca3 ctp;
         sub ca3 ca3 (encodeAllocStatus ShadowLive);
-        jnz (".free_invalid")%asm ca3;
+        jnez (".free_invalid")%asm ca3;
         (* Rederive the header from the trusted heap root, never by [Subseg],
            and compare the recorded end. *)
         mov ca4 ct0;
@@ -261,11 +261,11 @@ Section Allocator.
         lea ca4 ca3;
         load ca2 ca4;
         sub ca3 ca2 ct2;
-        jnz (".free_invalid")%asm ca3;
+        jnez (".free_invalid")%asm ca3;
         (* The recorded owner is the owner of the allocator capability. *)
         load_imm ca3 ca4 1;
         sub ca3 ca3 ca0;
-        jnz (".free_invalid")%asm ca3;
+        jnez (".free_invalid")%asm ca3;
         (* Paint only the complete payload; its header remains accessible. *)
         sub ca2 ct2 ct1
       ] ++

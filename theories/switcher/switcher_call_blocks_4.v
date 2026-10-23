@@ -150,13 +150,13 @@ Section Switcher_Call_Blocks_4.
     rewrite encode_entry_point_eq_nargs; last lia.
     destruct (e_stk - b_stk <? minstk)%Z eqn:Hsmall; iEval (cbn) in "Hcra".
     - apply Z.ltb_lt in Hsmall.
-      (* Jnz ".Lswitch_stack_too_small" cra *)
+      (* Jne ".Lswitch_stack_too_small" cra 0 *)
       iInstr "Hcode".
       iApply "Hpost"; iRight.
       iFrame "∗ Hcode".
       done.
     - apply Z.ltb_ge in Hsmall.
-      (* Jnz ".Lswitch_stack_too_small" cra *)
+      (* Jne ".Lswitch_stack_too_small" cra 0 *)
       iInstr "Hcode".
 
       (* LShiftR cs0 cs0 16 *)
@@ -394,12 +394,12 @@ Section Switcher_Call_Blocks_4.
     codefrag_facts "Hcode".
     rewrite /switcher_instrs_n /assembled_switcher_n.
     destruct posture; cbn [entry_point_posture].
-    - (* --- Jnz 2 ctp --- *)
+    - (* --- Jne 2 ctp 0 --- *)
       iInstr "Hcode".
       (* --- SetMIE InterruptEnabled --- *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame "∗ Hcode".
-    - (* --- Jnz 2 ctp --- *)
+    - (* --- Jne 2 ctp 0 --- *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame "∗ Hcode".
   Qed.

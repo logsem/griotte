@@ -125,12 +125,12 @@ pair<int, int> search(FKeyT fk) {
       (* go through all entries of the map *)
       #".loop_start";
       sub rscratch SIZE_MAP ridx;
-      jnz (".loop_body")%asm rscratch;
+      jnez (".loop_body")%asm rscratch;
       jmp (".loop_end_not_found")%asm;
       #".loop_body";
       load rscratch cgp;
       (* we now need check if the index is None or Some *)
-      jnz (".some_index")%asm rscratch;
+      jnez (".some_index")%asm rscratch;
       #".none_index";
       mov ridx_empty ridx;
       lea cgp ASM_SIZEOF_KVS_ENTRY;
@@ -141,7 +141,7 @@ pair<int, int> search(FKeyT fk) {
       lea cgp 1;
       load rscratch cgp;
       sub rscratch rkey rscratch;
-      jnz (".not_same_key")%asm rscratch;
+      jnez (".not_same_key")%asm rscratch;
       #".same_key";
       lea cgp (-1)%Z;
       (* key was found, [cgp] points-to the the found key *)
@@ -192,16 +192,16 @@ bool dyn_check_uint16(MKeyT mk) {
     macro: [
       getwtype rdst rv;
       sub rdst rdst (encodeWordType wt_int); (* rdst := 0 iff rv is an integer *)
-      jnz (".kvs_key_check_uint16_not_int")%asm rdst;
+      jnez (".kvs_key_check_uint16_not_int")%asm rdst;
       lt rdst (UINT16_MIN-1)%Z rv; (* rdst := if (UINT16_MIN <= rv) then 0 else 1 *)
-      jnz (".kvs_key_check_uint16_min")%asm rdst;
+      jnez (".kvs_key_check_uint16_min")%asm rdst;
       #".kvs_key_check_uint16_not_int";
       #".kvs_key_check_uint16_too_low";
       mov rdst ASM_FALSE;
       jmp (".kvs_key_ret")%asm;
       #".kvs_key_check_uint16_min";
       lt rdst rv UINT16_MAX; (* rdst := if (rv < UINT16_MAX) then 0 else 1 *)
-      jnz (".kvs_key_check_uint16_max")%asm rdst;
+      jnez (".kvs_key_check_uint16_max")%asm rdst;
       #".kvs_key_check_uint16_too_big";
       mov rdst ASM_FALSE;
       jmp (".kvs_key_ret")%asm;
@@ -253,7 +253,7 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
     [
       (#".LaddOrUpdate" :: kvs_check_uint16_asm ca1 ct1) ;
       [
-        jnz (".addOrUpdate_not_uint16")%asm ct1;
+        jnez (".addOrUpdate_not_uint16")%asm ct1;
         #".addOrUpdate_uint16";
         jmp (".addOrUpdate_uint16_check_pass")%asm;
         #".addOrUpdate_not_uint16";
@@ -273,13 +273,13 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
       [
 
         sub ctp ctp (-1)%Z;
-        jnz (".addOrUpdate_key_found")%asm ctp;
+        jnez (".addOrUpdate_key_found")%asm ctp;
 
         (* key was not found, we need to check if there's a empty slot available *)
         #".addOrUpdate_key_not_found";
         (* we need to find an empty slot *)
         sub ctp ct1 (-1)%Z;
-        jnz (".addOrUpdate_empty_slot_found")%asm ctp;
+        jnez (".addOrUpdate_empty_slot_found")%asm ctp;
 
         (* no empty slot found, return false *)
         #".addOrUpdate_empty_slot_not_found";
@@ -349,7 +349,7 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
     [
       (#".Lread" :: kvs_check_uint16_asm ca1 ct1) ;
       [
-        jnz (".read_not_uint16")%asm ct1;
+        jnez (".read_not_uint16")%asm ct1;
         #".read_uint16";
         jmp (".read_uint16_check_pass")%asm;
         #".read_not_uint16";
@@ -366,7 +366,7 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
       (kvs_search_asm ca0 ctp ct1 ct2) ;
       [
         sub ctp ctp (-1)%Z;
-        jnz (".read_key_found")%asm ctp;
+        jnez (".read_key_found")%asm ctp;
         (* key was found, we know that [cgp] points-to it *)
         #".read_key_not_found";
         (* no empty slot found, return false *)
@@ -411,7 +411,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     [
       (#".Lerase" :: kvs_check_uint16_asm ca1 ct1) ;
       [
-        jnz (".erase_not_uint16")%asm ct1;
+        jnez (".erase_not_uint16")%asm ct1;
         #".erase_uint16";
         jmp (".erase_uint16_check_pass")%asm;
         #".erase_not_uint16";
@@ -428,7 +428,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
       (kvs_search_asm ca0 ctp ct1 ct2) ;
       [
         sub ctp ctp (-1)%Z;
-        jnz (".erase_key_found")%asm ctp;
+        jnez (".erase_key_found")%asm ctp;
         (* key was found, we know that [cgp] points-to it *)
         (* return void *)
         #".erase_key_not_found";

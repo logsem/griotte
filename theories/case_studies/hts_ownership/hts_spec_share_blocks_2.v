@@ -69,7 +69,7 @@ Section HTS_Spec_Share.
       focus_block (hts_block ".Lhts_malloc_result") "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
       (* GetTag ct0 ca0. *)
       iInstr "Hcode".
-      (* Jnz 2 ct0. *)
+      (* Jne 2 ct0 0. *)
       iInstr "Hcode".
       (* Halt. *)
       iInstr "Hcode".
@@ -100,7 +100,7 @@ Section HTS_Spec_Share.
     (* GetTag ct0 ca0. *)
     iInstr "Hcode".
     { eapply nonempty_exact_cond; [done|solve_addr]. }
-    (* Jnz 2 ct0. *)
+    (* Jne 2 ct0 0. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

@@ -66,7 +66,7 @@ Section HTS_Spec_Dangling.
       unfold_code hts_main_code "Hcode_main".
       focus_block (hts_block ".Lhts_free_result") "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
         "Hcode" "Hcont".
-      (* Jnz 2 ca0. *)
+      (* Jne 2 ca0 0. *)
       iInstr "Hcode".
       { apply nonZero_WInt. intros [= ->]. done. }
       (* Halt. *)
@@ -89,7 +89,7 @@ Section HTS_Spec_Dangling.
     focus_block (hts_block ".Lhts_free_result") "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Jnz 2 ca0. *)
+    (* Jne 2 ca0 0. *)
     iInstr "Hcode".
     (* Jmp 2. *)
     iInstr "Hcode".

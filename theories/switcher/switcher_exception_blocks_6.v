@@ -123,12 +123,12 @@ Section Switcher_Exception_Blocks_6.
     (* SetMIE InterruptDisabled *)
     iInstr "Hcode".
     destruct (nonZero wca0.(lw)) eqn:Hnz.
-    - (* Jnz .Lcommon_force_unwind ca0 *)
-      iInstrApply "Hcode" wp_jnz_success_jmp_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
+    - (* Jne .Lcommon_force_unwind ca0 0 *)
+      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
       { transitivity (Some (pc_a ^+ (-157))%a); solve_addr. }
       iApply ("Hpost" $! (-157)%Z with "[] [$]"). iPureIntro. by left.
-    - (* Jnz .Lcommon_force_unwind ca0 *)
-      iInstrApply "Hcode" wp_jnz_success_next_any with "[$HPC $Hca0]" as "(HPC & Hca0)".
+    - (* Jne .Lcommon_force_unwind ca0 0 *)
+      iInstrApply "Hcode" wp_jnez_success_next_any with "[$HPC $Hca0]" as "(HPC & Hca0)".
       iApply ("Hpost" $! 2%Z with "[] [$]"). iPureIntro. by right.
   Qed.
 

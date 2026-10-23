@@ -86,7 +86,7 @@ Section AllocatorFreeCheckBlocks2.
     iInstr "Hcode".
     rewrite (encodeWordType_correct_cap true p g b e a true (O LG LM) Global 0%a 0%a 0%a)
       /wt_cap Z.sub_diag.
-    (* Jnz .free_invalid ca3. *)
+    (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
@@ -110,7 +110,7 @@ Section AllocatorFreeCheckBlocks2.
         assert (is_heap_address b = true) as -> by (apply withinBounds_true_iff; solve_addr).
         done. }
       cbn.
-      (* Jnz .free_invalid ca3. *)
+      (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
@@ -118,7 +118,7 @@ Section AllocatorFreeCheckBlocks2.
       change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame "∗ Hcode_main". iRight. iFrame. done. }
     rewrite Z.sub_diag.
-    (* Jnz .free_invalid ca3. *)
+    (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     unfold lword_of_word.
     iPoseProof deref_res_none as "-#Hderef".
@@ -141,19 +141,19 @@ Section AllocatorFreeCheckBlocks2.
     (* Lt ca3 ca3 ct1. *)
     iInstr "Hcode".
     replace (heap_b <? b)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
-    (* Jnz .free_base_ok ca3. *)
+    (* Jne .free_base_ok ca3 0. *)
     iInstr "Hcode".
     (* Lt ca3 ct1 ct2. *)
     iInstr "Hcode".
     replace (b <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
-    (* Jnz .free_nonempty ca3. *)
+    (* Jne .free_nonempty ca3 0. *)
     iInstr "Hcode".
     (* GetA ca3 ct0. *)
     iInstr "Hcode".
     (* Lt ca3 ca3 ct2. *)
     iInstr "Hcode".
     replace (next <? e)%Z with false by (symmetry; apply Z.ltb_ge; solve_addr).
-    (* Jnz .free_invalid ca3. *)
+    (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_free_block_offset 3)%a.
@@ -267,7 +267,7 @@ Section AllocatorFreeCheckBlocks2.
         assert (Heq : encodeWordType wreq = encodeWordType wt_cap) by lia.
         destruct wreq; cbn in Hreq_cap, Hencode; try discriminate.
         all: try (destruct sb; cbn in Hreq_cap, Hencode; try discriminate); contradiction. }
-      (* Jnz .free_invalid ca3. *)
+      (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
@@ -278,7 +278,7 @@ Section AllocatorFreeCheckBlocks2.
     destruct sb; cbn in Hreq_cap; try done.
     rewrite (encodeWordType_correct_cap tag p g b e a true (O LG LM) Global 0%a 0%a 0%a)
       /wt_cap Z.sub_diag.
-    (* Jnz .free_invalid ca3. *)
+    (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
@@ -294,7 +294,7 @@ Section AllocatorFreeCheckBlocks2.
     destruct (decide (z = 1%Z)) as [->|Hz1]; last first.
     { assert (z = 0%Z) as -> by (destruct Hz as [-> | [-> _] ]; [destruct tag; cbn in *; lia | done]).
       cbn.
-      (* Jnz .free_invalid ca3. *)
+      (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
           offsets_compute; solve_addr. }
@@ -304,7 +304,7 @@ Section AllocatorFreeCheckBlocks2.
     assert (tag = true) as ->
       by (destruct Hz as [Hz | [Hz _] ]; [destruct tag; cbn in Hz; lia | lia]).
     rewrite Z.sub_diag.
-    (* Jnz .free_invalid ca3. *)
+    (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     unfold lword_of_word.
     iPoseProof deref_res_none as "-#Hderef".
@@ -328,7 +328,7 @@ Section AllocatorFreeCheckBlocks2.
     iInstr "Hcode".
     destruct (decide (heap_b < b)%a) as [Hbase|Hbase]; last first.
     { replace (heap_b <? b)%Z with false by (symmetry; apply Z.ltb_ge; solve_addr).
-      (* Jnz .free_base_ok ca3. *)
+      (* Jne .free_base_ok ca3 0. *)
       iInstr "Hcode".
       (* Jmp .free_invalid. *)
       iInstr "Hcode".
@@ -338,13 +338,13 @@ Section AllocatorFreeCheckBlocks2.
       change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame "∗ Hcode_main". }
     replace (heap_b <? b)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
-    (* Jnz .free_base_ok ca3. *)
+    (* Jne .free_base_ok ca3 0. *)
     iInstr "Hcode".
     (* Lt ca3 ct1 ct2. *)
     iInstr "Hcode".
     destruct (decide (b < e)%a) as [Hnonempty|Hempty]; last first.
     { replace (b <? e)%Z with false by (symmetry; apply Z.ltb_ge; solve_addr).
-      (* Jnz .free_nonempty ca3. *)
+      (* Jne .free_nonempty ca3 0. *)
       iInstr "Hcode".
       (* Jmp .free_invalid. *)
       iInstr "Hcode".
@@ -354,7 +354,7 @@ Section AllocatorFreeCheckBlocks2.
       change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
       iApply "Hφ". iFrame "∗ Hcode_main". }
     replace (b <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
-    (* Jnz .free_nonempty ca3. *)
+    (* Jne .free_nonempty ca3 0. *)
     iInstr "Hcode".
     (* GetA ca3 ct0. *)
     iInstr "Hcode".
@@ -363,7 +363,7 @@ Section AllocatorFreeCheckBlocks2.
     destruct (decide (next < e)%a) as [Hpast|Hwithin]; last first.
     { exfalso. apply Hrequest. exists p, g, b, e, a. split; first reflexivity. solve_addr. }
     replace (next <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
-    (* Jnz .free_invalid ca3. *)
+    (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
         offsets_compute; solve_addr. }

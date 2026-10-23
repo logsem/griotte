@@ -74,7 +74,7 @@ Section Assert_subroutine.
       iGo "Hprog".
       iApply "Hφ". iFrame "∗". rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
-      (* Jnz 4 ct0. *)
+      (* Jne 4 ct0 0. *)
       iInstr "Hprog". { apply negb_true_iff, Z.eqb_neq; cbn; lia. }
       (* Auipcc ct1 6. *)
       iInstr "Hprog".

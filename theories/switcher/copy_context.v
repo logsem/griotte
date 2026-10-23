@@ -24,7 +24,7 @@ Section CopyContextMacro.
       (* cincoffset src, src, 8 *)
       lea src 1;
       (* bnez counter, 1b *)
-      jnz ("copy_loop")%asm counter
+      jnez ("copy_loop")%asm counter
     ].
   Lemma copy_context_assembles (dst src scratch counter : RegName) :
     asm_ok (assemble_check (copy_context_asm dst src scratch counter)).

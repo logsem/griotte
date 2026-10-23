@@ -19,7 +19,7 @@ Section Checkints_Asm.
           lt r1 r1 r2;
           (* if r1 -> 0 then a + 1 >= e, and we continue,
              otherwise we jump back to the beginning of the loop *)
-          jnz "checkints_loop" r1
+          jnez "checkints_loop" r1
         ]).
 
   Definition checkints_asm (r r1 r2 : RegName) : list asm_code :=
@@ -28,7 +28,7 @@ Section Checkints_Asm.
           gete r2 r;
           lt r1 r1 r2;
           sub r1 r1 1; (* invert result for the jump *)
-          jnz "checkints_end" r1 ] ++
+          jnez "checkints_end" r1 ] ++
         checkints_loop_asm r r1 r2 ++
         [ #"checkints_end";
           mov r1 0;
@@ -55,7 +55,7 @@ Section Checkints.
         Lt r1 r1 r2;
         (* if r1 -> 0 then a + 1 >= e, and we continue,
         otherwise we jump back to the beginning of the loop *)
-        Jnz (- ((length (is_int_instrs r1 r2))+5))%Z r1
+        Jne (- ((length (is_int_instrs r1 r2))+5))%Z r1 0
       ].
 
   Definition checkints_instrs (r r1 r2 : RegName) : list Word :=
@@ -65,7 +65,7 @@ Section Checkints.
         GetE r2 r;
         Lt r1 r1 r2;
         Sub r1 r1 1; (* invert result for the jump *)
-        Jnz (length (checkints_loop_instrs r r1 r2) + 1) r1]
+        Jne (length (checkints_loop_instrs r r1 r2) + 1) r1 0]
       ++ checkints_loop_instrs r r1 r2
       ++ encodeInstrsW [
         Mov r1 0;
@@ -92,7 +92,7 @@ Section Checkints.
                 GetE cnull cnull;
                 Lt cnull cnull cnull;
                 Sub cnull cnull 1; (* invert result for the jump *)
-                Jnz (length (checkints_loop_instrs cnull cnull cnull) + 1) cnull])
+                Jne (length (checkints_loop_instrs cnull cnull cnull) + 1) cnull 0])
   .
 End Checkints.
 

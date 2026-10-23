@@ -278,7 +278,7 @@ Section Switcher_Call_Blocks_2.
     ; iEval (cbn) in "Hcs0"
     ; cycle 1.
     {
-      (* Jnz 2 cs0 *)
+      (* Jne 2 cs0 0 *)
       iInstr "Hcode".
       (* Jmp 94 *)
       iInstr "Hcode".
@@ -288,7 +288,7 @@ Section Switcher_Call_Blocks_2.
     }
     apply Z.ltb_lt in Hroom.
 
-    (* Jnz 2 cs0 *)
+    (* Jne 2 cs0 0 *)
     iInstr "Hcode" with "Hlc".
 
     (* Mov cs1 ctp *)

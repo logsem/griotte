@@ -579,7 +579,7 @@ Section KVS_Main_Blocks.
       iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
       focus_block 5 "Hcode_main" as a_blk_4 Ha_blk_4 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
       ; clear dependent a_insert_kvs.
-      (* Jnz 2 ca0 *)
+      (* Jne 2 ca0 0 *)
       iInstr "Hcode".
       (* Halt *)
       iInstr "Hcode".
@@ -604,7 +604,7 @@ Section KVS_Main_Blocks.
       subst wca0_ret.
       focus_block 5 "Hcode_main" as a_blk_4 Ha_blk_4 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
       ; clear dependent a_insert_kvs.
-      (* Jnz 2 ca0 *)
+      (* Jne 2 ca0 0 *)
       iInstr "Hcode".
       (* Halt *)
       iInstr "Hcode".
@@ -614,7 +614,7 @@ Section KVS_Main_Blocks.
     (* Case where insert succeeded  *)
     focus_block 5 "Hcode_main" as a_blk_4 Ha_blk_4 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_insert_kvs.
-    (* Jnz 2 ca0 *)
+    (* Jne 2 ca0 0 *)
     iInstr "Hcode".
     (* Jmp 2 *)
     iInstr "Hcode".
@@ -859,7 +859,7 @@ Section KVS_Main_Blocks.
       iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
       focus_block 13 "Hcode_main" as a_assert1 Ha_assert1 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
       ; clear dependent a_insert_kvs.
-      (* Jnz 2 ca0 *)
+      (* Jne 2 ca0 0 *)
       iInstr "Hcode".
       (* Halt *)
       iInstr "Hcode".
@@ -886,7 +886,7 @@ Section KVS_Main_Blocks.
     (* -------------------------------------------------- *)
     focus_block 13 "Hcode_main" as a_assert1 Ha_assert1 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_insert_kvs.
-    (* Jnz 2 ca0 *)
+    (* Jne 2 ca0 0 *)
     iInstr "Hcode".
     (* Jmp 2 *)
     iInstr "Hcode".

@@ -56,7 +56,7 @@ Section KVS_Main.
       (* 4 *)
       [ jalr cra ctp ];
       (* 5: check if inserted *)
-      [ jnz 2 ca0; (* ca0 = 0 if inserted. So, jumps if no empty slot *)
+      [ jnez 2 ca0; (* ca0 = 0 if inserted. So, jumps if no empty slot *)
         (* case INSERT_PASS *)
         jmp 2;
         (* case INSERT_FAIL / ENOTENOUGHTRUSTEDSTACK *)
@@ -80,7 +80,7 @@ Section KVS_Main.
       (* 12 *)
       [ jalr cra ctp ];
       (* 13: check if ENOTENOUGHTRUSTEDSTACK *)
-      [ jnz 2 ca0; (* ca0 = 0 if NOT ENOTENOUGHTRUSTEDSTACK. *)
+      [ jnez 2 ca0; (* ca0 = 0 if NOT ENOTENOUGHTRUSTEDSTACK. *)
         (* case PASS *)
         jmp 2;
         (* case ENOTENOUGHTRUSTEDSTACK *)
