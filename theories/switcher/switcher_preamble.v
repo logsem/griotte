@@ -456,6 +456,15 @@ Section Switcher_preamble.
                           tf_export_tbl_ok tf⌝) ∗
      "Htf_cnt" ∷ a_error_count ↦ₐ WInt tf.(tf_error_count))%I.
 
+  (** The four cells of the spill area from [a], in address order: the
+      slots [SpillSlot_cs0], [SpillSlot_cs1], [SpillSlot_cgp] and
+      [SpillSlot_pcc]. *)
+  Definition switcher_stk_cells (a : Addr) (w0 w1 w2 w3 : LWord) : iProp Σ :=
+    a ↦ₐ w0 ∗
+    (a ^+ SpillSlot_cs1)%a ↦ₐ w1 ∗
+    (a ^+ SpillSlot_cgp)%a ↦ₐ w2 ∗
+    (a ^+ SpillSlot_pcc)%a ↦ₐ w3.
+
   (** [cframe_stk_own s saved ccrel] holds the spill area
       [[s, s + SpillSlot_size)] where the switcher spilled the callee-saved
       registers [saved] of the caller. We have 2 situations to take into account:
@@ -470,10 +479,7 @@ Section Switcher_preamble.
     (if (is_untrusted_caller ccrel)
     then True
     else
-      a_stk ↦ₐ saved.(cs_cs0)
-      ∗ (a_stk ^+ 1)%a ↦ₐ saved.(cs_cs1)
-      ∗ (a_stk ^+ 2)%a ↦ₐ saved.(cs_cra)
-      ∗ (a_stk ^+ 3)%a ↦ₐ saved.(cs_cgp))%I.
+      switcher_stk_cells a_stk saved.(cs_cs0) saved.(cs_cs1) saved.(cs_cgp) saved.(cs_cra))%I.
 
   (** The spill area of a caller whose cursor is [a] lies in its stack
       [[b, e)], and does not wrap around. *)
@@ -767,35 +773,21 @@ Section Switcher_Code.
       (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
   Proof. by destruct mie. Qed.
 
-  (** The callee-save area of the caller's stack frame. *)
-  Definition switcher_stk_cells (a : Addr) (w0 w1 w2 w3 : LWord) : iProp Σ :=
-    a ↦ₐ w0 ∗
-    (a ^+ 1)%a ↦ₐ w1 ∗
-    (a ^+ 2)%a ↦ₐ w2 ∗
-    (a ^+ 3)%a ↦ₐ w3.
-
-  Lemma switcher_stk_cells_region a w0 w1 w2 w3 e ws :
-    (a + 4)%a = Some (a ^+ 4)%a ->
-    (a ^+ 4 <= e)%a ->
-    switcher_stk_cells a w0 w1 w2 w3 -∗
-    [[ (a ^+ 4)%a , e ]] ↦ₐ [[ ws ]] -∗
-    [[ a , e ]] ↦ₐ [[ w0 :: w1 :: w2 :: w3 :: ws ]].
-  Proof.
-    iIntros (Ha4 He) "Hcells Hstk".
-    iApply (region_pointsto_region_cells_app a (a ^+ 4)%a e [w0; w1; w2; w3] ws);
-      [done|done|].
-    region_cells_simpl; iFrame.
-  Qed.
 
   Lemma switcher_stk_cells_region_4 a w0 w1 w2 w3 :
-    (a + 4)%a = Some (a ^+ 4)%a ->
+    (a + SpillSlot_size)%a = Some (a ^+ SpillSlot_size)%a ->
     switcher_stk_cells a w0 w1 w2 w3 ⊣⊢
-    [[ a , (a ^+ 4)%a ]] ↦ₐ [[ [w0; w1; w2; w3] ]].
+    [[ a , (a ^+ SpillSlot_size)%a ]] ↦ₐ [[ [w0; w1; w2; w3] ]].
   Proof.
+    rewrite /SpillSlot_size.
     iIntros (Ha4); iSplit; iIntros "H".
     - iRegionMerge; iFrame.
     - iRegionSplit "H" as "H"; iFrame.
   Qed.
+
+  (** The spill area ends at the cursor. *)
+  Lemma stk_spill_a_end a : stk_spill_ok a → (stk_spill_a a ^+ SpillSlot_size)%a = a.
+  Proof. stk_unfold; solve_addr. Qed.
 
   (** The free part of a caller's stack splits into its spill area and the
       callee's stack. *)
@@ -805,7 +797,8 @@ Section Switcher_Code.
       stk_mem_join (finz.seq_between (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a)
         (callee_stk_region b e a).
   Proof.
-    rewrite /switcher_stk_bounds; stk_unfold; intros (Hb & Hb3 & Ha4).
+    rewrite /switcher_stk_bounds; intros (Hb & Hb3 & Ha4).
+    rewrite stk_spill_a_end //. stk_unfold.
     apply finz_seq_between_split; solve_addr.
   Qed.
 
@@ -815,7 +808,8 @@ Section Switcher_Code.
       stk_mem_join (region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a)
         (region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a)).
   Proof.
-    rewrite /switcher_stk_bounds; stk_unfold; intros (Hb & Hb3 & Ha4).
+    rewrite /switcher_stk_bounds; intros (Hb & Hb3 & Ha4).
+    rewrite stk_spill_a_end //. stk_unfold.
     apply region_addrs_zeroes_split; solve_addr.
   Qed.
 
@@ -826,9 +820,11 @@ Section Switcher_Code.
     [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ [[ ls ]] ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ lc ]].
   Proof.
-    rewrite /switcher_stk_bounds; stk_unfold.
+    rewrite /switcher_stk_bounds.
     intros (Hb & Hb3 & Ha4) Hls.
-    apply region_pointsto_split; [solve_addr|]. rewrite Hls /finz.dist. solve_addr.
+    rewrite stk_spill_a_end //. stk_unfold.
+    rewrite region_pointsto_split_r; [by rewrite bi.sep_comm|solve_addr|].
+    rewrite Hls /finz.dist. solve_addr.
   Qed.
 
   Lemma stk_free_split b e a (l : list LWord) :
@@ -841,9 +837,23 @@ Section Switcher_Code.
     intros Hbounds Hl.
     rewrite -stk_free_split_join //.
     - by rewrite /stk_mem_join /stk_mem_spill /stk_mem_callee take_drop.
-    - rewrite /stk_mem_spill length_take Hl /stk_free finz_seq_between_length.
+    - rewrite /stk_mem_spill length_drop Hl /stk_free finz_seq_between_length.
       revert Hbounds; rewrite /switcher_stk_bounds; stk_unfold; intros (Hb & Hb3 & Ha4).
       rewrite /finz.dist. solve_addr.
+  Qed.
+
+  (** The spill area and the callee's stack make the free part. *)
+  Lemma switcher_stk_cells_region b e a w0 w1 w2 w3 lc :
+    switcher_stk_bounds b e a →
+    switcher_stk_cells (stk_spill_a a) w0 w1 w2 w3 -∗
+    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ lc ]] -∗
+    [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem_join [w0; w1; w2; w3] lc ]].
+  Proof.
+    iIntros (Hbounds) "Hcells Hstk".
+    rewrite stk_free_split_join //.
+    iFrame "Hstk".
+    iApply switcher_stk_cells_region_4; last done.
+    destruct Hbounds as (_ & _ & Ha). revert Ha; stk_unfold. solve_addr.
   Qed.
 
   (** The callee's stack is in the caller's. *)
@@ -865,15 +875,20 @@ Section Switcher_Code.
   Proof. stk_unfold; solve_addr. Qed.
   Lemma stk_start_callee_fits (b e : Addr) n :
     (b + SpillSlot_size + n <= e)%Z → stk_callee_fits b e (stk_start_a b e) n.
-  Proof. done. Qed.
+  Proof. stk_unfold; lia. Qed.
   Lemma stk_start_spill_fits (b e : Addr) :
     (b + SpillSlot_size <= e)%Z → stk_spill_fits b e (stk_start_a b e).
-  Proof. done. Qed.
+  Proof. stk_unfold; lia. Qed.
 
   (** A callee that fits leaves room for the spill. *)
   Lemma stk_callee_fits_spill_fits (b e a : Addr) n :
     (0 <= n)%Z → stk_callee_fits b e a n → stk_spill_fits b e a.
   Proof. stk_unfold; lia. Qed.
+
+  (** The spill of a caller whose callee fits does not wrap around. *)
+  Lemma stk_callee_fits_spill_ok (b e a : Addr) n :
+    (0 <= n)%Z → stk_callee_fits b e a n → stk_spill_ok a.
+  Proof. stk_unfold; intros Hn Hfits. solve_addr. Qed.
 
   (** A callee that fits has its [n] words in its stack. *)
   Lemma stk_callee_fits_callee (b e a : Addr) n :

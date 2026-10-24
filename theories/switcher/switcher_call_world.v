@@ -28,9 +28,9 @@ Section Switcher_Call_World.
   (** ** Stack frame of an untrusted caller
 
       When the caller is untrusted, its stack is shared in the world. The
-      switcher opens the part [[a, e)] of the stack above the stack pointer
-      to spill the callee-save registers and to clear the callee's frame,
-      and then closes it with safe words. *)
+      switcher opens a part of the stack, the free part below the stack
+      pointer, to spill the callee-save registers and to clear the callee's
+      frame, and then closes it with safe words. *)
 
   Lemma StackWorldResource_update W C a v v' :
     interp W C v' -∗
@@ -79,17 +79,19 @@ Section Switcher_Call_World.
     world_interp_open W C (LNonHeap <$> finz.seq_between a e) ∗
     StackOpenWorldResources interp W C (finz.seq_between a e) lv.
 
-  Lemma switcher_call_stk_open W C (b e a : Addr) :
-    (b <= a)%a ->
+  (** Open the part [[x, y)] of a safe stack [[b, e)]. *)
+  Lemma switcher_call_stk_open W C (b e a x y : Addr) :
+    (b <= x)%a ->
+    (y <= e)%a ->
     interp W C (WCap true RWL Local b e a) -∗
     world_interp W C -∗
     ∃ lv,
-      [[ a , e ]] ↦ₐ [[ lv ]] ∗
-      ▷ switcher_stk_opened W C a e lv.
+      [[ x , y ]] ↦ₐ [[ lv ]] ∗
+      ▷ switcher_stk_opened W C x y lv.
   Proof.
-    iIntros (Hba) "#Hinterp Hworld".
+    iIntros (Hbx Hye) "#Hinterp Hworld".
     iEval (rewrite open_world_interp_empty -(fmap_nil LNonHeap)) in "Hworld".
-    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a e) []
+    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between x y) []
                 with "[$Hinterp $Hworld]")
       as "(Hworld & %lv & Hstk & Hres)".
     { apply finz_seq_between_NoDup. }
@@ -360,43 +362,64 @@ Section Switcher_Call_World.
 
   (** ** Functional specification *)
 
-  (** Reinstate the callee's stack frame in the world, once cleared. *)
-  Lemma switcher_cc_world_reinstate E W C (a e : Addr) :
-    revoked_addresses W (finz.seq_between a e) ->
-    (a + 4)%a = Some (a ^+ 4)%a ->
-    (a ^+ 4 <= e)%a ->
-    disjoint_from_mmio a e ->
-    disjoint_from_heap a e ->
-    let W' := std_update_multiple W (finz.seq_between (a ^+ 4)%a e) Temporary in
+  (** The callee's stack and the spill area of a caller whose cursor is
+      [a] are disjoint parts of its free part. *)
+  #[local] Lemma callee_stk_region_free_split (b e a : Addr) :
+    callee_stk_bounds b e a →
+    stk_free b e a =
+      callee_stk_region b e a ++
+        finz.seq_between (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a.
+  Proof.
+    intros (_ & He & Hbe & Ha).
+    rewrite stk_spill_a_end //. stk_unfold.
+    apply finz_seq_between_split; solve_addr.
+  Qed.
+
+  (** The spill area and the callee's stack make the free part. *)
+  #[local] Lemma stk_free_join_callee (b e a : Addr) (ls lc : list LWord) :
+    callee_stk_bounds b e a →
+    length ls = Z.to_nat SpillSlot_size →
+    [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ [[ ls ]] ∗
+    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ lc ]] ⊢
+    [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem_join ls lc ]].
+  Proof.
+    intros (_ & He & Hbe & Ha) Hls.
+    rewrite stk_spill_a_end //. stk_unfold.
+    rewrite region_pointsto_split_r; [by rewrite bi.sep_comm|solve_addr|].
+    rewrite Hls /finz.dist. solve_addr.
+  Qed.
+
+  (** Reinstate the callee's stack in the world, once cleared. *)
+  Lemma switcher_cc_world_reinstate E W C (b e a : Addr) :
+    revoked_addresses W (stk_free b e a) ->
+    callee_stk_bounds b e a ->
+    disjoint_from_mmio (stk_free_b b a) (stk_free_e e a) ->
+    disjoint_from_heap (stk_free_b b a) (stk_free_e e a) ->
+    let W' := std_update_multiple W (callee_stk_region b e a) Temporary in
     world_interp W C -∗
-    StackRevokedResources W C (finz.seq_between a e) -∗
-    [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]]
+    StackRevokedResources W C (stk_free b e a) -∗
+    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
+      [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]]
     ={E}=∗
     world_interp W' C ∗
-    interp W' C (WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a) ∗
+    interp W' C (callee_csp b e a) ∗
     ⌜ related_sts_pub_world W W' ⌝ ∗
-    ⌜ revoked_addresses W (finz.seq_between (a ^+ 4)%a e) ⌝.
+    ⌜ revoked_addresses W (callee_stk_region b e a) ⌝.
   Proof.
-    iIntros (Hstk_revoked Ha4 He Hstk_mmio Hstk_heap W') "Hworld_interp Hstk_val Hstk".
-    rewrite (finz_seq_between_split a (a ^+ 4)%a);[|solve_addr].
-    iDestruct (StackRevokedResources_app with "Hstk_val") as "[_ #Hstk_val']".
-    assert (revoked_addresses W (finz.seq_between (a ^+ 4)%a e)) as Hrev.
-    { clear-Hstk_revoked Ha4.
-      rewrite /revoked_addresses Forall_forall in Hstk_revoked.
-      rewrite /revoked_addresses Forall_forall.
-      intros a' Ha'.
-      apply Hstk_revoked.
-      rewrite !elem_of_finz_seq_between in Ha' |- *.
-      solve_addr.
-    }
+    iIntros (Hstk_revoked Hbounds Hstk_mmio Hstk_heap W') "Hworld_interp Hstk_val Hstk".
+    rewrite (callee_stk_region_free_split _ _ _ Hbounds) in Hstk_revoked |- *.
+    iDestruct (StackRevokedResources_app with "Hstk_val") as "[#Hstk_val' _]".
+    apply revoked_addresses_app in Hstk_revoked as [Hrev _].
     iMod (world_interp_reinstate_stack with "Hworld_interp Hstk_val' Hstk") as "Hworld_interp"; auto.
     { apply finz_seq_between_NoDup. }
     { apply Forall_replicate_eq. }
     iModIntro.
     iFrame "Hworld_interp".
     iSplit; last (iPureIntro; split; [apply related_sts_pub_update_multiple_temp|]; done).
-    assert (disjoint_from_mmio (a ^+ 4)%a e ∧ disjoint_from_heap (a ^+ 4)%a e) as [Hshadow Hheap].
-    { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
+    revert Hbounds Hstk_mmio Hstk_heap; stk_unfold; intros (_ & He & Hbe & Ha) Hstk_mmio Hstk_heap.
+    assert (disjoint_from_mmio b (a ^+ - (4))%a ∧ disjoint_from_heap b (a ^+ - (4))%a)
+      as [Hshadow Hheap].
+    { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption]. solve_addr. }
     iApply interp_unfold. iSimpl.
     iSplit; last first.
     { iPureIntro. split; first exact Hshadow. by apply heap_cap_valid_disjoint. }
@@ -469,41 +492,48 @@ Section Switcher_Call_World.
       caller's stack frame. *)
   Lemma switcher_cc_revoke_returned E W W2 C (b_stk e_stk a_stk : Addr)
     (stk_mem_l stk_mem_h : list LWord) :
-    revoked_addresses W (finz.seq_between a_stk e_stk) ->
+    revoked_addresses W (stk_free b_stk e_stk a_stk) ->
     related_sts_pub_world
-      (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) W2 ->
-    (b_stk <= a_stk ^+ 4 ∧ a_stk ^+ 4 <= e_stk ∧ (a_stk + 4) = Some (a_stk ^+ 4))%a ->
+      (std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary) W2 ->
+    callee_stk_bounds b_stk e_stk a_stk ->
 
-    interp W2 C (WCap true RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a) -∗
-    StackRevokedResources W C (finz.seq_between a_stk e_stk) -∗
-    world_interp_open W2 C (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk) -∗
-    StackOpenWorldResources interp W2 C (finz.seq_between (a_stk ^+ 4)%a e_stk) stk_mem_h -∗
-    [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]] -∗
-    [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]] -∗
+    interp W2 C (callee_csp b_stk e_stk a_stk) -∗
+    StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
+    world_interp_open W2 C (LNonHeap <$> callee_stk_region b_stk e_stk a_stk) -∗
+    StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h -∗
+    [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]] -∗
+    [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]] -∗
     £ 2
     ={E}=∗
     ∃ (stk_mem : list LWord) (l' : list LAddr),
-      ⌜ extract_temporaries_condition W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) ⌝ ∗
+      ⌜ extract_temporaries_condition W2
+          (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝ ∗
       RevokedResources W2 C l' ∗
       ⌜ revoked_keys (revoke W2) l' ⌝ ∗
-      StackRevokedResources W2 C (finz.seq_between a_stk e_stk) ∗
-      ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝ ∗
+      StackRevokedResources W2 C (stk_free b_stk e_stk a_stk) ∗
+      ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝ ∗
       world_interp (revoke W2) C ∗
-      [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]].
+      [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]].
   Proof.
     iIntros (Hrevoked_stk Hrelated_pub_Wext_W2 Hcsp_bounds)
       "#Hinterp_W2_csp #Hstk_val Hworld_interp_C Hstack_revoked_W2 Hstk_l Hstk_h [Hlc Hlc']".
+    pose proof (callee_stk_region_free_split _ _ _ Hcsp_bounds) as Hsplit.
     iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
     iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-    iEval (rewrite <- (app_nil_r (finz.seq_between (a_stk ^+ 4)%a e_stk))) in "Hworld_interp_C".
+    iEval (rewrite <- (app_nil_r (callee_stk_region b_stk e_stk a_stk))) in "Hworld_interp_C".
 
     iDestruct (close_world_interp_opening_resources
                 with "[$Hworld_interp_C $Hstack_revoked_W2 $Hstk_h]")
       as "Hworld_interp_C".
     { apply finz_seq_between_NoDup. }
     { set_solver+. }
-    { by rewrite finz_seq_between_length in Hlen_stk_l. }
+    { by rewrite /callee_stk_region finz_seq_between_length in Hlen_stk_l. }
     rewrite fmap_nil -open_world_interp_empty.
+
+    assert (NoDup (stk_free b_stk e_stk a_stk)) as Hnodup by apply finz_seq_between_NoDup.
+    rewrite Hsplit in Hrevoked_stk Hnodup.
+    apply revoked_addresses_app in Hrevoked_stk as [Hrev_callee Hrev_spill].
+    apply NoDup_app in Hnodup as (_ & Hdisj & _).
 
     iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk_l]")
       as "(Hworld_interp_C & Hstk_l & %Hstk_l_revoked)".
@@ -513,77 +543,77 @@ Section Switcher_Call_World.
       eapply elem_of_mono_pub;eauto.
       rewrite elem_of_dom.
       rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-      { intro Hcontra.
-        apply elem_of_finz_seq_between in Ha, Hcontra.
-        solve_addr.
-      }
-      assert ( a ∈ finz.seq_between a_stk e_stk).
-      { rewrite elem_of_finz_seq_between.
-        rewrite elem_of_finz_seq_between in Ha.
-        solve_addr.
-      }
-      rewrite /revoked_addresses Forall_forall in Hrevoked_stk.
-      apply Hrevoked_stk in H.
+      { intro Hcontra. by apply (Hdisj a). }
+      rewrite /revoked_addresses Forall_forall in Hrev_spill.
+      apply Hrev_spill in Ha.
       done.
     }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W2_csp $Hworld_interp_C]")
       as (l') "(%Hl_unk' & Hworld_interp_C & Hstack_revoked_W2 & Hrevoked_W2 & >[%stk_mem_h' Hstk_h] & [Hrevoked_l' %Hrevoked_W2_l'])".
-    iDestruct (region_pointsto_split with "[$Hstk_l $Hstk_h]") as "Hstk"; auto.
-    { solve_addr+ Hcsp_bounds. }
-    { by rewrite finz_seq_between_length in Hlen_stk_l. }
+    iDestruct (stk_free_join_callee with "[$Hstk_l $Hstk_h]") as "Hstk"; first done.
+    { rewrite finz_seq_between_length in Hlen_stk_l. rewrite -Hlen_stk_l.
+      revert Hcsp_bounds; stk_unfold. intros (_ & He & Hbe & Ha).
+      rewrite /finz.dist. solve_addr. }
     iCombine "Hstack_revoked_W2 Hrevoked_W2" as "Hstack_revoked_W2".
     iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l']") as ">Hrevoked_l'".
-    iDestruct (lc_fupd_elim_later with "[$] [$Hstack_revoked_W2]") as ">[Hstack_revoked_W2 %]".
+    iDestruct (lc_fupd_elim_later with "[$] [$Hstack_revoked_W2]") as ">[Hstack_revoked_W2 %Hrevoked_callee]".
     iModIntro.
     iExists _, l'; iFrame "∗ %".
+    rewrite Hsplit.
     iSplitL "Hstack_revoked_W2"; cycle 1.
     { iPureIntro.
-      rewrite (finz_seq_between_split a_stk (a_stk^+4)%a); last (split; solve_addr).
-      rewrite !/revoked_addresses !Forall_forall in H,Hstk_l_revoked |- *.
+      rewrite !/revoked_addresses !Forall_forall in Hrevoked_callee, Hstk_l_revoked |- *.
       intros x Hx; cbn.
       apply elem_of_app in Hx; destruct Hx as [Hx|Hx].
+      + apply Hrevoked_callee; done.
       + apply revoke_lookup_Revoked; apply Hstk_l_revoked; done.
-      + apply H; done.
     }
-    iApply (StackRevokedResources_mono_priv with "Hstk_val").
+    iDestruct (StackRevokedResources_app with "Hstk_val") as "[_ Hstk_val_l]".
+    iApply StackRevokedResources_app; iFrame "Hstack_revoked_W2".
+    iApply (StackRevokedResources_mono_priv with "Hstk_val_l").
     eapply related_sts_priv_pub_trans_world; eauto.
     apply related_sts_pub_priv_world.
     eapply related_sts_pub_update_multiple_temp.
-    rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
-    apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.
+    done.
   Qed.
 
   (** Revoke the world after the trusted stack was exhausted. The world is
       the one of the call, where the callee's stack frame is [Temporary]. *)
   Lemma switcher_cc_revoke_exhausted E W C (b_stk e_stk a_stk : Addr)
     (stk_mem_l stk_mem_h : list LWord) :
-    let W2 := std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary in
-    revoked_addresses W (finz.seq_between a_stk e_stk) ->
-    (b_stk <= a_stk ^+ 4 ∧ a_stk ^+ 4 <= e_stk ∧ (a_stk + 4) = Some (a_stk ^+ 4))%a ->
-    length stk_mem_l = 4 ->
+    let W2 := std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary in
+    revoked_addresses W (stk_free b_stk e_stk a_stk) ->
+    callee_stk_bounds b_stk e_stk a_stk ->
+    length stk_mem_l = Z.to_nat SpillSlot_size ->
 
     world_interp W C -∗
-    StackRevokedResources W C (finz.seq_between a_stk e_stk) -∗
-    [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]] -∗
-    [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]] -∗
+    StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
+    [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]] -∗
+    [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]] -∗
     £ 2
     ={E}=∗
     ∃ (l' : list LAddr),
-      ⌜ extract_temporaries_condition W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) ⌝ ∗
+      ⌜ extract_temporaries_condition W2
+          (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝ ∗
       RevokedResources W2 C l' ∗
       ⌜ revoked_keys (revoke W2) l' ⌝ ∗
       ⌜ related_sts_pub_world W2 W2 ⌝ ∗
-      ([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝) ∗
-      StackRevokedResources W2 C (finz.seq_between a_stk e_stk) ∗
-      ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝ ∗
+      ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
+         ⌜ std W2 !! LNonHeap a = Some Temporary ⌝) ∗
+      StackRevokedResources W2 C (stk_free b_stk e_stk a_stk) ∗
+      ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝ ∗
       world_interp (revoke W2) C ∗
-      [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem_l ++ stk_mem_h ]].
+      [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
+        [[ stk_mem_join stk_mem_l stk_mem_h ]].
   Proof.
     intros W2.
     iIntros (Hrevoked_stk Hcsp_bounds Hlen_l)
       "Hworld_interp_C #Hclose Hstk_l Hstk_h [Hlc Hlc']".
+    pose proof (callee_stk_region_free_split _ _ _ Hcsp_bounds) as Hsplit.
     pose proof (extract_temps W) as [l_unk [Hlunk_nodup Hlunk] ].
+    assert (revoked_addresses W (callee_stk_region b_stk e_stk a_stk)) as Hrev_callee.
+    { rewrite Hsplit in Hrevoked_stk. by apply revoked_addresses_app in Hrevoked_stk as [? ?]. }
 
     iMod ( world_interp_revoke _ _ l_unk with "[$Hworld_interp_C]") as
       "(Hworld_interp_C & Hrevoked_l & %Hrevoked_l)"; auto.
@@ -594,15 +624,8 @@ Section Switcher_Call_World.
     rewrite revoke_std_update_multiple_eq.
     2: { apply Forall_forall.
          intros a Ha.
-         assert (a ∈ finz.seq_between a_stk e_stk) as Ha'.
-         { rewrite elem_of_finz_seq_between.
-           rewrite elem_of_finz_seq_between in Ha.
-           solve_addr.
-         }
-         rewrite list_elem_of_lookup in Ha'; destruct Ha' as [? ?].
-         rewrite /revoked_addresses Forall_forall in Hrevoked_stk.
-         eapply Hrevoked_stk; eauto.
-         by apply list_elem_of_lookup_2 in H.
+         rewrite /revoked_addresses Forall_forall in Hrev_callee.
+         by apply Hrev_callee.
     }
     iExists l_unk; iFrame "∗%#".
     iSplit.
@@ -613,33 +636,26 @@ Section Switcher_Call_World.
         intros a Ha. apply Hlunk in Ha.
         intro Ha'.
         apply list_elem_of_fmap in Ha' as [a' [-> Ha'] ].
-        rewrite /revoked_addresses  Forall_forall in Hrevoked_stk.
-         assert (a' ∈ finz.seq_between a_stk e_stk) as Ha''.
-         { rewrite elem_of_finz_seq_between.
-           rewrite elem_of_finz_seq_between in Ha'.
-           solve_addr.
-         }
-         apply Hrevoked_stk in Ha''.
-         simplify_eq.
+        rewrite /revoked_addresses Forall_forall in Hrev_callee.
+        apply Hrev_callee in Ha'.
+        simplify_eq.
       - intros a; cbn.
         rewrite elem_of_app.
         split; intro Ha.
-        + destruct ( decide ( a ∈ LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk )); first (right; done).
+        + destruct ( decide ( a ∈ LNonHeap <$> callee_stk_region b_stk e_stk a_stk )); first (right; done).
           rewrite std_sta_update_multiple_lookup_same_k in Ha; auto.
           apply Hlunk in Ha.
           left; done.
         + destruct Ha as [Ha|Ha]; cycle 1.
           * rewrite std_sta_update_multiple_lookup_in_k; auto.
-          * destruct ( decide ( a ∈ LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk )); first (rewrite std_sta_update_multiple_lookup_in_k; auto).
+          * destruct ( decide ( a ∈ LNonHeap <$> callee_stk_region b_stk e_stk a_stk )); first (rewrite std_sta_update_multiple_lookup_in_k; auto).
             rewrite std_sta_update_multiple_lookup_same_k; auto.
             apply Hlunk in Ha; done.
     }
     iSplitL "Hrevoked_l".
     {
       iApply (RevokedResources_mono_pub with "Hrevoked_l"); auto.
-      eapply related_sts_pub_update_multiple_temp.
-      rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
-      apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.
+      by eapply related_sts_pub_update_multiple_temp.
     }
     iSplit.
     {
@@ -656,22 +672,15 @@ Section Switcher_Call_World.
     iSplitR "Hstk_l Hstk_h".
     { iApply (StackRevokedResources_mono_priv with "Hclose"); auto.
       apply related_sts_pub_priv_world.
-      eapply related_sts_pub_update_multiple_temp.
-      rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
-      apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.
+      by eapply related_sts_pub_update_multiple_temp.
     }
     iSplit; first iPureIntro.
     { eapply Forall_impl; eauto.
       cbn; intros a Ha.
       apply revoke_lookup_Revoked; done.
     }
-    iApply (region_pointsto_split _ _ (a_stk ^+4)%a); last iFrame.
-    { solve_addr+ Hcsp_bounds. }
-    { rewrite Hlen_l.
-      destruct Hcsp_bounds as (?&?&Ha4).
-      pose proof (finz_incr_iff_dist a_stk (a_stk ^+ 4)%a 4) as [Hdist _].
-      by apply Hdist in Ha4 as [? ?].
-    }
+    iApply stk_free_join_callee; [done | done |].
+    iFrame.
   Qed.
 
 End Switcher_Call_World.

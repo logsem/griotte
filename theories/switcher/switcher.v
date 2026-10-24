@@ -29,7 +29,8 @@ Section Switcher.
   Definition MAX_FAULTS_PER_COMPARTMENT_CALL : Z := 1024.
 
   (** The size of CHERIoT's [ErrorState] (compartment.h): the PCC and the 15
-      registers, one word each. *)
+      registers, one word each. The exception path writes it on the faulting
+      stack, just below the faulting cursor. *)
   Definition ErrorState_size : Z := 16.
 
   (** The layout of the trusted stack, with CHERIoT's names (with
@@ -204,16 +205,21 @@ Section Switcher.
         sub ct2 ct2 ctp;
         jnez (".Lcommon_force_unwind")%asm ct2
       ]
-      ; (* Save the callee registers. The first spill goes to the cell
-           furthest from the cursor: if it fits, the stack is long enough
-           for the others. A cursor below the base can still make a later
-           store fault. *)
+      ; (* Save the callee registers in the spill area below the cursor.
+           The first spill goes to the cell furthest from the cursor: if it
+           fits, the stack is long enough for the others. A cursor above the
+           top can still make a later store fault. *)
       [ #".Lswitch_entry_first_spill";
-        store_imm csp cgp 3;
-        store_imm csp cs0 SpillSlot_cs0;
+        (* csc cs0, (SPILL_SLOT_cs0-SPILL_SLOT_SIZE)(csp) *)
+        store_imm csp cs0 (SpillSlot_cs0 - SpillSlot_size)%Z;
+        (* cincoffset csp, csp, -SPILL_SLOT_SIZE *)
+        lea csp csp (- SpillSlot_size)%Z;
+        (* csc cs1, SPILL_SLOT_cs1(csp) *)
         store_imm csp cs1 SpillSlot_cs1;
-        store_imm csp cra 2;
-        lea csp csp SpillSlot_size
+        (* csc cgp, SPILL_SLOT_cgp(csp) *)
+        store_imm csp cgp SpillSlot_cgp;
+        (* csc cra, SPILL_SLOT_pcc(csp) *)
+        store_imm csp cra SpillSlot_pcc
       ]
       ; (* Check that the trusted stack has room for a frame, and push it *)
       [ #".Lswitcher_trusted_stack_push";
@@ -237,14 +243,28 @@ Section Switcher.
         add cs0 cs0 TrustedStackFrame_size;
         store_imm ct2 cs0 TrustedStack_offset_frameoffset
       ]
-      ; (* Chop off the stack *)
-      [ #".Lswitcher_chop_stack";
-        gete cs0 csp;
-        geta cs1 csp;
-        subseg csp csp cs1 cs0
+      ; (* Chop off the stack: the callee's stack is the part below the
+           spill area. [ct2] gets it with its cursor at the base, and [csp]
+           with its cursor at the top. CHERIoT computes the length for its
+           relative [csetboundsrounddown] and rounds the top down; [Subseg]
+           takes the bounds and sets them exactly. *)
+      [ #".Lswitch_stack_chop";
+        (* cgetaddr s0, csp *)
+        geta cs0 csp;
+        (* cgetbase s1, csp *)
+        getb cs1 csp;
+        (* csetaddr csp, csp, s1 *)
+        seta csp csp cs1;
+        (* csetboundsrounddown ct2, csp, s1 *)
+        subseg ct2 csp cs1 cs0;
+        (* cgettop s0, ct2 *)
+        gete cs0 ct2;
+        (* csetaddr csp, ct2, s0 *)
+        seta csp ct2 cs0
       ]
       ; (* Zero out the callee's stack frame *)
-      (#".Lswitcher_zero_callee_stack" :: clear_stack_asm cs0 cs1)
+      (* zero_stack t2, s0, gp *)
+      (#".Lswitcher_zero_callee_stack" :: clear_stack_asm ct2 cs0)
       ; (* Fetch (unsealing capability and unseal entry point *)
       [ #".Lswitch_after_zero";
         auipcc cs0 (".Lswitcher_unseal_key")%asm;
@@ -318,23 +338,31 @@ Section Switcher.
         load_imm csp ct1 TrustedStackFrame_offset_csp;
         store_imm ctp ct2 TrustedStack_offset_frameoffset;
 
-        (* Restores the caller's saved registers *)
-        lea csp csp (-1)%Z;
-        #".Lswitcher_restore_cgp";
-        load cgp csp;
-        lea csp csp (-1)%Z;
-        load cra csp;
-        lea csp csp (-1)%Z;
-        load cs1 csp;
-        lea csp csp (-1)%Z;
-        load cs0 csp;
+        (* Restores the caller's saved registers, from the spill area *)
+        #".Lswitcher_restore_spill";
+        (* clc cs0, SPILL_SLOT_cs0(csp) *)
+        load_imm cs0 csp SpillSlot_cs0;
+        (* clc cs1, SPILL_SLOT_cs1(csp) *)
+        load_imm cs1 csp SpillSlot_cs1;
+        (* clc cra, SPILL_SLOT_pcc(csp) *)
+        load_imm cra csp SpillSlot_pcc;
+        (* clc cgp, SPILL_SLOT_cgp(csp) *)
+        load_imm cgp csp SpillSlot_cgp;
+        (* cincoffset csp, csp, SPILL_SLOT_SIZE *)
+        lea csp csp SpillSlot_size;
 
-        (* Zero out the callee stack frame *)
-        gete ct0 csp;
-        geta ct1 csp
+        (* Zero out the callee stack frame, from the base of the stack to
+           the cursor *)
+        (* cgetbase tp, csp *)
+        getb ctp csp;
+        (* cgetaddr t1, csp *)
+        geta ct1 csp;
+        (* csetaddr ct2, csp, tp *)
+        seta ct2 csp ctp
       ]
       ; (* Clear the callee's stack frame  *)
-      (#".Lswitcher_zero_callee_frame" :: clear_stack_asm ct0 ct1)
+      (* zero_stack t2, t1, tp *)
+      (#".Lswitcher_zero_callee_frame" :: clear_stack_asm ct2 ct1)
       ; (* Clear the register file *)
       (#".Lswitch_callee_dead_zeros"::clear_registers_post_call_asm)
       ; (* Return to caller  *)
@@ -347,14 +375,16 @@ Section Switcher.
     (* Failure *)
     [ (* Trusted stack is exhausted: return to caller *)
       [ #".Lswitch_trusted_stack_exhausted";
-        lea csp csp (-1)%Z;
-        load cgp csp;
-        lea csp csp (-1)%Z;
-        load cra csp;
-        lea csp csp (-1)%Z;
-        load cs1 csp;
-        lea csp csp (-1)%Z;
-        load cs0 csp;
+        (* clc cs0, SPILL_SLOT_cs0(csp) *)
+        load_imm cs0 csp SpillSlot_cs0;
+        (* clc cs1, SPILL_SLOT_cs1(csp) *)
+        load_imm cs1 csp SpillSlot_cs1;
+        (* clc cra, SPILL_SLOT_pcc(csp) *)
+        load_imm cra csp SpillSlot_pcc;
+        (* clc cgp, SPILL_SLOT_cgp(csp) *)
+        load_imm cgp csp SpillSlot_cgp;
+        (* cincoffset csp, csp, SPILL_SLOT_SIZE *)
+        lea csp csp SpillSlot_size;
         mov ca0 ENOTENOUGHTRUSTEDSTACK;
         mov ca1 0;
         #".Lswitch_trusted_stack_exhausted_return";
@@ -423,8 +453,8 @@ Section Switcher.
            [.Lhandle_error_in_switcher]. With no frame on the trusted stack,
            the thread exits. Otherwise, [ctp] points to the topmost frame,
            [ca0] is cleared (it is set when the handler found is stackless),
-           and [ct0] holds the faulting stack pointer moved past the room for
-           the [ErrorState] of a stackful handler. *)
+           and [ct0] holds the faulting stack pointer moved down by the room
+           for the [ErrorState] of a stackful handler. *)
       [ #".Lhandle_error";
         writesr mtdc csp;
         auipcc ct0 0;
@@ -445,13 +475,13 @@ Section Switcher.
         lea ctp csp ctp;
         (* li a0, 0 *)
         mov ca0 0;
-        (* cincoffset ct0, ct0, -(16*8): the layout is mirrored for
-           upward-growing stacks, so the room is above the cursor *)
-        lea ct0 ct0 ErrorState_size
+        (* cincoffset ct0, ct0, -(16*8) *)
+        lea ct0 ct0 (- ErrorState_size)%Z
       ]
       ; (* Room for the [ErrorState] of a stackful handler: the moved stack
-           pointer [ct0] is tagged, and its cursor is not past its end.
-           [cs1] holds the offset of an absent handler. *)
+           pointer [ct0] is tagged, its cursor is not below its base, and
+           the [ErrorState] does not go past its end. [cs1] holds the offset
+           of an absent handler. *)
       [ #".Lhandle_error_stack_oob";
         (* cgettag t1, ct0 *)
         gettag ct1 ct0;
@@ -460,10 +490,20 @@ Section Switcher.
         (* beqz t1, .Lhandle_error_try_stackless *)
         jnez 2 ct1;
         jmp (".Lhandle_error_try_stackless")%asm;
-        (* Not in CHERIoT, where a cursor moved out of the representable
-           bounds clears the tag: [Lea] keeps the tag out of bounds, so the
-           end is tested explicitly ([ct2] is a dead scratch register). *)
+        (* CHERIoT's encoding clears the tag of a cursor moved below the
+           base, and [entry.S] prescribes a check against the base for an
+           encoding that does not: [Lea] keeps the tag out of bounds, so the
+           base is tested explicitly ([ct2] is a dead scratch register). *)
         geta ct1 ct0;
+        getb ct2 ct0;
+        le ct1 ct2 ct1;
+        jnez 2 ct1;
+        jmp (".Lhandle_error_try_stackless")%asm;
+        (* Not in CHERIoT: the end of the [ErrorState], the cursor before
+           the move, is not past the end of the stack, so that only the
+           first store of the [ErrorState] can fault. *)
+        geta ct1 ct0;
+        add ct1 ct1 ErrorState_size;
         gete ct2 ct0;
         le ct1 ct1 ct2;
         jnez 2 ct1;
@@ -502,15 +542,19 @@ Section Switcher.
         jnez 2 cs1;
         jmp (".Lhandle_stack_recovered")%asm
       ]
-      ; (* The stack of a pushed frame: the part above the cursor of the
-           caller's stack pointer, with the cursor at its end (mirrored for
-           upward-growing stacks). *)
+      ; (* The stack of a pushed frame: the part below the cursor of the
+           caller's stack pointer, with the cursor at its base. CHERIoT
+           computes the length for its relative [csetboundsexact]; [Subseg]
+           takes the bounds. *)
       [ #".Lhandle_stack_rebound";
+        (* cgetaddr a1, ct0 *)
         geta ca1 ct0;
-        gete ca2 ct0;
-        subseg ct0 ct0 ca1 ca2;
-        sub ca1 ca2 ca1;
-        lea ct0 ct0 ca1
+        (* cgetbase a2, ct0 *)
+        getb ca2 ct0;
+        (* csetaddr ct0, ct0, a2 *)
+        seta ct0 ct0 ca2;
+        (* csetboundsexact ct0, ct0, a1 *)
+        subseg ct0 ct0 ca2 ca1
       ]
       ; (* A stackless handler. *)
       [ #".Lhandle_stack_recovered";
@@ -551,38 +595,32 @@ Section Switcher.
         jmp (".Lhandle_error_handler_invoke")%asm
       ]
       ; (* The arguments of a stackful handler: the [ErrorState], a copy of
-           the register save area with the untagged MEPCC, written below the
-           moved stack pointer [ct0] (the layout is mirrored for
-           upward-growing stacks: CHERIoT writes it above [ct0]), then the
-           cause and the value of the trap. The handler's stack pointer is
-           [ct0], past the [ErrorState], and [ca0] points to the
+           the register save area with the untagged MEPCC, written above the
+           moved stack pointer [ct0], then the cause and the value of the
+           trap. The handler's stack pointer and [ca0] point to the
            [ErrorState]. Falls through to the invocation. *)
       ([ #".Lhandle_error_stack_setup";
          (* clc cs1, TrustedStack_offset_mepcc(csp) *)
          load_imm cs1 csp TrustedStack_offset_mepcc;
          (* ccleartag cs1, cs1 *)
          cleartag cs1 cs1;
-         (* csc cs1, TrustedStack_offset_mepcc(ct0): mirrored, the
-            [ErrorState] is below [ct0] *)
-         store_imm ct0 cs1 (TrustedStack_offset_mepcc - ErrorState_size)%Z;
+         (* csc cs1, TrustedStack_offset_mepcc(ct0) *)
+         store_imm ct0 cs1 TrustedStack_offset_mepcc;
          (* cincoffset ca2, csp, TrustedStack_offset_cra *)
          lea ca2 csp TrustedStack_offset_cra;
-         (* cincoffset ca3, ct0, TrustedStack_offset_cra: mirrored *)
-         lea ca3 ct0 (TrustedStack_offset_cra - ErrorState_size)%Z
+         (* cincoffset ca3, ct0, TrustedStack_offset_cra *)
+         lea ca3 ct0 TrustedStack_offset_cra
        ] ++
        (* copyContext ca3, ca2, cs1, a4 *)
        copy_context_asm ca3 ca2 cs1 ca4 ++
-       [ (* cmove ca0, ct0: mirrored, [ca0] points to the [ErrorState],
-            below [ct0] *)
+       [ (* cmove ca0, ct0 *)
          mov ca0 ct0;
-         lea ca0 ca0 (- ErrorState_size)%Z;
          (* clw a1, TrustedStack_offset_mcause(csp) *)
          load_imm ca1 csp TrustedStack_offset_mcause;
          (* csrr a2, mtval *)
          csrr ca2 mtval;
-         (* cmove csp, ca0: mirrored, the stack pointer is [ct0], past the
-            [ErrorState] *)
-         mov csp ct0
+         (* cmove csp, ca0 *)
+         mov csp ca0
        ])
       ; (* Invoke the handler, with interrupts enabled and the registers
            cleared but its arguments, as
@@ -606,9 +644,8 @@ Section Switcher.
         csrci mstatus (Z.shiftl 1 MIE_BIT);
         jnez (".Lcommon_force_unwind")%asm ca0
       ]
-      ; (* Install the context of the handler: the [ErrorState] below the
-           handler's stack pointer (mirrored for upward-growing stacks:
-           CHERIoT reads it above [csp]). The PC is the PCC of the export
+      ; (* Install the context of the handler: the [ErrorState] at the
+           handler's stack pointer. The PC is the PCC of the export
            table of the topmost frame, with the address of the [ErrorState]'s
            PC. The 15 registers are copied back to the register save area,
            the count of the topmost frame is incremented again, and the
@@ -630,15 +667,14 @@ Section Switcher.
          seta ct0 ct0 cs0;
          (* clc ct0, ExportTable_offset_pcc(ct0) *)
          load_imm ct0 ct0 ExportTable_offset_pcc;
-         (* clc cra, TrustedStack_offset_mepcc(csp): mirrored, the
-            [ErrorState] is below [csp] *)
-         load_imm cra csp (TrustedStack_offset_mepcc - ErrorState_size)%Z;
+         (* clc cra, TrustedStack_offset_mepcc(csp) *)
+         load_imm cra csp TrustedStack_offset_mepcc;
          (* cgetaddr ra, cra *)
          geta cra cra;
          (* csetaddr ct2, ct0, ra *)
          seta ct2 ct0 cra;
-         (* cincoffset ca2, csp, TrustedStack_offset_cra: mirrored *)
-         lea ca2 csp (TrustedStack_offset_cra - ErrorState_size)%Z;
+         (* cincoffset ca2, csp, TrustedStack_offset_cra *)
+         lea ca2 csp TrustedStack_offset_cra;
          (* cincoffset ca3, ct1, TrustedStack_offset_cra *)
          lea ca3 ct1 TrustedStack_offset_cra
        ] ++

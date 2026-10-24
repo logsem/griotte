@@ -73,7 +73,7 @@ Section Switcher_KtK_Call.
     ct2 ↦ᵣ wct2 ∗
     ct1 ↦ᵣ wct1_caller ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
-    switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcra_caller wcgp_caller ∗
+    switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
     [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
     ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ w ) ∗
@@ -127,7 +127,7 @@ Section Switcher_KtK_Call.
     iMod ("Hclose_switcher_inv" with
       "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
     { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
-    iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; [done|solve_addr|].
+    iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
     iApply "Hpost"; iFrame.
     iPureIntro; split; last done. rewrite Hrmap'; set_solver.
   Qed.
@@ -338,13 +338,12 @@ Section Switcher_KtK_Call.
     (* Blocks 2-3: spill and push on the trusted stack *)
     iApply (switcher_call_blocks_2_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
-      [done|done|done|].
+      [done|done|done|done|].
     iSplit; cycle 1.
     { (* The callee-save registers fit on the caller's stack: the spill does
          not fault *)
-      iIntros (a_f stk_mem' Ha_f) "_".
-      destruct Ha_f as [ (-> & -> & Hspill) | (Hcontra & _) ]; exfalso;
-        [solve_addr+Hspill Hb_a Hminstk|solve_addr]. }
+      iIntros (Hnfits) "_". exfalso. apply Hnfits.
+      by apply (stk_callee_fits_spill_fits _ _ _ minstk_tgt); [lia|]. }
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     iDestruct "Hbranch" as
       "[(%Ha_frame & %Ha_frame_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset
@@ -361,7 +360,7 @@ Section Switcher_KtK_Call.
 
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
     iApply (switcher_call_blocks_3_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
+      "[- $HPC $Hcs0 $Hcs1 $Hct2 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
     iSplit; cycle 1.
     { (* The entry point is sealed by the switcher: the unsealing does not
          fault *)
@@ -369,7 +368,7 @@ Section Switcher_KtK_Call.
       apply Hnot_entry; subst wct1_caller.
       by eexists _, None. }
     iNext; iIntros (wsb π)
-      "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
+      "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2] & Hcsp & Hstk & _ & Hct1 & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
 
     (* Blocks 7-12: load the callee and jump to it; only the low byte of the

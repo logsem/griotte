@@ -8,7 +8,7 @@ From griotte Require Import map_simpl register_tactics.
 (** * Installation of the context of an error handler
 
     When an error handler returns with [ca0] zero, the switcher installs the
-    context that the handler leaves in its [ErrorState], below its stack
+    context that the handler leaves in its [ErrorState], at its stack
     pointer [csp]: the return (block 34) continues at
     [.Lhandle_error_install_context] (block 35), which loads the
     [ErrorState], copies words 1-15 to the register save area, increments
@@ -121,7 +121,7 @@ Section Switcher_Spec_Install.
   (** From the handler's return, with [ca0] zero, for the call stack
       [cstk] whose topmost table has the PCC [wpcc], at a token [F] that
       contains the switcher's invariant and the trap-entry part: the
-      [ErrorState] is read below the handler's [csp] through the accessor,
+      [ErrorState] is read at the handler's [csp] through the accessor,
       and the context it holds is resumed, or a load faults. *)
   Lemma switcher_install_context_spec
     (Nswitcher : namespace) (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
@@ -141,7 +141,7 @@ Section Switcher_Spec_Install.
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
-       ⌜lea_result (rmap !!! csp) (- ErrorState_size) = Some (WCap true p g b e a @@? π)⌝ -∗
+       ⌜rmap !!! csp = WCap true p g b e a @@? π⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
     ▷ ( install_nested_k F cstk rmap L ∧

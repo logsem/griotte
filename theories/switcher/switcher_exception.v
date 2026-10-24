@@ -31,7 +31,7 @@ From griotte Require Export switcher_error_handler.
     resumed fault of trusted code is closed by [trap_safe_resume]. A
     handler returns to the switcher, which unwinds
     ([switcher_handler_return_unwind]) or installs the context of the
-    [ErrorState] below the handler's stack pointer
+    [ErrorState] at the handler's stack pointer
     ([switcher_handler_return_install]); for an untrusted handler, both
     are safe ([interp_handler_return_sentry]). The
     file also hosts the safety of the return-to-switcher entry point
@@ -160,9 +160,10 @@ Section Switcher_Exception.
     rewrite /error_state_stores_ok Hcsp /= in Hok. destruct Hok as (Hwa & Hb & He).
     iApply (world_interp_cells_store_acc _ _ _ g b e).
     - done.
-    - done.
-    - rewrite length_error_state_src /ErrorState_size. rewrite /ErrorState_size in He. lia.
-    - rewrite -Hcsp. iApply "Hregs". iPureIntro.
+    - rewrite /ErrorState_size in Hb |- *. solve_addr.
+    - rewrite length_error_state_src /ErrorState_size. rewrite /ErrorState_size in Hb. solve_addr.
+    - rewrite (interp_cap_cur_addr W C true p g b e (a ^+ (- ErrorState_size))%a a π).
+      rewrite -Hcsp. iApply "Hregs". iPureIntro.
       destruct (Hfull csp) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv).
     - by iApply interp_error_state_src.
   Qed.
@@ -230,7 +231,7 @@ Section Switcher_Exception.
     iModIntro. iExists v, 1%Qp. iFrame "Hv". iSplit.
     { iPureIntro. rewrite /error_state_shadow_free Hcsp /= in Hshadow.
       eapply disjoint_from_shadow_not_in; first exact Hshadow.
-      rewrite /withinBounds /ErrorState_size in He Hi |- *. solve_addr. }
+      rewrite /withinBounds /ErrorState_size in Hb Hi |- *. solve_addr. }
     iSplitR; first iApply deref_res_none.
     iIntros "!> Hv _ !>". iDestruct ("Hclose" with "Hv") as "Hcells".
     cbn [trusted_error_state]. iFrame "Hcells".
@@ -260,7 +261,7 @@ Section Switcher_Exception.
   Qed.
 
   (** The stack of a stackless handler, the part of the topmost pushed
-      frame's stack above the cursor, is safe. *)
+      frame's stack below the cursor, is safe. *)
   Lemma interp_cont_stackless_csp (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     frame_match Ws Cs cstk W C →
@@ -374,7 +375,7 @@ Section Switcher_Exception.
   Qed.
 
   (** An untrusted handler returns to the switcher with [ca0] zero: the
-      switcher installs the context of the [ErrorState] below the handler's
+      switcher installs the context of the [ErrorState] at the handler's
       safe [csp]. The loaded words are safe, and so is the resumed PC, from
       the safe PCC of the topmost table: the installed context runs through
       the FTLR, with the count of the topmost frame incremented. A fault of
@@ -421,9 +422,9 @@ Section Switcher_Exception.
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
     iSplitL "Hworld_interp"; first by iFrame.
     iSplitR.
-    { iIntros (p g b e a π Hlea [Hra Hb]).
+    { iIntros (p g b e a π Hcsp_eq [Hra Hb]).
       iApply world_interp_cells_load_acc; [done | done |].
-      by iApply (interp_lea_result_cap with "Hcsp"). }
+      iEval (rewrite Hcsp_eq) in "Hcsp". iExact "Hcsp". }
     iNext. iSplit.
     - (* A fault of the installation: the switcher unwinds *)
       iIntros (_ off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hworld_interp _] Hna".
@@ -506,7 +507,7 @@ Section Switcher_Exception.
   (** A handler of an untrusted topmost compartment runs through the FTLR:
       its PC comes from the table's PCC, and the invocation registers are
       safe (the return sentry, the table's CGP, integers, and the stack:
-      for a stackless handler, the stack above the frame's cursor; for a
+      for a stackless handler, the stack below the frame's cursor; for a
       stackful one, the faulting [csp], safe, with other cursors). *)
   Lemma untrusted_handler_invoke_safe (Nswitcher : namespace)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
@@ -1225,7 +1226,7 @@ Section Switcher_Exception.
 
   (** A trusted handler returns to the switcher with [ca0] zero: the
       switcher installs the context of the [ErrorState] [ws], the 16 cells
-      below the handler's [csp], a capability without identifier whose
+      at the handler's [csp], a capability without identifier whose
       cells are outside the shadow table. The resumed PC is the PCC [wpcc]
       of the topmost table with the address of word 0, the registers hold
       words 1-15 as loaded through the permission of [csp], and the count
@@ -1242,8 +1243,8 @@ Section Switcher_Exception.
     (∀ r, is_Some (rmap !! r)) →
     nonZero (rmap !!! ca0).(lw) = false →
     rmap !!! csp = lword_of_word (WCap true p g b e a) →
-    is_Some (a + (- ErrorState_size))%a →
-    disjoint_from_shadow (a ^+ (- ErrorState_size))%a a →
+    is_Some (a + ErrorState_size)%a →
+    disjoint_from_shadow a (a ^+ ErrorState_size)%a →
     length ws = Z.to_nat ErrorState_size →
 
     na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -1266,23 +1267,23 @@ Section Switcher_Exception.
     iIntros (HF HFtrap Hdisj Hfull Hnz Hcsp [a_es Ha_es] Hshadow Hws)
       "(#Hinv_switcher & #Hstatic & #Hpcc & HPC & Hrmap & Hws & Hcstk & Hna & Hpost)".
     rewrite /install_region.
-    assert ((a ^+ (- ErrorState_size))%a = a_es) as Ha_es' by solve_addr.
+    assert ((a ^+ ErrorState_size)%a = a_es) as Ha_es' by solve_addr.
     rewrite Ha_es' in Hshadow.
     iRevert "Hws Hpost". rewrite Ha_es'. iIntros "Hws Hpost".
-    assert ((a_es + length ws)%a = Some a) as Ha_end.
+    assert ((a + length ws)%a = Some a_es) as Ha_end.
     { rewrite Hws. rewrite /ErrorState_size in Ha_es |- *. solve_addr. }
     iApply (switcher_install_context_spec Nswitcher F cstk rmap wpcc
               (λ (i : nat) (ls : list LWord),
-                 [[ a_es , a ]] ↦ₐ [[ ws ]] ∗ ⌜ls = take i (lload_word p <$> ws)⌝)%I
+                 [[ a , a_es ]] ↦ₐ [[ ws ]] ∗ ⌜ls = take i (lload_word p <$> ws)⌝)%I
              with "[- ]"); [done | done | done | done | done |].
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
     iSplitL "Hws"; first by iFrame.
     iSplitR.
-    { iIntros (p' g' b' e' a' π' Hlea _).
-      rewrite Hcsp /lea_result /= Ha_es in Hlea.
-      injection Hlea as <- <- <- <- <- <-.
+    { iIntros (p' g' b' e' a' π' Hcsp' _).
+      rewrite Hcsp in Hcsp'.
+      injection Hcsp' as <- <- <- <- <- <-.
       rewrite -Hws.
-      iApply (region_cells_load_acc p e a_es a ws Ha_end Hshadow). }
+      iApply (region_cells_load_acc p e a a_es ws Ha_end Hshadow). }
     iNext. iSplit.
     - (* A fault of the installation: the switcher unwinds *)
       iIntros (Hskipped off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hws _] Hna".

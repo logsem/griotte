@@ -191,7 +191,6 @@ Section CopyContextMacro.
     (i < 15)%nat →
     readAllowed p_s = true →
     (b_s <= a_s)%a →
-    is_Some (a_s + 15)%a →
     writeAllowed p_d = true →
     (b_d <= a_d)%a →
     (a_d + 15 <= e_d)%Z →
@@ -232,7 +231,7 @@ Section CopyContextMacro.
           WP Seq (Instr Executable) {{ φ }} ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
-    iIntros (Hexec Hsub Hlen_wd Hlen_ls Htake Hi Hread Hb_s He_s Hwrite Hb_d He_d Hshadow_d
+    iIntros (Hexec Hsub Hlen_wd Hlen_ls Htake Hi Hread Hb_s Hwrite Hb_d He_d Hshadow_d
                Hnull)
       "(HPC & #Hcode & Hsrc & Hdst & Hscratch & Hcounter & Hwd & HL & #Hacc & Hpost)".
     assert (dst ≠ cnull ∧ src ≠ cnull ∧ scratch ≠ cnull ∧ counter ≠ cnull)
@@ -259,7 +258,7 @@ Section CopyContextMacro.
       with "[$HPC $Hscratch $Hsrc $Hcell $Hwit $Hdw]"
       as (v') "(%Hload & HPC & Hscratch & Hsrc & Hcell & Hwit & Hdw)".
     { solve_addr. }
-    { destruct He_s as [? ?]. rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds; solve_addr. }
     iMod ("Hclose" $! v' with "[//] Hcell Hwit Hdw") as "HL".
     destruct (lookup_lt_is_Some_2 wd i) as [wi Hwi]; first lia.
     iDestruct (big_sepL_insert_acc _ _ i with "Hwd") as "[Hwi Hwd]"; first exact Hwi.
@@ -280,7 +279,7 @@ Section CopyContextMacro.
     { transitivity (Some (a_d ^+ S i)%a); solve_addr. }
     (* Lea src src 1 *)
     iInstr "Hcode".
-    { destruct He_s as [? ?]. transitivity (Some (a_s ^+ S i)%a); solve_addr. }
+    { transitivity (Some (a_s ^+ S i)%a); solve_addr. }
     assert (take (S i) (<[i:=lstore_word p_d v']> wd) = lstore_word p_d <$> ls ++ [v'])
       as Htake'.
     { rewrite (take_S_r _ _ (lstore_word p_d v')); last (apply list_lookup_insert_eq; lia).
@@ -323,7 +322,6 @@ Section CopyContextMacro.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a →
     readAllowed p_s = true →
     (b_s <= a_s)%a →
-    is_Some (a_s + 15)%a →
     writeAllowed p_d = true →
     (b_d <= a_d)%a →
     (a_d + 15 <= e_d)%Z →
@@ -365,7 +363,7 @@ Section CopyContextMacro.
           WP Seq (Instr Executable) {{ φ }} ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
-    iIntros (Hexec Hsub Hread Hb_s He_s Hwrite Hb_d He_d Hshadow_d Hlen Hnull)
+    iIntros (Hexec Hsub Hread Hb_s Hwrite Hb_d He_d Hshadow_d Hlen Hnull)
       "(HPC & #Hcode & Hsrc & Hdst & Hscratch & Hcounter & Hwd & HL & #Hacc & Hpost)".
     assert (counter ≠ cnull) as Hcounter_null by (clear -Hnull; set_solver).
     codefrag_facts "Hcode".

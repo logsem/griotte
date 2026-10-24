@@ -423,6 +423,58 @@ Section griotte_lang_rules.
     iRegsMap "Hmap". iApply "Hφ". iFrame.
   Qed.
 
+  (** [Subseg dst src r1 r2] with a source different from the destination,
+      on a capability. *)
+  Lemma wp_subseg_success_src E pc_p pc_g pc_b pc_e pc_a pc_π w dst src r1 r2
+      (t : bool) p g b e a wdst w1 n1 w2 n2 a1 a2 pc_a' π dq :
+    decodeInstrW w.(lw) = Subseg dst src (inr r1) (inr r2) →
+    IsLInt w1 n1 →
+    IsLInt w2 n2 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
+    isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
+    (π = None → (a1 < a2)%a → is_heap_address a1 = false) →
+    (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    src ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
+
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ ▷ pc_a ↦ₐ{dq} w
+        ∗ ▷ src ↦ᵣ WCap t p g b e a @@? π
+        ∗ ▷ r1 ↦ᵣ w1
+        ∗ ▷ r2 ↦ᵣ w2
+        ∗ ▷ dst ↦ᵣ wdst }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ pc_a ↦ₐ{dq} w
+          ∗ src ↦ᵣ WCap t p g b e a @@? π
+          ∗ r1 ↦ᵣ w1
+          ∗ r2 ↦ᵣ w2
+          ∗ dst ↦ᵣ WCap t p g a1 a2 a @@? π
+      }}}.
+  Proof.
+    iIntros (Hinstr Hw1 Hw2 Hvpc Hn1 Hn2 Hwb Hle Hroot Hpc_a' Hdst_cnull Hsrc_cnull
+               Hr1_cnull Hr2_cnull ϕ) "(HPC & Hpc_a & >Hsrc & >Hr1 & >Hr2 & >Hdst) Hφ".
+    destruct (IsLInt_inv _ _ Hw1) as [π1 ->].
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
+    iPoseProof (regname_neq with "Hdst Hsrc") as "%Hdst_src".
+    iPoseProof (regname_neq with "Hdst Hr1") as "%Hdst_r1".
+    iPoseProof (regname_neq with "Hdst Hr2") as "%Hdst_r2".
+    iDestruct (map_of_regs_3 with "Hsrc Hr1 Hr2") as "[Hmap (%Hsrc_r1 & %Hsrc_r2 & %Hr1_r2)]".
+    iDestruct (big_sepM_insert_2 _ _ dst wdst with "Hdst Hmap") as "Hmap".
+    iApply (wp_subseg_next with "[$HPC $Hpc_a $Hmap]");
+      try solve_next_side; try solve_subseg_root_free.
+    iIntros "!> (HPC & Hpc_a & Hmap)".
+    assert ((a1 <=? a2)%a = true) as Hle' by solve_addr.
+    rewrite Hwb Hle' !andb_true_r linsert_reg_not_cnull //.
+    rewrite insert_insert_eq.
+    iRegsMap "Hmap". iApply "Hφ". iFrame.
+  Qed.
+
   Lemma wp_subseg_success_same E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 (t : bool) p g b e a w1 n1 a1 pc_a'  π dq:
     decodeInstrW w.(lw) = Subseg dst dst (inr r1) (inr r1) →
     IsLInt w1 n1 →

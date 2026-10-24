@@ -5,18 +5,19 @@ Section ClearStackMacro.
   #[local] Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
-  (* Expects r1 := e_stk ; r2 := a_stk *)
-  Definition clear_stack_asm (r1 r2 : RegName) : list asm_code :=
+  (** CHERIoT's [zero_stack base top]: zero the words from the address of
+      the capability in [rbase] up to the address [rtop], one word at a
+      time. [rtop] counts the words left, negated. *)
+  Definition clear_stack_asm (rbase rtop : RegName) : list asm_code :=
     macro: [
-      sub r1 r2 r1;
-      mov r2 csp;
+      sub rtop rbase rtop;
       #"loop_start";
-      jnez ("loop_body")%asm r1;
+      jnez ("loop_body")%asm rtop;
       jmp ("loop_end")%asm;
       #"loop_body";
-      store r2 0;
-      lea r2 r2 1;
-      add r1 r1 1;
+      store rbase 0;
+      lea rbase rbase 1;
+      add rtop rtop 1;
       jmp ("loop_start")%asm;
       #"loop_end"
     ].

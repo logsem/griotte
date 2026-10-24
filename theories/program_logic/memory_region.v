@@ -163,6 +163,24 @@ Section region.
        rewrite (_: finz.dist b e - finz.dist b a = finz.dist a e)...
    Qed.
 
+  (** A region splits at [a], given the length of its second part. *)
+  Lemma region_pointsto_split_r (b e a : Addr) (w1 w2 : list LWord) :
+    (b <= a <= e)%Z →
+    length w2 = finz.dist a e →
+    [[b,e]]↦ₐ[[w1 ++ w2]] ⊣⊢ [[b,a]]↦ₐ[[w1]] ∗ [[a,e]]↦ₐ[[w2]].
+  Proof.
+    intros Hbae Hw2. iSplit.
+    - iIntros "H".
+      iDestruct (big_sepL2_length with "H") as %Hlen.
+      rewrite finz_seq_between_length length_app in Hlen.
+      iApply (region_pointsto_split with "H"); first done.
+      rewrite /finz.dist in Hlen Hw2 |- *. solve_addr.
+    - iIntros "[H1 H2]".
+      iDestruct (big_sepL2_length with "H1") as %Hlen.
+      rewrite finz_seq_between_length in Hlen.
+      iApply (region_pointsto_split with "[$H1 $H2]"); done.
+  Qed.
+
   (** A region of memory is the separated conjunction of its cells. *)
   Lemma region_pointsto_cells (b e : Addr) (ws : list LWord) :
     (b + length ws)%a = Some e →

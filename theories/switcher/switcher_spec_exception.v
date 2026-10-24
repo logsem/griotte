@@ -23,7 +23,7 @@ From griotte Require Import map_simpl register_tactics.
     no handler, or for a fault of a running handler (an odd error handler
     count), or after too many faults, the unwind is forced. Otherwise the
     handler is invoked, with the error handler count incremented. Before a
-    stackful handler, the switcher writes the [ErrorState] above the
+    stackful handler, the switcher writes the [ErrorState] below the
     faulting [csp]: the path performs these stores through a destination
     resource [error_state_written] and a store accessor ([path_es_acc])
     that the caller provides; [error_state_written i] holds once [i] words
@@ -66,7 +66,7 @@ Section Switcher_Spec_Exception.
       fault is outside the switcher, the count of the topmost frame even,
       its table declares a stackful handler, and the switcher's stores
       through the faulting [csp] succeed, the destination
-      [error_state_written] takes the words of [error_state_src] at the
+      [error_state_written] takes the words of [error_state_src] below the
       cursor of [csp]. *)
   Definition path_es_acc (cstk : CSTK) (w : LWord) (rmap : LReg)
     (error_state_written : nat → iProp Σ) : iProp Σ :=
@@ -77,7 +77,8 @@ Section Switcher_Spec_Exception.
       ⌜eh ≠ ExportTable_no_handler⌝ -∗
       ⌜rmap !!! csp = WCap true p g b e a @@? π⌝ -∗
       ⌜error_state_stores_ok (rmap !!! csp)⌝ -∗
-      cells_store_acc error_state_written p a π (error_state_src w rmap).
+      cells_store_acc error_state_written p (a ^+ (- ErrorState_size))%a π
+        (error_state_src w rmap).
 
   #[global] Instance path_es_acc_persistent cstk w rmap error_state_written :
     Persistent (path_es_acc cstk w rmap error_state_written).
@@ -961,14 +962,14 @@ Section Switcher_Spec_Exception.
              1-7: done.
              { by rewrite /handler_args. }
              iSplit; iIntros "_ !>"; iExact "Hskip".
-          -- (* Block 32: a stackful handler, the [ErrorState] above [csp] *)
+          -- (* Block 32: a stackful handler, the [ErrorState] below [csp] *)
              destruct Hfound as [(_ & -> & -> & Hfits & Heh_some) | (Hn & _)]; last done.
              (* The stores of the [ErrorState], from the words of the register
                 save area *)
              iAssert (∀ (p' : Perm) (g' : Locality) (b' e' a' : Addr) (π' : option AId),
                         ⌜wcsp = WCap true p' g' b' e' a' @@? π'⌝ -∗
                         ⌜error_state_stores_ok wcsp⌝ -∗
-                        cells_store_acc error_state_written p' a' π'
+                        cells_store_acc error_state_written p' (a' ^+ (- ErrorState_size))%a π'
                           (lclear_tag (save' !!! 0%nat) :: take 15 (drop 1 save')))%I
                as "Hacc".
              { iIntros (p' g' b' e' a' π' Hwcsp' Hok).

@@ -308,7 +308,9 @@ Section Switcher_KtK.
       ]".
     - iApply ("Hf" $! mie arg_rmap' rmap').
       iFrame "Hna HPC Hcgp Hcra Hcsp Hargs Hregs Hstk Hcstk HP".
-      iSplit; first (iPureIntro; stk_unfold; solve_addr+Hminstk).
+      iSplit.
+      { iPureIntro. apply stk_callee_fits_callee; last exact Hminstk.
+        apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia | exact Hminstk]. }
       iSplit; first done.
       iSplit; first (iPureIntro; rewrite Hrmap' Hdom; set_solver).
       iApply (if_and_sep_intro with "[]").
@@ -362,7 +364,7 @@ Section Switcher_KtK.
                     $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hretpost]").
         { exact Hstk_heap. }
         { exact Hstk_shadow. }
-        { stk_unfold; solve_addr+Hminstk. }
+        { apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia | exact Hminstk]. }
         { exact HE. }
         { exact Hrmap_ret. }
       }
@@ -381,7 +383,8 @@ Section Switcher_KtK.
                 with
                 "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                   $Hcsp $Hca0 $Hca1 $Hrmap_fault $Hstk $Hcstk Hpost]");
-        [exact Hstk_heap | exact Hstk_shadow | stk_unfold; solve_addr+Hminstk | exact HE | |].
+        [exact Hstk_heap | exact Hstk_shadow
+        | apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia | exact Hminstk] | exact HE | |].
       { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap_fault). set_solver. }
       iNext.
       iIntros (rmap_final rcgp rcra rcs0 rcs1)

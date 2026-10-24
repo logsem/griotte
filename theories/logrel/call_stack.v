@@ -104,40 +104,41 @@ Arguments tf_stk_e !tf /.
     cursor to [stk_saved_a a], saved in the frame, and gives the callee the
     stack [[stk_callee_b b a, stk_callee_e e a)]. The part of the caller's
     stack that the call hands to the switcher, the spill area and the
-    callee's stack, is [[stk_free_b b a, stk_free_e e a)]. Stacks grow up:
-    the free part is above the cursor. *)
+    callee's stack, is [[stk_free_b b a, stk_free_e e a)]. Stacks grow
+    down, as in CHERIoT: the free part is below the cursor, the spill area
+    is its top [SpillSlot_size] words, and the callee's stack the rest. *)
 
 (** The base of the spill area. *)
-Definition stk_spill_a (a : Addr) : Addr := a.
+Definition stk_spill_a (a : Addr) : Addr := (a ^+ (- SpillSlot_size))%a.
 (** The cursor after the spill, which the frame saves. *)
-Definition stk_saved_a (a : Addr) : Addr := (a ^+ SpillSlot_size)%a.
+Definition stk_saved_a (a : Addr) : Addr := (a ^+ (- SpillSlot_size))%a.
 (** The bounds of the callee's stack. *)
-Definition stk_callee_b (b a : Addr) : Addr := (a ^+ SpillSlot_size)%a.
-Definition stk_callee_e (e a : Addr) : Addr := e.
+Definition stk_callee_b (b a : Addr) : Addr := b.
+Definition stk_callee_e (e a : Addr) : Addr := (a ^+ (- SpillSlot_size))%a.
 (** The bounds of the free part of the caller's stack. *)
-Definition stk_free_b (b a : Addr) : Addr := a.
-Definition stk_free_e (e a : Addr) : Addr := e.
+Definition stk_free_b (b a : Addr) : Addr := b.
+Definition stk_free_e (e a : Addr) : Addr := a.
 (** Where the cursor of a fresh stack [[b, e)] starts. *)
-Definition stk_start_a (b e : Addr) : Addr := b.
+Definition stk_start_a (b e : Addr) : Addr := e.
 (** The spill area does not wrap around the address space. *)
 Definition stk_spill_ok (a : Addr) : Prop :=
-  (a + SpillSlot_size)%a = Some (a ^+ SpillSlot_size)%a.
+  (a + (- SpillSlot_size))%a = Some (a ^+ (- SpillSlot_size))%a.
 (** The cursor is not outside the stack on the side of its used part (the
     caller's frames): a trusted caller's spill can only fault at its first
     store. *)
-Definition stk_cursor_ok (b e a : Addr) : Prop := (b <= a)%a.
+Definition stk_cursor_ok (b e a : Addr) : Prop := (a <= e)%a.
 (** The spill fits in the stack: its first store does not fault. *)
-Definition stk_spill_fits (b e a : Addr) : Prop := (a + SpillSlot_size <= e)%Z.
+Definition stk_spill_fits (b e a : Addr) : Prop := (b + SpillSlot_size <= a)%Z.
 (** A callee that needs [n] words fits in the stack, once the spill is
     done. *)
 Definition stk_callee_fits (b e a : Addr) (n : Z) : Prop :=
-  (a + SpillSlot_size + n <= e)%Z.
+  (b + n + SpillSlot_size <= a)%Z.
 
 (** The cursor of the caller at the call, read from the stack pointer that
     a frame saves. *)
 Definition tf_caller_a (tf : trusted_frame) : Addr :=
   match tf.(tf_csp).(lw) with
-  | WCap _ _ _ _ _ c => (c ^+ (- SpillSlot_size))%a
+  | WCap _ _ _ _ _ c => (c ^+ SpillSlot_size)%a
   | _ => 0%a
   end.
 
@@ -172,9 +173,11 @@ Definition stk_free (b e a : Addr) : list Addr :=
   finz.seq_between (stk_free_b b a) (stk_free_e e a).
 (** The words of the free part, in address order: those of the spill area,
     those of the callee's stack, and the free part from both. *)
-Definition stk_mem_spill {A} (l : list A) : list A := take (Z.to_nat SpillSlot_size) l.
-Definition stk_mem_callee {A} (l : list A) : list A := drop (Z.to_nat SpillSlot_size) l.
-Definition stk_mem_join {A} (ls lc : list A) : list A := ls ++ lc.
+Definition stk_mem_spill {A} (l : list A) : list A :=
+  drop (length l - Z.to_nat SpillSlot_size) l.
+Definition stk_mem_callee {A} (l : list A) : list A :=
+  take (length l - Z.to_nat SpillSlot_size) l.
+Definition stk_mem_join {A} (ls lc : list A) : list A := lc ++ ls.
 (** The bounds of the callee's stack are within the caller's, and the spill
     area does not wrap around. *)
 Definition callee_stk_bounds (b e a : Addr) : Prop :=

@@ -164,7 +164,7 @@ Section Switcher.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_blocks_1_spec with
       "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
-      [done|done|done|done|].
+      [done|done|done|].
     iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
                     & _ & Hlc)".
     iInsertRegs "Hrmap" ["Hct2"].
@@ -178,7 +178,7 @@ Section Switcher.
     (* Blocks 13-16: restore, clear and return *)
     stk_unfold.
     iEval (rewrite open_world_interp_empty) in "Hworld_interp".
-    iAssert (switcher_stk_cells a_stk wastk wastk1 wastk2 wastk3)
+    iAssert (switcher_stk_cells (stk_spill_a a_stk) wastk wastk1 wastk2 wastk3)
       with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
     iApply (switcher_return_blocks_2_world_spec Wcur Wfixed C [] ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
@@ -188,7 +188,7 @@ Section Switcher.
     iSplitR.
     { destruct (is_untrusted_caller ccrel); last done.
       iDestruct "Hinterp_wfrm" as "(Hw0 & Hw1 & Hw2 & Hw3)".
-      iFrame "Hw3 Hw2 Hw1 Hw0". }
+      iFrame "Hw2 Hw3 Hw1 Hw0". }
     iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
       "((%Hr3 & %Hr2 & %Hr1 & %Hr0) & Hworld_interp & Hinterp_loaded & %Harg_rmap'
       & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _ & Hlc)".
@@ -203,7 +203,8 @@ Section Switcher.
                world_interp Wfixed C ∗
                (if is_untrusted_caller ccrel
                 then True
-                else [[a_stk,(a_stk ^+ 4)%a]]↦ₐ[[region_addrs_zeroes a_stk (a_stk ^+ 4)%a]]))%I
+                else [[stk_spill_a a_stk, (stk_spill_a a_stk ^+ SpillSlot_size)%a]]↦ₐ[[region_addrs_zeroes
+                       (stk_spill_a a_stk) (stk_spill_a a_stk ^+ SpillSlot_size)%a]]))%I
       with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv
              Hworld_interp Hstk' Hstk Hrevoked Hlc'']" as "Hupd".
@@ -241,12 +242,12 @@ Section Switcher.
       iMod "Hupd" as "(Hna & Hcstk_frag & Hworld_interp & Hstk')".
 
       iEval (rewrite open_world_interp_empty -(fmap_nil LNonHeap)) in "Hworld_interp".
-      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between (a_stk ^+ 4)%a e_stk) []
+      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between b_stk (stk_spill_a a_stk)) []
                   with "[$Hinterp_callee_wstk' $Hworld_interp]")
         as "(Hworld_interp & (%lv & Hstk & Hres))"; auto.
       { apply finz_seq_between_NoDup. }
       { apply Forall_forall; intros y Hy.
-        rewrite elem_of_finz_seq_between in Hy.
+        rewrite elem_of_finz_seq_between in Hy. stk_unfold.
         solve_addr+Ha4 Hb_a4 He_a1 Hy.
       }
       { set_solver+. }

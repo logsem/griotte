@@ -27,27 +27,25 @@ Section switcher_helper.
 
     #[local] Lemma world_interp_stack_fixing_aux (trusted_fault : CSTK → LWord → LReg → iProp Σ)
       (Wcur W0 : WORLD) (C : CmptName)
-      (a_stk4 b_stk csp_b csp_e : Addr) (l : list LAddr)
+      (a_stk a_stk4 b_stk e_stk cur : Addr) (l : list LAddr)
       ccrel
       :
 
-      let a_stk := (csp_b ^+ -4)%a in
-      let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur in
-      let closing_region := LNonHeap <$> finz.seq_between csp_b csp_e in
+      let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between b_stk a_stk)) Wcur in
+      let closing_region := LNonHeap <$> finz.seq_between b_stk a_stk in
 
-      ((csp_b ^+ -4) ^+ 3 < csp_e)%a ->
-      (b_stk <= csp_b ^+ -4)%a ->
-      (csp_b ^+ -4 + 4)%a = Some a_stk4 ->
+      (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
+      (b_stk <= a_stk)%a ->
+      (a_stk + SpillSlot_size)%a = Some a_stk4 ->
 
       related_sts_pub_world W0 Wfixed ->
       trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W0 C
-        (WCap true RWL Local
-           (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e
-           a_stk) -∗
+        (WCap true RWL Local b_stk
+           (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
       world_interp Wcur C -∗
       [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]] -∗
-      [[a_stk4,csp_e]]↦ₐ[[region_addrs_zeroes a_stk4 csp_e]] -∗
+      [[b_stk,a_stk]]↦ₐ[[region_addrs_zeroes b_stk a_stk]] -∗
 
       CloseRes Wfixed C a_stk l ccrel -∗
 
@@ -60,22 +58,22 @@ Section switcher_helper.
               )
     .
     Proof.
-      intros a_stk Wfixed closing_region.
+      intros Wfixed closing_region.
       iIntros (He_a1 Hb_a4 Ha_stk4 Hrelated_pub_W0_Wfixed)
         "#Htrap #Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
+      rewrite /SpillSlot_size in He_a1 Ha_stk4. change (4 - 1)%Z with 3%Z in He_a1.
 
 
-      iAssert (▷ close_list_resources C W0 (LNonHeap <$> finz.seq_between csp_b csp_e) false)%I
+      iAssert (▷ close_list_resources C W0 (LNonHeap <$> finz.seq_between b_stk a_stk) false)%I
         with "[Hstk]" as "Hstk".
       {
-        replace a_stk4 with (a_stk ^+4)%a by (subst a_stk; solve_addr+Ha_stk4 He_a1).
-        replace (a_stk ^+4)%a with csp_b by (subst a_stk; solve_addr+Ha_stk4 He_a1).
-        iAssert (interp W0 C (WCap true RWL Local csp_b csp_e a_stk)) as "Hvalid".
+        iAssert (interp W0 C (WCap true RWL Local b_stk a_stk cur)) as "Hvalid".
         {
           rewrite /is_untrusted_caller_frm /=; destruct (is_untrusted_caller ccrel); auto.
-          iApply (interp_weakening _ _ true _ _ _ _ b_stk csp_b with "[]Hinterp_callee_wstk"); auto using subseg_heap_base_noid.
-          + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
-          + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
+          iApply (interp_weakening _ _ true _ _ _ _ b_stk b_stk e_stk a_stk
+                   with "[]Hinterp_callee_wstk"); auto using subseg_heap_base_noid.
+          + solve_addr+.
+          + solve_addr+Ha_stk4 He_a1 Hb_a4.
           + iApply (fundamental_ih with "Htrap").
         }
 
@@ -125,28 +123,28 @@ Section switcher_helper.
           with "[Hstk' Hdata0 Hdata1 Hdata2 Hdata3]" as "Hframe".
         {
         cbn in *.
-        replace a_stk4 with (a_stk ^+4)%a by (subst a_stk; solve_addr+Ha_stk4 He_a1).
+        replace a_stk4 with (a_stk ^+4)%a by solve_addr+Ha_stk4 He_a1.
         rewrite /region_addrs_zeroes.
         replace (finz.dist a_stk (a_stk ^+ 4)%a) with 4; first cbn.
-        2: { do 4 (rewrite finz_dist_S; last (subst a_stk; solve_addr+Ha_stk4)).
-             rewrite finz_dist_0; last (subst a_stk; solve_addr+Ha_stk4).
+        2: { do 4 (rewrite finz_dist_S; last (solve_addr+Ha_stk4)).
+             rewrite finz_dist_0; last (solve_addr+Ha_stk4).
              done.
         }
         iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk0 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 1)%a ); subst a_stk; solve_addr+Ha_stk4
-          | subst a_stk; solve_addr+Ha_stk4 He_a1
+        ; [ transitivity ( Some (a_stk ^+ 1)%a ); solve_addr+Ha_stk4
+          | solve_addr+Ha_stk4 He_a1
           |].
         iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk1 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 2)%a ); subst a_stk; solve_addr+Ha_stk4
-          | subst a_stk; solve_addr+Ha_stk4 He_a1
+        ; [ transitivity ( Some (a_stk ^+ 2)%a ); solve_addr+Ha_stk4
+          | solve_addr+Ha_stk4 He_a1
           |].
         iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk2 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 3)%a ); subst a_stk; solve_addr+Ha_stk4
-          | subst a_stk; solve_addr+Ha_stk4 He_a1
+        ; [ transitivity ( Some (a_stk ^+ 3)%a ); solve_addr+Ha_stk4
+          | solve_addr+Ha_stk4 He_a1
           |].
         iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk3 _]"
-        ; [ transitivity ( Some (a_stk ^+ 4)%a ); subst a_stk; solve_addr+Ha_stk4
-          | subst a_stk; solve_addr+Ha_stk4 He_a1
+        ; [ transitivity ( Some (a_stk ^+ 4)%a ); solve_addr+Ha_stk4
+          | solve_addr+Ha_stk4 He_a1
           |].
         rewrite /close_list_resources /= /close_addr_resources.
         iSplitL "Hdata0 Ha_stk0".
@@ -241,14 +239,11 @@ Section switcher_helper.
       intros s Wfixed Hbounds; subst s Wfixed.
       destruct Hbounds as (Hb & Hb3 & Ha4).
       stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
-      replace (if is_untrusted_caller ccrel then e_stk else e_stk) with e_stk
+      replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
         by (by destruct (is_untrusted_caller ccrel)).
-      assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Ha by solve_addr+Ha4.
-      pose proof (world_interp_stack_fixing_aux trusted_fault Wcur W0 C (a_stk ^+ 4)%a b_stk
-                    (a_stk ^+ 4)%a e_stk l ccrel) as Haux.
-      cbv zeta in Haux. rewrite Ha in Haux.
       intros Hrelated.
-      apply Haux; [solve_addr+Hb3 Ha4 | done | exact Ha4 | done].
+      apply (world_interp_stack_fixing_aux trusted_fault Wcur W0 C (stk_spill_a a_stk));
+        [stk_unfold; solve_addr+Hb3 Ha4 | done | stk_unfold; solve_addr+Ha4 | done].
     Qed.
 
     (** The register file of a return to the caller is safe: the return
