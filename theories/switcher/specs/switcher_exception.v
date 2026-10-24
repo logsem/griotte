@@ -3,14 +3,14 @@ From griotte Require Import memory_region rules proofmode.
 From griotte Require Import register_tactics map_simpl.
 From griotte Require Import logrel fundamental switcher_preamble switcher_return_blocks_1
   interp_switcher_return.
-From griotte Require Import switcher_call_blocks_6 switcher_blocks_15_16 switcher_exception_blocks_6
-  switcher_spec_exception switcher_spec_install copy_context_spec world_ghost_theory
-  wp_rules_interp.
+From griotte Require Import switcher_call_blocks_6 switcher_blocks_15_16
+  switcher_spec_install copy_context_spec world_ghost_theory wp_rules_interp.
+From griotte.switcher.exception Require Import handle_error_handler_invoke exception_path.
 From griotte Require Export switcher_error_handler.
 
 (** * Exception entry of the switcher
 
-    The exception path ([exception_entry_asm], see [switcher_spec_exception])
+    The exception path ([exception_entry_asm], see [exception_path])
     spills the interrupted context, then looks for an error handler of the
     faulting compartment. It reads the registers of the faulting
     compartment only to spill them, so its safety needs no validity of the
@@ -315,7 +315,7 @@ Section Switcher_Exception.
   (** ** The handler return *)
 
   (** From [.Lhandle_error_handler_return], with [ca0] non-zero, the
-      switcher force-unwinds the call (block 34 and
+      switcher force-unwinds the call ([.Lhandle_error_handler_return] and
       [.Lcommon_force_unwind]). *)
   #[local] Lemma switcher_handler_return_force_unwind (rmap : LReg) :
     (∀ r, is_Some (rmap !! r)) →
@@ -339,9 +339,9 @@ Section Switcher_Exception.
     assert (rmap !!! ca0 = wca0) as Hrmap_ca0 by (rewrite lookup_total_alt Hwca0; done).
     rewrite Hrmap_ca0 in Hnz.
     iExtractList "Hrmap" [ca0;ca1] as ["Hca0";"Hca1"].
-    iApply (switcher_handler_return_block_spec with "[- $HPC $Hca0 $Hcode]").
+    iApply (handle_error_handler_return_spec with "[- $HPC $Hca0 $Hcode]").
     iNext; iSplit; last (iIntros (Hnz'); by rewrite Hnz in Hnz').
-    iIntros (_) "(HPC & Hca0 & _)".
+    iIntros (_) "(HPC & Hca0)".
     iApply (switcher_call_block_18_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
     iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
     iInsertList "Hrmap" [ca0;ca1].

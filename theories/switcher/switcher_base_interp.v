@@ -5,4 +5,5 @@
     installation and exception path. *)
 
 From griotte Require Export interp_switcher_call interp_switcher_return switcher_exception.
-From griotte Require Export switcher_spec_install switcher_spec_exception.
+From griotte Require Export switcher_spec_install.
+From griotte.switcher.exception Require Export exception_path.

@@ -1,20 +1,20 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules rules_vcsr proofmode.
 From griotte Require Export logrel switcher switcher_preamble switcher_error_handler.
-From griotte Require Import switcher_exception_states switcher_exception_blocks_3
-  switcher_exception_blocks_6 switcher_exception_blocks_8.
+From griotte Require Import switcher_exception_states.
+From griotte.switcher.exception Require Import common_context_install
+  handle_error_handler_invoke handle_error_install_context.
 From griotte Require Import map_simpl register_tactics.
 
 (** * Installation of the context of an error handler
 
     When an error handler returns with [ca0] zero, the switcher installs the
     context that the handler leaves in its [ErrorState], at its stack
-    pointer [csp]: the return (block 34) continues at
-    [.Lhandle_error_install_context] (block 35), which loads the
-    [ErrorState], copies words 1-15 to the register save area, increments
-    the error handler count of the topmost frame, and jumps to the context
-    install [.Lcommon_context_install] (block 39), which resumes the
-    context with [mret].
+    pointer [csp]: the return ([.Lhandle_error_handler_return]) continues
+    at [.Lhandle_error_install_context], which loads the [ErrorState],
+    copies words 1-15 to the register save area, increments the error
+    handler count of the topmost frame, and jumps to the context install
+    [.Lcommon_context_install], which resumes the context with [mret].
 
     The specification is generic in the source of the [ErrorState]: a
     resource [L i ls], which holds once the first [i] words [ls] are
@@ -166,11 +166,11 @@ Section Switcher_Spec_Install.
     assert (rmap !!! csp = wcsp) as Hrmap_csp by (rewrite lookup_total_alt Hwcsp; done).
     rewrite Hrmap_ca0 in Hnz. rewrite Hrmap_csp.
 
-    (* Block 34: the handler's return, with [ca0] zero *)
-    iApply (switcher_handler_return_block_spec with "[- $HPC $Hca0 $Hcode]").
+    (* [.Lhandle_error_handler_return]: the handler's return, with [ca0] zero *)
+    iApply (handle_error_handler_return_spec with "[- $HPC $Hca0 $Hcode]").
     iNext; iSplit.
     { iIntros (Hnz') "_". by rewrite Hnz in Hnz'. }
-    iIntros (_) "(HPC & Hca0 & _)".
+    iIntros (_) "(HPC & Hca0)".
 
     (* The close of the switcher invariant, for any content of the register
        save area and any error handler count of the topmost frame *)
@@ -190,7 +190,9 @@ Section Switcher_Spec_Install.
       iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
       iExists a_tstk, (cstack_set_top_count cstk n'), _, tstk_next.
       rewrite cstack_set_top_count_frames_length.
-      iFrame "∗ # %". iPureIntro. by split. }
+      iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
+              Hp_ot_switcher".
+      iPureIntro. split; [exact Hot_bounds | by split]. }
     iAssert (cstack_full (cstack_set_top_count cstk (top_error_count cstk)))
       with "[Hcstk_full]" as "Hcstk_full"; first by rewrite cstack_set_top_count_id.
 
@@ -200,8 +202,9 @@ Section Switcher_Spec_Install.
       as (dq) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
     iEval (fold (top_error_count cstk)) in "Hcnt".
 
-    (* Block 35: the loads of the [ErrorState] and the count *)
-    iApply (switcher_install_context_block_spec (length cstk.(cstk_frames)) a_tstk
+    (* [.Lhandle_error_install_context]: the loads of the [ErrorState] and
+       the count *)
+    iApply (handle_error_install_context_spec (length cstk.(cstk_frames)) a_tstk
               (top_export_tbl cstk) (top_error_count cstk) save_area wpcc
               (top_tframe cstk).(tf_export_tbl) wcsp
               _ _ _ _ _ _ _ _ _ _ dq L
@@ -218,7 +221,7 @@ Section Switcher_Spec_Install.
         "(Hcsp & [%wcra_f Hcra] & [%wctp_f Hctp] & [%wct0_f Hct0] & [%wct1_f Hct1]
           & [%wct2_f Hct2] & [%wcs0_f Hcs0] & [%wcs1_f Hcs1] & [%wca2_f Hca2]
           & [%wca3_f Hca3] & [%wca4_f Hca4] & Hmtdc & Hframeoffset & Hcell & Hcnt
-          & Hsave_area & _ & HL)".
+          & Hsave_area & HL)".
       iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
       iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
       iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna").
@@ -233,22 +236,22 @@ Section Switcher_Spec_Install.
       iIntros (ls Hls Htbl)
         "(HPC & Hcsp & [%wcra_r Hcra] & [%wctp_r Hctp] & [%wct0_r Hct0] & Hct1 & Hct2
           & [%wcs0_r Hcs0] & [%wcs1_r Hcs1] & [%wca2_r Hca2] & [%wca3_r Hca3] & [%wca4_r Hca4]
-          & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave_area & _ & HL)".
+          & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave_area & HL)".
       iMod (cstack_update _ _ (cstack_set_top_count cstk (top_error_count cstk + 1)%Z)
              with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
       iDestruct ("Htf_close" $! (top_error_count cstk + 1)%Z with "Hcsp_cell Hcell Hcnt")
         as "Htf".
       iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-      (* Block 39: the context install, with the trap-entry token *)
+      (* [.Lcommon_context_install], with the trap-entry token *)
       iDestruct (trap_entry_res_split (F ∖ ↑Nswitcher) with "Hna") as "[Htok Hna]";
         first solve_ndisj.
-      iApply (switcher_context_install_spec with
+      iApply (common_context_install_spec with
                "[- $HPC $Hcsp $Hcra $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                    $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hsave_area $Htok $Hcode]").
       { rewrite /= length_app !length_drop Hls Hsave_len. reflexivity. }
       iNext; iIntros
         "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
-          & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave_area & Htok & _)".
+          & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave_area & Htok)".
       (* After [mret]: the token is recombined, the invariant closed *)
       iDestruct (trap_entry_res_split (F ∖ ↑Nswitcher) with "[$Htok $Hna]") as "Hna";
         first solve_ndisj.

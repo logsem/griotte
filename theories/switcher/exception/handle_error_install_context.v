@@ -4,24 +4,24 @@ From griotte Require Import register_tactics.
 From griotte Require Import call_stack switcher_exception_states switcher_error_state
   copy_context_spec.
 
-(** * Exception path, block 35: the installation of the handler's context
+(** * Exception path: the installation of the handler's context
 
-    Block 35 ([.Lhandle_error_install_context]) installs the context that
-    the error handler returns, its [ErrorState], read at the handler's
-    stack pointer [csp]. The resumed PC is the PCC of the export table of
-    the topmost frame, with the address of word 0 of the [ErrorState]: the
-    handler chooses an address, not the bounds or permissions. Words 1-15
-    of the [ErrorState] are copied to the register save area
-    ([copy_context_asm]), the error handler count of the topmost frame is
-    incremented, and the block jumps to the context install (block 39)
-    with the resumed PC in [ct2].
+    [.Lhandle_error_install_context] installs the context that the error
+    handler returns, its [ErrorState], read at the handler's stack pointer
+    [csp]. The resumed PC is the PCC of the export table of the topmost
+    frame, with the address of word 0 of the [ErrorState]: the handler
+    chooses an address, not the bounds or permissions. Words 1-15 of the
+    [ErrorState] are copied to the register save area ([copy_context_asm]),
+    the error handler count of the topmost frame is incremented, and the
+    block jumps to [.Lcommon_context_install] with the resumed PC in
+    [ct2].
 
     Three loads may fault: the load of the PCC of the table when the cell
     of the export table in the frame is cleared, the load of word 0 of the
     [ErrorState] through [csp], and a load of the copy past the end of
     [csp]. *)
 
-Section Switcher_Exception_Blocks_8.
+Section Handle_Error_Install_Context.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
@@ -29,8 +29,8 @@ Section Switcher_Exception_Blocks_8.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  #[local] Lemma switcher_instrs_35_split :
-    switcher_instrs_n 35 =
+  (** The code of [.Lhandle_error_install_context], around the copy. *)
+  #[local] Definition handle_error_install_context_instrs : list Word :=
       encodeInstrsW [ SpecialRW ct1 MTDC (inr cnull);
                       CLoad ctp ct1 TrustedStack_offset_frameoffset;
                       machine_instructions.Add ctp (inr ctp) (inl (- TrustedStackFrame_size)%Z);
@@ -50,7 +50,6 @@ Section Switcher_Exception_Blocks_8.
                       Store ctp (inr cs1) TrustedStackFrame_offset_errorHandlerCount;
                       Mov csp (inr ct1);
                       Jmp (inl 12%Z) ].
-  Proof. reflexivity. Qed.
 
   (** The loads of the [ErrorState] succeed through a tagged readable
       capability, with the [ErrorState] in bounds from its cursor. *)
@@ -67,31 +66,33 @@ Section Switcher_Exception_Blocks_8.
     intros (Hra & Hb & He). by exists p, g, b, e, a.
   Qed.
 
-  (** Block 35, at [pc_a]. [d] is the depth of the call stack, [a_tstk] its
-      topmost frame, whose cell of the export table holds [wcell] (cleared,
-      or a capability to the table at [b_tbl], whose PCC is [wpcc]) and
-      whose error handler count is [n]. [L i ls] holds once the first [i]
-      words [ls] of the [ErrorState] are loaded, through the accessor given
-      for the [ErrorState] at [wcsp]. A fault happens at [pc_a ^+ k]:
-      at the load of the PCC of the table ([k = 7]), at the load of
-      word 0 of the [ErrorState] ([k = 8]), or at a load of the copy
-      ([k = 14]); the cell is then cleared, or [wcsp] does not allow the
-      loads of the [ErrorState]. *)
-  #[local] Lemma switcher_exception_block_35_spec_aux
-    (pc_a : Addr) (d : nat) (a_tstk b_tbl : Addr) (n : Z) (save : list LWord)
+  (** From [.Lhandle_error_install_context]. [d] is the depth of
+      the call stack, [a_tstk] its topmost frame, whose cell of the export
+      table holds [wcell] (cleared, or a capability to the table at
+      [b_tbl], whose PCC is [wpcc]) and whose error handler count is [n].
+      [L i ls] holds once the first [i] words [ls] of the [ErrorState] are
+      loaded, through the accessor given for the [ErrorState] at the
+      handler's stack pointer [wcsp]. Outcomes:
+      - a load faults at a switcher PC that does not resume, for one of two
+        reasons: the cell of the export table is cleared, or [wcsp] does not
+        allow the loads of the [ErrorState];
+      - the 16 words [ls] of the [ErrorState] are loaded: words 1-15 are
+        in the register save area, the count is incremented, [ct2] holds
+        the PCC of the table with the address of word 0, and the PC is at
+        the context install. *)
+  Lemma handle_error_install_context_spec
+    (d : nat) (a_tstk b_tbl : Addr) (n : Z) (save : list LWord)
     (wpcc wcell wcsp wcra wctp wct0 wct1 wct2 wcs0 wcs1 wca2 wca3 wca4 : LWord)
     (dq : dfrac) (L : nat → list LWord → iProp Σ) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_tbl_cell := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
-    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 35))%a ->
-    (pc_a + 36)%a = Some (pc_a ^+ 36)%a ->
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     length save = 21%nat ->
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
 
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ₚ switcher_label_pc ".Lhandle_error_install_context" ∗
     csp ↦ᵣ wcsp ∗
     cra ↦ᵣ wcra ∗
     ctp ↦ᵣ wctp ∗
@@ -109,15 +110,15 @@ Section Switcher_Exception_Blocks_8.
     a_cnt_cell ↦ₐ WInt n ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₐ□ wpcc) ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
-    codefrag_pers pc_a (switcher_instrs_n 35) ∗
+    switcher_code ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
        ⌜wcsp = WCap true p g b e a @@? π⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0) ∨ ¬ error_state_loads_ok wcsp⌝ -∗
-          ∀ (k : Z) (i : nat) (ls save' : list LWord),
-          ⌜k = 7%Z ∨ k = 8%Z ∨ k = 14%Z⌝ -∗
+          ∀ (off : Z) (i : nat) (ls save' : list LWord),
+          ⌜trap_no_resume (switcher_pc off)⌝ -∗
           ⌜length save' = 21%nat⌝ -∗
           csp ↦ᵣ wcsp ∗
           cra ↦ᵣ - ∗
@@ -136,12 +137,11 @@ Section Switcher_Exception_Blocks_8.
           a_cnt_cell ↦ₐ WInt n ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] ∗
           L i ls -∗
-          trap_safe (WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ k)%a) ⊤
-            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
+          trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
         ( ∀ ls : list LWord,
           ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
           ⌜exp_tbl_cap b_tbl wcell.(lw)⌝ -∗
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 36)%a ∗
+          PC ↦ₚ switcher_label_pc ".Lcommon_context_install" ∗
           csp ↦ᵣ tstack_cap ∗
           cra ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
@@ -164,20 +164,44 @@ Section Switcher_Exception_Blocks_8.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_frameoffset a_tbl_cell a_cnt_cell.
-    iIntros (Hsub Hjmp Ha_tstk Ha_tstk_end Hlen Hwcell)
+    iIntros (Ha_tstk Ha_tstk_end Hlen Hwcell)
       "(HPC & Hcsp & Hcra & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca2 & Hca3 & Hca4
-       & Hmtdc & Hframeoffset & Hcell & Hcnt & #Hpcc & Hsave & #Hcode & HL & Hacc & Hpost)".
+       & Hmtdc & Hframeoffset & Hcell & Hcnt & #Hpcc & Hsave & #Hswitcher & HL & Hacc & Hpost)".
     pose proof trusted_stack_frames_fit as [nfit Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
-    iPoseProof "Hcode" as "Hcode_all".
-    iEval (rewrite switcher_instrs_35_split) in "Hcode_all".
+    switcher_open_label ".Lhandle_error_install_context" "Hswitcher" as "Hcode".
+    (* The exits of the block, from its start: the jump to
+       [.Lcommon_context_install], and the faulting loads *)
+    assert (((a_switcher_call ^+ switcher_label_offset ".Lhandle_error_install_context") + 36)%a =
+              Some ((a_switcher_call ^+ switcher_label_offset ".Lhandle_error_install_context")
+                    ^+ 36)%a)
+      as Hjmp_some by switcher_addr_eq.
+    assert (((a_switcher_call ^+ switcher_label_offset ".Lhandle_error_install_context") ^+ 36)%a =
+              (a_switcher_call ^+ switcher_label_offset ".Lcommon_context_install")%a)
+      as Hjmp by switcher_addr_eq.
+    assert (∀ k : Z, k = 7%Z ∨ k = 8%Z ∨ k = 14%Z →
+              ((a_switcher_call ^+ switcher_label_offset ".Lhandle_error_install_context") ^+ k)%a =
+                (a_switcher_call ^+ (switcher_label_offset ".Lhandle_error_install_context" + k))%a ∧
+              trap_no_resume (switcher_pc (switcher_label_offset ".Lhandle_error_install_context" + k)))
+      as Hfault.
+    { intros k Hk. split.
+      - destruct Hk as [-> | [-> | ->] ]; switcher_addr_eq.
+      - apply trap_no_resume_switcher_pc. destruct Hk as [-> | [-> | ->] ]; by vm_compute. }
+    (* The labels are not needed anymore: they would slow the proof down *)
+    set (off_cci := switcher_label_offset ".Lcommon_context_install") in *.
+    set (off_eic := switcher_label_offset ".Lhandle_error_install_context") in *.
+    clearbody off_cci off_eic.
+    (* [trap_no_resume] mentions a label: the simplifications of [iInstr_fail]
+       and [simplify_map_eq] unfold it *)
+    set (tnr := trap_no_resume) in *.
+    clearbody tnr.
+    remember (a_switcher_call ^+ off_eic)%a as pc_a eqn:Hpc_a.
+    iAssert (codefrag_pers pc_a handle_error_install_context_instrs) as "Hcode_all";
+      first iExact "Hcode".
     iDestruct (codefrag_app_pers with "Hcode_all") as "[_ Hcode_rest]".
     iDestruct (codefrag_app_pers with "Hcode_rest") as "[#Hcopy _]".
     iEval (simpl length) in "Hcopy".
-    codefrag_facts "Hcode".
-    assert (length (switcher_instrs_n 35) = 25%nat) as Hlen35 by reflexivity.
-    rewrite Hlen35 in Hsub.
-    rewrite /switcher_instrs_n /assembled_switcher_n /tstack_cap.
+    rewrite /tstack_cap.
     (* SpecialRW ct1 mtdc cnull *)
     iInstr "Hcode".
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a = Some a_frameoffset) as Hfo
@@ -215,7 +239,9 @@ Section Switcher_Exception_Blocks_8.
       iInstr_fail "Hcode".
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]"); first by left.
-      iTrap with ("Hfailed" $! 7%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
+      destruct (Hfault 7%Z ltac:(lia)) as [Hpc_k Htnr].
+      rewrite Hpc_k.
+      iTrap with ("Hfailed" $! (off_eic + 7)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
     destruct Htbl as (p_tbl & g_tbl & e_tbl & a_tbl & Hw & Hread_tbl & Hbnd & Hshadow_tbl
                       & Hdl & Hdro).
     destruct wcell as [w_cell π_cell]; cbn in Hw, Hprov; subst w_cell π_cell.
@@ -242,7 +268,9 @@ Section Switcher_Exception_Blocks_8.
       { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         cbn in Hw'; by subst wsp. }
-      iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
+      destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
+      rewrite Hpc_k.
+      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
     destruct wsp as [|[tag p g b e a|] | |]; try done.
     destruct tag; cycle 1.
     { iDestruct (map_of_regs_2 with "Hcra Hcsp") as "[Hmap %Hne]".
@@ -258,7 +286,9 @@ Section Switcher_Exception_Blocks_8.
       { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         by cbn in Hw'. }
-      iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
+      destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
+      rewrite Hpc_k.
+      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
     assert ((a + TrustedStack_offset_mepcc)%a = Some a) as Hea
       by (rewrite /TrustedStack_offset_mepcc; solve_addr).
     destruct (readAllowed p) eqn:Hra; cycle 1.
@@ -270,7 +300,9 @@ Section Switcher_Exception_Blocks_8.
       { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         cbn in Hw'; simplify_eq. congruence. }
-      iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
+      destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
+      rewrite Hpc_k.
+      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
     destruct (decide (b <= a < e)%a) as [Hin | Hout]; cycle 1.
     { (* CLoad cra csp TrustedStack_offset_mepcc *)
       iInstrApply "Hcode" (wp_load_fail_not_withinbounds_imm _ cra csp)
@@ -282,7 +314,9 @@ Section Switcher_Exception_Blocks_8.
           %error_state_loads_ok_inv.
         cbn in Hw'; simplify_eq.
         rewrite /ErrorState_size in He'. solve_addr. }
-      iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
+      destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
+      rewrite Hpc_k.
+      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
     (* The accessor of the [ErrorState], at [csp] *)
     iPoseProof ("Hacc" $! p g b e a π with "[%] [%]") as "#Hacc_es".
     { done. }
@@ -357,9 +391,10 @@ Section Switcher_Exception_Blocks_8.
         cbn in Hw'; simplify_eq.
         rewrite /ErrorState_size in He'. solve_addr. }
       rewrite (_ : ((pc_a ^+ 13%nat) ^+ 1)%a = (pc_a ^+ 14)%a); last solve_addr.
-      iApply ("Hfailed" $! 14%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
-               with "[] [%] [-]").
-      { iPureIntro; by right; right. }
+      destruct (Hfault 14%Z ltac:(lia)) as [Hpc_k Htnr].
+      rewrite Hpc_k.
+      iApply ("Hfailed" $! (off_eic + 14)%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
+               with "[//] [%] [-]").
       { rewrite /= length_app length_drop Hwd' Hlen. lia. }
       rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)%a); [|solve_addr|solve_addr].
       rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16)%a);
@@ -389,6 +424,7 @@ Section Switcher_Exception_Blocks_8.
       (* Jmp .Lcommon_context_install *)
       iInstr "Hcode".
       { transitivity (Some (pc_a ^+ 36)%a); solve_addr. }
+      rewrite Hjmp.
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" $! (v0 :: ls) with "[%] [%] [-]").
       { cbn; rewrite Hls; done. }
@@ -403,139 +439,4 @@ Section Switcher_Exception_Blocks_8.
       iFrame.
   Qed.
 
-  (** Block 35, from [.Lhandle_error_install_context]. [d] is the depth of
-      the call stack, [a_tstk] its topmost frame, whose cell of the export
-      table holds [wcell] (cleared, or a capability to the table at
-      [b_tbl], whose PCC is [wpcc]) and whose error handler count is [n].
-      [L i ls] holds once the first [i] words [ls] of the [ErrorState] are
-      loaded, through the accessor given for the [ErrorState] at the
-      handler's stack pointer [wcsp]. Outcomes:
-      - a load faults at a switcher PC that does not resume, for one of two
-        reasons: the cell of the export table is cleared, or [wcsp] does not
-        allow the loads of the [ErrorState];
-      - the 16 words [ls] of the [ErrorState] are loaded: words 1-15 are
-        in the register save area, the count is incremented, [ct2] holds
-        the PCC of the table with the address of word 0, and the PC is at
-        the context install. *)
-  Lemma switcher_install_context_block_spec
-    (d : nat) (a_tstk b_tbl : Addr) (n : Z) (save : list LWord)
-    (wpcc wcell wcsp wcra wctp wct0 wct1 wct2 wcs0 wcs1 wca2 wca3 wca4 : LWord)
-    (dq : dfrac) (L : nat → list LWord → iProp Σ) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_tbl_cell := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
-    (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
-    (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    length save = 21%nat ->
-    wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
-
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_install_context" ∗
-    csp ↦ᵣ wcsp ∗
-    cra ↦ᵣ wcra ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
-    mtdc ↦ₛᵣ tstack_cap ∗
-    a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-    a_tbl_cell ↦ₐ{dq} wcell ∗
-    a_cnt_cell ↦ₐ WInt n ∗
-    (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₐ□ wpcc) ∗
-    [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
-    switcher_code ∗
-    L 0 [] ∗
-    (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
-       ⌜wcsp = WCap true p g b e a @@? π⌝ -∗
-       ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
-       cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
-    ▷ ( ( ⌜wcell = lword_of_word (WInt 0) ∨ ¬ error_state_loads_ok wcsp⌝ -∗
-          ∀ (off : Z) (i : nat) (ls save' : list LWord),
-          ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          ⌜length save' = 21%nat⌝ -∗
-          csp ↦ᵣ wcsp ∗
-          cra ↦ᵣ - ∗
-          ctp ↦ᵣ - ∗
-          ct0 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ - ∗
-          ca2 ↦ᵣ - ∗
-          ca3 ↦ᵣ - ∗
-          ca4 ↦ᵣ - ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
-          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-          a_tbl_cell ↦ₐ{dq} wcell ∗
-          a_cnt_cell ↦ₐ WInt n ∗
-          [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] ∗
-          switcher_code ∗
-          L i ls -∗
-          trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
-        ( ∀ ls : list LWord,
-          ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
-          ⌜exp_tbl_cap b_tbl wcell.(lw)⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lcommon_context_install" ∗
-          csp ↦ᵣ tstack_cap ∗
-          cra ↦ᵣ - ∗
-          ctp ↦ᵣ - ∗
-          ct0 ↦ᵣ - ∗
-          ct1 ↦ᵣ tstack_cap ∗
-          ct2 ↦ᵣ resumed_pc wpcc (get_a (ls !!! 0%nat).(lw)) ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ - ∗
-          ca2 ↦ᵣ - ∗
-          ca3 ↦ᵣ - ∗
-          ca4 ↦ᵣ - ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
-          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-          a_tbl_cell ↦ₐ{dq} wcell ∗
-          a_cnt_cell ↦ₐ WInt (n + 1) ∗
-          [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
-            [[ save !!! 0%nat :: drop 1 ls ++ drop 16 save ]] ∗
-          switcher_code ∗
-          L (Z.to_nat ErrorState_size) ls -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    intros a_frameoffset a_tbl_cell a_cnt_cell.
-    iIntros (Ha_tstk Ha_tstk_end Hlen Hwcell)
-      "(HPC & Hcsp & Hcra & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca2 & Hca3 & Hca4
-       & Hmtdc & Hframeoffset & Hcell & Hcnt & #Hpcc & Hsave & #Hswitcher & HL & Hacc & Hpost)".
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size as Hsize; cbn in Hsize.
-    switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lhandle_error_install_context") "Hswitcher"
-      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_exception_block_35_spec_aux _ d a_tstk b_tbl n save wpcc
-              _ _ _ _ _ _ _ _ _ _ _ _ _ L
-             with "[- $HPC $Hcsp $Hcra $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca2 $Hca3 $Hca4
-                      $Hmtdc $Hframeoffset $Hcell $Hcnt $Hpcc $Hsave $Hcode $HL $Hacc]");
-      [done | offsets_compute; solve_addr+Hsize | done | done | done | done |].
-    iNext; iSplit.
-    - iIntros (Hwhy k i ls save' Hk Hsave')
-        "(Hcsp & Hcra & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca2 & Hca3 & Hca4
-         & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave & HL)".
-      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-      iDestruct "Hpost" as "[Hfailed _]".
-      rewrite (_ : ((a_switcher_call ^+ switcher_block_offset 35) ^+ k)%a =
-                   (a_switcher_call ^+ (switcher_block_offset 35 + k))%a);
-        last (destruct Hk as [-> | [-> | ->] ]; offsets_compute; solve_addr+Hsize).
-      iApply ("Hfailed" with "[//] [] [//] [-]").
-      { iPureIntro. apply trap_no_resume_switcher_pc.
-        destruct Hk as [-> | [-> | ->] ]; by vm_compute. }
-      iFrame "∗ Hswitcher".
-    - iIntros (ls Hls Htbl)
-        "(HPC & Hcsp & Hcra & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca2 & Hca3 & Hca4
-         & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave & HL)".
-      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-      switcher_change_pc (switcher_label_offset ".Lcommon_context_install").
-      iDestruct "Hpost" as "[_ Hpost]".
-      iApply ("Hpost" with "[//] [//]"). iFrame "∗ Hswitcher".
-  Qed.
-
-End Switcher_Exception_Blocks_8.
+End Handle_Error_Install_Context.

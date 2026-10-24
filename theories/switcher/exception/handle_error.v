@@ -3,27 +3,27 @@ From griotte Require Import memory_region rules proofmode.
 From griotte Require Import register_tactics.
 From griotte Require Import switcher_exception_states.
 
-(** * Exception path, blocks 24 and 36: [.Lhandle_error]
+(** * Exception path: [.Lhandle_error]
 
-    Block 24 restores mtdc, then tests whether the trap comes from the
-    switcher: the PC spilled in the register save area has the base of the
-    switcher's PC. A fault of the switcher goes to
-    [.Lhandle_error_in_switcher] (block 36). Any other trap reloads the
-    interrupted stack pointer, tests that the trusted stack has a frame
-    (otherwise the thread exits; [frameoffset] always points after the entry
-    frame, so the test never succeeds), points [ctp] to the topmost frame,
-    clears [ca0], moves the stack pointer [ct0] down by the room for the
-    [ErrorState] of a stackful handler, and goes on with the lookup of an
-    error handler ([.Lhandle_error_stack_oob], block 25).
+    [.Lhandle_error] restores mtdc, then tests whether the trap comes from
+    the switcher: the PC spilled in the register save area has the base of
+    the switcher's PC. A fault of the switcher goes to
+    [.Lhandle_error_in_switcher]. Any other trap reloads the interrupted
+    stack pointer, tests that the trusted stack has a frame (otherwise the
+    thread exits; [frameoffset] always points after the entry frame, so the
+    test never succeeds), points [ctp] to the topmost frame, clears [ca0],
+    moves the stack pointer [ct0] down by the room for the [ErrorState] of
+    a stackful handler, and goes on with the lookup of an error handler, at
+    [.Lhandle_error_stack_oob].
 
-    Block 36 tests whether the fault is one of the first spill of the call
-    path ([.Lswitch_entry_first_spill]): the spilled PC has its address.
-    If so, it overwrites the saved return values with [-ENOTENOUGHSTACK] and
-    0, and goes to the context install (block 39), which resumes the
-    interrupted context at [.Lswitch_just_return]; otherwise, it forces the
-    unwind. *)
+    [.Lhandle_error_in_switcher] tests whether the fault is one of the first
+    spill of the call path ([.Lswitch_entry_first_spill]): the spilled PC
+    has its address. If so, it overwrites the saved return values with
+    [-ENOTENOUGHSTACK] and 0, and goes to [.Lcommon_context_install], which
+    resumes the interrupted context at [.Lswitch_just_return]; otherwise,
+    it forces the unwind. *)
 
-Section Switcher_Exception_Blocks_2.
+Section Handle_Error.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
@@ -31,17 +31,18 @@ Section Switcher_Exception_Blocks_2.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  #[local] Lemma switcher_exception_block_24_spec_aux
-    (pc_a : Addr) (d : nat) (a_tstk : Addr) (save_area : list LWord)
+  (** [.Lhandle_error]: restore mtdc, then go to [.Lhandle_error_in_switcher]
+      for a fault of the switcher, or on with the lookup of an error
+      handler. *)
+  #[local] Lemma handle_error_block_spec
+    (d : nat) (a_tstk : Addr) (save_area : list LWord)
     (wmepcc wmtdc wct0 wct1 wctp wca0 : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 24))%a ->
-    (pc_a + 129)%a = Some (pc_a ^+ 129)%a ->
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     length save_area = 21%nat ->
     save_area !! 0%nat = Some wmepcc ->
 
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ₚ switcher_label_pc ".Lhandle_error" ∗
     csp ↦ᵣ tstack_cap ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -50,10 +51,10 @@ Section Switcher_Exception_Blocks_2.
     mtdc ↦ₛᵣ wmtdc ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-    codefrag_pers pc_a (switcher_instrs_n 24) ∗
-    ▷ ( ( ∀ (wct0' wctp' : LWord),
-          ⌜get_b wmepcc.(lw) = b_switcher⌝ ∗
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 129)%a ∗
+    switcher_code ∗
+    ▷ ( ( ⌜get_b wmepcc.(lw) = b_switcher⌝ -∗
+          ∀ (wct0' wctp' : LWord),
+          PC ↦ₚ switcher_label_pc ".Lhandle_error_in_switcher" ∗
           csp ↦ᵣ tstack_cap ∗
           ct0 ↦ᵣ wct0' ∗
           ct1 ↦ᵣ wmepcc ∗
@@ -61,13 +62,12 @@ Section Switcher_Exception_Blocks_2.
           ca0 ↦ᵣ wca0 ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
-          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-          codefrag_pers pc_a (switcher_instrs_n 24) -∗
+          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
-        ( ∀ (wct0' wct1' : LWord),
-          ⌜get_b wmepcc.(lw) ≠ b_switcher⌝ ∗
-          ⌜lea_result (save_area !!! 2%nat) (- ErrorState_size) = Some wct0'⌝ ∗
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 18)%a ∗
+        ( ⌜get_b wmepcc.(lw) ≠ b_switcher⌝ -∗
+          ∀ (wct0' wct1' : LWord),
+          ⌜lea_result (save_area !!! 2%nat) (- ErrorState_size) = Some wct0'⌝ -∗
+          PC ↦ₚ switcher_label_pc ".Lhandle_error_stack_oob" ∗
           csp ↦ᵣ tstack_cap ∗
           ct0 ↦ᵣ wct0' ∗
           ct1 ↦ᵣ wct1' ∗
@@ -75,14 +75,14 @@ Section Switcher_Exception_Blocks_2.
           ca0 ↦ᵣ WInt 0 ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
-          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-          codefrag_pers pc_a (switcher_instrs_n 24) -∗
+          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_frameoffset.
-    iIntros (Hsub Hin_switcher Ha_tstk Hlen Hmepcc)
-      "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hmtdc & Hsave & Hframeoffset & #Hcode & Hpost)".
+    iIntros (Ha_tstk Hlen Hmepcc)
+      "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hmtdc & Hsave & Hframeoffset & #Hswitcher
+       & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     destruct save_area as
@@ -96,8 +96,7 @@ Section Switcher_Exception_Blocks_2.
     iRegionSplit "Hsave" as
       "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs16 & Hs17 & Hs18 & Hs19 & Hs20)".
-    codefrag_facts "Hcode".
-    rewrite /switcher_instrs_n /assembled_switcher_n.
+    switcher_open_label ".Lhandle_error" "Hswitcher" as "Hcode".
 
     (* SpecialRW cnull mtdc csp *)
     iInstr "Hcode".
@@ -124,13 +123,12 @@ Section Switcher_Exception_Blocks_2.
       rewrite Hin.
       (* Jne 2 ct0 0 *)
       iInstr "Hcode".
-      assert ((pc_a ^+ 7 + 122)%a = Some (pc_a ^+ 129)%a) as Hjmp_in by solve_addr.
       (* Jmp .Lhandle_error_in_switcher *)
       iInstr "Hcode".
+      { switcher_jump_label ".Lhandle_error_in_switcher". }
       iDestruct "Hpost" as "[Hpost _]".
-      iApply "Hpost".
-      iSplit; first (iPureIntro; lia).
-      iFrame "∗ Hcode".
+      iApply ("Hpost" with "[]"); first (iPureIntro; lia).
+      iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hmtdc Hframeoffset".
       iRegionMerge. iFrame.
     - (* Jne 2 ct0 0 *)
       iInstr "Hcode".
@@ -147,7 +145,7 @@ Section Switcher_Exception_Blocks_2.
       rewrite lload_word_RWL in Hload_csp. subst wcsp.
       assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a = Some a_frameoffset) as Hfo
         by (subst a_frameoffset; tstack_unfold; solve_addr).
-      (* CLoad ctp csp 21 *)
+      (* CLoad ctp csp TrustedStack_offset_frameoffset *)
       iInstr "Hcode".
       { subst a_frameoffset; tstk_not_shadow Hts_shadow. }
       { done. }
@@ -162,7 +160,7 @@ Section Switcher_Exception_Blocks_2.
       (* Jne 2 ct1 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. tstack_unfold. lia. }
-      (* Add ctp ctp (-3) *)
+      (* Add ctp ctp (- TrustedStackFrame_size) *)
       iInstr "Hcode".
       assert ((b_trusted_stack + (tstack_frameoffset d + - TrustedStackFrame_size))%a = Some a_tstk)
         as Ha_tstk'.
@@ -175,27 +173,22 @@ Section Switcher_Exception_Blocks_2.
       (* Lea ct0 ct0 (- ErrorState_size) *)
       iInstrApply "Hcode" (wp_lea_success_z_any _ _ _ _ _ _ _ _ _ ct0 s2 wct0')
         with "[$HPC $Hct0]" as "(HPC & Hct0)".
+      switcher_change_pc_label ".Lhandle_error_stack_oob".
       iDestruct "Hpost" as "[_ Hpost]".
-      iApply "Hpost".
-      iSplit; first (iPureIntro; lia).
-      iSplit; first done.
-      iFrame "∗ Hcode".
+      iApply ("Hpost" with "[] [//]"); first (iPureIntro; lia).
+      iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hmtdc Hframeoffset".
       iRegionMerge. iFrame.
   Qed.
 
-  (** Block 36: a fault at the first spill of the call path sets the return
-      values, overwrites them in the register save area, and goes to the
-      context install with the PC of [.Lswitch_just_return] in [ct2]; any
-      other fault of the switcher forces the unwind. *)
-  #[local] Lemma switcher_exception_block_36_spec_aux
-    (pc_a : Addr) (wmepcc wctp wca0 wca1 wct2 w10 w11 : LWord) :
-    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 36))%a ->
-    (pc_a + (-286))%a = Some (pc_a ^+ (-286))%a ->
-    (pc_a + (-171))%a = Some (pc_a ^+ (-171))%a ->
-    (pc_a + (-180))%a = Some (pc_a ^+ (-180))%a ->
-    (pc_a + 11)%a = Some (pc_a ^+ 11)%a ->
+  (** [.Lhandle_error_in_switcher]: a fault at the first spill of the call
+      path sets the return values, overwrites them in the register save
+      area, and goes to the context install with the PC of
+      [.Lswitch_just_return] in [ct2]; any other fault of the switcher
+      forces the unwind. *)
+  #[local] Lemma handle_error_in_switcher_spec (wmepcc wctp wca0 wca1 wct2 w10 w11 : LWord) :
+    let a_first_spill := (a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a in
 
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ₚ switcher_label_pc ".Lhandle_error_in_switcher" ∗
     csp ↦ᵣ tstack_cap ∗
     ct1 ↦ᵣ wmepcc ∗
     ctp ↦ᵣ wctp ∗
@@ -204,10 +197,10 @@ Section Switcher_Exception_Blocks_2.
     ct2 ↦ᵣ wct2 ∗
     (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ w10 ∗
     (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ w11 ∗
-    codefrag_pers pc_a (switcher_instrs_n 36) ∗
-    ▷ ( ( ∀ (wct1' wctp' : LWord),
-          ⌜get_a wmepcc.(lw) ≠ ((pc_a ^+ (-286))%a : Z)⌝ ∗
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-171))%a ∗
+    switcher_code ∗
+    ▷ ( ( ⌜get_a wmepcc.(lw) ≠ (a_first_spill : Z)⌝ -∗
+          ∀ (wct1' wctp' : LWord),
+          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
           csp ↦ᵣ tstack_cap ∗
           ct1 ↦ᵣ wct1' ∗
           ctp ↦ᵣ wctp' ∗
@@ -215,36 +208,35 @@ Section Switcher_Exception_Blocks_2.
           ca1 ↦ᵣ wca1 ∗
           ct2 ↦ᵣ wct2 ∗
           (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ w10 ∗
-          (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ w11 ∗
-          codefrag_pers pc_a (switcher_instrs_n 36) -∗
+          (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ w11 -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
-        ( ∀ (wct1' wctp' : LWord),
-          ⌜get_a wmepcc.(lw) = ((pc_a ^+ (-286))%a : Z)⌝ ∗
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 11)%a ∗
+        ( ⌜get_a wmepcc.(lw) = (a_first_spill : Z)⌝ -∗
+          ∀ (wct1' wctp' : LWord),
+          PC ↦ₚ switcher_label_pc ".Lcommon_context_install" ∗
           csp ↦ᵣ tstack_cap ∗
           ct1 ↦ᵣ wct1' ∗
           ctp ↦ᵣ wctp' ∗
           ca0 ↦ᵣ WInt ENOTENOUGHSTACK ∗
           ca1 ↦ᵣ WInt 0 ∗
-          ct2 ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-180))%a ∗
+          ct2 ↦ᵣ switcher_label_pc ".Lswitch_just_return" ∗
           (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ WInt ENOTENOUGHSTACK ∗
-          (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ WInt 0 ∗
-          codefrag_pers pc_a (switcher_instrs_n 36) -∗
+          (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ WInt 0 -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hsub Hfirst_spill Hunwind Hjust_return Hinstall)
-      "(HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11 & #Hcode & Hpost)".
+    intros a_first_spill.
+    iIntros "(HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11 & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
-    codefrag_facts "Hcode".
-    rewrite /switcher_instrs_n /assembled_switcher_n /tstack_cap.
+    rewrite /tstack_cap.
+    switcher_open_label ".Lhandle_error_in_switcher" "Hswitcher" as "Hcode".
     (* Auipcc ctp .Lswitch_entry_first_spill *)
     iInstr "Hcode".
+    { switcher_jump_label ".Lswitch_entry_first_spill". }
     (* Sub ct1 ct1 ctp *)
     iInstrApply "Hcode" (wp_sub_dst_r_any _ ct1 _ _ _ _ _ _ _ _ ctp)
       with "[$HPC $Hct1 $Hctp]" as "(HPC & Hctp & Hct1)".
-    destruct (decide (get_a wmepcc.(lw) = ((pc_a ^+ (-286))%a : Z))) as [Hfirst | Hnot_first].
+    destruct (decide (get_a wmepcc.(lw) = (a_first_spill : Z))) as [Hfirst | Hnot_first].
     - (* A fault of the first spill: resume the caller *)
       iDestruct "Hpost" as "[_ Hpost]".
       iEval (cbn [lw get_a]; rewrite Hfirst Z.sub_diag) in "Hct1".
@@ -254,9 +246,9 @@ Section Switcher_Exception_Blocks_2.
       iInstr "Hcode".
       (* Mov ca1 0 *)
       iInstr "Hcode".
-      assert ((pc_a ^+ 5 + (-185))%a = Some (pc_a ^+ (-180))%a) as Hjust_return' by solve_addr.
       (* Auipcc ct2 .Lswitch_just_return *)
       iInstr "Hcode".
+      { switcher_jump_label ".Lswitch_just_return". }
       assert ((b_trusted_stack + TrustedStack_offset_ca0)%a =
                 Some (b_trusted_stack ^+ TrustedStack_offset_ca0)%a) as Hts_10
         by (rewrite /TrustedStack_offset_ca0; tstack_unfold; solve_addr).
@@ -271,26 +263,29 @@ Section Switcher_Exception_Blocks_2.
       iInstr "Hcode".
       { rewrite /TrustedStack_offset_ca1; tstk_not_shadow Hts_shadow. }
       { rewrite /withinBounds /TrustedStack_offset_ca1; tstack_unfold; solve_addr. }
-      assert ((pc_a ^+ 8 + 3)%a = Some (pc_a ^+ 11)%a) as Hinstall' by solve_addr.
       (* Jmp .Lcommon_context_install *)
       iInstr "Hcode".
-      iApply "Hpost". iFrame "∗ Hcode". done.
+      { switcher_jump_label ".Lcommon_context_install". }
+      iApply ("Hpost" with "[//]").
+      iFrame "HPC Hcsp Hct1 Hctp Hca0 Hca1 Hct2 Hs10 Hs11".
     - (* Any other fault of the switcher: force the unwind *)
       iDestruct "Hpost" as "[Hpost _]".
-      assert ((pc_a ^+ 2 + (-173))%a = Some (pc_a ^+ (-171))%a) as Hunwind' by solve_addr.
       (* Jne .Lcommon_force_unwind ct1 0 *)
       iInstr "Hcode".
-      { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
-      iApply "Hpost". iFrame "∗ Hcode". done.
+      { apply negb_true_iff, Z.eqb_neq. cbn [lw get_a get_a_sealable].
+        subst a_first_spill. lia. }
+      { switcher_jump_label ".Lcommon_force_unwind". }
+      iApply ("Hpost" with "[//]").
+      iFrame "HPC Hcsp Hct1 Hctp Hca0 Hca1 Hct2 Hs10 Hs11".
   Qed.
 
-  (** Blocks 24 and 36, [.Lhandle_error]: restore mtdc, then force the
-      unwind or resume the caller of a call path whose first spill faulted,
-      for a fault of the switcher, or go on with the lookup of an error
-      handler. The first word of the register save area holds the PC of the
-      fault, [wmepcc]. The trusted stack holds [d] frames above the entry
-      frame, the topmost at [a_tstk]. *)
-  Lemma switcher_exception_blocks_24_36_spec
+  (** From [.Lhandle_error]: restore mtdc, then force the unwind or resume
+      the caller of a call path whose first spill faulted, for a fault of
+      the switcher, or go on with the lookup of an error handler. The first
+      word of the register save area holds the PC of the fault, [wmepcc].
+      The trusted stack holds [d] frames above the entry frame, the topmost
+      at [a_tstk]. *)
+  Lemma handle_error_spec
     (d : nat) (a_tstk : Addr) (save_area : list LWord)
     (wmepcc wmtdc wct0 wct1 wctp wca0 wca1 wct2 : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
@@ -323,8 +318,7 @@ Section Switcher_Exception_Blocks_2.
           ct2 ↦ᵣ wct2 ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
-          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-          switcher_code -∗
+          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
         ( ⌜get_b wmepcc.(lw) = b_switcher ∧ get_a wmepcc.(lw) = a_first_spill⌝ -∗
           ∀ (wct0' wct1' wctp' : LWord),
@@ -340,8 +334,7 @@ Section Switcher_Exception_Blocks_2.
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
             [[ <[ Z.to_nat TrustedStack_offset_ca0 := (WInt ENOTENOUGHSTACK : LWord) ]>
                  (<[ Z.to_nat TrustedStack_offset_ca1 := (WInt 0 : LWord) ]> save_area) ]] ∗
-          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-          switcher_code -∗
+          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
         ( ⌜get_b wmepcc.(lw) ≠ b_switcher⌝ -∗
           ∀ (wct0' wct1' : LWord),
@@ -356,8 +349,7 @@ Section Switcher_Exception_Blocks_2.
           ct2 ↦ᵣ wct2 ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
-          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-          switcher_code -∗
+          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -365,20 +357,14 @@ Section Switcher_Exception_Blocks_2.
     iIntros (Ha_tstk Hlen Hmepcc)
       "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hmtdc & Hsave & Hframeoffset
        & #Hswitcher & Hpost)".
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size as Hsize; cbn in Hsize.
     pose proof trusted_stack_frames_fit as [n Hfit].
-    switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lhandle_error") "Hswitcher" as "Hcode" "Hcls";
-      iHide "Hswitcher" as hswitcher.
-    iApply (switcher_exception_block_24_spec_aux with
-             "[- $HPC $Hcsp $Hct0 $Hct1 $Hctp $Hca0 $Hmtdc $Hsave $Hframeoffset $Hcode]");
-      [done | offsets_compute; solve_addr+Hsize | done | done | done |].
+    iApply (handle_error_block_spec with
+             "[- $HPC $Hcsp $Hct0 $Hct1 $Hctp $Hca0 $Hmtdc $Hsave $Hframeoffset $Hswitcher]");
+      [done | done | done |].
     iNext; iSplit.
-    - (* A fault of the switcher: block 36 *)
-      iIntros (wct0' wctp')
-        "(%Hin & HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hmtdc & Hsave & Hframeoffset & _)".
-      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+    - (* A fault of the switcher *)
+      iIntros (Hin wct0' wctp')
+        "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hmtdc & Hsave & Hframeoffset)".
       destruct save_area as
         [|s0 [|s1 [|s2 [|s3 [|s4 [|s5 [|s6 [|s7 [|s8 [|s9 [|s10
         [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
@@ -389,42 +375,27 @@ Section Switcher_Exception_Blocks_2.
       iRegionSplit "Hsave" as
         "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
          & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs16 & Hs17 & Hs18 & Hs19 & Hs20)".
-      switcher_focus_block (switcher_block ".Lhandle_error_in_switcher") "Hswitcher"
-        as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-      iApply (switcher_exception_block_36_spec_aux with
-               "[- $HPC $Hcsp $Hct1 $Hctp $Hca0 $Hca1 $Hct2 $Hs10 $Hs11 $Hcode]");
-        [done | offsets_compute; solve_addr+Hsize.. |].
+      iApply (handle_error_in_switcher_spec with
+               "[- $HPC $Hcsp $Hct1 $Hctp $Hca0 $Hca1 $Hct2 $Hs10 $Hs11 $Hswitcher]").
       iNext; iSplit.
-      + iIntros (wct1'' wctp'')
-          "(%Hnot_first & HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11 & _)".
-        unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-        switcher_change_pc (switcher_label_offset ".Lcommon_force_unwind").
+      + iIntros (Hnot_first wct1'' wctp'')
+          "(HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11)".
         iDestruct "Hpost" as "[Hpost _]".
-        iApply ("Hpost" with "[] [-]").
-        { iPureIntro. split; first done. subst a_first_spill. offsets_compute.
-          intros Heq. apply Hnot_first. rewrite Heq. solve_addr+Hsize. }
-        iFrame "∗ Hswitcher". iRegionMerge. iFrame.
-      + iIntros (wct1'' wctp'')
-          "(%Hfirst & HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11 & _)".
-        unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-        switcher_change_pc (switcher_label_offset ".Lcommon_context_install").
+        iApply ("Hpost" with "[]"); first (iPureIntro; split; [done | exact Hnot_first]).
+        iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hca1 Hct2 Hmtdc Hframeoffset".
+        iRegionMerge. iFrame.
+      + iIntros (Hfirst wct1'' wctp'')
+          "(HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11)".
         iDestruct "Hpost" as "[_ [Hpost _] ]".
-        iApply ("Hpost" with "[] [-]").
-        { iPureIntro. split; first done. subst a_first_spill. offsets_compute.
-          rewrite Hfirst. solve_addr+Hsize. }
-        rewrite (_ : (a_switcher_call ^+ switcher_block_offset 36 ^+ (-180))%a =
-                     (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a);
-          last (offsets_compute; solve_addr+Hsize).
-        iFrame "∗ Hswitcher". cbn. iRegionMerge. iFrame.
+        iApply ("Hpost" with "[]"); first (iPureIntro; split; [done | exact Hfirst]).
+        iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hca1 Hct2 Hmtdc Hframeoffset".
+        iClear "Hswitcher". cbn. iRegionMerge. iFrame.
     - (* Any other trap: the lookup of an error handler *)
-      iIntros (wct0' wct1')
-        "(%Hnot_in & %Hlea & HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hmtdc & Hsave
-         & Hframeoffset & _)".
-      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-      switcher_change_pc (switcher_label_offset ".Lhandle_error_stack_oob").
+      iIntros (Hnot_in wct0' wct1' Hlea)
+        "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hmtdc & Hsave & Hframeoffset)".
       iDestruct "Hpost" as "[_ [_ Hpost] ]".
-      iApply ("Hpost" with "[//] [//] [-]").
-      iFrame "∗ Hswitcher".
+      iApply ("Hpost" with "[//] [//]").
+      iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hca1 Hct2 Hmtdc Hsave Hframeoffset".
   Qed.
 
-End Switcher_Exception_Blocks_2.
+End Handle_Error.

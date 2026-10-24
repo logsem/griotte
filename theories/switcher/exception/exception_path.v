@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules rules_vcsr proofmode.
 From griotte Require Export logrel switcher switcher_preamble switcher_error_handler.
-From griotte Require Import switcher_exception_states switcher_exception_blocks_1
-  switcher_exception_blocks_2 switcher_exception_blocks_3 switcher_exception_blocks_4
-  switcher_exception_blocks_5 switcher_exception_blocks_6 switcher_exception_blocks_7
-  switcher_call_blocks_6 copy_context_spec.
+From griotte Require Import switcher_exception_states switcher_call_blocks_6 copy_context_spec.
+From griotte.switcher.exception Require Import exception_entry handle_error
+  common_context_install handle_error_stack_oob handle_error_found handle_error_stack_setup
+  handle_error_handler_invoke.
 From griotte Require Import map_simpl register_tactics.
 
 (** * Exception path of the switcher
@@ -175,6 +175,26 @@ Section Switcher_Spec_Exception.
 
   (** ** Auxiliary lemmas *)
 
+  (** The registers of a register file out of a list [rs] of registers, in
+      order, and the rest of the file. *)
+  #[local] Lemma big_sepM_extract_list (m : LReg) (rs : list RegName) :
+    NoDup rs →
+    (∀ r, r ∈ rs → is_Some (m !! r)) →
+    ([∗ map] k↦y ∈ m, k ↦ᵣ y) ⊢
+      ([∗ list] r ∈ rs, r ↦ᵣ (m !!! r)) ∗ ([∗ map] k↦y ∈ foldr delete m rs, k ↦ᵣ y).
+  Proof.
+    induction rs as [|r rs IH]; intros Hnd Hsome; first by iIntros "$".
+    apply NoDup_cons in Hnd as [Hr Hnd].
+    iIntros "Hm".
+    iDestruct (IH with "Hm") as "[Hrs Hrest]"; [done | set_solver |].
+    destruct (Hsome r ltac:(set_solver)) as [w Hw].
+    iDestruct (big_sepM_delete _ _ r w with "Hrest") as "[Hr Hrest]".
+    { by rewrite lookup_foldr_delete_not_elem_of. }
+    rewrite big_sepL_cons (lookup_total_correct _ _ _ Hw).
+    iFrame "Hr Hrs Hrest".
+  Qed.
+
+
   (** The register file, after the path took fifteen registers out of
       [rmap] and gives them back. *)
   #[local] Definition regs_rebuild (rmap : LReg)
@@ -221,6 +241,99 @@ Section Switcher_Spec_Exception.
     iIntros "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5".
     iInsertList "Hrmap" [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca2;ca3;ca4;ca5;ca0;ca1].
     rewrite /registers_pointsto /regs_rebuild. iFrame.
+  Qed.
+
+  (** The fifteen registers of [error_state_regs], out of a register file
+      [rmap] that maps them to [wcra], ..., [wca5]. *)
+  #[local] Lemma regs_extract (rmap : LReg)
+    (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
+    rmap !! cra = Some wcra → rmap !! csp = Some wcsp → rmap !! cgp = Some wcgp →
+    rmap !! ctp = Some wctp → rmap !! ct0 = Some wct0 → rmap !! ct1 = Some wct1 →
+    rmap !! ct2 = Some wct2 → rmap !! cs0 = Some wcs0 → rmap !! cs1 = Some wcs1 →
+    rmap !! ca0 = Some wca0 → rmap !! ca1 = Some wca1 → rmap !! ca2 = Some wca2 →
+    rmap !! ca3 = Some wca3 → rmap !! ca4 = Some wca4 → rmap !! ca5 = Some wca5 →
+    registers_pointsto rmap ⊢
+      cra ↦ᵣ wcra ∗
+      csp ↦ᵣ wcsp ∗
+      cgp ↦ᵣ wcgp ∗
+      ctp ↦ᵣ wctp ∗
+      ct0 ↦ᵣ wct0 ∗
+      ct1 ↦ᵣ wct1 ∗
+      ct2 ↦ᵣ wct2 ∗
+      cs0 ↦ᵣ wcs0 ∗
+      cs1 ↦ᵣ wcs1 ∗
+      ca0 ↦ᵣ wca0 ∗
+      ca1 ↦ᵣ wca1 ∗
+      ca2 ↦ᵣ wca2 ∗
+      ca3 ↦ᵣ wca3 ∗
+      ca4 ↦ᵣ wca4 ∗
+      ca5 ↦ᵣ wca5 ∗
+      ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
+         (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
+         (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y).
+  Proof.
+    intros Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5.
+    iIntros "Hrmap".
+    iDestruct (big_sepM_extract_list _
+                 [ca5; ca4; ca3; ca2; ca1; ca0; cs1; cs0; ct2; ct1; ct0; ctp; cgp; csp; cra]
+                with "Hrmap") as "[Hregs $]".
+    { by apply (bool_decide_unpack _). }
+    { intros r Hr. rewrite !elem_of_cons elem_of_nil in Hr.
+      repeat destruct Hr as [-> | Hr]; try done; eauto. }
+    iDestruct "Hregs" as
+      "(Hca5 & Hca4 & Hca3 & Hca2 & Hca1 & Hca0 & Hcs1 & Hcs0 & Hct2 & Hct1 & Hct0 & Hctp
+       & Hcgp & Hcsp & Hcra & _)".
+    rewrite (lookup_total_correct _ _ _ Hcra) (lookup_total_correct _ _ _ Hcsp)
+      (lookup_total_correct _ _ _ Hcgp) (lookup_total_correct _ _ _ Hctp)
+      (lookup_total_correct _ _ _ Hct0) (lookup_total_correct _ _ _ Hct1)
+      (lookup_total_correct _ _ _ Hct2) (lookup_total_correct _ _ _ Hcs0)
+      (lookup_total_correct _ _ _ Hcs1) (lookup_total_correct _ _ _ Hca0)
+      (lookup_total_correct _ _ _ Hca1) (lookup_total_correct _ _ _ Hca2)
+      (lookup_total_correct _ _ _ Hca3) (lookup_total_correct _ _ _ Hca4)
+      (lookup_total_correct _ _ _ Hca5).
+    iFrame "Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5".
+  Qed.
+
+  (** The register file [rmap] back from these registers, with the return
+      values [w0] and [w1] in [ca0] and [ca1]. *)
+  #[local] Lemma regs_insert_return_values (rmap : LReg)
+    (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca2 wca3 wca4 wca5 w0 w1 : LWord) :
+    rmap !! cra = Some wcra → rmap !! csp = Some wcsp → rmap !! cgp = Some wcgp →
+    rmap !! ctp = Some wctp → rmap !! ct0 = Some wct0 → rmap !! ct1 = Some wct1 →
+    rmap !! ct2 = Some wct2 → rmap !! cs0 = Some wcs0 → rmap !! cs1 = Some wcs1 →
+    rmap !! ca2 = Some wca2 → rmap !! ca3 = Some wca3 → rmap !! ca4 = Some wca4 →
+    rmap !! ca5 = Some wca5 →
+    ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
+       (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) -∗
+    cra ↦ᵣ wcra -∗
+    csp ↦ᵣ wcsp -∗
+    cgp ↦ᵣ wcgp -∗
+    ctp ↦ᵣ wctp -∗
+    ct0 ↦ᵣ wct0 -∗
+    ct1 ↦ᵣ wct1 -∗
+    ct2 ↦ᵣ wct2 -∗
+    cs0 ↦ᵣ wcs0 -∗
+    cs1 ↦ᵣ wcs1 -∗
+    ca0 ↦ᵣ w0 -∗
+    ca1 ↦ᵣ w1 -∗
+    ca2 ↦ᵣ wca2 -∗
+    ca3 ↦ᵣ wca3 -∗
+    ca4 ↦ᵣ wca4 -∗
+    ca5 ↦ᵣ wca5 -∗
+    registers_pointsto (<[ca1 := w1]> (<[ca0 := w0]> rmap)).
+  Proof.
+    intros Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca2 Hca3 Hca4 Hca5.
+    iIntros "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5".
+    iDestruct (regs_rebuild_pointsto with
+                "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5")
+      as "Hrmap".
+    rewrite /regs_rebuild (insert_id _ _ _ Hcra) (insert_id _ _ _ Hcsp) (insert_id _ _ _ Hcgp)
+      (insert_id _ _ _ Hctp) (insert_id _ _ _ Hct0) (insert_id _ _ _ Hct1)
+      (insert_id _ _ _ Hct2) (insert_id _ _ _ Hcs0) (insert_id _ _ _ Hcs1)
+      (insert_id _ _ _ Hca2) (insert_id _ _ _ Hca3) (insert_id _ _ _ Hca4)
+      (insert_id _ _ _ Hca5).
+    iExact "Hrmap".
   Qed.
 
   (** The registers of a map over all registers but [cra], [csp], [cgp],
@@ -479,7 +592,7 @@ Section Switcher_Spec_Exception.
         wca2 = lword_of_word (WInt 0)
     end.
 
-  (** Block 33, from [.Lhandle_error_handler_invoke], for a handler of kind
+  (** From [.Lhandle_error_handler_invoke], for a handler of kind
       [kind] at offset [off], once the invariant of the switcher is closed:
       the registers are cleared but the handler's, and the [cjalr] invokes
       the handler or faults. *)
@@ -566,12 +679,12 @@ Section Switcher_Spec_Exception.
               (delete cra regs1)))))) =
             all_registers_s ∖ list_to_set [cra; csp; cgp; ca0; ca1; ca2]) as Hdom_cleared.
     { rewrite !dom_delete_L Hdom_regs1. clear. set_solver. }
-    (* Block 33: the invocation *)
-    iApply (switcher_handler_invoke_spec with "[- $HPC $Hcra $Hregs $Hcode]");
+    (* The invocation *)
+    iApply (handle_error_handler_invoke_spec with "[- $HPC $Hcra $Hregs $Hcode]");
       first exact Hdom_cleared.
     iNext; iSplit.
     - (* The [cjalr] succeeds: the handler runs *)
-      iIntros (Htgt mie rmap' Hdom') "(HPC & Hcra & Hrmap' & _)".
+      iIntros (Htgt mie rmap' Hdom') "(HPC & Hcra & Hrmap')".
       rewrite Hdom_cleared in Hdom'.
       rewrite !Hload in Htgt |- *.
       destruct (handler_entry wpcc off) as [wpc|] eqn:Hentry;
@@ -613,7 +726,7 @@ Section Switcher_Spec_Exception.
           intros [-> | [-> | [-> | [-> | [-> | [-> | [] ] ] ] ] ] ]; done. }
         rewrite Hwr. f_equal. exact (Hzero r wr Hwr).
     - (* The [cjalr] faults *)
-      iIntros (Htgt rmap' Hdom') "(Hcra & Hrmap' & _)".
+      iIntros (Htgt rmap' Hdom') "(Hcra & Hrmap')".
       rewrite Hdom_cleared in Hdom'.
       iDestruct (big_sepM_sep with "Hrmap'") as "[Hrmap' _]".
       iDestruct (regs_six_insert with "Hrmap' Hcra Hcsp Hcgp Hca0 Hca1 Hca2") as "Hrmap'";
@@ -664,18 +777,18 @@ Section Switcher_Spec_Exception.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant, with the token without [N_trap];
-       - [switcher_exception_blocks_21_23_spec]: spill the registers, MEPCC,
-         mstatus and mcause, and give the volatile registers back;
-       - [switcher_exception_blocks_24_36_spec]: restore mtdc, and test for
-         a fault of the switcher, and of the first spill of the call path;
+       - [exception_entry_asm_spec]: spill the registers, MEPCC, mstatus and
+         mcause, and give the volatile registers back;
+       - [handle_error_spec]: restore mtdc, and test for a fault of the
+         switcher, and of the first spill of the call path;
        - for any other fault of the switcher, [switcher_call_block_18_spec]:
          set the return values; for a fault of the first spill,
-         [switcher_context_install_spec]: install the context, with the
+         [common_context_install_spec]: install the context, with the
          return values overwritten;
-       - for a fault outside the switcher, [switcher_handler_lookup_spec]:
+       - for a fault outside the switcher, [handle_error_stack_oob_spec]:
          look for a handler in the export table of the topmost frame;
-         [switcher_handler_found_spec]: count the fault, update the logical
-         call stack, compute the handler's PC and CGP; then the setup of a
+         [handle_error_found_spec]: count the fault, update the logical call
+         stack, compute the handler's PC and CGP; then the setup of a
          stackless handler, or the setup of a stackful handler with the
          stores of the [ErrorState]; then the invocation;
        - close the switcher invariant, and recombine the token. *)
@@ -694,22 +807,21 @@ Section Switcher_Spec_Exception.
       - iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->. done.
       - iPureIntro. by intros. }
     iDestruct (tstack_save_area_length with "Hsave_area") as %Hsave_len.
-    rewrite /registers_pointsto.
     getRegValList [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca0;ca1;ca2;ca3;ca4;ca5].
-    iExtractList "Hrmap" [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca0;ca1;ca2;ca3;ca4;ca5]
-      as ["Hcra";"Hcsp";"Hcgp";"Hctp";"Hct0";"Hct1";"Hct2";"Hcs0";"Hcs1";
-          "Hca0";"Hca1";"Hca2";"Hca3";"Hca4";"Hca5"].
+    iDestruct (regs_extract with "Hrmap") as
+      "(Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hrmap)"; try eassumption.
 
-    (* Blocks 21-23: the exception entry *)
-    iApply (switcher_exception_blocks_21_23_spec with
+    (* The exception entry *)
+    iApply (exception_entry_asm_spec with
              "[- $HPC $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hmtdc $Hsave_area $Hout $Hcode]");
       first done.
     iNext; iIntros (wst cause zca0)
       "(%Hcause & HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
-       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave_area & Htok & _)".
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave_area & Htok)".
 
-    (* Blocks 24 and 36: [.Lhandle_error] *)
+    (* [.Lhandle_error] *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     (* The close of the switcher invariant, and the recombination of the
        token, for any content of the register save area and any error
@@ -732,12 +844,14 @@ Section Switcher_Spec_Exception.
       { iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
         iExists a_tstk, (cstack_set_top_count cstk' n'), _, tstk_next.
         rewrite cstack_set_top_count_frames_length.
-        iFrame "∗ # %". iPureIntro. by split. }
+        iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
+                Hp_ot_switcher".
+        iPureIntro. split; [exact Hot_bounds | by split]. }
       iModIntro.
       iApply (trap_entry_res_split F with "[$Htok $Hna]"); first done. }
     iAssert (cstack_full (cstack_set_top_count cstk' (top_error_count cstk')))
       with "[Hcstk_full]" as "Hcstk_full"; first by rewrite cstack_set_top_count_id.
-    iApply (switcher_exception_blocks_24_36_spec _ _ _ (lmepcc_of_pc w) with
+    iApply (handle_error_spec _ _ _ (lmepcc_of_pc w) with
              "[- $HPC $Hcsp $Hct0 $Hct1 $Hctp $Hca0 $Hca1 $Hct2 $Hmtdc $Hsave_area
                  $Hframeoffset $Hcode]").
     { exact Hlen_cstk. }
@@ -747,7 +861,7 @@ Section Switcher_Spec_Exception.
     - (* Any other fault of the switcher: the forced unwind *)
       iIntros (Hswitcher_fault wct0' wct1' wctp')
         "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hmtdc & Hsave_area
-          & Hframeoffset & _)".
+          & Hframeoffset)".
       pose proof (Hcstk_eq (or_intror (proj2 Hswitcher_fault))) as Heq_cstk; subst cstk'.
       rewrite decide_True; last exact (or_intror (proj2 Hswitcher_fault)).
       iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full [Hstk_interp] Htok").
@@ -764,14 +878,14 @@ Section Switcher_Spec_Exception.
          resumes the interrupted context *)
       iIntros (Hresume wct0' wct1' wctp')
         "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hmtdc & Hsave_area
-          & Hframeoffset & _)".
-      iApply (switcher_context_install_spec with
+          & Hframeoffset)".
+      iApply (common_context_install_spec with
                "[- $HPC $Hcsp $Hcra $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                    $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hsave_area $Htok $Hcode]").
       { rewrite !length_insert. by apply exception_spill_length. }
       iNext; iIntros
         "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
-          & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave_area & Htok & _)".
+          & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave_area & Htok)".
       (* The PC to resume is a valid PC: MEPCC keeps it *)
       rewrite (_ : llegalise MEPCC (switcher_label_pc ".Lswitch_just_return") =
                    switcher_label_pc ".Lswitch_just_return"); last reflexivity.
@@ -780,12 +894,9 @@ Section Switcher_Spec_Exception.
       rewrite /exception_spill /TrustedStack_offset_ca0 /TrustedStack_offset_ca1 /=.
       (* The other registers get their words back: the register map is the
          original one, with the return values inserted last *)
-      iInsertList "Hrmap" [cra;csp;cgp;ctp;ct0;ct1;ct2;cs0;cs1;ca2;ca3;ca4;ca5;ca0;ca1].
-      rewrite (insert_id _ _ _ Hwcra) (insert_id _ _ _ Hwcsp) (insert_id _ _ _ Hwcgp)
-        (insert_id _ _ _ Hwctp) (insert_id _ _ _ Hwct0) (insert_id _ _ _ Hwct1)
-        (insert_id _ _ _ Hwct2) (insert_id _ _ _ Hwcs0) (insert_id _ _ _ Hwcs1)
-        (insert_id _ _ _ Hwca2) (insert_id _ _ _ Hwca3) (insert_id _ _ _ Hwca4)
-        (insert_id _ _ _ Hwca5).
+      iDestruct (regs_insert_return_values with
+                  "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4
+                   Hca5") as "Hrmap"; try eassumption.
       assert (¬ trap_no_resume w) as Hresume'.
       { destruct Hresume as [Hb Ha]. by intros [Hb' | Ha']. }
       rewrite decide_False; last exact Hresume'.
@@ -801,7 +912,7 @@ Section Switcher_Spec_Exception.
     - (* A fault outside the switcher: the lookup of an error handler *)
       iIntros (Hnot_in wct0_l wct1' Hlea)
         "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hmtdc & Hsave_area
-          & Hframeoffset & _)".
+          & Hframeoffset)".
       assert (¬ switcher_fault_pc w) as Hnot_switcher by exact Hnot_in.
       assert (trap_no_resume w) as Hno_resume by (by left).
       pose proof (Hcstk_eq Hno_resume) as Heq_cstk; subst cstk'.
@@ -835,8 +946,8 @@ Section Switcher_Spec_Exception.
       iDestruct (trusted_frame_interp_open with "Htf")
         as (dq) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
       iEval (fold (top_error_count cstk)) in "Hcnt".
-      (* Blocks 25-29: the lookup *)
-      iApply (switcher_handler_lookup_spec cstk a_tstk (top_export_tbl cstk) eh ehs wcsp wct0_l
+      (* The lookup of an error handler *)
+      iApply (handle_error_stack_oob_spec cstk a_tstk (top_export_tbl cstk) eh ehs wcsp wct0_l
                 (top_tframe cstk).(tf_export_tbl)
                with "[- $HPC $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca0 $Hca1 $Hca2
                        $Hcsp_cell $Hcell $Hcode]").
@@ -851,7 +962,7 @@ Section Switcher_Spec_Exception.
            faults *)
         iIntros (Hz off Hoff)
           "(Hcsp & Hctp & [%wct0_f Hct0] & [%wct1_f Hct1] & [%wct2_f Hct2] & [%wcs0_f Hcs0]
-            & [%wcs1_f Hcs1] & Hca0 & Hca1 & Hca2 & Hcsp_cell & Hcell & _)".
+            & [%wcs1_f Hcs1] & Hca0 & Hca1 & Hca2 & Hcsp_cell & Hcell)".
         iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
         iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
         iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
@@ -867,7 +978,7 @@ Section Switcher_Spec_Exception.
       + (* No handler: the forced unwind *)
         iIntros ([_ Hno_stackful] wct0_u wct1_u wct2_u wcs0_u wcs1_u)
           "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
-            & Hcsp_cell & Hcell & _)".
+            & Hcsp_cell & Hcell)".
         iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
         iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
         iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
@@ -883,7 +994,7 @@ Section Switcher_Spec_Exception.
       + (* A handler is found, at offset [off] *)
         iIntros (p g e a off z0 wct0_h wct2_h wcs1_h wca1_h wca2_h Hw Hfound)
           "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
-            & Hcsp_cell & Hcell & _)".
+            & Hcsp_cell & Hcell)".
         destruct Hwcell as [Hz | (Hexp & _)].
         { exfalso. rewrite Hw in Hz. by inversion Hz. }
         rewrite Hw /= in Hexp.
@@ -908,16 +1019,16 @@ Section Switcher_Spec_Exception.
                 [by left | by right]. }
             iExists wpcc, wcgp'. iIntros "_". iFrame "Hpcc Hcgp'".
           - iExists (WInt 0 : LWord), (WInt 0 : LWord). iIntros "%". done. }
-        (* Block 30: count the fault *)
-        iApply (switcher_handler_found_spec (length cstk.(cstk_frames)) a_tstk
+        (* Count the fault *)
+        iApply (handle_error_found_spec (length cstk.(cstk_frames)) a_tstk
                   (top_export_tbl cstk) e p g (top_error_count cstk) off z0 wpcc wcgp'
                  with "[- $HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcs1 $Hcra $Hcgp $Hca0 $Hcnt
                          $Hcells $Hcode]");
           [exact Hlen_cstk | exact Ha_tstk_e | exact Htbl |].
-        iNext; iSplit.
+        iNext; iSplit; [|iSplit].
         * (* An odd count, or too many faults: the forced unwind *)
           iIntros (Hcount wcra_u)
-            "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hcnt & _)".
+            "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hcnt)".
           iMod (cstack_update _ _ (cstack_set_top_count cstk (top_error_count cstk + 1)%Z)
                  with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
           iDestruct ("Htf_close" $! (top_error_count cstk + 1)%Z with "Hcsp_cell Hcell Hcnt")
@@ -931,9 +1042,9 @@ Section Switcher_Spec_Exception.
                      $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hclose $Hcstk $Hunwind
                      $Hwritten $Hskip]");
             [done | done].
-        * (* The setup of the handler *)
-          iIntros ([Hev Hmax] lbl wct2_s wcs1_s Hlbl)
-            "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hcnt & _)".
+        * (* A stackless handler *)
+          iIntros ([Hev Hmax] Hz0 wct2_s wcs1_s)
+            "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hcnt)".
           iMod (cstack_update _ _ (cstack_set_top_count cstk (top_error_count cstk + 1)%Z)
                  with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
           iDestruct ("Htf_close" $! (top_error_count cstk + 1)%Z with "Hcsp_cell Hcell Hcnt")
@@ -941,87 +1052,92 @@ Section Switcher_Spec_Exception.
           iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
           iDestruct ("Hcells" with "[//]") as "[Hpcc Hcgp_cell]".
           iDestruct "Hpost" as "(_ & _ & Hpost)".
-          destruct Hlbl as [(Hz0 & ->) | (-> & ->)].
-          -- (* Block 31: a stackless handler *)
-             destruct Hfound as [(-> & _) | (_ & -> & -> & Hehs_some & Hno_stackful)];
-               first done.
-             iPoseProof (handler_skipped_no_stackful cstk w rmap eh with "Heh") as "#Hskip";
+          destruct Hfound as [(-> & _) | (_ & -> & -> & Hehs_some & Hno_stackful)];
+            first done.
+          iPoseProof (handler_skipped_no_stackful cstk w rmap eh with "Heh") as "#Hskip";
+            first by rewrite Hrmap_csp.
+          iApply (handle_error_stackless_setup_spec with
+                   "[- $HPC $Hcsp $Hct0 $Hca0 $Hca1 $Hca2 $Hsave_area $Hcode]");
+            first exact Hsave'_len.
+          iNext; iIntros (mtval) "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave_area)".
+          rewrite Hsave'_cause.
+          (* The invariant is closed before the [cjalr] *)
+          iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok")
+            as "Hna".
+          (* The invocation *)
+          iApply (switcher_exception_invoke _ _ _ _ error_state_written Stackless p ehs
+                    cause mtval
+                   with "[$HPC $Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
+                          $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hpcc $Hcgp_cell $Hehs
+                          $Hcstk $Hwritten $Hna $Hpost]").
+          1-7: done.
+          { by rewrite /handler_args. }
+          iSplit; iIntros "_ !>"; iExact "Hskip".
+        * (* A stackful handler, the [ErrorState] below [csp] *)
+          iIntros ([Hev Hmax] Hz0 wct2_s wcs1_s)
+            "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hcnt)".
+          subst z0.
+          iMod (cstack_update _ _ (cstack_set_top_count cstk (top_error_count cstk + 1)%Z)
+                 with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
+          iDestruct ("Htf_close" $! (top_error_count cstk + 1)%Z with "Hcsp_cell Hcell Hcnt")
+            as "Htf".
+          iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
+          iDestruct ("Hcells" with "[//]") as "[Hpcc Hcgp_cell]".
+          iDestruct "Hpost" as "(_ & _ & Hpost)".
+          destruct Hfound as [(_ & -> & -> & Hfits & Heh_some) | (Hn & _)]; last done.
+          (* The stores of the [ErrorState], from the words of the register
+             save area *)
+          iAssert (∀ (p' : Perm) (g' : Locality) (b' e' a' : Addr) (π' : option AId),
+                     ⌜wcsp = WCap true p' g' b' e' a' @@? π'⌝ -∗
+                     ⌜error_state_first_store_ok wcsp⌝ -∗
+                     cells_store_acc error_state_written p' e' (a' ^+ (- ErrorState_size))%a π'
+                       (lclear_tag (save' !!! 0%nat) :: take 15 (drop 1 save')))%I
+            as "Hacc".
+          { iIntros (p' g' b' e' a' π' Hwcsp' Hok).
+            rewrite Hsave'_src.
+            iApply ("Hes_acc" with "[//] [//] Heh [//] [] []"); iPureIntro;
+              by rewrite Hrmap_csp. }
+          iApply (handle_error_stack_setup_spec save' wcsp wct0_l _ _ _ _ _ _
+                    error_state_written with
+                   "[- $HPC $Hcsp $Hct0 $Hcs1 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hsave_area
+                       $Hcode $Hwritten $Hacc]");
+            [exact Hsave'_len | exact Hlea | exact Hfits |].
+          iNext; iSplit.
+          ++ (* A store faults, after [k] words: the invariant is closed *)
+             iIntros (Hnok k off Hk Hoff)
+               "(Hcsp & Hct0 & [%wcs1_f Hcs1] & Hca0 & Hca1 & [%wca2_f Hca2] & [%wca3_f Hca3]
+                 & [%wca4_f Hca4] & Hsave_area & Hwritten)".
+             iSpecialize ("Hclose" with
+                           "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+             iDestruct "Hpost" as "[Hnested _]".
+             iSpecialize ("Hnested" with "[//]").
+             iPoseProof (handler_skipped_stores cstk w rmap) as "Hskip";
                first by rewrite Hrmap_csp.
-             iApply (switcher_stackless_setup_spec with
-                      "[- $HPC $Hcsp $Hct0 $Hca0 $Hca1 $Hca2 $Hsave_area $Hcode]");
-               first exact Hsave'_len.
-             iNext; iIntros (mtval) "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave_area & _)".
+             iApply (switcher_exception_nested_finish _ _ _ (top_error_count cstk + 1)%Z with
+                      "[$Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
+                        $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hcstk $Hskip $Hnested
+                        Hwritten]");
+               [done | exact Hoff |].
+             iExists k. iFrame "Hwritten". iPureIntro. lia.
+          ++ (* The stores succeed: the invariant is closed before the
+                [cjalr] *)
+             iIntros (Hok mtval wcs1' wca3' wca4')
+               "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave_area
+                 & Hwritten)".
              rewrite Hsave'_cause.
-             (* The invariant is closed before the [cjalr] *)
              iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok")
                as "Hna".
-             (* Block 33: the invocation *)
-             iApply (switcher_exception_invoke _ _ _ _ error_state_written Stackless p ehs
+             (* The invocation *)
+             iApply (switcher_exception_invoke _ _ _ _ error_state_written Stackful p eh
                        cause mtval
                       with "[$HPC $Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
-                             $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hpcc $Hcgp_cell $Hehs
+                             $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hpcc $Hcgp_cell $Heh
                              $Hcstk $Hwritten $Hna $Hpost]").
              1-7: done.
-             { by rewrite /handler_args. }
-             iSplit; iIntros "_ !>"; iExact "Hskip".
-          -- (* Block 32: a stackful handler, the [ErrorState] below [csp] *)
-             destruct Hfound as [(_ & -> & -> & Hfits & Heh_some) | (Hn & _)]; last done.
-             (* The stores of the [ErrorState], from the words of the register
-                save area *)
-             iAssert (∀ (p' : Perm) (g' : Locality) (b' e' a' : Addr) (π' : option AId),
-                        ⌜wcsp = WCap true p' g' b' e' a' @@? π'⌝ -∗
-                        ⌜error_state_first_store_ok wcsp⌝ -∗
-                        cells_store_acc error_state_written p' e' (a' ^+ (- ErrorState_size))%a π'
-                          (lclear_tag (save' !!! 0%nat) :: take 15 (drop 1 save')))%I
-               as "Hacc".
-             { iIntros (p' g' b' e' a' π' Hwcsp' Hok).
-               rewrite Hsave'_src.
-               iApply ("Hes_acc" with "[//] [//] Heh [//] [] []"); iPureIntro;
-                 by rewrite Hrmap_csp. }
-             iApply (switcher_stackful_setup_spec save' wcsp wct0_l _ _ _ _ _ _
-                       error_state_written with
-                      "[- $HPC $Hcsp $Hct0 $Hcs1 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hsave_area
-                          $Hcode $Hwritten $Hacc]");
-               [exact Hsave'_len | exact Hlea | exact Hfits |].
-             iNext; iSplit.
-             ++ (* A store faults, after [k] words: the invariant is closed *)
-                iIntros (k off Hnok Hk)
-                  "(Hcsp & Hct0 & [%wcs1_f Hcs1] & Hca0 & Hca1 & [%wca2_f Hca2] & [%wca3_f Hca3]
-                    & [%wca4_f Hca4] & Hsave_area & _ & Hwritten)".
-                iSpecialize ("Hclose" with
-                              "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
-                iDestruct "Hpost" as "[Hnested _]".
-                iSpecialize ("Hnested" with "[//]").
-                iPoseProof (handler_skipped_stores cstk w rmap) as "Hskip";
-                  first by rewrite Hrmap_csp.
-                iApply (switcher_exception_nested_finish _ _ _ (top_error_count cstk + 1)%Z with
-                         "[$Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
-                           $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hcstk $Hskip $Hnested
-                           Hwritten]");
-                  [done | |].
-                { apply trap_no_resume_switcher_pc.
-                  destruct Hk as [ [-> ->] | [_ ->] ]; by vm_compute. }
-                iExists k. iFrame "Hwritten". iPureIntro.
-                destruct Hk as [ [-> _] | [Hk _] ]; lia.
-             ++ (* The stores succeed: the invariant is closed before the
-                   [cjalr] *)
-                iIntros (Hok mtval wcs1' wca3' wca4')
-                  "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave_area
-                    & _ & Hwritten)".
-                rewrite Hsave'_cause.
-                iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok")
-                  as "Hna".
-                (* Block 33: the invocation *)
-                iApply (switcher_exception_invoke _ _ _ _ error_state_written Stackful p eh
-                          cause mtval
-                         with "[$HPC $Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
-                                $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hpcc $Hcgp_cell $Heh
-                                $Hcstk $Hwritten $Hna $Hpost]").
-                1-7: done.
-                { rewrite /handler_args Hrmap_csp.
-                  split_and!; [done | by apply stackful_regs_lea | done | done]. }
-                iSplit; first by iIntros "%".
-                iIntros (Htgt). by iApply (handler_skipped_jump with "Heh Hpcc").
+             { rewrite /handler_args Hrmap_csp.
+               split_and!; [done | by apply stackful_regs_lea | done | done]. }
+             iSplit; first by iIntros "%".
+             iIntros (Htgt). by iApply (handler_skipped_jump with "Heh Hpcc").
   Qed.
 
 End Switcher_Spec_Exception.

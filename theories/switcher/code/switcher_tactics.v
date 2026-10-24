@@ -126,3 +126,32 @@ Section Switcher_Code.
   Proof. by destruct mie. Qed.
 
 End Switcher_Code.
+
+(** Open the block of the switcher that starts with the label [s], from the
+    persistent code of the switcher [h]: [hi] is the persistent code of the
+    block, at [a_switcher_call ^+ switcher_label_offset s], with the facts
+    that [iInstr] needs, and the PC is moved to it, when possible. [h] is
+    cleared: the unfolded code of the whole switcher slows the proof mode
+    down. *)
+Tactic Notation "switcher_open_label" constr(s) constr(h) "as" constr(hi) :=
+  let Hsub := fresh "Hsub_switcher" in
+  pose proof switcher_SubBounds as Hsub;
+  switcher_unfold_code h;
+  switcher_focus_label s h as hi "Hswitcher_cont";
+  clear Hsub;
+  iClear h; iClear "Hswitcher_cont".
+
+(** Solve [(a + z)%a = Some ?a'], the target of a jump of the switcher to
+    its label [s]: [?a'] is the address of [s]. *)
+Ltac switcher_jump_label s :=
+  transitivity (Some (a_switcher_call ^+ switcher_label_offset s)%a);
+  [switcher_addr_eq | reflexivity].
+
+(** Rewrite the addresses [a_switcher_call ^+ off ^+ k] of the goal to
+    [a_switcher_call ^+ (off + k)], for instance the address of a faulting
+    instruction inside a block, to state it with [switcher_pc]. *)
+Ltac switcher_merge_pc :=
+  repeat match goal with |- context [((a_switcher_call ^+ ?off) ^+ ?k)%a] =>
+    rewrite (_ : ((a_switcher_call ^+ off) ^+ k)%a = (a_switcher_call ^+ (off + k))%a);
+      [| switcher_addr_eq]
+  end.

@@ -3,19 +3,20 @@ From griotte Require Import memory_region rules rules_vcsr proofmode.
 From griotte Require Import register_tactics.
 From griotte Require Import switcher_exception_states trusted_spill_registers_spec.
 
-(** * Exception path, blocks 21-23: exception entry
+(** * Exception path: the exception entry
 
-    Block 21 swaps the trusted stack in from mtdc (a null mtdc would mean
-    that the exception entry is re-entered, which the base of the trusted
-    stack, not at address 0, rules out). Block 22 spills the registers of
-    the interrupted context in the register save area, but the stack
-    pointer. Block 23 spills the stack pointer, from mtdc, which is cleared,
-    the PC (MEPCC), mstatus and the cause (mcause), and gives the volatile
-    registers back to the state interpretation before the store of the
-    cause. A cause of the range of trap entry is handled by the
-    compartments: the block jumps to [.Lhandle_error] (block 24). *)
+    [exception_entry_asm] swaps the trusted stack in from mtdc (a null mtdc
+    would mean that the exception entry is re-entered, which the base of
+    the trusted stack, not at address 0, rules out).
+    [.Lexception_spill_registers] spills the registers of the interrupted
+    context in the register save area, but the stack pointer.
+    [.Lexception_exiting_threads_rejoin] spills the stack pointer, from
+    mtdc, which is cleared, the PC (MEPCC), mstatus and the cause (mcause),
+    and gives the volatile registers back to the state interpretation
+    before the store of the cause. A cause of the range of trap entry is
+    handled by the compartments: the block jumps to [.Lhandle_error]. *)
 
-Section Switcher_Exception_Blocks_1.
+Section Exception_Entry.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
@@ -23,47 +24,70 @@ Section Switcher_Exception_Blocks_1.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** Block 21: swap the trusted stack in from mtdc; mtdc is not null. *)
-  #[local] Lemma switcher_exception_block_21_spec_aux (pc_a : Addr) (wcsp : LWord) :
-    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 21))%a ->
-
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+  (** [exception_entry_asm]: swap the trusted stack in from mtdc; mtdc is
+      not null. *)
+  #[local] Lemma exception_entry_block_spec (wcsp : LWord) :
+    PC ↦ₚ switcher_label_pc "exception_entry_asm" ∗
     csp ↦ᵣ wcsp ∗
     mtdc ↦ₛᵣ tstack_cap ∗
-    codefrag_pers pc_a (switcher_instrs_n 21) ∗
-    ▷ ( PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 3)%a ∗
+    switcher_code ∗
+    ▷ ( PC ↦ₚ switcher_label_pc ".Lexception_spill_registers" ∗
         csp ↦ᵣ tstack_cap ∗
-        mtdc ↦ₛᵣ wcsp ∗
-        codefrag_pers pc_a (switcher_instrs_n 21) -∗
+        mtdc ↦ₛᵣ wcsp -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hsub) "(HPC & Hcsp & Hmtdc & #Hcode & Hpost)".
+    iIntros "(HPC & Hcsp & Hmtdc & #Hswitcher & Hpost)".
     pose proof trusted_stack_base_nonzero as Hts_nonzero.
-    codefrag_facts "Hcode".
-    rewrite /switcher_instrs_n /assembled_switcher_n /tstack_cap.
+    switcher_open_label "exception_entry_asm" "Hswitcher" as "Hcode".
+    rewrite /tstack_cap.
     (* SpecialRW csp mtdc csp *)
     iInstr "Hcode".
     rewrite llegalise_mtdc.
     (* Jne 2 csp 0 *)
     iInstr "Hcode".
     { apply negb_true_iff, Z.eqb_neq. exact Hts_nonzero. }
-    iApply "Hpost". iFrame "∗ #".
+    switcher_change_pc_label ".Lexception_spill_registers".
+    iApply "Hpost". iFrame "HPC Hcsp Hmtdc".
   Qed.
 
-  (** Block 22 is the spill of the registers but the stack pointer. *)
-  Lemma switcher_instrs_22_spill :
-    switcher_instrs_n 22 = trusted_spill_registers_instrs exception_spill_regs.
-  Proof. reflexivity. Qed.
+  (** [.Lexception_spill_registers]: the spill of the registers but the
+      stack pointer. *)
+  #[local] Lemma exception_spill_registers_spec (wregs wold : list LWord) :
+    PC ↦ₚ switcher_label_pc ".Lexception_spill_registers" ∗
+    csp ↦ᵣ tstack_cap ∗
+    ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ w) ∗
+    ([∗ list] r;w ∈ exception_spill_regs;wold, (b_trusted_stack ^+ TrustedStack_offset_reg r)%a ↦ₐ w) ∗
+    switcher_code ∗
+    ▷ ( PC ↦ₚ switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
+        csp ↦ᵣ tstack_cap ∗
+        ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ w) ∗
+        ([∗ list] r;w ∈ exception_spill_regs;wregs,
+           (b_trusted_stack ^+ TrustedStack_offset_reg r)%a ↦ₐ w) -∗
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros "(HPC & Hcsp & Hregs & Hcells & #Hswitcher & Hpost)".
+    switcher_open_label ".Lexception_spill_registers" "Hswitcher" as "Hcode".
+    iAssert (codefrag_pers (a_switcher_call ^+ switcher_label_offset ".Lexception_spill_registers")%a
+               (trusted_spill_registers_instrs exception_spill_regs)) as "#Hspill";
+      first iExact "Hcode".
+    rewrite /tstack_cap.
+    iApply (trusted_spill_registers_spec with "[- $HPC $Hcsp $Hregs $Hcells $Hspill]");
+      [done | done | done | apply trusted_save_cells_ok_exception
+      | rewrite /exception_spill_regs; set_solver | rewrite /exception_spill_regs; set_solver |].
+    iNext; iIntros "(HPC & Hcsp & Hregs & Hcells & _)".
+    rewrite trusted_spill_registers_instrs_length /exception_spill_regs.
+    cbn [length].
+    switcher_change_pc_label ".Lexception_exiting_threads_rejoin".
+    iApply "Hpost". iFrame "HPC Hcsp Hregs Hcells".
+  Qed.
 
-  (** Block 23: the stack pointer, MEPCC, mstatus and mcause, then the
-      dispatch on the cause. *)
-  #[local] Lemma switcher_exception_block_23_spec_aux
-    (pc_a : Addr) (w wcsp wct0 wct1 wca0 ws0 ws2 ws17 ws18 : LWord) :
-    SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 23))%a ->
-    (pc_a + 17)%a = Some (pc_a ^+ 17)%a ->
-
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+  (** [.Lexception_exiting_threads_rejoin]: the stack pointer, MEPCC,
+      mstatus and mcause, then the dispatch on the cause. *)
+  #[local] Lemma exception_exiting_threads_rejoin_spec
+    (w wcsp wct0 wct1 wca0 ws0 ws2 ws17 ws18 : LWord) :
+    PC ↦ₚ switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
     csp ↦ᵣ tstack_cap ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -74,10 +98,10 @@ Section Switcher_Exception_Blocks_1.
     (b_trusted_stack ^+ 17)%a ↦ₐ ws17 ∗
     (b_trusted_stack ^+ 18)%a ↦ₐ ws18 ∗
     trap_entry_out w ∗
-    codefrag_pers pc_a (switcher_instrs_n 23) ∗
+    switcher_code ∗
     ▷ ( ∀ (wst : LWord) (cause zca0 : Z),
-          ⌜mcause_ok cause⌝ ∗
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 17)%a ∗
+          ⌜mcause_ok cause⌝ -∗
+          PC ↦ₚ switcher_label_pc ".Lhandle_error" ∗
           csp ↦ᵣ tstack_cap ∗
           ct0 ↦ᵣ lmepcc_of_pc w ∗
           ct1 ↦ᵣ WInt cause ∗
@@ -87,13 +111,12 @@ Section Switcher_Exception_Blocks_1.
           (b_trusted_stack ^+ 2)%a ↦ₐ wcsp ∗
           (b_trusted_stack ^+ 17)%a ↦ₐ wst ∗
           (b_trusted_stack ^+ 18)%a ↦ₐ WInt cause ∗
-          trap_entry_res ∗
-          codefrag_pers pc_a (switcher_instrs_n 23) -∗
+          trap_entry_res -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hsub Hhandle)
-      "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Hout & #Hcode
+    iIntros
+      "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Hout & #Hswitcher
        & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
@@ -107,8 +130,8 @@ Section Switcher_Exception_Blocks_1.
                      withinBounds b_trusted_stack e_trusted_stack (b_trusted_stack ^+ k)%a = true)
       as Hts_k_bounds.
     { intros k Hk. rewrite /withinBounds. tstack_unfold; solve_addr. }
-    codefrag_facts "Hcode".
-    rewrite /switcher_instrs_n /assembled_switcher_n /tstack_cap.
+    switcher_open_label ".Lexception_exiting_threads_rejoin" "Hswitcher" as "Hcode".
+    rewrite /tstack_cap.
 
     (* The interrupted stack pointer, from mtdc *)
     (* Mov ct1 0 *)
@@ -150,20 +173,20 @@ Section Switcher_Exception_Blocks_1.
     destruct (decide (ca0 = cnull)) as [Hca0_null|_]; first done.
     repeat rewrite lstore_word_isWL; try reflexivity.
     iAssert (∀ zca0 : Z,
-                PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 17)%a -∗
+                PC ↦ₚ switcher_label_pc ".Lhandle_error" -∗
                 ca0 ↦ᵣ WInt zca0 -∗
                 ct1 ↦ᵣ WInt cause -∗
                 WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I
       with "[- Hca0 HPC Hct1]" as "Hpost".
     { iIntros (zca0) "HPC Hca0 Hct1".
-      iApply ("Hpost" $! wst cause zca0). iFrame "∗ Hcode %". }
-    assert ((pc_a ^+ 12 + 5)%a = Some (pc_a ^+ 17)%a) as Hjmp_handle by solve_addr.
-    assert ((pc_a ^+ 15 + 2)%a = Some (pc_a ^+ 17)%a) as Hjnez_handle by solve_addr.
+      iApply ("Hpost" $! wst cause zca0 with "[//]").
+      iFrame "HPC Hcsp Hct0 Hct1 Hca0 Hmtdc Hs0 Hs2 Hs17 Hs18 Htok". }
     destruct (decide (cause = 28%Z)) as [-> | Hcause_ne].
     - (* Jne 2 ca0 0 *)
       iInstr "Hcode".
       (* Jmp .Lhandle_error *)
       iInstr "Hcode".
+      switcher_change_pc_label ".Lhandle_error".
       iApply ("Hpost" with "HPC Hca0 Hct1").
     - (* Jne 2 ca0 0 *)
       iInstr "Hcode".
@@ -176,10 +199,14 @@ Section Switcher_Exception_Blocks_1.
       assert ((cause <? 8)%Z = true) as -> by (apply Z.ltb_lt; destruct Hcause; lia).
       (* Jne .Lhandle_error ca0 0 *)
       iInstr "Hcode".
+      switcher_change_pc_label ".Lhandle_error".
       iApply ("Hpost" with "HPC Hca0 Hct1").
   Qed.
 
-  Lemma switcher_exception_blocks_21_23_spec
+  (** From [exception_entry_asm]: spill the interrupted context in the
+      register save area, give the volatile registers back, and go to
+      [.Lhandle_error]. *)
+  Lemma exception_entry_asm_spec
     (w : LWord) (save_area : list LWord)
     (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     length save_area = 21%nat ->
@@ -228,18 +255,14 @@ Section Switcher_Exception_Blocks_1.
                  [wcra; wcsp; wcgp; wctp; wct0; wct1; wct2; wcs0; wcs1;
                   wca0; wca1; wca2; wca3; wca4; wca5]
                  wst (WInt cause) ]] ∗
-          trap_entry_res ∗
-          switcher_code -∗
+          trap_entry_res -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hlen)
       "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave & Hout & #Hswitcher & Hpost)".
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size as Hsize; cbn in Hsize.
     pose proof trusted_stack_frames_fit as [n Hfit].
-    pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     destruct save_area as
       [|s0 [|s1 [|s2 [|s3 [|s4 [|s5 [|s6 [|s7 [|s8 [|s9 [|s10
       [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
@@ -250,59 +273,44 @@ Section Switcher_Exception_Blocks_1.
     iRegionSplit "Hsave" as
       "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs16 & Hs17 & Hs18 & Hs19 & Hs20)".
-    switcher_unfold_code "Hswitcher".
 
-    (* Block 21: swap the trusted stack in *)
-    switcher_focus_block (switcher_block "exception_entry_asm") "Hswitcher" as "Hcode" "Hcls";
-      iHide "Hswitcher" as hswitcher.
-    iApply (switcher_exception_block_21_spec_aux with "[- $HPC $Hcsp $Hmtdc $Hcode]");
-      first done.
-    iNext; iIntros "(HPC & Hcsp & Hmtdc & _)".
-    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+    (* Swap the trusted stack in *)
+    iApply (exception_entry_block_spec with "[- $HPC $Hcsp $Hmtdc $Hswitcher]").
+    iNext; iIntros "(HPC & Hcsp & Hmtdc)".
 
-    (* Block 22: spill the registers but the stack pointer *)
-    switcher_focus_block (switcher_block ".Lexception_spill_registers") "Hswitcher"
-      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iAssert (codefrag_pers (a_switcher_call ^+ switcher_block_offset 22)%a
-               (trusted_spill_registers_instrs exception_spill_regs)) as "#Hspill";
-      first iExact "Hcode".
-    iApply (trusted_spill_registers_spec _ _ _ _ _ _ _ _ _ exception_spill_regs
+    (* Spill the registers but the stack pointer *)
+    iApply (exception_spill_registers_spec
               [wcra; wcgp; wctp; wct0; wct1; wct2; wcs0; wcs1; wca0; wca1; wca2; wca3; wca4; wca5]
               [s1; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15]
-             with "[- $HPC $Hcsp $Hspill]").
-    { done. }
-    { done. }
-    { rewrite -switcher_instrs_22_spill. offsets_compute. solve_addr+Hsub Hsize. }
-    { apply trusted_save_cells_ok_exception. }
-    { rewrite /exception_spill_regs. set_solver. }
-    { rewrite /exception_spill_regs. set_solver. }
+             with "[- $HPC $Hcsp $Hswitcher]").
     iSplitL "Hcra Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5".
-    { cbn. iFrame. }
+    { cbn [big_sepL2 exception_spill_regs]. iFrame "Hcra Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5". }
     iSplitL "Hs1 Hs3 Hs4 Hs5 Hs6 Hs7 Hs8 Hs9 Hs10 Hs11 Hs12 Hs13 Hs14 Hs15".
-    { cbn. iFrame. }
-    iNext; iIntros "(HPC & Hcsp & Hregs & Hcells & _)".
-    cbn.
+    { cbn [big_sepL2 exception_spill_regs]. iFrame "Hs1 Hs3 Hs4 Hs5 Hs6 Hs7 Hs8 Hs9 Hs10 Hs11 Hs12 Hs13 Hs14 Hs15". }
+    iNext; iIntros "(HPC & Hcsp & Hregs & Hcells)".
+    iEval (cbn [big_sepL2 exception_spill_regs]) in "Hregs Hcells".
     iDestruct "Hregs" as
       "(Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & _)".
     iDestruct "Hcells" as
       "(Hs1 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & _)".
-    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
-    (* Block 23: the stack pointer, MEPCC, mstatus, mcause and the dispatch *)
-    switcher_focus_block (switcher_block ".Lexception_exiting_threads_rejoin") "Hswitcher"
-      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_exception_block_23_spec_aux with
-             "[- $HPC $Hcsp $Hct0 $Hct1 $Hca0 $Hmtdc $Hs0 $Hs2 $Hs17 $Hs18 $Hout $Hcode]");
-      [done | offsets_compute; solve_addr+Hsize |].
-    iNext; iIntros (wst cause zca0)
-      "(%Hcause & HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Htok & _)".
-    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-    switcher_change_pc (switcher_label_offset ".Lhandle_error").
-    iApply ("Hpost" $! wst cause zca0); iFrame "∗ Hswitcher %".
+    (* The stack pointer, MEPCC, mstatus, mcause and the dispatch *)
+    iApply (exception_exiting_threads_rejoin_spec with
+             "[- $HPC $Hcsp $Hct0 $Hct1 $Hca0 $Hmtdc $Hs0 $Hs2 $Hs17 $Hs18 $Hout $Hswitcher]").
+    iNext; iIntros (wst cause zca0 Hcause)
+      "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Htok)".
+    iApply ("Hpost" $! wst cause zca0).
+    iSplit; first done.
+    iFrame "HPC Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5
+            Hmtdc Htok".
+    iClear "Hswitcher".
     rewrite /exception_spill /=.
-    iRegionMerge. iFrame.
+    iRegionMerge.
+    iEval (cbn [TrustedStack_offset_reg]) in
+      "Hs1 Hs3 Hs4 Hs5 Hs6 Hs7 Hs8 Hs9 Hs10 Hs11 Hs12 Hs13 Hs14 Hs15".
+    iFrame.
   Qed.
 
-End Switcher_Exception_Blocks_1.
+End Exception_Entry.

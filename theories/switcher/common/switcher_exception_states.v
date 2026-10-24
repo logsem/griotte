@@ -5,32 +5,36 @@ From griotte Require Import trusted_spill_registers_spec.
 
 (** * Shared interfaces of the exception path of the switcher
 
-    The exception path runs from the exception entry ([exception_entry_asm],
-    block 21) to the forced unwind of the faulting compartment's call, to
-    the resumption of a fault of the first spill of the call path, or to the
-    invocation of an error handler. Its block-group lemmas only depend on
-    this file and on the specifications of the spill and reload macros
-    ([trusted_spill_registers_spec]):
-    - [switcher_exception_blocks_1]: blocks 21-23, swap the trusted stack
-      in from mtdc, spill the registers of the interrupted context in the
-      register save area, then the PC, mstatus and the cause, and dispatch
-      on the cause,
-    - [switcher_exception_blocks_2]: blocks 24 and 36, [.Lhandle_error]:
-      restore mtdc, test for a fault of the switcher and for a trusted stack
-      with no frame; for a fault of the switcher, force the unwind or, for a
-      fault of the first spill of the call path, overwrite the saved return
-      values; otherwise, go on with the lookup of an error handler,
-    - [switcher_exception_blocks_4]: blocks 25-29, the lookup of an error
-      handler in the export table of the topmost frame: the room for the
-      [ErrorState] of a stackful handler, the stackful and the stackless
-      handlers, and the stack of a stackless handler,
-    - [switcher_exception_blocks_5]: blocks 30-32, the count of the fault
-      in the topmost frame, the handler's PC and CGP, the setup of a
-      stackless handler and the placeholder of the stackful setup,
-    - [switcher_exception_blocks_6]: blocks 33-35, the invocation of a
-      handler, its return, and the placeholder of the context install,
-    - [switcher_exception_blocks_3]: block 39, [.Lcommon_context_install]:
-      install the context of the register save area and resume it.
+    The exception path runs from the exception entry ([exception_entry_asm])
+    to the forced unwind of the faulting compartment's call, to the
+    resumption of a fault of the first spill of the call path, or to the
+    invocation of an error handler. Its block files, in [exception/], only
+    depend on this file and on the specifications of the macros they call
+    ([trusted_spill_registers_spec], ...); each is named after the label
+    where it starts:
+    - [exception_entry]: swap the trusted stack in from mtdc, spill the
+      registers of the interrupted context in the register save area, then
+      the PC, mstatus and the cause, and dispatch on the cause,
+    - [handle_error]: restore mtdc, test for a fault of the switcher and for
+      a trusted stack with no frame; for a fault of the switcher, force the
+      unwind or, for a fault of the first spill of the call path, overwrite
+      the saved return values; otherwise, go on with the lookup of an error
+      handler,
+    - [handle_error_stack_oob]: the lookup of an error handler in the export
+      table of the topmost frame: the room for the [ErrorState] of a
+      stackful handler, the stackful and the stackless handlers, and the
+      stack of a stackless handler,
+    - [handle_error_found]: the count of the fault in the topmost frame, the
+      handler's PC and CGP, and the setup of a stackless handler,
+    - [handle_error_stack_setup]: the setup of a stackful handler, the
+      stores of its [ErrorState],
+    - [handle_error_handler_invoke]: the invocation of a handler, and its
+      return,
+    - [handle_error_install_context]: the installation of the context that
+      a handler returns,
+    - [common_context_install]: install the context of the register save
+      area and resume it.
+    [exception_path] composes them.
 
     The specifications are thread-generic: they take the points-to of the
     register save area, not the invariant of the switcher. *)
