@@ -808,7 +808,29 @@ Ltac exptbl_unfold :=
     ExportTable_offset_errorHandler, ExportTable_offset_errorHandlerStackless,
     ExportTable_offset_entries in *.
 
-(** [solve_addr] sees through the layout of export tables. The hook has a
-    single definition: any later redefinition of [solve_addr_prepare] (for
+(** [t] mentions the layout or the code of the switcher. *)
+Ltac switcher_layout_term t :=
+  match t with
+  | context [a_switcher_call] => idtac
+  | context [b_switcher] => idtac
+  | context [e_switcher] => idtac
+  | context [switcher_instrs] => idtac
+  | context [assembled_switcher] => idtac
+  | context [switcher_asm] => idtac
+  end.
+
+(** When the goal does not mention the layout or the code of the switcher,
+    clear the hypotheses that do: they only slow down [solve_finz]. Fails
+    when the goal mentions them. *)
+Ltac clear_switcher_layout :=
+  match goal with |- ?g => tryif switcher_layout_term g then fail else idtac end;
+  repeat (match goal with H : ?T |- _ => switcher_layout_term T; clear H end).
+
+(** [solve_addr] sees through the layout of export tables. It first tries
+    without the facts about the switcher's layout, which are irrelevant to
+    most goals, then with the full context. The hook has a single
+    definition: any later redefinition of [solve_addr_prepare] (for
     instance in [kvs.v]) must also call [exptbl_unfold]. *)
-#[global] Ltac solve_addr.solve_addr_prepare ::= try exptbl_unfold.
+#[global] Ltac solve_addr.solve_addr_prepare ::=
+  try exptbl_unfold;
+  try solve [clear_switcher_layout; solve_finz].

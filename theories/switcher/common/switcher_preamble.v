@@ -5,7 +5,7 @@ From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Import bitblast.
 From griotte Require Import map_simpl register_tactics.
 From griotte Require Export code_blocks.
-From griotte Require Export switcher.
+From griotte Require Export switcher switcher_tactics.
 From griotte Require Export clear_stack_spec clear_registers_spec.
 
 Lemma switcher_disjoint_subseg `{MP : MachineParameters} b e b' e' :
@@ -677,64 +677,12 @@ Section Switcher_preamble.
 
 End Switcher_preamble.
 
-(** * Code of the switcher
-
-    Shared definitions about the code of the switcher, used by the
-    block-group lemmas of the call and return routines. *)
-
-(** The offset of the first instruction of block [n] of the switcher, from
-    [a_switcher_call]. *)
-Notation switcher_block_offset := (code_block_offset assembled_switcher).
-
-(** The offset of the label [s] of the switcher from [a_switcher_call], its
-    first instruction (the label [.Lswitch_csp_check]). *)
-Notation switcher_label_offset s :=
-  (asm_label_offset switcher_asm ".Lswitch_csp_check" s).
-
-(** The index of the block of the switcher that defines the label [s]. *)
-Notation switcher_block s := (asm_block switcher_asm s).
-
-(** The PC capability of the switcher at offset [off] of the code. *)
-Notation switcher_pc off :=
-  (WCap true XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ off)%a) (only parsing).
-
-(** The PC capability of the switcher at its label [s]. *)
-Notation switcher_label_pc s := (switcher_pc (switcher_label_offset s)) (only parsing).
-
-(** The code of the switcher. *)
-Notation switcher_code := (codefrag_pers a_switcher_call switcher_instrs) (only parsing).
-
-(** Unfold the code of the switcher in [h], in order to focus on its blocks. *)
-Ltac switcher_unfold_code h :=
-  iEval (rewrite /switcher_instrs /assembled_switcher) in h;
-  repeat (iEval (cbn [fmap list_fmap]) in h);
-  repeat (iEval (cbn [concat]) in h).
-
 (** A trusted-stack address is not a shadow-table address, when [H] states
     that the trusted stack is disjoint from the shadow table. *)
 Ltac tstk_not_shadow H :=
   eapply disjoint_from_shadow_not_in; [exact H | rewrite /withinBounds; tstack_unfold; solve_addr].
 
-(** Change the PC to [a_switcher_call ^+ off]. *)
-Ltac switcher_change_pc off := change_pc_to (a_switcher_call ^+ off)%a.
-
-(** Focus on block [n] of the switcher, whose first address is
-    [a_switcher_call ^+ switcher_block_offset n]. The PC is moved to this
-    address, when possible. *)
-Tactic Notation "switcher_focus_block" constr(n) constr(h)
-    "as" constr(hi) constr(hcont) :=
-  let n := eval vm_compute in n in
-  let a := fresh "a_block" in
-  let Ha := fresh "Ha_block" in
-  focus_block_nochangePC n h as a Ha hi hcont;
-  let Ha' := fresh in
-  pose proof Ha as Ha'; cbn in Ha';
-  assert (a = (a_switcher_call ^+ switcher_block_offset n)%a) as ->
-    by (offsets_compute; solve_addr);
-  clear Ha';
-  try switcher_change_pc (switcher_block_offset n).
-
-Section Switcher_Code.
+Section Switcher_Stack_Traps.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
@@ -744,35 +692,6 @@ Section Switcher_Code.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
-
-  Lemma switcher_SubBounds :
-    SubBounds b_switcher e_switcher a_switcher_call
-      (a_switcher_call ^+ length switcher_instrs)%a.
-  Proof.
-    pose proof switcher_size.
-    pose proof switcher_call_entry_point.
-    solve_addr.
-  Qed.
-
-  Lemma switcher_return_offset :
-    a_switcher_return =
-      (a_switcher_call ^+ switcher_label_offset "switcher_after_compartment_call")%a.
-  Proof.
-    pose proof switcher_return_entry_point as Hret.
-    pose proof switcher_call_entry_point as Hcall.
-    pose proof switcher_size as Hsize.
-    cbn in Hret, Hcall, Hsize.
-    offsets_compute.
-    solve_addr.
-  Qed.
-
-  (** A return through the switcher's return sentry passes the checks of
-      [Jalr cnull cra]. *)
-  Lemma jalr_target_ok_switcher_return_sentry mie :
-    jalr_target_ok cnull cra
-      (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
-  Proof. by destruct mie. Qed.
-
 
   Lemma switcher_stk_cells_region_4 a w0 w1 w2 w3 :
     (a + SpillSlot_size)%a = Some (a ^+ SpillSlot_size)%a ->
@@ -962,4 +881,4 @@ Section Switcher_Code.
     by intros [Hb | Ha].
   Qed.
 
-End Switcher_Code.
+End Switcher_Stack_Traps.
