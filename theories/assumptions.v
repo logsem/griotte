@@ -10,7 +10,7 @@ From griotte Require
   heap_temporal_safety_adequacy
 .
 From griotte Require Import
-  machine_base griotte_opsem switcher_base assert allocator_resources compartment_layout
+  machine_base griotte_opsem switcher assert allocator_resources compartment_layout
   kvs kvs_main cmdc deep_locality deep_immutability lse stack_object vae.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import

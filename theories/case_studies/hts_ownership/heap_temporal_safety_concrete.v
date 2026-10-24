@@ -2,7 +2,7 @@ From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
   machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
-  assembler switcher_base assert allocator_resources compartment_layout.
+  assembler switcher assert allocator_resources compartment_layout.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_adequacy.
 From griotte.allocators.ownership Require Import allocator.
 (* Imported last: the fields of the image records. *)

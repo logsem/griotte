@@ -749,7 +749,7 @@ Section adversary_exports.
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
     rewrite Htbl length_fmap in Hi.
     destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [ [ [posture args] minstk] offset] He].
-    iApply (adversary_export_prop _ _ _ _ posture i args minstk offset _ eh ehs
+    iApply (adversary_export_prop _ _ _ posture i args minstk offset _ eh ehs
              with "Hswitcher Hswitcher_static Hpcc Hcgp Heh Hehs Hentries Hinterp_pcc Hinterp_cgp").
     - by rewrite Htbl list_lookup_fmap He.
     - done.
