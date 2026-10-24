@@ -362,6 +362,134 @@ Section Switcher_Call_World.
     repeat split; try done; try solve_addr; try (by destruct Hstk_mmio); naive_solver.
   Qed.
 
+  (** The switcher invariant, open during the call routine: the resources
+      of the invariant that the call path does not use, and what closes
+      the invariant. The trusted stack pointer, the frame offset and the
+      unused part of the trusted stack go through the call path. *)
+  Definition switcher_inv_opened (cstk' : CSTK) (a_tstk : Addr) : iProp Σ :=
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
+    "Hclose_switcher_inv" ∷
+      (▷ switcher_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
+    "Hna" ∷ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
+    "Hsave_area" ∷ (∃ save_area, [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) ∗
+    "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
+    "Hcstk_full" ∷ cstack_full cstk' ∗
+    "Hstk_interp" ∷ cstack_interp cstk' a_tstk ∗
+    "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC ∗
+    "%Hlen_cstk" ∷ ⌜ (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a
+                     = Some a_tstk ⌝ ∗
+    "%Ha_tstk_e" ∷ ⌜ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
+    "%Hot_bounds" ∷ ⌜ (ot_switcher < ot_switcher ^+ 1)%ot ⌝.
+
+  (** Open the switcher invariant for the call routine. The resources come
+      under a later, which the first instruction removes. *)
+  Lemma switcher_inv_open_call :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    na_inv cerise_nais Nswitcher switcher_inv -∗
+    na_own cerise_nais ⊤
+    ={⊤}=∗
+    ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
+      let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+      ⌜ (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ⌝ ∗
+      ⌜ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
+      ▷ switcher_inv_opened cstk' a_tstk ∗
+      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
+      [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]].
+  Proof.
+    intros a_frameoffset; subst a_frameoffset.
+    iIntros "#Hinv Hna".
+    iMod (na_inv_acc with "Hinv Hna") as "(Hswitcher_inv & Hna & Hclose)"; [done|done|].
+    iMod (switcher_inv_open with "Hswitcher_inv") as
+      (a_tstk cstk' save_area tstk_next)
+      "(Hmtdc & %Hot & Hsave_area & Hframeoffset & HthreadID & Htstk & Hcstk_full
+       & %Hlen & Hstk_interp & #Hp_ot_switcher)".
+    destruct Hlen as [Hlen Ha_tstk_e].
+    iModIntro.
+    iExists a_tstk, cstk', tstk_next.
+    iFrame "Hmtdc Hframeoffset Htstk".
+    iSplit; first done.
+    iSplit; first done.
+    iNext.
+    iFrame "Hclose Hna Hsave_area HthreadID Hcstk_full Hstk_interp Hp_ot_switcher".
+    done.
+  Qed.
+
+  (** Close the switcher invariant, with the trusted stack unchanged. *)
+  Lemma switcher_inv_opened_close (cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord) :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    switcher_inv_opened cstk' a_tstk -∗
+    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
+    [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
+    ={⊤}=∗
+    na_own cerise_nais ⊤.
+  Proof.
+    intros a_frameoffset a_next; subst a_frameoffset a_next.
+    iIntros "Hopened Hmtdc Hframeoffset Htstk".
+    iNamed "Hopened".
+    iDestruct "Hsave_area" as (save_area) "Hsave_area".
+    iApply ("Hclose_switcher_inv" with "[- $Hna]").
+    iNext. iExists a_tstk, cstk', save_area, tstk_next.
+    iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp Hp_ot_switcher".
+    iPureIntro; done.
+  Qed.
+
+  (** Close the switcher invariant after pushing the frame [frm] on the
+      trusted stack. *)
+  Lemma switcher_inv_opened_push
+    (frm : cframe) (cstk cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord)
+    (wtbl : LWord) (b_stk e_stk a_stk : Addr) :
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_free := (a_next ^+ TrustedStackFrame_size)%a in
+    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
+    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
+    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ->
+    (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ->
+    frm.(cf_tframe).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (stk_saved_a a_stk)) ->
+    switcher_stk_bounds b_stk e_stk a_stk ->
+    disjoint_from_mmio b_stk e_stk ->
+    disjoint_from_heap b_stk e_stk ->
+    (is_untrusted_caller_frm frm = false →
+     jalr_target_ok cnull cra frm.(cf_saved).(cs_cra).(lw) = true ∧
+     is_heap_cap frm.(cf_saved).(cs_cra).(lw) = false) ->
+    wtbl = frm.(cf_tframe).(tf_export_tbl) ->
+    wtbl = lword_of_word (WInt 0) ∨ tf_export_tbl_ok frm.(cf_tframe) ->
+
+    switcher_inv_opened cstk' a_tstk -∗
+    cstack_frag cstk -∗
+    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
+    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
+    a_export_table ↦ₐ wtbl -∗
+    a_error_count ↦ₐ WInt frm.(cf_tframe).(tf_error_count) -∗
+    [[ a_free , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
+    cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel)
+    ={⊤}=∗
+    na_own cerise_nais ⊤ ∗ cstack_frag (cstack_push frm cstk).
+  Proof.
+    intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
+    subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
+    iIntros (Ha_next Ha_next_e Hcsp Hbounds Hstk_mmio Hstk_heap Hret Hwtbl Htbl)
+      "Hopened Hcstk Hmtdc Hframeoffset Hframe_csp Hframe_tbl Hframe_cnt Htstk Hframe".
+    iNamed "Hopened".
+    iDestruct "Hsave_area" as (save_area) "Hsave_area".
+    iMod (switcher_inv_push_frame frm cstk with
+           "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl
+            Hframe_cnt Htstk Hstk_interp Hframe Hp_ot_switcher")
+      as "[Hinv $]"; [done..|].
+    iApply ("Hclose_switcher_inv" with "[$Hinv $Hna]").
+  Qed.
+
+  (** The sealing predicate of [ot_switcher], from the open invariant. *)
+  Lemma switcher_inv_opened_seal_pred (cstk' : CSTK) (a_tstk : Addr) :
+    switcher_inv_opened cstk' a_tstk ⊢ seal_pred ot_switcher ot_switcher_propC.
+  Proof. iIntros "Hopened"; iNamed "Hopened"; iExact "Hp_ot_switcher". Qed.
+
   (** ** Functional specification *)
 
   (** The callee's stack and the spill area of a caller whose cursor is

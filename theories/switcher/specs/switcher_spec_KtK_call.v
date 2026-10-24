@@ -116,7 +116,7 @@ Section Switcher_KtK_Call.
       "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1]");
       [done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
-      "(%Hrestored & %Hrmap' & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hrmap & _ & _)".
+      "(%Hrestored & %Hrmap' & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hrmap & _)".
     iSplit; cycle 1.
     { (* The return address of the caller is a valid target *)
       iIntros "%Hjalr".
@@ -285,15 +285,12 @@ Section Switcher_KtK_Call.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;
-       - [switch_csp_check_spec]: the checks on the stack pointer
-         succeed;
-       - [switch_entry_first_spill_path_spec]: spill the callee-save registers and
-         push the stack pointer on the trusted stack; the spill fits on the
-         caller's stack, which is at least the callee's minimum stack size;
-       - when the trusted stack is exhausted:
+       - [switcher_call_path_spec]: check the stack pointer, spill the
+         callee-save registers, push the frame, clear the callee's stack and
+         unseal the entry point; the spill fits on the caller's stack, which
+         is at least the callee's minimum stack size, and the entry point is
+         sealed by the switcher; when the trusted stack is exhausted,
          [switcher_cc_spec_tstack_exhausted_known_to_known];
-       - [switch_stack_chop_path_spec]: clear the callee's stack frame and
-         unseal the entry point, which is sealed by the switcher;
        - [switcher_decode_entry_path_known_spec]: load the callee and jump to it;
          its stack is at least its minimum stack size, so the check passes;
        - [switcher_inv_push_frame]: push the frame and close the switcher
@@ -329,46 +326,35 @@ Section Switcher_KtK_Call.
     iHide "Hswitcher" as hinv_switcher.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
 
-    (* [.Lswitch_csp_check]: checks on the stack pointer *)
+    (* [.Lswitch_csp_check] to [.Lswitcher_decode_entry] *)
     iEval (rewrite -switcher_call_entry_label) in "HPC".
-    iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
-    iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp) | (%Hcontra & _)]";
-      last (exfalso; apply Hcontra, switcher_csp_checked_stk).
-
-    (* [.Lswitch_entry_first_spill]: spill and push on the trusted stack *)
-    iApply (switch_entry_first_spill_path_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
-      [done|done|done|done|].
-    iSplit; cycle 1.
-    { (* The callee-save registers fit on the caller's stack: the spill does
-         not fault *)
-      iIntros (Hnfits) "_". exfalso. apply Hnfits.
-      by apply (stk_callee_fits_spill_fits _ _ _ minstk_tgt); [lia|]. }
-    iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
-    iDestruct "Hbranch" as
-      "[(%Ha_frame & %Ha_frame_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset
-         & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & _)
-       | (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset & Htstk)]"; cycle 1.
+    iApply (switcher_call_path_spec with
+      "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Htstk
+          $Hb_switcher $Hcode]"); [done..|].
+    iNext.
+    iSplit; [ |iSplit; [ |iSplit] ]; cycle 1.
+    { (* The entry point is sealed by the switcher: the unsealing does not
+         fault *)
+      iIntros "(%Hnot_entry & _)"; exfalso.
+      apply Hnot_entry; subst wct1_caller.
+      by eexists _, None. }
     { (* The trusted stack is exhausted *)
+      iIntros "(%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1
+        & Hcells & Hstk & Hmtdc & Hframeoffset & Htstk)".
       iApply (switcher_cc_spec_tstack_exhausted_known_to_known with
         "[$Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID $Htstk $Hstatic
           $Hcstk_full $Hstk_interp
           $Hp_ot_switcher $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk
           $Hargs $Hregs $Hcstk Hpost]"); [done..|].
-      iNext; iIntros "H"; iApply "Hpost"; iRight; iExact "H".
-    }
-
-    (* [.Lswitch_stack_chop]: clear the callee's stack frame and unseal the entry point *)
-    iApply (switch_stack_chop_path_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hct2 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
-    iSplit; cycle 1.
-    { (* The entry point is sealed by the switcher: the unsealing does not
-         fault *)
-      iIntros "%Hnot_entry"; exfalso.
-      apply Hnot_entry; subst wct1_caller.
-      by eexists _, None. }
+      iNext; iIntros "H"; iApply "Hpost"; iRight; iExact "H". }
+    { (* The callee-save registers fit on the caller's stack: the spill does
+         not fault *)
+      iIntros "(%Hnfits & _)". exfalso. apply Hnfits.
+      by apply (stk_callee_fits_spill_fits _ _ _ minstk_tgt); [lia|]. }
     iNext; iIntros (wsb π)
-      "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2] & Hcsp & Hstk & _ & Hct1 & _)".
+      "(%Hwsb & _ & %Hstk_bounds & %Ha_frame & %Ha_frame_e & HPC & Hcs0 & [%wcs1' Hcs1]
+      & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
+      & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
 
     (* [.Lswitcher_decode_entry]: load the callee and jump to it; only the low byte of the
@@ -398,7 +384,7 @@ Section Switcher_KtK_Call.
       pose proof Hstk_bounds as (_ & _ & Ha4). stk_unfold.
       solve_addr+Hsmall Hminstk Hminstk8_le Ha4. }
     iIntros (mie arg_rmap' rmap')
-      "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs & _)".
+      "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs)".
 
     (* Push the frame and close the switcher invariant *)
     (* The table cell holds the unsealed entry *)
