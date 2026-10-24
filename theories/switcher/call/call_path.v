@@ -72,6 +72,7 @@ Section Call_Path.
     [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem ]] ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+    switcher_hazard ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     switcher_code ∗
@@ -96,6 +97,7 @@ Section Call_Path.
             [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
           mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
+          switcher_hazard ∗
           a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
           a_export_table ↦ₐ WInt 0 ∗
           a_error_count ↦ₐ WInt 0 ∗
@@ -121,6 +123,7 @@ Section Call_Path.
             [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
           mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
+          switcher_hazard ∗
           a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
           a_export_table ↦ₐ WInt 0 ∗
           a_error_count ↦ₐ WInt 0 ∗
@@ -144,6 +147,7 @@ Section Call_Path.
           [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
           mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+          switcher_hazard ∗
           [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
         ∧
@@ -160,6 +164,7 @@ Section Call_Path.
           [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem ]] ∗
           mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+          switcher_hazard ∗
           [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
           trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
@@ -169,7 +174,7 @@ Section Call_Path.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     iIntros (Hstk_mmio Hstk_heap Hcursor Ha_tstk Ha_tstk_e)
       "(HPC & Hcsp & Hct2 & Hctp & Hcs0 & Hcs1 & Hcra & Hcgp & Hct1 & Hstk
-      & Hmtdc & Hframeoffset & Htstk & #Hb_switcher & #Hswitcher & Hpost)".
+      & Hmtdc & Hframeoffset & Hhazard & Htstk & #Hb_switcher & #Hswitcher & Hpost)".
     (* [.Lswitch_csp_check]: checks on the stack pointer *)
     iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hswitcher]").
     iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp) | (%Hcontra & _)]";
@@ -181,23 +186,24 @@ Section Call_Path.
     { iIntros (Hnfits) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk)".
       iDestruct "Hpost" as "(_ & _ & _ & Hpost)".
       iApply "Hpost".
-      iFrame "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hstk Hmtdc Hframeoffset Htstk".
+      iFrame "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hstk Hmtdc Hframeoffset Hhazard Htstk".
       done. }
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hcells & Hstk & %Hbounds)".
     (* [.Lswitcher_trusted_stack_push]: push the frame *)
     iApply (switcher_trusted_stack_push_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hctp $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htstk $Hswitcher]");
+      "[- $HPC $Hcs0 $Hcs1 $Hctp $Hct2 $Hcsp $Hmtdc $Hframeoffset $Hhazard $Htstk $Hswitcher]");
       [done|done|].
     iNext.
     iIntros "[
       (%tstk_next' & %Ha_next & %Ha_next_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hmtdc
-        & Hframeoffset & Hframe_csp & Hframe_tbl & Hframe_cnt & Htstk & Hlc)
+        & Hframeoffset & Hhazard & Hframe_csp & Hframe_tbl & Hframe_cnt & Htstk & Hlc)
       |
-      (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htstk)
+      (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Htstk)
     ]"; cycle 1.
     { iDestruct "Hpost" as "(_ & _ & Hpost & _)".
       iApply "Hpost".
-      iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hcra Hcgp Hct1 Hcells Hstk Hmtdc Hframeoffset Htstk".
+      iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hcra Hcgp Hct1 Hcells Hstk Hmtdc Hframeoffset Hhazard
+        Htstk".
       done. }
     (* [.Lswitch_stack_chop]: restrict the stack to the callee's and clear it *)
     iApply (switch_stack_chop_spec with
@@ -210,7 +216,7 @@ Section Call_Path.
       iDestruct "Hpost" as "(_ & Hpost & _)".
       iApply "Hpost".
       iFrame "Hcs0 Hcs1 Hct2 Hctp Hcsp Hcra Hcgp Hct1 Hcells Hstk Hmtdc Hframeoffset
-        Hframe_csp Hframe_tbl Hframe_cnt Hlc".
+        Hhazard Hframe_csp Hframe_tbl Hframe_cnt Hlc".
       iSplit; first done.
       iSplit; first done.
       iSplit; first done.
@@ -220,7 +226,7 @@ Section Call_Path.
     iDestruct "Hpost" as "(Hpost & _)".
     iApply ("Hpost" $! wsb π).
     iFrame "HPC Hcs0 Hcs1 Hct2 Hctp Hcsp Hcra Hcgp Hct1 Hcells Hstk Hmtdc Hframeoffset
-      Hframe_csp Hframe_tbl Hframe_cnt Hlc".
+      Hhazard Hframe_csp Hframe_tbl Hframe_cnt Hlc".
     iSplit; first done.
     iSplit; first done.
     iSplit; first done.

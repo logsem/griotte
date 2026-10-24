@@ -1064,7 +1064,9 @@ Section memory_map.
   Definition thread_rows (i : nat) (t : img_thread) : list map_row :=
     [row (b_trusted_stack t) (Z.to_nat (e_trusted_stack t - b_trusted_stack t)%Z)
        "trusted stack" (String.append "thread " (nat_str i)) [];
-     row (b_stack t) (Z.to_nat (e_stack t - b_stack t)%Z) "stack" (String.append "thread " (nat_str i)) []].
+     row (b_stack t) (Z.to_nat (e_stack t - b_stack t)%Z) "stack" (String.append "thread " (nat_str i)) [];
+     row (b_hazard t) (Z.to_nat (e_hazard t - b_hazard t)%Z)
+       "hazard slots" (String.append "thread " (nat_str i)) []].
 
   Fixpoint insert_row (r : map_row) (rs : list map_row) : list map_row :=
     match rs with

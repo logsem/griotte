@@ -325,6 +325,21 @@ Section Switcher_preamble.
     - iIntros "[Hrest [Htf Hspill]]". iFrame "Htf". iIntros (n) "Htf". iFrame.
   Qed.
 
+  (** The store-only capability to the two hazard slots of the thread, in
+      the word [hazardPointers] of the register save area. *)
+  Definition hazard_slots_cap : Word :=
+    WCap true WO Global b_hazard_slots e_hazard_slots b_hazard_slots.
+
+  (** The word [hazardPointers] of the register save area. *)
+  Definition tstack_hazard_cell : Addr :=
+    (b_trusted_stack ^+ TrustedStack_offset_hazardPointers)%a.
+
+  (** What the switcher uses to clear the hazard slots: the word
+      [hazardPointers] of the register save area, and the two slots. *)
+  Definition switcher_hazard : iProp Σ :=
+    tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
+    (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]).
+
   (** [switcher_inv] describes the invariant of the switcher,
       and describe the private state of the switcher.
 
@@ -347,8 +362,11 @@ Section Switcher_preamble.
 
       Finally, the invariant holds the points-to predicates of the trusted stack.
       The topmost frame is at [a_tstk]; the unused part, from the next frame
-      to [e_trusted_stack], and the save area contain some unknown values.
-      The used part is contained in the definition of [cstack_interp].
+      to [e_trusted_stack], and the save area contain some unknown values,
+      but for the word [hazardPointers] of the save area, which holds the
+      capability to the hazard slots of the thread. The invariant owns the
+      two hazard slots, which hold unknown values: no compartment reaches
+      them. The used part is contained in the definition of [cstack_interp].
    *)
   Definition switcher_inv : iProp Σ :=
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
@@ -359,6 +377,10 @@ Section Switcher_preamble.
       "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
+      "%Hsave_hazard" ∷
+        ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
+         = Some (lword_of_word hazard_slots_cap)⌝ ∗
+      "Hhazard_slots" ∷ (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
       "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
       "Htstk" ∷ [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
@@ -382,6 +404,10 @@ Section Switcher_preamble.
       "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
+      "%Hsave_hazard" ∷
+        ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
+         = Some (lword_of_word hazard_slots_cap)⌝ ∗
+      "Hhazard_slots" ∷ (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
       "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
       "Htstk" ∷ [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
@@ -395,8 +421,8 @@ Section Switcher_preamble.
     intros a_frameoffset a_save_end a_threadID; subst a_frameoffset a_save_end a_threadID.
     iIntros "Hinv". rewrite /switcher_inv /=.
     iDestruct "Hinv" as (a_tstk cstk' save_area tstk_next)
-      "(>Hmtdc & >% & >Hsave_area & >Hframeoffset & >HthreadID & >Htstk & >Hcstk_full & >% & Hstk_interp
-       & #Hp_ot_switcher)".
+      "(>Hmtdc & >% & >Hsave_area & >% & >Hhazard_slots & >Hframeoffset & >HthreadID & >Htstk
+       & >Hcstk_full & >% & Hstk_interp & #Hp_ot_switcher)".
     iModIntro. iExists a_tstk, cstk', save_area, tstk_next. by iFrame "∗ # %".
   Qed.
 
@@ -415,9 +441,11 @@ Section Switcher_preamble.
     (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
+    save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
+    (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
     (∃ w, a_threadID ↦ₐ w) -∗
     a_csp ↦ₐ w0 -∗
@@ -431,12 +459,15 @@ Section Switcher_preamble.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
-    iIntros (Hlen_cstk Ha_tstk_e Hot)
-      "Hmtdc Hsave_area Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full Hstk_interp #Hp_ot_switcher".
+    iIntros (Hlen_cstk Ha_tstk_e Hot Hsave_hazard)
+      "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full
+       Hstk_interp #Hp_ot_switcher".
     iExists (a_tstk ^+ - TrustedStackFrame_size)%a, cstk, save_area, (w0 :: w1 :: w2 :: tstk_next).
-    iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Hcstk_full Hstk_interp Hp_ot_switcher".
+    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hcstk_full Hstk_interp
+      Hp_ot_switcher".
     replace ((a_tstk ^+ - TrustedStackFrame_size) ^+ TrustedStackFrame_size)%a with a_tstk
       by (tstack_unfold; solve_addr).
+    iSplit; first done.
     iSplit; first done.
     iSplitL "Hw0 Hw1 Hw2 Htstk".
     { iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_size)%a
@@ -470,6 +501,41 @@ End Switcher_preamble.
     that the trusted stack is disjoint from the shadow table. *)
 Ltac tstk_not_shadow H :=
   eapply disjoint_from_shadow_not_in; [exact H | rewrite /withinBounds; tstack_unfold; solve_addr].
+
+Section Switcher_Hazard.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
+  .
+
+  (** Take the word [hazardPointers] out of the register save area
+      [save_area], with the hazard slots. *)
+  Lemma switcher_hazard_open (save_area : list LWord) :
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
+    save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
+    [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
+    (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
+    switcher_hazard ∗
+    (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗
+     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]).
+  Proof.
+    intros a_save_end; subst a_save_end.
+    iIntros (Hk) "Hsave Hslots".
+    pose proof trusted_stack_frames_fit as [n Hfit].
+    rewrite /region_pointsto.
+    iDestruct (big_sepL2_length with "Hsave") as %Hlen.
+    rewrite finz_seq_between_length /finz.dist in Hlen.
+    iDestruct (big_sepL2_lookup_acc _ _ _ (Z.to_nat TrustedStack_offset_hazardPointers)
+                 with "Hsave") as "[Hw Hcont]"; [|exact Hk|].
+    { eapply finz_seq_between_lookup with (n := 21%nat);
+        rewrite /TrustedStack_offset_hazardPointers; tstack_unfold; [lia | solve_addr]. }
+    iFrame "Hslots".
+    iSplitL "Hw"; [iExact "Hw" | iExact "Hcont"].
+  Qed.
+
+End Switcher_Hazard.
 
 Section Switcher_Stack_Traps.
   Context

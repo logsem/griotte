@@ -98,6 +98,8 @@ Section adequacy_helpers.
       intros swlayout ef Hmtcc Hw_csp Hw_tbl Htbl_cap.
       iIntros "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc".
       rewrite /mk_initial_switcher.
+      iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hcmpt_switcher Hhazard_slots]".
+      { apply cmpt_switcher_hazard_mregion_disjoint. }
       iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hswitcher Hstack]".
       { eapply cmpt_switcher_stack_mregion_disjoint ; eauto. }
       iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher Htrusted_stack]".
@@ -129,8 +131,11 @@ Section adequacy_helpers.
         }
         iFrame.
       }
+      rewrite /cmpt_switcher_hazard_mregion.
+      iDestruct (mkregion_prepare with "[Hhazard_slots]") as ">Hhazard_slots"; auto.
+      { apply (hazard_slots_size switcher_cmpt). }
       iAssert (|==> switcher_preamble.switcher_inv)%I
-        with "[Htrusted_stack Hcstk_full Hmtdc]" as ">Hswitcher".
+        with "[Htrusted_stack Hhazard_slots Hcstk_full Hmtdc]" as ">Hswitcher".
       {
         pose proof (trusted_stack_content_error_count switcher_cmpt) as Hw_cnt.
         pose proof (trusted_stack_content_frameoffset switcher_cmpt) as Hframeoffset.
@@ -141,6 +146,11 @@ Section adequacy_helpers.
                    ↦ₐ [[ lword_of_word <$> trusted_stack_content switcher_cmpt ]])%I
           with "[Htrusted_stack]" as "Htrusted_stack".
         { rewrite /region_pointsto big_sepL2_fmap_r. iFrame. }
+        pose proof (trusted_stack_content_hazard switcher_cmpt) as Hhazard_cell.
+        iAssert (∃ ws, [[ b_hazard_slots switcher_cmpt, e_hazard_slots switcher_cmpt ]] ↦ₐ [[ ws ]])%I
+          with "[Hhazard_slots]" as "Hhazard_slots".
+        { iExists (lword_of_word <$> [WInt 0; WInt 0]).
+          rewrite /region_pointsto big_sepL2_fmap_r. iFrame. }
         set (b := b_trusted_stack switcher_cmpt) in *.
         set (e := e_trusted_stack switcher_cmpt) in *.
         set (l := trusted_stack_content switcher_cmpt) in *.
@@ -204,6 +214,9 @@ Section adequacy_helpers.
         rewrite /trusted_frame_interp /TrustedStackFrame_offset_csp finz_add_0_default /=.
         iFrame "∗ #".
         iSplit; first done.
+        iSplit.
+        { iPureIntro. rewrite list_lookup_fmap lookup_take_lt; last (vm_compute; lia).
+          by rewrite Hhazard_cell. }
         iSplit; last (iPureIntro; destruct Htbl_cap as (p & g & e_tbl & a_tbl & -> & Htbl);
                       rewrite /tf_export_tbl_ok /=; split; [by exists p, g, e_tbl, a_tbl | done]).
         iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.

@@ -49,6 +49,7 @@ Section Switcher_KtK_Call.
     (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
+    save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
@@ -56,6 +57,7 @@ Section Switcher_KtK_Call.
     na_own cerise_nais (E ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
+    (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
     (∃ w, a_threadID ↦ₐ w) ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
@@ -103,8 +105,10 @@ Section Switcher_KtK_Call.
        registers, clears the others and returns, then close the switcher
        invariant. The return address is a valid
        target, so the jump back does not fault. *)
-    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds Hret_jalr Hret_heap)
-      "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hframeoffset & HthreadID & Htstk & #Hstatic & Hcstk_full & Hstk_interp
+    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds Hsave_hazard Hret_jalr
+             Hret_heap)
+      "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hhazard_slots & Hframeoffset & HthreadID
+      & Htstk & #Hstatic & Hcstk_full & Hstk_interp
       & #Hp_ot_switcher & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk
       & Hargs & Hregs & Hcstk & Hpost)".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -125,7 +129,8 @@ Section Switcher_KtK_Call.
       subst rcra; congruence. }
     iIntros "[HPC _]".
     iMod ("Hclose_switcher_inv" with
-      "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
+      "[$Hna $Hcstk_full Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hstk_interp]")
+      as "Hna".
     { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
     iApply "Hpost"; iFrame.
@@ -324,6 +329,8 @@ Section Switcher_KtK_Call.
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed switcher_inv_open "Hswitcher_inv".
+    iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
+      first done.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
@@ -331,8 +338,8 @@ Section Switcher_KtK_Call.
     (* [.Lswitch_csp_check] to [.Lswitcher_decode_entry] *)
     iEval (rewrite -switcher_call_entry_label) in "HPC".
     iApply (switcher_call_path_spec with
-      "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Htstk
-          $Hb_switcher $Hcode]"); [done..|].
+      "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Hhazard
+          $Htstk $Hb_switcher $Hcode]"); [done..|].
     iNext.
     iSplit; [ |iSplit; [ |iSplit] ]; cycle 1.
     { (* The entry point is sealed by the switcher: the unsealing does not
@@ -342,9 +349,12 @@ Section Switcher_KtK_Call.
       by eexists _, None. }
     { (* The trusted stack is exhausted *)
       iIntros "(%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1
-        & Hcells & Hstk & Hmtdc & Hframeoffset & Htstk)".
+        & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Htstk)".
+      iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
+      iSpecialize ("Hsave_area" with "Hhazard_cell").
       iApply (switcher_cc_spec_tstack_exhausted_known_to_known with
-        "[$Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hframeoffset $HthreadID $Htstk $Hstatic
+        "[$Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hhazard_slots $Hframeoffset $HthreadID $Htstk
+          $Hstatic
           $Hcstk_full $Hstk_interp
           $Hp_ot_switcher $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk
           $Hargs $Hregs $Hcstk Hpost]"); [done..|].
@@ -356,7 +366,7 @@ Section Switcher_KtK_Call.
     iNext; iIntros (wsb π)
       "(%Hwsb & _ & %Hstk_bounds & %Ha_frame & %Ha_frame_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
-      & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & _)".
+      & Hhazard & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
 
     (* [.Lswitcher_decode_entry]: load the callee and jump to it; only the low byte of the
@@ -393,12 +403,14 @@ Section Switcher_KtK_Call.
     (* The table cell holds the unsealed entry *)
     pose proof (tf_export_tbl_cell_entry (cf_tframe frame) Global btbl_tgt etbl_tgt atbl_tgt
                eq_refl Hbtbl_ehs ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
+    iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
+    iSpecialize ("Hsave_area" with "Hhazard_cell").
     iMod (switcher_inv_push_frame frame cstk with
-           "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
-            Hstk_interp [Hcells] Hp_ot_switcher")
+           "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
+            Hframe_tbl Hframe_cnt Htstk Hstk_interp [Hcells] Hp_ot_switcher")
       as "[Hinv Hcstk]";
       [done|done|done|done|done|exact Hstk_bounds|done|done|by intros _|done
-      |right; exact Htbl_cell| |].
+      |right; exact Htbl_cell|done| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
     iApply "Hpost"; iLeft; iFrame "∗ %".

@@ -1,6 +1,7 @@
 From griotte Require Import machine_parameters assembler.
 From griotte Require Import griotte_opsem.
 From griotte Require Export clear_stack copy_context clear_registers export_table_layout.
+From griotte Require Export clear_hazard_slots.
 
 Class switcherLayout : Type :=
   mkSwitcherLayout {
@@ -13,6 +14,10 @@ Class switcherLayout : Type :=
 
       b_trusted_stack : Addr;
       e_trusted_stack : Addr;
+
+      (* The two hazard slots of the thread. *)
+      b_hazard_slots : Addr;
+      e_hazard_slots : Addr;
     }.
 
 Section Switcher.
@@ -38,7 +43,8 @@ Section Switcher.
       the 32-bit fields that CHERIoT packs in pairs. mtdc holds a capability
       to the base of the trusted stack, which starts with the register save
       area: [mepcc], the registers x1 to x15 (register xi at word i),
-      [hazardPointers], [mstatus], [mcause], [mshwm] and [mshwmb]. It is
+      [hazardPointers] (a store-only capability to the two hazard slots of
+      the thread), [mstatus], [mcause], [mshwm] and [mshwmb]. It is
       followed by the header ([frameoffset], the offset from the base of the
       next free frame, and [threadID]) and by the frames. A frame holds the
       stack pointer of the caller, the export table of the callee and the
@@ -60,7 +66,8 @@ Section Switcher.
   Definition TrustedStack_offset_ca3 : Z := 13.
   Definition TrustedStack_offset_ca4 : Z := 14.
   Definition TrustedStack_offset_ca5 : Z := 15.
-  Definition TrustedStack_offset_hazardPointers : Z := 16.
+  (* [TrustedStack_offset_hazardPointers], 16, is in [clear_hazard_slots],
+     the macro that uses it. *)
   Definition TrustedStack_offset_mstatus : Z := 17.
   Definition TrustedStack_offset_mcause : Z := 18.
   Definition TrustedStack_offset_mshwm : Z := 19.
@@ -223,7 +230,10 @@ Section Switcher.
       ]
       ; (* Check that the trusted stack has room for a frame, and push it *)
       [ #".Lswitcher_trusted_stack_push";
-        readsr ct2 mtdc;
+        readsr ct2 mtdc ] ++
+      (* clear_hazard_slots ct2, ctp *)
+      clear_hazard_slots_asm ct2 ctp ++
+      [
         load_imm ctp ct2 TrustedStack_offset_frameoffset;
         (* The length of the trusted stack *)
         gete cs0 ct2;
@@ -328,7 +338,10 @@ Section Switcher.
       (* Return from the callee *)
       [
         #"switcher_after_compartment_call";
-        readsr ctp mtdc;
+        readsr ctp mtdc ] ++
+      (* clear_hazard_slots ctp, ct2 *)
+      clear_hazard_slots_asm ctp ct2 ++
+      [
         (* The offset of the frame to pop *)
         load_imm ct2 ctp TrustedStack_offset_frameoffset;
         mov ct0 TrustedStack_offset_frames;
@@ -776,7 +789,13 @@ Section Switcher.
         ∃ n : nat,
           (b_trusted_stack + tstack_frame_offset (S n))%a = Some e_trusted_stack;
         (* The trusted stack is not at address 0: mtdc is never null. *)
-        trusted_stack_base_nonzero : (b_trusted_stack : Z) ≠ 0
+        trusted_stack_base_nonzero : (b_trusted_stack : Z) ≠ 0;
+        (* The two hazard slots of the thread, outside the shadow table and
+           the heap. *)
+        hazard_slots_size : (b_hazard_slots + 2)%a = Some e_hazard_slots;
+        hazard_slots_disjoint_from_shadow :
+        disjoint_from_shadow b_hazard_slots e_hazard_slots;
+        hazard_slots_not_heap : not_heap_range b_hazard_slots e_hazard_slots
       }.
 
   Lemma switcher_base_not_heap

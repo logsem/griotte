@@ -143,6 +143,8 @@ Section Switcher_KtK_Return.
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed switcher_inv_open "Hswitcher_inv".
+    iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
+      first done.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
 
@@ -165,10 +167,10 @@ Section Switcher_KtK_Return.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iEval (rewrite switcher_return_block_13) in "HPC".
     iApply (switcher_return_path_spec (length cstk.(cstk_frames)) with
-      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hregs $Hmtdc $Hframeoffset $Htf_csp $Hcells $Hstk
+      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hregs $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcells $Hstk
         $Hcode]"); [done|done|done|done|done|done|].
     iIntros "!>" (rmap' rcgp rcra rcs1 rcs0)
-      "(%Hrestored & %Hrmap' & Hmtdc & Hframeoffset & Htf_csp & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
+      "(%Hrestored & %Hrmap' & Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
       & Hstk' & Hstk & Hregs)".
     iSplit; cycle 1.
     { (* The return address of the caller is a valid target *)
@@ -188,9 +190,9 @@ Section Switcher_KtK_Return.
     (* Pop the frame and close the switcher invariant *)
     subst hclose_switcher_inv.
     iMod (switcher_return_pop_close E _ cstk with
-           "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl
+           "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
             Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next Hp_ot_switcher")
-      as "[Hna Hcstk]"; [done|done|done|].
+      as "[Hna Hcstk]"; [done|done|done|done|].
 
     iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1).
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hregs Hstk Hcstk".
