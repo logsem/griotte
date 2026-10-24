@@ -80,8 +80,7 @@ Section Handle_Error_Handler_Invoke.
     { exact Hdom. }
     iNext; iIntros "(%rmap' & %Hdom' & HPC & Hrmap & _)".
     rewrite registers_except_handler_invoke.
-    rewrite (_ : ((pc_a ^+ 1) ^+ length (rclear_instrs' registers_handler_invoke))%a =
-                 (pc_a ^+ 11)%a); last (cbn; solve_addr).
+    switcher_set_pc_in_block ".Lhandle_error_handler_invoke" ".Lhandle_error_handler_cjalr".
     destruct (jalr_target_ok cra cra wcra.(lw)) eqn:Htgt.
     - (* Jalr cra cra *)
       iInstr "Hcode".
@@ -89,19 +88,18 @@ Section Handle_Error_Handler_Invoke.
       iApply ("Hpost" $! eq_refl mie rmap' with "[] [-]");
         first (iPureIntro; by rewrite Hdom' Hdom).
       rewrite /handler_return_sentry.
-      rewrite (_ : (pc_a ^+ 12)%a =
-                   (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_return")%a);
-        last switcher_addr_eq.
+      switcher_label_in_block ".Lhandle_error_handler_invoke" ".Lhandle_error_handler_return"
+        as Hreturn.
+      rewrite Hreturn.
       iFrame "HPC Hcra Hrmap".
     - (* The fault continuation at [.Lhandle_error_handler_cjalr], stated
-         from the start of the block: a label in the context slows
-         [iInstr_fail] down *)
+         from the start of the block, as the PC *)
       iDestruct "Hpost" as "[_ Hfailed]".
-      rewrite (_ : (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_cjalr")%a =
-                   (pc_a ^+ 11)%a); last switcher_addr_eq.
+      switcher_pc_in_block ".Lhandle_error_handler_invoke" ".Lhandle_error_handler_cjalr"
+        "Hfailed".
       clear Hpc_a.
       (* Jalr cra cra *)
-      iInstr_fail "Hcode".
+      iInstrApply "Hcode" wp_jalr_fail_target_same with "[$HPC $Hcra]" as "(HPC & Hcra)".
       iSpecialize ("Hfailed" $! eq_refl rmap' with "[]");
         first (iPureIntro; by rewrite Hdom' Hdom).
       iTrap with "Hfailed".

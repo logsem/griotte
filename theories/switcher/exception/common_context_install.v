@@ -120,7 +120,7 @@ Section Common_Context_Install.
     rewrite (_ : (pc_a ^+ length (encodeInstrsW
                    [machine_instructions.CLoad cra csp TrustedStack_offset_mstatus;
                     SpecialRW cnull MSTATUS (inr cra); SpecialRW cnull MEPCC (inr ct2)]))%a =
-                 (pc_a ^+ 1 ^+ 1 ^+ 1)%a); last (cbn; solve_addr).
+                 (pc_a ^+ 1 ^+ 1 ^+ 1)%a); last (clear; solve_addr).
     iApply (trusted_reload_registers_spec _ _ _ _ _ _ _ _ _ exception_spill_regs
               [s17; wcgp; wctp; wct0; wct1; wpc; wcs0; wcs1; wca0; wca1; wca2; wca3; wca4; wca5]
               [s1; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15]
@@ -147,7 +147,7 @@ Section Common_Context_Install.
                   ltac:(unfold TrustedStack_offset_csp; lia))
       as (Hts_2 & Hts_2_bounds & Hts_2_shadow).
     rewrite (_ : ((((pc_a ^+ 1) ^+ 1) ^+ 1) ^+ length exception_spill_regs)%a =
-                 (pc_a ^+ (3 + length exception_spill_regs)%nat)%a); last (cbn; solve_addr).
+                 (pc_a ^+ (3 + length exception_spill_regs)%nat)%a); last (clear; solve_addr).
     (* CLoad csp csp TrustedStack_offset_csp *)
     iInstrApply "Hcode"
       (wp_load_witness_imm_same_inbounds _ _ _ _ _ _ _ csp TrustedStack_offset_csp

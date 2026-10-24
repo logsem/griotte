@@ -65,16 +65,12 @@ Section Switch_Unseal_Entry.
       wp_pure.
       iClear "Hi".
       iDestruct "Hpost" as "[_ Hfailed]".
-      (* The labels would be unfolded by the simplifications of
-         [iInstr_fail] *)
-      set (off_u := switcher_label_offset ".Lswitch_unseal_entry") in *.
-      set (off_d := switcher_label_offset ".Lswitcher_decode_entry") in *.
-      clearbody off_u off_d.
+      iDestruct (map_of_regs_2 with "Hcs0 Hct1") as "[Hmap %Hne]".
       (* CLoad cs0 ct1 0 *)
-      iInstr_fail "Hcode".
-      { intros r sr m st s1 s2 _ Hr.
-        rewrite /exec /= /lookup_reg /= Hr.
-        destruct wct1 as [w0 π0]. destruct_word w0; by destruct s2. }
+      iInstrApply "Hcode" (wp_load_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _ (lclear_tag wct1))
+        with "[$HPC $Hmap]" as "(HPC & Hmap)".
+      { rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
+      iDestruct (regs_of_map_2 with "Hmap") as "[Hcs0 Hct1]"; first done.
       rewrite Hpc_decode.
       iTrap with "Hfailed".
       iPureIntro; intros (wsb & π & -> & _); done. }
@@ -83,13 +79,14 @@ Section Switch_Unseal_Entry.
          wp_pure.
          iClear "Hi".
          iDestruct "Hpost" as "[_ Hfailed]".
-         (* The labels would be unfolded by the simplifications of
-            [iInstr_fail] *)
-         set (off_u := switcher_label_offset ".Lswitch_unseal_entry") in *.
-         set (off_d := switcher_label_offset ".Lswitcher_decode_entry") in *.
-         clearbody off_u off_d.
+         iDestruct (map_of_regs_2 with "Hcs0 Hct1") as "[Hmap %Hne]".
          (* CLoad cs0 ct1 0 *)
-         iInstr_fail "Hcode".
+         iInstrApply "Hcode"
+           (wp_load_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _
+              (WSealable (clear_tag_sealable (unseal_sb Global sb)) @@? π))
+           with "[$HPC $Hmap]" as "(HPC & Hmap)".
+         { rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
+         iDestruct (regs_of_map_2 with "Hmap") as "[Hcs0 Hct1]"; first done.
          rewrite Hpc_decode.
          iTrap with "Hfailed".
          iPureIntro; intros (wsb & π0 & Heq & Htag); simplify_eq.

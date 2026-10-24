@@ -172,10 +172,8 @@ Section Handle_Error_Install_Context.
     switcher_open_label ".Lhandle_error_install_context" "Hswitcher" as "Hcode" pc_a Hpc_a.
     (* The exits of the block, from its start: the jump to
        [.Lcommon_context_install], and the faulting loads *)
-    assert ((pc_a + 36)%a = Some (pc_a ^+ 36)%a) as Hjmp_some by switcher_addr_eq.
-    assert ((pc_a ^+ 36)%a =
-              (a_switcher_call ^+ switcher_label_offset ".Lcommon_context_install")%a)
-      as Hjmp by switcher_addr_eq.
+    switcher_jump_in_block ".Lhandle_error_install_context" ".Lcommon_context_install"
+      as Hjmp.
     assert (∀ k : Z, k = 7%Z ∨ k = 8%Z ∨ k = 14%Z →
               (pc_a ^+ k)%a =
                 (a_switcher_call ^+ (switcher_label_offset ".Lhandle_error_install_context" + k))%a ∧
@@ -429,8 +427,7 @@ Section Handle_Error_Install_Context.
       iInstr "Hcode".
       (* Jmp .Lcommon_context_install *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ 36)%a); solve_addr. }
-      rewrite Hjmp.
+      { transitivity (Some (a_switcher_call ^+ off_cci)%a); [solve_addr | done]. }
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" $! (v0 :: ls) with "[%] [%] [-]").
       { cbn; rewrite Hls; done. }

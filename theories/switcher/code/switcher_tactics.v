@@ -210,6 +210,57 @@ Ltac switcher_pc_in_block sb s h :=
     iEval (rewrite Heq) in h; clear Heq
   end.
 
+(** The offset of the label [s] from the label [sb] of the switcher,
+    computed. *)
+Ltac switcher_label_index sb s :=
+  eval vm_compute in (switcher_label_offset s - switcher_label_offset sb)%Z.
+
+(** Move the PC to the label [s] inside the opened block of the switcher
+    that starts with the label [sb], written [a ^+ k] from the start [a] of
+    the block, where [iInstr] looks for the instruction. The current address
+    of the PC must be equal to [a ^+ k] without the labels, for example the
+    end of a macro: the labels are not unfolded. *)
+Ltac switcher_set_pc_in_block sb s :=
+  let k := switcher_label_index sb s in
+  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb)%a |- _ =>
+    is_var a;
+    try (unfold lword_of_word);
+    match goal with
+    |- context [ environments.Esnoc _ ?i (PC ↦ₚ (WCap _ _ _ _ _ ?a') @@? _)%I ] =>
+      let Heq := fresh "Heq_pc" in
+      assert (a' = (a ^+ k)%a) as Heq by (clear H; cbn; solve_addr);
+      iEval (rewrite Heq) in i; clear Heq
+    end
+  end.
+
+(** The address of the label [s] of the switcher, written [a ^+ k] from the
+    start [a] of the opened block that starts with the label [sb]: the
+    equation [Heq : a ^+ k = a_switcher_call ^+ switcher_label_offset s],
+    with [k] computed from the labels, for an exit of the block to [s]. *)
+Ltac switcher_label_in_block sb s Heq :=
+  let k := switcher_label_index sb s in
+  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb)%a |- _ =>
+    is_var a;
+    assert ((a ^+ k)%a = (a_switcher_call ^+ switcher_label_offset s)%a) as Heq
+      by switcher_addr_eq
+  end.
+
+Tactic Notation "switcher_label_in_block" constr(sb) constr(s) "as" ident(Heq) :=
+  switcher_label_in_block sb s Heq.
+
+(** The same address, as the target of a jump from the opened block:
+    [Hsome : (a + k)%a = Some (a_switcher_call ^+ switcher_label_offset s)]. *)
+Ltac switcher_jump_in_block sb s Hsome :=
+  let k := switcher_label_index sb s in
+  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb)%a |- _ =>
+    is_var a;
+    assert ((a + k)%a = Some (a_switcher_call ^+ switcher_label_offset s)%a) as Hsome
+      by switcher_addr_eq
+  end.
+
+Tactic Notation "switcher_jump_in_block" constr(sb) constr(s) "as" ident(Hsome) :=
+  switcher_jump_in_block sb s Hsome.
+
 (** Solve [(a + z)%a = Some ?a'], the target of a jump of the switcher to
     its label [s]: [?a'] is the address of [s]. *)
 Ltac switcher_jump_label s :=
