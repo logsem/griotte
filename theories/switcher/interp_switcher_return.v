@@ -180,7 +180,6 @@ Section fundamental.
     simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hccrel_known_to_known & Hfreq).
     pose proof Hstk_bounds as (Hb_a4 & He_a1 & Ha4).
     stk_unfold. change (4 - 1)%Z with 3%Z in He_a1.
-    assert (is_Some (a_stk + 4)%a) as [a_stk4 Ha_stk4] by (eexists; exact Ha4).
 
     iDestruct (interp_monotone_continuation with "Hcont_K") as "Hcont_K"; eauto.
     rewrite /interp_continuation /interp_cont.
@@ -199,7 +198,7 @@ Section fundamental.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_blocks_1_spec with
       "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
-      [done|done|done|done|].
+      [done|done|done|].
     iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
                     & _ & Hlc)".
     iInsertRegs "Hrmap" ["Hct2"].
@@ -214,28 +213,31 @@ Section fundamental.
     iDestruct (lc_fupd_elim_later with "[$Hlc] [$Hclose_res]") as ">Hclose_res".
     iDestruct "Hclose_res" as "[#Hsave Hstates]".
     iCombine "Hsave Hstates" as "Hclose_res".
+    set (s := (a_stk ^+ - (4))%a).
+    assert ((s + 4)%a = Some a_stk) as Hs4 by (subst s; solve_addr+Ha4).
     iAssert (if is_untrusted_caller ccrel then
-        interp_in_mem RWL W C wastk3 ∗
         interp_in_mem RWL W C wastk2 ∗
+        interp_in_mem RWL W C wastk3 ∗
         interp_in_mem RWL W C wastk1 ∗
         interp_in_mem RWL W C wastk
       else True)%I as "#Hnormal".
     { destruct (is_untrusted_caller ccrel) eqn:Huntrusted; simpl; last done.
       rewrite /StackWorldResources.
       stk_unfold.
-      do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-      rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
-      replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-      replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
+      do 4 (rewrite (finz_seq_between_cons _ (s ^+ 4)%a); last solve_addr+Hs4).
+      rewrite (finz_seq_between_empty _ (s ^+ 4)%a); last solve_addr+Hs4.
+      replace ((s ^+ 1) ^+ 1)%a with (s ^+ 2)%a by solve_addr+Hs4.
+      replace ((s ^+ 2) ^+ 1)%a with (s ^+ 3)%a by solve_addr+Hs4.
       iDestruct (big_sepL2_cons with "Hsave") as "[Hsave0 Hsave_tail1]".
       iDestruct (big_sepL2_cons with "Hsave_tail1") as "[Hsave1 Hsave_tail2]".
       iDestruct (big_sepL2_cons with "Hsave_tail2") as "[Hsave2 Hsave_tail3]".
       iDestruct (big_sepL2_cons with "Hsave_tail3") as "[Hsave3 _]".
-      iDestruct (StackWorldResource_interp_in_mem with "Hsave3") as "$".
       iDestruct (StackWorldResource_interp_in_mem with "Hsave2") as "$".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave3") as "$".
       iDestruct (StackWorldResource_interp_in_mem with "Hsave1") as "$".
       iDestruct (StackWorldResource_interp_in_mem with "Hsave0") as "$". }
-    iDestruct (switcher_stk_cells_region_4 with "Hstk'") as "Hcells"; first done.
+    iDestruct (switcher_stk_cells_region_4 with "Hstk'") as "Hcells";
+      first (stk_unfold; solve_addr+Ha4).
     iDestruct (open_world_interp_callee_stack
                 with "[$Hinterp_callee_wstk $Hworld_interp]")
       as "(Hworld_interp & (%lv & Hstk & Hres))"; eauto.
@@ -276,7 +278,7 @@ Section fundamental.
                   Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
       by iFrame. }
 
-    set (lv' := region_addrs_zeroes (a_stk ^+ 4)%a e_stk).
+    set (lv' := region_addrs_zeroes b_stk s).
     assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
     { subst lv'.
       rewrite /region_addrs_zeroes.
@@ -315,7 +317,7 @@ Section fundamental.
       iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk $Hres]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
-      { clear -He_a1 Ha_stk4.
+      { clear -He_a1 Ha4 Hs4.
         intros a Ha Ha'.
         apply elem_of_finz_seq_between in Ha, Ha'.
         stk_unfold. solve_addr.
@@ -326,13 +328,13 @@ Section fundamental.
         "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
 
       clear Hlen_lv' Hlv' lv'.
-      set (lv' := region_addrs_zeroes a_stk (a_stk ^+ 4)%a).
+      set (lv' := region_addrs_zeroes s (s ^+ 4)%a).
       assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
       { subst lv'; rewrite /region_addrs_zeroes; by apply Forall_replicate. }
 
       iDestruct (big_sepL2_length with "Hstk_register_save") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ _ lv' with "Hclose_res") as "Hclose_res"; auto.
-      iEval (rewrite -(app_nil_r (finz.seq_between a_stk (a_stk ^+ 4)%a))) in "Hworld_interp".
+      iEval (rewrite -(app_nil_r (finz.seq_between s (s ^+ 4)%a))) in "Hworld_interp".
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk_register_save $Hclose_res]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { set_solver. }

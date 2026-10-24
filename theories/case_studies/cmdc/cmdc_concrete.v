@@ -28,7 +28,7 @@ Definition cmdc_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_re
 Definition cmdc_B_code : list Word :=
   encodeInstrsW [
     Store ca0 7%Z 0;
-    Store csp ca0 0;
+    Store csp ca0 (-1)%Z;
     Jalr cnull cra
   ].
 Definition cmdc_C_code : list Word :=

@@ -28,6 +28,28 @@ Ltac dispatch_BinOp r1 x1 x2 cont :=
   | (?dst, (inl _), (inl _)) => cont (@wp_binop_success_z_z)
   end.
 
+(* Succeeds when the spatial context holds [r ↦ᵣ WCap …]. *)
+Ltac reg_holds_cap r :=
+  lazymatch goal with
+  | |- context [ Esnoc _ _ (r ↦ᵣ ?w)%I ] =>
+      let w' := eval cbn in (lw w) in
+      lazymatch w' with WCap _ _ _ _ _ _ => idtac end
+  end.
+
+(* [Sub dst r dst]: the rule on integers, else, when [r] holds a
+   capability, the rule on any words. An integer [Sub] whose rule fails
+   still fails. *)
+Ltac dispatch_Sub r1 x1 x2 cont :=
+  let p := constr:((r1, x1, x2)) in
+  lazymatch p with
+  | (?r, (inr ?r), (inr ?r)) => dispatch_BinOp r1 x1 x2 cont
+  | (?dst, (inr ?r), (inr ?dst)) =>
+      tryif reg_holds_cap r
+      then (dispatch_BinOp r1 x1 x2 cont || cont (@wp_sub_r_dst_any))
+      else dispatch_BinOp r1 x1 x2 cont
+  | _ => dispatch_BinOp r1 x1 x2 cont
+  end.
+
 (* A conditional jump: the rule of the taken jump, else the rule of the
    fall-through. Each commits its comparison ([instr_commit_lint]). *)
 Ltac dispatch_JCond off x1 x2 cont :=
@@ -70,7 +92,7 @@ Ltac dispatch_instr_rule instr cont :=
   | ClearTag _ _ => cont (@wp_ClearTag_success)
   (* BinOp *)
   | Add ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | Sub ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | Sub ?x1 ?x2 ?x3 => dispatch_Sub x1 x2 x3 cont
   | Mul ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   | LAnd ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   | LOr ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
@@ -153,6 +175,7 @@ Ltac dispatch_instr_rule instr cont :=
   | Subseg ?d ?d (inl _) (inr _) => (cont (@wp_subseg_success_l) || cont (@wp_subseg_success_l_sr))
   | Subseg ?d ?d (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
   | Subseg ?d ?d (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
+  | Subseg _ _ (inr _) (inr _) => cont (@wp_subseg_success_src)
   (* Restrict *)
   | Restrict ?r ?r (inr _) => cont (@wp_restrict_success_reg)
   | Restrict ?r ?r (inl _) => cont (@wp_restrict_success_z)

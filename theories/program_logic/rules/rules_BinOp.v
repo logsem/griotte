@@ -471,6 +471,34 @@ Section griotte_lang_rules.
     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
+  (** [Sub dst r1 dst] on any words: the difference of their addresses. *)
+  Lemma wp_sub_r_dst_any E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst r1 w1 pc_a' dq :
+    decodeInstrW w.(lw) = Sub dst (inr r1) (inr dst) →
+    (pc_a + 1)%a = Some pc_a' →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    dst ≠ cnull →
+    r1 ≠ cnull →
+
+    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ w1 ∗
+        dst ↦ᵣ wdst }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ w1 ∗
+        dst ↦ᵣ WInt (get_a w1.(lw) - get_a wdst.(lw)) }}}.
+  Proof.
+    iIntros (Hdecode Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr1 & Hdst) Hφ".
+    iDestruct (map_of_regs_2 with "Hr1 Hdst") as "[Hmap %Hne]".
+    iApply (wp_BinOp_next _ _ _ _ _ _ _ _ _ dst (inr r1) (inr dst) _
+              (get_a w1.(lw)) (get_a wdst.(lw))
+             with "[$HPC $Hpc_a $Hmap]"); try solve_next_side.
+    { unfold is_BinOp;naive_solver. }
+    iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
+  Qed.
+
 End griotte_lang_rules.
 
 (* Hints to automate proofs of is_BinOp *)

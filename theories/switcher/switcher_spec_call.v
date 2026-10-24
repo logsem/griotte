@@ -82,7 +82,7 @@ Section Switcher.
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               (* Stack frame *)
               ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ
-                  [[ [wcs0_caller; wcs1_caller; wcra_caller; wcgp_caller] ]]
+                  [[ [wcs0_caller; wcs1_caller; wcgp_caller; wcra_caller] ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
@@ -327,7 +327,7 @@ Section Switcher.
     ct2 ↦ᵣ wct2 ∗
     ct1 ↦ᵣ wct1_caller ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
-    switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcra_caller wcgp_caller ∗
+    switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
     [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
     (if is_entry_point_known
      then ∃ sb nargs,
@@ -392,12 +392,10 @@ Section Switcher.
       "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "HH".
     { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
     iApply ("Hpost" $! W rmap' [] [] rcgp rcra rcs0 rcs1); iRight; iFrame "∗ %".
-    iDestruct (switcher_stk_cells_region_4 with "Hcells") as "$"; first done.
+    iDestruct (switcher_stk_cells_region_4 with "Hcells") as "$";
+      first (stk_unfold; solve_addr+Hastk).
     iPureIntro. stk_unfold.
-    split; first solve_addr+Hastk Hastk_bstk.
-    split; first solve_addr+.
-    split; first solve_addr+Hastk Hastk_bounds Hastk_bstk.
-    done.
+    split_and!; solve_addr+Hastk Hastk_bounds Hastk_bstk.
   Qed.
 
   Lemma switcher_cc_specification_gen
@@ -516,7 +514,7 @@ Section Switcher.
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               (* Stack frame *)
               ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ
-                  [[ [wcs0_caller; wcs1_caller; wcra_caller; wcgp_caller] ]]
+                  [[ [wcs0_caller; wcs1_caller; wcgp_caller; wcra_caller] ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
@@ -595,13 +593,12 @@ Section Switcher.
     (* Blocks 2-3: spill and push on the trusted stack *)
     iApply (switcher_call_blocks_2_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
-      [done|done|done|].
+      [done|done|done|done|].
     iSplit; cycle 1.
     { (* The callee-save registers do not fit on the caller's stack: close
          the switcher invariant, and return the fault resources *)
-      iIntros (a_f stk_mem' Ha_f) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & Hstk
+      iIntros (Hspill) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hctp & Hct2 & Hcsp & Hstk
         & Hmtdc & Hframeoffset & Htstk)".
-      destruct Ha_f as [ (-> & -> & Hspill) | (Hcontra & _) ]; last (exfalso; solve_addr).
       iDestruct "Hpost" as "[_ Hfault]".
       iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I with "[Hargs]" as "Hargs".
       { destruct is_entry_point_known.
@@ -614,7 +611,7 @@ Section Switcher.
         as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
       subst hclose_switcher_inv hinv_switcher.
       iApply (switcher_cc_fault_resume Nswitcher with "Hswitcher Hstatic [-Hfault] Hfault");
-        [done | done | rewrite /switcher_spill_overflows; stk_unfold; solve_addr+Hspill Hb_a | done |].
+        [done | done | exact Hspill | done |].
       iMod ("Hclose_switcher_inv" with
         "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
       { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
@@ -657,7 +654,7 @@ Section Switcher.
     (* The continuation of the caller, once the frame is pushed, whatever
        the word of its export table *)
     iAssert (∀ wtbl : LWord,
-               interp W' C (WCap true RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a) -∗
+               interp W' C (callee_csp b_stk e_stk a_stk) -∗
                interp_continuation (cstack_push (frame_tbl wtbl) cstk) (W' :: Ws) (C :: Cs))%I
       with "[Hpost Hlc Hcont]" as "Hcont_frame".
     { iIntros (wtbl) "#Hstk4v".
@@ -686,9 +683,10 @@ Section Switcher.
       { iPureIntro; repeat split; solve_addr+Hastk_bstk Hastk_bounds Hastk. }
       iSplit.
       { iPureIntro.
-        assert ((e_stk <= e_stk)%a) as He by solve_addr.
-        destruct (switcher_disjoint_subseg b_stk e_stk a_stk e_stk
-                    Hastk_bstk He (conj Hstk_mmio Hstk_heap)) as [_ Hstack_heap].
+        assert ((b_stk <= b_stk)%a) as Hb by solve_addr.
+        assert ((a_stk <= e_stk)%a) as He by solve_addr+Hastk Hastk_bounds.
+        destruct (switcher_disjoint_subseg b_stk e_stk b_stk a_stk
+                    Hb He (conj Hstk_mmio Hstk_heap)) as [_ Hstack_heap].
         exact Hstack_heap. }
 
       iSplit; last (iPureIntro; exact (conj Hrcgp (conj Hrcra (conj Hrcs0 Hrcs1)))).
@@ -699,12 +697,12 @@ Section Switcher.
       apply list_elem_of_lookup; eauto.
     }
     iApply (switcher_call_blocks_3_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
+      "[- $HPC $Hcs0 $Hcs1 $Hct2 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
     iSplit; cycle 1.
     { (* The entry point is not sealed by the switcher: the frame is already
          pushed on the trusted stack, so the exception entry returns to the
          caller, through its continuation *)
-      iIntros "_ (Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & [%wct1' Hct1])".
+      iIntros "_ (Hcs0 & [%wcs1' Hcs1] & [%wct2_3 Hct2] & Hcsp & Hstk & [%wct1' Hct1])".
       subst hclose_switcher_inv hinv_switcher.
       iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I with "[Hargs]" as "Hargs".
       { destruct is_entry_point_known.
@@ -727,9 +725,12 @@ Section Switcher.
       { (* The fault is in the switcher *)
         iLeft; iPureIntro. apply switcher_fault_pc_cap. }
       iMod (switcher_cc_world_reinstate with "Hworld_interp Hstk_val Hstk")
-        as "(Hworld_interp & #Hstk4v & _ & _)"; [done|done|solve_addr| | |].
-      { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
-      { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
+        as "(Hworld_interp & #Hstk4v & _ & _)"; [done| | | |].
+      { stk_unfold; split_and!; solve_addr+Hastk Hastk_bounds Hastk_bstk. }
+      { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
+        stk_unfold; solve_addr+Hastk Hastk_bounds. }
+      { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
+        stk_unfold; solve_addr+Hastk Hastk_bounds. }
       pose proof (tf_export_tbl_cell_cleared (cf_tframe frame_failed) eq_refl) as Htbl_cell.
       iMod (switcher_inv_push_frame frame_failed cstk with
              "Hcstk_full Hcstk Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt
@@ -741,7 +742,7 @@ Section Switcher.
       iDestruct ("Hcont_frame" $! (lword_of_word (WInt 0)) with "Hstk4v") as "Hcont_frame".
       by iFrame. }
     iNext; iIntros (wsb π)
-      "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & Hcsp & Hstk & _ & Hct1 & _)".
+      "(-> & %Htag & HPC & Hcs0 & [%wcs1' Hcs1] & [%wct2_3 Hct2] & Hcsp & Hstk & _ & Hct1 & _)".
     iDestruct ("Hentry_prop" with "[//] [//]") as "Hentry_ot".
     iNamed "Hentry_ot".
     rewrite /lword_of_word in Hw; simplify_eq.
@@ -760,9 +761,12 @@ Section Switcher.
 
     (* Reinstate the callee's stack frame in the world *)
     iMod (switcher_cc_world_reinstate with "Hworld_interp Hstk_val Hstk")
-      as "(Hworld_interp & #Hstk4v & %Hrelated & %Hrev)"; [done|done|solve_addr| | |].
-    { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
-    { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption]. solve_addr. }
+      as "(Hworld_interp & #Hstk4v & %Hrelated & %Hrev)"; [done| | | |].
+    { stk_unfold; split_and!; solve_addr+Hastk Hastk_bounds Hastk_bstk. }
+    { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
+      stk_unfold; solve_addr+Hastk Hastk_bounds. }
+    { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
+      stk_unfold; solve_addr+Hastk Hastk_bounds. }
     iSpecialize ("Hentry_cont" $! W' with "[]").
     { iPureIntro. by apply related_sts_pub_priv_world. }
 

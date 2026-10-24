@@ -11,8 +11,8 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_
 
 (** * Segment (b): blocks 5-9
 
-    Check the malloc result (halting on failure), save the buffer in the
-    stack slot below the callee frames and initialize it, share the buffer
+    Check the malloc result (halting on failure), push the buffer on the
+    stack, above the callee frames, and initialize it, share the buffer
     in the world, and call [adv(buf)]. *)
 
 Section HTS_Spec_Share.
@@ -104,31 +104,36 @@ Section HTS_Spec_Share.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 6: save the buffer in the stack slot below the callee frames,
-       and initialize it. *)
+    (* Block 6: push the buffer on the stack, above the callee frames, and
+       initialize it. *)
     focus_block (hts_block ".Lhts_share") "Hcode_main" of hts_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* The stack holds the saved buffer *)
+    (* The top cell of the stack holds the saved buffer *)
     assert (csp_b < csp_e)%a as Hstk_nonempty by solve_addr+Hstk_min.
     assert (region_addrs_zeroes csp_b csp_e =
-      lword_of_word (WInt 0) :: region_addrs_zeroes (csp_b ^+ 1)%a csp_e) as Hzeroes.
-    { rewrite (region_addrs_zeroes_split csp_b (csp_b ^+ 1)%a csp_e); last solve_addr.
-      pose proof (proj1 (finz_incr_iff_dist csp_b (csp_b ^+ 1)%a 1)
+      region_addrs_zeroes csp_b (csp_e ^+ -1)%a ++ [lword_of_word (WInt 0)])
+      as Hzeroes.
+    { rewrite (region_addrs_zeroes_split csp_b (csp_e ^+ -1)%a csp_e); last solve_addr.
+      pose proof (proj1 (finz_incr_iff_dist (csp_e ^+ -1)%a csp_e 1)
         ltac:(solve_addr)) as [_ Hdist].
       rewrite /region_addrs_zeroes Hdist. reflexivity. }
     iEval (rewrite Hzeroes) in "Hstk".
-    assert ((csp_b + 1)%a = Some (csp_b ^+ 1)%a) as Hcsp_succ by solve_addr.
-    assert ((csp_b ^+ 1)%a <= csp_e)%a as Hcsp_le by solve_addr.
-    iDestruct (region_pointsto_cons _ _ _ _ _ Hcsp_succ Hcsp_le with "Hstk")
-      as "[Hslot Hstk]".
+    iDestruct (region_pointsto_split_r csp_b csp_e (csp_e ^+ -1)%a with "Hstk")
+      as "[Hstk Hslot]".
+    { solve_addr+Hstk_nonempty. }
+    { cbn. rewrite /finz.dist. solve_addr+Hstk_nonempty. }
+    iDestruct (region_pointsto_single with "Hslot") as (w_slot) "[Hslot %Hw_slot]";
+      first solve_addr+Hstk_nonempty.
+    injection Hw_slot as <-.
     iEval (rewrite /stk_start_a) in "Hcsp".
+    (* Lea csp csp (-1). *)
+    iInstr "Hcode".
+    { transitivity (Some (csp_e ^+ -1)%a); auto. solve_addr+Hstk_nonempty. }
     (* Store csp ca0 0. *)
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in;
         [exact (disjoint_from_mmio_shadow _ _ Hstk_shadow)|rewrite /withinBounds; solve_addr]. }
     { apply withinBounds_true_iff; solve_addr. }
-    (* Lea csp csp 1. *)
-    iInstr "Hcode".
     (* Store ca0 0 0. *)
     iInstr "Hcode".
     { apply hts_heap_not_shadow. solve_addr. }
@@ -188,13 +193,13 @@ Section HTS_Spec_Share.
     clear Ha_result Ha_store Ha_fetch7 Ha_fetch8.
 
     (* Share the buffer in the world. *)
-    rewrite (finz_seq_between_cons csp_b csp_e) in Hstack_revoked;
-      last solve_addr.
-    apply Forall_cons in Hstack_revoked as [_ Hstack_revoked].
-    iEval (rewrite (finz_seq_between_cons csp_b csp_e); last solve_addr)
-      in "Hstack_revoked".
-    iEval (rewrite (StackRevokedResources_app _ _ [csp_b])) in "Hstack_revoked".
-    iDestruct "Hstack_revoked" as "[_ Hstack_revoked_W0]".
+    rewrite (finz_seq_between_split csp_b (csp_e ^+ -1)%a csp_e) in Hstack_revoked;
+      last solve_addr+Hstk_nonempty.
+    apply Forall_app in Hstack_revoked as [Hstack_revoked _].
+    iEval (rewrite (finz_seq_between_split csp_b (csp_e ^+ -1)%a csp_e);
+      last solve_addr+Hstk_nonempty) in "Hstack_revoked".
+    iEval (rewrite StackRevokedResources_app) in "Hstack_revoked".
+    iDestruct "Hstack_revoked" as "[Hstack_revoked_W0 _]".
     iAssert (b ↦ₕ[ι] WInt 0)%I with "[Hb Hb_share]" as "Hb"; first iFrame.
     iMod (hts_world_share_buffer C csp_b csp_e W_init_C _ ι b
       with "Hobj Hb Hworld Hstack_revoked_W0")
@@ -238,8 +243,8 @@ Section HTS_Spec_Share.
     iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C ι b) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
-      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
-      (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
+      wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a C_f
+      (region_addrs_zeroes csp_b (csp_e ^+ -1)%a)
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk

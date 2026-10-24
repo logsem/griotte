@@ -135,7 +135,6 @@ Section Switcher_KtK_Return.
          target, so the jump does not fault;
        - pop the frame and close the switcher invariant. *)
     intros frame.
-    stk_unfold.
     iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)
       "(#Hswitcher & #[Hcode _] & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
       & [%wcsp Hcsp] & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
@@ -156,14 +155,12 @@ Section Switcher_KtK_Return.
     iNamed "Hcframe_top". iNamed "Hcf_tframe".
     iDestruct "Htf_tbl" as "[Htf_tbl _]".
     iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "(%b_stk' & %e_stk' & %a_stk' & >%HWF
-                                    & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
+    iDestruct "Hcframe_interp" as "(%b_stk' & %e_stk' & %a_stk' & >%HWF & Hcells)".
     destruct HWF as (Hcsp & Hstk_bounds & _ & _ & Hret_ok).
     apply lword_of_word_inj in Hcsp. injection Hcsp as Hb He Ha. subst b_stk' e_stk'.
     assert (a_stk' = a_stk) as ->.
-    { pose proof Hstk_bounds as (_ & _ & Ha4'). stk_unfold. solve_addr+Ha Ha_stk4 Ha4'. }
-    pose proof Hstk_bounds as (Hb_a4 & He_a1 & Ha4).
-    stk_unfold. change (4 - 1)%Z with 3%Z in He_a1.
+    { pose proof Hstk_bounds as (_ & _ & Ha4'). revert Ha Ha4' Ha_stk4. stk_unfold.
+      intros Ha Ha4' Ha_stk4. solve_addr+Ha Ha_stk4 Ha4'. }
     iExtract "Hregs" ctp as "Hctp".
     iExtract "Hregs" ct0 as "Hct0".
     iExtract "Hregs" ct1 as "Hct1".
@@ -174,16 +171,15 @@ Section Switcher_KtK_Return.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_blocks_1_spec with
       "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
-      [done|done|done| |].
+      [done|done| |].
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
-      rewrite /withinBounds; solve_addr. }
+      revert Hstk_bounds; rewrite /switcher_stk_bounds /withinBounds; stk_unfold.
+      intros (Hb_a4 & He_a1 & Ha4). solve_addr. }
     iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
                     & _ & _)".
     iInsertRegs "Hregs" ["Hct2"].
 
     (* Blocks 13-16: restore, clear and return *)
-    iAssert (switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller)
-      with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
     iApply (switcher_return_blocks_2_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
         $Hcells $Hstk $Hregs $Hcode]"); [done|done| |].
@@ -198,12 +194,12 @@ Section Switcher_KtK_Return.
       apply load_heap_nonheap in Hra; last done.
       subst rcra; congruence. }
     iIntros "[HPC _]".
-    iDestruct (region_pointsto_split a_stk e_stk (a_stk ^+ 4)%a with "[$Hstk' $Hstk]") as "Hstk";
-      [solve_addr | by rewrite /region_addrs_zeroes length_replicate |].
-    assert (region_addrs_zeroes a_stk e_stk =
-              region_addrs_zeroes a_stk (a_stk ^+ 4)%a ++ region_addrs_zeroes (a_stk ^+ 4)%a e_stk)
-      as Hzeroes by (apply region_addrs_zeroes_split; solve_addr).
-    iEval (rewrite -Hzeroes) in "Hstk".
+    iDestruct (stk_free_split_join with "[$Hstk' $Hstk]") as "Hstk"; first done.
+    { rewrite /region_addrs_zeroes length_replicate.
+      revert Hstk_bounds; rewrite /switcher_stk_bounds; stk_unfold;
+        intros (Hb_a4 & He_a1 & Ha4).
+      rewrite /finz.dist. solve_addr. }
+    iEval (rewrite -(stk_free_split_zeroes _ _ _ Hstk_bounds)) in "Hstk".
 
     (* Pop the frame and close the switcher invariant *)
     iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".

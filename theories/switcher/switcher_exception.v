@@ -31,7 +31,7 @@ From griotte Require Export switcher_error_handler.
     resumed fault of trusted code is closed by [trap_safe_resume]. A
     handler returns to the switcher, which unwinds
     ([switcher_handler_return_unwind]) or installs the context of the
-    [ErrorState] below the handler's stack pointer
+    [ErrorState] at the handler's stack pointer
     ([switcher_handler_return_install]); for an untrusted handler, both
     are safe ([interp_handler_return_sentry]). The
     file also hosts the safety of the return-to-switcher entry point
@@ -157,12 +157,12 @@ Section Switcher_Exception.
   Proof.
     iIntros (Hfull) "#Hregs".
     iIntros "!>" (eh p g b e a π _ _) "_ _ %Hcsp %Hok".
-    rewrite /error_state_stores_ok Hcsp /= in Hok. destruct Hok as (Hwa & Hb & He).
+    rewrite /error_state_first_store_ok Hcsp /= in Hok. destruct Hok as (Hwa & Hb & He).
     iApply (world_interp_cells_store_acc _ _ _ g b e).
     - done.
-    - done.
-    - rewrite length_error_state_src /ErrorState_size. rewrite /ErrorState_size in He. lia.
-    - rewrite -Hcsp. iApply "Hregs". iPureIntro.
+    - rewrite /ErrorState_size in Hb |- *. solve_addr.
+    - rewrite (interp_cap_cur_addr W C true p g b e (a ^+ (- ErrorState_size))%a a π).
+      rewrite -Hcsp. iApply "Hregs". iPureIntro.
       destruct (Hfull csp) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv).
     - by iApply interp_error_state_src.
   Qed.
@@ -184,30 +184,31 @@ Section Switcher_Exception.
 
   (** The destination of the [ErrorState] stores for a trusted topmost
       compartment with trusted handlers: the slot that the fault site lends,
-      then, once the first word is written, the cells of the slot, with the
-      two facts of the site on the faulting [csp]. *)
+      then, once the first word is written, the cells below the end of the
+      faulting [csp], with the two facts of the site on it. *)
   Definition trusted_error_state (eh : Z) (w : LWord) (rmap : LReg) (i : nat) : iProp Σ :=
     match i with
     | 0%nat => error_state_slot eh rmap
     | S _ =>
         ⌜(rmap !!! csp).(lprov) = None⌝ ∗
-        ⌜error_state_shadow_free (rmap !!! csp)⌝ ∗
+        ⌜error_state_lent_shadow_free (rmap !!! csp)⌝ ∗
         error_state_cells w rmap i
     end.
 
-  (** The written [ErrorState] is a slot. *)
-  Lemma trusted_error_state_slot (eh : Z) (w : LWord) (rmap : LReg) :
-    trusted_error_state eh w rmap (Z.to_nat ErrorState_size) -∗ error_state_slot eh rmap.
+  (** The [ErrorState], written in part, is a slot. *)
+  Lemma trusted_error_state_slot (eh : Z) (w : LWord) (rmap : LReg) (k : nat) :
+    trusted_error_state eh w rmap k -∗ error_state_slot eh rmap.
   Proof.
+    destruct k as [|k]; first by iIntros "H".
     iIntros "(%Hprov & %Hshadow & Hcells)".
-    iEval (rewrite error_state_cells_full) in "Hcells".
-    iDestruct (error_state_pointsto_area with "Hcells") as "Harea".
+    iDestruct (error_state_cells_lent with "Hcells") as "Hlent".
     rewrite /error_state_slot.
     case_decide; last done. by iFrame.
   Qed.
 
   (** The stores to the lent slot: the first one opens the slot, which
-      holds the area when the table declares the stackful handler [eh]. *)
+      holds the part of the slot below the end of the faulting [csp] when
+      the table declares the stackful handler [eh]. *)
   Lemma trusted_error_state_acc (cstk : CSTK) (w : LWord) (rmap : LReg) (eh : Z) :
     top_export_tbl cstk ↦ₕ□{stackful} eh -∗
     path_es_acc cstk w rmap (trusted_error_state eh w rmap).
@@ -215,22 +216,21 @@ Section Switcher_Exception.
     iIntros "#Heh !>" (eh' p g b e a π _ _) "#Heh' %Hsome %Hcsp %Hok".
     iDestruct (handler_stackful_agree with "Heh Heh'") as %<-.
     pose proof Hok as Hok'.
-    rewrite /error_state_stores_ok Hcsp /= in Hok'. destruct Hok' as (Hwa & Hb & He).
-    iIntros "!>" (i Hi) "Hes".
+    rewrite /error_state_first_store_ok Hcsp /= in Hok'. destruct Hok' as (Hwa & Hb & He).
+    iIntros "!>" (i Hi Hie) "Hes".
     rewrite length_error_state_src in Hi.
-    iAssert (⌜π = None⌝ ∗ ⌜error_state_shadow_free (rmap !!! csp)⌝ ∗
+    iAssert (⌜π = None⌝ ∗ ⌜error_state_lent_shadow_free (rmap !!! csp)⌝ ∗
              error_state_cells w rmap i)%I with "[Hes]" as "(-> & %Hshadow & Hcells)".
     { destruct i as [|i]; cbn [trusted_error_state].
       - rewrite /error_state_slot decide_True; last done.
-        iDestruct "Hes" as "(%Hprov & %Hsh & Harea)".
+        iDestruct "Hes" as "(%Hprov & %Hsh & Hlent)".
         rewrite Hcsp in Hprov. rewrite error_state_cells_0. by iFrame.
       - iDestruct "Hes" as "(%Hprov & $ & $)". by rewrite Hcsp in Hprov. }
     iDestruct (error_state_cells_acc with "Hcells") as (v) "[Hv Hclose]";
-      [exact Hcsp | done | done |].
+      [exact Hcsp | done | done | done |].
     iModIntro. iExists v, 1%Qp. iFrame "Hv". iSplit.
-    { iPureIntro. rewrite /error_state_shadow_free Hcsp /= in Hshadow.
-      eapply disjoint_from_shadow_not_in; first exact Hshadow.
-      rewrite /withinBounds /ErrorState_size in He Hi |- *. solve_addr. }
+    { iPureIntro. eapply (error_state_lent_not_shadow (rmap !!! csp)); try done.
+      by rewrite Hcsp. }
     iSplitR; first iApply deref_res_none.
     iIntros "!> Hv _ !>". iDestruct ("Hclose" with "Hv") as "Hcells".
     cbn [trusted_error_state]. iFrame "Hcells".
@@ -260,7 +260,7 @@ Section Switcher_Exception.
   Qed.
 
   (** The stack of a stackless handler, the part of the topmost pushed
-      frame's stack above the cursor, is safe. *)
+      frame's stack below the cursor, is safe. *)
   Lemma interp_cont_stackless_csp (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     frame_match Ws Cs cstk W C →
@@ -374,7 +374,7 @@ Section Switcher_Exception.
   Qed.
 
   (** An untrusted handler returns to the switcher with [ca0] zero: the
-      switcher installs the context of the [ErrorState] below the handler's
+      switcher installs the context of the [ErrorState] at the handler's
       safe [csp]. The loaded words are safe, and so is the resumed PC, from
       the safe PCC of the topmost table: the installed context runs through
       the FTLR, with the count of the topmost frame incremented. A fault of
@@ -421,9 +421,9 @@ Section Switcher_Exception.
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
     iSplitL "Hworld_interp"; first by iFrame.
     iSplitR.
-    { iIntros (p g b e a π Hlea [Hra Hb]).
+    { iIntros (p g b e a π Hcsp_eq [Hra Hb]).
       iApply world_interp_cells_load_acc; [done | done |].
-      by iApply (interp_lea_result_cap with "Hcsp"). }
+      iEval (rewrite Hcsp_eq) in "Hcsp". iExact "Hcsp". }
     iNext. iSplit.
     - (* A fault of the installation: the switcher unwinds *)
       iIntros (_ off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hworld_interp _] Hna".
@@ -506,7 +506,7 @@ Section Switcher_Exception.
   (** A handler of an untrusted topmost compartment runs through the FTLR:
       its PC comes from the table's PCC, and the invocation registers are
       safe (the return sentry, the table's CGP, integers, and the stack:
-      for a stackless handler, the stack above the frame's cursor; for a
+      for a stackless handler, the stack below the frame's cursor; for a
       stackful one, the faulting [csp], safe, with other cursors). *)
   Lemma untrusted_handler_invoke_safe (Nswitcher : namespace)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
@@ -633,19 +633,21 @@ Section Switcher_Exception.
 
   (** A fault of the exception path itself is a fault in the switcher: the
       unwind continuation is built from the destination of the [ErrorState]
-      stores, before them or after all of them. *)
+      stores, after any number of them. *)
   Lemma exception_entry_safe_nested (Nswitcher : namespace) (F : coPset) (cstk : CSTK)
     (w : LWord) (rmap : LReg) (error_state_written : nat → iProp Σ) :
     ↑Nswitcher ⊆ F →
     ↑N_trap ⊆ F →
     exception_entry_safe Nswitcher -∗
-    ((error_state_written 0 ∨ error_state_written (Z.to_nat ErrorState_size)) -∗
-     unwind_cont F cstk True) -∗
+    (∀ k : nat,
+       ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ -∗
+       error_state_written k -∗
+       unwind_cont F cstk True) -∗
     path_nested_fault F cstk w rmap error_state_written.
   Proof.
     iIntros (HF HFtrap) "#Hsafe HU _".
-    iIntros (off n rmap' Hno_resume Hfull) "Hrmap Hcstk Hes Hna".
-    iSpecialize ("HU" with "Hes").
+    iIntros (off n rmap' Hno_resume Hfull) "Hrmap Hcstk (%k & %Hk & Hes) Hna".
+    iSpecialize ("HU" with "[//] Hes").
     iApply trap_safe_entry_intro.
     iSplit; last by iIntros "!> %Hv".
     iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
@@ -721,9 +723,7 @@ Section Switcher_Exception.
     - (* A fault of the path *)
       iIntros (_).
       iApply (exception_entry_safe_nested with "Hsafe"); [set_solver | set_solver |].
-      iIntros "Hworld_interp".
-      iAssert (world_interp W C) with "[Hworld_interp]" as "Hworld_interp".
-      { by iDestruct "Hworld_interp" as "[H | H]". }
+      iIntros (k _) "Hworld_interp".
       by iApply (logrel_unwind_cont_gen with "Hinv_switcher Hstatic Htrap Hworld_interp Hcont").
     - (* A handler *)
       iIntros (kind wpcc wcgp wpc off mcause mtval regs _ _ Hstack _ _ Hentry Hinv_regs)
@@ -790,7 +790,7 @@ Section Switcher_Exception.
     - iApply unwind_cont_path_unwind_k. by iIntros "_".
     - by iIntros (Hresume).
     - iIntros (_). iApply (exception_entry_safe_nested with "Hsafe"); [done | done |].
-      by iIntros "_".
+      by iIntros (k _) "_".
     - iIntros (kind wpcc wcgp wpc off mcause mtval regs Hnot Hev _ Hoff _ _ _)
         "_ _ _ #Hoff _ _ _ _ _".
       rewrite /no_handler.
@@ -898,8 +898,7 @@ Section Switcher_Exception.
       iDestruct "HUP" as "[ [Hruns | HU] _]".
       { iDestruct (handler_runs_skipped with "Hruns Hskip") as %[]. }
       iApply (exception_entry_safe_nested with "Hsafe [HU] Hskip"); [done | done |].
-      iIntros "Hes". iApply (unwind_cont_give with "[Hes] HU").
-      iDestruct "Hes" as "[Hslot | Hes]"; first iExact "Hslot".
+      iIntros (k _) "Hes". iApply (unwind_cont_give with "[Hes] HU").
       by iApply trusted_error_state_slot.
     - iIntros (kind wpcc' wcgp' wpc off mcause mtval regs _ Hev _ Hoff_some Hmcause Hentry
                 Hinv_regs)
@@ -914,14 +913,17 @@ Section Switcher_Exception.
         { iApply (handler_stackful_agree with "Hoff Heh"). }
         pose proof Hinv_regs as (_ & _ & _ & [Hok _] & _).
         iDestruct "Hes" as "(%Hprov & %Hshadow & Hcells)".
-        iEval (rewrite error_state_cells_full) in "Hcells".
+        iEval (rewrite error_state_cells_full //) in "Hcells".
         iApply ("Hrun" with
-                 "Hoff [//] Hswitcher_res [//] [//] [//] [//] [//] HPC Hregs [$Hcells //] Hskip_sl
+                 "Hoff [//] Hswitcher_res [//] [//] [//] [//] [//] HPC Hregs [$Hcells] Hskip_sl
                   [HUP] Hcstk Hna").
+        { iPureIntro. split; first done. by apply error_state_lent_shadow_free_full. }
         iSplit; last by iDestruct "HUP" as "[_ HP]".
         iDestruct "HUP" as "[ [Hruns | HU] _]"; first by iLeft. iRight.
         iApply (unwind_cont_weaken with "[] HU").
-        iIntros "Harea". rewrite /error_state_slot decide_True; last done.
+        iIntros "Harea". rewrite /error_state_slot decide_True;
+          last (split; [done | by apply error_state_stores_ok_first]).
+        iDestruct (error_state_area_lent with "Harea") as "Hlent"; first done.
         by iFrame.
       + (* Stackless *)
         iApply ("Hrun" with
@@ -1225,7 +1227,7 @@ Section Switcher_Exception.
 
   (** A trusted handler returns to the switcher with [ca0] zero: the
       switcher installs the context of the [ErrorState] [ws], the 16 cells
-      below the handler's [csp], a capability without identifier whose
+      at the handler's [csp], a capability without identifier whose
       cells are outside the shadow table. The resumed PC is the PCC [wpcc]
       of the topmost table with the address of word 0, the registers hold
       words 1-15 as loaded through the permission of [csp], and the count
@@ -1242,8 +1244,8 @@ Section Switcher_Exception.
     (∀ r, is_Some (rmap !! r)) →
     nonZero (rmap !!! ca0).(lw) = false →
     rmap !!! csp = lword_of_word (WCap true p g b e a) →
-    is_Some (a + (- ErrorState_size))%a →
-    disjoint_from_shadow (a ^+ (- ErrorState_size))%a a →
+    is_Some (a + ErrorState_size)%a →
+    disjoint_from_shadow a (a ^+ ErrorState_size)%a →
     length ws = Z.to_nat ErrorState_size →
 
     na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -1266,23 +1268,23 @@ Section Switcher_Exception.
     iIntros (HF HFtrap Hdisj Hfull Hnz Hcsp [a_es Ha_es] Hshadow Hws)
       "(#Hinv_switcher & #Hstatic & #Hpcc & HPC & Hrmap & Hws & Hcstk & Hna & Hpost)".
     rewrite /install_region.
-    assert ((a ^+ (- ErrorState_size))%a = a_es) as Ha_es' by solve_addr.
+    assert ((a ^+ ErrorState_size)%a = a_es) as Ha_es' by solve_addr.
     rewrite Ha_es' in Hshadow.
     iRevert "Hws Hpost". rewrite Ha_es'. iIntros "Hws Hpost".
-    assert ((a_es + length ws)%a = Some a) as Ha_end.
+    assert ((a + length ws)%a = Some a_es) as Ha_end.
     { rewrite Hws. rewrite /ErrorState_size in Ha_es |- *. solve_addr. }
     iApply (switcher_install_context_spec Nswitcher F cstk rmap wpcc
               (λ (i : nat) (ls : list LWord),
-                 [[ a_es , a ]] ↦ₐ [[ ws ]] ∗ ⌜ls = take i (lload_word p <$> ws)⌝)%I
+                 [[ a , a_es ]] ↦ₐ [[ ws ]] ∗ ⌜ls = take i (lload_word p <$> ws)⌝)%I
              with "[- ]"); [done | done | done | done | done |].
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
     iSplitL "Hws"; first by iFrame.
     iSplitR.
-    { iIntros (p' g' b' e' a' π' Hlea _).
-      rewrite Hcsp /lea_result /= Ha_es in Hlea.
-      injection Hlea as <- <- <- <- <- <-.
+    { iIntros (p' g' b' e' a' π' Hcsp' _).
+      rewrite Hcsp in Hcsp'.
+      injection Hcsp' as <- <- <- <- <- <-.
       rewrite -Hws.
-      iApply (region_cells_load_acc p e a_es a ws Ha_end Hshadow). }
+      iApply (region_cells_load_acc p e a a_es ws Ha_end Hshadow). }
     iNext. iSplit.
     - (* A fault of the installation: the switcher unwinds *)
       iIntros (Hskipped off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hws _] Hna".

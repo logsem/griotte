@@ -23,14 +23,15 @@ From griotte Require Import map_simpl register_tactics.
     no handler, or for a fault of a running handler (an odd error handler
     count), or after too many faults, the unwind is forced. Otherwise the
     handler is invoked, with the error handler count incremented. Before a
-    stackful handler, the switcher writes the [ErrorState] above the
+    stackful handler, the switcher writes the [ErrorState] below the
     faulting [csp]: the path performs these stores through a destination
     resource [error_state_written] and a store accessor ([path_es_acc])
     that the caller provides; [error_state_written i] holds once [i] words
     are written, and every continuation gets the destination back. Three
     kinds of instruction of the path fault: the loads of the header
-    through a cleared cell of the export table, the first store of the
-    [ErrorState], and the [cjalr] to a word that is not a valid target.
+    through a cleared cell of the export table, the stores of the
+    [ErrorState] (the first one, or the one at the end of the faulting
+    [csp]), and the [cjalr] to a word that is not a valid target.
 
     The path opens the invariant of the switcher: it needs the non-atomic
     token without [N_trap], which trap entry holds, and gives back the whole
@@ -64,10 +65,10 @@ Section Switcher_Spec_Exception.
 
   (** The stores of the [ErrorState] for a stackful handler: when the
       fault is outside the switcher, the count of the topmost frame even,
-      its table declares a stackful handler, and the switcher's stores
-      through the faulting [csp] succeed, the destination
-      [error_state_written] takes the words of [error_state_src] at the
-      cursor of [csp]. *)
+      its table declares a stackful handler, and the switcher's first store
+      through the faulting [csp] succeeds, the destination
+      [error_state_written] takes the words of [error_state_src] below the
+      cursor of [csp], each one below the end of [csp]. *)
   Definition path_es_acc (cstk : CSTK) (w : LWord) (rmap : LReg)
     (error_state_written : nat → iProp Σ) : iProp Σ :=
     □ ∀ (eh : Z) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
@@ -76,8 +77,9 @@ Section Switcher_Spec_Exception.
       top_export_tbl cstk ↦ₕ□{stackful} eh -∗
       ⌜eh ≠ ExportTable_no_handler⌝ -∗
       ⌜rmap !!! csp = WCap true p g b e a @@? π⌝ -∗
-      ⌜error_state_stores_ok (rmap !!! csp)⌝ -∗
-      cells_store_acc error_state_written p a π (error_state_src w rmap).
+      ⌜error_state_first_store_ok (rmap !!! csp)⌝ -∗
+      cells_store_acc error_state_written p e (a ^+ (- ErrorState_size))%a π
+        (error_state_src w rmap).
 
   #[global] Instance path_es_acc_persistent cstk w rmap error_state_written :
     Persistent (path_es_acc cstk w rmap error_state_written).
@@ -123,9 +125,9 @@ Section Switcher_Spec_Exception.
       WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
 
   (** A fault of the path itself, at the switcher's PC of offset [off],
-      with the invariant of the switcher closed, before any store of the
-      [ErrorState] or after all of them, and the stackful handler not
-      invoked for the fault at [w] with the registers [rmap]... *)
+      with the invariant of the switcher closed, after [k] stores of the
+      [ErrorState], and the stackful handler not invoked for the fault at
+      [w] with the registers [rmap]... *)
   Definition path_nested_fault (F : coPset) (cstk : CSTK) (w : LWord) (rmap : LReg)
     (error_state_written : nat → iProp Σ) : iProp Σ :=
     handler_skipped cstk w rmap -∗
@@ -134,7 +136,7 @@ Section Switcher_Spec_Exception.
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
       registers_pointsto rmap' -∗
       cstack_frag (cstack_set_top_count cstk n) -∗
-      (error_state_written 0 ∨ error_state_written (Z.to_nat ErrorState_size)) -∗
+      (∃ k : nat, ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ ∗ error_state_written k) -∗
       na_own cerise_nais F -∗
       trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
 
@@ -430,7 +432,7 @@ Section Switcher_Spec_Exception.
     ca5 ↦ᵣ wca5 ∗
     (|={⊤}=> na_own cerise_nais F) ∗
     cstack_frag (cstack_set_top_count cstk n) ∗
-    (error_state_written 0 ∨ error_state_written (Z.to_nat ErrorState_size)) ∗
+    (∃ k : nat, ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ ∗ error_state_written k) ∗
     handler_skipped cstk w rmap ∗
     path_nested_fault F cstk w rmap error_state_written
     ⊢ trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
@@ -622,7 +624,8 @@ Section Switcher_Spec_Exception.
       + by iApply "Hskip_jump".
       + iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute.
       + iPureIntro. by apply regs_six_full.
-      + destruct kind; [iRight | iLeft]; iExact "Hwritten".
+      + iExists (error_state_size kind). iFrame "Hwritten". iPureIntro.
+        destruct kind; cbn; lia.
   Qed.
 
   (** ** The exception path *)
@@ -860,7 +863,7 @@ Section Switcher_Spec_Exception.
                    $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hskip $Hnested Hcstk Hwritten]");
           [done | done |].
         iSplitL "Hcstk"; first by rewrite cstack_set_top_count_id.
-        by iLeft.
+        iExists 0%nat. iFrame "Hwritten". iPureIntro. lia.
       + (* No handler: the forced unwind *)
         iIntros ([_ Hno_stackful] wct0_u wct1_u wct2_u wcs0_u wcs1_u)
           "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
@@ -961,14 +964,14 @@ Section Switcher_Spec_Exception.
              1-7: done.
              { by rewrite /handler_args. }
              iSplit; iIntros "_ !>"; iExact "Hskip".
-          -- (* Block 32: a stackful handler, the [ErrorState] above [csp] *)
+          -- (* Block 32: a stackful handler, the [ErrorState] below [csp] *)
              destruct Hfound as [(_ & -> & -> & Hfits & Heh_some) | (Hn & _)]; last done.
              (* The stores of the [ErrorState], from the words of the register
                 save area *)
              iAssert (∀ (p' : Perm) (g' : Locality) (b' e' a' : Addr) (π' : option AId),
                         ⌜wcsp = WCap true p' g' b' e' a' @@? π'⌝ -∗
-                        ⌜error_state_stores_ok wcsp⌝ -∗
-                        cells_store_acc error_state_written p' a' π'
+                        ⌜error_state_first_store_ok wcsp⌝ -∗
+                        cells_store_acc error_state_written p' e' (a' ^+ (- ErrorState_size))%a π'
                           (lclear_tag (save' !!! 0%nat) :: take 15 (drop 1 save')))%I
                as "Hacc".
              { iIntros (p' g' b' e' a' π' Hwcsp' Hok).
@@ -981,10 +984,10 @@ Section Switcher_Spec_Exception.
                           $Hcode $Hwritten $Hacc]");
                [exact Hsave'_len | exact Hlea | exact Hfits |].
              iNext; iSplit.
-             ++ (* The first store faults: the invariant is closed *)
-                iIntros (Hnok)
-                  "(Hcsp & Hct0 & [%wcs1_f Hcs1] & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave_area
-                    & _ & Hwritten)".
+             ++ (* A store faults, after [k] words: the invariant is closed *)
+                iIntros (k off Hnok Hk)
+                  "(Hcsp & Hct0 & [%wcs1_f Hcs1] & Hca0 & Hca1 & [%wca2_f Hca2] & [%wca3_f Hca3]
+                    & [%wca4_f Hca4] & Hsave_area & _ & Hwritten)".
                 iSpecialize ("Hclose" with
                               "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
                 iDestruct "Hpost" as "[Hnested _]".
@@ -996,8 +999,10 @@ Section Switcher_Spec_Exception.
                            $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hcstk $Hskip $Hnested
                            Hwritten]");
                   [done | |].
-                { apply trap_no_resume_switcher_pc. by vm_compute. }
-                by iLeft.
+                { apply trap_no_resume_switcher_pc.
+                  destruct Hk as [ [-> ->] | [_ ->] ]; by vm_compute. }
+                iExists k. iFrame "Hwritten". iPureIntro.
+                destruct Hk as [ [-> _] | [Hk _] ]; lia.
              ++ (* The stores succeed: the invariant is closed before the
                    [cjalr] *)
                 iIntros (Hok mtval wcs1' wca3' wca4')

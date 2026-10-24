@@ -26,17 +26,16 @@ Section HTS_Reload.
   Definition hts_reload_buffer_instrs : list Word :=
     hts_main_instrs_n 10.
 
-  (** Reload of the saved buffer from the stack slot [s], just below the
-      current stack pointer, with the load witness [wit]. HTS uses the
+  (** Reload of the saved buffer from the stack slot [s], at the current
+      stack pointer, with the load witness [wit]. HTS uses the
       tag-preserving post with [LoadLive ι]. *)
   Lemma hts_reload_retained_buffer_spec
-    pc_b pc_e pc_a s e (raw w0 : LWord) wit :
-    disjoint_from_shadow s e ->
-    (s + 1)%a = Some (s ^+ 1)%a ->
-    (s < e)%a ->
+    pc_b pc_e pc_a b s e (raw w0 : LWord) wit :
+    disjoint_from_shadow b e ->
+    (b <= s < e)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_reload_buffer_instrs)%a ->
     (PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-     csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
+     csp ↦ᵣ WCap true RWL Local b e s ∗
      ca0 ↦ᵣ w0 ∗
      s ↦ₐ raw ∗
      codefrag_pers pc_a hts_reload_buffer_instrs ∗
@@ -45,7 +44,7 @@ Section HTS_Reload.
        ⌜load_post wit RWL raw actual⌝ -∗
        PC ↦ₚ WCap true RX Global pc_b pc_e
          (pc_a ^+ length hts_reload_buffer_instrs)%a ∗
-       csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
+       csp ↦ᵣ WCap true RWL Local b e s ∗
        ca0 ↦ᵣ actual ∗
        s ↦ₐ raw ∗
        codefrag_pers pc_a hts_reload_buffer_instrs ∗
@@ -55,12 +54,12 @@ Section HTS_Reload.
      ⊢ WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hshadow Hs1 Hbounds Hsub)
+    iIntros (Hshadow Hbounds Hsub)
       "(HPC & Hcsp & Hca0 & Ha & Hcode & Hwit & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_reload_buffer_instrs.
-    (* CLoad ca0 csp (-1). *)
-    iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds _ _ _ _ _ _ _ ca0 csp (-1))
+    (* CLoad ca0 csp 0. *)
+    iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds _ _ _ _ _ _ _ ca0 csp 0)
       with "[$HPC $Hca0 $Hcsp $Ha $Hwit]"
       as (actual) "(%Hactual & HPC & Hca0 & Hcsp & Ha & Hwit)".
     { solve_addr. }
@@ -151,13 +150,12 @@ Section HTS_Spec_Free.
        of ι is a live witness. *)
     focus_block (hts_block ".Lhts_reload") "Hcode_main" of hts_main_blocks at pc_a as a_reload Ha_reload "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* CLoad ca0 csp (-1). *)
+    (* CLoad ca0 csp 0. *)
     iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
-      csp_b csp_e (hts_buffer b @@ ι) _ (LoadLive ι (1/2)%Qp)
+      csp_b (csp_e ^+ -1)%a csp_e (hts_buffer b @@ ι) _ (LoadLive ι (1/2)%Qp)
       with "[- $HPC $Hcsp $Hca0 $Hslot $Hcode $Hright]").
     { exact (disjoint_from_mmio_shadow _ _ Hstk_shadow). }
-    { solve_addr. }
-    { exact Hstk_nonempty. }
+    { solve_addr+Hstk_nonempty. }
     { solve_addr. }
     iNext. iIntros (actual (_ & _ & _ & Hlivepost))
       "(HPC & Hcsp & Hca0 & Hslot & _ & Hright)".
@@ -285,7 +283,7 @@ Section HTS_Spec_Free.
     iPoseProof (hts_free_known_function Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
-      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a b (b ^+ 1)%a b
+      wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a b (b ^+ 1)%a b
       free_arg cstk RW Global ι
       [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
       Global owner_a hts_main_owner_id {[ι]}
@@ -314,7 +312,7 @@ Section HTS_Spec_Free.
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
-      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk free_arg free_other cstk
+      wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a stk free_arg free_other cstk
       allocator_free_nargs allocator_free_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a

@@ -6,6 +6,7 @@ From griotte Require Import switcher_call_states.
 (** * Call routine, blocks 4-7: prepare the callee's stack and unseal
 
     Block 4 restricts the stack capability to the callee's stack frame,
+    below the spill area,
     block 5 clears it, block 6 loads the unsealing capability of the
     switcher, and the first instruction of block 7 unseals the entry point of
     the callee. *)
@@ -21,26 +22,31 @@ Section Switcher_Call_Blocks_3.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
+  (** Block 4: the stack capability with its cursor [a] is cut at [a]: [ct2]
+      gets the part [[b, a)] below the cursor with its cursor at the base,
+      and [csp] the same part with its cursor at the top. *)
   Lemma switcher_call_block_4_spec
     pc_b pc_e pc_a
     b_stk e_stk a_stk
-    wcs0 wcs1 :
+    wcs0 wcs1 wct2 :
     let switcher_instrs_4 := (switcher_instrs_n 4) in
     let len_switcher_4 := length switcher_instrs_4 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_4)%a ->
-    (isWithin a_stk e_stk b_stk e_stk = true) ->
+    (b_stk <= a_stk)%a ->
     (a_stk <= e_stk)%a ->
     disjoint_from_heap b_stk e_stk ->
 
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
+    ct2 ↦ᵣ wct2 ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     codefrag_pers pc_a switcher_instrs_4 ∗
     ▷ ( PC ↦ₚ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_4)%a ∗
-        cs0 ↦ᵣ WInt e_stk ∗
-        cs1 ↦ᵣ WInt a_stk ∗
-        csp ↦ᵣ WCap true RWL Local a_stk e_stk a_stk ∗
+        cs0 ↦ᵣ WInt a_stk ∗
+        cs1 ↦ᵣ WInt b_stk ∗
+        ct2 ↦ᵣ WCap true RWL Local b_stk a_stk b_stk ∗
+        csp ↦ᵣ WCap true RWL Local b_stk a_stk a_stk ∗
         codefrag_pers pc_a switcher_instrs_4 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
@@ -48,21 +54,28 @@ Section Switcher_Call_Blocks_3.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_4 len_switcher_4; subst switcher_instrs_4 len_switcher_4.
-    iIntros (Hsub_reg Hastk Hastk_le Hstk_heap) "(HPC & Hcs0 & Hcs1 & Hcsp & #Hcode & Hpost)".
+    iIntros (Hsub_reg Hastk_b Hastk_e Hstk_heap) "(HPC & Hcs0 & Hcs1 & Hct2 & Hcsp & #Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
-    (* --- GetE cs0 csp --- *)
+    (* GetA cs0 csp *)
+    iInstr "Hcode".
+    (* GetB cs1 csp *)
+    iInstr "Hcode".
+    (* SetA csp csp cs1 *)
     iInstr "Hcode".
 
-    (* --- GetA cs1 csp --- *)
-    iInstr "Hcode".
-
-    assert ((None : option AId) = None → (a_stk < e_stk)%a → is_heap_address a_stk = false)
+    assert ((None : option AId) = None → (b_stk < a_stk)%a → is_heap_address b_stk = false)
       as Hnot_heap.
     { intros _ Hlt. eapply disjoint_from_heap_not_in; first exact Hstk_heap.
-      apply withinBounds_true_iff. apply isWithin_implies in Hastk. solve_addr. }
+      apply withinBounds_true_iff. solve_addr. }
 
-    (* --- Subseg csp csp cs1 cs0 --- *)
+    (* Subseg ct2 csp cs1 cs0 *)
+    iInstr "Hcode".
+    { rewrite /isWithin; solve_addr. }
+
+    (* GetE cs0 ct2 *)
+    iInstr "Hcode".
+    (* SetA csp ct2 cs0 *)
     iInstr "Hcode".
 
     iApply "Hpost"; iFrame "∗ Hcode".
@@ -185,21 +198,22 @@ Section Switcher_Call_Blocks_3.
     iApply "Hpost"; iFrame "∗ Hcode"; done.
   Qed.
 
-  (** Blocks 4-7: restrict the stack capability to the callee's stack frame
-      [[a ^+ 4, e)], clear it, load the unsealing capability, and unseal the
-      entry point [wct1]. The block faults when [wct1] is not a valid entry
-      point sealed by the switcher. *)
+  (** Blocks 4-7: restrict the stack capability to the callee's stack, below
+      the spill area, clear it, load the unsealing capability, and unseal
+      the entry point [wct1]. The block faults when [wct1] is not a valid
+      entry point sealed by the switcher. *)
   Lemma switcher_call_blocks_3_spec
-    (b e a : Addr) (stk_mem : list LWord) (wcs0 wcs1 wct1 : LWord) :
+    (b e a : Addr) (stk_mem : list LWord) (wcs0 wcs1 wct1 wct2 : LWord) :
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_chop_stack" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_stack_chop" ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
-    [[ (a ^+ 4)%a , e ]] ↦ₐ [[ stk_mem ]] ∗
+    ct2 ↦ᵣ wct2 ∗
+    csp ↦ᵣ WCap true RWL Local b e (stk_saved_a a) ∗
+    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
     b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     ct1 ↦ᵣ wct1 ∗
     switcher_code ∗
@@ -209,8 +223,10 @@ Section Switcher_Call_Blocks_3.
         PC ↦ₚ switcher_pc (switcher_label_offset ".Lswitcher_decode_entry") ∗
         cs0 ↦ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
         (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
-        csp ↦ᵣ WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
-        [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
+        (∃ wct2', ct2 ↦ᵣ wct2') ∗
+        csp ↦ᵣ callee_csp b e a ∗
+        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
+          [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
         b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
         ct1 ↦ᵣ WSealable wsb @@? π ∗
         switcher_code -∗
@@ -218,41 +234,43 @@ Section Switcher_Call_Blocks_3.
     ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ -∗
       cs0 ↦ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
       (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
-      csp ↦ᵣ WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
-      [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
+      (∃ wct2', ct2 ↦ᵣ wct2') ∗
+      csp ↦ᵣ callee_csp b e a ∗
+      [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
+        [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
       ct1 ↦ᵣ - -∗
       trap_safe (switcher_pc (switcher_label_offset ".Lswitch_unseal_entry" + 1)) ⊤
         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
-      "(HPC & Hcs0 & Hcs1 & Hcsp & Hstk & #Hb_switcher & Hct1 & #Hswitcher & Hpost)".
+      "(HPC & Hcs0 & Hcs1 & Hct2 & Hcsp & Hstk & #Hb_switcher & Hct1 & #Hswitcher & Hpost)".
+    rewrite /callee_csp.
     stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
 
     (* Block 4: restrict the stack capability *)
-    switcher_focus_block (switcher_block ".Lswitcher_chop_stack") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_stack_chop") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_4_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); [done| | |done|iNext].
-    { rewrite /isWithin; solve_addr+Hba Hba3 Ha4. }
+      "[- $HPC $Hcs0 $Hcs1 $Hct2 $Hcsp $Hcode]"); [done| | |done|iNext].
     { solve_addr+Hba Hba3 Ha4. }
-    iIntros "(HPC & Hcs0 & Hcs1 & Hcsp & _)".
+    { solve_addr+Hba Hba3 Ha4. }
+    iIntros "(HPC & Hcs0 & Hcs1 & Hct2 & Hcsp & _)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 5: clear the callee's stack frame *)
     switcher_focus_block (switcher_block ".Lswitcher_zero_callee_stack") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]");
+    iApply (clear_stack_spec with "[- $HPC $Hcode $Hct2 $Hcs0 $Hstk]");
       try solve_pure.
-    { solve_addr+. }
-    { solve_addr+Hba Hba3 Ha4. }
+    all: try solve_addr+Hba Hba3 Ha4.
     { pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
       rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow |- *.
       intros x Hx HR. eapply Hstk_shadow; last exact HR.
       apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
       solve_addr. }
-    iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & _ & Hstk)".
+    iIntros "!> (HPC & Hct2 & Hcs0 & _ & Hstk)".
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 6: load the unsealing capability *)

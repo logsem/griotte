@@ -68,19 +68,20 @@ Section switcher_helpers_cframe.
   Qed.
 
   (** Helper lemmas for switcher. The lemmas with the suffix [_aux] are
-      stated on the literal layout of the spill area; the others on the
-      stack layout of [call_stack.v], with the spill area at
-      [stk_spill_a a_stk] for a caller whose cursor is [a_stk]. *)
+      stated on the literal layout of the spill area, at [s], below the
+      cursor of the caller; the others on the stack layout of
+      [call_stack.v], with the spill area at [stk_spill_a a_stk] for a
+      caller whose cursor is [a_stk]. *)
   #[local] Lemma open_world_interp_cframe_aux
-    (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
+    (W : WORLD) (C : CmptName) (b_stk e_stk s s4 hi cur : Addr)
     (wret wcgp0 wcs2 wcs3 : LWord) (ccrel : caller_callee_relation)
     :
-    (b_stk <= a_stk)%a ->
-    (a_stk ^+ 3 < e_stk)%a ->
-    (a_stk + 4)%a = Some a_stk4 ->
+    (b_stk <= s)%a ->
+    (s ^+ (SpillSlot_size - 1) < e_stk)%a ->
+    (s + SpillSlot_size)%a = Some s4 ->
 
-    interp W C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
-    cframe_stk_own a_stk {|
+    interp W C (WCap true RWL Local b_stk (if is_untrusted_caller ccrel then e_stk else hi) cur) ∗
+    cframe_stk_own s {|
         cs_cra := wret;
         cs_cgp := wcgp0;
         cs_cs0 := wcs2;
@@ -89,43 +90,44 @@ Section switcher_helpers_cframe.
     ∗ world_interp W C
       -∗
     ∃ wastk wastk1 wastk2 wastk3,
-      let la := (if (is_untrusted_caller ccrel) then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in
+      let la := (if (is_untrusted_caller ccrel) then finz.seq_between s (s ^+ SpillSlot_size)%a else []) in
       let lv := (if (is_untrusted_caller ccrel) then [wastk;wastk1;wastk2;wastk3] else []) in
-      ([[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ [wastk;wastk1;wastk2;wastk3] ]])
+      ([[ s , (s ^+ SpillSlot_size)%a ]] ↦ₐ [[ [wastk;wastk1;wastk2;wastk3] ]])
       ∗ ▷ StackOpenWorldResources interp W C la lv
       ∗ (⌜if (is_untrusted_caller ccrel)
          then True
-         else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝)
+         else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wcgp0 ∧ wastk3 = wret)⌝)
       ∗ world_interp_open W C (LNonHeap <$> la).
   Proof.
-    iIntros (Hb_a4 He_a1 Ha_stk4) "(#Hinterp_callee_wstk & Hcframe_interp & Hworld_interp)".
+    iIntros (Hb_s He_s3 Hs4) "(#Hinterp_callee_wstk & Hcframe_interp & Hworld_interp)".
+    unfold SpillSlot_size in *. change (4 - 1)%Z with 3%Z in He_s3.
 
     rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
     destruct (is_untrusted_caller ccrel); cycle 1.
-    * iExists wcs2, wcs3, wret, wcgp0.
+    * iExists wcs2, wcs3, wcgp0, wret.
       iEval (rewrite open_world_interp_empty) in "Hworld_interp"; iFrame "Hworld_interp".
       rewrite /StackOpenWorldResources /StackWorldResources.
       iSplitL "Hcframe_interp"; auto.
       iDestruct "Hcframe_interp" as "(?&?&?&?)".
-      iApply (region_pointsto_cons _ (a_stk ^+ 1)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
-      iApply (region_pointsto_cons _ (a_stk ^+ 2)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
-      iApply (region_pointsto_cons _ (a_stk ^+ 3)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
-      iApply (region_pointsto_cons _ (a_stk ^+ 4)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
+      iApply (region_pointsto_cons _ (s ^+ 1)%a); [solve_addr+Hs4|solve_addr+Hs4|]; iFrame.
+      iApply (region_pointsto_cons _ (s ^+ 2)%a); [solve_addr+Hs4|solve_addr+Hs4|]; iFrame.
+      iApply (region_pointsto_cons _ (s ^+ 3)%a); [solve_addr+Hs4|solve_addr+Hs4|]; iFrame.
+      iApply (region_pointsto_cons _ (s ^+ 4)%a); [solve_addr+Hs4|solve_addr+Hs4|]; iFrame.
       by rewrite /region_pointsto finz_seq_between_empty.
     * iEval (rewrite open_world_interp_empty -(fmap_nil LNonHeap)) in "Hworld_interp".
-      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk (a_stk^+4)%a) []
+      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between s (s ^+4)%a) []
                   with "[$Hinterp_callee_wstk $Hworld_interp]")
         as "(Hworld_interp & Hres)"; auto.
       { eapply finz_seq_between_NoDup. }
-      { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
+      { clear- Hb_s He_s3 Hs4; apply Forall_forall; intros a' Ha'.
         apply elem_of_finz_seq_between in Ha'; solve_addr.
       }
       { set_solver. }
-      do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-      rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
+      do 4 (rewrite (finz_seq_between_cons _ (s ^+ 4)%a); last solve_addr+Hs4).
+      rewrite (finz_seq_between_empty _ (s ^+ 4)%a); last solve_addr+.
       cbn.
-      replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-      replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
+      replace ((s ^+ 1) ^+ 1)%a with (s ^+ 2)%a by solve_addr+Hs4.
+      replace ((s ^+ 2) ^+ 1)%a with (s ^+ 3)%a by solve_addr+Hs4.
       iFrame.
       iDestruct "Hres" as "(%lv & [Hlv Hres])".
       iDestruct (big_sepL2_length with "Hlv") as "%Hlv_len".
@@ -133,13 +135,13 @@ Section switcher_helpers_cframe.
       iExists w, w0, w1, w2.
       iFrame.
       iSplitL "Hlv".
-      - replace ( [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a] )
-        with (finz.seq_between a_stk (a_stk ^+4)%a); first done.
-        repeat (rewrite finz_seq_between_cons; last solve_addr+He_a1).
-        replace ( ((a_stk ^+ 1) ^+ 1)%a ) with ((a_stk ^+ 2))%a by solve_addr+He_a1.
-        replace ( ((a_stk ^+ 2) ^+ 1)%a ) with ((a_stk ^+ 3))%a by solve_addr+He_a1.
-        replace ( ((a_stk ^+ 3) ^+ 1)%a ) with ((a_stk ^+ 4))%a by solve_addr+He_a1.
-        rewrite finz_seq_between_empty; last solve_addr+He_a1.
+      - replace ( [s; (s ^+ 1)%a; (s ^+ 2)%a; (s ^+ 3)%a] )
+        with (finz.seq_between s (s ^+4)%a); first done.
+        repeat (rewrite finz_seq_between_cons; last solve_addr+Hs4).
+        replace ( ((s ^+ 1) ^+ 1)%a ) with ((s ^+ 2))%a by solve_addr+Hs4.
+        replace ( ((s ^+ 2) ^+ 1)%a ) with ((s ^+ 3))%a by solve_addr+Hs4.
+        replace ( ((s ^+ 3) ^+ 1)%a ) with ((s ^+ 4))%a by solve_addr+Hs4.
+        rewrite finz_seq_between_empty; last solve_addr+Hs4.
         done.
       - iNext.
         rewrite /StackOpenWorldResources.
@@ -148,21 +150,21 @@ Section switcher_helpers_cframe.
         repeat (iDestruct (big_sepL2_cons with "Hres") as "[$ Hres]").
   Qed.
 
-  #[local] Lemma open_world_interp_callee_stack_aux (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
-    ccrel
+  #[local] Lemma open_world_interp_callee_stack_aux (W : WORLD) (C : CmptName)
+    (b_stk e_stk s s4 cur : Addr) ccrel
     :
     let l_register_save_area :=
       (if is_untrusted_caller ccrel
-       then finz.seq_between a_stk (a_stk ^+ 4)%a
+       then finz.seq_between s (s ^+ SpillSlot_size)%a
        else [])
     in
-    let l_callee_stack_frame := finz.seq_between (a_stk ^+ 4)%a e_stk in
+    let l_callee_stack_frame := finz.seq_between b_stk s in
 
-    (b_stk <= a_stk)%a ->
-    (a_stk ^+ 3 < e_stk)%a ->
-    (a_stk + 4)%a = Some a_stk4 ->
+    (b_stk <= s)%a ->
+    (s ^+ (SpillSlot_size - 1) < e_stk)%a ->
+    (s + SpillSlot_size)%a = Some s4 ->
 
-    interp W C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
+    interp W C (WCap true RWL Local b_stk (if is_untrusted_caller ccrel then e_stk else s) cur) ∗
     world_interp_open W C (LNonHeap <$> l_register_save_area)
     -∗
 
@@ -175,28 +177,28 @@ Section switcher_helpers_cframe.
   Proof.
     intros l_register_save_area l_callee_stack_frame;
     subst l_register_save_area l_callee_stack_frame.
-    iIntros (Hb_a4 He_a1 Ha_stk4)
+    iIntros (Hb_s He_s3 Hs4)
       "(Hinterp_callee_wstk & Hworld_interp)".
-    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between (a_stk^+4)%a e_stk)
+    unfold SpillSlot_size in *. change (4 - 1)%Z with 3%Z in He_s3.
+    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between b_stk s)
                 with "[$Hinterp_callee_wstk $Hworld_interp]")
       as "($ & Hres)"; auto.
     { eapply finz_seq_between_NoDup. }
-    { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
+    { clear- Hb_s He_s3 Hs4; apply Forall_forall; intros a' Ha'.
       apply elem_of_finz_seq_between in Ha'.
-      rewrite /is_untrusted_caller_frm; cbn.
       destruct (is_untrusted_caller ccrel); solve_addr.
     }
     {
       destruct (is_untrusted_caller ccrel); last set_solver.
-      set (la := finz.seq_between (a_stk ^+ 4)%a e_stk).
-      assert ( a_stk ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
-      assert ( (a_stk ^+ 1)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
-      assert ( (a_stk ^+ 2)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
-      assert ( (a_stk ^+ 3)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
-      do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-      rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
-      replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-      replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
+      set (la := finz.seq_between b_stk s).
+      assert ( s ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
+      assert ( (s ^+ 1)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+Hs4).
+      assert ( (s ^+ 2)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+Hs4).
+      assert ( (s ^+ 3)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+Hs4).
+      do 4 (rewrite (finz_seq_between_cons _ (s ^+ 4)%a); last solve_addr+Hs4).
+      rewrite (finz_seq_between_empty _ (s ^+ 4)%a); last solve_addr+.
+      replace ((s ^+ 1) ^+ 1)%a with (s ^+ 2)%a by solve_addr+Hs4.
+      replace ((s ^+ 2) ^+ 1)%a with (s ^+ 3)%a by solve_addr+Hs4.
       set_solver.
     }
   Qed.
@@ -230,19 +232,19 @@ Section switcher_helpers_cframe.
       ∗ ▷ StackOpenWorldResources interp W C la lv
       ∗ (⌜if (is_untrusted_caller ccrel)
          then True
-         else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝)
+         else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wcgp0 ∧ wastk3 = wret)⌝)
       ∗ world_interp_open W C (LNonHeap <$> la).
   Proof.
     intros s Hbounds; subst s.
     destruct Hbounds as (Hb & Hb3 & Ha4).
     stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
-    replace (if is_untrusted_caller ccrel then e_stk else e_stk) with e_stk
+    replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
       by (by destruct (is_untrusted_caller ccrel)).
-    apply (open_world_interp_cframe_aux W C b_stk e_stk a_stk (a_stk ^+ 4)%a);
-      [done | solve_addr+Hb3 Ha4 | done].
+    apply (open_world_interp_cframe_aux W C b_stk e_stk (stk_spill_a a_stk) a_stk);
+      [done | stk_unfold; solve_addr+Hb3 Ha4 | stk_unfold; solve_addr+Ha4].
   Qed.
 
-  (** Open the callee's stack, after the spill area. *)
+  (** Open the callee's stack, below the spill area. *)
   Lemma open_world_interp_callee_stack (W : WORLD) (C : CmptName) (b_stk e_stk a_stk : Addr)
     ccrel
     :
@@ -274,10 +276,10 @@ Section switcher_helpers_cframe.
       subst s l_register_save_area l_callee_stack_frame.
     destruct Hbounds as (Hb & Hb3 & Ha4).
     stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
-    replace (if is_untrusted_caller ccrel then e_stk else e_stk) with e_stk
+    replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
       by (by destruct (is_untrusted_caller ccrel)).
-    apply (open_world_interp_callee_stack_aux W C b_stk e_stk a_stk (a_stk ^+ 4)%a);
-      [done | solve_addr+Hb3 Ha4 | done].
+    apply (open_world_interp_callee_stack_aux W C b_stk e_stk (stk_spill_a a_stk) a_stk);
+      [done | stk_unfold; solve_addr+Hb3 Ha4 | stk_unfold; solve_addr+Ha4].
   Qed.
 
 
@@ -305,22 +307,21 @@ Section switcher_helpers_cframe.
     )%I.
 
     #[local] Lemma open_world_interp_cframe_gen_aux
-    (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list LAddr)
+    (W0 Wcur : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 cur : Addr) (l : list LAddr)
     (wret wcgp wcs0 wcs1 : LWord) (ccrel : caller_callee_relation)
     :
-      let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur in
-      let a_stk := (csp_b ^+ -4)%a in
+      let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between b_stk a_stk)) Wcur in
 
-      (b_stk <= csp_b ^+ -4)%a ->
-      ((csp_b ^+ -4) ^+ 3 < csp_e)%a ->
-      (csp_b ^+ -4 + 4)%a = Some a_stk4 ->
+      (b_stk <= a_stk)%a ->
+      (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
+      (a_stk + SpillSlot_size)%a = Some a_stk4 ->
 
-      (∀ a : LAddr, std W0 !! a = Some Temporary → a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
-      NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+      (∀ a : LAddr, std W0 !! a = Some Temporary → a ∈ l ++ (LNonHeap <$> finz.seq_between b_stk a_stk)) ->
+      NoDup (l ++ (LNonHeap <$> finz.seq_between b_stk a_stk)) ->
       related_sts_pub_world W0 Wfixed ->
-      disjoint_from_heap b_stk csp_e ->
+      disjoint_from_heap b_stk e_stk ->
 
-      interp W0 C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
+      interp W0 C (WCap true RWL Local b_stk (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
       cframe_stk_own a_stk
         {|
           cs_cra := wret;
@@ -341,7 +342,7 @@ Section switcher_helpers_cframe.
           ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
           ∗ (⌜if (is_untrusted_caller ccrel)
              then True
-             else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wret ∧ wastk3 = wcgp)⌝)
+             else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wcgp ∧ wastk3 = wret)⌝)
           ∗ (if (is_untrusted_caller ccrel)
              then (
                  (interp_in_mem RWL Wfixed C wastk)
@@ -355,18 +356,19 @@ Section switcher_helpers_cframe.
       )
     .
     Proof.
-      intros Wfixed a_stk.
+      intros Wfixed.
       iIntros (Hb_a4 He_a1 Ha_stk4 Htemp_revoked Hnodup_revoked Hrelated_pub_W0_Wfixed Hstk_heap)
         "#Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc".
+      rewrite /SpillSlot_size in He_a1 Ha_stk4. change (4 - 1)%Z with 3%Z in He_a1.
       rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
       rewrite /CloseRes.
       destruct (is_untrusted_caller ccrel); cycle 1.
-      * iExists wcs0, wcs1, wret, wcgp.
+      * iExists wcs0, wcs1, wcgp, wret.
         iDestruct "Hcframe_interp" as "($&$&$&$)". iFrame.
         done.
       * cbn.
         iAssert
-          (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk csp_e) → (std W0 !! LNonHeap a) = Some Temporary ⌝)%I
+          (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk e_stk) → (std W0 !! LNonHeap a) = Some Temporary ⌝)%I
           as "%Hstk_tmp".
         {
           iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto.
@@ -378,67 +380,63 @@ Section switcher_helpers_cframe.
         iAssert ( ⌜ LNonHeap a_stk ∈ l ⌝)%I as "%Hastk_unk".
         {
           opose proof (Hstk_tmp a_stk _) as Hastk_tmp.
-          { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          { rewrite elem_of_finz_seq_between; solve_addr+Hb_a4 He_a1 Ha_stk4. }
           apply Htemp_revoked in Hastk_tmp.
           apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
           rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
-          subst a_stk.
-          solve_addr+Hcontra.
+          solve_addr+Hcontra Ha_stk4.
         }
         iAssert ( ⌜ LNonHeap (a_stk ^+1)%a ∈ l ⌝)%I as "%Hastk1_unk".
         {
           opose proof (Hstk_tmp (a_stk ^+1)%a _) as Hastk_tmp.
-          { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          { rewrite elem_of_finz_seq_between; solve_addr+Hb_a4 He_a1 Ha_stk4. }
           apply Htemp_revoked in Hastk_tmp.
           apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
           rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
-          subst a_stk.
-          solve_addr+Hcontra.
+          solve_addr+Hcontra Ha_stk4.
         }
         iAssert ( ⌜ LNonHeap (a_stk ^+2)%a ∈ l ⌝)%I as "%Hastk2_unk".
         {
           opose proof (Hstk_tmp (a_stk ^+2)%a _) as Hastk_tmp.
-          { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          { rewrite elem_of_finz_seq_between; solve_addr+Hb_a4 He_a1 Ha_stk4. }
           apply Htemp_revoked in Hastk_tmp.
           apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
           rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
-          subst a_stk.
-          solve_addr+Hcontra.
+          solve_addr+Hcontra Ha_stk4.
         }
         iAssert ( ⌜ LNonHeap (a_stk ^+3)%a ∈ l ⌝)%I as "%Hastk3_unk".
         {
           opose proof (Hstk_tmp (a_stk ^+3)%a _) as Hastk_tmp.
-          { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          { rewrite elem_of_finz_seq_between; solve_addr+Hb_a4 He_a1 Ha_stk4. }
           apply Htemp_revoked in Hastk_tmp.
           apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
           rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
-          subst a_stk.
-          solve_addr+Hcontra.
+          solve_addr+Hcontra Ha_stk4.
         }
-        assert (b_stk <= a_stk < csp_e)%a as Hbound0
-          by (subst a_stk; solve_addr+Hb_a4 He_a1).
-        iDestruct (write_allowed_inv W0 C a_stk a_stk b_stk csp_e RWL Local None
+        assert (b_stk <= a_stk < e_stk)%a as Hbound0
+          by solve_addr+Hb_a4 He_a1.
+        iDestruct (write_allowed_inv W0 C a_stk cur b_stk e_stk RWL Local None
           Hbound0 I with "Hinterp_callee_wstk")
           as (p_astk0 φ_astk0) "(%Hp_astk0 & _ & Hrel_astk0 & _ & Hwcond_astk0 & Hrcond_astk0 & _)".
         assert (addr_key None a_stk = LNonHeap a_stk) as Hkey_astk0 by done.
         rewrite Hkey_astk0.
-        assert (b_stk <= (a_stk ^+1)%a < csp_e)%a as Hbound1
-          by (subst a_stk; solve_addr+Hb_a4 He_a1).
-        iDestruct (write_allowed_inv W0 C (a_stk ^+1)%a a_stk b_stk csp_e RWL Local None
+        assert (b_stk <= (a_stk ^+1)%a < e_stk)%a as Hbound1
+          by solve_addr+Hb_a4 He_a1.
+        iDestruct (write_allowed_inv W0 C (a_stk ^+1)%a cur b_stk e_stk RWL Local None
           Hbound1 I with "Hinterp_callee_wstk")
           as (p_astk1 φ_astk1) "(%Hp_astk1 & _ & Hrel_astk1 & _ & Hwcond_astk1 & Hrcond_astk1 & _)".
         assert (addr_key None (a_stk ^+1)%a = LNonHeap (a_stk ^+1)%a) as Hkey_astk1 by done.
         rewrite Hkey_astk1.
-        assert (b_stk <= (a_stk ^+2)%a < csp_e)%a as Hbound2
-          by (subst a_stk; solve_addr+Hb_a4 He_a1).
-        iDestruct (write_allowed_inv W0 C (a_stk ^+2)%a a_stk b_stk csp_e RWL Local None
+        assert (b_stk <= (a_stk ^+2)%a < e_stk)%a as Hbound2
+          by solve_addr+Hb_a4 He_a1.
+        iDestruct (write_allowed_inv W0 C (a_stk ^+2)%a cur b_stk e_stk RWL Local None
           Hbound2 I with "Hinterp_callee_wstk")
           as (p_astk2 φ_astk2) "(%Hp_astk2 & _ & Hrel_astk2 & _ & Hwcond_astk2 & Hrcond_astk2 & _)".
         assert (addr_key None (a_stk ^+2)%a = LNonHeap (a_stk ^+2)%a) as Hkey_astk2 by done.
         rewrite Hkey_astk2.
-        assert (b_stk <= (a_stk ^+3)%a < csp_e)%a as Hbound3
-          by (subst a_stk; solve_addr+Hb_a4 He_a1).
-        iDestruct (write_allowed_inv W0 C (a_stk ^+3)%a a_stk b_stk csp_e RWL Local None
+        assert (b_stk <= (a_stk ^+3)%a < e_stk)%a as Hbound3
+          by solve_addr+Hb_a4 He_a1.
+        iDestruct (write_allowed_inv W0 C (a_stk ^+3)%a cur b_stk e_stk RWL Local None
           Hbound3 I with "Hinterp_callee_wstk")
           as (p_astk3 φ_astk3) "(%Hp_astk3 & _ & Hrel_astk3 & _ & Hwcond_astk3 & Hrcond_astk3 & _)".
         assert (addr_key None (a_stk ^+3)%a = LNonHeap (a_stk ^+3)%a) as Hkey_astk3 by done.
@@ -474,18 +472,18 @@ Section switcher_helpers_cframe.
     { apply NoDup_app in Hnodup_revoked as (Hnodup_revoked & ? & ?).
       apply elem_of_Permutation in Hastk_unk as [l0 Hl0].
       rewrite Hl0 in Hastk1_unk,Hastk2_unk,Hastk3_unk.
-      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
-      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
-      apply elem_of_cons in Hastk1_unk as [Hcontra | Hastk1_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; exfalso; clear -Hcontra Ha_stk4; solve_addr).
+      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (injection Hcontra as Hcontra; exfalso; clear -Hcontra Ha_stk4; solve_addr).
+      apply elem_of_cons in Hastk1_unk as [Hcontra | Hastk1_unk]; first (injection Hcontra as Hcontra; exfalso; clear -Hcontra Ha_stk4; solve_addr).
 
       apply elem_of_Permutation in Hastk1_unk as [l1 Hl1].
       rewrite Hl1 in Hastk2_unk,Hastk3_unk.
-      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
-      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; exfalso; clear -Hcontra Ha_stk4; solve_addr).
+      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (injection Hcontra as Hcontra; exfalso; clear -Hcontra Ha_stk4; solve_addr).
 
       apply elem_of_Permutation in Hastk2_unk as [l2 Hl2].
       rewrite Hl2 in Hastk3_unk.
-      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; exfalso; clear -Hcontra Ha_stk4; solve_addr).
 
       apply elem_of_Permutation in Hastk3_unk as [l3 Hl3].
 
@@ -506,7 +504,7 @@ Section switcher_helpers_cframe.
         eapply (Hstk_heap a); [apply elem_of_finz_seq_between|by apply elem_of_finz_seq_between].
         rewrite !elem_of_cons elem_of_nil in Ha.
         repeat (destruct Ha as [->|Ha]); try contradiction;
-          subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4.
+          solve_addr+Hb_a4 He_a1 Ha_stk4.
       }
       apply Forall_cons in Hnonheap as [Hnonheap0 Hnonheap].
       apply Forall_cons in Hnonheap as [Hnonheap1 Hnonheap].
@@ -671,7 +669,7 @@ Section switcher_helpers_cframe.
           ∗ (s ^+ 3)%a ↦ₐ wastk3
           ∗ (⌜if (is_untrusted_caller ccrel)
              then True
-             else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wret ∧ wastk3 = wcgp)⌝)
+             else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wcgp ∧ wastk3 = wret)⌝)
           ∗ (if (is_untrusted_caller ccrel)
              then (
                  (interp_in_mem RWL Wfixed C wastk)
@@ -688,14 +686,11 @@ Section switcher_helpers_cframe.
     intros Wfixed s Hbounds; subst Wfixed s.
     destruct Hbounds as (Hb & Hb3 & Ha4).
     stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
-    replace (if is_untrusted_caller ccrel then e_stk else e_stk) with e_stk
+    replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
       by (by destruct (is_untrusted_caller ccrel)).
-    assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Ha by solve_addr+Ha4.
-    pose proof (open_world_interp_cframe_gen_aux W0 Wcur C b_stk (a_stk ^+ 4)%a e_stk
-                  (a_stk ^+ 4)%a l wret wcgp wcs0 wcs1 ccrel) as Haux.
-    cbv zeta in Haux. rewrite Ha in Haux.
     intros Htemp Hnodup Hrelated Hheap.
-    apply Haux; [done | solve_addr+Hb3 Ha4 | exact Ha4 | done..].
+    apply (open_world_interp_cframe_gen_aux W0 Wcur C b_stk e_stk (stk_spill_a a_stk) a_stk);
+      [done | stk_unfold; solve_addr+Hb3 Ha4 | stk_unfold; solve_addr+Ha4 | done..].
   Qed.
 
 End switcher_helpers_cframe.

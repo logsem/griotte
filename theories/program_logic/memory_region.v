@@ -163,6 +163,47 @@ Section region.
        rewrite (_: finz.dist b e - finz.dist b a = finz.dist a e)...
    Qed.
 
+  (** A region splits at [a], given the length of its second part. *)
+  Lemma region_pointsto_split_r (b e a : Addr) (w1 w2 : list LWord) :
+    (b <= a <= e)%Z →
+    length w2 = finz.dist a e →
+    [[b,e]]↦ₐ[[w1 ++ w2]] ⊣⊢ [[b,a]]↦ₐ[[w1]] ∗ [[a,e]]↦ₐ[[w2]].
+  Proof.
+    intros Hbae Hw2. iSplit.
+    - iIntros "H".
+      iDestruct (big_sepL2_length with "H") as %Hlen.
+      rewrite finz_seq_between_length length_app in Hlen.
+      iApply (region_pointsto_split with "H"); first done.
+      rewrite /finz.dist in Hlen Hw2 |- *. solve_addr.
+    - iIntros "[H1 H2]".
+      iDestruct (big_sepL2_length with "H1") as %Hlen.
+      rewrite finz_seq_between_length in Hlen.
+      iApply (region_pointsto_split with "[$H1 $H2]"); done.
+  Qed.
+
+  (** A non-empty region splits off its last cell. *)
+  Lemma region_pointsto_split_top (b e : Addr) (ws : list LWord) :
+    (b < e)%a ->
+    [[b, e]] ↦ₐ [[ws]] -∗
+    ∃ ws' w,
+      ⌜ws = ws' ++ [w]⌝ ∗
+      [[b, (e ^+ -1)%a]] ↦ₐ [[ws']] ∗
+      (e ^+ -1)%a ↦ₐ w.
+  Proof.
+    iIntros (Hbe) "Hws".
+    iDestruct (big_sepL2_length with "Hws") as %Hlen.
+    rewrite finz_seq_between_length in Hlen.
+    destruct ws as [|w ws'] using rev_ind.
+    { exfalso. cbn in Hlen. rewrite /finz.dist in Hlen. solve_addr+Hbe Hlen. }
+    iDestruct (region_pointsto_split_r b e (e ^+ -1)%a with "Hws") as "[Hws Hw]".
+    { solve_addr+Hbe. }
+    { cbn. rewrite /finz.dist. solve_addr+Hbe. }
+    iDestruct (region_pointsto_single with "Hw") as (w') "[Hw %Hw']";
+      first solve_addr+Hbe.
+    injection Hw' as <-.
+    iExists ws', w. by iFrame.
+  Qed.
+
   (** A region of memory is the separated conjunction of its cells. *)
   Lemma region_pointsto_cells (b e : Addr) (ws : list LWord) :
     (b + length ws)%a = Some e →
@@ -510,14 +551,15 @@ Section cells_store.
   Context {Σ:gFunctors} {ceriseg:ceriseG Σ} `{MP: MachineParameters}.
 
   (** The stores of [ws] to the cells from [a], through a capability of
-      permission [p] and identifier [π]. [D i] holds once the first [i]
-      cells are written. Each store gets cell [i], outside the shadow
-      table, with the liveness of [π], and gives it back with the stored
-      word. *)
-  Definition cells_store_acc (D : nat → iProp Σ) (p : Perm) (a : Addr)
+      permission [p], end [e] and identifier [π]. [D i] holds once the
+      first [i] cells are written. Each store of a cell below [e] gets cell
+      [i], outside the shadow table, with the liveness of [π], and gives it
+      back with the stored word. *)
+  Definition cells_store_acc (D : nat → iProp Σ) (p : Perm) (e a : Addr)
     (π : option AId) (ws : list LWord) : iProp Σ :=
     □ ∀ i : nat,
       ⌜(i < length ws)%nat⌝ -∗
+      ⌜(a + i < e)%Z⌝ -∗
       D i
       ={⊤}=∗
       ∃ (v : LWord) (q : Qp),
@@ -529,22 +571,20 @@ Section cells_store.
            ={⊤}=∗
            D (S i)).
 
-  #[global] Instance cells_store_acc_persistent D p a π ws :
-    Persistent (cells_store_acc D p a π ws).
+  #[global] Instance cells_store_acc_persistent D p e a π ws :
+    Persistent (cells_store_acc D p e a π ws).
   Proof. apply _. Qed.
 
   (** The stores of [w :: ws] from [a], without the first: those of [ws]
       from [a ^+ 1]. *)
-  Lemma cells_store_acc_tail (D : nat → iProp Σ) (p : Perm) (a : Addr)
+  Lemma cells_store_acc_tail (D : nat → iProp Σ) (p : Perm) (e a : Addr)
     (π : option AId) (w : LWord) (ws : list LWord) :
-    is_Some (a + length (w :: ws))%a →
-    cells_store_acc D p a π (w :: ws) -∗
-    cells_store_acc (λ i, D (S i)) p (a ^+ 1)%a π ws.
+    cells_store_acc D p e a π (w :: ws) -∗
+    cells_store_acc (λ i, D (S i)) p e (a ^+ 1)%a π ws.
   Proof.
-    iIntros ([a_end Ha_end]) "#Hacc". iIntros "!>" (i Hi) "HD".
-    cbn in Ha_end.
+    iIntros "#Hacc !>" (i Hi Hie) "HD".
     rewrite (_ : ((a ^+ 1) ^+ i)%a = (a ^+ S i)%a); last solve_addr.
-    iApply ("Hacc" $! (S i) with "[] HD"). iPureIntro; cbn; lia.
+    iApply ("Hacc" $! (S i) with "[%] [%] HD"); [cbn; lia | solve_addr].
   Qed.
 
 End cells_store.

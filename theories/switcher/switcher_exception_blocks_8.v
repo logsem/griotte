@@ -7,7 +7,7 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 (** * Exception path, block 35: the installation of the handler's context
 
     Block 35 ([.Lhandle_error_install_context]) installs the context that
-    the error handler returns, its [ErrorState], read below the handler's
+    the error handler returns, its [ErrorState], read at the handler's
     stack pointer [csp]. The resumed PC is the PCC of the export table of
     the topmost frame, with the address of word 0 of the [ErrorState]: the
     handler chooses an address, not the bounds or permissions. Words 1-15
@@ -39,10 +39,10 @@ Section Switcher_Exception_Blocks_8.
                       GetB cs0 ct0;
                       SetA ct0 ct0 (inr cs0);
                       CLoad ct0 ct0 ExportTable_offset_pcc;
-                      CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size);
+                      CLoad cra csp TrustedStack_offset_mepcc;
                       GetA cra cra;
                       SetA ct2 ct0 (inr cra);
-                      Lea ca2 csp (inl (TrustedStack_offset_cra - ErrorState_size)%Z);
+                      Lea ca2 csp (inl TrustedStack_offset_cra);
                       Lea ca3 ct1 (inl TrustedStack_offset_cra) ] ++
       copy_context_instrs ca3 ca2 cs1 ca4 ++
       encodeInstrsW [ CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount;
@@ -52,23 +52,19 @@ Section Switcher_Exception_Blocks_8.
                       Jmp (inl 12%Z) ].
   Proof. reflexivity. Qed.
 
-  (** The loads of the [ErrorState] succeed through a tagged capability
-      whose cursor moves by [- ErrorState_size], readable, with the
-      [ErrorState] in bounds. *)
+  (** The loads of the [ErrorState] succeed through a tagged readable
+      capability, with the [ErrorState] in bounds from its cursor. *)
   #[local] Lemma error_state_loads_ok_inv (wcsp : LWord) :
     error_state_loads_ok wcsp →
-    ∃ (p : Perm) (g : Locality) (b e a ea : Addr),
+    ∃ (p : Perm) (g : Locality) (b e a : Addr),
       wcsp.(lw) = WCap true p g b e a ∧
-      (a + (- ErrorState_size))%a = Some ea ∧
-      readAllowed p = true ∧ (b <= ea)%a ∧ (ea + ErrorState_size <= e)%Z.
+      readAllowed p = true ∧ (b <= a)%a ∧ (a + ErrorState_size <= e)%Z.
   Proof.
-    rewrite /error_state_loads_ok /lea_result.
+    rewrite /error_state_loads_ok.
     destruct wcsp as [w π]; cbn.
     destruct w as [n | [t p g b e a | t p g b e a] | k t p g b e a | ot sb]; cbn; try done.
-    - destruct (a + - ErrorState_size)%a as [ea|] eqn:Hea; cbn; last done.
-      destruct t; last done.
-      intros (Hra & Hb & He). by exists p, g, b, e, a, ea.
-    - by destruct (a + - ErrorState_size)%ot.
+    destruct t; last done.
+    intros (Hra & Hb & He). by exists p, g, b, e, a.
   Qed.
 
   (** Block 35, at [pc_a]. [d] is the depth of the call stack, [a_tstk] its
@@ -76,7 +72,7 @@ Section Switcher_Exception_Blocks_8.
       or a capability to the table at [b_tbl], whose PCC is [wpcc]) and
       whose error handler count is [n]. [L i ls] holds once the first [i]
       words [ls] of the [ErrorState] are loaded, through the accessor given
-      for the [ErrorState] below [wcsp]. A fault happens at [pc_a ^+ k]:
+      for the [ErrorState] at [wcsp]. A fault happens at [pc_a ^+ k]:
       at the load of the PCC of the table ([k = 7]), at the load of
       word 0 of the [ErrorState] ([k = 8]), or at a load of the copy
       ([k = 14]); the cell is then cleared, or [wcsp] does not allow the
@@ -116,7 +112,7 @@ Section Switcher_Exception_Blocks_8.
     codefrag_pers pc_a (switcher_instrs_n 35) ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
-       ⌜lea_result wcsp (- ErrorState_size) = Some (WCap true p g b e a @@? π)⌝ -∗
+       ⌜wcsp = WCap true p g b e a @@? π⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0) ∨ ¬ error_state_loads_ok wcsp⌝ -∗
@@ -238,19 +234,19 @@ Section Switcher_Exception_Blocks_8.
     rewrite lload_word_no_dl_dro //.
     destruct wcsp as [wsp π].
     destruct (is_cap wsp) eqn:Hcap; cycle 1.
-    { (* CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size) *)
+    { (* CLoad cra csp TrustedStack_offset_mepcc *)
       iInstrApply "Hcode" (wp_load_fail_not_cap_imm _ cra csp) with "[$HPC $Hcra $Hcsp]"
         as "(HPC & Hcra & Hcsp)".
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]").
-      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+      { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         cbn in Hw'; by subst wsp. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
     destruct wsp as [|[tag p g b e a|] | |]; try done.
     destruct tag; cycle 1.
     { iDestruct (map_of_regs_2 with "Hcra Hcsp") as "[Hmap %Hne]".
-      (* CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size) *)
+      (* CLoad cra csp TrustedStack_offset_mepcc *)
       iInstrApply "Hcode"
         (wp_load_fail_tag_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a @@? π))
         with "[$HPC $Hmap]" as "(HPC & Hmap)".
@@ -259,66 +255,51 @@ Section Switcher_Exception_Blocks_8.
       iDestruct (regs_of_map_2 with "Hmap") as "[Hcra Hcsp]"; first done.
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]").
-      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+      { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         by cbn in Hw'. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
-    destruct (a + (TrustedStack_offset_mepcc - ErrorState_size))%a as [ea|] eqn:Hea; cycle 1.
-    { iDestruct (map_of_regs_2 with "Hcra Hcsp") as "[Hmap %Hne]".
-      (* CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size) *)
-      iInstrApply "Hcode"
-        (wp_load_fail_addr_imm _ _ _ _ _ _ _ _ _ _ _ _ (WCap true p g b e a @@? π))
-        with "[$HPC $Hmap]" as "(HPC & Hmap)".
-      { rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
-      all: try done.
-      iDestruct (regs_of_map_2 with "Hmap") as "[Hcra Hcsp]"; first done.
-      iDestruct "Hpost" as "[Hfailed _]".
-      iSpecialize ("Hfailed" with "[%]").
-      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
-          %error_state_loads_ok_inv.
-        cbn in Hw'; simplify_eq.
-        rewrite /TrustedStack_offset_mepcc /ErrorState_size in Hea Hea'. solve_addr. }
-      iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
+    assert ((a + TrustedStack_offset_mepcc)%a = Some a) as Hea
+      by (rewrite /TrustedStack_offset_mepcc; solve_addr).
     destruct (readAllowed p) eqn:Hra; cycle 1.
-    { (* CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size) *)
+    { (* CLoad cra csp TrustedStack_offset_mepcc *)
       iInstrApply "Hcode" (wp_load_fail_not_ra_imm _ cra csp) with "[$HPC $Hcra $Hcsp]"
         as "(HPC & Hcra & Hcsp)".
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]").
-      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+      { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         cbn in Hw'; simplify_eq. congruence. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
-    destruct (decide (b <= ea < e)%a) as [Hin | Hout]; cycle 1.
-    { (* CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size) *)
+    destruct (decide (b <= a < e)%a) as [Hin | Hout]; cycle 1.
+    { (* CLoad cra csp TrustedStack_offset_mepcc *)
       iInstrApply "Hcode" (wp_load_fail_not_withinbounds_imm _ cra csp)
         with "[$HPC $Hcra $Hcsp]" as "(HPC & Hcra & Hcsp)".
       { rewrite /withinBounds; solve_addr. }
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]").
-      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+      { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         cbn in Hw'; simplify_eq.
-        rewrite /TrustedStack_offset_mepcc /ErrorState_size in Hea Hea' He'. solve_addr. }
+        rewrite /ErrorState_size in He'. solve_addr. }
       iTrap with ("Hfailed" $! 8%Z 0%nat (@nil LWord) save with "[] [//] [-]"). }
-    (* The accessor of the [ErrorState], below [csp] *)
-    iPoseProof ("Hacc" $! p g b e ea π with "[%] [%]") as "#Hacc_es".
-    { rewrite /lea_result /=. by rewrite Hea. }
+    (* The accessor of the [ErrorState], at [csp] *)
+    iPoseProof ("Hacc" $! p g b e a π with "[%] [%]") as "#Hacc_es".
+    { done. }
     { split; [done | solve_addr]. }
     iMod ("Hacc_es" $! 0%nat [] with "[%] [%] HL")
       as (v dqv wit dw) "(%Hsh & %Hπ & Hes0 & Hwit & Hdw & Hclose)".
     { rewrite /ErrorState_size; lia. }
     { solve_addr. }
-    rewrite (_ : (ea ^+ 0%nat)%a = ea) in Hsh |- *; last solve_addr.
-    (* CLoad cra csp (TrustedStack_offset_mepcc - ErrorState_size) *)
+    rewrite (_ : (a ^+ 0%nat)%a = a) in Hsh |- *; last solve_addr.
+    (* CLoad cra csp TrustedStack_offset_mepcc *)
     iInstrApply "Hcode"
       (wp_load_witness_imm_one_inbounds_deref _ _ _ _ _ _ _ cra csp
-         (TrustedStack_offset_mepcc - ErrorState_size))
+         TrustedStack_offset_mepcc)
       with "[$HPC $Hcra $Hcsp $Hes0 $Hwit $Hdw]"
       as (v0) "(%Hload & HPC & Hcra & Hcsp & Hes0 & Hwit & Hdw)".
     { rewrite /withinBounds; solve_addr. }
     iMod ("Hclose" $! v0 with "[//] Hes0 Hwit Hdw") as "HL".
-    rewrite /TrustedStack_offset_mepcc /ErrorState_size in Hea.
     (* GetA cra cra *)
     iInstr "Hcode".
     destruct (lea_result_is_Some wpcc (get_a v0.(lw) - get_a wpcc.(lw))) as [wpc Hwpc].
@@ -328,9 +309,9 @@ Section Switcher_Exception_Blocks_8.
     { by rewrite seta_result_lea_result. }
     assert (resumed_pc wpcc (get_a v0.(lw)) = wpc) as Hresumed
       by (by rewrite /resumed_pc Hwpc).
-    (* Lea ca2 csp (TrustedStack_offset_cra - ErrorState_size) *)
+    (* Lea ca2 csp TrustedStack_offset_cra *)
     iInstr "Hcode".
-    { transitivity (Some (ea ^+ 1)%a); solve_addr. }
+    { transitivity (Some (a ^+ 1)%a); solve_addr. }
     (* Lea ca3 ct1 TrustedStack_offset_cra *)
     iInstr "Hcode".
     { pose proof (tstack_save_cell_ok 1 ltac:(lia)) as (Hts_1 & _). exact Hts_1. }
@@ -353,7 +334,7 @@ Section Switcher_Exception_Blocks_8.
     iDestruct "Hsave" as "[Hdst Hrest]".
     iEval (rewrite (_ : (b_trusted_stack ^+ 16)%a = ((b_trusted_stack ^+ 1) ^+ 15)%a);
            last solve_addr) in "Hdst".
-    iDestruct (cells_load_acc_tail L p e ea π 15 v0 with "[]") as "Hacc_tail".
+    iDestruct (cells_load_acc_tail L p e a π 15 v0 with "[]") as "Hacc_tail".
     { rewrite /cells_load_acc. iModIntro. iExact "Hacc_es". }
     (* copy_context_asm ca3 ca2 cs1 ca4 *)
     iApply (copy_context_load_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
@@ -371,10 +352,10 @@ Section Switcher_Exception_Blocks_8.
     - iIntros (j ls wd' Hj Hls Hwd' Hout) "Hca2 Hca3 Hcs1 Hca4 Hdst HL".
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]").
-      { right. intros (p' & g' & b' & e' & a' & ea' & Hw' & Hea' & Hra' & Hb' & He')
+      { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         cbn in Hw'; simplify_eq.
-        rewrite /ErrorState_size in Hea' He'. solve_addr. }
+        rewrite /ErrorState_size in He'. solve_addr. }
       rewrite (_ : ((pc_a ^+ 13%nat) ^+ 1)%a = (pc_a ^+ 14)%a); last solve_addr.
       iApply ("Hfailed" $! 14%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
                with "[] [%] [-]").
@@ -427,7 +408,7 @@ Section Switcher_Exception_Blocks_8.
       table holds [wcell] (cleared, or a capability to the table at
       [b_tbl], whose PCC is [wpcc]) and whose error handler count is [n].
       [L i ls] holds once the first [i] words [ls] of the [ErrorState] are
-      loaded, through the accessor given for the [ErrorState] below the
+      loaded, through the accessor given for the [ErrorState] at the
       handler's stack pointer [wcsp]. Outcomes:
       - a load faults at a switcher PC that does not resume, for one of two
         reasons: the cell of the export table is cleared, or [wcsp] does not
@@ -469,7 +450,7 @@ Section Switcher_Exception_Blocks_8.
     switcher_code ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
-       ⌜lea_result wcsp (- ErrorState_size) = Some (WCap true p g b e a @@? π)⌝ -∗
+       ⌜wcsp = WCap true p g b e a @@? π⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0) ∨ ¬ error_state_loads_ok wcsp⌝ -∗

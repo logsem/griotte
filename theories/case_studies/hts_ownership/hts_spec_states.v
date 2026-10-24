@@ -291,25 +291,26 @@ Section HTS_States.
 
   (** Return from the first adversary call: [b] was shared in [hts_Wshare b],
       and the switcher returns a public future [Wret] of it. [p] and the
-      saved buffer (in [csp_b]) stayed outside the callee's frame. Only
-      main holds [free_right ι], so [ι] is still live. *)
+      saved buffer (in the top cell [csp_e ^+ -1]) stayed outside the
+      callee's frame. Only main holds [free_right ι], so [ι] is still
+      live. *)
   Definition hts_adv1_ret : iProp Σ :=
     ∃ (ι : AId) (b : Addr) (Wret : WORLD),
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare ι b)
-          (callee_stk_region csp_b csp_e (csp_b ^+ 1)%a) Temporary) Wret⌝ ∗
+          (callee_stk_region csp_b csp_e (csp_e ^+ -1)%a) Temporary) Wret⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
-      hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (csp_b ^+ 1)%a ∗
+      hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (csp_e ^+ -1)%a ∗
       (∃ w, ca0 ↦ᵣ w) ∗
       (∃ w, ca1 ↦ᵣ w) ∗
       hts_zero_regs ∗
-      csp_b ↦ₐ hts_buffer b @@ ι ∗
-      (∃ stk, [[stk_free_b csp_b (csp_b ^+ 1)%a, stk_free_e csp_e (csp_b ^+ 1)%a]] ↦ₐ [[stk]]) ∗
+      (csp_e ^+ -1)%a ↦ₐ hts_buffer b @@ ι ∗
+      (∃ stk, [[stk_free_b csp_b (csp_e ^+ -1)%a, stk_free_e csp_e (csp_e ^+ -1)%a]] ↦ₐ [[stk]]) ∗
       world_interp (revoke Wret) C ∗
-      StackRevokedResources Wret C (stk_free csp_b csp_e (csp_b ^+ 1)%a) ∗
-      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (csp_b ^+ 1)%a)⌝ ∗
+      StackRevokedResources Wret C (stk_free csp_b csp_e (csp_e ^+ -1)%a) ∗
+      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (csp_e ^+ -1)%a)⌝ ∗
       interp_continuation cstk Ws Cs ∗
       allocator_owner_id hts_main_owner_id {[ι]} ∗
       alloc_obj ι b (b ^+ 1)%a ∗
@@ -323,15 +324,15 @@ Section HTS_States.
       ⌜heap_std (revoke Wret) !! ι = Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive)⌝ ∗
       ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
-      hts_frame a_ret (csp_b ^+ 1)%a ∗
+      hts_frame a_ret (csp_e ^+ -1)%a ∗
       ca0 ↦ᵣ WInt 0 ∗
       ca1 ↦ᵣ WInt 0 ∗
       hts_zero_regs ∗
-      (∃ stk, [[stk_free_b csp_b (csp_b ^+ 1)%a, stk_free_e csp_e (csp_b ^+ 1)%a]] ↦ₐ [[stk]]) ∗
+      (∃ stk, [[stk_free_b csp_b (csp_e ^+ -1)%a, stk_free_e csp_e (csp_e ^+ -1)%a]] ↦ₐ [[stk]]) ∗
       world_interp_open (revoke Wret) C [LHeap b ι] ∗
       sts_state_std C (LHeap b ι) Permanent ∗
-      StackRevokedResources Wret C (stk_free csp_b csp_e (csp_b ^+ 1)%a) ∗
-      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (csp_b ^+ 1)%a)⌝ ∗
+      StackRevokedResources Wret C (stk_free csp_b csp_e (csp_e ^+ -1)%a) ∗
+      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (csp_e ^+ -1)%a)⌝ ∗
       interp_continuation cstk Ws Cs ∗
       ι ⊒ AQuar.
 
@@ -344,7 +345,7 @@ Section HTS_States.
   (** Return from the second adversary call: only [p] and the code are
       needed for the assertion. *)
   Definition hts_adv2_ret : iProp Σ :=
-    hts_frame (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a (csp_b ^+ 1)%a ∗
+    hts_frame (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a (csp_e ^+ -1)%a ∗
     hts_zero_regs.
 
 End HTS_States.

@@ -50,17 +50,17 @@ Section SO.
          They respect their associated validity predicate because [wca0] is interp,
          so their associated predicate must be [zcond],
          and they contain integers.
-      - 8) Allocate a new stack object [a_stk1] from our stack frame,
+      - 8) Allocate a new stack object [a_stk2] from our stack frame,
          update the world with its address.
       - 9) Show the arguments to be safe.
          The passed SO is safe because it was safe in the initial world,
          and we re-introduced the Temporary addresses
          (which had been revoked in the initial revocation)
          manually.
-         The allocated SO [a_stk1] is safe because we updated the world accordingly.
+         The allocated SO [a_stk2] is safe because we updated the world accordingly.
       - 10) Call the adversary. We obtain a new public future world that is revoked.
           The unknown addresses are [l''].
-      - 11) We know that [a_stk1] is in [l'']
+      - 11) We know that [a_stk2] is in [l'']
           and that the Temporary addresses of `wca0` also are in [l''].
       - 12) We fix the world by closing the world with [l] and [l''],
           but some addresses are redundant.
@@ -312,15 +312,15 @@ Section SO.
              "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Himport_switcher
               $Hcode_main]"); [done|done|done|solve_addr+Hstk_min|].
     iNext; iIntros (mie a_stk1 a_stk2 stk_tail)
-      "(%Hastk1 & %Hastk2 & %Hastk2_csp_e & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
-      & Hcra & Hsecret & Hastk1 & Hstk & _ & _)".
+      "(%Hastk1 & %Hastk2 & %Hcsp_b_astk2 & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
+      & Hcra & Hsecret & Hastk2 & Hstk & _ & _)".
 
     (* Reinstate [z] in the world of the call *)
     iMod (so_world_call with
            "Hinterp_W0_csp Hinterp_wca1 Hworld_interp_C Hinterp_wca0_W2 Hstack_revoked
-            Hastk1 Hlc'")
+            Hastk2 Hlc'")
       as "(Hworld_interp_C & #Hinterp_wca0_W3 & #Hinterp_z & #Hinterp_wct1
-           & Hstack_revoked & %Hrevoked_W3 & %Hpriv_W0_W3 & %Ha_stk1_W3)";
+           & Hstack_revoked & %Hrevoked_W3 & %Hpriv_W0_W3 & %Ha_stk2_W3)";
       [done..|].
     iDestruct (so_call_args _ _ _ _ _ _ HNtrap with "Hswitcher Hswitcher_static Hca0 Hinterp_wca0_W3 Hca1 Hinterp_z Hct0 Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -374,7 +374,8 @@ Section SO.
     iApply (so_return_blocks_4_spec with
              "[- $Hassert $HPC $Hcsp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
               $Hcs0 $Hca0 $Hca1 $Hsecret $Himport_assert $Hcode_main]");
-      [done|done|solve_addr|solve_addr|exact (jalr_target_ok_switcher_return_sentry mie_ret)|].
+      [done|done|exact Hastk2|exact Hastk1|exact Hcsp_b_astk2
+      |exact (jalr_target_ok_switcher_return_sentry mie_ret)|].
     iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
                     & Hcs0 & Hca0 & Hca1 & Hsecret & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
