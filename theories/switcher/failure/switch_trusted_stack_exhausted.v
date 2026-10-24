@@ -7,8 +7,7 @@ From griotte Require Import logrel call_stack switcher_preamble switcher_load_sp
     [.Lswitch_trusted_stack_exhausted] is reached when the trusted stack has
     no room for a new frame. It restores the callee-save registers from the
     spill area at the cursor, moves the cursor past it, sets the return
-    values [-ENOTENOUGHTRUSTEDSTACK] and 0, and jumps
-    ([.Lswitch_trusted_stack_exhausted_return]) to
+    values [-ENOTENOUGHTRUSTEDSTACK] and 0, and jumps to
     [.Lswitch_callee_dead_zeros], which clears the registers and returns to
     the caller. As on a regular return, each load may clear the tag of a
     saved heap capability. *)

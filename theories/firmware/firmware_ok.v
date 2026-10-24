@@ -221,9 +221,7 @@ Section translation.
 
   Definition switcher_mem : Mem :=
     let sw := img_sw img in
-    mem_region (b_switcher sw)
-      (WSealRange true (true, true) Global (ot_switcher sw) (ot_switcher sw ^+ 1)%ot
-         (ot_switcher sw) :: switcher_instrs).
+    mem_region (b_switcher sw) (switcher_data_words (ot_switcher sw) ++ switcher_instrs).
 
   Definition assert_code_mem : Mem :=
     let asrt := img_asrt img in
@@ -400,9 +398,9 @@ Section translation.
   Definition switcher_wf : Prop :=
     let sw := img_sw img in
     section "switcher, layout"
-      ((b_switcher sw + 1)%a = Some (a_switcher_call sw) ∧
+      ((b_switcher sw + 5)%a = Some (a_switcher_call sw) ∧
        (a_switcher_call sw + Z.of_nat (length switcher_instrs))%a = Some (e_switcher sw) ∧
-       (b_switcher sw + (1 + Z.of_nat (length switcher_call_instrs)))%a =
+       (b_switcher sw + (5 + Z.of_nat (length switcher_call_instrs)))%a =
          Some (a_switcher_return sw) ∧
        range_ok (b_switcher sw) (e_switcher sw) ∧
        note "closed bounds outside the heap" (is_heap_address (e_switcher sw) = false)).

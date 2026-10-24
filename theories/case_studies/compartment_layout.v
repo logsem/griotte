@@ -205,10 +205,10 @@ Section CmptLayout.
         (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
 
         switcher_call_entry_point :
-        (b_switcher + 1)%a = Some a_switcher_call ;
+        (b_switcher + 5)%a = Some a_switcher_call ;
 
         switcher_return_entry_point :
-        (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
+        (b_switcher + (5 + length switcher_call_instrs) )%a = Some a_switcher_return ;
 
         ot_switcher_size :
         (ot_switcher < ot_switcher ^+ 1)%ot;
@@ -253,7 +253,7 @@ Section CmptLayout.
         trusted_stack_disjoint_from_mmio :
         disjoint_from_mmio b_trusted_stack e_trusted_stack;
 
-        switcher_base_not_shadow : is_shadow_address b_switcher = false;
+        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1)%a = false;
         switcher_not_heap_range : not_heap_range b_switcher e_switcher;
 
         stack_disjoint_from_mmio : disjoint_from_mmio b_stack e_stack;
@@ -331,9 +331,8 @@ Section CmptLayout.
 
   Definition cmpt_switcher_code_mregion
     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    let ot := (ot_switcher Cswitcher) in
-    let switcher_sealing := (WSealRange true (true,true) Global ot (ot^+1)%ot ot) in
-    mkregion (b_switcher Cswitcher) (a_switcher_call Cswitcher) [switcher_sealing]
+    mkregion (b_switcher Cswitcher) (a_switcher_call Cswitcher)
+      (switcher_data_words (ot_switcher Cswitcher))
       ∪ mkregion (a_switcher_call Cswitcher) (e_switcher Cswitcher) switcher_instrs .
   Definition cmpt_switcher_trusted_stack_mregion
      (Cswitcher : cmptSwitcher) : gmap Addr Word :=
@@ -565,12 +564,10 @@ Section CmptLayout.
   Qed.
 
   Lemma cmpt_switcher_code_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
-    let ot := ot_switcher switcher_cmpt in
     mkregion (b_switcher switcher_cmpt) (a_switcher_call switcher_cmpt)
-      [WSealRange true (true, true) Global ot (ot ^+ 1)%f ot]
+      (switcher_data_words (ot_switcher switcher_cmpt))
       ##ₘ mkregion (a_switcher_call switcher_cmpt) (e_switcher switcher_cmpt) switcher_instrs.
   Proof.
-    intro ot ; subst ot.
     apply map_disjoint_dom_2.
     pose proof (switcher_call_entry_point switcher_cmpt).
     pose proof (switcher_size switcher_cmpt).

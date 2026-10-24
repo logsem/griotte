@@ -124,7 +124,7 @@ Section Callback_Path.
           £ 1 -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
         ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
-          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+          trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -243,7 +243,7 @@ Section Callback_Path.
             £ 1 -∗
             WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
           ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
-            trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+            trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
               (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.

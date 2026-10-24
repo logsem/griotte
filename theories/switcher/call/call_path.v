@@ -74,7 +74,7 @@ Section Call_Path.
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     switcher_hazard ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
-    b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    (b_switcher ^+ 1)%a ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     switcher_code ∗
     ▷ ( (* The entry point is unsealed *)
         ▷ ( ∀ wsb π,
@@ -135,8 +135,8 @@ Section Call_Path.
         (* The trusted stack is exhausted *)
         ( ⌜ switcher_stk_bounds b e a ⌝ ∗
           PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
-          cs0 ↦ᵣ WInt 0 ∗
-          cs1 ↦ᵣ WInt b_trusted_stack ∗
+          cs0 ↦ᵣ WInt (e_trusted_stack - b_trusted_stack) ∗
+          cs1 ↦ᵣ wcs1 ∗
           ctp ↦ᵣ WInt (tstack_frameoffset d) ∗
           ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
           csp ↦ᵣ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -154,8 +154,8 @@ Section Call_Path.
         (* The first store of the spill faults *)
         ( ⌜ ¬ stk_spill_fits b e a ⌝ ∗
           csp ↦ᵣ WCap true RWL Local b e a ∗
-          ct2 ↦ᵣ WInt 0 ∗
-          ctp ↦ᵣ WInt (encodeLoc Local) ∗
+          ct2 ↦ᵣ WInt COMPARTMENT_STACK_LOCALITY ∗
+          ctp ↦ᵣ WInt COMPARTMENT_STACK_LOCALITY ∗
           cs0 ↦ᵣ wcs0 ∗
           cs1 ↦ᵣ wcs1 ∗
           cra ↦ᵣ wcra ∗
@@ -189,7 +189,7 @@ Section Call_Path.
       iFrame "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hstk Hmtdc Hframeoffset Hhazard Htstk".
       done. }
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hcells & Hstk & %Hbounds)".
-    (* [.Lswitcher_trusted_stack_push]: push the frame *)
+    (* [.Lswitch_trusted_stack_push]: push the frame *)
     iApply (switcher_trusted_stack_push_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hctp $Hct2 $Hcsp $Hmtdc $Hframeoffset $Hhazard $Htstk $Hswitcher]");
       [done|done|].
@@ -486,7 +486,7 @@ Section Call_Path.
           £ 1 -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
         ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
-          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+          trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -552,7 +552,7 @@ Section Call_Path.
           £ 1 -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
         ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
-          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+          trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.

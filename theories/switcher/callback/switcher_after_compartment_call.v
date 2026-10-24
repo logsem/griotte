@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import logrel call_stack switcher_preamble switcher_load_spec.
-From griotte Require Import clear_hazard_slots_spec.
+From griotte Require Import clear_hazard_slots_spec switcher_zero_callee_frame.
 
 (** * Callback: pop the trusted stack and restore the caller's registers
 
@@ -13,8 +13,8 @@ From griotte Require Import clear_hazard_slots_spec.
     topmost frame, which contains the stack pointer of the caller, and pops
     it. [.Lswitcher_restore_spill] restores the callee-save registers of
     the caller from its spill area, moves the cursor past it, and sets
-    [ct2] to the stack with its cursor at the base, for the zeroing at
-    [.Lswitcher_zero_callee_frame]. Each restored register is the result of
+    [ct2] to the stack with its cursor at the base, for the zeroing at the
+    end of the block. Each restored register is the result of
     a load, which may clear the tag of a saved heap capability. *)
 
 Section Switcher_After_Compartment_Call.
@@ -53,7 +53,7 @@ Section Switcher_After_Compartment_Call.
     switcher_code ∗
     ▷ ( PC ↦ₚ switcher_label_pc ".Lswitcher_restore_spill" ∗
         ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        ct0 ↦ᵣ WInt 1 ∗
+        ct0 ↦ᵣ WInt TrustedStack_offset_frames ∗
         ct1 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
         ct2 ↦ᵣ WInt (tstack_frame_offset (S d)) ∗
         csp ↦ᵣ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -112,15 +112,14 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     (* Add ct2 ct2 (- TrustedStackFrame_size) *)
     iInstr "Hcode".
-    (* Lt ct0 ct0 ct2 *)
-    iInstr "Hcode".
     replace (tstack_frameoffset (S d) + _)%Z with (tstack_frame_offset (S d))
       by (tstack_unfold; lia).
-    destruct (_ <? tstack_frame_offset (S d))%Z eqn:Hnonempty; iEval (cbn) in "Hct0";
-      destruct (decide (ct0 = cnull)) as [Hct0_null|_] in Hnonempty; [done| |done|].
-    2: { exfalso. apply Z.ltb_ge in Hnonempty. tstack_unfold. lia. }
-    (* Jne 2 ct0 0 *)
-    iInstr "Hcode".
+    assert (23 < tstack_frame_offset (S d))%Z as Hnonempty by (tstack_unfold; lia).
+    destruct (decide (ct0 = cnull)) as [Hct0_null|_]; first done.
+    (* Jle .Lcommon_defer_irqs_and_thread_exit ct2 ct0 *)
+    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct2 $Hct0]"
+      as "(HPC & Hct2 & Hct0)".
+    { cbn; apply Z.leb_gt; lia. }
     (* Lea ct1 ctp ct2 *)
     iInstr "Hcode".
     (* CLoad csp ct1 TrustedStackFrame_offset_csp *)
@@ -157,7 +156,7 @@ Section Switcher_After_Compartment_Call.
     switcher_code ∗
     ▷ ( PC ↦ₚ switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
         ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        ct0 ↦ᵣ WInt 0 ∗
+        ct0 ↦ᵣ WInt TrustedStack_offset_frames ∗
         ct2 ↦ᵣ WInt (tstack_frame_offset 0) ∗
         mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
@@ -207,17 +206,14 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     (* Add ct2 ct2 (- TrustedStackFrame_size) *)
     iInstr "Hcode".
-    (* Lt ct0 ct0 ct2 *)
-    iInstr "Hcode".
     replace (tstack_frameoffset 0 + _)%Z with (tstack_frame_offset 0)
       by (tstack_unfold; lia).
-    destruct (_ <? tstack_frame_offset 0)%Z eqn:Hnonempty; iEval (cbn) in "Hct0";
-      destruct (decide (ct0 = cnull)) as [Hct0_null|_] in Hnonempty; [done| |done|].
-    { exfalso. apply Z.ltb_lt in Hnonempty. tstack_unfold. lia. }
-    (* Jne 2 ct0 0 *)
-    iInstr "Hcode".
-    (* Jmp .Lcommon_defer_irqs_and_thread_exit *)
-    iInstr "Hcode".
+    assert (tstack_frame_offset 0 <= 23)%Z as Hempty by (tstack_unfold; lia).
+    destruct (decide (ct0 = cnull)) as [Hct0_null|_]; first done.
+    (* Jle .Lcommon_defer_irqs_and_thread_exit ct2 ct0 *)
+    iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct2 $Hct0]"
+      as "(HPC & Hct2 & Hct0)".
+    { cbn; apply Z.leb_le; lia. }
     { switcher_jump_label ".Lcommon_defer_irqs_and_thread_exit". }
     subst hpost.
     iApply "Hpost".
@@ -252,7 +248,7 @@ Section Switcher_After_Compartment_Call.
           load_heap wcra rcra ∧
           load_heap wcs1 rcs1 ∧
           load_heap wcs0 rcs0⌝ -∗
-        PC ↦ₚ switcher_label_pc ".Lswitcher_zero_callee_frame" ∗
+        PC ↦ₚ switcher_pc switcher_zero_callee_frame_offset ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
@@ -324,7 +320,9 @@ Section Switcher_After_Compartment_Call.
     (* SetA ct2 csp ctp *)
     iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
-    switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros" - 4)%Z.
+    iEval (rewrite (_ : (switcher_label_offset ".Lswitch_callee_dead_zeros" - 4)%Z =
+                        switcher_zero_callee_frame_offset); last done) in "HPC".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
     iFrame "HPC Hcgp Hcra Hcs1 Hcs0 Hctp Hct1 Hct2 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
@@ -369,7 +367,7 @@ Section Switcher_After_Compartment_Call.
          interp Wval C rcra ∗
          interp Wval C rcs1 ∗
          interp Wval C rcs0) ∗
-        PC ↦ₚ switcher_label_pc ".Lswitcher_zero_callee_frame" ∗
+        PC ↦ₚ switcher_pc switcher_zero_callee_frame_offset ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
@@ -442,7 +440,9 @@ Section Switcher_After_Compartment_Call.
     (* SetA ct2 csp ctp *)
     iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
-    switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros" - 4)%Z.
+    iEval (rewrite (_ : (switcher_label_offset ".Lswitch_callee_dead_zeros" - 4)%Z =
+                        switcher_zero_callee_frame_offset); last done) in "HPC".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
     iFrame "Hworld Hactual_gp Hactual_ra Hactual_s1 Hactual_s0".
@@ -493,7 +493,7 @@ Section Switcher_After_Compartment_Call.
            interp Wval C rcs1 ∗
            interp Wval C rcs0
          else True) ∗
-        PC ↦ₚ switcher_label_pc ".Lswitcher_zero_callee_frame" ∗
+        PC ↦ₚ switcher_pc switcher_zero_callee_frame_offset ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
@@ -572,7 +572,9 @@ Section Switcher_After_Compartment_Call.
     (* SetA ct2 csp ctp *)
     iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
-    switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    switcher_change_pc (switcher_label_offset ".Lswitch_callee_dead_zeros" - 4)%Z.
+    iEval (rewrite (_ : (switcher_label_offset ".Lswitch_callee_dead_zeros" - 4)%Z =
+                        switcher_zero_callee_frame_offset); last done) in "HPC".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
     iFrame "Hworld HPC Hcgp Hcra Hcs1 Hcs0 Hctp Hct1 Hct2 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3

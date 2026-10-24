@@ -5,10 +5,10 @@ From griotte Require Import switcher_call_states switcher_macros_spec clear_regi
 
 (** * Call routine: clear the registers and jump to the callee
 
-    [.Lswitcher_clear_unused_args] clears the argument registers that the
-    entry point does not use ([clear_registers_pre_call_skip_asm]).
-    [.Lswitcher_enable_interrupts] enables interrupts, unless the entry
-    point asks for them disabled, in which case it jumps to
+    [.Lswitch_load_zero_arguments_start] clears the argument registers that
+    the entry point does not use, by a jump into the zeroing of
+    [.Lswitch_zero_arguments_start], and enables interrupts, unless the
+    entry point asks for them disabled, in which case it jumps to
     [.Lswitch_skip_interrupt_enable]. [.Lswitch_skip_interrupt_enable]
     clears the registers that are not arguments
     ([clear_registers_pre_call_asm]), and [.Lswitch_callee_call] jumps to
@@ -25,47 +25,18 @@ Section Switcher_Clear_Unused_Args.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** The interrupt posture of [.Lswitcher_enable_interrupts]: interrupts
-      are enabled unless the posture of the callee, in [ctp], asks for them
-      disabled. *)
-  #[local] Lemma switcher_enable_interrupts_posture_spec (posture : InterruptStatus) :
-    PC ↦ₚ switcher_label_pc ".Lswitcher_enable_interrupts" ∗
-    ctp ↦ᵣ WInt (entry_point_posture posture) ∗
-    switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lswitch_skip_interrupt_enable" ∗
-        ctp ↦ᵣ WInt (entry_point_posture posture) -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    iIntros "(HPC & Hctp & #Hswitcher & Hpost)".
-    switcher_open_label ".Lswitcher_enable_interrupts" "Hswitcher" as "Hcode".
-    destruct posture; cbn [entry_point_posture].
-    - (* Jne .Lswitch_skip_interrupt_enable ctp 0 *)
-      iInstr "Hcode".
-      (* SetMIE InterruptEnabled *)
-      iInstr "Hcode".
-      switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
-      iApply "Hpost"; iFrame "HPC Hctp".
-    - (* Jne .Lswitch_skip_interrupt_enable ctp 0 *)
-      iInstr "Hcode".
-      switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
-      iApply "Hpost"; iFrame "HPC Hctp".
-  Qed.
-
-  (** From [.Lswitcher_enable_interrupts]: enable interrupts if the posture
-      of the callee asks for it, clear the registers that are not
-      arguments, and jump to the callee. *)
-  Lemma switcher_enable_interrupts_spec
-    (wcs0 wcs1 wct1 wct2 : LWord) (posture : InterruptStatus)
-    (bpcc epcc a_tgt : Addr) (rmap : LReg) :
+  (** From [.Lswitch_skip_interrupt_enable]: clear the registers that are
+      not arguments, and jump to the callee. *)
+  Lemma switch_skip_interrupt_enable_spec
+    (wcs0 wcs1 wct1 wct2 wctp : LWord) (bpcc epcc a_tgt : Addr) (rmap : LReg) :
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_enable_interrupts" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_skip_interrupt_enable" ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ WInt (entry_point_posture posture) ∗
+    ctp ↦ᵣ wctp ∗
     cra ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
@@ -78,13 +49,10 @@ Section Switcher_Clear_Unused_Args.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hdom) "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hregs & #Hswitcher & Hpost)".
-    iAssert switcher_code as "Hswitcher_skip"; first iFrame "Hswitcher".
     iAssert switcher_code as "Hswitcher_call"; first iFrame "Hswitcher".
-    iApply (switcher_enable_interrupts_posture_spec with "[- $HPC $Hctp $Hswitcher]").
-    iIntros "!> (HPC & Hctp)".
 
     (* [.Lswitch_skip_interrupt_enable] *)
-    switcher_open_label ".Lswitch_skip_interrupt_enable" "Hswitcher_skip" as "Hcode_skip".
+    switcher_open_label ".Lswitch_skip_interrupt_enable" "Hswitcher" as "Hcode_skip".
     iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs"; [iFrame "Hctp"|].
     iDestruct (big_sepM_insert_2 with "[Hct2] Hregs") as "Hregs"; [iFrame "Hct2"|].
     iDestruct (big_sepM_insert_2 with "[Hcs1] Hregs") as "Hregs"; [iFrame "Hcs1"|].
@@ -103,24 +71,44 @@ Section Switcher_Clear_Unused_Args.
     iApply ("Hpost" $! _ rmap'); iFrame "HPC Hcra Hregs"; done.
   Qed.
 
-  (** From [.Lswitcher_clear_unused_args]: clear the argument registers that
-      the [nargs] arguments of the callee do not use, enable interrupts if
-      its posture asks for it, clear the other registers and jump to the
-      callee. *)
+  (** From [.Lswitch_load_zero_arguments_start], up to the jump into the
+      zeroing of the arguments: [ct2] holds the offset of the jump. *)
+  #[local] Lemma switch_load_zero_arguments_codefrag (a : Addr) :
+    codefrag_pers a
+      (encodeInstrsW
+         ([machine_instructions.LAnd ct2 (inr ctp) (inl 7%Z);
+           machine_instructions.Add ct2 (inr ct2) (inl 1%Z)] ++
+          clear_registers_pre_call_skip ++
+          [machine_instructions.LAnd ct1 (inr ctp) (inl entry_point_irq_disabled_mask);
+           machine_instructions.Jne (inl 2%Z) (inr ct1) (inl 0%Z);
+           machine_instructions.SetMIE InterruptEnabled])) -∗
+    codefrag_pers (a ^+ 2)%a clear_registers_pre_call_skip_instrs.
+  Proof.
+    iIntros "Hcode".
+    rewrite /encodeInstrsW !map_app.
+    iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode]".
+    iDestruct (codefrag_app_pers with "Hcode") as "[Hcode _]".
+    done.
+  Qed.
+
+  (** From [.Lswitch_load_zero_arguments_start]: clear the argument
+      registers that the [nargs] arguments of the callee do not use, enable
+      interrupts if its posture asks for it, clear the other registers and
+      jump to the callee. *)
   Lemma switcher_clear_unused_args_spec
     (W : WORLD) (C : CmptName)
-    (wcs0 wcs1 wct1 : LWord) (posture : InterruptStatus) (nargs : nat)
+    (wcs0 wcs1 wct1 wct2 : LWord) (posture : InterruptStatus) (nargs : nat)
     (bpcc epcc a_tgt : Addr) (arg_rmap rmap : LReg) :
     (nargs <= 7) ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_clear_unused_args" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ WInt (Z.of_nat nargs + 1) ∗
-    ctp ↦ᵣ WInt (entry_point_posture posture) ∗
+    ct2 ↦ᵣ wct2 ∗
+    ctp ↦ᵣ WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
     cra ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
     ( [∗ map] r↦w ∈ arg_rmap,
         r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
@@ -139,38 +127,55 @@ Section Switcher_Clear_Unused_Args.
   Proof.
     iIntros (Hnargs Hargs Hdom)
       "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
-    iAssert switcher_code as "Hswitcher_irq"; first iFrame "Hswitcher".
-    switcher_open_label ".Lswitcher_clear_unused_args" "Hswitcher" as "Hcode".
+    iAssert switcher_code as "Hswitcher_skip"; first iFrame "Hswitcher".
+    switcher_open_label ".Lswitch_load_zero_arguments_start" "Hswitcher" as "Hcode" a_zero Ha_zero.
+    (* LAnd ct2 ctp 7 *)
+    iInstr "Hcode".
+    rewrite entry_point_flags_nargs; last lia.
+    (* Add ct2 ct2 1 *)
+    iInstr "Hcode".
+    iDestruct (switch_load_zero_arguments_codefrag with "Hcode") as "Hcode_args".
     iApply (clear_registers_pre_call_skip_spec _ _ _ _ _ arg_rmap (nargs + 1)
-             with "[- $HPC $Hcode]"); try solve_pure.
+             with "[- $HPC $Hcode_args]"); try solve_pure.
+    { rewrite length_clear_registers_pre_call_skip_instrs; solve_addr. }
     { lia. }
     replace (Z.of_nat (nargs + 1))%Z with (Z.of_nat nargs + 1)%Z by lia.
     replace (nargs + 1 - 1) with nargs by lia.
     iFrame "Hct2 Hargs".
     iIntros "!> (%arg_rmap' & %Harg_rmap' & HPC & Hct2 & Hargs & _)".
-    switcher_change_pc_label ".Lswitcher_enable_interrupts".
-    iApply (switcher_enable_interrupts_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_irq]"); first done.
-    iNext; iIntros (mie rmap') "(%Hrmap' & HPC & Hcra & Hregs)".
-    iApply ("Hpost" $! mie arg_rmap' rmap'); iFrame "HPC Hcra Hargs Hregs"; done.
+    rewrite length_clear_registers_pre_call_skip_instrs.
+    rewrite (_ : ((a_zero ^+ 2) ^+ 8%nat)%a = (a_zero ^+ 10)%a); last solve_addr.
+    (* LAnd ct1 ctp entry_point_irq_disabled_mask *)
+    iInstr "Hcode".
+    rewrite entry_point_flags_posture.
+    destruct posture; cbn [entry_point_posture].
+    (* Jne .Lswitch_skip_interrupt_enable ct1 0 *)
+    all: iInstr "Hcode".
+    (* SetMIE InterruptEnabled, interrupts enabled *)
+    1: iInstr "Hcode".
+    all: switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
+    all: iApply (switch_skip_interrupt_enable_spec with
+           "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip]"); first done.
+    all: iNext; iIntros (mie rmap') "(%Hrmap' & HPC & Hcra & Hregs)".
+    all: iApply ("Hpost" $! mie arg_rmap' rmap'); iFrame "HPC Hcra Hargs Hregs"; done.
   Qed.
 
   (** Variant of [switcher_clear_unused_args_spec] for a known callee, whose
       arguments are not required to be valid: the argument registers that
       are not cleared keep their initial values. *)
   Lemma switcher_clear_unused_args_known_spec
-    (wcs0 wcs1 wct1 : LWord) (posture : InterruptStatus) (nargs : nat)
+    (wcs0 wcs1 wct1 wct2 : LWord) (posture : InterruptStatus) (nargs : nat)
     (bpcc epcc a_tgt : Addr) (arg_rmap rmap : LReg) :
     (nargs <= 7) ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_clear_unused_args" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ WInt (Z.of_nat nargs + 1) ∗
-    ctp ↦ᵣ WInt (entry_point_posture posture) ∗
+    ct2 ↦ᵣ wct2 ∗
+    ctp ↦ᵣ WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
     cra ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
     ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ w ) ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
@@ -190,20 +195,37 @@ Section Switcher_Clear_Unused_Args.
   Proof.
     iIntros (Hnargs Hargs Hdom)
       "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
-    iAssert switcher_code as "Hswitcher_irq"; first iFrame "Hswitcher".
-    switcher_open_label ".Lswitcher_clear_unused_args" "Hswitcher" as "Hcode".
+    iAssert switcher_code as "Hswitcher_skip"; first iFrame "Hswitcher".
+    switcher_open_label ".Lswitch_load_zero_arguments_start" "Hswitcher" as "Hcode" a_zero Ha_zero.
+    (* LAnd ct2 ctp 7 *)
+    iInstr "Hcode".
+    rewrite entry_point_flags_nargs; last lia.
+    (* Add ct2 ct2 1 *)
+    iInstr "Hcode".
+    iDestruct (switch_load_zero_arguments_codefrag with "Hcode") as "Hcode_args".
     iApply (clear_registers_pre_call_skip_spec_known _ _ _ _ _ arg_rmap (nargs + 1)
-             with "[- $HPC $Hcode]"); try solve_pure.
+             with "[- $HPC $Hcode_args]"); try solve_pure.
+    { rewrite length_clear_registers_pre_call_skip_instrs; solve_addr. }
     { lia. }
     replace (Z.of_nat (nargs + 1))%Z with (Z.of_nat nargs + 1)%Z by lia.
     replace (nargs + 1 - 1) with nargs by lia.
     iFrame "Hct2 Hargs".
     iIntros "!> (%arg_rmap' & %Harg_rmap' & HPC & Hct2 & Hargs & _)".
-    switcher_change_pc_label ".Lswitcher_enable_interrupts".
-    iApply (switcher_enable_interrupts_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_irq]"); first done.
-    iNext; iIntros (mie rmap') "(%Hrmap' & HPC & Hcra & Hregs)".
-    iApply ("Hpost" $! mie arg_rmap' rmap'); iFrame "HPC Hcra Hargs Hregs"; done.
+    rewrite length_clear_registers_pre_call_skip_instrs.
+    rewrite (_ : ((a_zero ^+ 2) ^+ 8%nat)%a = (a_zero ^+ 10)%a); last solve_addr.
+    (* LAnd ct1 ctp entry_point_irq_disabled_mask *)
+    iInstr "Hcode".
+    rewrite entry_point_flags_posture.
+    destruct posture; cbn [entry_point_posture].
+    (* Jne .Lswitch_skip_interrupt_enable ct1 0 *)
+    all: iInstr "Hcode".
+    (* SetMIE InterruptEnabled, interrupts enabled *)
+    1: iInstr "Hcode".
+    all: switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
+    all: iApply (switch_skip_interrupt_enable_spec with
+           "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip]"); first done.
+    all: iNext; iIntros (mie rmap') "(%Hrmap' & HPC & Hcra & Hregs)".
+    all: iApply ("Hpost" $! mie arg_rmap' rmap'); iFrame "HPC Hcra Hargs Hregs"; done.
   Qed.
 
 End Switcher_Clear_Unused_Args.

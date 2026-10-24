@@ -117,24 +117,22 @@ Section Handle_Error.
     iInstr "Hcode".
     (* GetB ctp ct1 *)
     iInstr "Hcode".
-    (* Sub ct0 ct0 ctp *)
-    iInstr "Hcode".
-    destruct (decide ((b_switcher - get_b (lw wmepcc))%Z = 0)) as [Hin | Hnot_in].
+    destruct (decide ((b_switcher : Z) = get_b (lw wmepcc))) as [Hin | Hnot_in].
     - (* A fault of the switcher *)
-      rewrite Hin.
-      (* Jne 2 ct0 0 *)
-      iInstr "Hcode".
-      (* Jmp .Lhandle_error_in_switcher *)
-      iInstr "Hcode".
+      (* Jeq .Lhandle_error_in_switcher ct0 ctp *)
+      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct0 $Hctp]"
+        as "(HPC & Hct0 & Hctp)".
+      { cbn [jcond_test get_a lw]; apply Z.eqb_eq; lia. }
       { switcher_jump_label ".Lhandle_error_in_switcher". }
       subst hpost.
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" with "[]"); first (iPureIntro; lia).
       iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hmtdc Hframeoffset".
       iRegionMerge. iFrame.
-    - (* Jne 2 ct0 0 *)
-      iInstr "Hcode".
-      { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
+    - (* Jeq .Lhandle_error_in_switcher ct0 ctp *)
+      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct0 $Hctp]"
+        as "(HPC & Hct0 & Hctp)".
+      { cbn [jcond_test get_a lw]; apply Z.eqb_neq; lia. }
       assert ((b_trusted_stack + 2)%a = Some (b_trusted_stack ^+ 2)%a) as Hts_2
         by (tstack_unfold; solve_addr).
       (* CLoad ct0 csp 2 *)
@@ -153,15 +151,14 @@ Section Handle_Error.
       { done. }
       { split; auto. subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
       rewrite lload_word_RWL.
-      (* Mov ct1 23 *)
-      iInstr "Hcode".
-      (* Sub ct1 ctp ct1 *)
+      (* Mov ct1 TrustedStack_offset_frames *)
       iInstr "Hcode".
       destruct (decide (ct1 = cnull)) as [Hct1_null|_]; first done.
       (* The trusted stack always has a frame: the thread does not exit *)
-      (* Jne 2 ct1 0 *)
-      iInstr "Hcode".
-      { apply negb_true_iff, Z.eqb_neq. cbn. tstack_unfold. lia. }
+      (* Jeq .Lcommon_thread_exit ctp ct1 *)
+      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hctp $Hct1]"
+        as "(HPC & Hctp & Hct1)".
+      { cbn [jcond_test get_a lw]; apply Z.eqb_neq; tstack_unfold; lia. }
       (* Add ctp ctp (- TrustedStackFrame_size) *)
       iInstr "Hcode".
       assert ((b_trusted_stack + (tstack_frameoffset d + - TrustedStackFrame_size))%a = Some a_tstk)
@@ -236,16 +233,15 @@ Section Handle_Error.
     (* Auipcc ctp .Lswitch_entry_first_spill *)
     iInstr "Hcode".
     { switcher_jump_label ".Lswitch_entry_first_spill". }
-    (* Sub ct1 ct1 ctp *)
-    iInstrApply "Hcode" (wp_sub_dst_r_any _ ct1 _ _ _ _ _ _ _ _ ctp)
-      with "[$HPC $Hct1 $Hctp]" as "(HPC & Hctp & Hct1)".
     destruct (decide (get_a wmepcc.(lw) = (a_first_spill : Z))) as [Hfirst | Hnot_first].
     - (* A fault of the first spill: resume the caller *)
       iDestruct "Hpost" as "[_ Hpost]".
       switcher_hide "Hpost" as hpost.
-      iEval (cbn [lw get_a]; rewrite Hfirst Z.sub_diag) in "Hct1".
-      (* Jne .Lcommon_force_unwind ct1 0 *)
-      iInstr "Hcode".
+      (* Jne .Lcommon_force_unwind ct1 ctp *)
+      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct1 $Hctp]"
+        as "(HPC & Hct1 & Hctp)".
+      { cbn [jcond_test get_a lw]. rewrite Hfirst. apply negb_false_iff, Z.eqb_eq.
+        reflexivity. }
       (* Mov ca0 ENOTENOUGHSTACK *)
       iInstr "Hcode".
       (* Mov ca1 0 *)
@@ -275,10 +271,11 @@ Section Handle_Error.
       iFrame "HPC Hcsp Hct1 Hctp Hca0 Hca1 Hct2 Hs10 Hs11".
     - (* Any other fault of the switcher: force the unwind *)
       iDestruct "Hpost" as "[Hpost _]".
-      (* Jne .Lcommon_force_unwind ct1 0 *)
-      iInstr "Hcode".
-      { apply negb_true_iff, Z.eqb_neq. cbn [lw get_a get_a_sealable].
-        subst a_first_spill. lia. }
+      (* Jne .Lcommon_force_unwind ct1 ctp *)
+      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct1 $Hctp]"
+        as "(HPC & Hct1 & Hctp)".
+      { cbn [jcond_test get_a lw]. apply negb_true_iff, Z.eqb_neq.
+        intros Heq; apply Hnot_first; rewrite Heq; reflexivity. }
       { switcher_jump_label ".Lcommon_force_unwind". }
       iApply ("Hpost" with "[//]").
       iFrame "HPC Hcsp Hct1 Hctp Hca0 Hca1 Hct2 Hs10 Hs11".

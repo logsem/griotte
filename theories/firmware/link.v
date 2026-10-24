@@ -98,9 +98,9 @@ Section link.
   (** The image with the addresses only, and the end of the image. *)
   Definition place (fw : firmware) : fw_image * Z :=
     let b := lk_base cfg in
-    let call := (b + 1)%Z in
+    let call := (b + 5)%Z in
     let esw := (call + Z.of_nat (length switcher_instrs))%Z in
-    let ret := (b + 1 + Z.of_nat (length switcher_call_instrs))%Z in
+    let ret := (b + 5 + Z.of_nat (length switcher_call_instrs))%Z in
     let cap := (esw + Z.of_nat (length assert_subroutine_instrs))%Z in
     let flag := (cap + 1)%Z in
     let '(cs, a) := place_cmpts (flag + 1) (fw_cmpts fw) in

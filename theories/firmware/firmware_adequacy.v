@@ -275,9 +275,9 @@ Section layout_bridges.
     MkImgSwitcherLayout {
     isl_switcher_size :
       (a_switcher_call sw + length switcher_instrs)%a = Some (e_switcher sw);
-    isl_call_entry_point : (b_switcher sw + 1)%a = Some (a_switcher_call sw);
+    isl_call_entry_point : (b_switcher sw + 5)%a = Some (a_switcher_call sw);
     isl_return_entry_point :
-      (b_switcher sw + (1 + length switcher_call_instrs))%a = Some (a_switcher_return sw);
+      (b_switcher sw + (5 + length switcher_call_instrs))%a = Some (a_switcher_return sw);
     isl_ot_switcher_size : (ot_switcher sw < ot_switcher sw ^+ 1)%ot;
     isl_stack_size : (b_stack t + length ss)%a = Some (e_stack t);
     isl_disjointness :
@@ -288,7 +288,7 @@ Section layout_bridges.
       finz.seq_between (b_trusted_stack t) (e_trusted_stack t) ##
         finz.seq_between (b_stack t) (e_stack t);
     isl_trusted_stack_mmio : disjoint_from_mmio (b_trusted_stack t) (e_trusted_stack t);
-    isl_switcher_base_not_shadow : is_shadow_address (b_switcher sw) = false;
+    isl_switcher_key_not_shadow : is_shadow_address (b_switcher sw ^+ 1)%a = false;
     isl_switcher_not_heap : not_heap_range (b_switcher sw) (e_switcher sw);
     isl_stack_mmio : disjoint_from_mmio (b_stack t) (e_stack t);
     isl_stack_not_heap : disjoint_from_heap (b_stack t) (e_stack t);
@@ -318,7 +318,7 @@ Section layout_bridges.
       ts (tsl_size _ _ _ _ _ Hts) (tsl_frameoffset _ _ _ _ _ Hts) (tsl_frames_fit _ _ _ _ _ Hts)
       (tsl_error_count _ _ _ _ _ Hts) (tsl_words _ _ _ _ _ Hts)
       (b_stack t) (e_stack t) ss (isl_stack_size _ _ _ Hsw) (isl_disjointness _ _ _ Hsw)
-      (isl_trusted_stack_mmio _ _ _ Hsw) (isl_switcher_base_not_shadow _ _ _ Hsw)
+      (isl_trusted_stack_mmio _ _ _ Hsw) (isl_switcher_key_not_shadow _ _ _ Hsw)
       (isl_switcher_not_heap _ _ _ Hsw) (isl_stack_mmio _ _ _ Hsw) (isl_stack_not_heap _ _ _ Hsw)
       (isl_switcher_mmio _ _ _ Hsw) (isl_switcher_end_not_heap _ _ _ Hsw)
       (isl_trusted_stack_not_heap _ _ _ Hsw)
@@ -423,7 +423,8 @@ Section layout_memory.
   Proof.
     rewrite /switcher_mem /cmpt_switcher_code_mregion /=.
     pose proof (isl_switcher_size _ _ _ Hsw). pose proof (isl_call_entry_point _ _ _ Hsw).
-    change (?w :: switcher_instrs) with ([w] ++ switcher_instrs).
+    change (?w1 :: ?w2 :: ?w3 :: ?w4 :: ?w5 :: switcher_instrs)
+      with ([w1; w2; w3; w4; w5] ++ switcher_instrs).
     by apply mem_region_app.
   Qed.
 
@@ -1269,7 +1270,8 @@ Section ghost_init.
       2: { apply mem_rooted_mem_region. apply Forall_app; split; first apply word_rooted_instrs.
            apply Forall_singleton. by apply word_rooted_cap_nonheap. }
       apply mem_rooted_union; first apply mem_rooted_initial_heap.
-      apply mem_rooted_mem_region. apply Forall_cons; split; first by apply word_rooted_nonheap.
+      apply mem_rooted_mem_region.
+      do 5 (apply Forall_cons; split; first by apply word_rooted_nonheap).
       rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
       intros l. apply word_rooted_instrs.
     - apply word_rooted_cap_nonheap. exact (proj1 (icl_pcc_not_heap _ Hm)).
@@ -1315,7 +1317,7 @@ Section ghost_init.
            apply Forall_singleton. by apply word_exec_ok_not_executable. }
       apply mem_exec_ok_union; first apply mem_exec_ok_initial_heap.
       apply mem_exec_ok_mem_region.
-      apply Forall_cons; split; first by apply word_exec_ok_not_executable.
+      do 5 (apply Forall_cons; split; first by apply word_exec_ok_not_executable).
       rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
       intros l. apply word_exec_ok_instrs.
     - eapply word_exec_ok_closed;
@@ -1845,7 +1847,7 @@ Definition fw_switcher_layout_wf `{MP : MachineParameters} (img : fw_image) (ts 
   mkSwitcherLayoutWf (fw_switcher_layout img)
     (isl_switcher_size _ _ _ Hsw) (isl_call_entry_point _ _ _ Hsw)
     (isl_return_entry_point _ _ _ Hsw) (isl_ot_switcher_size _ _ _ Hsw)
-    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_switcher_base_not_shadow _ _ _ Hsw)
+    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_switcher_key_not_shadow _ _ _ Hsw)
     (isl_switcher_not_heap _ _ _ Hsw) (isl_trusted_stack_not_heap _ _ _ Hsw)
     (tsl_frames_fit _ _ _ _ _ Hts) (isl_trusted_stack_nonzero _ _ _ Hsw)
     (isl_hazard_size _ _ _ Hsw) (proj1 (isl_hazard_mmio _ _ _ Hsw))

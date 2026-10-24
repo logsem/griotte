@@ -35,10 +35,10 @@ Section Switcher_Call_States.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** The checks of blocks 0 and 1 on the stack pointer [wcsp]. *)
+  (** The checks of [.Lswitch_csp_check] on the stack pointer [wcsp]. *)
   Definition switcher_csp_checked (wcsp : LWord) : Prop :=
-    rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some (encodePerm RWL) ∧
-    rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some (encodeLoc Local).
+    rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some COMPARTMENT_STACK_PERMISSIONS ∧
+    rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some COMPARTMENT_STACK_LOCALITY.
 
   Lemma switcher_csp_checked_stk b e a :
     switcher_csp_checked (WCap true RWL Local b e a).
@@ -47,7 +47,7 @@ Section Switcher_Call_States.
   Lemma switcher_csp_checked_cap p g b e a π :
     switcher_csp_checked (WCap true p g b e a @@? π) -> p = RWL ∧ g = Local.
   Proof.
-    intros [Hp Hg]; cbn in Hp, Hg; simplify_eq.
+    intros [Hp Hg]; rewrite /COMPARTMENT_STACK_PERMISSIONS in Hp; rewrite /COMPARTMENT_STACK_LOCALITY in Hg; cbn in Hp, Hg; simplify_eq.
     split; [by apply encodePerm_inj | by apply encodeLoc_inj].
   Qed.
 

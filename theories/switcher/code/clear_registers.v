@@ -5,8 +5,9 @@ Section ClearStackMacro.
   #[local] Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
+  (** CHERIoT's [zeroRegisters]: clear the registers [l], in order. *)
   Definition rclear_asm (l : list RegName) : list asm_code :=
-  (fun r => mov r 0) <$> l.
+  (fun r => (* zeroOne r *) mov r 0) <$> l.
   Definition rclear (l : list RegName) : list instr :=
     Eval cbn in assemble (rclear_asm l).
   Definition rclear_instrs (l : list RegName) : list Word :=
