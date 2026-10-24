@@ -219,7 +219,7 @@ Section SO_World_Call.
   (** After the checks of the stack object [in] (whose temporary addresses
       have been put back in the revoked world [W0], together with the
       quarantined revoked keys [l_q]), the one-cell stack object [z] at
-      [a_stk1], right after the secret at [csp_b], is reinstated in the
+      [a_stk2], right below the secret at [a_stk1], is reinstated in the
       world [W3] of the call. The arguments of the call are safe in [W3],
       and the stack frame of the callee is revoked. *)
   Lemma so_world_call
@@ -229,33 +229,33 @@ Section SO_World_Call.
       (l_revoked l_q : list LAddr) (wct1 : LWord) :
     let W2 := close_list (addr_key π <$> so_object_temporaries W0 π b e) (revoke W0) in
     let W2q := close_list l_q W2 in
-    let W3 := reinstate W2q [LNonHeap a_stk1] in
+    let W3 := reinstate W2q [LNonHeap a_stk2] in
     extract_temporaries_condition W0 (l_revoked ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     l_q ## (LNonHeap <$> finz.seq_between csp_b csp_e) ->
     finz.seq_between b e ## finz.seq_between csp_b csp_e ->
-    (csp_b + 1)%a = Some a_stk1 ->
-    (a_stk1 + 1)%a = Some a_stk2 ->
-    (a_stk2 <= csp_e)%a ->
+    (a_stk1 + 1)%a = Some csp_e ->
+    (a_stk2 + 1)%a = Some a_stk1 ->
+    (csp_b <= a_stk2)%a ->
     interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C wct1 -∗
     world_interp W2q C -∗
     interp W2 C (WCap t p g b e (finz.max b e) @@? π) -∗
     StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
-    a_stk1 ↦ₐ WInt 0 -∗
+    a_stk2 ↦ₐ WInt 0 -∗
     £ 1
     ={⊤}=∗
     world_interp W3 C ∗
     interp W3 C (WCap t p g b e (finz.max b e) @@? π) ∗
-    interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1) ∗
+    interp W3 C (WCap true RWL Local a_stk2 a_stk1 a_stk2) ∗
     (if is_sealed_with_o wct1.(lw) ot_switcher then interp W3 C wct1 else True) ∗
     StackRevokedResources W3 C (stk_free csp_b csp_e a_stk2) ∗
     ⌜revoked_addresses W3 (stk_free csp_b csp_e a_stk2)⌝ ∗
     ⌜related_sts_priv_world W0 W3⌝ ∗
-    ⌜std W3 !! LNonHeap a_stk1 = Some Temporary⌝.
+    ⌜std W3 !! LNonHeap a_stk2 = Some Temporary⌝.
   Proof.
     intros W2 W2q W3.
-    iIntros (Hextract Hq_stack Hno_overlap Hastk1 Hastk2 Hastk2_csp_e)
-      "#Hinterp_csp #Hinterp_wct1 Hworld_interp_C #Hinterp_object Hstack_revoked Hastk1 Hlc".
+    iIntros (Hextract Hq_stack Hno_overlap Hastk1 Hastk2 Hcsp_b_astk2)
+      "#Hinterp_csp #Hinterp_wct1 Hworld_interp_C #Hinterp_object Hstack_revoked Hastk2 Hlc".
     destruct Hextract as [Hl_revoked_nodup Hl_revoked_temporaries].
     set (temps := so_object_temporaries W0 π b e) in *.
     assert (related_sts_priv_world W0 (revoke W0)) as Hpriv_W0_W1
@@ -274,35 +274,35 @@ Section SO_World_Call.
       subst temps.
       by apply list_elem_of_filter in Hx_temp as [_ Hx_object].
     }
-    assert (std W0 !! LNonHeap a_stk1 = Some Temporary) as Ha_stk1_W0.
+    assert (std W0 !! LNonHeap a_stk2 = Some Temporary) as Ha_stk2_W0.
     { apply Hl_revoked_temporaries.
       apply elem_of_app; right.
       apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between;
-        solve_addr+Hastk1 Hastk2 Hastk2_csp_e.
+        solve_addr+Hastk1 Hastk2 Hcsp_b_astk2.
     }
-    assert (std W2q !! LNonHeap a_stk1 = Some Revoked) as Ha_stk1_W2q.
+    assert (std W2q !! LNonHeap a_stk2 = Some Revoked) as Ha_stk2_W2q.
     { subst W2q W2.
       rewrite close_list_lookup_not_in.
       2: { rewrite elem_of_disjoint in Hq_stack.
            intros Hx. eapply Hq_stack; eauto.
            apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between;
-             solve_addr+Hastk1 Hastk2 Hastk2_csp_e. }
+             solve_addr+Hastk1 Hastk2 Hcsp_b_astk2. }
       rewrite close_list_lookup_not_in.
-      - apply revoke_lookup_Monotemp. exact Ha_stk1_W0.
+      - apply revoke_lookup_Monotemp. exact Ha_stk2_W0.
       - intro Ha'.
         apply LNonHeap_elem_of_addr_key_fmap in Ha'.
         rewrite elem_of_disjoint in Hstack_temps.
         eapply Hstack_temps; eauto.
-        apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hastk2_csp_e.
+        apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_b_astk2.
     }
 
-    (* Insert the allocated stack object [a_stk1] in the world *)
+    (* Insert the allocated stack object [a_stk2] in the world *)
     iMod (stack_object_reinstate_fresh_object
-            W0 W2q C csp_b csp_e csp_b a_stk1 a_stk2
-           with "[$Hinterp_csp $Hworld_interp_C $Hastk1 $Hlc]")
-      as "(Hworld_interp_C & %Hpub_W2q_W3 & %Ha_stk1_W3 & #Hinterp_z)"; eauto.
-    { split; first solve_addr+Hastk1.
-      split; solve_addr+Hastk1 Hastk2 Hastk2_csp_e. }
+            W0 W2q C csp_b csp_e (stk_start_a csp_b csp_e) a_stk2 a_stk1
+           with "[$Hinterp_csp $Hworld_interp_C $Hastk2 $Hlc]")
+      as "(Hworld_interp_C & %Hpub_W2q_W3 & %Ha_stk2_W3 & #Hinterp_z)"; eauto.
+    { split; first exact Hcsp_b_astk2.
+      split; solve_addr+Hastk1 Hastk2. }
     assert (related_sts_priv_world W0 W3) as Hpriv_W0_W3.
     { eapply related_sts_priv_pub_trans_world; eauto. }
     assert (heap_std W0 = heap_std W3) as Hheap_W0_W3.
@@ -323,14 +323,10 @@ Section SO_World_Call.
     }
 
     (* The stack frame of the callee is still revoked *)
-    rewrite (finz_seq_between_cons csp_b csp_e); last solve_addr+Hastk1 Hastk2 Hastk2_csp_e.
-    iEval (cbn) in "Hstack_revoked".
-    iDestruct "Hstack_revoked" as "[_ Hstack_revoked]".
-    rewrite (finz_seq_between_cons ((csp_b ^+ 1)%a) csp_e);
-      last solve_addr+Hastk1 Hastk2 Hastk2_csp_e.
-    iEval (cbn) in "Hstack_revoked".
-    iDestruct "Hstack_revoked" as "[_ Hstack_revoked]".
-    replace ((csp_b ^+ 1) ^+ 1)%a with a_stk2 by solve_addr+Hastk1 Hastk2.
+    iEval (rewrite (finz_seq_between_split csp_b a_stk2 csp_e);
+      last solve_addr+Hastk1 Hastk2 Hcsp_b_astk2) in "Hstack_revoked".
+    iEval (rewrite StackRevokedResources_app) in "Hstack_revoked".
+    iDestruct "Hstack_revoked" as "[Hstack_revoked _]".
     iSplitL; first (iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto).
     iPureIntro.
     split; last done.
@@ -339,7 +335,7 @@ Section SO_World_Call.
     subst W3 W2q W2.
     rewrite close_list_lookup_not_in.
     2: { intros Hx'; apply list_elem_of_singleton in Hx'; simplify_eq.
-         solve_addr+Hx Hastk2. }
+         solve_addr+Hx. }
     rewrite close_list_lookup_not_in.
     2: { intro Hxq.
          rewrite elem_of_disjoint in Hq_stack.

@@ -181,6 +181,29 @@ Section region.
       iApply (region_pointsto_split with "[$H1 $H2]"); done.
   Qed.
 
+  (** A non-empty region splits off its last cell. *)
+  Lemma region_pointsto_split_top (b e : Addr) (ws : list LWord) :
+    (b < e)%a ->
+    [[b, e]] ↦ₐ [[ws]] -∗
+    ∃ ws' w,
+      ⌜ws = ws' ++ [w]⌝ ∗
+      [[b, (e ^+ -1)%a]] ↦ₐ [[ws']] ∗
+      (e ^+ -1)%a ↦ₐ w.
+  Proof.
+    iIntros (Hbe) "Hws".
+    iDestruct (big_sepL2_length with "Hws") as %Hlen.
+    rewrite finz_seq_between_length in Hlen.
+    destruct ws as [|w ws'] using rev_ind.
+    { exfalso. cbn in Hlen. rewrite /finz.dist in Hlen. solve_addr+Hbe Hlen. }
+    iDestruct (region_pointsto_split_r b e (e ^+ -1)%a with "Hws") as "[Hws Hw]".
+    { solve_addr+Hbe. }
+    { cbn. rewrite /finz.dist. solve_addr+Hbe. }
+    iDestruct (region_pointsto_single with "Hw") as (w') "[Hw %Hw']";
+      first solve_addr+Hbe.
+    injection Hw' as <-.
+    iExists ws', w. by iFrame.
+  Qed.
+
   (** A region of memory is the separated conjunction of its cells. *)
   Lemma region_pointsto_cells (b e : Addr) (ws : list LWord) :
     (b + length ws)%a = Some e →

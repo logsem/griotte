@@ -5,7 +5,7 @@ From griotte Require Import stack_object_spec_states.
 (** * Stack object, blocks 7-9: call to the callback [g]
 
     Block 7 pushes the secret on the stack and allocates the one-cell stack
-    object [z] (in [ca1]) right after it. Block 8 fetches the entry point of
+    object [z] (in [ca1]) right below it. Block 8 fetches the entry point of
     the switcher in [ct0], and block 9 jumps to the switcher. The group ends
     at the entry point of the switcher, with the return address of the call
     in [cra]. *)
@@ -31,7 +31,7 @@ Section SO_Call_Blocks_3.
     (* The stack frame holds the secret and [z] *)
     (csp_b + 2 <= csp_e)%Z ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_e ∗
     ca1 ↦ᵣ wca1 ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -42,20 +42,20 @@ Section SO_Call_Blocks_3.
     pc_b ↦ₐ□ so_switcher_entry ∗
     codefrag_pers pc_a so_main_code ∗
     ▷ (∀ mie a_stk1 a_stk2 stk_mem',
-        ⌜(csp_b + 1)%a = Some a_stk1⌝ ∗
-        ⌜(a_stk1 + 1)%a = Some a_stk2⌝ ∗
-        ⌜(a_stk2 <= csp_e)%a⌝ ∗
+        ⌜(a_stk1 + 1)%a = Some csp_e⌝ ∗
+        ⌜(a_stk2 + 1)%a = Some a_stk1⌝ ∗
+        ⌜(csp_b <= a_stk2)%a⌝ ∗
         PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
-        ca1 ↦ᵣ WCap true RWL Local a_stk1 a_stk2 a_stk1 ∗
+        ca1 ↦ᵣ WCap true RWL Local a_stk2 a_stk1 a_stk2 ∗
         ct0 ↦ᵣ so_switcher_entry ∗
         ct1 ↦ᵣ wct1 ∗
         cs0 ↦ᵣ wcra ∗
         cs1 ↦ᵣ wct1 ∗
         cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
-        csp_b ↦ₐ WInt so_secret ∗
-        a_stk1 ↦ₐ WInt 0 ∗
-        [[a_stk2, csp_e]] ↦ₐ [[stk_mem']] ∗
+        a_stk1 ↦ₐ WInt so_secret ∗
+        a_stk2 ↦ₐ WInt 0 ∗
+        [[csp_b, a_stk2]] ↦ₐ [[stk_mem']] ∗
         pc_b ↦ₐ□ so_switcher_entry ∗
         codefrag_pers pc_a so_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -71,19 +71,27 @@ Section SO_Call_Blocks_3.
     (* Block 7: push the secret and allocate the stack object [z] *)
     focus_block (so_block ".Lso_f_alloc") "Hcode_main" of so_main_blocks at pc_a as a_alloc Ha_alloc "Hcode" "Hcont".
     iHide "Hcont" as hcont.
+    assert (is_Some (csp_e + -1)%a) as [a_stk1 Hastk1]; [solve_addr+Hstk_size|].
+    assert (is_Some (a_stk1 + -1)%a) as [a_stk2 Hastk2]; [solve_addr+Hstk_size Hastk1|].
     assert (csp_b < csp_e)%a as Hcsp_size by solve_addr+Hstk_size.
-    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
-    rewrite finz_seq_between_length in Hstklen.
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
-    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
-    assert (is_Some (csp_b + 1)%a) as [a_stk1 Hastk1]; [solve_addr+Hcsp_size|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Hastk0 Hstk]"; eauto.
-    { solve_addr+Hcsp_size Hastk1. }
+    iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem1 w0 ->) "[Hstk Hastk1]";
+      first exact Hcsp_size.
+    replace (csp_e ^+ -1)%a with a_stk1 by solve_addr+Hastk1.
+    assert (csp_b < a_stk1)%a as Hcsp_size' by solve_addr+Hstk_size Hastk1.
+    iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem' w1 ->) "[Hstk Hastk2]";
+      first exact Hcsp_size'.
+    replace (a_stk1 ^+ -1)%a with a_stk2 by solve_addr+Hastk2.
+    assert (is_heap_address a_stk2 = false) as Hastk2_nonheap.
+    { eapply disjoint_from_heap_not_in; [exact Hstk_heap|].
+      rewrite /withinBounds; solve_addr+Hstk_size Hastk1 Hastk2. }
+    (* Lea csp csp (-1) *)
+    iInstr "Hcode".
     (* Store csp so_secret 0 *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|rewrite /withinBounds; solve_addr+Hcsp_size]. }
-    { rewrite /withinBounds; solve_addr+Hcsp_size. }
-    (* Lea csp csp 1 *)
+    { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|].
+      rewrite /withinBounds; solve_addr+Hstk_size Hastk1. }
+    { rewrite /withinBounds; solve_addr+Hstk_size Hastk1. }
+    (* Lea csp csp (-1) *)
     iInstr "Hcode".
     (* Mov ca1 csp *)
     iInstr "Hcode".
@@ -91,30 +99,16 @@ Section SO_Call_Blocks_3.
     iInstr "Hcode".
     (* Add cs1 cs0 1 *)
     iInstr "Hcode".
-    assert (a_stk1 < csp_e)%a as Hcsp_size' by solve_addr+Hstk_size Hastk1.
-    iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
-    rewrite finz_seq_between_length in Hstklen'.
-    rewrite finz_dist_S in Hstklen'; last solve_addr+Hcsp_size'.
-    destruct stk_mem as [|w1 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk1 + 1)%a) as [a_stk2 Hastk2]; [solve_addr+Hcsp_size'|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Hastk1 Hstk]"; eauto.
-    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
-    assert (is_heap_address a_stk1 = false) as Hastk1_nonheap.
-    { eapply disjoint_from_heap_not_in; [exact Hstk_heap|].
-      rewrite /withinBounds; solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* Subseg ca1 ca1 cs0 cs1 *)
     iInstr "Hcode".
-    { transitivity (Some a_stk2); auto. solve_addr+Hastk2. }
-    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
+    { transitivity (Some a_stk1); auto. solve_addr+Hastk2. }
+    { solve_addr+Hstk_size Hastk1 Hastk2. }
     { solve_addr+Hastk2. }
-    (* Store ca1 0%Z 0 *)
+    (* Store ca1 0 0 *)
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|].
-      rewrite /withinBounds; solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
-    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
-    (* Lea csp csp 1%Z *)
-    iInstr "Hcode".
-    replace (a_stk1 ^+ 1)%a with a_stk2 by solve_addr+Hastk2.
+      rewrite /withinBounds; solve_addr+Hstk_size Hastk1 Hastk2. }
+    { solve_addr+Hstk_size Hastk1 Hastk2. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 8: fetch the entry point of the switcher *)
@@ -143,8 +137,8 @@ Section SO_Call_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert ((a_call ^+ 3)%a = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
       by (offsets_compute; solve_addr).
-    iApply ("Hpost" $! mie a_stk1 a_stk2 stk_mem); iFrame "∗ Hcode_main".
-    iPureIntro; repeat split; solve_addr.
+    iApply ("Hpost" $! mie a_stk1 a_stk2 stk_mem'); iFrame "∗ Hcode_main".
+    iPureIntro; repeat split; solve_addr+Hstk_size Hastk1 Hastk2.
   Qed.
 
 End SO_Call_Blocks_3.
