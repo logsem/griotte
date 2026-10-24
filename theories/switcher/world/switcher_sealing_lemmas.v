@@ -29,7 +29,8 @@ Section Switcher_sealing.
     iNamed "Hot_switcher".
     iExists g_tbl, b_tbl, e_tbl, a_tbl, bpcc, epcc, bcgp, ecgp, nargs, minstk, off, posture,
       eh, ehs.
-    iFrame "#%".
+    repeat (iSplitR; [iPureIntro; assumption|]).
+    iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs Htbl_entry".
     iIntros "!>" (W'' Hrelated_W'_W'').
     iApply "Hentry_cont".
     iPureIntro.
@@ -44,8 +45,11 @@ Section Switcher_sealing.
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iNamed "Hot_switcher". subst w.
-    iFrame "#∗%".
-    iExists Local; iPureIntro; done.
+    iExists Local, b_tbl, e_tbl, a_tbl, bpcc, epcc, bcgp, ecgp, nargs, minstk, off, posture,
+      eh, ehs.
+    iSplitR; [done|].
+    repeat (iSplitR; [iPureIntro; assumption|]).
+    iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs Htbl_entry Hentry_cont".
   Qed.
 
 End Switcher_sealing.

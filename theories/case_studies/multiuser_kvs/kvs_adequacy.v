@@ -13,7 +13,7 @@ From griotte Require Import
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
-From griotte Require Import switcher_preamble switcher_sealing interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_preamble switcher_sealing_lemmas interp_switcher_call interp_switcher_return.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 

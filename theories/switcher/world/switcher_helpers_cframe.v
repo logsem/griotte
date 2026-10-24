@@ -128,26 +128,20 @@ Section switcher_helpers_cframe.
       cbn.
       replace ((s ^+ 1) ^+ 1)%a with (s ^+ 2)%a by solve_addr+Hs4.
       replace ((s ^+ 2) ^+ 1)%a with (s ^+ 3)%a by solve_addr+Hs4.
-      iFrame.
+      iFrame "Hworld_interp".
       iDestruct "Hres" as "(%lv & [Hlv Hres])".
       iDestruct (big_sepL2_length with "Hlv") as "%Hlv_len".
       destruct lv as [|w [|w0 [|w1 [|w2 [|] ] ] ] ]; try done.
       iExists w, w0, w1, w2.
-      iFrame.
-      iSplitL "Hlv".
-      - replace ( [s; (s ^+ 1)%a; (s ^+ 2)%a; (s ^+ 3)%a] )
+      iFrame "Hres".
+      replace ( [s; (s ^+ 1)%a; (s ^+ 2)%a; (s ^+ 3)%a] )
         with (finz.seq_between s (s ^+4)%a); first done.
-        repeat (rewrite finz_seq_between_cons; last solve_addr+Hs4).
-        replace ( ((s ^+ 1) ^+ 1)%a ) with ((s ^+ 2))%a by solve_addr+Hs4.
-        replace ( ((s ^+ 2) ^+ 1)%a ) with ((s ^+ 3))%a by solve_addr+Hs4.
-        replace ( ((s ^+ 3) ^+ 1)%a ) with ((s ^+ 4))%a by solve_addr+Hs4.
-        rewrite finz_seq_between_empty; last solve_addr+Hs4.
-        done.
-      - iNext.
-        rewrite /StackOpenWorldResources.
-        iDestruct "Hres" as "[Hres $]".
-        rewrite /StackWorldResources.
-        repeat (iDestruct (big_sepL2_cons with "Hres") as "[$ Hres]").
+      repeat (rewrite finz_seq_between_cons; last solve_addr+Hs4).
+      replace ( ((s ^+ 1) ^+ 1)%a ) with ((s ^+ 2))%a by solve_addr+Hs4.
+      replace ( ((s ^+ 2) ^+ 1)%a ) with ((s ^+ 3))%a by solve_addr+Hs4.
+      replace ( ((s ^+ 3) ^+ 1)%a ) with ((s ^+ 4))%a by solve_addr+Hs4.
+      rewrite finz_seq_between_empty; last solve_addr+Hs4.
+      done.
   Qed.
 
   #[local] Lemma open_world_interp_callee_stack_aux (W : WORLD) (C : CmptName)
@@ -516,16 +510,16 @@ Section switcher_helpers_cframe.
       iEval (rewrite /heap_key_status /=) in "Hv1".
       iEval (rewrite /heap_key_status /=) in "Hv2".
       iEval (rewrite /heap_key_status /=) in "Hv3".
-      iDestruct "Hv0" as (? P0 ?) "(#Hrel0 & Hv0)".
-      iDestruct "Hv1" as (? P1 ?) "(#Hrel1 & Hv1)".
-      iDestruct "Hv2" as (? P2 ?) "(#Hrel2 & Hv2)".
-      iDestruct "Hv3" as (? P3 ?) "(#Hrel3 & Hv3)".
+      iDestruct "Hv0" as (p_v0 P0 Hpers_P0) "(#Hrel0 & Hv0)".
+      iDestruct "Hv1" as (p_v1 P1 Hpers_P1) "(#Hrel1 & Hv1)".
+      iDestruct "Hv2" as (p_v2 P2 Hpers_P2) "(#Hrel2 & Hv2)".
+      iDestruct "Hv3" as (p_v3 P3 Hpers_P3) "(#Hrel3 & Hv3)".
       iClear "Hinterp_callee_wstk".
       iFrame "Hrel0". iFrame "Hrel1". iFrame "Hrel2". iFrame "Hrel3".
-      iDestruct "Hv0" as (v0) "(% & $ & H0' & #H0)".
-      iDestruct "Hv1" as (v1) "(% & $ & H1' & #H1)".
-      iDestruct "Hv2" as (v2) "(% & $ & H2' & #H2)".
-      iDestruct "Hv3" as (v3) "(% & $ & H3' & #H3)".
+      iDestruct "Hv0" as (v0) "(%Hnot_O0 & $ & H0' & #H0)".
+      iDestruct "Hv1" as (v1) "(%Hnot_O1 & $ & H1' & #H1)".
+      iDestruct "Hv2" as (v2) "(%Hnot_O2 & $ & H2' & #H2)".
+      iDestruct "Hv3" as (v3) "(%Hnot_O3 & $ & H3' & #H3)".
       iEval (rewrite !mono_temporary_eq) in "H0 H1 H2 H3".
       pose (W0' := Wfixed). pose (W1' := Wfixed).
       pose (W2' := Wfixed). pose (W3' := Wfixed).
@@ -563,13 +557,13 @@ Section switcher_helpers_cframe.
         rewrite /interp_in_mem_pre !(Hll RWL) //.
         rewrite (Hll _ _ Hp_astk0) (Hll _ _ Hp_astk1) (Hll _ _ Hp_astk2) (Hll _ _ Hp_astk3).
         iFrame "Hinterp0 Hinterp1 Hinterp2 Hinterp3".
-        iFrame "%".
+        iPureIntro; split_and!; apply related_sts_pub_refl_world.
       }
       iSplitL "H0 H0'".
-      { iSplitR "H0'"; first iFrame "%".
-        iSplitR "H0'"; first iFrame "%".
+      { iSplitR "H0'"; first (iPureIntro; exact Hpers_P0).
+        iSplitR "H0'"; first (iPureIntro; exact Hnot_O0).
         iSplitR "H0'"; cycle 1.
-        + iExists W0'; iFrame "%".
+        + iExists W0'; iSplitR; first (iPureIntro; exact HW0').
           iRewrite - ("HP0" $! (W0',C,WInt 0 @@? None)).
           iApply "Hwcond_astk0"; iApply interp_int.
         + iIntros "!> % % % _".
@@ -577,10 +571,10 @@ Section switcher_helpers_cframe.
           iApply "Hwcond_astk0"; iApply interp_int.
       }
       iSplitL "H1 H1'".
-      { iSplitR "H1'"; first iFrame "%".
-        iSplitR "H1'"; first iFrame "%".
+      { iSplitR "H1'"; first (iPureIntro; exact Hpers_P1).
+        iSplitR "H1'"; first (iPureIntro; exact Hnot_O1).
         iSplitR "H1'"; cycle 1.
-        + iExists W1'; iFrame "%".
+        + iExists W1'; iSplitR; first (iPureIntro; exact HW1').
           iRewrite - ("HP1" $! (W1',C,WInt 0 @@? None)).
           iApply "Hwcond_astk1"; iApply interp_int.
         + iIntros "!> % % % _".
@@ -588,20 +582,20 @@ Section switcher_helpers_cframe.
           iApply "Hwcond_astk1"; iApply interp_int.
       }
       iSplitL "H2 H2'".
-      { iSplitR "H2'"; first iFrame "%".
-        iSplitR "H2'"; first iFrame "%".
+      { iSplitR "H2'"; first (iPureIntro; exact Hpers_P2).
+        iSplitR "H2'"; first (iPureIntro; exact Hnot_O2).
         iSplitR "H2'"; cycle 1.
-        + iExists W2'; iFrame "%".
+        + iExists W2'; iSplitR; first (iPureIntro; exact HW2').
           iRewrite - ("HP2" $! (W2',C,WInt 0 @@? None)).
           iApply "Hwcond_astk2"; iApply interp_int.
         + iIntros "!> % % % _".
           iRewrite - ("HP2" $! (W',C,WInt 0 @@? None)).
           iApply "Hwcond_astk2"; iApply interp_int.
       }
-      { iSplitR "H3'"; first iFrame "%".
-        iSplitR "H3'"; first iFrame "%".
+      { iSplitR "H3'"; first (iPureIntro; exact Hpers_P3).
+        iSplitR "H3'"; first (iPureIntro; exact Hnot_O3).
         iSplitR "H3'"; cycle 1.
-        + iExists W3'; iFrame "%".
+        + iExists W3'; iSplitR; first (iPureIntro; exact HW3').
           iRewrite - ("HP3" $! (W3',C,WInt 0 @@? None)).
           iApply "Hwcond_astk3"; iApply interp_int.
         + iIntros "!> % % % _".

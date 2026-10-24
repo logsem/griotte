@@ -3,7 +3,7 @@ From griotte Require Import logrel monotone interp_weakening memory_region rules
 From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Import world_ghost_theory world_interp_stack stack_world_resources.
 From griotte Require Import map_simpl register_tactics.
-From griotte Require Import switcher_call_states switcher_sealing.
+From griotte Require Import switcher_call_states switcher_sealing_lemmas.
 
 (** * Logical steps of the call routine of the switcher
 
@@ -39,12 +39,14 @@ Section Switcher_Call_World.
   Proof.
     iIntros "#Hv' (%φ & %p & _ & _ & Hrel & Hvalid & %Hflow)".
     iDestruct "Hvalid" as "(#Hmono & #Hzcond & #Hrcond & #Hwcond & %Hpers)".
-    iExists φ, p; iFrame "∗ # %".
-    iSplit; first (iApply "Hwcond"; done).
-    rewrite /mono_temporary.
-    assert (isWL p = true) as HWL by (eapply isWL_flowsto; eauto).
-    rewrite decide_True; last (left; done).
-    iApply "Hmono".
+    iExists φ, p.
+    iSplitR; first iApply ("Hwcond" with "Hv'").
+    iSplitR.
+    { rewrite /mono_temporary decide_True; first iApply "Hmono".
+      left; by eapply isWL_flowsto. }
+    iSplitL "Hrel"; first iExact "Hrel".
+    iSplitR; last (iPureIntro; exact Hflow).
+    iFrame "Hmono Hzcond Hrcond Hwcond"; iPureIntro; exact Hpers.
   Qed.
 
   (** The words of [lv'] are either unchanged from [lv], or safe. *)
@@ -429,7 +431,8 @@ Section Switcher_Call_World.
     rewrite ?addr_key_None.
     iDestruct "Hr" as (φ p) "(Hφ & Hmono & Hrel & (HmonoR & Hzcond & Hrcond & Hwcond & Hpers) & %Hperm_flow)".
     iExists p,φ.
-    iFrame "∗#%".
+    iSplit; first (iPureIntro; exact Hperm_flow).
+    iFrame "Hpers Hrel Hzcond".
     iSplit.
     { erewrite readAllowed_flowsto; eauto. }
     iSplit.
@@ -559,7 +562,7 @@ Section Switcher_Call_World.
     iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l']") as ">Hrevoked_l'".
     iDestruct (lc_fupd_elim_later with "[$] [$Hstack_revoked_W2]") as ">[Hstack_revoked_W2 %Hrevoked_callee]".
     iModIntro.
-    iExists _, l'; iFrame "∗ %".
+    iExists _, l'; iFrame (Hl_unk' Hrevoked_W2_l') "Hrevoked_l' Hworld_interp_C Hstk".
     rewrite Hsplit.
     iSplitL "Hstack_revoked_W2"; cycle 1.
     { iPureIntro.
@@ -627,7 +630,7 @@ Section Switcher_Call_World.
          rewrite /revoked_addresses Forall_forall in Hrev_callee.
          by apply Hrev_callee.
     }
-    iExists l_unk; iFrame "∗%#".
+    iExists l_unk; iFrame (Hrevoked_l) "Hworld_interp_C".
     iSplit.
     { iPureIntro.
       split.
