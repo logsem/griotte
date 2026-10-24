@@ -104,13 +104,13 @@ Section Switcher_Exception_Blocks_6.
   (** Block 34: the handler's return. *)
   #[local] Lemma switcher_exception_block_34_spec_aux (pc_a : Addr) (wca0 : LWord) :
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 34))%a ->
-    (pc_a + (-150))%a = Some (pc_a ^+ (-150))%a ->
+    (pc_a + (-144))%a = Some (pc_a ^+ (-144))%a ->
 
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
     codefrag_pers pc_a (switcher_instrs_n 34) ∗
     ▷ ( ∀ off : Z,
-        ⌜(nonZero wca0.(lw) = true ∧ off = (-150)%Z) ∨
+        ⌜(nonZero wca0.(lw) = true ∧ off = (-144)%Z) ∨
          (nonZero wca0.(lw) = false ∧ off = 2%Z)⌝ -∗
         PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ off)%a ∗
         ca0 ↦ᵣ wca0 -∗
@@ -125,8 +125,8 @@ Section Switcher_Exception_Blocks_6.
     destruct (nonZero wca0.(lw)) eqn:Hnz.
     - (* Jne .Lcommon_force_unwind ca0 0 *)
       iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
-      { transitivity (Some (pc_a ^+ (-150))%a); solve_addr. }
-      iApply ("Hpost" $! (-150)%Z with "[] [$]"). iPureIntro. by left.
+      { transitivity (Some (pc_a ^+ (-144))%a); solve_addr. }
+      iApply ("Hpost" $! (-144)%Z with "[] [$]"). iPureIntro. by left.
     - (* Jne .Lcommon_force_unwind ca0 0 *)
       iInstrApply "Hcode" wp_jnez_success_next_any with "[$HPC $Hca0]" as "(HPC & Hca0)".
       iApply ("Hpost" $! 2%Z with "[] [$]"). iPureIntro. by right.

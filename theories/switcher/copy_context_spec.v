@@ -7,7 +7,8 @@ From griotte Require Export copy_context.
     The copy of CHERIoT's [copyContext]. In [copy_context_spec], the source
     is a region of memory owned by the caller; the destination is generic:
     each store goes through a per-cell accessor [cells_store_acc], so that
-    the destination may be owned by the caller or opened from an invariant.
+    the destination may be owned by the caller or opened from an invariant,
+    and a store past the end of the destination capability faults.
     In [copy_context_load_spec], the source is generic: each load goes
     through a per-cell accessor [cells_load_acc], and a load past the end
     of the source capability faults; the destination is owned. *)
@@ -36,7 +37,6 @@ Section CopyContextMacro.
     disjoint_from_shadow a_s (a_s ^+ 15)%a →
     writeAllowed p_d = true →
     (b_d <= a_d)%a →
-    (a_d + 15 <= e_d)%Z →
     cnull ∉ [dst; src; scratch; counter] →
 
     PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a ∗
@@ -47,21 +47,31 @@ Section CopyContextMacro.
     counter ↦ᵣ WInt (15 - i) ∗
     ([∗ list] k ↦ w ∈ ws, (a_s ^+ k)%a ↦ₐ w) ∗
     D i ∗
-    cells_store_acc D p_d a_d π_d ws ∗
-    ▷ ( (∃ wscratch' : LWord,
-           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-                   (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a ∗
-           src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ 15)%a ∗
-           dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ 15)%a @@? π_d) ∗
-           scratch ↦ᵣ wscratch' ∗
-           counter ↦ᵣ WInt 0 ∗
-           ([∗ list] k ↦ w ∈ ws, (a_s ^+ k)%a ↦ₐ w) ∗
-           D 15)
-        -∗ WP Seq (Instr Executable) {{ φ }})
+    cells_store_acc D p_d e_d a_d π_d ws ∗
+    ▷ ( ( ∀ j : nat,
+          ⌜(j < 15)%nat⌝ -∗
+          ⌜(e_d <= a_d + j)%Z⌝ -∗
+          src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ j)%a -∗
+          dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ j)%a @@? π_d) -∗
+          scratch ↦ᵣ - -∗
+          counter ↦ᵣ WInt (15 - j) -∗
+          ([∗ list] k ↦ w ∈ ws, (a_s ^+ k)%a ↦ₐ w) -∗
+          D j -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a) ⊤ φ ) ∧
+        ( ∀ wscratch' : LWord,
+          ⌜(a_d + 15 <= e_d)%Z⌝ -∗
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
+                  (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a -∗
+          src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ 15)%a -∗
+          dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ 15)%a @@? π_d) -∗
+          scratch ↦ᵣ wscratch' -∗
+          counter ↦ᵣ WInt 0 -∗
+          ([∗ list] k ↦ w ∈ ws, (a_s ^+ k)%a ↦ₐ w) -∗
+          D 15 -∗
+          WP Seq (Instr Executable) {{ φ }} ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
-    iIntros (Hexec Hsub Hlen Hi Hread Hdl Hdro Hb_s He_s Hshadow_s Hwrite Hb_d He_d
-               Hnull)
+    iIntros (Hexec Hsub Hlen Hi Hread Hdl Hdro Hb_s He_s Hshadow_s Hwrite Hb_d Hnull)
       "(HPC & #Hcode & Hsrc & Hdst & Hscratch & Hcounter & Hws & HD & #Hacc & Hpost)".
     assert (dst ≠ cnull ∧ src ≠ cnull ∧ scratch ≠ cnull ∧ counter ≠ cnull)
       as (Hdst_null & Hsrc_null & Hscratch_null & Hcounter_null)
@@ -77,8 +87,20 @@ Section CopyContextMacro.
     { eapply disjoint_from_shadow_not_in; [exact Hshadow_s | rewrite /withinBounds; solve_addr]. }
     { rewrite /withinBounds; solve_addr. }
     rewrite lload_word_no_dl_dro //.
-    iMod ("Hacc" $! i with "[] HD") as (v q) "(%Hsh_d & Hcell & Hderef & Hclose)".
-    { iPureIntro; lia. }
+    iDestruct ("Hws" with "Hwi") as "Hws".
+    destruct (decide (a_d + i < e_d)%Z) as [Hin | Hout]; cycle 1.
+    { (* Store dst scratch 0 *)
+      iInstrApply "Hcode" (wp_store_fail_reg_imm _ 0 _ _ _ _ _ _ _ _ dst scratch _ _ _ _ _
+                             (a_d ^+ i)%a)
+        with "[$HPC $Hscratch $Hdst]" as "(HPC & Hscratch & Hdst)".
+      { solve_addr. }
+      { rewrite /withinBounds; solve_addr. }
+      iDestruct "Hpost" as "[Hfailed _]".
+      iTrap with ("Hfailed" $! i with "[//] [%] Hsrc Hdst [$Hscratch] Hcounter Hws HD").
+      solve_addr. }
+    iMod ("Hacc" $! i with "[%] [%] HD") as (v q) "(%Hsh_d & Hcell & Hderef & Hclose)".
+    { lia. }
+    { done. }
     (* Store dst scratch 0 *)
     iInstrApply "Hcode"
       (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
@@ -88,7 +110,6 @@ Section CopyContextMacro.
     { solve_addr. }
     rewrite -(list_lookup_total_correct _ _ _ Hwi).
     iMod ("Hclose" with "Hcell Hderef") as "HD".
-    iDestruct ("Hws" with "Hwi") as "Hws".
     (* Add counter counter (-1) *)
     iInstr "Hcode".
     (* Lea dst dst 1 *)
@@ -100,7 +121,9 @@ Section CopyContextMacro.
     destruct (decide (i = 14)) as [-> | Hi14].
     - (* Jne -5 counter 0 *)
       iInstr "Hcode".
-      iApply "Hpost". iExists (ws !!! 14). iFrame.
+      iDestruct "Hpost" as "[_ Hpost]".
+      iApply ("Hpost" with "[%] HPC Hsrc Hdst Hscratch Hcounter Hws HD").
+      solve_addr.
     - (* Jne -5 counter 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
@@ -112,7 +135,9 @@ Section CopyContextMacro.
 
   (** [copy_context_asm dst src scratch counter] copies the 15 words [ws]
       of the region at [a_s] to the cells from [a_d], through the
-      accessor of the destination. *)
+      accessor of the destination. A store past the end [e_d] of the
+      destination capability faults at [pc_a ^+ 2], with [j] words
+      copied. *)
   Lemma copy_context_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (dst src scratch counter : RegName)
@@ -130,7 +155,6 @@ Section CopyContextMacro.
     disjoint_from_shadow a_s (a_s ^+ 15)%a →
     writeAllowed p_d = true →
     (b_d <= a_d)%a →
-    (a_d + 15 <= e_d)%Z →
     cnull ∉ [dst; src; scratch; counter] →
 
     PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
@@ -141,20 +165,31 @@ Section CopyContextMacro.
     counter ↦ᵣ wcounter ∗
     [[ a_s , (a_s ^+ 15)%a ]] ↦ₐ [[ ws ]] ∗
     D 0 ∗
-    cells_store_acc D p_d a_d π_d ws ∗
-    ▷ ( (∃ wscratch' : LWord,
-           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-                   (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a ∗
-           src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ 15)%a ∗
-           dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ 15)%a @@? π_d) ∗
-           scratch ↦ᵣ wscratch' ∗
-           counter ↦ᵣ WInt 0 ∗
-           [[ a_s , (a_s ^+ 15)%a ]] ↦ₐ [[ ws ]] ∗
-           D 15)
-        -∗ WP Seq (Instr Executable) {{ φ }})
+    cells_store_acc D p_d e_d a_d π_d ws ∗
+    ▷ ( ( ∀ j : nat,
+          ⌜(j < 15)%nat⌝ -∗
+          ⌜(e_d <= a_d + j)%Z⌝ -∗
+          src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ j)%a -∗
+          dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ j)%a @@? π_d) -∗
+          scratch ↦ᵣ - -∗
+          counter ↦ᵣ WInt (15 - j) -∗
+          [[ a_s , (a_s ^+ 15)%a ]] ↦ₐ [[ ws ]] -∗
+          D j -∗
+          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a) ⊤ φ ) ∧
+        ( ∀ wscratch' : LWord,
+          ⌜(a_d + 15 <= e_d)%Z⌝ -∗
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
+                  (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a -∗
+          src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ 15)%a -∗
+          dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ 15)%a @@? π_d) -∗
+          scratch ↦ᵣ wscratch' -∗
+          counter ↦ᵣ WInt 0 -∗
+          [[ a_s , (a_s ^+ 15)%a ]] ↦ₐ [[ ws ]] -∗
+          D 15 -∗
+          WP Seq (Instr Executable) {{ φ }} ) )
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
-    iIntros (Hexec Hsub Hlen Hread Hdl Hdro Hb_s He_s Hshadow_s Hwrite Hb_d He_d Hnull)
+    iIntros (Hexec Hsub Hlen Hread Hdl Hdro Hb_s He_s Hshadow_s Hwrite Hb_d Hnull)
       "(HPC & #Hcode & Hsrc & Hdst & Hscratch & Hcounter & Hws & HD & #Hacc & Hpost)".
     assert (counter ≠ cnull) as Hcounter_null by (clear -Hnull; set_solver).
     codefrag_facts "Hcode".
@@ -167,11 +202,18 @@ Section CopyContextMacro.
     iApply (copy_context_loop_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ D 0
              with "[$HPC $Hcode $Hscratch $Hcounter $Hws $HD $Hacc Hsrc Hdst Hpost]").
     all: try (lia || done).
-    rewrite Ha_s0 Ha_d0. iFrame.
-    iNext. iIntros "(%wscratch' & HPC & Hsrc & Hdst & Hscratch & Hcounter & Hws & HD)".
-    iApply "Hpost". iExists wscratch'. iFrame.
-    rewrite (region_pointsto_cells a_s); last (rewrite Hlen; solve_addr).
-    iFrame.
+    rewrite Ha_s0 Ha_d0. iFrame "Hsrc Hdst".
+    iNext. iSplit.
+    - iIntros (j Hj Hout) "Hsrc Hdst Hscratch Hcounter Hws HD".
+      iDestruct "Hpost" as "[Hfailed _]".
+      iApply ("Hfailed" with "[//] [//] Hsrc Hdst Hscratch Hcounter [Hws] HD").
+      rewrite (region_pointsto_cells a_s); last (rewrite Hlen; solve_addr).
+      iFrame.
+    - iIntros (wscratch' Hin) "HPC Hsrc Hdst Hscratch Hcounter Hws HD".
+      iDestruct "Hpost" as "[_ Hpost]".
+      iApply ("Hpost" with "[//] HPC Hsrc Hdst Hscratch Hcounter [Hws] HD").
+      rewrite (region_pointsto_cells a_s); last (rewrite Hlen; solve_addr).
+      iFrame.
   Qed.
 
   (** One word per iteration of the copy with a load accessor, from

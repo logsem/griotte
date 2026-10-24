@@ -30,7 +30,7 @@ Section Switcher_Exception_Blocks_5.
     (wpcc wcgp wcra wcgp0 wct2 wcs1 : LWord) :
     let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 30))%a ->
-    (pc_a + (-100))%a = Some (pc_a ^+ (-100))%a ->
+    (pc_a + (-94))%a = Some (pc_a ^+ (-94))%a ->
     (pc_a + 22)%a = Some (pc_a ^+ 22)%a ->
     (a_tstk + TrustedStackFrame_offset_errorHandlerCount)%a = Some a_cnt_cell ->
     withinBounds b_trusted_stack e_trusted_stack a_cnt_cell = true ->
@@ -50,7 +50,7 @@ Section Switcher_Exception_Blocks_5.
     codefrag_pers pc_a (switcher_instrs_n 30) ∗
     ▷ ( ( ⌜Z.even n = false ∨ (MAX_FAULTS_PER_COMPARTMENT_CALL < n + 1)%Z⌝ -∗
           ∀ wcra' : LWord,
-          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-100))%a ∗
+          PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-94))%a ∗
           ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ WCap true p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ wct2 ∗
@@ -108,7 +108,7 @@ Section Switcher_Exception_Blocks_5.
          iInstr "Hcode".
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
-         { transitivity (Some (pc_a ^+ (-100))%a); solve_addr. }
+         { transitivity (Some (pc_a ^+ (-94))%a); solve_addr. }
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by left).
          iFrame "∗ Hcode". }
@@ -125,7 +125,7 @@ Section Switcher_Exception_Blocks_5.
          iInstr "Hcode".
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
-         { transitivity (Some (pc_a ^+ (-100))%a); solve_addr. }
+         { transitivity (Some (pc_a ^+ (-94))%a); solve_addr. }
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by right).
          iFrame "∗ Hcode". }

@@ -12,8 +12,9 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
     Block 25 ([.Lhandle_error_stack_oob]) tests whether the faulting stack
     pointer has room for the [ErrorState] of a stackful handler: [ct0],
     the stack pointer moved down to the base of the [ErrorState], is
-    tagged, its cursor is not below its base, and the end of the
-    [ErrorState] is not past its end. A sealing range passes the test (its first store then faults). The
+    tagged and its cursor is not below its base. A sealing range passes
+    the test (its first store then faults), and so does a capability whose
+    cursor is past its end (a store of the [ErrorState] then faults). The
     tag is read as the machine sees it: a capability whose tag may have
     been stripped (for instance, by the revocation of its heap object) may
     fail the test.
@@ -45,7 +46,7 @@ Section Switcher_Exception_Blocks_4.
   #[local] Lemma switcher_exception_block_25_spec_aux
     (pc_a : Addr) (wcsp wct0 wct1 wct2 wcs1 : LWord) :
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 25))%a ->
-    (pc_a + 21)%a = Some (pc_a ^+ 21)%a ->
+    (pc_a + 15)%a = Some (pc_a ^+ 15)%a ->
     lea_result wcsp (- ErrorState_size) = Some wct0 ->
 
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
@@ -55,8 +56,8 @@ Section Switcher_Exception_Blocks_4.
     cs1 ↦ᵣ wcs1 ∗
     codefrag_pers pc_a (switcher_instrs_n 25) ∗
     ▷ ( ∀ (wct1' wct2' : LWord) (off : Z),
-          ⌜(error_state_fits wcsp ∧ off = 15%Z) ∨
-           ((¬ error_state_fits wcsp ∨ tag_strippable wcsp) ∧ off = 21%Z)⌝ ∗
+          ⌜(error_state_fits wcsp ∧ off = 9%Z) ∨
+           ((¬ error_state_fits wcsp ∨ tag_strippable wcsp) ∧ off = 15%Z)⌝ ∗
           PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ off)%a ∗
           ct0 ↦ᵣ wct0 ∗
           ct1 ↦ᵣ wct1' ∗
@@ -81,8 +82,8 @@ Section Switcher_Exception_Blocks_4.
       iInstr "Hcode".
       (* Jmp .Lhandle_error_try_stackless *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ 21)%a); solve_addr. }
-      iApply ("Hpost" $! _ _ 21%Z). iFrame "∗ Hcode". iPureIntro. right. split; last done.
+      { transitivity (Some (pc_a ^+ 15)%a); solve_addr. }
+      iApply ("Hpost" $! _ _ 15%Z). iFrame "∗ Hcode". iPureIntro. right. split; last done.
       destruct Hztag as [Htag | [_ Hstrip] ]; last (right; by eapply tag_strippable_lea).
       left. intros [Htag_true _]%Hfits_iff. by rewrite Htag_true in Htag. }
     (* Jne 2 ct1 0 *)
@@ -97,35 +98,17 @@ Section Switcher_Exception_Blocks_4.
     (* Le ct1 ct2 ct1 *)
     iInstr "Hcode".
     destruct (Z.leb_spec (get_b (lw wct0)) (get_a (lw wct0))) as [Hbase | Hnot_base]; cbn.
-    2: { (* Jne 2 ct1 0 *)
-      iInstr "Hcode".
-      (* Jmp .Lhandle_error_try_stackless *)
-      iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ 21)%a); solve_addr. }
-      iApply ("Hpost" $! _ _ 21%Z). iFrame "∗ Hcode". iPureIntro. right.
-      split; last done. left. intros (_ & Hle & _)%Hfits_iff. lia. }
-    (* Jne 2 ct1 0 *)
-    iInstr "Hcode".
-    (* GetA ct1 ct0 *)
-    iInstr "Hcode".
-    (* Add ct1 ct1 ErrorState_size *)
-    iInstr "Hcode".
-    (* GetE ct2 ct0 *)
-    iInstr "Hcode".
-    (* Le ct1 ct1 ct2 *)
-    iInstr "Hcode".
-    destruct (Z.leb_spec (get_a (lw wct0) + 16) (get_e (lw wct0))) as [Hend | Hnot_end]; cbn.
     - (* Jne 2 ct1 0 *)
       iInstr "Hcode".
-      iApply ("Hpost" $! _ _ 15%Z). iFrame "∗ Hcode". iPureIntro. left.
+      iApply ("Hpost" $! _ _ 9%Z). iFrame "∗ Hcode". iPureIntro. left.
       split; last done. by apply Hfits_iff.
     - (* Jne 2 ct1 0 *)
       iInstr "Hcode".
       (* Jmp .Lhandle_error_try_stackless *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ 21)%a); solve_addr. }
-      iApply ("Hpost" $! _ _ 21%Z). iFrame "∗ Hcode". iPureIntro. right.
-      split; last done. left. intros (_ & _ & Hle)%Hfits_iff. rewrite /ErrorState_size in Hle. lia.
+      { transitivity (Some (pc_a ^+ 15)%a); solve_addr. }
+      iApply ("Hpost" $! _ _ 15%Z). iFrame "∗ Hcode". iPureIntro. right.
+      split; last done. left. intros (_ & Hle)%Hfits_iff. lia.
   Qed.
 
   (** The first instructions of blocks 26 and 27: load the cell of the
@@ -304,7 +287,7 @@ Section Switcher_Exception_Blocks_4.
     let a_csp_cell := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
     let a_tbl_cell := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     SubBounds b_switcher e_switcher pc_a (pc_a ^+ length (switcher_instrs_n 27))%a ->
-    (pc_a + (-81))%a = Some (pc_a ^+ (-81))%a ->
+    (pc_a + (-75))%a = Some (pc_a ^+ (-75))%a ->
     (pc_a + 18)%a = Some (pc_a ^+ 18)%a ->
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
@@ -336,7 +319,7 @@ Section Switcher_Exception_Blocks_4.
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (off : Z) (wct0' wct2' wcs1' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ ∗
-          ⌜(ehs = ExportTable_no_handler ∧ off = (-81)%Z ∧ wct0' = wct0) ∨
+          ⌜(ehs = ExportTable_no_handler ∧ off = (-75)%Z ∧ wct0' = wct0) ∨
            (ehs ≠ ExportTable_no_handler ∧ d = 0 ∧ off = 18%Z ∧ wct0' = wfcsp) ∨
            (ehs ≠ ExportTable_no_handler ∧ d ≠ 0 ∧ off = 14%Z ∧ wct0' = wfcsp)⌝ ∗
           PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ off)%a ∗
@@ -385,8 +368,8 @@ Section Switcher_Exception_Blocks_4.
         iInstr "Hcode".
         (* Jmp .Lcommon_force_unwind *)
         iInstr "Hcode".
-        { transitivity (Some (pc_a ^+ (-81))%a); solve_addr. }
-        iApply ("Hpost" $! p g e a (-81)%Z). iFrame. iPureIntro. split; first done. by left. }
+        { transitivity (Some (pc_a ^+ (-75))%a); solve_addr. }
+        iApply ("Hpost" $! p g e a (-75)%Z). iFrame. iPureIntro. split; first done. by left. }
       (* Jne 2 ct2 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }

@@ -479,9 +479,8 @@ Section Switcher.
         lea ct0 ct0 (- ErrorState_size)%Z
       ]
       ; (* Room for the [ErrorState] of a stackful handler: the moved stack
-           pointer [ct0] is tagged, its cursor is not below its base, and
-           the [ErrorState] does not go past its end. [cs1] holds the offset
-           of an absent handler. *)
+           pointer [ct0] is tagged and its cursor is not below its base.
+           [cs1] holds the offset of an absent handler. *)
       [ #".Lhandle_error_stack_oob";
         (* cgettag t1, ct0 *)
         gettag ct1 ct0;
@@ -497,15 +496,6 @@ Section Switcher.
         geta ct1 ct0;
         getb ct2 ct0;
         le ct1 ct2 ct1;
-        jnez 2 ct1;
-        jmp (".Lhandle_error_try_stackless")%asm;
-        (* Not in CHERIoT: the end of the [ErrorState], the cursor before
-           the move, is not past the end of the stack, so that only the
-           first store of the [ErrorState] can fault. *)
-        geta ct1 ct0;
-        add ct1 ct1 ErrorState_size;
-        gete ct2 ct0;
-        le ct1 ct1 ct2;
         jnez 2 ct1;
         jmp (".Lhandle_error_try_stackless")%asm
       ]

@@ -555,20 +555,19 @@ Section wp_interp.
   Qed.
 
   (** The stores of words [ws], safe in the world, through a safe
-      capability with write permission whose range from its cursor covers
-      them: each store opens the cell in the world and closes it with the
-      stored word. The world is the destination at every step. *)
+      capability with write permission, from its cursor: each store below
+      the end opens the cell in the world and closes it with the stored
+      word. The world is the destination at every step. *)
   Lemma world_interp_cells_store_acc (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (ws : list LWord) :
     writeAllowed p = true →
     (b <= a)%a →
-    (a + length ws <= e)%Z →
     interp W C (WCap true p g b e a @@? π) -∗
     ([∗ list] v ∈ ws, interp W C v) -∗
-    cells_store_acc (λ _, world_interp W C) p a π ws.
+    cells_store_acc (λ _, world_interp W C) p e a π ws.
   Proof.
-    iIntros (Hwa Hb He) "#Hinterp_dst #Hws".
-    iIntros "!>" (i Hi) "Hworld_interp".
+    iIntros (Hwa Hb) "#Hinterp_dst #Hws".
+    iIntros "!>" (i Hi Hie) "Hworld_interp".
     set (ea := (a ^+ i)%a).
     assert (b <= ea < e)%a as Hbounds by (subst ea; solve_addr).
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
