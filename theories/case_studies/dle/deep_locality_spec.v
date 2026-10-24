@@ -173,7 +173,7 @@ Section DLE.
     iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W3")
       as "[Hstack_revoked_W3_free _]".
     pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hstack_revoked_W3)
-      as Hstack_revoked_W3_free.
+      as Hstack_revoked_addrs_W3_free.
 
     (* First call to the adversary *)
     iApply (switcher_cc_specification with

@@ -250,7 +250,8 @@ Section HTS_World.
       Hlookup_rev with "Hright Hworld") as "(Hworld & Hright & %Hstatus)".
     cbn in Hstatus; subst s.
     rename Hlookup_rev into Hlive_rev.
-    assert (LHeap b ι ∉ LNonHeap <$> callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a)
+    assert (LHeap b ι ∉
+              LNonHeap <$> callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a)
       as Hb_not_callstk.
     { intros (a & Heq & _)%list_elem_of_fmap. discriminate. }
     assert (std (std_update_multiple (hts_Wshare W_init_C ι b)

@@ -286,11 +286,11 @@ Section Switcher.
            reserved space. *)
         lshiftr cs1 cs0 8;
         land cs1 cs1 255;
-        (* addi tp, tp, STACK_ENTRY_RESERVED_SPACE *)
-        add cs1 cs1 StackEntry_reserved_space;
         gete cgp csp;
         getb cra csp;
         sub cgp cgp cra;
+        (* addi tp, tp, STACK_ENTRY_RESERVED_SPACE *)
+        add cs1 cs1 StackEntry_reserved_space;
         lt cra cgp cs1;
         #".Lswitch_stack_too_small_branch";
         jnez (".Lswitch_stack_too_small")%asm cra;
@@ -408,8 +408,9 @@ Section Switcher.
         halt
       ]
       ; (* The callee's stack is smaller than the minimum stack size of the
-           entry point: the frame is already pushed, so the return routine
-           pops it and returns to the caller. *)
+           entry point plus the space reserved at its top: the frame is
+           already pushed, so the return routine pops it and returns to the
+           caller. *)
       [ #".Lswitch_stack_too_small";
         mov ca0 ENOTENOUGHSTACK;
         mov ca1 0;

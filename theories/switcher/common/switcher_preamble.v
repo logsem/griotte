@@ -601,11 +601,12 @@ Section Switcher_Stack_Traps.
     (0 <= n)%Z → stk_callee_fits b e a n → stk_spill_ok a.
   Proof. stk_unfold; intros Hn Hfits. solve_addr. Qed.
 
-  (** A callee that fits has its [n] words in its stack. *)
+  (** A callee that fits has its [n] words, plus the reserved space, in its
+      stack. *)
   Lemma stk_callee_fits_callee (b e a : Addr) n :
     stk_spill_ok a →
     stk_callee_fits b e a n →
-    (n <= stk_callee_e e a - stk_callee_b b a)%Z.
+    (n + StackEntry_reserved_space <= stk_callee_e e a - stk_callee_b b a)%Z.
   Proof. stk_unfold; intros Ha Hn. solve_addr. Qed.
 
   (** The faults whose context the exception path of the switcher does not

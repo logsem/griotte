@@ -25,6 +25,22 @@ Section VAE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
+  (** Quarantined addresses are heap addresses: they are disjoint from any
+      part of the stack. *)
+  #[local] Lemma vae_quarantined_disjoint_nonheap
+      (W : WORLD) (l : list LAddr) (stk : list Addr) :
+    Forall
+      (fun a => heap_key_status (heap_std W) a = Some AllocObjectQuarantined)
+      l ->
+    l ## (LNonHeap <$> stk).
+  Proof.
+    intros Hq.
+    rewrite elem_of_disjoint. intros a Ha Hstk_a.
+    apply list_elem_of_fmap in Hstk_a as [a' [-> _] ].
+    rewrite Forall_forall in Hq.
+    specialize (Hq _ Ha). discriminate.
+  Qed.
+
   Lemma vae_awkward_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -198,16 +214,13 @@ Section VAE.
     iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W0")
       as "[Hstack_revoked_W0_free _]".
     pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hstack_revoked_W0)
-      as Hstack_revoked_W0_free.
+      as Hstack_revoked_addrs_W0_free.
 
     (* Prepare the first call to [g] *)
     iDestruct (vae_world_stack W0 W2q C with "Hstack_revoked_W0_free")
       as "[Hstack_revoked_W2q %Hstack_revoked_W2q]"; first done.
-    { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_W0_free.
-      rewrite elem_of_disjoint. intros k Hk Hk_stk.
-      apply list_elem_of_fmap in Hk_stk as [a' [-> _] ].
-      rewrite Forall_forall in Hl0_quarantined.
-      specialize (Hl0_quarantined _ Hk). discriminate. }
+    { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_addrs_W0_free.
+      by eapply vae_quarantined_disjoint_nonheap. }
     iDestruct (vae_world_callback W0 W2q C wca0 with "[]") as "#Hinterp_W2q_wca0";
       [done|done|by case_match|].
     iDestruct (vae_call_args W2q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
@@ -295,10 +308,7 @@ Section VAE.
     iDestruct (vae_world_stack W3 W5q C with "Hstack_revoked_W3")
       as "[Hstack_revoked_W5q %Hstack_revoked_W5q]"; first done.
     { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_W3.
-      rewrite elem_of_disjoint. intros k Hk Hk_stk.
-      apply list_elem_of_fmap in Hk_stk as [a' [-> _] ].
-      rewrite Forall_forall in Hl1_quarantined.
-      specialize (Hl1_quarantined _ Hk). discriminate. }
+      by eapply vae_quarantined_disjoint_nonheap. }
     iDestruct (vae_world_callback_restored W2q W3 W5q C wca0 callback1 with "Hinterp_W2q_wca0")
       as "#Hinterp_W5q_wca0"; [done..|].
     iDestruct (vae_call_args W5q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
@@ -349,7 +359,8 @@ Section VAE.
     (* The flag is still [true], and the world can be repaired *)
     pose proof (vae_world_pub_call W5q W6 csp_b csp_e Hstack_revoked_W5q Hcsp_bounds Hpub_ext_W6)
       as Hpub_W5q_W6.
-    (* The space reserved at the top of the stack is still revoked *)
+    (* The space reserved at the top of the stack is still revoked in
+       [W7 = revoke W6], the world of the return *)
     assert (related_sts_priv_world W0 (revoke W6)) as Hpriv_W0_W7.
     { eapply related_sts_priv_trans_world; last apply revoke_related_sts_priv_world.
       eapply related_sts_priv_pub_trans_world; last exact Hpub_W5q_W6.

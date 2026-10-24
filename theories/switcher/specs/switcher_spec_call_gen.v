@@ -655,8 +655,8 @@ Section Switcher.
   Qed.
 
   (** The callee's stack is smaller than the minimum stack size of the
-      entry: the frame is pushed, and the switcher returns to the caller's
-      continuation. *)
+      entry plus the reserved space: the frame is pushed, and the switcher
+      returns to the caller's continuation. *)
   #[local] Lemma switcher_cc_stack_too_small
     (W : WORLD) (C : CmptName)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
@@ -696,7 +696,8 @@ Section Switcher.
     a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
     a_error_count ↦ₐ WInt 0 -∗
     [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-    ( ⌜ (stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
+    ( ⌜ (stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk
+         < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
       PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
       cs0 ↦ᵣ - ∗
       cs1 ↦ᵣ - ∗

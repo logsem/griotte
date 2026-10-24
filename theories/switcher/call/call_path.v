@@ -233,8 +233,9 @@ Section Call_Path.
       check the size of the callee's stack, load the callee, clear the
       registers that the callee does not use, enable interrupts if its
       posture asks for it, and jump to the callee. When the callee's stack
-      is smaller than the minimum stack size of the entry, the PC is at
-      [.Lswitch_stack_too_small] instead. *)
+      is smaller than the minimum stack size of the entry plus the space
+      reserved at its top, the PC is at [.Lswitch_stack_too_small]
+      instead. *)
   Lemma switcher_decode_entry_path_spec
     (W : WORLD) (C : CmptName)
     (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)

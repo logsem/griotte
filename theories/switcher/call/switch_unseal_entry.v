@@ -12,9 +12,9 @@ From griotte Require Import call_stack switcher_preamble wp_rules_interp.
     minimum stack size plus the space reserved at its top
     ([StackEntry_reserved_space]): otherwise,
     [.Lswitch_stack_too_small_branch] jumps to [.Lswitch_stack_too_small].
-    On success, it moves the cursor of the stack below the reserved space. [.Lswitcher_prepare_callee] loads the
-    PCC and the CGP of the callee, and falls through to
-    [.Lswitcher_clear_unused_args]. *)
+    On success, it moves the cursor of the stack below the reserved space.
+    [.Lswitcher_prepare_callee] loads the PCC and the CGP of the callee, and
+    falls through to [.Lswitcher_clear_unused_args]. *)
 
 Section Switch_Unseal_Entry.
   Context
@@ -205,21 +205,23 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     (* LAnd cs1 cs1 255 *)
     iInstr "Hcode".
-    (* Add cs1 cs1 StackEntry_reserved_space *)
-    iInstr "Hcode".
     (* GetE cgp csp *)
     iInstr "Hcode".
     (* GetB cra csp *)
     iInstr "Hcode".
     (* Sub cgp cgp cra *)
     iInstr "Hcode".
+    (* Add cs1 cs1 StackEntry_reserved_space *)
+    iInstr "Hcode".
     (* Lt cra cgp cs1 *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_posture.
     rewrite encode_entry_point_eq_minstk; last lia.
     rewrite encode_entry_point_eq_nargs; last lia.
-    (* The instruction tactics unfold [StackEntry_reserved_space] to [2]. *)
-    destruct (e_stk - b_stk <? Z.of_nat minstk + 2)%Z eqn:Hsmall; iEval (cbn) in "Hcra".
+    (* The instruction tactics unfold [StackEntry_reserved_space] to [2]: fold it back. *)
+    iEval (change 2%Z with StackEntry_reserved_space) in "Hcs1 Hcra".
+    destruct (e_stk - b_stk <? Z.of_nat minstk + StackEntry_reserved_space)%Z eqn:Hsmall;
+      iEval (cbn) in "Hcra".
     { apply Z.ltb_lt in Hsmall.
       (* Jne .Lswitch_stack_too_small cra 0 *)
       iInstr "Hcode".
@@ -233,8 +235,8 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     (* Lea csp csp (- StackEntry_reserved_space) *)
     iInstr "Hcode".
-    { instantiate (1 := (a_stk ^+ (- StackEntry_reserved_space))%a).
-      subst a_stk; rewrite /StackEntry_reserved_space; solve_addr. }
+    { transitivity (Some (a_stk ^+ (- StackEntry_reserved_space))%a); last reflexivity.
+      clear -Ha_stk Hsmall; subst a_stk; unfold StackEntry_reserved_space in *; solve_addr. }
     (* LShiftR cs0 cs0 16 *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_off.

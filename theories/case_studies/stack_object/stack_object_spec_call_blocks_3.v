@@ -158,7 +158,8 @@ Section SO_Call_Blocks_3.
     assert ((a_call ^+ 3)%a = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
       by (offsets_compute; solve_addr).
     iApply ("Hpost" $! mie a_stk1 a_stk2 stk_mem' [w_res2; w_res1]); iFrame "∗ Hcode_main".
-    iPureIntro; repeat split; unfold StackEntry_reserved_space; solve_addr+Hstk_size Hstart Hastk1 Hastk2.
+    iPureIntro; repeat split; unfold StackEntry_reserved_space;
+      solve_addr+Hstk_size Hstart Hastk1 Hastk2.
   Qed.
 
 End SO_Call_Blocks_3.

@@ -413,7 +413,8 @@ Section translation.
 
   (** The trusted stack has room for the entry frame and [ft_tstack_frames]
       frames, [tstack_frame_offset] giving the offset of a frame. The stack
-      holds at least the minimum stack size of the entry. *)
+      holds at least the minimum stack size of the entry plus the space
+      reserved at its top ([StackEntry_reserved_space]). *)
   Definition thread_wf (i : nat) (ft : fw_thread) : Prop :=
     let t := thread_of img i in
     section ("thread " ++ nat_str i ++ ", layout")

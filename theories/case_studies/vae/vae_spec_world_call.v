@@ -210,8 +210,8 @@ Section VAE_World_Call.
     apply Hrevoked.
     rewrite /callee_stk_region elem_of_finz_seq_between in Ha.
     rewrite /stk_free elem_of_finz_seq_between.
-    stk_unfold. destruct Hbounds as (_ & _ & _ & Hbounds).
-    generalize dependent (e ^+ (- 2))%a; intros; solve_addr.
+    set (a_start := stk_start_a b e) in *; clearbody a_start.
+    stk_unfold. destruct Hbounds as (_ & _ & _ & Hbounds). solve_addr.
   Qed.
 
   (** The argument registers of [awkward] other than the callback [g] are
