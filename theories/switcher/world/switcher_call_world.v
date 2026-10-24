@@ -3,7 +3,7 @@ From griotte Require Import logrel monotone interp_weakening memory_region rules
 From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Import world_ghost_theory world_interp_stack stack_world_resources.
 From griotte Require Import map_simpl register_tactics.
-From griotte Require Import switcher_call_states switcher_sealing_lemmas.
+From griotte Require Import switcher_call_states.
 
 (** * Logical steps of the call routine of the switcher
 

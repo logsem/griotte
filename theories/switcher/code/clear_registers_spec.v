@@ -207,5 +207,206 @@ Section ClearRegistersMacro.
     iFrame "∗ #".
   Qed.
 
+  (** [rclear_spec] with a possibly empty list, and a continuation without
+      later: with no register to clear, no instruction executes. *)
+  Lemma rclear_spec_any
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
+    (l : list RegName)
+    (rmap : LReg) φ :
+    executeAllowed pc_p = true ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l ))%a ->
+    dom rmap = list_to_set l  ->
+    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      ∗ codefrag_pers pc_a (rclear_instrs' l)
+      ∗ ( (∃ (rmap' : LReg),
+              ⌜ dom rmap' = list_to_set l ⌝
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ codefrag_pers pc_a (rclear_instrs' l))
+               -∗ WP Seq (Instr Executable) {{ φ }})
+    )
+    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+  Proof.
+    iIntros (Hexec Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
+    destruct (decide (l = [])) as [-> | Hne]; last first.
+    { iApply rclear_spec; eauto. iFrame "∗ #". }
+    apply dom_empty_inv_L in Hdom as ->.
+    rewrite /= (_ : (pc_a ^+ 0)%a = pc_a); last solve_addr.
+    iApply "Hcont". iExists ∅.
+    rewrite dom_empty_L !big_sepM_empty.
+    by iFrame "∗ #".
+  Qed.
+
+  (** Splitting a register map along a set of registers to keep. *)
+  Lemma big_sepM_regs_filter_split (rmap : LReg) (keep : gset RegName) :
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ⊣⊢
+    ([∗ map] r↦w ∈ filter (λ kv, kv.1 ∈ keep) rmap, r ↦ᵣ w) ∗
+    ([∗ map] r↦w ∈ filter (λ kv, kv.1 ∉ keep) rmap, r ↦ᵣ w).
+  Proof.
+    rewrite -big_sepM_union; last apply map_disjoint_filter_complement.
+    by rewrite map_filter_union_complement.
+  Qed.
+
+  (** The argument-clearing macro: [jmp ct2] skips the clearing of the first
+      [nargs - 1] argument registers, and the rest of the macro clears the
+      others, the suffix [drop (nargs - 1) registers_pre_call_skip]. *)
+  Lemma clear_registers_pre_call_skip_instrs_eq :
+    clear_registers_pre_call_skip_instrs =
+      encodeInstrW (Jmp ct2) :: rclear_instrs' registers_pre_call_skip.
+  Proof. reflexivity. Qed.
+
+  Lemma length_clear_registers_pre_call_skip_instrs :
+    length clear_registers_pre_call_skip_instrs = 8.
+  Proof. reflexivity. Qed.
+
+  Lemma length_registers_pre_call_skip : length registers_pre_call_skip = 7.
+  Proof. reflexivity. Qed.
+
+  Lemma NoDup_registers_pre_call_skip : NoDup registers_pre_call_skip.
+  Proof. rewrite /registers_pre_call_skip. repeat constructor; set_solver. Qed.
+
+  Lemma dom_arg_rmap_take (n : nat) :
+    dom_arg_rmap n = list_to_set (take n registers_pre_call_skip).
+  Proof. reflexivity. Qed.
+
+  Lemma dom_arg_rmap_subseteq (n : nat) : dom_arg_rmap n ⊆ dom_arg_rmap 8.
+  Proof.
+    rewrite !dom_arg_rmap_take (take_ge registers_pre_call_skip 8);
+      last (rewrite length_registers_pre_call_skip; lia).
+    rewrite -{2}(take_drop n registers_pre_call_skip) list_to_set_app_L.
+    set_solver.
+  Qed.
+
+  Lemma list_to_set_drop_registers_pre_call_skip (n : nat) :
+    (list_to_set (drop n registers_pre_call_skip) : gset RegName)
+    = dom_arg_rmap 8 ∖ dom_arg_rmap n.
+  Proof.
+    pose proof NoDup_registers_pre_call_skip as Hnodup.
+    rewrite !dom_arg_rmap_take (take_ge registers_pre_call_skip 8);
+      last (rewrite length_registers_pre_call_skip; lia).
+    rewrite -{1 3}(take_drop n registers_pre_call_skip) in Hnodup |- *.
+    apply NoDup_app in Hnodup as (_ & Hdisj & _).
+    rewrite list_to_set_app_L.
+    set_solver.
+  Qed.
+
+  Lemma clear_registers_pre_call_skip_codefrag_drop (pc_a : Addr) (k : nat) :
+    k <= 7 ->
+    codefrag_pers pc_a clear_registers_pre_call_skip_instrs -∗
+    codefrag_pers (pc_a ^+ S k)%a (rclear_instrs' (drop k registers_pre_call_skip)).
+  Proof.
+    iIntros (Hk) "Hcode".
+    rewrite clear_registers_pre_call_skip_instrs_eq -{1}(take_drop k registers_pre_call_skip).
+    rewrite /rclear_instrs' fmap_app app_comm_cons.
+    iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode]".
+    rewrite length_cons length_fmap length_take_le; last by rewrite length_registers_pre_call_skip.
+    iExact "Hcode".
+  Qed.
+
+  (** The kept argument registers and the cleared ones form an argument map. *)
+  Lemma clear_registers_pre_call_skip_recombine
+    (arg_rmap rmap' : LReg) (keep : nat) :
+    is_arg_rmap arg_rmap 8 ->
+    dom rmap' = dom_arg_rmap 8 ∖ dom_arg_rmap keep ->
+    ([∗ map] r↦w ∈ filter (λ kv, kv.1 ∈ dom_arg_rmap keep) arg_rmap, r ↦ᵣ w) -∗
+    ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝) -∗
+    ∃ arg_rmap',
+      ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
+      [∗ map] rarg↦warg ∈ arg_rmap',
+        rarg ↦ᵣ warg
+        ∗ if decide (rarg ∈ dom_arg_rmap keep)
+          then ⌜ arg_rmap !! rarg = Some warg ⌝
+          else ⌜ warg = WInt 0 ⌝.
+  Proof.
+    iIntros (Hargmap Hdom') "Hkept Hcleared".
+    set (kept := filter (λ kv, kv.1 ∈ dom_arg_rmap keep) arg_rmap).
+    pose proof (dom_arg_rmap_subseteq keep) as Hsub.
+    assert (dom kept = dom_arg_rmap keep) as Hdom_kept.
+    { apply dom_filter_L. intros r.
+      split; [intros Hr | intros (w & _ & Hr); exact Hr].
+      assert (r ∈ dom arg_rmap) as [w Hw]%elem_of_dom by (rewrite Hargmap; set_solver).
+      eauto. }
+    assert (kept ##ₘ rmap') as Hdisj.
+    { apply map_disjoint_dom. rewrite Hdom_kept Hdom'. set_solver. }
+    iExists (kept ∪ rmap').
+    iSplit.
+    { iPureIntro. rewrite /is_arg_rmap dom_union_L Hdom_kept Hdom'.
+      symmetry; by apply union_difference_L. }
+    rewrite big_sepM_union //.
+    iSplitL "Hkept".
+    - iApply (big_sepM_impl with "Hkept").
+      iIntros "!>" (r w Hr) "Hr".
+      apply map_lookup_filter_Some in Hr as [Hr Hin].
+      rewrite decide_True //. by iFrame.
+    - iApply (big_sepM_impl with "Hcleared").
+      iIntros "!>" (r w Hr) "[Hr %Hw]".
+      assert (r ∉ dom_arg_rmap keep) as Hnin.
+      { apply elem_of_dom_2 in Hr. rewrite Hdom' in Hr. set_solver. }
+      rewrite decide_False //. by iFrame.
+  Qed.
+
+  Lemma clear_registers_pre_call_skip_spec_known
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
+    (arg_rmap : LReg) (nargs : nat)
+    φ :
+    executeAllowed pc_p = true ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->
+
+    is_arg_rmap arg_rmap 8 ->
+    (1 <= nargs <= 8)%nat ->
+
+    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
+      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg )
+      ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
+      ∗ ▷ ( (∃ arg_rmap',
+              ⌜ is_arg_rmap arg_rmap' 8 ⌝
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
+              ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
+              ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
+                     rarg ↦ᵣ warg
+                     ∗ if decide (rarg ∈ dom_arg_rmap (nargs-1))
+                       then ⌜ arg_rmap !! rarg = Some warg ⌝
+                       else ⌜ warg = WInt 0 ⌝
+                )
+              ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs)
+               -∗ WP Seq (Instr Executable) {{ φ }})
+    )
+    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+  Proof.
+    iIntros (Hexec Hbounds Hargmap Hnargs) "(HPC & Hct2 & Hargs & #Hcode & Hcont)".
+    iDestruct (codefrag_contiguous_region_pers with "Hcode") as %Hcontig.
+    rewrite length_clear_registers_pre_call_skip_instrs in Hbounds Hcontig |- *.
+    (* Jmp ct2. *)
+    iInstr "Hcode".
+    { transitivity (Some (pc_a ^+ nargs)%a); auto; solve_addr. }
+    iDestruct (clear_registers_pre_call_skip_codefrag_drop pc_a (nargs - 1) with "Hcode")
+      as "Hcode_drop"; first lia.
+    rewrite (_ : S (nargs - 1) = nargs); last lia.
+    iDestruct (big_sepM_regs_filter_split _ (dom_arg_rmap (nargs - 1)) with "Hargs")
+      as "[Hkept Hcleared]".
+    iApply (rclear_spec_any _ _ _ _ _ (drop (nargs - 1) registers_pre_call_skip)
+             with "[- $HPC $Hcleared $Hcode_drop]"); auto.
+    { rewrite /rclear_instrs' length_fmap length_drop length_registers_pre_call_skip.
+      solve_addr. }
+    { rewrite list_to_set_drop_registers_pre_call_skip -Hargmap.
+      apply dom_filter_L. intros r.
+      rewrite elem_of_difference elem_of_dom. split.
+      - intros [ [w Hw] Hnin]. by exists w.
+      - intros (w & Hw & Hnin). split; [by exists w | done]. }
+    iIntros "(%rmap' & %Hdom' & HPC & Hcleared & _)".
+    rewrite list_to_set_drop_registers_pre_call_skip in Hdom'.
+    iDestruct (clear_registers_pre_call_skip_recombine with "Hkept Hcleared")
+      as (arg_rmap') "[%Hargmap' Hargs]"; [done | done |].
+    iApply "Hcont".
+    iExists arg_rmap'.
+    rewrite (_ : ((pc_a ^+ nargs)
+                  ^+ length (rclear_instrs' (drop (nargs - 1) registers_pre_call_skip)))%a
+                 = (pc_a ^+ 8%nat)%a).
+    2: { rewrite /rclear_instrs' length_fmap length_drop length_registers_pre_call_skip.
+         solve_addr. }
+    by iFrame "∗ #".
+  Qed.
 
 End ClearRegistersMacro.

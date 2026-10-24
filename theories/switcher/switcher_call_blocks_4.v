@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import map_simpl register_tactics.
-From griotte Require Import switcher_call_states switcher_macros_spec clear_registers_skip_spec.
+From griotte Require Import switcher_call_states switcher_macros_spec clear_registers_spec.
 
 (** * Call routine, blocks 7-12: load the callee and jump to it
 
