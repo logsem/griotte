@@ -43,7 +43,7 @@ Section Switch_Stack_Chop.
         cs0 ↦ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
         (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
         (∃ wct2', ct2 ↦ᵣ wct2') ∗
-        csp ↦ᵣ callee_csp b e a ∗
+        csp ↦ᵣ chopped_csp b e a ∗
         [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
           [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
@@ -51,7 +51,7 @@ Section Switch_Stack_Chop.
   Proof.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
       "(HPC & Hcs0 & Hcs1 & Hct2 & Hcsp & Hstk & #Hb_switcher & #Hswitcher & Hpost)".
-    rewrite /callee_csp.
+    rewrite /chopped_csp.
     stk_unfold.
     iAssert switcher_code as "Hswitcher_zero"; first iFrame "Hswitcher".
     iAssert switcher_code as "Hswitcher_key"; first iFrame "Hswitcher".

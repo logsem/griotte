@@ -593,7 +593,7 @@ Section Switcher.
       (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
       (∃ wct2', ct2 ↦ᵣ wct2') ∗
       ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
-      csp ↦ᵣ callee_csp b_stk e_stk a_stk ∗
+      csp ↦ᵣ chopped_csp b_stk e_stk a_stk ∗
       cra ↦ᵣ wcra_caller ∗
       cgp ↦ᵣ wcgp_caller ∗
       ct1 ↦ᵣ - ∗
@@ -696,7 +696,7 @@ Section Switcher.
     a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
     a_error_count ↦ₐ WInt 0 -∗
     [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-    ( ⌜ (stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk < Z.of_nat minstk)%Z ⌝ ∗
+    ( ⌜ (stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
       PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
       cs0 ↦ᵣ - ∗
       cs1 ↦ᵣ - ∗
@@ -971,7 +971,7 @@ Section Switcher.
     iApply (switcher_decode_entry_path_spec W C with
       "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
           $Hargs $Hregs $Hcode]");
-      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done| |].
+      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done|done| |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { clear -Ha_next; tstack_unfold; solve_addr. }

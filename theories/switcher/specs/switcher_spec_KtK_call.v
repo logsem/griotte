@@ -372,7 +372,7 @@ Section Switcher_KtK_Call.
     iApply (switcher_decode_entry_path_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
         $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hargs $Hregs $Hcode]");
-      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done| |].
+      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done|done| |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }

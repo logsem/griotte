@@ -118,8 +118,9 @@ Definition stk_callee_e (e a : Addr) : Addr := (a ^+ (- SpillSlot_size))%a.
 (** The bounds of the free part of the caller's stack. *)
 Definition stk_free_b (b a : Addr) : Addr := b.
 Definition stk_free_e (e a : Addr) : Addr := a.
-(** Where the cursor of a fresh stack [[b, e)] starts. *)
-Definition stk_start_a (b e : Addr) : Addr := e.
+(** Where the cursor of a fresh stack [[b, e)] starts: below the
+    [StackEntry_reserved_space] words reserved at its top. *)
+Definition stk_start_a (b e : Addr) : Addr := (e ^+ (- StackEntry_reserved_space))%a.
 (** The spill area does not wrap around the address space. *)
 Definition stk_spill_ok (a : Addr) : Prop :=
   (a + (- SpillSlot_size))%a = Some (a ^+ (- SpillSlot_size))%a.
@@ -129,10 +130,10 @@ Definition stk_spill_ok (a : Addr) : Prop :=
 Definition stk_cursor_ok (b e a : Addr) : Prop := (a <= e)%a.
 (** The spill fits in the stack: its first store does not fault. *)
 Definition stk_spill_fits (b e a : Addr) : Prop := (b + SpillSlot_size <= a)%Z.
-(** A callee that needs [n] words fits in the stack, once the spill is
-    done. *)
+(** A callee that needs [n] words, plus the space reserved at the top of
+    its stack, fits in the stack, once the spill is done. *)
 Definition stk_callee_fits (b e a : Addr) (n : Z) : Prop :=
-  (b + n + SpillSlot_size <= a)%Z.
+  (b + n + StackEntry_reserved_space + SpillSlot_size <= a)%Z.
 
 (** The cursor of the caller at the call, read from the stack pointer that
     a frame saves. *)
@@ -155,9 +156,15 @@ Proof.
   intros Ha ->. solve_addr.
 Qed.
 
+(** The stack pointer of the call path once the stack is restricted to the
+    callee's, with its cursor at the top, before the switcher reserves the
+    space at the top of the callee's stack. *)
+Definition chopped_csp (b e a : Addr) : Word :=
+  WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a) (stk_callee_e e a).
 (** The stack pointer that the switcher gives to the callee. *)
 Definition callee_csp (b e a : Addr) : Word :=
-  WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a) (stk_saved_a a).
+  WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a)
+    (stk_start_a (stk_callee_b b a) (stk_callee_e e a)).
 (** The callee's stack pointer is that of a fresh stack on the callee's
     bounds. *)
 Lemma callee_csp_start b e a :
@@ -186,11 +193,12 @@ Definition callee_stk_bounds (b e a : Addr) : Prop :=
 
 (** Unfold the stack layout and the spill slots, for [solve_addr]. *)
 Ltac stk_unfold :=
-  unfold callee_csp, callee_stk_region, stk_free, stk_mem_spill, stk_mem_callee,
+  unfold chopped_csp, callee_csp, callee_stk_region, stk_free, stk_mem_spill, stk_mem_callee,
     stk_mem_join, callee_stk_bounds, stk_spill_a, stk_saved_a, stk_callee_b,
     stk_callee_e, stk_free_b, stk_free_e, stk_start_a, stk_spill_ok, stk_cursor_ok,
     stk_spill_fits, stk_callee_fits,
-    SpillSlot_size, SpillSlot_cs0, SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc in *;
+    SpillSlot_size, SpillSlot_cs0, SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc,
+    StackEntry_reserved_space in *;
   try change (Z.to_nat 4) with 4%nat in *.
 
 (** A call-frame [cframe]: the frame [cf_tframe] of the trusted stack, the

@@ -87,7 +87,7 @@ Section Call_Path.
           (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
           (∃ wct2', ct2 ↦ᵣ wct2') ∗
           ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
-          csp ↦ᵣ callee_csp b e a ∗
+          csp ↦ᵣ chopped_csp b e a ∗
           cra ↦ᵣ wcra ∗
           cgp ↦ᵣ wcgp ∗
           ct1 ↦ᵣ WSealable wsb @@? π ∗
@@ -112,7 +112,7 @@ Section Call_Path.
           (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
           (∃ wct2', ct2 ↦ᵣ wct2') ∗
           ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
-          csp ↦ᵣ callee_csp b e a ∗
+          csp ↦ᵣ chopped_csp b e a ∗
           cra ↦ᵣ wcra ∗
           cgp ↦ᵣ wcgp ∗
           ct1 ↦ᵣ - ∗
@@ -256,6 +256,7 @@ Section Call_Path.
     is_heap_cap wcgp_tgt = false ->
     (b_trusted_stack <= a_frame)%a ->
     (a_export_table < e_trusted_stack)%a ->
+    a_stk = e_stk ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
@@ -277,20 +278,20 @@ Section Call_Path.
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
     ▷ ( ( ∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
-          ⌜ (Z.of_nat minstk <= e_stk - b_stk)%Z ⌝ ∗
+          ⌜ (Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z ⌝ ∗
           ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
           ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
           PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
           cgp ↦ᵣ wcgp_tgt ∗
           cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-          csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+          csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space))%a ∗
           a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
           ( [∗ map] r↦w ∈ arg_rmap',
               r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
           ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
         ∧
-        ( ⌜ (e_stk - b_stk < Z.of_nat minstk)%Z ⌝ ∗
+        ( ⌜ (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
           PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
           cs0 ↦ᵣ - ∗
           cs1 ↦ᵣ - ∗
@@ -309,7 +310,7 @@ Section Call_Path.
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow
-               Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Hargs Hdom)
+               Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Ha_stk Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
       & Ha_export_table & Hcgp & Hcra & Hcsp & Hargs & Hregs & #Hswitcher & Hpost)".
     iApply (switcher_decode_entry_spec with
@@ -358,6 +359,7 @@ Section Call_Path.
     is_heap_cap wcgp_tgt = false ->
     (b_trusted_stack <= a_frame)%a ->
     (a_export_table < e_trusted_stack)%a ->
+    a_stk = e_stk ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
@@ -378,13 +380,13 @@ Section Call_Path.
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     switcher_code ∗
     ▷ ( ( ∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
-          ⌜ (Z.of_nat minstk <= e_stk - b_stk)%Z ⌝ ∗
+          ⌜ (Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z ⌝ ∗
           ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
           ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
           PC ↦ₚ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
           cgp ↦ᵣ wcgp_tgt ∗
           cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-          csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+          csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space))%a ∗
           a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
           ( [∗ map] r↦w ∈ arg_rmap',
               r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs)
@@ -393,7 +395,7 @@ Section Call_Path.
           ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
         ∧
-        ( ⌜ (e_stk - b_stk < Z.of_nat minstk)%Z ⌝ ∗
+        ( ⌜ (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
           PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
           cs0 ↦ᵣ - ∗
           cs1 ↦ᵣ - ∗
@@ -411,7 +413,7 @@ Section Call_Path.
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow
-               Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Hargs Hdom)
+               Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Ha_stk Hargs Hdom)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
       & Ha_export_table & Hcgp & Hcra & Hcsp & Hargs & Hregs & #Hswitcher & Hpost)".
     iApply (switcher_decode_entry_spec with

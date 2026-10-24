@@ -95,7 +95,8 @@ Section Switcher_KtK.
     let fault_cont :=
       ktk_fault_cont E frame cstk (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) in
     (∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
-       ⌜ (Z.of_nat minstk <= stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk)%Z ⌝
+       ⌜ (Z.of_nat minstk + StackEntry_reserved_space <=
+            stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk)%Z ⌝
        ∗ ⌜ is_arg_rmap arg_rmap' 8 ⌝
        ∗ ⌜ dom rmap' =
              all_registers_s ∖
@@ -307,8 +308,7 @@ Section Switcher_KtK.
     - iApply ("Hf" $! mie arg_rmap' rmap').
       iFrame "Hna HPC Hcgp Hcra Hcsp Hargs Hregs Hstk Hcstk HP".
       iSplit.
-      { iPureIntro. apply stk_callee_fits_callee; last exact Hminstk.
-        apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia | exact Hminstk]. }
+      { iPureIntro. clear -Hminstk. stk_unfold. solve_addr. }
       iSplit; first done.
       iSplit; first (iPureIntro; rewrite Hrmap' Hdom; set_solver).
       iApply (if_and_sep_intro with "[]").

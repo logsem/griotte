@@ -577,16 +577,19 @@ Section Switcher_Stack_Traps.
   (** A fresh stack: its free part is the whole stack. *)
   Lemma stk_start_free_b (b e : Addr) : stk_free_b b (stk_start_a b e) = b.
   Proof. done. Qed.
-  Lemma stk_start_free_e (b e : Addr) : stk_free_e e (stk_start_a b e) = e.
+  Lemma stk_start_free_e (b e : Addr) : stk_free_e e (stk_start_a b e) = stk_start_a b e.
   Proof. done. Qed.
-  Lemma stk_start_cursor_ok (b e : Addr) : (b <= e)%a → stk_cursor_ok b e (stk_start_a b e).
+  Lemma stk_start_cursor_ok (b e : Addr) :
+    (b + StackEntry_reserved_space <= e)%Z → stk_cursor_ok b e (stk_start_a b e).
   Proof. stk_unfold; solve_addr. Qed.
   Lemma stk_start_callee_fits (b e : Addr) n :
-    (b + SpillSlot_size + n <= e)%Z → stk_callee_fits b e (stk_start_a b e) n.
-  Proof. stk_unfold; lia. Qed.
+    (b + SpillSlot_size + n + 2 * StackEntry_reserved_space <= e)%Z →
+    stk_callee_fits b e (stk_start_a b e) n.
+  Proof. stk_unfold; solve_addr. Qed.
   Lemma stk_start_spill_fits (b e : Addr) :
-    (b + SpillSlot_size <= e)%Z → stk_spill_fits b e (stk_start_a b e).
-  Proof. stk_unfold; lia. Qed.
+    (b + SpillSlot_size + StackEntry_reserved_space <= e)%Z →
+    stk_spill_fits b e (stk_start_a b e).
+  Proof. stk_unfold; solve_addr. Qed.
 
   (** A callee that fits leaves room for the spill. *)
   Lemma stk_callee_fits_spill_fits (b e a : Addr) n :

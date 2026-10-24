@@ -25,3 +25,8 @@ Definition SpillSlot_cgp : Z := 2%Z.
 Definition SpillSlot_pcc : Z := 3%Z.
 (** The size of the spill area (in words). *)
 Definition SpillSlot_size : Z := 4%Z.
+
+(** CHERIoT's [STACK_ENTRY_RESERVED_SPACE]: the space reserved at the top of
+    a compartment's stack on entry, two capability-sized slots, which the
+    callee may use as invocation-local storage (in words). *)
+Definition StackEntry_reserved_space : Z := 2%Z.
