@@ -6,7 +6,7 @@ From griotte Require Import fundamental.
 From griotte Require Import switcher_preamble.
 From griotte Require Import switcher_return_states.
 From griotte.switcher.callback Require Import callback_path.
-From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Import map_simpl register_tactics proofmode switcher_registers.
 From griotte Require Export world_ghost_theory world_interp_stack switcher_helpers.
 
 Section fundamental.
@@ -120,25 +120,22 @@ Section fundamental.
     (* Outline of the proof:
        - open the switcher invariant;
        - when the frame to pop is the entry frame, the thread exits:
-         [switcher_after_compartment_call_exit_path_spec];
-       - [switcher_after_compartment_call_spec]: pop the trusted stack;
-       - [open_world_interp_cframe], [open_world_interp_callee_stack]: obtain
-         the caller's stack frame;
-       - [switcher_restore_spill_path_world_spec]: restore the callee-save registers,
-         clear the stack frame and the registers, and jump to the caller;
-       - close the switcher invariant;
+         [switcher_return_exit_path_spec], [switcher_return_exit_close];
+       - otherwise, [switcher_return_path_world_spec]: pop the trusted
+         stack; obtain the caller's stack frame ([open_world_interp_cframe],
+         [open_world_interp_callee_stack]); restore the callee-save
+         registers, clear the stack frame and the registers, and jump to the
+         caller;
+       - close the switcher invariant ([switcher_return_pop_close]);
        - when the caller is trusted, use the continuation relation;
        - when the caller is untrusted, close the world and
          [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hfull_rmap Hwca0 Hwca1 Hfreq)
       "(HPC & Hrmap & #Hinterp_wca0 & #Hinterp_wca1 & #Hinv_switcher & #[Hcode _] & #Htrap
         & Hworld_interp & Hcont_K & Hna & Hcstk)".
-    rewrite /registers_pointsto.
-
-    getRegValList [cra;csp;cgp;ctp;ca2;cs1;cs0;ct0;ct1;ct2].
-    iExtractList "Hrmap" [cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1;ct2]
-      as ["Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1";"Hct2"].
-    set (rmap0 := delete ct2 _).
+    iDestruct (ret_regs_extract_full with "Hrmap")
+      as "(Hca0 & Hca1 & [%wcsp Hcsp] & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
+          & %rmap0 & %Hrmap0 & Hrmap)"; [done|done|done|].
 
     (* Open the switcher invariant *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
@@ -146,22 +143,24 @@ Section fundamental.
     iModNamed switcher_inv_open "Hswitcher_inv".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hinv_switcher" as hinv_switcher.
-    iDestruct (cstack_agree with "[$] [$]") as "%"; simplify_eq.
+    iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq; subst cstk'.
 
     iEval (rewrite switcher_return_block_13) in "HPC".
-    destruct cstk as [ef [|frm frms] ]; iEval (rewrite /cstack_interp; cbn) in "Hstk_interp";
-      cbn in Hlen_cstk.
+    destruct cstk as [ef [|frm frms] ].
     { (* No caller: the frame to pop is the entry frame, the thread exits *)
-      iApply (switcher_after_compartment_call_exit_path_spec with
-        "[$HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode
-          Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]").
+      iApply (switcher_return_exit_path_spec with
+        "[$HPC $Hrmap $Hmtdc $Hframeoffset $Hcode
+          Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]");
+        first done.
       iIntros "!> [Hmtdc Hframeoffset]".
       subst hclose_switcher_inv.
-      iMod ("Hclose_switcher_inv" with
-             "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp]") as "Hna".
-      { iNext. iExists a_tstk, (entry_cstack ef), save_area, tstk_next. iFrame "∗ # %". }
-      iModIntro; iIntros (_); iFrame.
+      iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
+             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full
+              Hstk_interp Hp_ot_switcher") as "Hna"; [done|done|].
+      iModIntro; iIntros (_); iExact "Hna".
     }
+    iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
+    cbn in Hlen_cstk.
 
     (* A frame pushed above the entry frame *)
     destruct Ws;[done|].
@@ -188,22 +187,16 @@ Section fundamental.
     iEval (cbn) in "Hcont_K". rewrite Hspill; last done.
     stk_unfold.
     rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
-    cbn.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
-    assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
-    { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
-      rewrite /withinBounds; solve_addr. }
 
-    (* Pop the trusted stack *)
+    (* Pop the trusted stack, restore, clear and return *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
-    iApply (switcher_after_compartment_call_spec with
-      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
-      [done|done|done|].
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
-                    & Hlc)".
-    iInsertRegs "Hrmap" ["Hct2"].
+    iApply (switcher_return_path_world_spec W W C ccrel (length frms) with
+      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
+      [done|done|done|done|done|done|done|].
+    iIntros "!> (Hmtdc & Hframeoffset & Htf_csp & Hlc)".
 
     (* Obtain the caller's stack frame *)
     iDestruct (open_world_interp_cframe with "[$Hcframe_interp $Hworld_interp]")
@@ -243,23 +236,12 @@ Section fundamental.
     iDestruct (open_world_interp_callee_stack
                 with "[$Hinterp_callee_wstk $Hworld_interp]")
       as "(Hworld_interp & (%lv & Hstk & Hres))"; eauto.
-
-    (* Restore, clear and return *)
-    iApply (switcher_restore_spill_path_world_spec W W C _ ccrel with
-      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp $Hcells $Hstk
-        $Hworld_interp $Hnormal $Hrmap $Hcode]");
-      [done|done|done| |].
-    { subst rmap0.
-      clear -Hfull_rmap.
-      rewrite dom_insert_L.
-      repeat (rewrite dom_delete_L).
-      apply lregmap_full_dom in Hfull_rmap.
-      rewrite Hfull_rmap.
-      set_solver.
-    }
+    iModIntro.
+    iExists _, wastk, wastk1, wastk2, wastk3, lv.
+    iFrame "Hcells Hstk Hworld_interp Hnormal".
     iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
       "(%Hloaded & Hworld_interp & Hinterp_loaded & %Harg_rmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
-      & Hstk_register_save & Hstk & Hrmap & _ & _)".
+      & Hstk_register_save & Hstk & Hrmap & _)".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
 
     (* Depop the topmost frame of the call-stack and close the switcher's
@@ -268,17 +250,10 @@ Section fundamental.
                      cstack_frag {| cstk_entry := ef; cstk_frames := frms |})%I
       with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv]" as "Hupd".
-    { iMod (cstack_update _ _ {| cstk_entry := ef; cstk_frames := frms |} with "Hcstk_full Hcstk")
-        as "[Hcstk_full Hcstk_frag]".
-      iMod ("Hclose_switcher_inv"
-             with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
-                    Hcstk_full Hstk_interp_next]")
-        as "Hna".
-      { iNext.
-        iApply (switcher_inv_pop_frame _ {| cstk_entry := ef; cstk_frames := frms |} with
-                 "Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
-                  Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
-      by iFrame. }
+    { subst hclose_switcher_inv.
+      iApply (switcher_return_pop_close ⊤ _ {| cstk_entry := ef; cstk_frames := frms |} with
+             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl
+              Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next Hp_ot_switcher"); done. }
 
     set (lv' := region_addrs_zeroes b_stk s).
     assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.

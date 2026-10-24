@@ -128,12 +128,12 @@ Section Switcher_KtK_Return.
     (* Outline of the proof:
        - open the switcher invariant, and read the topmost frame of the call
          stack;
-       - [switcher_after_compartment_call_spec]: pop the trusted stack;
-       - [switcher_restore_spill_path_spec]: restore the callee-save registers,
-         clear the stack frame and the registers, and jump back to the
-         caller; the frame records that the return address is a valid
-         target, so the jump does not fault;
-       - pop the frame and close the switcher invariant. *)
+       - [switcher_return_path_spec]: pop the trusted stack, restore the
+         callee-save registers, clear the stack frame and the registers,
+         and jump back to the caller; the frame records that the return
+         address is a valid target, so the jump does not fault;
+       - pop the frame and close the switcher invariant
+         ([switcher_return_pop_close]). *)
     intros frame.
     iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)
       "(#Hswitcher & #[Hcode _] & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
@@ -161,32 +161,15 @@ Section Switcher_KtK_Return.
     assert (a_stk' = a_stk) as ->.
     { pose proof Hstk_bounds as (_ & _ & Ha4'). revert Ha Ha4' Ha_stk4. stk_unfold.
       intros Ha Ha4' Ha_stk4. solve_addr+Ha Ha_stk4 Ha4'. }
-    iExtract "Hregs" ctp as "Hctp".
-    iExtract "Hregs" ct0 as "Hct0".
-    iExtract "Hregs" ct1 as "Hct1".
-    iExtract "Hregs" ca2 as "Hca2".
-    iExtract "Hregs" ct2 as "Hct2".
-
-    (* Pop the trusted stack *)
+    (* Pop the trusted stack, restore, clear and return *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iEval (rewrite switcher_return_block_13) in "HPC".
-    iApply (switcher_after_compartment_call_spec with
-      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
-      [done|done| |].
-    { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
-      revert Hstk_bounds; rewrite /switcher_stk_bounds /withinBounds; stk_unfold.
-      intros (Hb_a4 & He_a1 & Ha4). solve_addr. }
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
-                    & _)".
-    iInsertRegs "Hregs" ["Hct2"].
-
-    (* Restore, clear and return *)
-    iApply (switcher_restore_spill_path_spec with
-      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
-        $Hcells $Hstk $Hregs $Hcode]"); [done|done| |].
-    { rewrite dom_insert_L. repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }
-    iNext; iIntros (rmap' rcgp rcra rcs1 rcs0)
-      "(%Hrestored & %Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hregs & _ & _)".
+    iApply (switcher_return_path_spec (length cstk.(cstk_frames)) with
+      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hregs $Hmtdc $Hframeoffset $Htf_csp $Hcells $Hstk
+        $Hcode]"); [done|done|done|done|done|done|].
+    iIntros "!>" (rmap' rcgp rcra rcs1 rcs0)
+      "(%Hrestored & %Hrmap' & Hmtdc & Hframeoffset & Htf_csp & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
+      & Hstk' & Hstk & Hregs)".
     iSplit; cycle 1.
     { (* The return address of the caller is a valid target *)
       iIntros "%Hjalr".
@@ -203,17 +186,14 @@ Section Switcher_KtK_Return.
     iEval (rewrite -(stk_free_split_zeroes _ _ _ Hstk_bounds)) in "Hstk".
 
     (* Pop the frame and close the switcher invariant *)
-    iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
-    iMod ("Hclose_switcher_inv"
-           with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
-                  Hcstk_full Hstk_interp_next]")
-      as "Hna".
-    { iNext.
-      iApply (switcher_inv_pop_frame _ cstk with
-               "Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
-                Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
+    subst hclose_switcher_inv.
+    iMod (switcher_return_pop_close E _ cstk with
+           "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl
+            Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next Hp_ot_switcher")
+      as "[Hna Hcstk]"; [done|done|done|].
 
-    iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1); iFrame.
+    iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1).
+    iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hregs Hstk Hcstk".
     iPureIntro; split; first naive_solver. rewrite Hrmap'; set_solver.
   Qed.
 

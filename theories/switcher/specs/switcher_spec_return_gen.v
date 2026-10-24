@@ -8,7 +8,7 @@ From griotte Require Export switcher switcher_preamble.
 From griotte Require Import switcher_return_states.
 From griotte.switcher.callback Require Import callback_path.
 From stdpp Require Import base.
-From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Import map_simpl register_tactics proofmode switcher_registers.
 From griotte Require Import switcher_load_spec switcher_trap_safety.
 From griotte Require Export world_ghost_theory world_interp_stack switcher_helpers.
 
@@ -67,13 +67,14 @@ Section Switcher.
     (* Outline of the proof:
        - open the switcher invariant;
        - when the frame to pop is the entry frame, the thread exits:
-         [switcher_after_compartment_call_exit_path_spec];
-       - [switcher_after_compartment_call_spec]: pop the trusted stack;
-       - [open_world_interp_cframe_gen]: obtain the callee-save area;
-       - [switcher_restore_spill_path_world_spec]: restore the callee-save registers,
-         clear the stack frame and the registers, and jump to the caller;
-       - close the switcher invariant and fix the world
-         ([world_interp_stack_fixing]);
+         [switcher_return_exit_path_spec], [switcher_return_exit_close];
+       - otherwise, [switcher_return_path_world_spec]: pop the trusted
+         stack; obtain the callee-save area
+         ([open_world_interp_cframe_gen]); restore the callee-save
+         registers, clear the stack frame and the registers, and jump to
+         the caller;
+       - close the switcher invariant ([switcher_return_pop_close]) and fix
+         the world ([world_interp_stack_fixing]);
        - when the caller is trusted, use the continuation;
        - when the caller is untrusted, [switcher_jump_to_caller_cases_spec]. *)
     intros Wfixed.
@@ -91,40 +92,26 @@ Section Switcher.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
 
-    assert (is_Some (rmap !! cra)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" cra as "Hcra".
-    assert (is_Some (rmap !! cgp)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" cgp as "Hcgp".
-    assert (is_Some (rmap !! ctp)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" ctp as "Hctp".
-    assert (is_Some (rmap !! ca2)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" ca2 as "Hca2".
-    assert (is_Some (rmap !! cs1)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" cs1 as "Hcs1".
-    assert (is_Some (rmap !! cs0)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" cs0 as "Hcs0".
-    assert (is_Some (rmap !! ct0)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" ct0 as "Hct0".
-    assert (is_Some (rmap !! ct1)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" ct1 as "Hct1".
-    assert (is_Some (rmap !! ct2)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
-    iExtract "Hrmap" ct2 as "Hct2".
-
+    iDestruct (ret_callee_saved_extract with "Hrmap")
+      as "([%wcgp_old Hcgp] & [%wcra_old Hcra] & [%wcs0_old Hcs0] & [%wcs1_old Hcs1]
+          & %rmap0 & %Hrmap0 & Hrmap)"; first done.
     iDestruct (cstack_agree with "Hcstk_full [$]") as %Heq; subst cstk'.
     iEval (rewrite switcher_return_block_13) in "HPC".
-    destruct cstk as [ef [|frm frms] ]; iEval (rewrite /cstack_interp; cbn) in "Hstk_interp";
-      cbn in Hlen_cstk.
+    destruct cstk as [ef [|frm frms] ].
     { (* No caller: the frame to pop is the entry frame, the thread exits *)
-      iApply (switcher_after_compartment_call_exit_path_spec with
-        "[$HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode
-          Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]").
+      iApply (switcher_return_exit_path_spec with
+        "[$HPC $Hrmap $Hmtdc $Hframeoffset $Hcode
+          Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]");
+        first done.
       iIntros "!> [Hmtdc Hframeoffset]".
       subst hclose_switcher_inv.
-      iMod ("Hclose_switcher_inv" with
-             "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp]") as "Hna".
-      { iNext. iExists a_tstk, (entry_cstack ef), save_area, tstk_next. iFrame "∗ # %". }
-      iModIntro; iIntros (_); iFrame.
+      iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
+             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full
+              Hstk_interp Hp_ot_switcher") as "Hna"; [done|done|].
+      iModIntro; iIntros (_); iExact "Hna".
     }
+    iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
+    cbn in Hlen_cstk.
 
     destruct Ws as [|Wprev Ws],Cs;try done. simpl in Hframe.
     destruct Hframe as [Hrelated_pub_Wprev_W0 [<- [Hccrel_known_to_known Hframe] ] ].
@@ -156,42 +143,34 @@ Section Switcher.
     stk_unfold.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
-    assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
-    { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
-      rewrite /withinBounds; solve_addr. }
 
-    (* Pop the trusted stack *)
+    (* Pop the trusted stack, restore, clear and return *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
-    iApply (switcher_after_compartment_call_spec with
-      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
-      [done|done|done|].
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
-                    & Hlc)".
-    iInsertRegs "Hrmap" ["Hct2"].
+    iApply (switcher_return_path_world_spec Wcur Wfixed C ccrel (length frms) with
+      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
+      [|done|done|done|done|done|done|].
+    { subst Wfixed. by rewrite close_list_heap. }
+    iIntros "!> (Hmtdc & Hframeoffset & Htf_csp & Hlc)".
 
     (* Obtain the callee-save area *)
     iMod (
         open_world_interp_cframe_gen with "Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3 &
             Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)";eauto.
-
-    (* Restore, clear and return *)
     stk_unfold.
     iEval (rewrite open_world_interp_empty) in "Hworld_interp".
     iAssert (switcher_stk_cells (stk_spill_a a_stk) wastk wastk1 wastk2 wastk3)
       with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
-    iApply (switcher_restore_spill_path_world_spec Wcur Wfixed C [] ccrel with
-      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
-        $Hcells $Hstk $Hworld_interp $Hrmap $Hcode]"); [|done|done| |].
-    { subst Wfixed. by rewrite close_list_heap. }
-    { rewrite dom_insert_L. repeat (rewrite dom_delete_L). rewrite Hrmap. set_solver. }
+    iModIntro.
+    iExists [], wastk, wastk1, wastk2, wastk3, stk_mem.
+    iFrame "Hcells Hstk Hworld_interp".
     iSplitR.
     { destruct (is_untrusted_caller ccrel); last done.
       iDestruct "Hinterp_wfrm" as "(Hw0 & Hw1 & Hw2 & Hw3)".
       iFrame "Hw2 Hw3 Hw1 Hw0". }
     iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
       "((%Hr3 & %Hr2 & %Hr1 & %Hr0) & Hworld_interp & Hinterp_loaded & %Harg_rmap'
-      & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _ & Hlc)".
+      & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & Hlc)".
     iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
     iDestruct "Hlc" as "(Hlc & Hlc'')".
 
@@ -208,20 +187,15 @@ Section Switcher.
       with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv
              Hworld_interp Hstk' Hstk Hrevoked Hlc'']" as "Hupd".
-    { iMod (cstack_update _ _ {| cstk_entry := ef; cstk_frames := frms |} with "Hcstk_full Hcstk")
-        as "[Hcstk_full Hcstk_frag]".
-      iMod ("Hclose_switcher_inv"
-             with "[$Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
-                    Hcstk_full Hstk_interp_next]")
-        as "Hna".
-      { iNext.
-        iApply (switcher_inv_pop_frame _ {| cstk_entry := ef; cstk_frames := frms |} with
-                 "Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
-                  Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
+    { subst hclose_switcher_inv.
+      iMod (switcher_return_pop_close ⊤ _ {| cstk_entry := ef; cstk_frames := frms |} with
+             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl
+              Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next Hp_ot_switcher")
+        as "[Hna Hcstk_frag]"; [done|done|done|].
       iMod (world_interp_stack_fixing _ _ _ _ b_stk e_stk a_stk with
              "Htrap Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
         "(Hworld_interp & Hstk')"; eauto.
-      by iFrame. }
+      by iFrame "Hna Hcstk_frag Hworld_interp Hstk'". }
 
     iDestruct (interp_monotone_cap_nonheap with "Hinterp_callee_wstk")
       as "Hinterp_callee_wstk'";

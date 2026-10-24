@@ -298,4 +298,119 @@ Section Switcher_Registers.
     iExact "Hregs".
   Qed.
 
+  (** ** Registers out of a register file of known domain *)
+
+  Lemma dom_foldr_delete (m : LReg) (rs : list RegName) :
+    dom (foldr delete m rs) = dom m ∖ list_to_set rs.
+  Proof.
+    induction rs as [|r rs IH]; cbn; first set_solver.
+    rewrite dom_delete_L IH. set_solver.
+  Qed.
+
+  (** The registers [rs] out of a register file of domain [X], with some
+      words, and the rest of the file, of domain [X ∖ rs]. *)
+  Lemma big_sepM_extract_dom (m : LReg) (rs : list RegName) (X : gset RegName) :
+    NoDup rs →
+    dom m = X →
+    (∀ r, r ∈ rs → r ∈ X) →
+    ([∗ map] k↦y ∈ m, k ↦ᵣ y) ⊢
+      ([∗ list] r ∈ rs, ∃ w, r ↦ᵣ w) ∗
+      ∃ m', ⌜ dom m' = X ∖ list_to_set rs ⌝ ∗ [∗ map] k↦y ∈ m', k ↦ᵣ y.
+  Proof.
+    intros Hnd Hdom Hin.
+    iIntros "Hm".
+    iDestruct (big_sepM_extract_list m rs with "Hm") as "[Hrs Hm]"; first done.
+    { intros r Hr. apply elem_of_dom. rewrite Hdom. by apply Hin. }
+    iSplitL "Hrs".
+    { iApply (big_sepL_mono with "Hrs"). iIntros (k r _) "Hr". by iExists _. }
+    iExists _; iFrame "Hm".
+    iPureIntro. by rewrite dom_foldr_delete Hdom.
+  Qed.
+
+  (** ** The registers of the return routine *)
+
+  (** The callee-save registers, out of a register file without the stack
+      pointer and the return values. *)
+  Lemma ret_callee_saved_extract (rmap : LReg) :
+    dom rmap = all_registers_s ∖ {[ csp ; ca0 ; ca1 ]} →
+    ([∗ map] k↦y ∈ rmap, k ↦ᵣ y) ⊢
+      (∃ w, cgp ↦ᵣ w) ∗
+      (∃ w, cra ↦ᵣ w) ∗
+      (∃ w, cs0 ↦ᵣ w) ∗
+      (∃ w, cs1 ↦ᵣ w) ∗
+      ∃ rmap', ⌜ dom rmap' = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+        [∗ map] k↦y ∈ rmap', k ↦ᵣ y.
+  Proof.
+    intros Hdom.
+    iIntros "Hrmap".
+    iDestruct (big_sepM_extract_dom _ [cgp; cra; cs0; cs1] with "Hrmap")
+      as "[(Hcgp & Hcra & Hcs0 & Hcs1 & _) (%rmap' & %Hdom' & Hrmap)]"; [|done| |].
+    { by apply (bool_decide_unpack _). }
+    { intros r Hr. rewrite !elem_of_cons elem_of_nil in Hr.
+      repeat destruct Hr as [-> | Hr]; try done; set_solver. }
+    iFrame "Hcgp Hcra Hcs0 Hcs1 Hrmap".
+    iPureIntro. rewrite Hdom'. cbn. set_solver.
+  Qed.
+
+  (** The return values, the stack pointer and the callee-save registers,
+      out of a full register file. *)
+  Lemma ret_regs_extract_full (rmap : LReg) (wca0 wca1 : LWord) :
+    (∀ r, is_Some (rmap !! r)) →
+    rmap !! ca0 = Some wca0 →
+    rmap !! ca1 = Some wca1 →
+    registers_pointsto rmap ⊢
+      ca0 ↦ᵣ wca0 ∗
+      ca1 ↦ᵣ wca1 ∗
+      (∃ w, csp ↦ᵣ w) ∗
+      (∃ w, cgp ↦ᵣ w) ∗
+      (∃ w, cra ↦ᵣ w) ∗
+      (∃ w, cs0 ↦ᵣ w) ∗
+      (∃ w, cs1 ↦ᵣ w) ∗
+      ∃ rmap', ⌜ dom rmap' = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+        [∗ map] k↦y ∈ rmap', k ↦ᵣ y.
+  Proof.
+    intros Hfull Hca0 Hca1.
+    iIntros "Hrmap".
+    iDestruct (big_sepM_extract_list _ [ca0; ca1] with "Hrmap")
+      as "[(Hca0 & Hca1 & _) Hrmap]".
+    { by apply (bool_decide_unpack _). }
+    { intros r _. apply Hfull. }
+    rewrite (lookup_total_correct _ _ _ Hca0) (lookup_total_correct _ _ _ Hca1).
+    iDestruct (big_sepM_extract_dom _ [csp; cgp; cra; cs0; cs1] (all_registers_s ∖ {[ ca0 ; ca1 ]})
+                with "Hrmap")
+      as "[(Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & _) (%rmap' & %Hdom' & Hrmap)]".
+    { by apply (bool_decide_unpack _). }
+    { rewrite dom_foldr_delete (lregmap_full_dom _ Hfull). cbn. set_solver. }
+    { intros r Hr. rewrite !elem_of_cons elem_of_nil in Hr.
+      repeat destruct Hr as [-> | Hr]; try done; set_solver. }
+    iFrame "Hca0 Hca1 Hcsp Hcgp Hcra Hcs0 Hcs1 Hrmap".
+    iPureIntro. rewrite Hdom'. cbn. set_solver.
+  Qed.
+
+  (** The registers that the return routine uses, out of a register file
+      without the callee-save registers, the stack pointer and the return
+      values. *)
+  Lemma ret_regs_extract (rmap : LReg) :
+    dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} →
+    ([∗ map] k↦y ∈ rmap, k ↦ᵣ y) ⊢
+      (∃ w, ctp ↦ᵣ w) ∗
+      (∃ w, ct0 ↦ᵣ w) ∗
+      (∃ w, ct1 ↦ᵣ w) ∗
+      (∃ w, ct2 ↦ᵣ w) ∗
+      (∃ w, ca2 ↦ᵣ w) ∗
+      ∃ rmap', ⌜ dom rmap' = all_registers_s ∖
+                   {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ⌝ ∗
+        [∗ map] k↦y ∈ rmap', k ↦ᵣ y.
+  Proof.
+    intros Hdom.
+    iIntros "Hrmap".
+    iDestruct (big_sepM_extract_dom _ [ctp; ct0; ct1; ct2; ca2] with "Hrmap")
+      as "[(Hctp & Hct0 & Hct1 & Hct2 & Hca2 & _) (%rmap' & %Hdom' & Hrmap)]"; [|done| |].
+    { by apply (bool_decide_unpack _). }
+    { intros r Hr. rewrite !elem_of_cons elem_of_nil in Hr.
+      repeat destruct Hr as [-> | Hr]; try done; set_solver. }
+    iFrame "Hctp Hct0 Hct1 Hct2 Hca2 Hrmap".
+    iPureIntro. rewrite Hdom'. cbn. set_solver.
+  Qed.
+
 End Switcher_Registers.
