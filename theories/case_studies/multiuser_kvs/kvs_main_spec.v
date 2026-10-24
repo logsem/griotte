@@ -5,7 +5,7 @@ From griotte Require Import
 From griotte Require Import
   assert_spec fetch_spec.
 From griotte Require Import
-  switcher switcher_preamble switcher_spec_call switcher_spec_KtK.
+  switcher_base switcher_base_ktk.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main
   kvs_main_spec_blocks.

@@ -2,10 +2,10 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import logrel monotone interp_weakening.
-From griotte Require Import switcher assert_spec.
+From griotte Require Import assert_spec.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import stack_world_resources.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers.
 From griotte Require Import allocator_resources heap_region.

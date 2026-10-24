@@ -4,8 +4,7 @@ From griotte Require Import
   memory_region region_invariants_revocation wp_rules_interp interp_weakening.
 From griotte Require Import assert_spec fetch_spec.
 From griotte Require Import
-  switcher switcher_preamble switcher_spec_call switcher_spec_KtK switcher_spec_KtK_call
-  switcher_load_spec switcher_exception.
+  switcher_base switcher_base_ktk.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
 From griotte Require Import map_simpl register_tactics proofmode.

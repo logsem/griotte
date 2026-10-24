@@ -2,9 +2,9 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules.
 From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
-From griotte Require Import switcher_preamble switcher_spec_return.
+From griotte Require Import switcher_base.
 From griotte Require Import
-  switcher kvs kvs_preamble kvs_spec_check_uint16 kvs_spec_addOrUpdate.
+  kvs kvs_preamble kvs_spec_check_uint16 kvs_spec_addOrUpdate.
 From iris.base_logic Require Import ghost_map.
 
 Section KVS_spec_addOrUpdate_safe.

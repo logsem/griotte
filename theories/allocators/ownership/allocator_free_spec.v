@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode memory_region region_keys.
+From griotte Require Import switcher_namespace rules proofmode memory_region region_keys.
 From griotte.allocators.ownership Require Import allocator_header_spec allocator_free_spec_states allocator_free_spec_world allocator_free_spec_owner_blocks_1 allocator_free_spec_check_blocks_2 allocator_free_spec_header_blocks_3 allocator_free_spec_return_blocks_4.
 From griotte.allocators.common Require Import allocator_common_free_spec_tail_blocks.
 

@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
 From griotte Require Import logrel rules wp_rules_interp.
 From griotte Require Import
-  switcher switcher_spec_KtK kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16
+  switcher_base_ktk kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16
   map_simpl register_tactics.
 
 Section KVS_spec_read.

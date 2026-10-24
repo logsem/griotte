@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode memory_region fetch.
+From griotte Require Import switcher_namespace rules proofmode memory_region fetch.
 From griotte.allocators.ownership Require Import allocator_preamble.
 From griotte.allocators.common Require Export allocator_common_macros_spec.
 

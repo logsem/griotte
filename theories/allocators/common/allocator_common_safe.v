@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import logrel proofmode switcher switcher_preamble.
-From griotte Require Import switcher_spec_KtK register_tactics map_simpl.
-From griotte Require Import world_interp_stack switcher_spec_return.
+From griotte Require Import logrel proofmode switcher_base switcher_base_ktk.
+From griotte Require Import register_tactics map_simpl.
+From griotte Require Import world_interp_stack.
 From griotte.allocators.common Require Import allocator_common_preamble.
 
 (** World lemmas shared by the proofs that the entries of the allocators are

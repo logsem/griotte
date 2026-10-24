@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
+From griotte Require Import switcher_namespace rules proofmode.
 From griotte.allocators.ownership Require Import allocator_malloc_spec_states.
 
 (** * Malloc, block 0: the owner identifier of the allocator capability

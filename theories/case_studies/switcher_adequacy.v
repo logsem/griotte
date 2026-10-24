@@ -2,8 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel fundamental.
 From iris.base_logic Require Import invariants.
 From griotte Require Import compartment_layout.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
-From griotte Require Import switcher_exception.
+From griotte Require Import switcher_base_interp.
 
 Section helpers_switcher_adequacy.
   Context

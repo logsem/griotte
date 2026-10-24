@@ -8,6 +8,7 @@ From griotte Require Export code_blocks.
 From griotte Require Export switcher switcher_tactics.
 From griotte Require Export clear_stack_spec clear_registers_spec.
 From griotte Require Export switcher_sealing.
+From griotte Require Export switcher_namespace.
 
 Lemma switcher_disjoint_subseg `{MP : MachineParameters} b e b' e' :
   (b <= b')%a -> (e' <= e)%a ->
@@ -323,12 +324,6 @@ Section Switcher_preamble.
     - iIntros "Htf". iFrame "Htf". by iIntros (n) "Htf".
     - iIntros "[Hrest [Htf Hspill]]". iFrame "Htf". iIntros (n) "Htf". iFrame.
   Qed.
-
-  (** The namespace of the invariant [switcher_inv]. *)
-  Definition Nswitcher : namespace := nroot .@ "switcher".
-
-  Lemma Nswitcher_N_trap : Nswitcher ## N_trap.
-  Proof. solve_ndisj. Qed.
 
   (** [switcher_inv] describes the invariant of the switcher,
       and describe the private state of the switcher.

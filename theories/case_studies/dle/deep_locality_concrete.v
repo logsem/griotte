@@ -2,7 +2,7 @@ From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
   machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
-  switcher assert allocator_resources compartment_layout
+  switcher_base assert allocator_resources compartment_layout
   deep_locality deep_locality_adequacy.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import image firmware firmware_ok image_state link dle_firmware.
