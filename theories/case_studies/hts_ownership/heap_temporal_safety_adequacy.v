@@ -106,7 +106,11 @@ Section hts_obligations.
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
-    change (fw_entry_min_stack (hts_firmware ot_alloc) 0) with 5 in Hentry_min_stack.
+    change (fw_entry_min_stack (hts_firmware ot_alloc) 0) with 7 in Hentry_min_stack.
+    assert (∀ b e : Z, b + Z.of_nat 7 + StackEntry_reserved_space <= e →
+              b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= e)%Z as Hmin_bridge
+      by (rewrite /SpillSlot_size /StackEntry_reserved_space; lia).
+    apply Hmin_bridge in Hentry_min_stack; clear Hmin_bridge.
     iEval (cbv [hts_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts"
       as "((Hmain & Hmain_static & _) & (Halloc & _ & #Halloc_pers) & (HB & HB_static & #HB_pers) & _)".

@@ -280,18 +280,22 @@ Section Switcher.
         store_imm ctp ct1 TrustedStackFrame_offset_calleeExportTable;
         land ct2 cs0 7;
         land ctp cs0 entry_point_irq_disabled_mask;
-        (* Check that the callee's stack, already truncated, is at least
-           the minimum stack size of the entry point. CHERIoT also requires
-           room for the unwind state of error handlers, which is not
-           modelled. *)
+        (* Check that the callee's stack, already truncated, holds the
+           minimum stack size of the entry point plus the space reserved at
+           the top of the stack on entry; the cursor then moves below the
+           reserved space. *)
         lshiftr cs1 cs0 8;
         land cs1 cs1 255;
         gete cgp csp;
         getb cra csp;
         sub cgp cgp cra;
+        (* addi tp, tp, STACK_ENTRY_RESERVED_SPACE *)
+        add cs1 cs1 StackEntry_reserved_space;
         lt cra cgp cs1;
         #".Lswitch_stack_too_small_branch";
         jnez (".Lswitch_stack_too_small")%asm cra;
+        (* cincoffset csp, csp, -STACK_ENTRY_RESERVED_SPACE *)
+        lea csp csp (- StackEntry_reserved_space)%Z;
         lshiftr cs0 cs0 16
       ]
       ; (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
@@ -404,8 +408,9 @@ Section Switcher.
         halt
       ]
       ; (* The callee's stack is smaller than the minimum stack size of the
-           entry point: the frame is already pushed, so the return routine
-           pops it and returns to the caller. *)
+           entry point plus the space reserved at its top: the frame is
+           already pushed, so the return routine pops it and returns to the
+           caller. *)
       [ #".Lswitch_stack_too_small";
         mov ca0 ENOTENOUGHSTACK;
         mov ca1 0;

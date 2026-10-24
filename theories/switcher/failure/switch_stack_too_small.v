@@ -5,8 +5,9 @@ From griotte Require Import switcher_preamble.
 (** * Failure: the callee's stack is too small
 
     [.Lswitch_stack_too_small] is reached when the callee's stack is smaller
-    than the minimum stack size of the entry point. The frame is already
-    pushed: it sets the return values [-ENOTENOUGHSTACK] and 0, and jumps
+    than the minimum stack size of the entry point plus the space reserved
+    at its top ([StackEntry_reserved_space]). The frame is already pushed:
+    it sets the return values [-ENOTENOUGHSTACK] and 0, and jumps
     ([.Lswitch_stack_too_small_return]) to the return routine,
     [switcher_after_compartment_call], which pops it. *)
 

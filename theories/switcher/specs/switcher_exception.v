@@ -990,8 +990,9 @@ Section Switcher_Exception.
   Qed.
 
   (** The callee's stack is smaller than the minimum stack size of the
-      entry point: [.Lswitch_stack_too_small] sets the return values, and
-      the return routine pops the frame already pushed. No register needs to be safe. *)
+      entry point plus the reserved space: [.Lswitch_stack_too_small] sets
+      the return values, and the return routine pops the frame already
+      pushed. No register needs to be safe. *)
   Lemma switcher_call_stack_too_small_unwind
     (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)

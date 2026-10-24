@@ -105,7 +105,7 @@ Section HTS_Spec_Free.
     not_heap_range cgp_b cgp_e ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (csp_b + 5 <= csp_e)%Z ->
+    (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
@@ -149,10 +149,11 @@ Section HTS_Spec_Free.
     iHide "Hcont" as hcont.
     (* CLoad ca0 csp 0. *)
     iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
-      csp_b (csp_e ^+ -1)%a csp_e (hts_buffer b @@ ι) _ (LoadLive ι (1/2)%Qp)
+      csp_b (stk_start_a csp_b csp_e ^+ -1)%a csp_e (hts_buffer b @@ ι) _ (LoadLive ι (1/2)%Qp)
       with "[- $HPC $Hcsp $Hca0 $Hslot $Hcode $Hright]").
     { exact (disjoint_from_mmio_shadow _ _ Hstk_shadow). }
-    { solve_addr+Hstk_nonempty. }
+    { unfold stk_start_a, SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *;
+        solve_addr+Hstk_min. }
     { solve_addr. }
     iNext. iIntros (actual (_ & _ & _ & Hlivepost))
       "(HPC & Hcsp & Hca0 & Hslot & _ & Hright)".
@@ -280,7 +281,7 @@ Section HTS_Spec_Free.
     iPoseProof (hts_free_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
-      wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a b (b ^+ 1)%a b
+      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a b (b ^+ 1)%a b
       free_arg cstk RW Global ι
       [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
       Global owner_a hts_main_owner_id {[ι]}
@@ -307,7 +308,7 @@ Section HTS_Spec_Free.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
-      wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a stk free_arg free_other cstk
+      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a stk free_arg free_other cstk
       allocator_free_nargs allocator_free_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a

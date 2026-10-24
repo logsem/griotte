@@ -102,23 +102,23 @@ Section HTS_World.
     heap_std W_init_C = ∅ ->
     hts_buffer_bounds b ->
     disjoint_from_heap csp_b csp_e ->
-    revoked_addresses (revoke W_init_C) (stk_free csp_b csp_e (csp_e ^+ -1)%a) ->
+    revoked_addresses (revoke W_init_C) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) ->
     alloc_obj ι b (b ^+ 1)%a -∗
     b ↦ₕ[ι] WInt 0 -∗
     world_interp (revoke W_init_C) C -∗
-    StackRevokedResources W_init_C C (stk_free csp_b csp_e (csp_e ^+ -1)%a)
+    StackRevokedResources W_init_C C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a)
     ={E}=∗
     world_interp (hts_Wshare W_init_C ι b) C ∗
     rel C (LHeap b ι) RW interp_in_memC ∗
     interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι) ∗
     StackRevokedResources (hts_Wshare W_init_C ι b) C
-      (stk_free csp_b csp_e (csp_e ^+ -1)%a) ∗
+      (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) ∗
     ⌜revoked_addresses (hts_Wshare W_init_C ι b)
-      (stk_free csp_b csp_e (csp_e ^+ -1)%a)⌝.
+      (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a)⌝.
   Proof.
     iIntros (Hheap_empty Hbounds Hstk_heap Hstack_revoked)
       "#Hobj Hb Hworld Hstack_revoked".
-    set (stk_frame_addrs := stk_free csp_b csp_e (csp_e ^+ -1)%a).
+    set (stk_frame_addrs := stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a).
     pose proof Hbounds as Hbnd; rewrite /hts_buffer_bounds in Hbnd.
     pose proof (hts_buffer_heap_address b Hbounds) as Hb_heap.
     assert (heap_fresh ∅ ι b (b ^+ 1)%a) as Hfresh_buf.
@@ -207,14 +207,14 @@ Section HTS_World.
   Lemma hts_Wret_heap_lookup ι b Wret :
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C ι b)
-        (callee_stk_region csp_b csp_e (csp_e ^+ -1)%a) Temporary) Wret ->
+        (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) Temporary) Wret ->
     ∃ s, heap_std (revoke Wret) !! ι = Some (MkAllocObject b (b ^+ 1)%a s).
   Proof.
     intros Hrelated.
     assert (related_sts_heap_std (heap_std (hts_Wshare W_init_C ι b)) (heap_std Wret))
       as Hheap_future.
     { rewrite -(std_update_multiple_heap (hts_Wshare W_init_C ι b)
-        (callee_stk_region csp_b csp_e (csp_e ^+ -1)%a) Temporary).
+        (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) Temporary).
       exact (proj2 (proj2 (proj2 Hrelated))). }
     destruct (proj1 Hheap_future _ _ (hts_Wshare_heap_lookup W_init_C ι b))
       as ([b' e' s] & Hlookup & Hb' & He' & _).
@@ -229,7 +229,7 @@ Section HTS_World.
     hts_buffer_bounds b ->
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C ι b)
-        (callee_stk_region csp_b csp_e (csp_e ^+ -1)%a) Temporary) Wret ->
+        (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) Temporary) Wret ->
     rel C (LHeap b ι) RW interp_in_memC -∗
     free_right ι -∗
     world_interp (revoke Wret) C
@@ -250,11 +250,12 @@ Section HTS_World.
       Hlookup_rev with "Hright Hworld") as "(Hworld & Hright & %Hstatus)".
     cbn in Hstatus; subst s.
     rename Hlookup_rev into Hlive_rev.
-    assert (LHeap b ι ∉ LNonHeap <$> callee_stk_region csp_b csp_e (csp_e ^+ -1)%a)
+    assert (LHeap b ι ∉
+              LNonHeap <$> callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a)
       as Hb_not_callstk.
     { intros (a & Heq & _)%list_elem_of_fmap. discriminate. }
     assert (std (std_update_multiple (hts_Wshare W_init_C ι b)
-      (callee_stk_region csp_b csp_e (csp_e ^+ -1)%a) Temporary) !! LHeap b ι =
+      (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) Temporary) !! LHeap b ι =
       Some Permanent) as Hstd_source.
     { rewrite std_sta_update_multiple_lookup_same_k;
         [exact (hts_Wshare_std ι b)|exact Hb_not_callstk]. }

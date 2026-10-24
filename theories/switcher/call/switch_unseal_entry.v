@@ -8,11 +8,13 @@ From griotte Require Import call_stack switcher_preamble wp_rules_interp.
     unsealing capability of the switcher. [.Lswitcher_decode_entry] reads
     the entry of the export table, stores the export table in the new
     frame, decodes the number of arguments, the interrupt posture and the
-    minimum stack size, and checks that the callee's stack is at least the
-    minimum stack size: otherwise, [.Lswitch_stack_too_small_branch] jumps
-    to [.Lswitch_stack_too_small]. [.Lswitcher_prepare_callee] loads the
-    PCC and the CGP of the callee, and falls through to
-    [.Lswitcher_clear_unused_args]. *)
+    minimum stack size, and checks that the callee's stack holds the
+    minimum stack size plus the space reserved at its top
+    ([StackEntry_reserved_space]): otherwise,
+    [.Lswitch_stack_too_small_branch] jumps to [.Lswitch_stack_too_small].
+    On success, it moves the cursor of the stack below the reserved space.
+    [.Lswitcher_prepare_callee] loads the PCC and the CGP of the callee, and
+    falls through to [.Lswitcher_clear_unused_args]. *)
 
 Section Switch_Unseal_Entry.
   Context
@@ -105,9 +107,10 @@ Section Switch_Unseal_Entry.
 
   (** From [.Lswitcher_decode_entry]: read the entry of the export table,
       store the export table in the frame at [a_frame], check the size of
-      the callee's stack, and load the PCC and CGP of the callee. When the
-      callee's stack is smaller than the minimum stack size of the entry,
-      the PC is at [.Lswitch_stack_too_small]. *)
+      the callee's stack, whose cursor is at its top, move the cursor below
+      the reserved space, and load the PCC and CGP of the callee. When the
+      callee's stack is smaller than the minimum stack size of the entry
+      plus the reserved space, the PC is at [.Lswitch_stack_too_small]. *)
   Lemma switcher_decode_entry_spec
     (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
@@ -127,6 +130,7 @@ Section Switch_Unseal_Entry.
     is_heap_cap wcgp_tgt = false ->
     (b_trusted_stack <= a_frame)%a ->
     (a_export_table < e_trusted_stack)%a ->
+    a_stk = e_stk ->
 
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     a_tbl_cgp ↦ₐ□ wcgp_tgt ∗
@@ -142,19 +146,19 @@ Section Switch_Unseal_Entry.
     cra ↦ᵣ wcra ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_code ∗
-    ▷ ( ( ⌜ (Z.of_nat minstk <= e_stk - b_stk)%Z ⌝ ∗
+    ▷ ( ( ⌜ (Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z ⌝ ∗
           PC ↦ₚ switcher_label_pc ".Lswitcher_clear_unused_args" ∗
           cs0 ↦ᵣ WInt off ∗
-          cs1 ↦ᵣ WInt (Z.of_nat minstk) ∗
+          cs1 ↦ᵣ WInt (Z.of_nat minstk + StackEntry_reserved_space) ∗
           ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl_cgp ∗
           ct2 ↦ᵣ WInt (Z.of_nat nargs + 1) ∗
           ctp ↦ᵣ WInt (entry_point_posture posture) ∗
           a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
           cgp ↦ᵣ wcgp_tgt ∗
           cra ↦ᵣ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
-          csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk )
+          csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space))%a )
         ∨
-        ( ⌜ (e_stk - b_stk < Z.of_nat minstk)%Z ⌝ ∗
+        ( ⌜ (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
           PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
           cs0 ↦ᵣ - ∗
           cs1 ↦ᵣ - ∗
@@ -171,7 +175,7 @@ Section Switch_Unseal_Entry.
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow
-               Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e)
+               Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Ha_stk)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2
       & Hctp & Ha_export_table & Hcgp & Hcra & Hcsp & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_prep"; first iFrame "Hswitcher".
@@ -207,12 +211,17 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     (* Sub cgp cgp cra *)
     iInstr "Hcode".
+    (* Add cs1 cs1 StackEntry_reserved_space *)
+    iInstr "Hcode".
     (* Lt cra cgp cs1 *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_posture.
     rewrite encode_entry_point_eq_minstk; last lia.
     rewrite encode_entry_point_eq_nargs; last lia.
-    destruct (e_stk - b_stk <? Z.of_nat minstk)%Z eqn:Hsmall; iEval (cbn) in "Hcra".
+    (* The instruction tactics unfold [StackEntry_reserved_space] to [2]: fold it back. *)
+    iEval (change 2%Z with StackEntry_reserved_space) in "Hcs1 Hcra".
+    destruct (e_stk - b_stk <? Z.of_nat minstk + StackEntry_reserved_space)%Z eqn:Hsmall;
+      iEval (cbn) in "Hcra".
     { apply Z.ltb_lt in Hsmall.
       (* Jne .Lswitch_stack_too_small cra 0 *)
       iInstr "Hcode".
@@ -224,6 +233,10 @@ Section Switch_Unseal_Entry.
     apply Z.ltb_ge in Hsmall.
     (* Jne .Lswitch_stack_too_small cra 0 *)
     iInstr "Hcode".
+    (* Lea csp csp (- StackEntry_reserved_space) *)
+    iInstr "Hcode".
+    { transitivity (Some (a_stk ^+ (- StackEntry_reserved_space))%a); last reflexivity.
+      clear -Ha_stk Hsmall; subst a_stk; unfold StackEntry_reserved_space in *; solve_addr. }
     (* LShiftR cs0 cs0 16 *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_off.

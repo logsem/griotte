@@ -258,7 +258,8 @@ Section translation.
     note ("thread " ++ nat_str i ++ ", trusted stack, entry frame in " ++ ft_cmpt ft)
       (mem_region (b_trusted_stack t)
          (initial_trusted_stack_content
-            (WCap true RWL Local (b_stack t) (e_stack t) (e_stack t))
+            (WCap true RWL Local (b_stack t) (e_stack t)
+               (e_stack t ^+ (- StackEntry_reserved_space))%a)
             (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
                (cmpt_exp_tbl_pcc c))
             (ft_tstack_frames ft))) ∪
@@ -295,7 +296,9 @@ Section translation.
                          (addr_off (cmpt_b_pcc m)
                             (fe_offset (fw_export_named (ft_entry ft) (tb_exports b))))) ∧
             reg σ !! cgp = Some (WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
-            reg σ !! csp = Some (WCap true RWL Local (b_stack t) (e_stack t) (e_stack t)) ∧
+            reg σ !! csp =
+              Some (WCap true RWL Local (b_stack t) (e_stack t)
+                      (e_stack t ^+ (- StackEntry_reserved_space))%a) ∧
             note "every other register cleared"
               (∀ r, r ∉ ({[cgp; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
             sreg σ !! MTDC =
@@ -410,7 +413,8 @@ Section translation.
 
   (** The trusted stack has room for the entry frame and [ft_tstack_frames]
       frames, [tstack_frame_offset] giving the offset of a frame. The stack
-      holds at least the minimum stack size of the entry. *)
+      holds at least the minimum stack size of the entry plus the space
+      reserved at its top ([StackEntry_reserved_space]). *)
   Definition thread_wf (i : nat) (ft : fw_thread) : Prop :=
     let t := thread_of img i in
     section ("thread " ++ nat_str i ++ ", layout")
@@ -426,7 +430,9 @@ Section translation.
                note "stack" (range_ok (b_stack t) (e_stack t)) ∧
                note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t)) ∧
                note "trusted stack not at address 0" ((b_trusted_stack t : Z) ≠ 0) ∧
-               note "minimum stack size of the entry" (fe_min_stack e <= ft_stack_size ft)%nat
+               note "minimum stack size of the entry"
+                 (Z.of_nat (fe_min_stack e) + StackEntry_reserved_space <=
+                    Z.of_nat (ft_stack_size ft))%Z
            end
        end).
 

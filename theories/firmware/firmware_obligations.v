@@ -38,8 +38,8 @@ From griotte Require Import image firmware.
       after [cbv] of the firmware), the registers in the form of the main
       specifications (cleared registers: [fw_cleared_regs_dom] and
       [fw_cleared_regs_lookup]), the stack and the fact that it holds the
-      minimum stack size of the entry of the first thread (["%Hstack_min"]),
-      the worlds and the sealing types of the firmware.
+      minimum stack size of the entry of the first thread plus the reserved
+      space (["%Hstack_min"]), the worlds and the sealing types of the firmware.
     - A compartment splits into its imports, code and globals
       ([fw_cmpt_mem_res]; [fw_cmpt_mem_persist] for trusted code run in
       place), its static sealed objects ([fw_cmpt_static_res]) and the
@@ -151,10 +151,10 @@ Section obligation_facts.
   Qed.
 
   (** The stack of the first thread holds the minimum stack size of the
-      export it starts at. *)
+      export it starts at plus the reserved space. *)
   Lemma fw_entry_min_stack_ok fw img σ :
     firmware_ok fw img σ →
-    (b_stack (thread_of img 0) + Z.of_nat (fw_entry_min_stack fw 0) <=
+    (b_stack (thread_of img 0) + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space <=
        e_stack (thread_of img 0))%Z.
   Proof.
     intros Hok. pose proof Hok as (_ & _ & Hregs & Hwf).
@@ -404,7 +404,8 @@ Section prepared.
       [[ b_stack t, e_stack t ]] ↦ₐ
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] ∗
     "%Hstack_min" ∷
-      ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) <= e_stack t)%Z ⌝ ∗
+      ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space
+         <= e_stack t)%Z ⌝ ∗
     "Hcstk" ∷
       cstack_frag
         (entry_cstack {| tf_csp := WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));

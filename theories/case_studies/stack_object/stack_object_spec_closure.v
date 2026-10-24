@@ -306,9 +306,9 @@ Section SO.
     iApply (so_call_blocks_3_spec with
              "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Himport_switcher
               $Hcode_main]"); [done|done|done|solve_addr+Hstk_min|].
-    iNext; iIntros (mie a_stk1 a_stk2 stk_tail)
+    iNext; iIntros (mie a_stk1 a_stk2 stk_tail stk_res)
       "(%Hastk1 & %Hastk2 & %Hcsp_b_astk2 & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
-      & Hcra & Hsecret & Hastk2 & Hstk & _ & _)".
+      & Hcra & Hres & Hsecret & Hastk2 & Hstk & _ & _)".
 
     (* Reinstate [z] in the world of the call *)
     iMod (so_world_call with
@@ -378,7 +378,7 @@ Section SO.
     (* Repair the world *)
     iMod (so_world_return W0 W4 C b e csp_b csp_e a_stk1 a_stk2 π
            l_revoked l0_live l0_quarantined l4 with
-           "[$Hworld_interp_C $Hl0_live $Hl4 $Hsecret $Hstk]")
+           "[$Hworld_interp_C $Hl0_live $Hl4 $Hsecret $Hres $Hstk]")
       as (w_stk1)
            "(Hworld_interp_C & %Hpub_W0_Wfixed & %Hclosing_nodup & %Hclosing_temps
             & Hclosing & Hstk)";

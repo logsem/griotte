@@ -91,7 +91,7 @@ Section SO_World_Return.
       (W0 W3 W4 : WORLD) (C : CmptName)
       (object_b object_e csp_b csp_e a_stk1 a_stk2 : Addr) (π : option AId)
       (l0 l0_live l0_quarantined l4 : list LAddr)
-      (stk_head0 : LWord) (stk_tail : list LWord) :
+      (stk_head0 : LWord) (stk_tail : list LWord) (stk_res : list LWord) :
     let W5 := revoke W4 in
     let object_temps : list LAddr := addr_key π <$> so_object_temporaries W0 π object_b object_e in
     let l0_rest := so_revoked_without_object W0 π object_b object_e l0 in
@@ -120,7 +120,7 @@ Section SO_World_Return.
     so_object_addresses object_b object_e
       ## finz.seq_between csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (a_stk1 + 1)%a = Some csp_e ->
+    (a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e ->
     (a_stk2 + 1)%a = Some a_stk1 ->
     (csp_b <= a_stk2)%a ->
     callee_stk_bounds csp_b csp_e a_stk2 ->
@@ -129,10 +129,13 @@ Section SO_World_Return.
     Forall (fun a => std W5 !! LNonHeap a = Some Revoked)
       (stk_free csp_b csp_e a_stk2) ->
     std W5 !! LNonHeap a_stk1 = Some Revoked ->
+    Forall (fun a => std W5 !! LNonHeap a = Some Revoked)
+      (finz.seq_between (stk_start_a csp_b csp_e) csp_e) ->
     world_interp W5 C
     ∗ RevokedResources W0 C l0_live
     ∗ RevokedResources W4 C l4
     ∗ a_stk1 ↦ₐ stk_head0
+    ∗ [[stk_start_a csp_b csp_e, csp_e]] ↦ₐ [[stk_res]]
     ∗ [[stk_free_b csp_b a_stk2, stk_free_e csp_e a_stk2]] ↦ₐ [[stk_tail]]
     ==∗
       ∃ stk_head1,
@@ -143,7 +146,7 @@ Section SO_World_Return.
              std W0 !! a = Some Temporary -> a ∈ closing⌝
         ∗ RevokedResources (close_list closing W5) C closing_revoked
         ∗ [[csp_b, csp_e]] ↦ₐ
-            [[stk_tail ++ [stk_head1; stk_head0] ]].
+            [[stk_tail ++ [stk_head1; stk_head0] ++ stk_res]].
   Proof.
     intros W5 object_temps l0_rest l4_no_fresh l4_object l4_rest
       l4_unique
@@ -151,23 +154,26 @@ Section SO_World_Return.
     intros Hextract0 Hextract4 HW3 Hfresh_W3 Hpriv Hpub
       Hrest_partition Hlive0 Hquarantined0 Hlive5 Hobject_stack Hstack_heap
       Hfresh Hnext Hnext_end Hreturned_bounds Hl4_W5
-      Hl0_live_W5 Hstack_W5 Hhead_W5.
+      Hl0_live_W5 Hstack_W5 Hhead_W5 Hres_W5.
+    assert (stk_start_a csp_b csp_e = (a_stk1 ^+ 1)%a) as Hstart
+      by (unfold stk_start_a, StackEntry_reserved_space in *; solve_addr+Hfresh).
+    rewrite Hstart in Hres_W5 |- *.
     stk_unfold.
     destruct Hextract0 as [Hl0_nodup Hl0_temporaries].
     destruct Hextract4 as [Hl4_nodup Hl4_temporaries].
     destruct Hreturned_bounds as
       (Hcsp_b_ret & _ & Hret_csp_e & Hret_add).
-    iIntros "(Hworld & Hl0_rest & Hl4 & Hhead0 & Htail)".
+    iIntros "(Hworld & Hl0_rest & Hl4 & Hhead0 & Hres & Htail)".
     subst W3.
     assert (finz.seq_between csp_b csp_e =
-      finz.seq_between csp_b a_stk2 ++ [a_stk2; a_stk1]) as Hstack_seq.
+      finz.seq_between csp_b a_stk2 ++ [a_stk2; a_stk1] ++
+        finz.seq_between (a_stk1 ^+ 1)%a csp_e) as Hstack_seq.
     { rewrite (finz_seq_between_split csp_b a_stk2 csp_e);
         last solve_addr+Hfresh Hnext Hnext_end.
       rewrite (finz_seq_between_cons a_stk2 csp_e); last solve_addr+Hfresh Hnext.
       replace (a_stk2 ^+ 1)%a with a_stk1 by solve_addr+Hnext.
       rewrite (finz_seq_between_cons a_stk1 csp_e); last solve_addr+Hfresh.
-      replace (a_stk1 ^+ 1)%a with csp_e by solve_addr+Hfresh.
-      rewrite (finz_seq_between_empty csp_e csp_e); [done|solve_addr+]. }
+      reflexivity. }
 
     (* Recover the original split between the incoming object's temporary
        addresses and the other addresses revoked from [W0]. *)
@@ -395,7 +401,9 @@ Section SO_World_Return.
         + apply elem_of_cons in Hx as [->|Hx].
           * rewrite /revoked_keys Forall_forall in Hl4_W5.
             by apply Hl4_W5.
-          * apply list_elem_of_singleton in Hx as ->. exact Hhead_W5.
+          * apply elem_of_cons in Hx as [->|Hx].
+            { exact Hhead_W5. }
+            rewrite Forall_forall in Hres_W5. by apply Hres_W5.
     }
 
     iAssert (RevokedResources W4 C l4_no_fresh
@@ -510,6 +518,9 @@ Section SO_World_Return.
     { rewrite Forall_forall in Hstack_live4. apply Hstack_live4.
       apply elem_of_finz_seq_between. solve_addr+Hfresh Hnext Hnext_end. }
     assert (Forall (λ a, heap_key_live (heap_std W4) (LNonHeap a))
+      (finz.seq_between (a_stk1 ^+ 1)%a csp_e)) as Hres_live4.
+    { apply Forall_forall. intros x Hx. apply heap_key_live_nonheap. }
+    assert (Forall (λ a, heap_key_live (heap_std W4) (LNonHeap a))
       (finz.seq_between csp_b a_stk2)) as Htail_live4.
     { apply Forall_forall. intros x Hx.
       rewrite Forall_forall in Hstack_live4. apply Hstack_live4.
@@ -529,6 +540,9 @@ Section SO_World_Return.
     iDestruct (stack_object_revoked_region_disjoint_frame
       with "[$Htail $Hl4]") as "(Htail & Hl4 & %Htail_not_l4)";
       first exact Htail_live4.
+    iDestruct (stack_object_revoked_region_disjoint_frame
+      with "[$Hres $Hl4]") as "(Hres & Hl4 & %Hres_not_l4)";
+      first exact Hres_live4.
 
     (* The new list filters every address already represented by the live
        frame, and the stack is disjoint from both resource lists. *)
@@ -563,8 +577,11 @@ Section SO_World_Return.
           apply elem_of_cons in Hx_stack as [->|Hx_stack].
           { apply Hfresh_not_l4.
             subst l4_unique. by apply list_elem_of_filter in Hx as [_ ?]. }
-          apply list_elem_of_singleton in Hx_stack as ->.
-          apply Hhead_not_l4.
+          apply elem_of_cons in Hx_stack as [->|Hx_stack].
+          { apply Hhead_not_l4.
+            subst l4_unique. by apply list_elem_of_filter in Hx as [_ ?]. }
+          rewrite elem_of_disjoint in Hres_not_l4.
+          eapply Hres_not_l4; [by apply elem_of_LNonHeap_fmap|].
           subst l4_unique. by apply list_elem_of_filter in Hx as [_ ?].
       - apply NoDup_LNonHeap_fmap, finz_seq_between_NoDup.
     }
@@ -598,19 +615,20 @@ Section SO_World_Return.
       with "[Hl0_fixed Hl4_fixed]" as "Hclosing".
     { subst closing_revoked. rewrite RevokedResources_app. iFrame. }
 
-    (* Join the returned tail, the fresh address and the secret on top. *)
-    iAssert ([[csp_e, csp_e]] ↦ₐ [[ [] ]])%I as "Hempty".
-    { rewrite /region_pointsto (finz_seq_between_empty csp_e csp_e); [done|solve_addr+]. }
-    iDestruct (region_pointsto_cons a_stk1 csp_e csp_e
-      with "[$Hhead0 $Hempty]") as "Hstack";
-      [exact Hfresh|solve_addr+|].
+    (* Join the returned tail, the fresh address, the secret and the space
+       reserved on top. *)
+    iDestruct (big_sepL2_length with "Hres") as %Hres_len.
+    iDestruct (region_pointsto_cons a_stk1 (a_stk1 ^+ 1)%a csp_e
+      with "[$Hhead0 $Hres]") as "Hstack";
+      [solve_addr+Hfresh|solve_addr+Hfresh|].
     iDestruct (region_pointsto_cons a_stk2 a_stk1 csp_e
       with "[$Hfresh_pointsto $Hstack]") as "Hstack";
       [exact Hnext|solve_addr+Hfresh|].
-    iDestruct (region_pointsto_split_r csp_b csp_e a_stk2 stk_tail [va; stk_head0]
+    iDestruct (region_pointsto_split_r csp_b csp_e a_stk2 stk_tail (va :: stk_head0 :: stk_res)
       with "[$Htail $Hstack]") as "Hstack".
     { solve_addr+Hfresh Hnext Hnext_end. }
-    { cbn. rewrite /finz.dist. solve_addr+Hfresh Hnext. }
+    { cbn [length]. rewrite -Hres_len finz_seq_between_length /finz.dist.
+      solve_addr+Hfresh Hnext. }
 
     iModIntro. iExists va. iFrame "Hworld".
     iSplit; first (iPureIntro; exact Hpub0).
@@ -641,13 +659,13 @@ Section SO_World_Return.
       ([l4]) overlap on the temporary addresses of the stack object [in],
       and [l4] contains the stack object [z] at [a_stk2]. The world is
       repaired by closing both lists, without duplicates, and the stack
-      frame [[csp_b, csp_e)] (the stack frame of the callee, [z], and the
-      secret at [a_stk1], on top). *)
+      frame [[csp_b, csp_e)] (the stack frame of the callee, [z], the
+      secret at [a_stk1], and the space reserved on top). *)
   Lemma so_world_return
       (W0 W4 : WORLD) (C : CmptName)
       (object_b object_e csp_b csp_e a_stk1 a_stk2 : Addr) (π : option AId)
       (l0 l0_live l0_quarantined l4 : list LAddr)
-      (stk_head0 : LWord) (stk_tail : list LWord) :
+      (stk_head0 : LWord) (stk_tail : list LWord) (stk_res : list LWord) :
     let W3 := reinstate
       (close_list l0_quarantined
         (close_list (addr_key π <$> so_object_temporaries W0 π object_b object_e) (revoke W0)))
@@ -675,7 +693,7 @@ Section SO_World_Return.
     so_object_addresses object_b object_e
       ## finz.seq_between csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (a_stk1 + 1)%a = Some csp_e ->
+    (a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e ->
     (a_stk2 + 1)%a = Some a_stk1 ->
     (csp_b <= a_stk2)%a ->
     callee_stk_bounds csp_b csp_e a_stk2 ->
@@ -686,6 +704,7 @@ Section SO_World_Return.
     ∗ RevokedResources W0 C l0_live
     ∗ RevokedResources W4 C l4
     ∗ a_stk1 ↦ₐ stk_head0
+    ∗ [[stk_start_a csp_b csp_e, csp_e]] ↦ₐ [[stk_res]]
     ∗ [[stk_free_b csp_b a_stk2, stk_free_e csp_e a_stk2]] ↦ₐ [[stk_tail]]
     ={⊤}=∗
       ∃ stk_head1,
@@ -696,7 +715,7 @@ Section SO_World_Return.
              std W0 !! a = Some Temporary -> a ∈ closing⌝
         ∗ RevokedResources (close_list closing W5) C closing_revoked
         ∗ [[csp_b, csp_e]] ↦ₐ
-            [[stk_tail ++ [stk_head1; stk_head0] ]].
+            [[stk_tail ++ [stk_head1; stk_head0] ++ stk_res]].
   Proof.
     intros W3 W5 l0_rest l4_no_fresh l4_unique closing_revoked closing.
     intros Hextract0 Hextract4 Hfresh_W3 Hpriv Hrevoked_W3 Hpub_ext
@@ -705,7 +724,7 @@ Section SO_World_Return.
     pose proof Hextract0 as [Hl0_nodup Hl0_temporaries].
     stk_unfold.
     pose proof Hreturned_bounds as (Hcsp_b_ret & _ & Hret_csp_e & Hret_add).
-    iIntros "(Hworld & Hl0_live & Hl4 & Hhead0 & Htail)".
+    iIntros "(Hworld & Hl0_live & Hl4 & Hhead0 & Hres & Htail)".
 
     (* [W4] is a public future of [W3]: the stack frame of the callee was
        revoked in [W3]. *)
@@ -758,10 +777,30 @@ Section SO_World_Return.
       }
       rewrite elem_of_dom; done.
     }
+    iMod (world_interp_revoked_by_separation_many W5 C
+           (finz.seq_between (stk_start_a csp_b csp_e) csp_e) stk_res
+           with "[$Hworld $Hres]")
+      as "(Hworld & Hres & %Hres_W5)".
+    { apply Forall_forall; intros x _. apply heap_key_live_nonheap. }
+    { apply Forall_forall; intros x Hx.
+      rewrite -revoke_dom_eq.
+      eapply elem_of_mono_pub; eauto.
+      subst W3.
+      rewrite -!close_list_dom_eq.
+      rewrite -revoke_dom_eq.
+      assert (std W0 !! LNonHeap x = Some Temporary).
+      { apply Hl0_temporaries; apply elem_of_app; right.
+        apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between.
+        apply elem_of_finz_seq_between in Hx.
+        unfold stk_start_a, StackEntry_reserved_space in Hx.
+        solve_addr+Hx Hfresh Hnext Hnext_end.
+      }
+      rewrite elem_of_dom; done.
+    }
     iMod (stack_object_repair_world_for_return
       W0 W3 W4 C object_b object_e csp_b csp_e a_stk1 a_stk2 π
-      l0 l0_live l0_quarantined l4 stk_head0 stk_tail
-      with "[$Hworld $Hl0_live $Hl4 $Hhead0 $Htail]") as (stk_head1) "H"; [done..|].
+      l0 l0_live l0_quarantined l4 stk_head0 stk_tail stk_res
+      with "[$Hworld $Hl0_live $Hl4 $Hhead0 $Hres $Htail]") as (stk_head1) "H"; [done..|].
     iModIntro. iExists stk_head1. iFrame.
   Qed.
 

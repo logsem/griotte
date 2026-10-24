@@ -184,7 +184,8 @@ Section Switcher_KtK_Call.
     (a_tbl_ehs < atbl_tgt)%a  →
     (0 <= nargs <= 7 )%nat →
     is_Some (bpcc_tgt + off_tgt)%a →
-    (* The callee's stack is at least its minimum stack size *)
+    (* The callee's stack is at least its minimum stack size plus the
+       reserved space *)
     stk_callee_fits b_stk e_stk a_stk minstk_tgt →
 
     (* Well formed register map *)
@@ -288,11 +289,12 @@ Section Switcher_KtK_Call.
        - [switcher_call_path_spec]: check the stack pointer, spill the
          callee-save registers, push the frame, clear the callee's stack and
          unseal the entry point; the spill fits on the caller's stack, which
-         is at least the callee's minimum stack size, and the entry point is
-         sealed by the switcher; when the trusted stack is exhausted,
-         [switcher_cc_spec_tstack_exhausted_known_to_known];
+         is at least the callee's minimum stack size plus the reserved space,
+         and the entry point is sealed by the switcher; when the trusted
+         stack is exhausted, [switcher_cc_spec_tstack_exhausted_known_to_known];
        - [switcher_decode_entry_path_known_spec]: load the callee and jump to it;
-         its stack is at least its minimum stack size, so the check passes;
+         its stack is at least its minimum stack size plus the reserved space,
+         so the check passes;
        - [switcher_inv_push_frame]: push the frame and close the switcher
          invariant. *)
     intros a_tbl_cgp a_tbl_ehs wct1_caller frame.
@@ -372,14 +374,15 @@ Section Switcher_KtK_Call.
     iApply (switcher_decode_entry_path_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
         $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hargs $Hregs $Hcode]");
-      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done| |].
+      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done|done| |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }
     { tstack_unfold; solve_addr. }
     { rewrite !dom_delete_L Hdom. set_solver. }
     iNext; iSplit; cycle 1.
-    { (* The callee's stack is at least its minimum stack size *)
+    { (* The callee's stack is at least its minimum stack size plus the
+         reserved space *)
       iIntros "(%Hsmall & _)"; exfalso.
       pose proof Hstk_bounds as (_ & _ & Ha4). stk_unfold.
       solve_addr+Hsmall Hminstk Hminstk8_le Ha4. }

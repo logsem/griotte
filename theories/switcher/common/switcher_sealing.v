@@ -120,9 +120,10 @@ Section Switcher_sealing.
          ∗ registers_pointsto regs
          ∗ world_interp W C
          ∗ ⌜csp_sync cstk b_stk e_stk⌝
-         (* The switcher checked that the callee's stack is at least the
-            minimum stack size of the entry point. *)
-         ∗ ⌜(Z.of_nat minstk <= e_stk - b_stk)%Z⌝
+         (* The switcher checked that the callee's stack holds the minimum
+            stack size of the entry point plus the space reserved at its
+            top. *)
+         ∗ ⌜(Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z⌝
          ∗ cstack_frag cstk
          ∗ na_own cerise_nais ⊤
            -∗ interp_conf W C)

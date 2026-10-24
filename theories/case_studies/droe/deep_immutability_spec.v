@@ -67,7 +67,7 @@ Section DROE.
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     (pc_b + droe_label ".Ldroe_init")%a = Some pc_a ->
     (* The stack holds the spill of the switcher calls *)
-    (csp_b + 4 <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + StackEntry_reserved_space <= csp_e)%Z ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     LNonHeap (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
@@ -165,15 +165,26 @@ Section DROE.
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
+    (* The free part of the stack, below the space reserved at its top *)
+    assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
+      by (unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min).
+    iDestruct (stk_start_region_split with "Hstk")
+      as (stk_mem_free stk_res) "[Hstk Hstk_res]";
+      first exact Hstk_res_size.
+    iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W3")
+      as "[Hstack_revoked_W3_free _]".
+    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hstack_revoked_W3)
+      as Hstack_revoked_addrs_W3_free.
+
     (* Call to the adversary *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W3_free $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
-    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
+    { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct mie; reflexivity. }
@@ -183,7 +194,7 @@ Section DROE.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
       iApply switcher_cc_fault_stack_fits.
-      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
+      apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem rmap.
     iIntros (W4 rmap stk_mem l' rcgp rcra rcs0 rcs1)

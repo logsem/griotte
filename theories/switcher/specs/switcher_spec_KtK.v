@@ -36,7 +36,8 @@ Section Switcher_KtK.
       switcher's invariant and static resources, to close its faults with
       [trap_safe_exception_entry]; the switcher returns ECOMPARTMENTFAIL to
       the caller.
-      The callee's stack is at least its minimum stack size [minstk].
+      The callee's stack is at least its minimum stack size [minstk] plus
+      the space reserved at its top.
       The callee returns through [return_cont] at any error handler count
       [n] of its frame: a callee with an error handler may fault and resume.
 
@@ -95,7 +96,8 @@ Section Switcher_KtK.
     let fault_cont :=
       ktk_fault_cont E frame cstk (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) in
     (∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
-       ⌜ (Z.of_nat minstk <= stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk)%Z ⌝
+       ⌜ (Z.of_nat minstk + StackEntry_reserved_space <=
+            stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk)%Z ⌝
        ∗ ⌜ is_arg_rmap arg_rmap' 8 ⌝
        ∗ ⌜ dom rmap' =
              all_registers_s ∖
@@ -236,7 +238,8 @@ Section Switcher_KtK.
     (a_tbl_ehs < atbl_tgt)%a ->
     (0 <= nargs <= 7)%nat ->
     is_Some (bpcc_tgt + off_tgt)%a ->
-    (* The callee's stack is at least its minimum stack size *)
+    (* The callee's stack is at least its minimum stack size plus the
+       reserved space *)
     stk_callee_fits b_stk e_stk a_stk minstk_tgt ->
     dom rmap =
       all_registers_s ∖
@@ -307,8 +310,8 @@ Section Switcher_KtK.
     - iApply ("Hf" $! mie arg_rmap' rmap').
       iFrame "Hna HPC Hcgp Hcra Hcsp Hargs Hregs Hstk Hcstk HP".
       iSplit.
-      { iPureIntro. apply stk_callee_fits_callee; last exact Hminstk.
-        apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia | exact Hminstk]. }
+      { iPureIntro. apply stk_callee_fits_callee; last done.
+        by apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia |]. }
       iSplit; first done.
       iSplit; first (iPureIntro; rewrite Hrmap' Hdom; set_solver).
       iApply (if_and_sep_intro with "[]").
