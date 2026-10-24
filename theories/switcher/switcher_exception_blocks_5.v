@@ -1,8 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules rules_vcsr proofmode.
 From griotte Require Import register_tactics.
-From griotte Require Import call_stack switcher_exception_states switcher_error_handler
-  switcher_exception_blocks_4.
+From griotte Require Import call_stack switcher_exception_states switcher_error_state.
 
 (** * Exception path, blocks 30-31: the handler found
 

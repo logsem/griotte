@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
-From griotte Require Export switcher switcher_preamble switcher_macros_spec.
+From griotte Require Export switcher switcher_preamble logrel.
 
 (** * Shared interfaces of the call routine of the switcher
 

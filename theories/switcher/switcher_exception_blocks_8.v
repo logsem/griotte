@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import register_tactics.
-From griotte Require Import call_stack switcher_exception_states switcher_error_handler
+From griotte Require Import call_stack switcher_exception_states switcher_error_state
   copy_context_spec.
 
 (** * Exception path, block 35: the installation of the handler's context
