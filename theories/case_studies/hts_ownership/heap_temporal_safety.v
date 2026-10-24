@@ -30,8 +30,8 @@ Section Heap_Temporal_Safety.
       [hts_adv_owner_id]: it can allocate and free its own buffers, but
       freeing [buf] returns ALLOC_INVALID, so it cannot quarantine [buf].
       Only [buf] is shared. [p] is the only word of the compartment's CGP
-      data. [saved_buf] is a stack slot, the first word of main's stack: it
-      lies below the frame that the switcher pushes and hands to the callees,
+      data. [saved_buf] is a stack slot, the top word of main's stack: it
+      lies above the frame that the switcher pushes and hands to the callees,
       so no callee can reach it.
       There is no claim operation and no tag check: [buf] is still live when
       it is reloaded, since only main can free it, and no adversary executes
@@ -86,9 +86,10 @@ Section Heap_Temporal_Safety.
       ];
       [
         #".Lhts_share";
-        (* saved_buf = buf (stack slot below the callee frame); buf[0] = 0; *)
+        (* saved_buf = buf (pushed on the stack, above the callee frame);
+           buf[0] = 0; *)
+        lea csp csp (-1)%Z;
         store_imm csp ca0 0;
-        lea csp csp 1;
         store_imm ca0 (0)%asm 0
       ];
       #".Lhts_fetch_switcher_adv_1" ::
@@ -103,7 +104,7 @@ Section Heap_Temporal_Safety.
       [
         #".Lhts_reload";
         (* buf = saved_buf; the load consults the shadow table. *)
-        load_imm ca0 csp (-1)%Z
+        load_imm ca0 csp 0
       ];
       [
         #".Lhts_store_private";
