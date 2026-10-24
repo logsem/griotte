@@ -1,15 +1,10 @@
 From griotte Require Import machine_parameters assembler.
+From griotte Require Export trusted_stack_layout.
 
 Section ClearHazardSlotsMacro.
   Import Asm_Griotte.
   #[local] Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
-
-  (** The word of the register save area of the trusted stack that holds the
-      capability to the two hazard slots of the thread (CHERIoT's
-      [hazardPointers]), counted in words, as the other offsets of the
-      trusted stack in [switcher]. *)
-  Definition TrustedStack_offset_hazardPointers : Z := 16.
 
   (** CHERIoT's [clear_hazard_slots trustedStack, scratch]: load the
       store-only capability to the hazard slots of the thread from the
