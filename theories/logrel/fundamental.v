@@ -213,6 +213,7 @@ Section fundamental.
     - (* Subseg *) apply subseg_case.
     - (* GetB *) by_get_case.
     - (* GetE *) by_get_case.
+    - (* GetLen *) by_get_case.
     - (* GetA *) by_get_case.
     - (* GetP *) by_get_case.
     - (* GetL *) by_get_case.

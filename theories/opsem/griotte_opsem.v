@@ -509,6 +509,9 @@ Section opsem.
   | GetE dst r =>
     wr ← (reg φ) !!ᵣ r;
     φ .[dst :=ᵣ WInt (get_e wr)] |> nextPC
+  | GetLen dst r =>
+    wr ← (reg φ) !!ᵣ r;
+    φ .[dst :=ᵣ WInt (get_e wr - get_b wr)] |> nextPC
   | GetP dst r =>
     wr ← (reg φ) !!ᵣ r;
     φ .[dst :=ᵣ WInt (encodePermSum (get_p wr))] |> nextPC

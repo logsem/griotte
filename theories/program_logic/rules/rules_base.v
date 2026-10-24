@@ -914,6 +914,7 @@ Definition regs_of (i: instr): gset RegName :=
   | GetP r1 r2 => {[ r1; r2 ]}
   | GetB r1 r2 => {[ r1; r2 ]}
   | GetE r1 r2 => {[ r1; r2 ]}
+  | GetLen r1 r2 => {[ r1; r2 ]}
   | GetA r1 r2 => {[ r1; r2 ]}
   | GetL r1 r2 => {[ r1; r2 ]}
   | GetOType dst src => {[ dst; src ]}

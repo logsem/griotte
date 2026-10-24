@@ -32,6 +32,12 @@ Inductive instr: Type :=
 | Subseg (dst src : RegName) (b e : Z + RegName)
 | GetB (dst r: RegName)
 | GetE (dst r: RegName)
+(* The length [e - b] of the bounds of [r], written to [dst] (CHERIoT's
+   [cgetlen]). It is read as [GetB] and [GetE] read the bounds, whatever the
+   tag. Unlike CHERIoT, the length of an integer is [0] (CHERIoT reads the
+   bounds of the integer's capability encoding), it is not clamped to the
+   maximal address, and it is negative when [e < b] (CHERIoT wraps it). *)
+| GetLen (dst r: RegName)
 | GetA (dst r: RegName)
 | GetP (dst r: RegName)
 | GetL (dst r: RegName)
@@ -75,6 +81,7 @@ Proof.
       | Subseg dst src r1 r2 => GenNode 10 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | GetB dst r => GenNode 11 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
       | GetE dst r => GenNode 12 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
+      | GetLen dst r => GenNode 41 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
       | GetA dst r => GenNode 13 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
       | GetP dst r => GenNode 14 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
       | GetL dst r => GenNode 15 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
@@ -120,6 +127,7 @@ Proof.
       | GenNode 10 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr r1); GenLeaf (inr r2)] => Subseg dst src r1 r2
       | GenNode 11 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetB dst r
       | GenNode 12 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetE dst r
+      | GenNode 41 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetLen dst r
       | GenNode 13 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetA dst r
       | GenNode 14 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetP dst r
       | GenNode 15 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetL dst r
