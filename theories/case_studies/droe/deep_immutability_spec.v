@@ -46,12 +46,10 @@ Section DROE.
        frame of the thread records it *)
     (w_main_tbl : LWord)
 
-    (Nswitcher : namespace)
     :
 
     let imports := droe_main_imports C_f in
 
-    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio cgp_b cgp_e ->
@@ -116,7 +114,7 @@ Section DROE.
        - [droe_assert_blocks_3_spec]: blocks 3-5, assert that [b] is
          unchanged and halt. *)
     intros imports; subst imports.
-    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcra_nonheap Hcs1_nonheap
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcra_nonheap Hcs1_nonheap
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
@@ -181,7 +179,6 @@ Section DROE.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
-    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

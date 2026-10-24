@@ -60,7 +60,7 @@ Section AllocatorMallocOwnerBlocks1.
   Qed.
 
   Lemma allocator_malloc_owner_invalid_spec
-    (Nswitcher : namespace) (E : coPset) (pc_b pc_e pc_a : Addr) (wsealed wtp : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (wsealed wtp : LWord)
     (P : iProp Σ) :
     let a_owner_end := (pc_a ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0))%a in
     ↑Nswitcher ⊆ E ->

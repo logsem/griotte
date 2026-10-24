@@ -147,12 +147,10 @@ Section AllocatorSwitcherSpec.
      ⌜w0 = WInt ALLOC_OK ∧ w1 = WInt 0⌝)%I.
 
   Lemma allocator_free_switcher_spec
-    (Nswitcher : namespace)
     (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
     (wcgp wcra wcs0 wcs1 : LWord)
     (b_stk e_stk a_stk b e a : Addr) (arg_rmap : LReg) (cstk : CSTK)
     (p : Perm) (g : Locality) (ι : AId) (ws : list LWord) :
-    Nswitcher ## Nallocator_service ->
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
@@ -176,7 +174,7 @@ Section AllocatorSwitcherSpec.
       (WCap true RO Global allocator_exp_tbl_b allocator_exp_tbl_e
          (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)%I.
   Proof.
-    iIntros (Hdisj Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg)
+    iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg)
       "(#Hservice & #Hstatic & #Hswitcher)".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (mie arg_rmap' rmap')

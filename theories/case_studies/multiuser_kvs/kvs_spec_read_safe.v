@@ -199,11 +199,9 @@ Section KVS_spec_read_safe.
     (W : WORLD)
     (C : CmptName)
 
-    (Nswitcher : namespace)
     :
 
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
-    Nswitcher ## N_trap ->
     KVS_pcc_b ≠ b_switcher ->
     seal_pred KVS_OTYPE kvs_otype_propC ∗
     kvs_static ∗
@@ -218,7 +216,7 @@ Section KVS_spec_read_safe.
     -∗
     ot_switcher_prop W C (WCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr).
   Proof.
-    intros a_kvs_exp_tbl_cgp HNtrap Hpc_switcher.
+    intros a_kvs_exp_tbl_cgp Hpc_switcher.
     subst a_kvs_exp_tbl_cgp.
     iIntros
       "(#Hspred & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
@@ -341,7 +339,7 @@ Section KVS_spec_read_safe.
       iDestruct "Hcgp" as "[% Hcgp]"; iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       map_simpl "Hrmap".
-      iApply (switcher_ret_specification _ W0 (revoke W0)
+      iApply (switcher_ret_specification W0 (revoke W0)
                with
                "[ $Hstk $Hcstk $HK $Hworld_C $Hna $HPC $Hrevoked_l
                $Hrmap $Hca0 $Hca1 $Hcsp]"
@@ -355,7 +353,6 @@ Section KVS_spec_read_safe.
       { exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
-      { exact HNtrap. }
     - (* The invalid user key faults: return ECOMPARTMENTFAIL to the caller *)
       iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hworld_C)".
       iDestruct "Hctp" as "[% Hctp]"; iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap".
@@ -369,7 +366,7 @@ Section KVS_spec_read_safe.
       iDestruct "Hcgp" as "[% Hcgp]"; iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       map_simpl "Hrmap".
-      iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs _
+      iApply (trap_safe_return W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs _
                with "Hinv_switcher Hswitcher_static Hno_handler [-]");
         last (iModIntro; iFrame).
       { exact Hrelated_pub_W0_Wfixed. }
@@ -381,7 +378,6 @@ Section KVS_spec_read_safe.
       { exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
-      { exact HNtrap. }
       { by apply trap_no_resume_cap. }
   Qed.
 

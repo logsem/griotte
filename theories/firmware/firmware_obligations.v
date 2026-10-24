@@ -385,7 +385,7 @@ Section prepared.
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
-      na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+      na_inv cerise_nais Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
     "#Hseal_switcher" ∷
       seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
@@ -544,7 +544,7 @@ Section adversary.
   (** The switcher call sentry is safe to import. *)
   Lemma fw_switcher_call_safe fw img σ c W C :
     firmware_ok fw img σ →
-    na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := fw_switcher_layout img)) -∗
+    na_inv cerise_nais Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) -∗
     switcher_static (swlayout := fw_switcher_layout img) -∗
     fw_import_safe W C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
@@ -556,7 +556,7 @@ Section adversary.
       iEval (rewrite /interp_in_mem_pre /=); rewrite /interp_in_mem_pre /=;
       (rewrite filter_heap_nonheap; last (cbn; rewrite Hb; by case_decide));
       (iApply (interp_switcher_call (swlayout := fw_switcher_layout img));
-       [exact fw_switcherN_trap_disj | iFrame "Hswitcher Hswitcher_static"]).
+       iFrame "Hswitcher Hswitcher_static").
   Qed.
 
   (** The facts about an untrusted compartment [fc] of a firmware that the
@@ -573,7 +573,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     Forall is_z (compartment_layout.cmpt_code C_cmpt) ∧
     Forall (is_initial_data_word C_cmpt) (compartment_layout.cmpt_data C_cmpt) ∧
-    (na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := swl)) -∗
+    (na_inv cerise_nais Nswitcher (switcher_inv (swlayout := swl)) -∗
      switcher_static (swlayout := swl) -∗
      fw_cmpt_pers_res img fc -∗
      □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
@@ -595,7 +595,7 @@ Section adversary.
     iIntros "#Hswitcher #Hstatic #(Hpcc & Hcgp & Hh & Hetbl)".
     rewrite /fw_handler_res Hbody.
     iDestruct "Hh" as (eh ehs) "[Heh Hehs]".
-    iApply (adversary_exports_prop W C C_cmpt fw_switcherN
+    iApply (adversary_exports_prop W C C_cmpt
               (zip_with (λ p n, (InterruptEnabled, n, p.2, p.1)) ps ns) eh ehs
              with "Hswitcher Hstatic Hpcc Hcgp Heh Hehs Hetbl").
     - rewrite /= Hentries_eq. clear -Hlen. revert ns Hlen.
@@ -615,7 +615,6 @@ Section adversary.
       induction ps as [|p ps IH]; intros [|n ns] Hlen; cbn in *; try constructor.
       + apply Forall_cons in Hsome as [Hs _]. exact Hs.
       + apply Forall_cons in Hsome as [_ Hsome]. apply IH; [exact Hsome | lia].
-    - exact fw_switcherN_trap_disj.
   Qed.
 
   (** The exports of an untrusted compartment are safe to share, given the
@@ -660,7 +659,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := swl)) -∗
+    na_inv cerise_nais Nswitcher (switcher_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
@@ -715,7 +714,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := swl)) -∗
+    na_inv cerise_nais Nswitcher (switcher_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗

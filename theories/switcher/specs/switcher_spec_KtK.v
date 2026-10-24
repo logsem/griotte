@@ -134,7 +134,6 @@ Section Switcher_KtK.
       When the callee faults, the caller gets ECOMPARTMENTFAIL back, and
       neither [P] nor [Q]. *)
   Lemma switcher_cc_specification_known_to_known_end_to_end
-    (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
     (stk_mem : list LWord)
@@ -232,7 +231,6 @@ Section Switcher_KtK.
     is_heap_address bcgp_tgt = false ->
     ↑Nswitcher ⊆ E ->
     ↑N_trap ⊆ E ->
-    Nswitcher ## N_trap ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt < a_tbl_cgp)%a ->
     (a_tbl_ehs < atbl_tgt)%a ->
@@ -283,13 +281,13 @@ Section Switcher_KtK.
     subst returned stack_exhausted callee_faulted.
     iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow
              Hbpcc_nonheap Hbcgp_nonheap
-             HE HEtrap HNtrap Hatbl Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
+             HE HEtrap Hatbl Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".
 
     iApply (switcher_cc_specification_known_to_known
-              Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
+              wcgp_caller wcra_caller wcs0_caller wcs1_caller
               b_stk e_stk a_stk stk_mem arg_rmap rmap cstk nargs minstk_tgt E
               btbl_tgt atbl_tgt etbl_tgt
               bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt posture_tgt);
@@ -315,7 +313,7 @@ Section Switcher_KtK.
       iSplit; first (iPureIntro; rewrite Hrmap' Hdom; set_solver).
       iApply (if_and_sep_intro with "[]").
       { destruct may_fault; last done.
-        iExists Nswitcher. iFrame "Hswitcher Hstatic". by iPureIntro. }
+        iFrame "Hswitcher Hstatic". by iPureIntro. }
       iSplit.
       { (* The callee returns *)
         iNext.
@@ -356,7 +354,7 @@ Section Switcher_KtK.
             iFrame "∗#%".
         }
         iApply (switcher_cc_specification_return_known_to_known_gen
-                  Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
+                  wcgp_caller wcra_caller wcs0_caller wcs1_caller
                   wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk
                   (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E n
                   with
@@ -377,7 +375,7 @@ Section Switcher_KtK.
       iExtractList "Hrmap_fault" [cgp;cra;cs0;cs1;csp;ca0;ca1]
         as ["Hcgp";"Hcra";"Hcs0";"Hcs1";"Hcsp";"Hca0";"Hca1"].
       iApply (switcher_cc_specification_return_known_to_known_gen
-                Nswitcher wcgp_caller wcra_caller wcs0_caller wcs1_caller
+                wcgp_caller wcra_caller wcs0_caller wcs1_caller
                 (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret _ cstk
                 (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E n
                 with

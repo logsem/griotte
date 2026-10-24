@@ -324,6 +324,12 @@ Section Switcher_preamble.
     - iIntros "[Hrest [Htf Hspill]]". iFrame "Htf". iIntros (n) "Htf". iFrame.
   Qed.
 
+  (** The namespace of the invariant [switcher_inv]. *)
+  Definition Nswitcher : namespace := nroot .@ "switcher".
+
+  Lemma Nswitcher_N_trap : Nswitcher ## N_trap.
+  Proof. solve_ndisj. Qed.
+
   (** [switcher_inv] describes the invariant of the switcher,
       and describe the private state of the switcher.
 

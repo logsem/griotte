@@ -124,11 +124,10 @@ Section Switcher_Spec_Install.
       [ErrorState] is read at the handler's [csp] through the accessor,
       and the context it holds is resumed, or a load faults. *)
   Lemma switcher_install_context_spec
-    (Nswitcher : namespace) (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
+    (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
     (L : nat → list LWord → iProp Σ) :
     ↑Nswitcher ⊆ F ->
     ↑N_trap ⊆ F ->
-    Nswitcher ## N_trap ->
     (∀ r, is_Some (rmap !! r)) ->
     nonZero (rmap !!! ca0).(lw) = false ->
 
@@ -148,7 +147,7 @@ Section Switcher_Spec_Install.
         install_resume_k F cstk rmap wpcc L )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HF HFtrap Hdisj Hfull Hnz)
+    iIntros (HF HFtrap Hfull Hnz)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hna & Hcstk & #Hpcc & HL & Hacc & Hpost)".
     iPoseProof "Hstatic" as "(#Hcode & _ & _)".
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";

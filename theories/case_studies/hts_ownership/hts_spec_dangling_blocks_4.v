@@ -29,16 +29,15 @@ Section HTS_Spec_Dangling.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (cstk : CSTK).
 
-  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
+  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C).
   #[local] Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a Ws Cs cstk).
   #[local] Notation adv2_ret := (hts_adv2_ret pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a cstk).
 
   Lemma hts_spec_dangling :
-    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
@@ -54,7 +53,7 @@ Section HTS_Spec_Dangling.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
+    iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
       HsubBounds Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -199,7 +198,7 @@ Section HTS_Spec_Dangling.
       rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
     assert (is_arg_rmap adv_arg 8) as Hargs_rmap.
     { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
-    iApply (switcher_cc_specification Nswitcher (hts_Wfree Wret ι) C
+    iApply (switcher_cc_specification (hts_Wfree Wret ι) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
       wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a C_f stk
@@ -215,7 +214,6 @@ Section HTS_Spec_Dangling.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
-    { exact HNtrap. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_free).
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

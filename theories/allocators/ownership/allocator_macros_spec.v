@@ -147,7 +147,7 @@ Section AllocatorOwnerMacro.
       clears the tag of the result and the following [load] fails. *)
 
   Lemma allocator_owner_invalid_spec
-    (Nswitcher : namespace) (E : coPset) (pc_b pc_e pc_a : Addr) (off : Z) (wsealed wtp : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (off : Z) (wsealed wtp : LWord)
     (P : iProp Σ) :
 
     let code := allocator_owner_instrs off ctp ca0 in

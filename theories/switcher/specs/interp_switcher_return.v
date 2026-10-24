@@ -96,7 +96,7 @@ Section fundamental.
       caller's frame and returns to it, or exits the thread when the frame to
       pop is the entry frame. No other register is read. *)
   Lemma switcher_return_unwind (trusted_fault : CSTK → LWord → LReg → iProp Σ)
-    (W : WORLD) (C : CmptName) (Nswitcher : namespace)
+    (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (rmap : LReg) (wca0 wca1 : LWord) :
     (∀ r, is_Some (rmap !! r)) ->

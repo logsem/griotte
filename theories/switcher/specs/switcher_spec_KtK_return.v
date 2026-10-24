@@ -31,7 +31,6 @@ Section Switcher_KtK_Return.
       since the return routine reloads it from the frame, and the frame may
       have any error handler count [n_cnt]. *)
   Lemma switcher_cc_specification_return_known_to_known_gen
-    (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : LWord)
     (b_stk e_stk a_stk : Addr)
     (stk_mem : list LWord)
@@ -219,7 +218,6 @@ Section Switcher_KtK_Return.
   Qed.
 
   Lemma switcher_cc_specification_return_known_to_known
-    (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : LWord)
     (b_stk e_stk a_stk : Addr)
     (stk_mem : list LWord)

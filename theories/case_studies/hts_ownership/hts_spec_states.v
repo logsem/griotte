@@ -179,7 +179,7 @@ Section HTS_States.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (cstk : CSTK).
 
   (** The persistent invariants and facts used by every segment. *)
   Definition hts_main_ctx : iProp Σ :=

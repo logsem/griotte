@@ -18,10 +18,9 @@ Section helpers_switcher_adequacy.
 
   Lemma fundamental_execute_entry_point
     (W : WORLD) (C : CmptName) (b_tbl b_pcc e_pcc b_cgp e_cgp : Addr) (eh ehs : Z)
-    (args minstk off : nat) (Nswitcher : namespace) :
+    (args minstk off : nat) :
     let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
     disjoint_from_heap b_cgp e_cgp ->
-    Nswitcher ## N_trap ->
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ switcher_static -∗
     b_tbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc -∗
@@ -36,10 +35,10 @@ Section helpers_switcher_adequacy.
         (WCap true RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap true RW Global b_cgp e_cgp b_cgp)
         args minstk W' C.
   Proof.
-    intros a_tbl_cgp Hcgp_heap HNtrap.
+    intros a_tbl_cgp Hcgp_heap.
     iIntros "#Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
       #Hinterp_pcc #Hinterp_cgp".
-    iPoseProof (switcher_mtcc_vec_safe Nswitcher HNtrap with "[$Hinv_switcher $Hswitcher_static]")
+    iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
       as "#Htrap".
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     (* The PCC and the CGP of the table are safe in every private future world *)
@@ -101,7 +100,7 @@ Section helpers_switcher_adequacy.
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (g_etbl : Locality) (a_etbl: Addr)
-    (posture : InterruptStatus) (args minstk off : nat) (eh ehs : Z) (Nswitcher : namespace) :
+    (posture : InterruptStatus) (args minstk off : nat) (eh ehs : Z) :
     let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
     let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
     let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
@@ -113,7 +112,6 @@ Section helpers_switcher_adequacy.
     (entries_etbl <= a_etbl < e_etbl)%a
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
-    → Nswitcher ## N_trap
     → na_inv cerise_nais Nswitcher switcher_inv
     ⊢ switcher_static
     -∗ b_etbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc
@@ -126,7 +124,7 @@ Section helpers_switcher_adequacy.
     -∗ ot_switcher_prop W C (WCap true RO g_etbl b_etbl e_etbl a_etbl).
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
-      Ha_etbl Hargs Hentry HNtrap.
+      Ha_etbl Hargs Hentry.
     iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
       #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
@@ -187,7 +185,7 @@ Section helpers_switcher_adequacy.
     iApply (fundamental_execute_entry_point
               with "Hinv_switcher Hswitcher_static Hetbl_pcc [] Hetbl_eh Hetbl_ehs
                     Hinterp_pcc Hinterp_cgp");
-      [exact (cmpt_cgp_disjoint_from_heap C_cmpt) | exact HNtrap |].
+      [exact (cmpt_cgp_disjoint_from_heap C_cmpt) |].
     subst b_etbl1 b_etbl.
     rewrite Hcgp_addr; iExact "Hetbl_cgp".
   Qed.

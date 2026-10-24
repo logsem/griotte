@@ -129,7 +129,7 @@ Section lse_obligations.
         rewrite /length_lse_main_imports /lse_main_imports /LSE_main_code_run /=.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (lse_f_spec (swlayout := swl) (assertlayout := asl)
-                _ _ _ _ _ _ _ _ _ W0' fw_switcherN lseN);
+                _ _ _ _ _ _ _ _ _ W0' lseN);
         last iFrame "#"; auto.
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { eapply disjoint_from_shadow_not_in;
@@ -138,8 +138,7 @@ Section lse_obligations.
       { exact (cmpt_cgp_base_not_heap main_cmpt). }
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
-      { rewrite /fw_switcherN /lseN; solve_ndisj. }
-      exact fw_switcherN_trap_disj. }
+      rewrite /Nswitcher /lseN; solve_ndisj. }
     iMod (seal_main_export fw_world0 C main_f
            with "Hseal_switcher Hot_switcher_main_f Hworld_C")
       as "(Hworld_C & #Hinterp_main_f)"; [done| |done|].
@@ -181,7 +180,7 @@ Section lse_obligations.
 
     (* 7 - We can apply the specification! *)
     iPoseProof (lse_run_spec (swlayout := swl) (assertlayout := asl) (C := C)
-                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ fw_switcherN lseN
+                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ lseN
                  with "[ $Hassert $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code $Hlse_data
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f
@@ -199,8 +198,7 @@ Section lse_obligations.
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
-    { rewrite /fw_switcherN /lseN; solve_ndisj. }
-    { exact fw_switcherN_trap_disj. }
+    { rewrite /Nswitcher /lseN; solve_ndisj. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { done. }

@@ -52,7 +52,6 @@ Section Heap_Temporal_Safety_Main.
        frame of the thread records it *)
     (w_main_tbl : LWord)
 
-    (Nswitcher : namespace)
     :
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
     let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a in
@@ -68,8 +67,6 @@ Section Heap_Temporal_Safety_Main.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     disjoint_from_shadow cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    Nswitcher ## Nallocator_service ->
-    Nswitcher ## N_trap ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -141,7 +138,7 @@ Section Heap_Temporal_Safety_Main.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
-      HNswitcher_service HNtrap Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
+      Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
       Himports_contiguous Hstk_min Hp_fresh Hheap_empty Hframe_match)
       "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
@@ -156,11 +153,11 @@ Section Heap_Temporal_Safety_Main.
        & Himport_free & Himport_alloc_cap & _)".
     iDestruct (hts_private_data_initial cgp_b cgp_e Hcgp_contiguous
       with "Hdata") as "Hp".
-    iAssert (hts_main_ctx C C_f W_init_C Nswitcher) as "#Hctx".
+    iAssert (hts_main_ctx C C_f W_init_C) as "#Hctx".
     { iFrame "#". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk0 rmap
+      C_f owner_a W_init_C Ws Cs cstk0 rmap
       with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hrmap $Howner $Hworld
         $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
         $Himport_adv $Himport_malloc $Himport_free $Himport_alloc_cap
@@ -168,22 +165,22 @@ Section Heap_Temporal_Safety_Main.
     iIntros "Hmalloc_ret".
     (* (b) *)
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk0
+      C_f owner_a W_init_C Ws Cs cstk0
       with "[$Hctx $Hmalloc_ret]"); try done.
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk0
+      C_f owner_a W_init_C Ws Cs cstk0
       with "[$Hctx $Hadv1_ret]"); try done.
     iIntros "Hfree_ret".
     (* (d) *)
     iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs Nswitcher cstk0
+      C_f owner_a W_init_C Ws Cs cstk0
       with "[$Hctx $Hfree_ret]"); try done.
     iIntros "Hadv2_ret".
     (* (e) *)
     iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Nswitcher cstk0
+      C_f owner_a W_init_C cstk0
       with "[$Hctx $Hadv2_ret]"); done.
   Qed.
 End Heap_Temporal_Safety_Main.

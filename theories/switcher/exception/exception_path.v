@@ -754,11 +754,10 @@ Section Switcher_Spec_Exception.
       [error_state_written] of the [ErrorState] goes to the continuation
       reached. *)
   Lemma switcher_exception_path_spec
-    (Nswitcher : namespace) (F : coPset) (cstk : CSTK) (R_resume : iProp Σ)
+    (F : coPset) (cstk : CSTK) (R_resume : iProp Σ)
     (error_state_written : nat → iProp Σ) (rmap : LReg) (w : LWord) :
     ↑Nswitcher ⊆ F ->
     ↑N_trap ⊆ F ->
-    Nswitcher ## N_trap ->
     (∀ r, is_Some (rmap !! r)) ->
 
     na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -794,7 +793,7 @@ Section Switcher_Spec_Exception.
          stackless handler, or the setup of a stackful handler with the
          stores of the [ErrorState]; then the invocation;
        - close the switcher invariant, and recombine the token. *)
-    iIntros (HF HFtrap Hdisj Hfull)
+    iIntros (HF HFtrap Hfull)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hout & Hna & Hcstk & #Hheader & Hwritten
        & #Hes_acc & Hpost)".
     iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc)".

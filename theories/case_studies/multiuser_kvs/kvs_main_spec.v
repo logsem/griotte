@@ -55,7 +55,6 @@ Section KVS_main_spec.
        frame of the thread records it *)
     (w_main_tbl : LWord)
 
-    (Nswitcher : namespace)
     :
 
     let imports :=
@@ -63,7 +62,6 @@ Section KVS_main_spec.
     in
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
 
-    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
@@ -125,7 +123,7 @@ Section KVS_main_spec.
     intros imports a_kvs_exp_tbl_cgp.
     subst imports a_kvs_exp_tbl_cgp.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
-    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
                Hframe_match
             )
@@ -170,7 +168,7 @@ Section KVS_main_spec.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iApply (kvs_main_add_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
-      rmap KVS_USER_KEY_MAIN b_assert e_assert B_f Nswitcher stk_mem cstk0
+      rmap KVS_USER_KEY_MAIN b_assert e_assert B_f stk_mem cstk0
       with
       "[- $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
@@ -253,13 +251,13 @@ Section KVS_main_spec.
     }
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_W0") as "Hstack_revoked_W1"; eauto.
 
-    iApply (kvs_main_adversary_phase_spec Nswitcher W1 B
+    iApply (kvs_main_adversary_phase_spec W1 B
              (WCap true RW Global cgp_b cgp_e cgp_b)
              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
              wcs0 (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e (stk_start_a csp_b csp_e) B_f stk_mem_B rmap_B Ws Cs cstk0
              ).
-    all: [> exact HNtrap | exact Hstk_shadow | exact Hstk_heap
+    all: [> exact Hstk_shadow | exact Hstk_heap
          | apply stk_start_cursor_ok; solve_addr
          | apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min
          | destruct mie; reflexivity
@@ -310,7 +308,7 @@ Section KVS_main_spec.
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap warg0 warg1
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a) rcs0
-      KVS_USER_KEY_MAIN b_assert e_assert a_flag Nswitcher
+      KVS_USER_KEY_MAIN b_assert e_assert a_flag
       stk_mem cstk0 with
       "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read

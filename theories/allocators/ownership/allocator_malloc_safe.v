@@ -25,9 +25,7 @@ Section Heap_Temporal_Safety_Interp.
   #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   (** Execute malloc for an arbitrary caller and return a safe result. *)
-  Lemma malloc_exec_entry_point (W : WORLD) (C : CmptName)
-    (Nswitcher : namespace) :
-    Nswitcher ## N_trap ->
+  Lemma malloc_exec_entry_point (W : WORLD) (C : CmptName) :
     allocator_pcc_b ≠ b_switcher ->
     allocator_service_ctx ∗
     allocator_service_static ∗
@@ -41,7 +39,7 @@ Section Heap_Temporal_Safety_Interp.
       allocator_malloc_nargs allocator_malloc_min_stack W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
-    iIntros (HNtrap Hpc_b)
+    iIntros (Hpc_b)
       "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
@@ -60,7 +58,7 @@ Section Heap_Temporal_Safety_Interp.
     (* A malformed allocator capability traps in the owner block. *)
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
-    { iApply (allocator_malloc_invalid_capability_spec Nswitcher ⊤ wca0
+    { iApply (allocator_malloc_invalid_capability_spec ⊤ wca0
         with "[- $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
         [ solve_ndisj
         | apply andb_false_iff in Hcap_valid as [Hnot_tagged|Hnot_sealed];
@@ -70,7 +68,7 @@ Section Heap_Temporal_Safety_Interp.
       iInsertRegs "Hrmap" ["Hcgpr";"Hcrar";"Hcspr";"Hca0";"Hca1";"Hca2";
                            "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
       iApply (trap_safe_unwind_logrel with "Hswitcher Hswitcher_static [] [-]");
-        [exact HNtrap| |exact Hframe| | |]; cycle 1.
+        [|exact Hframe| | |]; cycle 1.
       { (* The fault is outside the switcher's code: it is not resumed *)
         by apply trap_no_resume_cap. }
       { (* The allocator's table declares no handler *)
@@ -141,7 +139,7 @@ Section Heap_Temporal_Safety_Interp.
       iAssert (interp Wfixed C (WInt ALLOC_INVALID))
         as "#Hinterp_status".
       { iApply interp_int. }
-      iApply (switcher_ret_specification Nswitcher W (revoke W) C _
+      iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
         with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
@@ -153,8 +151,7 @@ Section Heap_Temporal_Safety_Interp.
       { exact Hframe. }
       { exact Hsync. }
       { exact Hnodup. }
-      { intros a Ha. apply Htemps in Ha. exact Ha. }
-      { exact HNtrap. } }
+      { intros a Ha. apply Htemps in Ha. exact Ha. } }
     - (* For a valid size, run the allocation blocks or the out-of-memory block. *)
       destruct wca1 as [wa1 π1].
       destruct Hvalid as (n & Hwa1 & Hpositive). cbn in Hwa1. subst wa1.
@@ -194,7 +191,7 @@ Section Heap_Temporal_Safety_Interp.
         iAssert (interp Wfixed C (WInt ALLOC_NO_MEMORY))
           as "#Hinterp_status".
         { iApply interp_int. }
-        iApply (switcher_ret_specification Nswitcher W (revoke W) C _
+        iApply (switcher_ret_specification W (revoke W) C _
           e_stk b_stk l stk_mem cstk Ws Cs
           (WInt ALLOC_NO_MEMORY) (WInt 0)
           with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
@@ -207,7 +204,6 @@ Section Heap_Temporal_Safety_Interp.
         { exact Hsync. }
         { exact Hnodup. }
         { intros a Ha. apply Htemps in Ha. exact Ha. }
-        { exact HNtrap. }
       + (* Allocate the fresh heap object and install its zeroed payload. *)
         iDestruct "Hsuccess" as (ι b e)
           "(%Hbounds_size & %Hι_new & %Hι_Ω & Hca0 & Hca1 & #Hobj & Hright & Hid & Hcells)".
@@ -338,7 +334,7 @@ Section Heap_Temporal_Safety_Interp.
         iAssert (interp Wfixed C (WInt 0))
           with "[]" as "#Hinterp_status".
         { iApply interp_int. }
-        iApply (switcher_ret_specification Nswitcher W Wshare C _
+        iApply (switcher_ret_specification W Wshare C _
           e_stk b_stk l stk_mem cstk Ws Cs
           (WCap true RW Global b e b @@ ι) (WInt 0)
           with "[$Hswitcher $Hswitcher_static $Hinterp_fixed $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
@@ -351,15 +347,12 @@ Section Heap_Temporal_Safety_Interp.
         { exact Hsync. }
         { exact Hnodup. }
         { intros a Ha. apply Htemps in Ha. exact Ha. }
-        { exact HNtrap. }
   Qed.
 
   Lemma malloc_entry_point_spec
     (g_allocator_exp_tbl : Locality)
     (W : WORLD)
-    (C : CmptName)
-    (Nswitcher : namespace) :
-    Nswitcher ## N_trap ->
+    (C : CmptName) :
     allocator_pcc_b ≠ b_switcher ->
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
     let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a in
@@ -380,7 +373,7 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_malloc).
   Proof.
-    intros HNtrap Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
+    intros Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
@@ -465,7 +458,7 @@ Section Heap_Temporal_Safety_Interp.
     iNext.
     change (allocator_pcc_b ^+ allocator_malloc_pcc_off)%a with allocator_malloc_pcc_addr.
     iAssert (no_handler allocator_exp_tbl_b) as "#Hno_handler"; first iFrame "Heh Hehs".
-    iApply (malloc_exec_entry_point W' C Nswitcher HNtrap Hpc_b).
+    iApply (malloc_exec_entry_point W' C Hpc_b).
     iFrame "#".
   Qed.
 

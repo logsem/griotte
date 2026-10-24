@@ -33,15 +33,14 @@ Section HTS_Spec_Malloc.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (cstk : CSTK).
 
-  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
+  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C).
   #[local] Notation hts_static := (hts_static_mem pc_b pc_a cgp_b C_f owner_a).
   #[local] Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
 
   Lemma hts_spec_malloc (rmap : LReg) :
-    Nswitcher ## N_trap ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
     is_heap_address owner_a = false ->
@@ -72,7 +71,7 @@ Section HTS_Spec_Malloc.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HNtrap Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
+    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
       Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hstk_min Hrmap_dom HsubBounds
       Himports_contiguous)
       "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hrmap & Hstatic & Howner & Hworld
@@ -221,7 +220,6 @@ Section HTS_Spec_Malloc.
     pose proof allocator_size_exports as Hsize.
     rewrite /allocator_export_table_entries in Hsize.
     iApply (switcher_cc_specification_known_to_known_end_to_end
-      Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) stk_mem rmap_arg rmap_other cstk
@@ -245,7 +243,6 @@ Section HTS_Spec_Malloc.
     { exact hts_allocator_cgp_not_heap. }
     { solve_ndisj. }
     { solve_ndisj. }
-    { exact HNtrap. }
     { rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { solve_addr. }
     { rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }

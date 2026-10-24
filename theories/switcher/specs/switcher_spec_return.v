@@ -28,7 +28,6 @@ Section Switcher.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma switcher_ret_specification
-    (Nswitcher : namespace)
     (W0 Wcur : WORLD)
     (C : CmptName)
     (rmap : LReg)
@@ -46,7 +45,6 @@ Section Switcher.
     (* NOTE: there is only one side of the implication... *)
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
-    Nswitcher ## N_trap ->
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv
@@ -80,11 +78,11 @@ Section Switcher.
        - when the caller is trusted, use the continuation;
        - when the caller is untrusted, [switcher_jump_to_caller_cases_spec]. *)
     intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked HNtrap)
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
       "(#Hswitcher & #Hstatic & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
     & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
     iPoseProof "Hstatic" as "[#Hcode _]".
-    iPoseProof (switcher_mtcc_vec_safe Nswitcher HNtrap with "[$Hswitcher $Hstatic]") as "#Htrap".
+    iPoseProof (switcher_mtcc_vec_safe with "[$Hswitcher $Hstatic]") as "#Htrap".
 
     (* Open the switcher invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -298,7 +296,6 @@ Section Switcher.
       come under an update at the time of the fault (for instance, to close
       an invariant). *)
   Lemma trap_safe_return
-    (Nswitcher : namespace)
     (W0 Wcur : WORLD)
     (C : CmptName)
     (rmap : LReg)
@@ -315,7 +312,6 @@ Section Switcher.
     csp_sync cstk csp_b csp_e ->
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
-    Nswitcher ## N_trap ->
     trap_no_resume w ->
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
@@ -335,11 +331,11 @@ Section Switcher.
     trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
     intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked HNtrap
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked
                Hno_resume)
       "#Hswitcher #Hstatic #Hno_handler Hres".
-    iApply (trap_safe_exception_entry Nswitcher ⊤ with "Hswitcher Hstatic");
-      [set_solver | set_solver | done |].
+    iApply (trap_safe_exception_entry ⊤ with "Hswitcher Hstatic");
+      [set_solver | set_solver |].
     iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
                      & [%wca0 Hca0] & [%wca1 Hca1] & [%wcsp Hcsp])".
     iModIntro.
@@ -354,7 +350,7 @@ Section Switcher.
     getRegValList [csp].
     iExtractList "Hrmap'" [csp;ca0;ca1] as ["Hcsp";"Hca0";"Hca1"].
     iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "HK".
-    iApply (switcher_ret_specification _ _ _ _ _ _ _ _ _ (cstack_set_top_count cstk n) with
+    iApply (switcher_ret_specification _ _ _ _ _ _ _ _ (cstack_set_top_count cstk n) with
              "[$Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
                $Hclose_list_res $Hrmap' $Hca0 $Hca1 $Hcsp]"); try done.
     { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap'). set_solver. }

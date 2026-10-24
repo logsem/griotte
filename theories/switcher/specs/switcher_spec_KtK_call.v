@@ -31,7 +31,7 @@ Section Switcher_KtK_Call.
   (** Failure path of [switcher_cc_specification_known_to_known]: the
       trusted stack is exhausted. *)
   Lemma switcher_cc_spec_tstack_exhausted_known_to_known
-    (Nswitcher : namespace) (E : coPset)
+    (E : coPset)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller wct2 wctp : LWord)
     (b_stk e_stk a_stk : Addr)
     (stk_mem : list LWord)
@@ -133,7 +133,6 @@ Section Switcher_KtK_Call.
   Qed.
 
   Lemma switcher_cc_specification_known_to_known
-    (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
     (stk_mem : list LWord)

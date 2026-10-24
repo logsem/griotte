@@ -36,7 +36,7 @@ Section LSE.
 
     (W : WORLD)
 
-    (Nswitcher Nlse : namespace)
+    (Nlse : namespace)
 
     :
 
@@ -50,7 +50,6 @@ Section LSE.
     disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
     is_heap_address pc_b = false ->
     Nswitcher ## Nlse ->
-    Nswitcher ## N_trap ->
     (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
     (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
@@ -83,7 +82,7 @@ Section LSE.
     intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
     subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap
-               HNswitcher_lse HNtrap
+               HNswitcher_lse
                Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
@@ -159,7 +158,7 @@ Section LSE.
 
     (* Return to the caller of [f] *)
     iDestruct (RevokedResources_mono_pub W0 _ C l l Hpub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
-    iApply (switcher_ret_specification _ W0 (revoke W0) with
+    iApply (switcher_ret_specification W0 (revoke W0) with
              "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
