@@ -25,6 +25,7 @@ Section griotte_lang_rules.
     | GetL _ _ => Some (encodeLoc (get_l w))
     | GetB _ _ => Some (get_b w)
     | GetE _ _ => Some (get_e w)
+    | GetLen _ _ => Some (get_e w - get_b w)%Z
     | GetA _ _ => Some (get_a w)
     | GetOType _ _ =>
         match w with
@@ -43,6 +44,7 @@ Section griotte_lang_rules.
     i = GetL dst src ∨
     i = GetB dst src ∨
     i = GetE dst src ∨
+    i = GetLen dst src ∨
     i = GetA dst src \/
     i = GetOType dst src \/
     i = GetWType dst src \/
@@ -575,6 +577,8 @@ Lemma is_Get_GetB dst src : is_Get (GetB dst src) dst src.
 Proof. intros; unfold is_Get; eauto. Qed.
 Lemma is_Get_GetE dst src : is_Get (GetE dst src) dst src.
 Proof. intros; unfold is_Get; eauto. Qed.
+Lemma is_Get_GetLen dst src : is_Get (GetLen dst src) dst src.
+Proof. intros; unfold is_Get; eauto; firstorder. Qed.
 Lemma is_Get_GetA dst src : is_Get (GetA dst src) dst src.
 Proof. intros; unfold is_Get; eauto; firstorder. Qed.
 Lemma is_Get_GetOType dst src : is_Get (GetOType dst src) dst src.
@@ -588,6 +592,7 @@ Proof. by destruct_word w ; cbn. Qed.
 #[export] Hint Resolve is_Get_GetL : core.
 #[export] Hint Resolve is_Get_GetB : core.
 #[export] Hint Resolve is_Get_GetE : core.
+#[export] Hint Resolve is_Get_GetLen : core.
 #[export] Hint Resolve is_Get_GetA : core.
 #[export] Hint Resolve is_Get_GetOType : core.
 #[export] Hint Resolve is_Get_GetWType : core.

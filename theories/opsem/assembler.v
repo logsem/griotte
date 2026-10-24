@@ -93,6 +93,7 @@ Module Asm_Griotte.
   | Subseg (dst src : RegName) (b e : asm_arg)
   | GetB (dst r: RegName)
   | GetE (dst r: RegName)
+  | GetLen (dst r: RegName)
   | GetA (dst r: RegName)
   | GetP (dst r: RegName)
   | GetL (dst r: RegName)
@@ -363,6 +364,8 @@ Module Asm_Griotte.
         Ok (machine_instructions.GetB dst src)
     | GetE dst src =>
         Ok (machine_instructions.GetE dst src)
+    | GetLen dst src =>
+        Ok (machine_instructions.GetLen dst src)
     | GetA dst src =>
         Ok (machine_instructions.GetA dst src)
     | GetP dst src =>
@@ -771,6 +774,7 @@ Module Asm_Griotte.
   Definition subseg dst src b e := (ASM_Instr (Subseg dst src b e)).
   Definition getb dst src := (ASM_Instr (GetB dst src)).
   Definition gete dst src := (ASM_Instr (GetE dst src)).
+  Definition getlen dst src := (ASM_Instr (GetLen dst src)).
   Definition geta dst src := (ASM_Instr (GetA dst src)).
   Definition getp dst src := (ASM_Instr (GetP dst src)).
   Definition getl dst src := (ASM_Instr (GetL dst src)).

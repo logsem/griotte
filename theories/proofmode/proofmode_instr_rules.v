@@ -77,6 +77,7 @@ Ltac dispatch_instr_rule instr cont :=
   | GetP ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetB ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetE ?r1 ?r2 => dispatch_Get r1 r2 cont
+  | GetLen ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetA ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetOType ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetWType ?r1 ?r2 => dispatch_Get r1 r2 cont

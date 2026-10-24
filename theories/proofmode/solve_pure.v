@@ -107,6 +107,7 @@ Proof. auto. Qed.
 #[export] Hint Resolve is_Get_GetL : solve_pure.
 #[export] Hint Resolve is_Get_GetB : solve_pure.
 #[export] Hint Resolve is_Get_GetE : solve_pure.
+#[export] Hint Resolve is_Get_GetLen : solve_pure.
 #[export] Hint Resolve is_Get_GetA : solve_pure.
 #[export] Hint Resolve is_Get_GetOType : solve_pure.
 #[export] Hint Resolve is_Get_GetWType : solve_pure.

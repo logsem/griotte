@@ -886,6 +886,7 @@ Definition canon_instr (i : instr) : instr :=
   | Subseg r1 r2 a1 a2 => Subseg (c r1) (c r2) (ca a1) (ca a2)
   | GetB r1 r2 => GetB (c r1) (c r2)
   | GetE r1 r2 => GetE (c r1) (c r2)
+  | GetLen r1 r2 => GetLen (c r1) (c r2)
   | GetA r1 r2 => GetA (c r1) (c r2)
   | GetP r1 r2 => GetP (c r1) (c r2)
   | GetL r1 r2 => GetL (c r1) (c r2)
