@@ -73,6 +73,7 @@ Section Handle_Error_Stack_Oob.
     iIntros (Hlea) "(HPC & Hct0 & Hct1 & Hct2 & Hcs1 & #Hswitcher & Hpost)".
     pose proof (error_state_fits_lea _ _ Hlea) as Hfits_iff.
     switcher_open_label ".Lhandle_error_stack_oob" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     (* GetTag ct1 ct0 *)
     iInstrApply "Hcode" wp_gettag_lax with "[$HPC $Hct0 $Hct1]"
       as (ztag) "(HPC & Hct0 & Hct1 & %Hztag)".
@@ -85,6 +86,7 @@ Section Handle_Error_Stack_Oob.
       (* Jmp .Lhandle_error_try_stackless *)
       iInstr "Hcode".
       { switcher_jump_label ".Lhandle_error_try_stackless". }
+      subst hpost.
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[]"); last iFrame "HPC Hct0 Hct1 Hct2 Hcs1".
       iPureIntro.
@@ -105,6 +107,7 @@ Section Handle_Error_Stack_Oob.
     - (* Jne 2 ct1 0 *)
       iInstr "Hcode".
       switcher_change_pc_label ".Lhandle_error_try_stackful".
+      subst hpost.
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" with "[]"); last iFrame "HPC Hct0 Hct1 Hct2 Hcs1".
       iPureIntro. by apply Hfits_iff.
@@ -113,6 +116,7 @@ Section Handle_Error_Stack_Oob.
       (* Jmp .Lhandle_error_try_stackless *)
       iInstr "Hcode".
       { switcher_jump_label ".Lhandle_error_try_stackless". }
+      subst hpost.
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[]"); last iFrame "HPC Hct0 Hct1 Hct2 Hcs1".
       iPureIntro. left. intros (_ & Hle)%Hfits_iff. lia.
@@ -283,6 +287,7 @@ Section Handle_Error_Stack_Oob.
       { iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
       iFrame "Hctp Hct1 Hct2 Hcs0 Hcs1 Hcell".
     - iIntros (p g e a wct2') "(%Hw & HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcell)".
+      switcher_hide "Hpost" as hpost.
       (* Sub ct2 cs0 cs1 *)
       iInstr "Hcode".
       destruct (decide (eh = ExportTable_no_handler)) as [-> | Hhandler].
@@ -290,6 +295,7 @@ Section Handle_Error_Stack_Oob.
         (* Jne .Lhandle_error_found ct2 0 *)
         iInstr "Hcode".
         switcher_change_pc_label ".Lhandle_error_try_stackless".
+        subst hpost.
         iDestruct "Hpost" as "(_ & _ & Hpost)".
         iApply ("Hpost" with "[//] [//]").
         iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcell".
@@ -297,6 +303,7 @@ Section Handle_Error_Stack_Oob.
         iInstr "Hcode".
         { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
         { switcher_jump_label ".Lhandle_error_found". }
+        subst hpost.
         iDestruct "Hpost" as "(_ & Hpost & _)".
         iApply ("Hpost" with "[//] [//]").
         iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcell".
@@ -413,6 +420,7 @@ Section Handle_Error_Stack_Oob.
       { iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
       iFrame "Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hcsp_cell Hcell".
     - iIntros (p g e a wct2') "(%Hw & HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcell)".
+      switcher_hide "Hpost" as hpost.
       (* Sub ct2 cs0 cs1 *)
       iInstr "Hcode".
       destruct (decide (ehs = ExportTable_no_handler)) as [-> | Hhandler].
@@ -422,6 +430,7 @@ Section Handle_Error_Stack_Oob.
         (* Jmp .Lcommon_force_unwind *)
         iInstr "Hcode".
         { switcher_jump_label ".Lcommon_force_unwind". }
+        subst hpost.
         iDestruct "Hpost" as "(_ & Hpost & _)".
         iApply ("Hpost" with "[//] [//]").
         iFrame "HPC Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hcsp_cell Hcell". }
@@ -456,6 +465,7 @@ Section Handle_Error_Stack_Oob.
         (* Jmp .Lhandle_stack_recovered *)
         iInstr "Hcode".
         { switcher_jump_label ".Lhandle_stack_recovered". }
+        subst hpost.
         iDestruct "Hpost" as "(_ & _ & Hpost & _)".
         iApply ("Hpost" with "[//] [//] [//]").
         iFrame "HPC Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hcsp_cell Hcell".
@@ -463,6 +473,7 @@ Section Handle_Error_Stack_Oob.
         iInstr "Hcode".
         { apply negb_true_iff, Z.eqb_neq. cbn. tstack_unfold. solve_addr. }
         switcher_change_pc_label ".Lhandle_stack_rebound".
+        subst hpost.
         iDestruct "Hpost" as "(_ & _ & _ & Hpost)".
         iApply ("Hpost" with "[//] [//] [//]").
         iFrame "HPC Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hcsp_cell Hcell".

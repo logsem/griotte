@@ -71,6 +71,7 @@ Section Switch_Trusted_Stack_Exhausted.
     assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
     switcher_open_label ".Lswitch_trusted_stack_exhausted" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
     iInstrApply "Hcode" (switcher_load_stack_restore _ _ _ _ _ _ _ cs0 csp
       _ _ _ _ _ _ _ _)
@@ -117,6 +118,7 @@ Section Switch_Trusted_Stack_Exhausted.
     (* Jmp .Lswitch_callee_dead_zeros *)
     iInstr "Hcode".
     { switcher_jump_label ".Lswitch_callee_dead_zeros". }
+    subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done.
     iFrame "HPC Hcs0 Hcs1 Hcgp Hcra Hca0 Hca1 Hcsp Ha_stk0 Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
   Qed.
@@ -173,6 +175,7 @@ Section Switch_Trusted_Stack_Exhausted.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
     iEval (rewrite open_world_interp_empty) in "Hworld".
     switcher_open_label ".Lswitch_trusted_stack_exhausted" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
     iInstrApply "Hcode" (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ _ cs0 csp
       _ _ _ _ _ _ _ _)
@@ -224,6 +227,7 @@ Section Switch_Trusted_Stack_Exhausted.
     iInstr "Hcode".
     { switcher_jump_label ".Lswitch_callee_dead_zeros". }
     iEval (rewrite -open_world_interp_empty) in "Hworld".
+    subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done.
     iFrame "Hworld HPC Hcs0 Hcs1 Hcgp Hcra Hca0 Hca1 Hcsp Ha_stk0 Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
   Qed.

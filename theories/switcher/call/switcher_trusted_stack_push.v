@@ -85,6 +85,7 @@ Section Switcher_Trusted_Stack_Push.
             = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
       by (tstack_unfold; solve_addr).
     switcher_open_label ".Lswitcher_trusted_stack_push" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     (* ReadSR ct2 mtdc *)
     iInstr "Hcode".
     (* CLoad ctp ct2 TrustedStack_offset_frameoffset *)
@@ -105,8 +106,6 @@ Section Switcher_Trusted_Stack_Push.
       iEval (cbn) in "Hcs0"; cycle 1.
     { (* Jne 2 cs0 0 *)
       iInstr "Hcode".
-      (* The post would be simplified by [iInstr] *)
-      iHide "Hpost" as hpost.
       (* Jmp .Lswitch_trusted_stack_exhausted *)
       iInstr "Hcode".
       { switcher_jump_label ".Lswitch_trusted_stack_exhausted". }
@@ -174,7 +173,9 @@ Section Switcher_Trusted_Stack_Push.
       by (tstack_unfold; lia).
     switcher_change_pc_label ".Lswitch_stack_chop".
     iCombine "Hlc Hlc'" as "Hlc".
+    subst hpost.
     iApply "Hpost"; iLeft; iExists tstk_next.
+    rewrite /TrustedStackFrame_offset_csp finz_add_0_default.
     iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hmtdc Hframeoffset Hframe_csp Hframe_export_table
       Hframe_error_count Htstk Hlc".
     iPureIntro; tstack_unfold; split; solve_addr.

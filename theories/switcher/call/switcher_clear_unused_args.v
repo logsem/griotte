@@ -95,11 +95,10 @@ Section Switcher_Clear_Unused_Args.
     iIntros "!> (%rmap' & %Hrmap' & HPC & Hregs & _)".
 
     (* [.Lswitch_callee_call] *)
-    switcher_open_label ".Lswitch_callee_call" "Hswitcher_call" as "Hcode_call".
+    switcher_open_label ".Lswitch_callee_call" "Hswitcher_call" as "Hcode_call" a_call Ha_call.
     (* Jalr cra cra *)
     iInstr "Hcode_call".
-    rewrite (_ : ((a_switcher_call ^+ switcher_label_offset ".Lswitch_callee_call") ^+ 1)%a =
-                 a_switcher_return);
+    rewrite (_ : (a_call ^+ 1)%a = a_switcher_return);
       last (rewrite switcher_return_offset; switcher_addr_eq).
     iApply ("Hpost" $! _ rmap'); iFrame "HPC Hcra Hregs"; done.
   Qed.

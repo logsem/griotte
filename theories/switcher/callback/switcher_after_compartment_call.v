@@ -15,18 +15,6 @@ From griotte Require Import logrel call_stack switcher_preamble switcher_load_sp
     [.Lswitcher_zero_callee_frame]. Each restored register is the result of
     a load, which may clear the tag of a saved heap capability. *)
 
-(** Rewrite the PC in [h], at the label [s] inside the block of the
-    switcher that starts with the label [sb], to the address
-    [a_block ^+ k] of the block [a_block] where [iInstr] looks for the
-    instruction. *)
-#[local] Ltac switcher_pc_in_block sb s h :=
-  let k := eval vm_compute in (switcher_label_offset s - switcher_label_offset sb)%Z in
-  let Heq := fresh "Heq_pc" in
-  assert ((a_switcher_call ^+ switcher_label_offset s)%a =
-          ((a_switcher_call ^+ switcher_label_offset sb) ^+ k)%a) as Heq
-    by switcher_addr_eq;
-  iEval (rewrite Heq) in h; clear Heq.
-
 Section Switcher_After_Compartment_Call.
   Context
     {Σ:gFunctors}
@@ -86,6 +74,7 @@ Section Switcher_After_Compartment_Call.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_heap //. }
     iEval (rewrite /TrustedStackFrame_offset_csp finz_add_0_default) in "Ha_tstk Hpost".
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
     (* CLoad ct2 ctp TrustedStack_offset_frameoffset *)
@@ -123,6 +112,7 @@ Section Switcher_After_Compartment_Call.
       by (tstack_unfold; lia).
     iEval (rewrite Hpopped) in "Hframeoffset".
     switcher_change_pc_label ".Lswitcher_restore_spill".
+    subst hpost.
     iApply "Hpost".
     iFrame "HPC Hctp Hct0 Hct1 Hct2 Hcsp Hmtdc Hframeoffset Ha_tstk Hlc".
   Qed.
@@ -156,6 +146,7 @@ Section Switcher_After_Compartment_Call.
             = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
       by (tstack_unfold; solve_addr).
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
     (* CLoad ct2 ctp TrustedStack_offset_frameoffset *)
@@ -180,6 +171,7 @@ Section Switcher_After_Compartment_Call.
     (* Jmp .Lcommon_defer_irqs_and_thread_exit *)
     iInstr "Hcode".
     { switcher_jump_label ".Lcommon_defer_irqs_and_thread_exit". }
+    subst hpost.
     iApply "Hpost".
     iFrame "HPC Hctp Hct0 Hct2 Hmtdc Hframeoffset".
   Qed.
@@ -238,6 +230,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
+    switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
     iInstrApply "Hcode" (switcher_load_stack_restore _ _ _ _ _ _ _ cs0 csp
       _ _ _ _ _ _ _ _)
@@ -284,6 +277,7 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
     switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
     iFrame "HPC Hcgp Hcra Hcs1 Hcs0 Hctp Hct1 Hct2 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
   Qed.
@@ -354,6 +348,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
+    switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
     iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ _
       cs0 csp _ _ _ _ _ _ _ _)
@@ -400,6 +395,7 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
     switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
     iFrame "Hworld Hactual_gp Hactual_ra Hactual_s1 Hactual_s0".
     iFrame "HPC Hcgp Hcra Hcs1 Hcs0 Hctp Hct1 Hct2 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
@@ -482,6 +478,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
+    switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
     iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ _
       cs0 csp _ _ _ _ _ _ _ _)
@@ -528,6 +525,7 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
     switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
     iFrame "Hworld HPC Hcgp Hcra Hcs1 Hcs0 Hctp Hct1 Hct2 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3
       Hlc".

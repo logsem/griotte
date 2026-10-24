@@ -49,12 +49,7 @@ Section Switch_Csp_Check.
     iIntros "(HPC & Hcsp & Hct2 & Hctp & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_loc"; first iFrame "Hswitcher".
     switcher_open_label ".Lswitch_csp_check" "Hswitcher" as "Hcode".
-    (* The label is at offset 0: [iInstr] simplifies its address *)
-    rewrite switcher_call_entry_label.
-    repeat match goal with
-      | Hfact : context [switcher_label_offset ".Lswitch_csp_check"] |- _ =>
-          rewrite switcher_call_entry_label in Hfact
-      end.
+    switcher_hide "Hpost" as hpost.
     (* GetP ct2 csp *)
     iInstr "Hcode".
     set (p0 := encodePermSum (get_p wcsp.(lw))).
@@ -68,6 +63,7 @@ Section Switch_Csp_Check.
       iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
       { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; done. }
       { switcher_jump_label ".Lcommon_force_unwind". }
+      subst hpost.
       iApply "Hpost"; iRight.
       iSplit.
       { iPureIntro; intros [Hcontra _]; rewrite Hp0 in Hcontra; simplify_eq; lia. }
@@ -89,6 +85,7 @@ Section Switch_Csp_Check.
       iInstrApply "Hcode_loc" wp_jnez_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
       { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; done. }
       { switcher_jump_label ".Lcommon_force_unwind". }
+      subst hpost.
       iApply "Hpost"; iRight.
       iSplit.
       { iPureIntro; intros [_ Hcontra]; rewrite Hg0 in Hcontra; simplify_eq; lia. }
@@ -97,6 +94,7 @@ Section Switch_Csp_Check.
     (* Jne .Lcommon_force_unwind ct2 0 *)
     iInstr "Hcode_loc".
     switcher_change_pc_label ".Lswitch_entry_first_spill".
+    subst hpost.
     iApply "Hpost"; iLeft.
     iFrame "HPC Hcsp Hct2 Hctp".
     iPureIntro; split; [rewrite Hp0 | rewrite Hg0]; f_equal; lia.

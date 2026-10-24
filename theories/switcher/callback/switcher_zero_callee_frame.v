@@ -36,11 +36,12 @@ Section Switcher_Zero_Callee_Frame.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
-    switcher_open_label ".Lswitcher_return_to_caller" "Hswitcher" as "Hcode".
+    switcher_open_label ".Lswitcher_return_to_caller" "Hswitcher" as "Hcode" a_ret Ha_ret.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
-    { (* The label would be unfolded by the simplifications of [iInstr_fail] *)
-      set (off := switcher_label_offset ".Lswitcher_return_to_caller") in *.
-      clearbody off.
+    { (* The fault is at the start of the block. The label would be unfolded
+         by the simplifications of [iInstr_fail] *)
+      rewrite -Ha_ret.
+      clear Ha_ret.
       (* Jalr cnull cra *)
       iInstr_fail "Hcode".
       iDestruct "Hpost" as "[_ Hfailed]".

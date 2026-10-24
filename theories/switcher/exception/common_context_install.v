@@ -91,10 +91,8 @@ Section Common_Context_Install.
     iRegionSplit "Hsave" as
       "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs16 & Hs17 & Hs18 & Hs19 & Hs20)".
-    switcher_open_label ".Lcommon_context_install" "Hswitcher" as "Hcode".
-    (* The block has no exit by label: its address is a variable *)
-    remember (a_switcher_call ^+ switcher_label_offset ".Lcommon_context_install")%a
-      as pc_a eqn:Hpc_a.
+    switcher_open_label ".Lcommon_context_install" "Hswitcher" as "Hcode" pc_a Hpc_a.
+    (* The block has no exit by label: the equation of its address is not needed *)
     clear Hpc_a.
     (* The reload of the registers but the stack pointer is the macro *)
     iAssert (codefrag_pers pc_a common_context_install_instrs) as "Hcode_all";

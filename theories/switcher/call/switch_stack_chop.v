@@ -58,6 +58,7 @@ Section Switch_Stack_Chop.
 
     (* [.Lswitch_stack_chop] *)
     switcher_open_label ".Lswitch_stack_chop" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     (* GetA cs0 csp *)
     iInstr "Hcode".
     (* GetB cs1 csp *)
@@ -90,16 +91,15 @@ Section Switch_Stack_Chop.
 
     (* [.Lswitch_after_zero] *)
     switcher_open_label ".Lswitch_after_zero" "Hswitcher_key" as "Hcode_key".
-    pose proof switcher_call_entry_point as Hcall.
     (* Auipcc cs0 .Lswitcher_unseal_key *)
     iInstr "Hcode_key".
-    { instantiate (1 := b_switcher). pose proof switcher_size as Hsize.
-      clear -Hcall Hsize. offsets_compute; solve_addr. }
+    { instantiate (1 := b_switcher). switcher_addr_eq. }
     (* CLoad cs0 cs0 0 *)
     iInstr "Hcode_key".
     { apply switcher_base_not_shadow. }
     { done. }
     switcher_change_pc_label ".Lswitch_unseal_entry".
+    subst hpost.
     iApply "Hpost".
     iFrame "HPC Hcs0 Hcs1 Hct2 Hcsp Hstk".
   Qed.

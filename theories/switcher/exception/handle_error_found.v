@@ -108,6 +108,7 @@ Section Handle_Error_Found.
     assert (is_shadow_address a_cnt_cell = false) as Hcell_shadow.
     { eapply disjoint_from_shadow_not_in; [exact Hts_shadow | exact Hcell_bounds]. }
     switcher_open_label ".Lhandle_error_found" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     (* CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount *)
     iInstr "Hcode".
     { done. }
@@ -129,6 +130,7 @@ Section Handle_Error_Found.
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
          { switcher_jump_label ".Lcommon_force_unwind". }
+         subst hpost.
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by left).
          iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell". }
@@ -146,6 +148,7 @@ Section Handle_Error_Found.
          (* Jmp .Lcommon_force_unwind *)
          iInstr "Hcode".
          { switcher_jump_label ".Lcommon_force_unwind". }
+         subst hpost.
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by right).
          iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell". }
@@ -190,6 +193,7 @@ Section Handle_Error_Found.
       (* Jmp .Lhandle_error_stack_setup *)
       iInstr "Hcode".
       { switcher_jump_label ".Lhandle_error_stack_setup". }
+      subst hpost.
       iDestruct "Hpost" as "(_ & _ & Hpost)".
       iApply ("Hpost" with "[//] [//]").
       iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell".
@@ -197,6 +201,7 @@ Section Handle_Error_Found.
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       switcher_change_pc_label ".Lhandle_error_stackless_setup".
+      subst hpost.
       iDestruct "Hpost" as "(_ & Hpost & _)".
       iApply ("Hpost" with "[//] [//]").
       iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell".

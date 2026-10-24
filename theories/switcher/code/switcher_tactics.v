@@ -36,30 +36,45 @@ Ltac switcher_unfold_code h :=
   repeat (iEval (cbn [fmap list_fmap]) in h);
   repeat (iEval (cbn [concat]) in h).
 
-(** Prove [a = a_switcher_call ^+ off], an equality between addresses of
-    the code of the switcher. The offsets are closed terms, so the proof
-    first runs in a context with only the layout of the switcher, and falls
-    back to the full context. *)
-Ltac switcher_addr_eq :=
-  first
-    [ solve [ let Hsize := fresh "Hsize" in
-              let Hcall := fresh "Hcall" in
-              pose proof switcher_size as Hsize;
-              pose proof switcher_call_entry_point as Hcall;
-              clear - Hsize Hcall; offsets_compute; solve_addr ]
-    | offsets_compute; solve_addr ].
+(** Rewrite, in the goal, the abstracted start addresses [x] of the opened
+    blocks of the switcher with their equations [x = a_switcher_call ^+ off]
+    (see [switcher_focus_label]). *)
+Ltac switcher_unabstract :=
+  repeat match goal with
+  | H : ?x = (a_switcher_call ^+ _)%a |- context [?x] => is_var x; rewrite !H
+  end.
 
-(** Change the PC to [a_switcher_call ^+ off]. Does nothing when the PC is
-    already this address, syntactically. *)
-Ltac switcher_change_pc off :=
+(** Prove [a = a_switcher_call ^+ off], an equality between addresses of
+    the code of the switcher. The abstracted start addresses of the opened
+    blocks are first replaced with their definitions. The offsets are closed
+    terms, so the proof first runs in a context with only the layout of the
+    switcher ([switcher_addr_eq_cleared]), and falls back to the full
+    context. *)
+Ltac switcher_addr_eq_cleared :=
+  switcher_unabstract;
+  solve [ let Hsize := fresh "Hsize" in
+          let Hcall := fresh "Hcall" in
+          pose proof switcher_size as Hsize;
+          pose proof switcher_call_entry_point as Hcall;
+          clear - Hsize Hcall; offsets_compute; solve_addr ].
+
+Ltac switcher_addr_eq :=
+  first [ switcher_addr_eq_cleared | switcher_unabstract; offsets_compute; solve_addr ].
+
+(** Change the address of the PC to [a'], in the PC hypothesis only. Does
+    nothing when the PC is already at [a'], syntactically. *)
+Ltac switcher_set_pc a' :=
   try (unfold lword_of_word);
-  match goal with |- context [ environments.Esnoc _ _ (PC ↦ₚ (WCap _ _ _ _ _ ?a) @@? _)%I ] =>
-    let a' := constr:((a_switcher_call ^+ off)%a) in
+  match goal with |- context [ environments.Esnoc _ ?i (PC ↦ₚ (WCap _ _ _ _ _ ?a) @@? _)%I ] =>
     tryif constr_eq a a' then idtac else
       (let Heq := fresh "Heq_pc" in
        assert (a = a') as Heq by switcher_addr_eq;
-       rewrite Heq; clear Heq)
+       iEval (rewrite Heq) in i; clear Heq)
   end.
+
+(** Change the PC to [a_switcher_call ^+ off]. Does nothing when the PC is
+    already this address, syntactically. *)
+Ltac switcher_change_pc off := switcher_set_pc (a_switcher_call ^+ off)%a.
 
 (** Change the PC to the label [s] of the switcher. *)
 Ltac switcher_change_pc_label s := switcher_change_pc (switcher_label_offset s).
@@ -81,18 +96,49 @@ Tactic Notation "switcher_focus_block" constr(n) constr(h)
   try switcher_change_pc (switcher_block_offset n).
 
 (** Focus on the block of the switcher that starts with the label [s]. The
-    first address of the block is [a_switcher_call ^+ switcher_label_offset s],
-    and the PC is moved to it, when possible. *)
+    first address of the block is abstracted into the variable [a], with the
+    equation [Ha : a = a_switcher_call ^+ switcher_label_offset s]: the label
+    terms slow the instruction tactics down. The PC is moved to [a] when the
+    equality of the addresses holds in the layout of the switcher only. *)
+Ltac switcher_focus_label_as s h hi hcont a Ha :=
+  let n := eval vm_compute in (switcher_block s) in
+  let Hb := fresh "Ha_block" in
+  focus_block_nochangePC n h as a Hb hi hcont;
+  assert (a = (a_switcher_call ^+ switcher_label_offset s)%a) as Ha
+    by (clear - Hb; cbn in Hb; offsets_compute; solve_addr);
+  clear Hb;
+  try (unfold lword_of_word);
+  first
+    [ match goal with
+      |- context [ environments.Esnoc _ ?i (PC ↦ₚ (WCap _ _ _ _ _ ?a') @@? _)%I ] =>
+        constr_eq a' (a_switcher_call ^+ switcher_label_offset s)%a;
+        iEval (rewrite -Ha) in i
+      end
+    | match goal with
+      |- context [ environments.Esnoc _ ?i (PC ↦ₚ (WCap _ _ _ _ _ ?a') @@? _)%I ] =>
+        let Heq := fresh "Heq_pc" in
+        assert (a' = a) as Heq by switcher_addr_eq_cleared;
+        iEval (rewrite Heq) in i; clear Heq
+      end
+    | idtac ].
+
 Tactic Notation "switcher_focus_label" constr(s) constr(h)
     "as" constr(hi) constr(hcont) :=
-  let n := eval vm_compute in (switcher_block s) in
   let a := fresh "a_block" in
-  let Ha := fresh "Ha_block" in
-  focus_block_nochangePC n h as a Ha hi hcont;
-  assert (a = (a_switcher_call ^+ switcher_label_offset s)%a) as ->
-    by (clear - Ha; cbn in Ha; offsets_compute; solve_addr);
-  clear Ha;
-  try switcher_change_pc_label s.
+  let Ha := fresh "Heq_block" in
+  switcher_focus_label_as s h hi hcont a Ha.
+
+(** Hide the proposition of the Iris hypothesis [h], such as a large
+    postcondition, in the local definition [x], to speed up the proof mode.
+    A later modality in front of the proposition is left visible: the
+    instructions strip it, which would otherwise unfold [x]. *)
+Ltac switcher_hide h x :=
+  lazymatch goal with
+  | |- context [ environments.Esnoc _ (INamed h) (▷ ?P)%I ] => set (x := P)
+  | |- context [ environments.Esnoc _ (INamed h) ?P ] => set (x := P)
+  end.
+
+Tactic Notation "switcher_hide" constr(h) "as" ident(x) := switcher_hide h x.
 
 Section Switcher_Code.
   Context `{MP: MachineParameters} {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
@@ -129,17 +175,40 @@ End Switcher_Code.
 
 (** Open the block of the switcher that starts with the label [s], from the
     persistent code of the switcher [h]: [hi] is the persistent code of the
-    block, at [a_switcher_call ^+ switcher_label_offset s], with the facts
-    that [iInstr] needs, and the PC is moved to it, when possible. [h] is
-    cleared: the unfolded code of the whole switcher slows the proof mode
-    down. *)
-Tactic Notation "switcher_open_label" constr(s) constr(h) "as" constr(hi) :=
+    block, at the variable [a] (fresh by default), with the facts that
+    [iInstr] needs and the equation [Ha : a = a_switcher_call ^+
+    switcher_label_offset s] for the exits, and the PC is moved to [a], when
+    possible. [h] is cleared: the unfolded code of the whole switcher slows
+    the proof mode down. *)
+Ltac switcher_open_label_as s h hi a Ha :=
   let Hsub := fresh "Hsub_switcher" in
   pose proof switcher_SubBounds as Hsub;
   switcher_unfold_code h;
-  switcher_focus_label s h as hi "Hswitcher_cont";
+  switcher_focus_label_as s h hi "Hswitcher_cont" a Ha;
   clear Hsub;
   iClear h; iClear "Hswitcher_cont".
+
+Tactic Notation "switcher_open_label" constr(s) constr(h) "as" constr(hi)
+    ident(a) ident(Ha) :=
+  switcher_open_label_as s h hi a Ha.
+
+Tactic Notation "switcher_open_label" constr(s) constr(h) "as" constr(hi) :=
+  let a := fresh "a_block" in
+  let Ha := fresh "Heq_block" in
+  switcher_open_label_as s h hi a Ha.
+
+(** Rewrite the PC in [h], at the label [s] inside the opened block of the
+    switcher that starts with the label [sb], to the address [a ^+ k] of the
+    block, where [iInstr] looks for the instruction. *)
+Ltac switcher_pc_in_block sb s h :=
+  let k := eval vm_compute in (switcher_label_offset s - switcher_label_offset sb)%Z in
+  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb)%a |- _ =>
+    is_var a;
+    let Heq := fresh "Heq_pc" in
+    assert ((a_switcher_call ^+ switcher_label_offset s)%a = (a ^+ k)%a) as Heq
+      by switcher_addr_eq;
+    iEval (rewrite Heq) in h; clear Heq
+  end.
 
 (** Solve [(a + z)%a = Some ?a'], the target of a jump of the switcher to
     its label [s]: [?a'] is the address of [s]. *)
@@ -147,11 +216,28 @@ Ltac switcher_jump_label s :=
   transitivity (Some (a_switcher_call ^+ switcher_label_offset s)%a);
   [switcher_addr_eq | reflexivity].
 
-(** Rewrite the addresses [a_switcher_call ^+ off ^+ k] of the goal to
-    [a_switcher_call ^+ (off + k)], for instance the address of a faulting
-    instruction inside a block, to state it with [switcher_pc]. *)
+(** The offset [off] of an address [a = a_switcher_call ^+ off] of the code
+    of the switcher, written [a_switcher_call ^+ off], [a' ^+ k], or an
+    abstracted start address of an opened block. *)
+Ltac switcher_addr_offset a :=
+  lazymatch a with
+  | (a_switcher_call ^+ ?off)%a => off
+  | (?a' ^+ ?k)%a => let off := switcher_addr_offset a' in constr:((off + k)%Z)
+  | ?x => match goal with H : x = (a_switcher_call ^+ ?off)%a |- _ => off end
+  end.
+
+(** Rewrite the addresses of the capabilities of the switcher in the goal,
+    such as the address [a ^+ k] of a faulting instruction inside the
+    opened block at [a], to [a_switcher_call ^+ off], to state them with
+    [switcher_pc]. The rewriting is done in the conclusion when possible,
+    and in the whole goal otherwise. *)
 Ltac switcher_merge_pc :=
-  repeat match goal with |- context [((a_switcher_call ^+ ?off) ^+ ?k)%a] =>
-    rewrite (_ : ((a_switcher_call ^+ off) ^+ k)%a = (a_switcher_call ^+ (off + k))%a);
-      [| switcher_addr_eq]
+  try (unfold lword_of_word);
+  repeat match goal with
+  | |- context [ WCap _ _ _ b_switcher e_switcher ?a ] =>
+      lazymatch a with (a_switcher_call ^+ _)%a => fail | _ => idtac end;
+      let off := switcher_addr_offset a in
+      let Heq := fresh "Heq_pc" in
+      assert (a = (a_switcher_call ^+ off)%a) as Heq by switcher_addr_eq;
+      first [ iEval (rewrite Heq) | rewrite Heq ]; clear Heq
   end.

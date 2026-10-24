@@ -62,9 +62,7 @@ Section Handle_Error_Handler_Invoke.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hdom) "(HPC & Hcra & Hrmap & #Hswitcher & Hpost)".
-    switcher_open_label ".Lhandle_error_handler_invoke" "Hswitcher" as "Hcode".
-    remember (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_invoke")%a
-      as pc_a eqn:Hpc_a.
+    switcher_open_label ".Lhandle_error_handler_invoke" "Hswitcher" as "Hcode" pc_a Hpc_a.
     iAssert (codefrag_pers pc_a handle_error_handler_invoke_instrs) as "Hcode_all";
       first iExact "Hcode".
     iDestruct (codefrag_app_pers with "Hcode_all") as "[_ Hcode_rest]".
@@ -87,13 +85,11 @@ Section Handle_Error_Handler_Invoke.
     destruct (jalr_target_ok cra cra wcra.(lw)) eqn:Htgt.
     - (* Jalr cra cra *)
       iInstr "Hcode".
-      subst pc_a.
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" $! eq_refl mie rmap' with "[] [-]");
         first (iPureIntro; by rewrite Hdom' Hdom).
       rewrite /handler_return_sentry.
-      switcher_merge_pc.
-      rewrite (_ : (a_switcher_call ^+ (switcher_label_offset ".Lhandle_error_handler_invoke" + 12))%a =
+      rewrite (_ : (pc_a ^+ 12)%a =
                    (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_return")%a);
         last switcher_addr_eq.
       iFrame "HPC Hcra Hrmap".
@@ -102,7 +98,7 @@ Section Handle_Error_Handler_Invoke.
          [iInstr_fail] down *)
       iDestruct "Hpost" as "[_ Hfailed]".
       rewrite (_ : (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_cjalr")%a =
-                   (pc_a ^+ 11)%a); last (subst pc_a; switcher_addr_eq).
+                   (pc_a ^+ 11)%a); last switcher_addr_eq.
       clear Hpc_a.
       (* Jalr cra cra *)
       iInstr_fail "Hcode".

@@ -169,33 +169,29 @@ Section Handle_Error_Install_Context.
        & Hmtdc & Hframeoffset & Hcell & Hcnt & #Hpcc & Hsave & #Hswitcher & HL & Hacc & Hpost)".
     pose proof trusted_stack_frames_fit as [nfit Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
-    switcher_open_label ".Lhandle_error_install_context" "Hswitcher" as "Hcode".
+    switcher_open_label ".Lhandle_error_install_context" "Hswitcher" as "Hcode" pc_a Hpc_a.
     (* The exits of the block, from its start: the jump to
        [.Lcommon_context_install], and the faulting loads *)
-    assert (((a_switcher_call ^+ switcher_label_offset ".Lhandle_error_install_context") + 36)%a =
-              Some ((a_switcher_call ^+ switcher_label_offset ".Lhandle_error_install_context")
-                    ^+ 36)%a)
-      as Hjmp_some by switcher_addr_eq.
-    assert (((a_switcher_call ^+ switcher_label_offset ".Lhandle_error_install_context") ^+ 36)%a =
+    assert ((pc_a + 36)%a = Some (pc_a ^+ 36)%a) as Hjmp_some by switcher_addr_eq.
+    assert ((pc_a ^+ 36)%a =
               (a_switcher_call ^+ switcher_label_offset ".Lcommon_context_install")%a)
       as Hjmp by switcher_addr_eq.
     assert (∀ k : Z, k = 7%Z ∨ k = 8%Z ∨ k = 14%Z →
-              ((a_switcher_call ^+ switcher_label_offset ".Lhandle_error_install_context") ^+ k)%a =
+              (pc_a ^+ k)%a =
                 (a_switcher_call ^+ (switcher_label_offset ".Lhandle_error_install_context" + k))%a ∧
               trap_no_resume (switcher_pc (switcher_label_offset ".Lhandle_error_install_context" + k)))
       as Hfault.
     { intros k Hk. split.
       - destruct Hk as [-> | [-> | ->] ]; switcher_addr_eq.
       - apply trap_no_resume_switcher_pc. destruct Hk as [-> | [-> | ->] ]; by vm_compute. }
+    clear Hpc_a.
     (* The labels are not needed anymore: they would slow the proof down *)
     set (off_cci := switcher_label_offset ".Lcommon_context_install") in *.
     set (off_eic := switcher_label_offset ".Lhandle_error_install_context") in *.
     clearbody off_cci off_eic.
-    (* [trap_no_resume] mentions a label: the simplifications of [iInstr_fail]
-       and [simplify_map_eq] unfold it *)
+    (* [trap_no_resume] mentions a label: [simplify_map_eq] unfolds it *)
     set (tnr := trap_no_resume) in *.
     clearbody tnr.
-    remember (a_switcher_call ^+ off_eic)%a as pc_a eqn:Hpc_a.
     iAssert (codefrag_pers pc_a handle_error_install_context_instrs) as "Hcode_all";
       first iExact "Hcode".
     iDestruct (codefrag_app_pers with "Hcode_all") as "[_ Hcode_rest]".
@@ -236,7 +232,12 @@ Section Handle_Error_Install_Context.
       (* SetA ct0 ct0 cs0 *)
       iInstr "Hcode".
       (* CLoad ct0 ct0 ExportTable_offset_pcc *)
-      iInstr_fail "Hcode".
+      iDestruct (map_of_regs_1 with "Hct0") as "Hmap".
+      iInstrApply "Hcode" (wp_load_fail_const_imm _ _ _ _ _ _ _ _ ct0 ct0 _ _ (WInt 0))
+        with "[$HPC $Hmap]" as "(HPC & Hmap)".
+      { rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
+      { done. }
+      iDestruct (regs_of_map_1 with "Hmap") as "Hct0".
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]"); first by left.
       destruct (Hfault 7%Z ltac:(lia)) as [Hpc_k Htnr].
@@ -376,7 +377,12 @@ Section Handle_Error_Install_Context.
              with "[- $HPC $Hcopy $Hca2 $Hca3 $Hcs1 $Hca4 $HL $Hacc_tail $Hdst]").
     all: try done.
     all: try (rewrite length_take length_drop Hlen; done).
-    all: try (cbn; solve_addr).
+    all: try (lazymatch goal with
+              | |- environments.envs_entails _ _ => fail
+              | |- disjoint_from_shadow _ _ => fail
+              | |- _ ∉ _ => fail
+              | _ => cbn; solve_addr
+              end).
     { rewrite /disjoint_from_shadow elem_of_disjoint in Hts_shadow |- *.
       intros x Hx HR. eapply Hts_shadow; last exact HR.
       apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.

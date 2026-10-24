@@ -97,6 +97,7 @@ Section Handle_Error.
       "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs16 & Hs17 & Hs18 & Hs19 & Hs20)".
     switcher_open_label ".Lhandle_error" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
 
     (* SpecialRW cnull mtdc csp *)
     iInstr "Hcode".
@@ -126,6 +127,7 @@ Section Handle_Error.
       (* Jmp .Lhandle_error_in_switcher *)
       iInstr "Hcode".
       { switcher_jump_label ".Lhandle_error_in_switcher". }
+      subst hpost.
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" with "[]"); first (iPureIntro; lia).
       iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hmtdc Hframeoffset".
@@ -174,6 +176,7 @@ Section Handle_Error.
       iInstrApply "Hcode" (wp_lea_success_z_any _ _ _ _ _ _ _ _ _ ct0 s2 wct0')
         with "[$HPC $Hct0]" as "(HPC & Hct0)".
       switcher_change_pc_label ".Lhandle_error_stack_oob".
+      subst hpost.
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[] [//]"); first (iPureIntro; lia).
       iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hmtdc Hframeoffset".
@@ -239,6 +242,7 @@ Section Handle_Error.
     destruct (decide (get_a wmepcc.(lw) = (a_first_spill : Z))) as [Hfirst | Hnot_first].
     - (* A fault of the first spill: resume the caller *)
       iDestruct "Hpost" as "[_ Hpost]".
+      switcher_hide "Hpost" as hpost.
       iEval (cbn [lw get_a]; rewrite Hfirst Z.sub_diag) in "Hct1".
       (* Jne .Lcommon_force_unwind ct1 0 *)
       iInstr "Hcode".
@@ -266,6 +270,7 @@ Section Handle_Error.
       (* Jmp .Lcommon_context_install *)
       iInstr "Hcode".
       { switcher_jump_label ".Lcommon_context_install". }
+      subst hpost.
       iApply ("Hpost" with "[//]").
       iFrame "HPC Hcsp Hct1 Hctp Hca0 Hca1 Hct2 Hs10 Hs11".
     - (* Any other fault of the switcher: force the unwind *)

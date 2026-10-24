@@ -91,12 +91,15 @@ Section Switch_Entry_First_Spill.
         iInstrApply "Hcode" wp_store_fail_reg_imm with "[$HPC $Hcs0 $Hcsp]"
           as "(HPC & Hcs0 & Hcsp)".
         { rewrite /withinBounds; revert Ha_stk4; stk_unfold; intros Ha_stk4; solve_addr. }
+        switcher_change_pc_label ".Lswitch_entry_first_spill".
         iTrap with "Hfailed".
       - (* Store csp cs0 (SpillSlot_cs0 - SpillSlot_size) *)
         iInstrApply "Hcode" wp_store_fail_reg_overflow_imm with "[$HPC $Hcs0 $Hcsp]"
           as "(HPC & Hcs0 & Hcsp)".
+        switcher_change_pc_label ".Lswitch_entry_first_spill".
         iTrap with "Hfailed". }
 
+    switcher_hide "Hpost" as hpost.
     (* Split the spill area off the free part *)
     assert (switcher_stk_bounds b_stk e_stk a_stk) as Hbounds.
     { rewrite /switcher_stk_bounds; revert Hfits Hcursor; stk_unfold; intros Hfits Hcursor.
@@ -134,6 +137,7 @@ Section Switch_Entry_First_Spill.
     { rewrite /withinBounds. solve_addr. }
     repeat rewrite lstore_word_isWL; try reflexivity.
     switcher_change_pc_label ".Lswitcher_trusted_stack_push".
+    subst hpost.
     iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost".
     iFrame "HPC Hcs0 Hcs1 Hcra Hcgp Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk".
@@ -160,10 +164,11 @@ Section Switch_Entry_First_Spill.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hchecked Hnot_stk) "(HPC & Hcsp & Hcs0 & #Hswitcher & Hfailed)".
-    switcher_open_label ".Lswitch_entry_first_spill" "Hswitcher" as "Hcode".
-    (* The label would be unfolded by the simplifications of [iInstr_fail] *)
-    set (off := switcher_label_offset ".Lswitch_entry_first_spill") in *.
-    clearbody off.
+    switcher_open_label ".Lswitch_entry_first_spill" "Hswitcher" as "Hcode" a_spill Ha_spill.
+    (* The faults are at the start of the block. The label would be unfolded by
+       the simplifications of [iInstr_fail] *)
+    rewrite -Ha_spill.
+    clear Ha_spill.
     destruct (is_cap wcsp.(lw)) eqn:Hcap; cycle 1.
     { (* Store csp cs0 (SpillSlot_cs0 - SpillSlot_size) *)
       iInstrApply "Hcode" wp_store_fail_reg_not_cap_lword_imm with "[$HPC $Hcs0 $Hcsp]"

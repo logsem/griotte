@@ -106,9 +106,8 @@ Section Handle_Error_Stack_Setup.
     iIntros (Hlen Hlea Hfits)
       "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave & #Hswitcher
        & HES & Hacc & Hpost)".
-    switcher_open_label ".Lhandle_error_stack_setup" "Hswitcher" as "Hcode".
-    remember (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_stack_setup")%a
-      as pc_a eqn:Hpc_a.
+    switcher_open_label ".Lhandle_error_stack_setup" "Hswitcher" as "Hcode" pc_a Hpc_a.
+    switcher_hide "Hpost" as hpost.
     iAssert (codefrag_pers pc_a handle_error_stack_setup_instrs) as "Hcode_all";
       first iExact "Hcode".
     iDestruct (codefrag_app_pers with "Hcode_all") as "[_ Hcode_rest]".
@@ -128,7 +127,8 @@ Section Handle_Error_Stack_Setup.
     (* ClearTag cs1 cs1 *)
     iInstr "Hcode".
     destruct (decide (error_state_first_store_ok wcsp)) as [Hfirst | Hnfirst]; cycle 1.
-    { iDestruct "Hpost" as "[Hfailed _]".
+    { subst hpost.
+      iDestruct "Hpost" as "[Hfailed _]".
       assert (¬ error_state_stores_ok wcsp) as Hnok.
       { by intros ?%error_state_stores_ok_first. }
       destruct (error_state_store_fault _ _ Hlea Hfits Hnok)
@@ -139,7 +139,7 @@ Section Handle_Error_Stack_Setup.
           as "(HPC & Hcs1 & Hct0)".
         iSpecialize ("Hfailed" with "[//]").
         iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
-        subst pc_a. switcher_merge_pc.
+        switcher_merge_pc.
         iTrap with "Hfailed".
         apply trap_no_resume_switcher_pc. by vm_compute.
       - destruct wct0 as [w π]; cbn in Hw; subst w.
@@ -148,7 +148,7 @@ Section Handle_Error_Stack_Setup.
           as "(HPC & Hcs1 & Hct0)".
         iSpecialize ("Hfailed" with "[//]").
         iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
-        subst pc_a. switcher_merge_pc.
+        switcher_merge_pc.
         iTrap with "Hfailed".
         apply trap_no_resume_switcher_pc. by vm_compute.
       - destruct wct0 as [w π]; cbn in Hw; subst w.
@@ -157,7 +157,7 @@ Section Handle_Error_Stack_Setup.
           as "(HPC & Hcs1 & Hct0)".
         iSpecialize ("Hfailed" with "[//]").
         iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
-        subst pc_a. switcher_merge_pc.
+        switcher_merge_pc.
         iTrap with "Hfailed".
         apply trap_no_resume_switcher_pc. by vm_compute. }
     destruct wcsp as [wsp π].
@@ -169,7 +169,7 @@ Section Handle_Error_Stack_Setup.
     iPoseProof ("Hacc" $! p g b e a π with "[//] [//]") as "Hacc_es".
     rewrite /lea_result /= in Hlea.
     destruct (a + - ErrorState_size)%a as [a16|] eqn:Ha16;
-      last (rewrite /ErrorState_size in Ha16 Hba; solve_addr).
+      last (exfalso; rewrite /ErrorState_size in Ha16 Hba; solve_addr).
     injection Hlea as <-.
     rewrite /ErrorState_size in Ha16 Hba Hae.
     rewrite (_ : (a ^+ - ErrorState_size)%a = a16); last (rewrite /ErrorState_size; solve_addr).
@@ -222,7 +222,12 @@ Section Handle_Error_Stack_Setup.
              with "[- $HPC $Hcopy $Hca2 $Hca3 $Hcs1 $Hca4 $HES $Hacc_tail $Hsrc]").
     all: try done.
     all: try (rewrite length_take length_drop Hlen; done).
-    all: try solve_addr.
+    all: try (lazymatch goal with
+              | |- environments.envs_entails _ _ => fail
+              | |- disjoint_from_shadow _ _ => fail
+              | |- _ ∉ _ => fail
+              | _ => solve_addr
+              end).
     { pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
       rewrite /disjoint_from_shadow elem_of_disjoint in Hts_shadow |- *.
       intros x Hx HR. eapply Hts_shadow; last exact HR.
@@ -248,10 +253,11 @@ Section Handle_Error_Stack_Setup.
          faulting [csp] is past its end *)
       iIntros (j Hj Hout) "Hca2 Hca3 Hcs1 Hca4 Hsrc HES".
       iDestruct ("Hsave_join" with "[//] Hs0 Hsrc Hrest") as "Hsave".
+      subst hpost.
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]").
       { rewrite /error_state_stores_ok /=. intros (_ & _ & Hle). solve_addr. }
-      subst pc_a. switcher_merge_pc.
+      switcher_merge_pc.
       iApply ("Hfailed" $! (S j) with "[%] [%] [$Hcsp $Hct0 $Hcs1 $Hca0 $Hca1 $Hca2 $Hca3
                                            $Hca4 $Hsave $HES]").
       - rewrite /ErrorState_size; lia.
@@ -264,7 +270,6 @@ Section Handle_Error_Stack_Setup.
     (* Mov ca0 ct0 *)
     iInstr "Hcode".
     destruct (lookup_lt_is_Some_2 save 18%nat) as [w18 Hw18]; first lia.
-    rewrite (list_lookup_total_correct _ _ _ Hw18).
     iDestruct (tstack_save_area_acc _ _ _ Hw18 with "Hsave") as "[Hs18 Hsave]".
     pose proof (tstack_save_cell_ok 18 ltac:(lia)) as (Hts_18 & Hts_18_bounds & Hts_18_shadow).
     (* CLoad ca1 csp TrustedStack_offset_mcause *)
@@ -276,7 +281,9 @@ Section Handle_Error_Stack_Setup.
     iInstrApply "Hcode" wp_csrr_mtval with "[$HPC $Hca2]" as (mtval) "(HPC & Hca2)".
     (* Mov csp ca0 *)
     iInstr "Hcode".
-    subst pc_a. switcher_change_pc_label ".Lhandle_error_handler_invoke".
+    switcher_change_pc_label ".Lhandle_error_handler_invoke".
+    subst hpost.
+    rewrite (list_lookup_total_correct _ _ _ Hw18).
     iDestruct "Hpost" as "[_ Hpost]".
     iApply ("Hpost" with "[%]").
     { rewrite /error_state_stores_ok /=.

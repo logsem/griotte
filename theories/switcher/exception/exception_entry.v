@@ -68,9 +68,9 @@ Section Exception_Entry.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros "(HPC & Hcsp & Hregs & Hcells & #Hswitcher & Hpost)".
-    switcher_open_label ".Lexception_spill_registers" "Hswitcher" as "Hcode".
-    iAssert (codefrag_pers (a_switcher_call ^+ switcher_label_offset ".Lexception_spill_registers")%a
-               (trusted_spill_registers_instrs exception_spill_regs)) as "#Hspill";
+    switcher_open_label ".Lexception_spill_registers" "Hswitcher" as "Hcode" a_spill Ha_spill.
+    iAssert (codefrag_pers a_spill (trusted_spill_registers_instrs exception_spill_regs))
+      as "#Hspill";
       first iExact "Hcode".
     rewrite /tstack_cap.
     iApply (trusted_spill_registers_spec with "[- $HPC $Hcsp $Hregs $Hcells $Hspill]");
@@ -131,6 +131,7 @@ Section Exception_Entry.
       as Hts_k_bounds.
     { intros k Hk. rewrite /withinBounds. tstack_unfold; solve_addr. }
     switcher_open_label ".Lexception_exiting_threads_rejoin" "Hswitcher" as "Hcode".
+    switcher_hide "Hpost" as hpost.
     rewrite /tstack_cap.
 
     (* The interrupted stack pointer, from mtdc *)
@@ -179,6 +180,7 @@ Section Exception_Entry.
                 WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I
       with "[- Hca0 HPC Hct1]" as "Hpost".
     { iIntros (zca0) "HPC Hca0 Hct1".
+      subst hpost.
       iApply ("Hpost" $! wst cause zca0 with "[//]").
       iFrame "HPC Hcsp Hct0 Hct1 Hca0 Hmtdc Hs0 Hs2 Hs17 Hs18 Htok". }
     destruct (decide (cause = 28%Z)) as [-> | Hcause_ne].

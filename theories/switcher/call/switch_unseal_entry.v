@@ -14,18 +14,6 @@ From griotte Require Import call_stack switcher_preamble wp_rules_interp.
     PCC and the CGP of the callee, and falls through to
     [.Lswitcher_clear_unused_args]. *)
 
-(** Rewrite the PC in [h], at the label [s] inside the block of the
-    switcher that starts with the label [sb], to the address
-    [a_block ^+ k] of the block [a_block] where [iInstr] looks for the
-    instruction. *)
-#[local] Ltac switcher_pc_in_block sb s h :=
-  let k := eval vm_compute in (switcher_label_offset s - switcher_label_offset sb)%Z in
-  let Heq := fresh "Heq_pc" in
-  assert ((a_switcher_call ^+ switcher_label_offset s)%a =
-          ((a_switcher_call ^+ switcher_label_offset sb) ^+ k)%a) as Heq
-    by switcher_addr_eq;
-  iEval (rewrite Heq) in h; clear Heq.
-
 Section Switch_Unseal_Entry.
   Context
     {Σ:gFunctors}
@@ -57,15 +45,15 @@ Section Switch_Unseal_Entry.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros "(HPC & Hcs0 & Hct1 & #Hswitcher & Hpost)".
-    switcher_open_label ".Lswitch_unseal_entry" "Hswitcher" as "Hcode".
-    assert (((a_switcher_call ^+ switcher_label_offset ".Lswitch_unseal_entry") ^+ 1)%a =
+    switcher_open_label ".Lswitch_unseal_entry" "Hswitcher" as "Hcode" a_unseal Ha_unseal.
+    assert ((a_unseal ^+ 1)%a =
             (a_switcher_call ^+ switcher_label_offset ".Lswitcher_decode_entry")%a)
       as Hpc_decode by switcher_addr_eq.
     (* UnSeal ct1 cs0 ct1 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_unseal_unknown_sealed _ _ _ _ _ _
-              ((a_switcher_call ^+ switcher_label_offset ".Lswitch_unseal_entry") ^+ 1)%a
+              (a_unseal ^+ 1)%a
              with "[$HPC $Hi $Hcs0 $Hct1]"); try done; try solve_pure.
     { pose proof ot_switcher_size; solve_addr. }
     iIntros "!>" (ret)
@@ -198,6 +186,7 @@ Section Switch_Unseal_Entry.
     (* [.Lswitcher_decode_entry] *)
     switcher_open_label ".Lswitch_unseal_entry" "Hswitcher" as "Hcode".
     switcher_pc_in_block ".Lswitch_unseal_entry" ".Lswitcher_decode_entry" "HPC".
+    switcher_hide "Hpost" as hpost.
     (* CLoad cs0 ct1 0 *)
     iInstr "Hcode".
     { done. }
@@ -228,8 +217,6 @@ Section Switch_Unseal_Entry.
     rewrite encode_entry_point_eq_nargs; last lia.
     destruct (e_stk - b_stk <? Z.of_nat minstk)%Z eqn:Hsmall; iEval (cbn) in "Hcra".
     { apply Z.ltb_lt in Hsmall.
-      (* The post would be simplified by [iInstr] *)
-      iHide "Hpost" as hpost.
       (* Jne .Lswitch_stack_too_small cra 0 *)
       iInstr "Hcode".
       { switcher_jump_label ".Lswitch_stack_too_small". }
@@ -269,6 +256,7 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode_prep".
     replace a_entry with (bpcc ^+ off)%a by solve_addr.
     switcher_change_pc_label ".Lswitcher_clear_unused_args".
+    subst hpost.
     iApply "Hpost"; iLeft.
     iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp".
     done.
