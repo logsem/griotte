@@ -5,14 +5,14 @@ From griotte Require Import image firmware firmware_ok firmware_adequacy firmwar
   lse_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import lse lse_spec_closure lse_spec.
-From griotte Require Import switcher assert_spec logrel.
+From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 
@@ -129,7 +129,7 @@ Section lse_obligations.
         rewrite /length_lse_main_imports /lse_main_imports /LSE_main_code_run /=.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (lse_f_spec (swlayout := swl) (assertlayout := asl)
-                _ _ _ _ _ _ _ _ _ W0' fw_switcherN lseN);
+                _ _ _ _ _ _ _ _ _ W0' lseN);
         last iFrame "#"; auto.
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { eapply disjoint_from_shadow_not_in;
@@ -138,8 +138,7 @@ Section lse_obligations.
       { exact (cmpt_cgp_base_not_heap main_cmpt). }
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
-      { rewrite /fw_switcherN /lseN; solve_ndisj. }
-      exact fw_switcherN_trap_disj. }
+      rewrite /Nswitcher /lseN; solve_ndisj. }
     iMod (seal_main_export fw_world0 C main_f
            with "Hseal_switcher Hot_switcher_main_f Hworld_C")
       as "(Hworld_C & #Hinterp_main_f)"; [done| |done|].
@@ -181,7 +180,7 @@ Section lse_obligations.
 
     (* 7 - We can apply the specification! *)
     iPoseProof (lse_run_spec (swlayout := swl) (assertlayout := asl) (C := C)
-                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ fw_switcherN lseN
+                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ lseN
                  with "[ $Hassert $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code $Hlse_data
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f
@@ -199,8 +198,7 @@ Section lse_obligations.
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
-    { rewrite /fw_switcherN /lseN; solve_ndisj. }
-    { exact fw_switcherN_trap_disj. }
+    { rewrite /Nswitcher /lseN; solve_ndisj. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { done. }

@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode memory_region region_keys.
+From griotte Require Import switcher_namespace rules proofmode memory_region region_keys.
 From griotte.allocators.ownership Require Import allocator_header_spec allocator_free_spec_states allocator_free_spec_world allocator_free_spec_owner_blocks_1 allocator_free_spec_check_blocks_2 allocator_free_spec_header_blocks_3 allocator_free_spec_return_blocks_4.
 From griotte.allocators.common Require Import allocator_common_free_spec_tail_blocks.
 
@@ -634,7 +634,7 @@ Section AllocatorFree.
   (** A malformed allocator capability in [ca0] traps in the owner block. *)
 
   Lemma allocator_free_invalid_capability_spec
-    (Nswitcher : namespace) (E : coPset) (wsealed : LWord) (P : iProp Σ) :
+    (E : coPset) (wsealed : LWord) (P : iProp Σ) :
 
     ↑Nswitcher ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
@@ -670,7 +670,7 @@ Section AllocatorFree.
     iDestruct (allocator_imports_split_pers with "Himports")
       as "(_ & #Hkey & _)".
     (* Block 0: the owner block traps. *)
-    iApply (allocator_free_owner_invalid_spec Nswitcher with
+    iApply (allocator_free_owner_invalid_spec with
       "[$HPC $Hctp $Hca0 $Hkey $Hfree_code Hfailed Hna Hct3 Hct4]");
       [exact HEswitcher | apply allocator_free_entry_bounds | apply allocator_free_pcc_addr_off
       | done |].

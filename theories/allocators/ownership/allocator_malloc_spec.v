@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode memory_region region_keys.
+From griotte Require Import switcher_namespace rules proofmode memory_region region_keys.
 From griotte.allocators.ownership Require Import allocator_header_spec allocator_malloc_spec_states allocator_malloc_spec_world allocator_malloc_spec_owner_blocks_1 allocator_malloc_spec_size_check_blocks_2 allocator_malloc_spec_prepare_blocks_3 allocator_malloc_spec_publish_blocks_4.
 From griotte.allocators.common Require Import allocator_common_malloc_spec_shadow_blocks.
 
@@ -284,7 +284,7 @@ Section AllocatorMalloc.
   (** A malformed allocator capability in [ca0] traps in the owner block. *)
 
   Lemma allocator_malloc_invalid_capability_spec
-    (Nswitcher : namespace) (E : coPset) (wsealed : LWord) (P : iProp Σ) :
+    (E : coPset) (wsealed : LWord) (P : iProp Σ) :
 
     ↑Nswitcher ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
@@ -319,7 +319,7 @@ Section AllocatorMalloc.
     iDestruct (allocator_imports_split_pers with "Himports")
       as "(_ & #Hkey & _)".
     (* Block 0: the owner block traps. *)
-    iApply (allocator_malloc_owner_invalid_spec Nswitcher with
+    iApply (allocator_malloc_owner_invalid_spec with
       "[$HPC $Hctp $Hca0 $Hkey $Hmalloc_code Hfailed Hna Hct3 Hct4]");
       [exact HEswitcher | apply allocator_malloc_entry_bounds | apply allocator_malloc_pcc_addr_off
       | done |].

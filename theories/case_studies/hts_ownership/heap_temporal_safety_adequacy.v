@@ -4,14 +4,14 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import image firmware firmware_ok firmware_adequacy firmware_obligations.
 From griotte.case_studies.hts_ownership Require Import hts_firmware.
 From griotte Require Import logrel interp_weakening monotone.
-From griotte Require Import switcher assert_spec.
+From griotte Require Import assert_spec.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 From griotte.case_studies.hts_ownership Require Import
@@ -170,11 +170,11 @@ Section hts_obligations.
            with "Hseal_switcher [] Hworld_B")
       as "(Hworld_B & #Hseal_alloc)"; [by repeat constructor | done | |].
     { iModIntro. iSplit; last iSplit; last done.
-      - iApply (malloc_entry_point_spec Global _ B fw_switcherN);
-          [exact fw_switcherN_trap_disj | exact Halloc_switcher |].
+      - iApply (malloc_entry_point_spec Global _ B);
+          [exact Halloc_switcher |].
         iFrame "#".
-      - iApply (free_entry_point_spec Global _ B fw_switcherN);
-          [solve_ndisj | exact fw_switcherN_trap_disj | exact Halloc_switcher |].
+      - iApply (free_entry_point_spec Global _ B);
+          [exact Halloc_switcher |].
         iFrame "#". }
     set (W1 := <o[ switcher.ot_switcher := exports_words [malloc_f; free_f] ]o> fw_world0).
 
@@ -246,7 +246,7 @@ Section hts_obligations.
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     iPoseProof (hts_main_spec (swlayout := swl) (assertlayout := asl) (alloclayout := alloclayout)
-                  (C := B) _ _ _ _ _ _ _ _ B_f main_owner_a _ [] [] _ fw_switcherN
+                  (C := B) _ _ _ _ _ _ _ _ B_f main_owner_a _ [] [] _
                  with "[$Hassert $Hservice $Hservice_static $Hswitcher $Hswitcher_static
                         $Halloc_etbl_pcc $Halloc_etbl_cgp $Hexport_malloc $Hexport_free
                         $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hregs
@@ -264,8 +264,6 @@ Section hts_obligations.
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
-    { rewrite /fw_switcherN /Nallocator_service; solve_ndisj. }
-    { exact fw_switcherN_trap_disj. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply (main_cgp_not_in_adv_world Temporary W1' swc main_cmpt B_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.

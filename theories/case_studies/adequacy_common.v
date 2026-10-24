@@ -2,10 +2,10 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import logrel monotone interp_weakening.
-From griotte Require Import switcher assert_spec.
+From griotte Require Import assert_spec.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import stack_world_resources.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers.
 From griotte Require Import allocator_resources heap_region.
@@ -669,13 +669,12 @@ Section adversary_exports.
   (** The [i]-th entry of the export table of an adversary [C_cmpt],
       at address [a], satisfies the sealing predicate of the switcher. *)
   Lemma adversary_export_prop
-    (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
+    (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (posture : InterruptStatus) (i args minstk off : nat) (a : Addr) (eh ehs : Z) :
     cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point posture args minstk off)) →
     (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
-    Nswitcher ## N_trap →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
@@ -688,7 +687,7 @@ Section adversary_exports.
     interp W C (cmpt_cgp_cap C_cmpt) -∗
     ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a)).
   Proof.
-    intros Hi Ha Hargs Hentry_some HNtrap.
+    intros Hi Ha Hargs Hentry_some.
     iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Heh #Hehs #Hentries #Hinterp_pcc #Hinterp_cgp".
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
     pose proof (cmpt_exp_tbl_header_size C_cmpt) as Hheader.
@@ -698,7 +697,7 @@ Section adversary_exports.
     rewrite Ha.
     iApply (ot_switcher_interp _ _ _ Global _ posture args minstk off eh ehs with
               "Hswitcher Hswitcher_static Hpcc Hcgp Heh Hehs Hentry_inv Hinterp_pcc Hinterp_cgp");
-      [solve_addr|lia|done|done].
+      [solve_addr|lia|done].
   Qed.
 
   (** The [i]-th sealed entry of the export table of an adversary [C_cmpt]
@@ -724,14 +723,13 @@ Section adversary_exports.
       of quadruples (interrupt posture, number of arguments, minimum stack
       size, offset). This is the premise of [initialise_adversary_world]. *)
   Lemma adversary_exports_prop
-    (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (Nswitcher : namespace)
+    (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (exports : list (InterruptStatus * nat * nat * nat)) (eh ehs : Z) :
     cmpt_exp_tbl_entries C_cmpt =
       (λ e : InterruptStatus * nat * nat * nat,
          WInt (encode_entry_point e.1.1.1 e.1.1.2 e.1.2 e.2)) <$> exports →
     Forall (λ e, e.1.1.2 < 7) exports →
     Forall (λ e : InterruptStatus * nat * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
-    Nswitcher ## N_trap →
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
@@ -745,19 +743,18 @@ Section adversary_exports.
         interp W C (cmpt_cgp_cap C_cmpt) -∗
         ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a))).
   Proof.
-    intros Htbl Hargs Hentries_some HNtrap.
+    intros Htbl Hargs Hentries_some.
     iIntros "#Hswitcher #Hswitcher_static #Hpcc #Hcgp #Heh #Hehs #Hentries !>"
       (i a Ha) "#Hinterp_pcc #Hinterp_cgp".
     destruct (cmpt_exp_tbl_addrs_lookup _ _ _ Ha) as [-> Hi].
     rewrite Htbl length_fmap in Hi.
     destruct (lookup_lt_is_Some_2 _ _ Hi) as [ [ [ [posture args] minstk] offset] He].
-    iApply (adversary_export_prop _ _ _ _ posture i args minstk offset _ eh ehs
+    iApply (adversary_export_prop _ _ _ posture i args minstk offset _ eh ehs
              with "Hswitcher Hswitcher_static Hpcc Hcgp Heh Hehs Hentries Hinterp_pcc Hinterp_cgp").
     - by rewrite Htbl list_lookup_fmap He.
     - done.
     - by apply (Forall_lookup_1 _ _ _ _ Hargs He).
     - by apply (Forall_lookup_1 _ _ _ _ Hentries_some He).
-    - done.
   Qed.
 
 End adversary_exports.
@@ -777,15 +774,14 @@ Section adversary_imports.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
 
-  Lemma switcher_call_import_safe (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
-    Nswitcher ## N_trap ->
+  Lemma switcher_call_import_safe (W : WORLD) (C : CmptName) :
     let w := lword_of_word (WSentry FwdDisable true XSRW_ Local
                switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     switcher_static -∗
     interp_in_memC (W, C, w) ∗ future_priv_mono C interp_in_memC w.
   Proof.
-    intros HNtrap w; subst w.
+    intros w; subst w.
     iIntros "#Hswitcher #Hswitcher_static".
     assert (heap_authority_base
               (WSentry FwdDisable true XSRW_ Local

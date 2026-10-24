@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
-From griotte Require Import switcher_preamble assert_spec.
+From griotte Require Import switcher_base_interp assert_spec.
 From griotte Require Import rules call_stack.
 From griotte Require Import mkregion_helpers memory_region disjoint_regions_tactics.
 From griotte Require Import switcher_adequacy compartment_layout.

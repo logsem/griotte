@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region proofmode register_tactics.
 From griotte Require Import region_invariants_revocation region_invariants_allocation.
 From griotte Require Import interp_weakening monotone.
-From griotte Require Import world_ghost_theory world_interp_stack interp_switcher_call.
+From griotte Require Import world_ghost_theory world_interp_stack switcher_base_interp.
 From griotte Require Import allocator_resources heap_region.
 From griotte Require Import vae_spec_states vae_spec_closure_repair.
 
@@ -250,8 +250,7 @@ Section VAE_World_Call.
   (** The argument registers of the calls to [g]: all the argument
       registers are cleared, and [ct0] is the entry point of the
       switcher. *)
-  Lemma vae_call_args W C (Nswitcher : namespace) (rmap : LReg) :
-    Nswitcher ## N_trap ->
+  Lemma vae_call_args W C (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
@@ -266,7 +265,7 @@ Section VAE_World_Call.
       ([∗ map] rarg↦warg ∈ vae_call_adv_arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg) ∗
       ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
   Proof.
-    iIntros (HNtrap Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 Hca1 Hct0 Hrmap".
+    iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 Hca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".
     { apply Hzero; set_solver+. }
     iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]".

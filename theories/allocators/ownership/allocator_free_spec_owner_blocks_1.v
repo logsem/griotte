@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode.
+From griotte Require Import switcher_namespace rules proofmode.
 From griotte.allocators.ownership Require Import allocator_free_spec_states.
 
 (** * Free, block 0: the owner identifier of the allocator capability
@@ -62,7 +62,7 @@ Section AllocatorFreeOwnerBlocks1.
   Qed.
 
   Lemma allocator_free_owner_invalid_spec
-    (Nswitcher : namespace) (E : coPset) (pc_b pc_e pc_a : Addr) (wsealed wtp : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (wsealed wtp : LWord)
     (P : iProp Σ) :
     let a_owner_end := (pc_a ^+ length (allocator_owner_instrs allocator_free_owner_off ctp ca0))%a in
     ↑Nswitcher ⊆ E ->

@@ -6,14 +6,14 @@ From griotte Require Import image firmware firmware_ok firmware_adequacy firmwar
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import
   kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe kvs_spec_erase_safe.
-From griotte Require Import switcher assert_spec logrel.
+From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 
@@ -234,7 +234,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
-      iApply kvs_addOrUpdate_entry_point_spec; [exact fw_switcherN_trap_disj | exact Hkvs_switcher |].
+      iApply kvs_addOrUpdate_entry_point_spec; [exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_addOrUpdate".
     }
@@ -244,7 +244,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
-      iApply kvs_read_entry_point_spec; [exact fw_switcherN_trap_disj | exact Hkvs_switcher |].
+      iApply kvs_read_entry_point_spec; [exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_read".
     }
@@ -254,7 +254,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
-      iApply kvs_erase_entry_point_spec; [exact fw_switcherN_trap_disj | exact Hkvs_switcher |].
+      iApply kvs_erase_entry_point_spec; [exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_erase".
     }
@@ -447,7 +447,7 @@ Section kvs_obligations.
     { unfold B_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap B_cmpt). }
     iPoseProof (Spec _ _ _ _ _ _ _ _ _ _
                   _ _ _ _ _ _
-                  [] [] _ fw_switcherN
+                  [] [] _
                  with "[ $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
                         $Hkvs_logical_user_K
                         $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
@@ -457,7 +457,6 @@ Section kvs_obligations.
                         $Hworld_B $Hcstk
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
-    { exact fw_switcherN_trap_disj. }
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_base_not_heap main_cmpt). }

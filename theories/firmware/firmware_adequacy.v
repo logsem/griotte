@@ -2,10 +2,10 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import logrel monotone interp_weakening.
-From griotte Require Import switcher assert_spec.
+From griotte Require Import assert_spec.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import stack_world_resources mkregion_helpers disjoint_regions_tactics.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
@@ -1341,12 +1341,7 @@ End entries_facts.
 
 (** ** The resources handed to the trusted code *)
 
-Definition fw_switcherN : namespace := nroot .@ "firmware" .@ "switcher".
 Definition fw_flagN : namespace := nroot .@ "firmware" .@ "assert_flag".
-
-(** The switcher's invariant is disjoint from the trap-entry token. *)
-Lemma fw_switcherN_trap_disj : fw_switcherN ## N_trap.
-Proof. rewrite /fw_switcherN /N_trap. solve_ndisj. Qed.
 
 (** The layout of the switcher of an image, with the trusted stack of the
     first thread. *)
@@ -1381,7 +1376,7 @@ Section resources.
     let sw := img_sw img in
     let asrt := img_asrt img in
     "Hswitcher" ∷
-      na_inv cerise_nais fw_switcherN (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+      na_inv cerise_nais Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
     "Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
     "Hseal_switcher" ∷
       seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
@@ -1605,7 +1600,7 @@ Proof.
   apply big_and_fw_map in Hcmpts_wf.
   rewrite Hthreads in Hthreads_wf. apply big_and_cons in Hthreads_wf as [Hthread0 _].
   destruct (thread_entry_frame_words _ _ _ _ Hcmpts_wf Hthread0) as (_ & _ & Htbl_cap).
-  iMod (initialise_switcher_compartment swc fw_switcherN
+  iMod (initialise_switcher_compartment swc Nswitcher
           (fw_thread_csp img 0) (fw_entry_tbl fw img 0)
           (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img 0)) Hmtcc
          with "Hswitcher Hseal_switcher Hcstk_full Hmtdc")

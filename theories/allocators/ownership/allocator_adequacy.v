@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel memory_region disjoint_regions_tactics.
-From griotte Require Import switcher switcher_preamble compartment_layout adequacy_common allocator_resources.
+From griotte Require Import switcher_base_interp compartment_layout adequacy_common allocator_resources.
 From griotte.allocators.ownership Require Import allocator allocator_preamble allocator_resource_spec.
 From griotte Require Import firmware_ok firmware_adequacy firmware_obligations.
 (* Imported last: the fields of the image records shadow the fields of the

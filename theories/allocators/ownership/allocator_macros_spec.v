@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules proofmode memory_region fetch.
+From griotte Require Import switcher_namespace rules proofmode memory_region fetch.
 From griotte.allocators.ownership Require Import allocator_preamble.
 From griotte.allocators.common Require Export allocator_common_macros_spec.
 
@@ -147,7 +147,7 @@ Section AllocatorOwnerMacro.
       clears the tag of the result and the following [load] fails. *)
 
   Lemma allocator_owner_invalid_spec
-    (Nswitcher : namespace) (E : coPset) (pc_b pc_e pc_a : Addr) (off : Z) (wsealed wtp : LWord)
+    (E : coPset) (pc_b pc_e pc_a : Addr) (off : Z) (wsealed wtp : LWord)
     (P : iProp Σ) :
 
     let code := allocator_owner_instrs off ctp ca0 in

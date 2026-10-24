@@ -1,8 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening wp_rules_interp.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call.
+From griotte Require Import fetch_spec assert_spec switcher_base switcher_base_ktk.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
-From griotte Require Import switcher_spec_KtK switcher_spec_KtK_call switcher_exception.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
@@ -89,17 +88,15 @@ Section HTS_Spec_Free.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (cstk : CSTK).
 
-  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
+  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C).
   #[local] Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
   #[local] Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a Ws Cs cstk).
 
   Lemma hts_spec_free :
-    Nswitcher ## Nallocator_service ->
-    Nswitcher ## N_trap ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
     is_heap_address owner_a = false ->
@@ -117,7 +114,7 @@ Section HTS_Spec_Free.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hdisj HNtrap Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min HsubBounds
+    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min HsubBounds
       Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -280,7 +277,7 @@ Section HTS_Spec_Free.
       <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap))))))).
-    iPoseProof (hts_free_known_function Nswitcher
+    iPoseProof (hts_free_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
       wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a b (b ^+ 1)%a b
@@ -288,7 +285,6 @@ Section HTS_Spec_Free.
       [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
       Global owner_a hts_main_owner_id {[ι]}
       with "[$Hservice $Hservice_static $Hswitcher]") as "Hfree_fun".
-    { exact Hdisj. }
     { exact Howner_shadow. }
     { exact Howner_bounds. }
     { exact Hbounds. }
@@ -309,7 +305,6 @@ Section HTS_Spec_Free.
     pose proof allocator_size_exports as Hsize.
     rewrite /allocator_export_table_entries in Hsize.
     iApply (switcher_cc_specification_known_to_known_end_to_end
-      Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
       wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a stk free_arg free_other cstk
@@ -333,7 +328,6 @@ Section HTS_Spec_Free.
     { exact hts_allocator_cgp_not_heap. }
     { solve_ndisj. }
     { solve_ndisj. }
-    { exact HNtrap. }
     { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { solve_addr. }
     { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }

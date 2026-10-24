@@ -5,14 +5,14 @@ From griotte Require Import image firmware firmware_ok firmware_adequacy firmwar
   vae_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import vae vae_helper vae_spec_closure vae_spec.
-From griotte Require Import switcher assert_spec logrel.
+From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 
@@ -135,9 +135,8 @@ Section vae_obligations.
         rewrite length_app.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (vae_awkward_spec (swlayout := swl) (assertlayout := asl)
-                _ _ _ _ _ _ _ _ _ W1' fw_switcherN);
+                _ _ _ _ _ _ _ _ _ W1');
         last iFrame "#"; auto.
-      { exact fw_switcherN_trap_disj. }
       { eapply disjoint_from_shadow_not_in;
           first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
         apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }
@@ -206,7 +205,7 @@ Section vae_obligations.
 
     (* 7 - We can apply the specification! *)
     iPoseProof (vae_init_spec (swlayout := swl) (assertlayout := asl) (C := C)
-                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ fw_switcherN
+                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _
                  with "[ $Hassert $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_awk
@@ -218,7 +217,6 @@ Section vae_obligations.
                          $Hinterp_C $Hentry_Cf
                          $Hseal_switcher
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
-    { exact fw_switcherN_trap_disj. }
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }

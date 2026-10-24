@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import logrel proofmode switcher switcher_preamble.
-From griotte Require Import switcher_spec_KtK region_keys.
+From griotte Require Import logrel proofmode switcher_base_ktk.
+From griotte Require Import region_keys.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_preamble.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.allocators.ownership Require Export allocator_malloc_spec allocator_free_spec allocator_resource_spec allocator_switcher_spec.
@@ -59,12 +59,10 @@ Section Heap_Temporal_Safety_Allocator.
     allocator_free_result a_owner id Ω ι.
 
   Lemma hts_free_known_function
-    (Nswitcher : namespace)
     (wcgp wcra wcs0 wcs1 : LWord)
     (b_stk e_stk a_stk b e a : Addr) (arg_rmap : LReg) (cstk : CSTK)
     (p : Perm) (g : Locality) (ι : AId) (ws : list LWord)
     (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId) :
-    Nswitcher ## Nallocator_service ->
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->

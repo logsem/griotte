@@ -5,14 +5,14 @@ From griotte Require Import image firmware firmware_ok firmware_adequacy firmwar
   cmdc_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import cmdc cmdc_spec.
-From griotte Require Import switcher assert_spec logrel.
+From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 
@@ -139,7 +139,7 @@ Section cmdc_obligations.
     iApply (cmdc_spec_full (swlayout := swl) (assertlayout := asl) (B := B) (C := C)
               _ _ _ _ _ _ _
               _ _ _ _ _
-              [] [] _ _ (fun _ => True)%I fw_switcherN fw_switcherN_trap_disj
+              [] [] _ _ (fun _ => True)%I
               (cmpt_pcc_disjoint_from_shadow main_cmpt)
               (cmpt_pcc_base_not_heap main_cmpt)
               Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)

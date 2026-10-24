@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call switcher_exception.
+From griotte Require Import fetch_spec assert_spec switcher_base.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
@@ -30,16 +30,15 @@ Section HTS_Spec_Share.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (cstk : CSTK).
 
-  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
+  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C).
   #[local] Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
   #[local] Notation adv1_ret := (hts_adv1_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
 
   Lemma hts_spec_share :
-    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
@@ -56,7 +55,7 @@ Section HTS_Spec_Share.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HNtrap Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
+    iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
       HsubBounds Himports_contiguous Hheap_empty) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -240,7 +239,7 @@ Section HTS_Spec_Share.
       rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
     assert (is_arg_rmap adv_arg 8) as Hargs_rmap.
     { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
-    iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C ι b) C
+    iApply (switcher_cc_specification (hts_Wshare W_init_C ι b) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
       wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a C_f
@@ -257,7 +256,6 @@ Section HTS_Spec_Share.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
-    { exact HNtrap. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_share).
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

@@ -5,14 +5,14 @@ From griotte Require Import image firmware firmware_ok firmware_adequacy firmwar
   so_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import stack_object stack_object_spec_closure stack_object_spec.
-From griotte Require Import switcher assert_spec logrel.
+From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 
@@ -120,9 +120,8 @@ Section so_obligations.
         rewrite length_app.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (stack_object_f_spec (swlayout := swl) (assertlayout := asl)
-                _ _ _ _ _ _ _ _ _ W0' fw_switcherN);
+                _ _ _ _ _ _ _ _ _ W0');
         last iFrame "#"; auto.
-      { exact fw_switcherN_trap_disj. }
       { (* The code of main is outside the switcher's: its PCC holds the
            imports *)
         apply (switcher_cmpt_disjoint_pcc_b main_cmpt swc Hsw_main).
@@ -193,7 +192,7 @@ Section so_obligations.
 
     (* 6 - We can apply the specification! *)
     iPoseProof (so_init_spec (swlayout := swl) (assertlayout := asl) (C := C)
-                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ fw_switcherN
+                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _
                  with "[ $Hassert $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f
@@ -204,7 +203,6 @@ Section so_obligations.
                          $Hinterp_C $Hentry_Cf
                          $Hseal_switcher
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
-    { exact fw_switcherN_trap_disj. }
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }

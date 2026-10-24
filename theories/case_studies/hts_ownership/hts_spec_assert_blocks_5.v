@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel.
-From griotte Require Import assert_spec switcher_spec_call.
+From griotte Require Import assert_spec switcher_base.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte Require Import proofmode register_tactics map_simpl.
@@ -24,9 +24,9 @@ Section HTS_Spec_Assert.
   Context (C : CmptName).
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (cstk : CSTK).
 
-  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nswitcher).
+  #[local] Notation hts_ctx := (hts_main_ctx C C_f W_init_C).
   #[local] Notation adv2_ret := (hts_adv2_ret pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a cstk).
 

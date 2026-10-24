@@ -1,8 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call.
+From griotte Require Import fetch_spec assert_spec switcher_base switcher_base_ktk.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_preamble.
-From griotte Require Import switcher_spec_KtK.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
@@ -179,7 +178,7 @@ Section HTS_States.
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
   Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
-  Context (Nswitcher : namespace) (cstk : CSTK).
+  Context (cstk : CSTK).
 
   (** The persistent invariants and facts used by every segment. *)
   Definition hts_main_ctx : iProp Σ :=

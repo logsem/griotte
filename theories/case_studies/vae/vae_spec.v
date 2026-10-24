@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From griotte Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
-From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return switcher_exception.
+From griotte Require Import fetch_spec assert_spec switcher_base switcher_base_interp.
 From griotte Require Import vae vae_helper.
 From griotte Require Import proofmode.
 From griotte Require Import vae_spec_states vae_spec_world_call
@@ -50,7 +50,6 @@ Section VAE.
        frame of the thread records it *)
     (w_main_tbl : LWord)
 
-    (Nswitcher : namespace)
 
     (i : positive)
     :
@@ -59,7 +58,6 @@ Section VAE.
     let a_vae_exp_tbl_cgp := (b_vae_exp_tbl ^+ ExportTable_offset_cgp)%a in
     let a_vae_entry_awkward := (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a in
 
-    Nswitcher ## N_trap ->
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
     is_heap_address pc_b = false ->
@@ -123,7 +121,7 @@ Section VAE.
        - [vae_init_blocks_2_spec]: block 3, halt. *)
     intros imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
     subst imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
-    iIntros (HNtrap Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
+    iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
                Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hloc_i_0 Hframe_match
             )
@@ -182,7 +180,6 @@ Section VAE.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
-    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

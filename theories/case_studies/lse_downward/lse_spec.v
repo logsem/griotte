@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone.
-From griotte Require Import fetch_spec assert_spec switcher switcher_spec_call switcher_exception.
+From griotte Require Import fetch_spec assert_spec switcher_base.
 From griotte Require Import lse.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics.
@@ -50,7 +50,7 @@ Section LSE.
        frame of the thread records it *)
     (w_main_tbl : LWord)
 
-    (Nswitcher Nlse_code LSEN : namespace)
+    (Nlse_code LSEN : namespace)
     :
 
     let imports := lse_main_imports C_f in
@@ -63,7 +63,6 @@ Section LSE.
     disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
     is_heap_address pc_b = false ->
     Nswitcher ## Nlse_code ->
-    Nswitcher ## N_trap ->
 
     (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
 
@@ -121,7 +120,7 @@ Section LSE.
     intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
     subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexp_tbl_shadow Hpc_nonheap
-               HNswitcher_lse HNtrap Hsize_lse_exp_tbl
+               HNswitcher_lse Hsize_lse_exp_tbl
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hsealed_nonheap Hframe_match
             )
@@ -184,7 +183,6 @@ Section LSE.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
-    { exact HNtrap. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
