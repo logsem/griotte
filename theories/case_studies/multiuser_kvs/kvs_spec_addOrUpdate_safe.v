@@ -295,13 +295,14 @@ Section KVS_spec_addOrUpdate_safe.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
+    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_C &
       %Hsync_csp & _ & Hcstk & Hna)".
     iAssert (no_handler (top_export_tbl cstk)) as "#Hno_handler".
     { destruct Htop_tbl as (_ & -> & _). iFrame "Hkvs_exp_eh Hkvs_exp_ehs". }
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
+    rewrite /stk_start_a in Hcsp |- *.
     rewrite /interp_conf.
     rewrite /registers_pointsto.
 
@@ -321,7 +322,6 @@ Section KVS_spec_addOrUpdate_safe.
     iAssert (interp W0 C wca2) as "#Hinterp_wca2".
     { iApply "Hinterp_rmap"; eauto; by rewrite /kvs_addOrUpdate_nargs. }
 
-    set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp_W0_csp"); eauto. }
@@ -384,7 +384,7 @@ Section KVS_spec_addOrUpdate_safe.
         repeat (rewrite dom_delete_L).
         rewrite Hrmap_init. set_solver+. }
       { exact Hframe_match. }
-      { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; exact Hsync_csp. }
+      { exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
       { exact HNtrap. }
@@ -413,7 +413,7 @@ Section KVS_spec_addOrUpdate_safe.
         repeat (rewrite dom_delete_L).
         rewrite Hrmap_init. set_solver+. }
       { exact Hframe_match. }
-      { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; exact Hsync_csp. }
+      { exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
       { exact HNtrap. }

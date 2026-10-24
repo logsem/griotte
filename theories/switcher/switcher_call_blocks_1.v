@@ -27,7 +27,7 @@ Section Switcher_Call_Blocks_1.
     ctp ↦ᵣ wctp ∗
     switcher_code ∗
     ▷ ( ( ⌜ switcher_csp_checked wcsp ⌝ ∗
-          PC ↦ₚ switcher_label_pc ".Lswitcher_entry_first_spill" ∗
+          PC ↦ₚ switcher_label_pc ".Lswitch_entry_first_spill" ∗
           csp ↦ᵣ wcsp ∗
           ct2 ↦ᵣ WInt 0 ∗
           ctp ↦ᵣ WInt (encodeLoc Local) ∗
@@ -108,7 +108,7 @@ Section Switcher_Call_Blocks_1.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
     iApply "Hpost"; iLeft.
     iFrame "∗ Hswitcher".
-    switcher_change_pc (switcher_label_offset ".Lswitcher_entry_first_spill").
+    switcher_change_pc (switcher_label_offset ".Lswitch_entry_first_spill").
     iFrame. iPureIntro; split; [rewrite Hp0 | rewrite Hg0]; f_equal; lia.
   Qed.
 

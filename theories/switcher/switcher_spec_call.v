@@ -37,17 +37,18 @@ Section Switcher.
     ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem_l stk_mem_h : list LWord) rcgp rcra rcs0 rcs1,
         ( ( (* POST-CONDITION --- the call went through *)
               (* We receive a public future world of the world pre switcher call *)
-              ⌜ related_sts_pub_world (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) W2 ⌝
+              ⌜ related_sts_pub_world
+                  (std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary) W2 ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais ⊤
-              ∗ interp W2 C (WCap true RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)
-              ∗ ⌜ (b_stk <= (a_stk ^+ 4)%a ∧ (a_stk ^+ 4)%a <= e_stk ∧ (a_stk + 4) = Some (a_stk ^+ 4)%a)%a ⌝
-              ∗ ⌜ disjoint_from_heap a_stk e_stk ⌝
+              ∗ interp W2 C (callee_csp b_stk e_stk a_stk)
+              ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
+              ∗ ⌜ disjoint_from_heap (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ⌝
               (* Interpretation of the world *)
-              ∗ world_interp_open W2 C (LNonHeap <$> (finz.seq_between (a_stk ^+ 4)%a e_stk))
-              ∗ StackOpenWorldResources interp W2 C (finz.seq_between (a_stk ^+ 4)%a e_stk) stk_mem_h
+              ∗ world_interp_open W2 C (LNonHeap <$> (callee_stk_region b_stk e_stk a_stk))
+              ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
               ∗ cstack_frag cstk
-              ∗ ([∗ list] a ∈ (finz.seq_between (a_stk ^+ 4)%a e_stk), ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
+              ∗ ([∗ list] a ∈ (callee_stk_region b_stk e_stk a_stk), ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ₚ lupdatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
@@ -55,8 +56,8 @@ Section Switcher.
               ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
               ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]]
-              ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
+              ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]]
+              ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
                 load_heap_in_world W2 wcra_caller rcra ∧
@@ -67,7 +68,7 @@ Section Switcher.
           ∨
             ( (* POST-CONDITION --- the call didn't went through, trusted stack exhausted *)
               ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-              ∗ ⌜ (b_stk <= (a_stk ^+ 4)%a ∧ (a_stk ^+ 4)%a <= e_stk ∧ (a_stk + 4) = Some (a_stk ^+ 4)%a)%a ⌝
+              ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
               ∗ na_own cerise_nais ⊤
               (* Registers are preserved *)
               ∗ PC ↦ₚ lupdatePcPerm (rcra)
@@ -80,12 +81,13 @@ Section Switcher.
               ∗ ca1 ↦ᵣ WInt 0
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               (* Stack frame *)
-              ∗ [[ a_stk , (a_stk ^+4)%a ]] ↦ₐ [[ [wcs0_caller; wcs1_caller; wcra_caller; wcgp_caller] ]]
-              ∗ [[ (a_stk ^+4)%a , e_stk ]] ↦ₐ [[ (drop 4 stk_mem) ]]
+              ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ
+                  [[ [wcs0_caller; wcs1_caller; wcra_caller; wcgp_caller] ]]
+              ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ world_interp W C
-              ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
+              ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
               ∗ cstack_frag cstk
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
@@ -97,11 +99,10 @@ Section Switcher.
           )
             -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
 
-  (** The spill of the callee-save registers, four words from the cursor
-      [a_stk] towards the top of the stack (stacks grow up), does not fit
-      below [e_stk]. *)
-  Definition switcher_spill_overflows (a_stk e_stk : Addr) : Prop :=
-    (e_stk < a_stk + 4)%Z.
+  (** The spill of the callee-save registers at the cursor [a_stk] does not
+      fit in the caller's stack [[b_stk, e_stk)]. *)
+  Definition switcher_spill_overflows (b_stk e_stk a_stk : Addr) : Prop :=
+    ¬ stk_spill_fits b_stk e_stk a_stk.
 
   (** The fault case of [switcher_cc_specification_gen]: the first store of
       the spill faults, because the callee-save registers do not fit on the
@@ -117,7 +118,7 @@ Section Switcher.
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : iProp Σ :=
-    ⌜ switcher_spill_overflows a_stk e_stk ⌝ -∗
+    ⌜ switcher_spill_overflows b_stk e_stk a_stk ⌝ -∗
     ∀ (rmap' : LReg),
       ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝ ∗
       na_own cerise_nais ⊤ ∗
@@ -130,9 +131,9 @@ Section Switcher.
       ca0 ↦ᵣ WInt ENOTENOUGHSTACK ∗
       ca1 ↦ᵣ WInt 0 ∗
       ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ) ∗
-      [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
+      [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
       world_interp W C ∗
-      StackRevokedResources W C (finz.seq_between a_stk e_stk) ∗
+      StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
       cstack_frag cstk ∗
       interp_continuation cstk Ws Cs -∗
       WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -152,7 +153,7 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     Nswitcher ## N_trap ->
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
-    switcher_spill_overflows a_stk e_stk ->
+    switcher_spill_overflows b_stk e_stk a_stk ->
     dom rmap0 = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
@@ -167,14 +168,14 @@ Section Switcher.
        (∃ wca0, ca0 ↦ᵣ wca0) ∗
        (∃ wca1, ca1 ↦ᵣ wca1) ∗
        ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ w ) ∗
-       [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]] ∗
+       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
        world_interp W C ∗
-       StackRevokedResources W C (finz.seq_between a_stk e_stk) ∗
+       StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
        cstack_frag cstk ∗
        interp_continuation cstk Ws Cs) -∗
     switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
-    trap_safe (switcher_label_pc ".Lswitcher_entry_first_spill") ⊤
+    trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
       (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
     iIntros (Hdisj Hjalr Hspill Hdom) "#Hinv_switcher #Hstatic Hres Hfault".
@@ -240,13 +241,13 @@ Section Switcher.
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    (a_stk + 4 <= e_stk)%Z ->
+    stk_spill_fits b_stk e_stk a_stk ->
     ⊢ switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
         b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs.
   Proof.
     iIntros (Hfits Hspill).
     rewrite /switcher_spill_overflows in Hspill.
-    exfalso; solve_addr+Hspill Hfits.
+    by exfalso.
   Qed.
 
   (** The full register file, from the registers left by
@@ -325,9 +326,9 @@ Section Switcher.
     ctp ↦ᵣ wctp ∗
     ct2 ↦ᵣ wct2 ∗
     ct1 ↦ᵣ wct1_caller ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
-    switcher_stk_cells a_stk wcs0_caller wcs1_caller wcra_caller wcgp_caller ∗
-    [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ drop 4 stk_mem ]] ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
+    switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcra_caller wcgp_caller ∗
+    [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
     (if is_entry_point_known
      then ∃ sb nargs,
             ⌜wct1_caller.(lw) = WSealed ot_switcher sb⌝ ∗
@@ -341,7 +342,7 @@ Section Switcher.
     ) ∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ w ) ∗
     world_interp W C ∗
-    StackRevokedResources W C (finz.seq_between a_stk e_stk) ∗
+    StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
     cstack_frag cstk ∗
     interp_continuation cstk Ws Cs ∗
     switcher_cc_post W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
@@ -361,6 +362,7 @@ Section Switcher.
       & Hargs & Hregs & Hworld_interp & Hstk_val & Hcstk & Hcont & Hpost)".
     iPoseProof "Hstatic" as "[#Hcode _]".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hastk_bounds.
     iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I
       with "[Hargs]" as "Hargs".
     { destruct is_entry_point_known.
@@ -391,8 +393,9 @@ Section Switcher.
     { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
     iApply ("Hpost" $! W rmap' [] [] rcgp rcra rcs0 rcs1); iRight; iFrame "∗ %".
     iDestruct (switcher_stk_cells_region_4 with "Hcells") as "$"; first done.
-    iPureIntro.
+    iPureIntro. stk_unfold.
     split; first solve_addr+Hastk Hastk_bstk.
+    split; first solve_addr+.
     split; first solve_addr+Hastk Hastk_bounds Hastk_bstk.
     done.
   Qed.
@@ -408,12 +411,10 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (is_entry_point_known : bool)
     :
-    let a_stk4 := (a_stk ^+ 4)%a in
-    let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    (* The caller's stack pointer is not below the base of its stack *)
-    (b_stk <= a_stk)%a ->
+    (* The caller's stack pointer is in the stack, on the side of its used part *)
+    stk_cursor_ok b_stk e_stk a_stk ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -454,12 +455,12 @@ Section Switcher.
     ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
     (* Stack frame *)
-    ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
-    ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
-    ∗ ⌜ revoked_addresses W (finz.seq_between a_stk e_stk) ⌝
+    ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
+    ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
 
@@ -469,17 +470,19 @@ Section Switcher.
               (* Also the return of ECOMPARTMENTFAIL when [ct1] is not a sealed export entry: the callee's frame is already pushed, so the exception entry pops it *)
               (* Also the return of ENOTENOUGHSTACK when the callee's stack is smaller than its minimum stack size: the return routine pops the frame *)
               (* We receive a public future world of the world pre switcher call *)
-              ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
+              ⌜ related_sts_pub_world
+                  (std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary) W2 ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais ⊤
-              ∗ interp W2 C (WCap true RWL Local a_stk4 e_stk a_stk4)
-              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
-              ∗ ⌜ disjoint_from_heap a_stk e_stk ⌝
+              ∗ interp W2 C (callee_csp b_stk e_stk a_stk)
+              ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
+              ∗ ⌜ disjoint_from_heap (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ⌝
               (* Interpretation of the world *)
-              ∗ world_interp_open W2 C (LNonHeap <$> callee_stk_region)
-              ∗ StackOpenWorldResources interp W2 C callee_stk_region stk_mem_h
+              ∗ world_interp_open W2 C (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)
+              ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
               ∗ cstack_frag cstk
-              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
+              ∗ ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
+                   ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ₚ lupdatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
@@ -487,8 +490,8 @@ Section Switcher.
               ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
               ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]]
-              ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
+              ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]]
+              ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
                 load_heap_in_world W2 wcra_caller rcra ∧
@@ -499,7 +502,7 @@ Section Switcher.
           ∨
             ( (* POST-CONDITION --- the call didn't went through, trusted stack exhausted *)
               ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+              ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
               ∗ na_own cerise_nais ⊤
               (* Registers are preserved *)
               ∗ PC ↦ₚ lupdatePcPerm (rcra)
@@ -512,12 +515,13 @@ Section Switcher.
               ∗ ca1 ↦ᵣ WInt 0
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               (* Stack frame *)
-              ∗ [[ a_stk , (a_stk ^+4)%a ]] ↦ₐ [[ [wcs0_caller; wcs1_caller; wcra_caller; wcgp_caller] ]]
-              ∗ [[ (a_stk ^+4)%a , e_stk ]] ↦ₐ [[ (drop 4 stk_mem) ]]
+              ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ
+                  [[ [wcs0_caller; wcs1_caller; wcra_caller; wcgp_caller] ]]
+              ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ world_interp W C
-              ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
+              ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
               ∗ cstack_frag cstk
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
@@ -556,10 +560,10 @@ Section Switcher.
          ([switcher_call_stack_too_small_unwind]);
        - [switcher_inv_push_frame]: close the switcher invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
+    iIntros (Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & Hstk_val & %Hstk_revoked & Hcstk & Hcont & Hpost)".
-    subst a_stk4 callee_stk_region.
+    stk_unfold.
 
     assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
     { rewrite -/(is_Some (rmap !! ct2)).
@@ -610,7 +614,7 @@ Section Switcher.
         as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
       subst hclose_switcher_inv hinv_switcher.
       iApply (switcher_cc_fault_resume Nswitcher with "Hswitcher Hstatic [-Hfault] Hfault");
-        [done | done | rewrite /switcher_spill_overflows; solve_addr+Hspill Hb_a | done |].
+        [done | done | rewrite /switcher_spill_overflows; stk_unfold; solve_addr+Hspill Hb_a | done |].
       iMod ("Hclose_switcher_inv" with
         "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
       { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
@@ -619,6 +623,7 @@ Section Switcher.
     iDestruct "Hpost" as "[Hpost _]".
     iNext; iIntros "(%Hstk_bounds & Hcra & Hcgp & Hcsp & Hcells & Hstk & Hmtdc & _ & Hbranch)".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hastk_bounds.
     iDestruct "Hbranch" as
       "[(%Ha_frame & %Ha_frame_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hframeoffset
          & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)
@@ -634,10 +639,10 @@ Section Switcher.
     (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
     iDestruct (switcher_entry_point_prop with "Hp_ot_switcher Htarget_v Hworld_interp")
       as "[Hworld_interp Hentry_prop]".
-    set (W' := std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary).
+    set (W' := std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary).
     set (frame_tbl := λ wtbl : LWord,
            {| cf_tframe :=
-                {| tf_csp := WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a;
+                {| tf_csp := WCap true RWL Local b_stk e_stk (stk_saved_a a_stk);
                    tf_export_tbl := wtbl;
                    tf_error_count := 0 |};
               cf_saved :=
@@ -659,7 +664,9 @@ Section Switcher.
       simpl.
       iFrame.
       iEval (cbn).
-      rewrite (spill_cursor a_stk) ?cstack_eta; last by eexists.
+      rewrite (tf_caller_a_saved _ true RWL Local b_stk e_stk a_stk); [| done | done].
+      rewrite ?cstack_eta.
+      stk_unfold.
       iDestruct (interp_cap_disjoint_wl with "Hstk4v") as %[_ Hstk4_heap]; first done.
       iSplitR.
       { iSplit; first (iPureIntro; exact Hstk4_heap).
@@ -816,7 +823,8 @@ Section Switcher.
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs) "[Hregs Hregs_interp]"; [done| |done|done|].
     { symmetry. apply std_update_multiple_heap. }
-    iApply ("Hentry_cont" $! (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs a_stk e_stk).
+    iApply ("Hentry_cont" $! (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
+              (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)).
     iSplitL "Hcont_frame"; first by iApply "Hcont_frame".
     iSplit.
     { iPureIntro; simpl; split; [|split]; auto.
@@ -824,9 +832,8 @@ Section Switcher.
     }
     iSplit; first (iPureIntro; split_and!; [done | reflexivity | reflexivity | exact Htbl_cell]).
     iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
-    iPureIntro; split;
-      [split; [split; [cbn; apply spill_cursor; by eexists | reflexivity] | solve_addr]
-      | exact Hbig].
+    iPureIntro; split; last exact Hbig.
+    cbn. rewrite (tf_caller_a_saved _ true RWL Local b_stk e_stk a_stk); [by split | done | done].
   Qed.
 
   (* This specification unifies the two possible outcomes of the switcher call.
@@ -843,12 +850,10 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (is_entry_point_known : bool)
     :
-    let a_stk4 := (a_stk ^+ 4)%a in
-    let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    (* The caller's stack pointer is not below the base of its stack *)
-    (b_stk <= a_stk)%a ->
+    (* The caller's stack pointer is in the stack, on the side of its used part *)
+    stk_cursor_ok b_stk e_stk a_stk ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -889,12 +894,12 @@ Section Switcher.
     ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
     (* Stack frame *)
-    ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
-    ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
-    ∗ ⌜ revoked_addresses W (finz.seq_between a_stk e_stk) ⌝
+    ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
+    ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
 
@@ -902,16 +907,19 @@ Section Switcher.
     (* POST-CONDITION *)
     ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1,
               (* We receive a public future world of the world pre switcher call *)
-            ⌜ extract_temporaries_condition W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) ⌝
+            ⌜ extract_temporaries_condition W2
+                (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝
             ∗ RevokedResources W2 C l'
             ∗ ⌜ revoked_keys (revoke W2) l' ⌝
-            ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
+            ∗ ⌜ related_sts_pub_world
+                  (std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary) W2 ⌝
+            ∗ ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
+                 ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-            ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
-            ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
+            ∗ StackRevokedResources W2 C (stk_free b_stk e_stk a_stk)
+            ∗ ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝
             ∗ na_own cerise_nais ⊤
-            ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+            ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
@@ -925,7 +933,7 @@ Section Switcher.
             ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-            ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
                 load_heap_in_world W2 wcra_caller rcra ∧
@@ -945,15 +953,15 @@ Section Switcher.
        revoke the world in the post-condition, with
        [switcher_cc_revoke_returned] when the callee returned, and with
        [switcher_cc_revoke_exhausted] when the trusted stack was exhausted. *)
-    iIntros (a_stk4 callee_stk_region Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
+    iIntros (Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont & Hpost)".
-    subst a_stk4.
-    subst callee_stk_region.
+    stk_unfold.
     iApply switcher_cc_specification_gen; eauto; iFrame "∗#%".
     iSplit; last by iDestruct "Hpost" as "[_ $]".
     iDestruct "Hpost" as "[Hpost _]".
     iIntros (W' rmap' stk_mem_l stk_mem_h rcgp rcra rcs0 rcs1).
+    stk_unfold.
     iNext; iIntros "[H|H]".
     + clear stk_mem.
       iDestruct "H" as
@@ -966,7 +974,7 @@ Section Switcher.
       iMod (switcher_cc_revoke_returned with
              "Hinterp_W2_csp Hstk_val Hworld_interp_C Hstack_revoked_W2 Hstk_l Hstk_h Hlc")
         as (stk_mem l') "(% & Hrevoked_l' & % & Hstk_revoked & % & Hworld_interp & Hstk)";
-        [done|done|done|].
+        [done|done|naive_solver|].
       iApply "Hpost"; iFrame "∗ %".
     + clear W' stk_mem_l stk_mem_h.
       iDestruct "H" as
@@ -978,7 +986,7 @@ Section Switcher.
            & Hcstk_frag & HK & %Hrestored & Hlc)".
       iMod (switcher_cc_revoke_exhausted with "Hworld_interp_C Hstk_val Hstk_l Hstk_h Hlc")
         as (l') "(% & Hrevoked_l & % & % & Htemp & Hstk_revoked & % & Hworld_interp & Hstk)";
-        [done|done|done|].
+        [done|naive_solver|done|].
       iApply "Hpost"; iFrame "∗ %".
       iSplit; first iApply interp_int.
       iSplit; first iApply interp_int.
@@ -1000,13 +1008,11 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (nargs : nat)
     :
-    let a_stk4 := (a_stk ^+ 4)%a in
     let wct1_caller := WSealed ot_switcher w_entry_point in
-    let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    (* The caller's stack pointer is not below the base of its stack *)
-    (b_stk <= a_stk)%a ->
+    (* The caller's stack pointer is in the stack, on the side of its used part *)
+    stk_cursor_ok b_stk e_stk a_stk ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -1040,28 +1046,31 @@ Section Switcher.
     ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
     (* Stack frame *)
-    ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
-    ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
-    ∗ ⌜ revoked_addresses W (finz.seq_between a_stk e_stk) ⌝
+    ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
+    ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
 
     (* POST-CONDITION *)
     ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1,
               (* We receive a public future world of the world pre switcher call *)
-            ⌜ extract_temporaries_condition W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) ⌝
+            ⌜ extract_temporaries_condition W2
+                (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝
             ∗ RevokedResources W2 C l'
             ∗ ⌜ revoked_keys (revoke W2) l' ⌝
-            ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
+            ∗ ⌜ related_sts_pub_world
+                  (std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary) W2 ⌝
+            ∗ ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
+                 ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-            ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
-            ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
+            ∗ StackRevokedResources W2 C (stk_free b_stk e_stk a_stk)
+            ∗ ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝
             ∗ na_own cerise_nais ⊤
-            ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+            ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
@@ -1075,7 +1084,7 @@ Section Switcher.
             ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-            ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
@@ -1088,7 +1097,7 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
+    iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_revoked Nswitcher W C
@@ -1132,12 +1141,10 @@ Section Switcher.
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     :
-    let a_stk4 := (a_stk ^+ 4)%a in
-    let callee_stk_region := finz.seq_between a_stk4 e_stk in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
-    (* The caller's stack pointer is not below the base of its stack *)
-    (b_stk <= a_stk)%a ->
+    (* The caller's stack pointer is in the stack, on the side of its used part *)
+    stk_cursor_ok b_stk e_stk a_stk ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -1167,28 +1174,31 @@ Section Switcher.
     ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
     (* Stack frame *)
-    ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
-    ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
-    ∗ ⌜ revoked_addresses W (finz.seq_between a_stk e_stk) ⌝
+    ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
+    ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
 
     (* POST-CONDITION *)
     ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1,
             (* We receive a public future world of the world pre switcher call *)
-            ⌜ extract_temporaries_condition W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) ⌝
+            ⌜ extract_temporaries_condition W2
+                (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝
             ∗ RevokedResources W2 C l'
             ∗ ⌜ revoked_keys (revoke W2) l' ⌝
-            ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
+            ∗ ⌜ related_sts_pub_world
+                  (std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary) W2 ⌝
+            ∗ ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
+                 ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-            ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
-            ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
+            ∗ StackRevokedResources W2 C (stk_free b_stk e_stk a_stk)
+            ∗ ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝
             ∗ na_own cerise_nais ⊤
-            ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+            ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
@@ -1202,7 +1212,7 @@ Section Switcher.
             ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-            ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
                 load_heap_in_world W2 wcra_caller rcra ∧
@@ -1217,7 +1227,7 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
+    iIntros (Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap HNtrap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_revoked Nswitcher W C

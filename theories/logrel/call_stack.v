@@ -72,9 +72,8 @@ Record trusted_frame := MkTFrame {
   }.
 
 (** The stack of the caller of a frame, read from [tf_csp]: its bounds
-    [tf_stk_b] and [tf_stk_e], and the base [tf_spill_a] of the area where the
-    switcher spilled the callee-saved registers, the four words below the
-    cursor of [tf_csp]. *)
+    [tf_stk_b] and [tf_stk_e], and the cursor [tf_caller_a] of the caller at
+    the call (see [stk_saved_a]). *)
 Definition tf_stk_b (tf : trusted_frame) : Addr :=
   match tf.(tf_csp).(lw) with
   | WCap _ _ _ b _ _ => b
@@ -83,11 +82,6 @@ Definition tf_stk_b (tf : trusted_frame) : Addr :=
 Definition tf_stk_e (tf : trusted_frame) : Addr :=
   match tf.(tf_csp).(lw) with
   | WCap _ _ _ _ e _ => e
-  | _ => 0%a
-  end.
-Definition tf_spill_a (tf : trusted_frame) : Addr :=
-  match tf.(tf_csp).(lw) with
-  | WCap _ _ _ _ _ a => (a ^+ -4)%a
   | _ => 0%a
   end.
 
@@ -101,10 +95,100 @@ Definition tf_export_tbl_b (tf : trusted_frame) : Addr :=
 Arguments tf_export_tbl_b !tf /.
 Arguments tf_stk_b !tf /.
 Arguments tf_stk_e !tf /.
-Arguments tf_spill_a !tf /.
 
-Lemma spill_cursor (a : Addr) : is_Some (a + 4)%a → ((a ^+ 4) ^+ -4)%a = a.
-Proof. intros [a4 Ha4]. solve_addr. Qed.
+(** * The layout of a compartment stack
+
+    The switcher's call path takes the caller's stack [[b, e)] with its
+    cursor at [a]. It spills the callee-saved registers of the caller in the
+    [SpillSlot_size] words of the spill area, at [stk_spill_a a], moves the
+    cursor to [stk_saved_a a], saved in the frame, and gives the callee the
+    stack [[stk_callee_b b a, stk_callee_e e a)]. The part of the caller's
+    stack that the call hands to the switcher, the spill area and the
+    callee's stack, is [[stk_free_b b a, stk_free_e e a)]. Stacks grow up:
+    the free part is above the cursor. *)
+
+(** The base of the spill area. *)
+Definition stk_spill_a (a : Addr) : Addr := a.
+(** The cursor after the spill, which the frame saves. *)
+Definition stk_saved_a (a : Addr) : Addr := (a ^+ SpillSlot_size)%a.
+(** The bounds of the callee's stack. *)
+Definition stk_callee_b (b a : Addr) : Addr := (a ^+ SpillSlot_size)%a.
+Definition stk_callee_e (e a : Addr) : Addr := e.
+(** The bounds of the free part of the caller's stack. *)
+Definition stk_free_b (b a : Addr) : Addr := a.
+Definition stk_free_e (e a : Addr) : Addr := e.
+(** Where the cursor of a fresh stack [[b, e)] starts. *)
+Definition stk_start_a (b e : Addr) : Addr := b.
+(** The spill area does not wrap around the address space. *)
+Definition stk_spill_ok (a : Addr) : Prop :=
+  (a + SpillSlot_size)%a = Some (a ^+ SpillSlot_size)%a.
+(** The cursor is not outside the stack on the side of its used part (the
+    caller's frames): a trusted caller's spill can only fault at its first
+    store. *)
+Definition stk_cursor_ok (b e a : Addr) : Prop := (b <= a)%a.
+(** The spill fits in the stack: its first store does not fault. *)
+Definition stk_spill_fits (b e a : Addr) : Prop := (a + SpillSlot_size <= e)%Z.
+(** A callee that needs [n] words fits in the stack, once the spill is
+    done. *)
+Definition stk_callee_fits (b e a : Addr) (n : Z) : Prop :=
+  (a + SpillSlot_size + n <= e)%Z.
+
+(** The cursor of the caller at the call, read from the stack pointer that
+    a frame saves. *)
+Definition tf_caller_a (tf : trusted_frame) : Addr :=
+  match tf.(tf_csp).(lw) with
+  | WCap _ _ _ _ _ c => (c ^+ (- SpillSlot_size))%a
+  | _ => 0%a
+  end.
+
+(* Kept folded by [simpl] and [cbn] on a concrete frame, so that
+   [tf_caller_a_saved] can rewrite it. *)
+Arguments tf_caller_a : simpl never.
+
+Lemma tf_caller_a_saved (tf : trusted_frame) t p g b e (a : Addr) :
+  stk_spill_ok a →
+  tf.(tf_csp).(lw) = WCap t p g b e (stk_saved_a a) →
+  tf_caller_a tf = a.
+Proof.
+  rewrite /stk_spill_ok /stk_saved_a /tf_caller_a /SpillSlot_size.
+  intros Ha ->. solve_addr.
+Qed.
+
+(** The stack pointer that the switcher gives to the callee. *)
+Definition callee_csp (b e a : Addr) : Word :=
+  WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a) (stk_saved_a a).
+(** The callee's stack pointer is that of a fresh stack on the callee's
+    bounds. *)
+Lemma callee_csp_start b e a :
+  callee_csp b e a =
+  WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a)
+    (stk_start_a (stk_callee_b b a) (stk_callee_e e a)).
+Proof. done. Qed.
+(** The addresses of the callee's stack. *)
+Definition callee_stk_region (b e a : Addr) : list Addr :=
+  finz.seq_between (stk_callee_b b a) (stk_callee_e e a).
+(** The addresses of the free part of the caller's stack. *)
+Definition stk_free (b e a : Addr) : list Addr :=
+  finz.seq_between (stk_free_b b a) (stk_free_e e a).
+(** The words of the free part, in address order: those of the spill area,
+    those of the callee's stack, and the free part from both. *)
+Definition stk_mem_spill {A} (l : list A) : list A := take (Z.to_nat SpillSlot_size) l.
+Definition stk_mem_callee {A} (l : list A) : list A := drop (Z.to_nat SpillSlot_size) l.
+Definition stk_mem_join {A} (ls lc : list A) : list A := ls ++ lc.
+(** The bounds of the callee's stack are within the caller's, and the spill
+    area does not wrap around. *)
+Definition callee_stk_bounds (b e a : Addr) : Prop :=
+  (b <= stk_callee_b b a)%a ∧ (stk_callee_e e a <= e)%a ∧
+  (stk_callee_b b a <= stk_callee_e e a)%a ∧ stk_spill_ok a.
+
+(** Unfold the stack layout and the spill slots, for [solve_addr]. *)
+Ltac stk_unfold :=
+  unfold callee_csp, callee_stk_region, stk_free, stk_mem_spill, stk_mem_callee,
+    stk_mem_join, callee_stk_bounds, stk_spill_a, stk_saved_a, stk_callee_b,
+    stk_callee_e, stk_free_b, stk_free_e, stk_start_a, stk_spill_ok, stk_cursor_ok,
+    stk_spill_fits, stk_callee_fits,
+    SpillSlot_size, SpillSlot_cs0, SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc in *;
+  try change (Z.to_nat 4) with 4%nat in *.
 
 (** A call-frame [cframe]: the frame [cf_tframe] of the trusted stack, the
     callee-saved registers [cf_saved] of the caller, and the caller-callee
@@ -124,10 +208,10 @@ Record cframe := MkCFrame {
       ccrel : caller_callee_relation;
   }.
 
-(** The stack of the caller of a frame, and the base of its spill area. *)
+(** The stack of the caller of a frame, and its cursor at the call. *)
 Notation cf_stk_b frm := (tf_stk_b (cf_tframe frm)).
 Notation cf_stk_e frm := (tf_stk_e (cf_tframe frm)).
-Notation cf_spill_a frm := (tf_spill_a (cf_tframe frm)).
+Notation cf_caller_a frm := (tf_caller_a (cf_tframe frm)).
 
 (** [load_heap saved actual] describes a saved register after its load.
     A heap capability may retain its tag or have it cleared, depending on

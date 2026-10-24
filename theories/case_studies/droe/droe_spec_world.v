@@ -227,9 +227,9 @@ Section DROE_World.
   Lemma droe_world_return W0 W4 C (cgp_b cgp_e csp_b csp_e : Addr) :
     let W3 := droe_Wshare W0 cgp_b in
     let stk := finz.seq_between csp_b csp_e in
-    let stk' := finz.seq_between (csp_b ^+ 4)%a csp_e in
+    let stk' := callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e) in
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
-    (csp_b <= csp_b ^+ 4)%a ->
+    callee_stk_bounds csp_b csp_e (stk_start_a csp_b csp_e) ->
     is_heap_address cgp_b = false ->
     revoked_addresses W3 stk ->
     related_sts_pub_world (std_update_multiple W3 stk' Temporary) W4 ->
@@ -249,7 +249,8 @@ Section DROE_World.
     { intros Hin.
       rewrite /revoked_addresses Forall_forall in Hstack_revoked_W3.
       assert (cgp_b ∈ stk) as Hin'.
-      { rewrite /stk /stk' !elem_of_finz_seq_between in Hin |- *; solve_addr+Hin Hcsp_bounds. }
+      { rewrite /stk elem_of_finz_seq_between.
+        exact (callee_stk_region_incl _ _ _ _ Hcsp_bounds Hin). }
       apply Hstack_revoked_W3 in Hin'; congruence.
     }
     rewrite open_world_interp_empty.

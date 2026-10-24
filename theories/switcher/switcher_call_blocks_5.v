@@ -326,6 +326,7 @@ Section Switcher_Call_Blocks_5.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom)
       "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hrmap & #Hswitcher & Hpost)".
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
@@ -398,6 +399,7 @@ Section Switcher_Call_Blocks_5.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom)
       "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & Hrmap & #Hswitcher & Hpost)".
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".

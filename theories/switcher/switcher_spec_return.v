@@ -41,7 +41,7 @@ Section Switcher.
     related_sts_pub_world W0 Wfixed ->
     dom rmap = all_registers_s ∖ ({[ csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
-    csp_sync cstk (csp_b ^+ -4)%a csp_e ->
+    csp_sync cstk csp_b csp_e ->
     (* NOTE: there is only one side of the implication... *)
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
@@ -138,17 +138,22 @@ Section Switcher.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "(%b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
     cbn in HWF.
-    destruct HWF as (-> & Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_mmio & Hstk_heap & Hret_ok).
-    assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Hspill by solve_addr.
-    cbn in Hcsp_sync; rewrite Hspill in Hcsp_sync; destruct Hcsp_sync as [ Ha He ]; simplify_eq.
-    set (a_stk := (csp_b ^+ -4)%a).
-    pose proof (switcher_stk_bounds_frame b_stk csp_e a_stk Hb_a4 He_a1 (ex_intro _ _ Ha_stk4))
-      as Hstk_bounds.
-    pose proof Hstk_bounds as (_ & _ & Ha4).
+    destruct HWF as (-> & Hstk_bounds & Hstk_mmio & Hstk_heap & Hret_ok).
+    assert (∀ tf, tf.(tf_csp).(lw) = WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) →
+                  tf_caller_a tf = a_stk) as Hspill.
+    { intros tf Htf. eapply tf_caller_a_saved; [apply Hstk_bounds | exact Htf]. }
+    (* The callee's stack is the one carved out of the caller's *)
+    cbn in Hcsp_sync; rewrite Hspill in Hcsp_sync; last done.
+    destruct Hcsp_sync as [Hcsp_b Hcsp_e].
+    subst csp_b csp_e.
+    pose proof Hstk_bounds as (Hb_a4 & He_a1 & Ha4).
+    stk_unfold. change (4 - 1)%Z with 3%Z in He_a1.
 
     iDestruct (interp_monotone_continuation with "HK") as "HK"; eauto.
     rewrite /interp_continuation /interp_cont.
-    iEval (cbn; rewrite Hspill) in "HK"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
+    iEval (cbn) in "HK". rewrite Hspill; last done.
+    rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
+    stk_unfold.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
     assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
@@ -171,8 +176,7 @@ Section Switcher.
             Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)";eauto.
 
     (* Blocks 13-16: restore, clear and return *)
-    assert (csp_b = (a_stk ^+ 4)%a) as Hcsp_b by (subst a_stk; solve_addr+Ha_stk4).
-    iEval (rewrite {1}Hcsp_b) in "Hstk".
+    stk_unfold.
     iEval (rewrite open_world_interp_empty) in "Hworld_interp".
     iAssert (switcher_stk_cells a_stk wastk wastk1 wastk2 wastk3)
       with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
@@ -190,8 +194,6 @@ Section Switcher.
       & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & _ & Hlc)".
     iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
     iDestruct "Hlc" as "(Hlc & Hlc'')".
-    assert ((a_stk ^+ 4)%a = a_stk4) as Ha_stk4_eq by (subst a_stk; solve_addr+Ha_stk4).
-    iEval (rewrite Ha_stk4_eq) in "Hstk' Hstk".
 
     (* Depop the topmost frame of the call-stack, close the switcher's
        invariant and fix the world, after the jump or the exception entry *)
@@ -201,7 +203,7 @@ Section Switcher.
                world_interp Wfixed C ∗
                (if is_untrusted_caller ccrel
                 then True
-                else [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]]))%I
+                else [[a_stk,(a_stk ^+ 4)%a]]↦ₐ[[region_addrs_zeroes a_stk (a_stk ^+ 4)%a]]))%I
       with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv
              Hworld_interp Hstk' Hstk Hrevoked Hlc'']" as "Hupd".
@@ -215,7 +217,7 @@ Section Switcher.
         iApply (switcher_inv_pop_frame _ {| cstk_entry := ef; cstk_frames := frms |} with
                  "Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
                   Hcstk_full Hstk_interp_next Hp_ot_switcher"); done. }
-      iMod (world_interp_stack_fixing with
+      iMod (world_interp_stack_fixing _ _ _ _ b_stk e_stk a_stk with
              "Htrap Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
         "(Hworld_interp & Hstk')"; eauto.
       by iFrame. }
@@ -239,24 +241,22 @@ Section Switcher.
       iMod "Hupd" as "(Hna & Hcstk_frag & Hworld_interp & Hstk')".
 
       iEval (rewrite open_world_interp_empty -(fmap_nil LNonHeap)) in "Hworld_interp".
-      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
+      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between (a_stk ^+ 4)%a e_stk) []
                   with "[$Hinterp_callee_wstk' $Hworld_interp]")
         as "(Hworld_interp & (%lv & Hstk & Hres))"; auto.
       { apply finz_seq_between_NoDup. }
       { apply Forall_forall; intros y Hy.
         rewrite elem_of_finz_seq_between in Hy.
-        subst a_stk.
-        solve_addr+Ha_stk4 Hb_a4 He_a1 Hy.
+        solve_addr+Ha4 Hb_a4 He_a1 Hy.
       }
       { set_solver+. }
       iDestruct (lc_fupd_elim_later with "[$] [$Hres]") as ">Hres".
 
       rewrite app_nil_r.
-      replace a_stk4 with (a_stk ^+ 4)%a by (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
-      replace ((a_stk ^+ 4) ^+ -4)%a with a_stk by (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
 
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /=)
         in "Htopmost_frm".
+      stk_unfold.
       iApply ("Htopmost_frm" with
                "[] [%] [%] [%] [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
       $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna]");
@@ -283,8 +283,8 @@ Section Switcher.
 
   (** [csp_sync] does not read the error handler count of the topmost
       frame. *)
-  Lemma csp_sync_set_top_count (cstk : CSTK) (n : Z) (a_stk' e_stk' : Addr) :
-    csp_sync (cstack_set_top_count cstk n) a_stk' e_stk' ↔ csp_sync cstk a_stk' e_stk'.
+  Lemma csp_sync_set_top_count (cstk : CSTK) (n : Z) (b_stk' e_stk' : Addr) :
+    csp_sync (cstack_set_top_count cstk n) b_stk' e_stk' ↔ csp_sync cstk b_stk' e_stk'.
   Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
 
   (** A fault in a trusted callee whose table declares no handler is safe:
@@ -309,7 +309,7 @@ Section Switcher.
     related_sts_pub_world W0 Wfixed ->
     dom rmap = all_registers_s ∖ ({[ csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
-    csp_sync cstk (csp_b ^+ -4)%a csp_e ->
+    csp_sync cstk csp_b csp_e ->
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     Nswitcher ## N_trap ->

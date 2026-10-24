@@ -269,7 +269,7 @@ Section HTS_States.
   Definition hts_malloc_ok (a_ret : Addr) : iProp Σ :=
     ∃ (ι : AId) (b : Addr),
       ⌜hts_buffer_bounds b⌝ ∗
-      hts_frame a_ret csp_b ∗
+      hts_frame a_ret (stk_start_a csp_b csp_e) ∗
       ca0 ↦ᵣ hts_buffer b @@ ι ∗
       ca1 ↦ᵣ WInt 0 ∗
       hts_zero_regs ∗
@@ -299,17 +299,17 @@ Section HTS_States.
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare ι b)
-          (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
+          (callee_stk_region csp_b csp_e (csp_b ^+ 1)%a) Temporary) Wret⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
       hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (csp_b ^+ 1)%a ∗
       (∃ w, ca0 ↦ᵣ w) ∗
       (∃ w, ca1 ↦ᵣ w) ∗
       hts_zero_regs ∗
       csp_b ↦ₐ hts_buffer b @@ ι ∗
-      (∃ stk, [[(csp_b ^+ 1)%a, csp_e]] ↦ₐ [[stk]]) ∗
+      (∃ stk, [[stk_free_b csp_b (csp_b ^+ 1)%a, stk_free_e csp_e (csp_b ^+ 1)%a]] ↦ₐ [[stk]]) ∗
       world_interp (revoke Wret) C ∗
-      StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
-      ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
+      StackRevokedResources Wret C (stk_free csp_b csp_e (csp_b ^+ 1)%a) ∗
+      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (csp_b ^+ 1)%a)⌝ ∗
       interp_continuation cstk Ws Cs ∗
       allocator_owner_id hts_main_owner_id {[ι]} ∗
       alloc_obj ι b (b ^+ 1)%a ∗
@@ -327,11 +327,11 @@ Section HTS_States.
       ca0 ↦ᵣ WInt 0 ∗
       ca1 ↦ᵣ WInt 0 ∗
       hts_zero_regs ∗
-      (∃ stk, [[(csp_b ^+ 1)%a, csp_e]] ↦ₐ [[stk]]) ∗
+      (∃ stk, [[stk_free_b csp_b (csp_b ^+ 1)%a, stk_free_e csp_e (csp_b ^+ 1)%a]] ↦ₐ [[stk]]) ∗
       world_interp_open (revoke Wret) C [LHeap b ι] ∗
       sts_state_std C (LHeap b ι) Permanent ∗
-      StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
-      ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
+      StackRevokedResources Wret C (stk_free csp_b csp_e (csp_b ^+ 1)%a) ∗
+      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (csp_b ^+ 1)%a)⌝ ∗
       interp_continuation cstk Ws Cs ∗
       ι ⊒ AQuar.
 

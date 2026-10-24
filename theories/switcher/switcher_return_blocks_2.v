@@ -458,6 +458,7 @@ Section Switcher_Return_Blocks_2.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hca2 & Hctp & Hcsp
       & Hcells & Hstk & Hrmap & #Hswitcher & Hpost)".
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
@@ -541,13 +542,14 @@ Section Switcher_Return_Blocks_2.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hca2 & Hctp & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hstk & Hrmap & #Hswitcher & Hpost)".
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
 
     (* Block 13: restore the callee-save registers *)
-    switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call") ^+ 11)%a.
+    switcher_focus_block (switcher_block "switcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    change_pc_to ((a_switcher_call ^+ switcher_label_offset "switcher_after_compartment_call") ^+ 11)%a.
     iApply (switcher_return_block_13_restore_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); [done|done|done|done|solve_addr|].
@@ -636,13 +638,14 @@ Section Switcher_Return_Blocks_2.
     iIntros (Hheap (Hba & Hba3 & Ha4) Hstk_mmio Hdom)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hca2 & Hctp & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hstk & Hworld & Hmem & Hrmap & #Hswitcher & Hpost)".
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
 
     (* Block 13: restore the callee-save registers *)
-    switcher_focus_block (switcher_block ".Lswitcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    change_pc_to ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call") ^+ 11)%a.
+    switcher_focus_block (switcher_block "switcher_after_compartment_call") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    change_pc_to ((a_switcher_call ^+ switcher_label_offset "switcher_after_compartment_call") ^+ 11)%a.
     iApply (switcher_return_block_13_restore_open_cases_spec Wworld Wval C opened ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld $Hmem $Hcode]");

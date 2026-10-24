@@ -123,14 +123,14 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hres" as "[(Hid & Hca0 & Hca1) | Hres]".
     - iApply ("Hpost" $! 0%Z (lword_of_word (WInt ALLOC_NO_MEMORY))
         (lword_of_word (WInt 0)) rmap_ret
-        (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
+        (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
       iFrame "Ha_owner". iLeft. iFrame "Hid". iPureIntro. auto.
     - iDestruct "Hres" as (ι b e)
         "(%Hbounds & %Hfresh & %Hfresh_Ω & Hca0 & Hca1 & #Hobj & Hheld & Hid & Hzero)".
       iApply ("Hpost" $! 0%Z (WCap true RW Global b e b @@ ι) (lword_of_word (WInt 0))
-        rmap_ret (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
+        rmap_ret (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
       iFrame "Ha_owner". iRight. iExists ι,b,e. iFrame "Hobj Hheld Hid Hzero".
@@ -203,8 +203,7 @@ Section AllocatorSwitcherSpec.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap #Hzero]".
     iDestruct (big_sepM_pure_1 with "Hzero") as %Hzero.
     iClear "Hzero".
-    set (rframe := <[csp := lword_of_word (WCap true RWL Local
-        (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)]>
+    set (rframe := <[csp := lword_of_word (callee_csp b_stk e_stk a_stk)]>
       (<[ca5 := lword_of_word (WInt 0)]> rmap0)).
     iAssert ([∗ map] r↦w ∈ rframe, r ↦ᵣ w)%I
       with "[Hrmap Hca5 Hcsp]" as "Hframe".
@@ -251,7 +250,7 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hctp" as (wctp_ret) "Hctp".
     iInsertList "Hframe" [ca2;ct0;ct1;ct2;ca3;ca4;ctp;cnull].
     iApply ("Hpost" $! 0%Z (lword_of_word (WInt ALLOC_OK)) (lword_of_word (WInt 0)) _
-      (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
+      (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hframe Hstk Hcstk".
     rewrite /allocator_free_result. iFrame "Hq Hid Ha_owner".
     iPureIntro. split; last done.

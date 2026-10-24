@@ -43,7 +43,7 @@ Section Heap_Temporal_Safety_Interp.
     (* Unpack the entry register map and the caller's continuation. *)
     iIntros (HNtrap Hpc_b)
       "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
-    iIntros (cstk Ws Cs regs a_stk e_stk)
+    iIntros (cstk Ws Cs regs b_stk e_stk)
       "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
         Hcstk & Hna)".
     rewrite /interp_conf.
@@ -89,8 +89,8 @@ Section Heap_Temporal_Safety_Interp.
     rewrite Hwcgp in Hcgp. injection Hcgp as Heqcgp. subst wcgp.
     rewrite Hwcra in Hcra. injection Hcra as Heqcra. subst wcra.
     rewrite Hwcsp in Hcsp. injection Hcsp as Heqcsp. subst wcsp.
-    iMod (world_interp_revoke_stack W C (a_stk ^+ 4)%a e_stk
-      (a_stk ^+ 4)%a with "[$Hinterp_csp $Hworld]") as (l)
+    iMod (world_interp_revoke_stack W C b_stk e_stk
+      (stk_start_a b_stk e_stk) with "[$Hinterp_csp $Hworld]") as (l)
       "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
     (* Take the owner word and token out of the sealing predicate. *)
     iMod (allocator_otype_open W (revoke W) C wca0 Hwca0_tag Hwca0_sealed
@@ -130,7 +130,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hctp" as (wctp') "Hctp".
       iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
-        (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
+        (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].
       assert (related_sts_pub_world W Wfixed) as Hrelated_pub.
       { subst Wfixed. apply related_pub_revoke_close_list. exact Htemps. }
@@ -142,7 +142,7 @@ Section Heap_Temporal_Safety_Interp.
         as "#Hinterp_status".
       { iApply interp_int. }
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
-        e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+        e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
         with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
@@ -151,7 +151,7 @@ Section Heap_Temporal_Safety_Interp.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }
       { exact Hframe. }
-      { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+      { exact Hsync. }
       { exact Hnodup. }
       { intros a Ha. apply Htemps in Ha. exact Ha. }
       { exact HNtrap. } }
@@ -183,7 +183,7 @@ Section Heap_Temporal_Safety_Interp.
         iDestruct "Hctp" as (wctp') "Hctp".
         iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
         set (Wfixed := close_list
-          (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
+          (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) (revoke W)).
         destruct Htemps as [Hnodup Htemps].
         assert (related_sts_pub_world W Wfixed) as Hrelated_pub.
         { subst Wfixed. apply related_pub_revoke_close_list. exact Htemps. }
@@ -195,7 +195,7 @@ Section Heap_Temporal_Safety_Interp.
           as "#Hinterp_status".
         { iApply interp_int. }
         iApply (switcher_ret_specification Nswitcher W (revoke W) C _
-          e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+          e_stk b_stk l stk_mem cstk Ws Cs
           (WInt ALLOC_NO_MEMORY) (WInt 0)
           with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
@@ -204,7 +204,7 @@ Section Heap_Temporal_Safety_Interp.
           repeat rewrite dom_delete_L.
           rewrite Hfull_rmap. set_solver+. }
         { exact Hframe. }
-        { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+        { exact Hsync. }
         { exact Hnodup. }
         { intros a Ha. apply Htemps in Ha. exact Ha. }
         { exact HNtrap. }
@@ -308,7 +308,7 @@ Section Heap_Temporal_Safety_Interp.
             - intros _. reflexivity. }
           iPureIntro. by apply std_update_keys_lookup_in. }
         (* Close the caller's temporary regions in the extended world. *)
-        set (closing := l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)).
+        set (closing := l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)).
         set (Wfixed := close_list closing Wshare).
         assert (related_sts_pub_world Wshare Wfixed) as Hshare_fixed.
         { subst Wfixed. apply close_list_related_sts_pub. }
@@ -339,7 +339,7 @@ Section Heap_Temporal_Safety_Interp.
           with "[]" as "#Hinterp_status".
         { iApply interp_int. }
         iApply (switcher_ret_specification Nswitcher W Wshare C _
-          e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+          e_stk b_stk l stk_mem cstk Ws Cs
           (WCap true RW Global b e b @@ ι) (WInt 0)
           with "[$Hswitcher $Hswitcher_static $Hinterp_fixed $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
@@ -348,7 +348,7 @@ Section Heap_Temporal_Safety_Interp.
           repeat rewrite dom_delete_L.
           rewrite Hfull_rmap. set_solver+. }
         { exact Hframe. }
-        { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+        { exact Hsync. }
         { exact Hnodup. }
         { intros a Ha. apply Htemps in Ha. exact Ha. }
         { exact HNtrap. }

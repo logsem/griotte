@@ -32,7 +32,7 @@ Section KVS_main_spec.
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -100,7 +100,7 @@ Section KVS_main_spec.
       (* initial register file *)
       PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-      csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+      csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
       ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
 
       (* initial memory layout *)
@@ -118,7 +118,7 @@ Section KVS_main_spec.
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       B_f ↦ₑ□{nargs} 0 ∗
-      interp W0 B (WCap true RWL Local csp_b csp_e csp_b)
+      interp W0 B (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -257,9 +257,11 @@ Section KVS_main_spec.
              (WCap true RW Global cgp_b cgp_e cgp_b)
              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
              wcs0 (kvs_user_seal_key Global static_sealed_b)
-             csp_b csp_e csp_b B_f stk_mem_B rmap_B Ws Cs cstk0
+             csp_b csp_e (stk_start_a csp_b csp_e) B_f stk_mem_B rmap_B Ws Cs cstk0
              ).
-    all: [> exact HNtrap | exact Hstk_shadow | exact Hstk_heap | solve_addr | solve_addr+Hstk_min
+    all: [> exact HNtrap | exact Hstk_shadow | exact Hstk_heap
+         | apply stk_start_cursor_ok; solve_addr
+         | apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min
          | destruct mie; reflexivity
          | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
          | subst rmap_B;

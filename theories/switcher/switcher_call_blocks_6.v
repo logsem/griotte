@@ -28,7 +28,7 @@ Section Switcher_Call_Blocks_6.
       (pc_a ^+ length (switcher_instrs_n 18))%a ->
     (pc_a ^+ 2 +
        asm_label_offset switcher_asm ".Lcommon_force_unwind_return"
-         ".Lswitcher_after_compartment_call")%a =
+         "switcher_after_compartment_call")%a =
       Some a_switcher_return ->
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
@@ -52,7 +52,7 @@ Section Switcher_Call_Blocks_6.
     iInstr "Hcode".
     (* Mov ca1 (inl 0%Z) *)
     iInstr "Hcode".
-    (* Jmp (".Lswitcher_after_compartment_call")%asm *)
+    (* Jmp ("switcher_after_compartment_call")%asm *)
     iInstr "Hcode".
     iApply "Hpost"; iFrame "∗ Hcode".
   Qed.
@@ -88,7 +88,7 @@ Section Switcher_Call_Blocks_6.
       (pc_a ^+ length (switcher_instrs_n 20))%a ->
     (pc_a ^+ 2 +
        asm_label_offset switcher_asm ".Lswitch_stack_too_small_return"
-         ".Lswitcher_after_compartment_call")%a =
+         "switcher_after_compartment_call")%a =
       Some a_switcher_return ->
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
@@ -112,7 +112,7 @@ Section Switcher_Call_Blocks_6.
     iInstr "Hcode".
     (* Mov ca1 (inl 0%Z) *)
     iInstr "Hcode".
-    (* Jmp (".Lswitcher_after_compartment_call")%asm *)
+    (* Jmp ("switcher_after_compartment_call")%asm *)
     iInstr "Hcode".
     iApply "Hpost"; iFrame "∗ Hcode".
   Qed.

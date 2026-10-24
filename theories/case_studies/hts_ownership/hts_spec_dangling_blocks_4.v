@@ -100,10 +100,10 @@ Section HTS_Spec_Dangling.
     iMod (hts_world_quarantine C _ ι b Wret Hbounds Hb_lookup Hstd_rev
       with "Hrel_b Hstate_b Hquar Hworld_open") as "Hworld".
     iDestruct (StackRevokedResources_mono_priv Wret (hts_Wfree Wret ι) C
-      (finz.seq_between (csp_b ^+ 1)%a csp_e) (hts_Wfree_related Wret ι)
+      (stk_free csp_b csp_e (csp_b ^+ 1)%a) (hts_Wfree_related Wret ι)
       with "Hstack_revoked_ret") as "Hstack_revoked_free".
     assert (revoked_addresses (hts_Wfree Wret ι)
-      (finz.seq_between (csp_b ^+ 1)%a csp_e)) as Hstack_revoked_free.
+      (stk_free csp_b csp_e (csp_b ^+ 1)%a)) as Hstack_revoked_free.
     { rewrite /hts_Wfree /revoked_addresses /=. exact Hstack_revoked_ret. }
     iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wfree Wret ι)
       Hadv_nonheap with "Hadv") as "#Hinterp_adv_free".
@@ -209,7 +209,7 @@ Section HTS_Spec_Dangling.
         $Hworld $Hstack_revoked_free $Hcstk $HK $Hinterp_adv_free]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { solve_addr. }
+    { stk_unfold; solve_addr. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie; reflexivity. }
@@ -219,7 +219,7 @@ Section HTS_Spec_Dangling.
     iSplitR; first (iPureIntro; exact Hstack_revoked_free).
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min. }
+      iApply switcher_cc_fault_stack_fits; stk_unfold; solve_addr+Hstk_min. }
     iNext.
     iIntros (Wret2 rmap_after2 stk_after2 lret2 rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & _ & _ & %Hdom_rmap_after2 & _ & _

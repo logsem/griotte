@@ -325,7 +325,7 @@ Section HTS_Spec_Free.
         $Hfree_arg $Hrmap $Hstk $Hcstk $Hfree_fun]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
-    { solve_addr. }
+    { stk_unfold; solve_addr. }
     { apply hts_export_tbl_not_shadow.
       rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
@@ -347,7 +347,7 @@ Section HTS_Spec_Free.
       rewrite /allocator_code length_app in Hcode_size.
       rewrite -allocator_imports_length.
       solve_addr+ Himports_size Hcode_size. }
-    { rewrite /allocator_free_min_stack. solve_addr+Hstk_min. }
+    { rewrite /allocator_free_min_stack; stk_unfold; solve_addr+Hstk_min. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie; reflexivity. }

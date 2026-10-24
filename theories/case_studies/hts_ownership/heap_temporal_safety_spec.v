@@ -30,7 +30,7 @@ Section Heap_Temporal_Safety_Main.
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -103,7 +103,7 @@ Section Heap_Temporal_Safety_Main.
       (* initial register file *)
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
@@ -121,7 +121,7 @@ Section Heap_Temporal_Safety_Main.
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
-      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b)
+      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.

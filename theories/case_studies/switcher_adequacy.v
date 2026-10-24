@@ -58,7 +58,7 @@ Section helpers_switcher_adequacy.
     iDestruct (interp_lea with "Hinterp_pcc'") as "Hinterp_PCC"; first done.
     iModIntro;iNext.
 
-    iIntros (cstk Ws Cs regs a_stk e_stk)
+    iIntros (cstk Ws Cs regs b_stk e_stk)
       "( Hcont & %Hfreq & (%Hcstk_ne & %Htop_tbl & _) & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hworld_interp & %Hcsp_sync & _ & Htframe & Hna)".

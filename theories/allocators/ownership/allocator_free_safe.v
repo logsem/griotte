@@ -84,7 +84,7 @@ Section Heap_Temporal_Safety_Interp.
     (* Unpack the entry register map and classify the requested capability. *)
     iIntros (Hdisj HNtrap Hpc_b)
       "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
-    iIntros (cstk Ws Cs regs a_stk e_stk)
+    iIntros (cstk Ws Cs regs b_stk e_stk)
       "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
         Hcstk & Hna)".
     rewrite /interp_conf.
@@ -164,8 +164,8 @@ Section Heap_Temporal_Safety_Interp.
     destruct Hshape as [Hcap|Hinvalid].
     2: {
       iExtract "Hrmap" csp as "Hcspr".
-      iMod (world_interp_revoke_stack W C (a_stk ^+ 4)%a e_stk
-        (a_stk ^+ 4)%a with "[$Hinterp_csp $Hworld]") as (l)
+      iMod (world_interp_revoke_stack W C b_stk e_stk
+        (stk_start_a b_stk e_stk) with "[$Hinterp_csp $Hworld]") as (l)
         "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
       (* Take the owner word and token out of the sealing predicate. *)
       iMod (allocator_otype_open W (revoke W) C wca0 Hwca0_tag Hwca0_sealed
@@ -194,7 +194,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hctp" as (wctp') "Hctp".
       iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
-        (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
+        (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].
       assert (related_sts_pub_world W Wfixed) as Hrelated_pub.
       { subst Wfixed. apply related_pub_revoke_close_list. exact Htemps. }
@@ -206,7 +206,7 @@ Section Heap_Temporal_Safety_Interp.
         as "#Hinterp_status".
       { iApply interp_int. }
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
-        e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+        e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
         with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
@@ -215,7 +215,7 @@ Section Heap_Temporal_Safety_Interp.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }
       { exact Hframe. }
-      { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+      { exact Hsync. }
       { exact Hnodup. }
       { intros a Ha. apply Htemps in Ha. exact Ha. }
       { exact HNtrap. } }
@@ -254,7 +254,7 @@ Section Heap_Temporal_Safety_Interp.
       destruct (decide (ι ∈ Ω)) as [HιΩ|HιΩ]; cycle 1.
       { (* The object belongs to another owner and is not freed. *)
         iExtract "Hrmap" csp as "Hcspr".
-        iMod (monotone_revoke_stack W C (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a
+        iMod (monotone_revoke_stack W C b_stk e_stk (stk_start_a b_stk e_stk)
           with "[$Hinterp_csp $Hsts $Hregion]") as (l)
           "(%Htemps & Hsts & Hregion & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
         iApply (allocator_free_wrong_owner_spec ⊤ g_owner a_owner id Ω p g ι b e a
@@ -283,7 +283,7 @@ Section Heap_Temporal_Safety_Interp.
         iDestruct "Hctp" as (wctp') "Hctp".
         iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
         set (Wfixed := close_list
-          (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
+          (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) (revoke W)).
         destruct Htemps as [Hnodup Htemps].
         assert (related_sts_pub_world W Wfixed) as Hrelated_pub.
         { subst Wfixed. apply related_pub_revoke_close_list. exact Htemps. }
@@ -295,7 +295,7 @@ Section Heap_Temporal_Safety_Interp.
           as "#Hinterp_status".
         { iApply interp_int. }
         iApply (switcher_ret_specification Nswitcher W (revoke W) C _
-          e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+          e_stk b_stk l stk_mem cstk Ws Cs
           (WInt ALLOC_INVALID) (WInt 0)
           with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
@@ -304,7 +304,7 @@ Section Heap_Temporal_Safety_Interp.
           repeat rewrite dom_delete_L.
           rewrite Hfull_rmap. set_solver+. }
         { exact Hframe. }
-        { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+        { exact Hsync. }
         { exact Hnodup. }
         { intros x Hx. apply Htemps in Hx. exact Hx. }
         { exact HNtrap. } }
@@ -403,18 +403,18 @@ Section Heap_Temporal_Safety_Interp.
         - apply Forall_forall. intros x Hx. by apply elem_of_finz_seq_between in Hx.
         - rewrite big_sepL_fmap. iFrame "Hworld_open_q Hhandles". }
       iDestruct (interp_cap_disjoint_wl W C RWL Local
-        (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a None eq_refl
+        b_stk e_stk (stk_start_a b_stk e_stk) None eq_refl
         with "Hinterp_csp") as %[_ Hstack_disjoint].
       iAssert (interp (heap_std_update W h') C
-        (WCap true RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a))
+        (WCap true RWL Local b_stk e_stk (stk_start_a b_stk e_stk)))
         with "[Hinterp_csp]" as "Hinterp_csp_q".
       { iApply (monotone.interp_monotone_cap_nonheap
           W (heap_std_update W h') C true RWL Local
-          (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a
+          b_stk e_stk (stk_start_a b_stk e_stk)
           Hstack_disjoint Hrelated_W_q).
         iExact "Hinterp_csp". }
       iMod (world_interp_revoke_stack (heap_std_update W h') C
-          (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a
+          b_stk e_stk (stk_start_a b_stk e_stk)
           with "[$Hinterp_csp_q $Hworld_q]")
         as (l) "(%Htemps & Hworld_rev & Hstack_revoked &
           Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
@@ -431,7 +431,7 @@ Section Heap_Temporal_Safety_Interp.
       iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wq := heap_std_update W h').
       set (Wfixed := close_list
-        (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke Wq)).
+        (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) (revoke Wq)).
       destruct Htemps as [Hnodup Htemps].
       assert (related_sts_pub_world Wq Wfixed) as Hrelated_q_fixed.
       { subst Wfixed. apply related_pub_revoke_close_list. exact Htemps. }
@@ -442,7 +442,7 @@ Section Heap_Temporal_Safety_Interp.
       iAssert (interp Wfixed C (WInt 0)) as "#Hinterp0".
       { iApply interp_int. }
       iApply (switcher_ret_specification Nswitcher W (revoke Wq) C _
-        e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+        e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_OK) (WInt 0)
         with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr]").
       { exact Hrelated_pub. }
@@ -451,14 +451,14 @@ Section Heap_Temporal_Safety_Interp.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }
       { exact Hframe. }
-      { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+      { exact Hsync. }
       { exact Hnodup. }
       { intros x Hx. apply Htemps. exact Hx. }
       { exact HNtrap. }
     - (* Narrowed bounds: a strict subrange of the allocation is rejected. *)
       iExtract "Hrmap" csp as "Hcspr".
-      iMod (world_interp_revoke_stack W C (a_stk ^+ 4)%a e_stk
-        (a_stk ^+ 4)%a with "[$Hinterp_csp $Hworld]") as (l)
+      iMod (world_interp_revoke_stack W C b_stk e_stk
+        (stk_start_a b_stk e_stk) with "[$Hinterp_csp $Hworld]") as (l)
         "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
       (* Take the owner word and token out of the sealing predicate. *)
       iMod (allocator_otype_open W (revoke W) C wca0 Hwca0_tag Hwca0_sealed
@@ -487,7 +487,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hctp" as (wctp') "Hctp".
       iInsertList "Hrmap" [cnull;ctp;ca4;ca3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
-        (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
+        (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].
       assert (related_sts_pub_world W Wfixed) as Hrelated_pub.
       { subst Wfixed. apply related_pub_revoke_close_list. exact Htemps. }
@@ -499,7 +499,7 @@ Section Heap_Temporal_Safety_Interp.
         as "#Hinterp_status".
       { iApply interp_int. }
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
-        e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+        e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
         with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
@@ -508,7 +508,7 @@ Section Heap_Temporal_Safety_Interp.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }
       { exact Hframe. }
-      { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+      { exact Hsync. }
       { exact Hnodup. }
       { intros x Hx. apply Htemps in Hx. exact Hx. }
       { exact HNtrap. }

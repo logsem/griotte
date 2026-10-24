@@ -398,7 +398,7 @@ Section prepared.
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c) ∗
     "HPC" ∷ PC ↦ₚ WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m) ∗
     "Hcgp" ∷ cgp ↦ᵣ WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m) ∗
-    "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local (b_stack t) (e_stack t) (b_stack t) ∗
+    "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)) ∗
     "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ w) ∗
     "Hstack" ∷
       [[ b_stack t, e_stack t ]] ↦ₐ
@@ -407,7 +407,7 @@ Section prepared.
       ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) <= e_stack t)%Z ⌝ ∗
     "Hcstk" ∷
       cstack_frag
-        (entry_cstack {| tf_csp := WCap true RWL Local (b_stack t) (e_stack t) (b_stack t);
+        (entry_cstack {| tf_csp := WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
                          tf_export_tbl :=
                            WCap true RW Global (cmpt_exp_tbl_pcc m)
                              (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);

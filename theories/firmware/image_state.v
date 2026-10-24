@@ -50,7 +50,7 @@ Section img_state.
          (<[MTCC := WCap true XSRW_ Local (b_switcher sw) (e_switcher sw)
                       (a_switcher_call sw ^+
                          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
-                           ".Lswitcher_csp_check_perm" "exception_entry_asm")%a]>
+                           ".Lswitch_csp_check" "exception_entry_asm")%a]>
             (<[MEPCC := WInt 0]>
                (<[MCAUSE := WInt 0]> (<[MTVAL := WInt 0]> ∅))))).
 

@@ -60,12 +60,12 @@ Section HTS_Spec_Malloc.
     na_own cerise_nais ⊤ ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
     hts_static ∗
     allocator_owner_id hts_main_owner_id ∅ ∗
     world_interp W_init_C C ∗
-    interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b) ∗
+    interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
     interp_continuation cstk Ws Cs ∗
     cstack_frag cstk ∗
     (malloc_ret -∗
@@ -201,7 +201,7 @@ Section HTS_Spec_Malloc.
     iPoseProof (hts_malloc_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e csp_b rmap_arg cstk
+      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg cstk
       Global owner_a hts_main_owner_id ∅
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
     { exact Howner_shadow. }
@@ -224,7 +224,7 @@ Section HTS_Spec_Malloc.
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e csp_b stk_mem rmap_arg rmap_other cstk
+      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) stk_mem rmap_arg rmap_other cstk
       allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
@@ -235,7 +235,7 @@ Section HTS_Spec_Malloc.
          $Hstk $Hcstk $Hmalloc_fun]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
-    { solve_addr. }
+    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
     { apply hts_export_tbl_not_shadow.
       rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
@@ -253,7 +253,8 @@ Section HTS_Spec_Malloc.
     { exists allocator_code_b.
       rewrite /allocator_malloc_pcc_off -allocator_imports_length.
       exact allocator_size_imports. }
-    { rewrite /allocator_malloc_min_stack. solve_addr+Hstk_min. }
+    { apply stk_start_callee_fits.
+      rewrite /allocator_malloc_min_stack /SpillSlot_size. solve_addr+Hstk_min. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie; reflexivity. }

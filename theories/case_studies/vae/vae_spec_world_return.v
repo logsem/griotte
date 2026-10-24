@@ -71,18 +71,18 @@ Section VAE_World_Return.
     let W5 := <l[i:=true]l>(revoke W3) in
     let W5q := close_list l1_quarantined W5 in
     disjoint_from_heap csp_b csp_e ->
-    (csp_b <= (csp_b ^+ 4)%a ∧ (csp_b ^+ 4)%a <= csp_e ∧ (csp_b + 4) = Some (csp_b ^+ 4)%a)%a ->
+    callee_stk_bounds csp_b csp_e (stk_start_a csp_b csp_e) ->
     extract_temporaries_condition W0 (l ++ (LNonHeap <$> stk_frame_addrs)) ->
     revoked_keys (revoke W0) l ->
     l ≡ₚ l0_live ++ l0_quarantined ->
     Forall (λ a, heap_key_live (heap_std W0) a) l0_live ->
     Forall (λ a, heap_key_status (heap_std W0) a = Some AllocObjectQuarantined) l0_quarantined ->
-    extract_temporaries_condition W3 (l1 ++ (LNonHeap <$> finz.seq_between (csp_b ^+ 4)%a csp_e)) ->
+    extract_temporaries_condition W3 (l1 ++ (LNonHeap <$> callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e))) ->
     revoked_keys (revoke W3) l1 ->
     l1 ≡ₚ l1_live ++ l1_quarantined ->
     Forall (λ a, heap_key_live (heap_std W3) a) l1_live ->
     Forall (λ a, heap_key_status (heap_std W3) a = Some AllocObjectQuarantined) l1_quarantined ->
-    extract_temporaries_condition W6 (l2 ++ (LNonHeap <$> finz.seq_between (csp_b ^+ 4)%a csp_e)) ->
+    extract_temporaries_condition W6 (l2 ++ (LNonHeap <$> callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e))) ->
     revoked_keys (revoke W6) l2 ->
     revoked_addresses (revoke W6) stk_frame_addrs ->
     related_sts_priv_world W0 W2 ->
@@ -179,9 +179,8 @@ Section VAE_World_Return.
       rewrite elem_of_disjoint in Hq0_stack.
       eapply (Hq0_stack (LNonHeap a')); first exact Ha.
       apply elem_of_LNonHeap_fmap.
-      apply elem_of_finz_seq_between in Htail.
       apply elem_of_finz_seq_between.
-      subst stk_frame_addrs. solve_addr+Htail Hcsp_bounds. }
+      exact (callee_stk_region_incl _ _ _ _ Hcsp_bounds Htail). }
     assert (l1_quarantined ⊆ l2) as Hq1_l2.
     { intros a Ha.
       assert (std W5q !! a = Some Temporary) as Htemp5q.
@@ -200,9 +199,8 @@ Section VAE_World_Return.
       rewrite elem_of_disjoint in Hq1_stack.
       eapply (Hq1_stack (LNonHeap a')); first exact Ha.
       apply elem_of_LNonHeap_fmap.
-      apply elem_of_finz_seq_between in Htail.
       apply elem_of_finz_seq_between.
-      subst stk_frame_addrs. solve_addr+Htail Hcsp_bounds. }
+      exact (callee_stk_region_incl _ _ _ _ Hcsp_bounds Htail). }
 
     set (l1_unique :=
       filter (fun a => a ∉ l0_live ++ (LNonHeap <$> stk_frame_addrs)) l1_live).
@@ -311,9 +309,8 @@ Section VAE_World_Return.
         apply elem_of_app; right.
         apply list_elem_of_fmap in Ha as [a' [-> Ha] ].
         apply elem_of_LNonHeap_fmap.
-        apply elem_of_finz_seq_between in Ha.
         apply elem_of_finz_seq_between.
-        solve_addr+Ha Hcsp_bounds. }
+        exact (callee_stk_region_incl _ _ _ _ Hcsp_bounds Ha). }
     assert (forall a, std W6 !! a = Some Temporary -> a ∈ closing)
       as Hclosing_covers_W6.
     { intros a Htemp.
@@ -325,9 +322,8 @@ Section VAE_World_Return.
         apply elem_of_app; right.
         apply list_elem_of_fmap in Ha as [a' [-> Ha] ].
         apply elem_of_LNonHeap_fmap.
-        apply elem_of_finz_seq_between in Ha.
         apply elem_of_finz_seq_between.
-        solve_addr+Ha Hcsp_bounds. }
+        exact (callee_stk_region_incl _ _ _ _ Hcsp_bounds Ha). }
 
 
 

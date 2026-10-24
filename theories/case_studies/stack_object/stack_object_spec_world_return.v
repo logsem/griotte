@@ -104,7 +104,7 @@ Section SO_World_Return.
     extract_temporaries_condition
       W0 (l0 ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     extract_temporaries_condition
-      W4 (l4 ++ (LNonHeap <$> finz.seq_between (a_stk2 ^+ 4)%a csp_e)) ->
+      W4 (l4 ++ (LNonHeap <$> callee_stk_region csp_b csp_e a_stk2)) ->
     W3 = reinstate
       (close_list l0_quarantined
         (close_list object_temps (revoke W0))) [LNonHeap a_stk1] ->
@@ -123,19 +123,17 @@ Section SO_World_Return.
     (csp_b + 1)%a = Some a_stk1 ->
     (a_stk1 + 1)%a = Some a_stk2 ->
     (a_stk2 <= csp_e)%a ->
-    (csp_b <= a_stk2 ^+ 4)%a /\
-      (a_stk2 ^+ 4 <= csp_e)%a /\
-      (a_stk2 + 4)%a = Some (a_stk2 ^+ 4)%a ->
+    callee_stk_bounds csp_b csp_e a_stk2 ->
     revoked_keys W5 l4 ->
     Forall (fun a => std W5 !! a = Some Revoked) l0_live ->
     Forall (fun a => std W5 !! LNonHeap a = Some Revoked)
-      (finz.seq_between a_stk2 csp_e) ->
+      (stk_free csp_b csp_e a_stk2) ->
     std W5 !! LNonHeap csp_b = Some Revoked ->
     world_interp W5 C
     ∗ RevokedResources W0 C l0_live
     ∗ RevokedResources W4 C l4
     ∗ csp_b ↦ₐ stk_head0
-    ∗ [[a_stk2, csp_e]] ↦ₐ [[stk_tail]]
+    ∗ [[stk_free_b csp_b a_stk2, stk_free_e csp_e a_stk2]] ↦ₐ [[stk_tail]]
     ==∗
       ∃ stk_head1,
         world_interp W5 C
@@ -154,10 +152,11 @@ Section SO_World_Return.
       Hrest_partition Hlive0 Hquarantined0 Hlive5 Hobject_stack Hstack_heap
       Hfresh Hnext Hnext_end Hreturned_bounds Hl4_W5
       Hl0_live_W5 Hstack_W5 Hhead_W5.
+    stk_unfold.
     destruct Hextract0 as [Hl0_nodup Hl0_temporaries].
     destruct Hextract4 as [Hl4_nodup Hl4_temporaries].
     destruct Hreturned_bounds as
-      (Hcsp_b_ret & Hret_csp_e & Hret_add).
+      (Hcsp_b_ret & _ & Hret_csp_e & Hret_add).
     iIntros "(Hworld & Hl0_rest & Hl4 & Hhead0 & Htail)".
     subst W3.
 
@@ -247,9 +246,9 @@ Section SO_World_Return.
     (* The fresh object spanning one address is temporary in [W4], so revocation puts it
        in [l4].  Split it out before closing the returned resources. *)
     assert (LNonHeap a_stk1 ∈ l4) as Hfresh_l4.
-    { assert (LNonHeap a_stk1 ∉ LNonHeap <$> finz.seq_between (a_stk2 ^+ 4)%a csp_e).
+    { assert (LNonHeap a_stk1 ∉ LNonHeap <$> callee_stk_region csp_b csp_e a_stk2).
       { rewrite not_elem_of_LNonHeap_fmap. apply not_elem_of_finz_seq_between.
-        solve_addr+Hfresh Hnext Hnext_end Hcsp_b_ret Hret_csp_e Hret_add. }
+        stk_unfold; solve_addr+Hfresh Hnext Hnext_end Hcsp_b_ret Hret_csp_e Hret_add. }
       assert (std W4 !! LNonHeap a_stk1 = Some Temporary) as Htemp.
       { eapply region_state_pub_temp; eauto. }
       apply Hl4_temporaries in Htemp.
@@ -315,7 +314,7 @@ Section SO_World_Return.
             { by apply list_elem_of_filter in Hx_obj as [_ ?]. }
             apply elem_of_finz_seq_between in Hx_tail.
             apply elem_of_finz_seq_between.
-            solve_addr+Hx_tail Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add.
+            stk_unfold; solve_addr+Hx_tail Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add.
         + subst l4_object.
           by apply list_elem_of_filter in Hx as [? _].
     }
@@ -342,7 +341,7 @@ Section SO_World_Return.
         apply elem_of_LNonHeap_fmap.
         apply elem_of_finz_seq_between in Hxtail.
         apply elem_of_finz_seq_between.
-        solve_addr+Hxtail Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add. }
+        stk_unfold; solve_addr+Hxtail Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add. }
       subst l4_no_fresh. apply list_elem_of_filter. split; last exact Hxl4.
       intros Heq; subst x. apply Hnot_stack.
       apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between. solve_addr+Hfresh Hnext Hnext_end.
@@ -406,7 +405,7 @@ Section SO_World_Return.
        justifies converting all returned revoked resources for [closing]. *)
     assert (related_sts_pub_world W4 (close_list closing W5)) as Hpub4.
     { subst W5.
-      assert (l4 ++ (LNonHeap <$> finz.seq_between (a_stk2 ^+ 4)%a csp_e)
+      assert (l4 ++ (LNonHeap <$> callee_stk_region csp_b csp_e a_stk2)
         ⊆ closing) as Hsubset.
       { intros x Hx.
         apply elem_of_app in Hx as [Hx|Hx].
@@ -426,7 +425,7 @@ Section SO_World_Return.
           apply elem_of_LNonHeap_fmap.
           apply elem_of_finz_seq_between in Hx.
           apply elem_of_finz_seq_between.
-          solve_addr+Hx Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add.
+          stk_unfold; solve_addr+Hx Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add.
       }
       destruct W4 as [ [ [W4std W4cus] W4seals] W_heap4 ]; cbn.
       split; [|split];
@@ -436,7 +435,7 @@ Section SO_World_Return.
         setoid_rewrite <- revoke_dom_eq. done.
       - intros x ρ4 ρ5 Hx4 Hx5.
         destruct ρ4.
-        + assert (x ∈ l4 ++ (LNonHeap <$> finz.seq_between (a_stk2 ^+ 4)%a csp_e))
+        + assert (x ∈ l4 ++ (LNonHeap <$> callee_stk_region csp_b csp_e a_stk2))
             as Hx_close by (apply Hl4_temporaries; auto).
           rewrite close_list_std_sta_revoked in Hx5; auto.
           * simplify_eq; apply rtc_refl.
@@ -657,12 +656,12 @@ Section SO_World_Return.
     extract_temporaries_condition
       W0 (l0 ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     extract_temporaries_condition
-      W4 (l4 ++ (LNonHeap <$> finz.seq_between (a_stk2 ^+ 4)%a csp_e)) ->
+      W4 (l4 ++ (LNonHeap <$> callee_stk_region csp_b csp_e a_stk2)) ->
     std W3 !! LNonHeap a_stk1 = Some Temporary ->
     related_sts_priv_world W0 W3 ->
-    revoked_addresses W3 (finz.seq_between a_stk2 csp_e) ->
+    revoked_addresses W3 (stk_free csp_b csp_e a_stk2) ->
     related_sts_pub_world
-      (std_update_multiple W3 (finz.seq_between (a_stk2 ^+ 4)%a csp_e) Temporary) W4 ->
+      (std_update_multiple W3 (callee_stk_region csp_b csp_e a_stk2) Temporary) W4 ->
     Permutation l0_rest (l0_live ++ l0_quarantined) ->
     Forall (λ a, heap_key_live (heap_std W0) a) l0_live ->
     Forall
@@ -674,17 +673,15 @@ Section SO_World_Return.
     (csp_b + 1)%a = Some a_stk1 ->
     (a_stk1 + 1)%a = Some a_stk2 ->
     (a_stk2 <= csp_e)%a ->
-    (csp_b <= a_stk2 ^+ 4)%a /\
-      (a_stk2 ^+ 4 <= csp_e)%a /\
-      (a_stk2 + 4)%a = Some (a_stk2 ^+ 4)%a ->
+    callee_stk_bounds csp_b csp_e a_stk2 ->
     revoked_keys W5 l4 ->
     Forall (fun a => std W5 !! LNonHeap a = Some Revoked)
-      (finz.seq_between a_stk2 csp_e) ->
+      (stk_free csp_b csp_e a_stk2) ->
     world_interp W5 C
     ∗ RevokedResources W0 C l0_live
     ∗ RevokedResources W4 C l4
     ∗ csp_b ↦ₐ stk_head0
-    ∗ [[a_stk2, csp_e]] ↦ₐ [[stk_tail]]
+    ∗ [[stk_free_b csp_b a_stk2, stk_free_e csp_e a_stk2]] ↦ₐ [[stk_tail]]
     ={⊤}=∗
       ∃ stk_head1,
         world_interp W5 C
@@ -701,7 +698,8 @@ Section SO_World_Return.
       Hrest_partition Hlive0 Hquarantined0 Hobject_stack Hstack_heap
       Hfresh Hnext Hnext_end Hreturned_bounds Hl4_W5 Hstack_W5.
     pose proof Hextract0 as [Hl0_nodup Hl0_temporaries].
-    pose proof Hreturned_bounds as (Hcsp_b_ret & Hret_csp_e & Hret_add).
+    stk_unfold.
+    pose proof Hreturned_bounds as (Hcsp_b_ret & _ & Hret_csp_e & Hret_add).
     iIntros "(Hworld & Hl0_live & Hl4 & Hhead0 & Htail)".
 
     (* [W4] is a public future of [W3]: the stack frame of the callee was

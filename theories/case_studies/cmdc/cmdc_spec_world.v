@@ -136,10 +136,10 @@ Section CMDC_World.
       The shared address [a] is still permanent in the revoked world, which
       gives back a points-to of [a]. *)
   Lemma cmdc_world_return W Wret C (a csp_b csp_e : Addr) :
-    let stk' := finz.seq_between (csp_b ^+ 4)%a csp_e in
+    let stk' := callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e) in
     is_heap_address a = false ->
     a ∉ finz.seq_between csp_b csp_e ->
-    (csp_b <= csp_b ^+ 4)%a ->
+    callee_stk_bounds csp_b csp_e (stk_start_a csp_b csp_e) ->
     related_sts_pub_world (std_update_multiple (cmdc_Wshare W a) stk' Temporary) Wret ->
     world_interp (revoke Wret) C -∗
     rel C (LNonHeap a) RW interp_in_memC -∗
@@ -149,9 +149,8 @@ Section CMDC_World.
     iIntros (Ha_heap Ha_stk Hcsp_bounds Hrelated_pub) "Hworld #Hrel_a".
     assert (a ∉ stk') as Ha_stk'.
     { subst stk'.
-      intro Ha_range. apply Ha_stk.
-      rewrite !elem_of_finz_seq_between in Ha_range |- *.
-      solve_addr+Hcsp_bounds Ha_range.
+      intro Ha_range. apply Ha_stk, elem_of_finz_seq_between.
+      exact (callee_stk_region_incl _ _ _ _ Hcsp_bounds Ha_range).
     }
     assert (std (revoke Wret) !! LNonHeap a = Some Permanent) as Ha_perm.
     { apply revoke_lookup_Perm.

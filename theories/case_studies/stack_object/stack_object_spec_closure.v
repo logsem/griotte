@@ -170,7 +170,7 @@ Section SO.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
+    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_interp_C &
       %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iAssert (no_handler (top_export_tbl cstk)) as "#Hno_handler".
@@ -260,7 +260,7 @@ Section SO.
     (* The world fixed by the return path, if [f] faults before it
        reinstates [in] *)
     assert (related_sts_pub_world W0
-              (close_list (l_revoked ++ (LNonHeap <$> finz.seq_between (csp_b' ^+ 4)%a csp_e))
+              (close_list (l_revoked ++ (LNonHeap <$> finz.seq_between csp_b csp_e))
                  (revoke W0))) as Hpub_W0_Wrevoked.
     { apply related_pub_revoke_close_list. destruct Hextract as [_ Htemps]; exact Htemps. }
 
@@ -273,7 +273,7 @@ Section SO.
       iNext; iIntros (a_f Ha_f) "([%a_r Hca0] & [%wcs0' Hcs0] & [%wcs1' Hcs1] & Hobject)".
       iDestruct "Hclose_object" as "[_ Hclose_object]".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hcra";"Hcgp"].
-      iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e (csp_b' ^+ 4)%a l_revoked stk_mem
+      iApply (trap_safe_return _ W0 (revoke W0) C _ csp_e csp_b l_revoked stk_mem
                 cstk Ws Cs with "Hswitcher Hswitcher_static Hno_handler [-]").
       9: { iMod ("Hclose_object" with "Hobject") as "(Hworld_interp_C & Hrevoked & Hstk)".
            iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
@@ -282,8 +282,7 @@ Section SO.
       { exact Hpub_W0_Wrevoked. }
       { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
       { exact Hframe_match. }
-      { destruct Hsync_csp as [Hcsp_sync Hcsp_base].
-        rewrite -Hcsp_base; exact Hcsp_sync. }
+      { exact Hsync_csp. }
       { destruct Hextract as [Hnodup _]; exact Hnodup. }
       { intros a' Ha'; destruct Hextract as [_ Htemp].
         destruct (Htemp a') as [Hin _]; exact (Hin Ha'). }
@@ -301,7 +300,7 @@ Section SO.
       as (l0_live l0_quarantined) "(%Hl0_partition & %Hl0_live & %Hl0_quarantined
                                     & Hworld_interp_C & Hl0_live)".
     { reflexivity. }
-    assert (l0_quarantined ## (LNonHeap <$> finz.seq_between (csp_b' ^+ 4)%a csp_e))
+    assert (l0_quarantined ## (LNonHeap <$> finz.seq_between csp_b csp_e))
       as Hq_stack.
     { rewrite elem_of_disjoint. intros x Hx Hx_stack.
       apply list_elem_of_fmap in Hx_stack as [x' [-> _] ].
@@ -337,7 +336,7 @@ Section SO.
               $Hinterp_wct1 $HK]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
-    { solve_addr+ Hastk1 Hastk2. }
+    { stk_unfold; solve_addr+ Hastk1 Hastk2. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct mie; reflexivity. }
@@ -347,7 +346,7 @@ Section SO.
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill of the call to [g] cannot fault: the stack holds it *)
-      iApply switcher_cc_fault_stack_fits; solve_addr+Hstk_min Hastk1 Hastk2. }
+      iApply switcher_cc_fault_stack_fits; stk_unfold; solve_addr+Hstk_min Hastk1 Hastk2. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem.
     iIntros (W4 rmap'' stk_mem l4 rcgp rcra rcs0 callback)
@@ -382,7 +381,7 @@ Section SO.
     iInsertRegs "Hrmap" ["Hcnull";"Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
     (* Repair the world *)
-    iMod (so_world_return W0 W4 C b e (csp_b' ^+ 4)%a csp_e a_stk1 a_stk2 π
+    iMod (so_world_return W0 W4 C b e csp_b csp_e a_stk1 a_stk2 π
            l_revoked l0_live l0_quarantined l4 with
            "[$Hworld_interp_C $Hl0_live $Hl4 $Hsecret $Hstk]")
       as (w_stk1)
@@ -395,8 +394,6 @@ Section SO.
              "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC
               $Hrmap $Hca0 $Hca1 $Hcsp $Hclosing]"); eauto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap''_dom; set_solver+. }
-    { destruct Hsync_csp as [Hcsp_sync Hcsp_base].
-      rewrite -Hcsp_base; exact Hcsp_sync. }
     { iSplit; iApply interp_int. }
   Qed.
 

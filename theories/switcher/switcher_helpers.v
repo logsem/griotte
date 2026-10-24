@@ -25,7 +25,7 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-    Lemma world_interp_stack_fixing (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    #[local] Lemma world_interp_stack_fixing_aux (trusted_fault : CSTK → LWord → LReg → iProp Σ)
       (Wcur W0 : WORLD) (C : CmptName)
       (a_stk4 b_stk csp_b csp_e : Addr) (l : list LAddr)
       ccrel
@@ -201,6 +201,54 @@ Section switcher_helper.
         iMod (world_interp_restore Wcur C (l ++ closing_region)
           with "[$Hworld_interp Hrevoked Hstk]") as "$"; last done.
         rewrite /RevokedResources big_sepL_app. iFrame.
+    Qed.
+
+    (** At the return, fix the world on the callee's stack and on the spill
+        area of the topmost frame, whose caller's cursor is [a_stk], once
+        both are zeroed. *)
+    Lemma world_interp_stack_fixing (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+      (Wcur W0 : WORLD) (C : CmptName)
+      (b_stk e_stk a_stk : Addr) (l : list LAddr)
+      ccrel
+      :
+      let s := stk_spill_a a_stk in
+      let Wfixed := close_list (l ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) Wcur in
+
+      switcher_stk_bounds b_stk e_stk a_stk ->
+      related_sts_pub_world W0 Wfixed ->
+      trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
+      interp W0 C
+        (WCap true RWL Local
+           (if is_untrusted_caller ccrel then b_stk else stk_callee_b b_stk a_stk)
+           (if is_untrusted_caller ccrel then e_stk else stk_callee_e e_stk a_stk)
+           a_stk) -∗
+      world_interp Wcur C -∗
+      [[s, (s ^+ SpillSlot_size)%a]]↦ₐ[[region_addrs_zeroes s (s ^+ SpillSlot_size)%a]] -∗
+      [[stk_callee_b b_stk a_stk, stk_callee_e e_stk a_stk]]↦ₐ
+        [[region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)]] -∗
+
+      CloseRes Wfixed C s l ccrel -∗
+
+      £ 1 -∗
+      |={⊤}=>
+            world_interp Wfixed C
+            ∗ (if (is_untrusted_caller ccrel)
+               then True
+               else [[s, (s ^+ SpillSlot_size)%a]]↦ₐ[[region_addrs_zeroes s (s ^+ SpillSlot_size)%a]]
+              )
+    .
+    Proof.
+      intros s Wfixed Hbounds; subst s Wfixed.
+      destruct Hbounds as (Hb & Hb3 & Ha4).
+      stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
+      replace (if is_untrusted_caller ccrel then e_stk else e_stk) with e_stk
+        by (by destruct (is_untrusted_caller ccrel)).
+      assert (((a_stk ^+ 4) ^+ -4)%a = a_stk) as Ha by solve_addr+Ha4.
+      pose proof (world_interp_stack_fixing_aux trusted_fault Wcur W0 C (a_stk ^+ 4)%a b_stk
+                    (a_stk ^+ 4)%a e_stk l ccrel) as Haux.
+      cbv zeta in Haux. rewrite Ha in Haux.
+      intros Hrelated.
+      apply Haux; [solve_addr+Hb3 Ha4 | done | exact Ha4 | done].
     Qed.
 
     (** The register file of a return to the caller is safe: the return

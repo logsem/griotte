@@ -1374,7 +1374,7 @@ Section KVS_spec_addOrUpdate.
 
     iDestruct "Hres" as "[(Hca0 & Hkey) | (Hca0 & Hkey)]".
     - iApply ("Hpost" $! 0%Z (WInt ASM_TRUE) (WInt 0) rmap_ret
-                (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
+                (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
       iSplit.
       { iPureIntro.
         rewrite /rmap_ret /rmap_ret8 /rmap_ret7 /rmap_ret6 /rmap_ret5
@@ -1386,7 +1386,7 @@ Section KVS_spec_addOrUpdate.
       iFrame. iSplit; first done. iLeft.
       iSplit; first done. iFrame.
     - iApply ("Hpost" $! 0%Z (WInt ASM_FALSE) (WInt 0) rmap_ret
-                (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
+                (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
       iSplit.
       { iPureIntro.
         rewrite /rmap_ret /rmap_ret8 /rmap_ret7 /rmap_ret6 /rmap_ret5

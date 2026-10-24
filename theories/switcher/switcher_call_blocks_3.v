@@ -76,7 +76,7 @@ Section Switcher_Call_Blocks_3.
     is_shadow_address pc_b = false ->
     is_heap_cap wpc_b = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_6)%a ->
-    (pc_b + asm_label switcher_asm ".Lswitcher_fetch_unseal_key")%a = Some pc_a ->
+    (pc_b + asm_label switcher_asm ".Lswitch_after_zero")%a = Some pc_a ->
 
     PC ↦ₚ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -221,12 +221,13 @@ Section Switcher_Call_Blocks_3.
       csp ↦ᵣ WCap true RWL Local (a ^+ 4)%a e (a ^+ 4)%a ∗
       [[ (a ^+ 4)%a , e ]] ↦ₐ [[ region_addrs_zeroes (a ^+ 4)%a e ]] ∗
       ct1 ↦ᵣ - -∗
-      trap_safe (switcher_pc (switcher_label_offset ".Lswitcher_unseal_entry" + 1)) ⊤
+      trap_safe (switcher_pc (switcher_label_offset ".Lswitch_unseal_entry" + 1)) ⊤
         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
       "(HPC & Hcs0 & Hcs1 & Hcsp & Hstk & #Hb_switcher & Hct1 & #Hswitcher & Hpost)".
+    stk_unfold. change (4 - 1)%Z with 3%Z in Hba3.
     pose proof switcher_SubBounds as Hsub.
     pose proof switcher_size. pose proof switcher_call_entry_point.
     switcher_unfold_code "Hswitcher".
@@ -255,7 +256,7 @@ Section Switcher_Call_Blocks_3.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 6: load the unsealing capability *)
-    switcher_focus_block (switcher_block ".Lswitcher_fetch_unseal_key") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_after_zero") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_6_spec with
       "[- $HPC $Hcs0 $Hb_switcher $Hcode]");
       [apply switcher_base_not_shadow|done|done| |].
@@ -264,14 +265,14 @@ Section Switcher_Call_Blocks_3.
     unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
 
     (* Block 7: unseal the entry point *)
-    switcher_focus_block (switcher_block ".Lswitcher_unseal_entry") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    switcher_focus_block (switcher_block ".Lswitch_unseal_entry") "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
     iApply (switcher_call_block_7_unseal_spec with
       "[- $HPC $Hcs0 $Hct1 $Hcode]"); first done.
     iSplit; cycle 1.
     { iIntros "(%Hnot_entry & Hcs0 & Hct1)".
       iDestruct "Hpost" as "[_ Hfailed]".
       rewrite (_ : ((a_switcher_call ^+ switcher_block_offset 7) ^+ 1)%a =
-                   (a_switcher_call ^+ (switcher_label_offset ".Lswitcher_unseal_entry" + 1))%a);
+                   (a_switcher_call ^+ (switcher_label_offset ".Lswitch_unseal_entry" + 1))%a);
         last (offsets_compute; solve_addr).
       iApply ("Hfailed" with "[//]"); iFrame. }
     iDestruct "Hpost" as "[Hpost _]".

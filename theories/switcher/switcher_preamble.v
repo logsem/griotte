@@ -229,15 +229,17 @@ Section Switcher_preamble.
       )%I.
   Solve All Obligations with solve_proper.
 
-  (** [csp_sync] is a small pure side-condition that relates the stack pointer of the caller,
-      with the stack pointer of the callee.
+  (** [csp_sync cstk b_stk' e_stk'] is a small pure side-condition that
+      relates the stack pointer of the caller, saved in the topmost frame of
+      [cstk], with the stack [[b_stk', e_stk')] of the callee: the callee's
+      stack is the one that the switcher carved out of the caller's.
       See [execute_entry_point] to understand how they are related.
    *)
-  Definition csp_sync (cstk : CSTK) (a_stk' e_stk' : Addr) :=
+  Definition csp_sync (cstk : CSTK) (b_stk' e_stk' : Addr) :=
     match cstk.(cstk_frames) with
     | frm::_ =>
-        cf_spill_a frm = a_stk'
-        ∧ cf_stk_e frm = e_stk'
+        stk_callee_b (cf_stk_b frm) (cf_caller_a frm) = b_stk'
+        ∧ stk_callee_e (cf_stk_e frm) (cf_caller_a frm) = e_stk'
     | _ => True
     end
   .
@@ -267,11 +269,14 @@ Section Switcher_preamble.
       [b_tbl] ([top_export_tbl]). For unknown code, this is what builds
       [top_cmpt_untrusted].
 
-      An important point is the use of [csp_sync] and the stack capability [WCap true RWL Local a_stk4 e_stk a_stk4].
+      An important point is the use of [csp_sync] and the stack capability
+      [WCap true RWL Local b_stk e_stk (stk_start_a b_stk e_stk)] of the callee.
       We know that the caller's stack looks like
-      [WCap true RWL Local b_stk e_stk a_stk] (it is tested by the switcher's call routine).
-      The switcher reserves the area `[a_stk, a_stk+4)` for the callee-saved area,
-      and passes the rest, i.e. `[a_stk+4, e_stk)`  to the callee.
+      [WCap true RWL Local b e a] (it is tested by the switcher's call routine).
+      The switcher reserves the spill area, from [stk_spill_a a], for the
+      callee-saved registers, and passes the callee's part
+      [[stk_callee_b b a, stk_callee_e e a)] of the stack to the callee,
+      with the cursor of a fresh stack: [b_stk] and [e_stk] are its bounds.
 
       [csp_sync] synchronises the caller's stack pointer with the callee stack pointer.
       It's important when proving the functional specification of the return-to-switcher routine,
@@ -284,8 +289,7 @@ Section Switcher_preamble.
   Program Definition execute_entry_point (b_tbl : Addr) (wpcc wcgp : LWord) (nargs minstk : nat) :
     (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
-      ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) regs a_stk e_stk,
-       let a_stk4 := (a_stk ^+4)%a in
+      ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) regs b_stk e_stk,
        ( interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
          (* The switcher pushed a frame for the call of the compartment of the
@@ -294,15 +298,14 @@ Section Switcher_preamble.
          ∗ ⌜cstk.(cstk_frames) ≠ [] ∧ top_export_tbl cstk = b_tbl ∧
             top_error_count cstk = 0 ∧ tf_export_tbl_ok (top_tframe cstk)⌝
          ∗ PC ↦ₚ wpcc
-         ∗ (execute_entry_point_register wcgp (WCap true RWL Local a_stk4 e_stk a_stk4) nargs W C regs)
+         ∗ (execute_entry_point_register wcgp
+              (WCap true RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs W C regs)
          ∗ registers_pointsto regs
          ∗ world_interp W C
-         (* The 2nd condition [a_stk = (a_stk4 ^+ -4)%a] is necessary,
-            because ((a_stk ^+4)%a ^+ -4)%a is not necessarily [a_stk] due to finite integers. *)
-         ∗ ⌜csp_sync cstk a_stk e_stk ∧ a_stk = (a_stk4 ^+ -4)%a⌝
+         ∗ ⌜csp_sync cstk b_stk e_stk⌝
          (* The switcher checked that the callee's stack is at least the
             minimum stack size of the entry point. *)
-         ∗ ⌜(Z.of_nat minstk <= e_stk - a_stk4)%Z⌝
+         ∗ ⌜(Z.of_nat minstk <= e_stk - b_stk)%Z⌝
          ∗ cstack_frag cstk
          ∗ na_own cerise_nais ⊤
            -∗ interp_conf W C)
@@ -453,9 +456,9 @@ Section Switcher_preamble.
                           tf_export_tbl_ok tf⌝) ∗
      "Htf_cnt" ∷ a_error_count ↦ₐ WInt tf.(tf_error_count))%I.
 
-  (** [cframe_stk_own a_stk saved ccrel] holds the area [[a_stk, a_stk+4)]
-      where the switcher spilled the callee-saved registers [saved] of the
-      caller. We have 2 situations to take into account:
+  (** [cframe_stk_own s saved ccrel] holds the spill area
+      [[s, s + SpillSlot_size)] where the switcher spilled the callee-saved
+      registers [saved] of the caller. We have 2 situations to take into account:
       - If the caller is untrusted, the points-to predicate of the callee-save region
         are stored in the region invariant, which means that their content is controlled by adversary,
         and does not have to match with the call-frame.
@@ -472,24 +475,31 @@ Section Switcher_preamble.
       ∗ (a_stk ^+ 2)%a ↦ₐ saved.(cs_cra)
       ∗ (a_stk ^+ 3)%a ↦ₐ saved.(cs_cgp))%I.
 
+  (** The spill area of a caller whose cursor is [a] lies in its stack
+      [[b, e)], and does not wrap around. *)
+  Definition switcher_stk_bounds (b e a : Addr) : Prop :=
+    (b <= stk_spill_a a)%a ∧
+    (b <= (stk_spill_a a ^+ (SpillSlot_size - 1))%a < e)%a ∧
+    stk_spill_ok a.
+
   (** [cframe_interp] interprets a call-frame, i.e.,
       describes how the physical call-frame is linked to the logical call-frame [frm : cframe]:
       its frame of the trusted stack, whose stack pointer is the stack of
-      the caller [[b_stk, e_stk)], after the spill area [[a_stk, a_stk+4)];
-      and the spill area.
+      the caller [[b_stk, e_stk)] with the cursor saved after the spill at
+      the caller's cursor [a_stk]; and the spill area.
    *)
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
     "Hcf_tframe" ∷ trusted_frame_interp false frm.(cf_tframe) a_tstk ∗
     ∃ b_stk e_stk a_stk : Addr,
     "%Hcf_csp" ∷
-      ⌜ frm.(cf_tframe).(tf_csp) = WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∧
-        (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
+      ⌜ frm.(cf_tframe).(tf_csp) = WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∧
+        switcher_stk_bounds b_stk e_stk a_stk ∧
         disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
         (* a trusted caller returns to a valid target, outside the heap *)
         (is_untrusted_caller_frm frm = false →
          jalr_target_ok cnull cra frm.(cf_saved).(cs_cra).(lw) = true ∧
          is_heap_cap frm.(cf_saved).(cs_cra).(lw) = false) ⌝ ∗
-    "Hcf_spill" ∷ cframe_stk_own a_stk frm.(cf_saved) frm.(ccrel).
+    "Hcf_spill" ∷ cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel).
 
   (** [frames_interp ef frms a_tstk] interprets the frames [frms], the
       topmost at [a_tstk] in the trusted stack, above the entry frame [ef]. *)
@@ -654,7 +664,7 @@ Section Switcher_preamble.
     ⌜mtcc_vec =
        WCap true XSRW_ Local b_switcher e_switcher
          (a_switcher_call ^+
-            asm_label_offset switcher_asm ".Lswitcher_csp_check_perm" "exception_entry_asm")%a⌝.
+            asm_label_offset switcher_asm ".Lswitch_csp_check" "exception_entry_asm")%a⌝.
 
   #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.
@@ -671,9 +681,9 @@ End Switcher_preamble.
 Notation switcher_block_offset := (code_block_offset assembled_switcher).
 
 (** The offset of the label [s] of the switcher from [a_switcher_call], its
-    first instruction (the label [.Lswitcher_csp_check_perm]). *)
+    first instruction (the label [.Lswitch_csp_check]). *)
 Notation switcher_label_offset s :=
-  (asm_label_offset switcher_asm ".Lswitcher_csp_check_perm" s).
+  (asm_label_offset switcher_asm ".Lswitch_csp_check" s).
 
 (** The index of the block of the switcher that defines the label [s]. *)
 Notation switcher_block s := (asm_block switcher_asm s).
@@ -740,7 +750,7 @@ Section Switcher_Code.
 
   Lemma switcher_return_offset :
     a_switcher_return =
-      (a_switcher_call ^+ switcher_label_offset ".Lswitcher_after_compartment_call")%a.
+      (a_switcher_call ^+ switcher_label_offset "switcher_after_compartment_call")%a.
   Proof.
     pose proof switcher_return_entry_point as Hret.
     pose proof switcher_call_entry_point as Hcall.
@@ -763,11 +773,6 @@ Section Switcher_Code.
     (a ^+ 1)%a ↦ₐ w1 ∗
     (a ^+ 2)%a ↦ₐ w2 ∗
     (a ^+ 3)%a ↦ₐ w3.
-
-  (** The bounds of the caller's stack frame, once the callee-save registers
-      have been spilled. *)
-  Definition switcher_stk_bounds (b e a : Addr) : Prop :=
-    (b <= a)%a ∧ (b <= (a ^+ 3)%a < e)%a ∧ (a + 4)%a = Some (a ^+ 4)%a.
 
   Lemma switcher_stk_cells_region a w0 w1 w2 w3 e ws :
     (a + 4)%a = Some (a ^+ 4)%a ->
@@ -792,15 +797,100 @@ Section Switcher_Code.
     - iRegionSplit "H" as "H"; iFrame.
   Qed.
 
+  (** The free part of a caller's stack splits into its spill area and the
+      callee's stack. *)
+  Lemma stk_free_split_addrs b e a :
+    switcher_stk_bounds b e a →
+    stk_free b e a =
+      stk_mem_join (finz.seq_between (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a)
+        (callee_stk_region b e a).
+  Proof.
+    rewrite /switcher_stk_bounds; stk_unfold; intros (Hb & Hb3 & Ha4).
+    apply finz_seq_between_split; solve_addr.
+  Qed.
+
+  Lemma stk_free_split_zeroes b e a :
+    switcher_stk_bounds b e a →
+    region_addrs_zeroes (stk_free_b b a) (stk_free_e e a) =
+      stk_mem_join (region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a)
+        (region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a)).
+  Proof.
+    rewrite /switcher_stk_bounds; stk_unfold; intros (Hb & Hb3 & Ha4).
+    apply region_addrs_zeroes_split; solve_addr.
+  Qed.
+
+  Lemma stk_free_split_join b e a (ls lc : list LWord) :
+    switcher_stk_bounds b e a →
+    length ls = Z.to_nat SpillSlot_size →
+    [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem_join ls lc ]] ⊣⊢
+    [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ [[ ls ]] ∗
+    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ lc ]].
+  Proof.
+    rewrite /switcher_stk_bounds; stk_unfold.
+    intros (Hb & Hb3 & Ha4) Hls.
+    apply region_pointsto_split; [solve_addr|]. rewrite Hls /finz.dist. solve_addr.
+  Qed.
+
+  Lemma stk_free_split b e a (l : list LWord) :
+    switcher_stk_bounds b e a →
+    length l = length (stk_free b e a) →
+    [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ l ]] ⊣⊢
+    [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_spill l ]] ∗
+    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem_callee l ]].
+  Proof.
+    intros Hbounds Hl.
+    rewrite -stk_free_split_join //.
+    - by rewrite /stk_mem_join /stk_mem_spill /stk_mem_callee take_drop.
+    - rewrite /stk_mem_spill length_take Hl /stk_free finz_seq_between_length.
+      revert Hbounds; rewrite /switcher_stk_bounds; stk_unfold; intros (Hb & Hb3 & Ha4).
+      rewrite /finz.dist. solve_addr.
+  Qed.
+
+  (** The callee's stack is in the caller's. *)
+  Lemma callee_stk_region_incl b e a x :
+    callee_stk_bounds b e a →
+    x ∈ callee_stk_region b e a →
+    (b <= x < e)%a.
+  Proof.
+    stk_unfold; intros (Hb & He & Hbe & Ha) Hx.
+    apply elem_of_finz_seq_between in Hx. solve_addr.
+  Qed.
+
+  (** A fresh stack: its free part is the whole stack. *)
+  Lemma stk_start_free_b (b e : Addr) : stk_free_b b (stk_start_a b e) = b.
+  Proof. done. Qed.
+  Lemma stk_start_free_e (b e : Addr) : stk_free_e e (stk_start_a b e) = e.
+  Proof. done. Qed.
+  Lemma stk_start_cursor_ok (b e : Addr) : (b <= e)%a → stk_cursor_ok b e (stk_start_a b e).
+  Proof. stk_unfold; solve_addr. Qed.
+  Lemma stk_start_callee_fits (b e : Addr) n :
+    (b + SpillSlot_size + n <= e)%Z → stk_callee_fits b e (stk_start_a b e) n.
+  Proof. done. Qed.
+  Lemma stk_start_spill_fits (b e : Addr) :
+    (b + SpillSlot_size <= e)%Z → stk_spill_fits b e (stk_start_a b e).
+  Proof. done. Qed.
+
+  (** A callee that fits leaves room for the spill. *)
+  Lemma stk_callee_fits_spill_fits (b e a : Addr) n :
+    (0 <= n)%Z → stk_callee_fits b e a n → stk_spill_fits b e a.
+  Proof. stk_unfold; lia. Qed.
+
+  (** A callee that fits has its [n] words in its stack. *)
+  Lemma stk_callee_fits_callee (b e a : Addr) n :
+    stk_spill_ok a →
+    stk_callee_fits b e a n →
+    (n <= stk_callee_e e a - stk_callee_b b a)%Z.
+  Proof. stk_unfold; intros Ha Hn. solve_addr. Qed.
+
   (** The faults whose context the exception path of the switcher does not
       resume: every fault but one of the first spill of the call path
-      ([.Lswitcher_entry_first_spill]), which the exception path resumes as
+      ([.Lswitch_entry_first_spill]), which the exception path resumes as
       a return of [-ENOTENOUGHSTACK]. The exception path tests the base and
       the address of the faulting PC, as MEPCC holds it. *)
   Definition trap_no_resume (w : LWord) : Prop :=
     get_b (lmepcc_of_pc w).(lw) ≠ (b_switcher : Z) ∨
     get_a (lmepcc_of_pc w).(lw) ≠
-      ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill")%a : Z).
+      ((a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a : Z).
 
   Lemma get_b_mepcc_of_pc w : get_b (mepcc_of_pc w) = get_b w.
   Proof.
@@ -826,7 +916,7 @@ Section Switcher_Code.
 
   (** A fault at another address than the first spill is not resumed. *)
   Lemma trap_no_resume_addr w :
-    get_a w.(lw) ≠ ((a_switcher_call ^+ switcher_label_offset ".Lswitcher_entry_first_spill")%a : Z) →
+    get_a w.(lw) ≠ ((a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a : Z) →
     trap_no_resume w.
   Proof. intros Ha. right. by rewrite /lmepcc_of_pc /= get_a_mepcc_of_pc. Qed.
 
@@ -834,7 +924,7 @@ Section Switcher_Code.
       premise computes. *)
   Lemma trap_no_resume_switcher_pc (off : Z) :
     ((0 <=? off) && (off <? length switcher_instrs) &&
-       negb (off =? switcher_label_offset ".Lswitcher_entry_first_spill"))%Z = true →
+       negb (off =? switcher_label_offset ".Lswitch_entry_first_spill"))%Z = true →
     trap_no_resume (switcher_pc off).
   Proof.
     intros Hoff.
@@ -842,7 +932,7 @@ Section Switcher_Code.
     apply Z.leb_le in H0. apply Z.ltb_lt in Hlt. apply negb_true_iff, Z.eqb_neq in Hne.
     apply trap_no_resume_addr. cbn.
     pose proof switcher_size as Hsize. pose proof switcher_call_entry_point as Hcall.
-    assert (switcher_label_offset ".Lswitcher_entry_first_spill" = 8%Z) as Hfirst
+    assert (switcher_label_offset ".Lswitch_entry_first_spill" = 8%Z) as Hfirst
       by reflexivity.
     rewrite Hfirst in Hne |- *.
     remember (length switcher_instrs) as len.
@@ -851,7 +941,7 @@ Section Switcher_Code.
 
   (** A fault at the first spill is resumed. *)
   Lemma trap_no_resume_first_spill :
-    ¬ trap_no_resume (switcher_label_pc ".Lswitcher_entry_first_spill").
+    ¬ trap_no_resume (switcher_label_pc ".Lswitch_entry_first_spill").
   Proof.
     rewrite /trap_no_resume /lmepcc_of_pc /= get_b_mepcc_of_pc get_a_mepcc_of_pc.
     by intros [Hb | Ha].
