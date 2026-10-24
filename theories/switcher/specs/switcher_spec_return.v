@@ -5,7 +5,8 @@ From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
 From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Export switcher switcher_preamble.
-From griotte Require Import switcher_return_states switcher_return_blocks_1 switcher_return_blocks_2.
+From griotte Require Import switcher_return_states.
+From griotte.switcher.callback Require Import callback_path.
 From stdpp Require Import base.
 From griotte Require Import map_simpl register_tactics proofmode.
 From griotte Require Import switcher_load_spec switcher_exception.
@@ -69,10 +70,10 @@ Section Switcher.
     (* Outline of the proof:
        - open the switcher invariant;
        - when the frame to pop is the entry frame, the thread exits:
-         [switcher_return_blocks_1_exit_spec];
-       - [switcher_return_blocks_1_spec]: pop the trusted stack;
+         [switcher_after_compartment_call_exit_path_spec];
+       - [switcher_after_compartment_call_spec]: pop the trusted stack;
        - [open_world_interp_cframe_gen]: obtain the callee-save area;
-       - [switcher_return_blocks_2_spec]: restore the callee-save registers,
+       - [switcher_restore_spill_path_world_spec]: restore the callee-save registers,
          clear the stack frame and the registers, and jump to the caller;
        - close the switcher invariant and fix the world
          ([world_interp_stack_fixing]);
@@ -112,10 +113,11 @@ Section Switcher.
     iExtract "Hrmap" ct2 as "Hct2".
 
     iDestruct (cstack_agree with "Hcstk_full [$]") as %Heq; subst cstk'.
+    iEval (rewrite switcher_return_block_13) in "HPC".
     destruct cstk as [ef [|frm frms] ]; iEval (rewrite /cstack_interp; cbn) in "Hstk_interp";
       cbn in Hlen_cstk.
     { (* No caller: the frame to pop is the entry frame, the thread exits *)
-      iApply (switcher_return_blocks_1_exit_spec with
+      iApply (switcher_after_compartment_call_exit_path_spec with
         "[$HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hcode
           Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]").
       iIntros "!> [Hmtdc Hframeoffset]".
@@ -160,13 +162,13 @@ Section Switcher.
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       rewrite /withinBounds; solve_addr. }
 
-    (* Block 13: pop the trusted stack *)
+    (* Pop the trusted stack *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
-    iApply (switcher_return_blocks_1_spec with
+    iApply (switcher_after_compartment_call_spec with
       "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
       [done|done|done|].
     iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
-                    & _ & Hlc)".
+                    & Hlc)".
     iInsertRegs "Hrmap" ["Hct2"].
 
     (* Obtain the callee-save area *)
@@ -175,12 +177,12 @@ Section Switcher.
       as "(%wastk & %wastk1 & %wastk2 & %wastk3 &
             Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)";eauto.
 
-    (* Blocks 13-16: restore, clear and return *)
+    (* Restore, clear and return *)
     stk_unfold.
     iEval (rewrite open_world_interp_empty) in "Hworld_interp".
     iAssert (switcher_stk_cells (stk_spill_a a_stk) wastk wastk1 wastk2 wastk3)
       with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
-    iApply (switcher_return_blocks_2_world_spec Wcur Wfixed C [] ccrel with
+    iApply (switcher_restore_spill_path_world_spec Wcur Wfixed C [] ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
         $Hcells $Hstk $Hworld_interp $Hrmap $Hcode]"); [|done|done| |].
     { subst Wfixed. by rewrite close_list_heap. }

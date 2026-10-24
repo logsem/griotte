@@ -1,27 +1,31 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
-From griotte Require Import register_tactics.
 From griotte Require Import switcher_call_states.
 
-(** * Call routine, blocks 0-1: checks on the stack pointer
+(** * Call routine: checks on the stack pointer
 
-    Blocks 0 and 1 check that [csp] is a [RWL] [Local] capability. When the
-    checks fail, the execution jumps to block 18 (see
-    [switcher_call_blocks_6]). *)
+    [.Lswitch_csp_check] checks that [csp] has the permission [RWL], and
+    [.Lswitcher_csp_check_loc] that it is [Local]. When a check fails, the
+    execution jumps to [.Lcommon_force_unwind]. *)
 
-Section Switcher_Call_Blocks_1.
+Section Switch_Csp_Check.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ}
-    {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {ceriseg:ceriseG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  Lemma switcher_call_blocks_1_spec (wcsp wct2 wctp : LWord) :
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+  (** The call entry point is the label [.Lswitch_csp_check]. *)
+  Lemma switcher_call_entry_label :
+    (a_switcher_call ^+ switcher_label_offset ".Lswitch_csp_check")%a = a_switcher_call.
+  Proof. switcher_addr_eq. Qed.
+
+  (** From [.Lswitch_csp_check]: when [csp] is a [RWL] [Local] capability,
+      the PC is at [.Lswitch_entry_first_spill]; otherwise, at
+      [.Lcommon_force_unwind]. *)
+  Lemma switch_csp_check_spec (wcsp wct2 wctp : LWord) :
+    PC ↦ₚ switcher_label_pc ".Lswitch_csp_check" ∗
     csp ↦ᵣ wcsp ∗
     ct2 ↦ᵣ wct2 ∗
     ctp ↦ᵣ wctp ∗
@@ -30,27 +34,27 @@ Section Switcher_Call_Blocks_1.
           PC ↦ₚ switcher_label_pc ".Lswitch_entry_first_spill" ∗
           csp ↦ᵣ wcsp ∗
           ct2 ↦ᵣ WInt 0 ∗
-          ctp ↦ᵣ WInt (encodeLoc Local) ∗
-          switcher_code )
+          ctp ↦ᵣ WInt (encodeLoc Local) )
         ∨
         ( ⌜ ¬ switcher_csp_checked wcsp ⌝ ∗
           ∃ zct2 zctp,
           PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
           csp ↦ᵣ wcsp ∗
           ct2 ↦ᵣ WInt zct2 ∗
-          ctp ↦ᵣ WInt zctp ∗
-          switcher_code )
+          ctp ↦ᵣ WInt zctp )
         -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros "(HPC & Hcsp & Hct2 & Hctp & #Hswitcher & Hpost)".
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size. pose proof switcher_call_entry_point.
-    switcher_unfold_code "Hswitcher".
-
-    (* Block 0: check the permission of csp *)
-    focus_block_0 "Hswitcher" as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
+    iAssert switcher_code as "Hswitcher_loc"; first iFrame "Hswitcher".
+    switcher_open_label ".Lswitch_csp_check" "Hswitcher" as "Hcode".
+    (* The label is at offset 0: [iInstr] simplifies its address *)
+    rewrite switcher_call_entry_label.
+    repeat match goal with
+      | Hfact : context [switcher_label_offset ".Lswitch_csp_check"] |- _ =>
+          rewrite switcher_call_entry_label in Hfact
+      end.
     (* GetP ct2 csp *)
     iInstr "Hcode".
     set (p0 := encodePermSum (get_p wcsp.(lw))).
@@ -60,58 +64,42 @@ Section Switcher_Call_Blocks_1.
     (* Sub ct2 ct2 ctp *)
     iInstr "Hcode".
     destruct (decide ((p0 - encodePerm RWL)%Z = 0)) as [Hp0'|Hp0']; cycle 1.
-    {
-      (* Jne (".Lcommon_force_unwind")%asm ct2 0 *)
+    { (* Jne .Lcommon_force_unwind ct2 0 *)
       iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
       { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; done. }
-      { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
-        offsets_compute; solve_addr. }
-      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+      { switcher_jump_label ".Lcommon_force_unwind". }
       iApply "Hpost"; iRight.
       iSplit.
       { iPureIntro; intros [Hcontra _]; rewrite Hp0 in Hcontra; simplify_eq; lia. }
-      iExists _,_. iFrame "∗ Hswitcher".
-    }
+      iExists _, _. iFrame "HPC Hcsp Hct2 Hctp". }
     rewrite Hp0'.
-    (* Jne (".Lcommon_force_unwind")%asm ct2 0 *)
+    (* Jne .Lcommon_force_unwind ct2 0 *)
     iInstr "Hcode".
-    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
-
-    (* Block 1: check the locality of csp *)
-    focus_block 1 "Hswitcher" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls";
-      iHide "Hswitcher" as hswitcher.
+    switcher_open_label ".Lswitcher_csp_check_loc" "Hswitcher_loc" as "Hcode_loc".
     (* GetL ct2 csp *)
-    iInstr "Hcode".
+    iInstr "Hcode_loc".
     set (g0 := encodeLoc (get_l wcsp.(lw))).
     assert (rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some g0) as Hg0 by done.
     (* Mov ctp (encodeLoc Local) *)
-    iInstr "Hcode".
+    iInstr "Hcode_loc".
     (* Sub ct2 ct2 ctp *)
-    iInstr "Hcode".
+    iInstr "Hcode_loc".
     destruct (decide ((g0 - encodeLoc Local)%Z = 0)) as [Hg0'|Hg0']; cycle 1.
-    {
-      (* Jne (".Lcommon_force_unwind")%asm ct2 0 *)
-      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
+    { (* Jne .Lcommon_force_unwind ct2 0 *)
+      iInstrApply "Hcode_loc" wp_jnez_success_jmp_z with "[$HPC $Hct2]" as "(HPC & Hct2)".
       { apply negb_true_iff, Z.eqb_neq. intros Hcontr; cbn in Hcontr; done. }
-      { transitivity (Some (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a); auto.
-        offsets_compute; solve_addr. }
-      iEval (simplify_map_eq) in "HPC".
-      unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+      { switcher_jump_label ".Lcommon_force_unwind". }
       iApply "Hpost"; iRight.
       iSplit.
       { iPureIntro; intros [_ Hcontra]; rewrite Hg0 in Hcontra; simplify_eq; lia. }
-      iExists _,_. iFrame "∗ Hswitcher".
-    }
+      iExists _, _. iFrame "HPC Hcsp Hct2 Hctp". }
     rewrite Hg0'.
-    (* Jne (".Lcommon_force_unwind")%asm ct2 0 *)
-    iInstr "Hcode".
-    unfocus_block "Hcode" "Hcls" as "Hswitcher"; subst hswitcher.
+    (* Jne .Lcommon_force_unwind ct2 0 *)
+    iInstr "Hcode_loc".
+    switcher_change_pc_label ".Lswitch_entry_first_spill".
     iApply "Hpost"; iLeft.
-    iFrame "∗ Hswitcher".
-    switcher_change_pc (switcher_label_offset ".Lswitch_entry_first_spill").
-    iFrame. iPureIntro; split; [rewrite Hp0 | rewrite Hg0]; f_equal; lia.
+    iFrame "HPC Hcsp Hct2 Hctp".
+    iPureIntro; split; [rewrite Hp0 | rewrite Hg0]; f_equal; lia.
   Qed.
 
-
-
-End Switcher_Call_Blocks_1.
+End Switch_Csp_Check.

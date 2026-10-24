@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules rules_vcsr proofmode.
 From griotte Require Export logrel switcher switcher_preamble switcher_error_handler.
-From griotte Require Import switcher_exception_states switcher_call_blocks_6 copy_context_spec.
+From griotte Require Import switcher_exception_states copy_context_spec.
+From griotte.switcher.failure Require Import common_force_unwind.
 From griotte.switcher.exception Require Import exception_entry handle_error
   common_context_install handle_error_stack_oob handle_error_found handle_error_stack_setup
   handle_error_handler_invoke.
@@ -504,8 +505,9 @@ Section Switcher_Spec_Exception.
       "(HPC & Hrmap & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & #Hswitcher & Hclose & Hcstk & Hwritten
        & Hskip & Hunwind)".
-    iApply (switcher_call_block_18_spec with "[- $HPC $Hca0 $Hca1 $Hswitcher]").
-    iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
+    iApply (common_force_unwind_spec with "[- $HPC $Hca0 $Hca1 $Hswitcher]").
+    iNext; iIntros "(HPC & Hca0 & Hca1)".
+    iEval (rewrite -switcher_return_offset) in "HPC".
     iMod "Hclose" as "Hna".
     iDestruct (regs_rebuild_pointsto with
                 "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5")
@@ -781,7 +783,7 @@ Section Switcher_Spec_Exception.
          mcause, and give the volatile registers back;
        - [handle_error_spec]: restore mtdc, and test for a fault of the
          switcher, and of the first spill of the call path;
-       - for any other fault of the switcher, [switcher_call_block_18_spec]:
+       - for any other fault of the switcher, [common_force_unwind_spec]:
          set the return values; for a fault of the first spill,
          [common_context_install_spec]: install the context, with the
          return values overwritten;

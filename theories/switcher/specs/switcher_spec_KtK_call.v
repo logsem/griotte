@@ -2,14 +2,13 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Export switcher switcher_preamble.
 From griotte Require Import switcher_macros_spec.
-From griotte Require Import switcher_call_states switcher_call_world
-  switcher_call_blocks_1 switcher_call_blocks_2 switcher_call_blocks_3
-  switcher_call_blocks_4 switcher_call_blocks_5.
+From griotte Require Import switcher_call_states switcher_call_world.
+From griotte.switcher.call Require Import call_path.
 From griotte Require Import map_simpl register_tactics proofmode.
 
 (** * Call routine of the switcher, known-to-known calls
 
-    The proof composes the block-group lemmas of [switcher_call_blocks_n],
+    The proof composes the block and path lemmas of [call/],
     shared with [switcher_cc_specification_gen]. The caller and the callee
     are both known: the entry point is the sealed capability of a known
     export table, and the arguments are not required to be valid. *)
@@ -100,8 +99,9 @@ Section Switcher_KtK_Call.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
-       registers, [switcher_call_blocks_5_spec] executes blocks 17 and 15-16,
-       then close the switcher invariant. The return address is a valid
+       registers, [switch_trusted_stack_exhausted_path_spec] restores the
+       registers, clears the others and returns, then close the switcher
+       invariant. The return address is a valid
        target, so the jump back does not fault. *)
     iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds Hret_jalr Hret_heap)
       "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hframeoffset & HthreadID & Htstk & #Hstatic & Hcstk_full & Hstk_interp
@@ -112,7 +112,7 @@ Section Switcher_KtK_Call.
     stk_unfold. change (4 - 1)%Z with 3%Z in Hastk_bounds.
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
-    iApply (switcher_call_blocks_5_spec with
+    iApply (switch_trusted_stack_exhausted_path_spec with
       "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1]");
       [done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
@@ -286,16 +286,16 @@ Section Switcher_KtK_Call.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;
-       - [switcher_call_blocks_1_spec]: the checks on the stack pointer
+       - [switch_csp_check_spec]: the checks on the stack pointer
          succeed;
-       - [switcher_call_blocks_2_spec]: spill the callee-save registers and
+       - [switch_entry_first_spill_path_spec]: spill the callee-save registers and
          push the stack pointer on the trusted stack; the spill fits on the
          caller's stack, which is at least the callee's minimum stack size;
        - when the trusted stack is exhausted:
          [switcher_cc_spec_tstack_exhausted_known_to_known];
-       - [switcher_call_blocks_3_spec]: clear the callee's stack frame and
+       - [switch_stack_chop_path_spec]: clear the callee's stack frame and
          unseal the entry point, which is sealed by the switcher;
-       - [switcher_call_blocks_4_known_spec]: load the callee and jump to it;
+       - [switcher_decode_entry_path_known_spec]: load the callee and jump to it;
          its stack is at least its minimum stack size, so the check passes;
        - [switcher_inv_push_frame]: push the frame and close the switcher
          invariant. *)
@@ -330,13 +330,14 @@ Section Switcher_KtK_Call.
     iHide "Hswitcher" as hinv_switcher.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
 
-    (* Blocks 0-1: checks on the stack pointer *)
-    iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
-    iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp & _) | (%Hcontra & _)]";
+    (* [.Lswitch_csp_check]: checks on the stack pointer *)
+    iEval (rewrite -switcher_call_entry_label) in "HPC".
+    iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
+    iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp) | (%Hcontra & _)]";
       last (exfalso; apply Hcontra, switcher_csp_checked_stk).
 
-    (* Blocks 2-3: spill and push on the trusted stack *)
-    iApply (switcher_call_blocks_2_spec with
+    (* [.Lswitch_entry_first_spill]: spill and push on the trusted stack *)
+    iApply (switch_entry_first_spill_path_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
       [done|done|done|done|].
     iSplit; cycle 1.
@@ -358,8 +359,8 @@ Section Switcher_KtK_Call.
       iNext; iIntros "H"; iApply "Hpost"; iRight; iExact "H".
     }
 
-    (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
-    iApply (switcher_call_blocks_3_spec with
+    (* [.Lswitch_stack_chop]: clear the callee's stack frame and unseal the entry point *)
+    iApply (switch_stack_chop_path_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hct2 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
     iSplit; cycle 1.
     { (* The entry point is sealed by the switcher: the unsealing does not
@@ -371,7 +372,7 @@ Section Switcher_KtK_Call.
       "(%Hwsb & _ & HPC & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2] & Hcsp & Hstk & _ & Hct1 & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
 
-    (* Blocks 7-12: load the callee and jump to it; only the low byte of the
+    (* [.Lswitcher_decode_entry]: load the callee and jump to it; only the low byte of the
        minimum stack size is encoded *)
     assert (Z.land (Z.of_nat minstk_tgt) 255 = Z.of_nat minstk_tgt `mod` 256)%Z as Hland.
     { change 255%Z with (Z.ones 8). rewrite Z.land_ones //. }
@@ -383,7 +384,7 @@ Section Switcher_KtK_Call.
     assert (Z.of_nat minstk8 < 256)%Z as Hminstk8_lt.
     { rewrite -Hminstk8 Hland. apply Z.mod_pos_bound; lia. }
     iEval (rewrite encode_entry_point_minstk_land Hminstk8) in "Hinv_exp_tbl_entry".
-    iApply (switcher_call_blocks_4_known_spec with
+    iApply (switcher_decode_entry_path_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
         $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hargs $Hregs $Hcode]");
       [done|solve_addr|done|lia|lia|done|done|done|done| | | |done| |].

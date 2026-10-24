@@ -2,12 +2,13 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Export switcher switcher_preamble.
 From griotte Require Import switcher_macros_spec.
-From griotte Require Import switcher_return_states switcher_return_blocks_1 switcher_return_blocks_2.
+From griotte Require Import switcher_return_states.
+From griotte.switcher.callback Require Import callback_path.
 From griotte Require Import map_simpl register_tactics proofmode.
 
 (** * Return routine of the switcher, known-to-known calls
 
-    The proof composes the block-group lemmas of [switcher_return_blocks_n],
+    The proof composes the block and path lemmas of [callback/],
     shared with [switcher_ret_specification_gen]. *)
 
 Section Switcher_KtK_Return.
@@ -128,8 +129,8 @@ Section Switcher_KtK_Return.
     (* Outline of the proof:
        - open the switcher invariant, and read the topmost frame of the call
          stack;
-       - [switcher_return_blocks_1_spec]: pop the trusted stack;
-       - [switcher_return_blocks_2_spec]: restore the callee-save registers,
+       - [switcher_after_compartment_call_spec]: pop the trusted stack;
+       - [switcher_restore_spill_path_spec]: restore the callee-save registers,
          clear the stack frame and the registers, and jump back to the
          caller; the frame records that the return address is a valid
          target, so the jump does not fault;
@@ -167,20 +168,21 @@ Section Switcher_KtK_Return.
     iExtract "Hregs" ca2 as "Hca2".
     iExtract "Hregs" ct2 as "Hct2".
 
-    (* Block 13: pop the trusted stack *)
+    (* Pop the trusted stack *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
-    iApply (switcher_return_blocks_1_spec with
+    iEval (rewrite switcher_return_block_13) in "HPC".
+    iApply (switcher_after_compartment_call_spec with
       "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
       [done|done| |].
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       revert Hstk_bounds; rewrite /switcher_stk_bounds /withinBounds; stk_unfold.
       intros (Hb_a4 & He_a1 & Ha4). solve_addr. }
     iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htf_csp
-                    & _ & _)".
+                    & _)".
     iInsertRegs "Hregs" ["Hct2"].
 
-    (* Blocks 13-16: restore, clear and return *)
-    iApply (switcher_return_blocks_2_spec with
+    (* Restore, clear and return *)
+    iApply (switcher_restore_spill_path_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hca2 $Hctp $Hcsp
         $Hcells $Hstk $Hregs $Hcode]"); [done|done| |].
     { rewrite dom_insert_L. repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }

@@ -8,9 +8,8 @@ From griotte Require Import rules proofmode monotone.
 From griotte Require Import fundamental.
 From griotte Require Import switcher_preamble.
 From griotte Require Import interp_switcher_return switcher_exception switcher_helpers.
-From griotte Require Import switcher_call_states switcher_call_world
-  switcher_call_blocks_1 switcher_call_blocks_2 switcher_call_blocks_3 switcher_call_blocks_4
-  switcher_call_blocks_5 switcher_call_blocks_6.
+From griotte Require Import switcher_call_states switcher_call_world.
+From griotte.switcher.call Require Import call_path.
 From griotte Require Import map_simpl register_tactics proofmode.
 
 
@@ -60,8 +59,9 @@ Section fundamental.
   Implicit Types interp : (V).
 
   (** Failure path of [interp_expr_switcher_call]: the checks on the stack
-      pointer fail, and the call is unwound by the return routine. Block 18
-      sets the return values, so no register needs to be safe. *)
+      pointer fail, and the call is unwound by the return routine.
+      [.Lcommon_force_unwind] sets the return values, so no register needs
+      to be safe. *)
   Lemma interp_switcher_call_force_unwind
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
@@ -99,8 +99,8 @@ Section fundamental.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
-    (* Outline of the proof: [switcher_call_block_18_spec] executes block 18,
-       then close the switcher invariant and run the return routine
+    (* Outline of the proof: [common_force_unwind_spec] sets the return
+       values, then close the switcher invariant and run the return routine
        ([switcher_return_unwind]) with the integer return values. *)
     iIntros (HNtrap Hfull_rmap Hframe Hlen_cstk Ha_tstk_e Hot_bounds)
       "(#Hinv_switcher & Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hframeoffset & HthreadID
@@ -113,8 +113,9 @@ Section fundamental.
     rewrite /registers_pointsto.
     getRegValList [ca0;ca1].
     iExtractList "Hrmap" [ca0;ca1] as ["Hca0";"Hca1"].
-    iApply (switcher_call_block_18_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
-    iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
+    iApply (common_force_unwind_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
+    iNext; iIntros "(HPC & Hca0 & Hca1)".
+    iEval (rewrite -switcher_return_offset) in "HPC".
     iMod ("Hclose_switcher_inv" with
       "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
     { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
@@ -185,8 +186,9 @@ Section fundamental.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
-    (* Outline of the proof: [switcher_call_blocks_5_spec] executes blocks 17
-       and 14-15, [switcher_call_stk_close] closes the caller's stack frame,
+    (* Outline of the proof: [switch_trusted_stack_exhausted_path_spec]
+       restores the registers, clears the others and returns,
+       [switcher_call_stk_close] closes the caller's stack frame,
        then close the switcher invariant and
        [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hdom Hframe Hstk_bounds Hstk_mmio Hlen_lv Hlen_cstk Ha_tstk_e Hot_bounds)
@@ -204,7 +206,7 @@ Section fundamental.
     iExtract "Hrmap" ca0 as "Hca0".
     iExtract "Hrmap" ca1 as "Hca1".
     iInsertRegs "Hrmap" ["Hct1";"Hctp";"Hct2"].
-    iApply (switcher_call_blocks_5_spec with
+    iApply (switch_trusted_stack_exhausted_path_spec with
       "[- $HPC $Hcsp $Hcells $Hrmap $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1]"); [done|done| |].
     { repeat (rewrite dom_insert_L). repeat (rewrite dom_delete_L). rewrite Hdom. set_solver. }
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
@@ -251,23 +253,23 @@ Section fundamental.
        - open the switcher invariant;
        - [switcher_call_stk_open]: open the free part of the caller's stack
          in the world (when the stack pointer is not a valid stack
-         capability, [switcher_call_blocks_2_fail_spec] or, when its cursor
+         capability, [switch_entry_first_spill_fail_spec] or, when its cursor
          is above the top and the furthest cell of the spill within bounds,
-         [switcher_call_blocks_2_above_spec], and [trap_safe_unwind]);
-       - [switcher_call_blocks_1_spec]: checks on the stack pointer;
+         [switch_entry_first_spill_above_spec], and [trap_safe_unwind]);
+       - [switch_csp_check_spec]: checks on the stack pointer;
          when they fail, [interp_switcher_call_force_unwind];
-       - [switcher_call_blocks_2_spec]: spill the callee-save registers and
+       - [switch_entry_first_spill_path_spec]: spill the callee-save registers and
          push the stack pointer on the trusted stack; when the spill faults,
          [trap_safe_unwind];
        - when the trusted stack is exhausted:
          [interp_switcher_call_tstack_exhausted];
-       - [switcher_call_blocks_3_spec]: clear the callee's stack frame and
+       - [switch_stack_chop_path_spec]: clear the callee's stack frame and
          unseal the entry point; when the unsealing faults, push the frame
          and [trap_safe_unwind];
        - [switcher_call_stk_close]: close the caller's stack frame;
        - [switcher_entry_point_prop]: the entry point satisfies the sealing
          predicate of the switcher;
-       - [switcher_call_blocks_4_spec]: check the size of the callee's
+       - [switcher_decode_entry_path_spec]: check the size of the callee's
          stack, load the callee and jump to it; when the stack is too small,
          push the frame and [switcher_call_stack_too_small_unwind];
        - [switcher_inv_push_frame]: close the switcher invariant;
@@ -354,10 +356,11 @@ Section fundamental.
            iPureIntro; left; exists b, e, a; split; first done.
            stk_unfold. split; solve_addr. }
          2: {
-           (* Blocks 0-1: checks on the stack pointer *)
-           iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
-           iNext; iIntros "[(%Hchecked & HPC & Hcsp & Hct2 & Hctp & _)
-                           | (_ & % & % & HPC & Hcsp & Hct2 & Hctp & _)]";
+           (* [.Lswitch_csp_check]: checks on the stack pointer *)
+           iEval (rewrite -switcher_call_entry_label) in "HPC".
+           iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
+           iNext; iIntros "[(%Hchecked & HPC & Hcsp & Hct2 & Hctp)
+                           | (_ & % & % & HPC & Hcsp & Hct2 & Hctp)]";
              cycle 1.
            { (* The checks fail: force the unwinding of the call *)
              iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
@@ -373,7 +376,7 @@ Section fundamental.
            iMod ("Hclose_switcher_inv" with
              "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
            { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
-           iApply (switcher_call_blocks_2_fail_spec with "[- $HPC $Hcsp $Hcs0 $Hcode]"); [done | done |].
+           iApply (switch_entry_first_spill_fail_spec with "[- $HPC $Hcsp $Hcs0 $Hcode]"); [done | done |].
            iIntros "[Hcsp Hcs0]".
            iInsertList "Hrmap" [csp;ct2;ctp;cs0;cs1;cra;cgp;ct1].
            iApply (interp_trap_safe_untrusted with "Htrap [] Htop [-]");
@@ -389,10 +392,11 @@ Section fundamental.
            as (lv) "(Hstk & Hstk_opened)"; [solve_addr | solve_addr |].
          iDestruct (big_sepL2_length with "Hstk") as %Hlen_lv.
 
-         (* Blocks 0-1: checks on the stack pointer *)
-         iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
-         iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp & _)
-                         | (_ & % & % & HPC & Hcsp & Hct2 & Hctp & _)]";
+         (* [.Lswitch_csp_check]: checks on the stack pointer *)
+         iEval (rewrite -switcher_call_entry_label) in "HPC".
+         iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
+         iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp)
+                         | (_ & % & % & HPC & Hcsp & Hct2 & Hctp)]";
            cycle 1.
          { (* The checks fail: close the caller's stack, and force the
               unwinding of the call *)
@@ -413,9 +417,9 @@ Section fundamental.
          iMod ("Hclose_switcher_inv" with
            "[$Hna $Hcstk_full Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hstk_interp]") as "Hna".
          { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
-         iApply (switcher_call_blocks_2_above_spec with
+         iApply (switch_entry_first_spill_above_spec with
                   "[- $HPC $Hcsp $Hcs0 $Hcs1 $Hcgp $Hcra $Hstk $Hcode]"); [done..|].
-         iIntros (k [Hk Hk_bounds]) "(Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & Hstk)".
+         iIntros (k off [Hk Hk_bounds] Hoff) "(Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & Hstk)".
          iDestruct (switcher_call_stk_close _ _ _ _ lv (take k [wcs0; wcs1; wcgp])
                      with "Hstk_opened Hstk []") as "Hworld_interp".
          { rewrite length_take Nat.min_l; last (simpl; lia).
@@ -428,8 +432,7 @@ Section fundamental.
            [done| |done| | |by iFrame].
          { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
          { (* A fault of a later store of the spill is not resumed *)
-           apply trap_no_resume_switcher_pc.
-           destruct k as [|[|[|[|k] ] ] ]; try lia; by vm_compute. }
+           exact Hoff. }
          (* The fault is in the switcher *)
          iLeft; iPureIntro. apply switcher_fault_pc_cap. }
     iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_mmio Hstk_heap]; first done.
@@ -441,10 +444,11 @@ Section fundamental.
       as (lv) "(Hstk & Hstk_opened)"; [rewrite /stk_free_b; solve_addr | exact Hae |].
     iDestruct (big_sepL2_length with "Hstk") as %Hlen_lv.
 
-    (* Blocks 0-1: checks on the stack pointer *)
-    iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
-    iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp & _)
-                    | (_ & % & % & HPC & Hcsp & Hct2 & Hctp & _)]";
+    (* [.Lswitch_csp_check]: checks on the stack pointer *)
+    iEval (rewrite -switcher_call_entry_label) in "HPC".
+    iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
+    iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp)
+                    | (_ & % & % & HPC & Hcsp & Hct2 & Hctp)]";
       cycle 1.
     { (* The checks fail: close the caller's stack frame, and force the
          unwinding of the call *)
@@ -460,8 +464,8 @@ Section fundamental.
       intros r. rewrite !lookup_insert_is_Some'. naive_solver.
     }
 
-    (* Blocks 2-3: spill and push on the trusted stack *)
-    iApply (switcher_call_blocks_2_spec with
+    (* [.Lswitch_entry_first_spill]: spill and push on the trusted stack *)
+    iApply (switch_entry_first_spill_path_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
       [done|done|done|done|].
     iSplit; cycle 1.
@@ -500,8 +504,8 @@ Section fundamental.
       apply lregmap_full_dom in Hfull_rmap. rewrite Hfull_rmap. set_solver.
     }
 
-    (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
-    iApply (switcher_call_blocks_3_spec with
+    (* [.Lswitch_stack_chop]: clear the callee's stack frame and unseal the entry point *)
+    iApply (switch_stack_chop_path_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hct2 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
     iSplit; cycle 1.
     { (* The entry point is not sealed by the switcher: close the caller's
@@ -595,7 +599,7 @@ Section fundamental.
     iSpecialize ("Hentry_cont" $! W with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }
 
-    (* Blocks 7-12: load the callee and jump to it *)
+    (* [.Lswitcher_decode_entry]: load the callee and jump to it *)
     match goal with |- context [ ([∗ map] k↦y ∈ ?r , k ↦ᵣ y)%I ] => set (rmap' := r) end.
     set (params := dom_arg_rmap 8).
     set (Pf := ((λ '(r,_), r ∈ params) : RegName * LWord → Prop)).
@@ -614,7 +618,7 @@ Section fundamental.
       iApply ("Hreg" $! k); iPureIntro.
       repeat (apply lookup_delete_Some in Hin as [_ Hin]); auto.
     }
-    iApply (switcher_call_blocks_4_spec W C with
+    iApply (switcher_decode_entry_path_spec W C with
       "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
           $Hparams $Hrest $Hcode]");
       [done|solve_addr|done|lia|lia|done|done|done|done| | | | | |].

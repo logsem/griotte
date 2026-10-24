@@ -8,7 +8,7 @@ From griotte Require Import switcher_call_states.
 (** * Logical steps of the call routine of the switcher
 
     The lemmas of this file do not execute code. They are used between the
-    block groups of [switcher_call_blocks_n] by the proofs of
+    paths of the call routine ([call_path]) by the proofs of
     [switcher_cc_specification_gen] and [interp_expr_switcher_call]. *)
 
 Section Switcher_Call_World.

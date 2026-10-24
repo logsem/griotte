@@ -6,11 +6,10 @@ From griotte Require Import logrel fundamental interp_weakening memory_region ru
 From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Export switcher switcher_preamble switcher_macros_spec switcher_helpers.
 From griotte Require Import world_ghost_theory world_interp_stack.
-From griotte Require Import switcher_call_states switcher_call_world
-  switcher_call_blocks_1 switcher_call_blocks_2 switcher_call_blocks_3 switcher_call_blocks_4
-  switcher_call_blocks_5 switcher_call_blocks_6.
+From griotte Require Import switcher_call_states switcher_call_world.
+From griotte.switcher.call Require Import call_path.
 From griotte Require Import map_simpl register_tactics proofmode.
-From griotte Require Import switcher_load_spec switcher_blocks_15_16 switcher_exception.
+From griotte Require Import switcher_load_spec switcher_exception.
 
 
 Section Switcher.
@@ -222,7 +221,7 @@ Section Switcher.
       first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ ca1 with "Hrmap'") as "[Hca1 Hrmap']";
       first by simplify_map_eq.
-    (* Block 16: the return to the caller *)
+    (* [.Lswitch_just_return]: the return to the caller *)
     iPoseProof "Hstatic" as "[#Hswitcher _]".
     iApply (switcher_just_return_spec with "[- $HPC $Hcra $Hswitcher]").
     iSplit; last (iIntros "(%Hjalr' & _)"; congruence).
@@ -352,8 +351,9 @@ Section Switcher.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
-       registers, [switcher_call_blocks_5_spec] executes blocks 17 and 15-16,
-       then close the switcher invariant and use the second post-condition.
+       registers, [switch_trusted_stack_exhausted_path_spec] restores the
+       registers, clears the others and returns, then close the switcher
+       invariant and use the second post-condition.
        The return address is a valid target, so the jump back does not
        fault. *)
     iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds Hret_jalr Hret_heap)
@@ -374,7 +374,7 @@ Section Switcher.
     }
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
-    iApply (switcher_call_blocks_5_world_spec W C with
+    iApply (switch_trusted_stack_exhausted_path_world_spec W C with
       "[- $HPC $Hcsp $Hcells $Hworld_interp $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1]");
       [done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
@@ -540,19 +540,19 @@ Section Switcher.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;
-       - [switcher_call_blocks_1_spec]: checks on the stack pointer;
-       - [switcher_call_blocks_2_spec]: spill the callee-save registers and
+       - [switch_csp_check_spec]: checks on the stack pointer;
+       - [switch_entry_first_spill_path_spec]: spill the callee-save registers and
          push the stack pointer on the trusted stack; when the spill faults,
          close the switcher invariant and use the fault case;
        - when the trusted stack is exhausted:
          [switcher_cc_spec_tstack_exhausted];
        - [switcher_entry_point_prop]: the entry point satisfies the sealing
          predicate of the switcher;
-       - [switcher_call_blocks_3_spec]: clear the callee's stack frame and
+       - [switch_stack_chop_path_spec]: clear the callee's stack frame and
          unseal the entry point; when the unsealing faults, push the frame and
          unwind to the caller's continuation ([trap_safe_unwind_logrel]);
        - [switcher_cc_world_reinstate]: reinstate the callee's stack frame;
-       - [switcher_call_blocks_4_spec]: check the size of the callee's
+       - [switcher_decode_entry_path_spec]: check the size of the callee's
          stack, load the callee and jump to it; when the stack is too small,
          push the frame and return to the caller's continuation
          ([switcher_call_stack_too_small_unwind]);
@@ -585,13 +585,14 @@ Section Switcher.
     iHide "Hswitcher" as hinv_switcher.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
 
-    (* Blocks 0-1: checks on the stack pointer *)
-    iApply (switcher_call_blocks_1_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
-    iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp & _) | (%Hcontra & _)]";
+    (* [.Lswitch_csp_check]: checks on the stack pointer *)
+    iEval (rewrite -switcher_call_entry_label) in "HPC".
+    iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]").
+    iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp) | (%Hcontra & _)]";
       last (exfalso; apply Hcontra, switcher_csp_checked_stk).
 
-    (* Blocks 2-3: spill and push on the trusted stack *)
-    iApply (switcher_call_blocks_2_spec with
+    (* [.Lswitch_entry_first_spill]: spill and push on the trusted stack *)
+    iApply (switch_entry_first_spill_path_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hctp $Hct2 $Hcsp $Hstk $Hmtdc $Hframeoffset $Htstk $Hcode]");
       [done|done|done|done|].
     iSplit; cycle 1.
@@ -633,7 +634,7 @@ Section Switcher.
           $Hargs $Hregs $Hworld_interp $Hstk_val $Hcstk $Hcont $Hpost]"); done.
     }
 
-    (* Blocks 4-7: clear the callee's stack frame and unseal the entry point *)
+    (* [.Lswitch_stack_chop]: clear the callee's stack frame and unseal the entry point *)
     iDestruct (switcher_entry_point_prop with "Hp_ot_switcher Htarget_v Hworld_interp")
       as "[Hworld_interp Hentry_prop]".
     set (W' := std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary).
@@ -696,7 +697,7 @@ Section Switcher.
       apply std_sta_update_multiple_lookup_in_i.
       apply list_elem_of_lookup; eauto.
     }
-    iApply (switcher_call_blocks_3_spec with
+    iApply (switch_stack_chop_path_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hct2 $Hcsp $Hstk $Hb_switcher $Hct1 $Hcode]"); [done|done|done|].
     iSplit; cycle 1.
     { (* The entry point is not sealed by the switcher: the frame is already
@@ -770,8 +771,8 @@ Section Switcher.
     iSpecialize ("Hentry_cont" $! W' with "[]").
     { iPureIntro. by apply related_sts_pub_priv_world. }
 
-    (* Blocks 7-12: load the callee and jump to it *)
-    iApply (switcher_call_blocks_4_spec W C with
+    (* [.Lswitcher_decode_entry]: load the callee and jump to it *)
+    iApply (switcher_decode_entry_path_spec W C with
       "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
           $Hargs $Hregs $Hcode]");
       [done|solve_addr|done|lia|lia|done|done|done|done| | | |done| |].

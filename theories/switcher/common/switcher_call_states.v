@@ -6,20 +6,23 @@ From griotte Require Export switcher switcher_preamble logrel.
 
     The proofs of [switcher_cc_specification_gen] (functional specification)
     and [interp_expr_switcher_call] (validity of the call entry point) run the
-    same code. They share the block-group lemmas of [switcher_call_blocks_n],
-    which only depend on this file:
-    - [switcher_call_blocks_1]: blocks 0-1, checks on [csp] (and block 18,
-      the forced unwind when the checks fail),
-    - [switcher_call_blocks_2]: blocks 2-3, spill of the callee-save
-      registers and push on the trusted stack (and block 17, when the
-      trusted stack is exhausted),
-    - [switcher_call_blocks_3]: blocks 4-7, chop and clear the callee stack,
-      load the unsealing capability and unseal the entry point,
-    - [switcher_call_blocks_4]: blocks 7-12, load the callee and jump to it.
+    same code. They share the block lemmas of [call/], one file per region
+    of the code, named after its entry label, and their compositions in
+    [call_path]:
+    - [switch_csp_check]: the checks on [csp];
+    - [switch_entry_first_spill]: the spill of the callee-save registers;
+    - [switcher_trusted_stack_push]: the push on the trusted stack;
+    - [switch_stack_chop]: chop and clear the callee's stack, and load the
+      unsealing capability;
+    - [switch_unseal_entry]: unseal and decode the entry point, and load
+      the callee;
+    - [switcher_clear_unused_args]: clear the registers and jump to the
+      callee.
+    The failures are in [failure/].
 
-    The block-group lemmas start and end at labels of the code
-    [switcher_instrs], whose offsets are given by [switcher_label_offset] (see
-    [switcher_preamble]). *)
+    The block lemmas start and end at labels of the code [switcher_instrs],
+    whose offsets are given by [switcher_label_offset] (see
+    [switcher_tactics]). *)
 
 Section Switcher_Call_States.
   Context

@@ -1,10 +1,11 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import register_tactics map_simpl.
-From griotte Require Import logrel fundamental switcher_preamble switcher_return_blocks_1
-  interp_switcher_return.
-From griotte Require Import switcher_call_blocks_6 switcher_blocks_15_16
+From griotte Require Import logrel fundamental switcher_preamble interp_switcher_return.
+From griotte Require Import
   switcher_spec_install copy_context_spec world_ghost_theory wp_rules_interp.
+From griotte.switcher.failure Require Import common_force_unwind switch_stack_too_small.
+From griotte.switcher.callback Require Import switcher_zero_callee_frame.
 From griotte.switcher.exception Require Import handle_error_handler_invoke exception_path.
 From griotte Require Export switcher_error_handler.
 
@@ -49,8 +50,8 @@ Section Switcher_Exception.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** Block 16 from [.Lswitch_just_return], where the exception path resumes
-      a context: the return to [cra]. *)
+  (** From [.Lswitch_just_return], the label of [.Lswitcher_return_to_caller]
+      where the exception path resumes a context: the return to [cra]. *)
   Lemma switcher_just_return_spec (wret : LWord) :
     PC ↦ₚ switcher_label_pc ".Lswitch_just_return" ∗
     cra ↦ᵣ wret ∗
@@ -66,24 +67,10 @@ Section Switcher_Exception.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size as Hsize; cbn in Hsize.
     rewrite (_ : (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a =
                  (a_switcher_call ^+ switcher_label_offset ".Lswitcher_return_to_caller")%a);
-      last by offsets_compute.
-    switcher_unfold_code "Hswitcher".
-    switcher_focus_block (switcher_block ".Lswitcher_return_to_caller") "Hswitcher"
-      as "Hcode" "Hcls"; iHide "Hswitcher" as hswitcher.
-    iApply (switcher_return_block_16_spec _ _ _ _ ∅ with "[- $HPC $Hcra $Hcode]");
-      first done.
-    iSplitR; first by rewrite big_sepM_empty.
-    iSplit.
-    - iNext; iIntros "(HPC & Hcra & _ & _ & Hlc)".
-      iDestruct "Hpost" as "[Hpost _]".
-      iApply ("Hpost" with "[$HPC $Hcra $Hlc]").
-    - iIntros "(%Hjalr & Hcra & _)".
-      iDestruct "Hpost" as "[_ Hpost]".
-      iApply ("Hpost" with "[$Hcra]"); done.
+      last switcher_addr_eq.
+    iApply (switcher_return_to_caller_spec with "[$HPC $Hcra $Hswitcher $Hpost]").
   Qed.
 
   (** The return to the caller of the context that the exception path
@@ -342,8 +329,9 @@ Section Switcher_Exception.
     iApply (handle_error_handler_return_spec with "[- $HPC $Hca0 $Hcode]").
     iNext; iSplit; last (iIntros (Hnz'); by rewrite Hnz in Hnz').
     iIntros (_) "(HPC & Hca0)".
-    iApply (switcher_call_block_18_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
-    iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
+    iApply (common_force_unwind_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
+    iNext; iIntros "(HPC & Hca0 & Hca1)".
+    iEval (rewrite -switcher_return_offset) in "HPC".
     iInsertList "Hrmap" [ca0;ca1].
     iApply ("Hpost" with "[] [] [] HPC Hrmap").
     - iPureIntro. intros r. rewrite !lookup_insert_is_Some'. clear -Hfull. naive_solver.
@@ -1036,8 +1024,8 @@ Section Switcher_Exception.
   Qed.
 
   (** The callee's stack is smaller than the minimum stack size of the
-      entry point: block 20 sets the return values, and the return routine
-      pops the frame already pushed. No register needs to be safe. *)
+      entry point: [.Lswitch_stack_too_small] sets the return values, and
+      the return routine pops the frame already pushed. No register needs to be safe. *)
   Lemma switcher_call_stack_too_small_unwind
     (W : WORLD) (C : CmptName) (Nswitcher : namespace)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
@@ -1064,8 +1052,9 @@ Section Switcher_Exception.
     rewrite /registers_pointsto.
     getRegValList [ca0;ca1].
     iExtractList "Hrmap" [ca0;ca1] as ["Hca0";"Hca1"].
-    iApply (switcher_call_block_20_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
-    iNext; iIntros "(HPC & Hca0 & Hca1 & _)".
+    iApply (switch_stack_too_small_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
+    iNext; iIntros "(HPC & Hca0 & Hca1)".
+    iEval (rewrite -switcher_return_offset) in "HPC".
     iInsertList "Hrmap" [ca0;ca1].
     iApply (switcher_return_unwind with
              "[$HPC $Hrmap $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna $Hcstk]");

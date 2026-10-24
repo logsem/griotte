@@ -6,17 +6,17 @@ From griotte Require Export logrel switcher switcher_preamble.
 
     The proofs of [switcher_ret_specification_gen] (functional
     specification) and [interp_expr_switcher_return] (validity of the return
-    entry point) run the same code. They share the block-group lemmas of
-    [switcher_return_blocks_n], which only depend on this file:
-    - [switcher_return_blocks_1]: first part of block 13, pop the topmost
-      frame of the trusted stack,
-    - [switcher_return_blocks_2]: second part of block 13 and blocks 14-16,
-      restore the callee-save registers, clear the stack frame and the
+    entry point) run the same code. They share the block lemmas of
+    [callback/], one file per region of the code, named after its entry
+    label, and their compositions in [callback_path]:
+    - [switcher_after_compartment_call]: pop the topmost frame of the
+      trusted stack, and restore the callee-save registers;
+    - [switcher_zero_callee_frame]: clear the stack frame and the
       registers, and jump back to the caller.
 
-    The block-group lemmas start and end at labels of the code
-    [switcher_instrs], whose offsets are given by [switcher_label_offset] (see
-    [switcher_preamble]). *)
+    The block lemmas start and end at labels of the code [switcher_instrs],
+    whose offsets are given by [switcher_label_offset] (see
+    [switcher_tactics]). *)
 
 Section Switcher_Return_States.
   Context
