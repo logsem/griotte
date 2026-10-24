@@ -42,7 +42,7 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
          tb_exports := [
            (* after the 6 imports; the stack holds the saved buffer and the spill
               of the switcher calls *)
-           {| fe_name := "entry"; fe_offset := 6; fe_nargs := 0; fe_min_stack := 5; fe_posture := InterruptEnabled |}
+           {| fe_name := "entry"; fe_offset := 6; fe_nargs := 0; fe_min_stack := 7; fe_posture := InterruptEnabled |}
          ];
          tb_error_handler := None;
          tb_error_handler_stackless := None |} |};

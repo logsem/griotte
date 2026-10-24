@@ -154,7 +154,7 @@ Section obligation_facts.
       export it starts at. *)
   Lemma fw_entry_min_stack_ok fw img σ :
     firmware_ok fw img σ →
-    (b_stack (thread_of img 0) + Z.of_nat (fw_entry_min_stack fw 0) <=
+    (b_stack (thread_of img 0) + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space <=
        e_stack (thread_of img 0))%Z.
   Proof.
     intros Hok. pose proof Hok as (_ & _ & Hregs & Hwf).
@@ -404,7 +404,7 @@ Section prepared.
       [[ b_stack t, e_stack t ]] ↦ₐ
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] ∗
     "%Hstack_min" ∷
-      ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) <= e_stack t)%Z ⌝ ∗
+      ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space <= e_stack t)%Z ⌝ ∗
     "Hcstk" ∷
       cstack_frag
         (entry_cstack {| tf_csp := WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));

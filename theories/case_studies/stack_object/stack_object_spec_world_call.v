@@ -233,7 +233,7 @@ Section SO_World_Call.
     extract_temporaries_condition W0 (l_revoked ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     l_q ## (LNonHeap <$> finz.seq_between csp_b csp_e) ->
     finz.seq_between b e ## finz.seq_between csp_b csp_e ->
-    (a_stk1 + 1)%a = Some csp_e ->
+    (a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e ->
     (a_stk2 + 1)%a = Some a_stk1 ->
     (csp_b <= a_stk2)%a ->
     interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
@@ -256,6 +256,7 @@ Section SO_World_Call.
     intros W2 W2q W3.
     iIntros (Hextract Hq_stack Hno_overlap Hastk1 Hastk2 Hcsp_b_astk2)
       "#Hinterp_csp #Hinterp_wct1 Hworld_interp_C #Hinterp_object Hstack_revoked Hastk2 Hlc".
+    unfold StackEntry_reserved_space in Hastk1.
     destruct Hextract as [Hl_revoked_nodup Hl_revoked_temporaries].
     set (temps := so_object_temporaries W0 π b e) in *.
     assert (related_sts_priv_world W0 (revoke W0)) as Hpriv_W0_W1

@@ -71,7 +71,7 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
     (* The stack holds the spill of the switcher calls *)
-    (csp_b + 4 <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + StackEntry_reserved_space <= csp_e)%Z ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
     LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
@@ -199,6 +199,17 @@ Section CMDC.
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
+    (* The free part of the stack, below the space reserved at its top *)
+    assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
+      by (unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min).
+    iDestruct (stk_start_region_split with "Hcsp_stk")
+      as (stk_mem_free stk_res) "[Hcsp_stk Hstk_res]";
+      first exact Hstk_res_size.
+    iEval (rewrite (stk_start_revoked_split _ _ _ _ Hstk_res_size)) in "Hstack_revoked_B".
+    iDestruct "Hstack_revoked_B" as "[Hstack_revoked_B _]".
+    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hrevoked_B)
+      as Hrevoked_B_free.
+
     (* Call to B.f *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hswitcher_static $Hna
@@ -207,7 +218,7 @@ Section CMDC.
               $Hinterp_B_f $HentryB_f $HK]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
+    { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct mie; reflexivity. }
@@ -217,7 +228,7 @@ Section CMDC.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
       iApply switcher_cc_fault_stack_fits.
-      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
+      apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap.
     iIntros (W_ret_B rmap stk_mem l rcgp rcra rcs0 rcs1)
@@ -266,6 +277,9 @@ Section CMDC.
     iNext; iIntros (mie') "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_C_g & Hcode_main)".
 
+    iDestruct (stk_start_region_join with "Hcsp_stk Hstk_res") as "Hcsp_stk";
+      first exact Hstk_res_size.
+
     (* Share c in the world of C *)
     iMod (cmdc_world_share _ _ _ (cgp_b ^+ 2)%a with
            "Hworld_interp_C Hstack_revoked_C Hinterp_Winit_C_g Hcgp_c Hcsp_stk")
@@ -277,6 +291,14 @@ Section CMDC.
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
+    (* The free part of the stack, below the space reserved at its top *)
+    iDestruct (stk_start_region_split with "Hcsp_stk")
+      as (stk_mem_free' stk_res') "[Hcsp_stk _]";
+      first exact Hstk_res_size.
+    iEval (rewrite (stk_start_revoked_split _ _ _ _ Hstk_res_size)) in "Hstack_revoked_C".
+    iDestruct "Hstack_revoked_C" as "[Hstack_revoked_C _]".
+    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hrevoked_C) as Hrevoked_C_free.
+
     (* Call to C.g *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hswitcher_static $Hna
@@ -285,7 +307,7 @@ Section CMDC.
               $Hinterp_C_g $HentryC_g $HK]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
+    { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct mie'; reflexivity. }
@@ -295,7 +317,7 @@ Section CMDC.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
       iApply switcher_cc_fault_stack_fits.
-      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
+      apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap stk_mem.
     iIntros (W_ret_C rmap stk_mem l' rcgp rcra rcs0 rcs1)
@@ -366,7 +388,7 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
     (* The stack holds the spill of the switcher calls *)
-    (csp_b + 4 <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + StackEntry_reserved_space <= csp_e)%Z ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
     LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->

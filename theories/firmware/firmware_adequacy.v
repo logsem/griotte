@@ -798,7 +798,8 @@ Section entry.
   (** The stack of a thread holds the minimum stack size of its entry. *)
   Lemma thread_wf_min_stack fw img i :
     thread_wf fw img i (fw_thread_of fw i) →
-    (b_stack (thread_of img i) + Z.of_nat (fw_entry_min_stack fw i) <= e_stack (thread_of img i))%Z.
+    (b_stack (thread_of img i) + Z.of_nat (fw_entry_min_stack fw i) + StackEntry_reserved_space <=
+       e_stack (thread_of img i))%Z.
   Proof.
     rewrite /thread_wf /fw_entry_min_stack /fw_entry_fc /section /note.
     destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt (fw_thread_of fw i)))) as [tb|];

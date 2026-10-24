@@ -10,6 +10,7 @@ From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main
   kvs_main_spec_blocks.
 From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Import case_study_spec_helpers.
 
 Section KVS_main_spec.
   Context
@@ -76,7 +77,7 @@ Section KVS_main_spec.
     (cgp_b + length (kvs_main_data))%a = Some cgp_e ->
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
     (* The stack holds the spill of the switcher calls *)
-    (csp_b + 4 <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 B ->
@@ -161,6 +162,11 @@ Section KVS_main_spec.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_B]")
         as (l) "(%Hl_unk & Hworld_B & #Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l _])".
+    (* The free part of the stack, below the space reserved at its top *)
+    assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
+      by (unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min).
+    iDestruct (stk_start_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk _]";
+      first exact Hstk_res_size.
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
 
@@ -168,7 +174,7 @@ Section KVS_main_spec.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iApply (kvs_main_add_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
-      rmap KVS_USER_KEY_MAIN b_assert e_assert B_f stk_mem cstk0
+      rmap KVS_USER_KEY_MAIN b_assert e_assert B_f stk_mem_free cstk0
       with
       "[- $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
@@ -234,7 +240,7 @@ Section KVS_main_spec.
       <[ctp := lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
         (delete ca5 (delete ca4 (delete ca3
           (delete ca2 (delete ct1 (delete ct0 rmap_ret))))))).
-    set (stk_mem_B := region_addrs_zeroes csp_b csp_e).
+    set (stk_mem_B := region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)).
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
     { iApply (monotone.interp_monotone_sd_same_heap W0 W1 B with "[] [Hinterp_W0_B_f]").
@@ -250,6 +256,10 @@ Section KVS_main_spec.
       by apply Hstack_revoked_W0.
     }
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_W0") as "Hstack_revoked_W1"; eauto.
+    iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W1")
+      as "[Hstack_revoked_W1_free _]".
+    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hstack_revoked_W1)
+      as Hstack_revoked_W1_free.
 
     iApply (kvs_main_adversary_phase_spec W1 B
              (WCap true RW Global cgp_b cgp_e cgp_b)
@@ -258,8 +268,10 @@ Section KVS_main_spec.
              csp_b csp_e (stk_start_a csp_b csp_e) B_f stk_mem_B rmap_B Ws Cs cstk0
              ).
     all: [> exact Hstk_shadow | exact Hstk_heap
-         | apply stk_start_cursor_ok; solve_addr
-         | apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min
+         | apply stk_start_cursor_ok;
+           unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min
+         | apply stk_start_spill_fits;
+           unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min
          | destruct mie; reflexivity
          | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
          | subst rmap_B;
@@ -268,7 +280,7 @@ Section KVS_main_spec.
          | ].
     iFrame "Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
-      Hstack_revoked_W1 Hinterp_W1_B_f HentryB_f HK".
+      Hstack_revoked_W1_free Hinterp_W1_B_f HentryB_f HK".
     iFrame "%".
     clear dependent rmap.
     clear stk_mem.

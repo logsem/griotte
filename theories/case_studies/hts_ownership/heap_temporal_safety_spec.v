@@ -75,7 +75,7 @@ Section Heap_Temporal_Safety_Main.
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     (* The stack holds the saved buffer and the spill of the switcher calls *)
-    (csp_b + 5 <= csp_e)%Z ->
+    (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     heap_std W_init_C = ∅ ->

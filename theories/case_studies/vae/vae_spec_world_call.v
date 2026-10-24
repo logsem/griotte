@@ -196,7 +196,7 @@ Section VAE_World_Call.
   (** The world [W'] after a call is a public future world of the world [W]
       of the call, when the stack frame is revoked in [W]. *)
   Lemma vae_world_pub_call (W W' : WORLD) (b e : Addr) :
-    revoked_addresses W (finz.seq_between b e) ->
+    revoked_addresses W (stk_free b e (stk_start_a b e)) ->
     callee_stk_bounds b e (stk_start_a b e) ->
     related_sts_pub_world
       (std_update_multiple W (callee_stk_region b e (stk_start_a b e)) Temporary) W' ->
@@ -208,8 +208,10 @@ Section VAE_World_Call.
     apply Forall_forall; intros a Ha.
     rewrite /revoked_addresses Forall_forall in Hrevoked.
     apply Hrevoked.
-    apply elem_of_finz_seq_between.
-    exact (callee_stk_region_incl _ _ _ _ Hbounds Ha).
+    rewrite /callee_stk_region elem_of_finz_seq_between in Ha.
+    rewrite /stk_free elem_of_finz_seq_between.
+    stk_unfold. destruct Hbounds as (_ & _ & _ & Hbounds).
+    generalize dependent (e ^+ (- 2))%a; intros; solve_addr.
   Qed.
 
   (** The argument registers of [awkward] other than the callback [g] are

@@ -71,7 +71,7 @@ Section SO.
     (cgp_b + length so_main_data)%a = Some cgp_e ->
     (pc_b + so_label ".Lso_run")%a = Some pc_a ->
     (* The stack holds the spill of the switcher call *)
-    (csp_b + 4 <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + StackEntry_reserved_space <= csp_e)%Z ->
 
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     (
@@ -156,6 +156,17 @@ Section SO.
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
+    (* The free part of the stack, below the space reserved at its top *)
+    assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
+      by (unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min).
+    iDestruct (stk_start_region_split with "Hstk")
+      as (stk_mem_free stk_res) "[Hstk Hstk_res]";
+      first exact Hstk_res_size.
+    iEval (rewrite (stk_start_revoked_split _ _ _ _ Hstk_res_size)) in "Hstack_revoked".
+    iDestruct "Hstack_revoked" as "[Hstack_revoked _]".
+    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hrevoked_stk)
+      as Hrevoked_stk_free.
+
     (* Call to [C.adv] *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hswitcher_static $Hna
@@ -164,7 +175,7 @@ Section SO.
               $Hinterp_W1_C_f $HK]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
-    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
+    { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct mie; reflexivity. }
@@ -174,7 +185,7 @@ Section SO.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
       iApply switcher_cc_fault_stack_fits.
-      apply stk_start_spill_fits; rewrite /SpillSlot_size; solve_addr+Hstk_min. }
+      apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & _ & _ & _ & _ & _ & Hna & _ & _ & _ & HPC

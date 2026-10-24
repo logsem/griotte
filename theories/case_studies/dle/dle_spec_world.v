@@ -192,6 +192,7 @@ Section DLE_World.
     (l : list LAddr) :
     let W3 := dle_Wshare W0 cgp_b in
     let stk := finz.seq_between csp_b csp_e in
+    let stk_f := stk_free csp_b csp_e (stk_start_a csp_b csp_e) in
     let stk' := callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e) in
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     callee_stk_bounds csp_b csp_e (stk_start_a csp_b csp_e) ->
@@ -201,12 +202,12 @@ Section DLE_World.
     related_sts_pub_world (std_update_multiple W3 stk' Temporary) W4 ->
     RevokedResources W4 C l -∗
     interp W3 C (WSealed ot_switcher C_f) -∗
-    StackRevokedResources W4 C stk -∗
+    StackRevokedResources W4 C stk_f -∗
     ◇ ( (∃ w, cgp_b ↦ₐ w) ∗
         interp (revoke W4) C (WSealed ot_switcher C_f) ∗
-        StackRevokedResources (revoke W4) C stk ).
+        StackRevokedResources (revoke W4) C stk_f ).
   Proof.
-    intros W3 stk stk'.
+    intros W3 stk stk_f stk'.
     iIntros (Hcgp_contiguous Hcsp_bounds Hsealed_nonheap Hstack_revoked_W3 Hl_unk Hrelated_pub)
       "Hrevoked_l #Hinterp_W3_C_f #Hstack_revoked_W4".
     assert (std W3 !! LNonHeap cgp_b = Some Temporary) as HW3_cgp_b.

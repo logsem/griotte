@@ -26,7 +26,7 @@ Section SO_Return_Blocks_4.
     so_code_bounds pc_b pc_e pc_a C_f ->
     disjoint_from_shadow csp_b csp_e ->
     (a_stk2 + 1)%a = Some a_stk1 ->
-    (a_stk1 + 1)%a = Some csp_e ->
+    (a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e ->
     (csp_b <= a_stk2)%a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     assert_static b_assert e_assert a_flag ∗
@@ -44,7 +44,7 @@ Section SO_Return_Blocks_4.
     (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
     codefrag_pers pc_a so_main_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_e ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct1 ↦ᵣ WInt 0 ∗
         ct2 ↦ᵣ WInt 0 ∗
@@ -63,6 +63,7 @@ Section SO_Return_Blocks_4.
                Hastk2 Hastk1 Hcsp_b Htgt)
       "(#Hassert & HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
       & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & Hcode_main & Hpost)".
+    unfold StackEntry_reserved_space in Hastk1.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
     rewrite /so_assert_entry.
@@ -78,7 +79,8 @@ Section SO_Return_Blocks_4.
     { split; auto. rewrite /withinBounds. solve_addr+Hastk2 Hastk1 Hcsp_b. }
     (* Lea csp csp 2 *)
     iInstr "Hcode".
-    { transitivity (Some csp_e); auto. solve_addr+Hastk2 Hastk1. }
+    { transitivity (Some (stk_start_a csp_b csp_e)); auto.
+      unfold stk_start_a, StackEntry_reserved_space; solve_addr+Hastk2 Hastk1. }
     (* Mov ct1 so_secret *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

@@ -34,7 +34,7 @@ Definition kvs_firmware `{MP : MachineParameters}
          ];
          tb_exports := [
            (* after the 7 imports; the stack holds the spill of the switcher calls *)
-           {| fe_name := "entry"; fe_offset := 7; fe_nargs := 0; fe_min_stack := 4; fe_posture := InterruptEnabled |}
+           {| fe_name := "entry"; fe_offset := 7; fe_nargs := 0; fe_min_stack := 6; fe_posture := InterruptEnabled |}
          ];
          tb_error_handler := None;
          tb_error_handler_stackless := None |} |};

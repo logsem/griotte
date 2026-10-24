@@ -8,6 +8,7 @@ From griotte Require Import
 From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
 From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Import case_study_spec_helpers.
 
 (** Offset of the label [s] of [kvs_main_asm] from the start of the PCC,
     the imports. *)
@@ -336,7 +337,7 @@ Section KVS_Main_Blocks.
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (csp_b + 4 <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
@@ -370,7 +371,7 @@ Section KVS_Main_Blocks.
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥
-    ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
+    ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ [[stk_mem]]
     ∗ cstack_frag cstk
     ∗ ▷ (∀ (rmap_ret : LReg),
         ⌜dom rmap_ret =
@@ -385,8 +386,8 @@ Section KVS_Main_Blocks.
         ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
         ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0
         ∗ ([∗ map] r ↦ w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
-        ∗ [[csp_b, csp_e]] ↦ₐ
-            [[region_addrs_zeroes csp_b csp_e]]
+        ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ
+            [[region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)]]
         ∗ cstack_frag cstk
         ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
         ∗ user_kvs_inv KVS_USER_KEY_MAIN
@@ -534,7 +535,9 @@ Section KVS_Main_Blocks.
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
                  $Hstk $Hcstk_frag $HKVS_f
                  Hstatic_sealed_b HLUKVS Hkvs_1 Hpost]").
-    all: [> exact Hstk_heap | exact Hstk_shadow | apply stk_start_cursor_ok; solve_addr
+    all: [> exact Hstk_heap | exact Hstk_shadow
+      | apply stk_start_cursor_ok;
+        unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min
       | apply Hexport_shadow; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate;
         solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
@@ -549,7 +552,7 @@ Section KVS_Main_Blocks.
       | rewrite /kvs_addOrUpdate_nargs; lia
       | exists KVS_pcc_b'; exact KVS_size_imports
       | apply stk_start_callee_fits; rewrite /kvs_addOrUpdate_min_stack /SpillSlot_size;
-        solve_addr+Hstk_min
+        unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min
       | subst rmap'; rewrite dom_insert_L; repeat (rewrite dom_delete_L);
         rewrite Hrmap_dom /dom_arg_rmap /=; set_solver+
       | apply kvs_main_add_arg_rmap_is_arg
@@ -642,7 +645,7 @@ Section KVS_Main_Blocks.
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (csp_b + 4 <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
@@ -673,7 +676,7 @@ Section KVS_Main_Blocks.
     ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
     ∗ ca0 ↦ᵣ wca0 ∗ ca1 ↦ᵣ wca1
     ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
-    ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
+    ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ [[stk_mem]]
     ∗ cstack_frag cstk
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
@@ -811,7 +814,9 @@ Section KVS_Main_Blocks.
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
                  $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag $HKVS_f
                  Hstatic_sealed_b HLUKVS Hkvs_1]").
-    all: [> exact Hstk_heap | exact Hstk_shadow | apply stk_start_cursor_ok; solve_addr
+    all: [> exact Hstk_heap | exact Hstk_shadow
+      | apply stk_start_cursor_ok;
+        unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min
       | apply Hexport_shadow; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read;
         solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
@@ -827,7 +832,7 @@ Section KVS_Main_Blocks.
         rewrite /kvs_service_instrs !length_app in Hcode;
         rewrite kvs_read_pcc_off_eq; solve_addr
       | apply stk_start_callee_fits; rewrite /kvs_read_min_stack /SpillSlot_size;
-        solve_addr+Hstk_min
+        unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min
       | subst rmap_read_call; rewrite dom_insert_L; repeat (rewrite dom_delete_L);
         rewrite Hdom_rmap /dom_arg_rmap /=; set_solver+
       | apply kvs_main_read_arg_rmap_is_arg

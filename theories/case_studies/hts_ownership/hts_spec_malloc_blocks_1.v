@@ -8,6 +8,7 @@ From griotte Require Import world_ghost_theory heap_region.
 From griotte Require Import world_interp_stack region_invariants heap_ghost.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states.
+From griotte Require Import case_study_spec_helpers.
 
 (** * Segment (a): blocks 0-4
 
@@ -50,7 +51,7 @@ Section HTS_Spec_Malloc.
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (csp_b + 5 <= csp_e)%Z ->
+    (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
@@ -218,10 +219,14 @@ Section HTS_Spec_Malloc.
     { subst rmap_arg. by rewrite /is_arg_rmap /dom_arg_rmap /=. }
     pose proof allocator_size_exports as Hsize.
     rewrite /allocator_export_table_entries in Hsize.
+    (* The free part of the stack, below the space reserved at its top *)
+    iDestruct (stk_start_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk _]";
+      first (unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *;
+             solve_addr+Hstk_min).
     iApply (switcher_cc_specification_known_to_known_end_to_end
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) stk_mem rmap_arg rmap_other cstk
+      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) stk_mem_free rmap_arg rmap_other cstk
       allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
@@ -232,7 +237,8 @@ Section HTS_Spec_Malloc.
          $Hstk $Hcstk $Hmalloc_fun]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
-    { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
+    { apply stk_start_cursor_ok.
+      unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min. }
     { apply hts_export_tbl_not_shadow.
       rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
@@ -250,7 +256,8 @@ Section HTS_Spec_Malloc.
       rewrite /allocator_malloc_pcc_off -allocator_imports_length.
       exact allocator_size_imports. }
     { apply stk_start_callee_fits.
-      rewrite /allocator_malloc_min_stack /SpillSlot_size. solve_addr+Hstk_min. }
+      rewrite /allocator_malloc_min_stack.
+      unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie; reflexivity. }

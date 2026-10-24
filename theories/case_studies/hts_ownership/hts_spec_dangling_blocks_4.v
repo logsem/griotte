@@ -44,7 +44,7 @@ Section HTS_Spec_Dangling.
     not_heap_range cgp_b cgp_e ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (csp_b + 5 <= csp_e)%Z ->
+    (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
@@ -99,10 +99,10 @@ Section HTS_Spec_Dangling.
     iMod (hts_world_quarantine C _ ι b Wret Hbounds Hb_lookup Hstd_rev
       with "Hrel_b Hstate_b Hquar Hworld_open") as "Hworld".
     iDestruct (StackRevokedResources_mono_priv Wret (hts_Wfree Wret ι) C
-      (stk_free csp_b csp_e (csp_e ^+ -1)%a) (hts_Wfree_related Wret ι)
+      (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) (hts_Wfree_related Wret ι)
       with "Hstack_revoked_ret") as "Hstack_revoked_free".
     assert (revoked_addresses (hts_Wfree Wret ι)
-      (stk_free csp_b csp_e (csp_e ^+ -1)%a)) as Hstack_revoked_free.
+      (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a)) as Hstack_revoked_free.
     { rewrite /hts_Wfree /revoked_addresses /=. exact Hstack_revoked_ret. }
     iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wfree Wret ι)
       Hadv_nonheap with "Hadv") as "#Hinterp_adv_free".
@@ -201,7 +201,7 @@ Section HTS_Spec_Dangling.
     iApply (switcher_cc_specification (hts_Wfree Wret ι) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
-      wcs0 wcs1 csp_b csp_e (csp_e ^+ -1)%a C_f stk
+      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a C_f stk
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk

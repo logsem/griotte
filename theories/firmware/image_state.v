@@ -39,7 +39,8 @@ Section img_state.
     let c := cmpt_of img (thread0_entry fw).1 in
     let t := thread_of img 0 in
     <[cgp := WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c)]>
-      (<[csp := WCap true RWL Local (b_stack t) (e_stack t) (e_stack t)]>
+      (<[csp := WCap true RWL Local (b_stack t) (e_stack t)
+                   (e_stack t ^+ (- StackEntry_reserved_space))%a]>
          (gset_to_gmap (WInt 0) all_registers_s)).
 
   Definition img_sregs (img : fw_image) : SReg :=
