@@ -4,9 +4,9 @@ From griotte Require Import lse_spec_states.
 
 (** * LSE [f], block 4: push the capability of [a], load [a]
 
-    Block 4 restricts [cgp] to the capability of [a] (at [cgp_b]), pushes
-    it on top of the stack frame, loads [a] in [ct0] and [2] in [ct1]. The
-    stack frame holds the pushed capability. *)
+    Block 4 restricts [cgp] to the capability of [a] (at [cgp_b]), stores
+    it in the top cell of the stack frame, below the cursor, loads [a] in
+    [ct0] and [2] in [ct1]. The stack frame holds the pushed capability. *)
 
 Section LSE_F_Blocks_1.
   Context
@@ -32,7 +32,7 @@ Section LSE_F_Blocks_1.
     (csp_b < csp_e)%a ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_e ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -43,7 +43,7 @@ Section LSE_F_Blocks_1.
     ▷ (∀ stk_mem' wcs0' wcs1',
         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
         cgp ↦ᵣ lse_a_cap cgp_b ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_e ∗
         ct0 ↦ᵣ WInt 2 ∗
         ct1 ↦ᵣ WInt 2 ∗
         cs0 ↦ᵣ wcs0' ∗
@@ -73,13 +73,10 @@ Section LSE_F_Blocks_1.
     { transitivity (Some (cgp_b ^+ 1%nat)%a); [solve_addr+Hcgp_bounds|reflexivity]. }
     { solve_addr+Hcgp_bounds. }
     { solve_addr+Hcgp_bounds. }
-    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
-    rewrite finz_seq_between_length finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
-    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]".
-    { transitivity (Some (csp_b ^+ 1)%a); [solve_addr+Hcsp_size|reflexivity]. }
-    { solve_addr+Hcsp_size. }
-    (* Store csp cgp 0 *)
+    iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem' w_top ->) "[Hstk Ha_stk]";
+      first exact Hcsp_size.
+    assert ((csp_e + -1)%a = Some (csp_e ^+ -1)%a) as Hcsp_top by solve_addr+Hcsp_size.
+    (* Store csp cgp (-1) *)
     iInstr "Hcode".
     { solve_not_shadow Hstk_mmio. }
     { rewrite /withinBounds; solve_addr+Hcsp_size. }
@@ -90,9 +87,15 @@ Section LSE_F_Blocks_1.
     (* Mov ct1 2 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk".
-    { transitivity (Some (csp_b ^+ 1)%a); [solve_addr+Hcsp_size|reflexivity]. }
+    iAssert ([[csp_e, csp_e]] ↦ₐ [[ [] ]])%I as "Hstk_nil".
+    { rewrite /region_pointsto finz_seq_between_empty; [done|solve_addr]. }
+    iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk_nil]") as "Ha_stk".
+    { transitivity (Some csp_e); [solve_addr+Hcsp_size|reflexivity]. }
+    { solve_addr. }
+    iDestruct (region_pointsto_split_r csp_b csp_e (csp_e ^+ -1)%a
+      with "[$Hstk $Ha_stk]") as "Hstk".
     { solve_addr+Hcsp_size. }
+    { rewrite /finz.dist. cbn. solve_addr+Hcsp_size. }
     assert ((a_f ^+ 6)%a = (pc_a ^+ lse_label_offset ".Llse_f_assert")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
