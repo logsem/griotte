@@ -2,8 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules.
 From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
-From griotte Require Import switcher_preamble switcher_spec_return.
-From griotte Require Import switcher_error_handler switcher_exception.
+From griotte Require Import switcher_base.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_read_blocks error_handling_spec_handler
   error_handling_spec_read.
@@ -77,23 +76,21 @@ Section Error_Handling_Read_Safe.
   (** The return of [stats_read] to an unknown caller, once the callee's
       stack is revoked: [switcher_ret_specification], with safe return
       values. *)
-  Lemma stats_read_ret_logrel (Nswitcher : namespace) (W0 : WORLD) (C : CmptName)
+  Lemma stats_read_ret_logrel (W0 : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (rmap : LReg)
-    (a_stk e_stk : Addr) (l : list LAddr) (stk_mem : list LWord) :
-    let a_stk4 := (a_stk ^+ 4)%a in
-    Nswitcher ## N_trap →
+    (b_stk e_stk : Addr) (l : list LAddr) (stk_mem : list LWord) :
     frame_match Ws Cs cstk W0 C →
-    csp_sync cstk a_stk e_stk ∧ a_stk = (a_stk4 ^+ -4)%a →
-    extract_temporaries_condition W0 (l ++ (LNonHeap <$> finz.seq_between a_stk4 e_stk)) →
+    csp_sync cstk b_stk e_stk →
+    extract_temporaries_condition W0 (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) →
     (∀ r, is_Some (rmap !! r)) →
-    rmap !!! csp = lword_of_word (WCap true RWL Local a_stk4 e_stk a_stk4) →
+    rmap !!! csp = lword_of_word (WCap true RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) →
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
     interp W0 C (rmap !!! ca0) -∗
     interp W0 C (rmap !!! ca1) -∗
     PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
     registers_pointsto rmap -∗
-    [[ a_stk4 , e_stk ]] ↦ₐ [[ stk_mem ]] -∗
+    [[ b_stk , e_stk ]] ↦ₐ [[ stk_mem ]] -∗
     cstack_frag cstk -∗
     interp_continuation cstk Ws Cs -∗
     world_interp (revoke W0) C -∗
@@ -101,29 +98,27 @@ Section Error_Handling_Read_Safe.
     na_own cerise_nais ⊤ -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros a_stk4.
-    iIntros (HNtrap Hframe_match Hsync_csp Hl_unk Hfull Hcsp)
+    iIntros (Hframe_match Hsync_csp Hl_unk Hfull Hcsp)
       "#Hinv_switcher #Hswitcher_static #Hinterp_ca0 #Hinterp_ca1 HPC Hregs Hstk Hcstk HK
        Hworld_C Hrevoked_l Hna".
     destruct Hl_unk as [Hnodup Htemps].
-    set (Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between a_stk4 e_stk)) (revoke W0)).
+    set (Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) (revoke W0)).
     assert (related_sts_pub_world W0 Wfixed) as Hrelated_pub_W0_Wfixed.
     { subst Wfixed. apply related_pub_revoke_close_list; exact Htemps. }
     iDestruct (RevokedResources_mono_pub W0 Wfixed C l l Hrelated_pub_W0_Wfixed
                 with "Hrevoked_l") as "Hrevoked_l".
     iDestruct (registers_pointsto_ret_spec with "Hregs") as (rest) "(%Hdom_rest & Hcsp & Hca0 & Hca1 & Hrest)";
       first exact Hfull.
-    iApply (switcher_ret_specification Nswitcher W0 (revoke W0) C rest e_stk a_stk4 l stk_mem
+    iApply (switcher_ret_specification W0 (revoke W0) C rest e_stk b_stk l stk_mem
               cstk Ws Cs
              with "[$Hinv_switcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_C $Hna $HPC
                     $Hrevoked_l $Hrest $Hca0 $Hca1 $Hcsp]").
     { exact Hrelated_pub_W0_Wfixed. }
     { exact Hdom_rest. }
     { exact Hframe_match. }
-    { destruct Hsync_csp as [Hsync_csp Ha_stk]. by rewrite -Ha_stk. }
+    { exact Hsync_csp. }
     { exact Hnodup. }
     { intros a Ha; apply Htemps; done. }
-    { exact HNtrap. }
     iSplit.
     - iApply (monotone.interp_monotone_same_heap W0 with "[] Hinterp_ca0"); done.
     - iApply (monotone.interp_monotone_same_heap W0 with "[] Hinterp_ca1"); done.
@@ -132,9 +127,7 @@ Section Error_Handling_Read_Safe.
   (** The export of [stats_read] is safe: it satisfies [ot_switcher_prop]
       in any world, for any compartment. *)
   Lemma stats_read_entry_point_spec
-    (g_tbl : Locality) (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
-    Nswitcher ## N_trap →
-    Nswitcher ## Nstats →
+    (g_tbl : Locality) (W : WORLD) (C : CmptName) :
     STATS_pcc_b ≠ b_switcher →
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ∗
@@ -144,7 +137,7 @@ Section Error_Handling_Read_Safe.
     ot_switcher_prop W C
       (WCap true RO g_tbl b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
   Proof.
-    iIntros (HNtrap Hdisj_stats Hswitcher)
+    iIntros (Hswitcher)
       "(#Hinv_switcher & #Hswitcher_static & #Hstatic & #Hinv_stats)".
     iPoseProof "Hstatic" as "Hstatic'". iNamed "Hstatic'".
     pose proof stats_exp_tbl_size as Hstats_exp_tbl_size.
@@ -187,12 +180,12 @@ Section Error_Handling_Read_Safe.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact STATS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact STATS_cgp_base_not_heap).
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %a_stk %e_stk".
+    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %b_stk %e_stk".
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_C &
       %Hsync_csp & %Hminstk & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hfull & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_csp & #Hinterp_rmap & _)".
-    set (a_stk4 := (a_stk ^+ 4)%a).
+    set (cur := stk_start_a b_stk e_stk).
     destruct Htop_tbl as (Hframes & Htbl & Hcount & Htbl_ok).
     rewrite /stats_read_min_stack in Hminstk.
     set (wret :=
@@ -203,8 +196,7 @@ Section Error_Handling_Read_Safe.
     { iApply "Hinterp_rmap"; iPureIntro; last exact Hwptr.
       rewrite /stats_read_nargs /dom_arg_rmap /=. set_solver+. }
     (* The cell of the frame's table holds the table *)
-    assert ((top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)) as Htbl_set.
-    { destruct Htbl_ok as [Hexp _]. intros Heq. rewrite Heq /exp_tbl_cap /= in Hexp. naive_solver. }
+    pose proof (tf_export_tbl_ok_nonzero _ Htbl_ok) as Htbl_set.
 
     (* Open [stats_inv], take the lock *)
     iApply (stats_read_take_open rmap with "Hinv_stats Hstatic HPC Hrmap Hna"); [done | done |].
@@ -214,7 +206,7 @@ Section Error_Handling_Read_Safe.
     { intros r. rewrite /rtake lookup_insert_is_Some'. by right. }
     assert (rtake !! cgp = Some stats_wcgp) as Hcgp_take.
     { by rewrite /rtake lookup_insert_ne. }
-    assert (rtake !!! csp = lword_of_word (WCap true RWL Local a_stk4 e_stk a_stk4)) as Hcsp_take.
+    assert (rtake !!! csp = lword_of_word (WCap true RWL Local b_stk e_stk cur)) as Hcsp_take.
     { rewrite /rtake lookup_total_alt. by simplify_map_eq. }
     assert (rtake !!! cra = lword_of_word wret) as Hcra_take.
     { rewrite /rtake lookup_total_alt. by simplify_map_eq. }
@@ -222,8 +214,12 @@ Section Error_Handling_Read_Safe.
     { by rewrite /rtake lookup_insert_ne. }
     clearbody rtake.
     iDestruct (registers_pointsto_extract _ ca0 with "Hregs") as "[Hca0 Hregs]"; first exact Hca0_take.
-    assert (a_stk4 + ErrorState_size <= e_stk)%Z as Hroom.
-    { rewrite /ErrorState_size /a_stk4. lia. }
+    (* The slot of the [ErrorState], below the cursor of the stack *)
+    set (es := (cur ^+ (- ErrorState_size))%a).
+    assert ((b_stk <= es)%a ∧ (es + 16)%a = Some cur ∧ (cur <= e_stk)%a) as
+      (Hb_es & Hes_cur & Hcur_e).
+    { rewrite /es /cur /stk_start_a /ErrorState_size /StackEntry_reserved_space in Hminstk |- *.
+      split_and!; solve_addr. }
     iDestruct (interp_cap_regions with "Hinterp_csp") as %[Hcsp_mmio _]; first done.
     pose proof (disjoint_from_mmio_shadow _ _ Hcsp_mmio) as Hstk_shadow.
 
@@ -240,44 +236,48 @@ Section Error_Handling_Read_Safe.
         as (l) "(%Hl_unk & Hworld_C & _ & _ & >[%stk_mem Hstk] & Hrevoked_l & _)".
       iDestruct (big_sepL2_length with "Hstk") as %Hlen_stk.
       rewrite finz_seq_between_length in Hlen_stk.
-      rewrite -(take_drop (Z.to_nat ErrorState_size) stk_mem).
-      iDestruct (region_pointsto_split a_stk4 e_stk (a_stk4 ^+ ErrorState_size)%a with "Hstk")
-        as "[Hslot Hstk]".
-      { rewrite /ErrorState_size in Hroom |- *; solve_addr. }
-      { rewrite length_take /finz.dist. rewrite /finz.dist in Hlen_stk.
-        rewrite /ErrorState_size in Hroom |- *. solve_addr. }
+      rewrite -(take_drop (Z.to_nat (es - b_stk)) stk_mem).
+      iDestruct (region_pointsto_split b_stk e_stk es with "Hstk") as "[Hstk_lo Hstk]".
+      { solve_addr. }
+      { rewrite length_take /finz.dist. rewrite /finz.dist in Hlen_stk. solve_addr. }
+      set (stk_hi := drop (Z.to_nat (es - b_stk)) stk_mem).
+      rewrite -(take_drop (Z.to_nat ErrorState_size) stk_hi).
+      iDestruct (region_pointsto_split es e_stk cur with "Hstk") as "[Hslot Hstk_hi]".
+      { solve_addr. }
+      { rewrite length_take /stk_hi length_drop /finz.dist.
+        rewrite /finz.dist in Hlen_stk. rewrite /ErrorState_size. solve_addr. }
       iModIntro.
-      iApply (stats_read_fault_safe Nswitcher cstk rtake Local a_stk4 e_stk a_stk4
+      iApply (stats_read_fault_safe cstk rtake Local b_stk e_stk cur
                with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hna Hclose Hlock [Hslot]").
-      1-5: done.
+      1-3: done.
       { by apply lookup_total_correct. }
       { rewrite Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
-      { solve_addr. }
-      { exact Hroom. }
-      { apply (disjoint_from_shadow_weaken a_stk4 e_stk); [solve_addr | | exact Hstk_shadow].
-        rewrite /ErrorState_size in Hroom |- *; solve_addr. }
+      { rewrite /ErrorState_size. solve_addr. }
+      { done. }
+      { apply (disjoint_from_shadow_weaken b_stk e_stk es cur); [done | done | exact Hstk_shadow]. }
       { done. }
       { done. }
       { exact Htbl_set. }
       { rewrite /error_state_area Hcsp_take /=. iExists _. iFrame "Hslot".
-        iPureIntro. rewrite length_take /finz.dist. rewrite /finz.dist in Hlen_stk.
-        rewrite /ErrorState_size in Hroom |- *. solve_addr. }
+        iPureIntro. rewrite length_take /stk_hi length_drop /finz.dist.
+        rewrite /finz.dist in Hlen_stk. rewrite /ErrorState_size. solve_addr. }
       (* The installed context released the lock: the return, at count 2 *)
       iNext. iIntros "HPC Hregs Harea Hcstk Hna".
       rewrite /error_state_area Hcsp_take /=.
       iDestruct "Harea" as (ws) "[%Hws Hslot]".
-      iDestruct (region_pointsto_split a_stk4 e_stk (a_stk4 ^+ ErrorState_size)%a
-                   with "[$Hslot $Hstk]") as "Hstk".
-      { rewrite /ErrorState_size in Hroom |- *; solve_addr. }
-      { rewrite Hws /finz.dist. rewrite /ErrorState_size in Hroom |- *. solve_addr. }
+      iDestruct (region_pointsto_split es e_stk cur with "[$Hslot $Hstk_hi]") as "Hstk".
+      { solve_addr. }
+      { rewrite Hws /finz.dist /ErrorState_size. solve_addr. }
+      iDestruct (region_pointsto_split b_stk e_stk es with "[$Hstk_lo $Hstk]") as "Hstk".
+      { solve_addr. }
+      { rewrite length_take /finz.dist. rewrite /finz.dist in Hlen_stk. solve_addr. }
       rewrite /stats_resumed_regs.
       set (M := <[ca1:=lword_of_word (WInt 0)]> (<[ca0:=lword_of_word (WInt EINVAL)]>
                   (<[cnull:=lword_of_word (WInt 0)]> rtake))).
       iEval (rewrite Hcra_take /=) in "HPC".
-      iApply (stats_read_ret_logrel Nswitcher W0 C _ Ws Cs M a_stk e_stk l
+      iApply (stats_read_ret_logrel W0 C _ Ws Cs M b_stk e_stk l
                with "Hinv_switcher Hswitcher_static [] [] HPC Hregs Hstk Hcstk [HK] Hworld_C
                      Hrevoked_l Hna").
-      { exact HNtrap. }
       { by apply frame_match_set_top_count. }
       { by rewrite csp_sync_set_top_count. }
       { exact Hl_unk. }
@@ -301,10 +301,9 @@ Section Error_Handling_Read_Safe.
       assert (<[ca0:=wload]> rtake !!! cra = lword_of_word wret) as Hret_cra.
       { rewrite -Hcra_take !lookup_total_alt. by simplify_map_eq. }
       iEval (rewrite Hret_cra /=) in "HPC".
-      iApply (stats_read_ret_logrel Nswitcher W0 C cstk Ws Cs M a_stk e_stk l
+      iApply (stats_read_ret_logrel W0 C cstk Ws Cs M b_stk e_stk l
                with "Hinv_switcher Hswitcher_static [] [] HPC Hregs Hstk Hcstk HK Hworld_C
                      Hrevoked_l Hna").
-      { exact HNtrap. }
       { exact Hframe_match. }
       { exact Hsync_csp. }
       { exact Hl_unk. }

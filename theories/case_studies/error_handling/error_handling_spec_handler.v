@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
-From griotte Require Import switcher_error_handler switcher_exception.
+From griotte Require Import switcher_base.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_read_blocks
   error_handling_spec_handler_blocks.
@@ -19,6 +19,9 @@ From griotte Require Import
 
 (** The namespace of the invariant of [stats]. *)
 Definition Nstats : namespace := nroot .@ "stats".
+
+Lemma Nswitcher_Nstats : Nswitcher ## Nstats.
+Proof. rewrite /Nswitcher /Nstats. solve_ndisj. Qed.
 
 Section Error_Handling_Handler.
   Context
@@ -77,12 +80,13 @@ Section Error_Handling_Handler.
     rfault !!! cgp = stats_wcgp ∧
     jalr_target_ok cnull cra (rfault !!! cra).(lw) = true.
 
-  (** The fault obligation of [stats]: the facts of the site, the lock
-      held, the closing of [stats_inv], and the continuation after the
-      release. *)
+  (** The fault obligation of [stats]: the facts of the site, the cell
+      of the topmost table set, the lock held, the closing of [stats_inv],
+      and the continuation after the release. *)
   Definition stats_P_fault (F : coPset) (cstk : CSTK) (w : LWord) (rfault : LReg)
     : iProp Σ :=
     ("%Hfacts" ∷ ⌜stats_fault_facts F w rfault⌝ ∗
+     "%Htbl_set" ∷ ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
      "Hlock" ∷ STATS_cgp_b ↦ₐ WInt 1 ∗
      "Hclose" ∷ (▷ stats_inv ∗ na_own cerise_nais F ={⊤}=∗ na_own cerise_nais ⊤) ∗
      "Hret" ∷ ▷ stats_resumed_return cstk rfault)%I.
@@ -188,10 +192,8 @@ Section Error_Handling_Handler.
   (** The handler of [stats] satisfies its obligation for [stats_P_fault]:
       for any token [F], it returns InstallContext through
       [switcher_handler_return_install], and the installed context runs
-      [stats_resumed_release]. A fault of the install is excluded when the
-      handler runs (the cell of the table is set, and the [ErrorState] can
-      be loaded through [csp]), and otherwise goes to the unwind
-      continuation. *)
+      [stats_resumed_release]. A fault of the install is excluded: the
+      [ErrorState] can be loaded through the handler's [csp]. *)
   Lemma stats_handler_execute :
     codefrag_pers STATS_pcc_b stats_code -∗
     b_stats_exp_tbl ↦ₐ□ stats_wpcc -∗
@@ -200,22 +202,26 @@ Section Error_Handling_Handler.
   Proof.
     iIntros "#Hcode_stats #Hpcc". iModIntro.
     iIntros (F cstk w rfault mcause mtval wpc regs). iNext.
-    iIntros "(%Nswitcher & %Hns & #Hinv_switcher & #Hstatic) %Htbl %Heven %Hmcause %Hentry %Hinvoc
-             HPC Hregs (_ & %Hshadow & Hes) _ HUP Hcstk Hna".
-    destruct Hns as (HF & HFtrap & Hdisj).
+    iIntros "((%HF & %HFtrap) & #Hinv_switcher & #Hstatic) %Htbl %Heven %Hmcause %Hentry
+             %Hinvoc HPC Hregs (_ & %Hshadow & Hes) _ HUP Hcstk Hna".
     destruct Hinvoc as
       (Hfull & [mie Hcra] & Hcgp &
        (Hstores & wcsp & wa0 & Hsr & Hcsp & Hca0 & Hca1 & Hca2) & Hzero).
     (* The facts of the site, keeping the [∧] *)
     rewrite /stats_P_fault.
     iDestruct (and_pure_sep_r with "HUP") as "[%Hfacts HUP]".
+    iDestruct (and_pure_sep_r with "HUP") as "[%Htbl_set HUP]".
     destruct Hfacts as (HFeq & -> & Hfull_f & (g & b & e & a & Hcsp_f) & Hcgp_f & Hcra_f).
     rewrite Hcsp_f /stackful_regs /= in Hsr.
-    destruct (a + ErrorState_size)%a as [a16|] eqn:Ha16; last done.
+    destruct (a + - ErrorState_size)%a as [a16|] eqn:Ha16; last done.
     cbn in Hsr. injection Hsr as <- <-.
     rewrite /error_state_stores_ok Hcsp_f /= in Hstores. destruct Hstores as (_ & Hb_a & Ha_e).
-    rewrite /error_state_shadow_free Hcsp_f /= in Hshadow.
-    iEval (rewrite /error_state_pointsto Hcsp_f /=) in "Hes".
+    assert ((a ^+ (- ErrorState_size))%a = a16) as Ha_a16.
+    { rewrite /ErrorState_size in Ha16 |- *. solve_addr. }
+    assert ((a16 ^+ ErrorState_size)%a = a) as Ha16_a.
+    { rewrite /ErrorState_size in Ha16 |- *. solve_addr. }
+    rewrite /error_state_shadow_free Hcsp_f /= Ha_a16 -Ha16_a in Hshadow.
+    iEval (rewrite /error_state_pointsto Hcsp_f /= Ha_a16 -Ha16_a) in "Hes".
     rewrite /handler_entry /stats_wpcc /stats_pcc /= in Hentry.
     destruct (STATS_pcc_b + stats_handler_pcc_off)%a as [a_handler|] eqn:Ha_handler; last done.
     cbn in Hentry. injection Hentry as <-.
@@ -234,11 +240,13 @@ Section Error_Handling_Handler.
     pose proof stats_release_addr_next as Hrel.
 
     (* The body of the handler *)
-    iApply (stats_handler_spec STATS_pcc_b STATS_pcc_e RWL g b e a _
+    iApply (stats_handler_spec STATS_pcc_b STATS_pcc_e RWL g b e a16 _
               RX Global STATS_pcc_b STATS_pcc_e stats_load_addr stats_release_addr
               with "[- $HPC $Hca0 $Hct0 $Hcra $Hes $Hcode_stats]").
     { apply stats_code_bounds_layout. }
-    1-8: done.
+    1-4: done.
+    1-2: rewrite /ErrorState_size in Ha16 Hb_a |- *; solve_addr.
+    1-2: done.
     { rewrite /error_state_words /lmepcc_of_pc /mepcc_of_pc /stats_pcc /=.
       by destruct (negb _). }
     { apply STATS_pcc_base_not_heap. }
@@ -255,46 +263,28 @@ Section Error_Handling_Handler.
     iAssert (registers_pointsto rmap) with "[Hregs Hca0 Hct0]" as "Hregs".
     { rewrite /registers_pointsto /rmap big_sepM_insert_delete delete_insert_ne //.
       rewrite big_sepM_insert_delete. iFrame. }
-    assert ((a16 ^+ (- ErrorState_size))%a = a) as Ha16_a.
-    { rewrite /ErrorState_size in Ha16 |- *. solve_addr. }
-    assert ((a ^+ ErrorState_size)%a = a16) as Ha_a16.
-    { rewrite /ErrorState_size in Ha16 |- *. solve_addr. }
-
-    (* InstallContext, at the token [F] of the site *)
-    iApply (switcher_handler_return_install Nswitcher F
-              (cstack_set_top_count cstk (top_error_count cstk + 1)) rmap stats_wpcc
-              RWL g b e a16 ws with "[- ]"); [done | done | done | | | | | | |].
-    { intros r. rewrite /rmap !lookup_insert_is_Some'. naive_solver. }
-    { by rewrite /rmap lookup_total_insert. }
+    assert (rmap !!! csp = lword_of_word (WCap true RWL g b e a16)) as Hcsp_rmap.
     { rewrite /rmap lookup_total_insert_ne // lookup_total_insert_ne //.
       by rewrite (lookup_total_correct _ _ _ Hcsp). }
+
+    (* InstallContext, at the token [F] of the site *)
+    iApply (switcher_handler_return_install F
+              (cstack_set_top_count cstk (top_error_count cstk + 1)) rmap stats_wpcc
+              RWL g b e a16 ws with "[- ]"); [done | done | | | | done | | done | | ].
+    { intros r. rewrite /rmap !lookup_insert_is_Some'. naive_solver. }
+    { by rewrite /rmap lookup_total_insert. }
+    { by rewrite top_tframe_set_count. }
     { exists a. rewrite /ErrorState_size in Ha16 |- *. solve_addr. }
-    { by rewrite Ha16_a -Ha_a16. }
     { by rewrite /ws !length_insert length_error_state_words. }
     rewrite top_export_tbl_set_count Htbl.
     iFrame "Hinv_switcher Hstatic Hpcc HPC Hregs Hcstk Hna".
     iSplitL "Hes".
-    { rewrite /install_region Ha16_a -Ha_a16. iExact "Hes". }
+    { rewrite /install_region. iExact "Hes". }
     iNext. iSplit.
-    - (* The install faults: excluded when the handler runs *)
-      iIntros (Hskip) "Hreg".
-      iDestruct "HUP" as "[HUR _]".
-      iDestruct "HUR" as "[(%eh' & %wpcc' & _ & _ & %Hruns) | HU]".
-      + exfalso. destruct Hruns as (_ & Hset & _).
-        destruct Hskip as [Hz | Hnl].
-        { rewrite top_tframe_set_count in Hz. by apply Hset. }
-        apply Hnl.
-        rewrite /error_state_loads_ok /rmap lookup_total_insert_ne // lookup_total_insert_ne //.
-        rewrite (lookup_total_correct _ _ _ Hcsp) /lea_result /=.
-        rewrite (_ : (a16 + - ErrorState_size)%a = Some a);
-          last (rewrite /ErrorState_size in Ha16 |- *; solve_addr).
-        cbn. split_and!; [done | done | rewrite /ErrorState_size in Ha16 |- *; solve_addr].
-      + rewrite unwind_cont_set_top_count.
-        iApply (unwind_cont_give with "[Hreg] HU").
-        rewrite /handler_unwind_res /error_state_area Hcsp_f /=.
-        rewrite /install_region Ha16_a -Ha_a16.
-        iExists ws. iFrame "Hreg". iPureIntro.
-        by rewrite /ws !length_insert length_error_state_words.
+    - (* The install faults: excluded, the [ErrorState] can be loaded *)
+      iIntros (Hskip) "_". exfalso. apply Hskip.
+      rewrite /error_state_loads_ok Hcsp_rmap /=.
+      split_and!; [done | rewrite /ErrorState_size in Ha16 Hb_a |- *; solve_addr..].
     - (* The install succeeds: the release, then the site's continuation *)
       iIntros "Hreg".
       iDestruct "HUP" as "[_ (Hlock & Hclose & Hret)]".
@@ -310,7 +300,7 @@ Section Error_Handling_Handler.
       rewrite (stats_install_regs rfault rmap); [ | done | by rewrite /rmap; simplify_map_eq].
       iApply (stats_resumed_release with "Hcode_stats Hlock Hclose Hret [Hreg]");
         [done | done | done |].
-      rewrite /error_state_area Hcsp_f /= /install_region Ha16_a -Ha_a16.
+      rewrite /error_state_area Hcsp_f /= /install_region Ha_a16 -Ha16_a.
       iExists ws. iFrame "Hreg". iPureIntro.
       by rewrite /ws !length_insert length_error_state_words.
   Qed.

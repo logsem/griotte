@@ -2,8 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import
   region_invariants_revocation wp_rules_interp interp_weakening.
-From griotte Require Import
-  switcher switcher_preamble switcher_spec_call switcher_spec_KtK.
+From griotte Require Import switcher_base switcher_base_ktk.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_main_blocks_1 error_handling_spec_main_blocks_2
   error_handling_spec_main_blocks_3 error_handling_spec_handler error_handling_spec_read.
@@ -40,7 +39,7 @@ Section Error_Handling_Main_Spec.
   (** The call stack of a thread that starts in [main], with the stack
       [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e b;
+    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -105,15 +104,13 @@ Section Error_Handling_Main_Spec.
   Lemma main_read_call_spec
     (pc_b pc_e a_ret csp_b csp_e : Addr) (mie : InterruptStatus)
     (wcgp wcs0 wcs1 wptr wca1 v : LWord) (rmap : LReg)
-    (stk_mem : list LWord) (cstk : CSTK) (Nswitcher : namespace) :
-    Nswitcher ## N_trap ->
-    Nswitcher ## Nstats ->
+    (stk_mem : list LWord) (cstk : CSTK) :
     STATS_pcc_b ≠ b_switcher ->
     is_heap_address pc_b = false ->
     is_heap_cap wcgp.(lw) = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (csp_b + 4 + stats_read_min_stack <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ct1; ca0; ca1; cs0; cs1 ]} ->
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ∗
@@ -125,12 +122,12 @@ Section Error_Handling_Main_Spec.
     cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ct1 ↦ᵣ WSealed ot_switcher (STATS_read Global) ∗
     ca0 ↦ᵣ wptr ∗
     ca1 ↦ᵣ wca1 ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-    [[ csp_b, csp_e ]] ↦ₐ [[ stk_mem ]] ∗
+    [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
     cstack_frag cstk ∗
     stats_arg_pre wptr v ∗
     ▷ (∀ (wca0 : LWord) (rmap_ret : LReg) (stk_mem' : list LWord) (rcs0 rcs1 : LWord),
@@ -141,19 +138,18 @@ Section Error_Handling_Main_Spec.
         cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret ∗
         cs0 ↦ᵣ rcs0 ∗
         cs1 ↦ᵣ rcs1 ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+        csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
         ca0 ↦ᵣ wca0 ∗
         ca1 ↦ᵣ WInt 0 ∗
         ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜w = WInt 0⌝) ∗
-        [[ csp_b, csp_e ]] ↦ₐ [[ stk_mem' ]] ∗
+        [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem' ]] ∗
         cstack_frag cstk ∗
         (stats_arg_post wptr v wca0 ∨
          ⌜wca0 = WInt ENOTENOUGHTRUSTEDSTACK⌝ ∗ stats_arg_pre wptr v)
         -∗ WP Seq (Instr Executable) {{ w, ⌜w = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ w, ⌜w = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HNtrap HNstats Hswitcher Hpc_nonheap Hcgp_nonheap Hstk_mmio Hstk_heap Hstk_min
-               Hdom_rmap)
+    iIntros (Hswitcher Hpc_nonheap Hcgp_nonheap Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
       "(#Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hct1 & Hca0 & Hca1 & Hrmap
       & Hstk & Hcstk & HP & Hpost)".
@@ -163,14 +159,16 @@ Section Error_Handling_Main_Spec.
     iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hargs".
     { subst arg_rmap. repeat (iApply big_sepM_insert; [done | iFrame]). done. }
-    iPoseProof (stats_read_spec_known_to_known Nswitcher wcgp
+    iPoseProof (stats_read_spec_known_to_known wcgp
                   (WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret)
-                  wcs0 wcs1 csp_b csp_e csp_b arg_rmap cstk wptr v
+                  wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) arg_rmap cstk wptr v
                  with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats]")
-      as "Hread"; [done | done | done | | done |].
+      as "Hread"; [done | | done |].
     { eapply disjoint_from_shadow_weaken;
         [| | exact (disjoint_from_mmio_shadow _ _ Hstk_mmio)];
-        rewrite /stats_read_min_stack in Hstk_min; solve_addr+Hstk_min. }
+        rewrite /stk_callee_b /stk_callee_e /stk_start_a /SpillSlot_size
+          /StackEntry_reserved_space /stats_read_min_stack in Hstk_min |- *;
+        solve_addr+Hstk_min. }
     iPoseProof "Hstats_static" as "Hstats_static'". iNamed "Hstats_static'".
     pose proof stats_exp_tbl_size as Hstats_exp_tbl_size.
     rewrite /length_stats_exports_tbl /stats_nb_exports in Hstats_exp_tbl_size.
@@ -179,7 +177,7 @@ Section Error_Handling_Main_Spec.
     { intros a Ha. eapply disjoint_from_shadow_not_in;
         [exact stats_exp_tbl_disjoint_from_shadow | by apply withinBounds_true_iff]. }
     iApply (switcher_cc_specification_known_to_known_end_to_end
-              Nswitcher _ _ wcs0 wcs1 csp_b csp_e csp_b stk_mem arg_rmap _ cstk
+              _ _ wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) stk_mem arg_rmap _ cstk
               stats_read_nargs stats_read_min_stack ⊤
               b_stats_exp_tbl stats_read_exp_tbl_addr e_stats_exp_tbl
               STATS_pcc_b STATS_pcc_e STATS_cgp_b STATS_cgp_e
@@ -187,7 +185,10 @@ Section Error_Handling_Main_Spec.
              with "[$Hinv_switcher $Hswitcher_static $Htbl_pcc $Htbl_cgp $Htbl_read
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
                  $Hargs $Hrmap $Hstk $Hcstk $Hread $HP Hpost]").
-    all: [> exact Hstk_heap | exact Hstk_mmio | solve_addr
+    all: [> exact Hstk_heap | exact Hstk_mmio
+      | apply stk_start_cursor_ok;
+        rewrite /SpillSlot_size /StackEntry_reserved_space in Hstk_min |- *;
+        solve_addr+Hstk_min
       | apply Hexport_shadow;
         rewrite /stats_read_exp_tbl_addr /stats_read_exp_tbl_off /stats_entry_read;
         solve_addr+Hstats_exp_tbl_size
@@ -195,7 +196,7 @@ Section Error_Handling_Main_Spec.
       | apply Hexport_shadow; solve_addr+Hstats_exp_tbl_size
       | exact stats_exp_tbl_disjoint_from_shadow
       | exact STATS_pcc_base_not_heap | exact STATS_cgp_base_not_heap
-      | solve_ndisj | solve_ndisj | exact HNtrap
+      | solve_ndisj | solve_ndisj
       | rewrite /stats_read_exp_tbl_addr /stats_read_exp_tbl_off /stats_entry_read;
         solve_addr+Hstats_exp_tbl_size
       | solve_addr+Hstats_exp_tbl_size
@@ -205,7 +206,9 @@ Section Error_Handling_Main_Spec.
       | pose proof STATS_size_imports as Himports_size;
         pose proof STATS_size_code as Hcode_size;
         rewrite stats_read_pcc_off_eq; solve_addr
-      | rewrite /stats_read_min_stack in Hstk_min |- *; solve_addr+Hstk_min
+      | apply stk_start_callee_fits;
+        rewrite /stats_read_min_stack /SpillSlot_size /StackEntry_reserved_space in Hstk_min |- *;
+        solve_addr+Hstk_min
       | rewrite !dom_delete_L Hdom_rmap /dom_arg_rmap /=; set_solver+
       | done
       | destruct mie; reflexivity
@@ -234,9 +237,7 @@ Section Error_Handling_Main_Spec.
   Lemma main_read_2_phase_spec
     (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr)
     (wca0 wca1 wcra wcs0 wcs1 : LWord) (rmap : LReg)
-    (stk_mem : list LWord) (cstk : CSTK) (Nswitcher : namespace) :
-    Nswitcher ## N_trap ->
-    Nswitcher ## Nstats ->
+    (stk_mem : list LWord) (cstk : CSTK) :
     STATS_pcc_b ≠ b_switcher ->
     main_code_bounds pc_b pc_e pc_a ->
     (cgp_b + 1)%a = Some cgp_e ->
@@ -244,7 +245,7 @@ Section Error_Handling_Main_Spec.
     is_shadow_address cgp_b = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (csp_b + 4 + stats_read_min_stack <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]} ->
     assert_static b_assert e_assert a_flag ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -257,11 +258,11 @@ Section Error_Handling_Main_Spec.
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-    [[ csp_b, csp_e ]] ↦ₐ [[ stk_mem ]] ∗
+    [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
     cstack_frag cstk ∗
     cgp_b ↦ₐ WInt 5 ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
@@ -270,7 +271,7 @@ Section Error_Handling_Main_Spec.
     codefrag_pers pc_a error_handling_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HNtrap HNstats Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
+    iIntros (Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
                Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
       "(#Hassert & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & Hx
@@ -290,7 +291,7 @@ Section Error_Handling_Main_Spec.
     iApply (main_read_call_spec pc_b pc_e _ csp_b csp_e mie _ wcs0 wcs1 _ wca1 (WInt 5)
              with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
                     $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hcstk Hx]");
-      [done | done | done | done | | done | done | done | |].
+      [done | done | | done | done | done | |].
     { by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap. }
     { rewrite dom_insert_L dom_delete_L Hdom_rmap.
       pose proof (all_registers_s_correct ctp). set_solver. }
@@ -320,9 +321,7 @@ Section Error_Handling_Main_Spec.
   Lemma main_read_1_phase_spec
     (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr)
     (wca0 wca1 wcra wcs0 wcs1 : LWord) (rmap : LReg)
-    (stk_mem : list LWord) (cstk : CSTK) (Nswitcher : namespace) :
-    Nswitcher ## N_trap ->
-    Nswitcher ## Nstats ->
+    (stk_mem : list LWord) (cstk : CSTK) :
     STATS_pcc_b ≠ b_switcher ->
     main_code_bounds pc_b pc_e pc_a ->
     (cgp_b + 1)%a = Some cgp_e ->
@@ -330,7 +329,7 @@ Section Error_Handling_Main_Spec.
     is_shadow_address cgp_b = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
-    (csp_b + 4 + stats_read_min_stack <= csp_e)%Z ->
+    (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]} ->
     assert_static b_assert e_assert a_flag ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -343,11 +342,11 @@ Section Error_Handling_Main_Spec.
     cra ↦ᵣ wcra ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-    [[ csp_b, csp_e ]] ↦ₐ [[ stk_mem ]] ∗
+    [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
     cstack_frag cstk ∗
     cgp_b ↦ₐ WInt 5 ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
@@ -356,7 +355,7 @@ Section Error_Handling_Main_Spec.
     codefrag_pers pc_a error_handling_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HNtrap HNstats Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
+    iIntros (Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
                Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
       "(#Hassert & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & Hx
@@ -377,7 +376,7 @@ Section Error_Handling_Main_Spec.
     iApply (main_read_call_spec pc_b pc_e _ csp_b csp_e mie _ wcs0 wcs1 _ wca1 (WInt 0)
              with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
                     $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hcstk Hx]");
-      [done | done | done | done | | done | done | done | |].
+      [done | done | | done | done | done | |].
     { by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap. }
     { rewrite dom_insert_L dom_delete_L Hdom_rmap.
       pose proof (all_registers_s_correct ctp). set_solver. }
@@ -421,11 +420,8 @@ Section Error_Handling_Main_Spec.
     (adv_f : Sealable) (W0 : WORLD) (Ws : list WORLD) (Cs : list CmptName)
     (* The capability to the export table of [main], as the entry frame of
        the thread records it *)
-    (w_main_tbl : LWord)
-    (Nswitcher : namespace) :
+    (w_main_tbl : LWord) :
     let imports := error_handling_main_imports adv_f in
-    Nswitcher ## N_trap ->
-    Nswitcher ## Nstats ->
     STATS_pcc_b ≠ b_switcher ->
     main_code_bounds pc_b pc_e pc_a ->
     (cgp_b + length error_handling_main_data)%a = Some cgp_e ->
@@ -433,9 +429,10 @@ Section Error_Handling_Main_Spec.
     is_shadow_address cgp_b = false ->
     dom rmap = all_registers_s ∖ {[ cgp; csp ]} ->
     (∀ r, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))) ->
-    (* The stack holds the spill of the switcher calls, and the minimum
-       stack of [stats_read] *)
-    (csp_b + 4 + stats_read_min_stack <= csp_e)%Z ->
+    (* The stack holds the spill of the switcher calls, the space reserved at
+       the top of the callee's stack, and the minimum stack of [stats_read],
+       below the space reserved at its own top *)
+    (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     assert_static b_assert e_assert a_flag ∗
@@ -447,7 +444,7 @@ Section Error_Handling_Main_Spec.
     (* The initial registers *)
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
+    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
     (* The memory of [main] *)
     [[ pc_b, pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
@@ -459,12 +456,12 @@ Section Error_Handling_Main_Spec.
     cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl) ∗
     interp W0 C (WSealed ot_switcher adv_f) ∗
     adv_f ↦ₑ□{nargs} 0 ∗
-    interp W0 C (WCap true RWL Local csp_b csp_e csp_b)
+    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros imports. subst imports.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
-    iIntros (HNtrap HNstats Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
+    iIntros (Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
                Hdom_rmap Hrmap_zero Hstk_min Hadv_nonheap Hframe_match)
       "(#Hassert & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcsp & Hrmap & #Himports & #Hcode_main & Hdata
@@ -481,6 +478,12 @@ Section Error_Handling_Main_Spec.
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld]")
       as (l) "(%Hl_unk & Hworld & #Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk]
               & [Hrevoked_l _])".
+    (* The free part of the stack, below the space reserved at its top *)
+    assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size.
+    { rewrite /SpillSlot_size /StackEntry_reserved_space /stats_read_min_stack in Hstk_min |- *.
+      solve_addr+Hstk_min. }
+    iDestruct (stk_start_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk _]";
+      first exact Hstk_res_size.
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelated_priv_W0_W1
       by eapply revoke_related_sts_priv_world.
@@ -496,6 +499,10 @@ Section Error_Handling_Main_Spec.
     { rewrite /revoked_addresses Forall_forall.
       rewrite Forall_forall in Hstack_revoked_W0.
       intros a Ha; cbn in *. by apply Hstack_revoked_W0. }
+    iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W1")
+      as "[Hstack_revoked_W1_free _]".
+    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hstack_revoked_W1)
+      as Hstack_revoked_W1_free.
 
     (* Blocks 0-2: the jump to the switcher, to call [adv] *)
     iAssert ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)%I with "[Hrmap]" as "Hrmap".
@@ -518,26 +525,27 @@ Section Error_Handling_Main_Spec.
     iInsertList "Hrmap" [ctp].
     iPoseProof (main_adv_arg_rmap_resources W1 with
                  "[$Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0]") as "Hargs".
-    iApply (switcher_cc_specification Nswitcher W1 C _ _ _ _ csp_b csp_e csp_b adv_f stk_mem
-              main_adv_arg_rmap _ cstk0 Ws Cs 0 with
+    iApply (switcher_cc_specification W1 C _ _ _ _ csp_b csp_e (stk_start_a csp_b csp_e) adv_f
+              stk_mem_free main_adv_arg_rmap _ cstk0 Ws Cs 0 with
              "[$Hinv_switcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
-               $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hstack_revoked_W1 $Hcstk $HK
+               $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hstack_revoked_W1_free $Hcstk $HK
                $Hinterp_W1_adv Hargs Hx]").
-    all: [> exact Hstk_mmio | exact Hstk_heap | solve_addr
+    all: [> exact Hstk_mmio | exact Hstk_heap | apply stk_start_cursor_ok, Hstk_res_size
       | rewrite dom_insert_L !dom_delete_L Hdom_rmap /dom_arg_rmap /=;
         pose proof (all_registers_s_correct ctp); set_solver
       | apply main_adv_arg_rmap_is_arg
       | destruct mie; reflexivity
       | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
-      | exact HNtrap
       | ].
     iSplitR; first iExact "Hentry_adv".
     iSplitL "Hargs".
     { iApply (big_sepM_impl with "Hargs"). iIntros "!>" (r w Hr) "[Hr _]". iFrame. }
     iSplitR; first done.
     (* The spill of the switcher call cannot fault: the stack holds it *)
-    iSplit; last (iApply switcher_cc_fault_stack_fits;
-                  rewrite /stats_read_min_stack in Hstk_min; solve_addr+Hstk_min).
+    iSplit; last (iApply switcher_cc_fault_stack_fits; apply stk_start_spill_fits;
+                  rewrite /SpillSlot_size /StackEntry_reserved_space /stats_read_min_stack
+                    in Hstk_min |- *;
+                  solve_addr+Hstk_min).
     iIntros "!>" (W2 rmap' stk_mem' l' rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & _ & _ & %Hdom_rmap' & _ & _ & Hna & _ & _ & Hcstk & HPC & Hcgp & Hcra
       & Hcs0 & Hcs1 & Hcsp & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ] & Hrmap & Hstk & _

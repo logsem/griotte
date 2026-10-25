@@ -1,7 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode map_simpl register_tactics.
-From griotte Require Import switcher_spec_KtK.
-From griotte Require Import switcher_error_handler switcher_exception.
+From griotte Require Import switcher_base switcher_base_ktk.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_read_blocks error_handling_spec_handler.
 
@@ -67,7 +66,7 @@ Section Error_Handling_Read.
   Lemma stats_read_handler_runs (cstk : CSTK) (rfault : LReg) (g : Locality) (b e a : Addr) :
     STATS_pcc_b ≠ b_switcher →
     rfault !!! csp = lword_of_word (WCap true RWL g b e a) →
-    (b <= a)%a → (a + ErrorState_size <= e)%Z →
+    (b + ErrorState_size <= a)%Z → (a <= e)%a →
     top_error_count cstk = 0 →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     stackful_handler_runs cstk (stats_pcc stats_load_addr) rfault
@@ -83,7 +82,7 @@ Section Error_Handling_Read.
     - (* [csp] has authority: its range is not empty *)
       rewrite /tag_strippable /=. intros [_ [ [? ?] | [Hauth [x Hx] ] ] ]; first done.
       apply Hauth. split; first done. exists x. rewrite /heap_authority_base decide_True //.
-      rewrite /ErrorState_size in Hae. solve_addr.
+      rewrite /ErrorState_size in Hba. solve_addr.
     - rewrite (handler_word_entry _ _
                  (lword_of_word (WCap true RX Global STATS_pcc_b STATS_pcc_e
                                    (STATS_pcc_b ^+ stats_handler_pcc_off)%a))).
@@ -101,17 +100,15 @@ Section Error_Handling_Read.
       closing of [stats_inv], and the continuation after the release
       ([stats_resumed_return]). The switcher invokes the handler, so the
       site gives no unwind continuation. *)
-  Lemma stats_read_fault_safe (Nswitcher : namespace) (cstk : CSTK) (rfault : LReg)
+  Lemma stats_read_fault_safe (cstk : CSTK) (rfault : LReg)
     (g : Locality) (b e a : Addr) :
-    Nswitcher ## N_trap →
-    Nswitcher ## Nstats →
     STATS_pcc_b ≠ b_switcher →
     (∀ r, is_Some (rfault !! r)) →
     rfault !!! csp = lword_of_word (WCap true RWL g b e a) →
     rfault !!! cgp = stats_wcgp →
     jalr_target_ok cnull cra (rfault !!! cra).(lw) = true →
-    (b <= a)%a → (a + ErrorState_size <= e)%Z →
-    disjoint_from_shadow a (a ^+ ErrorState_size)%a →
+    (b + ErrorState_size <= a)%Z → (a <= e)%a →
+    disjoint_from_shadow (a ^+ (- ErrorState_size))%a a →
     top_export_tbl cstk = b_stats_exp_tbl →
     top_error_count cstk = 0 →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
@@ -127,30 +124,40 @@ Section Error_Handling_Read.
     ▷ stats_resumed_return cstk rfault -∗
     trap_safe (stats_pcc stats_load_addr) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
-    iIntros (Hdisj_trap Hdisj_stats Hswitcher Hfull Hcsp Hcgp Hcra Hba Hae Hshadow
+    iIntros (Hswitcher Hfull Hcsp Hcgp Hcra Hba Hae Hshadow
                Htbl Hcount Htbl_set)
       "#Hinv_switcher #Hswitcher_static #Hstatic Hregs Hcstk Hna Hclose Hlock Harea Hret".
-    iApply (trap_safe_exception_entry Nswitcher (⊤ ∖ ↑Nstats)
+    pose proof Nswitcher_Nstats as Hdisj_stats.
+    iApply (trap_safe_exception_entry (⊤ ∖ ↑Nstats)
               with "Hinv_switcher Hswitcher_static");
-      [solve_ndisj | solve_ndisj | done |].
+      [solve_ndisj | rewrite /N_trap /Nstats; solve_ndisj |].
     iModIntro. iExists rfault, cstk. iFrame "Hna Hregs Hcstk". iSplit; first done.
     iDestruct (stats_trusted_handler with "Hstatic") as "#Hhandler".
     iPoseProof "Hstatic" as "Hstatic'". iNamed "Hstatic'".
     rewrite -Htbl.
+    assert (error_state_stores_ok (rfault !!! csp)) as Hstores.
+    { by rewrite /error_state_stores_ok Hcsp /=. }
     iApply (trap_handler_ok_handler _ _ _ _ stats_P_fault stats_handler_pcc_off
              with "Hhandler Htbl_eh [Harea] [-]").
     { rewrite /trap_no_resume /lmepcc_of_pc /= get_b_mepcc_of_pc /=.
       left. intros Hb. apply Hswitcher. solve_addr. }
+    { exact Htbl_set. }
     { rewrite /error_state_slot decide_True; last first.
       { split; first (rewrite /ExportTable_no_handler /stats_handler_pcc_off; lia).
-        rewrite /error_state_stores_ok Hcsp /=. done. }
-      rewrite Hcsp /error_state_shadow_free /=. iFrame "Harea". done. }
+        by apply error_state_stores_ok_first. }
+      iDestruct (error_state_area_lent with "Harea") as "$"; first done.
+      iSplit; first by rewrite Hcsp.
+      iPureIntro. rewrite /error_state_lent_shadow_free.
+      destruct (error_state_lent_e_stores_ok (rfault !!! csp) RWL g b e a)
+        as [_ ->]; [by rewrite Hcsp | done |].
+      by rewrite Hcsp /=. }
     iSplit.
     - (* The switcher invokes the handler: no unwind *)
       iLeft. iExists stats_handler_pcc_off, stats_wpcc. iFrame "Htbl_eh Htbl_pcc".
       iPureIntro. by eapply stats_read_handler_runs.
     - rewrite /stats_P_fault. iFrame "Hlock Hclose Hret". iPureIntro.
-      split_and!; try done.
+      split; last done.
+      rewrite /stats_fault_facts. split_and!; try done.
       by exists g, b, e, a.
   Qed.
 
@@ -292,15 +299,12 @@ Section Error_Handling_Read.
       is outside the shadow table (the switcher stores the [ErrorState]
       there). *)
   Lemma stats_read_spec_known_to_known
-    (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
     (arg_rmap : LReg) (cstk : CSTK)
     (wptr v : LWord) :
-    Nswitcher ## N_trap →
-    Nswitcher ## Nstats →
     STATS_pcc_b ≠ b_switcher →
-    disjoint_from_shadow (a_stk ^+ 4)%a e_stk →
+    disjoint_from_shadow (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) →
     arg_rmap !! ca0 = Some wptr →
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ∗
@@ -315,14 +319,13 @@ Section Error_Handling_Read.
       STATS_pcc_b STATS_pcc_e STATS_cgp_b STATS_cgp_e stats_read_pcc_off
       (WCap true RO Global b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
   Proof.
-    iIntros (Hdisj_trap Hdisj_stats Hswitcher Hstk_shadow Hwptr)
+    iIntros (Hswitcher Hstk_shadow Hwptr)
       "(#Hinv_switcher & #Hswitcher_static & #Hstatic & #Hinv_stats)".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (mie arg_rmap' rmap')
       "(%Hminstk & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hcstk & HP & Hret)".
     set (frm := {| cf_tframe := _ ; cf_saved := _ ; ccrel := Known_to_Known |}).
-    set (a_stk4 := (a_stk ^+ 4)%a).
     set (wret := WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return).
     rewrite /stats_read_min_stack in Hminstk.
 
@@ -367,8 +370,7 @@ Section Error_Handling_Read.
     { intros r. rewrite /rtake lookup_insert_is_Some'. by right. }
     assert (rtake !! cgp = Some stats_wcgp) as Hcgp_take.
     { by rewrite /rtake /rfull lookup_insert_ne // lookup_insert_eq. }
-    assert (rtake !!! csp = lword_of_word (WCap true RWL Local a_stk4 e_stk a_stk4))
-      as Hcsp_take.
+    assert (rtake !!! csp = lword_of_word (callee_csp b_stk e_stk a_stk)) as Hcsp_take.
     { rewrite /rtake /rfull lookup_total_alt. by simplify_map_eq. }
     assert (rtake !!! cra = lword_of_word wret) as Hcra_take.
     { rewrite /rtake /rfull lookup_total_alt. by simplify_map_eq. }
@@ -402,7 +404,7 @@ Section Error_Handling_Read.
       { rewrite /M lookup_total_alt. by simplify_map_eq. }
       assert (M !!! ca1 = lword_of_word (WInt 0)) as Hret_ca1.
       { rewrite /M lookup_total_alt. by simplify_map_eq. }
-      assert (M !!! csp = lword_of_word (WCap true RWL Local a_stk4 e_stk a_stk4)) as Hret_csp.
+      assert (M !!! csp = lword_of_word (callee_csp b_stk e_stk a_stk)) as Hret_csp.
       { rewrite /M -Hcsp_take !lookup_total_alt. by simplify_map_eq. }
       assert (<[ca0:=lload_word p v]> rtake !!! cra = lword_of_word wret) as Hret_cra.
       { rewrite -Hcra_take !lookup_total_alt. by simplify_map_eq. }
@@ -421,36 +423,48 @@ Section Error_Handling_Read.
       iIntros "Hca0".
       iDestruct ("Hregs" with "Hca0") as "Hregs".
       rewrite insert_id; last exact Hca0_take.
-      (* The slot of the [ErrorState], at the base of the callee's stack *)
-      assert (a_stk4 + ErrorState_size <= e_stk)%Z as Hroom.
-      { rewrite /ErrorState_size /a_stk4. lia. }
-      rewrite (region_addrs_zeroes_split a_stk4 (a_stk4 ^+ ErrorState_size)%a e_stk);
-        last (rewrite /ErrorState_size in Hroom |- *; solve_addr).
-      iDestruct (region_pointsto_split a_stk4 e_stk (a_stk4 ^+ ErrorState_size)%a with "Hstk")
-        as "[Hslot Hstk]".
-      { rewrite /ErrorState_size in Hroom |- *; solve_addr. }
+      (* The slot of the [ErrorState], below the cursor of the callee's
+         stack *)
+      set (bc := stk_callee_b b_stk a_stk).
+      set (ec := stk_callee_e e_stk a_stk).
+      set (cur := stk_start_a bc ec).
+      set (es := (cur ^+ (- ErrorState_size))%a).
+      assert ((bc <= es)%a ∧ (es + ErrorState_size)%a = Some cur ∧ (cur <= ec)%a) as
+        (Hbc_es & Hes_cur & Hcur_ec).
+      { rewrite /es /cur /stk_start_a /ErrorState_size /StackEntry_reserved_space in Hminstk |- *.
+        rewrite /bc /ec /stk_callee_b /stk_callee_e /SpillSlot_size in Hminstk |- *.
+        split_and!; solve_addr. }
+      rewrite /ErrorState_size in Hes_cur.
+      rewrite (region_addrs_zeroes_split bc es ec); last solve_addr.
+      rewrite (region_addrs_zeroes_split es cur ec); last solve_addr.
+      iDestruct (region_pointsto_split bc ec es with "Hstk") as "[Hstk_lo Hstk]".
+      { solve_addr. }
       { by rewrite /region_addrs_zeroes length_replicate. }
-      iApply (stats_read_fault_safe Nswitcher (cstack_push frm cstk) rtake Local a_stk4 e_stk a_stk4
+      iDestruct (region_pointsto_split es ec cur with "Hstk") as "[Hslot Hstk_hi]".
+      { solve_addr. }
+      { by rewrite /region_addrs_zeroes length_replicate. }
+      iApply (stats_read_fault_safe (cstack_push frm cstk) rtake Local bc ec cur
                with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hna Hclose Hlock [Hslot]").
-      1-5: done.
+      1-3: done.
       { by apply lookup_total_correct. }
       { rewrite Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
-      { solve_addr. }
-      { exact Hroom. }
-      { apply (disjoint_from_shadow_weaken a_stk4 e_stk); [solve_addr | | exact Hstk_shadow].
-        rewrite /ErrorState_size in Hroom |- *; solve_addr. }
+      { rewrite /ErrorState_size. solve_addr. }
+      { done. }
+      { apply (disjoint_from_shadow_weaken bc ec es cur); [done | done | exact Hstk_shadow]. }
       1-3: done.
       { rewrite /error_state_area Hcsp_take /=. iExists _. iFrame "Hslot".
         iPureIntro. rewrite /region_addrs_zeroes length_replicate /finz.dist.
-        rewrite /ErrorState_size in Hroom |- *. solve_addr. }
+        rewrite /ErrorState_size. solve_addr. }
       (* The installed context released the lock: the return, at count 2 *)
       iNext. iIntros "HPC Hregs Harea Hcstk Hna".
       rewrite /error_state_area Hcsp_take /=.
       iDestruct "Harea" as (ws) "[%Hws Hslot]".
-      iDestruct (region_pointsto_split a_stk4 e_stk (a_stk4 ^+ ErrorState_size)%a
-                   with "[$Hslot $Hstk]") as "Hstk".
-      { rewrite /ErrorState_size in Hroom |- *; solve_addr. }
-      { rewrite Hws /finz.dist. rewrite /ErrorState_size in Hroom |- *. solve_addr. }
+      iDestruct (region_pointsto_split es ec cur with "[$Hslot $Hstk_hi]") as "Hstk".
+      { solve_addr. }
+      { rewrite Hws /finz.dist /ErrorState_size. solve_addr. }
+      iDestruct (region_pointsto_split bc ec es with "[$Hstk_lo $Hstk]") as "Hstk".
+      { solve_addr. }
+      { by rewrite /region_addrs_zeroes length_replicate. }
       rewrite /stats_resumed_regs.
       iDestruct (registers_pointsto_switcher_return with "Hregs") as (rmap_ret)
         "(%Hdom_ret & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap)".
@@ -461,7 +475,7 @@ Section Error_Handling_Read.
       { rewrite /M lookup_total_alt. by simplify_map_eq. }
       assert (M !!! ca1 = lword_of_word (WInt 0)) as Hret_ca1.
       { rewrite /M lookup_total_alt. by simplify_map_eq. }
-      assert (M !!! csp = lword_of_word (WCap true RWL Local a_stk4 e_stk a_stk4)) as Hret_csp.
+      assert (M !!! csp = lword_of_word (callee_csp b_stk e_stk a_stk)) as Hret_csp.
       { rewrite /M -Hcsp_take !lookup_total_alt. by simplify_map_eq. }
       iEval (rewrite Hcra_take /=) in "HPC".
       iEval (rewrite Hret_csp) in "Hcsp".

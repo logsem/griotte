@@ -235,6 +235,16 @@ Section Fresh_stack.
   Qed.
 End Fresh_stack.
 
+(** A sub-range of a range outside the shadow table. *)
+Lemma disjoint_from_shadow_weaken `{ShadowRegion} (b e b' e' : Addr) :
+  (b <= b')%a → (e' <= e)%a →
+  disjoint_from_shadow b e → disjoint_from_shadow b' e'.
+Proof.
+  rewrite /disjoint_from_shadow !elem_of_disjoint.
+  intros Hb He Hdisj a Ha Hsh. apply (Hdisj a); last done.
+  apply elem_of_finz_seq_between in Ha. apply elem_of_finz_seq_between. solve_addr.
+Qed.
+
 (** ** Registers of a register map
 
     [registers_pointsto_extract], [registers_pointsto_extract2] and

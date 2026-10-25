@@ -329,7 +329,7 @@ Section Main.
 
   Definition error_handling_main_entry_nargs : nat := 0.
   (** The stack holds the spill of the switcher calls. *)
-  Definition error_handling_main_entry_min_stack : nat := 4.
+  Definition error_handling_main_entry_min_stack : nat := 22.
   (** The offset of the entry [.Lmain] from the start of the PCC. *)
   Definition error_handling_main_entry_pcc_off : nat :=
     Eval vm_compute in label_offset (concat error_handling_main_asm) ".Lmain".

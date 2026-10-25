@@ -40,8 +40,8 @@ Section error_handling_adv_code.
     [ #@".Limport_switcher";
       #@".Limport_stats_read";
       #".Ladv";
+      lea csp csp (-1);
       store csp cra;
-      lea csp csp 1;
       cleartag ca0 cgp ] ++
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_stats_read" ct1 ++
@@ -50,8 +50,8 @@ Section error_handling_adv_code.
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_stats_read" ct1 ++
     [ jalr cra ct0;
-      lea csp csp (-1);
       load cra csp;
+      lea csp csp 1;
       mov ca0 0;
       mov ca1 0;
       ret;

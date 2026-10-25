@@ -7,14 +7,14 @@ From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import
   error_handling error_handling_spec_handler error_handling_spec_read
   error_handling_spec_read_safe error_handling_main_spec.
-From griotte Require Import switcher assert_spec logrel.
+From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
-From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 
@@ -166,9 +166,7 @@ Section error_handling_obligations.
                     {[ lword_of_word (WSealable stats_read_sb);
                        lword_of_word (borrow (WSealable stats_read_sb)) ]} ]o> fw_world0).
     iAssert (ot_switcher_prop W0' C (WSealable stats_read_sb)) as "#Hot_switcher_read".
-    { iApply (stats_read_entry_point_spec Global W0' C fw_switcherN).
-      - exact fw_switcherN_trap_disj.
-      - rewrite /fw_switcherN /Nstats. solve_ndisj.
+    { iApply (stats_read_entry_point_spec Global W0' C).
       - exact Hstats_switcher.
       - iFrame "Hswitcher Hswitcher_static Hstats_static Hinv_stats". }
     iMod (seal_main_export fw_world0 C stats_read_sb
@@ -177,13 +175,16 @@ Section error_handling_obligations.
     { intros p g b e a Heq; inversion Heq; subst.
       exact (cmpt_exp_tbl_disjoint_from_heap stats_cmpt). }
 
-    (* 6 - The stack holds the minimum stack of [stats_read] *)
-    iDestruct (big_sepL2_length with "Hstack") as %Hstack_len.
-    rewrite finz_seq_between_length length_fmap length_replicate in Hstack_len.
-    assert (image.b_stack (thread_of img 0) + 4 + stats_read_min_stack
-              <= image.e_stack (thread_of img 0))%Z as Hstk_size.
-    { rewrite /stats_read_min_stack. rewrite /finz.dist in Hstack_len.
-      cbn in Hstack_len |- *. lia. }
+    (* 6 - The stack holds the minimum stack of the entry of [main]: the
+       spill of its calls, the space reserved at the top of the callee's
+       stack, and the minimum stack of [stats_read] *)
+    pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstk_size.
+    change (fw_entry_min_stack error_handling_firmware 0) with 22%nat in Hstk_size.
+    assert (∀ b e : Z, b + Z.of_nat 22 + StackEntry_reserved_space <= e →
+              b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= e)%Z
+      as Hmin_bridge
+      by (rewrite /SpillSlot_size /StackEntry_reserved_space /stats_read_min_stack; lia).
+    apply Hmin_bridge in Hstk_size; clear Hmin_bridge.
 
     (* 7 - Close the world of [adv]: its compartment becomes permanent, and
        the stack temporary; [stats_read] is safe to import; the export of
@@ -226,14 +227,12 @@ Section error_handling_obligations.
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     iPoseProof (error_handling_main_spec (swlayout := swl) (assertlayout := asl)
                   (statslayout := statsl) (C := C)
-                  _ _ _ _ _ _ _ _ adv_f _ [] [] _ fw_switcherN
+                  _ _ _ _ _ _ _ _ adv_f _ [] [] _
                  with "[$Hassert $Hswitcher $Hswitcher_static $Hstats_static $Hinv_stats
                         $Hna $HPC $Hcgp $Hcsp $Hregs $Hmain_imports $Hmain_code $Hmain_data
                         $Hworld_C $Hcstk $Hinterp_adv $Hentry_adv $Hinterp_stack_C]")
       as "Hspec".
-    all: [> exact fw_switcherN_trap_disj
-      | rewrite /fw_switcherN /Nstats; solve_ndisj
-      | exact Hstats_switcher
+    all: [> exact Hstats_switcher
       | split_and!; [exact Hmain_bounds | exact Hmain_imports_size
                     | exact (cmpt_pcc_disjoint_from_shadow main_cmpt)
                     | exact (cmpt_pcc_base_not_heap main_cmpt)]
