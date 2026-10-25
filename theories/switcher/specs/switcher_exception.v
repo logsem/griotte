@@ -207,7 +207,8 @@ Section Switcher_Exception.
     top_cmpt_untrusted interp W C cstk -∗ handler_header cstk.
   Proof.
     destruct cstk as [ef [|frm frms] ]; first by iIntros "[]".
-    iIntros "(%pcc & %cgp & %eh & %ehs & #Hpcc & #Hcgp & #Heh & #Hehs & _)".
+    iIntros "(%pcc & %cgp & %eh & %ehs & #Hpcc & #Hcgp & #Heh & #Hehs & _ & %Htbl_set)".
+    iSplit; first done.
     iExists eh, ehs. iFrame "Heh Hehs".
     iIntros "_". iExists pcc, cgp. iFrame "Hpcc Hcgp".
   Qed.
@@ -350,16 +351,17 @@ Section Switcher_Exception.
     { destruct (cstk_frames cstk) as [|frm frms] eqn:Hframes.
       { by rewrite /top_cmpt_untrusted Hframes. }
       iEval (rewrite /top_cmpt_untrusted Hframes) in "Htop".
-      iDestruct "Htop" as (pcc cgp eh ehs) "(Hpcc' & _ & _ & _ & #Hsafe)".
+      iDestruct "Htop" as (pcc cgp eh ehs) "(Hpcc' & _ & _ & _ & #Hsafe & _)".
       iExists pcc. rewrite /top_export_tbl /top_tframe Hframes. iFrame "Hpcc'".
       iDestruct ("Hsafe" $! W with "[%]") as "[$ _]".
       apply related_sts_priv_refl_world. }
+    iDestruct (top_cmpt_untrusted_header with "Htop") as "[%Htbl_set _]".
     iAssert (interp W C (rmap !!! csp)) as "#Hcsp".
     { iApply "Hregs". iPureIntro.
       destruct (Hfull csp) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv). }
     iApply (switcher_install_context_spec ⊤ cstk rmap wpcc
               (λ (_ : nat) (ls : list LWord), world_interp W C ∗ [∗ list] v ∈ ls, interp W C v)%I
-             with "[- ]"); [set_solver | set_solver | done | done |].
+             with "[- ]"); [set_solver | set_solver | done | done | done |].
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
     iSplitL "Hworld_interp"; first by iFrame.
     iSplitR.
@@ -479,7 +481,7 @@ Section Switcher_Exception.
     { by rewrite /top_cmpt_untrusted Hframes. }
     iAssert (interp W C wpcc ∗ interp W C wcgp)%I as "[#Hpcc_interp #Hcgp_interp]".
     { iEval (rewrite /top_cmpt_untrusted Hframes) in "Htop".
-      iDestruct "Htop" as (pcc cgp eh ehs') "(Hpcc' & Hcgp' & _ & _ & #Hsafe)".
+      iDestruct "Htop" as (pcc cgp eh ehs') "(Hpcc' & Hcgp' & _ & _ & #Hsafe & _)".
       rewrite /top_export_tbl /top_tframe Hframes.
       iDestruct (pointsto_agree with "Hpcc Hpcc'") as %->.
       iDestruct (pointsto_agree with "Hcgp Hcgp'") as %->.
@@ -651,6 +653,7 @@ Section Switcher_Exception.
     ↑N_trap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume w ->
+    (¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)) ->
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
@@ -669,10 +672,10 @@ Section Switcher_Exception.
     cstack_frag cstk -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HF HFtrap Hfull_rmap Hno_resume)
+    iIntros (HF HFtrap Hfull_rmap Hno_resume Htbl_set)
       "#Hinv_switcher #Hstatic #Hsafe HU #Hcase HPC Hout Hrmap Hna Hcstk".
     iAssert (⌜¬ switcher_fault_pc w⌝ → handler_header cstk)%I as "#Hheader".
-    { iIntros (Hnot). rewrite /no_handler.
+    { iIntros (Hnot). iSplit; first (iPureIntro; by apply Htbl_set). rewrite /no_handler.
       iDestruct "Hcase" as "[%Hpc | [[Heh Hehs] | [%Hodd (%eh & %ehs & Heh & Hehs)] ] ]";
         first done.
       - iExists _, _. iFrame "Heh Hehs". iIntros ([ [Hne | Hne] _]); by contradict Hne.
@@ -720,6 +723,7 @@ Section Switcher_Exception.
     ↑N_trap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume w ->
+    (¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)) ->
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
@@ -735,7 +739,7 @@ Section Switcher_Exception.
     cstack_frag cstk -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HF HFtrap Hfull_rmap Hno_resume)
+    iIntros (HF HFtrap Hfull_rmap Hno_resume Htbl_set)
       "#Hinv_switcher #Hstatic #Hsafe #Hhandler #Heh_site Hslot HUP HPC Hout Hrmap Hna Hcstk".
     iDestruct "Hhandler" as (wpcc wcgp eh' ehs)
       "(#Hpcc & #Hcgp & #Heh & #Hehs & #Hexec_sf & #Hexec_sl)".
@@ -785,7 +789,8 @@ Section Switcher_Exception.
       [done | done | done |].
     iSplitL "Hcstk"; first by case_decide.
     iSplitR.
-    { iIntros "_". iExists eh, ehs. iFrame "Heh Hehs".
+    { iIntros (Hnot). iSplit; first (iPureIntro; by apply Htbl_set).
+      iExists eh, ehs. iFrame "Heh Hehs".
       iIntros "_". iExists wpcc, wcgp. iFrame "Hpcc Hcgp". }
     iSplitL "Hslot"; first iExact "Hslot".
     iSplitR; first by iApply trusted_error_state_acc.
@@ -854,7 +859,7 @@ Section Switcher_Exception.
     { iApply (exception_entry_untrusted_safe with
                "Hinv_switcher Hstatic IH Huntrusted HPC Hout Hrmap Hna Hcstk"); done. }
     iDestruct (trap_handler_ok_cases with "Hhandled")
-      as (Hno_resume) "[ [HU Hcase] | [Hrow | (HU & %Hodd & Hheader)] ]".
+      as (Hno_resume Htbl_set) "[ [HU Hcase] | [Hrow | (HU & %Hodd & Hheader)] ]".
     - (* A fault in the switcher, or no handler *)
       iApply (exception_entry_unwind_safe with
                "Hinv_switcher Hstatic IH HU [Hcase] HPC Hout Hrmap Hna Hcstk"); [done.. |].
@@ -1099,7 +1104,7 @@ Section Switcher_Exception.
 
   (** A fault in trusted code, with the logical relation's resources, in
       the switcher ([switcher_fault_pc w]) or in a compartment whose table
-      declares no handler: the switcher unwinds the call of the faulting
+      declares no handler and whose frame's table word is set: the switcher unwinds the call of the faulting
       compartment through the return routine. *)
   Lemma trap_safe_unwind_logrel
     (W : WORLD) (C : CmptName)
@@ -1111,7 +1116,9 @@ Section Switcher_Exception.
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
-    (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)) -∗
+    (⌜switcher_fault_pc w⌝ ∨
+     (no_handler (top_export_tbl cstk) ∗
+      ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)) -∗
     (|={⊤}=>
        registers_pointsto rmap ∗
        world_interp W C ∗
@@ -1132,8 +1139,8 @@ Section Switcher_Exception.
       of the topmost table with the address of word 0, the registers hold
       words 1-15 as loaded through the permission of [csp], and the count
       of the topmost frame is incremented. The handler runs with the
-      token [F] of its fault site. A fault of the installation (the cell of
-      the table is cleared, or [csp] does not allow the loads:
+      token [F] of its fault site; the word of the topmost frame's table is
+      set. A fault of the installation ([csp] does not allow the loads:
       [install_skipped]) is a fault in the switcher, which unwinds. *)
   Lemma switcher_handler_return_install (F : coPset) (cstk : CSTK)
     (rmap : LReg) (wpcc : LWord) (p : Perm) (g : Locality) (b e a : Addr)
@@ -1142,6 +1149,7 @@ Section Switcher_Exception.
     ↑N_trap ⊆ F →
     (∀ r, is_Some (rmap !! r)) →
     nonZero (rmap !!! ca0).(lw) = false →
+    (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     rmap !!! csp = lword_of_word (WCap true p g b e a) →
     is_Some (a + ErrorState_size)%a →
     disjoint_from_shadow a (a ^+ ErrorState_size)%a →
@@ -1164,7 +1172,7 @@ Section Switcher_Exception.
             (error_state_install rmap (lload_word p <$> drop 1 ws)) ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HF HFtrap Hfull Hnz Hcsp [a_es Ha_es] Hshadow Hws)
+    iIntros (HF HFtrap Hfull Hnz Htbl_set Hcsp [a_es Ha_es] Hshadow Hws)
       "(#Hinv_switcher & #Hstatic & #Hpcc & HPC & Hrmap & Hws & Hcstk & Hna & Hpost)".
     rewrite /install_region.
     assert ((a ^+ ErrorState_size)%a = a_es) as Ha_es' by solve_addr.
@@ -1175,7 +1183,7 @@ Section Switcher_Exception.
     iApply (switcher_install_context_spec F cstk rmap wpcc
               (λ (i : nat) (ls : list LWord),
                  [[ a , a_es ]] ↦ₐ [[ ws ]] ∗ ⌜ls = take i (lload_word p <$> ws)⌝)%I
-             with "[- ]"); [done | done | done | done |].
+             with "[- ]"); [done | done | done | done | done |].
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
     iSplitL "Hws"; first by iFrame.
     iSplitR.

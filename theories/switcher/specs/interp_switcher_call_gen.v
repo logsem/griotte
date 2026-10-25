@@ -388,7 +388,7 @@ Section fundamental.
   Qed.
 
   (** Fault of the unsealing: close the caller's stack, push the frame,
-      whose table cell is still cleared, close the switcher invariant, and
+      with the table word [WInt 0] and any word in its table cell, close the switcher invariant, and
       unwind the call. *)
   Lemma interp_switcher_call_unseal_fault
     (W : WORLD) (C : CmptName)
@@ -438,7 +438,7 @@ Section fundamental.
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
       a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
-      a_export_table ↦ₐ WInt 0 ∗
+      a_export_table ↦ₐ - ∗
       a_error_count ↦ₐ WInt 0 ∗
       (∃ tstk_next', [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next' ]]) ∗
       £ 2 -∗
@@ -451,7 +451,7 @@ Section fundamental.
       "#Hsafety #Hcs0v #Hcs1v #Hcrav #Hcgpv #Hspv #Htop Hopened Hstk_opened Hrmap Hcont Hcstk
        (_ & %Hstk_bounds & %Ha_next & %Ha_next_e & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2] & Hctp
        & Hcsp & Hcra & Hcgp & [%wct1' Hct1] & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Hframe_csp
-       & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & _)".
+       & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & _)".
     set (frame := interp_call_frame b e a (lword_of_word (WInt 0))).
     (* Close the caller's stack frame *)
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
@@ -480,11 +480,10 @@ Section fundamental.
       apply trap_no_resume_switcher_pc. by vm_compute. }
     { (* The fault is in the switcher *)
       iLeft; iPureIntro. apply switcher_fault_pc_cap. }
-    (* The table cell is still cleared *)
-    pose proof (tf_export_tbl_cell_cleared (cf_tframe frame) eq_refl) as Htbl_cell.
+    (* The frame's table word is [WInt 0] *)
     iMod (switcher_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk []")
-      as "[Hna Hcstk]"; [done..| |].
+      as "[Hna Hcstk]"; [done..|by left| |].
     { by rewrite /cframe_stk_own /=. }
     iModIntro.
     iFrame "Hrmap Hworld_interp Hcstk Hna".
@@ -555,7 +554,7 @@ Section fundamental.
        & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hparams & Hrest)".
     iMod (switcher_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk []")
-      as "[Hna Hcstk]"; [done|done|done|done|done|done|done|done|right; exact Htbl_cell| |].
+      as "[Hna Hcstk]"; [done|done|done|done|done|done|done|right; split; [done | exact Htbl_cell]| |].
     { by rewrite /cframe_stk_own /=. }
     iDestruct (big_sepM_sep with "Hparams") as "[Hparams _]".
     iDestruct (interp_call_regs_full with "Hparams Hrest Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1")
@@ -762,7 +761,7 @@ Section fundamental.
     iNext; iIntros (wsb π)
       "(-> & %Htag & %Hstk_bounds & %Ha_next & %Ha_next_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
-      & Hhazard & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
+      & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
 
     (* Close the caller's stack frame *)
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
@@ -857,7 +856,7 @@ Section fundamental.
     (* Push the frame and close the switcher invariant *)
     iMod (switcher_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk []")
-      as "[Hna Hcstk]"; [done|done|done|done|done|done|done|done|right; exact Htbl_ok| |].
+      as "[Hna Hcstk]"; [done|done|done|done|done|done|done|right; split; [done | exact Htbl_ok]| |].
     { by rewrite /cframe_stk_own /=. }
     iDestruct (interp_call_cont_frame _ _ _ _ _ _ _ _ (WCap true RO g_tbl b_tbl e_tbl a_tbl)
                 with "Hsafety Hspv Htop Hcont") as "Hcont"; [done|done|].

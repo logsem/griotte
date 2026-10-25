@@ -68,6 +68,10 @@ Section Switcher_sealing.
     exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw) ∧
     tf.(tf_export_tbl).(lprov) = None.
 
+  Lemma tf_export_tbl_ok_nonzero (tf : trusted_frame) :
+    tf_export_tbl_ok tf → tf.(tf_export_tbl) ≠ lword_of_word (WInt 0).
+  Proof. intros [(p & g & e & a & Hw & _) _] Htbl. rewrite Htbl in Hw. done. Qed.
+
   (** [execute_entry_point] provides a WP rule matching the state of the machine
       after the execution of call-switcher.
 

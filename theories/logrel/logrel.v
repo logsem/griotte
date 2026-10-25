@@ -190,7 +190,8 @@ Section logrel.
   (** [top_cmpt_untrusted interp W C cstk] states that the compartment of the
       callee of the topmost frame of [cstk] is untrusted: the PCC and the CGP
       of its export table are safe in every private future world of [W]. It
-      also records the handler offsets of the header of that table. A thread
+      also records the handler offsets of the header of that table, and that
+      the frame's export table word is set (not [WInt 0]). A thread
       starts in a trusted compartment, so it is [False] when no frame is
       pushed above the entry frame. *)
   Definition top_cmpt_untrusted (interp : V) (W : WORLD) (C : CmptName) (cstk : CSTK)
@@ -204,7 +205,8 @@ Section logrel.
           a_tbl_cgp ↦ₐ□ cgp ∗
           b_tbl ↦ₕ□{stackful} eh ∗
           b_tbl ↦ₕ□{stackless} ehs ∗
-          □ ∀ W', ⌜related_sts_priv_world W W'⌝ → interp W' C pcc ∗ interp W' C cgp
+          (□ ∀ W', ⌜related_sts_priv_world W W'⌝ → interp W' C pcc ∗ interp W' C cgp) ∗
+          ⌜frm.(cf_tframe).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝
     | [] => False
     end.
 
@@ -225,8 +227,8 @@ Section logrel.
   Proof.
     iIntros (Hrelated) "Htop".
     destruct cstk as [ef [|frm frms] ]; first done.
-    iDestruct "Htop" as (pcc cgp eh ehs) "(Hpcc & Hcgp & Heh & Hehs & #Hinterp)".
-    iExists pcc, cgp, eh, ehs. iFrame.
+    iDestruct "Htop" as (pcc cgp eh ehs) "(Hpcc & Hcgp & Heh & Hehs & #Hinterp & %Htbl_set)".
+    iExists pcc, cgp, eh, ehs. iFrame "Hpcc Hcgp Heh Hehs". iSplit; last done.
     iIntros "!>" (W'' Hrelated').
     iApply "Hinterp". iPureIntro.
     by eapply related_sts_priv_trans_world.

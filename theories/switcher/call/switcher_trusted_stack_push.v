@@ -10,7 +10,7 @@ From griotte Require Import call_stack switcher_preamble clear_hazard_slots_spec
     for a frame at [frameoffset]. If not, it jumps to
     [.Lswitch_trusted_stack_exhausted]. Otherwise, it pushes a
     frame holding the caller's stack pointer, with a cleared error handler
-    count and export table, increments [frameoffset], and falls through to
+    count, clears its export table cell, increments [frameoffset], and falls through to
     [.Lswitch_stack_chop]. *)
 
 Section Switcher_Trusted_Stack_Push.
@@ -106,7 +106,7 @@ Section Switcher_Trusted_Stack_Push.
           csp ↦ᵣ wstk ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
           a_csp ↦ₐ wstk ∗
-          a_export_table ↦ₐ WInt 0 ∗
+          a_export_table ↦ₐ - ∗
           a_error_count ↦ₐ WInt 0 ∗
           [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next' ]] ∗
           £ 2 )
