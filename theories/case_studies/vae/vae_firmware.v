@@ -31,9 +31,9 @@ Definition vae_firmware `{MP : MachineParameters} : firmware := {|
            FWs vae_main_data
          ];
          tb_exports := [
-           (* after the 3 imports and the 7 words of [init]; the stack holds the
+           (* after the 3 imports and the 9 words of [init]; the stack holds the
               spill of the switcher calls *)
-           {| fe_name := "awkward"; fe_offset := 10; fe_nargs := 1; fe_min_stack := 4; fe_posture := InterruptEnabled |};
+           {| fe_name := "awkward"; fe_offset := 12; fe_nargs := 1; fe_min_stack := 4; fe_posture := InterruptEnabled |};
            (* after the 3 imports; the stack holds the spill of the switcher call *)
            {| fe_name := "entry";   fe_offset := 3;  fe_nargs := 0; fe_min_stack := 4; fe_posture := InterruptEnabled |}
          ];
