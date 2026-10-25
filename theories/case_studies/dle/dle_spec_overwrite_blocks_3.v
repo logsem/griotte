@@ -2,12 +2,13 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
 From griotte Require Import dle_spec_states.
 
-(** * Deep locality, block 3: second call to the adversary
+(** * Deep locality, blocks 3-5: second call to the adversary
 
-    On return from the first call, block 3 overwrites [b := 42], clears the
-    argument [ca0], restores the entry points saved in [cs0] and [cs1], and
-    jumps to the switcher again. The group ends at the entry point of the
-    switcher, with the return address of the second call in [cra]. *)
+    On return from the first call, block 3 overwrites [b := 42] and clears
+    the argument [ca0], block 4 fetches the entry point of the switcher
+    again, and block 5 restores the entry point of the adversary saved in
+    [cs1] and jumps to the switcher. The group ends at the entry point of
+    the switcher, with the return address of the second call in [cra]. *)
 
 Section DLE_Overwrite_Blocks_3.
   Context
@@ -22,8 +23,8 @@ Section DLE_Overwrite_Blocks_3.
 
   Lemma dle_overwrite_blocks_3_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
-    (wcgp_b wca0 wct0 wct1 wcra : LWord) :
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length dle_main_code)%a ->
+    (wcgp_b wca0 wct0 wct1 wcra wcs0 : LWord) :
+    dle_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
@@ -32,9 +33,10 @@ Section DLE_Overwrite_Blocks_3.
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     cra ↦ᵣ wcra ∗
-    cs0 ↦ᵣ dle_switcher_entry ∗
+    cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ WSealed ot_switcher C_f ∗
     cgp_b ↦ₐ wcgp_b ∗
+    pc_b ↦ₐ□ dle_switcher_entry ∗
     codefrag_pers pc_a dle_main_code ∗
     ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
@@ -42,16 +44,18 @@ Section DLE_Overwrite_Blocks_3.
         ct0 ↦ᵣ dle_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
-        cs0 ↦ᵣ dle_switcher_entry ∗
+        cs0 ↦ᵣ wcs0 ∗
         cs1 ↦ᵣ WSealed ot_switcher C_f ∗
         cgp_b ↦ₐ WInt 42 ∗
+        pc_b ↦ₐ□ dle_switcher_entry ∗
         codefrag_pers pc_a dle_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio)
-      "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b & Hcode_main & Hpost)".
-    rewrite /dle_switcher_entry.
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
+             Hcgp_contiguous Hcgp_mmio)
+      "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b & Himport_switcher
+        & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code dle_main_code "Hcode_main".
 
@@ -65,16 +69,34 @@ Section DLE_Overwrite_Blocks_3.
     { solve_addr+Hcgp_contiguous. }
     (* Mov ca0 0%Z *)
     iInstr "Hcode".
-    (* Mov ct0 cs0 *)
-    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* Block 4: fetch the entry point of the switcher again *)
+    focus_block (dle_block ".Ldle_refetch_switcher") "Hcode_main" of dle_main_blocks at pc_a
+      as a_fetch Ha_fetch "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
+    iApply (fetch_spec 0 _ _ _ _ _ _ _ dle_switcher_entry
+              with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap.
+    { offsets_compute; solve_addr. }
+    { solve_addr. }
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    iFrame "Himport_switcher".
+    iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
+    iEval (cbn) in "Hct0".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* Block 5: restore the entry point of the adversary and call it *)
+    focus_block (dle_block ".Ldle_call_B_2") "Hcode_main" of dle_main_blocks at pc_a
+      as a_callB2 Ha_callB2 "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
     (* Mov ct1 cs1 *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_callB ^+ 8)%a = (pc_a ^+ dle_label_offset ".Ldle_check")%a) as ->
+    assert ((a_callB2 ^+ 2)%a = (pc_a ^+ dle_label_offset ".Ldle_check")%a) as ->
       by (offsets_compute; solve_addr).
-    iApply "Hpost"; iFrame "∗ Hcode_main".
+    iApply "Hpost"; rewrite /dle_switcher_entry; iFrame "∗ Hcode_main".
   Qed.
 
 End DLE_Overwrite_Blocks_3.

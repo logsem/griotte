@@ -1,11 +1,13 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
+From griotte Require Import switcher_base.
 From griotte Require Import dle_spec_states.
 
-(** * Deep locality, blocks 3-5: assertion and halt
+(** * Deep locality, blocks 5-7: assertion and return
 
-    On return from the second call, block 3 loads [b], block 4 asserts that
-    [b = 42] and block 5 halts. *)
+    On return from the second call, block 5 loads [b], block 6 asserts that
+    [b = 42] and block 7 returns through the switcher's return sentry,
+    saved in [cs0]: the thread exits. *)
 
 Section DLE_Assert_Blocks_4.
   Context
@@ -19,36 +21,43 @@ Section DLE_Assert_Blocks_4.
   .
 
   Lemma dle_assert_blocks_4_spec
-    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
-    (wct0 wct1 wct2 wca2 wcra : LWord) :
+    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable) (cstk : CSTK)
+    (wctp wct0 wct1 wct2 wca2 wcra : LWord) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
+    cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ∗
     na_own cerise_nais ⊤ ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ctp ↦ᵣ wctp ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
     cra ↦ᵣ wcra ∗
+    cs0 ↦ᵣ thread_return_sentry ∗
+    cstack_frag cstk ∗
     cgp_b ↦ₐ WInt 42 ∗
     (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a dle_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
-             Hcgp_contiguous Hcgp_mmio)
-      "(#Hassert & Hna & HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
-      & Hcgp_b & Himport_assert & Hcode_main)".
+             Hcgp_contiguous Hcgp_mmio Hframes)
+      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hctp & Hct0 & Hct1
+      & Hct2 & Hca2 & Hcra & Hcs0 & Hcstk & Hcgp_b & Himport_assert & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code dle_main_code "Hcode_main".
 
-    (* Block 3: return from the second call *)
-    focus_block (dle_block ".Ldle_call_B") "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
+    (* Block 5: return from the second call *)
+    focus_block (dle_block ".Ldle_call_B_2") "Hcode_main" of dle_main_blocks at pc_a
+      as a_callB2 Ha_callB2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    change_pc_to (a_callB ^+ 8)%a.
+    change_pc_to (a_callB2 ^+ 2)%a.
     (* CLoad ct0 cgp 0 *)
     iInstr "Hcode".
     { solve_not_shadow Hcgp_mmio. }
@@ -58,7 +67,7 @@ Section DLE_Assert_Blocks_4.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 4: assert that b = 42 *)
+    (* Block 6: assert that b = 42 *)
     focus_block (dle_block ".Ldle_assert") "Hcode_main" of dle_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
@@ -70,11 +79,16 @@ Section DLE_Assert_Blocks_4.
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 5: halt *)
-    focus_block 5 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* Halt *)
+    (* Block 7: return, the thread exits *)
+    focus_block (dle_block ".Ldle_return") "Hcode_main" of dle_main_blocks at pc_a
+      as a_ret Ha_ret "Hcode" "Hcont".
+    (* Mov cra cs0 *)
     iInstr "Hcode".
-    wp_end; iIntros "_"; iFrame.
+    (* Jalr cnull cra *)
+    iInstr "Hcode".
+    iEval (rewrite thread_return_sentry_pc) in "HPC".
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
   Qed.
 
 End DLE_Assert_Blocks_4.

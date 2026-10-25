@@ -12,9 +12,10 @@ From griotte Require Export case_study_spec_helpers.
     - [dle_spec_share_blocks_2]: blocks 1-2 (fetch the imports) and block 3
       up to the first call to the adversary,
     - [dle_spec_overwrite_blocks_3]: block 3, from the return of the first
-      call up to the second call to the adversary,
-    - [dle_spec_assert_blocks_4]: block 3, from the return of the second
-      call, block 4 (assertion) and block 5 (halt).
+      call, block 4 (fetch the switcher again) and block 5 up to the second
+      call to the adversary,
+    - [dle_spec_assert_blocks_4]: block 5, from the return of the second
+      call, block 6 (assertion) and block 7 (return).
 
     The logical steps between the block groups, which do not execute code,
     are in [dle_spec_world].
