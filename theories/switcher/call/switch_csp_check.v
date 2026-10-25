@@ -59,7 +59,7 @@ Section Switch_Csp_Check.
     { (* Jne .Lcommon_force_unwind ctp ct2 *)
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hctp $Hct2]"
         as "(HPC & Hctp & Hct2)".
-      { cbn [jcond_test get_a lw]; case_decide; [done|].
+      { cbn [jcond_test get_a lw].
         apply negb_true_iff, Z.eqb_neq; intros Heq; apply Hp0'; rewrite -Heq; reflexivity. }
       { switcher_jump_label ".Lcommon_force_unwind". }
       subst hpost.
@@ -70,7 +70,7 @@ Section Switch_Csp_Check.
     (* Jne .Lcommon_force_unwind ctp ct2 *)
     iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hctp $Hct2]"
       as "(HPC & Hctp & Hct2)".
-    { cbn [jcond_test get_a lw]; case_decide; [done|].
+    { cbn [jcond_test get_a lw].
       apply negb_false_iff, Z.eqb_eq; rewrite Hp0'; reflexivity. }
     (* GetL ct2 csp *)
     iInstr "Hcode".
@@ -82,7 +82,7 @@ Section Switch_Csp_Check.
     { (* Jne .Lcommon_force_unwind ctp ct2 *)
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hctp $Hct2]"
         as "(HPC & Hctp & Hct2)".
-      { cbn [jcond_test get_a lw]; case_decide; [done|].
+      { cbn [jcond_test get_a lw].
         apply negb_true_iff, Z.eqb_neq; intros Heq; apply Hg0'; rewrite -Heq; reflexivity. }
       { switcher_jump_label ".Lcommon_force_unwind". }
       subst hpost.
@@ -93,7 +93,7 @@ Section Switch_Csp_Check.
     (* Jne .Lcommon_force_unwind ctp ct2 *)
     iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hctp $Hct2]"
       as "(HPC & Hctp & Hct2)".
-    { cbn [jcond_test get_a lw]; case_decide; [done|].
+    { cbn [jcond_test get_a lw].
       apply negb_false_iff, Z.eqb_eq; rewrite Hg0'; reflexivity. }
     switcher_change_pc_label ".Lswitch_entry_first_spill".
     rewrite Hg0'.

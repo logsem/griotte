@@ -105,13 +105,14 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-    unfold regs_of in Hri, Dregs.
+    unfold regs_of, operands_of in Hri, Dregs.
     destruct (Hri src) as [srcv [H'src _]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs H'src) as Hok.
-    assert (dst ∈ dom regs) as Hdst by (apply Dregs; set_solver+).
+    assert (dst = cnull ∨ dst ∈ dom regs) as Hdst
+      by (eapply elem_of_lregs_dom; [exact Dregs | set_solver+]).
     destruct (lz_of_argument_dom regs arg) as [argz Harg].
-    { intros x ->. apply Dregs. set_solver+. }
+    { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     rewrite /exec /= (lz_of_argument_incl R regs r _ argz) /= in Hstep; [|done|done].
     rewrite Hsrc /= in Hstep.
     destruct (decide ((is_sealed srcv.(lw) || is_sentry srcv.(lw)) = true)) as [Hsl | Hsl].

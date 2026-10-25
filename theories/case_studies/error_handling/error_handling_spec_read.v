@@ -214,7 +214,7 @@ Section Error_Handling_Read.
     intros Hinstr Hcheck. pose proof stats_load_pc_correct as Hpc.
     rewrite /lfault /lview /trap_fault /=. rewrite /= in Hpc. rewrite Hpc.
     rewrite lookup_fmap Hinstr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv /instr_fault /load_fault.
-    by rewrite /lookup_reg /= lookup_fmap lookup_insert_eq /= Hcheck.
+    by rewrite lookup_reg_not_cnull // /= lookup_fmap lookup_insert_eq /= Hcheck.
   Qed.
 
   (** The faults that the logical view allows at the load: its logical
@@ -225,7 +225,7 @@ Section Error_Handling_Read.
     f = lfault (stats_pcc stats_load_addr) {[ca0 := wptr]} lm ∨
     (may_strip wptr ∧ f = FaultCheri TagViolation (CheriGPR ca0)).
   Proof.
-    intros Hinstr [-> | (wi & r & v & Hwi & Hauth & Hr & Hstrip & ->)]; first by left.
+    intros Hinstr [-> | (wi & r & v & Hwi & Hauth & _ & Hr & Hstrip & ->)]; first by left.
     right. pose proof stats_load_pc_correct as Hpc.
     rewrite /instr_at /stats_pcc /= in Hwi Hpc. rewrite Hpc Hinstr in Hwi.
     injection Hwi as <-. rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv in Hauth.
