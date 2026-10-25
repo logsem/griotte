@@ -313,7 +313,6 @@ Section Switcher.
       ; (#".Lswitch_skip_interrupt_enable" ::
        #".Lswitch_caller_dead_zeros" ::
        (* zeroRegisters tp, t1, t2, s0, s1 *)
-       (* [deviation] cnull too *)
        clear_registers_pre_call_asm)
       ; [ #".Lswitch_callee_call";
         (* cjalr cra *)
@@ -365,7 +364,6 @@ Section Switcher.
       clear_stack_asm ct2 ct1
       ; (#".Lswitch_callee_dead_zeros" ::
        (* zeroAllRegistersExcept ra, sp, gp, s0, s1, a0, a1 *)
-       (* [deviation] cnull too, after t0 *)
        clear_registers_post_call_asm)
       ; [ #".Lswitch_just_return";
         (* cret *)
@@ -621,7 +619,6 @@ Section Switcher.
          csrsi mstatus (Z.shiftl 1 MIE_BIT) ::
          #".Lhandle_error_handler_invoke_irqs" ::
          (* zeroAllRegistersExcept ra, sp, gp, a0, a1, a2 *)
-         (* [deviation] cnull too *)
          rclear_asm registers_handler_invoke ++
          [ #".Lhandle_error_handler_cjalr";
            (* cjalr cra *)

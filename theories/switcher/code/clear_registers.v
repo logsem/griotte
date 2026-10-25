@@ -15,12 +15,13 @@ Section ClearStackMacro.
   Definition rclear_instrs' (l : list RegName) : list Word
     := (fun r => (encodeInstrW (machine_instructions.Mov r (inl 0%Z)))) <$> l.
 
-  (** The registers but those of [keep], in the order of [all_registers]. *)
+  (** The registers but [cnull] and those of [keep], in the order of
+      [all_registers]. *)
   Definition registers_except (keep : list RegName) : list RegName :=
-    filter (λ r, r ∉ keep) all_registers.
+    filter (λ r, r ≠ cnull ∧ r ∉ keep) all_registers.
 
-  (** CHERIoT's [zeroAllRegistersExcept]: clear every register but those of
-      [keep], [cnull] included. *)
+  (** CHERIoT's [zeroAllRegistersExcept]: clear every register but [cnull]
+      and those of [keep]. *)
   Definition zero_all_registers_except_asm (keep : list RegName) : list asm_code :=
     rclear_asm (registers_except keep).
 
@@ -30,7 +31,7 @@ Section ClearStackMacro.
       code, which cannot compute [registers_except]: the code uses this
       explicit list. *)
   Definition registers_handler_invoke : list RegName :=
-    [cnull; ctp; ct0; ct1; ct2; cs0; cs1; ca3; ca4; ca5].
+    [ctp; ct0; ct1; ct2; cs0; cs1; ca3; ca4; ca5].
 
   Lemma registers_except_handler_invoke :
     registers_except [cra; csp; cgp; ca0; ca1; ca2] = registers_handler_invoke.
@@ -54,7 +55,7 @@ Section ClearStackMacro.
     encodeInstrsW clear_registers_pre_call_skip.
 
   Definition registers_pre_call : list RegName :=
-    [cnull; ctp; ct1; ct2; cs0; cs1].
+    [ctp; ct1; ct2; cs0; cs1].
   Definition clear_registers_pre_call_asm : list asm_code :=
     rclear_asm registers_pre_call.
   Definition clear_registers_pre_call : list instr :=
@@ -66,7 +67,7 @@ Section ClearStackMacro.
     encodeInstrsW clear_registers_pre_call.
 
   Definition registers_post_call : list RegName :=
-    [ct0; cnull; ctp; ct1; ct2; ca2; ca3; ca4; ca5].
+    [ct0; ctp; ct1; ct2; ca2; ca3; ca4; ca5].
   Definition clear_registers_post_call_asm : list asm_code :=
     rclear_asm registers_post_call.
   Definition clear_registers_post_call : list instr :=
