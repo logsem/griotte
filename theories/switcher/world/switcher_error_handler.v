@@ -546,14 +546,15 @@ Section Switcher_error_handler.
       PCC [wpcc] of the table at [b_tbl] (CGP [wcgp]), for its fault
       obligation [P_fault]: for every token [F] (the fault site's, with the
       switcher's resources at [F]), call stack [cstk] (the faulting one,
-      count even), faulting PC [w], registers [rfault] and cause [mcause],
-      the handler runs safely from the invocation state, with the slot and,
-      as it chooses, the site's unwind continuation (or the fact that the
-      stackful handler runs) or [P_fault] at the cause. A stackless handler
+      count even), faulting PC [w], registers [rfault], cause [mcause] and
+      value [mtval], the handler runs safely from the invocation state, with
+      the slot and, as it chooses, the site's unwind continuation (or the
+      fact that the stackful handler runs) or [P_fault] at the cause and the
+      value. A stackless handler
       also knows that the stackful handler does not run. It does not
       mention the trap vector. *)
   Definition execute_error_handler (b_tbl : Addr) (wpcc wcgp : LWord) (off : Z)
-    (kind : handler_kind) (P_fault : coPset → CSTK → LWord → LReg → Z → iProp Σ)
+    (kind : handler_kind) (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ)
     : iProp Σ :=
     □ ∀ (F : coPset) (cstk : CSTK) (w : LWord) (rfault : LReg) (mcause mtval : Z)
         (wpc : LWord) (regs : LReg),
@@ -568,7 +569,7 @@ Section Switcher_error_handler.
           handler_slot kind w rfault -∗
           (⌜kind = Stackless⌝ → handler_skipped cstk w rfault) -∗
           (unwind_or_runs F cstk w rfault (handler_unwind_res kind rfault) ∧
-           P_fault F cstk w rfault mcause) -∗
+           P_fault F cstk w rfault mcause mtval) -∗
           cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
           na_own cerise_nais F -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ).
@@ -580,7 +581,7 @@ Section Switcher_error_handler.
   (** The table at [b_tbl] declares trusted handlers for [P_fault]: its
       header, and the WP of each handler it declares. *)
   Definition trusted_handler (b_tbl : Addr)
-    (P_fault : coPset → CSTK → LWord → LReg → Z → iProp Σ) : iProp Σ :=
+    (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) : iProp Σ :=
     ∃ (wpcc wcgp : LWord) (eh ehs : Z),
       b_tbl ↦ₐ□ wpcc ∗
       (b_tbl ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp ∗
@@ -823,26 +824,27 @@ Section Switcher_error_handler.
         handler;
       - a fault in a trusted compartment whose table declares trusted
         handlers for some [P_fault]: the site lends the slot, and proves
-        both [P_fault] at every cause that satisfies the cause predicate
-        [P_mcause] and, from the same resources, its unwind continuation or the
+        both [P_fault] at every cause and value that satisfy the cause
+        predicate [P_mcause] and the value predicate [P_mtval] and, from the
+        same resources, its unwind continuation or the
         fact that the stackful handler runs (the handler uses one of them,
         and runs with the site's token [F]);
       - a fault in a running trusted handler (the top count is odd), with
         the handler words of the header of its table.
       Each case gives the site's unwind continuation. Outside the switcher,
       the word of the topmost frame's table is set (not [WInt 0]). *)
-  Definition trap_handler_ok_def (P_mcause : Z → Prop) (F : coPset) (cstk : CSTK) (w : LWord)
-    (regs : LReg) : iProp Σ :=
+  Definition trap_handler_ok_def (P_mcause P_mtval : Z → Prop) (F : coPset) (cstk : CSTK)
+    (w : LWord) (regs : LReg) : iProp Σ :=
     ⌜trap_no_resume w⌝ ∗
     ⌜¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
     ( (unwind_cont F cstk True ∗
        (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)))
-    ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → Z → iProp Σ) (eh : Z),
+    ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z),
          trusted_handler (top_export_tbl cstk) P_fault ∗
          top_export_tbl cstk ↦ₕ□{stackful} eh ∗
          error_state_slot eh regs ∗
          (unwind_or_runs F cstk w regs (error_state_slot eh regs) ∧
-          ∀ c : Z, ⌜P_mcause c⌝ -∗ P_fault F cstk w regs c))
+          ∀ c v : Z, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ P_fault F cstk w regs c v))
     ∨ (unwind_cont F cstk True ∗
        ⌜Z.odd (top_error_count cstk) = true⌝ ∗
        ∃ eh ehs : Z,
@@ -854,39 +856,39 @@ Section Switcher_error_handler.
     @trap_handler_ok_cause = @trap_handler_ok_def := trap_handler_ok_aux.(seal_eq).
 
   (** A fault in the switcher. *)
-  Lemma trap_handler_ok_switcher P_mcause F cstk w regs :
+  Lemma trap_handler_ok_switcher P_mcause P_mtval F cstk w regs :
     trap_no_resume w →
     switcher_fault_pc w →
     unwind_cont F cstk True -∗
-    trap_handler_ok_cause P_mcause F cstk w regs.
+    trap_handler_ok_cause P_mcause P_mtval F cstk w regs.
   Proof.
     rewrite trap_handler_ok_unseal. iIntros (Hno Hpc) "HU".
     iSplit; first done. iSplit; first done. iLeft. iFrame. by iLeft.
   Qed.
 
   (** A fault in a compartment whose table declares no handler. *)
-  Lemma trap_handler_ok_no_handler P_mcause F cstk w regs :
+  Lemma trap_handler_ok_no_handler P_mcause P_mtval F cstk w regs :
     trap_no_resume w →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     no_handler (top_export_tbl cstk) -∗
     unwind_cont F cstk True -∗
-    trap_handler_ok_cause P_mcause F cstk w regs.
+    trap_handler_ok_cause P_mcause P_mtval F cstk w regs.
   Proof.
     rewrite trap_handler_ok_unseal. iIntros (Hno Hset) "Hnh HU".
     iSplit; first done. iSplit; first done. iLeft. iFrame.
   Qed.
 
   (** A fault in a trusted compartment with trusted handlers. *)
-  Lemma trap_handler_ok_handler P_mcause F cstk w regs
-    (P_fault : coPset → CSTK → LWord → LReg → Z → iProp Σ) (eh : Z) :
+  Lemma trap_handler_ok_handler P_mcause P_mtval F cstk w regs
+    (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z) :
     trap_no_resume w →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     trusted_handler (top_export_tbl cstk) P_fault -∗
     top_export_tbl cstk ↦ₕ□{stackful} eh -∗
     error_state_slot eh regs -∗
     (unwind_or_runs F cstk w regs (error_state_slot eh regs) ∧
-     ∀ c : Z, ⌜P_mcause c⌝ -∗ P_fault F cstk w regs c) -∗
-    trap_handler_ok_cause P_mcause F cstk w regs.
+     ∀ c v : Z, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ P_fault F cstk w regs c v) -∗
+    trap_handler_ok_cause P_mcause P_mtval F cstk w regs.
   Proof.
     rewrite trap_handler_ok_unseal. iIntros (Hno Hset) "Hh Heh Hslot HUP".
     iSplit; first done. iSplit; first done. iRight; iLeft.
@@ -894,32 +896,32 @@ Section Switcher_error_handler.
   Qed.
 
   (** A fault in a running trusted handler. *)
-  Lemma trap_handler_ok_running P_mcause F cstk w regs (eh ehs : Z) :
+  Lemma trap_handler_ok_running P_mcause P_mtval F cstk w regs (eh ehs : Z) :
     trap_no_resume w →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     Z.odd (top_error_count cstk) = true →
     top_export_tbl cstk ↦ₕ□{stackful} eh -∗
     top_export_tbl cstk ↦ₕ□{stackless} ehs -∗
     unwind_cont F cstk True -∗
-    trap_handler_ok_cause P_mcause F cstk w regs.
+    trap_handler_ok_cause P_mcause P_mtval F cstk w regs.
   Proof.
     rewrite trap_handler_ok_unseal. iIntros (Hno Hset Hodd) "Heh Hehs HU".
     iSplit; first done. iSplit; first done. iRight; iRight. by iFrame.
   Qed.
 
   (** The three cases, unsealed. *)
-  Lemma trap_handler_ok_cases P_mcause F cstk w regs :
-    trap_handler_ok_cause P_mcause F cstk w regs -∗
+  Lemma trap_handler_ok_cases P_mcause P_mtval F cstk w regs :
+    trap_handler_ok_cause P_mcause P_mtval F cstk w regs -∗
     ⌜trap_no_resume w⌝ ∗
     ⌜¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
     ( (unwind_cont F cstk True ∗
        (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)))
-    ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → Z → iProp Σ) (eh : Z),
+    ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z),
          trusted_handler (top_export_tbl cstk) P_fault ∗
          top_export_tbl cstk ↦ₕ□{stackful} eh ∗
          error_state_slot eh regs ∗
          (unwind_or_runs F cstk w regs (error_state_slot eh regs) ∧
-          ∀ c : Z, ⌜P_mcause c⌝ -∗ P_fault F cstk w regs c))
+          ∀ c v : Z, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ P_fault F cstk w regs c v))
     ∨ (unwind_cont F cstk True ∗
        ⌜Z.odd (top_error_count cstk) = true⌝ ∗
        ∃ eh ehs : Z,
@@ -930,5 +932,5 @@ Section Switcher_error_handler.
 End Switcher_error_handler.
 
 (** The faults that the switcher handles, for the fault causes
-    [mcause_ok]. *)
-Notation trap_handler_ok := (trap_handler_ok_cause mcause_ok).
+    [mcause_ok] and any value. *)
+Notation trap_handler_ok := (trap_handler_ok_cause mcause_ok (λ _ : Z, True%type)).

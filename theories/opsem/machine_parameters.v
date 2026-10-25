@@ -1,4 +1,5 @@
 From griotte Require Import machine_base.
+From griotte Require Export trap_fault.
 
 Class InstructionEncoding := {
     decodeInstr : Z → instr;
@@ -170,6 +171,72 @@ Section Translation.
   Proof. intros Ha Ha'. apply heap_shadow_inverse in Ha, Ha'. congruence. Qed.
 End Translation.
 
+(** The encoding of the value that trap entry writes to mtval for a CHERI
+    fault: a cause code and a register number, packed in two fields that a
+    mask, and a shift then a mask, extract. The number of a general register
+    is its RISC-V index. *)
+Class MtvalEncoding := {
+    cause_code_num : cheri_cause_code → Z;
+    cause_code_num_inj :: Inj (=) (=) cause_code_num;
+    cheri_reg_num : cheri_reg → Z;
+    cheri_reg_num_inj :: Inj (=) (=) cheri_reg_num;
+    cheri_reg_num_gpr r : cheri_reg_num (CheriGPR r) = reg_index r;
+    MTVAL_CODE_MASK : Z;
+    MTVAL_REG_SHIFT : Z;
+    MTVAL_REG_MASK : Z;
+    encode_mtval : cheri_cause_code → cheri_reg → Z;
+    encode_mtval_code c r :
+      Z.land (encode_mtval c r) MTVAL_CODE_MASK = cause_code_num c;
+    encode_mtval_reg c r :
+      Z.land (Z.shiftr (encode_mtval c r) MTVAL_REG_SHIFT) MTVAL_REG_MASK = cheri_reg_num r;
+  }.
+(* No [Hint Mode]: the class has no parameter, hence no input position. *)
+
+Section mtval_encoding.
+  Context `{MtvalEncoding}.
+
+  (** The fields of an mtval, as code computes them. *)
+  Definition mtval_code_field (z : Z) : Z := Z.land z MTVAL_CODE_MASK.
+  Definition mtval_reg_field (z : Z) : Z :=
+    Z.land (Z.shiftr z MTVAL_REG_SHIFT) MTVAL_REG_MASK.
+
+  (** The decoders: [None] is CHERIoT's [Invalid]. *)
+  Definition mtval_cause_code (z : Z) : option cheri_cause_code :=
+    finite_preimage cause_code_num (mtval_code_field z).
+  Definition mtval_register (z : Z) : option cheri_reg :=
+    finite_preimage cheri_reg_num (mtval_reg_field z).
+
+  Lemma mtval_code_field_encode c r : mtval_code_field (encode_mtval c r) = cause_code_num c.
+  Proof. apply encode_mtval_code. Qed.
+
+  Lemma mtval_reg_field_encode c r : mtval_reg_field (encode_mtval c r) = cheri_reg_num r.
+  Proof. apply encode_mtval_reg. Qed.
+
+  Lemma mtval_cause_code_encode c r : mtval_cause_code (encode_mtval c r) = Some c.
+  Proof. by rewrite /mtval_cause_code mtval_code_field_encode finite_preimage_inj. Qed.
+
+  Lemma mtval_register_encode c r : mtval_register (encode_mtval c r) = Some r.
+  Proof. by rewrite /mtval_register mtval_reg_field_encode finite_preimage_inj. Qed.
+
+  #[global] Instance encode_mtval_inj : Inj2 (=) (=) (=) encode_mtval.
+  Proof.
+    intros c r c' r' Heq. split.
+    - apply (inj cause_code_num).
+      by rewrite -(encode_mtval_code c r) -(encode_mtval_code c' r') Heq.
+    - apply (inj cheri_reg_num).
+      by rewrite -(encode_mtval_reg c r) -(encode_mtval_reg c' r') Heq.
+  Qed.
+
+  (** The PC and the special capability registers have numbers outside those
+      of the general registers. *)
+  Lemma cheri_reg_num_special s :
+    (∀ r, s ≠ CheriGPR r) → ¬ (0 ≤ cheri_reg_num s ≤ Z.of_nat RegNum)%Z.
+  Proof.
+    intros Hs Hrange. destruct (reg_index_surj _ Hrange) as [r Hr].
+    apply (Hs r), (inj cheri_reg_num). by rewrite cheri_reg_num_gpr Hr.
+  Qed.
+End mtval_encoding.
+
 Class MachineParameters := {
     instruction_encoding_mixin :: InstructionEncoding;
     permission_encoding_mixin :: PermissionEncoding;
@@ -189,10 +256,8 @@ Class MachineParameters := {
     revoker_mixin :: RevokerRegion;
     revoker_not_heap : withinBounds heap_b heap_e revoker_addr = false;
     revoker_not_shadow : withinBounds shadow_b shadow_e revoker_addr = false;
-    (* The value trap entry writes to mtval, from the machine state (PC,
-       registers, system registers, memory, shadow table): an arbitrary
-       function, of which cheriot-sail's is one instance. *)
-    trap_tval : Word * Reg * SReg * Mem * ShadowTbl → Z;
+    (* The encoding of mtval for a CHERI fault *)
+    mtval_encoding_mixin :: MtvalEncoding;
   }.
 
 (* Region predicates shared by the operational semantics and specifications. *)

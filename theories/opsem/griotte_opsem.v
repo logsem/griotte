@@ -1,5 +1,5 @@
 From griotte Require Export stdpp_extra machine_utils_extra.
-From griotte Require Export machine_base machine_parameters machine_instructions.
+From griotte Require Export machine_base machine_parameters machine_instructions trap_fault.
 
 (* The machine configuration: the PC, the general registers, the system
    registers, the memory and the shadow table. *)
@@ -648,100 +648,191 @@ Section opsem.
   Definition MCAUSE_STORE_ACCESS_FAULT : Z := 7.
   Definition MCAUSE_CHERI : Z := 28.
 
-  (** The cause of a fault of [CLoad _ src imm], in cheriot-sail's order of
-      checks: a CHERI fault unless the capability checks pass (tag, sealing,
-      load permission, bounds), and then an access fault if the address is
-      absent from memory or misses the shadow table: a shadow address whose
-      heap address has no shadow entry, or a loaded heap capability whose base
-      has no shadow entry. *)
-  Definition load_cause (φ : ExecConf) (src : RegName) (imm : Z) : Z :=
+  (** The value that trap entry writes to mtval for a fault that has none
+      (an illegal instruction: cheriot-sail's default, without the
+      instruction bits). *)
+  Definition MTVAL_NONE : Z := 0.
+
+  (** The default fault, for a fault that the PC checks do not explain and
+      that no instruction check reports: a bounds violation on the PC. It is
+      the fault of a jump out of the address space, which cheriot-sail
+      reports at the next fetch; the other cases are unreachable from a
+      correct PC (an absent register, a PC that cannot advance). *)
+  Definition fault_default : fault := FaultCheri BoundsViolation CheriPCC.
+
+  (** The checks of the capability [w] in register [r] that authorises a
+      data access at offset [imm], in cheriot-sail's order: the tag, the
+      sealing, the permission ([perm_ok], else the code [perm_code]; a
+      sealing range has none), and the bounds (an address overflow is out
+      of bounds). It gives the fault, or the effective address. *)
+  Definition data_cap_check (perm_ok : Perm → bool) (perm_code : cheri_cause_code)
+    (r : RegName) (w : Word) (imm : Z) : fault + Addr :=
+    match w with
+    | WCap true p _ b e a =>
+        if perm_ok p then
+          match (a + imm)%a with
+          | Some ea =>
+              if withinBounds b e ea then inr ea
+              else inl (FaultCheri BoundsViolation (CheriGPR r))
+          | None => inl (FaultCheri BoundsViolation (CheriGPR r))
+          end
+        else inl (FaultCheri perm_code (CheriGPR r))
+    | WSealRange true _ _ _ _ _ => inl (FaultCheri perm_code (CheriGPR r))
+    | WSentry _ true _ _ _ _ _
+    | WSealed _ (SCap true _ _ _ _ _) | WSealed _ (SSealRange true _ _ _ _ _) =>
+        inl (FaultCheri SealViolation (CheriGPR r))
+    | _ => inl (FaultCheri TagViolation (CheriGPR r))
+    end.
+
+  (** The fault of [CLoad _ src imm], in cheriot-sail's order of checks: the
+      checks of the capability in [src], and then an access fault at the
+      effective address if it is absent from memory or misses the shadow
+      table: a shadow address whose heap address has no shadow entry, or a
+      loaded heap capability whose base has no shadow entry. *)
+  Definition load_fault (φ : ExecConf) (src : RegName) (imm : Z) : fault :=
     match reg φ !!ᵣ src with
-    | Some (WCap true p _ b e a) =>
-        match (a + imm)%a with
-        | Some ea =>
-            if readAllowed p && withinBounds b e ea then
-              if is_shadow_address ea then
-                match shadow_to_heap ea with
-                | Some heap_a =>
-                    match shadowtbl φ !! heap_a with
-                    | None => MCAUSE_LOAD_ACCESS_FAULT
-                    | Some _ => MCAUSE_CHERI
-                    end
-                | None => MCAUSE_CHERI
-                end
-              else if is_revoker_address ea then MCAUSE_CHERI
-              else
-                match mem φ !! ea with
-                | None => MCAUSE_LOAD_ACCESS_FAULT
-                | Some w =>
-                    match heap_cap_base w with
-                    | Some base =>
-                        match shadowtbl φ !! base with
-                        | None => MCAUSE_LOAD_ACCESS_FAULT
-                        | Some _ => MCAUSE_CHERI
-                        end
-                    | None => MCAUSE_CHERI
-                    end
-                end
-            else MCAUSE_CHERI
-        | None => MCAUSE_CHERI
+    | Some w =>
+        match data_cap_check readAllowed PermitLoadViolation src w imm with
+        | inl f => f
+        | inr ea =>
+            if is_shadow_address ea then
+              match shadow_to_heap ea with
+              | Some heap_a =>
+                  match shadowtbl φ !! heap_a with
+                  | None => FaultLoadAccess ea
+                  | Some _ => fault_default
+                  end
+              | None => fault_default
+              end
+            else if is_revoker_address ea then fault_default
+            else
+              match mem φ !! ea with
+              | None => FaultLoadAccess ea
+              | Some w =>
+                  match heap_cap_base w with
+                  | Some base =>
+                      match shadowtbl φ !! base with
+                      | None => FaultLoadAccess ea
+                      | Some _ => fault_default
+                      end
+                  | None => fault_default
+                  end
+              end
         end
-    | _ => MCAUSE_CHERI
+    | None => fault_default
     end.
 
-  (** The cause of a fault of [Store dst ρ imm], in cheriot-sail's order of
-      checks: a CHERI fault unless the capability checks pass (tag, sealing,
-      store permission, bounds), and then an access fault if the address is
-      absent from memory, or if a non-integer is stored to a shadow
-      address. *)
-  Definition store_cause (φ : ExecConf) (dst : RegName) (ρ : Z + RegName) (imm : Z) : Z :=
+  (** The fault of [Store dst ρ imm], in cheriot-sail's order of checks: the
+      checks of the capability in [dst], and then an access fault at the
+      effective address if it is absent from memory, or if a non-integer is
+      stored to a shadow address. *)
+  Definition store_fault (φ : ExecConf) (dst : RegName) (ρ : Z + RegName) (imm : Z) : fault :=
     match word_of_argument (reg φ) ρ, reg φ !!ᵣ dst with
-    | Some tostore, Some (WCap true p _ b e a) =>
-        match (a + imm)%a with
-        | Some ea =>
-            if writeAllowed p && withinBounds b e ea then
-              if is_shadow_address ea then
-                match tostore with
-                | WInt _ => MCAUSE_CHERI
-                | _ => MCAUSE_STORE_ACCESS_FAULT
-                end
-              else if is_revoker_address ea then MCAUSE_CHERI
-              else
-                match mem φ !! ea with
-                | None => MCAUSE_STORE_ACCESS_FAULT
-                | Some _ => MCAUSE_CHERI
-                end
-            else MCAUSE_CHERI
-        | None => MCAUSE_CHERI
+    | Some tostore, Some w =>
+        match data_cap_check writeAllowed PermitStoreViolation dst w imm with
+        | inl f => f
+        | inr ea =>
+            if is_shadow_address ea then
+              match tostore with
+              | WInt _ => fault_default
+              | _ => FaultStoreAccess ea
+              end
+            else if is_revoker_address ea then fault_default
+            else
+              match mem φ !! ea with
+              | None => FaultStoreAccess ea
+              | Some _ => fault_default
+              end
         end
-    | _, _ => MCAUSE_CHERI
+    | _, _ => fault_default
     end.
 
-  (** The cause of a fault of the instruction [i]: [Fail] is an illegal
-      instruction, a load or a store may be an access fault, and every other
-      fault is a CHERI fault. *)
-  Definition instr_cause (i : instr) (φ : ExecConf) : Z :=
+  (** The fault of [Jalr rdst rsrc], in cheriot-sail's order of checks on
+      the target in [rsrc]: the tag, the sealing by the form of the
+      instruction, the execute permission. *)
+  Definition jalr_fault (φ : ExecConf) (rdst rsrc : RegName) : fault :=
+    match reg φ !!ᵣ rsrc with
+    | Some w =>
+        if negb (get_tag w) then FaultCheri TagViolation (CheriGPR rsrc)
+        else if negb (jalr_sealing_ok rdst rsrc w) then FaultCheri SealViolation (CheriGPR rsrc)
+        else if negb (executable_word w) then FaultCheri PermitExecuteViolation (CheriGPR rsrc)
+        else fault_default
+    | None => fault_default
+    end.
+
+  (** The register that a system register access without the permission to
+      access system registers reports: the special capability register, or
+      the PC for a CSR. *)
+  Definition sreg_cheri_reg (sr : SRegName) : cheri_reg :=
+    match sr with
+    | MTCC => CheriMTCC
+    | MTDC => CheriMTDC
+    | MEPCC => CheriMEPCC
+    | MSTATUS | MCAUSE | MTVAL => CheriPCC
+    end.
+
+  (** The fault of the instruction [i], executed with the PC permission
+      [plevel]: [Fail] is an illegal instruction, a load or a store fails
+      the checks of its capability or is an access fault, [Jalr] fails the
+      checks of its target, and an access to a system register without the
+      permission reports the register. Any other fault is the default
+      one. *)
+  Definition instr_fault (i : instr) (plevel : Perm) (φ : ExecConf) : fault :=
+    let no_sreg_access sr :=
+      if has_sreg_access plevel then fault_default
+      else FaultCheri PermitAccessSystemRegistersViolation sr in
     match i with
-    | Fail => MCAUSE_ILLEGAL_INSTRUCTION
-    | CLoad _ src imm => load_cause φ src imm
-    | Store dst ρ imm => store_cause φ dst ρ imm
-    | _ => MCAUSE_CHERI
+    | Fail => FaultIllegal
+    | CLoad _ src imm => load_fault φ src imm
+    | Store dst ρ imm => store_fault φ dst ρ imm
+    | Jalr rdst rsrc => jalr_fault φ rdst rsrc
+    | SpecialRW _ sr _ => no_sreg_access (sreg_cheri_reg sr)
+    | SetMIE _ | Mret => no_sreg_access CheriPCC
+    | _ => fault_default
     end.
 
-  (** The cause of a fault in the state [φ], from the fetch and the decoded
-      instruction at PC: a fetch that fails the PC checks is a CHERI fault, a
-      fetch from an address absent from memory is an access fault. *)
-  Definition trap_cause (φ : ExecConf) : Z :=
+  (** The fault in the state [φ], from the fetch and the decoded instruction
+      at PC: the checks of the PC in cheriot-sail's order (the tag, the
+      sealing, the execute permission, the bounds) are CHERI faults on the
+      PC, a fetch from an address absent from memory is an access fault. *)
+  Definition trap_fault (φ : ExecConf) : fault :=
     match pcc φ with
-    | WCap true _ _ _ _ a =>
+    | WCap true p _ _ _ a =>
         if isCorrectPCb (pcc φ) then
           match mem φ !! a with
-          | None => MCAUSE_INST_ACCESS_FAULT
-          | Some wa => instr_cause (decodeInstrW wa) φ
+          | None => FaultInstAccess a
+          | Some wa => instr_fault (decodeInstrW wa) p φ
           end
-        else MCAUSE_CHERI
-    | _ => MCAUSE_CHERI
+        else if executeAllowed p then FaultCheri BoundsViolation CheriPCC
+        else FaultCheri PermitExecuteViolation CheriPCC
+    | WSealRange true _ _ _ _ _ => FaultCheri PermitExecuteViolation CheriPCC
+    | WSentry _ true _ _ _ _ _
+    | WSealed _ (SCap true _ _ _ _ _) | WSealed _ (SSealRange true _ _ _ _ _) =>
+        FaultCheri SealViolation CheriPCC
+    | _ => FaultCheri TagViolation CheriPCC
     end.
+
+  (** The cause and the value of a fault, as cheriot-sail writes them to
+      mcause and mtval. *)
+  Definition fault_mcause (f : fault) : Z :=
+    match f with
+    | FaultCheri _ _ => MCAUSE_CHERI
+    | FaultIllegal => MCAUSE_ILLEGAL_INSTRUCTION
+    | FaultInstAccess _ => MCAUSE_INST_ACCESS_FAULT
+    | FaultLoadAccess _ => MCAUSE_LOAD_ACCESS_FAULT
+    | FaultStoreAccess _ => MCAUSE_STORE_ACCESS_FAULT
+    end.
+
+  Definition fault_mtval (f : fault) : Z :=
+    match f with
+    | FaultCheri c r => encode_mtval c r
+    | FaultIllegal => MTVAL_NONE
+    | FaultInstAccess a | FaultLoadAccess a | FaultStoreAccess a => a
+    end.
+
+  (** The cause and the value of a fault in the state [φ]. *)
+  Definition trap_cause (φ : ExecConf) : Z := fault_mcause (trap_fault φ).
+  Definition trap_tval (φ : ExecConf) : Z := fault_mtval (trap_fault φ).
 
   (** The value of a system register; an absent one reads as [WInt 0]. *)
   Definition sreg_word (φ : ExecConf) (sr : SRegName) : Word :=

@@ -1196,8 +1196,8 @@ Section logrel.
       a fault that the switcher handles ([trusted_fault], instantiated by
       the switcher with [trap_handler_ok ⊤]). Only a fault in an untrusted
       compartment carries the worlds and the continuation. Trap entry lends
-      MEPCC and mcause to the trap vector ([trap_entry_out w]) and holds the
-      trap-entry part [N_trap] of the non-atomic token. *)
+      MEPCC, mcause and mtval to the trap vector ([trap_entry_out w]) and
+      holds the trap-entry part [N_trap] of the non-atomic token. *)
   Definition trap_vector_safe
       (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
     □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord),
@@ -1236,7 +1236,7 @@ Section logrel.
       leads to the trap vector, where execution is safe. The resources and
       the fault's justification come under an update at the time of the fault (for instance,
       to close an invariant); the non-atomic token provides the trap-entry
-      token, and the trap vector receives MEPCC and mcause. *)
+      token, and the trap vector receives MEPCC, mcause and mtval. *)
   Lemma interp_trap_safe (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (cstk : CSTK) (regs : LReg) (w : LWord) :
     (∀ r, is_Some (regs !! r)) ->

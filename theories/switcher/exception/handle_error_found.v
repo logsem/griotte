@@ -206,10 +206,11 @@ Section Handle_Error_Found.
   Qed.
 
   (** From [.Lhandle_error_stackless_setup]: [ca0] receives the cause of the
-      trap (word 18 of the register save area), [ca1] some value of the
-      trap, [ca2] 0 and [csp] the handler's stack, from [ct0]. *)
+      trap (word 18 of the register save area), [ca1] the value of the
+      trap, from the lent mtval, which then goes back to the state
+      interpretation, [ca2] 0 and [csp] the handler's stack, from [ct0]. *)
   Lemma handle_error_stackless_setup_spec
-    (save_area : list LWord) (wct0 wca0 wca1 wca2 : LWord) :
+    (save_area : list LWord) (wct0 wca0 wca1 wca2 : LWord) (mtval : Z) :
     length save_area = 21%nat ->
 
     PC ↦ₚ switcher_label_pc ".Lhandle_error_stackless_setup" ∗
@@ -219,19 +220,22 @@ Section Handle_Error_Found.
     ca1 ↦ᵣ wca1 ∗
     ca2 ↦ᵣ wca2 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
+    trap_vcsr_res ∗
+    vcsr_frag MTVAL (lword_of_word (WInt mtval)) ∗
     switcher_code ∗
-    ▷ ( ∀ mtval : Z,
-        PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_invoke" ∗
+    ▷ ( PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_invoke" ∗
         csp ↦ᵣ wct0 ∗
         ct0 ↦ᵣ wct0 ∗
         ca0 ↦ᵣ (save_area !!! 18%nat) ∗
         ca1 ↦ᵣ WInt mtval ∗
         ca2 ↦ᵣ WInt 0 ∗
-        [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] -∗
+        [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
+        trap_entry_res -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hlen) "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave & #Hswitcher & Hpost)".
+    iIntros (Hlen)
+      "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave & Htok & Hmtval & #Hswitcher & Hpost)".
     destruct (lookup_lt_is_Some_2 save_area 18%nat) as [w18 Hw18]; first lia.
     rewrite (list_lookup_total_correct _ _ _ Hw18).
     iDestruct (tstack_save_area_acc _ _ _ Hw18 with "Hsave") as "[Hs18 Hsave]".
@@ -243,7 +247,11 @@ Section Handle_Error_Found.
       with "[$HPC $Hca0 $Hcsp $Hs18]" as "(HPC & Hca0 & Hcsp & Hs18)".
     rewrite lload_word_RWL.
     (* SpecialRW ca1 mtval cnull *)
-    iInstrApply "Hcode" wp_csrr_mtval with "[$HPC $Hca1]" as (mtval) "(HPC & Hca1)".
+    iInstrApply "Hcode" wp_cspecialr_vcsr with "[$HPC $Hca1 $Hmtval]"
+      as "(HPC & Hca1 & Hmtval)".
+    (* mtval goes back to the state interpretation *)
+    iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
+    iIntros "Htok".
     (* Mov ca2 0 *)
     iInstr "Hcode".
     (* Mov csp ct0 *)
@@ -251,7 +259,7 @@ Section Handle_Error_Found.
     (* Jmp .Lhandle_error_handler_invoke *)
     iInstr "Hcode".
     { switcher_jump_label ".Lhandle_error_handler_invoke". }
-    iApply "Hpost". iFrame "HPC Hcsp Hct0 Hca0 Hca1 Hca2". by iApply "Hsave".
+    iApply "Hpost". iFrame "HPC Hcsp Hct0 Hca0 Hca1 Hca2 Htok". by iApply "Hsave".
   Qed.
 
 End Handle_Error_Found.

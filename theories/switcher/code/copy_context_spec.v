@@ -57,7 +57,8 @@ Section CopyContextMacro.
           counter ↦ᵣ WInt (15 - j) -∗
           ([∗ list] k ↦ w ∈ ws, (a_s ^+ k)%a ↦ₐ w) -∗
           D j -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a) ⊤ φ ) ∧
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a -∗
+          WP Seq (Instr Faulted) {{ φ }} ) ∧
         ( ∀ wscratch' : LWord,
           ⌜(a_d + 15 <= e_d)%Z⌝ -∗
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
@@ -96,8 +97,9 @@ Section CopyContextMacro.
       { solve_addr. }
       { rewrite /withinBounds; solve_addr. }
       iDestruct "Hpost" as "[Hfailed _]".
-      iTrap with ("Hfailed" $! i with "[//] [%] Hsrc Hdst [$Hscratch] Hcounter Hws HD").
-      solve_addr. }
+      iApply ("Hfailed" $! i with "[//] [%] Hsrc Hdst [$Hscratch] Hcounter Hws HD [HPC]").
+      { solve_addr. }
+      by rewrite (_ : (pc_a ^+ Z.to_nat 2)%a = (pc_a ^+ 2)%a); last solve_addr. }
     iMod ("Hacc" $! i with "[%] [%] HD") as (v q) "(%Hsh_d & Hcell & Hderef & Hclose)".
     { lia. }
     { done. }
@@ -137,7 +139,7 @@ Section CopyContextMacro.
       of the region at [a_s] to the cells from [a_d], through the
       accessor of the destination. A store past the end [e_d] of the
       destination capability faults at [pc_a ^+ 2], with [j] words
-      copied. *)
+      copied: the continuation receives the fault, before trap entry. *)
   Lemma copy_context_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (dst src scratch counter : RegName)
@@ -175,7 +177,8 @@ Section CopyContextMacro.
           counter ↦ᵣ WInt (15 - j) -∗
           [[ a_s , (a_s ^+ 15)%a ]] ↦ₐ [[ ws ]] -∗
           D j -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a) ⊤ φ ) ∧
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a -∗
+          WP Seq (Instr Faulted) {{ φ }} ) ∧
         ( ∀ wscratch' : LWord,
           ⌜(a_d + 15 <= e_d)%Z⌝ -∗
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e

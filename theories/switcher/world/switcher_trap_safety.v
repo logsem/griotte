@@ -28,17 +28,19 @@ Section Switcher_trap_safety.
   (** The safety of the exception entry, for a fault in an untrusted
       compartment (with the whole non-atomic token) or a fault that the
       switcher handles, for any token [F] that contains the switcher's
-      invariant and the trap-entry part, and any cause predicate [P_mcause] of
-      fault causes. *)
+      invariant and the trap-entry part, any cause predicate [P_mcause] of
+      fault causes, and any value predicate [P_mtval]. *)
   Definition exception_entry_safe : iProp Σ :=
-    □ ∀ (P_mcause : Z → Prop) (F : coPset) (cstk : CSTK) (rmap : LReg) (w : LWord),
+    □ ∀ (P_mcause P_mtval : Z → Prop) (F : coPset) (cstk : CSTK) (rmap : LReg)
+        (w : LWord),
       ⌜∀ c, P_mcause c → mcause_ok c⌝ -∗
       ⌜↑Nswitcher ⊆ F⌝ -∗
       ⌜↑N_trap ⊆ F⌝ -∗
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
-      ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap) ∨ trap_handler_ok_cause P_mcause F cstk w rmap) -∗
+      ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap) ∨
+       trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
       PC ↦ₚ lword_of_word mtcc_vec -∗
-      trap_entry_out_cause P_mcause w -∗
+      trap_entry_out_cause P_mcause P_mtval w -∗
       registers_pointsto rmap -∗
       na_own cerise_nais (F ∖ ↑N_trap) -∗
       cstack_frag cstk -∗
@@ -99,7 +101,8 @@ Section Switcher_trap_safety.
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec).
   Proof.
     iIntros "#Hsafe !>" (cstk regs w Hfull) "Hfault HPC Hout Hrmap Hna Hcstk".
-    iApply ("Hsafe" $! mcause_ok ⊤ with "[%] [%] [%] [//] [Hfault] HPC Hout Hrmap Hna Hcstk");
+    iApply ("Hsafe" $! mcause_ok (λ _ : Z, True%type) ⊤
+             with "[%] [%] [%] [//] [Hfault] HPC Hout Hrmap Hna Hcstk");
       [done | set_solver | set_solver |].
     iDestruct "Hfault" as "[Hfault | Hfault]"; [iLeft; by iFrame | by iRight].
   Qed.
@@ -138,9 +141,11 @@ Section Switcher_trap_safety.
   Qed.
 
   (** A fault closes through the exception path of the switcher: after
-      trap entry, the switcher handles the fault ([trap_handler_ok_cause P_mcause F]),
-      for a cause predicate [P_mcause] of fault causes. *)
-  Lemma trap_safe_exception_entry_of_safety (P_mcause : Z → Prop) (F : coPset) (w : LWord) :
+      trap entry, the switcher handles the fault
+      ([trap_handler_ok_cause P_mcause P_mtval F]), for a cause predicate
+      [P_mcause] of fault causes and a value predicate [P_mtval]. *)
+  Lemma trap_safe_exception_entry_of_safety (P_mcause P_mtval : Z → Prop) (F : coPset)
+    (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) →
     ↑Nswitcher ⊆ F →
     ↑N_trap ⊆ F →
@@ -151,8 +156,8 @@ Section Switcher_trap_safety.
          na_own cerise_nais F ∗
          registers_pointsto rmap ∗
          cstack_frag cstk ∗
-         trap_handler_ok_cause P_mcause F cstk w rmap) -∗
-    trap_safe_cause P_mcause w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+         trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
+    trap_safe_cause P_mcause P_mtval w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
     iIntros (HP_mcause HF HFtrap) "#Hsafety Hres".
     iNamed "Hsafety".
@@ -161,7 +166,7 @@ Section Switcher_trap_safety.
     iMod "Hres" as (rmap cstk Hfull_rmap) "(Hna & Hrmap & Hcstk & Hhandled)".
     iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
-    iApply ("Hentry_safe" $! P_mcause F cstk rmap w with
+    iApply ("Hentry_safe" $! P_mcause P_mtval F cstk rmap w with
              "[//] [//] [//] [//] [Hhandled] HPC Hout Hrmap Hna Hcstk").
     by iRight.
   Qed.

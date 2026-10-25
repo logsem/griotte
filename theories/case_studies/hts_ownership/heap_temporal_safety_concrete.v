@@ -51,7 +51,7 @@ Definition hts_shadow_region : ShadowRegion :=
      revoker_mixin := @revoker_mixin machine_parameters_instance;
      revoker_not_heap := eq_refl;
      revoker_not_shadow := eq_refl;
-     trap_tval := @trap_tval machine_parameters_instance |}.
+     mtval_encoding_mixin := @mtval_encoding_mixin machine_parameters_instance |}.
 
 Definition hts_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 Definition hts_alloc_sealing_type : OType := @finz.FinZ ONum 10 eq_refl eq_refl.

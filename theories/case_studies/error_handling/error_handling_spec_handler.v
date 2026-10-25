@@ -82,9 +82,10 @@ Section Error_Handling_Handler.
 
   (** The fault obligation of [stats]: the facts of the site, the cell
       of the topmost table set, the lock held, the closing of [stats_inv],
-      and the continuation after the release. It ignores the cause. *)
+      and the continuation after the release. It ignores the cause and the
+      value. *)
   Definition stats_P_fault (F : coPset) (cstk : CSTK) (w : LWord) (rfault : LReg)
-    (_ : Z) : iProp Σ :=
+    (_ _ : Z) : iProp Σ :=
     ("%Hfacts" ∷ ⌜stats_fault_facts F w rfault⌝ ∗
      "%Htbl_set" ∷ ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
      "Hlock" ∷ STATS_cgp_b ↦ₐ WInt 1 ∗
