@@ -20,10 +20,11 @@ Section AllocatorMalloc.
       read. Other registers and resources can be framed. *)
 
   Lemma allocator_malloc_invalid_correct
-    (E : coPset) (g_owner : Locality) (a_owner : Addr) (o : Z) (wreq wret : LWord)
+    (E F : coPset) (g_owner : Locality) (a_owner : Addr) (o : Z) (wreq wret : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
+    ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     ¬ allocator_positive_size wreq.(lw) ->
@@ -33,7 +34,7 @@ Section AllocatorMalloc.
 
        allocator_service_ctx ∗
        allocator_service_static ∗
-       na_own cerise_nais E ∗
+       na_own cerise_nais F ∗
        a_owner ↦ₐ WInt o ∗
 
        (* Initial register file. *)
@@ -52,7 +53,7 @@ Section AllocatorMalloc.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
 
-       ▷ (na_own cerise_nais E ∗
+       ▷ (na_own cerise_nais F ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
@@ -71,11 +72,12 @@ Section AllocatorMalloc.
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
-    intros HEservice Hshadow_a Hbounds_a Hinvalid Htgt.
+    intros HEservice HFservice Hshadow_a Hbounds_a Hinvalid Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 &
       Hct2 & Hct3 & Hct4 & Hctp & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
-    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
+    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)";
+      [exact HEservice|exact HFservice|].
     iDestruct "Hinv" as ">Hdata".
     iDestruct "Hstatic" as "[#Himports #Hcode]".
     iEval (rewrite /allocator_code allocator_code_b_malloc) in "Hcode".
@@ -111,11 +113,12 @@ Section AllocatorMalloc.
       The bump cursor stays hidden in the service invariant. *)
 
   Lemma allocator_malloc_valid_correct
-    (S : gset AId) (E : coPset) (g_owner : Locality) (a_owner : Addr)
+    (S : gset AId) (E F : coPset) (g_owner : Locality) (a_owner : Addr)
     (id : Z) (Ω : gset AId) (n : Z) (πn : option AId) (wret : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
+    ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
     (0 < n)%Z ->
@@ -125,7 +128,7 @@ Section AllocatorMalloc.
 
        allocator_service_ctx ∗
        allocator_service_static ∗
-       na_own cerise_nais E ∗
+       na_own cerise_nais F ∗
        allocator_owner_id id Ω ∗
        a_owner ↦ₐ WInt id ∗
 
@@ -145,7 +148,7 @@ Section AllocatorMalloc.
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
 
-       ▷ (na_own cerise_nais E ∗
+       ▷ (na_own cerise_nais F ∗
           a_owner ↦ₐ WInt id ∗
           PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ WCap true RW Global
@@ -177,11 +180,12 @@ Section AllocatorMalloc.
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
   Proof.
-    intros HEservice Hshadow_a Hbounds_a Hpositive Htgt.
+    intros HEservice HFservice Hshadow_a Hbounds_a Hpositive Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 &
       Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hpost)".
     (* Open the service invariant and focus on the code of [malloc]. *)
-    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)"; try exact HEservice.
+    iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)";
+      [exact HEservice|exact HFservice|].
     iDestruct "Hinv" as ">@".
     iDestruct "Hstatic" as "[#Himports #Hcode]".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
@@ -284,13 +288,13 @@ Section AllocatorMalloc.
   (** A malformed allocator capability in [ca0] traps in the owner block. *)
 
   Lemma allocator_malloc_invalid_capability_spec
-    (E : coPset) (wsealed : LWord) (P : iProp Σ) :
+    (E F : coPset) (wsealed : LWord) (P : iProp Σ) :
 
     ↑Nswitcher ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
 
     allocator_service_static ∗
-    na_own cerise_nais E ∗
+    na_own cerise_nais F ∗
     PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
       allocator_malloc_pcc_addr ∗
     ca0 ↦ᵣ wsealed ∗
@@ -300,7 +304,7 @@ Section AllocatorMalloc.
     (∀ a, ⌜(allocator_malloc_pcc_addr <= a <
             allocator_malloc_pcc_addr
               ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0))%a⌝ -∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
       ctp ↦ᵣ - ∗
       ca0 ↦ᵣ wsealed ∗
       ca3 ↦ᵣ - ∗

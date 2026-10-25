@@ -22,9 +22,9 @@ Section Switcher_KtK.
       [cstk], with the callee's stack [[b_callee, e_callee)]: the switcher
       force-unwinds a fault of the callee and returns ECOMPARTMENTFAIL to
       the caller, which needs the callee's whole stack back. *)
-  Definition ktk_fault_cont (E : coPset) (frame : cframe) (cstk : CSTK)
+  Definition ktk_fault_cont (F : coPset) (frame : cframe) (cstk : CSTK)
     (b_callee e_callee : Addr) : iProp Σ :=
-    unwind_cont E (cstack_push frame cstk)
+    unwind_cont F (cstack_push frame cstk)
       (∃ stk_mem : list LWord, [[ b_callee , e_callee ]] ↦ₐ [[ stk_mem ]]).
 
   (** Shape of the higher-order specification for entry points
@@ -52,7 +52,7 @@ Section Switcher_KtK.
     (arg_rmap : LReg)
     (cstk : CSTK)
     (nargs minstk : nat)
-    (E : coPset)
+    (F : coPset)
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
     (off_tgt : Z)
@@ -77,7 +77,7 @@ Section Switcher_KtK.
              ⌜ dom rmap_ret =
                    all_registers_s ∖
                      {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-             ∗ na_own cerise_nais E
+             ∗ na_own cerise_nais F
              ∗ PC ↦ₚ WCap true XSRW_ Local
                          b_switcher e_switcher a_switcher_return
              ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
@@ -94,7 +94,7 @@ Section Switcher_KtK.
     (* FAULT --- the callee faults; the switcher force-unwinds its frame and
        returns ECOMPARTMENTFAIL to the caller *)
     let fault_cont :=
-      ktk_fault_cont E frame cstk (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) in
+      ktk_fault_cont F frame cstk (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) in
     (∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
        ⌜ (Z.of_nat minstk + StackEntry_reserved_space <=
             stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk)%Z ⌝
@@ -102,7 +102,7 @@ Section Switcher_KtK.
        ∗ ⌜ dom rmap' =
              all_registers_s ∖
                ({[ cgp ; cra ; csp ]} ∪ dom_arg_rmap 8) ⌝
-       ∗ na_own cerise_nais E
+       ∗ na_own cerise_nais F
        ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
        ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
        ∗ cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return
@@ -117,15 +117,15 @@ Section Switcher_KtK.
            [[ region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) ]]
        ∗ cstack_frag (cstack_push frame cstk)
        ∗ P
-       ∗ (if may_fault then (return_cont ∧ fault_cont) ∗ switcher_res E else return_cont)
+       ∗ (if may_fault then (return_cont ∧ fault_cont) ∗ switcher_res F else return_cont)
        -∗ WP Seq (Instr Executable)
              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
 
 
-  #[local] Lemma if_and_sep_intro (b : bool) (R F S : iProp Σ) :
+  #[local] Lemma if_and_sep_intro (b : bool) (R Q S : iProp Σ) :
     (if b then S else True) -∗
-    R ∧ (if b then F else True) -∗
-    if b then (R ∧ F) ∗ S else R.
+    R ∧ (if b then Q else True) -∗
+    if b then (R ∧ Q) ∗ S else R.
   Proof. destruct b; iIntros "HS H"; [iFrame | by iDestruct "H" as "[$ _]"]. Qed.
 
   (** Specification of the switcher for known-to-known cross compartment call,
@@ -142,7 +142,7 @@ Section Switcher_KtK.
     (arg_rmap rmap : LReg)
     (cstk : CSTK)
     (nargs minstk_tgt : nat)
-    (E : coPset)
+    (F : coPset)
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
@@ -159,7 +159,7 @@ Section Switcher_KtK.
          "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                all_registers_s ∖
                  {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-         ∗ "Hna" ∷ na_own cerise_nais E
+         ∗ "Hna" ∷ na_own cerise_nais F
          ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
          ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
          ∗ "Hcra" ∷ cra ↦ᵣ rcra
@@ -182,7 +182,7 @@ Section Switcher_KtK.
          "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                all_registers_s ∖
                  {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-         ∗ "Hna" ∷ na_own cerise_nais E
+         ∗ "Hna" ∷ na_own cerise_nais F
          ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
          ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
          ∗ "Hcra" ∷ cra ↦ᵣ rcra
@@ -205,7 +205,7 @@ Section Switcher_KtK.
          "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                all_registers_s ∖
                  {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-         ∗ "Hna" ∷ na_own cerise_nais E
+         ∗ "Hna" ∷ na_own cerise_nais F
          ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
          ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
          ∗ "Hcra" ∷ cra ↦ᵣ rcra
@@ -231,8 +231,8 @@ Section Switcher_KtK.
     disjoint_from_shadow btbl_tgt etbl_tgt ->
     is_heap_address bpcc_tgt = false ->
     is_heap_address bcgp_tgt = false ->
-    ↑Nswitcher ⊆ E ->
-    ↑N_trap ⊆ E ->
+    ↑Nswitcher ⊆ F ->
+    ↑N_trap ⊆ F ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt < a_tbl_cgp)%a ->
     (a_tbl_ehs < atbl_tgt)%a ->
@@ -254,7 +254,7 @@ Section Switcher_KtK.
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
     ∗ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
     ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) (Z.of_nat minstk_tgt) off_tgt)
-    ∗ na_own cerise_nais E
+    ∗ na_own cerise_nais F
     ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
@@ -269,7 +269,7 @@ Section Switcher_KtK.
     ∗ P
     ∗ switcher_cc_specification_known_to_known_function
         may_fault P Q wcgp_caller wcra_caller wcs0_caller wcs1_caller
-        b_stk e_stk a_stk arg_rmap cstk nargs minstk_tgt E
+        b_stk e_stk a_stk arg_rmap cstk nargs minstk_tgt F
         bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt)
     ∗ ▷ ((if may_fault
           then returned ∨ stack_exhausted ∨ callee_faulted
@@ -291,7 +291,7 @@ Section Switcher_KtK.
 
     iApply (switcher_cc_specification_known_to_known
               wcgp_caller wcra_caller wcs0_caller wcs1_caller
-              b_stk e_stk a_stk stk_mem arg_rmap rmap cstk nargs minstk_tgt E
+              b_stk e_stk a_stk stk_mem arg_rmap rmap cstk nargs minstk_tgt F
               btbl_tgt atbl_tgt etbl_tgt
               bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt posture_tgt);
       try assumption.
@@ -330,7 +330,7 @@ Section Switcher_KtK.
                ∗ ⌜ dom rmap_final =
                      all_registers_s ∖
                        {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-               ∗ na_own cerise_nais E
+               ∗ na_own cerise_nais F
                ∗ PC ↦ₚ lupdatePcPerm (rcra)
                ∗ cgp ↦ᵣ rcgp
                ∗ cra ↦ᵣ rcra
@@ -359,7 +359,7 @@ Section Switcher_KtK.
         iApply (switcher_cc_specification_return_known_to_known_gen
                   wcgp_caller wcra_caller wcs0_caller wcs1_caller
                   wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk
-                  (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E n
+                  (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) F n
                   with
                   "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                     $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hretpost]").
@@ -380,7 +380,7 @@ Section Switcher_KtK.
       iApply (switcher_cc_specification_return_known_to_known_gen
                 wcgp_caller wcra_caller wcs0_caller wcs1_caller
                 (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret _ cstk
-                (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) E n
+                (WCap true RO Global btbl_tgt etbl_tgt atbl_tgt) F n
                 with
                 "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                   $Hcsp $Hca0 $Hca1 $Hrmap_fault $Hstk $Hcstk Hpost]");

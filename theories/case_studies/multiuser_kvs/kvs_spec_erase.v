@@ -157,14 +157,14 @@ Section KVS_spec_erase.
     (wret : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
-    (E : coPset)
+    (F : coPset)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
 
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
     is_uint16 nkey ->
@@ -175,7 +175,7 @@ Section KVS_spec_erase.
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -194,7 +194,7 @@ Section KVS_spec_erase.
       ▷ is_logical_kvs lkvs ∗
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( na_own cerise_nais E ∗
+      ▷ ( na_own cerise_nais F ∗
           PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -280,14 +280,14 @@ Section KVS_spec_erase.
     (wret : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
-    (E : coPset)
+    (F : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -299,7 +299,7 @@ Section KVS_spec_erase.
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -315,7 +315,7 @@ Section KVS_spec_erase.
 
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ (na_own cerise_nais E ∗
+      ▷ (na_own cerise_nais F ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -361,14 +361,14 @@ Section KVS_spec_erase.
   Lemma KVS_erase_spec_in
     (wret : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
-    (E : coPset)
+    (F : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -378,7 +378,7 @@ Section KVS_spec_erase.
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -395,7 +395,7 @@ Section KVS_spec_erase.
       ▷ user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) - ∗
 
-      ▷ (na_own cerise_nais E ∗
+      ▷ (na_own cerise_nais F ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -593,14 +593,14 @@ Section KVS_spec_erase.
     (wret : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
-    (E : coPset)
+    (F : coPset)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
 
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
     is_uint16 nkey ->
@@ -611,7 +611,7 @@ Section KVS_spec_erase.
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
       cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
@@ -629,7 +629,7 @@ Section KVS_spec_erase.
       ▷ is_logical_kvs lkvs ∗
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( na_own cerise_nais E ∗
+      ▷ ( na_own cerise_nais F ∗
           PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -704,13 +704,13 @@ Section KVS_spec_erase.
     (wret : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
-    (E : coPset)
+    (F : coPset)
     :
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -722,7 +722,7 @@ Section KVS_spec_erase.
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -738,7 +738,7 @@ Section KVS_spec_erase.
 
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ (na_own cerise_nais E ∗
+      ▷ (na_own cerise_nais F ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -782,13 +782,13 @@ Section KVS_spec_erase.
   Lemma KVS_erase_spec_notin
     (wret : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
-    (E : coPset)
+    (F : coPset)
     :
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -798,7 +798,7 @@ Section KVS_spec_erase.
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -815,7 +815,7 @@ Section KVS_spec_erase.
       ▷ user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) ⊥ ∗
 
-      ▷ (na_own cerise_nais E ∗
+      ▷ (na_own cerise_nais F ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -924,10 +924,10 @@ Section KVS_spec_erase.
   Lemma KVS_erase_spec_not_uint16_map_key
     (wret : LWord)
     (wca1 : LWord)
-    (E : coPset)
+    (F : coPset)
     :
 
-    ↑(Nkvs.@"physical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
 
     ¬ word_is_uint16 wca1.(lw) ->
 
@@ -935,7 +935,7 @@ Section KVS_spec_erase.
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -944,7 +944,7 @@ Section KVS_spec_erase.
       ca1 ↦ᵣ wca1 ∗ (* Key to erase *)
       ct1 ↦ᵣ - ∗ (* scratch *)
 
-      ( ▷ (na_own cerise_nais E ∗
+      ( ▷ (na_own cerise_nais F ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
@@ -1060,7 +1060,7 @@ Section KVS_spec_erase.
     (wret : LWord)
     (wca0 : LWord)
     (nkey : Z) (πnkey : option AId)
-    (E : coPset)
+    (F : coPset)
     :
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
@@ -1069,7 +1069,7 @@ Section KVS_spec_erase.
     (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     ( kvs_static ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
@@ -1083,7 +1083,7 @@ Section KVS_spec_erase.
 
       (* The load after the failed unsealing of the user key faults *)
       ▷ ( ∀ a,
-          na_own cerise_nais E ∗
+          na_own cerise_nais F ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ - ∗
@@ -1128,13 +1128,13 @@ Section KVS_spec_erase.
   Lemma KVS_erase_spec_known_to_known
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
-    (arg_rmap : LReg) (cstk : CSTK) (E : coPset)
+    (arg_rmap : LReg) (cstk : CSTK) (F : coPset)
     (user_key : user_key_t) (nkey : map_key_t)
     (l_user_key : Locality) (user_key_addr : Addr) :
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
     arg_rmap !! ca0 = Some (lword_of_word (kvs_user_seal_key l_user_key user_key_addr)) ->
@@ -1154,7 +1154,7 @@ Section KVS_spec_erase.
          ⌜ wca0 = WInt 0 ⌝ ∗
          ⌜ wca1 = WInt 0 ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
-      b_stk e_stk a_stk arg_rmap cstk kvs_erase_nargs kvs_erase_min_stack E
+      b_stk e_stk a_stk arg_rmap cstk kvs_erase_nargs kvs_erase_min_stack F
       KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off
       (WCap true RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr).
   Proof.

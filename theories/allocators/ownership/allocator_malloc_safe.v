@@ -58,7 +58,7 @@ Section Heap_Temporal_Safety_Interp.
     (* A malformed allocator capability traps in the owner block. *)
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
-    { iApply (allocator_malloc_invalid_capability_spec ⊤ wca0
+    { iApply (allocator_malloc_invalid_capability_spec ⊤ ⊤ wca0
         with "[- $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
         [ solve_ndisj
         | apply andb_false_iff in Hcap_valid as [Hnot_tagged|Hnot_sealed];
@@ -108,10 +108,10 @@ Section Heap_Temporal_Safety_Interp.
       - right. intros (m & Heq & Hm). discriminate. }
     destruct Hsize_dec as [Hvalid|Hinvalid].
     2: { (* Reject an invalid size and return ALLOC_INVALID. *)
-      iApply (allocator_malloc_invalid_correct ⊤ g_owner a_owner id wca1
+      iApply (allocator_malloc_invalid_correct ⊤ ⊤ g_owner a_owner id wca1
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
-        [ solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hinvalid
+        [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hinvalid
         | apply jalr_target_ok_switcher_return_sentry |].
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
@@ -157,10 +157,10 @@ Section Heap_Temporal_Safety_Interp.
       destruct wca1 as [wa1 π1].
       destruct Hvalid as (n & Hwa1 & Hpositive). cbn in Hwa1. subst wa1.
       iApply (allocator_malloc_valid_correct
-        (dom (heap_std (revoke W))) ⊤ g_owner a_owner id Ω n π1
+        (dom (heap_std (revoke W))) ⊤ ⊤ g_owner a_owner id Ω n π1
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
-        [ solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hpositive
+        [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hpositive
         | apply jalr_target_ok_switcher_return_sentry |].
       iFrame "Hservice Hstatic Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0".
       iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".

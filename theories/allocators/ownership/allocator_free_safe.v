@@ -101,7 +101,7 @@ Section Heap_Temporal_Safety_Interp.
     (* A malformed allocator capability traps in the owner block. *)
     destruct (get_tag wca0.(lw) && is_sealed_with_o wca0.(lw) AllocOtype) eqn:Hcap_valid;
       cycle 1.
-    { iApply (allocator_free_invalid_capability_spec ⊤ wca0
+    { iApply (allocator_free_invalid_capability_spec ⊤ ⊤ wca0
         with "[- $Hstatic $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]");
         [ solve_ndisj
         | apply andb_false_iff in Hcap_valid as [Hnot_tagged|Hnot_sealed];
@@ -171,11 +171,11 @@ Section Heap_Temporal_Safety_Interp.
         with "Hspred Hinterp_ca0 Hworld")
         as (g_owner a_owner id Ω)
         "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hclose)".
-      iApply (allocator_free_invalid_correct ⊤ g_owner a_owner id (wa1 @@? π)
+      iApply (allocator_free_invalid_correct ⊤ ⊤ g_owner a_owner id (wa1 @@? π)
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ intros next allocations Hnext Hchain; exact (Hinvalid next allocations id Hnext Hchain)
-        | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner
+        | solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner
         | apply jalr_target_ok_switcher_return_sentry |].
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
@@ -255,10 +255,10 @@ Section Heap_Temporal_Safety_Interp.
         iMod (monotone_revoke_stack W C b_stk e_stk (stk_start_a b_stk e_stk)
           with "[$Hinterp_csp $Hsts $Hregion]") as (l)
           "(%Htemps & Hsts & Hregion & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
-        iApply (allocator_free_wrong_owner_spec ⊤ g_owner a_owner id Ω p g ι b e a
+        iApply (allocator_free_wrong_owner_spec ⊤ ⊤ g_owner a_owner id Ω p g ι b e a
           (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
           with "[-]");
-          [ solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
+          [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
           | apply jalr_target_ok_switcher_return_sentry |].
         iFrame "Hservice Hstatic Hna Hid Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
         iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
@@ -461,10 +461,10 @@ Section Heap_Temporal_Safety_Interp.
         with "Hspred Hinterp_ca0 Hworld")
         as (g_owner a_owner id Ω)
         "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hclose)".
-      iApply (allocator_free_narrowed_spec ⊤ g_owner a_owner id p g ι base objend b e a
+      iApply (allocator_free_narrowed_spec ⊤ ⊤ g_owner a_owner id p g ι base objend b e a
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
-        [ destruct Hbounds as (_ & Hbe & _); solve_addr | exact Hnarrow | solve_ndisj
+        [ destruct Hbounds as (_ & Hbe & _); solve_addr | exact Hnarrow | solve_ndisj | solve_ndisj
         | exact Hshadow_owner | exact Hbounds_owner
         | apply jalr_target_ok_switcher_return_sentry |].
       iFrame "Hservice Hstatic Hna Hobj Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
