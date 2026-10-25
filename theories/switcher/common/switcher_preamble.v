@@ -41,7 +41,7 @@ Section Entry_projections.
   Proof.
     intros Hnargs.
     transitivity (Z.land nargs 7).
-    { rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+    { rewrite /encode_entry_point /entry_point_posture /ExportEntryInterruptStatusSwitcherMask.
       destruct mie; bitblast. }
     change 7%Z with (Z.ones 3).
     rewrite Z.land_ones; last lia.
@@ -49,10 +49,10 @@ Section Entry_projections.
   Qed.
 
   Lemma encode_entry_point_eq_posture mie nargs minstk off_entry :
-    Z.land (encode_entry_point mie nargs minstk off_entry) entry_point_irq_disabled_mask =
+    Z.land (encode_entry_point mie nargs minstk off_entry) ExportEntryInterruptStatusSwitcherMask =
     entry_point_posture mie.
   Proof.
-    rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+    rewrite /encode_entry_point /entry_point_posture /ExportEntryInterruptStatusSwitcherMask.
     destruct mie; bitblast.
   Qed.
 
@@ -62,7 +62,7 @@ Section Entry_projections.
   Proof.
     intros Hminstk.
     transitivity (Z.land minstk 255).
-    { rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+    { rewrite /encode_entry_point /entry_point_posture /ExportEntryInterruptStatusSwitcherMask.
       destruct mie; bitblast. }
     change 255%Z with (Z.ones 8).
     rewrite Z.land_ones; last lia.
@@ -74,7 +74,7 @@ Section Entry_projections.
     entry_point_flags mie nargs.
   Proof.
     rewrite /encode_entry_point /entry_point_flags /entry_point_posture
-      /entry_point_irq_disabled_mask.
+      /ExportEntryInterruptStatusSwitcherMask.
     destruct mie; bitblast.
   Qed.
 
@@ -89,11 +89,12 @@ Section Entry_projections.
   Qed.
 
   Lemma entry_point_flags_posture mie nargs :
-    Z.land (entry_point_flags mie nargs) entry_point_irq_disabled_mask =
+    Z.land (entry_point_flags mie nargs) ExportEntryInterruptStatusSwitcherMask =
     entry_point_posture mie.
   Proof.
     rewrite -(encode_entry_point_eq_flags mie nargs 0 0) -Z.land_assoc.
-    change (Z.land 255 entry_point_irq_disabled_mask) with entry_point_irq_disabled_mask.
+    change (Z.land 255 ExportEntryInterruptStatusSwitcherMask)
+      with ExportEntryInterruptStatusSwitcherMask.
     apply encode_entry_point_eq_posture.
   Qed.
 
@@ -108,8 +109,36 @@ Section Entry_projections.
   Lemma encode_entry_point_eq_off mie nargs minstk off_entry :
     (encode_entry_point mie nargs minstk off_entry ≫ 16)%Z = off_entry.
   Proof.
-    rewrite /encode_entry_point /entry_point_posture /entry_point_irq_disabled_mask.
+    rewrite /encode_entry_point /entry_point_posture /ExportEntryInterruptStatusSwitcherMask.
     destruct mie; bitblast.
+  Qed.
+
+  (** The decoders of the fields of an export entry word invert
+      [encode_entry_point], within the bounds of each field. *)
+  Lemma export_entry_offset_encode mie nargs minstk off_entry :
+    export_entry_offset (encode_entry_point mie nargs minstk off_entry) = off_entry.
+  Proof. apply encode_entry_point_eq_off. Qed.
+
+  Lemma export_entry_min_stack_encode mie nargs minstk off_entry :
+    (0 ≤ minstk ≤ 255)%Z ->
+    export_entry_min_stack (encode_entry_point mie nargs minstk off_entry) = minstk.
+  Proof. apply encode_entry_point_eq_minstk. Qed.
+
+  Lemma export_entry_nargs_encode mie nargs minstk off_entry :
+    (0 ≤ nargs ≤ 7)%Z ->
+    export_entry_nargs (encode_entry_point mie nargs minstk off_entry) = nargs.
+  Proof. apply encode_entry_point_eq_nargs. Qed.
+
+  Lemma export_entry_flags_encode mie nargs minstk off_entry :
+    export_entry_flags (encode_entry_point mie nargs minstk off_entry) =
+    entry_point_flags mie nargs.
+  Proof. apply encode_entry_point_eq_flags. Qed.
+
+  Lemma export_entry_posture_encode mie nargs minstk off_entry :
+    export_entry_posture (encode_entry_point mie nargs minstk off_entry) = mie.
+  Proof.
+    rewrite /export_entry_posture encode_entry_point_eq_posture.
+    by destruct mie.
   Qed.
 
   (** Projections of an export-table entry: the entry at [a] encodes
@@ -168,8 +197,8 @@ Section Entry_projections.
     iIntros (Hn') "[%Hn (%ie0 & %m0 & %off0 & Ha0)] Ha".
     iDestruct (pointsto_agree with "Ha0 Ha") as %Heq.
     simplify_eq.
-    apply (f_equal (λ z, Z.land z 7)) in Heq.
-    rewrite !encode_entry_point_eq_nargs in Heq; [|lia|lia].
+    apply (f_equal export_entry_nargs) in Heq.
+    rewrite !export_entry_nargs_encode in Heq; [|lia|lia].
     iPureIntro; lia.
   Qed.
 
@@ -186,8 +215,8 @@ Section Entry_projections.
     iIntros "[%Hm (%ie & %n & %off & Ha)] [%Hm' (%ie' & %n' & %off' & Ha')]".
     iDestruct (pointsto_agree with "Ha Ha'") as %Heq.
     simplify_eq.
-    apply (f_equal (λ z, Z.land (z ≫ 8) 255)) in Heq.
-    rewrite !encode_entry_point_eq_minstk in Heq; [|lia|lia].
+    apply (f_equal export_entry_min_stack) in Heq.
+    rewrite !export_entry_min_stack_encode in Heq; [|lia|lia].
     iPureIntro; lia.
   Qed.
 
@@ -197,10 +226,9 @@ Section Entry_projections.
     iIntros "(%n & %m & %off & Ha) (%n' & %m' & %off' & Ha')".
     iDestruct (pointsto_agree with "Ha Ha'") as %Heq.
     simplify_eq.
-    apply (f_equal (λ z, Z.land z entry_point_irq_disabled_mask)) in Heq.
-    rewrite !encode_entry_point_eq_posture in Heq.
-    iPureIntro.
-    destruct ie, ie'; done.
+    apply (f_equal export_entry_posture) in Heq.
+    rewrite !export_entry_posture_encode in Heq.
+    by iPureIntro.
   Qed.
 
 End Entry_projections.

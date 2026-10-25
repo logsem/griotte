@@ -193,7 +193,7 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     { done. }
     { split; auto. rewrite /withinBounds. solve_addr. }
-    (* LShiftR cs0 cs0 16 *)
+    (* LShiftR cs0 cs0 ExportEntry_functionStart_shift *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_off.
     (* Store ctp ct1 TrustedStackFrame_offset_calleeExportTable *)
@@ -205,9 +205,9 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     { done. }
     { split; auto. rewrite /withinBounds. solve_addr. }
-    (* LShiftR ctp ctp 8 *)
+    (* LShiftR ctp ctp ExportEntry_minimumStackSize_shift *)
     iInstr "Hcode".
-    (* LAnd ctp ctp 255 *)
+    (* LAnd ctp ctp ExportEntry_byte_mask *)
     iInstr "Hcode".
     (* GetLen ct2 csp *)
     iInstr "Hcode".
@@ -239,7 +239,7 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     { done. }
     { split; auto. rewrite /withinBounds. solve_addr. }
-    (* LAnd ctp ctp 255 *)
+    (* LAnd ctp ctp ExportEntry_byte_mask *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_flags.
     (* GetB cs1 ct1 *)

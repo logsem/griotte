@@ -81,7 +81,7 @@ Section Switcher_Clear_Unused_Args.
            machine_instructions.Lea cs0 cs0 (inr ct2);
            machine_instructions.Jalr cnull cs0] ++
           clear_registers_pre_call_skip ++
-          [machine_instructions.LAnd ct1 (inr ctp) (inl entry_point_irq_disabled_mask);
+          [machine_instructions.LAnd ct1 (inr ctp) (inl ExportEntryInterruptStatusSwitcherMask);
            machine_instructions.Jne (inl 2%Z) (inr ct1) (inl 0%Z);
            machine_instructions.SetMIE InterruptEnabled])) -∗
     codefrag_pers (a ^+ 4)%a clear_registers_pre_call_skip_instrs.
@@ -149,7 +149,7 @@ Section Switcher_Clear_Unused_Args.
     iIntros "(%arg_rmap' & %Harg_rmap' & HPC & Hargs & _)".
     rewrite length_clear_registers_pre_call_skip_instrs.
     rewrite (_ : ((a_zero ^+ 4) ^+ 7%nat)%a = (a_zero ^+ 11)%a); last solve_addr.
-    (* LAnd ct1 ctp entry_point_irq_disabled_mask *)
+    (* LAnd ct1 ctp ExportEntryInterruptStatusSwitcherMask *)
     iInstr "Hcode".
     rewrite entry_point_flags_posture.
     destruct posture; cbn [entry_point_posture].
@@ -219,7 +219,7 @@ Section Switcher_Clear_Unused_Args.
     iIntros "(%arg_rmap' & %Harg_rmap' & HPC & Hargs & _)".
     rewrite length_clear_registers_pre_call_skip_instrs.
     rewrite (_ : ((a_zero ^+ 4) ^+ 7%nat)%a = (a_zero ^+ 11)%a); last solve_addr.
-    (* LAnd ct1 ctp entry_point_irq_disabled_mask *)
+    (* LAnd ct1 ctp ExportEntryInterruptStatusSwitcherMask *)
     iInstr "Hcode".
     rewrite entry_point_flags_posture.
     destruct posture; cbn [entry_point_posture].
