@@ -12,7 +12,7 @@ From griotte Require Export case_study_spec_helpers.
     - [droe_spec_share_blocks_2]: blocks 1-2 (fetch the imports) and block 3
       up to the call to the adversary,
     - [droe_spec_assert_blocks_3]: block 3, from the return of the call,
-      block 4 (assertion) and block 5 (halt).
+      block 4 (assertion) and block 5 (return).
 
     The logical steps between the block groups, which do not execute code,
     are in [droe_spec_world].

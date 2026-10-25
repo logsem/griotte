@@ -54,13 +54,12 @@ Section DROE.
     is_heap_address pc_b = false ->
     disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    (* [cra] is saved in [cs0], while [cs1] is left unchanged across the call.
-       Requiring these incoming words to be nonheap avoids shadow ownership;
-       the adequacy setup initializes both registers to integer zero. *)
-    is_heap_cap (default (lword_of_word (WInt 0)) (rmap !! cra)).(lw) = false ->
+    (* [cs1] is left unchanged across the call. Requiring its incoming word to
+       be nonheap avoids shadow ownership; the adequacy setup initializes it to
+       integer zero. *)
     is_heap_cap (default (lword_of_word (WInt 0)) (rmap !! cs1)).(lw) = false ->
 
-    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
 
@@ -84,6 +83,7 @@ Section DROE.
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ thread_return_sentry
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
@@ -112,14 +112,14 @@ Section DROE.
        - [droe_world_return]: open the world to get [b] back, still equal
          to 42,
        - [droe_assert_blocks_3_spec]: blocks 3-5, assert that [b] is
-         unchanged and halt. *)
+         unchanged and return: the thread exits. *)
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcra_nonheap Hcs1_nonheap
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcs1_nonheap
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
+      & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
       & HK
@@ -128,8 +128,8 @@ Section DROE.
       & #HentryC_f
       & #Hinterp_W0_csp
       )".
-    iExtractList "Hrmap" [cra;ca0;ca1;ct0;ct1;ct2;cs0;cs1]
-      as ["Hcra"; "Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hcs0"; "Hcs1"].
+    iExtractList "Hrmap" [ca0;ca1;ct0;ct1;ct2;cs0;cs1]
+      as ["Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hcs0"; "Hcs1"].
     iEval (cbn [fmap list_fmap droe_main_data droe_main_imports]) in "Hcgp_main Himports_main".
     iRegionSplit "Hcgp_main" as "[Hcgp_b Hcgp_a]".
     iRegionSplit "Himports_main" as "Himports".
@@ -202,29 +202,30 @@ Section DROE.
       & %Hrelated_pub_W3ext_W4 & _ & %Hrmap_dom & _ & _
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
-      & _
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & _ & _
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & _ & _ & %Hrestored)".
-    destruct Hrestored as (Hrcgp & Hrcra & _ & _).
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= (proj1 Hcgp_range) /=; reflexivity].
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    subst rcgp rcra.
+    apply load_heap_nonheap in Hrcs0; last exact thread_return_sentry_not_heap.
+    subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Open the world to get b back *)
     iMod (droe_world_return with "Hworld_interp_C Hrel_cgp_b") as "Hcgp_b"; eauto.
     { exact (proj1 Hcgp_range). }
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
-      as ["Hct0"; "Hct1"; "Hct2"; "Hca2"].
+    iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ca2]
+      as ["Hctp"; "Hct0"; "Hct1"; "Hct2"; "Hca2"].
 
-    (* Blocks 3-5: assert that b is unchanged and halt *)
+    (* Blocks 3-5: assert that b is unchanged and return, the thread exits *)
     iApply (droe_assert_blocks_3_spec _ _ _ _ _ C_f with
-             "[$Hassert $Hna $HPC $Hcgp $Hca0 $Hca1 $Hct0 $Hct1 $Hct2 $Hca2
-              $Hcs0 $Hcra $Hcgp_b $Himport_assert $Hcode_main]");
+             "[$Hassert $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hca0 $Hca1 $Hctp $Hct0
+              $Hct1 $Hct2 $Hca2 $Hcs0 $Hcra $Hcstk_frag $Hcgp_b $Himport_assert $Hcode_main]");
       [rewrite /droe_code_bounds; eauto 10|done..].
   Qed.
 

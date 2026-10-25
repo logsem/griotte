@@ -1,12 +1,14 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
+From griotte Require Import switcher_base.
 From griotte Require Import droe_spec_states.
 
-(** * Deep immutability, blocks 3-5: assertion and halt
+(** * Deep immutability, blocks 3-5: assertion and return
 
     On return from the call, block 3 restores the return address saved in
-    [cs0] and loads [b], block 4 asserts that [b = 42], and block 5 clears
-    the return values and halts. *)
+    [cs0], the switcher's return sentry, and loads [b], block 4 asserts
+    that [b = 42], and block 5 clears the return values and returns: the
+    thread exits. *)
 
 Section DROE_Assert_Blocks_3.
   Context
@@ -20,32 +22,38 @@ Section DROE_Assert_Blocks_3.
   .
 
   Lemma droe_assert_blocks_3_spec
-    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
-    (wca0 wca1 wct0 wct1 wct2 wca2 wcs0 wcra : LWord) :
+    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable) (cstk : CSTK)
+    (wca0 wca1 wctp wct0 wct1 wct2 wca2 wcra : LWord) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
+    cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ∗
     na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_return")%a ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
+    ctp ↦ᵣ wctp ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
-    cs0 ↦ᵣ wcs0 ∗
+    cs0 ↦ᵣ thread_return_sentry ∗
     cra ↦ᵣ wcra ∗
+    cstack_frag cstk ∗
     cgp_b ↦ₐ WInt 42 ∗
     (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a droe_main_code
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
-             Hcgp_contiguous Hcgp_mmio)
-      "(#Hassert & Hna & HPC & Hcgp & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hca2
- & Hcs0 & Hcra & Hcgp_b & Himport_assert & Hcode_main)".
+             Hcgp_contiguous Hcgp_mmio Hframes)
+      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hca0 & Hca1 & Hctp
+        & Hct0 & Hct1 & Hct2 & Hca2 & Hcs0 & Hcra & Hcstk & Hcgp_b & Himport_assert
+        & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code droe_main_code "Hcode_main".
 
@@ -76,15 +84,18 @@ Section DROE_Assert_Blocks_3.
                     & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 5: clear the return values and halt *)
-    focus_block 5 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Block 5: clear the return values and return, the thread exits *)
+    focus_block (droe_block ".Ldroe_return") "Hcode_main" of droe_main_blocks at pc_a
+      as a_ret Ha_ret "Hcode" "Hcont".
     (* Mov ca0 0 *)
     iInstr "Hcode".
     (* Mov ca1 0 *)
     iInstr "Hcode".
-    (* Halt *)
+    (* Jalr cnull cra *)
     iInstr "Hcode".
-    wp_end; iIntros "_"; iFrame.
+    iEval (rewrite thread_return_sentry_pc) in "HPC".
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
   Qed.
 
 End DROE_Assert_Blocks_3.

@@ -99,7 +99,7 @@ Section droe_obligations.
                   _ _ _ _ _ _ _ _ _ _ [] [] _
                  with "[ $Hassert $Hswitcher $Hswitcher_static $Hna
                         $Hworld_C
-                        $HPC $Hcgp $Hcsp $Hregs
+                        $HPC $Hcgp $Hcsp $Hcra $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data
                         $Hinterp_C $Hcstk
                         $Hentry_Cf $Hinterp_stack_C
