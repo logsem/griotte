@@ -211,7 +211,7 @@ Section Switcher_trap_safety.
 
   (** A fault in trusted code, with the logical relation's resources, in
       the switcher ([switcher_fault_pc w]) or in a compartment whose table
-      declares no handler: the switcher unwinds the call of the faulting
+      declares no handler and whose frame's table word is set: the switcher unwinds the call of the faulting
       compartment through the return routine. *)
   Lemma trap_safe_unwind_logrel_of_safety
     (W : WORLD) (C : CmptName)
@@ -222,7 +222,9 @@ Section Switcher_trap_safety.
     trap_no_resume w ->
 
     switcher_trap_safety -∗
-    (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)) -∗
+    (⌜switcher_fault_pc w⌝ ∨
+     (no_handler (top_export_tbl cstk) ∗
+      ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)) -∗
     (|={⊤}=>
        registers_pointsto rmap ∗
        world_interp W C ∗
@@ -239,7 +241,7 @@ Section Switcher_trap_safety.
     iNamed "Hsafety".
     iPoseProof (logrel_unwind_cont_gen with "Hinv_switcher Hstatic Htrap Hworld_interp Hcont")
       as "HU"; [done |].
-    iDestruct "Hcase" as "[%Hpc | Hnh]".
+    iDestruct "Hcase" as "[%Hpc | [Hnh %Hset] ]".
     - by iApply (trap_handler_ok_switcher with "HU").
     - by iApply (trap_handler_ok_no_handler with "Hnh HU").
   Qed.

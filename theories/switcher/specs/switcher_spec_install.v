@@ -36,8 +36,7 @@ Section Switcher_Spec_Install.
   (** The continuations of [switcher_install_context_spec]. *)
 
   (** A fault of the installation, at the switcher's PC of offset [off],
-      with the invariant of the switcher closed: the cell of the export
-      table in the topmost frame is cleared, or the handler's [csp] in
+      with the invariant of the switcher closed: the handler's [csp] in
       [rmap] does not allow the loads of the [ErrorState]
       ([install_skipped]); a load faults once [i] words [ls] are loaded. *)
   Definition install_nested_k (F : coPset) (cstk : CSTK) (rmap : LReg)
@@ -119,7 +118,8 @@ Section Switcher_Spec_Install.
   (** ** The installation *)
 
   (** From the handler's return, with [ca0] zero, for the call stack
-      [cstk] whose topmost table has the PCC [wpcc], at a token [F] that
+      [cstk] whose topmost table has the PCC [wpcc] and whose topmost
+      frame's table word is set, at a token [F] that
       contains the switcher's invariant and the trap-entry part: the
       [ErrorState] is read at the handler's [csp] through the accessor,
       and the context it holds is resumed, or a load faults. *)
@@ -130,6 +130,7 @@ Section Switcher_Spec_Install.
     ↑N_trap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     nonZero (rmap !!! ca0).(lw) = false ->
+    (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) ->
 
     na_inv cerise_nais Nswitcher switcher_inv ∗
     switcher_static ∗
@@ -147,7 +148,7 @@ Section Switcher_Spec_Install.
         install_resume_k F cstk rmap wpcc L )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HF HFtrap Hfull Hnz)
+    iIntros (HF HFtrap Hfull Hnz Htbl_set)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hna & Hcstk & #Hpcc & HL & Hacc & Hpost)".
     iPoseProof "Hstatic" as "(#Hcode & _ & _)".
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
@@ -200,7 +201,9 @@ Section Switcher_Spec_Install.
     (* The cells of the topmost frame *)
     iDestruct (cstack_interp_open_top with "Hstk_interp") as "[Htf Hstk_close]".
     iDestruct (trusted_frame_interp_open with "Htf")
-      as (dq) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
+      as (dq wcell) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
+    (* The frame's table word is set: the cell holds it *)
+    destruct Hwcell as [Hz | (-> & Hexp & Hprov)]; first (exfalso; by apply Htbl_set).
     iEval (fold (top_error_count cstk)) in "Hcnt".
 
     (* [.Lhandle_error_install_context]: the loads of the [ErrorState] and
@@ -214,7 +217,7 @@ Section Switcher_Spec_Install.
     { exact Hlen_cstk. }
     { exact Ha_tstk_e. }
     { exact Hsave_len. }
-    { destruct Hwcell as [Hz | (Hexp & Hprov)]; [by left | by right]. }
+    { by right. }
     iSplitR; first (iIntros "_"; iExact "Hpcc").
     iNext; iSplit.
     - (* A load faults: the invariant is closed, the count unchanged *)
@@ -232,7 +235,8 @@ Section Switcher_Spec_Install.
                  $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hcstk $HL $Hnested]");
         [done | done |].
       (* The reason of the fault *)
-      rewrite /install_skipped Hrmap_csp. exact Hwhy.
+      rewrite /install_skipped Hrmap_csp.
+      destruct Hwhy as [Hz | Hnok]; [exfalso; by apply Htbl_set | exact Hnok].
     - (* The [ErrorState] is loaded: the count is incremented *)
       iIntros (ls Hls Htbl)
         "(HPC & Hcsp & [%wcra_r Hcra] & [%wctp_r Hctp] & [%wct0_r Hct0] & Hct1 & Hct2

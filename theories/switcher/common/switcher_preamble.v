@@ -231,14 +231,8 @@ Section Switcher_preamble.
   Definition export_table_entryN (Cname : namespace) (a : Addr) : namespace :=
     (export_tableN Cname) .@ "entry" .@ a.
 
-  (** The export table cell of a pushed frame, as the call path writes it:
-      cleared, before the entry unseals... *)
-  Lemma tf_export_tbl_cell_cleared (tf : trusted_frame) :
-    tf.(tf_export_tbl) = lword_of_word (WInt 0) →
-    tf.(tf_export_tbl) = lword_of_word (WInt 0) ∨ tf_export_tbl_ok tf.
-  Proof. by left. Qed.
-
-  (** ... or holding the unsealed entry, a capability to the export table. *)
+  (** The export table cell of a pushed frame holding the unsealed entry,
+      a capability to the export table. *)
   Lemma tf_export_tbl_cell_entry (tf : trusted_frame) g b e a :
     tf.(tf_export_tbl) = lword_of_word (WCap true RO g b e a) →
     (b ^+ ExportTable_offset_errorHandlerStackless < a)%a →
@@ -256,10 +250,10 @@ Section Switcher_preamble.
       [tf_csp], the capability [tf_export_tbl] to the export table of the
       callee, and the error handler count [tf_error_count].
       The export table cell of the entry frame ([entry = true]) is written
-      once, by the loader: it holds the capability for good. The export
-      table cell of a pushed frame holds the frame's word: the unsealed
-      entry, or [WInt 0] for a frame unwound because its entry does not
-      unseal (the call path clears the cell before it unseals).
+      once, by the loader: it holds the capability for good. A pushed
+      frame whose word is [WInt 0] (pending, or unwound because its entry
+      does not unseal) leaves its cell's content free; otherwise the cell
+      holds the frame's word, the unsealed entry.
    *)
   Definition trusted_frame_interp (entry : bool) (tf : trusted_frame) (a_tstk : Addr) : iProp Σ :=
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
@@ -268,9 +262,9 @@ Section Switcher_preamble.
     ("Htf_csp" ∷ a_csp ↦ₐ tf.(tf_csp) ∗
      "Htf_tbl" ∷ (if entry
                   then a_export_table ↦ₐ□ tf.(tf_export_tbl) ∗ ⌜tf_export_tbl_ok tf⌝
-                  else a_export_table ↦ₐ tf.(tf_export_tbl) ∗
+                  else ∃ w, a_export_table ↦ₐ w ∗
                          ⌜tf.(tf_export_tbl) = lword_of_word (WInt 0) ∨
-                          tf_export_tbl_ok tf⌝) ∗
+                          (w = tf.(tf_export_tbl) ∧ tf_export_tbl_ok tf)⌝) ∗
      "Htf_cnt" ∷ a_error_count ↦ₐ WInt tf.(tf_error_count))%I.
 
   (** The four cells of the spill area from [a], in address order: the

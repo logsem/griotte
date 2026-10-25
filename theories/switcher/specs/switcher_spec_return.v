@@ -69,7 +69,8 @@ Section Switcher.
     by iApply (switcher_ret_specification_gen with "[$Hsafety $Hres]").
   Qed.
 
-  (** A fault in a trusted callee whose table declares no handler is safe:
+  (** A fault in a trusted callee whose table declares no handler, with its
+      frame's table word set, is safe:
       the exception entry sets the return values to integers, then the
       return routine returns to the caller as in
       [switcher_ret_specification], for a fault that the exception path
@@ -97,7 +98,8 @@ Section Switcher.
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
-    no_handler (top_export_tbl cstk) -∗
+    no_handler (top_export_tbl cstk) ∗
+    ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ -∗
     (|={⊤}=>
        [[csp_b,csp_e]]↦ₐ[[stk_mem]] ∗
        cstack_frag cstk ∗
@@ -114,7 +116,7 @@ Section Switcher.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked
                Hno_resume)
-      "#Hswitcher #Hstatic #Hno_handler Hres".
+      "#Hswitcher #Hstatic [#Hno_handler %Htbl_set] Hres".
     iApply (trap_safe_exception_entry ⊤ with "Hswitcher Hstatic");
       [set_solver | set_solver |].
     iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
@@ -125,7 +127,7 @@ Section Switcher.
     iSplit.
     { iPureIntro. intros r. apply elem_of_dom. rewrite !dom_insert_L Hrmap.
       pose proof (all_registers_s_correct r). set_solver. }
-    iApply (trap_handler_ok_no_handler with "Hno_handler"); first done.
+    iApply (trap_handler_ok_no_handler with "Hno_handler"); [done | done |].
     iIntros (n rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hcstk _ Hna".
     rewrite /registers_pointsto.
     getRegValList [csp].

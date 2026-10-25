@@ -99,7 +99,7 @@ Section Call_Path.
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
           switcher_hazard ∗
           a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
-          a_export_table ↦ₐ WInt 0 ∗
+          a_export_table ↦ₐ - ∗
           a_error_count ↦ₐ WInt 0 ∗
           (∃ tstk_next', [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next' ]]) ∗
           £ 2 -∗
@@ -125,7 +125,7 @@ Section Call_Path.
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
           switcher_hazard ∗
           a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
-          a_export_table ↦ₐ WInt 0 ∗
+          a_export_table ↦ₐ - ∗
           a_error_count ↦ₐ WInt 0 ∗
           (∃ tstk_next', [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next' ]]) ∗
           £ 2 -∗

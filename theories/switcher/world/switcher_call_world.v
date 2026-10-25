@@ -316,8 +316,8 @@ Section Switcher_Call_World.
     (is_untrusted_caller_frm frm = false →
      jalr_target_ok cnull cra frm.(cf_saved).(cs_cra).(lw) = true ∧
      is_heap_cap frm.(cf_saved).(cs_cra).(lw) = false) ->
-    wtbl = frm.(cf_tframe).(tf_export_tbl) ->
-    wtbl = lword_of_word (WInt 0) ∨ tf_export_tbl_ok frm.(cf_tframe) ->
+    frm.(cf_tframe).(tf_export_tbl) = lword_of_word (WInt 0) ∨
+      (wtbl = frm.(cf_tframe).(tf_export_tbl) ∧ tf_export_tbl_ok frm.(cf_tframe)) ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     cstack_full cstk' -∗
@@ -341,7 +341,7 @@ Section Switcher_Call_World.
     intros a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
     iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot Hcsp (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret
-             Hwtbl Htbl Hsave_hazard)
+             Htbl Hsave_hazard)
       "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
        Hframe_tbl Hframe_cnt Htstk Hstk_interp Hframe #Hp_ot_switcher".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
@@ -358,7 +358,7 @@ Section Switcher_Call_World.
     iSplit; first done.
     iSplit; first done.
     iSplit; first (iPureIntro; split; done).
-    iSplitL "Hframe_tbl"; first (subst wtbl; by iFrame).
+    iSplitL "Hframe_tbl"; first (iExists wtbl; by iFrame).
     iExists b_stk, e_stk, a_stk.
     iFrame "Hframe".
     iPureIntro.
@@ -472,8 +472,8 @@ Section Switcher_Call_World.
     (is_untrusted_caller_frm frm = false →
      jalr_target_ok cnull cra frm.(cf_saved).(cs_cra).(lw) = true ∧
      is_heap_cap frm.(cf_saved).(cs_cra).(lw) = false) ->
-    wtbl = frm.(cf_tframe).(tf_export_tbl) ->
-    wtbl = lword_of_word (WInt 0) ∨ tf_export_tbl_ok frm.(cf_tframe) ->
+    frm.(cf_tframe).(tf_export_tbl) = lword_of_word (WInt 0) ∨
+      (wtbl = frm.(cf_tframe).(tf_export_tbl) ∧ tf_export_tbl_ok frm.(cf_tframe)) ->
 
     switcher_inv_opened cstk' a_tstk -∗
     cstack_frag cstk -∗
@@ -490,7 +490,7 @@ Section Switcher_Call_World.
   Proof.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
-    iIntros (Ha_next Ha_next_e Hcsp Hbounds Hstk_mmio Hstk_heap Hret Hwtbl Htbl)
+    iIntros (Ha_next Ha_next_e Hcsp Hbounds Hstk_mmio Hstk_heap Hret Htbl)
       "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk Hframe".
     iNamed "Hopened".
     iDestruct "Hsave_area" as (save_area Hsave_hazard) "Hsave_area".

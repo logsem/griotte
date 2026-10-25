@@ -57,7 +57,7 @@ Section helpers_switcher_adequacy.
     iModIntro;iNext.
 
     iIntros (cstk Ws Cs regs b_stk e_stk)
-      "( Hcont & %Hfreq & (%Hcstk_ne & %Htop_tbl & _) & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
+      "( Hcont & %Hfreq & (%Hcstk_ne & %Htop_tbl & _ & %Htbl_ok) & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hworld_interp & %Hcsp_sync & _ & Htframe & Hna)".
     (* The callee, whose export table is at [b_tbl], is the topmost
@@ -66,6 +66,7 @@ Section helpers_switcher_adequacy.
     { destruct cstk as [ef [|frm frms] ]; first done.
       rewrite /top_export_tbl /= in Htop_tbl. rewrite /top_cmpt_untrusted /= Htop_tbl.
       iExists _, _, eh, ehs. iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs".
+      iSplit; last (iPureIntro; by apply tf_export_tbl_ok_nonzero).
       iIntros "!>" (W'' Hrelated').
       iApply "Hinterp_tbl". iPureIntro.
       by eapply related_sts_priv_trans_world. }

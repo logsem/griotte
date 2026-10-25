@@ -552,8 +552,8 @@ Section Switcher.
     iPureIntro; exact Hrestored.
   Qed.
 
-  (** Fault of the unsealing: the frame is pushed, with its table cell
-      cleared, and the exception entry unwinds the call to the caller's
+  (** Fault of the unsealing: the frame is pushed, with the table word
+      [WInt 0] and any word in its table cell, and the exception entry unwinds the call to the caller's
       continuation. *)
   #[local] Lemma switcher_cc_unseal_fault
     (W : WORLD) (C : CmptName)
@@ -606,7 +606,7 @@ Section Switcher.
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
       a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
-      a_export_table ↦ₐ WInt 0 ∗
+      a_export_table ↦ₐ - ∗
       a_error_count ↦ₐ WInt 0 ∗
       (∃ tstk_next', [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next' ]]) ∗
       £ 2 -∗
@@ -619,10 +619,10 @@ Section Switcher.
       "#Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost
        (_ & %Hstk_bounds & %Ha_next & %Ha_next_e & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2] & Hctp
        & Hcsp & Hcra & Hcgp & [%wct1' Hct1] & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Hframe_csp
-       & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
+       & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
     set (W' := std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary).
-    (* The frame of a failed unsealing: its table cell is still cleared *)
+    (* The frame of a failed unsealing: its table word is [WInt 0] *)
     set (frame := switcher_cc_frame wcgp_caller wcra_caller wcs0_caller wcs1_caller
                     b_stk e_stk a_stk (lword_of_word (WInt 0))).
     iDestruct (switcher_cc_args_regs with "Hargs") as "Hargs".
@@ -645,11 +645,10 @@ Section Switcher.
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
-    pose proof (tf_export_tbl_cell_cleared (cf_tframe frame) eq_refl) as Htbl_cell.
     iMod (switcher_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
-      [done|done|done|done|done|done|by intros _|done|exact Htbl_cell| |].
+      [done|done|done|done|done|done|by intros _|by left| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iDestruct (switcher_cc_cont_frame W C with "Hpost Hlc Hcont Hstk4v") as "Hcont_frame";
       [done|done|done|].
@@ -729,7 +728,7 @@ Section Switcher.
     iMod (switcher_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
-      [done|done|done|done|done|done|by intros _|done|right; exact Htbl_cell| |].
+      [done|done|done|done|done|done|by intros _|right; split; [done | exact Htbl_cell]| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iDestruct (big_sepM_sep with "Hargs") as "[Hargs _]".
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
@@ -943,7 +942,7 @@ Section Switcher.
     iNext; iIntros (wsb π)
       "(-> & %Htag & %Hstk_bounds & %Ha_next & %Ha_next_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
-      & Hhazard & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
+      & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
     iDestruct ("Hentry_prop" with "[//] [//]") as "Hentry_ot".
     iNamed "Hentry_ot".
@@ -995,7 +994,7 @@ Section Switcher.
     iMod (switcher_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
-      [done|done|done|done|done|done|by intros _|done|right; exact Htbl_cell| |].
+      [done|done|done|done|done|done|by intros _|right; split; [done | exact Htbl_cell]| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
 
     (* Execute the entry point of the callee *)

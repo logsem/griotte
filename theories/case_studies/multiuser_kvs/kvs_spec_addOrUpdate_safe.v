@@ -296,8 +296,10 @@ Section KVS_spec_addOrUpdate_safe.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_C &
       %Hsync_csp & _ & Hcstk & Hna)".
-    iAssert (no_handler (top_export_tbl cstk)) as "#Hno_handler".
-    { destruct Htop_tbl as (_ & -> & _). iFrame "Hkvs_exp_eh Hkvs_exp_ehs". }
+    iAssert (no_handler (top_export_tbl cstk) ∗
+             ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
+    { destruct Htop_tbl as (_ & -> & _ & Htbl_ok). iFrame "Hkvs_exp_eh Hkvs_exp_ehs".
+      iPureIntro. by apply tf_export_tbl_ok_nonzero. }
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /stk_start_a in Hcsp |- *.

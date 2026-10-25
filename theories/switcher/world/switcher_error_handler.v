@@ -616,10 +616,8 @@ Section Switcher_error_handler.
      na_own cerise_nais F -∗
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
 
-  (** Why the install faults: the cell of the topmost table is cleared, or
-      the [ErrorState] cannot be loaded. *)
+  (** Why the install faults: the [ErrorState] cannot be loaded. *)
   Definition install_skipped (cstk : CSTK) (rmap : LReg) : Prop :=
-    (top_tframe cstk).(tf_export_tbl) = lword_of_word (WInt 0) ∨
     ¬ error_state_loads_ok (rmap !!! csp).
 
   (** The [ErrorState] that the install loads, at the handler's cursor
@@ -653,18 +651,14 @@ Section Switcher_error_handler.
     by rewrite (_ : (a ^+ 16)%a = a'); last solve_addr.
   Qed.
 
-  (** When the switcher invokes the stackful handler, the cell of the
-      table is set: the install faults only if the handler's [csp] does not
-      allow the loads of the [ErrorState]. *)
+  (** The install faults only if the handler's [csp] does not allow the
+      loads of the [ErrorState]. *)
   Lemma stackful_handler_runs_install (cstk : CSTK) (w : LWord) (rfault : LReg)
     (eh : Z) (wpcc : LWord) (n : Z) (regs : LReg) :
     stackful_handler_runs cstk w rfault eh wpcc →
     error_state_loads_ok (regs !!! csp) →
     ¬ install_skipped (cstack_set_top_count cstk n) regs.
-  Proof.
-    intros (_ & Hset & _) Hok [Hz | Hnok]; last done.
-    rewrite top_tframe_set_count in Hz. by apply Hset.
-  Qed.
+  Proof. intros _ Hok Hnok. by apply Hnok. Qed.
 
   (** Setting the address of a safe word keeps it safe: a capability or a
       sealing range with its cursor moved, or untagged by an overflow, an
@@ -786,20 +780,22 @@ Section Switcher_error_handler.
   Qed.
 
   (** The cells of a frame of the trusted stack: the cell of the export
-      table, of any fraction, holds the frame's word, cleared or a capability
-      to the table, without identifier. *)
+      table, of any fraction, holds a word [w]; unless the frame's word is
+      [WInt 0], [w] is the frame's word, a capability to the table, without
+      identifier. *)
   Lemma trusted_frame_interp_open (entry : bool) (tf : trusted_frame) (a_tstk : Addr) :
     trusted_frame_interp entry tf a_tstk -∗
-    ∃ (dq : dfrac),
+    ∃ (dq : dfrac) (w : LWord),
       (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) ∗
-      (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} tf.(tf_export_tbl) ∗
+      (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} w ∗
       (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt tf.(tf_error_count) ∗
       ⌜tf.(tf_export_tbl) = lword_of_word (WInt 0) ∨
-       (exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw) ∧
+       (w = tf.(tf_export_tbl) ∧
+        exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw) ∧
         tf.(tf_export_tbl).(lprov) = None)⌝ ∗
       (∀ n : Z,
          (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) -∗
-         (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} tf.(tf_export_tbl) -∗
+         (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} w -∗
          (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt n -∗
          trusted_frame_interp entry (tf_set_count tf n) a_tstk).
   Proof.
@@ -807,14 +803,14 @@ Section Switcher_error_handler.
     iIntros "Htf". iNamed "Htf".
     destruct entry.
     - iDestruct "Htf_tbl" as "[#Htbl %Hok]".
-      iExists DfracDiscarded. iFrame "Htf_csp Htbl Htf_cnt".
-      iSplit; first (iPureIntro; right; exact Hok).
+      iExists DfracDiscarded, tf.(tf_export_tbl). iFrame "Htf_csp Htbl Htf_cnt".
+      iSplit; first (iPureIntro; right; split; [done | exact Hok]).
       iIntros (n) "Hcsp _ Hcnt". iFrame "Hcsp Hcnt". iPureIntro. exact Hok.
-    - iDestruct "Htf_tbl" as "[Htbl %Hw]".
-      iExists (DfracOwn 1). iFrame "Htf_csp Htbl Htf_cnt".
-      iSplit; first (iPureIntro; destruct Hw as [-> | Hok]; [by left | right; exact Hok]).
-      iIntros (n) "Hcsp Htbl Hcnt". iFrame "Hcsp Htbl Hcnt".
-      iPureIntro. exact Hw.
+    - iDestruct "Htf_tbl" as (w) "[Htbl %Hw]".
+      iExists (DfracOwn 1), w. iFrame "Htf_csp Htbl Htf_cnt".
+      iSplit; first (iPureIntro; destruct Hw as [-> | [-> Hok] ]; [by left | right; split; [done | exact Hok] ]).
+      iIntros (n) "Hcsp Htbl Hcnt". iFrame "Hcsp Hcnt".
+      iExists w. iFrame "Htbl". iPureIntro. exact Hw.
   Qed.
 
   (** ** Faults that the switcher handles *)
@@ -830,10 +826,12 @@ Section Switcher_error_handler.
         them, and runs with the site's token [F]);
       - a fault in a running trusted handler (the top count is odd), with
         the handler words of the header of its table.
-      Each case gives the site's unwind continuation. *)
+      Each case gives the site's unwind continuation. Outside the switcher,
+      the word of the topmost frame's table is set (not [WInt 0]). *)
   Definition trap_handler_ok_def (F : coPset) (cstk : CSTK) (w : LWord) (regs : LReg)
     : iProp Σ :=
     ⌜trap_no_resume w⌝ ∗
+    ⌜¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
     ( (unwind_cont F cstk True ∗
        (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)))
     ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → iProp Σ) (eh : Z),
@@ -859,52 +857,56 @@ Section Switcher_error_handler.
     trap_handler_ok F cstk w regs.
   Proof.
     rewrite trap_handler_ok_unseal. iIntros (Hno Hpc) "HU".
-    iSplit; first done. iLeft. iFrame. by iLeft.
+    iSplit; first done. iSplit; first done. iLeft. iFrame. by iLeft.
   Qed.
 
   (** A fault in a compartment whose table declares no handler. *)
   Lemma trap_handler_ok_no_handler F cstk w regs :
     trap_no_resume w →
+    (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     no_handler (top_export_tbl cstk) -∗
     unwind_cont F cstk True -∗
     trap_handler_ok F cstk w regs.
   Proof.
-    rewrite trap_handler_ok_unseal. iIntros (Hno) "Hnh HU".
-    iSplit; first done. iLeft. iFrame.
+    rewrite trap_handler_ok_unseal. iIntros (Hno Hset) "Hnh HU".
+    iSplit; first done. iSplit; first done. iLeft. iFrame.
   Qed.
 
   (** A fault in a trusted compartment with trusted handlers. *)
   Lemma trap_handler_ok_handler F cstk w regs
     (P_fault : coPset → CSTK → LWord → LReg → iProp Σ) (eh : Z) :
     trap_no_resume w →
+    (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     trusted_handler (top_export_tbl cstk) P_fault -∗
     top_export_tbl cstk ↦ₕ□{stackful} eh -∗
     error_state_slot eh regs -∗
     (unwind_or_runs F cstk w regs (error_state_slot eh regs) ∧ P_fault F cstk w regs) -∗
     trap_handler_ok F cstk w regs.
   Proof.
-    rewrite trap_handler_ok_unseal. iIntros (Hno) "Hh Heh Hslot HUP".
-    iSplit; first done. iRight; iLeft.
+    rewrite trap_handler_ok_unseal. iIntros (Hno Hset) "Hh Heh Hslot HUP".
+    iSplit; first done. iSplit; first done. iRight; iLeft.
     iExists P_fault, eh. iFrame "Hh Heh Hslot HUP".
   Qed.
 
   (** A fault in a running trusted handler. *)
   Lemma trap_handler_ok_running F cstk w regs (eh ehs : Z) :
     trap_no_resume w →
+    (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     Z.odd (top_error_count cstk) = true →
     top_export_tbl cstk ↦ₕ□{stackful} eh -∗
     top_export_tbl cstk ↦ₕ□{stackless} ehs -∗
     unwind_cont F cstk True -∗
     trap_handler_ok F cstk w regs.
   Proof.
-    rewrite trap_handler_ok_unseal. iIntros (Hno Hodd) "Heh Hehs HU".
-    iSplit; first done. iRight; iRight. by iFrame.
+    rewrite trap_handler_ok_unseal. iIntros (Hno Hset Hodd) "Heh Hehs HU".
+    iSplit; first done. iSplit; first done. iRight; iRight. by iFrame.
   Qed.
 
   (** The three cases, unsealed. *)
   Lemma trap_handler_ok_cases F cstk w regs :
     trap_handler_ok F cstk w regs -∗
     ⌜trap_no_resume w⌝ ∗
+    ⌜¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
     ( (unwind_cont F cstk True ∗
        (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)))
     ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → iProp Σ) (eh : Z),

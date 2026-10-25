@@ -58,9 +58,11 @@ Section Switcher_Spec_Exception.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** The header of the export table of the topmost frame of [cstk]: its
-      handler offsets, and its PCC and CGP when a handler may be invoked. *)
+  (** The header of the export table of the topmost frame of [cstk]: the
+      frame's table word is set (not [WInt 0]), the table's handler offsets,
+      and its PCC and CGP when a handler may be invoked. *)
   Definition handler_header (cstk : CSTK) : iProp Σ :=
+    ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
     ∃ eh ehs : Z,
       top_export_tbl cstk ↦ₕ□{stackful} eh ∗
       top_export_tbl cstk ↦ₕ□{stackless} ehs ∗
@@ -260,12 +262,6 @@ Section Switcher_Spec_Exception.
   #[local] Lemma handler_skipped_switcher_fault (cstk : CSTK) (w : LWord) (rmap : LReg) :
     switcher_fault_pc w → ⊢ handler_skipped cstk w rmap.
   Proof. intros Hsw. apply handler_skipped_pure. by intros ?? [Hnsw _]. Qed.
-
-  (** The cell of the export table is cleared. *)
-  #[local] Lemma handler_skipped_cleared (cstk : CSTK) (w : LWord) (rmap : LReg) :
-    (top_tframe cstk).(tf_export_tbl) = lword_of_word (WInt 0) →
-    ⊢ handler_skipped cstk w rmap.
-  Proof. intros Hz. apply handler_skipped_pure. by intros ?? (_ & Hnz & _). Qed.
 
   (** An odd count, or too many faults. *)
   #[local] Lemma handler_skipped_count (cstk : CSTK) (w : LWord) (rmap : LReg) :
@@ -771,7 +767,7 @@ Section Switcher_Spec_Exception.
       assert (trap_no_resume w) as Hno_resume by (by left).
       pose proof (Hcstk_eq Hno_resume) as Heq_cstk; subst cstk'.
       rewrite decide_True; last exact Hno_resume.
-      iDestruct ("Hheader" with "[//]") as (eh ehs) "(#Heh & #Hehs & #Hpcc_cgp)".
+      iDestruct ("Hheader" with "[//]") as (Htbl_set eh ehs) "(#Heh & #Hehs & #Hpcc_cgp)".
       (* The topmost frame *)
       iDestruct (cstack_interp_top_csp with "Hstk_interp") as %Hframe_csp.
       iDestruct (cstack_interp_top_stack with "Hstk_interp") as %Hframe_stack.
@@ -798,7 +794,9 @@ Section Switcher_Spec_Exception.
       assert (rmap !!! csp = wcsp) as Hrmap_csp by (rewrite lookup_total_alt Hwcsp; done).
       iDestruct (cstack_interp_open_top with "Hstk_interp") as "[Htf Hstk_close]".
       iDestruct (trusted_frame_interp_open with "Htf")
-        as (dq) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
+        as (dq wcell) "(Hcsp_cell & Hcell & Hcnt & %Hwcell & Htf_close)".
+      (* The frame's table word is set: the cell holds it *)
+      destruct Hwcell as [Hz | (-> & Hexp & Hprov)]; first (exfalso; by apply Htbl_set).
       iEval (fold (top_error_count cstk)) in "Hcnt".
       (* The lookup of an error handler *)
       iApply (handle_error_stack_oob_spec cstk a_tstk (top_export_tbl cstk) eh ehs wcsp wct0_l
@@ -808,28 +806,12 @@ Section Switcher_Spec_Exception.
       { exact Hlen_cstk. }
       { exact Ha_tstk_e. }
       { exact Hframe_csp. }
-      { destruct Hwcell as [Hz | (Hexp & Hprov)]; [by left | by right]. }
+      { by right. }
       { exact Hlea. }
       iSplitR; first (iIntros "_"; iFrame "Heh Hehs").
       iNext; iSplit; [|iSplit].
-      + (* The cell of the export table is cleared: the load of the header
-           faults *)
-        iIntros (Hz off Hoff)
-          "(Hcsp & Hctp & [%wct0_f Hct0] & [%wct1_f Hct1] & [%wct2_f Hct2] & [%wcs0_f Hcs0]
-            & [%wcs1_f Hcs1] & Hca0 & Hca1 & Hca2 & Hcsp_cell & Hcell)".
-        iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
-        iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-        iSpecialize ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
-        { save_area_hazard. }
-        iDestruct "Hpost" as "(_ & _ & Hnested & _)".
-        iSpecialize ("Hnested" with "[//]").
-        iPoseProof (handler_skipped_cleared cstk w rmap Hz) as "Hskip".
-        iApply (switcher_exception_nested_finish _ _ off (top_error_count cstk) with
-                 "[$Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
-                   $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hskip $Hnested Hcstk Hwritten]");
-          [done | done |].
-        iSplitL "Hcstk"; first by rewrite cstack_set_top_count_id.
-        iExists 0%nat. iFrame "Hwritten". iPureIntro. lia.
+      + (* The cell of the export table holds the frame's set word *)
+        iIntros (Hz). exfalso. by apply Htbl_set.
       + (* No handler: the forced unwind *)
         iIntros ([_ Hno_stackful] wct0_u wct1_u wct2_u wcs0_u wcs1_u)
           "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
@@ -851,8 +833,6 @@ Section Switcher_Spec_Exception.
         iIntros (p g e a off z0 wct0_h wct2_h wcs1_h wca1_h wca2_h Hw Hfound)
           "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
             & Hcsp_cell & Hcell)".
-        destruct Hwcell as [Hz | (Hexp & _)].
-        { exfalso. rewrite Hw in Hz. by inversion Hz. }
         rewrite Hw /= in Hexp.
         assert (exp_tbl_cap (top_export_tbl cstk)
                   (WCap true p g (top_export_tbl cstk) e (top_export_tbl cstk))) as Htbl.

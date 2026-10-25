@@ -366,7 +366,7 @@ Section Switcher_KtK_Call.
     iNext; iIntros (wsb π)
       "(%Hwsb & _ & %Hstk_bounds & %Ha_frame & %Ha_frame_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
-      & Hhazard & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & _)".
+      & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
 
     (* [.Lswitcher_decode_entry]: load the callee and jump to it; only the low byte of the
@@ -409,8 +409,8 @@ Section Switcher_KtK_Call.
            "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
             Hframe_tbl Hframe_cnt Htstk Hstk_interp [Hcells] Hp_ot_switcher")
       as "[Hinv Hcstk]";
-      [done|done|done|done|done|exact Hstk_bounds|done|done|by intros _|done
-      |right; exact Htbl_cell|done| |].
+      [done|done|done|done|done|exact Hstk_bounds|done|done|by intros _
+      |right; split; [done | exact Htbl_cell]|done| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
     iApply "Hpost"; iLeft; iFrame "∗ %".
