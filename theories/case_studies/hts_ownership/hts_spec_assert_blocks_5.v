@@ -69,8 +69,8 @@ Section HTS_Spec_Assert.
     (* Block 22: fetch and call the assertion service. *)
     focus_block (hts_block ".Lhts_assert") "Hcode_main" of hts_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iExtractList "Hrmap" [ct2;ca2;cnull] as
-      ["[Hct2 _]";"[Hca2 _]";"[Hcnull _]"].
+    iExtractList "Hrmap" [ct2;ca2] as
+      ["[Hct2 _]";"[Hca2 _]"].
     iApply (assert_success_spec 1 with
       "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1
         $Hcra $Hcode $Himport_assert]"); auto; try (by intros ?).

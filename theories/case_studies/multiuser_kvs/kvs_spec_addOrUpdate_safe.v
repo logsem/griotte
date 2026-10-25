@@ -313,9 +313,8 @@ Section KVS_spec_addOrUpdate_safe.
     assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
     assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
     assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
-    assert ( is_Some (rmap !! cnull) ) as [wcnull Hwcnull] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
     iExtractList "Hrmap" [cgp; cra ; csp ] as ["Hcgp"; "Hcra"; "Hcsp"].
-    iExtractList "Hrmap" [ct1; ct2; ctp; cnull; ca0; ca1; ca2] as ["Hct1"; "Hct2"; "Hctp"; "Hcnull"; "Hca0"; "Hca1"; "Hca2"].
+    iExtractList "Hrmap" [ct1; ct2; ctp; ca0; ca1; ca2] as ["Hct1"; "Hct2"; "Hctp"; "Hca0"; "Hca1"; "Hca2"].
 
     iAssert (interp W0 C wca0) as "#Hinterp_wca0".
     { iApply "Hinterp_rmap"; eauto; by rewrite /kvs_addOrUpdate_nargs. }
@@ -345,8 +344,6 @@ Section KVS_spec_addOrUpdate_safe.
     { subst Wfixed. apply related_pub_revoke_close_list; exact Htemps. }
     iDestruct (RevokedResources_mono_pub W0 Wfixed C l l
       Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
-    iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
 
     iApply (KVS_addOrupdate_spec_safe W0 (revoke W0) C
               (WSentry (ret_kind mie_ret) true XSRW_ Local b_switcher e_switcher a_switcher_return)

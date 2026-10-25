@@ -123,8 +123,8 @@ Section LSE.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
-    iExtractList "Hrmap" [ct0;ct1;cs0;cs1;ca0;ca1;cnull]
-      as ["Hct0";"Hct1";"Hcs0";"Hcs1";"Hca0";"Hca1";"Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;cs0;cs1;ca0;ca1]
+      as ["Hct0";"Hct1";"Hcs0";"Hcs1";"Hca0";"Hca1"].
 
     (* Revoke the world, to get the stack frame *)
     iMod (lse_world_f with "Hinterp_W0_csp Hworld_interp_C")
@@ -154,7 +154,7 @@ Section LSE.
                     & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iMod ("Hlse_code_close" with "[$Hna $Hcgp_b]") as "Hna".
-    iInsertRegs "Hrmap" ["Hcnull";"Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].
+    iInsertRegs "Hrmap" ["Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].
 
     (* Return to the caller of [f] *)
     iDestruct (RevokedResources_mono_pub W0 _ C l l Hpub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
