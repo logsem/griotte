@@ -3,12 +3,43 @@ From griotte Require Import logrel memory_region rules proofmode monotone.
 From griotte Require Import map_simpl register_tactics.
 From griotte Require Export switcher_spec_return_gen.
 From griotte Require Import switcher_exception.
+From griotte Require Import switcher_return_states.
+From griotte.switcher.callback Require Import callback_path.
 
 (** * Functional specification of the switcher's return routine
 
     [switcher_ret_specification_gen], instantiated with the trap safety of
     the switcher ([switcher_trap_safety_intro]), and the safety of a fault
     in a trusted callee without handler. *)
+
+Section Thread_Return_Sentry.
+  Context `{MP: MachineParameters} {swlayout : switcherLayout}.
+
+  (** The switcher's return sentry, which CHERIoT's loader gives a thread in
+      [cra] ([boot.cc:963-978]): interrupt-disabling, Local, at
+      [switcher_after_compartment_call]. A return from the thread's entry
+      through it exits the thread ([switcher_ret_thread_exit_specification]). *)
+  Definition thread_return_sentry : Word :=
+    WSentry RetDisable true XSRW_ Local b_switcher e_switcher a_switcher_return.
+
+  Lemma thread_return_sentry_pc :
+    lupdatePcPerm (lword_of_word thread_return_sentry) =
+    lword_of_word (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
+  Proof. reflexivity. Qed.
+
+  (** A return ([Jalr cnull cra]) accepts it. *)
+  Lemma thread_return_sentry_jalr_ok :
+    jalr_target_ok cnull cra thread_return_sentry = true.
+  Proof. reflexivity. Qed.
+
+  Lemma thread_return_sentry_not_heap {swlayoutwf : switcherLayoutWf} :
+    is_heap_cap thread_return_sentry = false.
+  Proof.
+    rewrite /thread_return_sentry /is_heap_cap /heap_cap_base /memory_cap_base /=
+      switcher_base_not_heap /=.
+    reflexivity.
+  Qed.
+End Thread_Return_Sentry.
 
 Section Switcher.
   Context
@@ -67,6 +98,47 @@ Section Switcher.
       "(#Hswitcher & #Hstatic & Hres)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     by iApply (switcher_ret_specification_gen with "[$Hsafety $Hres]").
+  Qed.
+
+  (** A return through the switcher's return entry at the thread's entry call
+      stack: the switcher finds no frame to pop and goes to
+      [.Lcommon_defer_irqs_and_thread_exit], and the thread exits, with the
+      switcher invariant closed. Only three scratch registers are used: the
+      stack, the world and the other registers are not read. *)
+  Lemma switcher_ret_thread_exit_specification
+    (cstk : CSTK) (wctp wct0 wct2 : LWord) :
+    cstk.(cstk_frames) = [] ->
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ∗
+    na_own cerise_nais ⊤ ∗
+    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    ctp ↦ᵣ wctp ∗
+    ct0 ↦ᵣ wct0 ∗
+    ct2 ↦ᵣ wct2 ∗
+    cstack_frag cstk
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    destruct cstk as [ef frms]; cbn; intros ->.
+    iIntros "(#Hswitcher & #Hstatic & Hna & HPC & Hctp & Hct0 & Hct2 & Hcstk)".
+    iPoseProof "Hstatic" as "[#Hcode _]".
+    (* Open the switcher invariant *)
+    iMod (na_inv_acc with "Hswitcher Hna")
+      as "(Hswitcher_inv & Hna & Hclose_switcher_inv)"; auto.
+    iModNamed switcher_inv_open "Hswitcher_inv".
+    iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
+      first done.
+    iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq; subst cstk'.
+    iEval (rewrite switcher_return_block_13) in "HPC".
+    (* No frame to pop: to the thread exit *)
+    iApply (switcher_after_compartment_call_exit_spec with
+      "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hcode]").
+    iIntros "!> (HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
+    iApply (common_defer_irqs_and_thread_exit_spec with "[- $HPC $Hcode]").
+    iIntros "!> _".
+    iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
+           "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
+            Hcstk_full Hstk_interp Hp_ot_switcher") as "Hna"; [done|done|done|].
+    iModIntro; iIntros (_); iExact "Hna".
   Qed.
 
   (** A fault in a trusted callee whose table declares no handler, with its
