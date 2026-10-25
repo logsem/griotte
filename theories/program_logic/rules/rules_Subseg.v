@@ -156,7 +156,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-    unfold regs_of in Hri, Dregs.
+    unfold regs_of, operands_of in Hri, Dregs.
     destruct (Hri src) as [wsrc [Hsrc _]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s & Hsrc' & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs Hsrc) as Hoksrc.
@@ -179,7 +179,7 @@ Section griotte_lang_rules.
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag (wd @@? π)) (clear_tag wd) _ _ _
         (λ lpc' regs' retv, Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg1 arg2 lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hroot]").
-      { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+      { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply reg_word_ok_lclear_tag. }
       { rewrite -Hstep. by destruct wd as [| [] | | ? []], s. }
       { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
@@ -187,9 +187,9 @@ Section griotte_lang_rules.
       { intros Hi. constructor. eapply Subseg_fail_incrPC_other; eauto. }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
     destruct (lz_of_argument_dom regs arg1) as [n1 Hn1].
-    { intros x ->. apply Dregs. set_solver+. }
+    { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     destruct (lz_of_argument_dom regs arg2) as [n2 Hn2].
-    { intros x ->. apply Dregs. set_solver+. }
+    { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     assert (∃ w' pw,
         reg_word_ok R C w' ∧
         reg_phys R w' pw ∧
@@ -245,7 +245,7 @@ Section griotte_lang_rules.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst w' pw _ _ _
       (λ lpc' regs' retv, Subseg_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg1 arg2 lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hroot]").
-    { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+    { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     { exact Hok'. } { exact Hupdate. } { exact Hpw. } { exact Hsuccess. } { exact Hfailure. }
     iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
@@ -811,7 +811,7 @@ Section griotte_lang_rules.
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg _ _ _ _ _ _ _ _ _ _ _ _ _ (Some a1) with "[$HPC $Hmap $Hpc_a Hroot]");
       eauto; simplify_lmap_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    all: try (by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     { iFrame. iPureIntro. rewrite /laddr_of_argument /lz_of_argument.
       simplify_lmap_eq. done. }
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & [_ Hroot] & Hmap)". iDestruct "Hspec" as %Hspec.
@@ -932,7 +932,7 @@ Section griotte_lang_rules.
          (retv = NextIV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧ regs' = <[dst := v]ₗ> regs) ∨
          (retv = FaultedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None))
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Htok]").
-    { exact Her. } { exact Hlregs. } { rewrite /regs. set_solver+. }
+    { exact Her. } { exact Hlregs. } { right. rewrite /regs. set_solver+. }
     { eapply reg_word_ok_rebase; eauto. by destruct Hs as [-> | ->]. } { exact Hstep. }
     { exact Hpv. }
     { intros. by left. } { intros. by right. }
@@ -1124,7 +1124,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hpc Hincr Hnull Hconvert1 Hconvert2 Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
     iApply (subseg_invalidated_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 a1 a2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1150,7 +1150,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hpc Hincr Hnull Hover φ) "(>HPC & >Hmem & >Hr1) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
     iApply (subseg_unrepresentable_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1183,7 +1183,7 @@ Section instruction_outcomes.
     destruct w2 as [w2 π2]; cbn in Hread2.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_invalidated_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 a1 a2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1214,7 +1214,7 @@ Section instruction_outcomes.
     destruct w2 as [w2 π2]; cbn in Hread2.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_unrepresentable_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1247,7 +1247,7 @@ Section instruction_outcomes.
     destruct w1 as [w1 π1]; cbn in Hread1.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_invalidated_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 a1 a2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1278,7 +1278,7 @@ Section instruction_outcomes.
     destruct w1 as [w1 π1]; cbn in Hread1.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_unrepresentable_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1315,7 +1315,7 @@ Section instruction_outcomes.
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap %Hne]".
     destruct Hne as (? & ? & ?).
     iApply (subseg_invalidated_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 a1 a2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1350,7 +1350,7 @@ Section instruction_outcomes.
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap %Hne]".
     destruct Hne as (? & ? & ?).
     iApply (subseg_unrepresentable_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1382,7 +1382,7 @@ Section instruction_outcomes.
     destruct w1 as [w1 π1]; cbn in Hread1.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_invalidated_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n1 a1 a1 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto];
       try solve [by rewrite Hreject].
@@ -1414,7 +1414,7 @@ Section instruction_outcomes.
     destruct w1 as [w1 π1]; cbn in Hread1.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_unrepresentable_map_cap E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n1 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1442,7 +1442,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hpc Hincr Hnull Hconvert1 Hconvert2 Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
     iApply (subseg_invalidated_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 a1 a2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1468,7 +1468,7 @@ Section instruction_outcomes.
     iIntros (Hinstr Hpc Hincr Hnull Hover φ) "(>HPC & >Hmem & >Hr1) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
     iApply (subseg_unrepresentable_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1501,7 +1501,7 @@ Section instruction_outcomes.
     destruct w2 as [w2 π2]; cbn in Hread2.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_invalidated_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 a1 a2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1532,7 +1532,7 @@ Section instruction_outcomes.
     destruct w2 as [w2 π2]; cbn in Hread2.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_unrepresentable_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1565,7 +1565,7 @@ Section instruction_outcomes.
     destruct w1 as [w1 π1]; cbn in Hread1.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_invalidated_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 a1 a2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1596,7 +1596,7 @@ Section instruction_outcomes.
     destruct w1 as [w1 π1]; cbn in Hread1.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_unrepresentable_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1633,7 +1633,7 @@ Section instruction_outcomes.
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap %Hne]".
     destruct Hne as (? & ? & ?).
     iApply (subseg_invalidated_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 a1 a2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1668,7 +1668,7 @@ Section instruction_outcomes.
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap %Hne]".
     destruct Hne as (? & ? & ?).
     iApply (subseg_unrepresentable_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n2 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1700,7 +1700,7 @@ Section instruction_outcomes.
     destruct w1 as [w1 π1]; cbn in Hread1.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_invalidated_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n1 a1 a1 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
@@ -1731,7 +1731,7 @@ Section instruction_outcomes.
     destruct w1 as [w1 π1]; cbn in Hread1.
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
     iApply (subseg_unrepresentable_map_sr E _ _ _ _ _ _ pc_a' w _ _ _ _ _ t p g b e a n1 n1 with "[$HPC $Hmem $Hmap]"); eauto;
-      try solve [rewrite /regs_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
+      try solve [rewrite /regs_of /operands_of /regs_of_argument ?dom_insert ?dom_singleton_L ?dom_empty_L; set_solver];
       try solve [rewrite /lz_of_argument /llookup_reg ?lookup_insert;
                  repeat case_decide; simplify_eq; cbn; eauto].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".

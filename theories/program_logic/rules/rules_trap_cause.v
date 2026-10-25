@@ -126,9 +126,9 @@ Section trap_cause.
   Lemma lookup_reg_rel S φl φp r :
     cause_rel S φl φp → option_Forall2 (word_agree (S r)) (reg φl !!ᵣ r) (reg φp !!ᵣ r).
   Proof.
-    intros Hrel. rewrite /lookup_reg.
-    destruct (cr_reg _ _ _ Hrel r) as [x y Hxy|]; cbn; constructor.
-    case_decide; [by left | done].
+    intros Hrel. rewrite /lookup_reg. case_decide.
+    - constructor. by left.
+    - destruct (cr_reg _ _ _ Hrel r); by constructor.
   Qed.
 
   Lemma word_of_argument_rel S φl φp ρ :
@@ -392,7 +392,8 @@ Section trap_cause.
     f = lfault lpc lregs lm ∨
     ∃ wi r v,
       instr_at lpc lm = Some wi ∧ fault_auth_reg (decodeInstrW wi.(lw)) = Some r ∧
-      lregs !! r = Some v ∧ may_strip v ∧ f = FaultCheri TagViolation (CheriGPR r).
+      r ≠ cnull ∧ lregs !! r = Some v ∧ may_strip v ∧
+      f = FaultCheri TagViolation (CheriGPR r).
 
   (** Agreement on the fault: under erasure, the physical fault is one that
       the logical view allows. *)
@@ -406,6 +407,10 @@ Section trap_cause.
       first by left.
     right. cbn [lview pcc mem fst snd] in Hpc, Hcorrect, Hwi. rewrite lookup_fmap in Hwi.
     destruct (lmem !! a) as [wi'|] eqn:Hwi'; inversion Hwi; subst wi.
+    (* [cnull] holds the null word, which is never stripped. *)
+    assert (r ≠ cnull) as Hr_cnull.
+    { intros ->. rewrite (er_cnull _ _ _ _ _ _ _ Her _ Hv) in Hs. cbn in Hs.
+      by destruct Hs as [Htag _]. }
     exists wi', r, v. split_and!; try done.
     by rewrite /instr_at Hcorrect Hpc.
   Qed.
@@ -429,15 +434,14 @@ Section trap_cause.
     fault_is_access (lfault lpc lregs lm) = false.
 
   Lemma load_fault_frag φf φ src imm :
-    reg φf !! src = reg φ !! src →
+    reg φf !!ᵣ src = reg φ !!ᵣ src →
     mem φf ⊆ mem φ →
     shadowtbl φf = shadowtbl φ →
     fault_is_access (load_fault φf src imm) = false →
     load_fault φ src imm = load_fault φf src imm.
   Proof.
-    intros Hsrc Hmem Hsh. rewrite /load_fault /lookup_reg Hsrc Hsh.
-    destruct (reg φ !! src) as [w|]; last done. cbn.
-    case_decide; first done.
+    intros Hsrc Hmem Hsh. rewrite /load_fault Hsrc Hsh.
+    destruct (reg φ !!ᵣ src) as [w|]; last done. cbn.
     destruct (data_cap_check readAllowed PermitLoadViolation src w imm) as [f|ea]; first done.
     destruct (is_shadow_address ea); first done.
     destruct (is_revoker_address ea); first done.
@@ -446,18 +450,17 @@ Section trap_cause.
   Qed.
 
   Lemma store_fault_frag φf φ dst ρ imm :
-    reg φf !! dst = reg φ !! dst →
-    (∀ r, ρ = inr r → reg φf !! r = reg φ !! r) →
+    reg φf !!ᵣ dst = reg φ !!ᵣ dst →
+    (∀ r, ρ = inr r → reg φf !!ᵣ r = reg φ !!ᵣ r) →
     mem φf ⊆ mem φ →
     fault_is_access (store_fault φf dst ρ imm) = false →
     store_fault φ dst ρ imm = store_fault φf dst ρ imm.
   Proof.
-    intros Hdst Hρ Hmem. rewrite /store_fault /lookup_reg Hdst.
+    intros Hdst Hρ Hmem. rewrite /store_fault Hdst.
     assert (word_of_argument (reg φf) ρ = word_of_argument (reg φ) ρ) as ->.
-    { destruct ρ as [z|r]; first done. cbn. rewrite /lookup_reg (Hρ r eq_refl). done. }
+    { destruct ρ as [z|r]; first done. cbn. by rewrite (Hρ r eq_refl). }
     destruct (word_of_argument (reg φ) ρ) as [t|]; last done.
-    destruct (reg φ !! dst) as [w|]; last done. cbn.
-    case_decide; first done.
+    destruct (reg φ !!ᵣ dst) as [w|]; last done. cbn.
     destruct (data_cap_check writeAllowed PermitStoreViolation dst w imm) as [f|ea]; first done.
     destruct (is_shadow_address ea); first done.
     destruct (is_revoker_address ea); first done.
@@ -466,9 +469,9 @@ Section trap_cause.
   Qed.
 
   Lemma jalr_fault_frag φf φ rdst rsrc :
-    reg φf !! rsrc = reg φ !! rsrc →
+    reg φf !!ᵣ rsrc = reg φ !!ᵣ rsrc →
     jalr_fault φ rdst rsrc = jalr_fault φf rdst rsrc.
-  Proof. intros Hsrc. by rewrite /jalr_fault /lookup_reg Hsrc. Qed.
+  Proof. intros Hsrc. by rewrite /jalr_fault Hsrc. Qed.
 
   (** The fault from fragments is the fault from any registers and memory
       that contain them. *)
@@ -480,8 +483,12 @@ Section trap_cause.
   Proof.
     intros (Hregs & Hknown) Hsub Hmsub.
     assert ((lw <$> lm) ⊆ (lw <$> lmem)) as Hmsub' by by apply map_fmap_mono.
-    assert (∀ r, r ∈ dom lregs → (lw <$> lregs) !! r = (lw <$> lreg) !! r) as Hr.
-    { intros r [v Hv]%elem_of_dom. by rewrite !lookup_fmap Hv (lookup_weaken _ _ _ _ Hv Hsub). }
+    (* An operand reads the same word: [cnull] reads 0, the others are in
+       the fragment. *)
+    assert (∀ r, r = cnull ∨ r ∈ dom lregs → (lw <$> lregs) !!ᵣ r = (lw <$> lreg) !!ᵣ r) as Hr.
+    { intros r Hr. rewrite /lookup_reg. case_decide as Hr_cnull; first done.
+      destruct Hr as [->|[v Hv]%elem_of_dom]; first done.
+      by rewrite !lookup_fmap Hv (lookup_weaken _ _ _ _ Hv Hsub). }
     revert Hknown. rewrite /lfault /trap_fault /lview /=.
     destruct lpc as [w π]; cbn in Hregs |- *.
     destruct w as [| [[] p g b e a | ] | | ]; try done.
@@ -491,12 +498,13 @@ Section trap_cause.
     rewrite (lookup_weaken _ _ _ _ Hwi Hmsub) /=.
     pose proof (Hregs _ _ _ _ _ _ eq_refl Hwi) as Hdom.
     destruct (decodeInstrW wi.(lw)) eqn:Hi; cbn in Hdom |- *; try done.
-    - intros _. apply jalr_fault_frag. apply Hr. set_solver.
+    - intros _. apply jalr_fault_frag. apply Hr.
+      eapply elem_of_lregs_dom; [exact Hdom | set_solver].
     - intros Hload. apply load_fault_frag; [| done | done | done].
-      apply Hr. set_solver.
+      apply Hr. eapply elem_of_lregs_dom; [exact Hdom | set_solver].
     - intros Hstore. apply store_fault_frag; [| | done | done].
-      + apply Hr. set_solver.
-      + intros r ->. apply Hr. set_solver.
+      + apply Hr. eapply elem_of_lregs_dom; [exact Hdom | set_solver].
+      + intros r ->. apply Hr. eapply elem_of_lregs_dom; [exact Hdom | set_solver].
   Qed.
 
   Lemma lcause_frag lpc lregs lm lreg lmem :
@@ -506,7 +514,7 @@ Section trap_cause.
     lcause lpc lreg lmem = lcause lpc lregs lm.
   Proof. intros. rewrite !lcause_lfault. f_equal. by apply lfault_frag. Qed.
 
-  Lemma fault_auth_reg_regs_of i r : fault_auth_reg i = Some r → r ∈ regs_of i.
+  Lemma fault_auth_reg_operands_of i r : fault_auth_reg i = Some r → r ∈ operands_of i.
   Proof. destruct i; cbn; intros [=<-]; set_solver. Qed.
 
   (** The faults that the full view allows are those that fragments
@@ -518,7 +526,7 @@ Section trap_cause.
     fault_ok lpc lreg lmem f →
     fault_ok lpc lregs lm f.
   Proof.
-    intros Hknown Hsub Hmsub [-> | (wi & r & v & Hwi & Hr & Hv & Hs & ->)].
+    intros Hknown Hsub Hmsub [-> | (wi & r & v & Hwi & Hr & Hr_cnull & Hv & Hs & ->)].
     { left. by apply lfault_frag. }
     right. destruct Hknown as [Hregs Hacc].
     rewrite /instr_at in Hwi.
@@ -532,8 +540,9 @@ Section trap_cause.
       by rewrite Hcorrect lookup_fmap Hwi'. }
     rewrite (lookup_weaken _ _ _ _ Hwi' Hmsub) in Hwi. injection Hwi as ->.
     pose proof (Hregs _ _ _ _ _ _ eq_refl Hwi') as Hdom.
-    pose proof (fault_auth_reg_regs_of _ _ Hr) as Hrr.
-    destruct (elem_of_dom lregs r) as [[v' Hv'] _]; first set_solver.
+    pose proof (fault_auth_reg_operands_of _ _ Hr) as Hrr.
+    destruct (elem_of_dom lregs r) as [[v' Hv'] _].
+    { apply Hdom. rewrite /regs_of. set_solver. }
     rewrite (lookup_weaken _ _ _ _ Hv' Hsub) in Hv. injection Hv as ->.
     exists wi, r, v. split_and!; try done.
     rewrite /instr_at. cbn [lw]. by rewrite Hcorrect.

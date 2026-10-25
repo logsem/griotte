@@ -266,8 +266,8 @@ Section DLE.
     subst rcgp rcra.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull]
-      as ["Hct0"; "Hct1"; "Hct2"; "Hca2"; "Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
+      as ["Hct0"; "Hct1"; "Hct2"; "Hca2"].
 
     (* Blocks 3-5: assert that b is unchanged and halt *)
     iApply (dle_assert_blocks_4_spec _ _ _ _ _ C_f with

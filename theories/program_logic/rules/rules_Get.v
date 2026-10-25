@@ -51,9 +51,9 @@ Section griotte_lang_rules.
     i = GetTag dst src
   .
 
-  Lemma regs_of_is_Get i dst src :
+  Lemma operands_of_is_Get i dst src :
     is_Get i dst src →
-    regs_of i = {[ dst; src ]}.
+    operands_of i = {[ dst; src ]}.
   Proof.
     intros HH. destruct_or! HH; subst i; reflexivity.
   Qed.
@@ -155,7 +155,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-    erewrite regs_of_is_Get in Hri; eauto.
+    erewrite operands_of_is_Get in Hri; eauto.
     destruct (Hri src) as [wsrc [H'src _]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc & Hrel).
     rewrite (exec_opt_Get _ _ _ _ _ _ _ _ _ _ Hinstr Hsrc) denote_and_tag in Hstep.
@@ -167,7 +167,7 @@ Section griotte_lang_rules.
         (λ lpc' regs' retv, Get_spec (GetTag dst src) _ regs dst src lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. }
-      { apply Dregs. erewrite regs_of_is_Get; eauto. set_solver+. }
+      { eapply elem_of_lregs_dom; [exact Dregs | erewrite operands_of_is_Get; eauto; set_solver+]. }
       { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
       { intros. eapply Get_spec_success_cleared; eauto.
         apply (reg_phys_tag_strippable R); last done. by rewrite and_tag_false in Hrel. }
@@ -186,7 +186,7 @@ Section griotte_lang_rules.
       (λ lpc' regs' retv, Get_spec get_i _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. }
-    { apply Dregs. erewrite regs_of_is_Get; eauto. set_solver+. }
+    { eapply elem_of_lregs_dom; [exact Dregs | erewrite operands_of_is_Get; eauto; set_solver+]. }
     { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
     { intros. by econstructor. }
     { intros. apply Get_spec_failure; [|done..]. by eapply Get_fail_overflow_PC. }
@@ -240,7 +240,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = get_i →
     is_Get get_i dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    {[dst; src]} ⊆ dom regs →
+    {[dst; src]} ∖ {[ cnull ]} ⊆ dom regs →
     regs !!ₗ src = Some wsrc →
     is_Some (denote get_i wsrc.(lw)) →
     incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
@@ -256,7 +256,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hi Hvpc Hdom Hsrc Hden Hinc φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_Get with "[$HPC $Hpc_a $Hmap]"); eauto.
-    { by erewrite regs_of_is_Get. }
+    { rewrite /regs_of. by erewrite operands_of_is_Get. }
     iIntros "!>" (lpc0 regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     rewrite Hdecode in Hspec.
     assert (retv = NextIV) as ->.
@@ -323,32 +323,30 @@ Section griotte_lang_rules.
     iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_GetTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn dq :
+  Lemma wp_GetTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq :
     decodeInstrW w.(lw) = GetTag cnull cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z }}}.
+    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
-    iIntros (Hdecode Hvpc Hpca' φ) "(HPC & Hpc_a & >Hn) Hφ".
-    iDestruct (map_of_regs_1 with "Hn") as "Hmap".
-    iApply (wp_Get_next _ (GetTag cnull cnull) cnull cnull _ _ _ _ _ _ _ _ lnull
-      with "[$HPC $Hpc_a $Hmap]"); try solve_next_side; try (by unfold is_Get; tauto); try by eexists.
-    iIntros "!>" (z') "(_ & HPC & Hpc_a & Hmap)".
-    iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
+    iIntros (Hdecode Hvpc Hpca' φ) "(HPC & Hpc_a) Hφ".
+    iApply (wp_Get_next _ (GetTag cnull cnull) cnull cnull _ _ _ _ _ _ _ ∅ lnull
+      with "[$HPC $Hpc_a]"); try solve_next_side; try (by unfold is_Get; tauto); try by eexists.
+    iIntros "!>" (z') "(_ & HPC & Hpc_a & _)". iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_GetTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd wn dq :
+  Lemma wp_GetTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd dq :
     decodeInstrW w.(lw) = GetTag dst cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → dst ≠ cnull →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ dst ↦ᵣ wd }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ dst ↦ᵣ wd }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ WInt 0%Z ∗ cnull ↦ᵣ wn }}}.
+    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ WInt 0%Z }}}.
   Proof.
-    iIntros (Hdecode Hvpc Hpca' Hne φ) "(HPC & Hpc_a & >Hs & >Hd) Hφ".
-    iDestruct (map_of_regs_2 with "Hd Hs") as "[Hmap %]".
+    iIntros (Hdecode Hvpc Hpca' Hne φ) "(HPC & Hpc_a & >Hd) Hφ".
+    iDestruct (map_of_regs_1 with "Hd") as "Hmap".
     iApply (wp_Get_next _ (GetTag dst cnull) dst cnull _ _ _ _ _ _ _ _ lnull
       with "[$HPC $Hpc_a $Hmap]"); try solve_next_side; try (by unfold is_Get; tauto); try by eexists.
     iIntros "!>" (z') "(%Hz & HPC & Hpc_a & Hmap)".
@@ -356,21 +354,21 @@ Section griotte_lang_rules.
     iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_GetTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src wn ws dq :
+  Lemma wp_GetTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src ws dq :
     decodeInstrW w.(lw) = GetTag cnull src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → src ≠ cnull →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ src ↦ᵣ ws }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ src ↦ᵣ ws }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z ∗ src ↦ᵣ ws }}}.
+    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ src ↦ᵣ ws }}}.
   Proof.
-    iIntros (Hdecode Hvpc Hpca' Hne φ) "(HPC & Hpc_a & >Hd & >Hs) Hφ".
-    iDestruct (map_of_regs_2 with "Hd Hs") as "[Hmap %]".
+    iIntros (Hdecode Hvpc Hpca' Hne φ) "(HPC & Hpc_a & >Hs) Hφ".
+    iDestruct (map_of_regs_1 with "Hs") as "Hmap".
     iApply (wp_Get_next _ (GetTag cnull src) cnull src _ _ _ _ _ _ _ _ ws
       with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
       try (by unfold is_Get; tauto); try (destruct_word (lw ws); by eexists).
     iIntros "!>" (z') "(_ & HPC & Hpc_a & Hmap)".
-    iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
+    rewrite linsert_reg_cnull. iRegsMap "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   (** GetTag returns the tag, or 0 on a word whose tag may have been
@@ -453,7 +451,7 @@ Section griotte_lang_rules.
     iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
     iDestruct (HP with "HC HPr") as %HΦc.
     rewrite Hdecode /exec in Hstep.
-    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
+    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
     destruct (Hri src) as [v [Hv Hv']]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hv) as (s & Hsrc & Hrel).
     rewrite (exec_opt_Get (GetTag dst src) dst src _ _ _ _ _ _ _ ltac:(unfold is_Get; tauto)
@@ -484,7 +482,7 @@ Section griotte_lang_rules.
          (retv = FaultedV ∧ incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
             regs' = regs ∧ lpc' = WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π))
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hdw HPr]").
-    { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+    { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
     { intros lpc' Hi. left. by exists v, (Z.b2z (s && get_tag v.(lw))). }
     { intros Hi. right. by split_and!. }
@@ -521,7 +519,7 @@ Section griotte_lang_rules.
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %]".
     iApply (wp_GetTag_obs _ _ _ _ _ _ _ _ _ _ _ _ dw P Φc
       with "[$HPC $Hpc_a $Hdw $HPr $Hmap]"); eauto.
-    { rewrite /regs_of !dom_insert_L. set_solver+. }
+    { rewrite /regs_of /operands_of !dom_insert_L. set_solver+. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hdw & HPr & Hmap)".
     destruct Hspec as [(v & z & -> & Hv & Hres & Hinc & ->) | (-> & Hinc & -> & ->)].
     - incrementPC_inv; simplify_map_eq.

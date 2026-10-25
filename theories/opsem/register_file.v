@@ -51,14 +51,13 @@ Proof.
 Qed.
 
 
-(** Register file: CNULL always contains 0 *)
+(** Register file: [cnull] reads as 0 and drops writes, whatever the map
+    holds. *)
 
 Definition lookup_reg (r : RegName) (regs : Reg) : option Word :=
-  w ← (regs !! r);
-  Some (if (decide (r = cnull)) then (WInt 0) else w).
+  if decide (r = cnull) then Some (WInt 0) else regs !! r.
 Definition insert_reg (r : RegName) (w : Word) (regs : Reg) : Reg :=
-  let w' := if (decide (r = cnull)) then (WInt 0) else w in
-  <[r:=w']>regs.
+  if decide (r = cnull) then regs else <[r:=w]>regs.
 
 Notation "m !!ᵣ i" := (lookup_reg i m) (at level 20) : stdpp_scope.
 Notation "(!!ᵣ)" := lookup_reg (only parsing) : stdpp_scope.
@@ -68,198 +67,125 @@ Notation "<[ k := a ]ᵣ>" := (insert_reg k a)
   (at level 5, right associativity, format "<[ k := a ]ᵣ>") : stdpp_scope.
 
 Lemma is_Some_lookup_reg (regs : Reg) ( r : RegName ) :
-  (is_Some (regs !!ᵣ r)) <-> (is_Some (regs !! r)).
-Proof.
-  rewrite /lookup_reg.
-  destruct (regs !! r); cbn; done.
-Qed.
+  (is_Some (regs !!ᵣ r)) <-> r = cnull ∨ (is_Some (regs !! r)).
+Proof. rewrite /lookup_reg. case_decide; naive_solver. Qed.
+
 Lemma lookup_reg_not_cnull (regs : Reg) (r : RegName) :
   r ≠ cnull -> regs !!ᵣ r = regs !! r.
-Proof.
-  intros Hr.
-  rewrite /lookup_reg.
-  destruct (regs !! r) ; cbn ; last done.
-  destruct (decide (r = cnull)) eqn:Hdec; cbn in *; try done.
-Qed.
+Proof. intros Hr. rewrite /lookup_reg. by case_decide. Qed.
 
 Lemma elem_of_dom_reg (regs : Reg) (r : RegName) :
-  r ∈ dom regs ↔ is_Some (regs !!ᵣ r).
-Proof.
-  split; rewrite /lookup_reg; intros Hr.
-  + rewrite elem_of_dom in Hr; destruct Hr as [w Hr].
-    rewrite Hr; cbn; done.
-  + rewrite elem_of_dom.
-    destruct (regs !! r) eqn:Hr'; rewrite Hr'; cbn in *; first done.
-    by apply is_Some_None in Hr.
-Qed.
+  r ∈ dom regs → is_Some (regs !!ᵣ r).
+Proof. rewrite is_Some_lookup_reg elem_of_dom. by right. Qed.
 
 Lemma lookup_reg_weaken (regs1 regs2 : Reg) (r : RegName) (w : Word) :
   regs1 !!ᵣ r = Some w → regs1 ⊆ regs2 → regs2 !!ᵣ r = Some w.
 Proof.
-  intros Hr1 Hincl.
-  rewrite /lookup_reg in Hr1.
-  rewrite /lookup_reg.
-  destruct (regs1 !! r) eqn:Hr; cbn in *; last done.
-  eapply lookup_weaken in Hr; eauto.
-  rewrite Hr; cbn.
-  done.
+  rewrite /lookup_reg. intros Hr1 Hincl.
+  case_decide; first done. by eapply lookup_weaken.
 Qed.
 
 Lemma insert_reg_insert r w1 w2 regs :
-  <[ r := w1 ]ᵣ> (<[ r := w2 ]> regs) = <[ r := w1 ]ᵣ> regs.
-Proof.
-  destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /insert_reg
-  ; rewrite Hdec; by rewrite insert_insert_eq.
-Qed.
+  r ≠ cnull → <[ r := w1 ]ᵣ> (<[ r := w2 ]> regs) = <[ r := w1 ]ᵣ> regs.
+Proof. intros Hr. rewrite /insert_reg. case_decide; first done. by rewrite insert_insert_eq. Qed.
 
 Lemma insert_insert_reg r w1 w2 regs :
   <[ r := w1 ]> (<[ r := w2 ]ᵣ> regs) = <[ r := w1 ]> regs.
-Proof.
-  destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /insert_reg
-  ; rewrite Hdec; by rewrite insert_insert_eq.
-Qed.
+Proof. rewrite /insert_reg. case_decide; first done. by rewrite insert_insert_eq. Qed.
 
 Lemma insert_reg_insert_commute r1 r2 w1 w2 regs :
   r1 ≠ r2 -> <[ r1 := w1 ]ᵣ> (<[ r2 := w2 ]> regs) = <[ r2 := w2
     ]> (<[ r1 := w1 ]ᵣ> regs).
 Proof.
-  intros Hneq. rewrite insert_insert_ne; auto.
+  intros Hneq. rewrite /insert_reg. case_decide; first done.
+  rewrite insert_insert_ne; auto.
 Qed.
 
 Lemma lookup_reg_singleton_None r1 r2 w :
-  ({[r1 := w]} : Reg) !!ᵣ r2 = None ↔ r1 ≠ r2.
+  ({[r1 := w]} : Reg) !!ᵣ r2 = None ↔ r2 ≠ cnull ∧ r1 ≠ r2.
 Proof.
-  rewrite /lookup_reg.
-  split; intros H.
-  - intros ->; rewrite lookup_singleton_eq in H; done.
-  - eapply lookup_singleton_None in H; rewrite H; auto.
-    Unshelve. 1: exact Word. 1: auto.
+  rewrite /lookup_reg. case_decide; first naive_solver.
+  rewrite lookup_singleton_None. naive_solver.
 Qed.
 
 Lemma lookup_reg_empty r :
-  (∅ : Reg) !!ᵣ r = None.
-Proof.
-  rewrite /lookup_reg.
-  rewrite lookup_empty; done.
-Qed.
+  (∅ : Reg) !!ᵣ r = if decide (r = cnull) then Some (WInt 0) else None.
+Proof. rewrite /lookup_reg. case_decide; first done. by rewrite lookup_empty. Qed.
 
 Lemma lookup_insert_reg regs r w :
-  <[r:=w]ᵣ> regs !! r = Some (if (decide (r = cnull)) then WInt 0 else w).
-Proof.
-  destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /insert_reg
-  ; rewrite Hdec; by rewrite lookup_insert_eq.
-Qed.
+  <[r:=w]ᵣ> regs !! r = if decide (r = cnull) then regs !! r else Some w.
+Proof. rewrite /insert_reg. case_decide; first done. by rewrite lookup_insert_eq. Qed.
 Lemma lookup_insert_reg_ne regs r1 r2 w :
   r1 ≠ r2 -> <[r1:=w]ᵣ> regs !! r2 = regs !! r2.
 Proof.
-  intros Hneq.
-  rewrite /lookup_reg.
+  intros Hneq. rewrite /insert_reg. case_decide; first done.
   rewrite lookup_insert_ne; auto.
 Qed.
 
 Lemma lookup_reg_insert regs r w :
   (<[r:=w]> regs) !!ᵣ r = Some (if (decide (r = cnull)) then WInt 0 else w).
-Proof.
-  destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /lookup_reg
-  ; rewrite Hdec; by rewrite lookup_insert_eq.
-Qed.
+Proof. rewrite /lookup_reg. case_decide; first done. by rewrite lookup_insert_eq. Qed.
 
 Lemma lookup_reg_insert_ne regs r1 r2 w :
   r1 ≠ r2 -> (<[r1:=w]> regs) !!ᵣ r2 = regs !!ᵣ r2.
 Proof.
-  intros Hneq.
-  rewrite /lookup_reg.
+  intros Hneq. rewrite /lookup_reg. case_decide; first done.
   rewrite lookup_insert_ne; auto.
 Qed.
 
 Lemma lookup_reg_insert_reg regs r w :
   <[r:=w]ᵣ> regs !!ᵣ r = Some (if (decide (r = cnull)) then WInt 0 else w).
-Proof.
-  destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /lookup_reg /insert_reg
-  ; rewrite Hdec; by rewrite lookup_insert_eq.
-Qed.
+Proof. rewrite /lookup_reg /insert_reg. case_decide; first done. by rewrite lookup_insert_eq. Qed.
 
 Lemma lookup_reg_insert_reg_ne regs r1 r2 w :
   r1 ≠ r2 -> <[r1:=w]ᵣ> regs !!ᵣ r2 = regs !!ᵣ r2.
 Proof.
-  intros Hneq.
-  rewrite /lookup_reg.
+  intros Hneq. rewrite /lookup_reg /insert_reg.
+  case_decide; first done. case_decide; first done.
   rewrite lookup_insert_ne; auto.
 Qed.
 
 Lemma lookup_reg_delete regs r :
-  delete r regs !!ᵣ r = None.
-Proof.
-  rewrite /lookup_reg.
-  by rewrite lookup_delete_eq.
-Qed.
+  delete r regs !!ᵣ r = if decide (r = cnull) then Some (WInt 0) else None.
+Proof. rewrite /lookup_reg. case_decide; first done. by rewrite lookup_delete_eq. Qed.
 Lemma lookup_reg_delete_ne regs r1 r2 :
   r1 ≠ r2 -> delete r1 regs !!ᵣ r2 = regs !!ᵣ r2.
 Proof.
-  intros Hneq.
-  rewrite /lookup_reg.
+  intros Hneq. rewrite /lookup_reg. case_decide; first done.
   rewrite lookup_delete_ne; auto.
 Qed.
 Lemma lookup_reg_singleton r w :
   ({[r := w]} : Reg) !!ᵣ r = Some (if (decide (r = cnull)) then WInt 0 else w).
-Proof.
-  rewrite /lookup_reg.
-  rewrite lookup_singleton_eq; auto; cbn.
-Qed.
+Proof. rewrite /lookup_reg. case_decide; first done. by rewrite lookup_singleton_eq. Qed.
 Lemma lookup_reg_singleton_ne r1 r2 w :
-  r1 ≠ r2 -> ({[r1 := w]} : Reg) !!ᵣ r2 = None.
+  r1 ≠ r2 -> ({[r1 := w]} : Reg) !!ᵣ r2 = if decide (r2 = cnull) then Some (WInt 0) else None.
 Proof.
-  intros Hneq.
-  rewrite /lookup_reg.
+  intros Hneq. rewrite /lookup_reg. case_decide; first done.
   rewrite lookup_singleton_ne; auto.
 Qed.
 
 Lemma lookup_reg_singleton_Some r1 r2 w1 w2 :
-  ({[r1 := w1]} : Reg) !!ᵣ r2 = Some w2 ↔ r1 = r2 ∧ (if (decide (r2 = cnull)) then WInt 0 else w1)
-  = w2.
-Proof.
-  split; rewrite /lookup_reg; intros H.
-  - destruct ({[r1 := w1]} !! r2) eqn:Hr2; cbn in *; last done.
-    apply lookup_singleton_Some in Hr2 as [-> ->].
-    split; simplify_eq; done.
-  - destruct H as [-> <-].
-    by rewrite lookup_singleton_eq; cbn.
-Qed.
+  r2 ≠ cnull →
+  ({[r1 := w1]} : Reg) !!ᵣ r2 = Some w2 ↔ r1 = r2 ∧ w1 = w2.
+Proof. intros Hr2. rewrite lookup_reg_not_cnull //. apply lookup_singleton_Some. Qed.
 
 Lemma lookup_reg_weaken_inv (regs1 regs2 : Reg) (r : RegName) (w1 w2 : Word) :
   regs1 !!ᵣ r = Some w1 → regs1 ⊆ regs2 → regs2 !!ᵣ r = Some w2 -> w1 = w2.
 Proof.
   intros Hr1 Hincl Hr2.
-  rewrite /lookup_reg in Hr1.
-  rewrite /lookup_reg in Hr2.
-  destruct (regs1 !! r) eqn:Hr; cbn in *; last done.
-  simplify_eq.
-  eapply lookup_weaken in Hr; eauto.
-  rewrite Hr in Hr2; cbn in *.
-  simplify_eq.
-  done.
+  pose proof (lookup_reg_weaken _ _ _ _ Hr1 Hincl). congruence.
 Qed.
 
 Lemma insert_reg_not_cnull (regs : Reg) (r : RegName) (w : Word) :
   r ≠ cnull -> <[r := w]ᵣ> regs = <[r := w]> regs.
-Proof.
-  intros Hr.
-  rewrite /insert_reg.
-  destruct (decide (r = cnull)); done.
-Qed.
+Proof. intros Hr. rewrite /insert_reg. by case_decide. Qed.
 
 Lemma insert_reg_cnull (regs : Reg) (w : Word) :
-  <[cnull := w]ᵣ> regs = <[cnull := WInt 0]> regs.
-Proof.
-  rewrite /insert_reg.
-  destruct (decide (cnull = cnull)); done.
-Qed.
+  <[cnull := w]ᵣ> regs = regs.
+Proof. rewrite /insert_reg. by case_decide. Qed.
 Lemma lookup_reg_cnull (regs : Reg) :
-  regs !!ᵣ cnull = (fun _ => WInt 0) <$> (regs !! cnull).
-Proof.
-  rewrite /lookup_reg.
-  destruct (regs !! cnull) eqn:Hcnull; auto.
-Qed.
+  regs !!ᵣ cnull = Some (WInt 0).
+Proof. rewrite /lookup_reg. by case_decide. Qed.
 
 
 Tactic Notation "simpl_map_regs" "by" tactic3(tac) :=
@@ -356,7 +282,7 @@ Tactic Notation "simplify_map_eq" "by" tactic3(tac) :=
   | H : {[ _ := _ ]} !! _ = Some _ |- _ =>
     rewrite lookup_singleton_Some in H; destruct H
   | H : {[ _ := _ ]} !!ᵣ _ = Some _ |- _ =>
-    rewrite lookup_reg_singleton_Some in H; destruct H
+    rewrite lookup_reg_singleton_Some in H; [destruct H | by tac]
   | H1 : ?m1 !! ?i = Some ?x, H2 : ?m2 !! ?i = Some ?y |- _ =>
     let H3 := fresh in
     opose proof (lookup_weaken_inv m1 m2 i x y) as H3; [done|by tac|done|];

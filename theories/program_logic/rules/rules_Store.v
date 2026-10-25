@@ -289,7 +289,7 @@ Section griotte_lang_rules.
      iDestruct (gen_heap_valid_inclSepM with "Hm Hmem") as %Hlmem.
      iDestruct (gen_heap_valid_inclSepM with "Hst Hshadow") as %Hshadow_incl.
      pose proof (er_mmio _ _ _ _ _ _ _ Her) as Hmmio; cbn in Hmmio.
-     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
+     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
      odestruct (Hri r1) as [r1v [Hr1l _] ]; first by set_solver+.
      iAssert (⌜lmem !! pc_a = Some w⌝)%I as %Hlmem_pc.
      { destruct fetch_in_mem.
@@ -1709,7 +1709,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
     assert (is_Some (word_of_argument r r2)) as [wv Hwv].
     { destruct r2 as [z|r2]; cbn; first eauto.
       assert (is_Some (regs !!ₗ r2)) as [lv Hl].
-      { apply elem_of_dom_lreg, Dregs. rewrite /regs_of /=. set_solver+. }
+      { eapply llookup_reg_of_dom; [exact Dregs | rewrite /regs_of /operands_of /=; set_solver+]. }
       destruct (llookup_reg_phys _ _ _ _ _ Hregs Hl) as (s2 & Hr2 & _). eauto. }
     rewrite /exec /= Hwv Hr1 /= Hadd /= Hwa Hwb /= revoker_not_shadow_address /=
       in Hstep.

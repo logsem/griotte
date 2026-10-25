@@ -51,9 +51,9 @@ Section griotte_lang_rules.
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
-    unfold regs_of in Dregs.
-    assert (∀ x, rimm = inr x → x ∈ dom regs) as Hdomr.
-    { intros x ->. apply Dregs. set_solver+. }
+    unfold regs_of, operands_of in Dregs.
+    assert (arg_owned regs rimm) as Hdomr.
+    { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     assert (exec_opt (Jmp rimm) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
               (imm ← lz_of_argument regs rimm;
                advancePC (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
@@ -119,7 +119,7 @@ Section griotte_lang_rules.
      destruct (IsLInt_inv _ _ Hwimm) as [πimm ->].
      iDestruct (map_of_regs_1 with "Hrimm") as "Hmap".
      iApply (wp_Jmp with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-     { set_solver+. }
+     { rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L. set_solver+. }
      iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
      assert (lz_of_argument {[rimm:=WInt imm @@? πimm]} (inr rimm) = Some imm) as Hz0.
      { rewrite /lz_of_argument /llookup_reg lookup_singleton_eq /=.

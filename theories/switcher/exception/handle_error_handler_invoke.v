@@ -8,7 +8,7 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 
     [.Lhandle_error_handler_invoke] enables interrupts, clears every
     register but the handler's return sentry, stack, globals and three
-    arguments ([zero_all_registers_except_asm], [cnull] included), and
+    arguments ([zero_all_registers_except_asm]; [cnull] reads 0), and
     calls the handler's PC in [cra] with [cjalr cra, cra]
     ([.Lhandle_error_handler_cjalr]): the link is the return sentry of the
     handler, [handler_return_sentry]. The [cjalr] faults when the computed

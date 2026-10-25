@@ -459,7 +459,7 @@ Section AllocatorFree.
   Lemma allocator_free_valid_correct
     (E F : coPset) (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
     (p : Perm) (g : Locality) (ι : AId) (b e a : Addr)
-    (ws : list LWord) (wret wnull wmtdc : LWord) (rmap : LReg)
+    (ws : list LWord) (wret wmtdc : LWord) (rmap : LReg)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
@@ -501,7 +501,6 @@ Section AllocatorFree.
        ca3 ↦ᵣ - ∗
        ca4 ↦ᵣ - ∗
        ctp ↦ᵣ - ∗
-       cnull ↦ᵣ wnull ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
        mtdc ↦ₛᵣ wmtdc ∗
        [[b, e]] ↦ₕ[ι] [[ws]] ∗
@@ -522,7 +521,6 @@ Section AllocatorFree.
           ca3 ↦ᵣ - ∗
           ca4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
-          cnull ↦ᵣ wnull ∗
           ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
           mtdc ↦ₛᵣ wmtdc ∗
           ι ⊒ AQuar ∗
@@ -534,7 +532,7 @@ Section AllocatorFree.
     intros HEservice HFservice Hshadow_a Hbounds_a HιΩ Hbounds Hlen Hdom Hclean Hclean_ret
       Hclean_mtdc Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & #Hobj & Hheld & HPC & Hcgp & Hcra & Hca0 & Hca1 &
-      Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hrmap & Hmtdc & Hheap & Hpost)".
+      Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hrmap & Hmtdc & Hheap & Hpost)".
     (* Split the cells into their memory and their status shares. *)
     iDestruct (heap_region_pointsto_split with "Hobj") as "[Hto _]".
     iDestruct ("Hto" with "Hheap") as "[Hmem Hshares]".
@@ -614,10 +612,10 @@ Section AllocatorFree.
     (* Every cell is quarantined: right before the revoker store, the status
        token moves to [AQuar]; the store kills [ι]; unpaint the payload. *)
     iApply (allocator_free_revoke_spec with
-      "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hrmap
+      "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hrmap
           $Hmtdc $Hobj $Hpainting $Hpayload $Htail_code]"); [done|done|done|done|done|done|].
     iNext. iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 &
-      Hctp & Hcnull & Hrmap & Hmtdc & Hdead & #Hq & Hcells_free & _)".
+      Hctp & Hrmap & Hmtdc & Hdead & #Hq & Hcells_free & _)".
     (* Return. *)
     iApply (allocator_free_return_spec with "[- $HPC $Hcra $Htail_code]"); [done|done|].
     iNext. iIntros "(HPC & Hcra & _ & Hlc)".

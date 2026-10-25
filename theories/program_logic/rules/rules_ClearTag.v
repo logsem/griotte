@@ -49,7 +49,7 @@ Section griotte_lang_rules.
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
-    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of in Hri.
+    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
     destruct (Hri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc' & Hrel).
     assert (exec_opt (ClearTag dst src) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
@@ -60,7 +60,7 @@ Section griotte_lang_rules.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag wsrc) _ _ _ _
       (λ lpc' regs' retv, ClearTag_spec _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-    { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+    { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     { apply reg_word_ok_lclear_tag. } { exact Hstep. } { by apply reg_phys_lclear_tag. }
     { intros. by econstructor. }
     { intros. by econstructor. }
@@ -85,7 +85,7 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hvpc Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hr) Hφ".
     iDestruct (map_of_regs_1 with "Hr") as "Hmap".
     iApply (wp_ClearTag with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    all: try (by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [|].
@@ -117,7 +117,7 @@ Section griotte_lang_rules.
     iIntros (Hdecode Hvpc Hpca' Hcnull Hcnull' φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %]".
     iApply (wp_ClearTag with "[$HPC $Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    all: try (by unfold regs_of, operands_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(#Hspec & HPC & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [|].
@@ -128,64 +128,60 @@ Section griotte_lang_rules.
       unfold lclear_tag, lift_word in *; try incrementPC_inv; simplify_map_eq; eauto; try congruence. }
   Qed.
 
-  Lemma wp_ClearTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wn dq :
+  Lemma wp_ClearTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq :
     decodeInstrW w.(lw) = ClearTag cnull cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z }}}.
+    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
-    iIntros (Hdecode Hvpc Hinc φ) "(>HPC & >Hmem & >Hn) Hφ".
-    iDestruct (map_of_regs_1 with "Hn") as "Hmap".
-    iApply (wp_ClearTag with "[$HPC $Hmap Hmem]"); eauto; simplify_map_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    iIntros (Hdecode Hvpc Hinc φ) "(>HPC & >Hmem) Hφ".
+    iApply (wp_ClearTag _ _ _ _ _ _ _ _ _ _ ∅ with "[$HPC $Hmem]"); eauto.
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & Hmap)".
-    destruct Hspec as [|].
-    - unfold lclear_tag, lift_word in *; try incrementPC_inv; simplify_map_eq; try exact lnull.
-      iRegsMap "Hmap"; eauto.
-      iApply "Hφ". iFrame.
-    - unfold lclear_tag, lift_word in *; try incrementPC_inv; simplify_map_eq; eauto; congruence.
+    destruct Hspec as [w0 _ Hi -> | w0 _ Hi -> ->];
+      rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hinc) in Hi; simplify_eq.
+    iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_ClearTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd wn dq :
+  Lemma wp_ClearTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd dq :
     decodeInstrW w.(lw) = ClearTag dst cnull →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → dst ≠ cnull →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ dst ↦ᵣ wd }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ dst ↦ᵣ wd }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ WInt 0%Z ∗ cnull ↦ᵣ wn }}}.
+    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ WInt 0%Z }}}.
   Proof.
-    iIntros (Hdecode Hvpc Hinc Hne φ) "(>HPC & >Hmem & >Hs & >Hd) Hφ".
-    iDestruct (map_of_regs_2 with "Hd Hs") as "[Hmap %]".
-    iApply (wp_ClearTag with "[$HPC $Hmap Hmem]"); eauto; simplify_map_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    iIntros (Hdecode Hvpc Hinc Hne φ) "(>HPC & >Hmem & >Hd) Hφ".
+    iDestruct (map_of_regs_1 with "Hd") as "Hmap".
+    iApply (wp_ClearTag with "[$HPC $Hmap $Hmem]"); eauto.
+    { rewrite /regs_of /operands_of dom_singleton_L. set_solver+. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & Hmap)".
-    destruct Hspec as [|].
-    - unfold lclear_tag, lift_word in *; try incrementPC_inv; simplify_map_eq; try exact lnull.
-      iRegsMap "Hmap"; eauto.
-      iApply "Hφ". iFrame.
-    - unfold lclear_tag, lift_word in *; try incrementPC_inv; simplify_map_eq; eauto; congruence.
+    destruct Hspec as [w0 Hw0 Hi -> | w0 _ Hi -> ->];
+      rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hinc) in Hi; simplify_eq.
+    rewrite llookup_reg_cnull in Hw0. simplify_eq.
+    rewrite linsert_reg_not_cnull // insert_singleton. simplify_map_eq.
+    iRegsMap "Hmap".
+    iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_ClearTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src wn ws dq :
+  Lemma wp_ClearTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src ws dq :
     decodeInstrW w.(lw) = ClearTag cnull src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' → src ≠ cnull →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ cnull ↦ᵣ wn ∗ ▷ src ↦ᵣ ws }}}
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ src ↦ᵣ ws }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ cnull ↦ᵣ WInt 0%Z ∗ src ↦ᵣ ws }}}.
+    {{{ RET NextIV; PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ src ↦ᵣ ws }}}.
   Proof.
-    iIntros (Hdecode Hvpc Hinc Hne φ) "(>HPC & >Hmem & >Hd & >Hs) Hφ".
-    iDestruct (map_of_regs_2 with "Hd Hs") as "[Hmap %]".
-    iApply (wp_ClearTag with "[$HPC $Hmap Hmem]"); eauto; simplify_map_eq; eauto.
-    all: try (by unfold regs_of; rewrite ?dom_insert ?dom_singleton_L; set_solver+).
+    iIntros (Hdecode Hvpc Hinc Hne φ) "(>HPC & >Hmem & >Hs) Hφ".
+    iDestruct (map_of_regs_1 with "Hs") as "Hmap".
+    iApply (wp_ClearTag with "[$HPC $Hmap $Hmem]"); eauto.
+    { rewrite /regs_of /operands_of dom_singleton_L. set_solver+. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & Hmap)".
-    destruct Hspec as [|].
-    - unfold lclear_tag, lift_word in *; try incrementPC_inv; simplify_map_eq; try exact lnull.
-      iRegsMap "Hmap"; eauto.
-      iApply "Hφ". iFrame.
-    - unfold lclear_tag, lift_word in *; try incrementPC_inv; simplify_map_eq; eauto; congruence.
+    destruct Hspec as [w0 _ Hi -> | w0 _ Hi -> ->];
+      rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hinc) in Hi; simplify_eq.
+    rewrite linsert_reg_cnull. iRegsMap "Hmap".
+    iApply "Hφ". iFrame.
   Qed.
 
 End griotte_lang_rules.

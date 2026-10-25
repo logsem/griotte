@@ -46,9 +46,9 @@ Section fundamental.
     - apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
       assert (r1 ≠ cnull) as Hr1null.
-      { intros ->. rewrite /llookup_reg in Hr1. apply bind_Some in Hr1 as (? & _ & Hw). simplify_eq. }
+      { intros ->. rewrite llookup_reg_cnull /lnull in Hr1. simplify_eq. }
       assert (r2 ≠ cnull) as Hr2null.
-      { intros ->. rewrite /llookup_reg in Hr2. apply bind_Some in Hr2 as (? & _ & Hw). simplify_eq. }
+      { intros ->. rewrite llookup_reg_cnull /lnull in Hr2. simplify_eq. }
       rewrite llookup_reg_not_cnull // in Hr1.
       rewrite llookup_reg_not_cnull // in Hr2.
 
@@ -70,12 +70,15 @@ Section fundamental.
       iApply ("IH" $! _ _ _ _ _ regs'
                with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop' [$Hown] [$Htframe]")
       ; eauto.
-      + intro; cbn; subst regs'. rewrite /linsert_reg. by repeat (rewrite lookup_insert_is_Some'; right).
+      + subst regs'. by apply full_map_linsert.
       + iIntros (ri wi Hregs_ri).
         subst regs'. rewrite /linsert_reg in Hregs_ri.
+        case_decide as Hdst_null.
+        { iApply (interp_monotone_same_heap with "[] []"); eauto.
+          by iApply "Hreg". }
         destruct (decide (ri = dst)) as [->|Hne'].
         { rewrite lookup_insert_eq in Hregs_ri. injection Hregs_ri as <-.
-          destruct (decide (dst = cnull)); [by iApply interp_untagged | iExact "HVsb'"]. }
+          iExact "HVsb'". }
         rewrite !lookup_insert_ne // in Hregs_ri.
         iApply (interp_monotone_same_heap with "[] []"); eauto.
         by iApply "Hreg".
@@ -90,17 +93,10 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
-      + cbn; intros; subst regs'. rewrite /linsert_reg.
-        by repeat (apply lookup_insert_is_Some'; right).
-      + iIntros (ri v Hvs).
-        subst regs'. rewrite /linsert_reg in Hvs.
-        destruct (decide (ri = dst)).
-        { subst ri. rewrite lookup_insert_eq in Hvs. simplify_eq.
-          destruct (decide (dst = cnull)); [by iApply interp_untagged|].
-          iApply interp_untagged.
-          by rewrite /= get_tag_clear_tag_sealable.
-        }
-        { iApply "Hreg"; auto. by simplify_map_eq. }
+      + subst regs'. by apply full_map_linsert.
+      + subst regs'. iApply (interp_linsert with "Hreg"). iIntros (_).
+        iApply interp_untagged.
+        by rewrite /= get_tag_clear_tag_sealable.
       + iApply (interp_next_PC with "Hinv_interp"); eauto.
     
     - { (* The destination loses its tag. *)
@@ -111,16 +107,9 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
       iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
-      - cbn; intros; subst regs'. rewrite /linsert_reg.
-        by repeat (apply lookup_insert_is_Some'; right).
-      - iIntros (ri wi Hregs_ri).
-        subst regs'. rewrite /linsert_reg in Hregs_ri.
-        destruct (decide (ri = dst)) as [->|Hne].
-        { rewrite lookup_insert_eq in Hregs_ri.
-          injection Hregs_ri as <-.
-          destruct (decide (dst = cnull)); [by iApply interp_untagged | iApply interp_clear_tag]. }
-        rewrite !lookup_insert_ne in Hregs_ri; try congruence.
-        iApply "Hreg"; eauto.
+      - subst regs'. by apply full_map_linsert.
+      - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (_).
+        iApply interp_clear_tag.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     - assert (regs' = regs) as -> by (destruct Hfail; done).

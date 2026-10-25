@@ -151,7 +151,7 @@ Section griotte_lang_rules.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
     destruct (specialrw_sregs_phys R C _ r psr m st _ lreg lsreg lmem regs sregs sr src vold
                 Her Hlregs Hregs Hlsregs) as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
-    { rewrite /regs_of in Dregs. set_solver. } { done. }
+    { rewrite /regs_of /operands_of in Dregs. set_solver. } { done. }
     cbn in Hstep. rewrite Hxsr Hwold /= Hφ1 /= in Hstep.
     destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi;
       cycle 1.
@@ -194,7 +194,7 @@ Section griotte_lang_rules.
            sregs dst sr src lpc' regs' sregs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
       { exact Her1. } { exact Hlregs. }
-      { apply Dregs. rewrite /regs_of. set_solver. }
+      { right. apply Dregs. rewrite /regs_of /operands_of. set_solver. }
       { exact Hokold. }
       { rewrite /update_reg /= in Hu Hstep |- *. by rewrite Hu in Hstep |- *. }
       { exact Hrelold. }
@@ -249,7 +249,7 @@ Section griotte_lang_rules.
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hsrc") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument dom_singleton_L. set_solver. }
+    { rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L. set_solver. }
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
@@ -283,7 +283,7 @@ Section griotte_lang_rules.
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument dom_singleton_L. set_solver. }
+    { rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L. set_solver. }
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
@@ -320,7 +320,7 @@ Section griotte_lang_rules.
     iDestruct (map_of_regs_1 with "Hr") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hsr") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument dom_singleton_L. set_solver. }
+    { rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L. set_solver. }
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
@@ -361,7 +361,7 @@ Section griotte_lang_rules.
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hne]".
     iDestruct (map_of_sregs_1 with "Hsr") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
-    { rewrite /regs_of /regs_of_argument !dom_insert_L. set_solver. }
+    { rewrite /regs_of /operands_of /regs_of_argument !dom_insert_L. set_solver. }
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)

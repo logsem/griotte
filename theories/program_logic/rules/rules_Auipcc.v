@@ -71,7 +71,7 @@ Section griotte_lang_rules.
       (λ lpc' regs' retv,
          Auipcc_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst imm lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-    { exact Her. } { exact Hlregs. } { apply Dregs. set_solver+. }
+    { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     { exact Hok. } { exact Hstep. }
     { apply reg_phys_no_id. rewrite /v /auipcc_word.
       pose proof (erasure_pc_no_id _ _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ. subst pc_π.
@@ -100,7 +100,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_Auipcc with "[$HPC $Hmap $Hpc_a]"); eauto.
-    all: try (by rewrite /regs_of ?dom_insert ?dom_singleton_L; set_solver+).
+    all: try (by rewrite /regs_of /operands_of ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     destruct Hspec as [Hinc -> | Hinc].
     - iApply "Hφ". try incrementPC_inv; simplify_map_eq.
@@ -127,7 +127,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_Auipcc with "[$HPC $Hmap $Hpc_a]"); eauto.
-    all: try (by rewrite /regs_of ?dom_insert ?dom_singleton_L; set_solver+).
+    all: try (by rewrite /regs_of /operands_of ?dom_insert ?dom_singleton_L; set_solver+).
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     destruct Hspec as [Hinc -> | Hinc].
     - iApply "Hφ". try incrementPC_inv; simplify_map_eq.

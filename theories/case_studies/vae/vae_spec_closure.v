@@ -392,8 +392,8 @@ Section VAE.
 
     (* Blocks 9-11: assert that the flag is [1], and return *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull]
-      as ["Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
+      as ["Hct0";"Hct1";"Hct2";"Hca2"].
     iApply (vae_awkward_blocks_3_spec with
              "[- $HawkN $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
               $Hct0 $Hct1 $Hct2 $Hca2 $Himport_assert $Hcode_main]");
@@ -401,7 +401,7 @@ Section VAE.
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
                     & Hct0 & Hct1 & Hct2 & Hca2 & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
-    iInsertRegs "Hrmap" ["Hcnull";"Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
+    iInsertRegs "Hrmap" ["Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
     (* Return to the caller of [awkward] *)
     iDestruct (stk_start_region_join with "Hstk Hstk_res") as "Hstk";

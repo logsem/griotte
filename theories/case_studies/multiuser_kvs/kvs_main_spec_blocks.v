@@ -876,8 +876,8 @@ Section KVS_Main_Blocks.
       as "(Hstatic_sealed_b & HLUKVS & Hkvs_1 & %Hwca0_ret & %Hwca1_ret)".
     subst wca0_ret wca1_ret.
 
-    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull] as
-      ["[Hct0 %]";"[Hct1 %]";"[Hct2 %]";"[Hca2 %]";"[Hcnull %]"]; simplify_eq.
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2] as
+      ["[Hct0 %]";"[Hct1 %]";"[Hct2 %]";"[Hca2 %]"]; simplify_eq.
     (* -------------------------------------------------- *)
     (* ---------------- BLOCK 13: ASSERT ---------------- *)
     (* -------------------------------------------------- *)

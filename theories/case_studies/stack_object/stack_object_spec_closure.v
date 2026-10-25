@@ -363,8 +363,8 @@ Section SO.
     subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull]
-      as ["Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
+      as ["Hct0";"Hct1";"Hct2";"Hca2"].
 
     (* Blocks 10-12: assert that the secret is unchanged, return *)
     iApply (so_return_blocks_4_spec with
@@ -375,7 +375,7 @@ Section SO.
     iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
                     & Hcs0 & Hca0 & Hca1 & Hsecret & _ & _)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
-    iInsertRegs "Hrmap" ["Hcnull";"Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
+    iInsertRegs "Hrmap" ["Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
     (* Repair the world *)
     iMod (so_world_return W0 W4 C b e csp_b csp_e a_stk1 a_stk2 π

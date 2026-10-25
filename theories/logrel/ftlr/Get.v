@@ -63,13 +63,8 @@ Section fundamental.
       iApply ("IH" $! _ _ _ _ _ (<[dst := WInt z]ₗ> regs)
                with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]")
         ; eauto.
-      + intro; cbn. rewrite /linsert_reg. by repeat (rewrite lookup_insert_is_Some'; right).
-      + iIntros (ri wi Hregs_ri).
-        rewrite /linsert_reg in Hregs_ri.
-        destruct (decide (ri = dst)); simplify_map_eq.
-        { destruct (decide (dst = cnull)) ; [iApply interp_int|].
-          repeat rewrite interp_unfold; auto. }
-        { iApply "Hreg"; eauto. }
+      + by apply full_map_linsert.
+      + iApply (interp_linsert with "Hreg"). iIntros (_). iApply interp_int.
       + iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 

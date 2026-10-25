@@ -40,9 +40,9 @@ Section griotte_lang_rules.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
 
-  Lemma regs_of_is_JCond i off arg1 arg2 :
+  Lemma operands_of_is_JCond i off arg1 arg2 :
     is_JCond i off arg1 arg2 →
-    regs_of i = regs_of_argument off ∪ regs_of_argument arg1 ∪ regs_of_argument arg2.
+    operands_of i = regs_of_argument off ∪ regs_of_argument arg1 ∪ regs_of_argument arg2.
   Proof. intros HH. destruct_or! HH; subst i; reflexivity. Qed.
 
   Lemma exec_opt_is_JCond i off arg1 arg2 p φ :
@@ -103,18 +103,19 @@ Section griotte_lang_rules.
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep.
-    erewrite regs_of_is_JCond in Dregs; eauto.
+    rewrite /regs_of in Dregs.
+    erewrite operands_of_is_JCond in Dregs; eauto.
     destruct (lz_of_argument_dom regs arg1) as [n1 Hn1].
-    { intros x ->. apply Dregs. rewrite /regs_of_argument. set_solver+. }
+    { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn1 as Hn1'.
     destruct (lz_of_argument_dom regs arg2) as [n2 Hn2].
-    { intros x ->. apply Dregs. rewrite /regs_of_argument. set_solver+. }
+    { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
     set (φc := (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) in Hstep.
     rewrite (exec_opt_is_JCond _ _ _ _ _ _ Hi) /exec_jcond /= Hn1' Hn2' /= in Hstep.
     destruct (jcond_test i n1 n2) eqn:Htest.
     - destruct (lz_of_argument_dom regs off) as [imm Himm].
-      { intros x ->. apply Dregs. rewrite /regs_of_argument. set_solver+. }
+      { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       apply (lz_of_argument_incl _ _ r _ _ Hregs) in Himm as Himm'.
       rewrite Himm' /= in Hstep.
       iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
@@ -178,7 +179,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = i →
     is_JCond i off arg1 arg2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs_of_argument off ∪ regs_of_argument arg1 ∪ regs_of_argument arg2 ⊆ dom regs →
+    (regs_of_argument off ∪ regs_of_argument arg1 ∪ regs_of_argument arg2) ∖ {[ cnull ]} ⊆ dom regs →
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     jcond_test i n1 n2 = true →
@@ -195,7 +196,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hi Hvpc Hdom H1 H2 Ht Himm Hinc φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_JCond with "[$HPC $Hpc_a $Hmap]"); eauto.
-    { by erewrite regs_of_is_JCond. }
+    { rewrite /regs_of. by erewrite operands_of_is_JCond. }
     iIntros "!>" (lpc0 retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     destruct (JCond_spec_jmp _ _ _ _ _ _ _ _ _ _ _ _ H1 H2 Ht Himm Hinc Hspec) as (-> & ->).
     iApply "Hφ". by iFrame.
@@ -205,7 +206,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = i →
     is_JCond i off arg1 arg2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    regs_of_argument off ∪ regs_of_argument arg1 ∪ regs_of_argument arg2 ⊆ dom regs →
+    (regs_of_argument off ∪ regs_of_argument arg1 ∪ regs_of_argument arg2) ∖ {[ cnull ]} ⊆ dom regs →
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     jcond_test i n1 n2 = false →
@@ -221,7 +222,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hi Hvpc Hdom H1 H2 Ht Hinc φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_JCond with "[$HPC $Hpc_a $Hmap]"); eauto.
-    { by erewrite regs_of_is_JCond. }
+    { rewrite /regs_of. by erewrite operands_of_is_JCond. }
     iIntros "!>" (lpc0 retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     destruct (JCond_spec_next _ _ _ _ _ _ _ _ _ _ _ H1 H2 Ht Hinc Hspec) as (-> & ->).
     iApply "Hφ". by iFrame.

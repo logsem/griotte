@@ -198,7 +198,6 @@ Section CopyContextMacro.
     codefrag_facts "Hcode".
     (* Mov counter 15 *)
     iInstr "Hcode".
-    rewrite decide_False //.
     iEval (rewrite (region_pointsto_cells a_s); last (rewrite Hlen; solve_addr)) in "Hws".
     assert ((a_s ^+ 0%nat)%a = a_s) as Ha_s0 by solve_addr.
     assert ((a_d ^+ 0%nat)%a = a_d) as Ha_d0 by solve_addr.
@@ -414,7 +413,6 @@ Section CopyContextMacro.
     codefrag_facts "Hcode".
     (* Mov counter 15 *)
     iInstr "Hcode".
-    rewrite decide_False //.
     iEval (rewrite (region_pointsto_cells a_d); last (rewrite Hlen; solve_addr)) in "Hwd".
     assert ((a_s ^+ 0%nat)%a = a_s) as Ha_s0 by solve_addr.
     assert ((a_d ^+ 0%nat)%a = a_d) as Ha_d0 by solve_addr.

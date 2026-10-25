@@ -253,8 +253,8 @@ Section CMDC.
     iMod (cmdc_world_return with "Hworld_interp_B Hrel_cgp_b") as "[%wcgp_b Hcgp_b]";
       [done|done|exact Hcsp_bounds|done|].
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ca2;cnull]
-      as ["Hctp";"Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
+    iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ca2]
+      as ["Hctp";"Hct0";"Hct1";"Hct2";"Hca2"].
 
     (* Blocks 3-4: assert that c is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_B with
@@ -286,7 +286,7 @@ Section CMDC.
       as "(Hworld_interp_C & _ & #Hinterp_ca0_C & #Hinterp_C_g
            & Hstack_revoked_C & %Hrevoked_C & _ & Hcsp_stk)";
       [solve_addr|done..|].
-    iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"; "Hct2"; "Hca2"; "Hcnull"].
+    iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"; "Hct2"; "Hca2"].
     iDestruct (switcher_call_args_1 with "Hca0 Hinterp_ca0_C Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
@@ -333,8 +333,8 @@ Section CMDC.
     subst rcgp rcra.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ca2;cnull]
-      as ["Hct0";"Hct1";"Hct2";"Hca2";"Hcnull"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
+      as ["Hct0";"Hct1";"Hct2";"Hca2"].
 
     (* Blocks 8-9: assert that b is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_C with

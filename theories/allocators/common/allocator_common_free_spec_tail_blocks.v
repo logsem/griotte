@@ -96,7 +96,7 @@ Section AllocatorFreeTailBlocks.
     (regs : LReg) (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (se + (b - e))%a = Some sb ->
-    dom regs = all_registers_s ∖ {[ct1; ct2; ca3; ca4; ctp; ca2]} ->
+    dom regs = all_registers_s ∖ {[ct1; ct2; ca3; ca4; ctp; ca2; cnull]} ->
     (∀ x lv, x ≠ cnull -> regs !! x = Some lv ->
        has_authority lv.(lw) -> lv.(lprov) ≠ Some ι) ->
     (has_authority wmtdc.(lw) -> wmtdc.(lprov) ≠ Some ι) ->
@@ -164,13 +164,13 @@ Section AllocatorFreeTailBlocks.
     iDestruct (big_sepL_sep with "Hpayload") as "[Hshadows Hclaims]".
     iMod (reg_quarantine _ ι b e with "Hobj Hpainting Hshadows HPC Hregs Hmtdc")
       as "(Hquar & #Hq & Hshadows & HPC & Hregs & Hmtdc)".
-    { intros x.
+    { intros x Hxn.
       destruct (decide (x ∈ ({[ct1; ct2; ca3; ca4; ctp; ca2]} : gset RegName))) as [Hx|Hx].
       { rewrite !elem_of_union !elem_of_singleton in Hx.
         destruct_or! Hx; subst x; by simplify_map_eq. }
       rewrite !lookup_insert_ne; [|set_solver..].
       apply elem_of_dom. rewrite Hdom. apply elem_of_difference.
-      split; [apply all_registers_s_correct|done]. }
+      split; [apply all_registers_s_correct|set_solver]. }
     { intros v [-> | [-> | (x & Hxn & Hlookup) ] ] Hauth; [done | by apply Hclean_mtdc |].
       destruct (decide (x ∈ ({[ct1; ct2; ca3; ca4; ctp; ca2]} : gset RegName))) as [Hin|Hin].
       { rewrite !elem_of_union !elem_of_singleton in Hin.
@@ -186,7 +186,7 @@ Section AllocatorFreeTailBlocks.
               revoker_addr (revoker_addr ^+ 1)%a revoker_addr {[ι]})
       with "[$HPC $Hregs Hquar Hpayload]"
       as "(HPC & Hregs & Hpost)".
-    { rewrite /regs_of !dom_insert_L. set_solver. }
+    { rewrite /regs_of /operands_of !dom_insert_L. set_solver. }
     { split_and!; [by simplify_map_eq | by rewrite finz_add_0 | done |].
       apply withinBounds_true_iff. solve_addr. }
     { intros v Hv. by simplify_map_eq. }
@@ -214,7 +214,7 @@ Section AllocatorFreeTailBlocks.
 
   Lemma allocator_free_revoke_spec
     (E : coPset) (pc_b pc_e pc_a next b e : Addr) (ι : AId)
-    (w4 wa2 wret wnull wmtdc : LWord) (rmap : LReg)
+    (w4 wa2 wret wmtdc : LWord) (rmap : LReg)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
@@ -235,7 +235,6 @@ Section AllocatorFreeTailBlocks.
     ca3 ↦ᵣ allocator_revoker_cap ∗
     ca4 ↦ᵣ w4 ∗
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
-    cnull ↦ᵣ wnull ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
     mtdc ↦ₛᵣ wmtdc ∗
     alloc_obj ι b e ∗
@@ -254,7 +253,6 @@ Section AllocatorFreeTailBlocks.
        ca3 ↦ᵣ allocator_revoker_cap ∗
        ca4 ↦ᵣ WInt (b - e) ∗
        ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
-       cnull ↦ᵣ wnull ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
        mtdc ↦ₛᵣ wmtdc ∗
        ι ↦st{1} ADead ∗
@@ -267,7 +265,7 @@ Section AllocatorFreeTailBlocks.
     intros Hbounds_code Hbounds Hdom Hclean Hclean_ret Hclean_mtdc.
     pose proof Hbounds_code as (Hpc & Hpc_shadow).
     iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp &
-      Hcnull & Hrmap & Hmtdc & #Hobj & Hpainting & Hpayload & #Hcode_main & Hφ)".
+      Hrmap & Hmtdc & #Hobj & Hpainting & Hpayload & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
     pose proof heap_shadow_same_size as Hss.
@@ -275,14 +273,13 @@ Section AllocatorFreeTailBlocks.
     set (sb := (shadow_b ^+ (b - heap_b))%a).
     set (se := (shadow_b ^+ (e - heap_b))%a).
 
-    (* Block 2: the revoker store, with the rest of the register file *)
+    (* Block 2: the revoker store, with the rest of the register file but
+       [cnull] *)
     assert (Hrmap_none : ∀ r, r ∈ ({[cgp; cra; ca0; ca1; ca2; ct0; ct1; ct2; ca3; ca4;
                                      ctp; cnull]} : gset RegName) -> rmap !! r = None).
     { intros r Hr. apply not_elem_of_dom. rewrite Hdom. set_solver. }
-    iDestruct (big_sepM_insert with "[$Hrmap $Hcnull]") as "Hregs";
+    iDestruct (big_sepM_insert with "[$Hrmap $Hct0]") as "Hregs";
       first (apply Hrmap_none; set_solver).
-    iDestruct (big_sepM_insert with "[$Hregs $Hct0]") as "Hregs";
-      first (simplify_map_eq; apply Hrmap_none; set_solver).
     iDestruct (big_sepM_insert with "[$Hregs $Hca1]") as "Hregs";
       first (simplify_map_eq; apply Hrmap_none; set_solver).
     iDestruct (big_sepM_insert with "[$Hregs $Hca0]") as "Hregs";
@@ -322,9 +319,7 @@ Section AllocatorFreeTailBlocks.
       first (simplify_map_eq; apply Hrmap_none; set_solver).
     iDestruct (big_sepM_insert with "Hregs") as "[Hca1 Hregs]";
       first (simplify_map_eq; apply Hrmap_none; set_solver).
-    iDestruct (big_sepM_insert with "Hregs") as "[Hct0 Hregs]";
-      first (simplify_map_eq; apply Hrmap_none; set_solver).
-    iDestruct (big_sepM_insert with "Hregs") as "[Hcnull Hrmap]";
+    iDestruct (big_sepM_insert with "Hregs") as "[Hct0 Hrmap]";
       first (apply Hrmap_none; set_solver).
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".

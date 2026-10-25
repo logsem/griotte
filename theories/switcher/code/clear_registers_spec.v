@@ -62,8 +62,13 @@ Section ClearRegistersMacro.
     cbn.
     codefrag_facts "Hcode".
 
+    iApply (wp_reg_cnull_lnull with "Hr"); first done.
+    iIntros (Hrv) "Hr".
+    (* Mov r 0. *)
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ 1)%a); auto; solve_addr. }
+    iAssert (r ↦ᵣ WInt 0)%I with "[Hr]" as "Hr".
+    { case_decide as Hr_cnull; last done. by rewrite (Hrv Hr_cnull). }
     destruct (decide (l = [])).
     { subst l. iApply "Hcont". iFrame "∗ #".
       replace (delete r rmap) with (∅ : LReg).
@@ -116,12 +121,65 @@ Section ClearRegistersMacro.
       {  iPureIntro; set_solver. }
   Qed.
 
+  (** [rclear_spec] over a map that may also hold [cnull], which [l] does
+      not clear: an owned [cnull] holds the null word, which is 0. *)
+  Lemma rclear_spec_cnull
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
+    (l : list RegName) (D : gset RegName)
+    (rmap : LReg) φ :
+    l ≠ [] ->
+    executeAllowed pc_p = true ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l ))%a ->
+    D ∖ {[ cnull ]} = list_to_set l ->
+    dom rmap = D ->
+
+    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      ∗ codefrag_pers pc_a (rclear_instrs' l)
+      ∗ ▷ ( (∃ (rmap' : LReg),
+              ⌜ dom rmap' = D ⌝
+              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ codefrag_pers pc_a (rclear_instrs' l))
+               -∗ WP Seq (Instr Executable) {{ φ }})
+    )
+    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+  Proof.
+    iIntros (Hne Hx Hbounds HD Hdom) "(HPC & Hregs & #Hcode & Hcont)".
+    assert (cnull ∉ (list_to_set l : gset RegName)) as Hl by (rewrite -HD; apply not_elem_of_difference; right; by apply elem_of_singleton).
+    destruct (rmap !! cnull) as [wn|] eqn:Hn.
+    - (* [cnull] is owned: split off, it holds the null word. *)
+      assert (cnull ∈ D) as HnD by (rewrite -Hdom; by eapply elem_of_dom_2).
+      iDestruct (big_sepM_delete _ _ cnull with "Hregs") as "[Hn Hregs]"; first done.
+      iApply (wp_reg_cnull_lnull with "Hn"); first done.
+      iIntros (Hwn) "Hn". rewrite (Hwn eq_refl).
+      iApply (rclear_spec _ _ _ _ _ l (delete cnull rmap)); eauto.
+      { rewrite dom_delete_L Hdom. done. }
+      iFrame "∗ #". iNext.
+      iIntros "(%rmap' & %Hdom' & HPC & Hregs & Hcode')".
+      iApply "Hcont". iFrame "HPC Hcode'".
+      iExists (<[cnull := lnull]> rmap'). iSplit.
+      { iPureIntro. rewrite dom_insert_L Hdom' -HD. by rewrite -union_difference_singleton_L. }
+      iApply (big_sepM_insert with "[$Hregs Hn]").
+      { apply not_elem_of_dom. by rewrite Hdom'. }
+      by iFrame.
+    - (* [cnull] is not owned: the map is the cleared one. *)
+      assert (cnull ∉ D) as HnD by (rewrite -Hdom; by apply not_elem_of_dom).
+      iApply (rclear_spec _ _ _ _ _ l rmap); eauto.
+      { rewrite Hdom -HD. symmetry. apply difference_disjoint_L. by apply disjoint_singleton_r. }
+      iFrame "∗ #". iNext.
+      iIntros "(%rmap' & %Hdom' & HPC & Hregs & Hcode')".
+      iApply "Hcont". iFrame. iPureIntro.
+      rewrite Hdom' -HD. apply difference_disjoint_L. by apply disjoint_singleton_r.
+  Qed.
+
   Lemma list_to_set_registers_except (keep : list RegName) :
-    (list_to_set (registers_except keep) : gset RegName) = all_registers_s ∖ list_to_set keep.
+    (list_to_set (registers_except keep) : gset RegName) =
+      all_registers_s ∖ ({[ cnull ]} ∪ list_to_set keep).
   Proof.
     apply set_eq. intros r.
-    rewrite elem_of_list_to_set elem_of_difference elem_of_list_to_set
-      /registers_except list_elem_of_filter.
+    rewrite elem_of_list_to_set elem_of_difference elem_of_union elem_of_singleton
+      elem_of_list_to_set /registers_except list_elem_of_filter.
     pose proof (all_registers_s_correct r). pose proof (all_registers_correct r).
     naive_solver.
   Qed.
@@ -149,12 +207,9 @@ Section ClearRegistersMacro.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros l. iIntros (Hne Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
-    iApply (rclear_spec _ _ _ _ _ l); eauto.
-    { by rewrite /l list_to_set_registers_except. }
-    iFrame "∗ #". iNext.
-    iIntros "(%rmap' & %Hdom' & HPC & Hregs & Hcode')".
-    iApply "Hcont". iFrame. iPureIntro.
-    by rewrite Hdom' /l list_to_set_registers_except.
+    iApply (rclear_spec_cnull _ _ _ _ _ l (all_registers_s ∖ list_to_set keep)); eauto.
+    { rewrite /l list_to_set_registers_except. set_solver+. }
+    iFrame "∗ #".
   Qed.
 
   Lemma clear_registers_post_call_spec
@@ -178,7 +233,8 @@ Section ClearRegistersMacro.
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
     iIntros (Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
-    iApply (rclear_spec _ _ _ _ _ registers_post_call); eauto.
+    iApply (rclear_spec_cnull _ _ _ _ _ registers_post_call
+              (all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]})); eauto.
     iFrame "∗ #".
   Qed.
 
@@ -203,7 +259,8 @@ Section ClearRegistersMacro.
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
     iIntros (Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
-    iApply (rclear_spec _ _ _ _ _ registers_pre_call); eauto.
+    iApply (rclear_spec_cnull _ _ _ _ _ registers_pre_call
+              (all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}))); eauto.
     iFrame "∗ #".
   Qed.
 

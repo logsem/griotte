@@ -188,7 +188,7 @@ Section AllocatorOwnerMacro.
     iInstrApply "Hcode" (wp_UnSeal _ RX Global pc_b pc_e (pc_a ^+ 2)%a None _ ctp ctp ca0)
       with "[$HPC $Hmap]"
       as (lpc' regs' retv) "(%Hspec & HPC & Hmap)".
-    { rewrite /regs_of !dom_insert_L. set_solver+. }
+    { rewrite /regs_of /operands_of !dom_insert_L. set_solver+. }
     inversion Hspec as
       [ p g b e a πs o sb π Hsrc1 Hsrc2 Htag Hperm Hwb HincrPC
       | t p g b e a πs o sb π Hsrc1 Hsrc2 Hfalse HincrPC
