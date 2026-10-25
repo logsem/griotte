@@ -173,10 +173,13 @@ Section obligation_facts.
     apply thread_wf_min_stack. by rewrite fw_thread_of_0.
   Qed.
 
-  (** The first thread starts at the end of the imports of its
-      compartment. *)
+  (** The first thread starts, in a trusted compartment, at the end of its
+      imports. *)
   Definition fw_entry_at_code (fw : firmware) : Prop :=
-    fw_entry_offset fw 0 = length (fc_imports (fw_entry_fc fw 0)).
+    match fc_body (fw_entry_fc fw 0) with
+    | TrustedBody _ => fw_entry_offset fw 0 = length (fc_imports (fw_entry_fc fw 0))
+    | UntrustedBody _ => False
+    end.
 
   Lemma fw_imap_const {A B} (g : A → B) (k : nat) (l : list A) :
     fw_imap_from (λ _ x, g x) k l = g <$> l.
@@ -200,8 +203,10 @@ Section obligation_facts.
     apply big_and_fw_map in Hcmpts. rewrite Forall_forall in Hcmpts.
     pose proof (cmpt_ok_imports _ _ _ (Hcmpts _ Hin)) as Himports.
     pose proof (icl_import_size _ Hc) as Hsize.
+    rewrite /m /fw_entry_pc. rewrite /fw_entry_at_code in Hentry.
+    destruct (fc_body (fw_entry_fc fw 0)) as [tb|]; last done.
     rewrite Himports length_fmap -Hentry Hname -fw_thread_of_0 in Hsize.
-    rewrite /m /fw_entry_pc /fw_entry_cmpt addr_off_eq. cbv zeta.
+    rewrite /fw_entry_cmpt addr_off_eq. cbv zeta.
     do 2 f_equal. solve_addr.
   Qed.
 
@@ -423,6 +428,41 @@ Section prepared.
                              (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);
                          tf_error_count := 0 |}) ∗
     "Hna" ∷ na_own cerise_nais ⊤.
+
+  (** The resources of [fw_init_res] that set up the worlds: those of a
+      firmware whose first thread starts in an untrusted compartment,
+      without the thread's registers, call stack and non-atomic token
+      ([fw_obligations_of_untrusted]). The stack is there: the case study
+      closes it in the world of the entry compartment. *)
+  Definition fw_setup_res (fw : firmware) (img : fw_image) : iProp Σ :=
+    let sw := img_sw img in
+    let asrt := img_asrt img in
+    let t := thread_of img 0 in
+    "#Hswitcher" ∷
+      na_inv cerise_nais Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+    "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
+    "#Hseal_switcher" ∷
+      seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
+    "#Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
+    "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res img fc) ∗
+    "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
+    "Hworlds" ∷ ([∗ set] C ∈ CNames, world_interp fw_world0 C) ∗
+    "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
+    "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
+    "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c) ∗
+    "Hstack" ∷
+      [[ b_stack t, e_stack t ]] ↦ₐ
+        [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]].
+
+  (** The export tables of the compartments, as persistent facts beside
+      the compartments. *)
+  Lemma fw_cmpts_res_pers img (fcs : list fw_cmpt) :
+    ([∗ list] fc ∈ fcs, fw_cmpt_res img fc) ⊢
+    ([∗ list] fc ∈ fcs, fw_cmpt_res img fc) ∗ [∗ list] fc ∈ fcs, fw_cmpt_pers_res img fc.
+  Proof.
+    rewrite -big_sepL_sep. apply big_sepL_mono. intros k fc _.
+    rewrite /fw_cmpt_res. iIntros "(Hm & Hs & #Hp)". iFrame "Hm Hs Hp".
+  Qed.
 
   (** The memory of a compartment, initialised: the export table becomes
       persistent. *)
@@ -653,9 +693,68 @@ Section adversary.
       firmware and owned by the logical compartment [C], once its
       compartment and the stack of the first thread are allocated in it:
       the compartment's imports, code and globals become permanent, its
-      export entries sealed, and the stack temporary. The case study proves
-      that the imports are safe. The static sealed objects of [fc] are not
-      used: the case study may have moved them into an invariant. *)
+      export entries sealed, and the stack temporary. The PCC and the CGP
+      of the compartment are safe in that world, for a thread that starts
+      in it. The case study proves that the imports are safe. The static
+      sealed objects of [fc] are not used: the case study may have moved
+      them into an invariant. *)
+  Lemma fw_close_adv_world_entry {E : coPset} fw img σ i fc ub
+      (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
+    let swl := fw_switcher_layout img in
+    let c := cmpt_of img (fc_name fc) in
+    let C_cmpt := layout_cmpt_of c Hc in
+    let t := thread_of img 0 in
+    let W' := std_update_compartment W C_cmpt in
+    let Wadv := std_update_multiple W' (finz.seq_between (b_stack t) (e_stack t)) Temporary in
+    firmware_ok fw img σ →
+    fw_cmpts fw !! i = Some fc →
+    fc_body fc = UntrustedBody ub →
+    Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
+    (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
+          std W !! LNonHeap a = None) →
+    na_inv cerise_nais Nswitcher (switcher_inv (swlayout := swl)) -∗
+    switcher_static (swlayout := swl) -∗
+    seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
+    fw_cmpt_mem_res c -∗
+    fw_cmpt_pers_res img fc -∗
+    [[ b_stack t, e_stack t ]] ↦ₐ
+      [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] -∗
+    ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
+      interp W' C (cmpt_cgp_cap C_cmpt) ∗
+      ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
+     [∗ list] w ∈ fc_imports fc,
+       fw_import_safe W' C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
+    world_interp W C
+    ={E}=∗
+    world_interp Wadv C ∗
+    interp Wadv C (cmpt_pcc_cap C_cmpt) ∗
+    interp Wadv C (cmpt_cgp_cap C_cmpt) ∗
+    interp Wadv C (fw_thread_csp img 0) ∗
+    [∗ list] k ↦ _ ∈ ub_exports ub,
+      interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
+  Proof.
+    intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
+    iIntros "#Hswitcher #Hstatic #Hseal (Himp & Hcode & Hdata) #Hpers Hstack Himports Hworld".
+    pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
+    pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
+    set (swc := fw_switcher_cmpt fw img σ Hok).
+    pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
+    destruct (fw_adv_cmpt_facts fw img σ fc ub Hc W' C Hok Hin Hbody Hnargs)
+      as (Hcode & Hdata & Hexports).
+    iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
+           with "Hseal Himp Hcode Hdata Hstack [] [Himports] Hworld")
+      as "($ & $ & $ & $ & #Hexp)".
+    - by eapply (fw_switcher_cmpt_disjoint_at _ _ _ Hok).
+    - exact Hfree.
+    - exact Hcode.
+    - exact Hdata.
+    - by apply Forall_replicate.
+    - iApply (Hexports with "Hswitcher Hstatic Hpers").
+    - iIntros "H". iApply fw_imports_safe_words; first exact Hfc_ok. by iApply "Himports".
+    - iModIntro. by iApply (fw_adv_exports_interp with "Hexp").
+  Qed.
+
+  (** [fw_close_adv_world_entry], without the PCC and the CGP. *)
   Lemma fw_close_adv_world {E : coPset} fw img σ i fc ub
       (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
     let swl := fw_switcher_layout img in
@@ -688,24 +787,10 @@ Section adversary.
     [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic #Hseal (Himp & Hcode & Hdata) #Hpers Hstack Himports Hworld".
-    pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
-    pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
-    set (swc := fw_switcher_cmpt fw img σ Hok).
-    pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
-    destruct (fw_adv_cmpt_facts fw img σ fc ub Hc W' C Hok Hin Hbody Hnargs)
-      as (Hcode & Hdata & Hexports).
-    iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
-           with "Hseal Himp Hcode Hdata Hstack [] [Himports] Hworld")
-      as "($ & _ & _ & $ & #Hexp)".
-    - by eapply (fw_switcher_cmpt_disjoint_at _ _ _ Hok).
-    - exact Hfree.
-    - exact Hcode.
-    - exact Hdata.
-    - by apply Forall_replicate.
-    - iApply (Hexports with "Hswitcher Hstatic Hpers").
-    - iIntros "H". iApply fw_imports_safe_words; first exact Hfc_ok. by iApply "Himports".
-    - iModIntro. by iApply (fw_adv_exports_interp with "Hexp").
+    iIntros "#Hswitcher #Hstatic #Hseal Hmem #Hpers Hstack Himports Hworld".
+    by iMod (fw_close_adv_world_entry fw img σ i fc ub Hc W C Hok Hi Hbody Hnargs Hfree
+           with "Hswitcher Hstatic Hseal Hmem Hpers Hstack Himports Hworld")
+      as "($ & _ & _ & $ & $)".
   Qed.
 
   (** The same, with the stack of the first thread revoked in the world of
@@ -760,3 +845,121 @@ Section adversary.
     - iModIntro. by iApply (fw_adv_exports_interp with "Hexp").
   Qed.
 End adversary.
+
+(** The first thread starts in an untrusted compartment. *)
+Definition fw_entry_untrusted (fw : firmware) : Prop :=
+  match fc_body (fw_entry_fc fw 0) with
+  | UntrustedBody _ => True
+  | TrustedBody _ => False
+  end.
+
+(** The PCC of the compartment the thread [i] starts in, at its base, as
+    its export table holds it. *)
+Definition fw_entry_pcc `{MP : MachineParameters} (fw : firmware) (img : fw_image) (i : nat)
+  : Word :=
+  let m := fw_entry_cmpt fw img i in
+  WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_b_pcc m).
+
+(** ** The obligations of a firmware whose first thread starts in an untrusted compartment
+
+    The case study sets up the worlds from [fw_setup_res] and returns
+    the world [W] of a logical compartment [C] in which the PCC and the CGP
+    of the entry compartment and the thread's stack are safe
+    ([fw_close_adv_world_entry]). The thread then runs by the FTLR
+    ([fundamental_untrusted_thread]): no main specification is needed. *)
+Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParameters}
+    (fw : firmware) :
+  fw_entry_untrusted fw →
+  (∀ (img : fw_image) (σ : ExecConf)
+     (ceriseg : ceriseG Σ) (sealsg : sealStoreG Σ)
+     (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
+     (cstackg : CSTACKG Σ),
+     firmware_ok fw img σ →
+     ⊢ fw_setup_res fw img
+       ={⊤}=∗
+       ∃ (W : WORLD) (C : CmptName),
+         world_interp W C ∗
+         interp W C (fw_entry_pcc fw img 0) ∗
+         interp W C (fw_entry_cgp fw img 0) ∗
+         interp W C (fw_thread_csp img 0)) →
+  fw_obligations Σ fw.
+Proof.
+  intros Huntrusted Hsetup img σ ceriseg sealsg stsg relg cstackg Hok.
+  pose proof Hok as (_ & _ & Hregs & Hwf).
+  destruct (regs_ok_inv _ _ _ Hregs) as (_ & Hin & Hname & _).
+  rewrite /fw_entry_untrusted in Huntrusted.
+  destruct (fc_body (fw_entry_fc fw 0)) as [|ub] eqn:Hbody; first by destruct Huntrusted.
+  pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
+  assert (cmpt_of img (fc_name (fw_entry_fc fw 0)) = fw_entry_cmpt fw img 0) as Hm.
+  { by rewrite Hname /fw_entry_cmpt fw_thread_of_0. }
+  pose proof (img_wf_cmpt_layout _ _ _ Hwf Hin) as Hc. rewrite Hm in Hc.
+  pose proof (icl_exp_tbl_pcc_size _ Hc) as Htbl_cgp_size.
+  assert (cmpt_exp_tbl_cgp (fw_entry_cmpt fw img 0) =
+            (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img 0) ^+ ExportTable_offset_cgp)%a)
+    as Hcgp_eq by solve_addr+Htbl_cgp_size.
+  pose proof (proj2 (icl_cgp_not_heap _ Hc)) as Hcgp_heap.
+  iIntros "Hshared Hthread". iNamed "Hshared". iNamed "Hthread".
+  iDestruct "Hswitcher" as "#Hswitcher".
+  iDestruct "Hswitcher_static" as "#Hswitcher_static".
+  iDestruct "Hseal_switcher" as "#Hseal_switcher".
+  iDestruct "Hassert" as "#Hassert".
+  iMod (fw_cmpts_init with "Hcmpts") as "Hcmpts"; first exact Hok.
+  (* The export table of the entry compartment *)
+  iDestruct (fw_cmpts_res_pers with "Hcmpts") as "[Hcmpts #Hpers_all]".
+  iDestruct (big_sepL_elem_of with "Hpers_all") as "Hpers"; first exact Hin.
+  iEval (rewrite /fw_cmpt_pers_res /fw_handler_res Hbody Hm Hcgp_eq) in "Hpers".
+  iDestruct "Hpers" as "(#Htbl_pcc & #Htbl_cgp & (%eh & %ehs & #Heh & #Hehs) & _)".
+  (* The case study's worlds *)
+  iEval (rewrite fw_thread_of_0) in "Hstack".
+  iMod (Hsetup img σ ceriseg sealsg stsg relg cstackg Hok
+         with "[Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims Hstack]")
+    as (W C) "(Hworld & #Hpcc_i & #Hcgp_i & #Hcsp_i)".
+  { iFrame "∗ #". }
+  (* The thread's stack, outside the heap *)
+  iAssert (entry_stack_interp interp W C (fw_entry_frame fw img 0)) as "#Hstk".
+  { iEval (rewrite /fw_thread_csp) in "Hcsp_i".
+    iDestruct (interp_cap_disjoint_wl with "Hcsp_i") as %[_ Hheap]; first done.
+    iExists RWL, Local, _, _, _.
+    iSplit; first done. iSplit; first done.
+    iModIntro. iExact "Hcsp_i". }
+  (* The registers *)
+  set (regs := <[cra := lword_of_word (fw_thread_cra img)]>
+                 (<[csp := lword_of_word (fw_thread_csp img 0)]>
+                    (<[cgp := lword_of_word (fw_entry_cgp fw img 0)]> fw_cleared_regs))).
+  iAssert (registers_pointsto regs) with "[Hcgp Hcsp Hcra Hregs]" as "Hrmap".
+  { rewrite /registers_pointsto /regs.
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcra").
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcsp").
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcgp").
+    iExact "Hregs". }
+  assert (∀ r, is_Some (regs !! r)) as Hfull.
+  { intros r. rewrite /regs.
+    destruct (decide (r = cra)) as [->|Hr_cra]; first by simplify_map_eq.
+    destruct (decide (r = csp)) as [->|Hr_csp]; first by simplify_map_eq.
+    destruct (decide (r = cgp)) as [->|Hr_cgp]; first by simplify_map_eq.
+    rewrite !lookup_insert_ne //.
+    rewrite fw_cleared_regs_lookup; first done.
+    rewrite fw_cleared_regs_dom.
+    pose proof (all_registers_s_correct r). set_solver. }
+  assert (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) →
+            regs !! r = Some (lword_of_word (WInt 0))) as Hzero.
+  { intros r Hr. rewrite /regs !lookup_insert_ne; [|set_solver..].
+    apply fw_cleared_regs_lookup. rewrite fw_cleared_regs_dom.
+    pose proof (all_registers_s_correct r). set_solver. }
+  iModIntro.
+  iApply (wp_wand with "[-]"); last by iIntros (v) "_".
+  iEval (rewrite /fw_entry_pc Hbody) in "HPC".
+  iEval (rewrite /fw_entry_pcc) in "Hpcc_i".
+  iEval (rewrite /fw_entry_cgp) in "Hcgp_i".
+  iApply (fundamental_untrusted_thread (swlayout := fw_switcher_layout img)
+            (swlayoutWf := Hswl_wf) W C (fw_entry_frame fw img 0)
+            _ _ _ _ _ eh ehs regs Hcgp_heap
+           with "Hswitcher Hswitcher_static Htbl_pcc Htbl_cgp Heh Hehs Hpcc_i Hcgp_i Hstk
+                 HPC Hrmap Hworld Hna Hcstk").
+  - by rewrite /fw_entry_frame /fw_entry_tbl.
+  - exact Hfull.
+  - by rewrite /regs; simplify_map_eq.
+  - by rewrite /regs; simplify_map_eq.
+  - rewrite /regs lookup_insert_eq. by rewrite fw_thread_cra_eq.
+  - exact Hzero.
+Qed.

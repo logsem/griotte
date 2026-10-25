@@ -281,8 +281,11 @@ Section translation.
 
   (** *** Registers
 
-      The first thread starts at an export of a trusted compartment, with
-      interrupts disabled, and the switcher's return sentry in [cra]. *)
+      The first thread starts at an export of its compartment, with
+      interrupts disabled, and the switcher's return sentry in [cra]. The PC
+      of a trusted export is at the offset that the firmware gives; the PC of
+      an untrusted export is at the offset that its entry word in the export
+      table encodes ([export_entry_offset]), as the switcher decodes it. *)
 
   Definition regs_ok (σ : ExecConf) : Prop :=
     match fw_threads fw with
@@ -292,35 +295,44 @@ Section translation.
         let m := cmpt_of img (ft_cmpt ft) in
         let t := thread_of img 0 in
         match fc_body fc with
-        | UntrustedBody _ => note "threads start in trusted compartments" False
         | TrustedBody b =>
             note (ft_cmpt ft ++ ", export " ++ ft_entry ft)
               (pcc σ = WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
                          (addr_off (cmpt_b_pcc m)
-                            (fe_offset (fw_export_named (ft_entry ft) (tb_exports b))))) ∧
-            reg σ !! cgp = Some (WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
-            reg σ !! csp =
-              Some (WCap true RWL Local (b_stack t) (e_stack t)
-                      (e_stack t ^+ (- StackEntry_reserved_space))%a) ∧
-            note "the switcher's return sentry: a return from the entry exits the thread"
-              (reg σ !! cra =
-                 Some (WSentry RetDisable true XSRW_ Local (b_switcher (img_sw img))
-                         (e_switcher (img_sw img)) (a_switcher_return (img_sw img)))) ∧
-            note "every other register cleared"
-              (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
-            sreg σ !! MTDC =
-              Some (WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
-            note "interrupts disabled (the posture of the export is not used yet)"
-              (sreg σ !! MSTATUS = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))) ∧
-            sreg σ !! MTCC =
-              Some (WCap true XSRW_ Local (b_switcher (img_sw img)) (e_switcher (img_sw img))
-                      (a_switcher_call (img_sw img) ^+
-                         assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
-                           ".Lswitch_csp_check" "exception_entry_asm")%a) ∧
-            sreg σ !! MEPCC = Some (WInt 0) ∧
-            sreg σ !! MCAUSE = Some (WInt 0) ∧
-            sreg σ !! MTVAL = Some (WInt 0)
-        end
+                            (fe_offset (fw_export_named (ft_entry ft) (tb_exports b)))))
+        | UntrustedBody b =>
+            match fw_index_of ue_name (ft_entry ft) (ub_exports b) with
+            | None => note ("unknown export " ++ ft_entry ft ++ " of " ++ ft_cmpt ft) False
+            | Some k =>
+                note (ft_cmpt ft ++ ", export " ++ ft_entry ft ++
+                        ", at the offset its entry word encodes")
+                  (∃ z : Z, cmpt_exp_tbl_entries m !! k = Some (WInt z) ∧
+                     pcc σ = WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
+                               (cmpt_b_pcc m ^+ export_entry_offset z)%a)
+            end
+        end ∧
+        reg σ !! cgp = Some (WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
+        reg σ !! csp =
+          Some (WCap true RWL Local (b_stack t) (e_stack t)
+                  (e_stack t ^+ (- StackEntry_reserved_space))%a) ∧
+        note "the switcher's return sentry: a return from the entry exits the thread"
+          (reg σ !! cra =
+             Some (WSentry RetDisable true XSRW_ Local (b_switcher (img_sw img))
+                     (e_switcher (img_sw img)) (a_switcher_return (img_sw img)))) ∧
+        note "every other register cleared"
+          (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
+        sreg σ !! MTDC =
+          Some (WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
+        note "interrupts disabled (the posture of the export is not used yet)"
+          (sreg σ !! MSTATUS = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))) ∧
+        sreg σ !! MTCC =
+          Some (WCap true XSRW_ Local (b_switcher (img_sw img)) (e_switcher (img_sw img))
+                  (a_switcher_call (img_sw img) ^+
+                     assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+                       ".Lswitch_csp_check" "exception_entry_asm")%a) ∧
+        sreg σ !! MEPCC = Some (WInt 0) ∧
+        sreg σ !! MCAUSE = Some (WInt 0) ∧
+        sreg σ !! MTVAL = Some (WInt 0)
     end.
 
   (** *** Layout conditions *)
@@ -419,31 +431,50 @@ Section translation.
        note "closed bounds outside the heap" (is_heap_address (e_assert asrt) = false) ∧
        note "flag" (range_ok (flag_assert asrt) (flag_assert asrt ^+ 1)%a)).
 
-  (** The trusted stack has room for the entry frame and [ft_tstack_frames]
-      frames, [tstack_frame_offset] giving the offset of a frame. The stack
-      holds at least the minimum stack size of the entry plus the space
-      reserved at its top ([StackEntry_reserved_space]). The thread has two
-      hazard slots. *)
-  Definition thread_wf (i : nat) (ft : fw_thread) : Prop :=
+  (** The layout of the thread [i]: its stack, its trusted stack with room
+      for the entry frame and [ft_tstack_frames] frames ([tstack_frame_offset]
+      giving the offset of a frame), and its two hazard slots. [min_stack] is
+      the condition that the stack holds the minimum stack size of the entry
+      plus the space reserved at its top ([StackEntry_reserved_space]). *)
+  Definition thread_layout_ok (i : nat) (ft : fw_thread) (min_stack : Prop) : Prop :=
     let t := thread_of img i in
+    (b_stack t + Z.of_nat (ft_stack_size ft))%a = Some (e_stack t) ∧
+    (b_trusted_stack t + tstack_frame_offset (S (ft_tstack_frames ft)))%a =
+      Some (e_trusted_stack t) ∧
+    note "stack" (range_ok (b_stack t) (e_stack t)) ∧
+    note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t)) ∧
+    note "trusted stack not at address 0" ((b_trusted_stack t : Z) ≠ 0) ∧
+    min_stack ∧
+    (b_hazard t + 2)%a = Some (e_hazard t) ∧
+    note "hazard slots" (range_ok (b_hazard t) (e_hazard t)).
+
+  (** The layout of the thread [i], which starts at an export of a
+      compartment of the firmware. The minimum stack size of a trusted
+      export is the firmware's. That of an untrusted export is the one its
+      entry word encodes ([export_entry_min_stack]), as the switcher decodes
+      it. *)
+  Definition thread_wf (i : nat) (ft : fw_thread) : Prop :=
     section ("thread " ++ nat_str i ++ ", layout")
       (match fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft)) with
-       | UntrustedBody _ => note "threads start in trusted compartments" False
        | TrustedBody b =>
            match fw_find_export (ft_entry ft) (tb_exports b) with
            | None => note ("unknown export " ++ ft_entry ft ++ " of " ++ ft_cmpt ft) False
            | Some e =>
-               (b_stack t + Z.of_nat (ft_stack_size ft))%a = Some (e_stack t) ∧
-               (b_trusted_stack t + tstack_frame_offset (S (ft_tstack_frames ft)))%a =
-                 Some (e_trusted_stack t) ∧
-               note "stack" (range_ok (b_stack t) (e_stack t)) ∧
-               note "trusted stack" (range_ok (b_trusted_stack t) (e_trusted_stack t)) ∧
-               note "trusted stack not at address 0" ((b_trusted_stack t : Z) ≠ 0) ∧
-               note "minimum stack size of the entry"
-                 (Z.of_nat (fe_min_stack e) + StackEntry_reserved_space <=
-                    Z.of_nat (ft_stack_size ft))%Z ∧
-               (b_hazard t + 2)%a = Some (e_hazard t) ∧
-               note "hazard slots" (range_ok (b_hazard t) (e_hazard t))
+               thread_layout_ok i ft
+                 (note "minimum stack size of the entry"
+                    (Z.of_nat (fe_min_stack e) + StackEntry_reserved_space <=
+                       Z.of_nat (ft_stack_size ft))%Z)
+           end
+       | UntrustedBody b =>
+           match fw_index_of ue_name (ft_entry ft) (ub_exports b) with
+           | None => note ("unknown export " ++ ft_entry ft ++ " of " ++ ft_cmpt ft) False
+           | Some k =>
+               thread_layout_ok i ft
+                 (note "minimum stack size of the entry, as its entry word encodes it"
+                    (∃ z : Z,
+                       cmpt_exp_tbl_entries (cmpt_of img (ft_cmpt ft)) !! k = Some (WInt z) ∧
+                       export_entry_min_stack z + StackEntry_reserved_space <=
+                         Z.of_nat (ft_stack_size ft))%Z)
            end
        end).
 
@@ -508,7 +539,7 @@ Ltac reduce_firmware_ok t :=
     hole_exports export_word switcher_mem assert_code_mem assert_flag_mem
     cmpt_mem thread_mem range_ok ranges_ok cmpt_ranges thread_ranges all_ranges
     img_cmpt_words
-    export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf heap_machine_ok
+    export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf thread_layout_ok heap_machine_ok
     fw_map fw_imap fw_imap_from fw_app fw_flat_map big_and big_union nat_str
     addr_off default_export fw_export_named body_str fw_set handler_word
     fw_word_unknown fw_words_unknown chunks_fw_words fc_unknown_export

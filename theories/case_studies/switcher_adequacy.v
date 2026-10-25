@@ -3,6 +3,7 @@ From griotte Require Import logrel fundamental.
 From iris.base_logic Require Import invariants.
 From griotte Require Import compartment_layout.
 From griotte Require Import switcher_base_interp.
+From griotte Require Import switcher_spec_return.
 
 Section helpers_switcher_adequacy.
   Context
@@ -64,7 +65,9 @@ Section helpers_switcher_adequacy.
        compartment, and it is untrusted *)
     iAssert (top_cmpt_untrusted interp W' C cstk) as "#Htop".
     { destruct cstk as [ef [|frm frms] ]; first done.
-      rewrite /top_export_tbl /= in Htop_tbl. rewrite /top_cmpt_untrusted /= Htop_tbl.
+      rewrite /top_export_tbl /= in Htop_tbl.
+      rewrite /top_cmpt_untrusted /top_tframe /= Htop_tbl.
+      iSplit; last done.
       iExists _, _, eh, ehs. iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs".
       iSplit; last (iPureIntro; by apply tf_export_tbl_ok_nonzero).
       iIntros "!>" (W'' Hrelated').
@@ -95,6 +98,83 @@ Section helpers_switcher_adequacy.
     + assert (r ∉ {[cra; cgp; csp]} ∪ dom_arg_rmap args) as Hrrr by set_solver+Hrr Hr_arg.
       iSpecialize ("Hregs_zeros" $! r _ Hrrr Hr); iDestruct "Hregs_zeros" as "->".
       iApply interp_int.
+  Qed.
+
+  (** A thread that starts at an export of an untrusted compartment, with
+      no frame pushed, runs safely by the FTLR: its PC comes from the safe
+      PCC of the compartment's table, its registers are safe (the table's
+      CGP, the thread's stack, the switcher's return sentry in [cra],
+      zeroes), and its entry compartment, at the top of its call stack, is
+      untrusted. *)
+  Lemma fundamental_untrusted_thread
+    (W : WORLD) (C : CmptName) (ef : trusted_frame)
+    (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) :
+    let b_tbl := tf_export_tbl_b ef in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
+    disjoint_from_heap b_cgp e_cgp →
+    ef.(tf_export_tbl) ≠ lword_of_word (WInt 0) →
+    (∀ r, is_Some (regs !! r)) →
+    regs !! cgp = Some (lword_of_word (WCap true RW Global b_cgp e_cgp b_cgp)) →
+    regs !! csp = Some ef.(tf_csp) →
+    regs !! cra = Some (lword_of_word thread_return_sentry) →
+    (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
+    na_inv cerise_nais Nswitcher switcher_inv -∗
+    switcher_static -∗
+    b_tbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc -∗
+    a_tbl_cgp ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp -∗
+    b_tbl ↦ₕ□{stackful} eh -∗
+    b_tbl ↦ₕ□{stackless} ehs -∗
+    interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
+    interp W C (WCap true RW Global b_cgp e_cgp b_cgp) -∗
+    entry_stack_interp interp W C ef -∗
+    PC ↦ₚ WCap true RX Global b_pcc e_pcc a_pc -∗
+    registers_pointsto regs -∗
+    world_interp W C -∗
+    na_own cerise_nais ⊤ -∗
+    cstack_frag (entry_cstack ef) -∗
+    WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.
+    iIntros "#Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
+      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld_interp Hna Hcstk".
+    iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
+      as "#Htrap".
+    iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
+    (* The entry compartment, at the top of the call stack, is untrusted
+       and holds the thread's stack *)
+    iAssert (top_cmpt_untrusted interp W C (entry_cstack ef)) as "#Htop".
+    { rewrite /top_cmpt_untrusted /top_tframe /=.
+      iFrame "Hstk".
+      iExists _, _, eh, ehs. iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs".
+      iSplit; last done.
+      iIntros "!>" (W' Hrelated). iSplit.
+      - iApply (interp_monotone_nl_cap_nonheap W W' C true RX Global
+                  b_pcc e_pcc b_pcc Hpcc_heap Hrelated eq_refl with "Hinterp_pcc").
+      - iApply (interp_monotone_nl_cap_nonheap W W' C true RW Global
+                  b_cgp e_cgp b_cgp Hcgp_heap Hrelated eq_refl with "Hinterp_cgp"). }
+    (* The registers are safe *)
+    iAssert (interp_reg interp W C regs) as "Hregs_interp".
+    { iApply interp_reg_intro; first done.
+      iIntros (r v Hr).
+      destruct (decide (r = cgp)) as [-> | Hrcgp].
+      { rewrite Hregs_cgp in Hr; simplify_eq. iExact "Hinterp_cgp". }
+      destruct (decide (r = cra)) as [-> | Hrcra].
+      { rewrite Hregs_cra in Hr; simplify_eq. rewrite /thread_return_sentry.
+        iApply (interp_switcher_return W C InterruptDisabled
+                 with "[$Hinv_switcher $Hswitcher_static]"). }
+      destruct (decide (r = csp)) as [-> | Hrcsp].
+      { rewrite Hregs_csp in Hr; simplify_eq.
+        iDestruct "Hstk" as (p g b e a _ _) "#$". }
+      rewrite Hregs_zero in Hr; last set_solver+Hrcgp Hrcra Hrcsp.
+      simplify_eq. iApply interp_int. }
+    iAssert (interp_continuation (entry_cstack ef) [] []) as "Hcont".
+    { by rewrite /interp_continuation /interp_cont /=. }
+    iDestruct (interp_lea with "Hinterp_pcc") as "Hinterp_PC"; first done.
+    iDestruct (fundamental with "Htrap Hinterp_PC") as "H_jmp".
+    iSpecialize ("H_jmp" $! (entry_cstack ef) [] [] regs).
+    iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
+    iApply "H_jmp".
+    iFrame "∗ #".
   Qed.
 
   Lemma ot_switcher_interp

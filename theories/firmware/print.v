@@ -282,14 +282,68 @@ Ltac2 label_eq (ind : string) (p : constr) : pline option :=
                                    pp a; " ^+ label "; quote s; ")"]) c)
     end) (fun _ => None).
 
-Ltac2 rec walk (ind : string) (p : constr) : pline list :=
+(** Types, with the names of the address and otype abbreviations. *)
+Ltac2 pp_type (t : constr) : string :=
+  if Constr.equal t constr:(OType) then "OType"
+  else if Constr.equal t constr:(Addr) then "Addr"
+  else pp t.
+
+Ltac2 rec group_binders (hs : (ident * constr option * constr) list) : (string list * constr) list :=
+  match hs with
+  | [] => []
+  | h :: rest =>
+      let (x, _, t) := h in
+      match group_binders rest with
+      | [] => [([Ident.to_string x], t)]
+      | g :: gs =>
+          let (xs, t') := g in
+          if Constr.equal t t' then (Ident.to_string x :: xs, t') :: gs
+          else ([Ident.to_string x], t) :: g :: gs
+      end
+  end.
+
+(** The binder line [∃ x y : T,] or [∃ (x : T) (y : U),] of the
+    existential binders [hs]. *)
+Ltac2 ex_line (hs : (ident * constr) list) : string :=
+  let group g := let (xs, t) := g in String.concat "" [String.concat " " xs; " : "; pp_type t] in
+  match group_binders (List.map (fun h => let (x, t) := h in (x, None, t)) hs) with
+  | [g] => String.concat "" ["∃ "; group g; ","]
+  | gs =>
+      let groups := List.map (fun g => String.concat "" ["("; group g; ")"]) gs in
+      String.concat "" ["∃ "; String.concat " " groups; ","]
+  end.
+
+(** The binder and the body of an existential [p], unless its binder is
+    one of the existential offsets [offs]. *)
+Ltac2 ex_head (offs : ident list) (p : constr) : (ident * constr * constr) option :=
+  lazy_match! p with
+  | @ex _ ?f =>
+      match Constr.Unsafe.kind f with
+      | Constr.Unsafe.Lambda b bd =>
+          match Constr.Binder.name b with
+          | Some x =>
+              if List.exist (Ident.equal x) offs then None else Some (x, Constr.Binder.type b, bd)
+          | None => None
+          end
+      | _ => None
+      end
+  | _ => None
+  end.
+
+(** The walk: an existential prints its binders on a line, then its body
+    one level deeper, except those of the existential offsets [offs]
+    (renamed by [rename_offsets]), printed as terms. *)
+Ltac2 rec walk (offs : ident list) (ind : string) (p : constr) : pline list :=
   match label_eq ind p with
   | Some l => [l]
   | None =>
+  match ex_head offs p with
+  | Some _ => Control.plus (fun () => walk_ex offs ind [] p) (fun _ => [PText ind (pp p) None])
+  | None =>
   lazy_match! p with
-  | section ?t ?q => PHead (heading t) :: walk "  " q
-  | ?a ∧ ?b => List.append (walk ind a) (walk ind b)
-  | note ?c ?q => set_comment (str c) (walk ind q)
+  | section ?t ?q => PHead (heading t) :: walk offs "  " q
+  | ?a ∧ ?b => List.append (walk offs ind a) (walk offs ind b)
+  | note ?c ?q => set_comment (str c) (walk offs ind q)
   | ranges_disjoint ?l => PText ind "ranges_disjoint" None :: indexed ind range_elem (list_of l)
   | ?l = ?r =>
       lazy_match! r with
@@ -304,6 +358,22 @@ Ltac2 rec walk (ind : string) (p : constr) : pline list :=
       end
   | _ => [PText ind (pp p) None]
   end
+  end
+  end
+(** The existential [p] under the binders [acc], in reverse order, each
+    brought into the context under its name. *)
+with walk_ex (offs : ident list) (ind : string) (acc : (ident * constr) list) (p : constr)
+    : pline list :=
+  match ex_head offs p with
+  | Some h =>
+      let (x, t, bd) := h in
+      let r := { contents := [] } in
+      let _ := Constr.in_context x t (fun () =>
+                 r.(contents) :=
+                   walk_ex offs ind ((x, t) :: acc)
+                     (Constr.Unsafe.substnl [Constr.Unsafe.make (Constr.Unsafe.Var x)] 0 bd)) in
+      r.(contents)
+  | None => PText ind (ex_line (List.rev acc)) None :: walk offs (String.app ind "  ") p
   end.
 
 (** *** Layout *)
@@ -387,25 +457,26 @@ Ltac2 contains (s : string) (t : string) : bool :=
                   else if sub_is s i t then true else go (Int.add i 1) in
   go 0.
 
-Ltac2 rec take_eqs (ls : pline list) : pline list * pline list :=
+Ltac2 rec take_eqs (ind : string) (ls : pline list) : pline list * pline list :=
   match ls with
   | [] => ([], [])
   | l :: rest =>
       match l with
-      | PEq _ _ _ _ => let (b, r) := take_eqs rest in (l :: b, r)
+      | PEq i _ _ _ =>
+          if String.equal i ind then let (b, r) := take_eqs ind rest in (l :: b, r) else ([], ls)
       | _ => ([], ls)
       end
   end.
 
-(** Equations of a block of consecutive ones, aligned on [=] as far as
-    the lines fit. *)
+(** Equations of a block of consecutive ones at the same indentation,
+    aligned on [=] as far as the lines fit. *)
 Ltac2 rec align_eqs (ls : pline list) : pline list :=
   match ls with
   | [] => []
   | l :: rest =>
       match l with
-      | PEq _ _ _ _ =>
-          let (blk, rest) := take_eqs ls in
+      | PEq i _ _ _ =>
+          let (blk, rest) := take_eqs i ls in
           let w := List.fold_left (fun m l =>
                      match l with
                      | PEq i a _ _ => let k := Int.add (width i) (width a) in if Int.lt m k then k else m
@@ -517,12 +588,6 @@ Ltac2 rec split_sections (ls : pline list) (cur : pline list) (acc : pline list 
 
 Ltac2 layout (ls : pline list) : string list :=
   List.flat_map layout_section (split_sections ls [] []).
-
-(** Types, with the names of the address and otype abbreviations. *)
-Ltac2 pp_type (t : constr) : string :=
-  if Constr.equal t constr:(OType) then "OType"
-  else if Constr.equal t constr:(Addr) then "Addr"
-  else pp t.
 
 (** *** The existential offsets of the untrusted exports
 
@@ -690,20 +755,6 @@ Ltac2 rename_offsets (p : constr) : constr * (ident * constr * string) list :=
   let p := go p in
   (p, List.rev (out.(contents))).
 
-Ltac2 rec group_binders (hs : (ident * constr option * constr) list) : (string list * constr) list :=
-  match hs with
-  | [] => []
-  | h :: rest =>
-      let (x, _, t) := h in
-      match group_binders rest with
-      | [] => [([Ident.to_string x], t)]
-      | g :: gs =>
-          let (xs, t') := g in
-          if Constr.equal t t' then (Ident.to_string x :: xs, t') :: gs
-          else ([Ident.to_string x], t) :: g :: gs
-      end
-  end.
-
 (** Binder groups [(x y : T)], as many per line as fit: the first line
     starts with [first], the next ones with [cont], the last one ends with
     [last]. *)
@@ -819,7 +870,8 @@ Ltac2 initial_state_lines (c : constr) : string list :=
       let r := { contents := [] } in
       with_goal (fun () => under_binders [] [] body (fun hs es p =>
         let (p, offs) := rename_offsets p in
-        r.(contents) := List.append (layout (header name hs es offs)) (layout (walk "  " p))));
+        let xs := List.map (fun o => let (x, _, _) := o in x) offs in
+        r.(contents) := List.append (layout (header name hs es offs)) (layout (walk xs "  " p))));
       r.(contents)
   | _ => Control.throw (Invalid_argument (Some (Message.of_string "print_initial_state: not a constant")))
   end.

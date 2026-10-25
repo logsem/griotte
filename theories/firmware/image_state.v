@@ -17,26 +17,36 @@ From griotte Require Import image firmware firmware_ok.
 Section img_state.
   Context `{MP : MachineParameters}.
 
-  (** The first thread, its compartment and the offset of its entry. *)
-  Definition thread0_entry (fw : firmware) : string * nat :=
+  (** The first thread, its compartment and the offset of its entry: the
+      firmware's for a trusted export, the one its entry word in [img]
+      encodes for an untrusted one. *)
+  Definition thread0_entry (fw : firmware) (img : fw_image) : string * Z :=
     match fw_threads fw with
-    | [] => ("", 0)
+    | [] => ("", 0%Z)
     | ft :: _ =>
         let off :=
           match fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft)) with
-          | TrustedBody b => fe_offset (fw_export_named (ft_entry ft) (tb_exports b))
-          | UntrustedBody _ => 0
+          | TrustedBody b => Z.of_nat (fe_offset (fw_export_named (ft_entry ft) (tb_exports b)))
+          | UntrustedBody b =>
+              match fw_index_of ue_name (ft_entry ft) (ub_exports b) with
+              | Some k =>
+                  match cmpt_exp_tbl_entries (cmpt_of img (ft_cmpt ft)) !! k with
+                  | Some (WInt z) => export_entry_offset z
+                  | _ => 0%Z
+                  end
+              | None => 0%Z
+              end
           end in
         (ft_cmpt ft, off)
     end.
 
   Definition img_pc (fw : firmware) (img : fw_image) : Word :=
-    let '(n, off) := thread0_entry fw in
+    let '(n, off) := thread0_entry fw img in
     let c := cmpt_of img n in
-    WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c ^+ Z.of_nat off)%a.
+    WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c ^+ off)%a.
 
   Definition img_regs (fw : firmware) (img : fw_image) : Reg :=
-    let c := cmpt_of img (thread0_entry fw).1 in
+    let c := cmpt_of img (thread0_entry fw img).1 in
     let t := thread_of img 0 in
     let sw := img_sw img in
     <[cgp := WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c)]>

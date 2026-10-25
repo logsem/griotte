@@ -585,6 +585,20 @@ Section layout_of_img_wf.
     - destruct (IH Hbody) as [Hin Hname]. split; [by apply list_elem_of_further | done].
   Qed.
 
+  (** An untrusted compartment found by name with the export [e] is in
+      the list: the default compartment has no export. *)
+  Lemma fw_cmpt_of_untrusted (l : list fw_cmpt) (n e : string) ub k :
+    fc_body (fw_cmpt_of l n) = UntrustedBody ub →
+    fw_index_of ue_name e (ub_exports ub) = Some k →
+    fw_cmpt_of l n ∈ l ∧ fc_name (fw_cmpt_of l n) = n.
+  Proof.
+    induction l as [|fc l IH]; cbn.
+    { intros Hbody Hk. injection Hbody as <-. discriminate Hk. }
+    destruct (String.eqb_spec n (fc_name fc)) as [->|Hne]; intros Hbody Hk.
+    - split; [apply list_elem_of_here | done].
+    - destruct (IH Hbody Hk) as [Hin Hname]. split; [by apply list_elem_of_further | done].
+  Qed.
+
   (** The layout conditions of a thread; it starts in a compartment of the
       firmware. *)
   Lemma thread_wf_inv fw img i ft :
@@ -598,13 +612,16 @@ Section layout_of_img_wf.
     range_ok (b_trusted_stack (thread_of img i)) (e_trusted_stack (thread_of img i)) ∧
     (b_trusted_stack (thread_of img i) : Z) ≠ 0.
   Proof.
-    rewrite /thread_wf /section /note.
-    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|] eqn:Hbody;
-      last done.
-    destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
-    intros (Hstack & Htstack & Hrange_stack & Hrange_tstack & Htstack_nonzero & _).
-    destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
-    by split_and!.
+    rewrite /thread_wf /thread_layout_ok /section /note.
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|ub] eqn:Hbody.
+    - destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
+      intros (Hstack & Htstack & Hrange_stack & Hrange_tstack & Htstack_nonzero & _).
+      destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
+      by split_and!.
+    - destruct (fw_index_of ue_name (ft_entry ft) (ub_exports ub)) as [k|] eqn:Hk; last done.
+      intros (Hstack & Htstack & Hrange_stack & Hrange_tstack & Htstack_nonzero & _).
+      destruct (fw_cmpt_of_untrusted _ _ _ _ _ Hbody Hk) as [Hin Hname].
+      by split_and!.
   Qed.
 
   (** The hazard slots of a thread. *)
@@ -613,10 +630,12 @@ Section layout_of_img_wf.
     (b_hazard (thread_of img i) + 2)%a = Some (e_hazard (thread_of img i)) ∧
     range_ok (b_hazard (thread_of img i)) (e_hazard (thread_of img i)).
   Proof.
-    rewrite /thread_wf /section /note.
-    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|]; last done.
-    destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
-    intros (_ & _ & _ & _ & _ & _ & Hsize & Hrange). by split.
+    rewrite /thread_wf /thread_layout_ok /section /note.
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|ub].
+    - destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
+      intros (_ & _ & _ & _ & _ & _ & Hsize & Hrange). by split.
+    - destruct (fw_index_of ue_name (ft_entry ft) (ub_exports ub)); last done.
+      intros (_ & _ & _ & _ & _ & _ & Hsize & Hrange). by split.
   Qed.
 
   (** The capability to the hazard slots of a thread. *)
@@ -836,13 +855,17 @@ Section entry.
   Definition fw_entry_fc (fw : firmware) (i : nat) : fw_cmpt :=
     fw_cmpt_of (fw_cmpts fw) (ft_cmpt (fw_thread_of fw i)).
 
+  (** The offset of the export the thread [i] starts at, for a trusted
+      compartment (the PC of an untrusted entry is [fw_entry_pc]'s). *)
   Definition fw_entry_offset (fw : firmware) (i : nat) : nat :=
     match fc_body (fw_entry_fc fw i) with
     | TrustedBody b => fe_offset (fw_export_named (ft_entry (fw_thread_of fw i)) (tb_exports b))
     | UntrustedBody _ => 0
     end.
 
-  (** The minimum stack size of the export the thread [i] starts at. *)
+  (** The minimum stack size of the export the thread [i] starts at, for a
+      trusted compartment; an untrusted entry's is in its entry word
+      ([thread_wf]), which the obligations do not use. *)
   Definition fw_entry_min_stack (fw : firmware) (i : nat) : nat :=
     match fc_body (fw_entry_fc fw i) with
     | TrustedBody b => fe_min_stack (fw_export_named (ft_entry (fw_thread_of fw i)) (tb_exports b))
@@ -856,22 +879,50 @@ Section entry.
     (b_stack (thread_of img i) + Z.of_nat (fw_entry_min_stack fw i) + StackEntry_reserved_space <=
        e_stack (thread_of img i))%Z.
   Proof.
-    rewrite /thread_wf /fw_entry_min_stack /fw_entry_fc /section /note.
-    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt (fw_thread_of fw i)))) as [tb|];
-      last done.
-    rewrite /fw_export_named.
-    destruct (fw_find_export (ft_entry (fw_thread_of fw i)) (tb_exports tb)) as [e|]; last done.
-    intros (Hstack & _ & _ & _ & _ & Hmin & _).
-    solve_addr+Hstack Hmin.
+    rewrite /thread_wf /thread_layout_ok /fw_entry_min_stack /fw_entry_fc /section /note.
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt (fw_thread_of fw i)))) as [tb|ub].
+    - rewrite /fw_export_named.
+      destruct (fw_find_export (ft_entry (fw_thread_of fw i)) (tb_exports tb)) as [e|]; last done.
+      intros (Hstack & _ & _ & _ & _ & Hmin & _).
+      solve_addr+Hstack Hmin.
+    - destruct (fw_index_of ue_name (ft_entry (fw_thread_of fw i)) (ub_exports ub)); last done.
+      intros (Hstack & _ & _ & _ & _ & (z & _ & Hmin) & _).
+      assert (0 ≤ export_entry_min_stack z)%Z as Hz.
+      { rewrite /export_entry_min_stack /ExportEntry_byte_mask.
+        apply Z.land_nonneg; right; lia. }
+      cbn. solve_addr+Hstack Hmin Hz.
   Qed.
 
   Definition fw_entry_cmpt (fw : firmware) (img : fw_image) (i : nat) : img_cmpt :=
     cmpt_of img (ft_cmpt (fw_thread_of fw i)).
 
+  (** The entry word, in the image's export table, of the export of an
+      untrusted compartment that the thread [i] starts at, as an integer
+      (0 if it is not one). *)
+  Definition fw_entry_word (fw : firmware) (img : fw_image) (i : nat) : Z :=
+    match fc_body (fw_entry_fc fw i) with
+    | UntrustedBody b =>
+        match fw_index_of ue_name (ft_entry (fw_thread_of fw i)) (ub_exports b) with
+        | Some k =>
+            match cmpt_exp_tbl_entries (fw_entry_cmpt fw img i) !! k with
+            | Some (WInt z) => z
+            | _ => 0%Z
+            end
+        | None => 0%Z
+        end
+    | TrustedBody _ => 0%Z
+    end.
+
+  (** The PC of the thread [i]: the PCC of its compartment at the offset of
+      its entry, the firmware's for a trusted compartment, and the one
+      its entry word encodes for an untrusted one. *)
   Definition fw_entry_pc (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let m := fw_entry_cmpt fw img i in
     WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
-      (addr_off (cmpt_b_pcc m) (fw_entry_offset fw i)).
+      (match fc_body (fw_entry_fc fw i) with
+       | TrustedBody _ => addr_off (cmpt_b_pcc m) (fw_entry_offset fw i)
+       | UntrustedBody _ => (cmpt_b_pcc m ^+ export_entry_offset (fw_entry_word fw img i))%a
+       end).
 
   Definition fw_entry_cgp (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let m := fw_entry_cmpt fw img i in
@@ -935,16 +986,21 @@ Section entry.
     (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
     (∀ sr, sreg σ !! sr = Some (fw_initial_sreg img sr)).
   Proof.
-    rewrite /regs_ok /note /fw_entry_pc /fw_entry_cgp /fw_entry_offset /fw_entry_fc
-      /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
+    rewrite /regs_ok /note /fw_entry_pc /fw_entry_cgp /fw_entry_offset /fw_entry_word
+      /fw_entry_fc /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
     destruct (fw_threads fw) as [|ft fts]; first done.
-    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|] eqn:Hbody;
-      last done.
     intros (Hpc & Hcgp & Hcsp & Hcra & Hregs & Hmtdc & Hmstatus & Hmtcc & Hmepcc & Hmcause
             & Hmtval).
-    destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
-    split_and!; [by exists fts | done..|].
-    intros sr. by destruct sr.
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|ub] eqn:Hbody.
+    - destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
+      split_and!; [by exists fts | done..|].
+      intros sr. by destruct sr.
+    - destruct (fw_index_of ue_name (ft_entry ft) (ub_exports ub)) as [k|] eqn:Hk;
+        last by destruct Hpc.
+      destruct Hpc as (z & Hz & Hpc).
+      destruct (fw_cmpt_of_untrusted _ _ _ _ _ Hbody Hk) as [Hin Hname].
+      split_and!; [by exists fts | done | done | by rewrite Hpc Hz /= | done..|].
+      intros sr. by destruct sr.
   Qed.
 End entry.
 

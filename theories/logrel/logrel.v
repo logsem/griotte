@@ -187,59 +187,54 @@ Section logrel.
         by apply IHcstk.
   Qed.
 
+  (** [entry_stack_interp interp W C ef]: the stack pointer that the entry
+      frame [ef] holds, the thread's initial stack, is a capability without
+      identifier, outside the heap, and safe in [W]. *)
+  Definition entry_stack_interp (interp : V) (W : WORLD) (C : CmptName) (ef : trusted_frame)
+    : iProp Σ :=
+    ∃ (p : Perm) (g : Locality) (b e a : Addr),
+      ⌜ef.(tf_csp) = lword_of_word (WCap true p g b e a)⌝ ∗
+      ⌜disjoint_from_heap b e⌝ ∗
+      □ interp W C ef.(tf_csp).
+
   (** [top_cmpt_untrusted interp W C cstk] states that the compartment of the
-      callee of the topmost frame of [cstk] is untrusted: the PCC and the CGP
-      of its export table are safe in every private future world of [W]. It
+      callee of the topmost frame of [cstk] (a pushed frame, or the entry
+      frame when no frame is pushed) is untrusted: the PCC and the CGP of
+      its export table are safe in every private future world of [W]. It
       also records the handler offsets of the header of that table, and that
-      the frame's export table word is set (not [WInt 0]). A thread
-      starts in a trusted compartment, so it is [False] when no frame is
-      pushed above the entry frame. *)
+      the frame's export table word is set (not [WInt 0]). When no frame is
+      pushed, the thread started in that compartment, which holds the
+      thread's stack: a stackless handler receives it at depth 0. *)
   Definition top_cmpt_untrusted (interp : V) (W : WORLD) (C : CmptName) (cstk : CSTK)
     : iProp Σ :=
+    let tf := top_tframe cstk in
+    let b_tbl := tf_export_tbl_b tf in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
+    (∃ (pcc cgp : LWord) (eh ehs : Z),
+       b_tbl ↦ₐ□ pcc ∗
+       a_tbl_cgp ↦ₐ□ cgp ∗
+       b_tbl ↦ₕ□{stackful} eh ∗
+       b_tbl ↦ₕ□{stackless} ehs ∗
+       (□ ∀ W', ⌜related_sts_priv_world W W'⌝ → interp W' C pcc ∗ interp W' C cgp) ∗
+       ⌜tf.(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝) ∗
     match cstk.(cstk_frames) with
-    | frm :: _ =>
-        let b_tbl := tf_export_tbl_b frm.(cf_tframe) in
-        let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
-        ∃ (pcc cgp : LWord) (eh ehs : Z),
-          b_tbl ↦ₐ□ pcc ∗
-          a_tbl_cgp ↦ₐ□ cgp ∗
-          b_tbl ↦ₕ□{stackful} eh ∗
-          b_tbl ↦ₕ□{stackless} ehs ∗
-          (□ ∀ W', ⌜related_sts_priv_world W W'⌝ → interp W' C pcc ∗ interp W' C cgp) ∗
-          ⌜frm.(cf_tframe).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝
-    | [] => False
+    | [] => entry_stack_interp interp W C cstk.(cstk_entry)
+    | _ :: _ => True
     end.
 
   #[global] Instance top_cmpt_untrusted_persistent interp W C cstk :
     Persistent (top_cmpt_untrusted interp W C cstk).
-  Proof. destruct cstk as [ef [|frm frms] ]; apply _. Qed.
+  Proof.
+    rewrite /top_cmpt_untrusted /entry_stack_interp.
+    destruct cstk as [ef [|frm frms] ]; apply _.
+  Qed.
 
   #[global] Instance top_cmpt_untrusted_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) top_cmpt_untrusted.
   Proof.
     intros interp interp' Heq W ? <- C ? <- cstk ? <-.
-    destruct cstk as [ef [|frm frms] ]; [done|]. rewrite /top_cmpt_untrusted. solve_proper.
-  Qed.
-
-  Lemma top_cmpt_untrusted_mono_priv interp W W' C cstk :
-    related_sts_priv_world W W' →
-    top_cmpt_untrusted interp W C cstk -∗ top_cmpt_untrusted interp W' C cstk.
-  Proof.
-    iIntros (Hrelated) "Htop".
-    destruct cstk as [ef [|frm frms] ]; first done.
-    iDestruct "Htop" as (pcc cgp eh ehs) "(Hpcc & Hcgp & Heh & Hehs & #Hinterp & %Htbl_set)".
-    iExists pcc, cgp, eh, ehs. iFrame "Hpcc Hcgp Heh Hehs". iSplit; last done.
-    iIntros "!>" (W'' Hrelated').
-    iApply "Hinterp". iPureIntro.
-    by eapply related_sts_priv_trans_world.
-  Qed.
-
-  Lemma top_cmpt_untrusted_mono_pub interp W W' C cstk :
-    related_sts_pub_world W W' →
-    top_cmpt_untrusted interp W C cstk -∗ top_cmpt_untrusted interp W' C cstk.
-  Proof.
-    intros Hrelated. apply top_cmpt_untrusted_mono_priv.
-    by apply related_sts_pub_priv_world.
+    rewrite /top_cmpt_untrusted /entry_stack_interp.
+    destruct cstk as [ef [|frm frms] ]; solve_proper.
   Qed.
 
   (** [top_cmpt_untrusted] does not read the count of the topmost frame. *)
