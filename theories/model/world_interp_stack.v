@@ -86,6 +86,38 @@ Section WorldInterpStack.
     apply revoke_related_sts_priv_world.
   Qed.
 
+  (** Revoke a stack region, part of which ([bs, es]) has been opened: the
+      open cells are revoked whatever they hold. *)
+  Lemma world_interp_revoke_stack_open {E : coPset} (W : WORLD) (C : CmptName)
+    (b e a bs es : Addr) (lv ws : list LWord) :
+    let la := finz.seq_between b e in
+    let ls := finz.seq_between bs es in
+    (b <= bs)%a → (es <= e)%a →
+
+    interp W C (WCap true RWL Local b e a) ∗
+    world_interp_open W C (LNonHeap <$> ls) ∗
+    ▷ StackOpenWorldResources interp W C ls lv ∗
+    [[ bs , es ]] ↦ₐ [[ ws ]]
+    ={E}=∗
+    ∃ l_unk_temp,
+      ⌜ extract_temporaries_condition W (l_unk_temp ++ (LNonHeap <$> la)) ⌝ ∗
+      world_interp (revoke W) C ∗
+      ▷ StackRevokedResources W C la ∗
+      ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝ ∗
+      ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]]) ∗
+      ▷ RevokedResources W C l_unk_temp ∗
+      ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
+  Proof.
+    intros la ls Hbs Hes.
+    rewrite world_interp_open_eq /world_interp_open_def world_interp_eq /world_interp_def.
+    iIntros "(Hinterp & @ & [Hslot_res >Hslot_states] & Hslot)".
+    iMod (monotone_revoke_stack_open
+           with "[$Hinterp $Hr $Hsts $Hslot_res $Hslot_states $Hslot]")
+      as (l) "($ & $ & $ & $ & $ & $ & $ & $)"; [done|done|].
+    iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
+    apply revoke_related_sts_priv_world.
+  Qed.
+
   Lemma world_interp_reinstate_stack
     { E : coPset } (W : WORLD) (C : CmptName) (la : list Addr) (lv : list LWord) :
     NoDup la →
