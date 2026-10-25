@@ -959,18 +959,20 @@ Section griotte_lang_rules.
 
   (* A fault, for a cause predicate [P_mcause] and a value predicate
      [P_mtval] that the physical cause and value satisfy in every state that
-     erases to logical registers and memory containing [lregs] and [lm]. The
-     register and memory points-to are given back before the obligation
+     erases to logical registers and memory containing [lregs] and the words
+     of [lm]. Each cell of [lm] is held at its own fraction. The register and
+     memory points-to are given back before the obligation
      [trap_safe_cause P_mcause P_mtval w E Φ]. *)
-  Lemma wp_trap_gen E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg) (lm : LMem) dq :
+  Lemma wp_trap_gen_frac E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg)
+    (lm : gmap Addr (dfrac * LWord)) :
     (∀ R C σ lreg lsreg lmem,
-       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → lm ⊆ lmem →
+       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → (snd <$> lm) ⊆ lmem →
        P_mcause (trap_cause σ) ∧ P_mtval (trap_tval σ)) →
     PC ↦ₚ w -∗
     ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
-    ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
+    ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
     (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
-     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
+     ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
      trap_safe_cause P_mcause P_mtval w E Φ) -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
@@ -981,9 +983,12 @@ Section griotte_lang_rules.
     iNamed "Hσ".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hregs") as %Hregs.
-    iAssert ⌜lm ⊆ lmem⌝%I as %Hmem.
+    iAssert ⌜(snd <$> lm) ⊆ lmem⌝%I as %Hmem.
     { rewrite map_subseteq_spec. iIntros (a x Ha).
-      iDestruct (big_sepM_lookup_acc with "Hmem") as "[Ha _]"; first exact Ha.
+      rewrite lookup_fmap in Ha.
+      destruct (lm !! a) as [[q x']|] eqn:Hlm; last done.
+      injection Ha as <-.
+      iDestruct (big_sepM_lookup_acc with "Hmem") as "[Ha _]"; first exact Hlm.
       iApply (gen_heap_valid with "Hm Ha"). }
     pose proof (HP_mcause _ _ _ _ _ _ Her Hregs Hmem) as [Hcause Htval].
     iDestruct ("Hsafe" with "Hregs Hmem") as "[>[Htok HΦ] _]".
@@ -1037,6 +1042,32 @@ Section griotte_lang_rules.
     - iSplitL; last done.
       iApply ("HΦ" with "[$Hmepcc Hmcause Hmtval] HPC").
       iSplitL "Hmcause"; [iExists (trap_cause σ1) | iExists (trap_tval σ1)]; by iFrame.
+  Qed.
+
+  (* A fault, for a cause predicate [P_mcause] and a value predicate
+     [P_mtval] that the physical cause and value satisfy in every state that
+     erases to logical registers and memory containing [lregs] and [lm]. The
+     register and memory points-to are given back before the obligation
+     [trap_safe_cause P_mcause P_mtval w E Φ]. *)
+  Lemma wp_trap_gen E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg) (lm : LMem) dq :
+    (∀ R C σ lreg lsreg lmem,
+       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → lm ⊆ lmem →
+       P_mcause (trap_cause σ) ∧ P_mtval (trap_tval σ)) →
+    PC ↦ₚ w -∗
+    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+    ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
+    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
+     trap_safe_cause P_mcause P_mtval w E Φ) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros (HP) "HPC Hregs Hmem Hsafe".
+    iApply (wp_trap_gen_frac _ _ _ _ _ _ ((λ x, (dq, x)) <$> lm)
+             with "HPC Hregs [Hmem] [Hsafe]").
+    - intros R C σ lreg lsreg lmem Her Hsub Hmsub. apply (HP _ _ _ _ _ _ Her Hsub).
+      by rewrite -map_fmap_compose map_fmap_id in Hmsub.
+    - by rewrite big_sepM_fmap.
+    - rewrite big_sepM_fmap /=. iExact "Hsafe".
   Qed.
 
   (* A fetch fault: the PC is not a correct PC. *)

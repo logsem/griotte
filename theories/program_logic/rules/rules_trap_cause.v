@@ -544,6 +544,33 @@ Section trap_cause.
   Context `{ceriseg : ceriseG Σ}.
 
   (** A fault with the exact cause and value, from the PC [w], the
+      registers [lregs] and the memory [lm], each cell at its own fraction
+      (the code, and the effective address of an access past the capability
+      checks): the obligation receives a cause in [mcause_ok] that is
+      [lcause w lregs (snd <$> lm)], and the value of a fault that
+      [fault_ok] allows. *)
+  Lemma wp_trap_fault_frac E Φ w (lregs : LReg) (lm : gmap Addr (dfrac * LWord)) :
+    lfault_known w lregs (snd <$> lm) →
+    PC ↦ₚ w -∗
+    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+    ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+     ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+     trap_safe_cause
+       (λ c : Z, (mcause_ok c ∧ c = lcause w lregs (snd <$> lm))%type)
+       (λ v : Z, (∃ f, fault_ok w lregs (snd <$> lm) f ∧ v = fault_mtval f)%type)
+       w E Φ) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    intros Hknown. iApply wp_trap_gen_frac.
+    intros R C σ lreg lsreg lmem Her Hregs Hmem. split_and!.
+    - apply trap_cause_ok.
+    - rewrite (erasure_trap_cause _ _ _ _ _ _ _ Her). by apply lcause_frag.
+    - exists (trap_fault σ). split; last done.
+      eapply fault_ok_frag; [done | done | done |]. by eapply erasure_trap_fault.
+  Qed.
+
+  (** A fault with the exact cause and value, from the PC [w], the
       registers [lregs] and the memory [lm] (the code, and the effective
       address of an access past the capability checks): the obligation
       receives a cause in [mcause_ok] that is [lcause w lregs lm], and the
@@ -561,12 +588,12 @@ Section trap_cause.
        w E Φ) -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
-    intros Hknown. iApply wp_trap_gen.
-    intros R C σ lreg lsreg lmem Her Hregs Hmem. split_and!.
-    - apply trap_cause_ok.
-    - rewrite (erasure_trap_cause _ _ _ _ _ _ _ Her). by apply lcause_frag.
-    - exists (trap_fault σ). split; last done.
-      eapply fault_ok_frag; [done | done | done |]. by eapply erasure_trap_fault.
+    iIntros (Hknown) "HPC Hregs Hmem Hsafe".
+    iApply (wp_trap_fault_frac _ _ _ _ ((λ x, (dq, x)) <$> lm)
+             with "HPC Hregs [Hmem] [Hsafe]").
+    - by rewrite -map_fmap_compose map_fmap_id.
+    - by rewrite big_sepM_fmap.
+    - rewrite big_sepM_fmap /= -map_fmap_compose map_fmap_id. iExact "Hsafe".
   Qed.
 
 End trap_cause.
