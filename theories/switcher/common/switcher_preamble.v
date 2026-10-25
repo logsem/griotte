@@ -69,6 +69,34 @@ Section Entry_projections.
     apply Z.mod_small; lia.
   Qed.
 
+  Lemma encode_entry_point_eq_flags mie nargs minstk off_entry :
+    Z.land (encode_entry_point mie nargs minstk off_entry) 255 =
+    entry_point_flags mie nargs.
+  Proof.
+    rewrite /encode_entry_point /entry_point_flags /entry_point_posture
+      /entry_point_irq_disabled_mask.
+    destruct mie; bitblast.
+  Qed.
+
+  Lemma entry_point_flags_nargs mie nargs :
+    (0 ≤ nargs ≤ 7)%Z ->
+    Z.land (entry_point_flags mie nargs) 7 = nargs.
+  Proof.
+    intros Hnargs.
+    rewrite -(encode_entry_point_eq_flags mie nargs 0 0) -Z.land_assoc.
+    change (Z.land 255 7) with 7%Z.
+    by apply encode_entry_point_eq_nargs.
+  Qed.
+
+  Lemma entry_point_flags_posture mie nargs :
+    Z.land (entry_point_flags mie nargs) entry_point_irq_disabled_mask =
+    entry_point_posture mie.
+  Proof.
+    rewrite -(encode_entry_point_eq_flags mie nargs 0 0) -Z.land_assoc.
+    change (Z.land 255 entry_point_irq_disabled_mask) with entry_point_irq_disabled_mask.
+    apply encode_entry_point_eq_posture.
+  Qed.
+
   (** Only the low byte of the minimum stack size is encoded. *)
   Lemma encode_entry_point_minstk_land mie nargs minstk off_entry :
     encode_entry_point mie nargs minstk off_entry =
@@ -486,7 +514,7 @@ Section Switcher_preamble.
       the trap vector is the exception entry of the switcher. *)
   Definition switcher_static : iProp Σ :=
     codefrag_pers a_switcher_call switcher_instrs ∗
-    b_switcher ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher ∗
+    (b_switcher ^+ 1)%a ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher ∗
     ⌜mtcc_vec =
        WCap true XSRW_ Local b_switcher e_switcher
          (a_switcher_call ^+
@@ -725,7 +753,7 @@ Section Switcher_Stack_Traps.
     apply Z.leb_le in H0. apply Z.ltb_lt in Hlt. apply negb_true_iff, Z.eqb_neq in Hne.
     apply trap_no_resume_addr. cbn.
     pose proof switcher_size as Hsize. pose proof switcher_call_entry_point as Hcall.
-    assert (switcher_label_offset ".Lswitch_entry_first_spill" = 8%Z) as Hfirst
+    assert (switcher_label_offset ".Lswitch_entry_first_spill" = 6%Z) as Hfirst
       by reflexivity.
     rewrite Hfirst in Hne |- *.
     remember (length switcher_instrs) as len.

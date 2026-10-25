@@ -4,10 +4,12 @@ From griotte Require Import call_stack switcher_preamble clear_stack_spec clear_
 
 (** * Callback: clear the callee's frame and return to the caller
 
-    [.Lswitcher_zero_callee_frame] clears the stack from its base to the
-    cursor ([clear_stack_asm]), [.Lswitch_callee_dead_zeros] clears the
+    [.Lswitch_callee_stack_zero], at the end of the block
+    [switcher_after_compartment_call], clears the stack from its base to
+    the cursor ([clear_stack_asm]),
+    [.Lswitch_callee_dead_zeros] clears the
     registers that do not hold return values or the caller's restored state
-    ([clear_registers_post_call_asm]), and [.Lswitcher_return_to_caller]
+    ([clear_registers_post_call_asm]), and [.Lswitch_just_return]
     returns to [cra]. [.Lswitch_callee_dead_zeros] is also the target of
     [.Lswitch_trusted_stack_exhausted]. *)
 
@@ -19,10 +21,10 @@ Section Switcher_Zero_Callee_Frame.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** From [.Lswitcher_return_to_caller]: the jump to [wret], which faults
+  (** From [.Lswitch_just_return]: the jump to [wret], which faults
       when [wret] is not a valid target. *)
   Lemma switcher_return_to_caller_spec (wret : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lswitcher_return_to_caller" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_just_return" ∗
     cra ↦ᵣ wret ∗
     switcher_code ∗
     ( ▷ ( PC ↦ₚ lupdatePcPerm wret ∗
@@ -31,12 +33,12 @@ Section Switcher_Zero_Callee_Frame.
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
       ( ⌜jalr_target_ok cnull cra wret.(lw) = false⌝ ∗
         cra ↦ᵣ wret -∗
-        trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+        trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
           (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
-    switcher_open_label ".Lswitcher_return_to_caller" "Hswitcher" as "Hcode" a_ret Ha_ret.
+    switcher_open_label ".Lswitch_just_return" "Hswitcher" as "Hcode" a_ret Ha_ret.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* The fault is at the start of the block. The label would be unfolded
          by the simplifications of [iInstr_fail] *)
@@ -70,7 +72,7 @@ Section Switcher_Zero_Callee_Frame.
           £ 1 -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
         ( ⌜ jalr_target_ok cnull cra wcra.(lw) = false ⌝ -∗
-          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+          trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -80,7 +82,7 @@ Section Switcher_Zero_Callee_Frame.
     iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]");
       try solve_pure.
     iNext; iIntros "(%rmap' & %Hrmap' & HPC & Hrmap & _)".
-    switcher_change_pc_label ".Lswitcher_return_to_caller".
+    switcher_change_pc_label ".Lswitch_just_return".
     iApply (switcher_return_to_caller_spec with "[- $HPC $Hcra $Hswitcher_ret]").
     iSplit.
     - iNext; iIntros "(HPC & Hcra & Hlc)".
@@ -91,27 +93,27 @@ Section Switcher_Zero_Callee_Frame.
       by iApply "Hfailed".
   Qed.
 
-  (** From [.Lswitcher_zero_callee_frame]: clear the caller's free part, the
+  (** From [.Lswitch_callee_stack_zero]: clear the caller's free part, the
       spill area and the callee's stack, from the base of the stack to the
       cursor [a], clear the registers and jump back to the caller [wcra']. *)
   Lemma switcher_zero_callee_frame_spec
     (b e a : Addr) (stk_mem : list LWord)
     (wcs0 wcs1 wcra wcgp : LWord)
-    (wcgp' wcra' wcs1' wcs0' wca2 wctp wct0 : LWord)
+    (wcgp' wcra' wcs1' wcs0' wca2 wctp wct0 wct1 wct2 : LWord)
     (rmap : LReg) :
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_zero_callee_frame" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
     cgp ↦ᵣ wcgp' ∗
     cra ↦ᵣ wcra' ∗
     cs1 ↦ᵣ wcs1' ∗
     cs0 ↦ᵣ wcs0' ∗
     ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ WInt a ∗
-    ct2 ↦ᵣ WCap true RWL Local b e b ∗
+    ct1 ↦ᵣ wct1 ∗
+    ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
     ctp ↦ᵣ wctp ∗
     csp ↦ᵣ WCap true RWL Local b e a ∗
@@ -135,7 +137,7 @@ Section Switcher_Zero_Callee_Frame.
           £ 1 -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
         ( ⌜ jalr_target_ok cnull cra wcra'.(lw) = false ⌝ -∗
-          trap_safe (switcher_label_pc ".Lswitcher_return_to_caller") ⊤
+          trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -143,10 +145,24 @@ Section Switcher_Zero_Callee_Frame.
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp
       & Hcells & Hstk & Hrmap & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_dz"; first iFrame "Hswitcher".
-    switcher_open_label ".Lswitcher_zero_callee_frame" "Hswitcher" as "Hcode".
+    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
+    switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_stack_zero" "HPC".
+    (* GetB ctp csp *)
+    iInstr "Hcode".
+    (* GetA ct1 csp *)
+    iInstr "Hcode".
+    (* SetA ct2 csp ctp *)
+    iInstr "Hcode".
+    iEval (rewrite -(take_drop 19 (encodeInstrsW _))) in "Hcode".
+    iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode_zero]".
+    rewrite length_take_le; last (cbn; lia).
+    iEval (rewrite (_ : (a_block ^+ 19)%a = (a_block ^+ 19%nat)%a); last done) in "HPC".
+    assert (SubBounds b_switcher e_switcher (a_block ^+ 19%nat)%a
+              ((a_block ^+ 19%nat) ^+ length (clear_stack_instrs ct2 ct1))%a) as Hsub_zero.
+    { cbn [length clear_stack_instrs]. clear -H0. solve_addr. }
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
-    iApply (clear_stack_spec with "[ - $HPC $Hct2 $Hct1 $Hcode $Hstk]");
-      [done|done| | | | |done|done|].
+    iApply (clear_stack_spec with "[ - $HPC $Hct2 $Hct1 $Hcode_zero $Hstk]");
+      [done|exact Hsub_zero| | | | |done|done|].
     1-3: clear -Hbounds; revert Hbounds; rewrite /switcher_stk_bounds; stk_unfold;
       intros (Hba & Hba3 & Ha4); solve_addr.
     { by apply disjoint_from_mmio_shadow. }

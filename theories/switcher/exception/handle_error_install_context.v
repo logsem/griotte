@@ -49,7 +49,7 @@ Section Handle_Error_Install_Context.
                       machine_instructions.Add cs1 (inr cs1) (inl 1%Z);
                       Store ctp (inr cs1) TrustedStackFrame_offset_errorHandlerCount;
                       Mov csp (inr ct1);
-                      Jmp (inl 12%Z) ].
+                      Jmp (inl (-131)%Z) ].
 
   (** The loads of the [ErrorState] succeed through a tagged readable
       capability, with the [ErrorState] in bounds from its cursor. *)

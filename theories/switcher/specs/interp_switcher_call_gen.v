@@ -251,8 +251,8 @@ Section fundamental.
     cstack_frag cstk -∗
     ( ⌜ switcher_stk_bounds b e a ⌝ ∗
       PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
-      cs0 ↦ᵣ WInt 0 ∗
-      cs1 ↦ᵣ WInt b_trusted_stack ∗
+      cs0 ↦ᵣ WInt (e_trusted_stack - b_trusted_stack) ∗
+      cs1 ↦ᵣ wcs1 ∗
       ctp ↦ᵣ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       csp ↦ᵣ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -350,8 +350,8 @@ Section fundamental.
     cstack_frag cstk -∗
     ( ⌜ ¬ stk_spill_fits b e a ⌝ ∗
       csp ↦ᵣ WCap true RWL Local b e a ∗
-      ct2 ↦ᵣ WInt 0 ∗
-      ctp ↦ᵣ WInt (encodeLoc Local) ∗
+      ct2 ↦ᵣ WInt COMPARTMENT_STACK_LOCALITY ∗
+      ctp ↦ᵣ WInt COMPARTMENT_STACK_LOCALITY ∗
       cs0 ↦ᵣ wcs0 ∗
       cs1 ↦ᵣ wcs1 ∗
       cra ↦ᵣ wcra ∗
@@ -377,7 +377,8 @@ Section fundamental.
     iDestruct (call_regs_insert with "Hrmap Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1") as "Hrmap".
     iEval (rewrite (call_regs_with_id regs) //) in "Hrmap".
     iApply (interp_trap_safe_untrusted _ W C cstk Ws Cs
-              (<[ctp := (WInt (encodeLoc Local) : LWord)]> (<[ct2 := (WInt 0 : LWord)]> regs))
+              (<[ctp := (WInt COMPARTMENT_STACK_LOCALITY : LWord)]>
+                (<[ct2 := (WInt COMPARTMENT_STACK_LOCALITY : LWord)]> regs))
              with "Htrap [] Htop [-]"); [ |done| |].
     { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
     { by iApply interp_call_regs_scratch. }
@@ -686,7 +687,8 @@ Section fundamental.
              as "Hrmap".
            iEval (rewrite (call_regs_with_id regs) //) in "Hrmap".
            iApply (interp_trap_safe_untrusted _ W C cstk Ws Cs
-                     (<[ctp := (WInt (encodeLoc Local) : LWord)]> (<[ct2 := (WInt 0 : LWord)]> regs))
+                     (<[ctp := (WInt COMPARTMENT_STACK_LOCALITY : LWord)]>
+                (<[ct2 := (WInt COMPARTMENT_STACK_LOCALITY : LWord)]> regs))
                     with "Htrap [] Htop [-]");
              [ |done| |iModIntro; iFrame "Hrmap Hworld_interp Hcont Hna Hcstk"].
            { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }

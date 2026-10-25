@@ -5,8 +5,8 @@ From griotte Require Import switcher_preamble.
 (** * Failure: forced unwind
 
     [.Lcommon_force_unwind] sets the return values [-ECOMPARTMENTFAIL] and
-    0, and jumps ([.Lcommon_force_unwind_return]) to the return routine,
-    [switcher_after_compartment_call], which pops the topmost frame. It is
+    0, and jumps to the return routine, [switcher_after_compartment_call],
+    which pops the topmost frame. It is
     reached when the checks on the stack pointer fail, and from the
     exception path. *)
 

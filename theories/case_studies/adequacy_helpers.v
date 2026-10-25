@@ -108,11 +108,14 @@ Section adequacy_helpers.
       rewrite /cmpt_switcher_code_mregion.
       iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher_sealing Hswitcher]".
       { eapply cmpt_switcher_code_stack_mregion_disjoint ; eauto. }
-      iEval (rewrite /mkregion) in "Hswitcher_sealing".
-      rewrite finz_seq_between_singleton.
-      2: { apply switcher_call_entry_point. }
-      iEval (cbn) in "Hswitcher_sealing".
-      iDestruct (big_sepM_insert with "Hswitcher_sealing") as "[Hswitcher_sealing _]"; first done.
+      (* The data words of the switcher, with its key at their second word *)
+      pose proof (switcher_call_entry_point switcher_cmpt) as Hcall.
+      iDestruct (mkregion_prepare with "[Hswitcher_sealing]") as ">Hswitcher_data"; auto.
+      { exact Hcall. }
+      rewrite /switcher_data_words.
+      rewrite (finz_seq_between_cons (b_switcher switcher_cmpt)); last solve_addr.
+      rewrite (finz_seq_between_cons (b_switcher switcher_cmpt ^+ 1)%a); last solve_addr.
+      iDestruct "Hswitcher_data" as "(_ & Hswitcher_sealing & _)".
       iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
       { apply switcher_size. }
       rewrite /cmpt_switcher_trusted_stack_mregion.

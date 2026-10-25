@@ -125,35 +125,34 @@ Section Handle_Error_Found.
     { rewrite (Z.land_ones _ 1) // Zmod_even Z.even_add Z.even_1. by destruct (Z.even n). }
     iEval (rewrite Hland) in "Hcra".
     destruct (Z.even n) eqn:Hev.
-    2: { (* Jne 2 cra 0 *)
-         iInstr "Hcode".
-         (* Jmp .Lcommon_force_unwind *)
-         iInstr "Hcode".
+    2: { (* Jeq .Lcommon_force_unwind cra 0 *)
+         iInstrApply "Hcode" wp_jcond_success_jmp_r_z with "[$HPC $Hcra]" as "(HPC & Hcra)".
+         { reflexivity. }
          { switcher_jump_label ".Lcommon_force_unwind". }
          subst hpost.
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by left).
          iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell". }
-    (* Jne 2 cra 0 *)
-    iInstr "Hcode".
+    (* Jeq .Lcommon_force_unwind cra 0 *)
+    iInstrApply "Hcode" wp_jcond_success_next_r_z with "[$HPC $Hcra]" as "(HPC & Hcra)".
+    { reflexivity. }
     (* Mov cra MAX_FAULTS_PER_COMPARTMENT_CALL *)
     iInstr "Hcode".
     destruct (decide (cra = cnull)) as [Hcra_null|_]; first done.
-    (* Le cra cs1 cra *)
-    iInstr "Hcode".
-    rewrite /MAX_FAULTS_PER_COMPARTMENT_CALL.
-    destruct (Z.leb_spec (n + 1) 1024) as [Hmax | Hmax].
-    2: { (* Jne 2 cra 0 *)
-         iInstr "Hcode".
-         (* Jmp .Lcommon_force_unwind *)
-         iInstr "Hcode".
+    destruct (Z.leb_spec (n + 1) MAX_FAULTS_PER_COMPARTMENT_CALL) as [Hmax | Hmax].
+    2: { (* Jlt .Lcommon_force_unwind cra cs1 *)
+         iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcra $Hcs1]"
+           as "(HPC & Hcra & Hcs1)".
+         { cbn [jcond_test get_a lw]; apply Z.ltb_lt; rewrite /MAX_FAULTS_PER_COMPARTMENT_CALL in Hmax; lia. }
          { switcher_jump_label ".Lcommon_force_unwind". }
          subst hpost.
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by right).
          iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell". }
-    (* Jne 2 cra 0 *)
-    iInstr "Hcode".
+    (* Jlt .Lcommon_force_unwind cra cs1 *)
+    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hcra $Hcs1]"
+      as "(HPC & Hcra & Hcs1)".
+    { cbn [jcond_test get_a lw]; apply Z.ltb_ge; rewrite /MAX_FAULTS_PER_COMPARTMENT_CALL in Hmax; lia. }
     destruct Htbl as (p' & g' & e' & a' & Hw & Hread & Hbnd & Hshadow & _).
     injection Hw as <- <- <- _.
     rewrite /ExportTable_offset_errorHandlerStackless in Hbnd.
@@ -188,18 +187,17 @@ Section Handle_Error_Found.
     { by rewrite /handler_word Hwr1 /= Hwr2. }
     rewrite -Hhw.
     destruct (decide (z0 = 0)) as [-> | Hz0].
-    - (* Jne 2 ca0 0 *)
-      iInstr "Hcode".
-      (* Jmp .Lhandle_error_stack_setup *)
-      iInstr "Hcode".
+    - (* Jeq .Lhandle_error_stack_setup ca0 0 *)
+      iInstrApply "Hcode" wp_jcond_success_jmp_r_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
+      { reflexivity. }
       { switcher_jump_label ".Lhandle_error_stack_setup". }
       subst hpost.
       iDestruct "Hpost" as "(_ & _ & Hpost)".
       iApply ("Hpost" with "[//] [//]").
       iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell".
-    - (* Jne 2 ca0 0 *)
-      iInstr "Hcode".
-      { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
+    - (* Jeq .Lhandle_error_stack_setup ca0 0 *)
+      iInstrApply "Hcode" wp_jcond_success_next_r_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
+      { cbn [jcond_test get_a lw]; apply Z.eqb_neq; lia. }
       switcher_change_pc_label ".Lhandle_error_stackless_setup".
       subst hpost.
       iDestruct "Hpost" as "(_ & Hpost & _)".

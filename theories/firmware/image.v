@@ -43,8 +43,9 @@ Record img_thread : Type := MkImgThread {
   e_hazard : Addr;
 }.
 
-(** The switcher: its code range, starting with its sealing key, its two
-    entry points and the sealing type of the export entries. *)
+(** The switcher: its code range, starting with its data words (its sealing
+    key the second), its two entry points and the sealing type of the export
+    entries. *)
 Record img_switcher : Type := MkImgSwitcher {
   b_switcher : Addr;
   e_switcher : Addr;

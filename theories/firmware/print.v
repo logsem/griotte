@@ -1083,7 +1083,7 @@ Section memory_map.
     sort_rows
       (app
         [row (b_switcher sw) (Z.to_nat (e_switcher sw - b_switcher sw)%Z) "code" "switcher"
-           [CText "sealing key, switcher_instrs"];
+           [CText "data words (sealing key), switcher_instrs"];
          row (b_assert asrt) (Z.to_nat (e_assert asrt - b_assert asrt)%Z) "code" "assert"
            [CText "assert_subroutine_instrs, flag capability"];
          row (flag_assert asrt) 1 "flag" "assert" []]

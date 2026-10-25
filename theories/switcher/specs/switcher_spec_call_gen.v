@@ -493,8 +493,8 @@ Section Switcher.
       b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
     ( ⌜ switcher_stk_bounds b_stk e_stk a_stk ⌝ ∗
       PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
-      cs0 ↦ᵣ WInt 0 ∗
-      cs1 ↦ᵣ WInt b_trusted_stack ∗
+      cs0 ↦ᵣ WInt (e_trusted_stack - b_trusted_stack) ∗
+      cs1 ↦ᵣ wcs1_caller ∗
       ctp ↦ᵣ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       csp ↦ᵣ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗

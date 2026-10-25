@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import logrel call_stack switcher_preamble switcher_load_spec.
-From griotte Require Import clear_hazard_slots_spec.
+From griotte Require Import clear_hazard_slots_spec switcher_zero_callee_frame.
 
 (** * Callback: pop the trusted stack and restore the caller's registers
 
@@ -11,10 +11,8 @@ From griotte Require Import clear_hazard_slots_spec.
     frame of the thread, the thread exits
     ([.Lcommon_defer_irqs_and_thread_exit]). Otherwise, it reads the
     topmost frame, which contains the stack pointer of the caller, and pops
-    it. [.Lswitcher_restore_spill] restores the callee-save registers of
-    the caller from its spill area, moves the cursor past it, and sets
-    [ct2] to the stack with its cursor at the base, for the zeroing at
-    [.Lswitcher_zero_callee_frame]. Each restored register is the result of
+    it. [.Lswitch_callee_save_restore] restores the callee-save registers of
+    the caller from its spill area, and moves the cursor past it. Each restored register is the result of
     a load, which may clear the tag of a saved heap capability. *)
 
 Section Switcher_After_Compartment_Call.
@@ -51,9 +49,9 @@ Section Switcher_After_Compartment_Call.
     switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lswitcher_restore_spill" ∗
+    ▷ ( PC ↦ₚ switcher_label_pc ".Lswitch_callee_save_restore" ∗
         ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        ct0 ↦ᵣ WInt 1 ∗
+        ct0 ↦ᵣ WInt TrustedStack_offset_frames ∗
         ct1 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
         ct2 ↦ᵣ WInt (tstack_frame_offset (S d)) ∗
         csp ↦ᵣ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -112,15 +110,14 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     (* Add ct2 ct2 (- TrustedStackFrame_size) *)
     iInstr "Hcode".
-    (* Lt ct0 ct0 ct2 *)
-    iInstr "Hcode".
     replace (tstack_frameoffset (S d) + _)%Z with (tstack_frame_offset (S d))
       by (tstack_unfold; lia).
-    destruct (_ <? tstack_frame_offset (S d))%Z eqn:Hnonempty; iEval (cbn) in "Hct0";
-      destruct (decide (ct0 = cnull)) as [Hct0_null|_] in Hnonempty; [done| |done|].
-    2: { exfalso. apply Z.ltb_ge in Hnonempty. tstack_unfold. lia. }
-    (* Jne 2 ct0 0 *)
-    iInstr "Hcode".
+    assert (23 < tstack_frame_offset (S d))%Z as Hnonempty by (tstack_unfold; lia).
+    destruct (decide (ct0 = cnull)) as [Hct0_null|_]; first done.
+    (* Jle .Lcommon_defer_irqs_and_thread_exit ct2 ct0 *)
+    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct2 $Hct0]"
+      as "(HPC & Hct2 & Hct0)".
+    { cbn; apply Z.leb_gt; lia. }
     (* Lea ct1 ctp ct2 *)
     iInstr "Hcode".
     (* CLoad csp ct1 TrustedStackFrame_offset_csp *)
@@ -136,7 +133,7 @@ Section Switcher_After_Compartment_Call.
     assert (tstack_frame_offset (S d) = tstack_frameoffset d) as Hpopped
       by (tstack_unfold; lia).
     iEval (rewrite Hpopped) in "Hframeoffset".
-    switcher_change_pc_label ".Lswitcher_restore_spill".
+    switcher_change_pc_label ".Lswitch_callee_save_restore".
     subst hpost.
     iApply "Hpost".
     iFrame "HPC Hctp Hct0 Hct1 Hct2 Hcsp Hmtdc Hframeoffset Hhazard Ha_tstk Hlc".
@@ -157,7 +154,7 @@ Section Switcher_After_Compartment_Call.
     switcher_code ∗
     ▷ ( PC ↦ₚ switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
         ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        ct0 ↦ᵣ WInt 0 ∗
+        ct0 ↦ᵣ WInt TrustedStack_offset_frames ∗
         ct2 ↦ᵣ WInt (tstack_frame_offset 0) ∗
         mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
@@ -207,43 +204,35 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     (* Add ct2 ct2 (- TrustedStackFrame_size) *)
     iInstr "Hcode".
-    (* Lt ct0 ct0 ct2 *)
-    iInstr "Hcode".
     replace (tstack_frameoffset 0 + _)%Z with (tstack_frame_offset 0)
       by (tstack_unfold; lia).
-    destruct (_ <? tstack_frame_offset 0)%Z eqn:Hnonempty; iEval (cbn) in "Hct0";
-      destruct (decide (ct0 = cnull)) as [Hct0_null|_] in Hnonempty; [done| |done|].
-    { exfalso. apply Z.ltb_lt in Hnonempty. tstack_unfold. lia. }
-    (* Jne 2 ct0 0 *)
-    iInstr "Hcode".
-    (* Jmp .Lcommon_defer_irqs_and_thread_exit *)
-    iInstr "Hcode".
+    assert (tstack_frame_offset 0 <= 23)%Z as Hempty by (tstack_unfold; lia).
+    destruct (decide (ct0 = cnull)) as [Hct0_null|_]; first done.
+    (* Jle .Lcommon_defer_irqs_and_thread_exit ct2 ct0 *)
+    iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct2 $Hct0]"
+      as "(HPC & Hct2 & Hct0)".
+    { cbn; apply Z.leb_le; lia. }
     { switcher_jump_label ".Lcommon_defer_irqs_and_thread_exit". }
     subst hpost.
     iApply "Hpost".
     iFrame "HPC Hctp Hct0 Hct2 Hmtdc Hframeoffset Hhazard".
   Qed.
 
-  (** From [.Lswitcher_restore_spill]: reload the callee-save registers from
-      the spill area at the cursor [a_stk], move the cursor past it, and
-      set [ct2] to the stack with its cursor at the base, for the
-      zeroing. *)
+  (** From [.Lswitch_callee_save_restore]: reload the callee-save registers from
+      the spill area at the cursor [a_stk], and move the cursor past it. *)
   Lemma switcher_restore_spill_spec
     (b_stk e_stk a_stk : Addr)
-    (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old wctp wct1 wct2 : LWord) :
+    (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
     disjoint_from_mmio b_stk e_stk ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_restore_spill" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_callee_save_restore" ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
     cs0 ↦ᵣ wcs0_old ∗
-    ctp ↦ᵣ wctp ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     switcher_code ∗
@@ -252,14 +241,11 @@ Section Switcher_After_Compartment_Call.
           load_heap wcra rcra ∧
           load_heap wcs1 rcs1 ∧
           load_heap wcs0 rcs0⌝ -∗
-        PC ↦ₚ switcher_label_pc ".Lswitcher_zero_callee_frame" ∗
+        PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
         cs0 ↦ᵣ rcs0 ∗
-        ctp ↦ᵣ WInt b_stk ∗
-        ct1 ↦ᵣ WInt (a_stk ^+ SpillSlot_size)%a ∗
-        ct2 ↦ᵣ WCap true RWL Local b_stk e_stk b_stk ∗
         csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
@@ -267,7 +253,7 @@ Section Switcher_After_Compartment_Call.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
-      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hctp & Hct1 & Hct2 & Hcsp
+      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & #Hswitcher & Hpost)".
     rewrite /SpillSlot_size in He_a3.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
@@ -277,7 +263,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
-    switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
+    switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
     iInstrApply "Hcode" (switcher_load_stack_restore _ _ _ _ _ _ _ cs0 csp
@@ -307,7 +293,7 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cgp csp SpillSlot_cgp *)
-    iInstrApply "Hcode" (switcher_load_stack_restore _ _ _ _ _ _ _ cgp csp
+    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore _ _ _ _ _ _ _ cgp csp
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcgp $Hcsp $Ha_stk2]"
       as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2)".
@@ -316,18 +302,12 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* Lea csp csp SpillSlot_size *)
-    iInstr "Hcode".
-    (* GetB ctp csp *)
-    iInstr "Hcode".
-    (* GetA ct1 csp *)
     iInstr "Hcode" with "Hlc".
-    (* SetA ct2 csp ctp *)
-    iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
-    switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    switcher_change_pc_label ".Lswitch_callee_stack_zero".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
-    iFrame "HPC Hcgp Hcra Hcs1 Hcs0 Hctp Hct1 Hct2 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
+    iFrame "HPC Hcgp Hcra Hcs1 Hcs0 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
   Qed.
 
   (** [switcher_restore_spill_spec] where the loads observe the heap of the
@@ -336,21 +316,18 @@ Section Switcher_After_Compartment_Call.
   #[local] Lemma switcher_restore_spill_interp_spec
     Wworld Wval C opened
     (b_stk e_stk a_stk : Addr)
-    (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old wctp wct1 wct2 : LWord) :
+    (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
     heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_restore_spill" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_callee_save_restore" ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
     cs0 ↦ᵣ wcs0_old ∗
-    ctp ↦ᵣ wctp ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     world_interp_open Wworld C opened ∗
@@ -369,14 +346,11 @@ Section Switcher_After_Compartment_Call.
          interp Wval C rcra ∗
          interp Wval C rcs1 ∗
          interp Wval C rcs0) ∗
-        PC ↦ₚ switcher_label_pc ".Lswitcher_zero_callee_frame" ∗
+        PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
         cs0 ↦ᵣ rcs0 ∗
-        ctp ↦ᵣ WInt b_stk ∗
-        ct1 ↦ᵣ WInt (a_stk ^+ SpillSlot_size)%a ∗
-        ct2 ↦ᵣ WCap true RWL Local b_stk e_stk b_stk ∗
         csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
@@ -384,7 +358,7 @@ Section Switcher_After_Compartment_Call.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
-      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hctp & Hct1 & Hct2 & Hcsp
+      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & #Hnormal_gp & #Hnormal_ra
       & #Hnormal_s1 & #Hnormal_s0 & #Hswitcher & Hpost)".
     rewrite /SpillSlot_size in He_a3.
@@ -395,7 +369,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
-    switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
+    switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
     iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ _
@@ -425,7 +399,7 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cgp csp SpillSlot_cgp *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ _
       cgp csp _ _ _ _ _ _ _ _)
       with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hworld $Hnormal_gp]"
       as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hworld & #Hactual_gp)".
@@ -434,19 +408,13 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* Lea csp csp SpillSlot_size *)
-    iInstr "Hcode".
-    (* GetB ctp csp *)
-    iInstr "Hcode".
-    (* GetA ct1 csp *)
     iInstr "Hcode" with "Hlc".
-    (* SetA ct2 csp ctp *)
-    iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
-    switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    switcher_change_pc_label ".Lswitch_callee_stack_zero".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
     iFrame "Hworld Hactual_gp Hactual_ra Hactual_s1 Hactual_s0".
-    iFrame "HPC Hcgp Hcra Hcs1 Hcs0 Hctp Hct1 Hct2 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
+    iFrame "HPC Hcgp Hcra Hcs1 Hcs0 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
   Qed.
 
   (** [switcher_restore_spill_spec] where the loads observe the heap of the
@@ -456,21 +424,18 @@ Section Switcher_After_Compartment_Call.
   Lemma switcher_restore_spill_world_spec
     Wworld Wval C opened (ccrel : caller_callee_relation)
     (b_stk e_stk a_stk : Addr)
-    (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old wctp wct1 wct2 : LWord) :
+    (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
     heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitcher_restore_spill" ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_callee_save_restore" ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
     cs0 ↦ᵣ wcs0_old ∗
-    ctp ↦ᵣ wctp ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     world_interp_open Wworld C opened ∗
@@ -493,14 +458,11 @@ Section Switcher_After_Compartment_Call.
            interp Wval C rcs1 ∗
            interp Wval C rcs0
          else True) ∗
-        PC ↦ₚ switcher_label_pc ".Lswitcher_zero_callee_frame" ∗
+        PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
         cgp ↦ᵣ rcgp ∗
         cra ↦ᵣ rcra ∗
         cs1 ↦ᵣ rcs1 ∗
         cs0 ↦ᵣ rcs0 ∗
-        ctp ↦ᵣ WInt b_stk ∗
-        ct1 ↦ᵣ WInt (a_stk ^+ SpillSlot_size)%a ∗
-        ct2 ↦ᵣ WCap true RWL Local b_stk e_stk b_stk ∗
         csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
@@ -509,13 +471,13 @@ Section Switcher_After_Compartment_Call.
   Proof.
     destruct (is_untrusted_caller ccrel) eqn:Huntrusted.
     { iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
-        "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hctp & Hct1 & Hct2 & Hcsp & Hcells & Hworld
+        "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hworld
         & (Hnormal_gp & Hnormal_ra & Hnormal_s1 & Hnormal_s0) & #Hswitcher & Hpost)".
       iApply (switcher_restore_spill_interp_spec Wworld Wval C opened
-        with "[$HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hctp $Hct1 $Hct2 $Hcsp $Hcells $Hworld
+        with "[$HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hworld
         $Hnormal_gp $Hnormal_ra $Hnormal_s1 $Hnormal_s0 $Hswitcher $Hpost]"); done. }
     iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
-      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hctp & Hct1 & Hct2 & Hcsp
+      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & _ & #Hswitcher & Hpost)".
     rewrite /SpillSlot_size in He_a3.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
@@ -525,7 +487,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
-    switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
+    switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
     iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ _
@@ -555,7 +517,7 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cgp csp SpillSlot_cgp *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ _
       cgp csp _ _ _ _ _ _ _ _)
       with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hworld]"
       as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hworld)".
@@ -564,18 +526,12 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* Lea csp csp SpillSlot_size *)
-    iInstr "Hcode".
-    (* GetB ctp csp *)
-    iInstr "Hcode".
-    (* GetA ct1 csp *)
     iInstr "Hcode" with "Hlc".
-    (* SetA ct2 csp ctp *)
-    iInstr "Hcode" with "Hlc'".
     iCombine "Hlc Hlc'" as "Hlc".
-    switcher_change_pc_label ".Lswitcher_zero_callee_frame".
+    switcher_change_pc_label ".Lswitch_callee_stack_zero".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
-    iFrame "Hworld HPC Hcgp Hcra Hcs1 Hcs0 Hctp Hct1 Hct2 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3
+    iFrame "Hworld HPC Hcgp Hcra Hcs1 Hcs0 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3
       Hlc".
   Qed.
 

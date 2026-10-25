@@ -22,8 +22,8 @@ Section Switcher_unwind.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** From [.Lswitch_just_return], the label of [.Lswitcher_return_to_caller]
-      where the exception path resumes a context: the return to [cra]. *)
+  (** From [.Lswitch_just_return], where the exception path resumes a
+      context: the return to [cra]. *)
   Lemma switcher_just_return_spec (wret : LWord) :
     PC ↦ₚ switcher_label_pc ".Lswitch_just_return" ∗
     cra ↦ᵣ wret ∗
@@ -39,9 +39,6 @@ Section Switcher_unwind.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
-    rewrite (_ : (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a =
-                 (a_switcher_call ^+ switcher_label_offset ".Lswitcher_return_to_caller")%a);
-      last switcher_addr_eq.
     iApply (switcher_return_to_caller_spec with "[$HPC $Hcra $Hswitcher $Hpost]").
   Qed.
 
