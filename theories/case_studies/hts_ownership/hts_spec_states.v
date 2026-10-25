@@ -12,7 +12,7 @@ From griotte Require Export code_blocks.
 (** * Interfaces of the control-flow segments of [hts_main_asm]
 
     The proof of [hts_main_spec] is split along the control flow: each
-    segment ends at a switcher call (or at [halt]), and its lemma hands the
+    segment ends at a switcher call (or at the return), and its lemma hands the
     state right after the call returns to a continuation.  This file defines
     the shared persistent context, the memory threaded unchanged, and one
     state predicate per call-return edge:
@@ -234,7 +234,7 @@ Section HTS_States.
     (∃ mie, cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret) ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk ∗
-    (∃ w, cs0 ↦ᵣ w) ∗
+    cs0 ↦ᵣ thread_return_sentry ∗
     (∃ w, cs1 ↦ᵣ w) ∗
     cstack_frag cstk ∗
     hts_static_mem.
@@ -245,13 +245,20 @@ Section HTS_States.
       ⌜dom rmap = all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝ ∗
       ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝).
 
-  (** Enough to run a failing result check at [a]: [ca0] holds the integer
-      error code [z]. *)
+  (** Enough to run a failing result check at [a], and to return through the
+      switcher's return sentry saved in [cs0], at the thread's entry call
+      stack: [ca0] holds the integer error code [z]. *)
   Definition hts_halt_ready (a : Addr) (z : Z) : iProp Σ :=
     na_own cerise_nais ⊤ ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e a ∗
     ca0 ↦ᵣ WInt z ∗
     (∃ w, ct0 ↦ᵣ w) ∗
+    cs0 ↦ᵣ thread_return_sentry ∗
+    (∃ w, cra ↦ᵣ w) ∗
+    (∃ w, ctp ↦ᵣ w) ∗
+    (∃ w, ct2 ↦ᵣ w) ∗
+    cstack_frag cstk ∗
+    ⌜cstk.(cstk_frames) = []⌝ ∗
     codefrag_pers pc_a hts_main_code.
 
   (** The world shared with the first adversary call: the stack is revoked

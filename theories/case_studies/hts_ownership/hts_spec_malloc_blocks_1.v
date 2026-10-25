@@ -41,6 +41,7 @@ Section HTS_Spec_Malloc.
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
 
   Lemma hts_spec_malloc (rmap : LReg) :
+    cstk.(cstk_frames) = [] ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
     is_heap_address owner_a = false ->
@@ -52,7 +53,7 @@ Section HTS_Spec_Malloc.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
-    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
@@ -60,6 +61,7 @@ Section HTS_Spec_Malloc.
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    cra ↦ᵣ thread_return_sentry ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
     hts_static ∗
     allocator_owner_id hts_main_owner_id ∅ ∗
@@ -71,10 +73,10 @@ Section HTS_Spec_Malloc.
      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
+    iIntros (Hframes Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
       Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hstk_min Hrmap_dom HsubBounds
       Himports_contiguous)
-      "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hrmap & Hstatic & Howner & Hworld
+      "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hcra & Hrmap & Hstatic & Howner & Hworld
        & #Hinterp_csp & HK & Hcstk & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
@@ -158,14 +160,16 @@ Section HTS_Spec_Malloc.
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 4: call malloc. *)
+    (* Block 4: save the return address of the thread and call malloc. *)
     focus_block (hts_block ".Lhts_call_malloc") "Hcode_main" of hts_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iExtractList "Hrmap" [cra] as ["Hcra"].
+    iExtractList "Hrmap" [cs0] as ["Hcs0"].
+    (* Mov cs0 cra *)
+    iInstr "Hcode".
     (* Jalr cra ctp. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 1)%a = (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a) as Ha_ret
+    assert ((a_call ^+ 2)%a = (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a) as Ha_ret
       by (offsets_compute; solve_addr).
     rewrite Ha_ret.
     clear Ha_fetch1 Ha_fetch2 Ha_fetch3.
@@ -176,12 +180,9 @@ Section HTS_Spec_Malloc.
 
     destruct (decide (ca0 = cnull)) as [Hnull|Hnonnull]; first done.
     iEval (cbn) in "Hca0".
-    assert (is_Some (rmap !! cs0)) as [wcs0 Hwcs0].
-    { apply elem_of_dom. rewrite Hrmap_dom. set_solver. }
     assert (is_Some (rmap !! cs1)) as [wcs1 Hwcs1].
     { apply elem_of_dom. rewrite Hrmap_dom. set_solver. }
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5;ct0] as ["Hca2";"Hca3";"Hca4";"Hca5";"Hct0"].
-    iExtractList "Hrmap" [cs0] as ["Hcs0"].
     iExtractList "Hrmap" [cs1] as ["Hcs1"].
     iInsertList "Hrmap" [ctp].
     set (rmap_arg := ({[ ca0 := lword_of_word (allocator_capability Global owner_a);
@@ -194,13 +195,13 @@ Section HTS_Spec_Malloc.
       done. }
     set (rmap_other :=
       <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
-       (delete cs1 (delete cs0 (delete ct0 (delete ca5 (delete ca4 (delete ca3
-         (delete ca2 (delete cra (delete ct1
-           (delete ca0 (delete ca1 rmap)))))))))))).
+       (delete cs1 (delete ct0 (delete ca5 (delete ca4 (delete ca3
+         (delete ca2 (delete cs0 (delete ct1
+           (delete ca0 (delete ca1 rmap))))))))))).
     iPoseProof (hts_malloc_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg cstk
+      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg cstk
       Global owner_a hts_main_owner_id ∅
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
     { exact Howner_shadow. }
@@ -226,7 +227,8 @@ Section HTS_Spec_Malloc.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
-      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) stk_mem_free rmap_arg rmap_other cstk
+      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e) stk_mem_free rmap_arg
+      rmap_other cstk
       allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
@@ -267,7 +269,8 @@ Section HTS_Spec_Malloc.
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".
-      destruct Hrestored as (Hgp & Hra & _ & _).
+      destruct Hrestored as (Hgp & Hra & Hs0 & _).
+      apply load_heap_nonheap in Hs0; [|exact thread_return_sentry_not_heap].
       apply load_heap_nonheap in Hgp.
       2: { destruct Hcgp_heap as [Hcgp_nonheap _].
            rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=.
@@ -275,16 +278,17 @@ Section HTS_Spec_Malloc.
       apply load_heap_nonheap in Hra.
       2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
            reflexivity. }
-      subst rcgp rcra.
+      subst rcgp rcra rcs0.
       iEval (cbn) in "HPC".
       iApply "Hcontinue".
       iEval (rewrite /hts_malloc_result) in "HQ".
       iDestruct "HQ" as "(Howner_word & [(%Hoom & Howner)|Hok])".
       + (* Allocator failure. *)
         destruct Hoom as [-> ->].
-        iLeft. iExists _. iFrame "Hna HPC Hca0 Hcode_main".
-        iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
-        by iExists _.
+        iLeft. iExists _.
+        iExtractList "Hrmap" [ctp;ct0;ct2] as ["[Hctp _]";"[Hct0 _]";"[Hct2 _]"].
+        iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main".
+        done.
       + iDestruct "Hok" as (ι b e)
           "(%Hbounds & _ & _ & %Hret & #Hobj & Hright & Howner & Hzeroed)".
         rewrite union_empty_l_L.
@@ -301,15 +305,17 @@ Section HTS_Spec_Malloc.
         iFrame "∗#".
         iPureIntro. split; [exact Hdom_rmap_ret|exact Hstack_revoked].
     - iNamed "Hcall".
-      destruct Hrestored as (_ & Hra & _ & _).
+      destruct Hrestored as (_ & Hra & Hs0 & _).
       apply load_heap_nonheap in Hra.
       2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
            reflexivity. }
-      subst rcra.
+      apply load_heap_nonheap in Hs0; [|exact thread_return_sentry_not_heap].
+      subst rcra rcs0.
       iEval (cbn) in "HPC".
       iApply "Hcontinue".
-      iLeft. iExists _. iFrame "Hna HPC Hca0 Hcode_main".
-      iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
-      by iExists _.
+      iLeft. iExists _.
+      iExtractList "Hrmap" [ctp;ct0;ct2] as ["[Hctp _]";"[Hct0 _]";"[Hct2 _]"].
+      iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main".
+      done.
   Qed.
 End HTS_Spec_Malloc.
